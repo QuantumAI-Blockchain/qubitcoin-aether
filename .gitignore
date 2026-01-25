@@ -1,42 +1,103 @@
-# Python
+# Python/Qiskit Basics (caches, bytecode for perf/cleanliness)
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
 *.egg-info/
 dist/
 build/
+*.qasm  # Quantum circuits (Qiskit outputs, exclude for security)
 
-# Environment
+# Environments/Secrets (IBM_TOKEN, DATABASE_URL, keys per secure_key.env)
 .env
 .env.*
 !.env.example
 secure_key.env
+*.pem
+*.key
+id_*  # SSH/identity keys (e.g., from generate_keys.py)
 
-# Data directories
+# Virtual Envs/Dev Isolation (venv for deps like Qiskit/Dilithium)
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Data/Logs/DB (CockroachDB replication, logs for debugging per page 12)
 data/
 logs/
 *.log
+*.db
+*.sqlite
+cockroach-data/  # Distributed DB dirs (exclude for node portability)
+db.sqlite3
+db.sqlite3-journal
 
-# IDE
+# P2P/IPFS (libp2p snapshots, chain data per decentralization evolution)
+.ipfs/
+.p2p/  # Potential libp2p storage (Rust bindings)
+
+# IDEs/Editors (VS Code, PyCharm, etc.—common for multi-dev)
 .vscode/
 .idea/
 *.swp
 *.swo
+.spyderproject
+.spyproject
+.ropeproject
+.pyre/
+.pytype/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytest_cache/
+cover/
+.hypothesis/
+.pybuilder/
+target/
+.ipynb_checkpoints
+profile_default/
+ipython_config.py
+__pypackages__/
+celerybeat-schedule
+celerybeat.pid
+*.sage.py
+.scrapy
+docs/_build/
+.site
+local_settings.py
+instance/
+.webassets-cache
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py.cover
+.pdm-python
+.pdm-build/
+.pixi
+marimo/_static/
+marimo/_lsp/
+__marimo__/
+.cursorignore
+.cursorindexingignore
+.pypirc
 
-# OS
+# OS/Installer/Tests (general cleanup)
 .DS_Store
 Thumbs.db
-
-# Database
-*.db
-*.sqlite
-
-# Keys
-*.pem
-*.key
-id_*
+pip-log.txt
+pip-delete-this-directory.txt
+*.manifest
+*.spec
+*.mo
+*.pot
+MANIFEST
