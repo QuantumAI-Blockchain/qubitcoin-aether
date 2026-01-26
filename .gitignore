@@ -40,3 +40,9 @@ private_keys/
 
 # IPFS
 .ipfs/
+
+# Backup files
+*.backup
+*.old
+.env.backup
+data/
