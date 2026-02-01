@@ -1,0 +1,16 @@
+        try:
+            self.db.store_block(block)
+
+            # FIX: Update total supply
+            with self.db.get_session() as session:
+                self.db.update_supply(reward, session)
+                
+                self.db.store_hamiltonian(
+                    hamiltonian=hamiltonian,
+                    params=params.tolist(),
+                    energy=energy,
+                    miner_address=Config.ADDRESS,
+                    block_height=next_height,
+                    session=session
+                )
+                session.commit()

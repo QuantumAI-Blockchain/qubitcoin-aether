@@ -1,0 +1,584 @@
+"""
+RPC API endpoints for Qubitcoin node v2.0
+FastAPI-based HTTP interface with smart contract support
+"""
+
+from typing import Optional
+from decimal import Decimal
+
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+
+from ..config import Config
+from ..database.models import Transaction
+from ..utils.logger import get_logger
+from ..utils.metrics import generate_latest, CONTENT_TYPE_LATEST
+
+logger = get_logger(__name__)
+
+
+def create_rpc_app(db_manager, consensus_engine, mining_engine,
+                   quantum_engine, ipfs_manager, contract_engine, self.contracts) -> FastAPI:
+    """
+    Create FastAPI application with all endpoints including smart contracts
+
+    Args:
+        db_manager: Database manager instance
+        consensus_engine: Consensus engine instance
+        mining_engine: Mining engine instance
+        quantum_engine: Quantum engine instance
+        ipfs_manager: IPFS manager instance
+        contract_engine: Smart contract engine instance
+
+    Returns:
+        Configured FastAPI app
+    """
+
+    app = FastAPI(
+        title="Qubitcoin Node RPC v2.0",
+        version="2.0.0",
+        description="Quantum-secured L1 blockchain with smart contracts"
+    )
+
+    # CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # ========================================================================
+    # NODE INFO ENDPOINTS
+    # ========================================================================
+
+    @app.get("/")
+    async def root():
+        """Get node information"""
+        emission_stats = consensus_engine.get_emission_stats(db_manager)
+        
+        return {
+            "node": "Qubitcoin Full Node v2.0",
+            "version": "2.0.0",
+            "network": "mainnet",
+            "height": db_manager.get_current_height(),
+            "difficulty": mining_engine.stats['current_difficulty'],
+            "address": Config.ADDRESS,
+            "economics": {
+                "model": "Golden Ratio (φ = 1.618...)",
+                "current_reward": emission_stats['current_reward'],
+                "era": emission_stats['current_era'],
+                "supply": emission_stats['total_supply'],
+                "supply_cap": emission_stats['supply_cap'],
+                "percent_emitted": f"{emission_stats['percent_emitted']:.2f}%"
+            },
+            "features": {
+                "smart_contracts": True,
+                "quantum_proofs": True,
+                "post_quantum_crypto": "Dilithium2",
+                "consensus": "Proof-of-SUSY-Alignment"
+            }
+        }
+
+    @app.get("/health")
+    async def health():
+        """Health check endpoint"""
+        return {
+            "status": "healthy",
+            "mining": mining_engine.is_mining,
+            "database": True,
+            "quantum": quantum_engine.estimator is not None,
+            "ipfs": ipfs_manager.client is not None,
+            "contracts": True
+        }
+
+    @app.get("/info")
+    async def node_info():
+        """Detailed node information"""
+        height = db_manager.get_current_height()
+        supply = db_manager.get_total_supply()
+        emission_stats = consensus_engine.get_emission_stats(db_manager)
+
+        return {
+            "node": {
+                "version": "2.0.0",
+                "address": Config.ADDRESS,
+                "uptime": mining_engine.stats.get('uptime', 0)
+            },
+            "blockchain": {
+                "height": height,
+                "total_supply": str(supply),
+                "max_supply": str(Config.TOTAL_SUPPLY),
+                "difficulty": mining_engine.stats['current_difficulty'],
+                "target_block_time": Config.TARGET_BLOCK_TIME,
+                "emission": emission_stats
+            },
+            "mining": {
+                "is_mining": mining_engine.is_mining,
+                "blocks_found": mining_engine.stats['blocks_found'],
+                "total_attempts": mining_engine.stats['total_attempts'],
+                "success_rate": mining_engine.stats['blocks_found'] / max(1, mining_engine.stats['total_attempts'])
+            },
+            "quantum": {
+                "mode": "local" if Config.USE_LOCAL_ESTIMATOR else "ibm",
+                "backend": quantum_engine.backend.name if quantum_engine.backend else "StatevectorEstimator"
+            },
+            "contracts": {
+                "types_supported": Config.SUPPORTED_CONTRACT_TYPES,
+                "deploy_base_gas": str(Config.GAS_CONTRACT_DEPLOY_BASE),
+                "execute_base_gas": str(Config.GAS_CONTRACT_EXECUTE_BASE)
+            }
+        }
+
+    # ========================================================================
+    # BLOCKCHAIN QUERY ENDPOINTS
+    # ========================================================================
+
+    @app.get("/block/{height}")
+    async def get_block(height: int):
+        """Get block by height"""
+        block = db_manager.get_block(height)
+
+        if not block:
+            raise HTTPException(status_code=404, detail="Block not found")
+
+        return block.to_dict()
+
+    @app.get("/chain/info")
+    async def chain_info():
+        """Get blockchain information"""
+        emission_stats = consensus_engine.get_emission_stats(db_manager)
+
+        return {
+            "height": emission_stats['current_height'],
+            "total_supply": str(emission_stats['total_supply']),
+            "max_supply": str(Config.TOTAL_SUPPLY),
+            "percent_emitted": f"{emission_stats['percent_emitted']:.4f}%",
+            "current_era": emission_stats['current_era'],
+            "current_reward": str(emission_stats['current_reward']),
+            "next_halving": {
+                "blocks_remaining": emission_stats['blocks_until_halving'],
+                "hours_remaining": emission_stats['hours_until_halving'],
+                "next_reward": str(emission_stats['next_era_reward'])
+            },
+            "difficulty": mining_engine.stats['current_difficulty'],
+            "target_block_time": Config.TARGET_BLOCK_TIME,
+            "economics": {
+                "model": "Golden Ratio Decay",
+                "halving_factor": str(Config.HALVING_FACTOR),
+                "halving_interval": Config.HALVING_INTERVAL,
+                "initial_reward": str(Config.INITIAL_REWARD)
+            }
+        }
+
+    @app.get("/chain/tip")
+    async def chain_tip():
+        """Get latest block"""
+        height = db_manager.get_current_height()
+
+        if height < 0:
+            raise HTTPException(status_code=404, detail="No blocks yet")
+
+        block = db_manager.get_block(height)
+        return block.to_dict()
+
+    # ========================================================================
+    # ECONOMICS ENDPOINTS
+    # ========================================================================
+
+    @app.get("/economics/emission")
+    async def emission_schedule():
+        """Get emission schedule statistics"""
+        return consensus_engine.get_emission_stats(db_manager)
+
+    @app.get("/economics/simulate")
+    async def simulate_emission(years: int = 50):
+        """
+        Simulate emission schedule for N years
+        
+        Query params:
+            years: Number of years to simulate (default 50)
+        """
+        if years < 1 or years > 100:
+            raise HTTPException(status_code=400, detail="Years must be between 1 and 100")
+        
+        return Config.estimate_emission_schedule(years)
+
+    # ========================================================================
+    # SMART CONTRACT ENDPOINTS
+    # ========================================================================
+
+    @app.post("/contracts/deploy")
+    async def deploy_contract(request: Request):
+        """
+        Deploy a new smart contract
+        
+        Request body:
+        {
+            "deployer_address": "address",
+            "contract_type": "token|nft|launchpad|escrow|governance|quantum_gate",
+            "contract_code": {...},
+            "signature": "hex",
+            "public_key": "hex"
+        }
+        """
+        data = await request.json()
+        
+        success, message, contract_id = contract_engine.deploy_contract(
+            deployer_address=data['deployer_address'],
+            contract_type=data['contract_type'],
+            contract_code=data['contract_code'],
+            signature=data['signature'],
+            public_key=data['public_key']
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+        
+        return {
+            "success": True,
+            "message": message,
+            "contract_id": contract_id,
+            "gas_paid": str(Config.GAS_CONTRACT_DEPLOY_BASE)
+        }
+
+    @app.post("/contracts/execute")
+    async def execute_contract(request: Request):
+        """
+        Execute a contract method
+        
+        Request body:
+        {
+            "contract_id": "uuid",
+            "executor_address": "address",
+            "method": "method_name",
+            "params": {...},
+            "signature": "hex",
+            "public_key": "hex"
+        }
+        """
+        data = await request.json()
+        
+        success, message, result = contract_engine.execute_contract(
+            contract_id=data['contract_id'],
+            executor_address=data['executor_address'],
+            method=data['method'],
+            params=data.get('params', {}),
+            signature=data['signature'],
+            public_key=data['public_key']
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+        
+        return {
+            "success": True,
+            "message": message,
+            "result": result,
+            "gas_paid": str(Config.GAS_CONTRACT_EXECUTE_BASE)
+        }
+
+    @app.get("/contracts/{contract_id}")
+    async def get_contract(contract_id: str):
+        """Get contract details"""
+        with db_manager.get_session() as session:
+            from sqlalchemy import text
+            result = session.execute(
+                text("""
+                    SELECT contract_id, deployer_address, contract_type, 
+                           contract_code, contract_state, gas_paid, 
+                           block_height, deployed_at, execution_count, is_active
+                    FROM contracts WHERE contract_id = :cid
+                """),
+                {'cid': contract_id}
+            ).fetchone()
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="Contract not found")
+            
+            import json
+            return {
+                "contract_id": result[0],
+                "deployer": result[1],
+                "type": result[2],
+                "code": json.loads(result[3]) if isinstance(result[3], str) else result[3],
+                "state": json.loads(result[4]) if isinstance(result[4], str) else result[4],
+                "gas_paid": str(result[5]),
+                "block_height": result[6],
+                "deployed_at": result[7].isoformat() if hasattr(result[7], 'isoformat') else result[7],
+                "execution_count": result[8],
+                "is_active": result[9]
+            }
+
+    @app.get("/contracts")
+    async def list_contracts(contract_type: Optional[str] = None, limit: int = 20):
+        """
+        List deployed contracts
+        
+        Query params:
+            contract_type: Filter by type (optional)
+            limit: Maximum results (default 20, max 100)
+        """
+        if limit > 100:
+            limit = 100
+        
+        with db_manager.get_session() as session:
+            from sqlalchemy import text
+            
+            if contract_type:
+                if contract_type not in Config.SUPPORTED_CONTRACT_TYPES:
+                    raise HTTPException(status_code=400, detail="Invalid contract type")
+                
+                query = text("""
+                    SELECT contract_id, deployer_address, contract_type, 
+                           block_height, deployed_at, execution_count
+                    FROM contracts 
+                    WHERE contract_type = :type AND is_active = true
+                    ORDER BY deployed_at DESC
+                    LIMIT :limit
+                """)
+                results = session.execute(query, {'type': contract_type, 'limit': limit})
+            else:
+                query = text("""
+                    SELECT contract_id, deployer_address, contract_type, 
+                           block_height, deployed_at, execution_count
+                    FROM contracts 
+                    WHERE is_active = true
+                    ORDER BY deployed_at DESC
+                    LIMIT :limit
+                """)
+                results = session.execute(query, {'limit': limit})
+            
+            contracts = []
+            for row in results:
+                contracts.append({
+                    "contract_id": row[0],
+                    "deployer": row[1],
+                    "type": row[2],
+                    "block_height": row[3],
+                    "deployed_at": row[4].isoformat() if hasattr(row[4], 'isoformat') else row[4],
+                    "execution_count": row[5]
+                })
+            
+            return {
+                "count": len(contracts),
+                "contracts": contracts
+            }
+
+    @app.get("/contracts/{contract_id}/executions")
+    async def get_contract_executions(contract_id: str, limit: int = 20):
+        """Get execution history for a contract"""
+        if limit > 100:
+            limit = 100
+        
+        with db_manager.get_session() as session:
+            from sqlalchemy import text
+            results = session.execute(
+                text("""
+                    SELECT execution_id, executor_address, method, params, 
+                           gas_paid, success, result, executed_at
+                    FROM contract_executions
+                    WHERE contract_id = :cid
+                    ORDER BY executed_at DESC
+                    LIMIT :limit
+                """),
+                {'cid': contract_id, 'limit': limit}
+            )
+            
+            import json
+            executions = []
+            for row in results:
+                executions.append({
+                    "execution_id": row[0],
+                    "executor": row[1],
+                    "method": row[2],
+                    "params": json.loads(row[3]) if isinstance(row[3], str) else row[3],
+                    "gas_paid": str(row[4]),
+                    "success": row[5],
+                    "result": json.loads(row[6]) if row[6] and isinstance(row[6], str) else row[6],
+                    "executed_at": row[7].isoformat() if hasattr(row[7], 'isoformat') else row[7]
+                })
+            
+            return {
+                "contract_id": contract_id,
+                "count": len(executions),
+                "executions": executions
+            }
+
+    # ========================================================================
+    # TOKEN CONTRACT SPECIFIC ENDPOINTS
+    # ========================================================================
+
+    @app.get("/tokens/{contract_id}/balance/{address}")
+    async def get_token_balance(contract_id: str, address: str):
+        """Get token balance for address"""
+        with db_manager.get_session() as session:
+            from sqlalchemy import text
+            result = session.execute(
+                text("""
+                    SELECT balance FROM token_balances
+                    WHERE contract_id = :cid AND holder_address = :addr
+                """),
+                {'cid': contract_id, 'addr': address}
+            ).fetchone()
+            
+            balance = result[0] if result else Decimal('0')
+            
+            return {
+                "contract_id": contract_id,
+                "address": address,
+                "balance": str(balance)
+            }
+
+    @app.get("/tokens/{contract_id}/holders")
+    async def get_token_holders(contract_id: str, limit: int = 50):
+        """Get top token holders"""
+        if limit > 100:
+            limit = 100
+        
+        with db_manager.get_session() as session:
+            from sqlalchemy import text
+            results = session.execute(
+                text("""
+                    SELECT holder_address, balance
+                    FROM token_balances
+                    WHERE contract_id = :cid
+                    ORDER BY balance DESC
+                    LIMIT :limit
+                """),
+                {'cid': contract_id, 'limit': limit}
+            )
+            
+            holders = []
+            for row in results:
+                holders.append({
+                    "address": row[0],
+                    "balance": str(row[1])
+                })
+            
+            return {
+                "contract_id": contract_id,
+                "count": len(holders),
+                "holders": holders
+            }
+
+    # ========================================================================
+    # LAUNCHPAD CONTRACT SPECIFIC ENDPOINTS
+    # ========================================================================
+
+    @app.get("/launchpads/{contract_id}")
+    async def get_launchpad(contract_id: str):
+        """Get launchpad sale details"""
+        with db_manager.get_session() as session:
+            from sqlalchemy import text
+            result = session.execute(
+                text("""
+                    SELECT sale_id, raise_target, current_raised, 
+                           token_price, start_time, end_time, status
+                    FROM launchpad_sales
+                    WHERE contract_id = :cid
+                """),
+                {'cid': contract_id}
+            ).fetchone()
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="Launchpad not found")
+            
+            # Get participant count
+            participant_count = session.execute(
+                text("""
+                    SELECT COUNT(DISTINCT participant_address)
+                    FROM launchpad_participants
+                    WHERE sale_id = :sid
+                """),
+                {'sid': result[0]}
+            ).scalar()
+            
+            return {
+                "contract_id": contract_id,
+                "sale_id": result[0],
+                "raise_target": str(result[1]),
+                "current_raised": str(result[2]),
+                "token_price": str(result[3]),
+                "start_time": result[4].isoformat() if hasattr(result[4], 'isoformat') else result[4],
+                "end_time": result[5].isoformat() if hasattr(result[5], 'isoformat') else result[5],
+                "status": result[6],
+                "participant_count": participant_count,
+                "funding_percentage": float(result[2] / result[1] * 100) if result[1] > 0 else 0
+            }
+
+    # ========================================================================
+    # EXISTING ENDPOINTS (preserved from v1)
+    # ========================================================================
+
+    @app.get("/balance/{address}")
+    async def get_balance(address: str):
+        """Get address balance"""
+        balance = db_manager.get_balance(address)
+        utxos = db_manager.get_utxos(address)
+
+        return {
+            "address": address,
+            "balance": str(balance),
+            "utxo_count": len(utxos)
+        }
+
+    @app.get("/utxos/{address}")
+    async def get_utxos(address: str):
+        """Get UTXOs for address"""
+        utxos = db_manager.get_utxos(address)
+
+        return {
+            "address": address,
+            "utxos": [utxo.to_dict() for utxo in utxos],
+            "total": str(sum(utxo.amount for utxo in utxos))
+        }
+
+    @app.get("/mempool")
+    async def get_mempool():
+        """Get mempool transactions"""
+        pending = db_manager.get_pending_transactions()
+        total_fees = sum(tx.fee for tx in pending)
+
+        return {
+            "size": len(pending),
+            "total_fees": str(total_fees),
+            "transactions": [tx.to_dict() for tx in pending[:20]]
+        }
+
+    @app.get("/mining/stats")
+    async def mining_stats():
+        """Get mining statistics"""
+        return {
+            "is_mining": mining_engine.is_mining,
+            "blocks_found": mining_engine.stats['blocks_found'],
+            "total_attempts": mining_engine.stats['total_attempts'],
+            "current_difficulty": mining_engine.stats['current_difficulty'],
+            "success_rate": mining_engine.stats['blocks_found'] / max(1, mining_engine.stats['total_attempts'])
+        }
+
+    @app.post("/mining/start")
+    async def start_mining():
+        """Start mining"""
+        mining_engine.start()
+        return {"status": "Mining started"}
+
+    @app.post("/mining/stop")
+    async def stop_mining():
+        """Stop mining"""
+        mining_engine.stop()
+        return {"status": "Mining stopped"}
+
+    @app.get("/metrics")
+    async def metrics():
+        """Prometheus metrics endpoint"""
+        return Response(
+            content=generate_latest(),
+            media_type=CONTENT_TYPE_LATEST
+        )
+
+    logger.info("✓ RPC endpoints configured (v2.0 with smart contracts)")
+
+    return app

@@ -1,6 +1,6 @@
 """
 Mining engine for Proof-of-SUSY-Alignment
-Handles block creation and mining loop
+Handles block creation and mining loop with SUSY Economics
 """
 
 import threading
@@ -45,7 +45,7 @@ class MiningEngine:
             'current_difficulty': Config.INITIAL_DIFFICULTY
         }
 
-        logger.info("✓ Mining engine initialized")
+        logger.info("✅ Mining engine initialized (SUSY Economics)")
 
     def start(self):
         """Start mining"""
@@ -136,7 +136,10 @@ class MiningEngine:
         try:
             self.db.store_block(block)
 
+            # FIX: Update total supply
             with self.db.get_session() as session:
+                self.db.update_supply(reward, session)
+                
                 self.db.store_hamiltonian(
                     hamiltonian=hamiltonian,
                     params=params.tolist(),
@@ -166,8 +169,7 @@ class MiningEngine:
         prev_block = self.db.get_block(current_height)
         if prev_block and prev_block.block_hash:
             return prev_block.block_hash
-        
-        # If no stored hash, something is critically wrong
+
         logger.error(f"Block {current_height} exists but has no stored hash!")
         return '0' * 64
 
@@ -224,4 +226,4 @@ class MiningEngine:
         table.add_row("Hash", block.block_hash[:16] + "...")
 
         self.console.print(Panel(table))
-        logger.info(f"✓ Block {block.height} mined: {block.block_hash[:16]}...")
+        logger.info(f"✅ Block {block.height} mined: {block.block_hash[:16]}...")

@@ -1,6 +1,6 @@
 """
 Consensus engine for Qubitcoin
-Handles difficulty adjustment, rewards, and validation
+Handles difficulty adjustment, golden ratio rewards, and validation
 """
 
 from decimal import Decimal
@@ -25,12 +25,17 @@ class ConsensusEngine:
         self.crypto = CryptoManager()
         self.difficulty_cache = {}
 
-        logger.info("✓ Consensus engine initialized")
+        logger.info("✅ Consensus engine initialized (SUSY Economics)")
 
     def calculate_reward(self, height: int, total_supply: Decimal) -> Decimal:
         """
-        Calculate block reward with halvings
-
+        Calculate block reward with golden ratio halvings (SUSY Economics)
+        
+        Uses φ (phi) = 1.618033988749895 for halvings
+        Era 0: 15.27 QBC
+        Era 1: 9.437 QBC (15.27 ÷ 1.618)
+        Era 2: 5.833 QBC (9.437 ÷ 1.618)
+        
         Args:
             height: Block height
             total_supply: Current total supply
@@ -38,11 +43,14 @@ class ConsensusEngine:
         Returns:
             Reward amount
         """
-        # Calculate halving epoch
-        halvings = height // Config.HALVING_INTERVAL
+        # Golden ratio constant (φ) - fundamental to SUSY Economics
+        PHI = Decimal('1.618033988749895')
+        
+        # Calculate which era (halving epoch) we're in
+        era = height // Config.HALVING_INTERVAL
 
-        # Base reward with halvings
-        base_reward = Config.INITIAL_REWARD / (2 ** halvings)
+        # Base reward with golden ratio halvings
+        base_reward = Config.INITIAL_REWARD / (PHI ** era)
 
         # Ensure we don't exceed max supply
         remaining = Config.MAX_SUPPLY - total_supply
@@ -53,6 +61,7 @@ class ConsensusEngine:
             logger.warning(f"Max supply reached at height {height}")
             return Decimal(0)
 
+        logger.debug(f"Block {height}: Era {era}, Reward {reward:.8f} QBC")
         return reward
 
     def calculate_difficulty(self, height: int, db_manager) -> float:
@@ -128,7 +137,7 @@ class ConsensusEngine:
             if block.height != expected_height:
                 return False, f"Invalid height: {block.height} != {expected_height}"
 
-            # Validate prev_hash - USE STORED HASH, NOT RECALCULATED
+            # Validate prev_hash - USE STORED HASH
             expected_prev_hash = prev_block.block_hash if prev_block else '0' * 64
             if block.prev_hash != expected_prev_hash:
                 return False, "Invalid prev_hash"
