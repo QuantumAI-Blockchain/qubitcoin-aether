@@ -1,44 +1,33 @@
-version: '3.9'
+version: '3.8'  # you can remove this line if Docker warns it's obsolete
 
 services:
-  # CockroachDB - Single node for local development
-  # For production, use 3+ node cluster
+  # CockroachDB
   cockroachdb:
-    image: cockroachdb/cockroach:v23.2.0
+    image: cockroachdb/cockroach:v24.2.0
     container_name: qbc-cockroachdb
-    command: start-single-node --insecure --advertise-addr=cockroachdb
     ports:
-      - "26257:26257"  # SQL
-      - "8080:8080"    # Admin UI
+      - "26257:26257"  # SQL client
+      - "8080:8080"    # Web UI
     volumes:
       - ./data/cockroach:/cockroach/cockroach-data
+    command: start-single-node --insecure --advertise-addr=localhost
     networks:
       - qbc-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  # IPFS - Local node for snapshots
+  # IPFS
   ipfs:
-    image: ipfs/kubo:v0.25.0
+    image: ipfs/kubo:v0.30.0
     container_name: qbc-ipfs
     ports:
-      - "4001:4001"    # P2P
-      - "5001:5001"    # API
-      - "8081:8080"    # Gateway
+      - "4001:4001"
+      - "5001:5001"
+      - "8081:8080"
     volumes:
       - ./data/ipfs:/data/ipfs
     networks:
       - qbc-network
-    restart: unless-stopped
-    environment:
-      - IPFS_PROFILE=server
-      - IPFS_PATH=/data/ipfs
 
-  # Redis - Caching and rate limiting
+  # Redis
   redis:
     image: redis:7.2-alpine
     container_name: qbc-redis
@@ -48,26 +37,23 @@ services:
       - ./data/redis:/data
     networks:
       - qbc-network
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass qbc_redis_pass_change_in_prod
 
-  # Prometheus - Metrics collection
+  # Prometheus
   prometheus:
     image: prom/prometheus:v2.48.1
     container_name: qbc-prometheus
     ports:
       - "9090:9090"
     volumes:
-      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./data/prometheus:/prometheus
-    networks:
-      - qbc-network
-    restart: unless-stopped
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+    networks:
+      - qbc-network
 
-  # Grafana - Visualization
+  # Grafana
   grafana:
     image: grafana/grafana:10.2.3
     container_name: qbc-grafana
@@ -75,22 +61,26 @@ services:
       - "3000:3000"
     volumes:
       - ./data/grafana:/var/lib/grafana
-      - ./config/grafana:/etc/grafana/provisioning
+    user: "472"
+    depends_on:
+      - prometheus
     networks:
       - qbc-network
-    restart: unless-stopped
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin_change_in_prod
-      - GF_USERS_ALLOW_SIGN_UP=false
+
+  # Optional: Portainer for managing containers via web UI
+  portainer:
+    image: portainer/portainer-ce:2.22.1
+    container_name: qbc-portainer
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/portainer:/data
+    networks:
+      - qbc-network
 
 networks:
   qbc-network:
     driver: bridge
 
-volumes:
-  cockroach-data:
-  ipfs-data:
-  redis-data:
-  prometheus-data:
-  grafana-data:

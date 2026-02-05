@@ -54,7 +54,7 @@ class Config:
     # ============================================================================
     DATABASE_URL: str = os.getenv(
         'DATABASE_URL',
-        'postgresql://root@localhost:30000/qbc?sslmode=verify-full&sslrootcert=/home/ash/qubitcoin/data/certs/ca.crt&sslcert=/home/ash/qubitcoin/data/certs/client.root.crt&sslkey=/home/ash/qubitcoin/data/certs/client.root.key'
+        'postgresql://root@localhost:8080/qbc?sslmode=verify-full&sslrootcert=/home/ash/qubitcoin/data/certs/ca.crt&sslcert=/home/ash/qubitcoin/data/certs/client.root.crt&sslkey=/home/ash/qubitcoin/data/certs/client.root.key'
     )
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20

@@ -2,24 +2,21 @@
 Database manager for CockroachDB
 Handles all database operations with proper compatibility
 """
-
 import json
 import threading
 from decimal import Decimal
 from typing import List, Optional
+import psycopg2  # Added import for extras/register_hstore
 import psycopg2.extras
-
-from sqlalchemy import create_engine, text, event
-from sqlalchemy.orm import sessionmaker, Session as DBSession
+from sqlalchemy import create_engine, text, event, Column, String, BigInteger, Float, Numeric, Boolean, JSON
+from sqlalchemy.orm import sessionmaker, Session as DBSession, declarative_base
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.pool import StaticPool
-
 from .models import UTXO, Transaction, Block
 from ..config import Config
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
-
 
 # Disable psycopg2 hstore for CockroachDB compatibility
 original_register_hstore = psycopg2.extras.register_hstore
@@ -28,10 +25,62 @@ def patched_register_hstore(*args, **kwargs):
     pass
 psycopg2.extras.register_hstore = patched_register_hstore
 
+# ===========================================================
+# SQLAlchemy Base and table definitions for first startup
+# ===========================================================
+Base = declarative_base()
 
+class BlockModel(Base):
+    __tablename__ = 'blocks'
+    height = Column(BigInteger, primary_key=True)
+    prev_hash = Column(String(64))
+    difficulty = Column(Float)
+    proof_json = Column(JSON)
+    created_at = Column(Float)
+    block_hash = Column(String(64))
+
+class TransactionModel(Base):
+    __tablename__ = 'transactions'
+    txid = Column(String(64), primary_key=True)
+    inputs = Column(JSON)
+    outputs = Column(JSON)
+    fee = Column(Numeric)
+    signature = Column(String)
+    public_key = Column(String)
+    timestamp = Column(Float)
+    block_height = Column(BigInteger, nullable=True)
+    status = Column(String, default='pending')
+
+class UTXOModel(Base):
+    __tablename__ = 'utxos'
+    txid = Column(String(64), primary_key=True)
+    vout = Column(BigInteger, primary_key=True)
+    amount = Column(Numeric)
+    address = Column(String)
+    proof = Column(JSON)
+    block_height = Column(BigInteger, nullable=True)
+    spent = Column(Boolean, default=False)
+    spent_by = Column(String, nullable=True)
+
+class SupplyModel(Base):
+    __tablename__ = 'supply'
+    id = Column(BigInteger, primary_key=True, default=1)
+    total_minted = Column(Numeric, default=0)
+
+class SolvedHamiltonianModel(Base):
+    __tablename__ = 'solved_hamiltonians'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    hamiltonian = Column(JSON)
+    params = Column(JSON)
+    energy = Column(Float)
+    miner_address = Column(String)
+    block_height = Column(BigInteger)
+
+# ===========================================================
+# Database Manager
+# ===========================================================
 class DatabaseManager:
     """Manages all database operations"""
-    
     def __init__(self):
         """Initialize database connection"""
         self._patch_sqlalchemy()
@@ -41,14 +90,14 @@ class DatabaseManager:
             autocommit=False,
             autoflush=False
         )
+        self._create_tables()
         self._test_connection()
         logger.info("✓ Database manager initialized")
-    
+
     def _patch_sqlalchemy(self):
         """Patch SQLAlchemy for CockroachDB compatibility"""
         from sqlalchemy.dialects.postgresql import psycopg2 as psycopg2_dialect
         from sqlalchemy.dialects.postgresql import base
-        
         # Patch hstore checks
         original_on_connect = psycopg2_dialect.PGDialect_psycopg2.on_connect
         def patched_on_connect(self):
@@ -56,7 +105,6 @@ class DatabaseManager:
                 pass
             return on_connect
         psycopg2_dialect.PGDialect_psycopg2.on_connect = patched_on_connect
-        
         # Patch version detection
         original_get_version = base.PGDialect._get_server_version_info
         def patched_get_version(self, connection):
@@ -69,7 +117,7 @@ class DatabaseManager:
             except:
                 return (13, 0)
         base.PGDialect._get_server_version_info = patched_get_version
-    
+
     def _create_engine(self):
         """Create SQLAlchemy engine"""
         return create_engine(
@@ -81,7 +129,18 @@ class DatabaseManager:
             max_overflow=Config.DB_MAX_OVERFLOW,
             pool_timeout=Config.DB_POOL_TIMEOUT
         )
-    
+
+    def _create_tables(self):
+        """Create all tables if they don't exist"""
+        Base.metadata.create_all(self.engine)
+        # Ensure supply row exists
+        with self.get_session() as session:
+            res = session.execute(text("SELECT 1 FROM supply WHERE id = 1")).fetchone()
+            if not res:
+                session.execute(text("INSERT INTO supply (id, total_minted) VALUES (1, 0)"))
+                session.commit()
+        logger.info("✅ Tables verified/created")
+
     def _test_connection(self):
         """Test database connection"""
         try:
@@ -91,15 +150,14 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Database connection failed: {e}")
             raise
-    
+
     def get_session(self) -> DBSession:
         """Get database session"""
         return self.SessionLocal()
-    
+
     # ========================================================================
     # UTXO OPERATIONS
     # ========================================================================
-    
     def get_utxos(self, address: str) -> List[UTXO]:
         """Get all unspent outputs for address"""
         with self.get_session() as session:
@@ -112,7 +170,6 @@ class DatabaseManager:
                 """),
                 {'addr': address}
             )
-            
             utxos = []
             for row in result:
                 utxos.append(UTXO(
@@ -125,20 +182,18 @@ class DatabaseManager:
                     spent=row[6]
                 ))
             return utxos
-    
     def mark_utxos_spent(self, inputs: List[dict], txid: str, session: DBSession):
         """Mark UTXOs as spent"""
         for inp in inputs:
             session.execute(
                 text("""
-                    UPDATE utxos 
+                    UPDATE utxos
                     SET spent = true, spent_by = :spent_by
                     WHERE txid = :txid AND vout = :vout AND spent = false
                 """),
                 {'txid': inp['txid'], 'vout': inp['vout'], 'spent_by': txid}
             )
-    
-    def create_utxos(self, txid: str, outputs: List[dict], block_height: int, 
+    def create_utxos(self, txid: str, outputs: List[dict], block_height: int,
                      proof: dict, session: DBSession):
         """Create new UTXOs"""
         for vout, output in enumerate(outputs):
@@ -156,24 +211,21 @@ class DatabaseManager:
                     'height': block_height
                 }
             )
-    
     def get_balance(self, address: str) -> Decimal:
         """Get total balance for address"""
         with self.get_session() as session:
             result = session.execute(
                 text("""
-                    SELECT COALESCE(SUM(amount), 0) 
-                    FROM utxos 
+                    SELECT COALESCE(SUM(amount), 0)
+                    FROM utxos
                     WHERE address = :addr AND spent = false
                 """),
                 {'addr': address}
             )
             return Decimal(result.scalar() or 0)
-    
     # ========================================================================
     # BLOCK OPERATIONS
     # ========================================================================
-    
     def get_current_height(self) -> int:
         """Get current blockchain height"""
         with self.get_session() as session:
@@ -181,7 +233,6 @@ class DatabaseManager:
                 text("SELECT COALESCE(MAX(height), -1) FROM blocks")
             )
             return result.scalar()
-    
     def get_block(self, height: int) -> Optional[Block]:
         """Get block by height"""
         with self.get_session() as session:
@@ -189,16 +240,13 @@ class DatabaseManager:
                 text("SELECT * FROM blocks WHERE height = :h"),
                 {'h': height}
             ).fetchone()
-            
             if not result:
                 return None
-            
             # Get transactions
             tx_results = session.execute(
                 text("SELECT * FROM transactions WHERE block_height = :h"),
                 {'h': height}
             )
-            
             transactions = []
             for tx_row in tx_results:
                 transactions.append(Transaction(
@@ -212,7 +260,6 @@ class DatabaseManager:
                     status=tx_row[7],
                     block_height=height
                 ))
-            
             return Block(
                 height=result[0],
                 prev_hash=result[1],
@@ -222,11 +269,18 @@ class DatabaseManager:
                 difficulty=result[3],
                 block_hash=result[5] if len(result) > 5 else None
             )
-    
     def store_block(self, block: Block):
         """Store block and update UTXOs atomically"""
         with self.get_session() as session:
-            # Insert block - FIXED: Use CAST instead of :: for parameter binding
+            # Check for existing (prevent dups, per multi-node sync)
+            existing = session.execute(
+                text("SELECT 1 FROM blocks WHERE height = :h"),
+                {'h': block.height}
+            ).first()
+            if existing:
+                logger.warning(f"Block {block.height} already exists - skipping (possible dup from P2P)")
+                return  # Or trigger reorg if longer chain
+            # Insert block
             session.execute(
                 text("""
                     INSERT INTO blocks (height, prev_hash, proof_json, difficulty, created_at, block_hash)
@@ -241,45 +295,38 @@ class DatabaseManager:
                     'bh': block.block_hash or block.calculate_hash()
                 }
             )
-            
             # Process transactions
             for tx in block.transactions:
                 # Mark inputs spent (skip coinbase)
                 if tx.inputs:
                     self.mark_utxos_spent(tx.inputs, tx.txid, session)
-                
                 # Create outputs
                 self.create_utxos(tx.txid, tx.outputs, block.height, block.proof_data, session)
-                
                 # Update transaction status
                 session.execute(
                     text("""
-                        UPDATE transactions 
+                        UPDATE transactions
                         SET status = 'confirmed', block_height = :bh
                         WHERE txid = :txid
                     """),
                     {'bh': block.height, 'txid': tx.txid}
                 )
-            
             session.commit()
-    
     # ========================================================================
     # TRANSACTION OPERATIONS
     # ========================================================================
-    
     def get_pending_transactions(self, limit: int = 1000) -> List[Transaction]:
         """Get pending transactions"""
         with self.get_session() as session:
             results = session.execute(
                 text("""
-                    SELECT * FROM transactions 
+                    SELECT * FROM transactions
                     WHERE status = 'pending'
                     ORDER BY CAST(fee AS DECIMAL) DESC
                     LIMIT :limit
                 """),
                 {'limit': limit}
             )
-            
             transactions = []
             for row in results:
                 transactions.append(Transaction(
@@ -293,11 +340,9 @@ class DatabaseManager:
                     status=row[7]
                 ))
             return transactions
-    
     # ========================================================================
     # SUPPLY & ECONOMICS
     # ========================================================================
-    
     def get_total_supply(self) -> Decimal:
         """Get total minted supply"""
         with self.get_session() as session:
@@ -305,24 +350,21 @@ class DatabaseManager:
                 text("SELECT total_minted FROM supply WHERE id = 1")
             )
             return Decimal(result.scalar() or 0)
-    
     def update_supply(self, amount: Decimal, session: DBSession):
         """Update total supply"""
         session.execute(
             text("UPDATE supply SET total_minted = total_minted + :amt WHERE id = 1"),
             {'amt': str(amount)}
         )
-    
     # ========================================================================
     # RESEARCH DATA
     # ========================================================================
-    
     def store_hamiltonian(self, hamiltonian: list, params: list, energy: float,
                          miner_address: str, block_height: int, session: DBSession):
         """Store solved Hamiltonian for research"""
         session.execute(
             text("""
-                INSERT INTO solved_hamiltonians 
+                INSERT INTO solved_hamiltonians
                 (hamiltonian, params, energy, miner_address, block_height)
                 VALUES (CAST(:h AS jsonb), CAST(:p AS jsonb), :e, :a, :bh)
             """),

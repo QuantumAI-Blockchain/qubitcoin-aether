@@ -3,11 +3,17 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'qbc-node'
+  - job_name: 'qbc-node1'
     static_configs:
       - targets: ['host.docker.internal:5000']
+    metrics_path: '/metrics'
+
+  - job_name: 'qbc-node2'
+    static_configs:
+      - targets: ['host.docker.internal:5001']
     metrics_path: '/metrics'
 
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+

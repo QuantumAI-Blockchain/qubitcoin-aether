@@ -1,0 +1,24 @@
+(venv) ash@DESKTOP-EN71KFG:~/qubitcoin$ docker-compose up -d --build
+WARN[0000] /home/ash/qubitcoin/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion
+[+] Building 5.8s (7/10)
+ => [internal] load local bake definitions                                                                                                                                 0.1s
+ => => reading from stdin 927B                                                                                                                                             0.0s
+ => [qbc-node2 internal] load build definition from Dockerfile                                                                                                             0.2s
+ => => transferring dockerfile: 355B                                                                                                                                       0.0s
+ => [qbc-node1 internal] load metadata for docker.io/library/python:3.12-slim                                                                                              3.8s
+ => [qbc-node1 internal] load .dockerignore                                                                                                                                0.1s
+ => => transferring context: 2B                                                                                                                                            0.0s
+ => [qbc-node1 1/5] FROM docker.io/library/python:3.12-slim@sha256:87b49ee9d18db77b0afc7e3adbd994acb9544695217f6e8b4ff352a076a9e6a6                                        0.8s
+ => => resolve docker.io/library/python:3.12-slim@sha256:87b49ee9d18db77b0afc7e3adbd994acb9544695217f6e8b4ff352a076a9e6a6                                                  0.1s
+ => => sha256:26b9936301c272ab42e8359e1866f80ea76dac0f1f97a143ea436b7d3ad85e5c 0B / 1.29MB                                                                                 0.4s
+ => => sha256:0c8d55a45c0dc58de60579b9cc5b708de9e7957f4591fc7de941b67c7e245da0 0B / 29.78MB                                                                                0.4s
+ => => sha256:3e7f1756106a4b36b54ca4328f7474a3b2e2aa2b38a27bea12f4bed31c860fd5 0B / 251B                                                                                   0.5s
+ => ERROR [qbc-node1 internal] load build context                                                                                                                          0.7s
+ => => transferring context: 2.85MB                                                                                                                                        0.6s
+ => CANCELED [qbc-node1 2/5] WORKDIR /app                                                                                                                                  0.0s
+------
+ > [qbc-node1 internal] load build context:
+------
+target qbc-node2: failed to solve: error from sender: open /home/ash/qubitcoin/cockroach-data/auxiliary: permission denied
+
+(venv) ash@DESKTOP-EN71KFG:~/qubitcoin$

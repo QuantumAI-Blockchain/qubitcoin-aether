@@ -2,8 +2,8 @@
 Prometheus metrics for monitoring
 Exports key performance indicators
 """
-
 from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_fastapi_instrumentator import Instrumentator  # Added for FastAPI integration (install if needed: pip install prometheus-fastapi-instrumentator)
 
 # Blockchain metrics
 blocks_mined = Counter('qbc_blocks_mined_total', 'Total blocks mined by this node')
@@ -30,6 +30,11 @@ transactions_confirmed = Counter('qbc_transactions_confirmed_total', 'Total conf
 quantum_backend_metric = Gauge('qbc_quantum_backend', 'Quantum backend type (0=local, 1=simulator, 2=ibm)')
 circuit_depth_metric = Gauge('qbc_circuit_depth', 'Current ansatz circuit depth')
 
+def setup_metrics(app):
+    """Setup Prometheus metrics for FastAPI app"""
+    instrumentator = Instrumentator().instrument(app).expose(app)
+    return instrumentator
+
 # Export functions
 __all__ = [
     'blocks_mined',
@@ -47,6 +52,7 @@ __all__ = [
     'transactions_confirmed',
     'quantum_backend_metric',
     'circuit_depth_metric',
+    'setup_metrics',  # Added to __all__
     'generate_latest',
     'CONTENT_TYPE_LATEST'
 ]

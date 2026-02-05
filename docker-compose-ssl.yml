@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:v23.2.0
+    container_name: cockroachdb
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    volumes:
+      - ./data/cockroach:/cockroach/cockroach-data
+      - ./certs:/cockroach/certs:ro
+    command: start-single-node --certs-dir=/cockroach/certs --advertise-addr=localhost
+    networks:
+      - qbc-network
+
+  ipfs:
+    image: ipfs/kubo:v0.25.0
+    container_name: ipfs
+    ports:
+      - "4001:4001"
+      - "5001:5001"
+      - "8081:8080"
+    volumes:
+      - ./data/ipfs:/data/ipfs
+    networks:
+      - qbc-network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - qbc-network
+
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./data/prometheus:/prometheus
+    networks:
+      - qbc-network
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+    networks:
+      - qbc-network
+
+networks:
+  qbc-network:
+    driver: bridge

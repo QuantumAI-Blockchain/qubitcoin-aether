@@ -1,6 +1,7 @@
 """
 RPC API endpoints for Qubitcoin node v2.0
 FastAPI-based HTTP interface with smart contract support
+NOW WITH P2P ENDPOINTS!
 """
 
 from typing import Optional
@@ -38,7 +39,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     app = FastAPI(
         title="Qubitcoin Node RPC v2.0",
         version="2.0.0",
-        description="Quantum-secured L1 blockchain with smart contracts"
+        description="Quantum-secured L1 blockchain with smart contracts and P2P networking"
     )
 
     # CORS middleware
@@ -62,6 +63,14 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         except:
             emission_stats = {}
         
+        # Get P2P info if available
+        p2p_info = {}
+        if hasattr(app, 'node') and hasattr(app.node, 'p2p'):
+            p2p_info = {
+                'peers': len(app.node.p2p.connections),
+                'port': app.node.p2p.port
+            }
+        
         return {
             "node": "Qubitcoin Full Node v2.0",
             "version": "2.0.0",
@@ -69,32 +78,39 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "height": db_manager.get_current_height(),
             "difficulty": mining_engine.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY),
             "address": Config.ADDRESS,
+            "p2p": p2p_info,
             "economics": {
                 "model": "Golden Ratio (φ = 1.618...)",
                 "current_reward": emission_stats.get('current_reward', 50.0),
                 "era": emission_stats.get('current_era', 0),
                 "supply": emission_stats.get('total_supply', 0),
-                "supply_cap": emission_stats.get('supply_cap', float(Config.TOTAL_SUPPLY)),
+                "supply_cap": emission_stats.get('supply_cap', float(Config.MAX_SUPPLY)),
                 "percent_emitted": f"{emission_stats.get('percent_emitted', 0):.2f}%"
             },
             "features": {
                 "smart_contracts": contract_engine is not None,
                 "quantum_proofs": True,
                 "post_quantum_crypto": "Dilithium2",
-                "consensus": "Proof-of-SUSY-Alignment"
+                "consensus": "Proof-of-SUSY-Alignment",
+                "p2p_networking": True
             }
         }
 
     @app.get("/health")
     async def health():
         """Health check endpoint"""
+        p2p_status = False
+        if hasattr(app, 'node') and hasattr(app.node, 'p2p'):
+            p2p_status = app.node.p2p.running
+        
         return {
             "status": "healthy",
             "mining": mining_engine.is_mining,
             "database": True,
             "quantum": quantum_engine.estimator is not None,
             "ipfs": ipfs_manager.client is not None,
-            "contracts": contract_engine is not None
+            "contracts": contract_engine is not None,
+            "p2p": p2p_status
         }
 
     @app.get("/info")
@@ -109,8 +125,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             emission_stats = {
                 'current_height': height,
                 'total_supply': float(supply),
-                'supply_cap': float(Config.TOTAL_SUPPLY)
+                'supply_cap': float(Config.MAX_SUPPLY)
             }
+        
+        # Get P2P stats if available
+        p2p_stats = {}
+        if hasattr(app, 'node') and hasattr(app.node, 'p2p'):
+            p2p_stats = app.node.p2p.get_stats()
 
         return {
             "node": {
@@ -121,7 +142,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "blockchain": {
                 "height": height,
                 "total_supply": str(supply),
-                "max_supply": str(Config.TOTAL_SUPPLY),
+                "max_supply": str(Config.MAX_SUPPLY),
                 "difficulty": mining_engine.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY),
                 "target_block_time": Config.TARGET_BLOCK_TIME,
                 "emission": emission_stats
@@ -135,7 +156,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "quantum": {
                 "mode": "local" if Config.USE_LOCAL_ESTIMATOR else "ibm",
                 "backend": quantum_engine.backend.name if quantum_engine.backend else "StatevectorEstimator"
-            }
+            },
+            "p2p": p2p_stats
         }
 
     # ========================================================================
@@ -161,10 +183,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             emission_stats = {
                 'current_height': height,
                 'total_supply': float(supply),
-                'supply_cap': float(Config.TOTAL_SUPPLY),
+                'supply_cap': float(Config.MAX_SUPPLY),
                 'current_reward': 50.0,
                 'current_era': 0,
-                'percent_emitted': float(supply / Config.TOTAL_SUPPLY * 100) if Config.TOTAL_SUPPLY > 0 else 0,
+                'percent_emitted': float(supply / Config.MAX_SUPPLY * 100) if Config.MAX_SUPPLY > 0 else 0,
                 'blocks_until_halving': Config.HALVING_INTERVAL,
                 'hours_until_halving': (Config.HALVING_INTERVAL * Config.TARGET_BLOCK_TIME) / 3600
             }
@@ -172,7 +194,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return {
             "height": emission_stats['current_height'],
             "total_supply": str(emission_stats['total_supply']),
-            "max_supply": str(Config.TOTAL_SUPPLY),
+            "max_supply": str(Config.MAX_SUPPLY),
             "percent_emitted": f"{emission_stats['percent_emitted']:.4f}%",
             "current_era": emission_stats.get('current_era', 0),
             "current_reward": str(emission_stats.get('current_reward', 50.0)),
@@ -278,6 +300,66 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return {"status": "Mining stopped"}
 
     # ========================================================================
+    # P2P NETWORK ENDPOINTS (NEW!)
+    # ========================================================================
+
+    @app.get("/p2p/peers")
+    async def get_p2p_peers():
+        """Get list of connected P2P peers"""
+        if not hasattr(app, 'node') or not hasattr(app.node, 'p2p'):
+            raise HTTPException(status_code=503, detail="P2P network not available")
+        
+        peers = app.node.p2p.get_peer_list()
+        
+        return {
+            "peer_count": len(peers),
+            "max_peers": app.node.p2p.max_peers,
+            "port": app.node.p2p.port,
+            "peer_id": app.node.p2p.peer_id,
+            "peers": peers
+        }
+
+    @app.get("/p2p/stats")
+    async def get_p2p_stats():
+        """Get P2P network statistics"""
+        if not hasattr(app, 'node') or not hasattr(app.node, 'p2p'):
+            raise HTTPException(status_code=503, detail="P2P network not available")
+        
+        stats = app.node.p2p.get_stats()
+        
+        return {
+            "network": {
+                "connected_peers": stats['connected_peers'],
+                "max_peers": stats['max_peers'],
+                "port": stats['port'],
+                "peer_id": stats['peer_id']
+            },
+            "messages": {
+                "sent": stats['messages_sent'],
+                "received": stats['messages_received'],
+                "blocks_propagated": stats['blocks_propagated'],
+                "txs_propagated": stats['txs_propagated']
+            },
+            "connections": {
+                "made": stats['connections_made'],
+                "dropped": stats['connections_dropped'],
+                "active": stats['connected_peers']
+            }
+        }
+
+    @app.post("/p2p/connect")
+    async def connect_to_peer(address: str):
+        """Connect to a peer manually"""
+        if not hasattr(app, 'node') or not hasattr(app.node, 'p2p'):
+            raise HTTPException(status_code=503, detail="P2P network not available")
+        
+        try:
+            await app.node.p2p.connect_to_peer(address)
+            return {"status": "success", "message": f"Connecting to {address}"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to connect: {str(e)}")
+
+    # ========================================================================
     # METRICS ENDPOINT
     # ========================================================================
 
@@ -289,6 +371,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             media_type=CONTENT_TYPE_LATEST
         )
 
-    logger.info("✓ RPC endpoints configured (v2.0)")
+    logger.info("✓ RPC endpoints configured (v2.0 with P2P)")
 
     return app
