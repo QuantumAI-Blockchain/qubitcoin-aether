@@ -1,18 +1,16 @@
-version: '3.8'  # you can remove this line if Docker warns it's obsolete
-
 services:
-  # CockroachDB
+  # CockroachDB Node 1
   cockroachdb:
     image: cockroachdb/cockroach:v24.2.0
     container_name: qbc-cockroachdb
     ports:
-      - "26257:26257"  # SQL client
-      - "8080:8080"    # Web UI
+      - "26257:26257"
+      - "8080:8080"
     volumes:
       - ./data/cockroach:/cockroach/cockroach-data
-    command: start-single-node --insecure --advertise-addr=localhost
+    command: start --insecure --advertise-addr=qbc-cockroachdb --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --join=qbc-cockroachdb
     networks:
-      - qbc-network
+      - qbc-net
 
   # IPFS
   ipfs:
@@ -25,7 +23,7 @@ services:
     volumes:
       - ./data/ipfs:/data/ipfs
     networks:
-      - qbc-network
+      - qbc-net
 
   # Redis
   redis:
@@ -36,7 +34,7 @@ services:
     volumes:
       - ./data/redis:/data
     networks:
-      - qbc-network
+      - qbc-net
 
   # Prometheus
   prometheus:
@@ -51,7 +49,7 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
     networks:
-      - qbc-network
+      - qbc-net
 
   # Grafana
   grafana:
@@ -65,9 +63,9 @@ services:
     depends_on:
       - prometheus
     networks:
-      - qbc-network
+      - qbc-net
 
-  # Optional: Portainer for managing containers via web UI
+  # Portainer
   portainer:
     image: portainer/portainer-ce:2.22.1
     container_name: qbc-portainer
@@ -78,9 +76,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./data/portainer:/data
     networks:
-      - qbc-network
+      - qbc-net
 
 networks:
-  qbc-network:
-    driver: bridge
-
+  qbc-net:
+    external: true
