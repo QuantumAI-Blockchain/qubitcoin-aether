@@ -2,10 +2,10 @@ SET DATABASE = qubitcoin;
 
 -- ================================================================
 -- CORE BLOCKCHAIN TABLES
--- Implements: UTXO model, PoSA consensus, φ-based economics
+-- Whitepaper v1.0.0 - Complete UTXO Model + PoSA Consensus
 -- ================================================================
 
--- Blocks table (UPDATED with era tracking)
+-- Blocks with φ-halving era tracking
 CREATE TABLE IF NOT EXISTS blocks (
     block_hash BYTES PRIMARY KEY,
     block_height BIGINT NOT NULL UNIQUE,
@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS blocks (
     
     -- Miner & rewards
     miner_address BYTES NOT NULL,
-    era INT NOT NULL DEFAULT 0,                    -- NEW: φ-halving era
-    base_reward DECIMAL(20, 8) NOT NULL,           -- NEW: Base block reward for era
-    actual_reward DECIMAL(20, 8) NOT NULL,         -- NEW: Total reward (base + fees)
+    era INT NOT NULL DEFAULT 0,
+    base_reward DECIMAL(20, 8) NOT NULL,
+    actual_reward DECIMAL(20, 8) NOT NULL,
     total_fees DECIMAL(20, 8) NOT NULL DEFAULT 0,
     
     -- Stats
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS blocks (
     INDEX era_idx (era)
 );
 
--- Transactions table
+-- Transactions
 CREATE TABLE IF NOT EXISTS transactions (
     tx_hash BYTES PRIMARY KEY,
     block_hash BYTES NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     tx_index INT NOT NULL,
     version INT NOT NULL DEFAULT 1,
     timestamp TIMESTAMP NOT NULL DEFAULT now(),
-    tx_type VARCHAR(20) NOT NULL,              -- standard, coinbase, contract
+    tx_type VARCHAR(20) NOT NULL,
     input_count INT NOT NULL DEFAULT 0,
     output_count INT NOT NULL DEFAULT 0,
     total_input DECIMAL(20, 8) NOT NULL DEFAULT 0,
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     CONSTRAINT fk_block FOREIGN KEY (block_hash) REFERENCES blocks(block_hash) ON DELETE CASCADE
 );
 
--- NEW: Transaction Inputs (UTXO model)
+-- Transaction Inputs (UTXO Model)
 CREATE TABLE IF NOT EXISTS transaction_inputs (
     input_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tx_hash BYTES NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS transaction_inputs (
     CONSTRAINT fk_transaction FOREIGN KEY (tx_hash) REFERENCES transactions(tx_hash) ON DELETE CASCADE
 );
 
--- NEW: Transaction Outputs (UTXO model)
+-- Transaction Outputs (UTXO Model)
 CREATE TABLE IF NOT EXISTS transaction_outputs (
     output_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tx_hash BYTES NOT NULL,
@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS transaction_outputs (
     CONSTRAINT fk_transaction FOREIGN KEY (tx_hash) REFERENCES transactions(tx_hash) ON DELETE CASCADE
 );
 
--- NEW: Address Balances
+-- Address Balances
 CREATE TABLE IF NOT EXISTS addresses (
     address BYTES PRIMARY KEY,
     balance DECIMAL(20, 8) NOT NULL DEFAULT 0,
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS addresses (
     INDEX last_active_idx (last_active_height DESC)
 );
 
--- NEW: Chain State (Singleton table)
+-- Chain State (Singleton)
 CREATE TABLE IF NOT EXISTS chain_state (
     id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
     best_block_hash BYTES NOT NULL,
@@ -132,20 +132,16 @@ CREATE TABLE IF NOT EXISTS chain_state (
     updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
--- Initialize chain state with genesis values
+-- Initialize chain state
 INSERT INTO chain_state (
-    id, 
-    best_block_hash, 
-    best_block_height,
-    current_difficulty
+    id, best_block_hash, best_block_height, current_difficulty
 ) VALUES (
     1, 
     E'\\x0000000000000000000000000000000000000000000000000000000000000000',
-    0,
-    1.0
+    0, 1.0
 ) ON CONFLICT (id) DO NOTHING;
 
--- NEW: Mempool (Unconfirmed transactions)
+-- Mempool
 CREATE TABLE IF NOT EXISTS mempool (
     tx_hash BYTES PRIMARY KEY,
     raw_tx BYTES NOT NULL,
@@ -163,5 +159,5 @@ CREATE TABLE IF NOT EXISTS mempool (
 );
 
 INSERT INTO schema_version (version, component, description)
-VALUES ('1.0.0', 'core_blockchain', 'Core blockchain with UTXO model')
+VALUES ('1.0.0', 'core_blockchain', 'Complete UTXO blockchain model')
 ON CONFLICT DO NOTHING;
