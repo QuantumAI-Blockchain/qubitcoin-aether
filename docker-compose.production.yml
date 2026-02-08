@@ -1,0 +1,76 @@
+version: '3.9'
+
+services:
+  cockroachdb-1:
+    image: cockroachdb/cockroach:v24.2.0
+    container_name: qbc-cockroachdb-1
+    hostname: cockroachdb-1
+    command: >
+      start
+      --certs-dir=/certs
+      --listen-addr=0.0.0.0:26257
+      --http-addr=0.0.0.0:8080
+      --advertise-addr=cockroachdb-1:26257
+      --join=cockroachdb-1:26257,cockroachdb-2:26257,cockroachdb-3:26257
+      --log-dir=/cockroach/logs
+    ports:
+      - "26257:26257"   # SQL
+      - "8080:8080"     # Web UI
+    volumes:
+      - /home/ash/cockroach-certs/node1:/certs:ro
+      - ./data:/cockroach/cockroach-data
+      - ./logs:/cockroach/logs
+    networks:
+      - qbc-network
+    restart: unless-stopped
+
+  cockroachdb-2:
+    image: cockroachdb/cockroach:v24.2.0
+    container_name: qbc-cockroachdb-2
+    hostname: cockroachdb-2
+    command: >
+      start
+      --certs-dir=/certs
+      --listen-addr=0.0.0.0:26257
+      --http-addr=0.0.0.0:8080
+      --advertise-addr=cockroachdb-2:26257
+      --join=cockroachdb-1:26257,cockroachdb-2:26257,cockroachdb-3:26257
+      --log-dir=/cockroach/logs
+    ports:
+      - "26258:26257"   # Map node 2 SQL port to host to avoid conflicts
+      - "8081:8080"     # Web UI port
+    volumes:
+      - /home/ash/cockroach-certs/node2:/certs:ro
+      - ./data:/cockroach/cockroach-data
+      - ./logs:/cockroach/logs
+    networks:
+      - qbc-network
+    restart: unless-stopped
+
+  cockroachdb-3:
+    image: cockroachdb/cockroach:v24.2.0
+    container_name: qbc-cockroachdb-3
+    hostname: cockroachdb-3
+    command: >
+      start
+      --certs-dir=/certs
+      --listen-addr=0.0.0.0:26257
+      --http-addr=0.0.0.0:8080
+      --advertise-addr=cockroachdb-3:26257
+      --join=cockroachdb-1:26257,cockroachdb-2:26257,cockroachdb-3:26257
+      --log-dir=/cockroach/logs
+    ports:
+      - "26259:26257"   # Map node 3 SQL port
+      - "8082:8080"     # Web UI port
+    volumes:
+      - /home/ash/cockroach-certs/node3:/certs:ro
+      - ./data:/cockroach/cockroach-data
+      - ./logs:/cockroach/logs
+    networks:
+      - qbc-network
+    restart: unless-stopped
+
+networks:
+  qbc-network:
+    driver: bridge
+
