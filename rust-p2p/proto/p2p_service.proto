@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package qubitcoin.p2p;
+
+service P2PService {
+    rpc BroadcastBlock(BlockMessage) returns (BroadcastResponse);
+    rpc BroadcastTransaction(TransactionMessage) returns (BroadcastResponse);
+    rpc GetPeers(GetPeersRequest) returns (PeersResponse);
+    rpc SubscribeBlocks(SubscribeRequest) returns (stream BlockMessage);
+}
+
+message BlockMessage {
+    bytes block_data = 1;
+    uint64 height = 2;
+    bytes hash = 3;
+}
+
+message TransactionMessage {
+    bytes tx_data = 1;
+    bytes hash = 2;
+}
+
+message BroadcastResponse {
+    bool success = 1;
+    uint32 peer_count = 2;
+}
+
+message GetPeersRequest {}
+
+message PeersResponse {
+    repeated string peer_ids = 1;
+    repeated string peer_addrs = 2;
+}
+
+message SubscribeRequest {}
