@@ -1,0 +1,93 @@
+version: '3.9'
+
+services:
+  cockroach-1:
+    image: cockroachdb/cockroach:v24.2.0
+    container_name: qbc-cockroach-1
+    hostname: cockroach-1
+    command: >
+      start
+      --certs-dir=/certs
+      --advertise-addr=cockroach-1:26257
+      --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
+      --locality=region=primary,datacenter=qbc-dc1,rack=rack1
+      --cache=.25
+      --max-sql-memory=.25
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    volumes:
+      - ../../data/cockroach-1:/cockroach/cockroach-data
+      - ../../certs/node1:/certs:ro
+    networks:
+      - qbc-network
+    restart: unless-stopped
+
+  cockroach-2:
+    image: cockroachdb/cockroach:v24.2.0
+    container_name: qbc-cockroach-2
+    hostname: cockroach-2
+    command: >
+      start
+      --certs-dir=/certs
+      --advertise-addr=cockroach-2:26257
+      --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
+      --locality=region=primary,datacenter=qbc-dc1,rack=rack2
+      --cache=.25
+      --max-sql-memory=.25
+    ports:
+      - "26258:26257"
+      - "8081:8080"
+    volumes:
+      - ../../data/cockroach-2:/cockroach/cockroach-data
+      - ../../certs/node2:/certs:ro
+    networks:
+      - qbc-network
+    restart: unless-stopped
+    depends_on:
+      - cockroach-1
+
+  cockroach-3:
+    image: cockroachdb/cockroach:v24.2.0
+    container_name: qbc-cockroach-3
+    hostname: cockroach-3
+    command: >
+      start
+      --certs-dir=/certs
+      --advertise-addr=cockroach-3:26257
+      --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
+      --locality=region=primary,datacenter=qbc-dc1,rack=rack3
+      --cache=.25
+      --max-sql-memory=.25
+    ports:
+      - "26259:26257"
+      - "8082:8080"
+    volumes:
+      - ../../data/cockroach-3:/cockroach/cockroach-data
+      - ../../certs/node3:/certs:ro
+    networks:
+      - qbc-network
+    restart: unless-stopped
+    depends_on:
+      - cockroach-1
+
+  ipfs:
+    image: ipfs/kubo:latest
+    container_name: qbc-ipfs
+    hostname: ipfs
+    ports:
+      - "4001:4001"
+      - "5001:5001"
+      - "8083:8080"
+    volumes:
+      - ../../data/ipfs:/data/ipfs
+    networks:
+      - qbc-network
+    restart: unless-stopped
+    environment:
+      - IPFS_PROFILE=server
+
+networks:
+  qbc-network:
+    driver: bridge
+
