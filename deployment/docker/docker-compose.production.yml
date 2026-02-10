@@ -1,49 +1,67 @@
-version: '3.9'
+version: '3.8'
+
+networks:
+  qbc-network:
+    driver: bridge
 
 services:
   cockroach-1:
     image: cockroachdb/cockroach:v24.2.0
     container_name: qbc-cockroach-1
     hostname: cockroach-1
-    command: >
-      start
-      --certs-dir=/certs
-      --advertise-addr=cockroach-1:26257
-      --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
-      --locality=region=primary,datacenter=qbc-dc1,rack=rack1
-      --cache=.25
-      --max-sql-memory=.25
+    networks:
+      - qbc-network
     ports:
       - "26257:26257"
       - "8080:8080"
     volumes:
       - ../../data/cockroach-1:/cockroach/cockroach-data
       - ../../certs/node1:/certs:ro
-    networks:
-      - qbc-network
+    command: start --certs-dir=/certs --advertise-addr=cockroach-1:26257 --http-addr=0.0.0.0:8080 --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257 --locality=region=primary,datacenter=qbc-dc1,rack=rack1 --store=/cockroach/cockroach-data
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/cockroach/cockroach", "node", "status", "--certs-dir=/certs", "--host=localhost:26257"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   cockroach-2:
     image: cockroachdb/cockroach:v24.2.0
     container_name: qbc-cockroach-2
     hostname: cockroach-2
-    command: >
-      start
-      --certs-dir=/certs
-      --advertise-addr=cockroach-2:26257
-      --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
-      --locality=region=primary,datacenter=qbc-dc1,rack=rack2
-      --cache=.25
-      --max-sql-memory=.25
+    networks:
+      - qbc-network
     ports:
       - "26258:26257"
       - "8081:8080"
     volumes:
       - ../../data/cockroach-2:/cockroach/cockroach-data
       - ../../certs/node2:/certs:ro
-    networks:
-      - qbc-network
+    command: start --certs-dir=/certs --advertise-addr=cockroach-2:26257 --http-addr=0.0.0.0:8080 --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257 --locality=region=primary,datacenter=qbc-dc1,rack=rack2 --store=/cockroach/cockroach-data
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/cockroach/cockroach", "node", "status", "--certs-dir=/certs", "--host=localhost:26257"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     depends_on:
       - cockroach-1
 
@@ -51,43 +69,69 @@ services:
     image: cockroachdb/cockroach:v24.2.0
     container_name: qbc-cockroach-3
     hostname: cockroach-3
-    command: >
-      start
-      --certs-dir=/certs
-      --advertise-addr=cockroach-3:26257
-      --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257
-      --locality=region=primary,datacenter=qbc-dc1,rack=rack3
-      --cache=.25
-      --max-sql-memory=.25
+    networks:
+      - qbc-network
     ports:
       - "26259:26257"
       - "8082:8080"
     volumes:
       - ../../data/cockroach-3:/cockroach/cockroach-data
       - ../../certs/node3:/certs:ro
-    networks:
-      - qbc-network
+    command: start --certs-dir=/certs --advertise-addr=cockroach-3:26257 --http-addr=0.0.0.0:8080 --join=cockroach-1:26257,cockroach-2:26257,cockroach-3:26257 --locality=region=primary,datacenter=qbc-dc1,rack=rack3 --store=/cockroach/cockroach-data
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/cockroach/cockroach", "node", "status", "--certs-dir=/certs", "--host=localhost:26257"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     depends_on:
       - cockroach-1
 
-  ipfs:
-    image: ipfs/kubo:latest
-    container_name: qbc-ipfs
-    hostname: ipfs
-    ports:
-      - "4001:4001"
-      - "5001:5001"
-      - "8083:8080"
-    volumes:
-      - ../../data/ipfs:/data/ipfs
+  qubitcoin-node:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile
+    container_name: qbc-node
+    hostname: qubitcoin-node
     networks:
       - qbc-network
-    restart: unless-stopped
+    ports:
+      - "5000:5000"
+      - "6001:6001"
     environment:
-      - IPFS_PROFILE=server
-
-networks:
-  qbc-network:
-    driver: bridge
-
+      - COCKROACH_HOST=cockroach-1:26257
+      - COCKROACH_DATABASE=qubitcoin
+      - COCKROACH_CERTS_DIR=/certs
+      - AUTO_MINE=true
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../../certs/client:/certs:ro
+      - ../../logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    depends_on:
+      - cockroach-1
+      - cockroach-2
+      - cockroach-3

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Qubitcoin Live Explorer</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            color: #00ff88;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        .header {
+            background: linear-gradient(90deg, #00ff88 0%, #00d4ff 100%);
+            padding: 30px;
+            text-align: center;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,255,136,0.3);
+        }
+        .header h1 {
+            color: #0a0e27;
+            font-size: 3em;
+            font-weight: bold;
+            letter-spacing: 3px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .header p {
+            color: #0a0e27;
+            font-size: 1.2em;
+            margin-top: 10px;
+        }
+        
+        .stats-banner {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: rgba(0,255,136,0.1);
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,255,136,0.3);
+        }
+        .stat-label {
+            color: #7dd3fc;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .stat-value {
+            color: #00ff88;
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .panels {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .panel {
+            background: rgba(0,100,255,0.1);
+            border: 2px solid #00d4ff;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .panel h2 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #00d4ff;
+            padding-bottom: 10px;
+        }
+        .panel-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(0,212,255,0.2);
+        }
+        .panel-label { color: #7dd3fc; }
+        .panel-value { color: #00ff88; font-weight: bold; }
+        
+        .progress-bar {
+            background: rgba(0,255,136,0.2);
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .progress-bar h2 {
+            color: #00ff88;
+            margin-bottom: 15px;
+        }
+        .bar-container {
+            background: rgba(0,0,0,0.3);
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+        .bar-fill {
+            background: linear-gradient(90deg, #00ff88, #00d4ff);
+            height: 100%;
+            transition: width 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0a0e27;
+            font-weight: bold;
+        }
+        
+        .footer {
+            text-align: center;
+            color: #7dd3fc;
+            margin-top: 20px;
+            padding: 20px;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚛️ QUBITCOIN LIVE EXPLORER ⚛️</h1>
+            <p>Quantum-Resistant Blockchain | Proof-of-SUSY-Alignment</p>
+        </div>
+        
+        <div class="stats-banner" id="stats">
+            <div class="stat-card">
+                <div class="stat-label">⛓️ BLOCK HEIGHT</div>
+                <div class="stat-value pulse" id="height">---</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">💰 TOTAL SUPPLY</div>
+                <div class="stat-value" id="supply">---</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">⚡ MINING RATE</div>
+                <div class="stat-value" id="rate">---</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">⛏️ BLOCKS MINED</div>
+                <div class="stat-value" id="mined">---</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🎯 SUCCESS RATE</div>
+                <div class="stat-value" id="success">---</div>
+            </div>
+        </div>
+        
+        <div class="progress-bar">
+            <h2>📊 Token Emission Progress</h2>
+            <div class="bar-container">
+                <div class="bar-fill" id="emission-bar">0.0000%</div>
+            </div>
+        </div>
+        
+        <div class="panels">
+            <div class="panel">
+                <h2>⛓️ Blockchain</h2>
+                <div id="blockchain-panel"></div>
+            </div>
+            <div class="panel">
+                <h2>⛏️ Mining Engine</h2>
+                <div id="mining-panel"></div>
+            </div>
+            <div class="panel">
+                <h2>⚛️ Quantum Engine</h2>
+                <div id="quantum-panel"></div>
+            </div>
+            <div class="panel">
+                <h2>💰 Economics</h2>
+                <div id="economics-panel"></div>
+            </div>
+            <div class="panel">
+                <h2>🌐 P2P Network</h2>
+                <div id="network-panel"></div>
+            </div>
+            <div class="panel">
+                <h2>🖥️ Node Info</h2>
+                <div id="node-panel"></div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>🔄 Auto-refresh: 2 seconds | ⏰ <span id="clock"></span></p>
+            <p style="margin-top: 10px; color: #00ff88;">Powered by Qubitcoin | Golden Ratio Economics (φ = 1.618)</p>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:5000';
+        let lastHeight = 0;
+        let heightHistory = [];
+        
+        function formatNumber(num) {
+            return num.toLocaleString('en-US');
+        }
+        
+        function calculateBlocksPerMinute(currentHeight) {
+            const now = Date.now() / 1000;
+            
+            if (currentHeight > lastHeight) {
+                heightHistory.push([now, currentHeight]);
+                lastHeight = currentHeight;
+            }
+            
+            heightHistory = heightHistory.filter(([time, h]) => now - time < 60);
+            
+            if (heightHistory.length >= 2) {
+                const timeSpan = heightHistory[heightHistory.length - 1][0] - heightHistory[0][0];
+                const blockSpan = heightHistory[heightHistory.length - 1][1] - heightHistory[0][1];
+                if (timeSpan > 0) {
+                    return (blockSpan / timeSpan) * 60;
+                }
+            }
+            return 0;
+        }
+        
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleString();
+        }
+        
+        async function fetchData() {
+            try {
+                const response = await fetch(`${API_URL}/info`);
+                const data = await response.json();
+                
+                const blockchain = data.blockchain || {};
+                const mining = data.mining || {};
+                const quantum = data.quantum || {};
+                const p2p = data.p2p || {};
+                const node = data.node || {};
+                const emission = blockchain.emission || {};
+                
+                // Stats banner
+                const height = blockchain.height || 0;
+                const supply = parseFloat(blockchain.total_supply || 0);
+                const blocksFound = mining.blocks_found || 0;
+                const successRate = (mining.success_rate || 0) * 100;
+                const bpm = calculateBlocksPerMinute(height);
+                
+                document.getElementById('height').textContent = formatNumber(height);
+                document.getElementById('supply').textContent = `${supply.toFixed(2)} QBC`;
+                document.getElementById('rate').textContent = `${bpm.toFixed(2)}/min`;
+                document.getElementById('mined').textContent = formatNumber(blocksFound);
+                document.getElementById('success').textContent = `${successRate.toFixed(2)}%`;
+                
+                // Emission progress
+                const maxSupply = emission.supply_cap || 3300000000;
+                const percent = (supply / maxSupply) * 100;
+                const bar = document.getElementById('emission-bar');
+                bar.style.width = `${percent}%`;
+                bar.textContent = `${percent.toFixed(4)}%`;
+                
+                // Blockchain panel
+                document.getElementById('blockchain-panel').innerHTML = `
+                    <div class="panel-row"><span class="panel-label">⛓️ Height:</span><span class="panel-value">${formatNumber(height)} blocks</span></div>
+                    <div class="panel-row"><span class="panel-label">📊 Difficulty:</span><span class="panel-value">${(blockchain.difficulty || 0).toFixed(6)}</span></div>
+                    <div class="panel-row"><span class="panel-label">⏱️ Block Time:</span><span class="panel-value">${blockchain.target_block_time || 3.3}s</span></div>
+                    <div class="panel-row"><span class="panel-label">🔄 Era:</span><span class="panel-value">#0 (Genesis)</span></div>
+                    <div class="panel-row"><span class="panel-label">📅 Daily Rate:</span><span class="panel-value">~${formatNumber(Math.floor(86400 / 3.3))} blocks</span></div>
+                `;
+                
+                // Mining panel
+                const miningStatus = mining.is_mining ? '🟢 ACTIVE' : '🔴 STOPPED';
+                document.getElementById('mining-panel').innerHTML = `
+                    <div class="panel-row"><span class="panel-label">Status:</span><span class="panel-value">${miningStatus}</span></div>
+                    <div class="panel-row"><span class="panel-label">⛏️ Blocks Found:</span><span class="panel-value">${formatNumber(blocksFound)}</span></div>
+                    <div class="panel-row"><span class="panel-label">🎲 Attempts:</span><span class="panel-value">${formatNumber(mining.total_attempts || 0)}</span></div>
+                    <div class="panel-row"><span class="panel-label">🎯 Success Rate:</span><span class="panel-value">${successRate.toFixed(2)}%</span></div>
+                    <div class="panel-row"><span class="panel-label">⚡ VQE Rate:</span><span class="panel-value">${(bpm * 50).toFixed(1)} iter/min</span></div>
+                `;
+                
+                // Quantum panel
+                document.getElementById('quantum-panel').innerHTML = `
+                    <div class="panel-row"><span class="panel-label">⚛️ Mode:</span><span class="panel-value">${(quantum.mode || 'unknown').toUpperCase()}</span></div>
+                    <div class="panel-row"><span class="panel-label">🖥️ Backend:</span><span class="panel-value">${quantum.backend || 'N/A'}</span></div>
+                    <div class="panel-row"><span class="panel-label">🔐 Crypto:</span><span class="panel-value">Dilithium2 (PQC)</span></div>
+                    <div class="panel-row"><span class="panel-label">🧮 Algorithm:</span><span class="panel-value">VQE-SUSY</span></div>
+                    <div class="panel-row"><span class="panel-label">🎲 Qubits:</span><span class="panel-value">4-qubit system</span></div>
+                `;
+                
+                // Economics panel
+                document.getElementById('economics-panel').innerHTML = `
+                    <div class="panel-row"><span class="panel-label">📊 Model:</span><span class="panel-value">SUSY Economics</span></div>
+                    <div class="panel-row"><span class="panel-label">🎯 Max Supply:</span><span class="panel-value">${formatNumber(maxSupply)} QBC</span></div>
+                    <div class="panel-row"><span class="panel-label">💰 Circulating:</span><span class="panel-value">${supply.toFixed(2)} QBC</span></div>
+                    <div class="panel-row"><span class="panel-label">📈 Emitted:</span><span class="panel-value">${percent.toFixed(4)}%</span></div>
+                    <div class="panel-row"><span class="panel-label">💎 Reward:</span><span class="panel-value">15.27 QBC</span></div>
+                `;
+                
+                // Network panel
+                const peers = p2p.connected_peers || 0;
+                const netStatus = peers === 0 ? '🟢 SOLO MODE' : `🟢 ${peers} PEERS`;
+                document.getElementById('network-panel').innerHTML = `
+                    <div class="panel-row"><span class="panel-label">Status:</span><span class="panel-value">${netStatus}</span></div>
+                    <div class="panel-row"><span class="panel-label">👥 Connected:</span><span class="panel-value">${peers} / ${p2p.max_peers || 50}</span></div>
+                    <div class="panel-row"><span class="panel-label">🔌 Port:</span><span class="panel-value">${p2p.port || 6001}</span></div>
+                    <div class="panel-row"><span class="panel-label">🆔 Peer ID:</span><span class="panel-value">${p2p.peer_id || 'N/A'}</span></div>
+                    <div class="panel-row"><span class="panel-label">📤 Msgs Sent:</span><span class="panel-value">${formatNumber(p2p.messages_sent || 0)}</span></div>
+                `;
+                
+                // Node panel
+                document.getElementById('node-panel').innerHTML = `
+                    <div class="panel-row"><span class="panel-label">Version:</span><span class="panel-value">v${node.version || 'N/A'}</span></div>
+                    <div class="panel-row"><span class="panel-label">Network:</span><span class="panel-value">MAINNET</span></div>
+                    <div class="panel-row"><span class="panel-label">Address:</span><span class="panel-value">${(node.address || 'N/A').substring(0, 16)}...</span></div>
+                    <div class="panel-row"><span class="panel-label">Status:</span><span class="panel-value">🟢 ONLINE</span></div>
+                `;
+                
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+        
+        // Update clock every second
+        setInterval(updateClock, 1000);
+        updateClock();
+        
+        // Fetch data every 2 seconds
+        fetchData();
+        setInterval(fetchData, 2000);
+    </script>
+</body>
+</html>

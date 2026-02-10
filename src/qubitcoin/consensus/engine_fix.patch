@@ -1,0 +1,24 @@
+--- a/src/qubitcoin/consensus/engine.py
++++ b/src/qubitcoin/consensus/engine.py
+@@ -86,11 +86,17 @@ class ConsensusEngine:
+ 
+             # Extract timestamps - handle dict or object
+             if isinstance(last_block, dict):
+-                last_time = float(last_block.get('created_at', 0))
+-                prev_difficulty = float(last_block.get('difficulty', Config.INITIAL_DIFFICULTY))
++                last_time = float(last_block.get('created_at', 0) or 0)
++                diff_val = last_block.get('difficulty', Config.INITIAL_DIFFICULTY)
++                # Handle case where difficulty might be a dict/object
++                if isinstance(diff_val, dict):
++                    prev_difficulty = float(diff_val.get('difficulty', Config.INITIAL_DIFFICULTY))
++                else:
++                    prev_difficulty = float(diff_val)
+             else:
+-                last_time = float(getattr(last_block, 'created_at', getattr(last_block, 'timestamp', 0)))
+-                prev_difficulty = float(getattr(last_block, 'difficulty', Config.INITIAL_DIFFICULTY))
++                last_time = float(getattr(last_block, 'created_at', getattr(last_block, 'timestamp', 0)) or 0)
++                diff_val = getattr(last_block, 'difficulty', Config.INITIAL_DIFFICULTY)
++                prev_difficulty = float(diff_val) if not isinstance(diff_val, dict) else Config.INITIAL_DIFFICULTY
+ 
+             if isinstance(prev_adjustment, dict):
+                 prev_time = float(prev_adjustment.get('created_at', 0))

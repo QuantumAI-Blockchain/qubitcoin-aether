@@ -284,7 +284,7 @@ class DatabaseManager:
             session.execute(
                 text("""
                     INSERT INTO blocks (height, prev_hash, proof_json, difficulty, created_at, block_hash)
-                    VALUES (:h, :ph, CAST(:pj AS jsonb), :d, to_timestamp(:ts), :bh)
+                    VALUES (:h, :ph, CAST(:pj AS jsonb), :d, :ts, :bh)
                 """),
                 {
                     'h': block.height,
