@@ -18,6 +18,7 @@ from .storage.ipfs import IPFSManager
 from .network.rpc import create_rpc_app
 from .network.p2p_network import P2PNetwork
 from .contracts.executor import ContractExecutor
+from .qvm.state import StateManager
 from .utils.logger import get_logger
 from .utils.metrics import current_height_metric, total_supply_metric
 
@@ -26,41 +27,41 @@ logger = get_logger(__name__)
 console = Console()
 
 class QubitcoinNode:
-    """Main node orchestrator with P2P networking"""
-    
+    """Main node orchestrator with P2P networking and QVM"""
+
     def __init__(self):
         """Initialize all node components"""
         self.console = console
         self.running = False
-        
+
         logger.info("=" * 60)
         logger.info("Qubitcoin Full Node Initializing")
         logger.info("=" * 60)
-        
+
         console.print(Config.display())
-        
+
         logger.info("Initializing components...")
-        
+
         # Component 1: Database
-        logger.info("🔍 [1/8] Initializing DatabaseManager...")
+        logger.info("[1/9] Initializing DatabaseManager...")
         try:
             self.db = DatabaseManager()
-            logger.info("✅ [1/8] DatabaseManager initialized")
+            logger.info("[1/9] DatabaseManager initialized")
         except Exception as e:
-            logger.error(f"❌ [1/8] DatabaseManager failed: {e}", exc_info=True)
+            logger.error(f"[1/9] DatabaseManager failed: {e}", exc_info=True)
             raise
-        
+
         # Component 2: Quantum Engine
-        logger.info("🔍 [2/8] Initializing QuantumEngine...")
+        logger.info("[2/9] Initializing QuantumEngine...")
         try:
             self.quantum = QuantumEngine()
-            logger.info("✅ [2/8] QuantumEngine initialized")
+            logger.info("[2/9] QuantumEngine initialized")
         except Exception as e:
-            logger.error(f"❌ [2/8] QuantumEngine failed: {e}", exc_info=True)
+            logger.error(f"[2/9] QuantumEngine failed: {e}", exc_info=True)
             raise
-        
+
         # Component 3: P2P Network
-        logger.info("🔍 [3/8] Initializing P2PNetwork...")
+        logger.info("[3/9] Initializing P2PNetwork...")
         try:
             self.p2p = P2PNetwork(
                 port=Config.P2P_PORT,
@@ -68,71 +69,83 @@ class QubitcoinNode:
                 consensus=None,
                 max_peers=Config.MAX_PEERS
             )
-            logger.info("✅ [3/8] P2PNetwork initialized")
+            logger.info("[3/9] P2PNetwork initialized")
         except Exception as e:
-            logger.error(f"❌ [3/8] P2PNetwork failed: {e}", exc_info=True)
+            logger.error(f"[3/9] P2PNetwork failed: {e}", exc_info=True)
             raise
-        
+
         # Component 4: Consensus Engine
-        logger.info("🔍 [4/8] Initializing ConsensusEngine...")
+        logger.info("[4/9] Initializing ConsensusEngine...")
         try:
             self.consensus = ConsensusEngine(self.quantum, self.db, self.p2p)
             self.p2p.consensus = self.consensus
-            logger.info("✅ [4/8] ConsensusEngine initialized")
+            logger.info("[4/9] ConsensusEngine initialized")
         except Exception as e:
-            logger.error(f"❌ [4/8] ConsensusEngine failed: {e}", exc_info=True)
+            logger.error(f"[4/9] ConsensusEngine failed: {e}", exc_info=True)
             raise
-        
+
         # Component 5: IPFS
-        logger.info("🔍 [5/8] Initializing IPFSManager...")
+        logger.info("[5/9] Initializing IPFSManager...")
         try:
             self.ipfs = IPFSManager()
-            logger.info("✅ [5/8] IPFSManager initialized")
+            logger.info("[5/9] IPFSManager initialized")
         except Exception as e:
-            logger.error(f"❌ [5/8] IPFSManager failed: {e}", exc_info=True)
+            logger.error(f"[5/9] IPFSManager failed: {e}", exc_info=True)
             raise
-        
-        # Component 6: Mining Engine
-        logger.info("🔍 [6/8] Initializing MiningEngine...")
+
+        # Component 6: QVM State Manager (bytecode VM + state roots)
+        logger.info("[6/9] Initializing QVM StateManager...")
         try:
-            self.mining = MiningEngine(self.quantum, self.consensus, self.db, console)
-            self.mining.node = self
-            logger.info("✅ [6/8] MiningEngine initialized")
+            self.state_manager = StateManager(self.db, self.quantum)
+            self.consensus.state_manager = self.state_manager
+            logger.info("[6/9] QVM StateManager initialized (155 opcodes, 10 quantum)")
         except Exception as e:
-            logger.error(f"❌ [6/8] MiningEngine failed: {e}", exc_info=True)
+            logger.error(f"[6/9] QVM StateManager failed: {e}", exc_info=True)
             raise
-        
-        # Component 7: Contract Executor
-        logger.info("🔍 [7/8] Initializing ContractExecutor...")
+
+        # Component 7: Mining Engine
+        logger.info("[7/9] Initializing MiningEngine...")
+        try:
+            self.mining = MiningEngine(self.quantum, self.consensus, self.db, console,
+                                       state_manager=self.state_manager)
+            self.mining.node = self
+            logger.info("[7/9] MiningEngine initialized")
+        except Exception as e:
+            logger.error(f"[7/9] MiningEngine failed: {e}", exc_info=True)
+            raise
+
+        # Component 8: Contract Executor (legacy template contracts)
+        logger.info("[8/9] Initializing ContractExecutor...")
         try:
             self.contracts = ContractExecutor(self.db, self.quantum)
-            logger.info("✅ [7/8] ContractExecutor initialized")
+            logger.info("[8/9] ContractExecutor initialized")
         except Exception as e:
-            logger.error(f"❌ [7/8] ContractExecutor failed: {e}", exc_info=True)
+            logger.error(f"[8/9] ContractExecutor failed: {e}", exc_info=True)
             raise
-        
-        # Component 8: RPC & Handlers
-        logger.info("🔍 [8/8] Initializing RPC and handlers...")
+
+        # Component 9: RPC & Handlers
+        logger.info("[9/9] Initializing RPC and handlers...")
         try:
             self._setup_p2p_handlers()
-            
+
             self.app = create_rpc_app(
                 self.db,
                 self.consensus,
                 self.mining,
                 self.quantum,
                 self.ipfs,
-                contract_engine=self.contracts
+                contract_engine=self.contracts,
+                state_manager=self.state_manager
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
             self.app.on_event("shutdown")(self.on_shutdown)
-            logger.info("✅ [8/8] RPC and handlers initialized")
+            logger.info("[9/9] RPC and handlers initialized")
         except Exception as e:
-            logger.error(f"❌ [8/8] RPC initialization failed: {e}", exc_info=True)
+            logger.error(f"[9/9] RPC initialization failed: {e}", exc_info=True)
             raise
-        
-        logger.info("✅ All components initialized successfully")
+
+        logger.info("All components initialized successfully")
     
     def _setup_p2p_handlers(self):
         """Register handlers for P2P messages"""

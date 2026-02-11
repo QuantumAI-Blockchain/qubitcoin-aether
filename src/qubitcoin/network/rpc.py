@@ -20,9 +20,10 @@ logger = get_logger(__name__)
 
 
 def create_rpc_app(db_manager, consensus_engine, mining_engine,
-                   quantum_engine, ipfs_manager, contract_engine=None) -> FastAPI:
+                   quantum_engine, ipfs_manager, contract_engine=None,
+                   state_manager=None) -> FastAPI:
     """
-    Create FastAPI application with all endpoints including smart contracts
+    Create FastAPI application with all endpoints including smart contracts and QVM
 
     Args:
         db_manager: Database manager instance
@@ -31,6 +32,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         quantum_engine: Quantum engine instance
         ipfs_manager: IPFS manager instance
         contract_engine: Smart contract engine instance (optional for v1 compatibility)
+        state_manager: QVM state manager instance (optional)
 
     Returns:
         Configured FastAPI app
@@ -59,7 +61,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
     from .jsonrpc import create_jsonrpc_router
     jsonrpc_router = create_jsonrpc_router(
-        db_manager, consensus_engine, mining_engine, quantum_engine
+        db_manager, consensus_engine, mining_engine, quantum_engine,
+        qvm=state_manager
     )
     app.include_router(jsonrpc_router, tags=["JSON-RPC"])
 
@@ -411,6 +414,57 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=500, detail=f"Failed to connect: {str(e)}")
 
     # ========================================================================
+    # QVM CONTRACT ENDPOINTS
+    # ========================================================================
+
+    @app.get("/qvm/info")
+    async def qvm_info():
+        """Get QVM engine info"""
+        if not state_manager:
+            raise HTTPException(status_code=503, detail="QVM not available")
+        return {
+            "status": "active",
+            "opcodes": 155,
+            "quantum_opcodes": 10,
+            "chain_id": Config.CHAIN_ID,
+            "block_gas_limit": Config.BLOCK_GAS_LIMIT,
+        }
+
+    @app.get("/qvm/contract/{address}")
+    async def get_contract_info(address: str):
+        """Get contract info by address"""
+        account = db_manager.get_account(address)
+        if not account or not account.is_contract():
+            raise HTTPException(status_code=404, detail="Contract not found")
+        bytecode = db_manager.get_contract_bytecode(address)
+        return {
+            "address": address,
+            "code_hash": account.code_hash,
+            "nonce": account.nonce,
+            "bytecode_size": len(bytecode) // 2 if bytecode else 0,
+        }
+
+    @app.get("/qvm/account/{address}")
+    async def get_qvm_account(address: str):
+        """Get QVM account state"""
+        account = db_manager.get_account(address)
+        if not account:
+            return {"address": address, "nonce": 0, "balance": "0", "is_contract": False}
+        return {
+            "address": account.address,
+            "nonce": account.nonce,
+            "balance": str(account.balance),
+            "is_contract": account.is_contract(),
+            "code_hash": account.code_hash,
+        }
+
+    @app.get("/qvm/storage/{address}/{key}")
+    async def get_qvm_storage(address: str, key: str):
+        """Get contract storage slot"""
+        value = db_manager.get_storage(address, key)
+        return {"address": address, "key": key, "value": value}
+
+    # ========================================================================
     # METRICS ENDPOINT
     # ========================================================================
 
@@ -422,6 +476,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             media_type=CONTENT_TYPE_LATEST
         )
 
-    logger.info("✓ RPC endpoints configured (v2.0 with P2P)")
+    logger.info("RPC endpoints configured (v2.0 with P2P + QVM)")
 
     return app

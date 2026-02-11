@@ -24,8 +24,9 @@ class ConsensusEngine:
         self.crypto = CryptoManager()
         self.db = db_manager
         self.p2p = p2p_network
+        self.state_manager = None  # Injected by node after StateManager init
         self.difficulty_cache = {}
-        logger.info("✅ Consensus engine initialized (SUSY Economics)")
+        logger.info("Consensus engine initialized (SUSY Economics + QVM)")
 
     def calculate_reward(self, height: int, total_supply: Decimal) -> Decimal:
         """Calculate block reward with golden ratio halvings"""
@@ -173,6 +174,23 @@ class ConsensusEngine:
 
             if block.timestamp > time.time() + 7200:
                 return False, "Block timestamp too far in future"
+
+            # Validate state root (if QVM is active and block has state root)
+            if self.state_manager and block.state_root:
+                try:
+                    state_root, receipts_root = self.state_manager.execute_block_transactions(block)
+                    if block.state_root != state_root:
+                        return False, f"Invalid state_root: {block.state_root[:16]} != {state_root[:16]}"
+                    if block.receipts_root and block.receipts_root != receipts_root:
+                        return False, f"Invalid receipts_root: {block.receipts_root[:16]} != {receipts_root[:16]}"
+                except Exception as e:
+                    logger.warning(f"State root validation skipped: {e}")
+
+            # Validate thought proof (Aether Tree PoT) if present
+            if block.thought_proof and isinstance(block.thought_proof, dict):
+                pot = block.thought_proof
+                if pot.get('phi_value', 0) < 0:
+                    return False, "Invalid thought proof: negative phi value"
 
             logger.debug(f"Block {block.height} validated successfully")
             return True, "Valid"

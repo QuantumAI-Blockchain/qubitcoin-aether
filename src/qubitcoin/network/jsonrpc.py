@@ -204,7 +204,7 @@ class JsonRpcHandler:
         return str(Config.CHAIN_ID)
 
     async def web3_clientVersion(self, params):
-        return "Qubitcoin/v1.0.0/python"
+        return "Qubitcoin/v2.0.0-QVM/python"
 
     async def eth_blockNumber(self, params):
         height = self.db.get_current_height()
@@ -289,25 +289,81 @@ class JsonRpcHandler:
         return _receipt_to_rpc(receipt)
 
     async def eth_sendRawTransaction(self, params):
-        # Accept raw signed transaction hex
-        # For now, return an error until QVM transaction processing is wired
+        """Accept raw signed transaction hex and submit to mempool"""
         raw_tx = params[0] if params else ''
-        return {'code': -32000, 'message': 'QVM transaction processing pending - use /api/transaction for UTXO transfers'}
+        if not raw_tx or raw_tx == '0x':
+            raise Exception("Empty transaction data")
+
+        # Decode the raw transaction envelope
+        raw_hex = raw_tx.replace('0x', '')
+        try:
+            import hashlib as _hashlib
+            tx_hash = _hashlib.sha256(bytes.fromhex(raw_hex)).hexdigest()
+
+            # Parse minimal RLP envelope: we expect JSON-encoded QBC tx for now
+            # Full RLP decoding will come with the QVM transaction signer
+            from sqlalchemy import text as sql_text
+            with self.db.get_session() as session:
+                session.execute(
+                    sql_text("""
+                        INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
+                                                  timestamp, status, tx_type, to_address, data,
+                                                  gas_limit, gas_price, nonce)
+                        VALUES (:txid, '[]', '[]', 0, :sig, '', :ts, 'pending',
+                                'contract_call', '', :data, 3000000, 0, 0)
+                    """),
+                    {'txid': tx_hash, 'sig': '', 'ts': time.time(), 'data': raw_hex}
+                )
+                session.commit()
+            return '0x' + tx_hash
+        except Exception as e:
+            raise Exception(f"Failed to submit transaction: {e}")
 
     async def eth_call(self, params):
-        # Read-only contract call (no state change)
+        """Read-only contract call (no state change)"""
         call_obj = params[0] if params else {}
         if self.qvm:
             to_addr = call_obj.get('to', '').replace('0x', '')
-            data = call_obj.get('data', '').replace('0x', '')
+            data_hex = call_obj.get('data', '').replace('0x', '')
             from_addr = call_obj.get('from', '0' * 40).replace('0x', '')
-            result = self.qvm.static_call(from_addr, to_addr, bytes.fromhex(data) if data else b'')
-            return '0x' + result.hex() if result else '0x'
+            calldata = bytes.fromhex(data_hex) if data_hex else b''
+
+            # Load contract bytecode and execute via QVM static call
+            bytecode_hex = self.db.get_contract_bytecode(to_addr)
+            if bytecode_hex:
+                result = self.qvm.qvm.static_call(from_addr, to_addr, calldata)
+                return '0x' + result.hex() if result else '0x'
         return '0x'
 
     async def eth_estimateGas(self, params):
-        # Estimate gas for a transaction
-        return hex_int(21000)  # Base transfer gas
+        """Estimate gas for a transaction using QVM dry-run"""
+        call_obj = params[0] if params else {}
+        if self.qvm and call_obj.get('data'):
+            to_addr = call_obj.get('to', '').replace('0x', '')
+            data = call_obj.get('data', '').replace('0x', '')
+            from_addr = call_obj.get('from', '0' * 40).replace('0x', '')
+
+            if to_addr:
+                # Contract call — dry-run to measure gas
+                try:
+                    bytecode_hex = self.db.get_contract_bytecode(to_addr)
+                    if bytecode_hex:
+                        result = self.qvm.qvm.execute(
+                            caller=from_addr, address=to_addr,
+                            code=bytes.fromhex(bytecode_hex),
+                            data=bytes.fromhex(data) if data else b'',
+                            value=0, gas=30_000_000, origin=from_addr,
+                        )
+                        # Add 20% buffer
+                        estimated = int(result.gas_used * 1.2)
+                        return hex_int(max(21000, estimated))
+                except Exception as e:
+                    logger.debug(f"Gas estimation failed: {e}")
+            else:
+                # Contract deploy — estimate based on bytecode size
+                bytecode_size = len(data) // 2 if data else 0
+                return hex_int(21000 + 200 * bytecode_size + 32000)
+        return hex_int(21000)
 
     # ========================================================================
     # GAS

@@ -24,12 +24,13 @@ class MiningEngine:
     """Manages mining operations"""
 
     def __init__(self, quantum_engine: QuantumEngine, consensus_engine: ConsensusEngine,
-                 db_manager, console):
+                 db_manager, console, state_manager=None):
         """Initialize mining engine"""
         self.quantum = quantum_engine
         self.consensus = consensus_engine
         self.db = db_manager
         self.console = console
+        self.state_manager = state_manager
         self.node = None
         self.is_mining = False
         self.mining_thread = None
@@ -39,7 +40,7 @@ class MiningEngine:
             'total_attempts': 0,
             'current_difficulty': Config.INITIAL_DIFFICULTY
         }
-        logger.info("✅ Mining engine initialized (SUSY Economics)")
+        logger.info("Mining engine initialized (SUSY Economics + QVM)")
 
     def start(self):
         """Start mining"""
@@ -144,6 +145,16 @@ class MiningEngine:
             timestamp=time.time(),
             difficulty=difficulty
         )
+
+        # Execute QVM transactions and compute state/receipts roots
+        if self.state_manager:
+            try:
+                state_root, receipts_root = self.state_manager.execute_block_transactions(block)
+                block.state_root = state_root
+                block.receipts_root = receipts_root
+            except Exception as e:
+                logger.error(f"QVM execution failed for block {next_height}: {e}", exc_info=True)
+
         block.block_hash = block.calculate_hash()
 
         valid, reason = self.consensus.validate_block(
