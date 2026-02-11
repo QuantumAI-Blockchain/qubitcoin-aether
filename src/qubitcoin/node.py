@@ -159,7 +159,8 @@ class QubitcoinNode:
                 self.consensus,
                 self.mining,
                 self.quantum,
-                self.ipfs
+                self.ipfs,
+                contract_engine=self.contracts
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
@@ -478,8 +479,10 @@ class QubitcoinNode:
 
         # Snapshot check
         if height > 0 and height % Config.SNAPSHOT_INTERVAL == 0:
-            self.ipfs.create_snapshot(self.db, height)
-
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(None, self.ipfs.create_snapshot, self.db, height)
+        
+        self.running = True
         logger.info("✅ Node startup complete")
 
     async def on_shutdown(self):

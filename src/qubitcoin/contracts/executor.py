@@ -272,7 +272,20 @@ class ContractExecutor:
             if function == 'transfer':
                 to_address = args['to']
                 amount = Decimal(args['amount'])
-                
+
+                # Check sender balance first
+                sender_balance = session.execute(
+                    text("""
+                        SELECT balance FROM token_balances
+                        WHERE contract_id = :cid AND holder_address = :from
+                        FOR UPDATE
+                    """),
+                    {'cid': contract_id, 'from': caller}
+                ).scalar()
+
+                if not sender_balance or Decimal(str(sender_balance)) < amount:
+                    return False, "Insufficient token balance", None
+
                 # Debit sender
                 session.execute(
                     text("""

@@ -228,11 +228,17 @@ class P2PNetwork:
     async def _read_from_peer(self, reader: asyncio.StreamReader,
                                writer: asyncio.StreamWriter, peer_id: str):
         """Read messages from peer"""
+        MAX_MESSAGE_SIZE = 10_000_000  # 10MB max
         try:
             while self.running:
                 # Read message length (4 bytes)
                 length_bytes = await reader.readexactly(4)
                 message_length = int.from_bytes(length_bytes, 'big')
+                if message_length > MAX_MESSAGE_SIZE:
+                    logger.warning(f"Message too large from {peer_id}: {message_length} bytes")
+                    break
+                if message_length == 0:
+                    continue
                 # Read message
                 message_bytes = await reader.readexactly(message_length)
                 message_str = message_bytes.decode('utf-8')
@@ -276,7 +282,7 @@ class P2PNetwork:
                 await self._gossip_message(message, exclude=sender_id)
                 # Trigger reorg if higher
                 if block.height > self.consensus.db.get_current_height():
-                    self.consensus.resolve_fork(block, sender_id)
+                    await self.consensus.resolve_fork(block, sender_id)
             else:
                 logger.warning(f"Invalid block from {sender_id}: {reason}")
         elif message.type == 'transaction':
@@ -302,8 +308,8 @@ class P2PNetwork:
                 logger.error(f"Error in handler for {message.type}: {e}")
         else:
             logger.warning(f"No handler for message type: {message.type}")
-        # Gossip protocol: forward to other peers (except sender)
-        if message.type in ['block', 'transaction']:
+        # Gossip transactions (blocks already gossiped above on validation)
+        if message.type == 'transaction':
             await self._gossip_message(message, exclude=sender_id)
     async def send_message(self, peer_id: str, msg_type: str, data: Any):
         """
