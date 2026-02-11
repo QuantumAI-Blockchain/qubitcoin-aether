@@ -455,16 +455,16 @@ class StablecoinEngine:
                 new_debt = debt_amt - amount
                 
                 if new_debt == 0:
-                    # Fully repaid - return all collateral
+                    # Fully repaid - close vault (NOT liquidated)
                     session.execute(
                         text("""
                             UPDATE collateral_vaults
-                            SET debt_amount = 0, liquidated = true
+                            SET debt_amount = 0, collateral_amount = 0, last_updated = CURRENT_TIMESTAMP
                             WHERE vault_id = :vid
                         """),
                         {'vid': vault_id}
                     )
-                    logger.info(f"✅ Vault {vault_id} fully repaid")
+                    logger.info(f"✅ Vault {vault_id} fully repaid and closed")
                 else:
                     session.execute(
                         text("""
