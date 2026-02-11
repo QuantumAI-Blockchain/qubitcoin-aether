@@ -43,7 +43,7 @@ class Config:
     RPC_PORT: int = int(os.getenv('RPC_PORT', 5000))
     RPC_HOST: str = os.getenv('RPC_HOST', '0.0.0.0')
     
-    PEER_SEEDS: list = []
+    PEER_SEEDS: list = [s.strip() for s in os.getenv('PEER_SEEDS', '').split(',') if s.strip()]
     MAX_PEERS: int = 50
     PEER_TIMEOUT: int = 300
     MESSAGE_CACHE_SIZE: int = 10000
@@ -54,7 +54,7 @@ class Config:
     # ============================================================================
     DATABASE_URL: str = os.getenv(
         'DATABASE_URL',
-        'postgresql://root@localhost:8080/qbc?sslmode=verify-full&sslrootcert=/home/ash/qubitcoin/data/certs/ca.crt&sslcert=/home/ash/qubitcoin/data/certs/client.root.crt&sslkey=/home/ash/qubitcoin/data/certs/client.root.key'
+        'postgresql://root@localhost:26257/qbc?sslmode=disable'
     )
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
@@ -107,6 +107,18 @@ class Config:
     AUTO_MINE: bool = True  # Always enabled in production
     
     # ============================================================================
+    # SMART CONTRACT SETTINGS
+    # ============================================================================
+    SUPPORTED_CONTRACT_TYPES: list = [
+        'token', 'nft', 'launchpad', 'escrow', 'governance',
+        'quantum_gate', 'stablecoin', 'vault', 'oracle'
+    ]
+    GAS_CONTRACT_DEPLOY_BASE: Decimal = Decimal('0.1')
+    GAS_CONTRACT_DEPLOY_PER_KB: Decimal = Decimal('0.01')
+    GAS_CONTRACT_EXECUTE_BASE: Decimal = Decimal('0.01')
+    MAX_CONTRACT_SIZE: int = 256_000  # 256KB max contract code
+
+    # ============================================================================
     # BRIDGE SETTINGS
     # ============================================================================
     INFURA_URL: Optional[str] = os.getenv('INFURA_URL')
@@ -155,7 +167,7 @@ class Config:
 ╚══════════════════════════════════════════════════════════════╝
 
 Node Identity:
-  Address:              {cls.ADDRESS[:40]}...
+  Address:              {cls.ADDRESS[:40] + '...' if cls.ADDRESS else '(not set)'}
   
 Supersymmetric Economics:
   Max Supply:           {cls.MAX_SUPPLY:,} QBC (3.3 billion)
@@ -183,7 +195,7 @@ Mining:
   Mining Interval:      {cls.MINING_INTERVAL}s (hardcoded)
   
 Database:
-  URL:                  {cls.DATABASE_URL.split('@')[1].split('?')[0]}
+  URL:                  {cls.DATABASE_URL.split('@')[1].split('?')[0] if '@' in cls.DATABASE_URL else cls.DATABASE_URL.split('?')[0]}
   
 Storage:
   IPFS:                 {cls.IPFS_API}
