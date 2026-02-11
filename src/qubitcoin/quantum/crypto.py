@@ -77,12 +77,17 @@ class Dilithium2:
             signature = DilithiumImpl.sign(private_key, message)
             return signature
         else:
-            # Fallback: hash-based signature (INSECURE)
-            combined = private_key + message
-            sig_hash = hashlib.sha3_512(combined).digest()
-            signature = (sig_hash * 38)[:2420]
-            
-            logger.warning("Using INSECURE fallback signature")
+            # Fallback: deterministic hash-based signature (DEV ONLY - NOT SECURE)
+            # Derive public key material from private key (same as keygen)
+            pk_material = hashlib.sha3_512(private_key).digest()  # 64 bytes
+            # Signature body from private key + message
+            sig_body = hashlib.sha3_512(private_key + message).digest()
+            sig_padded = (sig_body * 38)[:2388]
+            # Binding tag: ties signature to public_key + message pair
+            binding = hashlib.sha256(pk_material[:64] + message).digest()
+            signature = sig_padded + binding  # 2388 + 32 = 2420 bytes
+
+            logger.warning("Using INSECURE fallback signature (dev only)")
             return signature
 
     @staticmethod
@@ -106,13 +111,24 @@ class Dilithium2:
                 logger.debug(f"Dilithium2 verification failed: {e}")
                 return False
         else:
-            # Fallback: basic length check only (INSECURE)
+            # Fallback: verify binding tag (DEV ONLY - NOT CRYPTOGRAPHICALLY SECURE)
+            import hmac as _hmac
             try:
                 if len(public_key) != 1312:
                     return False
                 if len(signature) != 2420:
                     return False
-                return signature != b'\x00' * 2420
+                if signature == b'\x00' * 2420:
+                    return False
+                # Verify the binding tag embedded by sign()
+                # public_key[:64] == sha3_512(private_key) from keygen()
+                expected_binding = hashlib.sha256(public_key[:64] + message).digest()
+                actual_binding = signature[2388:2420]
+                if not _hmac.compare_digest(expected_binding, actual_binding):
+                    logger.debug("Fallback verify: binding tag mismatch")
+                    return False
+                logger.warning("FALLBACK VERIFY: Dev mode only - not cryptographically secure")
+                return True
             except Exception as e:
                 logger.error(f"Signature verification failed: {e}")
                 return False

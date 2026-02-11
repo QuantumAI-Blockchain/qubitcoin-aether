@@ -421,13 +421,47 @@ class ContractEngine:
         
         # Execute transfer
         with self.db.get_session() as session:
-            # (Similar to _token_transfer but with allowance check)
-            # ... implementation details ...
-            pass
-        
+            # Verify sender balance
+            result = session.execute(
+                text("""
+                    SELECT balance FROM token_balances
+                    WHERE contract_id = :cid AND holder_address = :addr
+                    FOR UPDATE
+                """),
+                {'cid': contract_id, 'addr': from_address}
+            ).fetchone()
+
+            if not result or Decimal(str(result[0])) < amount:
+                return False, "Insufficient balance for transfer_from", None, state
+
+            # Deduct from sender
+            session.execute(
+                text("""
+                    UPDATE token_balances
+                    SET balance = balance - :amt, last_updated = CURRENT_TIMESTAMP
+                    WHERE contract_id = :cid AND holder_address = :addr
+                """),
+                {'cid': contract_id, 'addr': from_address, 'amt': str(amount)}
+            )
+
+            # Credit receiver (upsert)
+            session.execute(
+                text("""
+                    INSERT INTO token_balances (contract_id, holder_address, balance)
+                    VALUES (:cid, :addr, :amt)
+                    ON CONFLICT (contract_id, holder_address)
+                    DO UPDATE SET
+                        balance = token_balances.balance + :amt,
+                        last_updated = CURRENT_TIMESTAMP
+                """),
+                {'cid': contract_id, 'addr': to_address, 'amt': str(amount)}
+            )
+
+            session.commit()
+
         # Update allowance
         state['allowances'][from_address][executor] = str(allowed - amount)
-        
+
         return True, "Transfer from successful", {'from': from_address, 'to': to_address, 'amount': str(amount)}, state
 
     # ========================================================================
