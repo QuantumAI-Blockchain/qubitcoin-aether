@@ -42,11 +42,14 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         description="Quantum-secured L1 blockchain with smart contracts and P2P networking"
     )
 
-    # CORS middleware
+    # CORS middleware (restrict in production via QBC_CORS_ORIGINS env)
+    import os
+    cors_origins = os.getenv('QBC_CORS_ORIGINS', '').split(',')
+    cors_origins = [o.strip() for o in cors_origins if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=cors_origins or ["*"],
+        allow_credentials=bool(cors_origins),
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -60,9 +63,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Get node information"""
         try:
             emission_stats = consensus_engine.get_emission_stats(db_manager)
-        except:
+        except Exception as e:
+            logger.debug(f"Could not get emission stats: {e}")
             emission_stats = {}
-        
+
         # Get P2P info if available
         p2p_info = {}
         if hasattr(app, 'node') and hasattr(app.node, 'p2p'):
@@ -121,7 +125,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         
         try:
             emission_stats = consensus_engine.get_emission_stats(db_manager)
-        except:
+        except Exception as e:
+            logger.debug(f"Could not get emission stats: {e}")
             emission_stats = {
                 'current_height': height,
                 'total_supply': float(supply),
@@ -177,7 +182,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Get blockchain information"""
         try:
             emission_stats = consensus_engine.get_emission_stats(db_manager)
-        except:
+        except Exception as e:
+            logger.debug(f"Could not get emission stats for chain_info: {e}")
             height = db_manager.get_current_height()
             supply = db_manager.get_total_supply()
             emission_stats = {
@@ -229,9 +235,45 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Simulate emission schedule for N years"""
         if years < 1 or years > 100:
             raise HTTPException(status_code=400, detail="Years must be between 1 and 100")
-        
+
         try:
-            return Config.estimate_emission_schedule(years)
+            PHI = Decimal('1.618033988749895')
+            blocks_per_year = int(365.25 * 24 * 3600 / Config.TARGET_BLOCK_TIME)
+            schedule = []
+            total_supply = Decimal(0)
+
+            for year in range(1, years + 1):
+                year_emission = Decimal(0)
+                start_height = blocks_per_year * (year - 1)
+                end_height = blocks_per_year * year
+                for h in range(start_height, end_height, 1000):
+                    era = h // Config.HALVING_INTERVAL
+                    reward = Config.INITIAL_REWARD / (PHI ** era)
+                    remaining = Config.MAX_SUPPLY - total_supply - year_emission
+                    block_reward = min(reward, remaining)
+                    if block_reward <= 0:
+                        break
+                    chunk = min(1000, end_height - h)
+                    year_emission += block_reward * chunk
+
+                total_supply += year_emission
+                schedule.append({
+                    'year': year,
+                    'emission': float(year_emission),
+                    'total_supply': float(total_supply),
+                    'percent_emitted': float(total_supply / Config.MAX_SUPPLY * 100),
+                    'era': start_height // Config.HALVING_INTERVAL
+                })
+                if total_supply >= Config.MAX_SUPPLY:
+                    break
+
+            return {
+                'schedule': schedule,
+                'max_supply': float(Config.MAX_SUPPLY),
+                'halving_interval': Config.HALVING_INTERVAL,
+                'blocks_per_year': blocks_per_year,
+                'phi': float(PHI)
+            }
         except Exception as e:
             logger.error(f"Error simulating emission: {e}")
             raise HTTPException(status_code=500, detail=str(e))
