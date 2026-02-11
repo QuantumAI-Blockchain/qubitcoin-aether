@@ -118,6 +118,11 @@ class Config:
     GAS_CONTRACT_EXECUTE_BASE: Decimal = Decimal('0.01')
     MAX_CONTRACT_SIZE: int = 256_000  # 256KB max contract code
 
+    # QVM Settings
+    CHAIN_ID: int = int(os.getenv('CHAIN_ID', 3301))  # QBC chain ID
+    BLOCK_GAS_LIMIT: int = int(os.getenv('BLOCK_GAS_LIMIT', 30_000_000))
+    DEFAULT_GAS_PRICE: Decimal = Decimal('0.000000001')  # 1 Gwei equivalent in QBC
+
     # ============================================================================
     # BRIDGE SETTINGS
     # ============================================================================

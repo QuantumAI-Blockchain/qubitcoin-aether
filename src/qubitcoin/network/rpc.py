@@ -55,6 +55,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     )
 
     # ========================================================================
+    # JSON-RPC (eth_* compatible) - Web3 / MetaMask / Hardhat support
+    # ========================================================================
+    from .jsonrpc import create_jsonrpc_router
+    jsonrpc_router = create_jsonrpc_router(
+        db_manager, consensus_engine, mining_engine, quantum_engine
+    )
+    app.include_router(jsonrpc_router, tags=["JSON-RPC"])
+
+    # ========================================================================
     # NODE INFO ENDPOINTS
     # ========================================================================
 
