@@ -6,11 +6,9 @@ import threading
 import time
 import hashlib
 import json
+import asyncio
 from decimal import Decimal
 import numpy as np
-from rich.status import Status
-from rich.table import Table
-from rich.panel import Panel
 from ..config import Config
 from ..database.models import Transaction, Block
 from ..quantum.engine import QuantumEngine
@@ -18,9 +16,13 @@ from ..quantum.crypto import Dilithium2
 from ..consensus.engine import ConsensusEngine
 from ..utils.logger import get_logger
 from ..utils.metrics import blocks_mined, mining_attempts, current_height_metric
+
 logger = get_logger(__name__)
+
+
 class MiningEngine:
     """Manages mining operations"""
+
     def __init__(self, quantum_engine: QuantumEngine, consensus_engine: ConsensusEngine,
                  db_manager, console):
         """Initialize mining engine"""
@@ -28,14 +30,17 @@ class MiningEngine:
         self.consensus = consensus_engine
         self.db = db_manager
         self.console = console
+        self.node = None
         self.is_mining = False
         self.mining_thread = None
+        self._lock = threading.Lock()
         self.stats = {
             'blocks_found': 0,
             'total_attempts': 0,
             'current_difficulty': Config.INITIAL_DIFFICULTY
         }
         logger.info("✅ Mining engine initialized (SUSY Economics)")
+
     def start(self):
         """Start mining"""
         if self.is_mining:
@@ -48,7 +53,8 @@ class MiningEngine:
             name="MiningThread"
         )
         self.mining_thread.start()
-        logger.info("⛏️ Mining started")
+        logger.info("Mining started")
+
     def stop(self):
         """Stop mining"""
         if not self.is_mining:
@@ -57,6 +63,7 @@ class MiningEngine:
         if self.mining_thread:
             self.mining_thread.join(timeout=5)
         logger.info("Mining stopped")
+
     def _mine_loop(self):
         """Main mining loop"""
         while self.is_mining:
@@ -65,34 +72,46 @@ class MiningEngine:
             except Exception as e:
                 logger.error(f"Mining error: {e}", exc_info=True)
                 time.sleep(Config.MINING_INTERVAL)
+
     def _mine_block(self):
         """Attempt to mine a single block"""
         current_height = self.db.get_current_height()
         next_height = current_height + 1
         difficulty = self.consensus.calculate_difficulty(next_height, self.db)
         self.stats['current_difficulty'] = difficulty
+
         # Pre-check if height exists (from P2P sync)
         if self.db.get_block(next_height):
-            logger.warning(f"Block {next_height} already exists from P2P - triggering reorg")
-            self.consensus.resolve_fork()  # Add call to fork resolution (below)
+            logger.debug(f"Block {next_height} already exists from P2P, skipping")
             time.sleep(Config.MINING_INTERVAL)
             return
+
         prev_hash = self._get_prev_hash(current_height)
         pending_txs = self.db.get_pending_transactions(limit=100)
         hamiltonian = self.quantum.generate_hamiltonian()
+
         logger.info(f"Mining block {next_height} (difficulty: {difficulty:.4f})")
-        with Status("[cyan]Optimizing VQE...[/]", console=self.console):
+
+        try:
             params, energy = self.quantum.optimize_vqe(hamiltonian)
+        except Exception as e:
+            logger.error(f"VQE optimization failed: {e}")
+            time.sleep(Config.MINING_INTERVAL)
+            return
+
         self.stats['total_attempts'] += 1
         mining_attempts.inc()
+
         if energy >= difficulty:
             logger.debug(f"Energy {energy:.6f} >= difficulty {difficulty:.6f}, retrying...")
             time.sleep(Config.MINING_INTERVAL)
             return
+
         proof_data = self._create_proof(hamiltonian, params, energy)
         total_supply = self.db.get_total_supply()
         reward = self.consensus.calculate_reward(next_height, total_supply)
         coinbase = self._create_coinbase(next_height, reward, pending_txs)
+
         block = Block(
             height=next_height,
             prev_hash=prev_hash,
@@ -102,33 +121,64 @@ class MiningEngine:
             difficulty=difficulty
         )
         block.block_hash = block.calculate_hash()
-        valid, reason = self.consensus.validate_block(block,
-                                                       self.db.get_block(current_height),
-                                                       self.db)
+
+        valid, reason = self.consensus.validate_block(
+            block, self.db.get_block(current_height), self.db
+        )
         if not valid:
             logger.error(f"Self-validation failed: {reason}")
             return
+
+        # Store block, supply, and hamiltonian atomically in one session
         try:
-            self.db.store_block(block)
-            # FIX: Update total supply
-            with self.db.get_session() as session:
-                self.db.update_supply(reward, session)
-                self.db.store_hamiltonian(
-                    hamiltonian=hamiltonian,
-                    params=params.tolist(),
-                    energy=energy,
-                    miner_address=Config.ADDRESS,
-                    block_height=next_height,
-                    session=session
-                )
-                session.commit()
+            with self._lock:
+                with self.db.get_session() as session:
+                    # Check again under lock
+                    from sqlalchemy import text
+                    existing = session.execute(
+                        text("SELECT 1 FROM blocks WHERE height = :h"),
+                        {'h': next_height}
+                    ).first()
+                    if existing:
+                        logger.warning(f"Block {next_height} appeared during mining, skipping")
+                        return
+
+                    self.db.store_block(block)
+                    self.db.update_supply(reward, session)
+                    self.db.store_hamiltonian(
+                        hamiltonian=hamiltonian,
+                        params=params.tolist(),
+                        energy=energy,
+                        miner_address=Config.ADDRESS,
+                        block_height=next_height,
+                        session=session
+                    )
+                    session.commit()
+
             self.stats['blocks_found'] += 1
             blocks_mined.inc()
             current_height_metric.set(next_height)
             self._display_success(block, energy, reward)
+
+            # Broadcast mined block to P2P network
+            if self.node and hasattr(self.node, 'p2p'):
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.run_coroutine_threadsafe(
+                            self.node.p2p.broadcast('block', block.to_dict()),
+                            loop
+                        )
+                    else:
+                        logger.debug("Event loop not running, skipping broadcast")
+                except Exception as e:
+                    logger.debug(f"Could not broadcast block: {e}")
+
         except Exception as e:
             logger.error(f"Failed to store block: {e}", exc_info=True)
+
         time.sleep(Config.MINING_INTERVAL)
+
     def _get_prev_hash(self, current_height: int) -> str:
         """Get previous block hash"""
         if current_height < 0:
@@ -138,6 +188,7 @@ class MiningEngine:
             return prev_block.block_hash
         logger.error(f"Block {current_height} exists but has no stored hash!")
         return '0' * 64
+
     def _create_proof(self, hamiltonian, params, energy) -> dict:
         """Create quantum proof data"""
         pk_bytes = bytes.fromhex(Config.PRIVATE_KEY_HEX)
@@ -151,6 +202,7 @@ class MiningEngine:
             'public_key': Config.PUBLIC_KEY_HEX,
             'miner_address': Config.ADDRESS
         }
+
     def _create_coinbase(self, height: int, reward: Decimal,
                         pending_txs: list) -> Transaction:
         """Create coinbase transaction"""
@@ -172,16 +224,22 @@ class MiningEngine:
             timestamp=time.time(),
             status='pending'
         )
+
     def _display_success(self, block: Block, energy: float, reward: Decimal):
         """Display mining success"""
-        table = Table(title="⛏️ Block Mined!")
-        table.add_column("Property", style="cyan")
-        table.add_column("Value", style="green")
-        table.add_row("Height", str(block.height))
-        table.add_row("Energy", f"{energy:.6f}")
-        table.add_row("Difficulty", f"{block.difficulty:.6f}")
-        table.add_row("Transactions", str(len(block.transactions)))
-        table.add_row("Reward", f"{reward:.8f} QBC")
-        table.add_row("Hash", block.block_hash[:16] + "...")
-        self.console.print(Panel(table))
-        logger.info(f"✅ Block {block.height} mined: {block.block_hash[:16]}...")
+        try:
+            from rich.table import Table
+            from rich.panel import Panel
+            table = Table(title="Block Mined!")
+            table.add_column("Property", style="cyan")
+            table.add_column("Value", style="green")
+            table.add_row("Height", str(block.height))
+            table.add_row("Energy", f"{energy:.6f}")
+            table.add_row("Difficulty", f"{block.difficulty:.6f}")
+            table.add_row("Transactions", str(len(block.transactions)))
+            table.add_row("Reward", f"{reward:.8f} QBC")
+            table.add_row("Hash", block.block_hash[:16] + "...")
+            self.console.print(Panel(table))
+        except Exception:
+            pass
+        logger.info(f"Block {block.height} mined: {block.block_hash[:16]}...")
