@@ -58,7 +58,7 @@ class QuantumEngine:
                     simulator=False,
                     min_num_qubits=5
                 )
-                self.estimator = RuntimeEstimator
+                self.estimator = RuntimeEstimator(backend=self.backend)
                 logger.info(f"⚛️  Quantum Engine: IBM Quantum ({self.backend.name})")
             except Exception as e:
                 logger.error(f"Failed to connect to IBM Quantum: {e}")
@@ -76,15 +76,14 @@ class QuantumEngine:
         Returns:
             List of (pauli_string, coefficient) tuples
         """
-        if seed is not None:
-            np.random.seed(seed)
+        rng = np.random.RandomState(seed) if seed is not None else np.random.RandomState()
 
         num_terms = num_qubits + 1
         hamiltonian = []
 
         for _ in range(num_terms):
-            pauli_str = ''.join(np.random.choice(['I', 'X', 'Y', 'Z'], num_qubits))
-            coeff = np.random.uniform(-1, 1)
+            pauli_str = ''.join(rng.choice(['I', 'X', 'Y', 'Z'], num_qubits))
+            coeff = rng.uniform(-1, 1)
             hamiltonian.append((pauli_str, coeff))
 
         logger.debug(f"Generated Hamiltonian with {num_terms} terms")
