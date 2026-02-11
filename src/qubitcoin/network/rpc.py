@@ -21,9 +21,9 @@ logger = get_logger(__name__)
 
 def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    quantum_engine, ipfs_manager, contract_engine=None,
-                   state_manager=None) -> FastAPI:
+                   state_manager=None, aether_engine=None) -> FastAPI:
     """
-    Create FastAPI application with all endpoints including smart contracts and QVM
+    Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
     Args:
         db_manager: Database manager instance
@@ -33,6 +33,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         ipfs_manager: IPFS manager instance
         contract_engine: Smart contract engine instance (optional for v1 compatibility)
         state_manager: QVM state manager instance (optional)
+        aether_engine: Aether Tree AGI engine instance (optional)
 
     Returns:
         Configured FastAPI app
@@ -105,10 +106,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             },
             "features": {
                 "smart_contracts": contract_engine is not None,
+                "qvm": state_manager is not None,
+                "aether_tree": aether_engine is not None,
                 "quantum_proofs": True,
                 "post_quantum_crypto": "Dilithium2",
-                "consensus": "Proof-of-SUSY-Alignment",
-                "p2p_networking": True
+                "consensus": "Proof-of-SUSY-Alignment + Proof-of-Thought",
+                "p2p_networking": True,
+                "chain_id": Config.CHAIN_ID
             }
         }
 
@@ -126,6 +130,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "quantum": quantum_engine.estimator is not None,
             "ipfs": ipfs_manager.client is not None,
             "contracts": contract_engine is not None,
+            "qvm": state_manager is not None,
+            "aether_tree": aether_engine is not None,
             "p2p": p2p_status
         }
 
@@ -173,6 +179,14 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "quantum": {
                 "mode": "local" if Config.USE_LOCAL_ESTIMATOR else "ibm",
                 "backend": quantum_engine.backend.name if quantum_engine.backend else "StatevectorEstimator"
+            },
+            "qvm": {
+                "active": state_manager is not None,
+                "chain_id": Config.CHAIN_ID,
+                "opcodes": 155,
+            },
+            "aether": {
+                "active": aether_engine is not None,
             },
             "p2p": p2p_stats
         }
@@ -465,6 +479,71 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return {"address": address, "key": key, "value": value}
 
     # ========================================================================
+    # AETHER TREE ENDPOINTS
+    # ========================================================================
+
+    @app.get("/aether/info")
+    async def aether_info():
+        """Get Aether Tree engine status"""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        return aether_engine.get_stats()
+
+    @app.get("/aether/phi")
+    async def aether_phi():
+        """Compute current Phi (consciousness metric)"""
+        if not aether_engine or not aether_engine.phi:
+            raise HTTPException(status_code=503, detail="Phi calculator not available")
+        height = db_manager.get_current_height()
+        return aether_engine.phi.compute_phi(height)
+
+    @app.get("/aether/phi/history")
+    async def aether_phi_history(limit: int = 50):
+        """Get Phi measurement history"""
+        if not aether_engine or not aether_engine.phi:
+            raise HTTPException(status_code=503, detail="Phi calculator not available")
+        return aether_engine.phi.get_history(limit)
+
+    @app.get("/aether/knowledge")
+    async def aether_knowledge_stats():
+        """Get knowledge graph statistics"""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        return aether_engine.kg.get_stats()
+
+    @app.get("/aether/knowledge/node/{node_id}")
+    async def aether_knowledge_node(node_id: int):
+        """Get a specific KeterNode"""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        node = aether_engine.kg.get_node(node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Knowledge node not found")
+        return node.to_dict()
+
+    @app.get("/aether/knowledge/subgraph/{root_id}")
+    async def aether_subgraph(root_id: int, depth: int = 3):
+        """Get subgraph from a root node"""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if depth > 5:
+            depth = 5
+        subgraph = aether_engine.kg.get_subgraph(root_id, depth)
+        return {
+            "root_id": root_id,
+            "depth": depth,
+            "nodes": {nid: n.to_dict() for nid, n in subgraph.items()},
+            "count": len(subgraph),
+        }
+
+    @app.get("/aether/reasoning/stats")
+    async def aether_reasoning_stats():
+        """Get reasoning engine statistics"""
+        if not aether_engine or not aether_engine.reasoning:
+            raise HTTPException(status_code=503, detail="Reasoning engine not available")
+        return aether_engine.reasoning.get_stats()
+
+    # ========================================================================
     # METRICS ENDPOINT
     # ========================================================================
 
@@ -476,6 +555,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             media_type=CONTENT_TYPE_LATEST
         )
 
-    logger.info("RPC endpoints configured (v2.0 with P2P + QVM)")
+    logger.info("RPC endpoints configured (v2.0 with P2P + QVM + Aether)")
 
     return app

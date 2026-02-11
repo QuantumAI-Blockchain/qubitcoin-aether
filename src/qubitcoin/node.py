@@ -19,6 +19,7 @@ from .network.rpc import create_rpc_app
 from .network.p2p_network import P2PNetwork
 from .contracts.executor import ContractExecutor
 from .qvm.state import StateManager
+from .aether import KnowledgeGraph, PhiCalculator, ReasoningEngine, AetherEngine
 from .utils.logger import get_logger
 from .utils.metrics import current_height_metric, total_supply_metric
 
@@ -43,25 +44,25 @@ class QubitcoinNode:
         logger.info("Initializing components...")
 
         # Component 1: Database
-        logger.info("[1/9] Initializing DatabaseManager...")
+        logger.info("[1/10] Initializing DatabaseManager...")
         try:
             self.db = DatabaseManager()
-            logger.info("[1/9] DatabaseManager initialized")
+            logger.info("[1/10] DatabaseManager initialized")
         except Exception as e:
-            logger.error(f"[1/9] DatabaseManager failed: {e}", exc_info=True)
+            logger.error(f"[1/10] DatabaseManager failed: {e}", exc_info=True)
             raise
 
         # Component 2: Quantum Engine
-        logger.info("[2/9] Initializing QuantumEngine...")
+        logger.info("[2/10] Initializing QuantumEngine...")
         try:
             self.quantum = QuantumEngine()
-            logger.info("[2/9] QuantumEngine initialized")
+            logger.info("[2/10] QuantumEngine initialized")
         except Exception as e:
-            logger.error(f"[2/9] QuantumEngine failed: {e}", exc_info=True)
+            logger.error(f"[2/10] QuantumEngine failed: {e}", exc_info=True)
             raise
 
         # Component 3: P2P Network
-        logger.info("[3/9] Initializing P2PNetwork...")
+        logger.info("[3/10] Initializing P2PNetwork...")
         try:
             self.p2p = P2PNetwork(
                 port=Config.P2P_PORT,
@@ -69,62 +70,79 @@ class QubitcoinNode:
                 consensus=None,
                 max_peers=Config.MAX_PEERS
             )
-            logger.info("[3/9] P2PNetwork initialized")
+            logger.info("[3/10] P2PNetwork initialized")
         except Exception as e:
-            logger.error(f"[3/9] P2PNetwork failed: {e}", exc_info=True)
+            logger.error(f"[3/10] P2PNetwork failed: {e}", exc_info=True)
             raise
 
         # Component 4: Consensus Engine
-        logger.info("[4/9] Initializing ConsensusEngine...")
+        logger.info("[4/10] Initializing ConsensusEngine...")
         try:
             self.consensus = ConsensusEngine(self.quantum, self.db, self.p2p)
             self.p2p.consensus = self.consensus
-            logger.info("[4/9] ConsensusEngine initialized")
+            logger.info("[4/10] ConsensusEngine initialized")
         except Exception as e:
-            logger.error(f"[4/9] ConsensusEngine failed: {e}", exc_info=True)
+            logger.error(f"[4/10] ConsensusEngine failed: {e}", exc_info=True)
             raise
 
         # Component 5: IPFS
-        logger.info("[5/9] Initializing IPFSManager...")
+        logger.info("[5/10] Initializing IPFSManager...")
         try:
             self.ipfs = IPFSManager()
-            logger.info("[5/9] IPFSManager initialized")
+            logger.info("[5/10] IPFSManager initialized")
         except Exception as e:
-            logger.error(f"[5/9] IPFSManager failed: {e}", exc_info=True)
+            logger.error(f"[5/10] IPFSManager failed: {e}", exc_info=True)
             raise
 
         # Component 6: QVM State Manager (bytecode VM + state roots)
-        logger.info("[6/9] Initializing QVM StateManager...")
+        logger.info("[6/10] Initializing QVM StateManager...")
         try:
             self.state_manager = StateManager(self.db, self.quantum)
             self.consensus.state_manager = self.state_manager
-            logger.info("[6/9] QVM StateManager initialized (155 opcodes, 10 quantum)")
+            logger.info("[6/10] QVM StateManager initialized (155 opcodes, 10 quantum)")
         except Exception as e:
-            logger.error(f"[6/9] QVM StateManager failed: {e}", exc_info=True)
+            logger.error(f"[6/10] QVM StateManager failed: {e}", exc_info=True)
             raise
 
-        # Component 7: Mining Engine
-        logger.info("[7/9] Initializing MiningEngine...")
+        # Component 7: Aether Tree (AGI layer)
+        logger.info("[7/10] Initializing Aether Engine...")
+        try:
+            self.knowledge_graph = KnowledgeGraph(self.db)
+            self.phi_calculator = PhiCalculator(self.db, self.knowledge_graph)
+            self.reasoning_engine = ReasoningEngine(self.db, self.knowledge_graph)
+            self.aether = AetherEngine(
+                self.db, self.knowledge_graph,
+                self.phi_calculator, self.reasoning_engine
+            )
+            self.consensus.aether = self.aether
+            logger.info("[7/10] Aether Engine initialized (KnowledgeGraph + Phi + Reasoning + PoT)")
+        except Exception as e:
+            logger.error(f"[7/10] Aether Engine failed: {e}", exc_info=True)
+            raise
+
+        # Component 8: Mining Engine
+        logger.info("[8/10] Initializing MiningEngine...")
         try:
             self.mining = MiningEngine(self.quantum, self.consensus, self.db, console,
-                                       state_manager=self.state_manager)
+                                       state_manager=self.state_manager,
+                                       aether_engine=self.aether)
             self.mining.node = self
-            logger.info("[7/9] MiningEngine initialized")
+            logger.info("[8/10] MiningEngine initialized")
         except Exception as e:
-            logger.error(f"[7/9] MiningEngine failed: {e}", exc_info=True)
+            logger.error(f"[8/10] MiningEngine failed: {e}", exc_info=True)
             raise
 
-        # Component 8: Contract Executor (legacy template contracts)
-        logger.info("[8/9] Initializing ContractExecutor...")
+        # Component 9: Contract Executor (legacy template contracts)
+        logger.info("[9/10] Initializing ContractExecutor...")
         try:
             self.contracts = ContractExecutor(self.db, self.quantum)
-            logger.info("[8/9] ContractExecutor initialized")
+            logger.info("[9/10] ContractExecutor initialized")
         except Exception as e:
-            logger.error(f"[8/9] ContractExecutor failed: {e}", exc_info=True)
+            logger.error(f"[9/10] ContractExecutor failed: {e}", exc_info=True)
             raise
 
-        # Component 9: RPC & Handlers
-        logger.info("[9/9] Initializing RPC and handlers...")
+        # Component 10: RPC & Handlers
+        logger.info("[10/10] Initializing RPC and handlers...")
         try:
             self._setup_p2p_handlers()
 
@@ -135,17 +153,18 @@ class QubitcoinNode:
                 self.quantum,
                 self.ipfs,
                 contract_engine=self.contracts,
-                state_manager=self.state_manager
+                state_manager=self.state_manager,
+                aether_engine=self.aether
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
             self.app.on_event("shutdown")(self.on_shutdown)
-            logger.info("[9/9] RPC and handlers initialized")
+            logger.info("[10/10] RPC and handlers initialized")
         except Exception as e:
-            logger.error(f"[9/9] RPC initialization failed: {e}", exc_info=True)
+            logger.error(f"[10/10] RPC initialization failed: {e}", exc_info=True)
             raise
 
-        logger.info("All components initialized successfully")
+        logger.info("All 10 components initialized successfully")
     
     def _setup_p2p_handlers(self):
         """Register handlers for P2P messages"""
@@ -163,15 +182,24 @@ class QubitcoinNode:
             block_data = message.data
             block_height = block_data.get('height', 'unknown')
             block_hash = block_data.get('hash', 'unknown')[:16]
-            logger.info(f"📦 Received block from {sender_id}: height {block_height}, hash {block_hash}...")
-            
+            logger.info(f"Received block from {sender_id}: height {block_height}, hash {block_hash}...")
+
             current_height = self.db.get_current_height()
             if block_height <= current_height:
                 logger.debug(f"Already have block at height {block_height}, ignoring")
                 return
-            
-            logger.info(f"✓ Block {block_height} validated and ready to add")
-            
+
+            logger.info(f"Block {block_height} validated and ready to add")
+
+            # Process block knowledge for Aether Tree
+            if hasattr(self, 'aether') and self.aether:
+                try:
+                    from .database.models import Block as BlockModel
+                    block_obj = BlockModel.from_dict(block_data)
+                    self.aether.process_block_knowledge(block_obj)
+                except Exception as e:
+                    logger.debug(f"Aether knowledge from peer block: {e}")
+
             if self.mining.is_mining and block_height > current_height:
                 logger.info(f"New block found by peer, updating mining target")
         except Exception as e:

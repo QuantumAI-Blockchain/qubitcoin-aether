@@ -25,8 +25,9 @@ class ConsensusEngine:
         self.db = db_manager
         self.p2p = p2p_network
         self.state_manager = None  # Injected by node after StateManager init
+        self.aether = None  # Injected by node after AetherEngine init
         self.difficulty_cache = {}
-        logger.info("Consensus engine initialized (SUSY Economics + QVM)")
+        logger.info("Consensus engine initialized (SUSY Economics + QVM + Aether)")
 
     def calculate_reward(self, height: int, total_supply: Decimal) -> Decimal:
         """Calculate block reward with golden ratio halvings"""
@@ -188,9 +189,26 @@ class ConsensusEngine:
 
             # Validate thought proof (Aether Tree PoT) if present
             if block.thought_proof and isinstance(block.thought_proof, dict):
-                pot = block.thought_proof
-                if pot.get('phi_value', 0) < 0:
+                pot_data = block.thought_proof
+                if pot_data.get('phi_value', 0) < 0:
                     return False, "Invalid thought proof: negative phi value"
+                if self.aether:
+                    from ..database.models import ProofOfThought
+                    try:
+                        pot = ProofOfThought(
+                            thought_hash=pot_data.get('thought_hash', ''),
+                            reasoning_steps=pot_data.get('reasoning_steps', []),
+                            phi_value=pot_data.get('phi_value', 0),
+                            knowledge_root=pot_data.get('knowledge_root', ''),
+                            validator_address=pot_data.get('validator_address', ''),
+                            signature=pot_data.get('signature', ''),
+                            timestamp=pot_data.get('timestamp', 0),
+                        )
+                        valid_pot, pot_reason = self.aether.validate_thought_proof(pot, block)
+                        if not valid_pot:
+                            return False, f"Invalid thought proof: {pot_reason}"
+                    except Exception as e:
+                        logger.debug(f"Thought proof validation error: {e}")
 
             logger.debug(f"Block {block.height} validated successfully")
             return True, "Valid"
