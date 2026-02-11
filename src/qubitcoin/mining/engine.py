@@ -88,26 +88,50 @@ class MiningEngine:
 
         prev_hash = self._get_prev_hash(current_height)
         pending_txs = self.db.get_pending_transactions(limit=100)
-        hamiltonian = self.quantum.generate_hamiltonian()
 
-        logger.info(f"Mining block {next_height} (difficulty: {difficulty:.4f})")
+        # DETERMINISTIC: Derive Hamiltonian from chain state
+        # Every miner gets the SAME puzzle for this (prev_hash, height)
+        hamiltonian = self.quantum.generate_hamiltonian(
+            prev_hash=prev_hash,
+            height=next_height
+        )
 
-        try:
-            params, energy = self.quantum.optimize_vqe(hamiltonian)
-        except Exception as e:
-            logger.error(f"VQE optimization failed: {e}")
+        logger.info(f"Mining block {next_height} (difficulty: {difficulty:.4f}, prev: {prev_hash[:12]}...)")
+
+        # NONCE GRINDING: Try different random initial VQE params
+        # until we find one that converges to energy < difficulty
+        max_attempts = 50
+        for attempt in range(max_attempts):
+            if not self.is_mining:
+                return
+
+            # Check if someone else found this block
+            if self.db.get_block(next_height):
+                logger.info(f"Block {next_height} found by peer during mining, stopping")
+                return
+
+            try:
+                params, energy = self.quantum.optimize_vqe(hamiltonian)
+            except Exception as e:
+                logger.error(f"VQE optimization failed (attempt {attempt+1}): {e}")
+                continue
+
+            self.stats['total_attempts'] += 1
+            mining_attempts.inc()
+
+            if energy < difficulty:
+                logger.info(f"Solution found! energy={energy:.6f} < difficulty={difficulty:.6f} (attempt {attempt+1})")
+                break
+
+            logger.debug(f"Attempt {attempt+1}/{max_attempts}: energy {energy:.6f} >= difficulty {difficulty:.6f}")
+        else:
+            # All attempts exhausted
+            logger.debug(f"No solution in {max_attempts} attempts, retrying next round")
             time.sleep(Config.MINING_INTERVAL)
             return
 
-        self.stats['total_attempts'] += 1
-        mining_attempts.inc()
-
-        if energy >= difficulty:
-            logger.debug(f"Energy {energy:.6f} >= difficulty {difficulty:.6f}, retrying...")
-            time.sleep(Config.MINING_INTERVAL)
-            return
-
-        proof_data = self._create_proof(hamiltonian, params, energy)
+        # Build proof with chain binding
+        proof_data = self._create_proof(hamiltonian, params, energy, prev_hash, next_height)
         total_supply = self.db.get_total_supply()
         reward = self.consensus.calculate_reward(next_height, total_supply)
         coinbase = self._create_coinbase(next_height, reward, pending_txs)
@@ -189,15 +213,19 @@ class MiningEngine:
         logger.error(f"Block {current_height} exists but has no stored hash!")
         return '0' * 64
 
-    def _create_proof(self, hamiltonian, params, energy) -> dict:
-        """Create quantum proof data"""
+    def _create_proof(self, hamiltonian, params, energy,
+                      prev_hash: str, height: int) -> dict:
+        """Create quantum proof data with chain binding"""
         pk_bytes = bytes.fromhex(Config.PRIVATE_KEY_HEX)
-        msg = str(params.tolist()).encode()
+        # Sign params + prev_hash + height for chain binding
+        msg = str(params.tolist()).encode() + prev_hash.encode() + str(height).encode()
         signature = Dilithium2.sign(pk_bytes, msg)
         return {
             'challenge': hamiltonian,
             'params': params.tolist(),
             'energy': float(energy),
+            'prev_hash': prev_hash,
+            'height': height,
             'signature': signature.hex(),
             'public_key': Config.PUBLIC_KEY_HEX,
             'miner_address': Config.ADDRESS

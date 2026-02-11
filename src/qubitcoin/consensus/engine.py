@@ -119,21 +119,28 @@ class ConsensusEngine:
             if not proof or not isinstance(proof, dict):
                 return False, "Missing or invalid proof data"
 
+            # RE-DERIVE the Hamiltonian from chain state and verify
+            # the miner's proof is against the correct challenge
             valid, reason = self.quantum.validate_proof(
                 params=proof.get('params', []),
                 hamiltonian=proof.get('challenge', []),
                 claimed_energy=proof.get('energy', 0),
-                difficulty=block.difficulty
+                difficulty=block.difficulty,
+                prev_hash=block.prev_hash,
+                height=block.height
             )
             if not valid:
                 return False, f"Invalid quantum proof: {reason}"
 
-            # Verify proof signature
+            # Verify proof signature (includes chain binding)
             pk_hex = proof.get('public_key', '')
             sig_hex = proof.get('signature', '')
             if pk_hex and sig_hex:
                 pk = bytes.fromhex(pk_hex)
-                msg = str(proof.get('params', [])).encode()
+                # Message includes params + prev_hash + height (chain binding)
+                msg = (str(proof.get('params', [])).encode()
+                       + block.prev_hash.encode()
+                       + str(block.height).encode())
                 sig = bytes.fromhex(sig_hex)
                 from ..quantum.crypto import Dilithium2
                 if not Dilithium2.verify(pk, msg, sig):
