@@ -466,6 +466,30 @@ class DatabaseManager:
                     spent=row[6]
                 ))
             return utxos
+    def get_utxo(self, txid: str, vout: int) -> Optional[UTXO]:
+        """Get a specific UTXO by txid and vout"""
+        with self.get_session() as session:
+            result = session.execute(
+                text("""
+                    SELECT txid, vout, amount, address, proof, block_height, spent, spent_by
+                    FROM utxos
+                    WHERE txid = :txid AND vout = :vout
+                """),
+                {'txid': txid, 'vout': vout}
+            ).fetchone()
+            if not result:
+                return None
+            return UTXO(
+                txid=result[0],
+                vout=result[1],
+                amount=Decimal(str(result[2])),
+                address=result[3],
+                proof=json.loads(result[4]) if isinstance(result[4], str) else (result[4] or {}),
+                block_height=result[5],
+                spent=result[6],
+                spent_by=result[7]
+            )
+
     def mark_utxos_spent(self, inputs: List[dict], txid: str, session: DBSession):
         """Mark UTXOs as spent"""
         for inp in inputs:
