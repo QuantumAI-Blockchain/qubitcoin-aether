@@ -24,12 +24,14 @@ class MiningEngine:
     """Manages mining operations"""
 
     def __init__(self, quantum_engine: QuantumEngine, consensus_engine: ConsensusEngine,
-                 db_manager, console):
+                 db_manager, console, state_manager=None, aether_engine=None):
         """Initialize mining engine"""
         self.quantum = quantum_engine
         self.consensus = consensus_engine
         self.db = db_manager
         self.console = console
+        self.state_manager = state_manager
+        self.aether = aether_engine
         self.node = None
         self.is_mining = False
         self.mining_thread = None
@@ -39,7 +41,7 @@ class MiningEngine:
             'total_attempts': 0,
             'current_difficulty': Config.INITIAL_DIFFICULTY
         }
-        logger.info("✅ Mining engine initialized (SUSY Economics)")
+        logger.info("Mining engine initialized (SUSY Economics + QVM)")
 
     def start(self):
         """Start mining"""
@@ -144,6 +146,25 @@ class MiningEngine:
             timestamp=time.time(),
             difficulty=difficulty
         )
+
+        # Execute QVM transactions and compute state/receipts roots
+        if self.state_manager:
+            try:
+                state_root, receipts_root = self.state_manager.execute_block_transactions(block)
+                block.state_root = state_root
+                block.receipts_root = receipts_root
+            except Exception as e:
+                logger.error(f"QVM execution failed for block {next_height}: {e}", exc_info=True)
+
+        # Generate Aether Tree thought proof
+        if self.aether:
+            try:
+                pot = self.aether.generate_thought_proof(next_height, Config.ADDRESS)
+                if pot:
+                    block.thought_proof = pot.to_dict()
+            except Exception as e:
+                logger.debug(f"Thought proof generation skipped: {e}")
+
         block.block_hash = block.calculate_hash()
 
         valid, reason = self.consensus.validate_block(
@@ -183,6 +204,13 @@ class MiningEngine:
             blocks_mined.inc()
             current_height_metric.set(next_height)
             self._display_success(block, energy, reward)
+
+            # Process block knowledge for Aether Tree
+            if self.aether:
+                try:
+                    self.aether.process_block_knowledge(block)
+                except Exception as e:
+                    logger.debug(f"Aether knowledge processing: {e}")
 
             # Broadcast mined block to P2P network
             if self.node and hasattr(self.node, 'p2p'):

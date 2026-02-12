@@ -16,7 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import sessionmaker, Session as DBSession, declarative_base
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.pool import StaticPool
-from .models import UTXO, Transaction, Block
+from .models import UTXO, Transaction, Block, Account, TransactionReceipt
 from ..config import Config
 from ..utils.logger import get_logger
 
@@ -46,6 +46,9 @@ class BlockModel(Base):
     proof_json = Column(JSON)
     created_at = Column(Float)
     block_hash = Column(String(64))
+    state_root = Column(String(64), default='')
+    receipts_root = Column(String(64), default='')
+    thought_proof = Column(JSON, nullable=True)
 
 class TransactionModel(Base):
     __tablename__ = 'transactions'
@@ -58,6 +61,12 @@ class TransactionModel(Base):
     timestamp = Column(Float)
     block_height = Column(BigInteger, nullable=True)
     status = Column(String, default='pending')
+    tx_type = Column(String(20), default='transfer')
+    to_address = Column(String, nullable=True)
+    data = Column(Text, nullable=True)
+    gas_limit = Column(BigInteger, default=0)
+    gas_price = Column(Numeric, default=0)
+    nonce = Column(BigInteger, default=0)
 
 class UTXOModel(Base):
     __tablename__ = 'utxos'
@@ -312,6 +321,130 @@ class QuantumGateModel(Base):
     unlocked_by = Column(String, nullable=True)
     unlock_proof = Column(JSON, nullable=True)
     unlocked_at = Column(DateTime, nullable=True)
+
+# -----------------------------------------------------------
+# QVM Account Model (EVM-compatible)
+# -----------------------------------------------------------
+
+class AccountModel(Base):
+    __tablename__ = 'accounts'
+    address = Column(String(42), primary_key=True)
+    nonce = Column(BigInteger, default=0)
+    balance = Column(Numeric(30, 8), default=0)
+    code_hash = Column(String(64), default='')
+    storage_root = Column(String(64), default='')
+    bytecode = Column(Text, nullable=True)  # Hex-encoded contract bytecode
+
+class ContractStorageModel(Base):
+    __tablename__ = 'contract_storage'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    contract_address = Column(String(42), nullable=False)
+    storage_key = Column(String(64), nullable=False)
+    storage_value = Column(String(64), nullable=False)
+    block_height = Column(BigInteger)
+    __table_args__ = (
+        UniqueConstraint('contract_address', 'storage_key', name='uq_contract_storage'),
+    )
+
+class TransactionReceiptModel(Base):
+    __tablename__ = 'transaction_receipts'
+    txid = Column(String(64), primary_key=True)
+    block_height = Column(BigInteger, nullable=False)
+    block_hash = Column(String(64))
+    tx_index = Column(Integer)
+    from_address = Column(String(42))
+    to_address = Column(String(42), nullable=True)
+    contract_address = Column(String(42), nullable=True)
+    gas_used = Column(BigInteger, default=0)
+    gas_limit = Column(BigInteger, default=0)
+    status = Column(Integer, default=1)  # 1=success, 0=revert
+    return_data = Column(Text, default='')
+    revert_reason = Column(Text, default='')
+    state_root = Column(String(64), default='')
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+class EventLogModel(Base):
+    __tablename__ = 'event_logs'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    txid = Column(String(64), nullable=False)
+    log_index = Column(Integer, nullable=False)
+    contract_address = Column(String(42), nullable=False)
+    topic0 = Column(String(64), nullable=True)
+    topic1 = Column(String(64), nullable=True)
+    topic2 = Column(String(64), nullable=True)
+    topic3 = Column(String(64), nullable=True)
+    data = Column(Text, default='')
+    block_height = Column(BigInteger)
+
+# -----------------------------------------------------------
+# QVM Opcode Gas Table
+# -----------------------------------------------------------
+
+class OpcodeGasModel(Base):
+    __tablename__ = 'opcode_gas'
+    opcode = Column(Integer, primary_key=True)
+    name = Column(String(20), nullable=False)
+    gas_cost = Column(BigInteger, nullable=False)
+    category = Column(String(20), default='arithmetic')
+
+# -----------------------------------------------------------
+# Aether Tree Tables
+# -----------------------------------------------------------
+
+class KnowledgeNodeModel(Base):
+    __tablename__ = 'knowledge_nodes'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    node_type = Column(String(50), nullable=False)
+    content_hash = Column(String(64), nullable=False)
+    content = Column(JSON, nullable=False)
+    confidence = Column(Float, default=0.5)
+    source_block = Column(BigInteger)
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+class KnowledgeEdgeModel(Base):
+    __tablename__ = 'knowledge_edges'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    from_node_id = Column(BigInteger, nullable=False)
+    to_node_id = Column(BigInteger, nullable=False)
+    edge_type = Column(String(50), nullable=False)
+    weight = Column(Float, default=1.0)
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    __table_args__ = (
+        UniqueConstraint('from_node_id', 'to_node_id', 'edge_type', name='uq_knowledge_edge'),
+    )
+
+class ReasoningOperationModel(Base):
+    __tablename__ = 'reasoning_operations'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    operation_type = Column(String(30), nullable=False)  # deductive, inductive, abductive
+    premise_nodes = Column(JSON)
+    conclusion_node_id = Column(BigInteger, nullable=True)
+    confidence = Column(Float, default=0.0)
+    reasoning_chain = Column(JSON)
+    block_height = Column(BigInteger)
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+class PhiMeasurementModel(Base):
+    __tablename__ = 'phi_measurements'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    phi_value = Column(Float, nullable=False)
+    phi_threshold = Column(Float, default=3.0)
+    integration_score = Column(Float, default=0.0)
+    differentiation_score = Column(Float, default=0.0)
+    num_nodes = Column(BigInteger, default=0)
+    num_edges = Column(BigInteger, default=0)
+    block_height = Column(BigInteger)
+    measured_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+class ConsciousnessEventModel(Base):
+    __tablename__ = 'consciousness_events'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    event_type = Column(String(50), nullable=False)
+    phi_at_event = Column(Float)
+    trigger_data = Column(JSON)
+    is_verified = Column(Boolean, default=False)
+    block_height = Column(BigInteger)
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 # ===========================================================
 # Database Manager
@@ -597,8 +730,9 @@ class DatabaseManager:
             # Insert block
             session.execute(
                 text("""
-                    INSERT INTO blocks (height, prev_hash, proof_json, difficulty, created_at, block_hash)
-                    VALUES (:h, :ph, CAST(:pj AS jsonb), :d, :ts, :bh)
+                    INSERT INTO blocks (height, prev_hash, proof_json, difficulty, created_at, block_hash,
+                                       state_root, receipts_root, thought_proof)
+                    VALUES (:h, :ph, CAST(:pj AS jsonb), :d, :ts, :bh, :sr, :rr, CAST(:tp AS jsonb))
                 """),
                 {
                     'h': block.height,
@@ -606,7 +740,10 @@ class DatabaseManager:
                     'pj': json.dumps(block.proof_data),
                     'd': block.difficulty,
                     'ts': block.timestamp,
-                    'bh': block.block_hash or block.calculate_hash()
+                    'bh': block.block_hash or block.calculate_hash(),
+                    'sr': block.state_root or '',
+                    'rr': block.receipts_root or '',
+                    'tp': json.dumps(block.thought_proof) if block.thought_proof else None
                 }
             )
             # Process transactions
@@ -693,3 +830,219 @@ class DatabaseManager:
                 'bh': block_height
             }
         )
+
+    # ========================================================================
+    # QUERY HELPERS (used by node.py metrics)
+    # ========================================================================
+    def query_one(self, sql: str, params: dict = None) -> Optional[dict]:
+        """Execute query and return first row as dict, or None"""
+        try:
+            with self.get_session() as session:
+                result = session.execute(text(sql), params or {}).fetchone()
+                if not result:
+                    return None
+                # Convert Row to dict
+                if hasattr(result, '_mapping'):
+                    return dict(result._mapping)
+                # Fallback for tuple rows
+                return {f'col_{i}': v for i, v in enumerate(result)}
+        except Exception as e:
+            logger.debug(f"query_one failed: {e}")
+            return None
+
+    # ========================================================================
+    # ACCOUNT OPERATIONS (QVM)
+    # ========================================================================
+    def get_account(self, address: str) -> Optional[Account]:
+        """Get account by address"""
+        with self.get_session() as session:
+            result = session.execute(
+                text("SELECT address, nonce, balance, code_hash, storage_root FROM accounts WHERE address = :addr"),
+                {'addr': address}
+            ).fetchone()
+            if not result:
+                return None
+            return Account(
+                address=result[0],
+                nonce=result[1],
+                balance=Decimal(str(result[2])),
+                code_hash=result[3] or '',
+                storage_root=result[4] or ''
+            )
+
+    def get_or_create_account(self, address: str) -> Account:
+        """Get account or create empty one"""
+        account = self.get_account(address)
+        if account:
+            return account
+        with self.get_session() as session:
+            session.execute(
+                text("INSERT INTO accounts (address, nonce, balance, code_hash, storage_root) VALUES (:addr, 0, 0, '', '')"),
+                {'addr': address}
+            )
+            session.commit()
+        return Account(address=address)
+
+    def update_account(self, account: Account, session: DBSession = None):
+        """Update account state"""
+        def _do(s):
+            s.execute(
+                text("""
+                    INSERT INTO accounts (address, nonce, balance, code_hash, storage_root, bytecode)
+                    VALUES (:addr, :nonce, :balance, :code_hash, :storage_root, :bytecode)
+                    ON CONFLICT (address) DO UPDATE SET
+                        nonce = :nonce, balance = :balance,
+                        code_hash = :code_hash, storage_root = :storage_root
+                """),
+                {
+                    'addr': account.address,
+                    'nonce': account.nonce,
+                    'balance': str(account.balance),
+                    'code_hash': account.code_hash,
+                    'storage_root': account.storage_root,
+                    'bytecode': None
+                }
+            )
+        if session:
+            _do(session)
+        else:
+            with self.get_session() as s:
+                _do(s)
+                s.commit()
+
+    def get_account_balance(self, address: str) -> Decimal:
+        """Get account balance (QVM account model)"""
+        with self.get_session() as session:
+            result = session.execute(
+                text("SELECT COALESCE(balance, 0) FROM accounts WHERE address = :addr"),
+                {'addr': address}
+            ).scalar()
+            return Decimal(str(result)) if result else Decimal(0)
+
+    # ========================================================================
+    # CONTRACT STORAGE (QVM)
+    # ========================================================================
+    def get_storage(self, contract_address: str, key: str) -> str:
+        """Get contract storage value"""
+        with self.get_session() as session:
+            result = session.execute(
+                text("SELECT storage_value FROM contract_storage WHERE contract_address = :addr AND storage_key = :key"),
+                {'addr': contract_address, 'key': key}
+            ).scalar()
+            return result or '0' * 64
+
+    def set_storage(self, contract_address: str, key: str, value: str, block_height: int, session: DBSession = None):
+        """Set contract storage value"""
+        def _do(s):
+            s.execute(
+                text("""
+                    INSERT INTO contract_storage (contract_address, storage_key, storage_value, block_height)
+                    VALUES (:addr, :key, :val, :height)
+                    ON CONFLICT (contract_address, storage_key) DO UPDATE SET
+                        storage_value = :val, block_height = :height
+                """),
+                {'addr': contract_address, 'key': key, 'val': value, 'height': block_height}
+            )
+        if session:
+            _do(session)
+        else:
+            with self.get_session() as s:
+                _do(s)
+                s.commit()
+
+    def get_contract_bytecode(self, address: str) -> Optional[str]:
+        """Get contract bytecode by address"""
+        with self.get_session() as session:
+            result = session.execute(
+                text("SELECT bytecode FROM accounts WHERE address = :addr AND code_hash != ''"),
+                {'addr': address}
+            ).scalar()
+            return result
+
+    # ========================================================================
+    # TRANSACTION RECEIPTS
+    # ========================================================================
+    def store_receipt(self, receipt: TransactionReceipt, session: DBSession = None):
+        """Store transaction receipt"""
+        def _do(s):
+            s.execute(
+                text("""
+                    INSERT INTO transaction_receipts
+                    (txid, block_height, block_hash, tx_index, from_address, to_address,
+                     contract_address, gas_used, gas_limit, status, return_data, revert_reason, state_root)
+                    VALUES (:txid, :bh, :bhash, :idx, :from_addr, :to_addr,
+                            :contract, :gas_used, :gas_limit, :status, :ret, :reason, :sr)
+                """),
+                {
+                    'txid': receipt.txid, 'bh': receipt.block_height,
+                    'bhash': receipt.block_hash, 'idx': receipt.tx_index,
+                    'from_addr': receipt.from_address, 'to_addr': receipt.to_address,
+                    'contract': receipt.contract_address,
+                    'gas_used': receipt.gas_used, 'gas_limit': receipt.gas_limit,
+                    'status': receipt.status, 'ret': receipt.return_data,
+                    'reason': receipt.revert_reason, 'sr': receipt.state_root
+                }
+            )
+            # Store event logs
+            for i, log in enumerate(receipt.logs):
+                s.execute(
+                    text("""
+                        INSERT INTO event_logs
+                        (txid, log_index, contract_address, topic0, topic1, topic2, topic3, data, block_height)
+                        VALUES (:txid, :idx, :addr, :t0, :t1, :t2, :t3, :data, :bh)
+                    """),
+                    {
+                        'txid': receipt.txid, 'idx': i,
+                        'addr': log.get('address', ''),
+                        't0': log.get('topic0'), 't1': log.get('topic1'),
+                        't2': log.get('topic2'), 't3': log.get('topic3'),
+                        'data': log.get('data', ''), 'bh': receipt.block_height
+                    }
+                )
+        if session:
+            _do(session)
+        else:
+            with self.get_session() as s:
+                _do(s)
+                s.commit()
+
+    def get_receipt(self, txid: str) -> Optional[TransactionReceipt]:
+        """Get transaction receipt"""
+        with self.get_session() as session:
+            row = session.execute(
+                text("""SELECT txid, block_height, block_hash, tx_index, from_address, to_address,
+                        contract_address, gas_used, gas_limit, status, return_data, revert_reason, state_root
+                        FROM transaction_receipts WHERE txid = :txid"""),
+                {'txid': txid}
+            ).fetchone()
+            if not row:
+                return None
+            # Get logs
+            log_rows = session.execute(
+                text("SELECT contract_address, topic0, topic1, topic2, topic3, data FROM event_logs WHERE txid = :txid ORDER BY log_index"),
+                {'txid': txid}
+            )
+            logs = [
+                {'address': r[0], 'topic0': r[1], 'topic1': r[2], 'topic2': r[3], 'topic3': r[4], 'data': r[5]}
+                for r in log_rows
+            ]
+            return TransactionReceipt(
+                txid=row[0], block_height=row[1], block_hash=row[2] or '',
+                tx_index=row[3] or 0, from_address=row[4] or '',
+                to_address=row[5], contract_address=row[6],
+                gas_used=row[7] or 0, gas_limit=row[8] or 0,
+                status=row[9] or 1, logs=logs,
+                return_data=row[10] or '', revert_reason=row[11] or '',
+                state_root=row[12] or ''
+            )
+
+    def get_block_by_hash(self, block_hash: str) -> Optional[Block]:
+        """Get block by hash"""
+        with self.get_session() as session:
+            result = session.execute(
+                text("SELECT height FROM blocks WHERE block_hash = :bh"),
+                {'bh': block_hash}
+            ).fetchone()
+            if not result:
+                return None
+            return self.get_block(result[0])

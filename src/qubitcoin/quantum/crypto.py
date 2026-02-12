@@ -6,13 +6,20 @@ Implementation using dilithium-py library
 import hashlib
 from typing import Tuple
 
+import os
+
 try:
-    # Correct import for dilithium-py package
     from dilithium_py.dilithium import Dilithium2 as DilithiumImpl
     DILITHIUM_AVAILABLE = True
 except ImportError:
     DILITHIUM_AVAILABLE = False
-    print("⚠️  WARNING: dilithium-py not installed. Using fallback implementation.")
+    _env = os.getenv('QBC_ENV', 'development')
+    if _env == 'production':
+        raise RuntimeError(
+            "FATAL: dilithium-py not installed in production mode. "
+            "Post-quantum cryptography is required. Install: pip install dilithium-py"
+        )
+    print("WARNING: dilithium-py not installed. Using INSECURE fallback (dev only).")
     print("   For production, install: pip install dilithium-py")
 
 from ..utils.logger import get_logger

@@ -19,6 +19,8 @@ from .network.rpc import create_rpc_app
 from .network.p2p_network import P2PNetwork
 from .network.rust_p2p_client import RustP2PClient
 from .contracts.executor import ContractExecutor
+from .qvm.state import StateManager
+from .aether import KnowledgeGraph, PhiCalculator, ReasoningEngine, AetherEngine
 from .utils.logger import get_logger
 
 # Import ALL metrics
@@ -53,7 +55,7 @@ logger = get_logger(__name__)
 console = Console()
 
 class QubitcoinNode:
-    """Main node orchestrator with P2P networking"""
+    """Main node orchestrator with P2P networking, QVM, and Aether Tree"""
 
     def __init__(self):
         """Initialize all node components"""
@@ -70,31 +72,31 @@ class QubitcoinNode:
         logger.info("Initializing components...")
 
         # Component 1: Database
-        logger.info("🔍 [1/9] Initializing DatabaseManager...")
+        logger.info("[1/10] Initializing DatabaseManager...")
         try:
             self.db = DatabaseManager()
-            logger.info("✅ [1/9] DatabaseManager initialized")
+            logger.info("[1/10] DatabaseManager initialized")
         except Exception as e:
-            logger.error(f"❌ [1/9] DatabaseManager failed: {e}", exc_info=True)
+            logger.error(f"[1/10] DatabaseManager failed: {e}", exc_info=True)
             raise
 
         # Component 2: Quantum Engine
-        logger.info("🔍 [2/9] Initializing QuantumEngine...")
+        logger.info("[2/10] Initializing QuantumEngine...")
         try:
             self.quantum = QuantumEngine()
-            logger.info("✅ [2/9] QuantumEngine initialized")
+            logger.info("[2/10] QuantumEngine initialized")
         except Exception as e:
-            logger.error(f"❌ [2/9] QuantumEngine failed: {e}", exc_info=True)
+            logger.error(f"[2/10] QuantumEngine failed: {e}", exc_info=True)
             raise
 
         # Component 3: P2P Network (Python or Rust)
-        logger.info("🔍 [3/9] Initializing P2P Network...")
+        logger.info("[3/10] Initializing P2P Network...")
         try:
             if Config.ENABLE_RUST_P2P:
                 logger.info("Using Rust P2P (libp2p 0.56)")
                 self.rust_p2p = RustP2PClient(f"127.0.0.1:{Config.RUST_P2P_GRPC}")
                 self.p2p = None  # Disable Python P2P
-                logger.info("✅ [3/9] Rust P2P client initialized")
+                logger.info("[3/10] Rust P2P client initialized")
             else:
                 logger.info("Using Python P2P (legacy)")
                 self.p2p = P2PNetwork(
@@ -104,52 +106,80 @@ class QubitcoinNode:
                     max_peers=Config.MAX_PEERS
                 )
                 self.rust_p2p = None
-                logger.info("✅ [3/9] Python P2P initialized")
+                logger.info("[3/10] Python P2P initialized")
         except Exception as e:
-            logger.error(f"❌ [3/9] P2P initialization failed: {e}", exc_info=True)
+            logger.error(f"[3/10] P2P initialization failed: {e}", exc_info=True)
             raise
 
         # Component 4: Consensus Engine
-        logger.info("🔍 [4/9] Initializing ConsensusEngine...")
+        logger.info("[4/10] Initializing ConsensusEngine...")
         try:
             self.consensus = ConsensusEngine(self.quantum, self.db, self.p2p)
             if self.p2p:
                 self.p2p.consensus = self.consensus
-            logger.info("✅ [4/9] ConsensusEngine initialized")
+            logger.info("[4/10] ConsensusEngine initialized")
         except Exception as e:
-            logger.error(f"❌ [4/9] ConsensusEngine failed: {e}", exc_info=True)
+            logger.error(f"[4/10] ConsensusEngine failed: {e}", exc_info=True)
             raise
 
         # Component 5: IPFS
-        logger.info("🔍 [5/9] Initializing IPFSManager...")
+        logger.info("[5/10] Initializing IPFSManager...")
         try:
             self.ipfs = IPFSManager()
-            logger.info("✅ [5/9] IPFSManager initialized")
+            logger.info("[5/10] IPFSManager initialized")
         except Exception as e:
-            logger.error(f"❌ [5/9] IPFSManager failed: {e}", exc_info=True)
+            logger.error(f"[5/10] IPFSManager failed: {e}", exc_info=True)
             raise
 
-        # Component 6: Mining Engine
-        logger.info("🔍 [6/9] Initializing MiningEngine...")
+        # Component 6: QVM State Manager (bytecode VM + state roots)
+        logger.info("[6/10] Initializing QVM StateManager...")
         try:
-            self.mining = MiningEngine(self.quantum, self.consensus, self.db, console)
-            self.mining.node = self
-            logger.info("✅ [6/9] MiningEngine initialized")
+            self.state_manager = StateManager(self.db, self.quantum)
+            self.consensus.state_manager = self.state_manager
+            logger.info("[6/10] QVM StateManager initialized (155 opcodes, 10 quantum)")
         except Exception as e:
-            logger.error(f"❌ [6/9] MiningEngine failed: {e}", exc_info=True)
+            logger.error(f"[6/10] QVM StateManager failed: {e}", exc_info=True)
             raise
 
-        # Component 7: Contract Executor
-        logger.info("🔍 [7/9] Initializing ContractExecutor...")
+        # Component 7: Aether Tree (AGI layer)
+        logger.info("[7/10] Initializing Aether Engine...")
+        try:
+            self.knowledge_graph = KnowledgeGraph(self.db)
+            self.phi_calculator = PhiCalculator(self.db, self.knowledge_graph)
+            self.reasoning_engine = ReasoningEngine(self.db, self.knowledge_graph)
+            self.aether = AetherEngine(
+                self.db, self.knowledge_graph,
+                self.phi_calculator, self.reasoning_engine
+            )
+            self.consensus.aether = self.aether
+            logger.info("[7/10] Aether Engine initialized (KnowledgeGraph + Phi + Reasoning + PoT)")
+        except Exception as e:
+            logger.error(f"[7/10] Aether Engine failed: {e}", exc_info=True)
+            raise
+
+        # Component 8: Mining Engine
+        logger.info("[8/10] Initializing MiningEngine...")
+        try:
+            self.mining = MiningEngine(self.quantum, self.consensus, self.db, console,
+                                       state_manager=self.state_manager,
+                                       aether_engine=self.aether)
+            self.mining.node = self
+            logger.info("[8/10] MiningEngine initialized")
+        except Exception as e:
+            logger.error(f"[8/10] MiningEngine failed: {e}", exc_info=True)
+            raise
+
+        # Component 9: Contract Executor (legacy template contracts)
+        logger.info("[9/10] Initializing ContractExecutor...")
         try:
             self.contracts = ContractExecutor(self.db, self.quantum)
-            logger.info("✅ [7/9] ContractExecutor initialized")
+            logger.info("[9/10] ContractExecutor initialized")
         except Exception as e:
-            logger.error(f"❌ [7/9] ContractExecutor failed: {e}", exc_info=True)
+            logger.error(f"[9/10] ContractExecutor failed: {e}", exc_info=True)
             raise
 
-        # Component 8: RPC & Handlers
-        logger.info("🔍 [8/9] Initializing RPC...")
+        # Component 10: RPC & Handlers
+        logger.info("[10/10] Initializing RPC and handlers...")
         try:
             if self.p2p:
                 self._setup_p2p_handlers()
@@ -160,17 +190,19 @@ class QubitcoinNode:
                 self.mining,
                 self.quantum,
                 self.ipfs,
-                contract_engine=self.contracts
+                contract_engine=self.contracts,
+                state_manager=self.state_manager,
+                aether_engine=self.aether
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
             self.app.on_event("shutdown")(self.on_shutdown)
-            logger.info("✅ [8/9] RPC initialized")
+            logger.info("[10/10] RPC and handlers initialized")
         except Exception as e:
-            logger.error(f"❌ [8/9] RPC initialization failed: {e}", exc_info=True)
+            logger.error(f"[10/10] RPC initialization failed: {e}", exc_info=True)
             raise
 
-        logger.info("✅ All components initialized successfully")
+        logger.info("All 10 components initialized successfully")
 
     def _setup_p2p_handlers(self):
         """Register handlers for Python P2P messages"""
@@ -183,7 +215,7 @@ class QubitcoinNode:
         self.p2p.register_handler('pong', self._handle_pong)
         self.p2p.register_handler('get_peers', self._handle_get_peers)
         self.p2p.register_handler('peers', self._handle_peer_list)
-        logger.info("✅ Python P2P message handlers registered")
+        logger.info("Python P2P message handlers registered")
 
     async def _handle_received_block(self, message, sender_id):
         """Handle block received from peer"""
@@ -191,15 +223,24 @@ class QubitcoinNode:
             block_data = message.data
             block_height = block_data.get('height', 'unknown')
             block_hash = block_data.get('hash', 'unknown')[:16]
-            logger.info(f"📦 Received block from {sender_id}: height {block_height}, hash {block_hash}...")
+            logger.info(f"Received block from {sender_id}: height {block_height}, hash {block_hash}...")
 
             current_height = self.db.get_current_height()
             if block_height <= current_height:
                 logger.debug(f"Already have block at height {block_height}, ignoring")
                 return
 
-            logger.info(f"✓ Block {block_height} validated and ready to add")
+            logger.info(f"Block {block_height} validated and ready to add")
             blocks_received.inc()
+
+            # Process block knowledge for Aether Tree
+            if hasattr(self, 'aether') and self.aether:
+                try:
+                    from .database.models import Block as BlockModel
+                    block_obj = BlockModel.from_dict(block_data)
+                    self.aether.process_block_knowledge(block_obj)
+                except Exception as e:
+                    logger.debug(f"Aether knowledge from peer block: {e}")
 
             if self.mining.is_mining and block_height > current_height:
                 logger.info(f"New block found by peer, updating mining target")
@@ -211,14 +252,14 @@ class QubitcoinNode:
         try:
             tx_data = message.data
             tx_id = tx_data.get('txid', 'unknown')[:16]
-            logger.info(f"💸 Received transaction from {sender_id}: {tx_id}...")
+            logger.info(f"Received transaction from {sender_id}: {tx_id}...")
             logger.debug(f"Transaction {tx_id} added to mempool")
         except Exception as e:
             logger.error(f"Error handling transaction from {sender_id}: {e}")
 
     async def _handle_ping(self, message, sender_id):
         """Respond to ping message"""
-        logger.debug(f"🏓 Ping from {sender_id}")
+        logger.debug(f"Ping from {sender_id}")
         await self.p2p.send_message(sender_id, 'pong', {
             'timestamp': time.time(),
             'height': self.db.get_current_height()
@@ -226,7 +267,7 @@ class QubitcoinNode:
 
     async def _handle_pong(self, message, sender_id):
         """Handle pong response"""
-        logger.debug(f"🏓 Pong from {sender_id}")
+        logger.debug(f"Pong from {sender_id}")
         peer_height = message.data.get('height', 0)
         our_height = self.db.get_current_height()
         if peer_height > our_height:
@@ -251,8 +292,8 @@ class QubitcoinNode:
 
     async def _update_metrics_loop(self):
         """Periodically update Prometheus metrics from database"""
-        logger.info("📊 Metrics update loop started")
-        
+        logger.info("Metrics update loop started")
+
         while self.running:
             try:
                 await self._update_all_metrics()
@@ -270,7 +311,7 @@ class QubitcoinNode:
             chain_state = self.db.query_one(
                 "SELECT * FROM chain_state WHERE id = 1"
             )
-            
+
             if chain_state:
                 current_height_metric.set(chain_state.get('best_block_height', 0))
                 total_supply_metric.set(float(chain_state.get('total_supply', 0)))
@@ -301,7 +342,7 @@ class QubitcoinNode:
             # QUANTUM RESEARCH METRICS
             # ============================================================
             hamiltonian_stats = self.db.query_one("""
-                SELECT 
+                SELECT
                     COUNT(*) FILTER (WHERE is_active = true) as active_count,
                     COUNT(*) as total_count
                 FROM hamiltonians
@@ -328,7 +369,7 @@ class QubitcoinNode:
             # QVM METRICS
             # ============================================================
             contract_stats = self.db.query_one("""
-                SELECT 
+                SELECT
                     COUNT(*) as total,
                     COUNT(*) FILTER (WHERE is_active = true) as active_count
                 FROM smart_contracts
@@ -344,7 +385,7 @@ class QubitcoinNode:
                 contract_executions_total.labels().inc(0)  # Will increment on new executions
 
             # ============================================================
-            # AGI METRICS - THE MAIN EVENT! 🧠
+            # AGI METRICS
             # ============================================================
             # Get latest Phi measurement
             latest_phi = self.db.query_one("""
@@ -353,29 +394,29 @@ class QubitcoinNode:
                 ORDER BY measured_at DESC
                 LIMIT 1
             """)
-            
+
             if latest_phi:
                 phi_val = float(latest_phi.get('phi_value', 0.1))
                 phi_thresh = float(latest_phi.get('phi_threshold', 3.0))
-                
+
                 phi_current.set(phi_val)
                 phi_threshold_distance.set(max(0, phi_thresh - phi_val))
                 integration_score.set(float(latest_phi.get('integration_score', 0.1)))
                 differentiation_score.set(float(latest_phi.get('differentiation_score', 0.1)))
-                
+
                 # Log consciousness progress
                 if phi_val > 0.1:  # Not genesis
                     progress_pct = (phi_val / phi_thresh) * 100
-                    logger.debug(f"🧠 Consciousness: Φ={phi_val:.4f} ({progress_pct:.1f}% to threshold)")
+                    logger.debug(f"Consciousness: Phi={phi_val:.4f} ({progress_pct:.1f}% to threshold)")
 
             # Knowledge graph stats
             knowledge_stats = self.db.query_one("""
-                SELECT 
+                SELECT
                     (SELECT COUNT(*) FROM knowledge_nodes) as node_count,
                     (SELECT COUNT(*) FROM knowledge_edges) as edge_count,
                     (SELECT AVG(path_length) FROM causal_chains) as avg_causal_length
             """)
-            
+
             if knowledge_stats:
                 knowledge_nodes_total.set(knowledge_stats.get('node_count', 0))
                 knowledge_edges_total.set(knowledge_stats.get('edge_count', 0))
@@ -393,7 +434,7 @@ class QubitcoinNode:
 
             # Training data & models
             training_stats = self.db.query_one("""
-                SELECT 
+                SELECT
                     (SELECT COUNT(*) FROM training_datasets) as datasets,
                     (SELECT COUNT(*) FROM model_registry WHERE is_active = true) as active_models
             """)
@@ -405,7 +446,7 @@ class QubitcoinNode:
             # IPFS METRICS
             # ============================================================
             ipfs_stats = self.db.query_one("""
-                SELECT 
+                SELECT
                     (SELECT COUNT(*) FROM ipfs_pins WHERE pin_status = 'pinned') as pins,
                     (SELECT COUNT(*) FROM blockchain_snapshots) as snapshots
             """)
@@ -437,7 +478,7 @@ class QubitcoinNode:
         # Initial metrics
         current_height_metric.set(height)
         total_supply_metric.set(float(supply))
-        
+
         # Set quantum backend metric
         if Config.USE_LOCAL_ESTIMATOR:
             quantum_backend_metric.set(0)
@@ -448,16 +489,16 @@ class QubitcoinNode:
 
         # Start P2P network
         if Config.ENABLE_RUST_P2P:
-            logger.info("🦀 Connecting to Rust P2P network...")
+            logger.info("Connecting to Rust P2P network...")
             if self.rust_p2p.connect():
                 peer_count = self.rust_p2p.get_peer_count()
-                logger.info(f"🌐 Rust P2P connected - {peer_count} peers")
+                logger.info(f"Rust P2P connected - {peer_count} peers")
                 rust_p2p_peers.set(peer_count)
             else:
-                logger.warning("⚠️  Rust P2P connection failed - running without P2P")
+                logger.warning("Rust P2P connection failed - running without P2P")
         else:
             await self.p2p.start()
-            logger.info(f"🌐 Python P2P network started on port {Config.P2P_PORT}")
+            logger.info(f"Python P2P network started on port {Config.P2P_PORT}")
 
             if Config.PEER_SEEDS:
                 logger.info(f"Connecting to {len(Config.PEER_SEEDS)} seed peers...")
@@ -471,7 +512,7 @@ class QubitcoinNode:
         # Start metrics update loop
         self.running = True
         self.metrics_task = asyncio.create_task(self._update_metrics_loop())
-        logger.info("📊 Metrics collection started")
+        logger.info("Metrics collection started")
 
         # Start mining
         if Config.AUTO_MINE:
@@ -481,15 +522,14 @@ class QubitcoinNode:
         if height > 0 and height % Config.SNAPSHOT_INTERVAL == 0:
             loop = asyncio.get_event_loop()
             loop.run_in_executor(None, self.ipfs.create_snapshot, self.db, height)
-        
-        self.running = True
-        logger.info("✅ Node startup complete")
+
+        logger.info("Node startup complete")
 
     async def on_shutdown(self):
         """Called when RPC server stops"""
         logger.info("Shutting down node...")
         self.running = False
-        
+
         # Stop metrics task
         if self.metrics_task:
             self.metrics_task.cancel()
@@ -497,7 +537,7 @@ class QubitcoinNode:
                 await self.metrics_task
             except asyncio.CancelledError:
                 pass
-        
+
         self.mining.stop()
 
         if self.rust_p2p:
@@ -509,7 +549,7 @@ class QubitcoinNode:
             "[bold yellow]Qubitcoin Node Stopped[/]",
             border_style="yellow"
         ))
-        logger.info("✅ Node shutdown complete")
+        logger.info("Node shutdown complete")
 
     def on_block_mined(self, block_data: dict):
         """Called when mining engine successfully mines a block"""
@@ -517,12 +557,12 @@ class QubitcoinNode:
             block_height = block_data.get('height', 'unknown')
             block_hash = block_data.get('hash', 'unknown')
 
-            logger.info(f"🎉 Block {block_height} mined! Broadcasting to network...")
-            
+            logger.info(f"Block {block_height} mined! Broadcasting to network...")
+
             # Update metrics
             blocks_mined.inc()
             current_height_metric.set(block_height)
-            
+
             # Update alignment score if present
             alignment = block_data.get('alignment_score', 0)
             if alignment:
@@ -533,14 +573,14 @@ class QubitcoinNode:
                 success = self.rust_p2p.broadcast_block(block_height, block_hash)
                 if success:
                     peer_count = self.rust_p2p.get_peer_count()
-                    logger.info(f"📡 Block {block_height} broadcasted via Rust P2P to {peer_count} peers")
+                    logger.info(f"Block {block_height} broadcasted via Rust P2P to {peer_count} peers")
                 else:
                     logger.warning(f"Failed to broadcast block {block_height} via Rust P2P")
             elif self.p2p:
                 # Use Python P2P for broadcasting
                 asyncio.create_task(self.p2p.broadcast('block', block_data))
                 peer_count = len(self.p2p.connections)
-                logger.info(f"📡 Block {block_height} broadcasted via Python P2P to {peer_count} peers")
+                logger.info(f"Block {block_height} broadcasted via Python P2P to {peer_count} peers")
             else:
                 logger.warning("No P2P network available - block not broadcasted")
 
