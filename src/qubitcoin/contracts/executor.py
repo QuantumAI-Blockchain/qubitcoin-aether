@@ -249,14 +249,15 @@ class ContractExecutor:
         # Get token info
         with self.db.get_session() as session:
             token = session.execute(
-                text("SELECT symbol FROM tokens WHERE contract_id = :cid"),
+                text("SELECT token_id, symbol FROM tokens WHERE contract_id = :cid"),
                 {'cid': contract_id}
             ).fetchone()
-            
+
             if not token:
                 return False, "Token not found", None
-            
-            symbol = token[0]
+
+            token_id = token[0]
+            symbol = token[1]
             
             if function == 'transfer':
                 to_address = args['to']
@@ -304,7 +305,7 @@ class ContractExecutor:
                         VALUES (:tid, :from, :to, :amt, :txid, :height)
                     """),
                     {
-                        'tid': symbol,
+                        'tid': token_id,
                         'from': caller,
                         'to': to_address,
                         'amt': str(amount),

@@ -65,7 +65,8 @@ class StateManager:
     def _deploy_contract(self, tx: Transaction, block_height: int, block_hash: str, tx_index: int) -> TransactionReceipt:
         """Deploy a new contract via QVM"""
         from_addr = self._get_sender_address(tx)
-        bytecode = bytes.fromhex(tx.data) if tx.data else b''
+        hex_data = tx.data.removeprefix('0x') if tx.data else ''
+        bytecode = bytes.fromhex(hex_data) if hex_data else b''
 
         # Derive contract address
         account = self.db.get_or_create_account(from_addr)
@@ -141,7 +142,8 @@ class StateManager:
         """Call an existing contract via QVM"""
         from_addr = self._get_sender_address(tx)
         to_addr = tx.to_address or ''
-        calldata = bytes.fromhex(tx.data) if tx.data else b''
+        hex_data = tx.data.removeprefix('0x') if tx.data else ''
+        calldata = bytes.fromhex(hex_data) if hex_data else b''
 
         # Load contract bytecode
         code = b''

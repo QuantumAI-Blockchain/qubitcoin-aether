@@ -568,7 +568,7 @@ class ContractEngine:
         with self.db.get_session() as session:
             sale = session.execute(
                 text("""
-                    SELECT sale_id, token_contract_id, raise_target, current_raised, status
+                    SELECT sale_id, contract_id, raise_target, current_raised, status
                     FROM launchpad_sales WHERE contract_id = :cid
                 """),
                 {'cid': contract_id}

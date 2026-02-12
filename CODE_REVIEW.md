@@ -8,7 +8,7 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 
 ## Executive Summary
 
-**30 bugs fixed** across 17 files in 5 review passes, categorized as **13 CRITICAL**, **13 HIGH**, and **4 MEDIUM**. Also removed 11 dead files from the repository root. All fixes are minimal, targeted changes that preserve existing architecture and behavior.
+**34 bugs fixed** across 18 files in 6 review passes, categorized as **15 CRITICAL**, **15 HIGH**, and **4 MEDIUM**. Also removed 11 dead files from the repository root. All fixes are minimal, targeted changes that preserve existing architecture and behavior.
 
 ---
 
@@ -369,6 +369,58 @@ Removed 11 dead/useless files from the repository:
 
 ---
 
+### Round 6 (Sixth Review — Schema-First Path Tracing)
+
+#### Methodology Change
+
+Previous rounds used batch-file-reading per subsystem. Round 6 redesigned the approach to be **schema-first execution-path tracing**: (1) Read the complete DB schema as ground truth (33 tables documented), (2) Trace every execution path end-to-end across file boundaries, (3) Cross-reference **every SQL query in the codebase** against the actual schema column names. This immediately caught regressions introduced in Round 5 (launchpad methods querying non-existent columns).
+
+---
+
+#### CRITICAL-14: `_launchpad_claim` Queries Non-Existent `token_contract_id` Column
+
+**File:** `src/qubitcoin/contracts/engine.py:571`
+**Impact:** Calling `claim_tokens` on any launchpad contract crashes with a CockroachDB SQL error — the column does not exist.
+
+**Root Cause:** The `_launchpad_claim` method added in Round 5 queries `SELECT sale_id, token_contract_id, ...` from `launchpad_sales`, but `LaunchpadSaleModel` defines the column as `contract_id`, not `token_contract_id`.
+
+**Fix:** Changed `token_contract_id` to `contract_id` in the SQL query.
+
+---
+
+#### CRITICAL-15: `_launchpad_claim` and `_launchpad_refund` Query Non-Existent `claimed` Column
+
+**File:** `src/qubitcoin/contracts/engine.py:583-599, 626-643` and `src/qubitcoin/database/manager.py:307`
+**Impact:** Both `claim_tokens` and `refund` launchpad operations crash with a SQL error. The `SELECT amount_contributed, claimed` and `UPDATE ... SET claimed = true` queries reference a column that doesn't exist in the `launchpad_participants` table.
+
+**Root Cause:** The `_launchpad_claim` and `_launchpad_refund` methods added in Round 5 assume a `claimed` boolean column on `LaunchpadParticipantModel`, but the model only had `(id, sale_id, participant_address, amount_contributed)`. The column was never added to the schema.
+
+**Fix:** Added `claimed = Column(Boolean, default=False)` to `LaunchpadParticipantModel` in `database/manager.py`.
+
+---
+
+#### HIGH-14: `_execute_token` Inserts Symbol String Into `token_transfers.token_id`
+
+**File:** `src/qubitcoin/contracts/executor.py:307`
+**Impact:** Token transfer audit records have the token symbol (e.g., "QUSD") stored in the `token_id` column instead of the actual token UUID. This breaks joins between `token_transfers` and `tokens` tables, corrupts transfer history queries, and produces incorrect results for any analytics or compliance reporting.
+
+**Root Cause:** `_execute_token` queries `SELECT symbol FROM tokens` and then uses the symbol as the `token_id` value in `INSERT INTO token_transfers (token_id, ...)`. The `token_id` column is `String(66)` expecting a UUID.
+
+**Fix:** Changed the query to `SELECT token_id, symbol FROM tokens`, and used the actual `token_id` in the INSERT.
+
+---
+
+#### HIGH-15: `bytes.fromhex(tx.data)` Crashes on `0x` Prefix
+
+**File:** `src/qubitcoin/qvm/state.py:68, 144`
+**Impact:** Any contract deploy or call transaction with a `0x`-prefixed hex data field causes a `ValueError: non-hexadecimal number found in fromhex()` — the transaction is rejected and the entire block fails processing.
+
+**Root Cause:** EVM-compatible systems commonly include the `0x` prefix in hex-encoded data (e.g., MetaMask, Web3.js). `bytes.fromhex('0xabcd')` raises `ValueError` because `0x` is not valid hexadecimal.
+
+**Fix:** Strip the `0x` prefix using `str.removeprefix('0x')` before calling `bytes.fromhex()`.
+
+---
+
 ## Architecture Assessment
 
 ### Strengths
@@ -401,18 +453,18 @@ Removed 11 dead/useless files from the repository:
 | `src/qubitcoin/node.py` | 1+3 | Remove `.labels().inc(0)` on unlabeled counters; Rewrite metrics queries to use actual table names |
 | `src/qubitcoin/database/manager.py` | 1+2+3 | Add missing columns to `get_block()`, `get_pending_transactions()`; UPSERT in `store_block()`; Add `session` param to `store_block()` for atomicity |
 | `src/qubitcoin/database/models.py` | 1+3 | Filter unknown fields in `Transaction`/`Block`/`UTXO` `from_dict()` methods |
-| `src/qubitcoin/qvm/state.py` | 1 | Use full public key for address derivation |
+| `src/qubitcoin/qvm/state.py` | 1+6 | Use full public key for address derivation; Strip `0x` prefix from tx.data before hex decoding |
 | `src/qubitcoin/network/p2p_network.py` | 1+3 | Fix reorg height comparison; Wrap `store_block` + `update_supply` in single session |
 | `src/qubitcoin/network/jsonrpc.py` | 2 | Use full public key for address derivation |
 | `src/qubitcoin/contracts/engine.py` | 2 | Pass `prev_hash` and `height` to quantum gate `validate_proof()` |
 | `src/qubitcoin/mining/engine.py` | 3 | Pass outer session to `store_block()` for atomic commit |
-| `src/qubitcoin/contracts/executor.py` | 4+5 | Remove stale `contract_cache`; Use `Config.SUPPORTED_CONTRACT_TYPES` instead of hardcoded subset |
-| `src/qubitcoin/database/manager.py` | 1+2+3+4+5 | Atomic supply/stablecoin init; `ON CONFLICT` for `get_or_create_account`; `unique=True` on bridge `qbc_txid` and `source_txhash` |
+| `src/qubitcoin/contracts/executor.py` | 4+5+6 | Remove stale `contract_cache`; Use `Config.SUPPORTED_CONTRACT_TYPES`; Fix `token_id` vs `symbol` mismatch in token transfers |
+| `src/qubitcoin/database/manager.py` | 1+2+3+4+5+6 | Atomic supply/stablecoin init; `ON CONFLICT` for `get_or_create_account`; `unique=True` on bridge `qbc_txid`/`source_txhash`; Add `claimed` column to `LaunchpadParticipantModel` |
 | `src/qubitcoin/stablecoin/engine.py` | 5 | Return proportional collateral on `burn_qusd` vault repayment |
 | `src/qubitcoin/consensus/engine.py` | 5 | Verify `block_hash` integrity in `validate_block`; Clean up QVM state in `resolve_fork` |
 | `src/qubitcoin/node.py` | 1+3+5 | Validate block height type before integer comparison |
 | `src/qubitcoin/network/p2p_network.py` | 1+3+5 | Preserve `msg_id` in gossip forwarding; Suppress spurious "No handler" warnings for built-in types |
-| `src/qubitcoin/contracts/engine.py` | 2+5 | Implement missing `_launchpad_claim` and `_launchpad_refund` methods |
+| `src/qubitcoin/contracts/engine.py` | 2+5+6 | Implement missing `_launchpad_claim` and `_launchpad_refund` methods; Fix `token_contract_id` → `contract_id` column name |
 | `src/qubitcoin/qvm/vm.py` | 1+5 | Word-align memory expansion for correct MSIZE |
 | `src/qubitcoin/aether/reasoning.py` | 5 | Bound `_operations` list to prevent unbounded memory growth |
 | `src/qubitcoin/aether/proof_of_thought.py` | 5 | Bound `_pot_cache` dict with oldest-key eviction |
@@ -438,3 +490,6 @@ Removed 11 dead/useless files from the repository:
 15. Verified fork resolution completeness: reorg must clean up QVM state (accounts, storage, receipts) not just UTXOs
 16. Verified P2P message deduplication: gossip must preserve original msg_id across relay hops
 17. Verified EVM memory model: MSIZE must return word-aligned (multiple of 32) memory size per spec
+18. Schema-first path tracing: Read complete DB schema (33 tables) as ground truth, then cross-referenced every SQL query across all source files against actual column names
+19. Verified hex data handling: `bytes.fromhex()` calls must handle `0x` prefix common in EVM-compatible tooling (MetaMask, Web3.js)
+20. Verified token transfer audit trail: `token_transfers.token_id` must store actual token UUID, not symbol string
