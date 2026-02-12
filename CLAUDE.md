@@ -318,6 +318,7 @@ Qubitcoin/
 │
 ├── docs/                        # Documentation
 │   ├── WHITEPAPER.md            # Full technical whitepaper (2680 lines)
+│   ├── QVM_WHITEPAPER.md        # QVM technical whitepaper (institutional features, patents)
 │   └── ECONOMICS.md             # SUSY economics deep-dive
 │
 └── config/                      # External service configs
@@ -384,41 +385,164 @@ BLOCK_GAS_LIMIT = 30,000,000     # QVM gas limit per block
 
 ## 7. LAYER 2: QVM (Quantum Virtual Machine)
 
+> **Full technical specification:** `docs/QVM_WHITEPAPER.md`
+
 ### 7.1 Overview
 
-The QVM is a full EVM-compatible bytecode interpreter with quantum extensions:
+The QVM is a full EVM-compatible bytecode interpreter with quantum extensions and
+institutional-grade compliance features:
+
 - **155 standard EVM opcodes** (arithmetic, memory, storage, control flow, system)
-- **10 quantum opcodes** (QVQE, QPROOF, QDILITHIUM, QGATE, QMEASURE, etc.)
+- **10 quantum opcodes** for quantum state persistence, compliance, and risk assessment
+- **Compliance Engine** — VM-level KYC/AML/sanctions enforcement
+- **Plugin Architecture** — extensible domain-specific functionality
 - **Stack-based execution** with 1024-item stack limit
 - **Gas metering** compatible with Ethereum tooling
 - **Keccak-256** hashing (EVM-compatible, not SHA3-256)
 
-### 7.2 Key Files
+### 7.2 Key Files (Current Python Implementation)
 
-- `qvm/vm.py` — QVM interpreter (864 lines, complete implementation)
+- `qvm/vm.py` — QVM interpreter (864 lines, complete EVM + quantum opcodes)
 - `qvm/opcodes.py` — Opcode definitions and gas cost tables
 - `qvm/state.py` — StateManager (state roots, account storage, contract deployment)
 
-### 7.3 Quantum Opcodes (unique to QBC)
+### 7.3 Go Production Implementation (Planned)
+
+The production-grade QVM will be implemented in Go as `qubitcoin-qvm/`:
+
+- `cmd/qvm/` — Main QVM server binary
+- `cmd/qvm-cli/` — CLI tool for contract deployment and interaction
+- `cmd/plugin-loader/` — Dynamic plugin manager
+- `pkg/vm/evm/` — Full EVM core (15 files: opcodes, stack, memory, storage, gas)
+- `pkg/vm/quantum/` — Quantum extensions (8 files: states, circuits, entanglement, gates)
+- `pkg/compliance/` — Institutional compliance engine (9 files: KYC, AML, sanctions, risk)
+- `pkg/plugin/` — Plugin system (5 files: manager, loader, registry, API)
+- `pkg/bridge/` — Cross-chain bridge verification (7 files)
+- `pkg/rpc/` — gRPC + REST server (7 files)
+- `pkg/state/` — Merkle Patricia Trie + quantum state (6 files)
+- `pkg/crypto/` — Dilithium + Kyber + ZK proofs (5 files)
+- `plugins/` — Domain plugins (privacy, oracle, governance, DeFi)
+
+**Target**: ~90 Go source files, ~150 total files including SQL, docs, config
+
+### 7.4 Quantum Opcodes (0xF0-0xF9)
+
+> **Note:** The QVM whitepaper defines opcodes at 0xF0-0xF9. The current Python
+> implementation uses 0xF5-0xFE. The Go production build will use the whitepaper
+> mapping (0xF0-0xF9) as canonical.
 
 | Opcode | Hex | Gas | Description |
 |--------|-----|-----|-------------|
-| QVQE | 0xf5 | 50000 | Run VQE optimization on-chain |
-| QPROOF | 0xf6 | 5000 | Validate quantum proof |
-| QDILITHIUM | 0xf7 | 10000 | Verify Dilithium signature in contract |
-| QGATE | 0xf8 | 1000 | Apply quantum gate (future) |
-| QMEASURE | 0xf9 | 500 | Quantum measurement (future) |
-| QENTANGLE | 0xfa | 2000 | Quantum entanglement (future) |
-| QSUPERPOSE | 0xfb | 1000 | Quantum superposition (future) |
-| QHAMILTONIAN | 0xfc | 5000 | Get Hamiltonian data (future) |
-| QENERGY | 0xfd | 500 | Get ground state energy (future) |
-| QFIDELITY | 0xfe | 1000 | Compute quantum fidelity (future) |
+| QCREATE | 0xF0 | 5,000 + 5,000x2^n | Create quantum state (density matrix) |
+| QMEASURE | 0xF1 | 3,000 | Measure quantum state (collapse) |
+| QENTANGLE | 0xF2 | 10,000 | Create entangled pair between contracts |
+| QGATE | 0xF3 | 2,000 | Apply quantum gate to state |
+| QVERIFY | 0xF4 | 8,000 | Verify quantum proof |
+| QCOMPLIANCE | 0xF5 | 15,000 | Check KYC/AML/sanctions compliance |
+| QRISK | 0xF6 | 5,000 | Query SUSY risk score for address |
+| QRISK_SYSTEMIC | 0xF7 | 10,000 | Query systemic risk (contagion model) |
+| QBRIDGE_ENTANGLE | 0xF8 | 20,000 | Cross-chain quantum entanglement |
+| QBRIDGE_VERIFY | 0xF9 | 15,000 | Verify cross-chain bridge proof |
 
-### 7.4 Contract Standards
+**Legacy Python mapping (0xF5-0xFE)** — kept for backward compatibility during migration:
+QVQE(0xF5), QPROOF(0xF6), QDILITHIUM(0xF7), QGATE(0xF8), QMEASURE(0xF9),
+QENTANGLE(0xFA), QSUPERPOSE(0xFB), QHAMILTONIAN(0xFC), QENERGY(0xFD), QFIDELITY(0xFE)
+
+### 7.5 Five Patentable Features
+
+The QVM introduces five novel institutional-grade features:
+
+| Feature | Abbreviation | Description |
+|---------|-------------|-------------|
+| **Quantum State Persistence** | QSP | Store quantum states as density matrices on-chain |
+| **Entanglement-Based Communication** | ESCC | Zero-gas cross-contract state sync via entanglement |
+| **Programmable Compliance Policies** | PCP | VM-level KYC/AML/sanctions enforcement |
+| **Real-Time Risk Assessment** | RRAO | SUSY field theory for financial contagion prediction |
+| **Quantum-Verified Cross-Chain Proofs** | QVCSP | Instant trustless bridge verification |
+
+### 7.6 Compliance Engine (Institutional Features)
+
+The QVM includes a three-layer compliance architecture:
+
+1. **Policy Layer**: Programmable rules (transaction limits, KYC requirements, sanctions lists)
+2. **Verification Layer**: Quantum-verified compliance checks with homomorphic encryption
+3. **Reporting Layer**: Automated regulatory reports (MiCA, SEC, FinCEN)
+
+**Key compliance features:**
+- **QCOMPLIANCE opcode** — Pre-flight compliance check before tx execution
+- **ERC-20-QC standard** — Compliance-aware token standard
+- **Risk scoring (QRISK)** — SUSY Hamiltonian-based risk assessment per address
+- **Auto-circuit breakers** — Halt operations when systemic risk exceeds threshold
+- **Time-Locked Atomic Compliance (TLAC)** — Multi-jurisdictional approval with time-lock puzzles
+- **Hierarchical Deterministic Compliance Keys (HDCK)** — BIP-32 extension with role-based permissions
+  (trading, audit, compliance, emergency keys at `m/44'/689'/{org}'/role/index`)
+- **Verifiable Computation Receipts (VCR)** — Quantum audit trails, 100x faster than re-execution
+
+**Compliance-as-a-Service tiers:**
+- Retail (free): Basic KYC, $10K/day limits
+- Professional ($500/mo): Enhanced KYC, $1M/day, AML monitoring
+- Institutional ($5,000/mo): Full KYC, unlimited, quantum verification
+- Sovereign ($50,000/mo): Central bank, custom policies, SUSY risk
+
+### 7.7 Plugin Architecture
+
+QVM supports domain-specific plugins loaded dynamically:
+
+- **Privacy Plugin**: SUSY swaps, transaction mixer, ZK proof generation
+- **Oracle Plugin**: Quantum oracle, price feeds, data aggregation
+- **Governance Plugin**: DAO implementation, voting, proposal management
+- **DeFi Plugin**: Lending protocol, DEX, staking system
+
+Plugins extend the QVM without modifying core protocol code.
+
+### 7.8 Quantum State Persistence (QSP)
+
+Quantum states stored as density matrices in CockroachDB:
+- Pure states: `rho = |psi><psi|`
+- Mixed states: `rho = Sum_i p_i |psi_i><psi_i|`
+- Entanglement tracked across contracts via entanglement registry
+- States persist on-chain until explicitly measured (lazy measurement)
+
+### 7.9 Contract Standards
 
 - **QBC-20:** Fungible token standard (ERC-20 compatible)
 - **QBC-721:** Non-fungible token standard (ERC-721 compatible)
 - **QBC-1155:** Multi-token standard (future)
+- **ERC-20-QC:** Compliance-aware token standard (QVM-specific)
+- **Quantum Solidity (.qsol):** Extended Solidity with quantum types (future)
+
+### 7.10 Database Schema (55 Tables)
+
+QVM expands the database to 55 tables across 6 categories:
+
+1. **Core Blockchain** (7 tables): blocks, transactions, accounts, balances
+2. **Smart Contracts** (9 tables): contracts, storage, logs, metadata, gas
+3. **Quantum States** (4 tables): states, entanglement, measurements, receipts
+4. **Compliance** (8 tables): KYC registry, AML monitoring, sanctions, reports
+5. **Cross-Chain** (5 tables): bridge data, proofs, state channels
+6. **Governance** (6 tables): DAO proposals, votes, oracles, staking
+
+**Block structure additions:**
+- `quantum_state_root` (32 bytes) — Merkle root of quantum states
+- `compliance_root` (32 bytes) — Merkle root of compliance proofs
+
+### 7.11 Security & Formal Verification
+
+- **Post-quantum crypto**: Dilithium3 signatures (2420 bytes), Kyber1024 encryption
+- **ZK proofs**: Groth16 zkSNARKs for compliance proofs
+- **K Framework**: Executable semantics for QVM opcode verification
+- **TLA+ specs**: Formal compliance invariant proofs
+- **Bell inequality**: Tamper detection for entanglement-based communication
+
+### 7.12 Performance Targets
+
+| Operation | TPS | Notes |
+|-----------|-----|-------|
+| Simple transfer | 45,000 | Native token transfer |
+| ERC-20 transfer | 12,000 | 2 SSTORE operations |
+| DeFi swap | 3,500 | Complex multi-contract |
+| Quantum ops | 500-2,000 | Depends on qubit count |
+| Finality | <1 second | vs 12-15s on Ethereum |
 
 ---
 
@@ -870,6 +994,11 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **Aether** | Tracks consciousness from genesis. Phi threshold = 3.0. Chat fees in QBC pegged to QUSD. |
 | **Aether fees** | Dynamic QBC fees pegged to QUSD. Fallback to fixed QBC if QUSD fails. All params editable. |
 | **Contract fees** | Deploy fees = base + per-KB. Pegged to QUSD. Template contracts get discount. Editable. |
+| **QVM opcodes** | Canonical mapping: 0xF0-0xF9 (whitepaper). Python legacy: 0xF5-0xFE. Go build uses canonical. |
+| **QVM compliance** | QCOMPLIANCE opcode (0xF5) checks KYC/AML/sanctions BEFORE tx execution. |
+| **QVM 55 tables** | Full QVM schema: 55 tables across 6 categories (core, contracts, quantum, compliance, bridge, governance). |
+| **QVM Go build** | Production QVM in Go (`qubitcoin-qvm/`). Python QVM is prototype. Go is canonical. |
+| **5 patents** | QSP, ESCC, PCP, RRAO, QVCSP. See `docs/QVM_WHITEPAPER.md` for full specifications. |
 | **secure_key.env** | Private keys ONLY in `secure_key.env`. NEVER in `.env`. Auto-generated by key script. |
 | **KeterNode** | Named after Keter (Crown) in Kabbalah. Knowledge node in Aether Tree. |
 | **Schema sync** | SQL schemas and SQLAlchemy models MUST match. Always verify both. |
@@ -891,9 +1020,13 @@ NEXT_PUBLIC_CHAIN_ID=3301
 - `qvm/vm.py` — Bytecode interpreter
 - `qvm/opcodes.py` — Opcode definitions
 - `qvm/state.py` — State management
+- `qvm/compliance.py` — Compliance engine (KYC/AML/sanctions)
+- `qvm/quantum_state.py` — Quantum state persistence
 - `aether/*.py` — All Aether Tree files
 - `bridge/*.py` — All bridge files
 - `network/jsonrpc.py` — JSON-RPC compatibility
+- `qubitcoin-qvm/pkg/vm/**` — Go QVM core (when implemented)
+- `qubitcoin-qvm/pkg/compliance/**` — Go compliance engine
 
 ### STANDARD (max 5 files per batch)
 - `network/rpc.py` — REST endpoints

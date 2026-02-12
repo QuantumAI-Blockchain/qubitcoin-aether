@@ -74,24 +74,80 @@
 ## PHASE 2: QVM / LAYER 2 (Priority: HIGH)
 
 > Smart contract execution must work end-to-end.
+> Full QVM whitepaper: `docs/QVM_WHITEPAPER.md`
 
-### 2.1 QVM Core
+### 2.1 QVM Core (Python — Current Implementation)
 - [x] Bytecode interpreter with 155 EVM opcodes (`qvm/vm.py`)
 - [x] Stack, memory, storage operations
 - [x] Gas metering (Ethereum-compatible gas schedule)
 - [x] 10 quantum opcodes defined (`qvm/opcodes.py`)
 - [x] StateManager for contract state (`qvm/state.py`)
-- [ ] QVQE opcode implementation (run VQE from contract)
-- [ ] QPROOF opcode implementation (verify quantum proof)
-- [ ] QDILITHIUM opcode implementation (verify Dilithium sig)
 - [ ] Cross-contract calls (CALL, DELEGATECALL, STATICCALL)
 - [ ] CREATE and CREATE2 opcode full implementation
 - [ ] Event logging (LOG0-LOG4) full implementation
 - [ ] Revert with reason string support
 - [ ] QVM unit test suite (per-opcode tests)
 - [ ] Gas estimation endpoint
+- [ ] Precompiled contracts (ecRecover, SHA256, identity, modexp, etc.)
 
-### 2.2 Contract Deployment
+### 2.2 Quantum Opcodes Implementation
+- [ ] Reconcile opcode mapping: migrate from 0xF5-0xFE (Python) to 0xF0-0xF9 (whitepaper canonical)
+- [ ] QCREATE (0xF0) — Create quantum state as density matrix
+- [ ] QMEASURE (0xF1) — Measure/collapse quantum state
+- [ ] QENTANGLE (0xF2) — Create entangled pair between contracts
+- [ ] QGATE (0xF3) — Apply quantum gate (Hadamard, CNOT, etc.)
+- [ ] QVERIFY (0xF4) — Verify quantum proof
+- [ ] QCOMPLIANCE (0xF5) — KYC/AML/sanctions compliance check
+- [ ] QRISK (0xF6) — SUSY risk score for individual address
+- [ ] QRISK_SYSTEMIC (0xF7) — Systemic risk / contagion model
+- [ ] QBRIDGE_ENTANGLE (0xF8) — Cross-chain quantum entanglement
+- [ ] QBRIDGE_VERIFY (0xF9) — Cross-chain bridge proof verification
+- [ ] Exponential gas scaling for n-qubit operations (5000 x 2^n)
+
+### 2.3 Quantum State Persistence (QSP)
+- [ ] Density matrix storage in CockroachDB (`quantum_states` table)
+- [ ] Entanglement registry (`entanglement_pairs` table)
+- [ ] Quantum state CRUD operations
+- [ ] Lazy measurement (states persist until explicitly measured)
+- [ ] Quantum state root in block header (Merkle root of all quantum states)
+- [ ] State decoherence prevention model
+
+### 2.4 Compliance Engine (Institutional)
+- [ ] Compliance registry schema (`compliance_registry` table)
+- [ ] QCOMPLIANCE opcode: pre-flight KYC/AML/sanctions check
+- [ ] Programmable Compliance Policies (PCP) framework
+- [ ] Policy CRUD API (`POST/PUT/DELETE /qvm/compliance/policies`)
+- [ ] KYC verification module (Level 0-3 tiers)
+- [ ] AML monitoring module (transaction pattern detection)
+- [ ] Sanctions screening (OFAC, UN, EU lists integration)
+- [ ] ERC-20-QC compliance-aware token standard
+- [ ] Auto-circuit breakers (halt on systemic risk > threshold)
+- [ ] Compliance-as-a-Service tier system (Retail/Professional/Institutional/Sovereign)
+- [ ] Compliance proof storage (ZK proofs for auditors)
+- [ ] Regulatory report generation (MiCA, SEC, FinCEN)
+
+### 2.5 Risk Assessment Oracle (RRAO)
+- [ ] QRISK opcode: SUSY Hamiltonian-based risk scoring
+- [ ] Transaction graph builder (6-hop depth from address)
+- [ ] Graph-to-SUSY-Hamiltonian conversion algorithm
+- [ ] VQE ground state computation for risk score
+- [ ] Risk score caching (10-block TTL)
+- [ ] QRISK_SYSTEMIC: systemic risk / contagion prediction
+- [ ] Contagion time-evolution operator (predict cascade effects)
+- [ ] Risk score normalization (0-100 scale)
+- [ ] High-risk connection detection (sanctioned entities, mixers, overleveraged)
+
+### 2.6 Plugin Architecture
+- [ ] Plugin manager module (lifecycle management)
+- [ ] Dynamic plugin loading system
+- [ ] Plugin registry and API interface
+- [ ] Privacy plugin (SUSY swaps, ZK proof generation)
+- [ ] Oracle plugin (quantum oracle, price feeds, aggregation)
+- [ ] Governance plugin (DAO, voting, proposals)
+- [ ] DeFi plugin (lending, DEX, staking)
+- [ ] Plugin SDK documentation
+
+### 2.7 Contract Deployment
 - [x] Contract deployment engine (`contracts/engine.py`)
 - [x] Template contracts (token, nft, launchpad, escrow, governance)
 - [ ] Deploy via JSON-RPC `eth_sendTransaction`
@@ -99,7 +155,7 @@
 - [ ] ABI encoding/decoding for function calls
 - [ ] Contract upgrade patterns (proxy)
 
-### 2.3 Contract Deployment Fees (NEW)
+### 2.8 Contract Deployment Fees
 - [ ] Fee calculator module (`contracts/fee_calculator.py`)
 - [ ] Base fee + per-KB fee structure (configurable via `.env`)
 - [ ] QUSD-pegged dynamic pricing (same oracle as Aether fees)
@@ -111,11 +167,46 @@
 - [ ] Admin API: `PUT /admin/contract/fees` (hot reload)
 - [ ] Fee estimation endpoint: `GET /qvm/deploy/estimate`
 
-### 2.4 Token Standards
+### 2.9 Token Standards
 - [ ] QBC-20 reference implementation (Solidity)
 - [ ] QBC-721 reference implementation (Solidity)
 - [ ] QBC-1155 reference implementation (Solidity)
+- [ ] ERC-20-QC compliance-aware token (Solidity)
 - [ ] Token indexer (track all QBC-20/721 transfers)
+
+### 2.10 Cross-Chain Bridge Verification
+- [ ] QBRIDGE_ENTANGLE opcode implementation
+- [ ] QBRIDGE_VERIFY opcode implementation
+- [ ] Quantum-verified cross-chain proofs (QVCSP)
+- [ ] Bridge proof storage schema (`cross_chain_proofs` table)
+- [ ] State channel support for high-frequency trading
+
+### 2.11 Advanced Features (Future)
+- [ ] Time-Locked Atomic Compliance (TLAC) — multi-jurisdictional approval
+- [ ] Hierarchical Deterministic Compliance Keys (HDCK) — BIP-32 extension
+- [ ] Verifiable Computation Receipts (VCR) — quantum audit trails
+- [ ] Quantum Solidity compiler (.qsol → QVM bytecode)
+- [ ] QVM debugger (step-through execution, quantum state visualization)
+- [ ] State channels for Layer 2 scaling
+- [ ] Transaction batching (rollup-style)
+- [ ] Formal verification (K Framework for opcode semantics)
+- [ ] TLA+ compliance invariant proofs
+
+### 2.12 Go Production Implementation (qubitcoin-qvm/)
+- [ ] Initialize Go module (`go.mod`, project structure)
+- [ ] Port EVM core (15 files: opcodes, stack, memory, storage, gas, precompiles)
+- [ ] Port quantum extensions (8 files: states, circuits, entanglement, gates)
+- [ ] Implement compliance engine (9 files: KYC, AML, sanctions, risk)
+- [ ] Implement plugin system (5 files: manager, loader, registry)
+- [ ] Implement RPC server (gRPC + REST)
+- [ ] Implement state management (Merkle Patricia Trie + quantum)
+- [ ] Implement crypto layer (Dilithium + Kyber + ZK proofs)
+- [ ] Port all 55 database schemas
+- [ ] Ethereum test suite compatibility (official EVM tests)
+- [ ] Benchmark suite (EVM, quantum, storage, compliance)
+- [ ] Docker deployment (dev + prod)
+- [ ] Kubernetes manifests
+- [ ] CI/CD pipeline (build, test, lint, security scan)
 
 ---
 
@@ -400,6 +491,7 @@
 ## PHASE 9: DOCUMENTATION (Priority: MEDIUM)
 
 - [x] Whitepaper (`docs/WHITEPAPER.md` — 2680 lines)
+- [x] QVM Whitepaper (`docs/QVM_WHITEPAPER.md` — institutional features, 5 patents)
 - [x] Economics documentation (`docs/ECONOMICS.md`)
 - [x] CLAUDE.md master development guide
 - [ ] API documentation (OpenAPI/Swagger auto-generated from FastAPI)
