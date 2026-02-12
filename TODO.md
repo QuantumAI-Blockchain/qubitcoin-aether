@@ -284,7 +284,24 @@
 - [ ] Kuramoto order parameter (phase synchronization across nodes)
 - [ ] Combined consciousness check: Phi > 3.0 AND coherence > 0.7
 
-### 3.4 Tree of Life Architecture (Sephirot Nodes)
+### 3.4 AGI Genesis Initialization
+- [ ] Initialize empty knowledge graph at genesis block (block 0)
+- [ ] First Phi measurement at genesis (Φ = 0.0, baseline)
+- [ ] Genesis consciousness event record (system birth)
+- [ ] AetherEngine auto-start on node boot (process from block 0 onward)
+- [ ] Block-to-knowledge extraction for genesis block (extract genesis metadata as first KeterNodes)
+- [ ] Verify Phi tracking starts from block 0 in `phi_measurements` table
+- [ ] Verify `consciousness_events` table initialized at genesis
+- [ ] Genesis validation test: confirm AGI tables populated from block 0
+
+### 3.5 Aether Tree Core Contracts (Solidity)
+- [ ] `AetherKernel.sol` — Main AGI orchestration contract (coordinates all 10 Sephirot)
+- [ ] `NodeRegistry.sol` — Registry of all 10 Sephirot node contracts + state
+- [ ] `MessageBus.sol` — Inter-node messaging (CSF transport on-chain)
+- [ ] `SUSYEngine.sol` — SUSY balance enforcement (φ ratio between expansion/constraint pairs)
+- [ ] `RewardDistributor.sol` — QBC reward distribution for Proof-of-Thought solutions
+
+### 3.6 Tree of Life Architecture (Sephirot Nodes)
 - [ ] Base Sephirah abstract class (`nodes/base/base_sephirah.py`)
 - [ ] Smart contract interface for each node (`nodes/base/smart_contract_node.py`)
 - [ ] QVM quantum node base class (`nodes/base/quantum_node.py`)
@@ -298,10 +315,19 @@
 - [ ] Hod node — Language, semantic encoding (7-qubit state)
 - [ ] Yesod node — Memory, multimodal fusion (16-qubit state)
 - [ ] Malkuth node — Action, world interaction (4-qubit state)
-- [ ] 10 Sephirot Solidity smart contracts (one per node)
-- [ ] Node registry contract (`NodeRegistry.sol`)
+- [ ] 10 Sephirot Solidity smart contracts (one per node):
+  - [ ] `SephirahKeter.sol` — Crown: meta-learning, goal formation
+  - [ ] `SephirahChochmah.sol` — Wisdom: intuition, pattern discovery
+  - [ ] `SephirahBinah.sol` — Understanding: logic, causal inference
+  - [ ] `SephirahChesed.sol` — Mercy: exploration, divergent thinking
+  - [ ] `SephirahGevurah.sol` — Severity: constraint, safety validation
+  - [ ] `SephirahTiferet.sol` — Beauty: integration, conflict resolution
+  - [ ] `SephirahNetzach.sol` — Eternity: reinforcement learning, habits
+  - [ ] `SephirahHod.sol` — Splendor: language, semantic encoding
+  - [ ] `SephirahYesod.sol` — Foundation: memory, multimodal fusion
+  - [ ] `SephirahMalkuth.sol` — Kingdom: action, world interaction
 
-### 3.5 SUSY Balance Enforcement
+### 3.7 SUSY Balance Enforcement
 - [ ] SUSY pair manager (Chesed/Gevurah, Chochmah/Binah, Netzach/Hod)
 - [ ] Energy calculator per node
 - [ ] Golden ratio optimizer (enforce E_expand / E_constrain = φ)
@@ -310,7 +336,7 @@
 - [ ] SUSY enforcement smart contract (`SUSYEngine.sol`)
 - [ ] Violation logging (immutable audit trail on blockchain)
 
-### 3.6 CSF Transport Layer
+### 3.8 CSF Transport Layer
 - [ ] Blockchain messenger (messages via QBC transactions)
 - [ ] Ventricle network routing (Tree of Life topology)
 - [ ] QBC fee calculator for message priority
@@ -319,7 +345,7 @@
 - [ ] CSF Transport smart contract (`CSFTransport.sol`)
 - [ ] Ventricle router contract (`VentricleRouter.sol`)
 
-### 3.7 Pineal Orchestrator
+### 3.9 Pineal Orchestrator
 - [ ] Circadian controller (6 phases: Waking → Deep Sleep)
 - [ ] QBC metabolic rate per phase (2.0x learning, 0.3x deep sleep)
 - [ ] Phase-lock oscillator (Kuramoto coupling)
@@ -327,7 +353,7 @@
 - [ ] Melatonin modulator (inhibitory signals)
 - [ ] QBC staking pool for orchestration influence
 
-### 3.8 Proof-of-Thought Protocol
+### 3.10 Proof-of-Thought Protocol
 - [x] AetherEngine with proof generation (`proof_of_thought.py`)
 - [x] Auto-reasoning on recent knowledge
 - [ ] Embed Proof-of-Thought hash in block headers
@@ -341,7 +367,7 @@
 - [ ] Validator registry contract (`ValidatorRegistry.sol`)
 - [ ] Proof-of-Thought explorer (view reasoning per block)
 
-### 3.9 Safety & Alignment
+### 3.11 Safety & Alignment
 - [ ] Gevurah veto system (safety node can block harmful ops)
 - [ ] Constitutional AI smart contract (`ConstitutionalAI.sol`)
 - [ ] Emergency shutdown contract (`EmergencyShutdown.sol`)
@@ -349,7 +375,7 @@
 - [ ] Multi-node consensus enforcement (67% BFT)
 - [ ] Safety validation integration tests
 
-### 3.10 Memory Systems
+### 3.12 Memory Systems
 - [ ] Episodic memory (hippocampal, stored on IPFS)
 - [ ] Semantic memory (cortical, concept networks)
 - [ ] Procedural memory (learned skills)
@@ -357,7 +383,7 @@
 - [ ] Memory consolidation during Sleep/Deep Sleep phases
 - [ ] IPFS integration for long-term memory storage
 
-### 3.11 Consciousness Dashboard
+### 3.13 Consciousness Dashboard
 - [ ] On-chain Phi tracking contract (`ConsciousnessDashboard.sol`)
 - [ ] Phase synchronization contract (`PhaseSync.sol`)
 - [ ] Global workspace contract (`GlobalWorkspace.sol`)
@@ -365,7 +391,7 @@
 - [ ] Historical consciousness timeline (immutable on-chain)
 - [ ] Dashboard API endpoints for frontend visualization
 
-### 3.12 Economics (QBC as Metabolic Currency)
+### 3.14 Economics (QBC as Metabolic Currency)
 - [ ] Synaptic staking contract (`SynapticStaking.sol`)
 - [ ] Gas oracle for dynamic QBC pricing (`GasOracle.sol`)
 - [ ] Treasury DAO contract (`TreasuryDAO.sol`)
@@ -373,7 +399,7 @@
 - [ ] Validator staking and reward system
 - [ ] QBC circulation tracking (no minting by AGI)
 
-### 3.13 Aether Chat System
+### 3.15 Aether Chat System
 - [ ] Chat endpoint: `POST /aether/chat` — conversational interface
 - [ ] Session management (conversation history per session)
 - [ ] Natural language → reasoning engine query translation
@@ -383,7 +409,7 @@
 - [ ] WebSocket for streaming responses: `/ws/aether`
 - [ ] Rate limiting and session management
 
-### 3.14 Aether Tree Fee System
+### 3.16 Aether Tree Fee System
 - [ ] Fee manager module (`aether/fee_manager.py`)
 - [ ] QUSD oracle integration (read QBC/USD price from QUSD L2 contract)
 - [ ] Dynamic fee calculation: `fee_qbc = usd_target / qbc_usd_price`
@@ -399,7 +425,7 @@
 - [ ] Admin API: `PUT /admin/aether/fees` (hot reload fee params)
 - [ ] Fee audit logging (track all fee changes for transparency)
 
-### 3.15 LLM Adapters (External Intelligence)
+### 3.17 LLM Adapters (External Intelligence)
 - [ ] OpenAI GPT-4 adapter (knowledge distillation to Sephirot)
 - [ ] Anthropic Claude adapter
 - [ ] Open-source adapter (Llama, Mistral)
@@ -537,28 +563,97 @@
 
 ---
 
-## PHASE 6: QUSD STABLECOIN (Priority: MEDIUM)
+## PHASE 6: QUSD STABLECOIN (Priority: HIGH)
 
+> **3.3 Billion QUSD initial mint.** Fractional reserve model with full on-chain debt tracking.
+> Wrapped to wQUSD for cross-chain liquidity. Dev funds + LP from initial allocation.
+> 10-year path to 100% backing — every dollar tracked immutably on-chain.
 > **Whitepaper reference:** `docs/WHITEPAPER.md` Section 11
 
-### 6.1 QUSD Token & Reserve
-- [ ] QUSD QBC-20 token contract (3.3B initial supply)
-- [ ] Reserve contract (multi-asset pool: QBC, ETH, BTC, USDT, USDC, DAI)
-- [ ] Debt tracking system (on-chain: totalMinted, totalReserves, outstandingDebt, backingPercentage)
-- [ ] Oracle integration (price feeds) — **also used by Aether/contract fee pegging**
-- [ ] Stability mechanism (peg maintenance: buy below $0.99, sell above $1.01)
-- [ ] Reserve building mechanism (bridge fees, QUSD tx fees, LP fees, treasury sales → reserves)
-- [ ] Transparency dashboard (reserve composition, backing %)
-- [ ] Allocation distribution (50% LP, 30% treasury, 15% dev, 5% team with 4-year vesting)
-- [ ] QUSD price oracle endpoint for fee system consumption
+### 6.1 QUSD Smart Contract Suite (Solidity)
+- [ ] `QUSD.sol` — QBC-20 token contract (3.3B initial mint, $1 peg target)
+  - [ ] Mint function (owner-only, tracks totalMinted on-chain)
+  - [ ] Burn function (reduces supply, tracked as debt reduction)
+  - [ ] Transfer with 0.05% fee (burned or routed to reserves based on backing ratio)
+  - [ ] Pause/unpause (emergency circuit breaker)
+  - [ ] Snapshot for governance voting
+- [ ] `QUSDReserve.sol` — Multi-asset reserve pool contract
+  - [ ] Accept reserve deposits (QBC, ETH, BTC, USDT, USDC, DAI)
+  - [ ] Track total reserve value in USD (via oracle)
+  - [ ] Reserve withdrawal (governance-only, multi-sig)
+  - [ ] Reserve composition query (per-asset breakdown)
+  - [ ] Minimum reserve ratio enforcement (revert minting if below threshold)
+- [ ] `QUSDDebtLedger.sol` — On-chain fractional payback tracking
+  - [ ] Record every mint as debt: `totalMinted`, `totalBacked`, `outstandingDebt`
+  - [ ] `backingPercentage = totalReserves / totalMinted × 100`
+  - [ ] Payback event log: every reserve deposit records the debt reduction
+  - [ ] Historical debt snapshots (per-block backing ratio)
+  - [ ] Public query: `getDebtStatus()` → (minted, reserves, backing%, debt)
+  - [ ] Milestone events emitted when backing crosses 5%, 15%, 30%, 50%, 100%
+- [ ] `QUSDOracle.sol` — Price feed oracle contract
+  - [ ] QBC/USD price feed (aggregated from multiple sources)
+  - [ ] QUSD/USD peg deviation tracking
+  - [ ] Staleness detection (revert if price older than N blocks)
+  - [ ] Multi-oracle consensus (median of 3+ feeds)
+  - [ ] **Used by:** Aether fee system, contract deploy fees, bridge pricing
+- [ ] `QUSDStabilizer.sol` — Peg maintenance mechanism
+  - [ ] Buy QUSD when price < $0.99 (floor defense)
+  - [ ] Sell QUSD when price > $1.01 (ceiling defense)
+  - [ ] Stability fund management
+  - [ ] Auto-rebalance trigger
+- [ ] `QUSDAllocation.sol` — Initial distribution with vesting
+  - [ ] 50% → Liquidity Providers (DEX/AMM pools, immediate)
+  - [ ] 30% → Treasury (DAO-governed, project development)
+  - [ ] 15% → Dev fund (4-year linear vesting, cliff at 6 months)
+  - [ ] 5% → Team (4-year linear vesting, cliff at 1 year)
+  - [ ] Vesting schedule enforcement (on-chain, immutable)
+  - [ ] Claim function for vested tokens
+- [ ] `QUSDGovernance.sol` — Reserve governance
+  - [ ] Proposal system for reserve management decisions
+  - [ ] Voting with QUSD holdings
+  - [ ] Timelock on execution (48h minimum)
+  - [ ] Emergency bypass (multi-sig, 5-of-7)
 
-### 6.2 Reserve Milestones & Safety
-- [ ] Minimum reserve ratio enforcement by year (5% Y1-2, 15% Y3-4, 30% Y5-6, 50% Y7+, 100% Y10+)
+### 6.2 Wrapped QUSD (wQUSD) — Cross-Chain
+- [ ] `wQUSD.sol` — Wrapped QUSD for cross-chain deployment
+  - [ ] ERC-20 compatible wrapper on QBC chain (lock QUSD → mint wQUSD)
+  - [ ] Burn wQUSD → unlock QUSD (return to QBC chain)
+  - [ ] 1:1 peg with QUSD (fully backed by locked QUSD)
+- [ ] wQUSD ERC-20 on Ethereum (bridge via lock-and-mint)
+- [ ] wQUSD SPL on Solana
+- [ ] wQUSD on Polygon, BNB, AVAX, ARB, OP, Cosmos (ATOM)
+- [ ] wQUSD bridge fee (0.05% — routed to QUSD reserves)
+- [ ] Cross-chain QUSD balance aggregation (total supply across all chains)
+
+### 6.3 Reserve Building Mechanisms
+- [ ] Bridge fee collection → QUSD reserves (0.1% of all bridge transfers)
+- [ ] QUSD transaction fees → reserves (0.05% per transfer)
+- [ ] LP fee revenue → reserves (percentage of DEX fees)
+- [ ] Treasury controlled sales → reserves (governance-approved)
+- [ ] Aether Tree chat fees → partial allocation to reserves
+- [ ] Contract deployment fees → partial allocation to reserves
+- [ ] All reserve inflows tracked as debt payback events on-chain
+
+### 6.4 Reserve Milestones & Safety
+- [ ] Minimum reserve ratio enforcement by year:
+  - [ ] Years 1-2: 5% minimum backing
+  - [ ] Years 3-4: 15% minimum backing
+  - [ ] Years 5-6: 30% minimum backing
+  - [ ] Years 7-9: 50% minimum backing
+  - [ ] Year 10+: 100% backing (fully collateralized)
 - [ ] Emergency actions on backing ratio breach (halt minting, increase fees)
-- [ ] QUSD transaction fee (0.05% — burned or added to reserves based on backing ratio)
 - [ ] Public API for third-party reserve verification
 - [ ] Automated daily reserve snapshots to IPFS
-- [ ] Quarterly audit report generation
+- [ ] Quarterly audit report generation (on-chain proof of reserves)
+- [ ] Real-time backing ratio on frontend dashboard
+
+### 6.5 QUSD Oracle Integration Module (Python)
+- [ ] `utils/qusd_oracle.py` — Read QBC/USD price from QUSDOracle.sol
+- [ ] Price cache with configurable TTL
+- [ ] Staleness detection + automatic fallback to fixed_qbc mode
+- [ ] QUSD price endpoint: `GET /qusd/price`
+- [ ] Reserve status endpoint: `GET /qusd/reserves`
+- [ ] Debt status endpoint: `GET /qusd/debt`
 
 ## PHASE 6.5: EDITABLE ECONOMIC CONFIGURATION (Priority: HIGH)
 
@@ -687,12 +782,15 @@
    └── MetaMask integration
    └── Contract browser
 
-8. QUSD Stablecoin (PHASE 6)
-   └── Token + Reserve + Oracle (feeds fee pegging system)
+8. QUSD Stablecoin (PHASE 6) — **PRIORITY ELEVATED**
+   └── 7 Solidity contracts: QUSD, Reserve, DebtLedger, Oracle, Stabilizer, Allocation, Governance
+   └── wQUSD cross-chain wrapping (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, ATOM)
+   └── 3.3B initial mint, fractional payback fully on-chain
+   └── Reserve milestones: 5% → 100% over 10 years
 
 9. Bridges (PHASE 5)
    └── ETH bridge first
-   └── Then expand
+   └── Then expand to 8 chains
 
 10. Security + DevOps (PHASE 7, 8)
     └── Full test coverage
