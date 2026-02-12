@@ -221,6 +221,13 @@ Qubitcoin/
 │   │   │   ├── proof_of_thought.py # AetherEngine + Proof-of-Thought
 │   │   │   └── __init__.py
 │   │   │
+│   │   ├── privacy/             # LAYER 1: Privacy technology (Susy Swaps)
+│   │   │   ├── commitments.py   # Pedersen commitments
+│   │   │   ├── range_proofs.py  # Bulletproofs range proofs
+│   │   │   ├── stealth.py       # Stealth address generation/scanning
+│   │   │   ├── susy_swap.py     # Confidential transaction builder
+│   │   │   └── __init__.py
+│   │   │
 │   │   ├── bridge/              # CROSS-CUTTING: Multi-chain bridges
 │   │   │   ├── manager.py       # BridgeManager (coordinates all bridges)
 │   │   │   ├── base.py          # BaseBridge abstract class
@@ -317,8 +324,8 @@ Qubitcoin/
 │   └── docker/
 │
 ├── docs/                        # Documentation
-│   ├── WHITEPAPER.md            # Full technical whitepaper (2680 lines)
-│   ├── QVM_WHITEPAPER.md        # QVM technical whitepaper (institutional features, patents)
+│   ├── WHITEPAPER.md            # Full technical whitepaper (L1 core, privacy, bridges, QUSD, 2680 lines)
+│   ├── QVM_WHITEPAPER.md        # QVM technical whitepaper (institutional features, 5 patents)
 │   ├── AETHERTREE_WHITEPAPER.md # AetherTree AGI whitepaper (Tree of Life, PoT, consciousness)
 │   └── ECONOMICS.md             # SUSY economics deep-dive
 │
@@ -381,6 +388,98 @@ BLOCK_GAS_LIMIT = 30,000,000     # QVM gas limit per block
 - **CockroachDB v24.2.0:** 33+ tables across qbc/agi/qvm/research/shared domains
 - **IPFS:** Content-addressed storage for blockchain snapshots
 - **Schema-Model Alignment:** SQL schemas MUST match SQLAlchemy models in `database/models.py`
+
+### 6.7 Privacy Technology (Susy Swaps)
+
+> **Full specification:** `docs/WHITEPAPER.md` Section 8
+
+Qubitcoin supports **opt-in privacy** via Susy Swaps — confidential transactions that hide
+amounts and addresses while maintaining verifiability.
+
+**Components:**
+
+- **Pedersen Commitments:** `C = v*G + r*H` — hide transaction amounts while preserving
+  additive homomorphism (inputs sum = outputs sum verifiable without revealing values)
+- **Bulletproofs Range Proofs:** Zero-knowledge proofs that committed values are in [0, 2^64)
+  without revealing the value. ~672 bytes per proof, O(log n) size, no trusted setup
+- **Stealth Addresses:** One-time addresses per transaction preventing address linkability.
+  Uses spend/view key pairs: sender generates ephemeral key, derives unique one-time address
+- **Key Images:** Cryptographic construct preventing double-spending of confidential outputs
+
+**Privacy Model:**
+
+| Mode | Amounts | Addresses | Tx Size | Verification |
+|------|---------|-----------|---------|-------------|
+| **Public** (default) | Visible | Visible | ~300 bytes | Fast |
+| **Private** (opt-in) | Hidden | Hidden | ~2000 bytes | ~10ms (range proof) |
+
+**What Susy Swaps hide:** Transaction amounts, sender/receiver addresses, balance linkability.
+**What they don't hide:** Transaction existence, timestamps, fee amount, tx size, network metadata.
+
+**Key files (to be implemented):**
+- `privacy/commitments.py` — Pedersen commitment creation and verification
+- `privacy/range_proofs.py` — Bulletproofs generation and verification
+- `privacy/stealth.py` — Stealth address generation and scanning
+- `privacy/susy_swap.py` — Confidential transaction builder
+
+### 6.8 Node Types
+
+| Type | Storage | RAM | Network | Capabilities |
+|------|---------|-----|---------|-------------|
+| **Full Node** | 500GB+ (~50GB/yr growth) | 16GB+ | 100+ Mbps | Full validation, historical queries, mining |
+| **Light Node** | 1GB | 2GB | 10+ Mbps | SPV verification, mobile/embedded, <5min sync |
+| **Mining Node** | Full Node + quantum | 16GB+ | 100+ Mbps | VQE optimization, block creation |
+
+### 6.9 Block Structure
+
+```
+BLOCK HEADER:
+{
+  "version": 1,
+  "prev_block_hash": "0x...",       # SHA3-256 hash of previous block
+  "merkle_root": "0x...",           # Merkle root of transactions
+  "timestamp": <unix_timestamp>,
+  "difficulty_target": <float>,     # Energy threshold for VQE
+  "nonce": <int>,
+  "hamiltonian_seed": "0x...",      # Deterministic seed for SUSY Hamiltonian
+  "vqe_params": [θ₀, θ₁, ...],     # Optimal VQE parameters (mining solution)
+  "ground_state_energy": <float>    # Achieved energy level
+}
+
+BLOCK BODY:
+{
+  "transactions": [...],            # Regular + confidential transactions
+  "coinbase": {...},                # Mining reward transaction
+  "susy_data": {                    # Scientific contribution
+    "hamiltonian": {...},
+    "optimal_params": [...],
+    "energy_history": [...]
+  }
+}
+```
+
+**Confirmation depths:** 1 = unconfirmed, 6 = standard confirmation, 100 = coinbase maturity.
+
+### 6.10 SUSY Solution Database
+
+Every mined block contributes a solved SUSY Hamiltonian to a **public scientific database**:
+
+- **Schema:** `hamiltonian_solutions` table (id, block_height, hamiltonian, ground_state_energy,
+  vqe_params, n_qubits, n_terms, mining_time, miner_address, verification_count)
+- **Access:** REST API (`/susy-database`), IPFS archival, GraphQL query support
+- **Scientific applications:** Particle physics (LHC predictions), materials science
+  (superconductors), quantum chemistry (drug design), algorithm benchmarking
+
+### 6.11 Transaction Fees (L1)
+
+```
+FEE = SIZE_BYTES × FEE_RATE
+
+FEE_RATE = market-determined (QBC/byte)
+Miners select by fee density (QBC/byte), greedy fill up to block size limit.
+```
+
+L1 fees are **micro-fees** for UTXO transactions only. Gas metering is QVM/L2 only.
 
 ---
 
@@ -896,6 +995,7 @@ The frontend connects to the node via:
 | GET | `/aether/reasoning/stats` | Reasoning stats |
 | GET | `/economics/emission` | Emission schedule |
 | GET | `/economics/simulate` | Emission simulation |
+| GET | `/susy-database` | Solved Hamiltonians (scientific DB) |
 | GET | `/metrics` | Prometheus metrics |
 
 ### 11.2 JSON-RPC (MetaMask/Web3 Compatible)
@@ -1127,6 +1227,14 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **KeterNode** | Named after Keter (Crown) in Kabbalah. Knowledge node in Aether Tree. |
 | **Schema sync** | SQL schemas and SQLAlchemy models MUST match. Always verify both. |
 | **Economics** | All fee params are editable via `.env` + Admin API. Never hardcode economic values. |
+| **Privacy** | Susy Swaps = opt-in. Pedersen commitments + Bulletproofs + stealth addresses. ~2KB per private tx. |
+| **Node types** | Full (500GB+, 16GB RAM), Light (1GB, SPV), Mining (Full + VQE). |
+| **Block structure** | Header has vqe_params + ground_state_energy + hamiltonian_seed. Body has susy_data. |
+| **SUSY database** | Every mined block contributes solved Hamiltonian to public scientific database. |
+| **Bridge fees** | 0.1% of transfer amount. Lock-and-mint (QBC→wQBC), burn-and-unlock (wQBC→QBC). |
+| **Confirmations** | 1 = unconfirmed, 6 = standard, 100 = coinbase maturity. |
+| **L1 tx fees** | FEE = SIZE × FEE_RATE (QBC/byte). Miners select by fee density. No gas on L1. |
+| **QUSD** | 3.3B initial supply, fractional reserve, transparent debt tracking, 10-year path to 100% backing. |
 
 ---
 
@@ -1146,6 +1254,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 - `qvm/state.py` — State management
 - `qvm/compliance.py` — Compliance engine (KYC/AML/sanctions)
 - `qvm/quantum_state.py` — Quantum state persistence
+- `privacy/*.py` — All privacy files (commitments, range proofs, stealth addresses)
 - `aether/*.py` — All Aether Tree files
 - `bridge/*.py` — All bridge files
 - `network/jsonrpc.py` — JSON-RPC compatibility

@@ -69,6 +69,44 @@
 - [ ] IPFS port conflict resolution (8080 vs CockroachDB admin)
 - [ ] Snapshot restoration from IPFS
 
+### 1.7 Privacy Technology (Susy Swaps)
+- [ ] Pedersen commitment module (`privacy/commitments.py`)
+  - [ ] Commitment creation: `C = v*G + r*H`
+  - [ ] Homomorphic verification (inputs sum = outputs sum)
+  - [ ] Blinding factor management
+- [ ] Bulletproofs range proofs (`privacy/range_proofs.py`)
+  - [ ] Range proof generation (prove value in [0, 2^64) without revealing)
+  - [ ] Range proof verification (~672 bytes, O(log n) size)
+  - [ ] Aggregated range proofs for multi-output transactions
+- [ ] Stealth address system (`privacy/stealth.py`)
+  - [ ] Spend/view key pair generation
+  - [ ] One-time address derivation (sender side)
+  - [ ] Stealth address scanning (receiver side)
+  - [ ] Ephemeral key publication in transactions
+- [ ] Confidential transaction builder (`privacy/susy_swap.py`)
+  - [ ] Confidential input/output construction
+  - [ ] Key image computation (double-spend prevention)
+  - [ ] Balance proof generation
+  - [ ] Change output handling with blinding factors
+- [ ] Privacy transaction verification in consensus engine
+- [ ] Opt-in privacy flag in transaction format
+- [ ] Privacy-specific SQL schema tables (`sql/02_privacy_susy_swaps.sql` alignment)
+- [ ] Privacy transaction unit tests
+- [ ] Privacy integration tests (create, verify, spend confidential outputs)
+
+### 1.8 SUSY Solution Database
+- [ ] Public Hamiltonian solution storage (`hamiltonian_solutions` table)
+- [ ] REST API endpoint: `GET /susy-database` (query by block height, energy range, qubit count)
+- [ ] IPFS archival of solution datasets (periodic export)
+- [ ] Solution verification count tracking
+- [ ] Scientific data export formats (JSON, CSV for researchers)
+
+### 1.9 Node Types
+- [ ] Light node implementation (SPV verification, block headers only)
+- [ ] Light node sync protocol (<5 minutes)
+- [ ] Mining node VQE capability detection (classical vs quantum backend)
+- [ ] Node capability advertisement in P2P protocol
+
 ---
 
 ## PHASE 2: QVM / LAYER 2 (Priority: HIGH)
@@ -482,30 +520,45 @@
 - [x] Solana bridge skeleton (`bridge/solana.py`)
 - [ ] Lock-and-mint implementation (QBC → wQBC on ETH)
 - [ ] Burn-and-unlock implementation (wQBC → QBC)
-- [ ] Federated validator set (7-of-11 multi-sig)
-- [ ] Bridge event monitoring
+- [ ] Federated validator set (7-of-11 multi-sig, path to 101+)
+- [ ] Validator economic bonding (10,000+ QBC slashable stake)
+- [ ] Bridge event monitoring (multi-source: direct observation + oracle)
 - [ ] Transfer status tracking
-- [ ] Bridge fee collection (0.1%)
+- [ ] Bridge fee collection (0.1% of transfer, 100% to QUSD reserves)
+- [ ] Daily transfer limits (security cap)
+- [ ] Deep confirmation requirements (reorg protection)
 - [ ] Emergency pause mechanism
+- [ ] Bridge insurance fund
 
 ### 5.2 Wrapped QBC Contracts (Solidity)
 - [ ] wQBC ERC-20 on Ethereum
 - [ ] wQBC SPL on Solana
-- [ ] wQBC on Polygon, BNB, AVAX, ARB, OP, BASE
+- [ ] wQBC on Polygon, BNB, AVAX, ARB, OP, Cosmos (ATOM)
 
 ---
 
 ## PHASE 6: QUSD STABLECOIN (Priority: MEDIUM)
 
-- [ ] QUSD QBC-20 token contract
-- [ ] Reserve contract (multi-asset pool)
-- [ ] Debt tracking system (on-chain accounting)
+> **Whitepaper reference:** `docs/WHITEPAPER.md` Section 11
+
+### 6.1 QUSD Token & Reserve
+- [ ] QUSD QBC-20 token contract (3.3B initial supply)
+- [ ] Reserve contract (multi-asset pool: QBC, ETH, BTC, USDT, USDC, DAI)
+- [ ] Debt tracking system (on-chain: totalMinted, totalReserves, outstandingDebt, backingPercentage)
 - [ ] Oracle integration (price feeds) — **also used by Aether/contract fee pegging**
-- [ ] Stability mechanism (peg maintenance)
-- [ ] Reserve building mechanism (fee collection → reserves)
+- [ ] Stability mechanism (peg maintenance: buy below $0.99, sell above $1.01)
+- [ ] Reserve building mechanism (bridge fees, QUSD tx fees, LP fees, treasury sales → reserves)
 - [ ] Transparency dashboard (reserve composition, backing %)
-- [ ] Allocation distribution (50% LP, 30% treasury, 15% dev, 5% team)
+- [ ] Allocation distribution (50% LP, 30% treasury, 15% dev, 5% team with 4-year vesting)
 - [ ] QUSD price oracle endpoint for fee system consumption
+
+### 6.2 Reserve Milestones & Safety
+- [ ] Minimum reserve ratio enforcement by year (5% Y1-2, 15% Y3-4, 30% Y5-6, 50% Y7+, 100% Y10+)
+- [ ] Emergency actions on backing ratio breach (halt minting, increase fees)
+- [ ] QUSD transaction fee (0.05% — burned or added to reserves based on backing ratio)
+- [ ] Public API for third-party reserve verification
+- [ ] Automated daily reserve snapshots to IPFS
+- [ ] Quarterly audit report generation
 
 ## PHASE 6.5: EDITABLE ECONOMIC CONFIGURATION (Priority: HIGH)
 
@@ -581,7 +634,7 @@
 
 ## PHASE 9: DOCUMENTATION (Priority: MEDIUM)
 
-- [x] Whitepaper (`docs/WHITEPAPER.md` — 2680 lines)
+- [x] Whitepaper (`docs/WHITEPAPER.md` — v1.0.0, 2680 lines, covers L1 core + privacy + bridges + QUSD)
 - [x] QVM Whitepaper (`docs/QVM_WHITEPAPER.md` — institutional features, 5 patents)
 - [x] AetherTree AGI Whitepaper (`docs/AETHERTREE_WHITEPAPER.md` — Tree of Life, PoT, consciousness)
 - [x] Economics documentation (`docs/ECONOMICS.md`)
@@ -603,6 +656,8 @@
    └── secure_key.env load order in config.py
    └── Add block sync protocol
    └── Add WebSocket endpoint
+   └── Privacy: Pedersen commitments + Bulletproofs + stealth addresses
+   └── SUSY solution database + public API
 
 2. QVM + Aether Tree Production Build (PHASE 2 + 3)
    └── QVM quantum opcodes + cross-contract calls
