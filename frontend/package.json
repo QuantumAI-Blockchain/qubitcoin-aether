@@ -1,0 +1,40 @@
+{
+  "name": "qbc-network",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Qubitcoin (QBC) — Quantum-secured blockchain with on-chain AGI",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\""
+  },
+  "license": "MIT",
+  "packageManager": "pnpm@10.29.2",
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@tanstack/react-query": "^5.90.21",
+    "ethers": "^6.16.0",
+    "framer-motion": "^12.34.0",
+    "next": "^16.1.6",
+    "postcss": "^8.5.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.1.18",
+    "three": "^0.182.0",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.182.0",
+    "eslint": "^10.0.0",
+    "eslint-config-next": "^16.1.6",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3"
+  }
+}
