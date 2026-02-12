@@ -864,6 +864,84 @@ class DatabaseManager:
             {'amt': str(amount)}
         )
     # ========================================================================
+    # UTXO MAINTENANCE
+    # ========================================================================
+    def prune_spent_utxos(self, keep_depth: int = 1000) -> int:
+        """Prune spent UTXOs older than keep_depth blocks from chain tip.
+
+        Spent UTXOs beyond keep_depth blocks deep are unlikely to ever be needed
+        for reorg resolution, so they can be safely deleted to reclaim storage.
+
+        Args:
+            keep_depth: Keep spent UTXOs within this many blocks of chain tip.
+
+        Returns:
+            Number of pruned rows.
+        """
+        current_height = self.get_current_height()
+        prune_below = current_height - keep_depth
+        if prune_below <= 0:
+            return 0
+        with self.get_session() as session:
+            result = session.execute(
+                text("""
+                    DELETE FROM utxos
+                    WHERE spent = true AND block_height < :cutoff
+                """),
+                {'cutoff': prune_below}
+            )
+            pruned = result.rowcount
+            session.commit()
+            if pruned > 0:
+                logger.info(f"Pruned {pruned} spent UTXOs below height {prune_below}")
+            return pruned
+
+    def compute_utxo_commitment(self) -> str:
+        """Compute a SHA-256 commitment over the entire unspent UTXO set.
+
+        This provides a compact hash that uniquely represents the current state
+        of all unspent outputs. Can be included in block headers for lightweight
+        UTXO set verification.
+
+        Returns:
+            Hex-encoded SHA-256 hash of the sorted UTXO set.
+        """
+        import hashlib
+        with self.get_session() as session:
+            results = session.execute(
+                text("""
+                    SELECT txid, vout, amount, address
+                    FROM utxos
+                    WHERE spent = false
+                    ORDER BY txid, vout
+                """)
+            )
+            hasher = hashlib.sha256()
+            count = 0
+            for row in results:
+                entry = f"{row[0]}:{row[1]}:{row[2]}:{row[3]}"
+                hasher.update(entry.encode())
+                count += 1
+            commitment = hasher.hexdigest()
+            logger.debug(f"UTXO commitment computed over {count} UTXOs: {commitment[:16]}...")
+            return commitment
+
+    def get_utxo_stats(self) -> dict:
+        """Get UTXO set statistics."""
+        with self.get_session() as session:
+            unspent = session.execute(
+                text("SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM utxos WHERE spent = false")
+            ).fetchone()
+            spent = session.execute(
+                text("SELECT COUNT(*) FROM utxos WHERE spent = true")
+            ).fetchone()
+            return {
+                'unspent_count': unspent[0] if unspent else 0,
+                'unspent_total': float(unspent[1]) if unspent else 0,
+                'spent_count': spent[0] if spent else 0,
+            }
+
+    # ========================================================================
     # RESEARCH DATA
     # ========================================================================
     def store_hamiltonian(self, hamiltonian: list, params: list, energy: float,

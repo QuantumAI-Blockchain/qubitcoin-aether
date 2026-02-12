@@ -45,61 +45,66 @@ class ConsensusEngine:
         return reward
 
     def calculate_difficulty(self, height: int, db_manager) -> float:
-        """Calculate difficulty with periodic adjustment"""
-        if height < Config.DIFFICULTY_ADJUSTMENT_INTERVAL:
+        """Calculate difficulty using per-block adjustment with 144-block lookback window.
+
+        Algorithm:
+          1. For each new block, look back DIFFICULTY_WINDOW (144) blocks.
+          2. Compute actual_time = timestamp(head) - timestamp(head - window).
+          3. expected_time = DIFFICULTY_WINDOW * TARGET_BLOCK_TIME (144 * 3.3s = 475.2s).
+          4. ratio = expected_time / actual_time (>1 means blocks too slow, <1 too fast).
+          5. Clamp ratio to ±MAX_DIFFICULTY_CHANGE (10%) per adjustment.
+          6. new_difficulty = prev_difficulty * clamped_ratio.
+        """
+        if height in self.difficulty_cache:
+            return self.difficulty_cache[height]
+
+        window = Config.DIFFICULTY_WINDOW  # 144
+
+        if height < window:
             return Config.INITIAL_DIFFICULTY
 
-        adjustment_height = (height // Config.DIFFICULTY_ADJUSTMENT_INTERVAL) * Config.DIFFICULTY_ADJUSTMENT_INTERVAL
-        if adjustment_height in self.difficulty_cache:
-            return self.difficulty_cache[adjustment_height]
-
         try:
-            prev_adjustment = db_manager.get_block(
-                adjustment_height - Config.DIFFICULTY_ADJUSTMENT_INTERVAL
-            )
-            last_block = db_manager.get_block(adjustment_height - 1)
+            head_block = db_manager.get_block(height - 1)
+            window_start_block = db_manager.get_block(height - window)
 
-            if not prev_adjustment or not last_block:
+            if not head_block or not window_start_block:
                 logger.warning(f"Missing blocks for difficulty calc at {height}, using default")
                 return Config.INITIAL_DIFFICULTY
 
-            # Use timestamp field directly (fixed: was using created_at)
-            last_time = float(last_block.timestamp or 0)
-            prev_time = float(prev_adjustment.timestamp or 0)
+            head_time = float(head_block.timestamp or 0)
+            start_time = float(window_start_block.timestamp or 0)
+            prev_difficulty = float(head_block.difficulty) if head_block.difficulty else Config.INITIAL_DIFFICULTY
 
-            # Safely extract previous difficulty
-            prev_difficulty = float(last_block.difficulty) if last_block.difficulty else Config.INITIAL_DIFFICULTY
-
-            if last_time <= prev_time or prev_time == 0 or last_time == 0:
-                logger.warning(f"Invalid timestamps for difficulty calc, using previous")
+            if head_time <= start_time or start_time == 0 or head_time == 0:
+                logger.warning(f"Invalid timestamps for difficulty calc at {height}, using previous")
                 return prev_difficulty
 
-            actual_time = last_time - prev_time
-            expected_time = Config.TARGET_BLOCK_TIME * Config.DIFFICULTY_ADJUSTMENT_INTERVAL
+            actual_time = head_time - start_time
+            expected_time = Config.TARGET_BLOCK_TIME * window
 
             ratio = expected_time / actual_time
-            ratio = max(0.25, min(4.0, ratio))
+
+            # Clamp to ±MAX_DIFFICULTY_CHANGE (default ±10%)
+            max_change = Config.MAX_DIFFICULTY_CHANGE
+            ratio = max(1.0 - max_change, min(1.0 + max_change, ratio))
 
             new_difficulty = prev_difficulty * ratio
             new_difficulty = max(0.01, min(10.0, new_difficulty))
 
-            self.difficulty_cache[adjustment_height] = new_difficulty
+            # Cache to avoid re-computation
+            self.difficulty_cache[height] = new_difficulty
 
-            logger.info(
-                f"Difficulty adjusted at height {height}: "
-                f"{prev_difficulty:.6f} -> {new_difficulty:.6f} "
-                f"(ratio: {ratio:.2f}, time: {actual_time:.1f}s vs {expected_time:.1f}s)"
-            )
+            if abs(ratio - 1.0) > 0.001:
+                logger.info(
+                    f"Difficulty adjusted at height {height}: "
+                    f"{prev_difficulty:.6f} -> {new_difficulty:.6f} "
+                    f"(ratio: {ratio:.4f}, actual: {actual_time:.1f}s vs expected: {expected_time:.1f}s)"
+                )
 
             return new_difficulty
 
         except Exception as e:
             logger.error(f"Error calculating difficulty at height {height}: {e}", exc_info=True)
-            if adjustment_height > Config.DIFFICULTY_ADJUSTMENT_INTERVAL:
-                return self.difficulty_cache.get(
-                    adjustment_height - Config.DIFFICULTY_ADJUSTMENT_INTERVAL,
-                    Config.INITIAL_DIFFICULTY
-                )
             return Config.INITIAL_DIFFICULTY
 
     def validate_block(self, block: Block, prev_block: Optional[Block], db_manager) -> Tuple[bool, str]:
@@ -165,7 +170,7 @@ class ConsensusEngine:
                     if coinbase_count > 1:
                         return False, "Multiple coinbase transactions"
                     continue
-                if not self.validate_transaction(tx, db_manager):
+                if not self.validate_transaction(tx, db_manager, current_height=block.height):
                     return False, f"Invalid transaction: {tx.txid}"
                 total_fees += tx.fee
 
@@ -179,8 +184,15 @@ class ConsensusEngine:
             if coinbase_amount > expected_reward + total_fees:
                 return False, f"Excessive coinbase: {coinbase_amount} > {expected_reward} + {total_fees}"
 
-            if block.timestamp > time.time() + 7200:
-                return False, "Block timestamp too far in future"
+            # ── Timestamp validation ──────────────────────────────────
+            # 1. Must not be too far in the future
+            if block.timestamp > time.time() + Config.MAX_FUTURE_BLOCK_TIME:
+                return False, f"Block timestamp too far in future ({block.timestamp:.0f} > now+{Config.MAX_FUTURE_BLOCK_TIME})"
+            # 2. Must be strictly after the previous block (monotonically increasing)
+            if prev_block and block.timestamp <= prev_block.timestamp:
+                return False, (
+                    f"Block timestamp not increasing: {block.timestamp:.6f} <= prev {prev_block.timestamp:.6f}"
+                )
 
             # Validate state root (if QVM is active and block has state root)
             if self.state_manager and block.state_root:
@@ -222,8 +234,16 @@ class ConsensusEngine:
             logger.error(f"Block validation error: {e}", exc_info=True)
             return False, f"Validation exception: {str(e)}"
 
-    def validate_transaction(self, tx: Transaction, db_manager) -> bool:
-        """Validate transaction with proper UTXO lookup"""
+    def validate_transaction(self, tx: Transaction, db_manager,
+                             current_height: Optional[int] = None) -> bool:
+        """Validate transaction with proper UTXO lookup and coinbase maturity.
+
+        Args:
+            tx: Transaction to validate.
+            db_manager: Database manager for UTXO lookups.
+            current_height: Height of the block containing this tx. Used for
+                coinbase maturity checks. If None, uses chain tip.
+        """
         try:
             # Verify signature
             pk = bytes.fromhex(tx.public_key)
@@ -238,7 +258,10 @@ class ConsensusEngine:
             if not Dilithium2.verify(pk, msg, sig):
                 return False
 
-            # Validate inputs - look up UTXOs by txid/vout (fixed: was using address)
+            if current_height is None:
+                current_height = db_manager.get_current_height()
+
+            # Validate inputs - look up UTXOs by txid/vout
             input_total = Decimal(0)
             spent_utxos = set()
             for inp in tx.inputs:
@@ -254,6 +277,18 @@ class ConsensusEngine:
                 if not utxo or utxo.spent:
                     logger.warning(f"UTXO not found or spent: {inp['txid']}:{inp['vout']}")
                     return False
+
+                # Coinbase maturity: coinbase UTXOs can't be spent for COINBASE_MATURITY blocks
+                if self._is_coinbase_utxo(utxo, db_manager):
+                    if utxo.block_height is not None:
+                        confirmations = current_height - utxo.block_height
+                        if confirmations < Config.COINBASE_MATURITY:
+                            logger.warning(
+                                f"Immature coinbase UTXO: {utxo.txid}:{utxo.vout} "
+                                f"({confirmations} < {Config.COINBASE_MATURITY} required)"
+                            )
+                            return False
+
                 input_total += utxo.amount
 
             output_total = sum(Decimal(str(o['amount'])) for o in tx.outputs)
@@ -262,6 +297,25 @@ class ConsensusEngine:
             return True
         except Exception as e:
             logger.error(f"Transaction validation error: {e}")
+            return False
+
+    def _is_coinbase_utxo(self, utxo: UTXO, db_manager) -> bool:
+        """Check if a UTXO came from a coinbase transaction (no inputs)."""
+        try:
+            with db_manager.get_session() as session:
+                from sqlalchemy import text
+                result = session.execute(
+                    text("SELECT inputs FROM transactions WHERE txid = :txid"),
+                    {'txid': utxo.txid}
+                ).fetchone()
+                if not result:
+                    return False
+                inputs = result[0]
+                if isinstance(inputs, str):
+                    import json
+                    inputs = json.loads(inputs)
+                return isinstance(inputs, list) and len(inputs) == 0
+        except Exception:
             return False
 
     async def resolve_fork(self, new_block: Block, sender_id: str):

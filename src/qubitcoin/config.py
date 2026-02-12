@@ -6,10 +6,17 @@ Supersymmetric Economics Model
 import os
 from decimal import Decimal
 from typing import Optional
+from pathlib import Path
 from dotenv import load_dotenv
 import math
 
-load_dotenv()
+# Load secure_key.env FIRST (private key material), then .env (node config).
+# secure_key.env values take precedence for key fields; .env provides all other config.
+_project_root = Path(__file__).resolve().parent.parent.parent
+_secure_key_path = _project_root / 'secure_key.env'
+if _secure_key_path.exists():
+    load_dotenv(_secure_key_path, override=True)
+load_dotenv(override=False)  # .env values do NOT override secure_key.env
 
 
 class Config:
@@ -104,7 +111,11 @@ class Config:
     # CONSENSUS PARAMETERS
     # ============================================================================
     INITIAL_DIFFICULTY: float = 0.5
-    DIFFICULTY_ADJUSTMENT_INTERVAL: int = 1000  # Adjust every 1000 blocks (~55 min)
+    DIFFICULTY_WINDOW: int = 144  # 144-block lookback window for difficulty calc
+    DIFFICULTY_ADJUSTMENT_INTERVAL: int = 1  # Adjust EVERY block (per-block adjustment)
+    MAX_DIFFICULTY_CHANGE: float = 0.10  # Max +/-10% per adjustment
+    COINBASE_MATURITY: int = 100  # Coinbase outputs unspendable for 100 blocks
+    MAX_FUTURE_BLOCK_TIME: int = 7200  # Max seconds a block timestamp can be in the future
     CONFIRMATION_DEPTH: int = 180  # Wait 180 blocks (~10 min) for finality
     MAX_REORG_DEPTH: int = 100
 
@@ -137,6 +148,30 @@ class Config:
     INFURA_URL: Optional[str] = os.getenv('INFURA_URL')
     ETH_PRIVATE_KEY: Optional[str] = os.getenv('ETH_PRIVATE_KEY')
     BRIDGE_CONTRACT_ADDRESS: Optional[str] = os.getenv('BRIDGE_CONTRACT_ADDRESS')
+
+    # ============================================================================
+    # AETHER TREE FEE ECONOMICS
+    # ============================================================================
+    AETHER_CHAT_FEE_QBC: Decimal = Decimal(os.getenv('AETHER_CHAT_FEE_QBC', '0.01'))
+    AETHER_CHAT_FEE_USD_TARGET: float = float(os.getenv('AETHER_CHAT_FEE_USD_TARGET', '0.005'))
+    AETHER_FEE_PRICING_MODE: str = os.getenv('AETHER_FEE_PRICING_MODE', 'qusd_peg')
+    AETHER_FEE_MIN_QBC: Decimal = Decimal(os.getenv('AETHER_FEE_MIN_QBC', '0.001'))
+    AETHER_FEE_MAX_QBC: Decimal = Decimal(os.getenv('AETHER_FEE_MAX_QBC', '1.0'))
+    AETHER_FEE_UPDATE_INTERVAL: int = int(os.getenv('AETHER_FEE_UPDATE_INTERVAL', '100'))
+    AETHER_FEE_TREASURY_ADDRESS: str = os.getenv('AETHER_FEE_TREASURY_ADDRESS', '')
+    AETHER_QUERY_FEE_MULTIPLIER: float = float(os.getenv('AETHER_QUERY_FEE_MULTIPLIER', '2.0'))
+    AETHER_FREE_TIER_MESSAGES: int = int(os.getenv('AETHER_FREE_TIER_MESSAGES', '5'))
+
+    # ============================================================================
+    # CONTRACT DEPLOYMENT FEE ECONOMICS
+    # ============================================================================
+    CONTRACT_DEPLOY_BASE_FEE_QBC: Decimal = Decimal(os.getenv('CONTRACT_DEPLOY_BASE_FEE_QBC', '1.0'))
+    CONTRACT_DEPLOY_PER_KB_FEE_QBC: Decimal = Decimal(os.getenv('CONTRACT_DEPLOY_PER_KB_FEE_QBC', '0.1'))
+    CONTRACT_DEPLOY_FEE_USD_TARGET: float = float(os.getenv('CONTRACT_DEPLOY_FEE_USD_TARGET', '5.0'))
+    CONTRACT_FEE_PRICING_MODE: str = os.getenv('CONTRACT_FEE_PRICING_MODE', 'qusd_peg')
+    CONTRACT_FEE_TREASURY_ADDRESS: str = os.getenv('CONTRACT_FEE_TREASURY_ADDRESS', '')
+    CONTRACT_EXECUTE_BASE_FEE_QBC: Decimal = Decimal(os.getenv('CONTRACT_EXECUTE_BASE_FEE_QBC', '0.01'))
+    CONTRACT_TEMPLATE_DISCOUNT: float = float(os.getenv('CONTRACT_TEMPLATE_DISCOUNT', '0.5'))
 
     # ============================================================================
     # LOGGING & MONITORING
@@ -183,6 +218,12 @@ class Config:
         if cls.HALVING_INTERVAL <= 0:
             raise ValueError("HALVING_INTERVAL must be positive")
 
+        if cls.AETHER_FEE_MIN_QBC >= cls.AETHER_FEE_MAX_QBC:
+            raise ValueError("AETHER_FEE_MIN_QBC must be less than AETHER_FEE_MAX_QBC")
+
+        if cls.COINBASE_MATURITY < 1:
+            raise ValueError("COINBASE_MATURITY must be at least 1")
+
     @classmethod
     def display(cls) -> str:
         """Return formatted configuration summary"""
@@ -217,7 +258,9 @@ Network:
 Consensus:
   Initial Difficulty:   {cls.INITIAL_DIFFICULTY}
   Target Block Time:    {cls.TARGET_BLOCK_TIME}s
-  Adjustment Interval:  {cls.DIFFICULTY_ADJUSTMENT_INTERVAL} blocks
+  Difficulty Window:    {cls.DIFFICULTY_WINDOW} blocks (per-block adjustment)
+  Max Difficulty Change: ±{cls.MAX_DIFFICULTY_CHANGE * 100:.0f}%
+  Coinbase Maturity:    {cls.COINBASE_MATURITY} blocks
 
 Mining:
   Auto Mine:            {cls.AUTO_MINE}

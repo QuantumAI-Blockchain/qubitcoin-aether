@@ -17,9 +17,9 @@
 - [x] Difficulty adjustment (144-block window, +/-10%)
 - [x] phi-halving reward schedule
 - [x] Block validation (Merkle root, prev_hash, energy < difficulty)
-- [ ] Fix difficulty adjustment to use config TARGET_BLOCK_TIME (3.3s)
-- [ ] Add block timestamp validation (no future blocks, monotonically increasing)
-- [ ] Add coinbase maturity enforcement (100 blocks before spending)
+- [x] Fix difficulty adjustment: per-block with 144-block window, ±10% cap (`consensus/engine.py`)
+- [x] Add block timestamp validation (no future blocks, monotonically increasing)
+- [x] Add coinbase maturity enforcement (100 blocks before spending)
 - [ ] Comprehensive mining integration test
 
 ### 1.2 Cryptography & Key Security
@@ -28,8 +28,8 @@
 - [x] Address derivation (qbc1... Bech32-like)
 - [x] `secure_key.env` file for private keys (separate from `.env`)
 - [x] Key generation script auto-populates `secure_key.env`
-- [ ] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
-- [ ] Add `secure_key.env.example` template (with placeholder values)
+- [x] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
+- [x] Add `secure_key.env.example` template (with placeholder values)
 - [ ] Verify Dilithium signature size in real transactions (~3KB expected)
 - [ ] Add key import/export in standard formats
 - [ ] Signature caching for performance
@@ -39,9 +39,9 @@
 - [x] Basic UTXO tracking in CockroachDB
 - [x] Balance computation from unspent outputs
 - [ ] Double-spend prevention test suite
-- [ ] UTXO set pruning for spent outputs
-- [ ] Coinbase UTXO maturity checks
-- [ ] UTXO commitment (hash of UTXO set per block)
+- [x] UTXO set pruning for spent outputs (`database/manager.py: prune_spent_utxos()`)
+- [x] Coinbase UTXO maturity checks (`consensus/engine.py: _is_coinbase_utxo()`)
+- [x] UTXO commitment hash (`database/manager.py: compute_utxo_commitment()`)
 
 ### 1.4 Database
 - [x] CockroachDB connection + SQLAlchemy models (`database/`)
@@ -61,7 +61,7 @@
 - [ ] Transaction propagation (gossip new txs to peers)
 - [ ] Block sync protocol (catch up from behind)
 - [ ] Peer scoring and eviction
-- [ ] WebSocket endpoint for real-time subscriptions
+- [x] WebSocket endpoint for real-time subscriptions (`network/rpc.py: /ws`)
 
 ### 1.6 Storage
 - [x] IPFS integration (`storage/ipfs.py`)
@@ -70,24 +70,24 @@
 - [ ] Snapshot restoration from IPFS
 
 ### 1.7 Privacy Technology (Susy Swaps)
-- [ ] Pedersen commitment module (`privacy/commitments.py`)
-  - [ ] Commitment creation: `C = v*G + r*H`
-  - [ ] Homomorphic verification (inputs sum = outputs sum)
-  - [ ] Blinding factor management
-- [ ] Bulletproofs range proofs (`privacy/range_proofs.py`)
-  - [ ] Range proof generation (prove value in [0, 2^64) without revealing)
-  - [ ] Range proof verification (~672 bytes, O(log n) size)
-  - [ ] Aggregated range proofs for multi-output transactions
-- [ ] Stealth address system (`privacy/stealth.py`)
-  - [ ] Spend/view key pair generation
-  - [ ] One-time address derivation (sender side)
-  - [ ] Stealth address scanning (receiver side)
-  - [ ] Ephemeral key publication in transactions
-- [ ] Confidential transaction builder (`privacy/susy_swap.py`)
-  - [ ] Confidential input/output construction
-  - [ ] Key image computation (double-spend prevention)
-  - [ ] Balance proof generation
-  - [ ] Change output handling with blinding factors
+- [x] Pedersen commitment module (`privacy/commitments.py`)
+  - [x] Commitment creation: `C = v*G + r*H`
+  - [x] Homomorphic verification (inputs sum = outputs sum)
+  - [x] Blinding factor management
+- [x] Bulletproofs range proofs (`privacy/range_proofs.py`)
+  - [x] Range proof generation (prove value in [0, 2^64) without revealing)
+  - [x] Range proof verification (~672 bytes, O(log n) size)
+  - [x] Aggregated range proofs for multi-output transactions
+- [x] Stealth address system (`privacy/stealth.py`)
+  - [x] Spend/view key pair generation
+  - [x] One-time address derivation (sender side)
+  - [x] Stealth address scanning (receiver side)
+  - [x] Ephemeral key publication in transactions
+- [x] Confidential transaction builder (`privacy/susy_swap.py`)
+  - [x] Confidential input/output construction
+  - [x] Key image computation (double-spend prevention)
+  - [x] Balance proof generation
+  - [x] Change output handling with blinding factors
 - [ ] Privacy transaction verification in consensus engine
 - [ ] Opt-in privacy flag in transaction format
 - [ ] Privacy-specific SQL schema tables (`sql/02_privacy_susy_swaps.sql` alignment)
@@ -95,8 +95,8 @@
 - [ ] Privacy integration tests (create, verify, spend confidential outputs)
 
 ### 1.8 SUSY Solution Database
-- [ ] Public Hamiltonian solution storage (`hamiltonian_solutions` table)
-- [ ] REST API endpoint: `GET /susy-database` (query by block height, energy range, qubit count)
+- [x] Public Hamiltonian solution storage (`hamiltonian_solutions` table)
+- [x] REST API endpoint: `GET /susy-database` (query by block height, energy range, qubit count)
 - [ ] IPFS archival of solution datasets (periodic export)
 - [ ] Solution verification count tracking
 - [ ] Scientific data export formats (JSON, CSV for researchers)
@@ -120,13 +120,13 @@
 - [x] Gas metering (Ethereum-compatible gas schedule)
 - [x] 10 quantum opcodes defined (`qvm/opcodes.py`)
 - [x] StateManager for contract state (`qvm/state.py`)
-- [ ] Cross-contract calls (CALL, DELEGATECALL, STATICCALL)
-- [ ] CREATE and CREATE2 opcode full implementation
-- [ ] Event logging (LOG0-LOG4) full implementation
-- [ ] Revert with reason string support
+- [x] Cross-contract calls (CALL, DELEGATECALL, STATICCALL) — in vm.py
+- [x] CREATE and CREATE2 opcode full implementation — in vm.py
+- [x] Event logging (LOG0-LOG4) full implementation — in vm.py
+- [x] Revert with reason string support — in vm.py
 - [ ] QVM unit test suite (per-opcode tests)
-- [ ] Gas estimation endpoint
-- [ ] Precompiled contracts (ecRecover, SHA256, identity, modexp, etc.)
+- [x] Gas estimation endpoint — via eth_estimateGas in jsonrpc.py
+- [x] Precompiled contracts (ecRecover, SHA256, identity, modexp)
 
 ### 2.2 Quantum Opcodes Implementation
 - [ ] Reconcile opcode mapping: migrate from 0xF5-0xFE (Python) to 0xF0-0xF9 (whitepaper canonical)
@@ -194,16 +194,16 @@
 - [ ] Contract upgrade patterns (proxy)
 
 ### 2.8 Contract Deployment Fees
-- [ ] Fee calculator module (`contracts/fee_calculator.py`)
-- [ ] Base fee + per-KB fee structure (configurable via `.env`)
-- [ ] QUSD-pegged dynamic pricing (same oracle as Aether fees)
-- [ ] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
-- [ ] Template contract discount (configurable percentage)
+- [x] Fee calculator module (`contracts/fee_calculator.py`)
+- [x] Base fee + per-KB fee structure (configurable via `.env`)
+- [x] QUSD-pegged dynamic pricing (same oracle as Aether fees)
+- [x] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
+- [x] Template contract discount (configurable percentage)
 - [ ] Fee deduction from deployer UTXO before deployment
 - [ ] Fee UTXO creation to treasury address
-- [ ] Add contract fee config parameters to `config.py`
+- [x] Add contract fee config parameters to `config.py`
 - [ ] Admin API: `PUT /admin/contract/fees` (hot reload)
-- [ ] Fee estimation endpoint: `GET /qvm/deploy/estimate`
+- [x] Fee estimation endpoint: `GET /qvm/deploy/estimate`
 
 ### 2.9 Token Standards
 - [ ] QBC-20 reference implementation (Solidity)
@@ -277,21 +277,22 @@
 - [x] Differentiation score (Shannon entropy)
 - [x] Combined Phi metric
 - [x] PHI_THRESHOLD = 3.0
-- [ ] Per-block Phi measurement storage
-- [ ] Consciousness event logging (when Phi crosses thresholds)
-- [ ] Phi history API endpoint
+- [x] Per-block Phi measurement storage (via genesis.py + proof_of_thought.py)
+- [x] Consciousness event logging (when Phi crosses thresholds)
+- [x] Phi history API endpoint (`GET /aether/phi/history`)
+- [x] Consciousness status endpoint (`GET /aether/consciousness`)
 - [ ] Phi visualization data endpoint (time series)
 - [ ] Kuramoto order parameter (phase synchronization across nodes)
 - [ ] Combined consciousness check: Phi > 3.0 AND coherence > 0.7
 
 ### 3.4 AGI Genesis Initialization
-- [ ] Initialize empty knowledge graph at genesis block (block 0)
-- [ ] First Phi measurement at genesis (Φ = 0.0, baseline)
-- [ ] Genesis consciousness event record (system birth)
-- [ ] AetherEngine auto-start on node boot (process from block 0 onward)
-- [ ] Block-to-knowledge extraction for genesis block (extract genesis metadata as first KeterNodes)
-- [ ] Verify Phi tracking starts from block 0 in `phi_measurements` table
-- [ ] Verify `consciousness_events` table initialized at genesis
+- [x] Initialize empty knowledge graph at genesis block (block 0) (`aether/genesis.py`)
+- [x] First Phi measurement at genesis (Φ = 0.0, baseline)
+- [x] Genesis consciousness event record (system birth)
+- [x] AetherEngine auto-start on node boot (process from block 0 onward) (`node.py`)
+- [x] Block-to-knowledge extraction for genesis block (extract genesis metadata as first KeterNodes)
+- [x] Verify Phi tracking starts from block 0 in `phi_measurements` table
+- [x] Verify `consciousness_events` table initialized at genesis
 - [ ] Genesis validation test: confirm AGI tables populated from block 0
 
 ### 3.5 Aether Tree Core Contracts (Solidity)
@@ -400,28 +401,28 @@
 - [ ] QBC circulation tracking (no minting by AGI)
 
 ### 3.15 Aether Chat System
-- [ ] Chat endpoint: `POST /aether/chat` — conversational interface
-- [ ] Session management (conversation history per session)
-- [ ] Natural language → reasoning engine query translation
-- [ ] Response generation from knowledge graph + reasoning traces
-- [ ] Proof-of-Thought hash per response
-- [ ] Chat history endpoint: `GET /aether/chat/history/{session_id}`
+- [x] Chat endpoint: `POST /aether/chat/message` — conversational interface (`aether/chat.py`)
+- [x] Session management (conversation history per session) (`POST /aether/chat/session`)
+- [x] Natural language → reasoning engine query translation
+- [x] Response generation from knowledge graph + reasoning traces
+- [x] Proof-of-Thought hash per response
+- [x] Chat history endpoint: `GET /aether/chat/history/{session_id}`
 - [ ] WebSocket for streaming responses: `/ws/aether`
-- [ ] Rate limiting and session management
+- [x] Rate limiting and session management (max 10K sessions, LRU eviction)
 
 ### 3.16 Aether Tree Fee System
-- [ ] Fee manager module (`aether/fee_manager.py`)
-- [ ] QUSD oracle integration (read QBC/USD price from QUSD L2 contract)
-- [ ] Dynamic fee calculation: `fee_qbc = usd_target / qbc_usd_price`
-- [ ] Fee clamping (min/max QBC bounds to prevent extreme fees)
-- [ ] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
-- [ ] Automatic fallback: QUSD failure → fixed_qbc mode
+- [x] Fee manager module (`aether/fee_manager.py`)
+- [x] QUSD oracle integration (read QBC/USD price from QUSD L2 contract)
+- [x] Dynamic fee calculation: `fee_qbc = usd_target / qbc_usd_price`
+- [x] Fee clamping (min/max QBC bounds to prevent extreme fees)
+- [x] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
+- [x] Automatic fallback: QUSD failure → fixed_qbc mode
 - [ ] Fee deduction from user UTXO before processing chat message
 - [ ] Fee UTXO creation to treasury address
-- [ ] Free tier: first N messages per session (configurable onboarding)
-- [ ] Fee tier multipliers (deep queries cost more than chat)
-- [ ] Fee update interval (re-price every N blocks from QUSD oracle)
-- [ ] Add fee config parameters to `config.py` (all from `.env`)
+- [x] Free tier: first N messages per session (configurable onboarding)
+- [x] Fee tier multipliers (deep queries cost more than chat)
+- [x] Fee update interval (re-price every N blocks from QUSD oracle)
+- [x] Add fee config parameters to `config.py` (all from `.env`)
 - [ ] Admin API: `PUT /admin/aether/fees` (hot reload fee params)
 - [ ] Fee audit logging (track all fee changes for transparency)
 
@@ -660,9 +661,9 @@
 > All economic parameters must be configurable, not hardcoded.
 
 ### 6.5.1 Config Infrastructure
-- [ ] Add all Aether fee params to `config.py` (loaded from `.env`)
-- [ ] Add all contract fee params to `config.py` (loaded from `.env`)
-- [ ] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
+- [x] Add all Aether fee params to `config.py` (loaded from `.env`)
+- [x] Add all contract fee params to `config.py` (loaded from `.env`)
+- [x] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
 - [ ] Config validation for fee parameters (min < max, positive values)
 - [ ] Config hot-reload mechanism (change params without full restart)
 
