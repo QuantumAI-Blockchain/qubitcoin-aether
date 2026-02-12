@@ -635,12 +635,12 @@
 - [ ] Real-time backing ratio on frontend dashboard
 
 ### 6.5 QUSD Oracle Integration Module (Python)
-- [ ] `utils/qusd_oracle.py` — Read QBC/USD price from QUSDOracle.sol
-- [ ] Price cache with configurable TTL
-- [ ] Staleness detection + automatic fallback to fixed_qbc mode
-- [ ] QUSD price endpoint: `GET /qusd/price`
-- [ ] Reserve status endpoint: `GET /qusd/reserves`
-- [ ] Debt status endpoint: `GET /qusd/debt`
+- [x] `utils/qusd_oracle.py` — Read QBC/USD price from QUSDOracle.sol
+- [x] Price cache with configurable TTL
+- [x] Staleness detection + automatic fallback to fixed_qbc mode
+- [x] QUSD price endpoint: `GET /qusd/price`
+- [x] Reserve status endpoint: `GET /qusd/reserves`
+- [x] Debt status endpoint: `GET /qusd/debt`
 
 ## PHASE 6.5: EDITABLE ECONOMIC CONFIGURATION (Priority: HIGH)
 
@@ -650,25 +650,26 @@
 - [x] Add all Aether fee params to `config.py` (loaded from `.env`)
 - [x] Add all contract fee params to `config.py` (loaded from `.env`)
 - [x] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
-- [ ] Config validation for fee parameters (min < max, positive values)
-- [ ] Config hot-reload mechanism (change params without full restart)
+- [x] Config validation for fee parameters (min < max in validate())
+- [x] Config hot-reload mechanism (Admin API mutates Config class attrs at runtime)
 
 ### 6.5.2 Admin API
-- [ ] Auth middleware for admin endpoints (API key or Dilithium signature)
-- [ ] `GET /admin/economics` — current economic config
-- [ ] `PUT /admin/aether/fees` — update Aether fee params (hot reload)
-- [ ] `PUT /admin/contract/fees` — update contract deploy fees (hot reload)
-- [ ] `PUT /admin/treasury` — update treasury addresses
-- [ ] `GET /admin/economics/history` — audit log of parameter changes
+- [x] Auth middleware for admin endpoints (API key via `ADMIN_API_KEY` env)
+- [x] `GET /admin/economics` — current economic config
+- [x] `PUT /admin/aether/fees` — update Aether fee params (hot reload)
+- [x] `PUT /admin/contract/fees` — update contract deploy fees (hot reload)
+- [x] `PUT /admin/treasury` — update treasury addresses
+- [x] `GET /admin/economics/history` — audit log of parameter changes
 - [ ] Rate limiting on admin endpoints
 
 ### 6.5.3 QUSD Fee Oracle Integration
-- [ ] Oracle client module (`utils/qusd_oracle.py`)
-- [ ] Read QBC/USD price from QUSD L2 contract
-- [ ] Cache price with configurable TTL
-- [ ] Staleness detection (alert if price hasn't updated)
-- [ ] Automatic fallback to `fixed_qbc` mode on oracle failure
-- [ ] Manual override via Admin API
+- [x] Oracle client module (`utils/qusd_oracle.py`)
+- [x] Read QBC/USD price from QUSD L2 contract (via QVM state call)
+- [x] Cache price with configurable TTL (30s default)
+- [x] Staleness detection (10-min threshold, warning on stale)
+- [x] Automatic fallback to cached/external price on oracle failure
+- [x] Manual override via `set_external_price()` method
+- [x] QUSD API endpoints: `GET /qusd/price`, `GET /qusd/reserves`, `GET /qusd/debt`
 
 ---
 

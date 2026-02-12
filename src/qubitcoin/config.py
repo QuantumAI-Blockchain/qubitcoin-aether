@@ -174,6 +174,11 @@ class Config:
     CONTRACT_TEMPLATE_DISCOUNT: float = float(os.getenv('CONTRACT_TEMPLATE_DISCOUNT', '0.5'))
 
     # ============================================================================
+    # ADMIN API
+    # ============================================================================
+    ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')
+
+    # ============================================================================
     # LOGGING & MONITORING
     # ============================================================================
     DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'

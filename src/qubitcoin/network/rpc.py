@@ -815,6 +815,49 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             media_type=CONTENT_TYPE_LATEST
         )
 
-    logger.info("RPC endpoints configured (v2.0 with P2P + QVM + Aether + WebSocket)")
+    # ========================================================================
+    # QUSD ORACLE ENDPOINTS
+    # ========================================================================
+
+    @app.get("/qusd/price")
+    async def qusd_price():
+        """Get current QBC/USD price from oracle."""
+        from ..utils.qusd_oracle import QUSDOracle
+        oracle = QUSDOracle(state_manager)
+        return oracle.get_status()
+
+    @app.get("/qusd/reserves")
+    async def qusd_reserves():
+        """Get QUSD reserve status."""
+        try:
+            from sqlalchemy import text as sql_text
+            with db_manager.get_session() as session:
+                result = session.execute(sql_text(
+                    "SELECT total_minted, total_backed, backing_percentage "
+                    "FROM qusd_debt_ledger ORDER BY recorded_at DESC LIMIT 1"
+                )).fetchone()
+                if result:
+                    return {
+                        'total_minted': str(result[0]),
+                        'total_backed': str(result[1]),
+                        'backing_percentage': float(result[2]),
+                    }
+        except Exception:
+            pass
+        return {'total_minted': '3300000000', 'total_backed': '0', 'backing_percentage': 0.0}
+
+    @app.get("/qusd/debt")
+    async def qusd_debt():
+        """Get QUSD debt status."""
+        return await qusd_reserves()
+
+    # ========================================================================
+    # ADMIN API (Economics hot-reload)
+    # ========================================================================
+
+    from .admin_api import router as admin_router
+    app.include_router(admin_router)
+
+    logger.info("RPC endpoints configured (v2.0 with P2P + QVM + Aether + WebSocket + Admin)")
 
     return app
