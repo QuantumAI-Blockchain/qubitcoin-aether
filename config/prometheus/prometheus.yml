@@ -1,13 +1,35 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
 
 scrape_configs:
+  # Qubitcoin Node Metrics
+  - job_name: 'qubitcoin-node'
+    static_configs:
+      - targets: ['host.docker.internal:5000']  # RPC server exposes /metrics
+        labels:
+          instance: 'local-node'
+          chain: 'mainnet'
+  
+  # CockroachDB Nodes
   - job_name: 'cockroachdb-1'
     static_configs:
       - targets: ['cockroachdb-1:8080']
+  
   - job_name: 'cockroachdb-2'
     static_configs:
       - targets: ['cockroachdb-2:8080']
+    
   - job_name: 'cockroachdb-3'
     static_configs:
       - targets: ['cockroachdb-3:8080']
+  
+  # IPFS
+  - job_name: 'ipfs'
+    static_configs:
+      - targets: ['qbc-ipfs:5001']
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['qbc-redis:6379']

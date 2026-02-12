@@ -78,3 +78,22 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+
+# Rust build artifacts
+rust-p2p/target/
+rust-p2p/Cargo.lock
+*.log
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.env.backup*
+
+# Data
+data/
+logs/
+
+# Temporary
+*.tmp
+*.swp

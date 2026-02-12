@@ -22,39 +22,37 @@ async fn main() -> Result<()> {
     
     // Create channels
     let (to_python_tx, mut to_python_rx) = mpsc::unbounded_channel();
-    let (from_python_tx, from_python_rx) = mpsc::unbounded_channel();
-    let (to_network_tx, to_network_rx) = mpsc::unbounded_channel();
+    let (_from_python_tx, from_python_rx) = mpsc::unbounded_channel();
+    let (to_network_tx, _to_network_rx) = mpsc::unbounded_channel();
     
     // Peer count tracker
     let peer_count = Arc::new(AtomicUsize::new(0));
-    let peer_count_clone = peer_count.clone();
     
-    // Spawn P2P network
+    // Spawn P2P network (takes ownership via run(self))
     tokio::spawn(async move {
-        let mut p2p = network::P2PNetwork::new(p2p_port, to_python_tx, from_python_rx)
-            .await
-            .expect("Failed to create P2P network");
-        
-        p2p.run().await;
+        match network::P2PNetwork::new(p2p_port, to_python_tx, from_python_rx).await {
+            Ok(p2p) => p2p.run().await,
+            Err(e) => eprintln!("Failed to create P2P network: {}", e),
+        }
     });
     
     // Spawn gRPC server
+    let peer_count_clone = peer_count.clone();
     tokio::spawn(async move {
-        bridge::start_grpc_server(grpc_addr, to_network_tx, peer_count)
-            .await
-            .expect("Failed to start gRPC server");
+        if let Err(e) = bridge::start_grpc_server(grpc_addr, to_network_tx, peer_count_clone).await {
+            eprintln!("gRPC server error: {}", e);
+        }
     });
     
     info!("✅ All services running");
     info!("📡 P2P Port: {}", p2p_port);
     info!("🔌 gRPC: {}", grpc_addr);
     
-    // Event loop (forward messages between Python and network)
+    // Event loop
     loop {
         tokio::select! {
             Some(msg) = to_python_rx.recv() => {
                 info!("To Python: {}", msg);
-                // In production, forward via gRPC to Python
             }
         }
     }
