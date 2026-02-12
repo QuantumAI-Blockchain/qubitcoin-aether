@@ -521,6 +521,19 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         value = db_manager.get_storage(address, key)
         return {"address": address, "key": key, "value": value}
 
+    @app.get("/qvm/deploy/estimate")
+    async def estimate_deploy_fee(bytecode_size: int = 0, is_template: bool = False):
+        """Estimate contract deployment fee."""
+        from ..contracts.fee_calculator import ContractFeeCalculator
+        calc = ContractFeeCalculator()
+        fee = calc.calculate_deploy_fee(bytecode_size, is_template)
+        return {
+            'bytecode_size_bytes': bytecode_size,
+            'is_template': is_template,
+            'fee_qbc': str(fee),
+            'pricing_mode': Config.CONTRACT_FEE_PRICING_MODE,
+        }
+
     # ========================================================================
     # AETHER TREE ENDPOINTS
     # ========================================================================
@@ -585,6 +598,104 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not aether_engine or not aether_engine.reasoning:
             raise HTTPException(status_code=503, detail="Reasoning engine not available")
         return aether_engine.reasoning.get_stats()
+
+    @app.get("/aether/consciousness")
+    async def aether_consciousness():
+        """Get full consciousness status (Phi, knowledge, events)."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        phi_data = {}
+        if aether_engine.phi:
+            height = db_manager.get_current_height()
+            phi_data = aether_engine.phi.compute_phi(height)
+        kg_stats = aether_engine.kg.get_stats() if aether_engine.kg else {}
+        return {
+            'phi': phi_data.get('phi_value', 0.0),
+            'threshold': phi_data.get('phi_threshold', 3.0),
+            'above_threshold': phi_data.get('above_threshold', False),
+            'integration': phi_data.get('integration_score', 0.0),
+            'differentiation': phi_data.get('differentiation_score', 0.0),
+            'knowledge_nodes': kg_stats.get('total_nodes', 0),
+            'knowledge_edges': kg_stats.get('total_edges', 0),
+            'blocks_processed': kg_stats.get('blocks_processed', 0),
+        }
+
+    # ========================================================================
+    # AETHER CHAT ENDPOINTS
+    # ========================================================================
+
+    from pydantic import BaseModel as _PydanticBaseModel
+
+    class _ChatMessageRequest(_PydanticBaseModel):
+        message: str
+        session_id: str
+        is_deep_query: bool = False
+
+    # Lazy-initialized chat components (created on first use)
+    _chat_state: dict = {'chat': None, 'fee_mgr': None}
+
+    def _get_chat():
+        """Get or create the AetherChat instance."""
+        if _chat_state['chat'] is None:
+            from ..aether.chat import AetherChat
+            from ..aether.fee_manager import AetherFeeManager
+            fee_mgr = AetherFeeManager()
+            _chat_state['fee_mgr'] = fee_mgr
+            _chat_state['chat'] = AetherChat(aether_engine, db_manager, fee_mgr)
+        return _chat_state['chat'], _chat_state['fee_mgr']
+
+    @app.post("/aether/chat/session")
+    async def create_chat_session(user_address: str = ''):
+        """Create a new Aether chat session."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, _ = _get_chat()
+        session = chat.create_session(user_address)
+        return {
+            'session_id': session.session_id,
+            'created_at': session.created_at,
+            'free_messages': Config.AETHER_FREE_TIER_MESSAGES,
+        }
+
+    @app.post("/aether/chat/message")
+    async def send_chat_message(request: _ChatMessageRequest):
+        """Send a message to Aether Tree and get a response."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, _ = _get_chat()
+        result = chat.process_message(
+            request.session_id, request.message, request.is_deep_query
+        )
+        if 'error' in result:
+            raise HTTPException(status_code=400, detail=result['error'])
+        return result
+
+    @app.get("/aether/chat/fee")
+    async def get_chat_fee(session_id: str, is_deep_query: bool = False):
+        """Get the fee for the next chat message."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, fee_mgr = _get_chat()
+        session = chat.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        height = db_manager.get_current_height()
+        return fee_mgr.get_fee_info(
+            session_messages_sent=session.messages_sent,
+            is_deep_query=is_deep_query,
+            current_block=height,
+        )
+
+    @app.get("/aether/chat/history/{session_id}")
+    async def get_chat_history(session_id: str):
+        """Get chat message history for a session."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, _ = _get_chat()
+        session = chat.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return session.to_dict()
 
     # ========================================================================
     # SUSY SOLUTION DATABASE (Scientific Research API)

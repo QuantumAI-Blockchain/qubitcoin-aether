@@ -21,6 +21,7 @@ from .network.rust_p2p_client import RustP2PClient
 from .contracts.executor import ContractExecutor
 from .qvm.state import StateManager
 from .aether import KnowledgeGraph, PhiCalculator, ReasoningEngine, AetherEngine
+from .aether.genesis import AetherGenesis
 from .utils.logger import get_logger
 
 # Import ALL metrics
@@ -152,6 +153,24 @@ class QubitcoinNode:
                 self.phi_calculator, self.reasoning_engine
             )
             self.consensus.aether = self.aether
+
+            # Initialize AGI from genesis if this is the first run
+            self.aether_genesis = AetherGenesis(
+                self.db, self.knowledge_graph, self.phi_calculator
+            )
+            if not self.aether_genesis.is_genesis_initialized():
+                try:
+                    genesis_block = self.db.get_block(0)
+                    genesis_hash = genesis_block.hash if genesis_block else '0' * 64
+                    genesis_ts = genesis_block.timestamp if genesis_block else None
+                    result = self.aether_genesis.initialize_genesis(genesis_hash, genesis_ts)
+                    logger.info(
+                        f"Aether genesis initialized: "
+                        f"{result['knowledge_nodes_created']} nodes seeded"
+                    )
+                except Exception as e:
+                    logger.debug(f"Aether genesis init skipped (DB not ready): {e}")
+
             logger.info("[7/10] Aether Engine initialized (KnowledgeGraph + Phi + Reasoning + PoT)")
         except Exception as e:
             logger.error(f"[7/10] Aether Engine failed: {e}", exc_info=True)

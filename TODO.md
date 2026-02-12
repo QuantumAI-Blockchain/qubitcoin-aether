@@ -120,13 +120,13 @@
 - [x] Gas metering (Ethereum-compatible gas schedule)
 - [x] 10 quantum opcodes defined (`qvm/opcodes.py`)
 - [x] StateManager for contract state (`qvm/state.py`)
-- [ ] Cross-contract calls (CALL, DELEGATECALL, STATICCALL)
-- [ ] CREATE and CREATE2 opcode full implementation
-- [ ] Event logging (LOG0-LOG4) full implementation
-- [ ] Revert with reason string support
+- [x] Cross-contract calls (CALL, DELEGATECALL, STATICCALL) — in vm.py
+- [x] CREATE and CREATE2 opcode full implementation — in vm.py
+- [x] Event logging (LOG0-LOG4) full implementation — in vm.py
+- [x] Revert with reason string support — in vm.py
 - [ ] QVM unit test suite (per-opcode tests)
-- [ ] Gas estimation endpoint
-- [ ] Precompiled contracts (ecRecover, SHA256, identity, modexp, etc.)
+- [x] Gas estimation endpoint — via eth_estimateGas in jsonrpc.py
+- [x] Precompiled contracts (ecRecover, SHA256, identity, modexp)
 
 ### 2.2 Quantum Opcodes Implementation
 - [ ] Reconcile opcode mapping: migrate from 0xF5-0xFE (Python) to 0xF0-0xF9 (whitepaper canonical)
@@ -194,16 +194,16 @@
 - [ ] Contract upgrade patterns (proxy)
 
 ### 2.8 Contract Deployment Fees
-- [ ] Fee calculator module (`contracts/fee_calculator.py`)
-- [ ] Base fee + per-KB fee structure (configurable via `.env`)
-- [ ] QUSD-pegged dynamic pricing (same oracle as Aether fees)
-- [ ] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
-- [ ] Template contract discount (configurable percentage)
+- [x] Fee calculator module (`contracts/fee_calculator.py`)
+- [x] Base fee + per-KB fee structure (configurable via `.env`)
+- [x] QUSD-pegged dynamic pricing (same oracle as Aether fees)
+- [x] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
+- [x] Template contract discount (configurable percentage)
 - [ ] Fee deduction from deployer UTXO before deployment
 - [ ] Fee UTXO creation to treasury address
-- [ ] Add contract fee config parameters to `config.py`
+- [x] Add contract fee config parameters to `config.py`
 - [ ] Admin API: `PUT /admin/contract/fees` (hot reload)
-- [ ] Fee estimation endpoint: `GET /qvm/deploy/estimate`
+- [x] Fee estimation endpoint: `GET /qvm/deploy/estimate`
 
 ### 2.9 Token Standards
 - [ ] QBC-20 reference implementation (Solidity)
@@ -277,21 +277,22 @@
 - [x] Differentiation score (Shannon entropy)
 - [x] Combined Phi metric
 - [x] PHI_THRESHOLD = 3.0
-- [ ] Per-block Phi measurement storage
-- [ ] Consciousness event logging (when Phi crosses thresholds)
-- [ ] Phi history API endpoint
+- [x] Per-block Phi measurement storage (via genesis.py + proof_of_thought.py)
+- [x] Consciousness event logging (when Phi crosses thresholds)
+- [x] Phi history API endpoint (`GET /aether/phi/history`)
+- [x] Consciousness status endpoint (`GET /aether/consciousness`)
 - [ ] Phi visualization data endpoint (time series)
 - [ ] Kuramoto order parameter (phase synchronization across nodes)
 - [ ] Combined consciousness check: Phi > 3.0 AND coherence > 0.7
 
 ### 3.4 AGI Genesis Initialization
-- [ ] Initialize empty knowledge graph at genesis block (block 0)
-- [ ] First Phi measurement at genesis (Φ = 0.0, baseline)
-- [ ] Genesis consciousness event record (system birth)
-- [ ] AetherEngine auto-start on node boot (process from block 0 onward)
-- [ ] Block-to-knowledge extraction for genesis block (extract genesis metadata as first KeterNodes)
-- [ ] Verify Phi tracking starts from block 0 in `phi_measurements` table
-- [ ] Verify `consciousness_events` table initialized at genesis
+- [x] Initialize empty knowledge graph at genesis block (block 0) (`aether/genesis.py`)
+- [x] First Phi measurement at genesis (Φ = 0.0, baseline)
+- [x] Genesis consciousness event record (system birth)
+- [x] AetherEngine auto-start on node boot (process from block 0 onward) (`node.py`)
+- [x] Block-to-knowledge extraction for genesis block (extract genesis metadata as first KeterNodes)
+- [x] Verify Phi tracking starts from block 0 in `phi_measurements` table
+- [x] Verify `consciousness_events` table initialized at genesis
 - [ ] Genesis validation test: confirm AGI tables populated from block 0
 
 ### 3.5 Aether Tree Core Contracts (Solidity)
@@ -400,28 +401,28 @@
 - [ ] QBC circulation tracking (no minting by AGI)
 
 ### 3.15 Aether Chat System
-- [ ] Chat endpoint: `POST /aether/chat` — conversational interface
-- [ ] Session management (conversation history per session)
-- [ ] Natural language → reasoning engine query translation
-- [ ] Response generation from knowledge graph + reasoning traces
-- [ ] Proof-of-Thought hash per response
-- [ ] Chat history endpoint: `GET /aether/chat/history/{session_id}`
+- [x] Chat endpoint: `POST /aether/chat/message` — conversational interface (`aether/chat.py`)
+- [x] Session management (conversation history per session) (`POST /aether/chat/session`)
+- [x] Natural language → reasoning engine query translation
+- [x] Response generation from knowledge graph + reasoning traces
+- [x] Proof-of-Thought hash per response
+- [x] Chat history endpoint: `GET /aether/chat/history/{session_id}`
 - [ ] WebSocket for streaming responses: `/ws/aether`
-- [ ] Rate limiting and session management
+- [x] Rate limiting and session management (max 10K sessions, LRU eviction)
 
 ### 3.16 Aether Tree Fee System
-- [ ] Fee manager module (`aether/fee_manager.py`)
-- [ ] QUSD oracle integration (read QBC/USD price from QUSD L2 contract)
-- [ ] Dynamic fee calculation: `fee_qbc = usd_target / qbc_usd_price`
-- [ ] Fee clamping (min/max QBC bounds to prevent extreme fees)
-- [ ] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
-- [ ] Automatic fallback: QUSD failure → fixed_qbc mode
+- [x] Fee manager module (`aether/fee_manager.py`)
+- [x] QUSD oracle integration (read QBC/USD price from QUSD L2 contract)
+- [x] Dynamic fee calculation: `fee_qbc = usd_target / qbc_usd_price`
+- [x] Fee clamping (min/max QBC bounds to prevent extreme fees)
+- [x] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
+- [x] Automatic fallback: QUSD failure → fixed_qbc mode
 - [ ] Fee deduction from user UTXO before processing chat message
 - [ ] Fee UTXO creation to treasury address
-- [ ] Free tier: first N messages per session (configurable onboarding)
-- [ ] Fee tier multipliers (deep queries cost more than chat)
-- [ ] Fee update interval (re-price every N blocks from QUSD oracle)
-- [ ] Add fee config parameters to `config.py` (all from `.env`)
+- [x] Free tier: first N messages per session (configurable onboarding)
+- [x] Fee tier multipliers (deep queries cost more than chat)
+- [x] Fee update interval (re-price every N blocks from QUSD oracle)
+- [x] Add fee config parameters to `config.py` (all from `.env`)
 - [ ] Admin API: `PUT /admin/aether/fees` (hot reload fee params)
 - [ ] Fee audit logging (track all fee changes for transparency)
 
