@@ -305,6 +305,7 @@ class LaunchpadParticipantModel(Base):
     sale_id = Column(BigInteger, nullable=False)
     participant_address = Column(String, nullable=False)
     amount_contributed = Column(Numeric(30, 8), default=0)
+    claimed = Column(Boolean, default=False)
     __table_args__ = (
         UniqueConstraint('sale_id', 'participant_address', name='uq_launchpad_participant'),
     )
