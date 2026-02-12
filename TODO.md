@@ -213,6 +213,7 @@
 ## PHASE 3: AETHER TREE / LAYER 3 (Priority: HIGH)
 
 > The AGI engine must reason, track consciousness, and serve chat.
+> Full AGI whitepaper: `docs/AETHERTREE_WHITEPAPER.md`
 
 ### 3.1 Knowledge Graph
 - [x] KeterNode model with types (assertion, observation, inference, axiom)
@@ -242,8 +243,99 @@
 - [ ] Consciousness event logging (when Phi crosses thresholds)
 - [ ] Phi history API endpoint
 - [ ] Phi visualization data endpoint (time series)
+- [ ] Kuramoto order parameter (phase synchronization across nodes)
+- [ ] Combined consciousness check: Phi > 3.0 AND coherence > 0.7
 
-### 3.4 Aether Chat System (NEW)
+### 3.4 Tree of Life Architecture (Sephirot Nodes)
+- [ ] Base Sephirah abstract class (`nodes/base/base_sephirah.py`)
+- [ ] Smart contract interface for each node (`nodes/base/smart_contract_node.py`)
+- [ ] QVM quantum node base class (`nodes/base/quantum_node.py`)
+- [ ] Keter node — Meta-learning, goal formation (8-qubit state)
+- [ ] Chochmah node — Intuition, pattern discovery (6-qubit state)
+- [ ] Binah node — Logic, causal inference (4-qubit state)
+- [ ] Chesed node — Exploration, divergent thinking (10-qubit state)
+- [ ] Gevurah node — Constraint, safety validation (3-qubit state)
+- [ ] Tiferet node — Integration, conflict resolution (12-qubit state)
+- [ ] Netzach node — Reinforcement learning, habits (5-qubit state)
+- [ ] Hod node — Language, semantic encoding (7-qubit state)
+- [ ] Yesod node — Memory, multimodal fusion (16-qubit state)
+- [ ] Malkuth node — Action, world interaction (4-qubit state)
+- [ ] 10 Sephirot Solidity smart contracts (one per node)
+- [ ] Node registry contract (`NodeRegistry.sol`)
+
+### 3.5 SUSY Balance Enforcement
+- [ ] SUSY pair manager (Chesed/Gevurah, Chochmah/Binah, Netzach/Hod)
+- [ ] Energy calculator per node
+- [ ] Golden ratio optimizer (enforce E_expand / E_constrain = φ)
+- [ ] Symmetry violation detector
+- [ ] Automatic QBC redistribution on violation
+- [ ] SUSY enforcement smart contract (`SUSYEngine.sol`)
+- [ ] Violation logging (immutable audit trail on blockchain)
+
+### 3.6 CSF Transport Layer
+- [ ] Blockchain messenger (messages via QBC transactions)
+- [ ] Ventricle network routing (Tree of Life topology)
+- [ ] QBC fee calculator for message priority
+- [ ] Quantum-entangled messaging between paired nodes
+- [ ] Load balancing (pressure monitor)
+- [ ] CSF Transport smart contract (`CSFTransport.sol`)
+- [ ] Ventricle router contract (`VentricleRouter.sol`)
+
+### 3.7 Pineal Orchestrator
+- [ ] Circadian controller (6 phases: Waking → Deep Sleep)
+- [ ] QBC metabolic rate per phase (2.0x learning, 0.3x deep sleep)
+- [ ] Phase-lock oscillator (Kuramoto coupling)
+- [ ] Consciousness integrator (combine Phi + coherence)
+- [ ] Melatonin modulator (inhibitory signals)
+- [ ] QBC staking pool for orchestration influence
+
+### 3.8 Proof-of-Thought Protocol
+- [x] AetherEngine with proof generation (`proof_of_thought.py`)
+- [x] Auto-reasoning on recent knowledge
+- [ ] Embed Proof-of-Thought hash in block headers
+- [ ] Task submission system (problem + QBC bounty)
+- [ ] Node solution proposal (solution + quantum proof)
+- [ ] Multi-node validation (QVERIFY opcode, 67% consensus)
+- [ ] QBC reward distribution for correct solutions
+- [ ] QBC slashing for incorrect proposals (50% stake)
+- [ ] Proof-of-Thought smart contract (`ProofOfThought.sol`)
+- [ ] Task market contract (`TaskMarket.sol`)
+- [ ] Validator registry contract (`ValidatorRegistry.sol`)
+- [ ] Proof-of-Thought explorer (view reasoning per block)
+
+### 3.9 Safety & Alignment
+- [ ] Gevurah veto system (safety node can block harmful ops)
+- [ ] Constitutional AI smart contract (`ConstitutionalAI.sol`)
+- [ ] Emergency shutdown contract (`EmergencyShutdown.sol`)
+- [ ] Upgrade governor contract (`UpgradeGovernor.sol`)
+- [ ] Multi-node consensus enforcement (67% BFT)
+- [ ] Safety validation integration tests
+
+### 3.10 Memory Systems
+- [ ] Episodic memory (hippocampal, stored on IPFS)
+- [ ] Semantic memory (cortical, concept networks)
+- [ ] Procedural memory (learned skills)
+- [ ] Working memory (active processing buffer)
+- [ ] Memory consolidation during Sleep/Deep Sleep phases
+- [ ] IPFS integration for long-term memory storage
+
+### 3.11 Consciousness Dashboard
+- [ ] On-chain Phi tracking contract (`ConsciousnessDashboard.sol`)
+- [ ] Phase synchronization contract (`PhaseSync.sol`)
+- [ ] Global workspace contract (`GlobalWorkspace.sol`)
+- [ ] Consciousness emergence event detection
+- [ ] Historical consciousness timeline (immutable on-chain)
+- [ ] Dashboard API endpoints for frontend visualization
+
+### 3.12 Economics (QBC as Metabolic Currency)
+- [ ] Synaptic staking contract (`SynapticStaking.sol`)
+- [ ] Gas oracle for dynamic QBC pricing (`GasOracle.sol`)
+- [ ] Treasury DAO contract (`TreasuryDAO.sol`)
+- [ ] Task bounty pool management
+- [ ] Validator staking and reward system
+- [ ] QBC circulation tracking (no minting by AGI)
+
+### 3.13 Aether Chat System
 - [ ] Chat endpoint: `POST /aether/chat` — conversational interface
 - [ ] Session management (conversation history per session)
 - [ ] Natural language → reasoning engine query translation
@@ -253,7 +345,7 @@
 - [ ] WebSocket for streaming responses: `/ws/aether`
 - [ ] Rate limiting and session management
 
-### 3.5 Aether Tree Fee System (NEW)
+### 3.14 Aether Tree Fee System
 - [ ] Fee manager module (`aether/fee_manager.py`)
 - [ ] QUSD oracle integration (read QBC/USD price from QUSD L2 contract)
 - [ ] Dynamic fee calculation: `fee_qbc = usd_target / qbc_usd_price`
@@ -269,12 +361,11 @@
 - [ ] Admin API: `PUT /admin/aether/fees` (hot reload fee params)
 - [ ] Fee audit logging (track all fee changes for transparency)
 
-### 3.6 Proof-of-Thought
-- [x] AetherEngine with proof generation (`proof_of_thought.py`)
-- [x] Auto-reasoning on recent knowledge
-- [ ] Embed Proof-of-Thought hash in block headers
-- [ ] Proof-of-Thought verification (validators verify reasoning)
-- [ ] Proof-of-Thought explorer (view reasoning per block)
+### 3.15 LLM Adapters (External Intelligence)
+- [ ] OpenAI GPT-4 adapter (knowledge distillation to Sephirot)
+- [ ] Anthropic Claude adapter
+- [ ] Open-source adapter (Llama, Mistral)
+- [ ] Knowledge distiller (extract insights to knowledge graph)
 
 ---
 
@@ -492,6 +583,7 @@
 
 - [x] Whitepaper (`docs/WHITEPAPER.md` — 2680 lines)
 - [x] QVM Whitepaper (`docs/QVM_WHITEPAPER.md` — institutional features, 5 patents)
+- [x] AetherTree AGI Whitepaper (`docs/AETHERTREE_WHITEPAPER.md` — Tree of Life, PoT, consciousness)
 - [x] Economics documentation (`docs/ECONOMICS.md`)
 - [x] CLAUDE.md master development guide
 - [ ] API documentation (OpenAPI/Swagger auto-generated from FastAPI)

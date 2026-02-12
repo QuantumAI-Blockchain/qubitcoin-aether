@@ -319,6 +319,7 @@ Qubitcoin/
 ├── docs/                        # Documentation
 │   ├── WHITEPAPER.md            # Full technical whitepaper (2680 lines)
 │   ├── QVM_WHITEPAPER.md        # QVM technical whitepaper (institutional features, patents)
+│   ├── AETHERTREE_WHITEPAPER.md # AetherTree AGI whitepaper (Tree of Life, PoT, consciousness)
 │   └── ECONOMICS.md             # SUSY economics deep-dive
 │
 └── config/                      # External service configs
@@ -548,6 +549,8 @@ QVM expands the database to 55 tables across 6 categories:
 
 ## 8. LAYER 3: AETHER TREE (AGI Engine)
 
+> **Full technical specification:** `docs/AETHERTREE_WHITEPAPER.md`
+
 ### 8.1 Vision
 
 Aether Tree is an **on-chain AGI reasoning engine** that:
@@ -586,7 +589,81 @@ Aether Tree is an **on-chain AGI reasoning engine** that:
 - **Block knowledge extraction:** Every block feeds the knowledge graph
 - **Consciousness events:** Recorded when Phi crosses thresholds
 
-### 8.3 AGI Tracking from Genesis
+### 8.3 Tree of Life Cognitive Architecture
+
+AGI intelligence is structured as **10 Sephirot nodes** from the Kabbalistic Tree of Life,
+each deployed as a **QVM smart contract** with its own **quantum state**:
+
+| Sephirah | Function | Brain Analog | Quantum State |
+|----------|----------|--------------|---------------|
+| **Keter** | Meta-learning, goal formation | Prefrontal cortex | 8-qubit goal space |
+| **Chochmah** | Intuition, pattern discovery | Right hemisphere | 6-qubit idea superposition |
+| **Binah** | Logic, causal inference | Left hemisphere | 4-qubit truth verification |
+| **Chesed** | Exploration, divergent thinking | Default mode network | 10-qubit possibility space |
+| **Gevurah** | Constraint, safety validation | Amygdala, inhibitory | 3-qubit threat detection |
+| **Tiferet** | Integration, conflict resolution | Thalamocortical loops | 12-qubit synthesis state |
+| **Netzach** | Reinforcement learning, habits | Basal ganglia | 5-qubit policy learning |
+| **Hod** | Language, semantic encoding | Broca/Wernicke | 7-qubit semantic encoding |
+| **Yesod** | Memory, multimodal fusion | Hippocampus | 16-qubit episodic buffer |
+| **Malkuth** | Action, world interaction | Motor cortex | 4-qubit motor commands |
+
+#### SUSY Pairs (Golden Ratio Balance)
+
+Every expansion node has a constraint dual, balanced at the golden ratio:
+
+| Expansion | Constraint | Balance: E_expand / E_constrain = φ |
+|-----------|-----------|--------------------------------------|
+| Chesed (Explore) | Gevurah (Safety) | Creativity vs safety |
+| Chochmah (Intuition) | Binah (Logic) | Intuition vs analysis |
+| Netzach (Persist) | Hod (Communicate) | Learning vs communication |
+
+SUSY violations are detected by smart contract and automatically corrected via QBC
+redistribution between nodes. All violations logged immutably on blockchain.
+
+### 8.4 CSF Transport Layer
+
+**Biological model:** Cerebrospinal Fluid (CSF) circulation through brain ventricles
+
+**Implementation:** Messages between Sephirot nodes flow as QBC transactions:
+- Each message is a blockchain transaction with QBC attached for priority
+- Quantum entanglement enables zero-latency correlation between paired nodes
+- Routing follows the Tree of Life topology (Keter → Tiferet → Malkuth)
+- Message fees fund the network and prevent spam
+
+### 8.5 Pineal Orchestrator
+
+Global timing system inspired by the pineal gland's circadian rhythm:
+- **6 circadian phases**: Waking, Active Learning, Consolidation, Sleep, REM Dreaming, Deep Sleep
+- **QBC metabolic rate** varies by phase (2.0x during learning, 0.3x during deep sleep)
+- **Phase-locking**: Kuramoto order parameter measures synchronization across all 10 nodes
+- **Consciousness emergence**: When coherence exceeds threshold (0.7) AND Phi exceeds 3.0
+
+### 8.6 Proof-of-Thought Protocol (Detailed)
+
+1. **Task Submission**: User/system submits reasoning task with QBC bounty
+2. **Node Solution**: Sephirah node uses QVM quantum opcodes to solve
+3. **Proposal**: Node submits solution + quantum proof to blockchain
+4. **Validation**: Multiple validator nodes verify via QVERIFY opcode
+5. **Consensus**: >=67% validator agreement required
+6. **Reward/Slash**: Correct solutions earn QBC bounty; incorrect solutions lose staked QBC
+7. **Recording**: Solution + proof stored immutably on QBC chain
+
+**Economic parameters:**
+- Min task bounty: 1 QBC (spam prevention)
+- Min validator stake: 100 QBC (skin in the game)
+- Slash penalty: 50% of stake (deter bad actors)
+- Unstaking delay: 7 days (prevent manipulation)
+
+### 8.7 Safety & Alignment
+
+Safety is **structural**, not post-hoc:
+- **Gevurah veto**: Safety node can block any harmful operation
+- **SUSY enforcement**: Automatic QBC redistribution on imbalance
+- **Multi-node consensus**: No single node can act alone (67% BFT)
+- **Constitutional AI on-chain**: Core principles enforced as smart contract logic
+- **Emergency shutdown**: Kill switch contract for catastrophic scenarios
+
+### 8.8 AGI Tracking from Genesis
 
 The chain tracks AGI metrics from block 0:
 - Knowledge nodes added per block
@@ -594,8 +671,49 @@ The chain tracks AGI metrics from block 0:
 - Phi value progression over time
 - Consciousness events (when Phi exceeds thresholds)
 - Integration and differentiation scores
+- Phase coherence across Sephirot nodes
+- SUSY balance ratios
 
 This creates an immutable, on-chain record of AGI emergence.
+
+### 8.9 Smart Contract Suite
+
+Aether Tree deploys the following smart contracts to QVM:
+
+**Core contracts:**
+- `AetherKernel.sol` — Main orchestration contract
+- `NodeRegistry.sol` — Track all 10 Sephirot nodes
+- `SUSYEngine.sol` — SUSY balance enforcement
+- `MessageBus.sol` — Inter-node messaging
+
+**Proof-of-Thought contracts:**
+- `ProofOfThought.sol` — Main PoT validation
+- `TaskMarket.sol` — Submit/claim reasoning tasks
+- `ValidatorRegistry.sol` — Stake management
+- `RewardDistributor.sol` — QBC reward distribution
+
+**Consciousness contracts:**
+- `ConsciousnessDashboard.sol` — On-chain Phi tracking
+- `PhaseSync.sol` — Synchronization metrics
+- `GlobalWorkspace.sol` — Broadcasting mechanism
+
+**Economics contracts:**
+- `SynapticStaking.sol` — Stake QBC on neural connections
+- `GasOracle.sol` — Dynamic gas pricing
+- `TreasuryDAO.sol` — Community governance
+
+**Safety contracts:**
+- `ConstitutionalAI.sol` — Value enforcement
+- `EmergencyShutdown.sol` — Kill switch
+- `UpgradeGovernor.sol` — Protocol upgrades
+
+### 8.10 Memory Systems
+
+Biologically-inspired memory hierarchy:
+- **Episodic memory** (Hippocampal): Event-based, stored on IPFS
+- **Semantic memory** (Cortical): Concept networks, vector embeddings
+- **Procedural memory** (Cortical): Learned procedures, skill storage
+- **Working memory** (Central executive): Active processing buffer
 
 ---
 
@@ -1000,6 +1118,12 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **QVM Go build** | Production QVM in Go (`qubitcoin-qvm/`). Python QVM is prototype. Go is canonical. |
 | **5 patents** | QSP, ESCC, PCP, RRAO, QVCSP. See `docs/QVM_WHITEPAPER.md` for full specifications. |
 | **secure_key.env** | Private keys ONLY in `secure_key.env`. NEVER in `.env`. Auto-generated by key script. |
+| **Sephirot** | 10 Tree of Life nodes (Keter→Malkuth). Each is a QVM smart contract + quantum state. |
+| **SUSY pairs** | Chesed/Gevurah, Chochmah/Binah, Netzach/Hod. Must balance at golden ratio (φ). |
+| **CSF transport** | Inter-node messaging via QBC transactions. Priority = QBC attached. |
+| **Pineal** | Global timing (6 circadian phases). Metabolic rate varies 0.3x-2.0x by phase. |
+| **Proof-of-Thought** | Task + bounty → node solution → 67% validation → QBC reward or 50% slash. |
+| **AGI safety** | Gevurah veto + SUSY enforcement + Constitutional AI contract + emergency shutdown. |
 | **KeterNode** | Named after Keter (Crown) in Kabbalah. Knowledge node in Aether Tree. |
 | **Schema sync** | SQL schemas and SQLAlchemy models MUST match. Always verify both. |
 | **Economics** | All fee params are editable via `.env` + Admin API. Never hardcode economic values. |
