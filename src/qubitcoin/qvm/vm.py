@@ -147,7 +147,7 @@ class ExecutionContext:
         return self.stack[-(depth + 1)]
 
     def memory_extend(self, offset: int, size: int):
-        """Extend memory if needed, charge gas for expansion"""
+        """Extend memory if needed, charge gas for expansion (word-aligned per EVM spec)"""
         if size == 0:
             return
         end = offset + size
@@ -158,7 +158,9 @@ class ExecutionContext:
             old_cost = (old_words * 3) + (old_words * old_words) // 512
             new_cost = (new_words * 3) + (new_words * new_words) // 512
             self.use_gas(new_cost - old_cost)
-            self.memory.extend(b'\x00' * (end - len(self.memory)))
+            # Extend to word boundary so MSIZE always returns a multiple of 32
+            word_end = new_words * 32
+            self.memory.extend(b'\x00' * (word_end - len(self.memory)))
 
     def memory_read(self, offset: int, size: int) -> bytes:
         """Read from memory"""

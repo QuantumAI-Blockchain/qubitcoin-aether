@@ -563,6 +563,92 @@ class ContractEngine:
         
         return True, "Contribution recorded", {'amount': str(amount)}, None
 
+    def _launchpad_claim(self, contract_id: str, executor: str) -> Tuple[bool, str, Any, None]:
+        """Claim tokens from a completed launchpad sale"""
+        with self.db.get_session() as session:
+            sale = session.execute(
+                text("""
+                    SELECT sale_id, token_contract_id, raise_target, current_raised, status
+                    FROM launchpad_sales WHERE contract_id = :cid
+                """),
+                {'cid': contract_id}
+            ).fetchone()
+
+            if not sale:
+                return False, "Sale not found", None, None
+            if sale[4] != 'completed':
+                return False, "Sale not completed yet", None, None
+
+            participant = session.execute(
+                text("""
+                    SELECT amount_contributed, claimed
+                    FROM launchpad_participants
+                    WHERE sale_id = :sid AND participant_address = :addr
+                """),
+                {'sid': sale[0], 'addr': executor}
+            ).fetchone()
+
+            if not participant:
+                return False, "Not a participant", None, None
+            if participant[1]:
+                return False, "Already claimed", None, None
+
+            # Mark as claimed
+            session.execute(
+                text("""
+                    UPDATE launchpad_participants SET claimed = true
+                    WHERE sale_id = :sid AND participant_address = :addr
+                """),
+                {'sid': sale[0], 'addr': executor}
+            )
+            session.commit()
+
+        return True, "Tokens claimed", {'amount': str(participant[0])}, None
+
+    def _launchpad_refund(self, contract_id: str, executor: str) -> Tuple[bool, str, Any, None]:
+        """Refund contribution from a failed launchpad sale"""
+        with self.db.get_session() as session:
+            sale = session.execute(
+                text("""
+                    SELECT sale_id, status
+                    FROM launchpad_sales WHERE contract_id = :cid
+                """),
+                {'cid': contract_id}
+            ).fetchone()
+
+            if not sale:
+                return False, "Sale not found", None, None
+            if sale[1] != 'failed':
+                return False, "Sale not failed, refund unavailable", None, None
+
+            participant = session.execute(
+                text("""
+                    SELECT amount_contributed, claimed
+                    FROM launchpad_participants
+                    WHERE sale_id = :sid AND participant_address = :addr
+                """),
+                {'sid': sale[0], 'addr': executor}
+            ).fetchone()
+
+            if not participant:
+                return False, "Not a participant", None, None
+            if participant[1]:
+                return False, "Already refunded", None, None
+
+            refund_amount = Decimal(str(participant[0]))
+
+            # Mark as refunded
+            session.execute(
+                text("""
+                    UPDATE launchpad_participants SET claimed = true
+                    WHERE sale_id = :sid AND participant_address = :addr
+                """),
+                {'sid': sale[0], 'addr': executor}
+            )
+            session.commit()
+
+        return True, "Refund processed", {'amount': str(refund_amount)}, None
+
     # ========================================================================
     # QUANTUM GATE CONTRACT METHODS
     # ========================================================================

@@ -245,7 +245,7 @@ class QUSDOperationModel(Base):
 class BridgeDepositModel(Base):
     __tablename__ = 'bridge_deposits'
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    qbc_txid = Column(String(64), nullable=False)
+    qbc_txid = Column(String(64), nullable=False, unique=True)
     qbc_address = Column(String, nullable=False)
     target_chain = Column(String(20), nullable=False)
     target_address = Column(String, nullable=False)
@@ -262,7 +262,7 @@ class BridgeWithdrawalModel(Base):
     __tablename__ = 'bridge_withdrawals'
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     source_chain = Column(String(20), nullable=False)
-    source_txhash = Column(String, nullable=False)
+    source_txhash = Column(String, nullable=False, unique=True)
     source_address = Column(String, nullable=False)
     qbc_address = Column(String, nullable=False)
     wqbc_amount = Column(Numeric(30, 8), nullable=False)
@@ -923,17 +923,17 @@ class DatabaseManager:
             )
 
     def get_or_create_account(self, address: str) -> Account:
-        """Get account or create empty one"""
+        """Get account or create empty one (concurrent-safe)"""
         account = self.get_account(address)
         if account:
             return account
         with self.get_session() as session:
             session.execute(
-                text("INSERT INTO accounts (address, nonce, balance, code_hash, storage_root) VALUES (:addr, 0, 0, '', '')"),
+                text("INSERT INTO accounts (address, nonce, balance, code_hash, storage_root) VALUES (:addr, 0, 0, '', '') ON CONFLICT (address) DO NOTHING"),
                 {'addr': address}
             )
             session.commit()
-        return Account(address=address)
+        return self.get_account(address) or Account(address=address)
 
     def update_account(self, account: Account, session: DBSession = None):
         """Update account state"""

@@ -221,9 +221,13 @@ class QubitcoinNode:
         """Handle block received from peer"""
         try:
             block_data = message.data
-            block_height = block_data.get('height', 'unknown')
-            block_hash = block_data.get('hash', 'unknown')[:16]
+            block_height = block_data.get('height')
+            block_hash = str(block_data.get('hash', 'unknown'))[:16]
             logger.info(f"Received block from {sender_id}: height {block_height}, hash {block_hash}...")
+
+            if not isinstance(block_height, int):
+                logger.warning(f"Block from {sender_id} missing valid height, ignoring")
+                return
 
             current_height = self.db.get_current_height()
             if block_height <= current_height:

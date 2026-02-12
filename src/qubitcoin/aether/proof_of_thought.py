@@ -30,6 +30,7 @@ class AetherEngine:
         self.phi = phi_calculator
         self.reasoning = reasoning_engine
         self._pot_cache: Dict[int, ProofOfThought] = {}
+        self._pot_cache_max = 1000  # Bound cache to prevent unbounded memory growth
         logger.info("Aether Engine initialized")
 
     def generate_thought_proof(self, block_height: int,
@@ -75,8 +76,11 @@ class AetherEngine:
         )
         pot.thought_hash = pot.calculate_hash()
 
-        # Cache
+        # Cache (with eviction to bound memory)
         self._pot_cache[block_height] = pot
+        if len(self._pot_cache) > self._pot_cache_max:
+            oldest = min(self._pot_cache.keys())
+            del self._pot_cache[oldest]
 
         # Log consciousness event if Phi crosses threshold
         from .phi_calculator import PHI_THRESHOLD

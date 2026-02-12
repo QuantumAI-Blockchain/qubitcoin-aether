@@ -8,7 +8,7 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 
 ## Executive Summary
 
-**17 bugs fixed** across 11 files in 4 review passes, categorized as **8 CRITICAL**, **6 HIGH**, and **3 MEDIUM**. Also removed 11 dead files from the repository root. All fixes are minimal, targeted changes that preserve existing architecture and behavior.
+**30 bugs fixed** across 17 files in 5 review passes, categorized as **13 CRITICAL**, **13 HIGH**, and **4 MEDIUM**. Also removed 11 dead files from the repository root. All fixes are minimal, targeted changes that preserve existing architecture and behavior.
 
 ---
 
@@ -224,6 +224,151 @@ Removed 11 dead/useless files from the repository:
 
 ---
 
+### Round 5 (Fifth Review — Post-Merge)
+
+#### CRITICAL-9: `burn_qusd()` Zeroes Collateral But Never Returns It to User
+
+**File:** `src/qubitcoin/stablecoin/engine.py:454-476`
+**Impact:** When a user repays their QUSD debt (fully or partially), the vault's `collateral_amount` is zeroed/reduced but the collateral is never credited back to the user. The user permanently loses their locked collateral.
+
+**Root Cause:** `burn_qusd()` updates the vault row (`SET collateral_amount = 0`) but creates no corresponding credit — no UTXO, no account balance update, no token transfer. The collateral simply vanishes from the system.
+
+**Fix:** Calculate proportional collateral to return (`repay_ratio = amount / debt_amt`), update the vault's `collateral_amount` to reflect remaining collateral, and credit the returned collateral to the user's account balance.
+
+---
+
+#### CRITICAL-10: `get_or_create_account()` TOCTOU Race Condition
+
+**File:** `src/qubitcoin/database/manager.py:925-936`
+**Impact:** Two concurrent QVM transactions for the same new sender address both call `get_account()`, both get `None`, both attempt bare `INSERT`, and the second crashes with `IntegrityError` on the primary key — aborting block processing.
+
+**Root Cause:** Same bug class as HIGH-6 (supply init), but in the `accounts` table. The SELECT and INSERT are not atomic.
+
+**Fix:** Changed to `INSERT ... ON CONFLICT (address) DO NOTHING`. Re-fetch the account after insert to return the concurrent winner's row.
+
+---
+
+#### CRITICAL-11: Bridge Double-Mint — No Unique Constraint on `qbc_txid`
+
+**File:** `src/qubitcoin/database/manager.py:248`
+**Impact:** The same QBC deposit transaction can produce multiple deposit records in `bridge_deposits`, each triggering a separate minting transaction on the target chain. One QBC lock can produce unlimited wQBC.
+
+**Root Cause:** `BridgeDepositModel.qbc_txid` has no `unique=True` constraint. Combined with the monitoring loop's lack of row locking, duplicate records are created on each poll cycle.
+
+**Fix:** Added `unique=True` to `qbc_txid` column definition.
+
+---
+
+#### CRITICAL-12: Bridge Double-Withdrawal — No Unique Constraint on `source_txhash`
+
+**File:** `src/qubitcoin/database/manager.py:265`
+**Impact:** Same vulnerability as CRITICAL-11 but for withdrawals. A single burn event on the source chain can produce multiple QBC unlock records, allowing an attacker to withdraw more QBC than they burned.
+
+**Root Cause:** `BridgeWithdrawalModel.source_txhash` has no `unique=True` constraint.
+
+**Fix:** Added `unique=True` to `source_txhash` column definition.
+
+---
+
+#### CRITICAL-13: `resolve_fork()` Does Not Clean Up QVM State
+
+**File:** `src/qubitcoin/consensus/engine.py:288-320`
+**Impact:** After a chain reorg, QVM state from the reverted chain (accounts, contract storage, transaction receipts, event logs) persists in the database. When the new chain's transactions are re-executed, they interact with stale contract state — potentially causing wrong nonces, double-deployments, or incorrect storage values.
+
+**Root Cause:** Fork resolution only deletes blocks, transactions, and UTXOs after the fork point. It does not revert `transaction_receipts`, `event_logs`, or `contract_storage` entries created by the reverted chain.
+
+**Fix:** Added DELETE statements for `transaction_receipts`, `event_logs`, and `contract_storage` where `block_height > fork_height`, executed before the transaction/block cleanup within the same atomic session.
+
+---
+
+#### HIGH-7: `_launchpad_claim` and `_launchpad_refund` Methods Never Defined
+
+**File:** `src/qubitcoin/contracts/engine.py:505-508`
+**Impact:** Calling `claim_tokens` or `refund` on a launchpad contract raises `AttributeError`, crashing the contract execution. Users who contributed to a launchpad sale can never claim tokens or get refunds.
+
+**Root Cause:** `_execute_launchpad_method` dispatches to `self._launchpad_claim` and `self._launchpad_refund`, but these methods were never implemented.
+
+**Fix:** Implemented both methods: `_launchpad_claim` checks sale completion status and marks participant as claimed; `_launchpad_refund` checks sale failure status and processes refund.
+
+---
+
+#### HIGH-8: P2P Gossip Creates New `msg_id` Per Hop — Deduplication Defeated
+
+**File:** `src/qubitcoin/network/p2p_network.py:376-385`
+**Impact:** Every relay hop generates a new `msg_id` (via `send_message`), so the `seen_messages` deduplication set never detects messages that arrived via multiple network paths. In any cyclic topology, the same block/transaction is processed multiple times, wasting CPU and causing duplicate store attempts.
+
+**Root Cause:** `_gossip_message` calls `send_message(peer_id, message.type, message.data)` which creates a brand new `Message` with a new `msg_id`. The original `message.msg_id` is discarded.
+
+**Fix:** Added `_forward_message()` method that serializes and sends the original `Message` object directly, preserving its `msg_id`. `_gossip_message` now calls `_forward_message` instead of `send_message`.
+
+---
+
+#### HIGH-9: MSIZE Returns Non-Word-Aligned Memory Size
+
+**File:** `src/qubitcoin/qvm/vm.py:149-161, 590-591`
+**Impact:** EVM spec violation. MSIZE must return memory size rounded up to the nearest multiple of 32. The implementation returns the raw byte count because `memory_extend` allocates byte-exact instead of word-aligned. Solidity's `msize()` inline assembly relies on word alignment.
+
+**Root Cause:** `memory_extend` line 161 extends memory to `end` (byte-exact) instead of `new_words * 32` (word-aligned), even though gas is correctly charged for word-aligned allocation.
+
+**Fix:** Changed memory extension to allocate to `new_words * 32` (word boundary). MSIZE (`len(ctx.memory)`) now automatically returns a word-aligned value.
+
+---
+
+#### HIGH-10: `validate_block()` Does Not Verify `block_hash` Integrity
+
+**File:** `src/qubitcoin/consensus/engine.py:105-217`
+**Impact:** A malicious peer can broadcast a block with a fabricated `block_hash` that doesn't match its contents. The hash is stored in the DB and used for `prev_hash` chaining, silently corrupting the chain.
+
+**Root Cause:** `validate_block` checks height, prev_hash, difficulty, proof, transactions, timestamp, state root, and thought proof — but never verifies that `block.block_hash == block.calculate_hash()`.
+
+**Fix:** Added block hash verification immediately after the prev_hash check.
+
+---
+
+#### HIGH-11: Node `_handle_received_block` TypeError on Missing Height
+
+**File:** `src/qubitcoin/node.py:224-229`
+**Impact:** If a peer sends a block without a `height` field, `block_height` is set to `'unknown'` (string), then `'unknown' <= current_height` raises `TypeError` in Python 3. The outer exception handler catches it, but Aether knowledge processing and mining target updates are silently skipped.
+
+**Root Cause:** `block_data.get('height', 'unknown')` uses a string default that is then compared to an integer.
+
+**Fix:** Changed default to `None`, added explicit type check (`isinstance(block_height, int)`) — return early with a warning if height is not a valid integer.
+
+---
+
+#### HIGH-12: `ContractExecutor.deploy_contract` Rejects Valid Contract Types
+
+**File:** `src/qubitcoin/contracts/executor.py:52`
+**Impact:** Hardcoded `valid_types` list only includes 5 of 9 supported types. Deploying `nft`, `launchpad`, `escrow`, or `quantum_gate` contracts through the executor is silently rejected.
+
+**Root Cause:** `valid_types = ['stablecoin', 'token', 'vault', 'oracle', 'governance']` is a strict subset of `Config.SUPPORTED_CONTRACT_TYPES`.
+
+**Fix:** Replaced hardcoded list with `Config.SUPPORTED_CONTRACT_TYPES`.
+
+---
+
+#### HIGH-13: P2P Spurious "No handler" Warnings for Built-in Message Types
+
+**File:** `src/qubitcoin/network/p2p_network.py:316-322`
+**Impact:** Every `height`, `get_height`, `get_block`, `ping`, and `get_peers` message produces a false "No handler" warning, flooding logs with thousands of spurious entries and obscuring real issues.
+
+**Root Cause:** Built-in message types are handled inline in `_handle_message`, but then the code unconditionally falls through to the `self.handlers` dict check. Since built-in types are not registered in `self.handlers`, they hit the `else` warning branch.
+
+**Fix:** Added `builtin_types` set; only log "No handler" warning for message types that are neither built-in nor registered.
+
+---
+
+#### MEDIUM-4: Unbounded In-Memory Growth in Reasoning Engine and PoT Cache
+
+**File:** `src/qubitcoin/aether/reasoning.py:70,191,275,356` and `src/qubitcoin/aether/proof_of_thought.py:32,80`
+**Impact:** `_operations` list grows at ~3 entries per block (one per reasoning mode), and `_pot_cache` dict grows at 1 entry per block. At sustained block production, this consumes unbounded RAM — ~260K operations/day for reasoning, ~86K cache entries/day for PoT.
+
+**Root Cause:** Both data structures append entries but never evict them. No size bounds or eviction policy exists.
+
+**Fix:** Added `_max_operations = 10000` bound on `_operations` with tail-trimming at each append. Added `_pot_cache_max = 1000` bound with oldest-key eviction on `_pot_cache`.
+
+---
+
 ## Architecture Assessment
 
 ### Strengths
@@ -261,8 +406,16 @@ Removed 11 dead/useless files from the repository:
 | `src/qubitcoin/network/jsonrpc.py` | 2 | Use full public key for address derivation |
 | `src/qubitcoin/contracts/engine.py` | 2 | Pass `prev_hash` and `height` to quantum gate `validate_proof()` |
 | `src/qubitcoin/mining/engine.py` | 3 | Pass outer session to `store_block()` for atomic commit |
-| `src/qubitcoin/contracts/executor.py` | 4 | Remove stale `contract_cache`; always read fresh from DB |
-| `src/qubitcoin/database/manager.py` | 1+2+3+4 | *(Round 4 addition)* Atomic `INSERT ... ON CONFLICT DO NOTHING` for supply and stablecoin_params init |
+| `src/qubitcoin/contracts/executor.py` | 4+5 | Remove stale `contract_cache`; Use `Config.SUPPORTED_CONTRACT_TYPES` instead of hardcoded subset |
+| `src/qubitcoin/database/manager.py` | 1+2+3+4+5 | Atomic supply/stablecoin init; `ON CONFLICT` for `get_or_create_account`; `unique=True` on bridge `qbc_txid` and `source_txhash` |
+| `src/qubitcoin/stablecoin/engine.py` | 5 | Return proportional collateral on `burn_qusd` vault repayment |
+| `src/qubitcoin/consensus/engine.py` | 5 | Verify `block_hash` integrity in `validate_block`; Clean up QVM state in `resolve_fork` |
+| `src/qubitcoin/node.py` | 1+3+5 | Validate block height type before integer comparison |
+| `src/qubitcoin/network/p2p_network.py` | 1+3+5 | Preserve `msg_id` in gossip forwarding; Suppress spurious "No handler" warnings for built-in types |
+| `src/qubitcoin/contracts/engine.py` | 2+5 | Implement missing `_launchpad_claim` and `_launchpad_refund` methods |
+| `src/qubitcoin/qvm/vm.py` | 1+5 | Word-align memory expansion for correct MSIZE |
+| `src/qubitcoin/aether/reasoning.py` | 5 | Bound `_operations` list to prevent unbounded memory growth |
+| `src/qubitcoin/aether/proof_of_thought.py` | 5 | Bound `_pot_cache` dict with oldest-key eviction |
 
 ---
 
@@ -280,3 +433,8 @@ Removed 11 dead/useless files from the repository:
 10. Verified contract state consistency: ContractExecutor cache vs ContractEngine DB writes — identified stale cache serving outdated state
 11. Verified database initialization safety: check-then-insert patterns under concurrent startup
 12. Identified and removed 11 dead/useless files from root and scripts directories
+13. Verified bridge security: unique constraints on deposit/withdrawal transaction hashes to prevent double-mint/double-withdrawal
+14. Verified stablecoin collateral flow: burn/repay path must return locked collateral proportionally
+15. Verified fork resolution completeness: reorg must clean up QVM state (accounts, storage, receipts) not just UTXOs
+16. Verified P2P message deduplication: gossip must preserve original msg_id across relay hops
+17. Verified EVM memory model: MSIZE must return word-aligned (multiple of 32) memory size per spec
