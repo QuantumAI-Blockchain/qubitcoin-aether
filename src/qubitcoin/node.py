@@ -308,16 +308,20 @@ class QubitcoinNode:
             # ============================================================
             # BLOCKCHAIN METRICS
             # ============================================================
-            chain_state = self.db.query_one(
-                "SELECT * FROM chain_state WHERE id = 1"
+            height_row = self.db.query_one(
+                "SELECT MAX(height) as best_height FROM blocks"
+            )
+            supply_row = self.db.query_one(
+                "SELECT total_minted FROM supply WHERE id = 1"
             )
 
-            if chain_state:
-                current_height_metric.set(chain_state.get('best_block_height', 0))
-                total_supply_metric.set(float(chain_state.get('total_supply', 0)))
-                current_difficulty_metric.set(float(chain_state.get('current_difficulty', 1.0)))
-                network_hashrate_metric.set(float(chain_state.get('network_hashrate', 0)))
-                avg_block_time_metric.set(float(chain_state.get('average_block_time', 3.3)))
+            if height_row and height_row.get('best_height') is not None:
+                current_height_metric.set(height_row['best_height'])
+            if supply_row:
+                total_supply_metric.set(float(supply_row.get('total_minted', 0)))
+            current_difficulty_metric.set(
+                self.mining.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY)
+            )
 
             # ============================================================
             # NETWORK METRICS
@@ -333,7 +337,7 @@ class QubitcoinNode:
             # TRANSACTION METRICS
             # ============================================================
             mempool_count = self.db.query_one(
-                "SELECT COUNT(*) as count FROM mempool"
+                "SELECT COUNT(*) as count FROM transactions WHERE status = 'pending'"
             )
             if mempool_count:
                 transactions_pending.set(mempool_count.get('count', 0))
@@ -341,29 +345,11 @@ class QubitcoinNode:
             # ============================================================
             # QUANTUM RESEARCH METRICS
             # ============================================================
-            hamiltonian_stats = self.db.query_one("""
-                SELECT
-                    COUNT(*) FILTER (WHERE is_active = true) as active_count,
-                    COUNT(*) as total_count
-                FROM hamiltonians
-            """)
+            hamiltonian_stats = self.db.query_one(
+                "SELECT COUNT(*) as total_count FROM solved_hamiltonians"
+            )
             if hamiltonian_stats:
-                active_hamiltonians.set(hamiltonian_stats.get('active_count', 0))
-
-            vqe_stats = self.db.query_one("""
-                SELECT COUNT(*) as total FROM vqe_circuits
-            """)
-            if vqe_stats:
-                pass  # vqe_solutions_total is incremented on actual new solutions
-
-            # Get best alignment score
-            best_alignment = self.db.query_one("""
-                SELECT MAX(alignment_score) as best_score
-                FROM blocks
-                WHERE block_height > 0
-            """)
-            if best_alignment and best_alignment.get('best_score'):
-                best_alignment_ever.set(float(best_alignment.get('best_score', 0)))
+                active_hamiltonians.set(hamiltonian_stats.get('total_count', 0))
 
             # ============================================================
             # QVM METRICS
@@ -372,26 +358,19 @@ class QubitcoinNode:
                 SELECT
                     COUNT(*) as total,
                     COUNT(*) FILTER (WHERE is_active = true) as active_count
-                FROM smart_contracts
+                FROM contracts
             """)
             if contract_stats:
                 total_contracts.set(contract_stats.get('total', 0))
                 active_contracts.set(contract_stats.get('active_count', 0))
 
-            execution_count = self.db.query_one("""
-                SELECT COUNT(*) as count FROM contract_executions
-            """)
-            if execution_count:
-                pass  # contract_executions_total is incremented on actual new executions
-
             # ============================================================
             # AGI METRICS
             # ============================================================
-            # Get latest Phi measurement
             latest_phi = self.db.query_one("""
                 SELECT phi_value, phi_threshold, integration_score, differentiation_score
                 FROM phi_measurements
-                ORDER BY measured_at DESC
+                ORDER BY block_height DESC
                 LIMIT 1
             """)
 
@@ -404,54 +383,33 @@ class QubitcoinNode:
                 integration_score.set(float(latest_phi.get('integration_score', 0.1)))
                 differentiation_score.set(float(latest_phi.get('differentiation_score', 0.1)))
 
-                # Log consciousness progress
-                if phi_val > 0.1:  # Not genesis
+                if phi_val > 0.1:
                     progress_pct = (phi_val / phi_thresh) * 100
                     logger.debug(f"Consciousness: Phi={phi_val:.4f} ({progress_pct:.1f}% to threshold)")
 
-            # Knowledge graph stats
             knowledge_stats = self.db.query_one("""
                 SELECT
                     (SELECT COUNT(*) FROM knowledge_nodes) as node_count,
-                    (SELECT COUNT(*) FROM knowledge_edges) as edge_count,
-                    (SELECT AVG(path_length) FROM causal_chains) as avg_causal_length
+                    (SELECT COUNT(*) FROM knowledge_edges) as edge_count
             """)
-
             if knowledge_stats:
                 knowledge_nodes_total.set(knowledge_stats.get('node_count', 0))
                 knowledge_edges_total.set(knowledge_stats.get('edge_count', 0))
-                avg_length = knowledge_stats.get('avg_causal_length', 1)
-                if avg_length:
-                    causal_chain_length.set(float(avg_length))
 
             # Consciousness events
-            consciousness_count = self.db.query_one("""
-                SELECT COUNT(*) as count FROM consciousness_events
-                WHERE is_verified = true
-            """)
+            consciousness_count = self.db.query_one(
+                "SELECT COUNT(*) as count FROM consciousness_events"
+            )
             if consciousness_count:
                 consciousness_events_total.labels(severity='all').inc(0)
-
-            # Training data & models
-            training_stats = self.db.query_one("""
-                SELECT
-                    (SELECT COUNT(*) FROM training_datasets) as datasets,
-                    (SELECT COUNT(*) FROM model_registry WHERE is_active = true) as active_models
-            """)
-            if training_stats:
-                agi_training_datasets.set(training_stats.get('datasets', 0))
-                agi_models_deployed.set(training_stats.get('active_models', 0))
 
             # ============================================================
             # IPFS METRICS
             # ============================================================
-            ipfs_stats = self.db.query_one("""
-                SELECT
-                    (SELECT COUNT(*) FROM ipfs_pins WHERE pin_status = 'pinned') as pins,
-                    (SELECT COUNT(*) FROM blockchain_snapshots) as snapshots
-            """)
+            ipfs_stats = self.db.query_one(
+                "SELECT COUNT(*) as snapshots FROM ipfs_snapshots"
+            )
             if ipfs_stats:
-                ipfs_pins_total.set(ipfs_stats.get('pins', 0))
                 blockchain_snapshots_total.set(ipfs_stats.get('snapshots', 0))
 
         except Exception as e:

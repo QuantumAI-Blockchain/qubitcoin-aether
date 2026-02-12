@@ -728,76 +728,87 @@ class DatabaseManager:
                 receipts_root=result[7] or '',
                 thought_proof=json.loads(result[8]) if isinstance(result[8], str) else result[8],
             )
-    def store_block(self, block: Block):
-        """Store block and update UTXOs atomically"""
-        with self.get_session() as session:
-            # Check for existing (prevent dups, per multi-node sync)
-            existing = session.execute(
-                text("SELECT 1 FROM blocks WHERE height = :h"),
-                {'h': block.height}
-            ).first()
-            if existing:
-                logger.warning(f"Block {block.height} already exists - skipping (possible dup from P2P)")
-                return  # Or trigger reorg if longer chain
-            # Insert block
+    def store_block(self, block: Block, session: DBSession = None):
+        """Store block and update UTXOs atomically.
+
+        When session is provided, uses it without committing (caller commits).
+        When session is None, creates its own session and commits.
+        """
+        if session is not None:
+            self._store_block_impl(block, session)
+        else:
+            with self.get_session() as s:
+                self._store_block_impl(block, s)
+                s.commit()
+
+    def _store_block_impl(self, block: Block, session: DBSession):
+        """Internal: store block in provided session without committing"""
+        # Check for existing (prevent dups, per multi-node sync)
+        existing = session.execute(
+            text("SELECT 1 FROM blocks WHERE height = :h"),
+            {'h': block.height}
+        ).first()
+        if existing:
+            logger.warning(f"Block {block.height} already exists - skipping (possible dup from P2P)")
+            return
+        # Insert block
+        session.execute(
+            text("""
+                INSERT INTO blocks (height, prev_hash, proof_json, difficulty, created_at, block_hash,
+                                   state_root, receipts_root, thought_proof)
+                VALUES (:h, :ph, CAST(:pj AS jsonb), :d, :ts, :bh, :sr, :rr, CAST(:tp AS jsonb))
+            """),
+            {
+                'h': block.height,
+                'ph': block.prev_hash,
+                'pj': json.dumps(block.proof_data),
+                'd': block.difficulty,
+                'ts': block.timestamp,
+                'bh': block.block_hash or block.calculate_hash(),
+                'sr': block.state_root or '',
+                'rr': block.receipts_root or '',
+                'tp': json.dumps(block.thought_proof) if block.thought_proof else None
+            }
+        )
+        # Process transactions
+        for tx in block.transactions:
+            # Mark inputs spent (skip coinbase)
+            if tx.inputs:
+                self.mark_utxos_spent(tx.inputs, tx.txid, session)
+            # Create outputs
+            self.create_utxos(tx.txid, tx.outputs, block.height, block.proof_data, session)
+            # Upsert transaction (INSERT if new, UPDATE if already pending)
             session.execute(
                 text("""
-                    INSERT INTO blocks (height, prev_hash, proof_json, difficulty, created_at, block_hash,
-                                       state_root, receipts_root, thought_proof)
-                    VALUES (:h, :ph, CAST(:pj AS jsonb), :d, :ts, :bh, :sr, :rr, CAST(:tp AS jsonb))
+                    INSERT INTO transactions
+                    (txid, inputs, outputs, fee, signature, public_key, timestamp,
+                     block_height, status, tx_type, to_address, data, gas_limit, gas_price, nonce)
+                    VALUES (:txid, CAST(:inputs AS jsonb), CAST(:outputs AS jsonb),
+                            :fee, :sig, :pk, :ts, :bh, 'confirmed',
+                            :tx_type, :to_addr, :data, :gas_limit, :gas_price, :nonce)
+                    ON CONFLICT (txid) DO UPDATE SET
+                        status = 'confirmed', block_height = :bh
                 """),
                 {
-                    'h': block.height,
-                    'ph': block.prev_hash,
-                    'pj': json.dumps(block.proof_data),
-                    'd': block.difficulty,
-                    'ts': block.timestamp,
-                    'bh': block.block_hash or block.calculate_hash(),
-                    'sr': block.state_root or '',
-                    'rr': block.receipts_root or '',
-                    'tp': json.dumps(block.thought_proof) if block.thought_proof else None
+                    'txid': tx.txid,
+                    'inputs': json.dumps(tx.inputs),
+                    'outputs': json.dumps([
+                        {'address': o['address'], 'amount': str(o['amount'])}
+                        for o in tx.outputs
+                    ]),
+                    'fee': str(tx.fee),
+                    'sig': tx.signature,
+                    'pk': tx.public_key,
+                    'ts': tx.timestamp,
+                    'bh': block.height,
+                    'tx_type': tx.tx_type or 'transfer',
+                    'to_addr': tx.to_address,
+                    'data': tx.data,
+                    'gas_limit': tx.gas_limit or 0,
+                    'gas_price': str(tx.gas_price or 0),
+                    'nonce': tx.nonce or 0,
                 }
             )
-            # Process transactions
-            for tx in block.transactions:
-                # Mark inputs spent (skip coinbase)
-                if tx.inputs:
-                    self.mark_utxos_spent(tx.inputs, tx.txid, session)
-                # Create outputs
-                self.create_utxos(tx.txid, tx.outputs, block.height, block.proof_data, session)
-                # Upsert transaction (INSERT if new, UPDATE if already pending)
-                session.execute(
-                    text("""
-                        INSERT INTO transactions
-                        (txid, inputs, outputs, fee, signature, public_key, timestamp,
-                         block_height, status, tx_type, to_address, data, gas_limit, gas_price, nonce)
-                        VALUES (:txid, CAST(:inputs AS jsonb), CAST(:outputs AS jsonb),
-                                :fee, :sig, :pk, :ts, :bh, 'confirmed',
-                                :tx_type, :to_addr, :data, :gas_limit, :gas_price, :nonce)
-                        ON CONFLICT (txid) DO UPDATE SET
-                            status = 'confirmed', block_height = :bh
-                    """),
-                    {
-                        'txid': tx.txid,
-                        'inputs': json.dumps(tx.inputs),
-                        'outputs': json.dumps([
-                            {'address': o['address'], 'amount': str(o['amount'])}
-                            for o in tx.outputs
-                        ]),
-                        'fee': str(tx.fee),
-                        'sig': tx.signature,
-                        'pk': tx.public_key,
-                        'ts': tx.timestamp,
-                        'bh': block.height,
-                        'tx_type': tx.tx_type or 'transfer',
-                        'to_addr': tx.to_address,
-                        'data': tx.data,
-                        'gas_limit': tx.gas_limit or 0,
-                        'gas_price': str(tx.gas_price or 0),
-                        'nonce': tx.nonce or 0,
-                    }
-                )
-            session.commit()
     # ========================================================================
     # TRANSACTION OPERATIONS
     # ========================================================================

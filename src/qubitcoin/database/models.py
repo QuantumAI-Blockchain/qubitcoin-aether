@@ -28,8 +28,10 @@ class UTXO:
 
     @classmethod
     def from_dict(cls, data: dict) -> 'UTXO':
-        data['amount'] = Decimal(data['amount'])
-        return cls(**data)
+        valid_fields = cls.__dataclass_fields__.keys()
+        filtered = {k: v for k, v in data.items() if k in valid_fields}
+        filtered['amount'] = Decimal(filtered['amount'])
+        return cls(**filtered)
 
 
 @dataclass

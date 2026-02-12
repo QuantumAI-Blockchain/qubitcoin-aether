@@ -280,16 +280,16 @@ class P2PNetwork:
             if valid:
                 # Record height BEFORE storing so reorg check is correct
                 height_before = self.consensus.db.get_current_height()
-                self.consensus.db.store_block(block)
-                # Update supply atomically in the same operation
-                for tx in block.transactions:
-                    if not tx.inputs:  # coinbase
-                        from decimal import Decimal
-                        reward = sum(Decimal(str(o['amount'])) for o in tx.outputs)
-                        with self.consensus.db.get_session() as session:
+                # Store block + supply update atomically in one session
+                with self.consensus.db.get_session() as session:
+                    self.consensus.db.store_block(block, session=session)
+                    for tx in block.transactions:
+                        if not tx.inputs:  # coinbase
+                            from decimal import Decimal
+                            reward = sum(Decimal(str(o['amount'])) for o in tx.outputs)
                             self.consensus.db.update_supply(reward, session)
-                            session.commit()
-                        break
+                            break
+                    session.commit()
                 logger.info(f"Stored block {block.height} from {sender_id}")
                 await self._gossip_message(message, exclude=sender_id)
                 # Trigger reorg if this block extends beyond our previous tip

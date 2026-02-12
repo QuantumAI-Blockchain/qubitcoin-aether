@@ -188,7 +188,7 @@ class MiningEngine:
                         logger.warning(f"Block {next_height} appeared during mining, skipping")
                         return
 
-                    self.db.store_block(block)
+                    self.db.store_block(block, session=session)
                     self.db.update_supply(reward, session)
                     self.db.store_hamiltonian(
                         hamiltonian=hamiltonian,
