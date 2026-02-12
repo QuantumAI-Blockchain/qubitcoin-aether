@@ -502,28 +502,27 @@ class DatabaseManager:
     def _create_tables(self):
         """Create all tables if they don't exist"""
         Base.metadata.create_all(self.engine)
-        # Ensure supply row exists
+        # Ensure supply row exists (atomic upsert to avoid race on concurrent init)
         with self.get_session() as session:
-            res = session.execute(text("SELECT 1 FROM supply WHERE id = 1")).fetchone()
-            if not res:
-                session.execute(text("INSERT INTO supply (id, total_minted) VALUES (1, 0)"))
-                session.commit()
-        # Seed default stablecoin params if empty
+            session.execute(text(
+                "INSERT INTO supply (id, total_minted) VALUES (1, 0) ON CONFLICT (id) DO NOTHING"
+            ))
+            session.commit()
+        # Seed default stablecoin params if empty (atomic upsert per row)
         with self.get_session() as session:
-            res = session.execute(text("SELECT 1 FROM stablecoin_params LIMIT 1")).fetchone()
-            if not res:
-                defaults = [
-                    ('min_collateral_ratio', '1.5', 'decimal'),
-                    ('liquidation_ratio', '1.2', 'decimal'),
-                    ('stability_fee', '0.02', 'decimal'),
-                    ('emergency_shutdown', 'false', 'boolean'),
-                ]
-                for name, value, ptype in defaults:
-                    session.execute(
-                        text("INSERT INTO stablecoin_params (param_name, param_value, param_type) VALUES (:n, :v, :t)"),
-                        {'n': name, 'v': value, 't': ptype}
-                    )
-                session.commit()
+            defaults = [
+                ('min_collateral_ratio', '1.5', 'decimal'),
+                ('liquidation_ratio', '1.2', 'decimal'),
+                ('stability_fee', '0.02', 'decimal'),
+                ('emergency_shutdown', 'false', 'boolean'),
+            ]
+            for name, value, ptype in defaults:
+                session.execute(
+                    text("""INSERT INTO stablecoin_params (param_name, param_value, param_type)
+                            VALUES (:n, :v, :t) ON CONFLICT (param_name) DO NOTHING"""),
+                    {'n': name, 'v': value, 't': ptype}
+                )
+            session.commit()
         # Create database views for health monitoring
         with self.get_session() as session:
             session.execute(text("""

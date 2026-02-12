@@ -24,8 +24,7 @@ class ContractExecutor:
         """Initialize contract executor"""
         self.db = db_manager
         self.quantum = quantum_engine
-        self.contract_cache = {}
-        
+
         logger.info("✅ Contract executor initialized")
 
     # ========================================================================
@@ -169,12 +168,7 @@ class ContractExecutor:
             return False, f"Execution error: {str(e)}", None
 
     def _load_contract(self, contract_id: str) -> Optional[Dict]:
-        """Load contract from database or cache"""
-        # Check cache
-        if contract_id in self.contract_cache:
-            return self.contract_cache[contract_id]
-        
-        # Load from DB
+        """Load contract from database (always fresh to avoid stale state)"""
         with self.db.get_session() as session:
             result = session.execute(
                 text("""
@@ -184,21 +178,16 @@ class ContractExecutor:
                 """),
                 {'cid': contract_id}
             ).fetchone()
-            
+
             if not result:
                 return None
-            
-            contract = {
+
+            return {
                 'contract_type': result[0],
                 'contract_code': json.loads(result[1]) if isinstance(result[1], str) else result[1],
                 'contract_state': json.loads(result[2]) if isinstance(result[2], str) else result[2],
                 'is_active': result[3]
             }
-            
-            # Cache it
-            self.contract_cache[contract_id] = contract
-            
-            return contract
 
     # ========================================================================
     # STABLECOIN CONTRACT EXECUTION
