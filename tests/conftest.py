@@ -6,6 +6,12 @@ This file is auto-loaded by pytest before any test module imports.
 """
 import sys
 import types
+from pathlib import Path
+
+# Ensure src/ is on the Python path so `import qubitcoin` works
+_src = str(Path(__file__).resolve().parent.parent / "src")
+if _src not in sys.path:
+    sys.path.insert(0, _src)
 
 
 def _make_stub(name: str) -> types.ModuleType:

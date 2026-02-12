@@ -367,3 +367,345 @@ class TestQVMClasses:
         assert issubclass(OutOfGasError, ExecutionError)
         assert issubclass(StackUnderflowError, ExecutionError)
         assert issubclass(InvalidJumpError, ExecutionError)
+
+
+class TestQuantumOpcodes:
+    """Test quantum opcode execution (0xD0-0xD9)."""
+
+    def _make_qvm(self, quantum=None, block_context=None):
+        from qubitcoin.qvm.vm import QVM
+        return QVM(db_manager=None, quantum_engine=quantum,
+                   block_context=block_context or {})
+
+    def _mock_quantum(self):
+        """Create a mock quantum engine."""
+        qe = MagicMock()
+        qe.generate_hamiltonian.return_value = [
+            ("ZZII", 0.5), ("IXXI", -0.3), ("YYII", 0.2),
+        ]
+        qe.optimize_vqe.return_value = ([0.1, 0.2], -1.5)
+        return qe
+
+    def test_qproof_energy_below_difficulty(self):
+        """QPROOF: energy < difficulty → push 1."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        code = bytes([
+            Opcode.PUSH1, 100,   # difficulty
+            Opcode.PUSH1, 50,    # energy
+            Opcode.QPROOF,       # 50 < 100 → push 1
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 1
+
+    def test_qproof_energy_above_difficulty(self):
+        """QPROOF: energy >= difficulty → push 0."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        code = bytes([
+            Opcode.PUSH1, 50,    # difficulty
+            Opcode.PUSH1, 100,   # energy
+            Opcode.QPROOF,       # 100 >= 50 → push 0
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 0
+
+    def test_qgate_no_quantum_pushes_zero(self):
+        """QGATE without quantum engine pushes 0."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm(quantum=None)
+        code = bytes([
+            Opcode.PUSH1, 5,     # qubit_id
+            Opcode.PUSH1, 0,     # gate_type = H
+            Opcode.QGATE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 0
+
+    def test_qgate_with_quantum_pushes_one(self):
+        """QGATE with quantum engine pushes 1 (success)."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qe = self._mock_quantum()
+        qvm = self._make_qvm(quantum=qe)
+        code = bytes([
+            Opcode.PUSH1, 3,     # qubit_id
+            Opcode.PUSH1, 1,     # gate_type = X
+            Opcode.QGATE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 1
+
+    def test_qgate_parameterized_pops_angle(self):
+        """QGATE with gate_type >= 5 (RX/RY/RZ) pops an extra param."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qe = self._mock_quantum()
+        qvm = self._make_qvm(quantum=qe)
+        code = bytes([
+            Opcode.PUSH1, 100,   # param (angle scaled)
+            Opcode.PUSH1, 2,     # qubit_id
+            Opcode.PUSH1, 5,     # gate_type = RX (>= 5)
+            Opcode.QGATE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 1
+
+    def test_qmeasure_no_quantum(self):
+        """QMEASURE without quantum engine pushes 0."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm(quantum=None)
+        code = bytes([
+            Opcode.PUSH1, 7,     # qubit_id
+            Opcode.QMEASURE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 0
+
+    def test_qmeasure_with_quantum(self):
+        """QMEASURE with quantum engine produces 0 or 1."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qe = self._mock_quantum()
+        qvm = self._make_qvm(quantum=qe, block_context={'number': 42})
+        code = bytes([
+            Opcode.PUSH1, 3,     # qubit_id
+            Opcode.QMEASURE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val in (0, 1)
+
+    def test_qentangle_no_quantum(self):
+        """QENTANGLE without quantum pushes 0."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm(quantum=None)
+        code = bytes([
+            Opcode.PUSH1, 2,     # qubit_b
+            Opcode.PUSH1, 1,     # qubit_a
+            Opcode.QENTANGLE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 0
+
+    def test_qentangle_with_quantum(self):
+        """QENTANGLE produces entanglement_id = qubit_a * 1000 + qubit_b."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qe = self._mock_quantum()
+        qvm = self._make_qvm(quantum=qe)
+        code = bytes([
+            Opcode.PUSH1, 7,     # qubit_b
+            Opcode.PUSH1, 3,     # qubit_a
+            Opcode.QENTANGLE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 3 * 1000 + 7  # 3007
+
+    def test_qsuperpose_no_quantum(self):
+        """QSUPERPOSE without quantum pushes 0."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm(quantum=None)
+        code = bytes([
+            Opcode.PUSH1, 5,     # qubit_id
+            Opcode.QSUPERPOSE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 0
+
+    def test_qsuperpose_with_quantum(self):
+        """QSUPERPOSE with quantum pushes 1."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qe = self._mock_quantum()
+        qvm = self._make_qvm(quantum=qe)
+        code = bytes([
+            Opcode.PUSH1, 5,
+            Opcode.QSUPERPOSE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 1
+
+    def test_qfidelity_same_state(self):
+        """QFIDELITY: same state hashes → perfect fidelity (10^18)."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        code = bytes([
+            Opcode.PUSH1, 42,    # state_b_hash
+            Opcode.PUSH1, 42,    # state_a_hash (same)
+            Opcode.QFIDELITY,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 10**18
+
+    def test_qfidelity_different_states(self):
+        """QFIDELITY: different state hashes → fidelity < 10^18."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        code = bytes([
+            Opcode.PUSH1, 100,   # state_b_hash
+            Opcode.PUSH1, 42,    # state_a_hash
+            Opcode.QFIDELITY,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val < 10**18
+
+    def test_qvqe_no_quantum(self):
+        """QVQE without quantum engine pushes 0."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm(quantum=None)
+        code = bytes([
+            Opcode.PUSH1, 4,     # num_qubits
+            Opcode.QVQE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 0
+
+    def test_qvqe_with_quantum(self):
+        """QVQE with quantum engine pushes scaled energy."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qe = self._mock_quantum()
+        qvm = self._make_qvm(quantum=qe)
+        code = bytes([
+            Opcode.PUSH1, 4,     # num_qubits
+            Opcode.QVQE,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        # Mock returns energy=-1.5, scaled = |1.5| * 10^18 = 1.5e18
+        assert val == int(1.5 * 10**18)
+
+    def test_qhamiltonian_no_quantum(self):
+        """QHAMILTONIAN without quantum pushes 0."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm(quantum=None)
+        code = bytes([
+            Opcode.PUSH1, 99,    # seed
+            Opcode.QHAMILTONIAN,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 0
+
+    def test_qhamiltonian_with_quantum(self):
+        """QHAMILTONIAN with quantum pushes number of terms."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qe = self._mock_quantum()
+        qvm = self._make_qvm(quantum=qe)
+        code = bytes([
+            Opcode.PUSH1, 99,    # seed
+            Opcode.QHAMILTONIAN,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32,
+            Opcode.PUSH1, 0,
+            Opcode.RETURN,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=1000000)
+        assert result.success is True
+        val = int.from_bytes(result.return_data, 'big')
+        assert val == 3  # Mock returns 3 terms
