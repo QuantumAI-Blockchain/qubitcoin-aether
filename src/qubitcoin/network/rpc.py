@@ -80,13 +80,21 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             logger.debug(f"Could not get emission stats: {e}")
             emission_stats = {}
 
-        # Get P2P info if available
+        # Get P2P info if available (handles both Rust and Python P2P)
         p2p_info = {}
-        if hasattr(app, 'node') and hasattr(app.node, 'p2p'):
-            p2p_info = {
-                'peers': len(app.node.p2p.connections),
-                'port': app.node.p2p.port
-            }
+        if hasattr(app, 'node'):
+            node = app.node
+            if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
+                p2p_info = {
+                    'type': 'rust_libp2p',
+                    'peers': node.rust_p2p.get_peer_count(),
+                }
+            elif hasattr(node, 'p2p') and node.p2p:
+                p2p_info = {
+                    'type': 'python',
+                    'peers': len(node.p2p.connections),
+                    'port': node.p2p.port,
+                }
         
         return {
             "node": "Qubitcoin Full Node v2.0",
@@ -120,8 +128,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def health():
         """Health check endpoint"""
         p2p_status = False
-        if hasattr(app, 'node') and hasattr(app.node, 'p2p'):
-            p2p_status = app.node.p2p.running
+        if hasattr(app, 'node'):
+            node = app.node
+            if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
+                p2p_status = True
+            elif hasattr(node, 'p2p') and node.p2p:
+                p2p_status = node.p2p.running
         
         return {
             "status": "healthy",
@@ -151,10 +163,14 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 'supply_cap': float(Config.MAX_SUPPLY)
             }
         
-        # Get P2P stats if available
+        # Get P2P stats if available (handles both Rust and Python P2P)
         p2p_stats = {}
-        if hasattr(app, 'node') and hasattr(app.node, 'p2p'):
-            p2p_stats = app.node.p2p.get_stats()
+        if hasattr(app, 'node'):
+            node = app.node
+            if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
+                p2p_stats = {'type': 'rust_libp2p', 'peers': node.rust_p2p.get_peer_count()}
+            elif hasattr(node, 'p2p') and node.p2p:
+                p2p_stats = node.p2p.get_stats()
 
         return {
             "node": {
@@ -374,58 +390,85 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/p2p/peers")
     async def get_p2p_peers():
         """Get list of connected P2P peers"""
-        if not hasattr(app, 'node') or not hasattr(app.node, 'p2p'):
+        if not hasattr(app, 'node'):
             raise HTTPException(status_code=503, detail="P2P network not available")
-        
-        peers = app.node.p2p.get_peer_list()
-        
-        return {
-            "peer_count": len(peers),
-            "max_peers": app.node.p2p.max_peers,
-            "port": app.node.p2p.port,
-            "peer_id": app.node.p2p.peer_id,
-            "peers": peers
-        }
+        node = app.node
+        # Rust P2P mode
+        if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
+            peer_count = node.rust_p2p.get_peer_count()
+            return {
+                "type": "rust_libp2p",
+                "peer_count": peer_count,
+                "peers": []
+            }
+        # Python P2P mode
+        if hasattr(node, 'p2p') and node.p2p:
+            peers = node.p2p.get_peer_list()
+            return {
+                "type": "python",
+                "peer_count": len(peers),
+                "max_peers": node.p2p.max_peers,
+                "port": node.p2p.port,
+                "peer_id": node.p2p.peer_id,
+                "peers": peers
+            }
+        raise HTTPException(status_code=503, detail="P2P network not available")
 
     @app.get("/p2p/stats")
     async def get_p2p_stats():
         """Get P2P network statistics"""
-        if not hasattr(app, 'node') or not hasattr(app.node, 'p2p'):
+        if not hasattr(app, 'node'):
             raise HTTPException(status_code=503, detail="P2P network not available")
-        
-        stats = app.node.p2p.get_stats()
-        
-        return {
-            "network": {
-                "connected_peers": stats['connected_peers'],
-                "max_peers": stats['max_peers'],
-                "port": stats['port'],
-                "peer_id": stats['peer_id']
-            },
-            "messages": {
-                "sent": stats['messages_sent'],
-                "received": stats['messages_received'],
-                "blocks_propagated": stats['blocks_propagated'],
-                "txs_propagated": stats['txs_propagated']
-            },
-            "connections": {
-                "made": stats['connections_made'],
-                "dropped": stats['connections_dropped'],
-                "active": stats['connected_peers']
+        node = app.node
+        # Rust P2P mode
+        if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
+            peer_count = node.rust_p2p.get_peer_count()
+            return {
+                "network": {
+                    "type": "rust_libp2p",
+                    "connected_peers": peer_count,
+                },
+                "messages": {},
+                "connections": {"active": peer_count}
             }
-        }
+        # Python P2P mode
+        if hasattr(node, 'p2p') and node.p2p:
+            stats = node.p2p.get_stats()
+            return {
+                "network": {
+                    "type": "python",
+                    "connected_peers": stats['connected_peers'],
+                    "max_peers": stats['max_peers'],
+                    "port": stats['port'],
+                    "peer_id": stats['peer_id']
+                },
+                "messages": {
+                    "sent": stats['messages_sent'],
+                    "received": stats['messages_received'],
+                    "blocks_propagated": stats['blocks_propagated'],
+                    "txs_propagated": stats['txs_propagated']
+                },
+                "connections": {
+                    "made": stats['connections_made'],
+                    "dropped": stats['connections_dropped'],
+                    "active": stats['connected_peers']
+                }
+            }
+        raise HTTPException(status_code=503, detail="P2P network not available")
 
     @app.post("/p2p/connect")
     async def connect_to_peer(address: str):
         """Connect to a peer manually"""
-        if not hasattr(app, 'node') or not hasattr(app.node, 'p2p'):
+        if not hasattr(app, 'node'):
             raise HTTPException(status_code=503, detail="P2P network not available")
-        
-        try:
-            await app.node.p2p.connect_to_peer(address)
-            return {"status": "success", "message": f"Connecting to {address}"}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to connect: {str(e)}")
+        node = app.node
+        if hasattr(node, 'p2p') and node.p2p:
+            try:
+                await node.p2p.connect_to_peer(address)
+                return {"status": "success", "message": f"Connecting to {address}"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to connect: {str(e)}")
+        raise HTTPException(status_code=503, detail="Manual peer connection only available in Python P2P mode")
 
     # ========================================================================
     # QVM CONTRACT ENDPOINTS

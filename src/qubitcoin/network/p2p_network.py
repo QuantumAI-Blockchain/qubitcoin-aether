@@ -274,10 +274,20 @@ class P2PNetwork:
         if message.type == 'block':
             self.stats['blocks_propagated'] += 1
             block_data = message.data
-            block = Block.from_dict(block_data)  # Assume added to models.py
-            valid, reason = self.consensus.validate_block(block, self.consensus.db.get_block(block.height - 1), self.consensus.db)
+            block = Block.from_dict(block_data)
+            prev_block = self.consensus.db.get_block(block.height - 1)
+            valid, reason = self.consensus.validate_block(block, prev_block, self.consensus.db)
             if valid:
                 self.consensus.db.store_block(block)
+                # Update supply from coinbase transaction
+                for tx in block.transactions:
+                    if not tx.inputs:  # coinbase
+                        from decimal import Decimal
+                        reward = sum(Decimal(str(o['amount'])) for o in tx.outputs)
+                        with self.consensus.db.get_session() as session:
+                            self.consensus.db.update_supply(reward, session)
+                            session.commit()
+                        break
                 logger.info(f"Stored block {block.height} from {sender_id}")
                 await self._gossip_message(message, exclude=sender_id)
                 # Trigger reorg if higher

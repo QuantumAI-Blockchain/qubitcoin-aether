@@ -14,16 +14,28 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Keccak256 via pysha3 or hashlib fallback
+# Keccak256: EVM-compatible (NOT SHA3-256, which is different)
 try:
     import sha3
     def keccak256(data: bytes) -> bytes:
         return sha3.keccak_256(data).digest()
 except ImportError:
-    from hashlib import sha256
-    def keccak256(data: bytes) -> bytes:
-        # Fallback: use SHA256 if pysha3 not available
-        return sha256(data).digest()
+    try:
+        from Crypto.Hash import keccak as _keccak
+        def keccak256(data: bytes) -> bytes:
+            return _keccak.new(digest_bits=256, data=data).digest()
+    except ImportError:
+        # Last resort fallback — NOT EVM-compatible but allows node to start
+        import warnings
+        warnings.warn(
+            "Neither pysha3 nor pycryptodome installed. "
+            "keccak256 falling back to SHA-256 — EVM hash outputs will differ. "
+            "Install: pip install pysha3  OR  pip install pycryptodome",
+            RuntimeWarning,
+        )
+        from hashlib import sha256
+        def keccak256(data: bytes) -> bytes:
+            return sha256(data).digest()
 
 
 class ExecutionError(Exception):
