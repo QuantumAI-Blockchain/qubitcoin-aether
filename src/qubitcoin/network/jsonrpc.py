@@ -77,7 +77,7 @@ def _tx_to_rpc(tx, block=None) -> dict:
     """Convert Transaction model to eth_getTransaction format"""
     from_addr = '0x' + '0' * 40
     if tx.public_key:
-        from_addr = '0x' + hashlib.sha256(bytes.fromhex(tx.public_key[:64])).hexdigest()[:40]
+        from_addr = '0x' + hashlib.sha256(bytes.fromhex(tx.public_key)).hexdigest()[:40]
     return {
         'hash': '0x' + tx.txid,
         'blockNumber': hex_int(tx.block_height or 0),
