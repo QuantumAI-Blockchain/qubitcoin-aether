@@ -8,7 +8,7 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 
 ## Executive Summary
 
-**15 bugs fixed** across 10 files in 3 review passes, categorized as **7 CRITICAL**, **5 HIGH**, and **3 MEDIUM**. All fixes are minimal, targeted changes that preserve existing architecture and behavior.
+**17 bugs fixed** across 11 files in 4 review passes, categorized as **8 CRITICAL**, **6 HIGH**, and **3 MEDIUM**. Also removed 11 dead files from the repository root. All fixes are minimal, targeted changes that preserve existing architecture and behavior.
 
 ---
 
@@ -183,6 +183,47 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 
 ---
 
+### Round 4 (Fourth Review — Post-Merge + Root Cleanup)
+
+#### Dead File Cleanup
+
+Removed 11 dead/useless files from the repository:
+- `backup_20260202.sql` — Empty file (0 bytes)
+- `scheme.txt` — Empty file (0 bytes)
+- `check_balance.py` — Throwaway script referencing nonexistent `secure_key.env`
+- `FIXES_LOG.md` — Stale fixes log from old branch, superseded by `CODE_REVIEW.md`
+- `FULL_CODE_REVIEW.md` — Stale pre-QVM review, superseded by `CODE_REVIEW.md`
+- `NEW_THREAD_INSTRUCTIONS.md` — Stale AI handover doc with hardcoded `/home/ash/` paths
+- `dashboard_server_debug.py` — Debug throwaway (37 lines)
+- `scripts/generate_keys.py.broken` — Explicitly broken file
+- `scripts/fix_missing_tables.sql` — Stale, tables now auto-created by SQLAlchemy
+- `scripts/create_contracts_table.sql` — Stale, tables now auto-created by SQLAlchemy
+- `scripts/create_handover_package.sh` — References nonexistent `HANDOVER.md` and `contracts/`
+
+---
+
+#### CRITICAL-8: `ContractExecutor.contract_cache` Never Invalidated — Stale State
+
+**File:** `src/qubitcoin/contracts/executor.py:27, 171-199`
+**Impact:** After `ContractEngine.execute_contract()` updates a contract's state in the database, `ContractExecutor._load_contract()` continues serving the old cached state indefinitely. All subsequent contract executions through the executor (stablecoin mints, burns, token transfers) read stale `contract_state`, producing incorrect results and potentially allowing double-spends.
+
+**Root Cause:** `_load_contract()` caches the full contract object (including `contract_state`) in `self.contract_cache` on first load. The cache is never invalidated when `ContractEngine` writes updated state to the database via `UPDATE contracts SET contract_state = ...`.
+
+**Fix:** Removed `contract_cache` entirely. `_load_contract()` now always reads fresh from the database. Contract loads are infrequent (one per execution) so the performance impact is negligible compared to the correctness guarantee.
+
+---
+
+#### HIGH-6: Database Initialization Race Condition
+
+**File:** `src/qubitcoin/database/manager.py:505-526`
+**Impact:** If two node processes initialize concurrently (e.g., during cluster startup), both execute `SELECT 1 FROM supply WHERE id = 1`, both see no row, both attempt `INSERT`, and one fails with a duplicate key error — potentially crashing the node on startup.
+
+**Root Cause:** Non-atomic check-then-insert pattern for both the `supply` row and `stablecoin_params` seed data. The `SELECT` and `INSERT` execute in separate operations within the same session, creating a TOCTOU (time-of-check/time-of-use) window.
+
+**Fix:** Replaced with atomic `INSERT ... ON CONFLICT DO NOTHING` for both supply and stablecoin_params initialization. This is idempotent and safe under concurrent execution.
+
+---
+
 ## Architecture Assessment
 
 ### Strengths
@@ -220,6 +261,8 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 | `src/qubitcoin/network/jsonrpc.py` | 2 | Use full public key for address derivation |
 | `src/qubitcoin/contracts/engine.py` | 2 | Pass `prev_hash` and `height` to quantum gate `validate_proof()` |
 | `src/qubitcoin/mining/engine.py` | 3 | Pass outer session to `store_block()` for atomic commit |
+| `src/qubitcoin/contracts/executor.py` | 4 | Remove stale `contract_cache`; always read fresh from DB |
+| `src/qubitcoin/database/manager.py` | 1+2+3+4 | *(Round 4 addition)* Atomic `INSERT ... ON CONFLICT DO NOTHING` for supply and stablecoin_params init |
 
 ---
 
@@ -234,3 +277,6 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 7. Verified contract engine: quantum gate proof validation chain binding
 8. Cross-checked bridge, stablecoin, and IPFS modules for SQL and type safety
 9. Verified transaction atomicity: store_block, update_supply, and store_hamiltonian must commit in the same DB session (mining and P2P paths)
+10. Verified contract state consistency: ContractExecutor cache vs ContractEngine DB writes — identified stale cache serving outdated state
+11. Verified database initialization safety: check-then-insert patterns under concurrent startup
+12. Identified and removed 11 dead/useless files from root and scripts directories
