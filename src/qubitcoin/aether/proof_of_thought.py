@@ -79,7 +79,8 @@ class AetherEngine:
         self._pot_cache[block_height] = pot
 
         # Log consciousness event if Phi crosses threshold
-        if phi_value >= self.phi._cache.get('threshold', 3.0):
+        from .phi_calculator import PHI_THRESHOLD
+        if phi_value >= PHI_THRESHOLD:
             self._record_consciousness_event(
                 'phi_threshold_crossed', phi_value, block_height,
                 {'reasoning_steps': len(reasoning_steps)}
@@ -213,7 +214,7 @@ class AetherEngine:
         Returns list of reasoning step dicts for the thought proof.
         """
         steps = []
-        if not self.reasoning or not self.kg.nodes:
+        if not self.reasoning or not self.kg or not self.kg.nodes:
             return steps
 
         try:

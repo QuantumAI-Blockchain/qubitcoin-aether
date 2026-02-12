@@ -328,11 +328,9 @@ class JsonRpcHandler:
             from_addr = call_obj.get('from', '0' * 40).replace('0x', '')
             calldata = bytes.fromhex(data_hex) if data_hex else b''
 
-            # Load contract bytecode and execute via QVM static call
-            bytecode_hex = self.db.get_contract_bytecode(to_addr)
-            if bytecode_hex:
-                result = self.qvm.qvm.static_call(from_addr, to_addr, calldata)
-                return '0x' + result.hex() if result else '0x'
+            # Execute via QVM static call (loads bytecode internally)
+            result = self.qvm.qvm.static_call(from_addr, to_addr, calldata)
+            return '0x' + result.hex() if result else '0x'
         return '0x'
 
     async def eth_estimateGas(self, params):
@@ -429,6 +427,13 @@ class JsonRpcHandler:
         return hex_int(0)
 
 
+def _serialize(model):
+    """Serialize Pydantic model (compatible with v1 and v2)"""
+    if hasattr(model, 'model_dump'):
+        return model.model_dump()
+    return model.dict()
+
+
 def create_jsonrpc_router(db, consensus=None, mining=None, quantum=None, qvm=None) -> APIRouter:
     """Create JSON-RPC router and attach to FastAPI"""
     handler = JsonRpcHandler(db, consensus, mining, quantum, qvm)
@@ -444,11 +449,11 @@ def create_jsonrpc_router(db, consensus=None, mining=None, quantum=None, qvm=Non
             for item in body:
                 req = JsonRpcRequest(**item)
                 resp = await handler.handle(req)
-                responses.append(resp.dict())
+                responses.append(_serialize(resp))
             return responses
 
         req = JsonRpcRequest(**body)
         resp = await handler.handle(req)
-        return resp.dict()
+        return _serialize(resp)
 
     return router

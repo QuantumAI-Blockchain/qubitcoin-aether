@@ -212,17 +212,10 @@ class MiningEngine:
                 except Exception as e:
                     logger.debug(f"Aether knowledge processing: {e}")
 
-            # Broadcast mined block to P2P network
-            if self.node and hasattr(self.node, 'p2p'):
+            # Broadcast mined block to P2P network via node (handles Rust/Python P2P)
+            if self.node and hasattr(self.node, 'on_block_mined'):
                 try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        asyncio.run_coroutine_threadsafe(
-                            self.node.p2p.broadcast('block', block.to_dict()),
-                            loop
-                        )
-                    else:
-                        logger.debug("Event loop not running, skipping broadcast")
+                    self.node.on_block_mined(block.to_dict())
                 except Exception as e:
                     logger.debug(f"Could not broadcast block: {e}")
 
