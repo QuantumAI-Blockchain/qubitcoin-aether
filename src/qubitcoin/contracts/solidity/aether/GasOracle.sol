@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+/// @title GasOracle — Dynamic Gas Pricing for QVM
+/// @notice Adjusts QVM gas price based on network utilization.
+///         Provides gas price queries for contract execution cost estimation.
+contract GasOracle {
+    // ─── State ───────────────────────────────────────────────────────────
+    address public owner;
+    address public kernel;
+
+    uint256 public baseFee;         // base gas price in QBC (8 decimals)
+    uint256 public utilizationBps;  // network utilization in basis points (0-10000)
+    uint256 public lastUpdated;     // block number of last update
+
+    /// @notice Price history
+    struct PricePoint {
+        uint256 blockNumber;
+        uint256 baseFee;
+        uint256 utilizationBps;
+        uint256 timestamp;
+    }
+    PricePoint[] public priceHistory;
+
+    // ─── Events ──────────────────────────────────────────────────────────
+    event GasPriceUpdated(uint256 oldFee, uint256 newFee, uint256 utilization, uint256 blockNumber);
+    event BaseFeeAdjusted(uint256 newBaseFee, uint256 blockNumber);
+
+    // ─── Modifiers ───────────────────────────────────────────────────────
+    modifier onlyKernel() {
+        require(msg.sender == kernel || msg.sender == owner, "GasOracle: not authorized");
+        _;
+    }
+
+    // ─── Constructor ─────────────────────────────────────────────────────
+    constructor(address _kernel, uint256 _initialBaseFee) {
+        owner   = msg.sender;
+        kernel  = _kernel;
+        baseFee = _initialBaseFee;
+    }
+
+    // ─── Price Updates ───────────────────────────────────────────────────
+    /// @notice Update gas price based on network utilization
+    function updateGasPrice(uint256 newUtilization) external onlyKernel {
+        require(newUtilization <= 10000, "GasOracle: utilization > 100%");
+
+        uint256 oldFee = baseFee;
+        utilizationBps = newUtilization;
+
+        // EIP-1559-like adjustment: increase if >50% utilized, decrease if <50%
+        if (newUtilization > 5000) {
+            // Increase by up to 12.5%
+            uint256 increase = (baseFee * (newUtilization - 5000)) / 40000;
+            baseFee += increase;
+        } else if (newUtilization < 5000) {
+            // Decrease by up to 12.5%
+            uint256 decrease = (baseFee * (5000 - newUtilization)) / 40000;
+            if (decrease < baseFee) {
+                baseFee -= decrease;
+            } else {
+                baseFee = 1; // minimum 1 unit
+            }
+        }
+
+        lastUpdated = block.number;
+        priceHistory.push(PricePoint({
+            blockNumber:    block.number,
+            baseFee:        baseFee,
+            utilizationBps: newUtilization,
+            timestamp:      block.timestamp
+        }));
+
+        emit GasPriceUpdated(oldFee, baseFee, newUtilization, block.number);
+    }
+
+    /// @notice Manually set base fee (owner override)
+    function setBaseFee(uint256 newFee) external onlyKernel {
+        require(newFee > 0, "GasOracle: zero fee");
+        baseFee = newFee;
+        lastUpdated = block.number;
+        emit BaseFeeAdjusted(newFee, block.number);
+    }
+
+    // ─── Queries ─────────────────────────────────────────────────────────
+    function getGasPrice() external view returns (uint256) {
+        return baseFee;
+    }
+
+    function getBaseFee() external view returns (uint256 fee, uint256 utilization, uint256 updatedAt) {
+        return (baseFee, utilizationBps, lastUpdated);
+    }
+
+    function getPriceHistoryLength() external view returns (uint256) {
+        return priceHistory.length;
+    }
+}
