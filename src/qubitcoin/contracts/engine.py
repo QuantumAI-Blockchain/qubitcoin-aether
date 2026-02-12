@@ -598,7 +598,9 @@ class ContractEngine:
             params=np.array(proof['params']),
             hamiltonian=proof['hamiltonian'],
             claimed_energy=proof['energy'],
-            difficulty=condition.get('energy_threshold', 0.5)
+            difficulty=condition.get('energy_threshold', 0.5),
+            prev_hash=proof.get('prev_hash'),
+            height=proof.get('height'),
         )
         
         if not valid:

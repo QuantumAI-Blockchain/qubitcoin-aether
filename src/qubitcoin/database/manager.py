@@ -765,26 +765,50 @@ class DatabaseManager:
                     self.mark_utxos_spent(tx.inputs, tx.txid, session)
                 # Create outputs
                 self.create_utxos(tx.txid, tx.outputs, block.height, block.proof_data, session)
-                # Update transaction status
+                # Upsert transaction (INSERT if new, UPDATE if already pending)
                 session.execute(
                     text("""
-                        UPDATE transactions
-                        SET status = 'confirmed', block_height = :bh
-                        WHERE txid = :txid
+                        INSERT INTO transactions
+                        (txid, inputs, outputs, fee, signature, public_key, timestamp,
+                         block_height, status, tx_type, to_address, data, gas_limit, gas_price, nonce)
+                        VALUES (:txid, CAST(:inputs AS jsonb), CAST(:outputs AS jsonb),
+                                :fee, :sig, :pk, :ts, :bh, 'confirmed',
+                                :tx_type, :to_addr, :data, :gas_limit, :gas_price, :nonce)
+                        ON CONFLICT (txid) DO UPDATE SET
+                            status = 'confirmed', block_height = :bh
                     """),
-                    {'bh': block.height, 'txid': tx.txid}
+                    {
+                        'txid': tx.txid,
+                        'inputs': json.dumps(tx.inputs),
+                        'outputs': json.dumps([
+                            {'address': o['address'], 'amount': str(o['amount'])}
+                            for o in tx.outputs
+                        ]),
+                        'fee': str(tx.fee),
+                        'sig': tx.signature,
+                        'pk': tx.public_key,
+                        'ts': tx.timestamp,
+                        'bh': block.height,
+                        'tx_type': tx.tx_type or 'transfer',
+                        'to_addr': tx.to_address,
+                        'data': tx.data,
+                        'gas_limit': tx.gas_limit or 0,
+                        'gas_price': str(tx.gas_price or 0),
+                        'nonce': tx.nonce or 0,
+                    }
                 )
             session.commit()
     # ========================================================================
     # TRANSACTION OPERATIONS
     # ========================================================================
     def get_pending_transactions(self, limit: int = 1000) -> List[Transaction]:
-        """Get pending transactions"""
+        """Get pending transactions with all fields including QVM columns"""
         with self.get_session() as session:
             results = session.execute(
                 text("""
                     SELECT txid, inputs, outputs, fee, signature,
-                           public_key, timestamp, block_height, status
+                           public_key, timestamp, block_height, status,
+                           tx_type, to_address, data, gas_limit, gas_price, nonce
                     FROM transactions
                     WHERE status = 'pending'
                     ORDER BY CAST(fee AS DECIMAL) DESC
@@ -803,7 +827,13 @@ class DatabaseManager:
                     public_key=row[5] or '',
                     timestamp=float(row[6] or 0),
                     block_height=row[7],
-                    status=row[8] or 'pending'
+                    status=row[8] or 'pending',
+                    tx_type=row[9] or 'transfer',
+                    to_address=row[10],
+                    data=row[11],
+                    gas_limit=row[12] or 0,
+                    gas_price=Decimal(str(row[13] or 0)),
+                    nonce=row[14] or 0,
                 ))
             return transactions
     # ========================================================================
