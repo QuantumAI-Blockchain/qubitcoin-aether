@@ -22,13 +22,18 @@
 - [ ] Add coinbase maturity enforcement (100 blocks before spending)
 - [ ] Comprehensive mining integration test
 
-### 1.2 Cryptography
+### 1.2 Cryptography & Key Security
 - [x] Dilithium2 key generation (`quantum/crypto.py`)
 - [x] Transaction signing & verification
 - [x] Address derivation (qbc1... Bech32-like)
+- [x] `secure_key.env` file for private keys (separate from `.env`)
+- [x] Key generation script auto-populates `secure_key.env`
+- [ ] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
+- [ ] Add `secure_key.env.example` template (with placeholder values)
 - [ ] Verify Dilithium signature size in real transactions (~3KB expected)
 - [ ] Add key import/export in standard formats
 - [ ] Signature caching for performance
+- [ ] Key rotation procedure documentation
 
 ### 1.3 UTXO Model
 - [x] Basic UTXO tracking in CockroachDB
@@ -94,7 +99,19 @@
 - [ ] ABI encoding/decoding for function calls
 - [ ] Contract upgrade patterns (proxy)
 
-### 2.3 Token Standards
+### 2.3 Contract Deployment Fees (NEW)
+- [ ] Fee calculator module (`contracts/fee_calculator.py`)
+- [ ] Base fee + per-KB fee structure (configurable via `.env`)
+- [ ] QUSD-pegged dynamic pricing (same oracle as Aether fees)
+- [ ] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
+- [ ] Template contract discount (configurable percentage)
+- [ ] Fee deduction from deployer UTXO before deployment
+- [ ] Fee UTXO creation to treasury address
+- [ ] Add contract fee config parameters to `config.py`
+- [ ] Admin API: `PUT /admin/contract/fees` (hot reload)
+- [ ] Fee estimation endpoint: `GET /qvm/deploy/estimate`
+
+### 2.4 Token Standards
 - [ ] QBC-20 reference implementation (Solidity)
 - [ ] QBC-721 reference implementation (Solidity)
 - [ ] QBC-1155 reference implementation (Solidity)
@@ -145,7 +162,23 @@
 - [ ] WebSocket for streaming responses: `/ws/aether`
 - [ ] Rate limiting and session management
 
-### 3.5 Proof-of-Thought
+### 3.5 Aether Tree Fee System (NEW)
+- [ ] Fee manager module (`aether/fee_manager.py`)
+- [ ] QUSD oracle integration (read QBC/USD price from QUSD L2 contract)
+- [ ] Dynamic fee calculation: `fee_qbc = usd_target / qbc_usd_price`
+- [ ] Fee clamping (min/max QBC bounds to prevent extreme fees)
+- [ ] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
+- [ ] Automatic fallback: QUSD failure → fixed_qbc mode
+- [ ] Fee deduction from user UTXO before processing chat message
+- [ ] Fee UTXO creation to treasury address
+- [ ] Free tier: first N messages per session (configurable onboarding)
+- [ ] Fee tier multipliers (deep queries cost more than chat)
+- [ ] Fee update interval (re-price every N blocks from QUSD oracle)
+- [ ] Add fee config parameters to `config.py` (all from `.env`)
+- [ ] Admin API: `PUT /admin/aether/fees` (hot reload fee params)
+- [ ] Fee audit logging (track all fee changes for transparency)
+
+### 3.6 Proof-of-Thought
 - [x] AetherEngine with proof generation (`proof_of_thought.py`)
 - [x] Auto-reasoning on recent knowledge
 - [ ] Embed Proof-of-Thought hash in block headers
@@ -285,11 +318,40 @@
 - [ ] QUSD QBC-20 token contract
 - [ ] Reserve contract (multi-asset pool)
 - [ ] Debt tracking system (on-chain accounting)
-- [ ] Oracle integration (price feeds)
+- [ ] Oracle integration (price feeds) — **also used by Aether/contract fee pegging**
 - [ ] Stability mechanism (peg maintenance)
 - [ ] Reserve building mechanism (fee collection → reserves)
 - [ ] Transparency dashboard (reserve composition, backing %)
 - [ ] Allocation distribution (50% LP, 30% treasury, 15% dev, 5% team)
+- [ ] QUSD price oracle endpoint for fee system consumption
+
+## PHASE 6.5: EDITABLE ECONOMIC CONFIGURATION (Priority: HIGH)
+
+> All economic parameters must be configurable, not hardcoded.
+
+### 6.5.1 Config Infrastructure
+- [ ] Add all Aether fee params to `config.py` (loaded from `.env`)
+- [ ] Add all contract fee params to `config.py` (loaded from `.env`)
+- [ ] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
+- [ ] Config validation for fee parameters (min < max, positive values)
+- [ ] Config hot-reload mechanism (change params without full restart)
+
+### 6.5.2 Admin API
+- [ ] Auth middleware for admin endpoints (API key or Dilithium signature)
+- [ ] `GET /admin/economics` — current economic config
+- [ ] `PUT /admin/aether/fees` — update Aether fee params (hot reload)
+- [ ] `PUT /admin/contract/fees` — update contract deploy fees (hot reload)
+- [ ] `PUT /admin/treasury` — update treasury addresses
+- [ ] `GET /admin/economics/history` — audit log of parameter changes
+- [ ] Rate limiting on admin endpoints
+
+### 6.5.3 QUSD Fee Oracle Integration
+- [ ] Oracle client module (`utils/qusd_oracle.py`)
+- [ ] Read QBC/USD price from QUSD L2 contract
+- [ ] Cache price with configurable TTL
+- [ ] Staleness detection (alert if price hasn't updated)
+- [ ] Automatic fallback to `fixed_qbc` mode on oracle failure
+- [ ] Manual override via Admin API
 
 ---
 
@@ -354,16 +416,19 @@
 ```
 1. L1 Core Stabilization (PHASE 1)
    └── Fix remaining consensus/mining issues
+   └── secure_key.env load order in config.py
    └── Add block sync protocol
    └── Add WebSocket endpoint
 
-2. Aether Chat Backend (PHASE 3.4)
-   └── POST /aether/chat endpoint
-   └── Session management
-   └── WebSocket streaming
+2. QVM + Aether Tree Production Build (PHASE 2 + 3)
+   └── QVM quantum opcodes + cross-contract calls
+   └── Contract deployment fee system (QUSD-pegged)
+   └── Aether chat endpoint + session management
+   └── Aether fee manager (dynamic pricing)
+   └── Editable economics config + Admin API
 
 3. Frontend Foundation (PHASE 4.1)
-   └── Next.js 14 + Tailwind + design system
+   └── Next.js 15 + Tailwind 4 + design system
    └── API client + wallet integration
 
 4. Landing Page (PHASE 4.2)
@@ -379,23 +444,18 @@
 6. Dashboard (PHASE 4.4)
    └── Mining + contracts + wallet tabs
 
-7. QVM Hardening (PHASE 2)
-   └── Quantum opcodes
-   └── Cross-contract calls
-   └── Test suite
-
-8. Wallet + QVM Explorer (PHASE 4.5, 4.6)
+7. Wallet + QVM Explorer (PHASE 4.5, 4.6)
    └── MetaMask integration
    └── Contract browser
+
+8. QUSD Stablecoin (PHASE 6)
+   └── Token + Reserve + Oracle (feeds fee pegging system)
 
 9. Bridges (PHASE 5)
    └── ETH bridge first
    └── Then expand
 
-10. QUSD (PHASE 6)
-    └── Token + Reserve + Dashboard
-
-11. Security + DevOps (PHASE 7, 8)
+10. Security + DevOps (PHASE 7, 8)
     └── Full test coverage
     └── Production deployment
 ```
