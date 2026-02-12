@@ -207,9 +207,9 @@ class StateManager:
                 self.db.set_storage(addr, key, value, block_height)
 
     def _get_sender_address(self, tx: Transaction) -> str:
-        """Derive sender address from transaction"""
+        """Derive sender address from transaction (consistent with crypto.derive_address)"""
         if tx.public_key:
-            return hashlib.sha256(bytes.fromhex(tx.public_key[:64])).hexdigest()[:40]
+            return hashlib.sha256(bytes.fromhex(tx.public_key)).hexdigest()[:40]
         return '0' * 40
 
     def compute_state_root(self, block_height: int) -> str:

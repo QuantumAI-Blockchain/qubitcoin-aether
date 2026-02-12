@@ -78,6 +78,7 @@ class Transaction:
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Transaction':
+        data = dict(data)  # Don't mutate the original
         data['fee'] = Decimal(data.get('fee', '0'))
         data['gas_price'] = Decimal(data.get('gas_price', '0'))
         data['outputs'] = [
@@ -89,7 +90,10 @@ class Transaction:
         data.setdefault('data', None)
         data.setdefault('gas_limit', 0)
         data.setdefault('nonce', 0)
-        return cls(**data)
+        # Filter to known fields to prevent TypeError on unexpected keys
+        known_fields = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered = {k: v for k, v in data.items() if k in known_fields}
+        return cls(**filtered)
 
 
 @dataclass
@@ -177,13 +181,17 @@ class Block:
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Block':
+        data = dict(data)  # Don't mutate the original
         data['transactions'] = [
             Transaction.from_dict(tx) for tx in data.get('transactions', [])
         ]
         data.setdefault('state_root', '')
         data.setdefault('receipts_root', '')
         data.setdefault('thought_proof', None)
-        return cls(**data)
+        # Filter to known fields to prevent TypeError on unexpected keys
+        known_fields = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered = {k: v for k, v in data.items() if k in known_fields}
+        return cls(**filtered)
 
 
 @dataclass

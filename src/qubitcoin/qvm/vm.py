@@ -228,6 +228,11 @@ class QVM:
             result.revert_reason = "Max call depth exceeded"
             return result
 
+        # Clear storage cache at top-level call to prevent cross-transaction leaks.
+        # Sub-calls (depth > 0) share the parent's cache within a single transaction.
+        if depth == 0:
+            self._storage_cache = {}
+
         ctx = ExecutionContext(
             caller=caller,
             address=address,
