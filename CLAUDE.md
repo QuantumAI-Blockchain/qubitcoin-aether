@@ -121,19 +121,31 @@ PHASE 3: VALIDATE
 
 ## 4. TECHNOLOGY STACK
 
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| **L1 Core** | Python | 3.11+ |
-| **P2P Networking** | Rust (libp2p) | 2021 edition, libp2p 0.56 |
+> **RULE: Always use the absolute latest stable versions of ALL dependencies.**
+> When starting a new component or updating an existing one, check for the latest
+> version available and use it. Never pin to old versions unless there is a
+> specific compatibility requirement (e.g., CockroachDB v24.2.0).
+
+| Component | Technology | Version Policy |
+|-----------|-----------|---------------|
+| **L1 Core** | Python | 3.12+ (latest stable) |
+| **P2P Networking** | Rust (libp2p) | 2021 edition, libp2p latest |
 | **Web Framework** | FastAPI | latest |
 | **ORM** | SQLAlchemy | latest |
-| **Database** | CockroachDB | v24.2.0 (pinned) |
+| **Database** | CockroachDB | v24.2.0 (pinned — compatibility) |
 | **Quantum** | Qiskit | latest |
-| **Content Storage** | IPFS (Kubo) | v0.30.0+ |
-| **Frontend** | Next.js 14 + TypeScript | latest |
-| **Styling** | TailwindCSS + Framer Motion | latest |
-| **Wallet** | ethers.js (MetaMask compat) | v6 |
+| **Content Storage** | IPFS (Kubo) | latest |
+| **Frontend Framework** | React 19 + Next.js 15 (App Router) | latest stable |
+| **Language** | TypeScript 5.x (strict mode) | latest |
+| **Styling** | TailwindCSS 4 + Framer Motion | latest |
+| **State Management** | Zustand + TanStack Query (React Query) | latest |
+| **3D / Viz** | Three.js + React Three Fiber + D3 | latest |
+| **Wallet** | ethers.js v6 (MetaMask compat) | latest |
+| **Deployment** | Vercel (frontend) + Docker (backend) | latest |
 | **Monitoring** | Prometheus + Grafana | latest |
+| **Package Manager** | pnpm (frontend) / pip (backend) | latest |
+| **Linting/Formatting** | ESLint 9 + Prettier + Biome | latest |
+| **Testing** | Vitest + Playwright (frontend) / pytest (backend) | latest |
 
 ---
 
@@ -237,15 +249,17 @@ Qubitcoin/
 │       ├── protocol/mod.rs      # QBC protocol messages
 │       └── bridge/              # Python-Rust gRPC bridge
 │
-├── frontend/                    # FRONTEND: qbc.network (TO BE CREATED)
-│   ├── package.json
-│   ├── next.config.js
-│   ├── tailwind.config.js
-│   ├── tsconfig.json
+├── frontend/                    # FRONTEND: qbc.network — React + Next.js → Vercel
+│   ├── package.json             # pnpm managed
+│   ├── next.config.ts           # Next.js 15 config (TypeScript)
+│   ├── tailwind.config.ts       # TailwindCSS 4 config
+│   ├── tsconfig.json            # TypeScript 5 strict
+│   ├── vercel.json              # Vercel deployment config
+│   ├── .env.local               # Local env (NEXT_PUBLIC_*)
 │   ├── public/
-│   │   └── assets/              # Images, fonts, icons
+│   │   └── assets/              # Images, fonts, icons, OG images
 │   ├── src/
-│   │   ├── app/                 # Next.js 14 App Router
+│   │   ├── app/                 # Next.js 15 App Router (RSC by default)
 │   │   │   ├── layout.tsx       # Root layout (quantum theme)
 │   │   │   ├── page.tsx         # Landing page (hero + Aether chat)
 │   │   │   ├── dashboard/       # Contract operator dashboard
@@ -461,7 +475,23 @@ This creates an immutable, on-chain record of AGI emergence.
 
 ## 9. FRONTEND: qbc.network
 
-### 9.1 Design Vision
+### 9.1 Stack & Deployment
+
+- **Framework:** React 19 + Next.js 15 (App Router, React Server Components)
+- **Language:** TypeScript 5.x (strict mode, no `any`)
+- **Styling:** TailwindCSS 4 + Framer Motion (animations)
+- **State:** Zustand (global) + TanStack Query (server state / caching)
+- **3D/Viz:** Three.js + React Three Fiber (particles, knowledge graph) + D3 (charts)
+- **Wallet:** ethers.js v6 (MetaMask, WalletConnect)
+- **Package Manager:** pnpm (fast, strict)
+- **Linting:** ESLint 9 flat config + Prettier
+- **Testing:** Vitest (unit) + Playwright (E2E)
+- **Deployment:** Vercel (connected to `frontend/` directory)
+- **Domain:** qbc.network (Vercel custom domain)
+- **Edge:** Vercel Edge Functions for API proxying if needed
+- **Analytics:** Vercel Analytics + Speed Insights
+
+### 9.2 Design Vision
 
 The frontend MUST represent the **potential first AGI** — a design that is:
 - **Quantum-themed:** Dark backgrounds, particle effects, phi-spiral animations
@@ -469,7 +499,7 @@ The frontend MUST represent the **potential first AGI** — a design that is:
 - **Accessible:** Easy for anyone to talk to Aether Tree
 - **Professional:** Representative of a cutting-edge blockchain + AGI project
 
-### 9.2 Pages & Features
+### 9.3 Pages & Features
 
 #### Landing Page (`/`)
 - **Hero section** with animated quantum particle field / phi-spiral
@@ -509,7 +539,7 @@ The frontend MUST represent the **potential first AGI** — a design that is:
 - **Event log viewer** — filter and search contract events
 - **Deploy interface** — deploy Solidity contracts via QVM
 
-### 9.3 Design System: "Quantum Error"
+### 9.4 Design System: "Quantum Error"
 
 **Color Palette:**
 ```
@@ -539,7 +569,7 @@ Code:      JetBrains Mono (monospace)
 - Glitch/scan-line effects on hover (subtle)
 - Golden ratio proportions in layout grid
 
-### 9.4 API Integration
+### 9.5 API Integration
 
 The frontend connects to the node via:
 - **REST API** (port 5000): `/balance/{addr}`, `/block/{height}`, `/chain/info`, etc.
@@ -649,13 +679,15 @@ cargo build --release
 # Binary at target/release/qbc-p2p
 ```
 
-### 12.3 Frontend
+### 12.3 Frontend (React + Next.js → Vercel)
 ```bash
 cd frontend
-npm install
-npm run dev      # Development (localhost:3000)
-npm run build    # Production build
-npm run start    # Production server
+pnpm install                    # Install dependencies (pnpm required)
+pnpm dev                        # Development (localhost:3000)
+pnpm build                      # Production build (same as Vercel)
+pnpm start                      # Production server (local preview)
+# Deployment: Push to main → Vercel auto-deploys to qbc.network
+# Preview: Push to any branch → Vercel creates preview URL
 ```
 
 ### 12.4 Docker
@@ -693,8 +725,11 @@ python3 test_system.py
 # Endpoint tests (requires running node)
 bash tests/scripts/test_all_endpoints.sh
 
-# Frontend tests
-cd frontend && npm test
+# Frontend unit tests
+cd frontend && pnpm test
+
+# Frontend E2E tests
+cd frontend && pnpm test:e2e
 ```
 
 ---
@@ -752,7 +787,9 @@ NEXT_PUBLIC_CHAIN_ID=3301
 - **Private methods:** underscore prefix (`_initialize_backend`)
 - **Type hints:** Required on all function signatures
 - **Line length:** ~100 characters
-- **Frontend:** TypeScript strict mode, React functional components + hooks
+- **Frontend:** TypeScript strict mode, no `any`, React 19 functional components + hooks
+- **React:** Server Components by default, `'use client'` only when needed
+- **Imports:** Use `@/` path alias for `src/` directory
 
 ### Patterns
 - **Logging:** `get_logger(__name__)` in every module
@@ -762,7 +799,9 @@ NEXT_PUBLIC_CHAIN_ID=3301
 - **Async:** FastAPI routes are async; use `await` for I/O
 - **Error handling:** Try/except with structured logging; never silently swallow
 - **Quantum imports:** Lazy imports with simulator fallbacks (Qiskit is slow to import)
-- **Frontend state:** Zustand for global state, React Query for server state
+- **Frontend state:** Zustand for global state, TanStack Query for server state
+- **Frontend deploy:** Vercel (auto-deploy from `frontend/` on push)
+- **Always latest:** Check for newest stable versions of all npm packages before installing
 
 ---
 
