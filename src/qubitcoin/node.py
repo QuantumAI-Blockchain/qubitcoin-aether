@@ -354,7 +354,7 @@ class QubitcoinNode:
                 SELECT COUNT(*) as total FROM vqe_circuits
             """)
             if vqe_stats:
-                vqe_solutions_total.labels().inc(0)  # Will increment on new solutions
+                pass  # vqe_solutions_total is incremented on actual new solutions
 
             # Get best alignment score
             best_alignment = self.db.query_one("""
@@ -382,7 +382,7 @@ class QubitcoinNode:
                 SELECT COUNT(*) as count FROM contract_executions
             """)
             if execution_count:
-                contract_executions_total.labels().inc(0)  # Will increment on new executions
+                pass  # contract_executions_total is incremented on actual new executions
 
             # ============================================================
             # AGI METRICS

@@ -679,16 +679,18 @@ class DatabaseManager:
         with self.get_session() as session:
             result = session.execute(
                 text("""SELECT height, prev_hash, difficulty, proof_json,
-                        created_at, block_hash
+                        created_at, block_hash, state_root, receipts_root,
+                        thought_proof
                         FROM blocks WHERE height = :h"""),
                 {'h': height}
             ).fetchone()
             if not result:
                 return None
-            # Get transactions with explicit column names
+            # Get transactions with all columns including QVM fields
             tx_results = session.execute(
                 text("""SELECT txid, inputs, outputs, fee, signature,
-                        public_key, timestamp, block_height, status
+                        public_key, timestamp, block_height, status,
+                        tx_type, to_address, data, gas_limit, gas_price, nonce
                         FROM transactions WHERE block_height = :h"""),
                 {'h': height}
             )
@@ -703,10 +705,17 @@ class DatabaseManager:
                     public_key=tx_row[5] or '',
                     timestamp=float(tx_row[6] or 0),
                     block_height=tx_row[7],
-                    status=tx_row[8] or 'confirmed'
+                    status=tx_row[8] or 'confirmed',
+                    tx_type=tx_row[9] or 'transfer',
+                    to_address=tx_row[10],
+                    data=tx_row[11],
+                    gas_limit=tx_row[12] or 0,
+                    gas_price=Decimal(str(tx_row[13] or 0)),
+                    nonce=tx_row[14] or 0,
                 ))
             # Column order: height(0), prev_hash(1), difficulty(2),
-            #               proof_json(3), created_at(4), block_hash(5)
+            #               proof_json(3), created_at(4), block_hash(5),
+            #               state_root(6), receipts_root(7), thought_proof(8)
             return Block(
                 height=result[0],
                 prev_hash=result[1],
@@ -714,7 +723,10 @@ class DatabaseManager:
                 proof_data=json.loads(result[3]) if isinstance(result[3], str) else (result[3] or {}),
                 timestamp=float(result[4] or 0),
                 transactions=transactions,
-                block_hash=result[5]
+                block_hash=result[5],
+                state_root=result[6] or '',
+                receipts_root=result[7] or '',
+                thought_proof=json.loads(result[8]) if isinstance(result[8], str) else result[8],
             )
     def store_block(self, block: Block):
         """Store block and update UTXOs atomically"""

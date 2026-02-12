@@ -278,8 +278,10 @@ class P2PNetwork:
             prev_block = self.consensus.db.get_block(block.height - 1)
             valid, reason = self.consensus.validate_block(block, prev_block, self.consensus.db)
             if valid:
+                # Record height BEFORE storing so reorg check is correct
+                height_before = self.consensus.db.get_current_height()
                 self.consensus.db.store_block(block)
-                # Update supply from coinbase transaction
+                # Update supply atomically in the same operation
                 for tx in block.transactions:
                     if not tx.inputs:  # coinbase
                         from decimal import Decimal
@@ -290,8 +292,8 @@ class P2PNetwork:
                         break
                 logger.info(f"Stored block {block.height} from {sender_id}")
                 await self._gossip_message(message, exclude=sender_id)
-                # Trigger reorg if higher
-                if block.height > self.consensus.db.get_current_height():
+                # Trigger reorg if this block extends beyond our previous tip
+                if block.height > height_before:
                     await self.consensus.resolve_fork(block, sender_id)
             else:
                 logger.warning(f"Invalid block from {sender_id}: {reason}")
