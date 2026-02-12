@@ -587,6 +587,112 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return aether_engine.reasoning.get_stats()
 
     # ========================================================================
+    # SUSY SOLUTION DATABASE (Scientific Research API)
+    # ========================================================================
+
+    @app.get("/susy-database")
+    async def susy_database(
+        min_height: Optional[int] = None,
+        max_height: Optional[int] = None,
+        max_energy: Optional[float] = None,
+        limit: int = 50,
+    ):
+        """Query the public Hamiltonian solution database.
+
+        Every mined block contributes a solved SUSY Hamiltonian to this
+        public scientific database.
+        """
+        from sqlalchemy import text as sa_text
+        conditions = []
+        params: dict = {"limit": min(limit, 500)}
+        if min_height is not None:
+            conditions.append("block_height >= :min_h")
+            params["min_h"] = min_height
+        if max_height is not None:
+            conditions.append("block_height <= :max_h")
+            params["max_h"] = max_height
+        if max_energy is not None:
+            conditions.append("energy <= :max_e")
+            params["max_e"] = max_energy
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        query = f"""
+            SELECT id, hamiltonian, params, energy, miner_address, block_height
+            FROM solved_hamiltonians
+            {where}
+            ORDER BY block_height DESC
+            LIMIT :limit
+        """
+        with db_manager.get_session() as session:
+            rows = session.execute(sa_text(query), params).fetchall()
+            solutions = []
+            for r in rows:
+                solutions.append({
+                    "id": r[0],
+                    "hamiltonian": r[1],
+                    "params": r[2],
+                    "energy": r[3],
+                    "miner_address": r[4],
+                    "block_height": r[5],
+                })
+        return {
+            "solutions": solutions,
+            "count": len(solutions),
+            "description": "Solved SUSY Hamiltonians from Proof-of-SUSY-Alignment mining",
+        }
+
+    # ========================================================================
+    # UTXO STATS ENDPOINT
+    # ========================================================================
+
+    @app.get("/utxo/stats")
+    async def utxo_stats():
+        """Get UTXO set statistics."""
+        stats = db_manager.get_utxo_stats()
+        commitment = db_manager.compute_utxo_commitment()
+        return {**stats, "utxo_commitment": commitment}
+
+    # ========================================================================
+    # WEBSOCKET — Real-time block & Phi updates
+    # ========================================================================
+
+    from fastapi import WebSocket, WebSocketDisconnect
+
+    _ws_clients: list = []
+
+    @app.websocket("/ws")
+    async def websocket_endpoint(websocket: WebSocket):
+        """WebSocket for real-time chain events (blocks, txs, Phi updates)."""
+        await websocket.accept()
+        _ws_clients.append(websocket)
+        try:
+            while True:
+                # Keep-alive: clients can send pings, we just read and discard
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            if websocket in _ws_clients:
+                _ws_clients.remove(websocket)
+
+    async def broadcast_ws(event_type: str, data: dict) -> None:
+        """Broadcast an event to all connected WebSocket clients."""
+        import json as _json
+        message = _json.dumps({"type": event_type, "data": data})
+        disconnected = []
+        for ws in _ws_clients:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                disconnected.append(ws)
+        for ws in disconnected:
+            if ws in _ws_clients:
+                _ws_clients.remove(ws)
+
+    # Attach broadcast helper to the app so node.py can call it
+    app.broadcast_ws = broadcast_ws  # type: ignore[attr-defined]
+
+    # ========================================================================
     # METRICS ENDPOINT
     # ========================================================================
 
@@ -598,6 +704,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             media_type=CONTENT_TYPE_LATEST
         )
 
-    logger.info("RPC endpoints configured (v2.0 with P2P + QVM + Aether)")
+    logger.info("RPC endpoints configured (v2.0 with P2P + QVM + Aether + WebSocket)")
 
     return app
