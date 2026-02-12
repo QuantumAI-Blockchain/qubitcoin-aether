@@ -158,15 +158,21 @@
 
 > The face of the project. Must be world-class.
 
-### 4.1 Project Setup
-- [ ] Initialize Next.js 14 project with TypeScript
-- [ ] Configure TailwindCSS + Framer Motion
+### 4.1 Project Setup (React + Next.js 15 → Vercel)
+- [ ] Initialize Next.js 15 project with React 19 + TypeScript 5 (pnpm)
+- [ ] Configure TailwindCSS 4 + Framer Motion
 - [ ] Set up "Quantum Error" design system (colors, typography, components)
-- [ ] Font loading (Space Grotesk, Inter, JetBrains Mono)
+- [ ] Font loading (Space Grotesk, Inter, JetBrains Mono via next/font)
 - [ ] Set up Zustand stores for state management
+- [ ] Set up TanStack Query for server state / API caching
 - [ ] Set up API client library (REST + JSON-RPC + WebSocket)
-- [ ] MetaMask/ethers.js wallet integration library
+- [ ] MetaMask/ethers.js v6 wallet integration library
+- [ ] Three.js + React Three Fiber setup (particle effects, 3D viz)
+- [ ] ESLint 9 flat config + Prettier + TypeScript strict (no `any`)
+- [ ] Vitest + Playwright test setup
 - [ ] Environment configuration (NEXT_PUBLIC_* vars)
+- [ ] Vercel deployment config (vercel.json, custom domain qbc.network)
+- [ ] Path aliases (`@/` → `src/`)
 
 ### 4.2 Landing Page (`/`)
 - [ ] Hero section with quantum particle field animation (Three.js/Canvas)
@@ -295,7 +301,7 @@
 - [ ] L3 unit tests (knowledge graph, reasoning, Phi, Proof-of-Thought)
 - [ ] Integration tests (full block lifecycle, tx lifecycle)
 - [ ] API tests (REST endpoints, JSON-RPC, WebSocket)
-- [ ] Frontend tests (component tests, E2E with Cypress/Playwright)
+- [ ] Frontend tests (Vitest unit + Playwright E2E)
 - [ ] Load tests (concurrent mining, high tx volume)
 - [ ] Fuzz testing (random bytecode to QVM)
 
@@ -313,11 +319,14 @@
 
 ## PHASE 8: DEVOPS & DEPLOYMENT (Priority: MEDIUM)
 
-- [ ] Docker multi-stage build (Python + Rust + Frontend)
-- [ ] Docker Compose: Full stack (CockroachDB + IPFS + Node + Frontend)
-- [ ] Kubernetes manifests for production
-- [ ] CI/CD pipeline (GitHub Actions)
-- [ ] Automated testing in CI
+- [ ] Vercel project setup for frontend (qbc.network domain)
+- [ ] Vercel environment variables (NEXT_PUBLIC_RPC_URL, etc.)
+- [ ] Vercel preview deployments (PR-based previews)
+- [ ] Docker multi-stage build for backend (Python + Rust)
+- [ ] Docker Compose: Backend stack (CockroachDB + IPFS + Node)
+- [ ] Kubernetes manifests for production backend
+- [ ] CI/CD pipeline (GitHub Actions — lint, test, build)
+- [ ] Automated testing in CI (pytest + vitest + playwright)
 - [ ] Monitoring stack (Prometheus + Grafana dashboards)
 - [ ] Log aggregation (ELK or Loki)
 - [ ] SSL/TLS certificates for qbc.network
