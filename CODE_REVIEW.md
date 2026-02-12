@@ -8,7 +8,7 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 
 ## Executive Summary
 
-**12 bugs fixed** across 8 files in 2 review passes, categorized as **6 CRITICAL**, **4 HIGH**, and **2 MEDIUM**. All fixes are minimal, targeted changes that preserve existing architecture and behavior.
+**15 bugs fixed** across 10 files in 3 review passes, categorized as **7 CRITICAL**, **5 HIGH**, and **3 MEDIUM**. All fixes are minimal, targeted changes that preserve existing architecture and behavior.
 
 ---
 
@@ -148,6 +148,41 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 
 ---
 
+### Round 3 (Third Review — Post-Merge)
+
+#### CRITICAL-7: `store_block()` Breaks Atomicity with Supply Update
+
+**File:** `src/qubitcoin/database/manager.py:731`, `src/qubitcoin/mining/engine.py:191`, `src/qubitcoin/network/p2p_network.py:283`
+**Impact:** Block storage, supply update, and hamiltonian persistence execute in separate database transactions. If the supply/hamiltonian commit fails after the block is stored, the supply counter diverges permanently — `calculate_reward()` uses stale supply, potentially allowing over-minting past MAX_SUPPLY.
+
+**Root Cause:** `store_block()` opens its own internal session and commits independently (line 800). In the mining engine (lines 178-201), the outer session handles `update_supply()` and `store_hamiltonian()` while `store_block()` has already committed in a different transaction. Same issue in `p2p_network.py` where `store_block()` and `update_supply()` are in entirely separate sessions.
+
+**Fix:** Added optional `session` parameter to `store_block()`. When provided, uses the caller's session without committing (caller commits all operations atomically). When `None` (backward compatible), creates its own session as before. Updated both `mining/engine.py` and `p2p_network.py` to pass the outer session through.
+
+---
+
+#### HIGH-5: All Prometheus Metrics Queries Reference Non-Existent Tables
+
+**File:** `src/qubitcoin/node.py:305-458`
+**Impact:** Every periodic metrics update silently fails. The Prometheus dashboard is dead — all gauges show 0 or stale values. Only counters directly incremented in code (`blocks_mined`, `mining_attempts`) work.
+
+**Root Cause:** `_update_all_metrics()` queries 10+ tables that don't exist in the database schema: `chain_state`, `mempool`, `hamiltonians` (actual: `solved_hamiltonians`), `vqe_circuits`, `smart_contracts` (actual: `contracts`), `causal_chains`, `training_datasets`, `model_registry`, `ipfs_pins` (actual: `ipfs_snapshots`), `blockchain_snapshots`. These queries silently fail inside `query_one()` which catches all exceptions.
+
+**Fix:** Rewrote all queries to use actual table names: `blocks`, `supply`, `transactions WHERE status = 'pending'`, `solved_hamiltonians`, `contracts`, `phi_measurements`, `knowledge_nodes`, `knowledge_edges`, `consciousness_events`, `ipfs_snapshots`. Removed queries for tables that genuinely don't exist (training_datasets, model_registry, vqe_circuits, causal_chains).
+
+---
+
+#### MEDIUM-3: `UTXO.from_dict()` Missing Field Filtering
+
+**File:** `src/qubitcoin/database/models.py:29-32`
+**Impact:** `UTXO.from_dict()` crashes with `TypeError: unexpected keyword argument` when receiving extra fields (same bug class as MEDIUM-1 which was fixed for Transaction and Block in Round 1, but UTXO was missed).
+
+**Root Cause:** `UTXO.from_dict()` passes the entire dict directly to `cls(**data)` without filtering to known dataclass fields.
+
+**Fix:** Added field filtering using `cls.__dataclass_fields__`, consistent with Transaction and Block `from_dict()` fixes from Round 1.
+
+---
+
 ## Architecture Assessment
 
 ### Strengths
@@ -165,11 +200,10 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 
 ### Areas for Future Improvement (Not Bugs)
 
-1. **`store_block` atomicity** — Supply update in P2P handler should be inside the same DB transaction as block storage
-2. **FastAPI lifecycle** — `app.on_event("startup"/"shutdown")` is deprecated in favor of `lifespan` context manager
-3. **Config mutable defaults** — `SUPPORTED_CONTRACT_TYPES: list = [...]` and `PEER_SEEDS: list = [...]` share a single list object across all instances
-4. **JSON-RPC `eth_sendRawTransaction`** — Stores raw hex without RLP decoding; needs proper transaction deserialization for MetaMask/Web3 compatibility
-5. **Bridge `asyncio.gather`** — `start_withdrawal_listeners` should use `return_exceptions=True` to prevent one listener failure from stopping all listeners
+1. **FastAPI lifecycle** — `app.on_event("startup"/"shutdown")` is deprecated in favor of `lifespan` context manager
+2. **Config mutable defaults** — `SUPPORTED_CONTRACT_TYPES: list = [...]` and `PEER_SEEDS: list = [...]` share a single list object across all instances
+3. **JSON-RPC `eth_sendRawTransaction`** — Stores raw hex without RLP decoding; needs proper transaction deserialization for MetaMask/Web3 compatibility
+4. **Bridge `asyncio.gather`** — `start_withdrawal_listeners` should use `return_exceptions=True` to prevent one listener failure from stopping all listeners
 
 ---
 
@@ -178,23 +212,25 @@ Full review of the Qubitcoin L1 blockchain codebase (~11,220 lines Python, 2 Rus
 | File | Round | Changes |
 |------|-------|---------|
 | `src/qubitcoin/qvm/vm.py` | 1 | Clear `_storage_cache` at top-level `execute()` |
-| `src/qubitcoin/node.py` | 1 | Remove `.labels().inc(0)` on unlabeled counters |
-| `src/qubitcoin/database/manager.py` | 1+2 | Add missing columns to `get_block()`, `get_pending_transactions()`; UPSERT in `store_block()` |
-| `src/qubitcoin/database/models.py` | 1 | Filter unknown fields in `from_dict()` methods |
+| `src/qubitcoin/node.py` | 1+3 | Remove `.labels().inc(0)` on unlabeled counters; Rewrite metrics queries to use actual table names |
+| `src/qubitcoin/database/manager.py` | 1+2+3 | Add missing columns to `get_block()`, `get_pending_transactions()`; UPSERT in `store_block()`; Add `session` param to `store_block()` for atomicity |
+| `src/qubitcoin/database/models.py` | 1+3 | Filter unknown fields in `Transaction`/`Block`/`UTXO` `from_dict()` methods |
 | `src/qubitcoin/qvm/state.py` | 1 | Use full public key for address derivation |
-| `src/qubitcoin/network/p2p_network.py` | 1 | Fix reorg height comparison and record pre-store height |
+| `src/qubitcoin/network/p2p_network.py` | 1+3 | Fix reorg height comparison; Wrap `store_block` + `update_supply` in single session |
 | `src/qubitcoin/network/jsonrpc.py` | 2 | Use full public key for address derivation |
 | `src/qubitcoin/contracts/engine.py` | 2 | Pass `prev_hash` and `height` to quantum gate `validate_proof()` |
+| `src/qubitcoin/mining/engine.py` | 3 | Pass outer session to `store_block()` for atomic commit |
 
 ---
 
 ## Methodology
 
-1. Read all 45 Python source files across 12 subsystems (11,220 lines)
+1. Read all 45 Python source files across 12 subsystems (11,220 lines) — repeated in each round post-merge
 2. Traced execution flows: block mining, block propagation, transaction routing (UTXO vs QVM), contract deployment, contract calls, P2P sync, fork resolution
-3. Verified data model consistency: Block/Transaction dataclass fields vs DB schema vs SQL queries across ALL query methods (get_block, get_pending_transactions, store_block)
+3. Verified data model consistency: Block/Transaction/UTXO dataclass fields vs DB schema vs SQL queries across ALL query methods (get_block, get_pending_transactions, store_block)
 4. Verified crypto consistency: address derivation paths across ALL modules (state.py, jsonrpc.py, crypto.py)
-5. Verified metrics: label arity matches between definition and usage
+5. Verified metrics: label arity matches between definition and usage; query targets match actual schema tables
 6. Verified QVM: opcode semantics, gas accounting, storage isolation, call depth limits
 7. Verified contract engine: quantum gate proof validation chain binding
 8. Cross-checked bridge, stablecoin, and IPFS modules for SQL and type safety
+9. Verified transaction atomicity: store_block, update_supply, and store_hamiltonian must commit in the same DB session (mining and P2P paths)
