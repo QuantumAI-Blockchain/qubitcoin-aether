@@ -10,8 +10,9 @@ def test_hamiltonian_generation():
     hamiltonian = qe.generate_hamiltonian(num_qubits=4)
     
     assert len(hamiltonian) == 5  # num_qubits + 1
-    assert all(isinstance(coeff, float) for coeff, _ in hamiltonian)
-    assert all(len(pauli) == 4 for _, pauli in hamiltonian)
+    # Hamiltonian returns List[(pauli_string, coefficient)]
+    assert all(isinstance(coeff, float) for _, coeff in hamiltonian)
+    assert all(len(pauli) == 4 for pauli, _ in hamiltonian)
 
 
 def test_vqe_optimization():

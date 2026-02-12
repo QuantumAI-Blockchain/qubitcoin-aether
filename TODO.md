@@ -439,81 +439,65 @@
 > The face of the project. Must be world-class.
 
 ### 4.1 Project Setup (React + Next.js 15 → Vercel)
-- [ ] Initialize Next.js 15 project with React 19 + TypeScript 5 (pnpm)
-- [ ] Configure TailwindCSS 4 + Framer Motion
-- [ ] Set up "Quantum Error" design system (colors, typography, components)
-- [ ] Font loading (Space Grotesk, Inter, JetBrains Mono via next/font)
-- [ ] Set up Zustand stores for state management
-- [ ] Set up TanStack Query for server state / API caching
-- [ ] Set up API client library (REST + JSON-RPC + WebSocket)
-- [ ] MetaMask/ethers.js v6 wallet integration library
-- [ ] Three.js + React Three Fiber setup (particle effects, 3D viz)
-- [ ] ESLint 9 flat config + Prettier + TypeScript strict (no `any`)
+- [x] Initialize Next.js 16 project with React 19 + TypeScript 5.9 (pnpm)
+- [x] Configure TailwindCSS 4 + Framer Motion
+- [x] Set up "Quantum Error" design system (colors, typography, components)
+- [x] Font loading (Space Grotesk, Inter, JetBrains Mono via Google Fonts CDN)
+- [x] Set up Zustand stores for state management (`stores/chain-store.ts`, `wallet-store.ts`)
+- [x] Set up TanStack Query for server state / API caching (`app/providers.tsx`)
+- [x] Set up API client library (REST + WebSocket) (`lib/api.ts`, `lib/websocket.ts`)
+- [x] MetaMask/ethers.js v6 wallet integration library (`lib/wallet.ts`)
+- [x] Three.js + React Three Fiber setup (particle effects) (`components/visualizations/`)
+- [x] ESLint + Prettier + TypeScript strict
 - [ ] Vitest + Playwright test setup
-- [ ] Environment configuration (NEXT_PUBLIC_* vars)
+- [x] Environment configuration (NEXT_PUBLIC_* vars) (`.env.local`)
 - [ ] Vercel deployment config (vercel.json, custom domain qbc.network)
-- [ ] Path aliases (`@/` → `src/`)
+- [x] Path aliases (`@/` → `src/`) (`tsconfig.json`)
 
 ### 4.2 Landing Page (`/`)
-- [ ] Hero section with quantum particle field animation (Three.js/Canvas)
-- [ ] Phi-spiral animation element
-- [ ] Embedded Aether Chat widget (mini chatbot in hero)
-- [ ] Live chain stats bar (block height, Phi, knowledge nodes, miners)
-- [ ] "QBC" feature section (blockchain overview, security, quantum mining)
-- [ ] "QVM" feature section (smart contracts, deploy, quantum opcodes)
-- [ ] "Aether Tree" feature section (AGI, consciousness tracking, chat)
-- [ ] Call-to-action buttons (Connect Wallet, Start Mining, Talk to Aether)
+- [x] Hero section with quantum particle field animation (Three.js/R3F)
+- [x] Phi-spiral particle distribution
+- [x] Embedded Aether Chat widget (floating chatbot)
+- [x] Live chain stats bar (block height, Phi, knowledge nodes, difficulty, peers)
+- [x] "Quantum Blockchain" feature section
+- [x] "Quantum Virtual Machine" feature section
+- [x] "Aether Tree AGI" feature section
+- [x] Call-to-action buttons (Talk to Aether, Open Dashboard, Connect Wallet)
 - [ ] Footer with links, social, legal
-- [ ] Mobile responsive design
+- [x] Mobile responsive design
 - [ ] Performance optimization (lazy loading, image optimization)
 
 ### 4.3 Aether Chat Page (`/aether`)
-- [ ] Full-page chat interface (ChatGPT/Grok-like layout)
-- [ ] Message input with quantum-themed styling
+- [x] Full-page chat interface (ChatGPT/Grok-like layout)
+- [x] Message input with quantum-themed styling
 - [ ] Streaming response display (typewriter effect)
 - [ ] Conversation sidebar (session list, new chat)
 - [ ] Knowledge graph 3D visualization panel (Three.js force-directed)
-- [ ] Phi consciousness meter (animated gauge)
-- [ ] Reasoning trace accordion (expandable per response)
-- [ ] Proof-of-Thought link per response (on-chain verification)
+- [x] Phi consciousness meter (animated gauge) — sidebar panel
+- [x] Reasoning trace accordion (expandable per response)
+- [x] Proof-of-Thought hash per response
 - [ ] Local storage for conversation history
-- [ ] Keyboard shortcuts (Enter to send, Shift+Enter for newline)
+- [x] Keyboard shortcuts (Enter to send)
 
 ### 4.4 Dashboard (`/dashboard`)
-- [ ] Overview panel (QBC balance, mining stats, contract count)
-- [ ] Mining dashboard tab
-  - [ ] VQE statistics (energy, params, success rate)
-  - [ ] Blocks mined history
-  - [ ] Rewards earned chart
-  - [ ] Start/stop mining controls
-- [ ] Contract operator tab
-  - [ ] Deploy new contract (template selection + custom bytecode)
-  - [ ] View deployed contracts
-  - [ ] Interact with contract functions (read/write)
-  - [ ] Contract events log
-- [ ] Wallet tab
-  - [ ] QBC balance + UTXO breakdown
-  - [ ] Send QBC (UTXO selection, fee estimation)
-  - [ ] Transaction history
-  - [ ] QBC-20 token list
-- [ ] Network tab
-  - [ ] Peer count and peer list
-  - [ ] Block propagation stats
-  - [ ] Mempool viewer
-- [ ] Aether admin tab
-  - [ ] Knowledge graph stats (nodes, edges, Merkle root)
-  - [ ] Phi history chart
-  - [ ] Recent reasoning operations
-  - [ ] Consciousness events log
+- [x] Overview tab (QBC balance, block height, supply, difficulty, Phi, knowledge)
+- [x] Mining tab (status, blocks mined, VQE energy, alignment score)
+- [x] Aether tab (consciousness gauge, knowledge nodes/edges, integration, differentiation)
+- [x] Network tab (peers, mempool, chain ID, block height)
+- [ ] Contract operator tab (deploy, view, interact)
+- [ ] Wallet tab with UTXO breakdown
+- [ ] Start/stop mining controls
+- [ ] Phi history chart (time series visualization)
 
 ### 4.5 Wallet Page (`/wallet`)
-- [ ] MetaMask connect button (ethers.js)
-- [ ] QBC chain auto-add to MetaMask (chainId 3301)
-- [ ] Balance display (QBC + tokens)
-- [ ] Send transaction form
-- [ ] Receive (show address + QR code)
+- [x] MetaMask connect button (ethers.js v6)
+- [x] QBC chain auto-add to MetaMask (chainId 3301)
+- [x] Balance display (QBC)
+- [x] Send transaction form (UI)
+- [x] Receive (show address)
+- [ ] QR code for receiving
 - [ ] Transaction history with status
-- [ ] QBC-20 token management (add, send, receive)
+- [ ] QBC-20 token management
 - [ ] QBC-721 NFT gallery
 
 ### 4.6 QVM Explorer (`/qvm`)
@@ -522,18 +506,20 @@
 - [ ] Bytecode disassembler view
 - [ ] Storage slot inspector
 - [ ] Event log with filters
-- [ ] Deploy contract interface
+- [x] Deploy contract interface (template selection + bytecode input)
 - [ ] Contract interaction interface (ABI-based)
+- [x] Quantum opcodes reference table (all 10 opcodes with gas costs)
 
 ### 4.7 Shared Components
-- [ ] Navbar (responsive, wallet connect button, Phi indicator)
+- [x] Navbar (responsive, wallet connect button, Phi indicator)
 - [ ] Footer (links, quantum animation)
-- [ ] Wallet connect modal
+- [x] Wallet connect/disconnect button
 - [ ] Transaction confirmation modal
 - [ ] Toast notification system
-- [ ] Loading states (phi-spiral spinner)
+- [x] Loading states (phi-spiral spinner, skeleton)
+- [x] Card component with quantum glow variants
 - [ ] Error boundaries
-- [ ] SEO meta tags + OpenGraph
+- [x] SEO meta tags
 - [ ] Dark/light mode (default: dark quantum theme)
 
 ---
@@ -649,12 +635,12 @@
 - [ ] Real-time backing ratio on frontend dashboard
 
 ### 6.5 QUSD Oracle Integration Module (Python)
-- [ ] `utils/qusd_oracle.py` — Read QBC/USD price from QUSDOracle.sol
-- [ ] Price cache with configurable TTL
-- [ ] Staleness detection + automatic fallback to fixed_qbc mode
-- [ ] QUSD price endpoint: `GET /qusd/price`
-- [ ] Reserve status endpoint: `GET /qusd/reserves`
-- [ ] Debt status endpoint: `GET /qusd/debt`
+- [x] `utils/qusd_oracle.py` — Read QBC/USD price from QUSDOracle.sol
+- [x] Price cache with configurable TTL
+- [x] Staleness detection + automatic fallback to fixed_qbc mode
+- [x] QUSD price endpoint: `GET /qusd/price`
+- [x] Reserve status endpoint: `GET /qusd/reserves`
+- [x] Debt status endpoint: `GET /qusd/debt`
 
 ## PHASE 6.5: EDITABLE ECONOMIC CONFIGURATION (Priority: HIGH)
 
@@ -664,25 +650,26 @@
 - [x] Add all Aether fee params to `config.py` (loaded from `.env`)
 - [x] Add all contract fee params to `config.py` (loaded from `.env`)
 - [x] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
-- [ ] Config validation for fee parameters (min < max, positive values)
-- [ ] Config hot-reload mechanism (change params without full restart)
+- [x] Config validation for fee parameters (min < max in validate())
+- [x] Config hot-reload mechanism (Admin API mutates Config class attrs at runtime)
 
 ### 6.5.2 Admin API
-- [ ] Auth middleware for admin endpoints (API key or Dilithium signature)
-- [ ] `GET /admin/economics` — current economic config
-- [ ] `PUT /admin/aether/fees` — update Aether fee params (hot reload)
-- [ ] `PUT /admin/contract/fees` — update contract deploy fees (hot reload)
-- [ ] `PUT /admin/treasury` — update treasury addresses
-- [ ] `GET /admin/economics/history` — audit log of parameter changes
+- [x] Auth middleware for admin endpoints (API key via `ADMIN_API_KEY` env)
+- [x] `GET /admin/economics` — current economic config
+- [x] `PUT /admin/aether/fees` — update Aether fee params (hot reload)
+- [x] `PUT /admin/contract/fees` — update contract deploy fees (hot reload)
+- [x] `PUT /admin/treasury` — update treasury addresses
+- [x] `GET /admin/economics/history` — audit log of parameter changes
 - [ ] Rate limiting on admin endpoints
 
 ### 6.5.3 QUSD Fee Oracle Integration
-- [ ] Oracle client module (`utils/qusd_oracle.py`)
-- [ ] Read QBC/USD price from QUSD L2 contract
-- [ ] Cache price with configurable TTL
-- [ ] Staleness detection (alert if price hasn't updated)
-- [ ] Automatic fallback to `fixed_qbc` mode on oracle failure
-- [ ] Manual override via Admin API
+- [x] Oracle client module (`utils/qusd_oracle.py`)
+- [x] Read QBC/USD price from QUSD L2 contract (via QVM state call)
+- [x] Cache price with configurable TTL (30s default)
+- [x] Staleness detection (10-min threshold, warning on stale)
+- [x] Automatic fallback to cached/external price on oracle failure
+- [x] Manual override via `set_external_price()` method
+- [x] QUSD API endpoints: `GET /qusd/price`, `GET /qusd/reserves`, `GET /qusd/debt`
 
 ---
 
