@@ -113,6 +113,12 @@ class ConsensusEngine:
             if block.prev_hash != expected_prev_hash:
                 return False, "Invalid prev_hash"
 
+            # Verify block hash matches contents
+            if block.block_hash:
+                computed_hash = block.calculate_hash()
+                if block.block_hash != computed_hash:
+                    return False, f"Block hash mismatch: {block.block_hash[:16]} != {computed_hash[:16]}"
+
             expected_difficulty = self.calculate_difficulty(block.height, db_manager)
             if abs(block.difficulty - expected_difficulty) > 0.001:
                 return False, f"Invalid difficulty: {block.difficulty} != {expected_difficulty}"
@@ -298,6 +304,19 @@ class ConsensusEngine:
                         WHERE spent_by IN (
                             SELECT txid FROM transactions WHERE block_height > :fork
                         )"""),
+                {'fork': fork_height}
+            )
+            # Delete QVM state created after fork point
+            session.execute(
+                text("DELETE FROM transaction_receipts WHERE block_height > :fork"),
+                {'fork': fork_height}
+            )
+            session.execute(
+                text("DELETE FROM event_logs WHERE block_height > :fork"),
+                {'fork': fork_height}
+            )
+            session.execute(
+                text("DELETE FROM contract_storage WHERE block_height > :fork"),
                 {'fork': fork_height}
             )
             # Delete transactions and blocks after fork

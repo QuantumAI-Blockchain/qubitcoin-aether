@@ -312,13 +312,14 @@ class P2PNetwork:
             block = self.consensus.db.get_block(height)
             if block:
                 await self.send_message(sender_id, 'block', block.to_dict())  # Assume added Block.to_dict
-        # Call registered handler
+        # Call registered handler (skip warning for built-in types handled above)
+        builtin_types = {'block', 'transaction', 'get_height', 'height', 'get_block', 'ping', 'pong', 'get_peers'}
         if message.type in self.handlers:
             try:
                 await self.handlers[message.type](message, sender_id)
             except Exception as e:
                 logger.error(f"Error in handler for {message.type}: {e}")
-        else:
+        elif message.type not in builtin_types:
             logger.warning(f"No handler for message type: {message.type}")
         # Gossip transactions (blocks already gossiped above on validation)
         if message.type == 'transaction':
@@ -375,14 +376,30 @@ class P2PNetwork:
             logger.info(f"📡 Broadcasted {msg_type} to {len(tasks)} peers")
     async def _gossip_message(self, message: Message, exclude: str):
         """
-        Gossip message to other peers (except sender)
-        Args:
-            message: Message to gossip
-            exclude: Peer to exclude (original sender)
+        Gossip message to other peers (except sender), preserving original msg_id
+        for deduplication across relay hops.
         """
         for peer_id in list(self.connections.keys()):
             if peer_id != exclude:
-                await self.send_message(peer_id, message.type, message.data)
+                await self._forward_message(peer_id, message)
+
+    async def _forward_message(self, peer_id: str, message: Message):
+        """Forward an existing message preserving its msg_id for deduplication"""
+        if peer_id not in self.writers:
+            return
+        try:
+            message_str = message.to_json()
+            message_bytes = message_str.encode('utf-8')
+            length_bytes = len(message_bytes).to_bytes(4, 'big')
+            writer = self.writers[peer_id]
+            writer.write(length_bytes + message_bytes)
+            await writer.drain()
+            if peer_id in self.connections:
+                self.connections[peer_id].messages_sent += 1
+            self.stats['messages_sent'] += 1
+        except Exception as e:
+            logger.error(f"Failed to forward message to {peer_id}: {e}")
+            await self._disconnect_peer(peer_id)
     async def _disconnect_peer(self, peer_id: str):
         """Disconnect from peer"""
         if peer_id in self.writers:

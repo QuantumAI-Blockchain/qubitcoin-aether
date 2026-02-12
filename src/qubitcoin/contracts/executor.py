@@ -49,8 +49,8 @@ class ContractExecutor:
         """
         try:
             # Validate contract type
-            valid_types = ['stablecoin', 'token', 'vault', 'oracle', 'governance']
-            if contract_type not in valid_types:
+            from ..config import Config
+            if contract_type not in Config.SUPPORTED_CONTRACT_TYPES:
                 return False, f"Invalid contract type: {contract_type}", None
             
             # Generate contract ID

@@ -68,6 +68,7 @@ class ReasoningEngine:
         self.db = db_manager
         self.kg = knowledge_graph
         self._operations: List[ReasoningResult] = []
+        self._max_operations = 10000  # Bound in-memory history to prevent unbounded growth
 
     def deduce(self, premise_ids: List[int], rule_content: dict = None) -> ReasoningResult:
         """
@@ -189,6 +190,8 @@ class ReasoningEngine:
 
         self._store_operation(result)
         self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
         return result
 
     def induce(self, observation_ids: List[int]) -> ReasoningResult:
@@ -273,6 +276,8 @@ class ReasoningEngine:
 
         self._store_operation(result)
         self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
         return result
 
     def abduce(self, observation_id: int, rule_node_ids: List[int] = None) -> ReasoningResult:
@@ -354,6 +359,8 @@ class ReasoningEngine:
 
         self._store_operation(result)
         self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
         return result
 
     def _store_operation(self, result: ReasoningResult):

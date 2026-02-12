@@ -451,11 +451,15 @@ class StablecoinEngine:
                     {'amt': str(amount), 'tid': token_id}
                 )
                 
-                # Update vault
+                # Update vault and return proportional collateral
                 new_debt = debt_amt - amount
-                
+                coll_amt = Decimal(coll_amt)
+                repay_ratio = amount / debt_amt
+                collateral_returned = coll_amt * repay_ratio
+
                 if new_debt == 0:
-                    # Fully repaid - close vault (NOT liquidated)
+                    # Fully repaid - close vault, return ALL collateral
+                    collateral_returned = coll_amt
                     session.execute(
                         text("""
                             UPDATE collateral_vaults
@@ -464,16 +468,26 @@ class StablecoinEngine:
                         """),
                         {'vid': vault_id}
                     )
-                    logger.info(f"✅ Vault {vault_id} fully repaid and closed")
+                    logger.info(f"Vault {vault_id} fully repaid and closed")
                 else:
+                    remaining_collateral = coll_amt - collateral_returned
                     session.execute(
                         text("""
                             UPDATE collateral_vaults
-                            SET debt_amount = :debt, last_updated = CURRENT_TIMESTAMP
+                            SET debt_amount = :debt, collateral_amount = :coll, last_updated = CURRENT_TIMESTAMP
                             WHERE vault_id = :vid
                         """),
-                        {'debt': str(new_debt), 'vid': vault_id}
+                        {'debt': str(new_debt), 'coll': str(remaining_collateral), 'vid': vault_id}
                     )
+
+                # Credit returned collateral back to owner's account balance
+                session.execute(
+                    text("""
+                        UPDATE accounts SET balance = balance + :amt
+                        WHERE address = :addr
+                    """),
+                    {'amt': str(collateral_returned), 'addr': user_address}
+                )
                 
                 # Record operation
                 txid = self._create_txid('burn', user_address, amount)
