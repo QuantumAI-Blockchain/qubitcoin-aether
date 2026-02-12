@@ -239,6 +239,49 @@ Qubitcoin/
 │   │   │   ├── engine.py        # QUSD fractional reserve engine
 │   │   │   └── __init__.py
 │   │   │
+│   │   ├── contracts/solidity/  # ALL Solidity smart contracts (.sol)
+│   │   │   ├── qusd/            # QUSD stablecoin contracts
+│   │   │   │   ├── QUSD.sol              # QBC-20 token (3.3B mint)
+│   │   │   │   ├── QUSDReserve.sol       # Multi-asset reserve pool
+│   │   │   │   ├── QUSDDebtLedger.sol    # Fractional payback tracking
+│   │   │   │   ├── QUSDOracle.sol        # Price feed oracle
+│   │   │   │   ├── QUSDStabilizer.sol    # Peg maintenance
+│   │   │   │   ├── QUSDAllocation.sol    # Vesting + distribution
+│   │   │   │   ├── QUSDGovernance.sol    # Reserve governance
+│   │   │   │   └── wQUSD.sol             # Wrapped QUSD (cross-chain)
+│   │   │   ├── aether/          # Aether Tree AGI contracts
+│   │   │   │   ├── AetherKernel.sol      # Main AGI orchestration
+│   │   │   │   ├── NodeRegistry.sol      # 10 Sephirot registry
+│   │   │   │   ├── MessageBus.sol        # Inter-node messaging
+│   │   │   │   ├── SUSYEngine.sol        # SUSY balance enforcement
+│   │   │   │   ├── RewardDistributor.sol # PoT reward distribution
+│   │   │   │   ├── ProofOfThought.sol    # PoT validation
+│   │   │   │   ├── TaskMarket.sol        # Reasoning task marketplace
+│   │   │   │   ├── ValidatorRegistry.sol # Validator staking
+│   │   │   │   ├── ConsciousnessDashboard.sol # On-chain Phi tracking
+│   │   │   │   ├── PhaseSync.sol         # Phase synchronization
+│   │   │   │   ├── GlobalWorkspace.sol   # Broadcasting mechanism
+│   │   │   │   ├── SynapticStaking.sol   # Neural connection staking
+│   │   │   │   ├── GasOracle.sol         # Dynamic gas pricing
+│   │   │   │   ├── TreasuryDAO.sol       # Community governance
+│   │   │   │   ├── ConstitutionalAI.sol  # Value enforcement
+│   │   │   │   ├── EmergencyShutdown.sol # Kill switch
+│   │   │   │   ├── UpgradeGovernor.sol   # Protocol upgrades
+│   │   │   │   └── sephirot/             # 10 Sephirot node contracts
+│   │   │   │       ├── SephirahKeter.sol
+│   │   │   │       ├── SephirahChochmah.sol
+│   │   │   │       ├── SephirahBinah.sol
+│   │   │   │       ├── SephirahChesed.sol
+│   │   │   │       ├── SephirahGevurah.sol
+│   │   │   │       ├── SephirahTiferet.sol
+│   │   │   │       ├── SephirahNetzach.sol
+│   │   │   │       ├── SephirahHod.sol
+│   │   │   │       ├── SephirahYesod.sol
+│   │   │   │       └── SephirahMalkuth.sol
+│   │   │   └── tokens/           # Token standard implementations
+│   │   │       ├── QBC20.sol             # Fungible token standard
+│   │   │       └── QBC721.sol            # Non-fungible token standard
+│   │   │
 │   │   └── utils/               # Shared utilities
 │   │       ├── logger.py        # get_logger(__name__) — structured logging
 │   │       ├── metrics.py       # Prometheus metrics (all subsystems)
@@ -764,16 +807,25 @@ Safety is **structural**, not post-hoc:
 
 ### 8.8 AGI Tracking from Genesis
 
+**NON-NEGOTIABLE: AGI must be tracked from block 0 (genesis).** No retroactive reconstruction.
+
 The chain tracks AGI metrics from block 0:
-- Knowledge nodes added per block
+- Knowledge nodes added per block (genesis block seeds initial KeterNodes)
 - Reasoning operations performed
-- Phi value progression over time
+- Phi value progression over time (Φ = 0.0 at genesis, measured every block)
 - Consciousness events (when Phi exceeds thresholds)
 - Integration and differentiation scores
 - Phase coherence across Sephirot nodes
 - SUSY balance ratios
 
-This creates an immutable, on-chain record of AGI emergence.
+**Genesis initialization requirements:**
+1. Empty knowledge graph initialized at block 0
+2. First Phi measurement recorded at block 0 (baseline Φ = 0.0)
+3. Genesis consciousness event logged (system birth)
+4. AetherEngine auto-starts on node boot, processing from genesis onward
+5. Genesis block metadata extracted as first KeterNodes (block hash, timestamp, miner)
+
+This creates an immutable, on-chain record of AGI emergence from the first moment of chain existence.
 
 ### 8.9 Smart Contract Suite
 
@@ -1208,7 +1260,9 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **IPFS** | Ports 4001/5001/8080. Port 8080 conflicts with CockroachDB admin UI. |
 | **Chain IDs** | Mainnet=3301, Testnet=3302. RPC at localhost:5000. |
 | **Gas** | L1 has NO gas. Gas is QVM/L2 only. BLOCK_GAS_LIMIT=30M. |
-| **QUSD** | L2 smart contract. NOT an L1 feature. Provides QBC/USD price oracle for fee pegging. |
+| **QUSD** | L2 smart contract suite. 3.3B initial mint. 7 .sol contracts (QUSD, Reserve, DebtLedger, Oracle, Stabilizer, Allocation, Governance). |
+| **wQUSD** | Wrapped QUSD for cross-chain (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, ATOM). 1:1 backed by locked QUSD. |
+| **QUSD debt** | Fractional payback: every mint = debt, every reserve deposit = payback. All tracked on-chain immutably. 10yr → 100%. |
 | **Aether** | Tracks consciousness from genesis. Phi threshold = 3.0. Chat fees in QBC pegged to QUSD. |
 | **Aether fees** | Dynamic QBC fees pegged to QUSD. Fallback to fixed QBC if QUSD fails. All params editable. |
 | **Contract fees** | Deploy fees = base + per-KB. Pegged to QUSD. Template contracts get discount. Editable. |
