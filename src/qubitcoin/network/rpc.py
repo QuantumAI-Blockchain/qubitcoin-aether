@@ -938,6 +938,84 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "description": "Solved SUSY Hamiltonians from Proof-of-SUSY-Alignment mining",
         }
 
+    @app.get("/susy-database/export")
+    async def susy_database_export(
+        format: str = "json",
+        min_height: Optional[int] = None,
+        max_height: Optional[int] = None,
+        limit: int = 100,
+    ):
+        """Export SUSY solution data in JSON or CSV format for researchers.
+
+        Args:
+            format: Export format — 'json' or 'csv'.
+            min_height: Minimum block height filter.
+            max_height: Maximum block height filter.
+            limit: Maximum number of records (capped at 1000).
+        """
+        from sqlalchemy import text as sa_text
+        conditions: list = []
+        params: dict = {"limit": min(limit, 1000)}
+        if min_height is not None:
+            conditions.append("block_height >= :min_h")
+            params["min_h"] = min_height
+        if max_height is not None:
+            conditions.append("block_height <= :max_h")
+            params["max_h"] = max_height
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        query = f"""
+            SELECT id, hamiltonian, params, energy, miner_address, block_height
+            FROM solved_hamiltonians
+            {where}
+            ORDER BY block_height ASC
+            LIMIT :limit
+        """
+        with db_manager.get_session() as session:
+            rows = session.execute(sa_text(query), params).fetchall()
+            solutions = []
+            for r in rows:
+                solutions.append({
+                    "id": r[0],
+                    "hamiltonian": r[1],
+                    "params": r[2],
+                    "energy": r[3],
+                    "miner_address": r[4],
+                    "block_height": r[5],
+                })
+
+        if format == "csv":
+            header = "id,hamiltonian,params,energy,miner_address,block_height\n"
+            rows_csv = []
+            for s in solutions:
+                h = str(s['hamiltonian']).replace('"', '""') if s['hamiltonian'] else ''
+                p = str(s['params']).replace('"', '""') if s['params'] else ''
+                rows_csv.append(
+                    f"{s['id']},\"{h}\",\"{p}\",{s['energy']},{s['miner_address']},{s['block_height']}"
+                )
+            csv_content = header + "\n".join(rows_csv)
+            return Response(
+                content=csv_content,
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=susy_solutions.csv"},
+            )
+
+        # Default: JSON
+        return {
+            "format": "json",
+            "solutions": solutions,
+            "count": len(solutions),
+            "metadata": {
+                "description": "SUSY Hamiltonian solutions from Proof-of-SUSY-Alignment mining",
+                "chain": "Qubitcoin",
+                "chain_id": Config.CHAIN_ID,
+                "scientific_applications": [
+                    "particle_physics", "materials_science",
+                    "quantum_chemistry", "algorithm_benchmarking",
+                ],
+            },
+        }
+
     # ========================================================================
     # UTXO STATS ENDPOINT
     # ========================================================================

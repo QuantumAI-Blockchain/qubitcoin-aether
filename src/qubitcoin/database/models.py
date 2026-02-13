@@ -53,6 +53,8 @@ class Transaction:
     gas_limit: int = 0
     gas_price: Decimal = Decimal(0)
     nonce: int = 0
+    # Privacy (Susy Swap) — opt-in confidential transactions
+    is_private: bool = False  # True for Susy Swap confidential transactions
 
     def calculate_txid(self) -> str:
         data = {

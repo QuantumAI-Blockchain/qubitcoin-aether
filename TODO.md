@@ -30,7 +30,7 @@
 - [x] Key generation script auto-populates `secure_key.env`
 - [x] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
 - [x] Add `secure_key.env.example` template (with placeholder values)
-- [ ] Verify Dilithium signature size in real transactions (~3KB expected)
+- [x] Verify Dilithium signature size in real transactions (~3KB expected) — `test_dilithium.py` (26 tests: keygen, signing, verification, size, addresses, CryptoManager)
 - [ ] Add key import/export in standard formats
 - [ ] Signature caching for performance
 - [ ] Key rotation procedure documentation
@@ -89,17 +89,17 @@
   - [x] Balance proof generation
   - [x] Change output handling with blinding factors
 - [ ] Privacy transaction verification in consensus engine
-- [ ] Opt-in privacy flag in transaction format
+- [x] Opt-in privacy flag in transaction format (`models.py: is_private: bool = False`)
 - [ ] Privacy-specific SQL schema tables (`sql/02_privacy_susy_swaps.sql` alignment)
 - [x] Privacy transaction unit tests (`test_privacy_advanced.py` — 18 tests: commitments, stealth, range proofs, susy swap)
-- [ ] Privacy integration tests (create, verify, spend confidential outputs)
+- [x] Privacy integration tests (create, verify, spend confidential outputs) — `test_privacy_integration.py` (17 tests: commitments, stealth, susy swap, key images, tx size)
 
 ### 1.8 SUSY Solution Database
 - [x] Public Hamiltonian solution storage (`hamiltonian_solutions` table)
 - [x] REST API endpoint: `GET /susy-database` (query by block height, energy range, qubit count)
 - [ ] IPFS archival of solution datasets (periodic export)
 - [ ] Solution verification count tracking
-- [ ] Scientific data export formats (JSON, CSV for researchers)
+- [x] Scientific data export formats (JSON, CSV for researchers) — `rpc.py: GET /susy-database/export?format=json|csv`
 
 ### 1.9 Node Types
 - [ ] Light node implementation (SPV verification, block headers only)
@@ -686,7 +686,7 @@
 ## PHASE 7: TESTING & SECURITY (Priority: HIGH — ongoing)
 
 ### 7.1 Test Suites
-- [x] L1 unit tests (consensus, mining, crypto, UTXO, database) — 57 tests (test_consensus, test_database, test_quantum, test_mining_and_utxo, test_genesis_validation)
+- [x] L1 unit tests (consensus, mining, crypto, UTXO, database, Dilithium) — 83 tests (test_consensus, test_database, test_quantum, test_mining_and_utxo, test_genesis_validation, test_dilithium: 26)
 - [x] P2P network tests — 43 tests (test_peer_scoring: 16, test_block_propagation: 15, test_block_sync: 12 — propagation, dedup, sync, stats)
 - [x] L2 unit tests (QVM opcodes, state management, gas metering) — 116 tests (test_qvm: 52, test_qvm_reentrancy: 21, test_qvm_overflow: 28, test_qvm_gas_attacks: 15)
 - [x] L3 unit tests (knowledge graph, reasoning, Phi, Proof-of-Thought) — 139 tests (test_knowledge_graph, test_aether, test_sephirot, test_consciousness, test_memory, test_knowledge_extractor, test_reasoning_advanced, test_sephirot_nodes, test_knowledge_graph_advanced, test_task_protocol)
@@ -695,13 +695,13 @@
 - [ ] Frontend tests (Vitest unit + Playwright E2E)
 - [ ] Load tests (concurrent mining, high tx volume)
 - [ ] Fuzz testing (random bytecode to QVM)
-- [x] Privacy unit tests — 33 tests (test_privacy + test_privacy_advanced: commitments, stealth, range proofs, susy swap)
+- [x] Privacy unit tests — 50 tests (test_privacy: 15, test_privacy_advanced: 18, test_privacy_integration: 17 — commitments, stealth, range proofs, susy swap, key images)
 - [x] Config unit tests — 8 tests (test_config: economics, chain IDs, fee params)
 - [x] Test infrastructure — conftest.py with dependency stubs (Qiskit, gRPC, IPFS, etc.)
 
 ### 7.2 Security
 - [x] UTXO double-spend prevention verification (`test_mining_and_utxo.py: TestDoubleSpendPrevention`)
-- [ ] Dilithium signature verification test vectors
+- [x] Dilithium signature verification test vectors (`test_dilithium.py` — 26 tests: keygen sizes, signing, verification, tampered sig, wrong key/size, address derivation, CryptoManager)
 - [x] QVM reentrancy protection tests (`test_qvm_reentrancy.py` — 21 tests: depth limits, static call protection, gas forwarding, storage isolation, CALL value in static, CREATE2 static, revert behavior)
 - [x] QVM integer overflow tests (`test_qvm_overflow.py` — 28 tests: ADD/SUB/MUL overflow wrap, DIV/MOD by zero, EXP overflow, ADDMOD/MULMOD, signed arithmetic, SHL/SHR/SAR extremes)
 - [x] Gas exhaustion attack tests (`test_qvm_gas_attacks.py` — 15 tests: infinite loops, memory expansion, stack overflow, keccak/exp/calldatacopy gas scaling, SSTORE gas, GAS opcode)
@@ -801,5 +801,5 @@
 
 ---
 
-*Last updated: 2026-02-12*
+*Last updated: 2026-02-13*
 *Track progress here. Update status after every session.*
