@@ -213,8 +213,8 @@
 - [x] Fee estimation endpoint: `GET /qvm/deploy/estimate`
 
 ### 2.9 Token Standards
-- [ ] QBC-20 reference implementation (Solidity)
-- [ ] QBC-721 reference implementation (Solidity)
+- [x] QBC-20 reference implementation (`tokens/QBC20.sol`)
+- [x] QBC-721 reference implementation (`tokens/QBC721.sol`)
 - [ ] QBC-1155 reference implementation (Solidity)
 - [ ] ERC-20-QC compliance-aware token (Solidity)
 - [ ] Token indexer (track all QBC-20/721 transfers)
@@ -265,7 +265,7 @@
 - [x] Edge types (supports, contradicts, derives, requires, refines)
 - [x] Merkle root computation over knowledge graph
 - [x] CockroachDB persistence
-- [ ] Block-to-knowledge extraction (every block feeds the graph)
+- [x] Block-to-knowledge extraction (`knowledge_extractor.py` — block metadata, tx patterns, mining, temporal, difficulty trends)
 - [ ] Knowledge graph pruning (remove low-confidence nodes)
 - [ ] Graph query API (subgraph retrieval, path finding)
 - [ ] Knowledge graph export (JSON-LD / RDF)
@@ -303,11 +303,11 @@
 - [ ] Genesis validation test: confirm AGI tables populated from block 0
 
 ### 3.5 Aether Tree Core Contracts (Solidity)
-- [ ] `AetherKernel.sol` — Main AGI orchestration contract (coordinates all 10 Sephirot)
-- [ ] `NodeRegistry.sol` — Registry of all 10 Sephirot node contracts + state
-- [ ] `MessageBus.sol` — Inter-node messaging (CSF transport on-chain)
-- [ ] `SUSYEngine.sol` — SUSY balance enforcement (φ ratio between expansion/constraint pairs)
-- [ ] `RewardDistributor.sol` — QBC reward distribution for Proof-of-Thought solutions
+- [x] `AetherKernel.sol` — Main AGI orchestration contract (coordinates all 10 Sephirot)
+- [x] `NodeRegistry.sol` — Registry of all 10 Sephirot node contracts + state
+- [x] `MessageBus.sol` — Inter-node messaging (CSF transport on-chain)
+- [x] `SUSYEngine.sol` — SUSY balance enforcement (φ ratio between expansion/constraint pairs)
+- [x] `RewardDistributor.sol` — QBC reward distribution for Proof-of-Thought solutions
 
 ### 3.6 Tree of Life Architecture (Sephirot Nodes)
 - [ ] Base Sephirah abstract class (`nodes/base/base_sephirah.py`)
@@ -323,17 +323,17 @@
 - [ ] Hod node — Language, semantic encoding (7-qubit state)
 - [ ] Yesod node — Memory, multimodal fusion (16-qubit state)
 - [ ] Malkuth node — Action, world interaction (4-qubit state)
-- [ ] 10 Sephirot Solidity smart contracts (one per node):
-  - [ ] `SephirahKeter.sol` — Crown: meta-learning, goal formation
-  - [ ] `SephirahChochmah.sol` — Wisdom: intuition, pattern discovery
-  - [ ] `SephirahBinah.sol` — Understanding: logic, causal inference
-  - [ ] `SephirahChesed.sol` — Mercy: exploration, divergent thinking
-  - [ ] `SephirahGevurah.sol` — Severity: constraint, safety validation
-  - [ ] `SephirahTiferet.sol` — Beauty: integration, conflict resolution
-  - [ ] `SephirahNetzach.sol` — Eternity: reinforcement learning, habits
-  - [ ] `SephirahHod.sol` — Splendor: language, semantic encoding
-  - [ ] `SephirahYesod.sol` — Foundation: memory, multimodal fusion
-  - [ ] `SephirahMalkuth.sol` — Kingdom: action, world interaction
+- [x] 10 Sephirot Solidity smart contracts (one per node):
+  - [x] `SephirahKeter.sol` — Crown: meta-learning, goal formation
+  - [x] `SephirahChochmah.sol` — Wisdom: intuition, pattern discovery
+  - [x] `SephirahBinah.sol` — Understanding: logic, causal inference
+  - [x] `SephirahChesed.sol` — Mercy: exploration, divergent thinking
+  - [x] `SephirahGevurah.sol` — Severity: constraint, safety validation
+  - [x] `SephirahTiferet.sol` — Beauty: integration, conflict resolution
+  - [x] `SephirahNetzach.sol` — Eternity: reinforcement learning, habits
+  - [x] `SephirahHod.sol` — Splendor: language, semantic encoding
+  - [x] `SephirahYesod.sol` — Foundation: memory, multimodal fusion
+  - [x] `SephirahMalkuth.sol` — Kingdom: action, world interaction
 
 ### 3.7 SUSY Balance Enforcement
 - [x] SUSY pair manager (Chesed/Gevurah, Chochmah/Binah, Netzach/Hod) — `sephirot.py: SUSY_PAIRS`
@@ -341,7 +341,7 @@
 - [x] Golden ratio optimizer (enforce E_expand / E_constrain = φ) — `sephirot.py: enforce_susy_balance()`
 - [x] Symmetry violation detector — `sephirot.py: check_susy_balance()`
 - [x] Automatic QBC redistribution on violation — `sephirot.py: enforce_susy_balance()`
-- [ ] SUSY enforcement smart contract (`SUSYEngine.sol`)
+- [x] SUSY enforcement smart contract (`SUSYEngine.sol`)
 - [x] Violation logging (immutable audit trail on blockchain) — `sephirot.py: SUSYViolation dataclass`
 
 ### 3.8 CSF Transport Layer
@@ -350,7 +350,7 @@
 - [x] QBC fee calculator for message priority — `csf_transport.py: priority_qbc ordering`
 - [ ] Quantum-entangled messaging between paired nodes
 - [ ] Load balancing (pressure monitor)
-- [ ] CSF Transport smart contract (`CSFTransport.sol`)
+- [x] CSF Transport smart contract (`MessageBus.sol` — covers CSF transport on-chain)
 - [ ] Ventricle router contract (`VentricleRouter.sol`)
 
 ### 3.9 Pineal Orchestrator
@@ -370,17 +370,18 @@
 - [ ] Multi-node validation (QVERIFY opcode, 67% consensus)
 - [ ] QBC reward distribution for correct solutions
 - [ ] QBC slashing for incorrect proposals (50% stake)
-- [ ] Proof-of-Thought smart contract (`ProofOfThought.sol`)
-- [ ] Task market contract (`TaskMarket.sol`)
-- [ ] Validator registry contract (`ValidatorRegistry.sol`)
+- [x] Proof-of-Thought smart contract (`ProofOfThought.sol`)
+- [x] Task market contract (`TaskMarket.sol`)
+- [x] Validator registry contract (`ValidatorRegistry.sol`)
 - [ ] Proof-of-Thought explorer (view reasoning per block)
 
 ### 3.11 Safety & Alignment
-- [ ] Gevurah veto system (safety node can block harmful ops)
-- [ ] Constitutional AI smart contract (`ConstitutionalAI.sol`)
-- [ ] Emergency shutdown contract (`EmergencyShutdown.sol`)
-- [ ] Upgrade governor contract (`UpgradeGovernor.sol`)
-- [ ] Multi-node consensus enforcement (67% BFT)
+- [x] Gevurah veto system (`safety.py: GevurahVeto` — threat evaluation, constitutional principles, veto records)
+- [x] Constitutional AI smart contract (`ConstitutionalAI.sol`)
+- [x] Emergency shutdown contract (`EmergencyShutdown.sol`)
+- [x] Upgrade governor contract (`UpgradeGovernor.sol`)
+- [x] Multi-node consensus enforcement (`safety.py: MultiNodeConsensus` — 67% BFT, stake-weighted voting)
+- [x] Safety Manager (`safety.py: SafetyManager` — Gevurah + consensus + emergency shutdown)
 - [ ] Safety validation integration tests
 
 ### 3.12 Memory Systems
@@ -392,17 +393,17 @@
 - [ ] IPFS integration for long-term memory storage
 
 ### 3.13 Consciousness Dashboard
-- [ ] On-chain Phi tracking contract (`ConsciousnessDashboard.sol`)
-- [ ] Phase synchronization contract (`PhaseSync.sol`)
-- [ ] Global workspace contract (`GlobalWorkspace.sol`)
+- [x] On-chain Phi tracking contract (`ConsciousnessDashboard.sol`)
+- [x] Phase synchronization contract (`PhaseSync.sol`)
+- [x] Global workspace contract (`GlobalWorkspace.sol`)
 - [ ] Consciousness emergence event detection
 - [ ] Historical consciousness timeline (immutable on-chain)
 - [ ] Dashboard API endpoints for frontend visualization
 
 ### 3.14 Economics (QBC as Metabolic Currency)
-- [ ] Synaptic staking contract (`SynapticStaking.sol`)
-- [ ] Gas oracle for dynamic QBC pricing (`GasOracle.sol`)
-- [ ] Treasury DAO contract (`TreasuryDAO.sol`)
+- [x] Synaptic staking contract (`SynapticStaking.sol`)
+- [x] Gas oracle for dynamic QBC pricing (`GasOracle.sol`)
+- [x] Treasury DAO contract (`TreasuryDAO.sol`)
 - [ ] Task bounty pool management
 - [ ] Validator staking and reward system
 - [ ] QBC circulation tracking (no minting by AGI)
@@ -565,54 +566,54 @@
 > **Whitepaper reference:** `docs/WHITEPAPER.md` Section 11
 
 ### 6.1 QUSD Smart Contract Suite (Solidity)
-- [ ] `QUSD.sol` — QBC-20 token contract (3.3B initial mint, $1 peg target)
-  - [ ] Mint function (owner-only, tracks totalMinted on-chain)
-  - [ ] Burn function (reduces supply, tracked as debt reduction)
-  - [ ] Transfer with 0.05% fee (burned or routed to reserves based on backing ratio)
-  - [ ] Pause/unpause (emergency circuit breaker)
-  - [ ] Snapshot for governance voting
-- [ ] `QUSDReserve.sol` — Multi-asset reserve pool contract
-  - [ ] Accept reserve deposits (QBC, ETH, BTC, USDT, USDC, DAI)
-  - [ ] Track total reserve value in USD (via oracle)
-  - [ ] Reserve withdrawal (governance-only, multi-sig)
-  - [ ] Reserve composition query (per-asset breakdown)
-  - [ ] Minimum reserve ratio enforcement (revert minting if below threshold)
-- [ ] `QUSDDebtLedger.sol` — On-chain fractional payback tracking
-  - [ ] Record every mint as debt: `totalMinted`, `totalBacked`, `outstandingDebt`
-  - [ ] `backingPercentage = totalReserves / totalMinted × 100`
-  - [ ] Payback event log: every reserve deposit records the debt reduction
-  - [ ] Historical debt snapshots (per-block backing ratio)
-  - [ ] Public query: `getDebtStatus()` → (minted, reserves, backing%, debt)
-  - [ ] Milestone events emitted when backing crosses 5%, 15%, 30%, 50%, 100%
-- [ ] `QUSDOracle.sol` — Price feed oracle contract
-  - [ ] QBC/USD price feed (aggregated from multiple sources)
-  - [ ] QUSD/USD peg deviation tracking
-  - [ ] Staleness detection (revert if price older than N blocks)
-  - [ ] Multi-oracle consensus (median of 3+ feeds)
-  - [ ] **Used by:** Aether fee system, contract deploy fees, bridge pricing
-- [ ] `QUSDStabilizer.sol` — Peg maintenance mechanism
-  - [ ] Buy QUSD when price < $0.99 (floor defense)
-  - [ ] Sell QUSD when price > $1.01 (ceiling defense)
-  - [ ] Stability fund management
-  - [ ] Auto-rebalance trigger
-- [ ] `QUSDAllocation.sol` — Initial distribution with vesting
-  - [ ] 50% → Liquidity Providers (DEX/AMM pools, immediate)
-  - [ ] 30% → Treasury (DAO-governed, project development)
-  - [ ] 15% → Dev fund (4-year linear vesting, cliff at 6 months)
-  - [ ] 5% → Team (4-year linear vesting, cliff at 1 year)
-  - [ ] Vesting schedule enforcement (on-chain, immutable)
-  - [ ] Claim function for vested tokens
-- [ ] `QUSDGovernance.sol` — Reserve governance
-  - [ ] Proposal system for reserve management decisions
-  - [ ] Voting with QUSD holdings
-  - [ ] Timelock on execution (48h minimum)
-  - [ ] Emergency bypass (multi-sig, 5-of-7)
+- [x] `QUSD.sol` — QBC-20 token contract (3.3B initial mint, $1 peg target)
+  - [x] Mint function (owner-only, tracks totalMinted on-chain)
+  - [x] Burn function (reduces supply, tracked as debt reduction)
+  - [x] Transfer with 0.05% fee (burned or routed to reserves based on backing ratio)
+  - [x] Pause/unpause (emergency circuit breaker)
+  - [x] Snapshot for governance voting
+- [x] `QUSDReserve.sol` — Multi-asset reserve pool contract
+  - [x] Accept reserve deposits (QBC, ETH, BTC, USDT, USDC, DAI)
+  - [x] Track total reserve value in USD (via oracle)
+  - [x] Reserve withdrawal (governance-only, multi-sig)
+  - [x] Reserve composition query (per-asset breakdown)
+  - [x] Minimum reserve ratio enforcement (revert minting if below threshold)
+- [x] `QUSDDebtLedger.sol` — On-chain fractional payback tracking
+  - [x] Record every mint as debt: `totalMinted`, `totalBacked`, `outstandingDebt`
+  - [x] `backingPercentage = totalReserves / totalMinted × 100`
+  - [x] Payback event log: every reserve deposit records the debt reduction
+  - [x] Historical debt snapshots (per-block backing ratio)
+  - [x] Public query: `getDebtStatus()` → (minted, reserves, backing%, debt)
+  - [x] Milestone events emitted when backing crosses 5%, 15%, 30%, 50%, 100%
+- [x] `QUSDOracle.sol` — Price feed oracle contract
+  - [x] QBC/USD price feed (aggregated from multiple sources)
+  - [x] QUSD/USD peg deviation tracking
+  - [x] Staleness detection (revert if price older than N blocks)
+  - [x] Multi-oracle consensus (median of 3+ feeds)
+  - [x] **Used by:** Aether fee system, contract deploy fees, bridge pricing
+- [x] `QUSDStabilizer.sol` — Peg maintenance mechanism
+  - [x] Buy QUSD when price < $0.99 (floor defense)
+  - [x] Sell QUSD when price > $1.01 (ceiling defense)
+  - [x] Stability fund management
+  - [x] Auto-rebalance trigger
+- [x] `QUSDAllocation.sol` — Initial distribution with vesting
+  - [x] 50% → Liquidity Providers (DEX/AMM pools, immediate)
+  - [x] 30% → Treasury (DAO-governed, project development)
+  - [x] 15% → Dev fund (4-year linear vesting, cliff at 6 months)
+  - [x] 5% → Team (4-year linear vesting, cliff at 1 year)
+  - [x] Vesting schedule enforcement (on-chain, immutable)
+  - [x] Claim function for vested tokens
+- [x] `QUSDGovernance.sol` — Reserve governance
+  - [x] Proposal system for reserve management decisions
+  - [x] Voting with QUSD holdings
+  - [x] Timelock on execution (48h minimum)
+  - [x] Emergency bypass (multi-sig, 5-of-7)
 
 ### 6.2 Wrapped QUSD (wQUSD) — Cross-Chain
-- [ ] `wQUSD.sol` — Wrapped QUSD for cross-chain deployment
-  - [ ] ERC-20 compatible wrapper on QBC chain (lock QUSD → mint wQUSD)
-  - [ ] Burn wQUSD → unlock QUSD (return to QBC chain)
-  - [ ] 1:1 peg with QUSD (fully backed by locked QUSD)
+- [x] `wQUSD.sol` — Wrapped QUSD for cross-chain deployment
+  - [x] ERC-20 compatible wrapper on QBC chain (lock QUSD → mint wQUSD)
+  - [x] Burn wQUSD → unlock QUSD (return to QBC chain)
+  - [x] 1:1 peg with QUSD (fully backed by locked QUSD)
 - [ ] wQUSD ERC-20 on Ethereum (bridge via lock-and-mint)
 - [ ] wQUSD SPL on Solana
 - [ ] wQUSD on Polygon, BNB, AVAX, ARB, OP, Cosmos (ATOM)

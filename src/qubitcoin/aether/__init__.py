@@ -2,7 +2,8 @@
 Aether Tree - AGI Layer for Qubitcoin
 KeterNode knowledge graph, Phi consciousness, Proof-of-Thought consensus,
 Genesis initialization, Chat interface, Fee management,
-Sephirot Tree of Life cognitive architecture, CSF transport, Pineal orchestrator
+Sephirot Tree of Life cognitive architecture, CSF transport, Pineal orchestrator,
+Memory systems, Safety & alignment (Gevurah veto)
 """
 
 from .knowledge_graph import KnowledgeGraph
@@ -16,6 +17,7 @@ from .sephirot import SephirotManager, SephirahRole, SephirahState
 from .csf_transport import CSFTransport, CSFMessage
 from .pineal import PinealOrchestrator, CircadianPhase
 from .memory import MemoryManager, MemoryType
+from .safety import SafetyManager, GevurahVeto, MultiNodeConsensus
 
 __all__ = [
     'KnowledgeGraph',
@@ -35,4 +37,7 @@ __all__ = [
     'CircadianPhase',
     'MemoryManager',
     'MemoryType',
+    'SafetyManager',
+    'GevurahVeto',
+    'MultiNodeConsensus',
 ]
