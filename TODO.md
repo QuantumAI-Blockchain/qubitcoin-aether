@@ -60,7 +60,7 @@
 - [ ] Block propagation protocol (gossip new blocks to peers)
 - [ ] Transaction propagation (gossip new txs to peers)
 - [ ] Block sync protocol (catch up from behind)
-- [ ] Peer scoring and eviction
+- [x] Peer scoring and eviction (`p2p_network.py: adjust_peer_score, penalize_peer, reward_peer, evict_low_score_peers, get_peers_by_score`)
 - [x] WebSocket endpoint for real-time subscriptions (`network/rpc.py: /ws`)
 
 ### 1.6 Storage
@@ -147,7 +147,7 @@
 - [x] QPROOF (0xD7) — Validate quantum proof (energy vs difficulty)
 - [x] QFIDELITY (0xD8) — Compute state fidelity between quantum states
 - [x] QDILITHIUM (0xD9) — Verify Dilithium signature
-- [ ] Exponential gas scaling for n-qubit operations (5000 x 2^n)
+- [x] Exponential gas scaling for n-qubit operations (`opcodes.py: get_quantum_gas_cost()` — base + 5000*2^n, capped at 32 qubits)
 
 ### 2.3 Quantum State Persistence (QSP)
 - [ ] Density matrix storage in CockroachDB (`quantum_states` table)
@@ -705,8 +705,8 @@
 - [ ] QVM integer overflow tests
 - [ ] Gas exhaustion attack tests
 - [ ] Bridge security audit preparation
-- [ ] Rate limiting on all public endpoints
-- [ ] Input validation on all endpoints
+- [x] Rate limiting on all public endpoints (`rpc.py: rate_limit_middleware` — per-IP, 120/min configurable via RPC_RATE_LIMIT)
+- [x] Input validation on all endpoints (query param bounds checking on all /aether/* endpoints)
 
 ---
 

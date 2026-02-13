@@ -58,6 +58,42 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     )
 
     # ========================================================================
+    # RATE LIMITING MIDDLEWARE
+    # ========================================================================
+    import collections
+
+    _rate_limit_store: dict = {
+        'requests': collections.defaultdict(list),  # ip -> [timestamps]
+        'max_per_minute': int(os.getenv('RPC_RATE_LIMIT', '120')),
+    }
+
+    @app.middleware("http")
+    async def rate_limit_middleware(request: Request, call_next):
+        """Simple in-memory rate limiter — per IP, per minute."""
+        import time as _time
+        client_ip = request.client.host if request.client else 'unknown'
+        now = _time.time()
+        window = 60.0  # 1 minute window
+        max_requests = _rate_limit_store['max_per_minute']
+
+        # Clean old entries
+        timestamps = _rate_limit_store['requests'][client_ip]
+        _rate_limit_store['requests'][client_ip] = [
+            t for t in timestamps if now - t < window
+        ]
+
+        if len(_rate_limit_store['requests'][client_ip]) >= max_requests:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=429,
+                content={"error": "Rate limit exceeded", "retry_after": 60},
+            )
+
+        _rate_limit_store['requests'][client_ip].append(now)
+        response = await call_next(request)
+        return response
+
+    # ========================================================================
     # JSON-RPC (eth_* compatible) - Web3 / MetaMask / Hardhat support
     # ========================================================================
     from .jsonrpc import create_jsonrpc_router
