@@ -58,6 +58,42 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     )
 
     # ========================================================================
+    # RATE LIMITING MIDDLEWARE
+    # ========================================================================
+    import collections
+
+    _rate_limit_store: dict = {
+        'requests': collections.defaultdict(list),  # ip -> [timestamps]
+        'max_per_minute': int(os.getenv('RPC_RATE_LIMIT', '120')),
+    }
+
+    @app.middleware("http")
+    async def rate_limit_middleware(request: Request, call_next):
+        """Simple in-memory rate limiter — per IP, per minute."""
+        import time as _time
+        client_ip = request.client.host if request.client else 'unknown'
+        now = _time.time()
+        window = 60.0  # 1 minute window
+        max_requests = _rate_limit_store['max_per_minute']
+
+        # Clean old entries
+        timestamps = _rate_limit_store['requests'][client_ip]
+        _rate_limit_store['requests'][client_ip] = [
+            t for t in timestamps if now - t < window
+        ]
+
+        if len(_rate_limit_store['requests'][client_ip]) >= max_requests:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=429,
+                content={"error": "Rate limit exceeded", "retry_after": 60},
+            )
+
+        _rate_limit_store['requests'][client_ip].append(now)
+        response = await call_next(request)
+        return response
+
+    # ========================================================================
     # JSON-RPC (eth_* compatible) - Web3 / MetaMask / Hardhat support
     # ========================================================================
     from .jsonrpc import create_jsonrpc_router
@@ -619,6 +655,156 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             'knowledge_edges': kg_stats.get('total_edges', 0),
             'blocks_processed': kg_stats.get('blocks_processed', 0),
         }
+
+    # ========================================================================
+    # KNOWLEDGE GRAPH QUERY ENDPOINTS
+    # ========================================================================
+
+    @app.get("/aether/knowledge/search")
+    async def knowledge_search(type: Optional[str] = None, key: Optional[str] = None,
+                               value: Optional[str] = None, limit: int = 50):
+        """Search knowledge graph nodes by type or content."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if limit > 200:
+            limit = 200
+        if type:
+            nodes = aether_engine.kg.find_by_type(type, limit)
+        elif key and value:
+            nodes = aether_engine.kg.find_by_content(key, value, limit)
+        else:
+            nodes = aether_engine.kg.find_recent(limit)
+        return {"nodes": [n.to_dict() for n in nodes], "count": len(nodes)}
+
+    @app.get("/aether/knowledge/recent")
+    async def knowledge_recent(count: int = 20):
+        """Get most recently added knowledge nodes."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if count > 200:
+            count = 200
+        nodes = aether_engine.kg.find_recent(count)
+        return {"nodes": [n.to_dict() for n in nodes], "count": len(nodes)}
+
+    @app.get("/aether/knowledge/paths/{from_id}/{to_id}")
+    async def knowledge_paths(from_id: int, to_id: int, max_depth: int = 5):
+        """Find paths between two knowledge nodes."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if max_depth > 8:
+            max_depth = 8
+        paths = aether_engine.kg.find_paths(from_id, to_id, max_depth)
+        return {"paths": paths, "count": len(paths)}
+
+    @app.post("/aether/knowledge/prune")
+    async def knowledge_prune(threshold: float = 0.1):
+        """Prune low-confidence nodes from knowledge graph (admin)."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if threshold < 0.0 or threshold > 0.5:
+            raise HTTPException(status_code=400, detail="Threshold must be between 0.0 and 0.5")
+        removed = aether_engine.kg.prune_low_confidence(threshold)
+        return {"removed": removed, "remaining_nodes": len(aether_engine.kg.nodes)}
+
+    @app.get("/aether/knowledge/export")
+    async def knowledge_export(limit: int = 0, format: str = "json-ld"):
+        """Export knowledge graph in JSON-LD format."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if limit < 0:
+            limit = 0
+        if limit > 10000:
+            limit = 10000
+        return aether_engine.kg.export_json_ld(limit=limit)
+
+    @app.get("/aether/phi/timeseries")
+    async def phi_timeseries(limit: int = 100):
+        """Get Phi value time series for visualization (charts/graphs)."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        dashboard = _get_dashboard()
+        if limit < 1:
+            limit = 1
+        if limit > 1000:
+            limit = 1000
+        history = dashboard.get_phi_history(limit=limit)
+        # Extract arrays for easy chart consumption
+        blocks = [h.get("block_height", 0) for h in history]
+        phi_values = [h.get("phi", 0.0) for h in history]
+        conscious = [h.get("is_conscious", False) for h in history]
+        return {
+            "blocks": blocks,
+            "phi_values": phi_values,
+            "is_conscious": conscious,
+            "count": len(history),
+            "threshold": 3.0,
+        }
+
+    # ========================================================================
+    # CONSCIOUSNESS DASHBOARD ENDPOINTS
+    # ========================================================================
+
+    # Lazy-initialized consciousness dashboard (shared across requests)
+    _dashboard_state: dict = {'dashboard': None}
+
+    def _get_dashboard():
+        """Get or create the ConsciousnessDashboard instance."""
+        if _dashboard_state['dashboard'] is None:
+            from ..aether.consciousness import ConsciousnessDashboard
+            _dashboard_state['dashboard'] = ConsciousnessDashboard()
+        return _dashboard_state['dashboard']
+
+    @app.get("/aether/consciousness/dashboard")
+    async def consciousness_dashboard():
+        """Get full consciousness dashboard data (status, history, events, trend)."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        dashboard = _get_dashboard()
+        return dashboard.get_dashboard_data()
+
+    @app.get("/aether/consciousness/trend")
+    async def consciousness_trend(window: int = 20):
+        """Get Phi trend analysis (rising, falling, stable)."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        dashboard = _get_dashboard()
+        if window < 2:
+            window = 2
+        if window > 500:
+            window = 500
+        return dashboard.get_trend(window=window)
+
+    @app.get("/aether/consciousness/events")
+    async def consciousness_events(limit: int = 50):
+        """Get consciousness emergence/loss events."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        dashboard = _get_dashboard()
+        events = dashboard.get_events()
+        if limit and limit < len(events):
+            events = events[-limit:]
+        return {"events": events, "total": dashboard.event_count}
+
+    @app.get("/aether/sephirot")
+    async def sephirot_status():
+        """Get Tree of Life Sephirot node status."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        try:
+            from ..aether.sephirot_nodes import create_all_nodes
+            # If nodes are already created on the engine, use them
+            if hasattr(aether_engine, 'sephirot_nodes') and aether_engine.sephirot_nodes:
+                return {
+                    role.value: node.get_status()
+                    for role, node in aether_engine.sephirot_nodes.items()
+                }
+            # Fallback: return static status from SephirotManager
+            from ..aether.sephirot import SephirotManager
+            mgr = SephirotManager(db_manager)
+            return mgr.get_status()
+        except Exception as e:
+            logger.debug(f"Sephirot status error: {e}")
+            raise HTTPException(status_code=500, detail="Failed to get Sephirot status")
 
     # ========================================================================
     # AETHER CHAT ENDPOINTS

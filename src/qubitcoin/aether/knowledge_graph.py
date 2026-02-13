@@ -298,6 +298,147 @@ class KnowledgeGraph:
 
         return leaves[0]
 
+    def prune_low_confidence(self, threshold: float = 0.1, protect_types: Optional[Set[str]] = None) -> int:
+        """
+        Remove nodes with confidence below threshold.
+
+        Nodes of protected types (e.g. 'axiom') are never pruned.
+        Edges referencing pruned nodes are also removed.
+
+        Args:
+            threshold: Minimum confidence to keep a node
+            protect_types: Node types that are never pruned
+
+        Returns:
+            Number of nodes removed
+        """
+        protect = protect_types or {'axiom'}
+        to_remove = [
+            nid for nid, node in self.nodes.items()
+            if node.confidence < threshold and node.node_type not in protect
+        ]
+
+        for nid in to_remove:
+            # Remove edges referencing this node
+            self.edges = [
+                e for e in self.edges
+                if e.from_node_id != nid and e.to_node_id != nid
+            ]
+            # Clean up neighbor references in remaining nodes
+            for other_node in self.nodes.values():
+                if nid in other_node.edges_out:
+                    other_node.edges_out.remove(nid)
+                if nid in other_node.edges_in:
+                    other_node.edges_in.remove(nid)
+            del self.nodes[nid]
+
+        if to_remove:
+            logger.info(f"Pruned {len(to_remove)} low-confidence nodes (threshold={threshold})")
+
+        return len(to_remove)
+
+    def find_by_type(self, node_type: str, limit: int = 100) -> List[KeterNode]:
+        """Find nodes by type, sorted by confidence descending."""
+        matching = [
+            n for n in self.nodes.values()
+            if n.node_type == node_type
+        ]
+        matching.sort(key=lambda n: n.confidence, reverse=True)
+        return matching[:limit]
+
+    def find_by_content(self, key: str, value: str, limit: int = 50) -> List[KeterNode]:
+        """Find nodes whose content dict contains a matching key-value."""
+        matching = [
+            n for n in self.nodes.values()
+            if str(n.content.get(key, '')) == str(value)
+        ]
+        matching.sort(key=lambda n: n.source_block, reverse=True)
+        return matching[:limit]
+
+    def find_recent(self, count: int = 20) -> List[KeterNode]:
+        """Get the most recently added nodes by source block."""
+        nodes = sorted(
+            self.nodes.values(),
+            key=lambda n: n.source_block,
+            reverse=True,
+        )
+        return nodes[:count]
+
+    def get_edge_types_for_node(self, node_id: int) -> Dict[str, List[int]]:
+        """Get all edges grouped by type for a specific node."""
+        result: Dict[str, List[int]] = {}
+        for edge in self.edges:
+            if edge.from_node_id == node_id:
+                result.setdefault(f"out_{edge.edge_type}", []).append(edge.to_node_id)
+            if edge.to_node_id == node_id:
+                result.setdefault(f"in_{edge.edge_type}", []).append(edge.from_node_id)
+        return result
+
+    def export_json_ld(self, limit: int = 0) -> dict:
+        """Export the knowledge graph in JSON-LD format.
+
+        Args:
+            limit: Maximum number of nodes to export (0 = all).
+
+        Returns:
+            JSON-LD document with @context, @graph nodes, and edges.
+        """
+        context = {
+            "@vocab": "https://qbc.network/ontology#",
+            "qbc": "https://qbc.network/ontology#",
+            "xsd": "http://www.w3.org/2001/XMLSchema#",
+            "node_type": "qbc:nodeType",
+            "confidence": {"@id": "qbc:confidence", "@type": "xsd:float"},
+            "source_block": {"@id": "qbc:sourceBlock", "@type": "xsd:integer"},
+            "content_hash": "qbc:contentHash",
+            "supports": "qbc:supports",
+            "contradicts": "qbc:contradicts",
+            "derives": "qbc:derives",
+            "requires": "qbc:requires",
+            "refines": "qbc:refines",
+        }
+
+        nodes_list = sorted(self.nodes.values(), key=lambda n: n.node_id)
+        if limit > 0:
+            nodes_list = nodes_list[:limit]
+        exported_ids = {n.node_id for n in nodes_list}
+
+        graph = []
+        for node in nodes_list:
+            entry: dict = {
+                "@id": f"qbc:node/{node.node_id}",
+                "@type": "qbc:KeterNode",
+                "node_type": node.node_type,
+                "confidence": round(node.confidence, 6),
+                "source_block": node.source_block,
+                "content_hash": node.content_hash,
+            }
+            if node.content:
+                entry["qbc:content"] = node.content
+            graph.append(entry)
+
+        # Add edges that connect exported nodes
+        for edge in self.edges:
+            if edge.from_node_id in exported_ids and edge.to_node_id in exported_ids:
+                graph.append({
+                    "@id": f"qbc:edge/{edge.from_node_id}-{edge.to_node_id}",
+                    "@type": "qbc:KeterEdge",
+                    "qbc:from": {"@id": f"qbc:node/{edge.from_node_id}"},
+                    "qbc:to": {"@id": f"qbc:node/{edge.to_node_id}"},
+                    "qbc:edgeType": edge.edge_type,
+                    "qbc:weight": round(edge.weight, 6),
+                })
+
+        return {
+            "@context": context,
+            "@graph": graph,
+            "qbc:stats": {
+                "exported_nodes": len(nodes_list),
+                "total_nodes": len(self.nodes),
+                "total_edges": len(self.edges),
+            },
+        }
+
     def get_stats(self) -> dict:
         """Get knowledge graph statistics"""
         type_counts = {}

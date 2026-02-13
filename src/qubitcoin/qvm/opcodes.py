@@ -265,6 +265,39 @@ def get_gas_cost(opcode: int) -> int:
     return GAS_COSTS.get(opcode, 0)
 
 
+# Quantum opcodes that support n-qubit scaling
+QUANTUM_OPCODES = {
+    Opcode.QGATE, Opcode.QMEASURE, Opcode.QENTANGLE,
+    Opcode.QSUPERPOSE, Opcode.QVQE, Opcode.QHAMILTONIAN,
+    Opcode.QENERGY, Opcode.QPROOF, Opcode.QFIDELITY,
+}
+
+
+def get_quantum_gas_cost(opcode: int, n_qubits: int = 1) -> int:
+    """Get gas cost for a quantum opcode with exponential scaling.
+
+    Quantum operations scale as: base_cost + 5000 * 2^n_qubits.
+    This prevents DOS attacks via expensive multi-qubit operations
+    while keeping single-qubit operations affordable.
+
+    Args:
+        opcode: The quantum opcode.
+        n_qubits: Number of qubits involved in the operation.
+
+    Returns:
+        Total gas cost for the quantum operation.
+    """
+    base_cost = GAS_COSTS.get(opcode, 0)
+    if opcode not in QUANTUM_OPCODES:
+        return base_cost
+    if n_qubits < 1:
+        n_qubits = 1
+    # Cap at 32 qubits to prevent integer overflow
+    n_qubits = min(n_qubits, 32)
+    scaling_cost = 5000 * (2 ** n_qubits)
+    return base_cost + scaling_cost
+
+
 # Maximum values
 MAX_UINT256 = (1 << 256) - 1
 MAX_INT256 = (1 << 255) - 1

@@ -389,6 +389,233 @@ class ReasoningEngine:
         except Exception as e:
             logger.debug(f"Failed to store reasoning operation: {e}")
 
+    def chain_of_thought(self, query_node_ids: List[int],
+                          max_depth: int = 5) -> ReasoningResult:
+        """
+        Multi-step chain-of-thought reasoning.
+
+        Starting from query nodes, performs iterative reasoning steps:
+        1. Gather context from neighbors of query nodes
+        2. Attempt deductive reasoning on gathered context
+        3. If gaps found, attempt abductive reasoning to fill them
+        4. Combine all steps into a unified reasoning trace
+
+        Args:
+            query_node_ids: Starting nodes for the reasoning chain
+            max_depth: Maximum reasoning depth (steps)
+
+        Returns:
+            ReasoningResult with full chain-of-thought trace
+        """
+        chain: List[ReasoningStep] = []
+        visited: set = set()
+        frontier = list(query_node_ids)
+        overall_confidence = 1.0
+        conclusion_id: Optional[int] = None
+
+        # Step 1: Gather starting context
+        for nid in query_node_ids:
+            node = self.kg.get_node(nid)
+            if node:
+                chain.append(ReasoningStep(
+                    step_type='premise',
+                    node_id=nid,
+                    content=node.content,
+                    confidence=node.confidence,
+                ))
+                visited.add(nid)
+
+        if not chain:
+            return ReasoningResult(
+                operation_type='chain_of_thought',
+                premise_ids=query_node_ids,
+                success=False,
+                explanation='No valid starting nodes found',
+            )
+
+        # Step 2: Iterative reasoning over expanding frontier
+        for depth in range(max_depth):
+            next_frontier: List[int] = []
+
+            # Explore neighbors of current frontier
+            context_nodes: List[int] = []
+            for nid in frontier:
+                if nid in visited:
+                    continue
+                visited.add(nid)
+                node = self.kg.get_node(nid)
+                if node:
+                    context_nodes.append(nid)
+                    chain.append(ReasoningStep(
+                        step_type='observation',
+                        node_id=nid,
+                        content=node.content,
+                        confidence=node.confidence,
+                    ))
+
+            # Try deductive step if we have enough context
+            if len(context_nodes) >= 2:
+                deduction = self.deduce(context_nodes)
+                if deduction.success and deduction.conclusion_node_id:
+                    chain.append(ReasoningStep(
+                        step_type='conclusion',
+                        node_id=deduction.conclusion_node_id,
+                        content={'type': 'deductive_step', 'depth': depth},
+                        confidence=deduction.confidence,
+                    ))
+                    overall_confidence *= deduction.confidence
+                    conclusion_id = deduction.conclusion_node_id
+                    next_frontier.append(deduction.conclusion_node_id)
+
+            # Try abductive step for unexplained observations
+            unexplained = [
+                nid for nid in context_nodes
+                if self.kg.get_node(nid) and not self.kg.get_node(nid).edges_in
+            ]
+            if unexplained:
+                abduction = self.abduce(unexplained[0])
+                if abduction.success and abduction.conclusion_node_id:
+                    chain.append(ReasoningStep(
+                        step_type='conclusion',
+                        node_id=abduction.conclusion_node_id,
+                        content={'type': 'abductive_step', 'depth': depth},
+                        confidence=abduction.confidence,
+                    ))
+                    next_frontier.append(abduction.conclusion_node_id)
+
+            # Expand frontier for next iteration
+            for nid in frontier:
+                node = self.kg.get_node(nid)
+                if node:
+                    for neighbor_id in node.edges_out:
+                        if neighbor_id not in visited:
+                            next_frontier.append(neighbor_id)
+
+            frontier = next_frontier
+            if not frontier:
+                break  # No more nodes to explore
+
+        result = ReasoningResult(
+            operation_type='chain_of_thought',
+            premise_ids=query_node_ids,
+            conclusion_node_id=conclusion_id,
+            confidence=max(0.0, min(1.0, overall_confidence)),
+            chain=chain,
+            success=len(chain) > len(query_node_ids),
+            explanation=f"Chain-of-thought: {len(chain)} steps, depth explored",
+        )
+
+        self._store_operation(result)
+        self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
+        return result
+
+    def resolve_contradiction(self, node_a_id: int, node_b_id: int) -> ReasoningResult:
+        """
+        Resolve a contradiction between two knowledge nodes.
+
+        Strategy:
+        1. Compare confidence scores — higher confidence wins
+        2. Check supporting evidence (count and confidence of supporters)
+        3. Create a resolution node recording the outcome
+        4. Reduce confidence of the losing node
+
+        Args:
+            node_a_id: First contradicting node
+            node_b_id: Second contradicting node
+
+        Returns:
+            ReasoningResult with resolution trace
+        """
+        chain: List[ReasoningStep] = []
+        node_a = self.kg.get_node(node_a_id)
+        node_b = self.kg.get_node(node_b_id)
+
+        if not node_a or not node_b:
+            return ReasoningResult(
+                operation_type='contradiction_resolution',
+                premise_ids=[node_a_id, node_b_id],
+                success=False,
+                explanation='One or both nodes not found',
+            )
+
+        chain.append(ReasoningStep(
+            step_type='premise', node_id=node_a_id,
+            content=node_a.content, confidence=node_a.confidence,
+        ))
+        chain.append(ReasoningStep(
+            step_type='premise', node_id=node_b_id,
+            content=node_b.content, confidence=node_b.confidence,
+        ))
+
+        # Count supporting evidence for each node
+        supporters_a = self.kg.get_neighbors(node_a_id, 'in')
+        supporters_b = self.kg.get_neighbors(node_b_id, 'in')
+
+        support_score_a = sum(n.confidence for n in supporters_a) + node_a.confidence
+        support_score_b = sum(n.confidence for n in supporters_b) + node_b.confidence
+
+        # Determine winner
+        if support_score_a >= support_score_b:
+            winner_id, loser_id = node_a_id, node_b_id
+            winner_score, loser_score = support_score_a, support_score_b
+        else:
+            winner_id, loser_id = node_b_id, node_a_id
+            winner_score, loser_score = support_score_b, support_score_a
+
+        # Reduce confidence of the losing node
+        loser = self.kg.get_node(loser_id)
+        if loser:
+            penalty = 0.3 * (winner_score / max(winner_score + loser_score, 0.001))
+            loser.confidence = max(0.05, loser.confidence - penalty)
+
+        # Record the contradiction edge
+        self.kg.add_edge(winner_id, loser_id, 'contradicts')
+
+        # Create resolution node
+        resolution_content = {
+            'type': 'contradiction_resolution',
+            'winner_id': winner_id,
+            'loser_id': loser_id,
+            'winner_support': round(winner_score, 4),
+            'loser_support': round(loser_score, 4),
+        }
+        resolution_node = self.kg.add_node(
+            node_type='inference',
+            content=resolution_content,
+            confidence=winner_score / max(winner_score + loser_score, 0.001),
+            source_block=max(node_a.source_block, node_b.source_block),
+        )
+
+        chain.append(ReasoningStep(
+            step_type='rule',
+            content={'operation': 'contradiction_resolution', 'method': 'evidence_weight'},
+            confidence=1.0,
+        ))
+        chain.append(ReasoningStep(
+            step_type='conclusion',
+            node_id=resolution_node.node_id,
+            content=resolution_content,
+            confidence=resolution_node.confidence,
+        ))
+
+        result = ReasoningResult(
+            operation_type='contradiction_resolution',
+            premise_ids=[node_a_id, node_b_id],
+            conclusion_node_id=resolution_node.node_id,
+            confidence=resolution_node.confidence,
+            chain=chain,
+            success=True,
+            explanation=f"Resolved: node {winner_id} wins (score {winner_score:.2f} vs {loser_score:.2f})",
+        )
+
+        self._store_operation(result)
+        self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
+        return result
+
     def get_stats(self) -> dict:
         """Get reasoning engine statistics"""
         type_counts: Dict[str, int] = {}
