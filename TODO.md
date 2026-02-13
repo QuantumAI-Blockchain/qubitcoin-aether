@@ -365,14 +365,15 @@
 - [x] AetherEngine with proof generation (`proof_of_thought.py`)
 - [x] Auto-reasoning on recent knowledge
 - [ ] Embed Proof-of-Thought hash in block headers
-- [ ] Task submission system (problem + QBC bounty)
-- [ ] Node solution proposal (solution + quantum proof)
-- [ ] Multi-node validation (QVERIFY opcode, 67% consensus)
-- [ ] QBC reward distribution for correct solutions
-- [ ] QBC slashing for incorrect proposals (50% stake)
+- [x] Task submission system (`task_protocol.py: TaskMarket` — submit with QBC bounty, claim, solve)
+- [x] Node solution proposal (`task_protocol.py: submit_solution()` — solution + hash)
+- [x] Multi-node validation (`task_protocol.py: ProofOfThoughtProtocol.validate_solution()` — stake-weighted 67% BFT)
+- [x] QBC reward distribution for correct solutions (`task_protocol.py: finalize_task()`)
+- [x] QBC slashing for incorrect proposals (`task_protocol.py: ValidatorRegistry.slash()` — 50% stake)
 - [x] Proof-of-Thought smart contract (`ProofOfThought.sol`)
 - [x] Task market contract (`TaskMarket.sol`)
 - [x] Validator registry contract (`ValidatorRegistry.sol`)
+- [x] Validator registry Python module (`task_protocol.py: ValidatorRegistry` — stake/unstake/slash/reward)
 - [ ] Proof-of-Thought explorer (view reasoning per block)
 
 ### 3.11 Safety & Alignment
@@ -396,16 +397,17 @@
 - [x] On-chain Phi tracking contract (`ConsciousnessDashboard.sol`)
 - [x] Phase synchronization contract (`PhaseSync.sol`)
 - [x] Global workspace contract (`GlobalWorkspace.sol`)
-- [ ] Consciousness emergence event detection
-- [ ] Historical consciousness timeline (immutable on-chain)
-- [ ] Dashboard API endpoints for frontend visualization
+- [x] Consciousness emergence event detection (`consciousness.py: ConsciousnessDashboard` — emergence/loss events)
+- [x] Historical consciousness timeline (`consciousness.py: get_phi_history() + get_events()`)
+- [x] Dashboard API data provider (`consciousness.py: get_dashboard_data() + get_consciousness_status()`)
+- [ ] Dashboard REST API endpoints for frontend visualization
 
 ### 3.14 Economics (QBC as Metabolic Currency)
 - [x] Synaptic staking contract (`SynapticStaking.sol`)
 - [x] Gas oracle for dynamic QBC pricing (`GasOracle.sol`)
 - [x] Treasury DAO contract (`TreasuryDAO.sol`)
-- [ ] Task bounty pool management
-- [ ] Validator staking and reward system
+- [x] Task bounty pool management (`task_protocol.py: TaskMarket` — bounty lifecycle)
+- [x] Validator staking and reward system (`task_protocol.py: ValidatorRegistry` — stake/unstake/slash/reward)
 - [ ] QBC circulation tracking (no minting by AGI)
 
 ### 3.15 Aether Chat System
