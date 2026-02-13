@@ -15,6 +15,7 @@ from .fee_manager import AetherFeeManager
 from .sephirot import SephirotManager, SephirahRole, SephirahState
 from .csf_transport import CSFTransport, CSFMessage
 from .pineal import PinealOrchestrator, CircadianPhase
+from .memory import MemoryManager, MemoryType
 
 __all__ = [
     'KnowledgeGraph',
@@ -32,4 +33,6 @@ __all__ = [
     'CSFMessage',
     'PinealOrchestrator',
     'CircadianPhase',
+    'MemoryManager',
+    'MemoryType',
 ]

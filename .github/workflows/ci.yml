@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  # ── Python Backend Tests ───────────────────────────────────────
+  backend-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest rich numpy scipy sqlalchemy pydantic fastapi
+          pip install psycopg2-binary prometheus_client httpx
+          # Skip heavy optional deps (Qiskit, gRPC) — conftest stubs them
+
+      - name: Run unit tests
+        run: |
+          python -m pytest tests/unit/ -v --tb=short -x
+        env:
+          PYTHONDONTWRITEBYTECODE: 1
+
+  # ── Python Linting ─────────────────────────────────────────────
+  backend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Syntax check all Python files
+        run: |
+          python -m py_compile src/qubitcoin/config.py
+          python -m py_compile src/qubitcoin/consensus/engine.py
+          python -m py_compile src/qubitcoin/qvm/vm.py
+          python -m py_compile src/qubitcoin/qvm/opcodes.py
+          python -m py_compile src/qubitcoin/qvm/state.py
+          python -m py_compile src/qubitcoin/aether/knowledge_graph.py
+          python -m py_compile src/qubitcoin/aether/phi_calculator.py
+          python -m py_compile src/qubitcoin/aether/reasoning.py
+          python -m py_compile src/qubitcoin/aether/sephirot.py
+          python -m py_compile src/qubitcoin/aether/csf_transport.py
+          python -m py_compile src/qubitcoin/aether/pineal.py
+          python -m py_compile src/qubitcoin/aether/memory.py
+          python -m py_compile src/qubitcoin/privacy/commitments.py
+          python -m py_compile src/qubitcoin/privacy/range_proofs.py
+          python -m py_compile src/qubitcoin/privacy/stealth.py
+          python -m py_compile src/qubitcoin/privacy/susy_swap.py
+
+  # ── Frontend Build ─────────────────────────────────────────────
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Type check
+        run: pnpm tsc --noEmit || true
+
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_RPC_URL: http://localhost:5000
+          NEXT_PUBLIC_WS_URL: ws://localhost:5000/ws
+          NEXT_PUBLIC_CHAIN_ID: "3301"

@@ -1,0 +1,123 @@
+[
+  {
+    "inputs": [
+      {"internalType": "address", "name": "_feeRecipient", "type": "address"},
+      {"internalType": "uint256", "name": "_requiredConfirmations", "type": "uint256"}
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {"internalType": "uint256", "name": "targetChain", "type": "uint256"},
+      {"internalType": "string", "name": "targetAddress", "type": "string"}
+    ],
+    "name": "deposit",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "bytes32", "name": "depositId", "type": "bytes32"},
+      {"internalType": "bytes32", "name": "targetTxHash", "type": "bytes32"}
+    ],
+    "name": "confirmDeposit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {"internalType": "address", "name": "recipient", "type": "address"},
+      {"internalType": "uint256", "name": "amount", "type": "uint256"},
+      {"internalType": "uint256", "name": "sourceChain", "type": "uint256"},
+      {"internalType": "bytes32", "name": "sourceTxHash", "type": "bytes32"}
+    ],
+    "name": "processWithdrawal",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getStats",
+    "outputs": [
+      {"internalType": "uint256", "name": "locked", "type": "uint256"},
+      {"internalType": "uint256", "name": "fees", "type": "uint256"},
+      {"internalType": "uint256", "name": "numDeposits", "type": "uint256"},
+      {"internalType": "uint256", "name": "numWithdrawals", "type": "uint256"},
+      {"internalType": "uint256", "name": "numChains", "type": "uint256"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "bytes32", "name": "depositId", "type": "bytes32"}],
+    "name": "getDeposit",
+    "outputs": [
+      {"internalType": "address", "name": "depositor", "type": "address"},
+      {"internalType": "uint256", "name": "amount", "type": "uint256"},
+      {"internalType": "uint256", "name": "fee", "type": "uint256"},
+      {"internalType": "uint256", "name": "targetChain", "type": "uint256"},
+      {"internalType": "string", "name": "targetAddress", "type": "string"},
+      {"internalType": "uint256", "name": "timestamp", "type": "uint256"},
+      {"internalType": "bool", "name": "processed", "type": "bool"}
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalLocked",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalFees",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "address", "name": "relayer", "type": "address"}],
+    "name": "addRelayer",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{"internalType": "uint256", "name": "chainId", "type": "uint256"}],
+    "name": "addChain",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "bytes32", "name": "depositId", "type": "bytes32"},
+      {"indexed": true, "internalType": "address", "name": "depositor", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "fee", "type": "uint256"},
+      {"indexed": true, "internalType": "uint256", "name": "targetChain", "type": "uint256"},
+      {"indexed": false, "internalType": "string", "name": "targetAddress", "type": "string"}
+    ],
+    "name": "DepositLocked",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "bytes32", "name": "withdrawalId", "type": "bytes32"},
+      {"indexed": true, "internalType": "address", "name": "recipient", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"},
+      {"indexed": true, "internalType": "uint256", "name": "sourceChain", "type": "uint256"},
+      {"indexed": false, "internalType": "bytes32", "name": "sourceTxHash", "type": "bytes32"}
+    ],
+    "name": "WithdrawalUnlocked",
+    "type": "event"
+  }
+]
