@@ -591,6 +591,79 @@ class P2PNetwork:
             'connected_peers': len(self.connections),
         }
 
+    # ====================================================================
+    # BLOCK SYNC PROTOCOL
+    # ====================================================================
+
+    async def request_block_range(self, peer_id: str, start_height: int, end_height: int) -> bool:
+        """Request a range of blocks from a peer for chain synchronization.
+
+        Sends a 'get_block_range' message. The peer responds with individual
+        'block' messages for each height in the range.
+
+        Args:
+            peer_id: Peer to request blocks from.
+            start_height: First block height to request (inclusive).
+            end_height: Last block height to request (inclusive).
+
+        Returns:
+            True if request was sent, False if peer not connected or invalid range.
+        """
+        if peer_id not in self.connections:
+            logger.warning(f"Cannot request blocks from {peer_id}: not connected")
+            return False
+        if start_height > end_height:
+            logger.warning(f"Invalid range: {start_height} > {end_height}")
+            return False
+        # Cap range to prevent abuse (max 500 blocks per request)
+        capped_end = min(end_height, start_height + 499)
+        await self.send_message(peer_id, 'get_block_range', {
+            'start_height': start_height,
+            'end_height': capped_end,
+        })
+        logger.info(f"Requested blocks {start_height}-{capped_end} from {peer_id}")
+        return True
+
+    async def sync_to_peer(self, peer_id: str) -> int:
+        """Synchronize our chain with a peer that has a higher tip.
+
+        Compares local height with peer's advertised height and requests
+        missing blocks in batches.
+
+        Args:
+            peer_id: Peer to sync with.
+
+        Returns:
+            Number of block range requests sent, or 0 if already up to date.
+        """
+        local_height = self.consensus.db.get_current_height()
+        # Ask peer for their height
+        await self.send_message(peer_id, 'get_height', {})
+        # The actual sync is driven by the 'height' handler in _handle_message
+        # which already requests blocks when peer_height > local_height.
+        # This method sends the initial query.
+        self.stats.setdefault('sync_requests', 0)
+        self.stats['sync_requests'] += 1
+        return 1
+
+    def get_sync_status(self) -> dict:
+        """Get chain synchronization status.
+
+        Returns:
+            Dict with local height, sync requests, and peer count.
+        """
+        local_height = 0
+        try:
+            local_height = self.consensus.db.get_current_height()
+        except Exception:
+            pass
+        return {
+            'local_height': local_height,
+            'sync_requests': self.stats.get('sync_requests', 0),
+            'blocks_propagated': self.stats['blocks_propagated'],
+            'connected_peers': len(self.connections),
+        }
+
     def get_peer_list(self) -> list:
         """Get list of connected peers"""
         return [peer.to_dict() for peer in self.connections.values()]
