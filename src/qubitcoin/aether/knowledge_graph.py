@@ -298,6 +298,82 @@ class KnowledgeGraph:
 
         return leaves[0]
 
+    def prune_low_confidence(self, threshold: float = 0.1, protect_types: Optional[Set[str]] = None) -> int:
+        """
+        Remove nodes with confidence below threshold.
+
+        Nodes of protected types (e.g. 'axiom') are never pruned.
+        Edges referencing pruned nodes are also removed.
+
+        Args:
+            threshold: Minimum confidence to keep a node
+            protect_types: Node types that are never pruned
+
+        Returns:
+            Number of nodes removed
+        """
+        protect = protect_types or {'axiom'}
+        to_remove = [
+            nid for nid, node in self.nodes.items()
+            if node.confidence < threshold and node.node_type not in protect
+        ]
+
+        for nid in to_remove:
+            # Remove edges referencing this node
+            self.edges = [
+                e for e in self.edges
+                if e.from_node_id != nid and e.to_node_id != nid
+            ]
+            # Clean up neighbor references in remaining nodes
+            for other_node in self.nodes.values():
+                if nid in other_node.edges_out:
+                    other_node.edges_out.remove(nid)
+                if nid in other_node.edges_in:
+                    other_node.edges_in.remove(nid)
+            del self.nodes[nid]
+
+        if to_remove:
+            logger.info(f"Pruned {len(to_remove)} low-confidence nodes (threshold={threshold})")
+
+        return len(to_remove)
+
+    def find_by_type(self, node_type: str, limit: int = 100) -> List[KeterNode]:
+        """Find nodes by type, sorted by confidence descending."""
+        matching = [
+            n for n in self.nodes.values()
+            if n.node_type == node_type
+        ]
+        matching.sort(key=lambda n: n.confidence, reverse=True)
+        return matching[:limit]
+
+    def find_by_content(self, key: str, value: str, limit: int = 50) -> List[KeterNode]:
+        """Find nodes whose content dict contains a matching key-value."""
+        matching = [
+            n for n in self.nodes.values()
+            if str(n.content.get(key, '')) == str(value)
+        ]
+        matching.sort(key=lambda n: n.source_block, reverse=True)
+        return matching[:limit]
+
+    def find_recent(self, count: int = 20) -> List[KeterNode]:
+        """Get the most recently added nodes by source block."""
+        nodes = sorted(
+            self.nodes.values(),
+            key=lambda n: n.source_block,
+            reverse=True,
+        )
+        return nodes[:count]
+
+    def get_edge_types_for_node(self, node_id: int) -> Dict[str, List[int]]:
+        """Get all edges grouped by type for a specific node."""
+        result: Dict[str, List[int]] = {}
+        for edge in self.edges:
+            if edge.from_node_id == node_id:
+                result.setdefault(f"out_{edge.edge_type}", []).append(edge.to_node_id)
+            if edge.to_node_id == node_id:
+                result.setdefault(f"in_{edge.edge_type}", []).append(edge.from_node_id)
+        return result
+
     def get_stats(self) -> dict:
         """Get knowledge graph statistics"""
         type_counts = {}

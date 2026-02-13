@@ -621,6 +621,56 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         }
 
     # ========================================================================
+    # KNOWLEDGE GRAPH QUERY ENDPOINTS
+    # ========================================================================
+
+    @app.get("/aether/knowledge/search")
+    async def knowledge_search(type: Optional[str] = None, key: Optional[str] = None,
+                               value: Optional[str] = None, limit: int = 50):
+        """Search knowledge graph nodes by type or content."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if limit > 200:
+            limit = 200
+        if type:
+            nodes = aether_engine.kg.find_by_type(type, limit)
+        elif key and value:
+            nodes = aether_engine.kg.find_by_content(key, value, limit)
+        else:
+            nodes = aether_engine.kg.find_recent(limit)
+        return {"nodes": [n.to_dict() for n in nodes], "count": len(nodes)}
+
+    @app.get("/aether/knowledge/recent")
+    async def knowledge_recent(count: int = 20):
+        """Get most recently added knowledge nodes."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if count > 200:
+            count = 200
+        nodes = aether_engine.kg.find_recent(count)
+        return {"nodes": [n.to_dict() for n in nodes], "count": len(nodes)}
+
+    @app.get("/aether/knowledge/paths/{from_id}/{to_id}")
+    async def knowledge_paths(from_id: int, to_id: int, max_depth: int = 5):
+        """Find paths between two knowledge nodes."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if max_depth > 8:
+            max_depth = 8
+        paths = aether_engine.kg.find_paths(from_id, to_id, max_depth)
+        return {"paths": paths, "count": len(paths)}
+
+    @app.post("/aether/knowledge/prune")
+    async def knowledge_prune(threshold: float = 0.1):
+        """Prune low-confidence nodes from knowledge graph (admin)."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if threshold < 0.0 or threshold > 0.5:
+            raise HTTPException(status_code=400, detail="Threshold must be between 0.0 and 0.5")
+        removed = aether_engine.kg.prune_low_confidence(threshold)
+        return {"removed": removed, "remaining_nodes": len(aether_engine.kg.nodes)}
+
+    # ========================================================================
     # CONSCIOUSNESS DASHBOARD ENDPOINTS
     # ========================================================================
 

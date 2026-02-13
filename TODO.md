@@ -91,7 +91,7 @@
 - [ ] Privacy transaction verification in consensus engine
 - [ ] Opt-in privacy flag in transaction format
 - [ ] Privacy-specific SQL schema tables (`sql/02_privacy_susy_swaps.sql` alignment)
-- [ ] Privacy transaction unit tests
+- [x] Privacy transaction unit tests (`test_privacy_advanced.py` — 18 tests: commitments, stealth, range proofs, susy swap)
 - [ ] Privacy integration tests (create, verify, spend confidential outputs)
 
 ### 1.8 SUSY Solution Database
@@ -266,8 +266,8 @@
 - [x] Merkle root computation over knowledge graph
 - [x] CockroachDB persistence
 - [x] Block-to-knowledge extraction (`knowledge_extractor.py` — block metadata, tx patterns, mining, temporal, difficulty trends)
-- [ ] Knowledge graph pruning (remove low-confidence nodes)
-- [ ] Graph query API (subgraph retrieval, path finding)
+- [x] Knowledge graph pruning (`knowledge_graph.py: prune_low_confidence()` — threshold-based, axiom protection)
+- [x] Graph query API (`knowledge_graph.py: find_by_type/content/recent, get_edge_types_for_node` + REST endpoints)
 - [ ] Knowledge graph export (JSON-LD / RDF)
 
 ### 3.2 Reasoning Engine
@@ -383,7 +383,7 @@
 - [x] Upgrade governor contract (`UpgradeGovernor.sol`)
 - [x] Multi-node consensus enforcement (`safety.py: MultiNodeConsensus` — 67% BFT, stake-weighted voting)
 - [x] Safety Manager (`safety.py: SafetyManager` — Gevurah + consensus + emergency shutdown)
-- [ ] Safety validation integration tests
+- [x] Safety validation integration tests (`test_integration.py: TestSafetyIntegration` — veto, consensus, shutdown)
 
 ### 3.12 Memory Systems
 - [x] Episodic memory (hippocampal, stored on IPFS) — `memory.py: EpisodicMemory`
@@ -688,13 +688,13 @@
 ### 7.1 Test Suites
 - [x] L1 unit tests (consensus, mining, crypto, UTXO, database) — 15 tests (test_consensus, test_database, test_quantum)
 - [x] L2 unit tests (QVM opcodes, state management, gas metering) — 52 tests (test_qvm: opcodes, execution, precompiles, quantum opcodes)
-- [x] L3 unit tests (knowledge graph, reasoning, Phi, Proof-of-Thought) — 59 tests (test_knowledge_graph, test_aether, test_sephirot)
-- [ ] Integration tests (full block lifecycle, tx lifecycle)
+- [x] L3 unit tests (knowledge graph, reasoning, Phi, Proof-of-Thought) — 139 tests (test_knowledge_graph, test_aether, test_sephirot, test_consciousness, test_memory, test_knowledge_extractor, test_reasoning_advanced, test_sephirot_nodes, test_knowledge_graph_advanced, test_task_protocol)
+- [x] Integration tests (`test_integration.py` — 13 tests: KG+reasoning, Phi+KG, consciousness, extractor, sephirot, safety)
 - [x] API tests (REST endpoints, JSON-RPC, WebSocket) — 9 tests (test_network: admin API, auth, models)
 - [ ] Frontend tests (Vitest unit + Playwright E2E)
 - [ ] Load tests (concurrent mining, high tx volume)
 - [ ] Fuzz testing (random bytecode to QVM)
-- [x] Privacy unit tests — 14 tests (test_privacy: commitments, stealth, range proofs, susy swap)
+- [x] Privacy unit tests — 33 tests (test_privacy + test_privacy_advanced: commitments, stealth, range proofs, susy swap)
 - [x] Config unit tests — 8 tests (test_config: economics, chain IDs, fee params)
 - [x] Test infrastructure — conftest.py with dependency stubs (Qiskit, gRPC, IPFS, etc.)
 
