@@ -23,6 +23,12 @@ from .safety import SafetyManager, GevurahVeto, MultiNodeConsensus
 from .knowledge_extractor import KnowledgeExtractor
 from .task_protocol import ProofOfThoughtProtocol, TaskMarket, ValidatorRegistry
 from .consciousness import ConsciousnessDashboard
+from .sephirot_nodes import (
+    BaseSephirah, NodeMessage, ProcessingResult,
+    KeterNode, ChochmahNode, BinahNode, ChesedNode, GevurahNode,
+    TiferetNode, NetzachNode, HodNode, YesodNode, MalkuthNode,
+    create_all_nodes,
+)
 
 __all__ = [
     'KnowledgeGraph',
@@ -50,4 +56,18 @@ __all__ = [
     'TaskMarket',
     'ValidatorRegistry',
     'ConsciousnessDashboard',
+    'BaseSephirah',
+    'NodeMessage',
+    'ProcessingResult',
+    'KeterNode',
+    'ChochmahNode',
+    'BinahNode',
+    'ChesedNode',
+    'GevurahNode',
+    'TiferetNode',
+    'NetzachNode',
+    'HodNode',
+    'YesodNode',
+    'MalkuthNode',
+    'create_all_nodes',
 ]

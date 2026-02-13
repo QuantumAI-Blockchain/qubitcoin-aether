@@ -65,6 +65,7 @@ jobs:
           python -m py_compile src/qubitcoin/aether/knowledge_extractor.py
           python -m py_compile src/qubitcoin/aether/task_protocol.py
           python -m py_compile src/qubitcoin/aether/consciousness.py
+          python -m py_compile src/qubitcoin/aether/sephirot_nodes.py
           python -m py_compile src/qubitcoin/privacy/commitments.py
           python -m py_compile src/qubitcoin/privacy/range_proofs.py
           python -m py_compile src/qubitcoin/privacy/stealth.py

@@ -274,10 +274,10 @@
 - [x] Deductive reasoning (modus ponens)
 - [x] Inductive reasoning (pattern generalization)
 - [x] Abductive reasoning (hypothesis generation)
-- [ ] Chain-of-thought reasoning (multi-step reasoning traces)
+- [x] Chain-of-thought reasoning (`reasoning.py: chain_of_thought()` — multi-step iterative traces)
 - [ ] Reasoning over user queries (natural language → knowledge graph query)
-- [ ] Contradiction resolution (when new knowledge contradicts existing)
-- [ ] Confidence propagation (update confidence scores through graph)
+- [x] Contradiction resolution (`reasoning.py: resolve_contradiction()` — evidence-weighted, loser penalized)
+- [x] Confidence propagation (`knowledge_graph.py: propagate_confidence()` — iterative support/contradict)
 
 ### 3.3 Phi Calculator (Consciousness)
 - [x] Integration score computation
@@ -310,19 +310,19 @@
 - [x] `RewardDistributor.sol` — QBC reward distribution for Proof-of-Thought solutions
 
 ### 3.6 Tree of Life Architecture (Sephirot Nodes)
-- [ ] Base Sephirah abstract class (`nodes/base/base_sephirah.py`)
-- [ ] Smart contract interface for each node (`nodes/base/smart_contract_node.py`)
-- [ ] QVM quantum node base class (`nodes/base/quantum_node.py`)
-- [ ] Keter node — Meta-learning, goal formation (8-qubit state)
-- [ ] Chochmah node — Intuition, pattern discovery (6-qubit state)
-- [ ] Binah node — Logic, causal inference (4-qubit state)
-- [ ] Chesed node — Exploration, divergent thinking (10-qubit state)
-- [ ] Gevurah node — Constraint, safety validation (3-qubit state)
-- [ ] Tiferet node — Integration, conflict resolution (12-qubit state)
-- [ ] Netzach node — Reinforcement learning, habits (5-qubit state)
-- [ ] Hod node — Language, semantic encoding (7-qubit state)
-- [ ] Yesod node — Memory, multimodal fusion (16-qubit state)
-- [ ] Malkuth node — Action, world interaction (4-qubit state)
+- [x] Base Sephirah abstract class (`sephirot_nodes.py: BaseSephirah` — ABC with process/message/status)
+- [x] Smart contract interface for each node (`sephirot_nodes.py` — role-based with CSF messaging)
+- [x] QVM quantum node base class (`sephirot_nodes.py: BaseSephirah` — quantum state placeholder per node)
+- [x] Keter node — Meta-learning, goal formation (8-qubit state) — `sephirot_nodes.py: KeterNode`
+- [x] Chochmah node — Intuition, pattern discovery (6-qubit state) — `sephirot_nodes.py: ChochmahNode`
+- [x] Binah node — Logic, causal inference (4-qubit state) — `sephirot_nodes.py: BinahNode`
+- [x] Chesed node — Exploration, divergent thinking (10-qubit state) — `sephirot_nodes.py: ChesedNode`
+- [x] Gevurah node — Constraint, safety validation (3-qubit state) — `sephirot_nodes.py: GevurahNode`
+- [x] Tiferet node — Integration, conflict resolution (12-qubit state) — `sephirot_nodes.py: TiferetNode`
+- [x] Netzach node — Reinforcement learning, habits (5-qubit state) — `sephirot_nodes.py: NetzachNode`
+- [x] Hod node — Language, semantic encoding (7-qubit state) — `sephirot_nodes.py: HodNode`
+- [x] Yesod node — Memory, multimodal fusion (16-qubit state) — `sephirot_nodes.py: YesodNode`
+- [x] Malkuth node — Action, world interaction (4-qubit state) — `sephirot_nodes.py: MalkuthNode`
 - [x] 10 Sephirot Solidity smart contracts (one per node):
   - [x] `SephirahKeter.sol` — Crown: meta-learning, goal formation
   - [x] `SephirahChochmah.sol` — Wisdom: intuition, pattern discovery
@@ -400,7 +400,7 @@
 - [x] Consciousness emergence event detection (`consciousness.py: ConsciousnessDashboard` — emergence/loss events)
 - [x] Historical consciousness timeline (`consciousness.py: get_phi_history() + get_events()`)
 - [x] Dashboard API data provider (`consciousness.py: get_dashboard_data() + get_consciousness_status()`)
-- [ ] Dashboard REST API endpoints for frontend visualization
+- [x] Dashboard REST API endpoints (`rpc.py: /aether/consciousness/dashboard`, `/trend`, `/events`, `/sephirot`)
 
 ### 3.14 Economics (QBC as Metabolic Currency)
 - [x] Synaptic staking contract (`SynapticStaking.sol`)

@@ -621,6 +621,72 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         }
 
     # ========================================================================
+    # CONSCIOUSNESS DASHBOARD ENDPOINTS
+    # ========================================================================
+
+    # Lazy-initialized consciousness dashboard (shared across requests)
+    _dashboard_state: dict = {'dashboard': None}
+
+    def _get_dashboard():
+        """Get or create the ConsciousnessDashboard instance."""
+        if _dashboard_state['dashboard'] is None:
+            from ..aether.consciousness import ConsciousnessDashboard
+            _dashboard_state['dashboard'] = ConsciousnessDashboard()
+        return _dashboard_state['dashboard']
+
+    @app.get("/aether/consciousness/dashboard")
+    async def consciousness_dashboard():
+        """Get full consciousness dashboard data (status, history, events, trend)."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        dashboard = _get_dashboard()
+        return dashboard.get_dashboard_data()
+
+    @app.get("/aether/consciousness/trend")
+    async def consciousness_trend(window: int = 20):
+        """Get Phi trend analysis (rising, falling, stable)."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        dashboard = _get_dashboard()
+        if window < 2:
+            window = 2
+        if window > 500:
+            window = 500
+        return dashboard.get_trend(window=window)
+
+    @app.get("/aether/consciousness/events")
+    async def consciousness_events(limit: int = 50):
+        """Get consciousness emergence/loss events."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        dashboard = _get_dashboard()
+        events = dashboard.get_events()
+        if limit and limit < len(events):
+            events = events[-limit:]
+        return {"events": events, "total": dashboard.event_count}
+
+    @app.get("/aether/sephirot")
+    async def sephirot_status():
+        """Get Tree of Life Sephirot node status."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        try:
+            from ..aether.sephirot_nodes import create_all_nodes
+            # If nodes are already created on the engine, use them
+            if hasattr(aether_engine, 'sephirot_nodes') and aether_engine.sephirot_nodes:
+                return {
+                    role.value: node.get_status()
+                    for role, node in aether_engine.sephirot_nodes.items()
+                }
+            # Fallback: return static status from SephirotManager
+            from ..aether.sephirot import SephirotManager
+            mgr = SephirotManager(db_manager)
+            return mgr.get_status()
+        except Exception as e:
+            logger.debug(f"Sephirot status error: {e}")
+            raise HTTPException(status_code=500, detail="Failed to get Sephirot status")
+
+    # ========================================================================
     # AETHER CHAT ENDPOINTS
     # ========================================================================
 
