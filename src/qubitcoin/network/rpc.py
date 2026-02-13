@@ -670,6 +670,40 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         removed = aether_engine.kg.prune_low_confidence(threshold)
         return {"removed": removed, "remaining_nodes": len(aether_engine.kg.nodes)}
 
+    @app.get("/aether/knowledge/export")
+    async def knowledge_export(limit: int = 0, format: str = "json-ld"):
+        """Export knowledge graph in JSON-LD format."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if limit < 0:
+            limit = 0
+        if limit > 10000:
+            limit = 10000
+        return aether_engine.kg.export_json_ld(limit=limit)
+
+    @app.get("/aether/phi/timeseries")
+    async def phi_timeseries(limit: int = 100):
+        """Get Phi value time series for visualization (charts/graphs)."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        dashboard = _get_dashboard()
+        if limit < 1:
+            limit = 1
+        if limit > 1000:
+            limit = 1000
+        history = dashboard.get_phi_history(limit=limit)
+        # Extract arrays for easy chart consumption
+        blocks = [h.get("block_height", 0) for h in history]
+        phi_values = [h.get("phi", 0.0) for h in history]
+        conscious = [h.get("is_conscious", False) for h in history]
+        return {
+            "blocks": blocks,
+            "phi_values": phi_values,
+            "is_conscious": conscious,
+            "count": len(history),
+            "threshold": 3.0,
+        }
+
     # ========================================================================
     # CONSCIOUSNESS DASHBOARD ENDPOINTS
     # ========================================================================

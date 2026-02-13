@@ -20,7 +20,7 @@
 - [x] Fix difficulty adjustment: per-block with 144-block window, ±10% cap (`consensus/engine.py`)
 - [x] Add block timestamp validation (no future blocks, monotonically increasing)
 - [x] Add coinbase maturity enforcement (100 blocks before spending)
-- [ ] Comprehensive mining integration test
+- [x] Comprehensive mining integration test (`test_mining_and_utxo.py` — block model, coinbase, reward, validation)
 
 ### 1.2 Cryptography & Key Security
 - [x] Dilithium2 key generation (`quantum/crypto.py`)
@@ -38,7 +38,7 @@
 ### 1.3 UTXO Model
 - [x] Basic UTXO tracking in CockroachDB
 - [x] Balance computation from unspent outputs
-- [ ] Double-spend prevention test suite
+- [x] Double-spend prevention test suite (`test_mining_and_utxo.py: TestDoubleSpendPrevention` — 6 tests)
 - [x] UTXO set pruning for spent outputs (`database/manager.py: prune_spent_utxos()`)
 - [x] Coinbase UTXO maturity checks (`consensus/engine.py: _is_coinbase_utxo()`)
 - [x] UTXO commitment hash (`database/manager.py: compute_utxo_commitment()`)
@@ -268,7 +268,7 @@
 - [x] Block-to-knowledge extraction (`knowledge_extractor.py` — block metadata, tx patterns, mining, temporal, difficulty trends)
 - [x] Knowledge graph pruning (`knowledge_graph.py: prune_low_confidence()` — threshold-based, axiom protection)
 - [x] Graph query API (`knowledge_graph.py: find_by_type/content/recent, get_edge_types_for_node` + REST endpoints)
-- [ ] Knowledge graph export (JSON-LD / RDF)
+- [x] Knowledge graph export (`knowledge_graph.py: export_json_ld()` — JSON-LD with @context, @graph, stats + REST endpoint)
 
 ### 3.2 Reasoning Engine
 - [x] Deductive reasoning (modus ponens)
@@ -288,7 +288,7 @@
 - [x] Consciousness event logging (when Phi crosses thresholds)
 - [x] Phi history API endpoint (`GET /aether/phi/history`)
 - [x] Consciousness status endpoint (`GET /aether/consciousness`)
-- [ ] Phi visualization data endpoint (time series)
+- [x] Phi visualization data endpoint (`rpc.py: GET /aether/phi/timeseries` — blocks, phi_values, is_conscious arrays)
 - [x] Kuramoto order parameter (phase synchronization across nodes) — `sephirot.py: get_coherence()`
 - [x] Combined consciousness check: Phi > 3.0 AND coherence > 0.7 — `pineal.py: _check_consciousness()`
 
@@ -300,7 +300,7 @@
 - [x] Block-to-knowledge extraction for genesis block (extract genesis metadata as first KeterNodes)
 - [x] Verify Phi tracking starts from block 0 in `phi_measurements` table
 - [x] Verify `consciousness_events` table initialized at genesis
-- [ ] Genesis validation test: confirm AGI tables populated from block 0
+- [x] Genesis validation test (`test_genesis_validation.py` — 11 tests: axioms, confidence, edges, content types, Phi baseline)
 
 ### 3.5 Aether Tree Core Contracts (Solidity)
 - [x] `AetherKernel.sol` — Main AGI orchestration contract (coordinates all 10 Sephirot)
@@ -686,7 +686,7 @@
 ## PHASE 7: TESTING & SECURITY (Priority: HIGH — ongoing)
 
 ### 7.1 Test Suites
-- [x] L1 unit tests (consensus, mining, crypto, UTXO, database) — 15 tests (test_consensus, test_database, test_quantum)
+- [x] L1 unit tests (consensus, mining, crypto, UTXO, database) — 57 tests (test_consensus, test_database, test_quantum, test_mining_and_utxo, test_genesis_validation)
 - [x] L2 unit tests (QVM opcodes, state management, gas metering) — 52 tests (test_qvm: opcodes, execution, precompiles, quantum opcodes)
 - [x] L3 unit tests (knowledge graph, reasoning, Phi, Proof-of-Thought) — 139 tests (test_knowledge_graph, test_aether, test_sephirot, test_consciousness, test_memory, test_knowledge_extractor, test_reasoning_advanced, test_sephirot_nodes, test_knowledge_graph_advanced, test_task_protocol)
 - [x] Integration tests (`test_integration.py` — 13 tests: KG+reasoning, Phi+KG, consciousness, extractor, sephirot, safety)
@@ -699,7 +699,7 @@
 - [x] Test infrastructure — conftest.py with dependency stubs (Qiskit, gRPC, IPFS, etc.)
 
 ### 7.2 Security
-- [ ] UTXO double-spend prevention verification
+- [x] UTXO double-spend prevention verification (`test_mining_and_utxo.py: TestDoubleSpendPrevention`)
 - [ ] Dilithium signature verification test vectors
 - [ ] QVM reentrancy protection tests
 - [ ] QVM integer overflow tests
