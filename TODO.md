@@ -57,8 +57,8 @@
 - [x] Rust P2P libp2p daemon (`rust-p2p/`)
 - [x] Python P2P fallback (`network/p2p_network.py`)
 - [x] gRPC bridge between Python and Rust (`network/rust_p2p_client.py`)
-- [ ] Block propagation protocol (gossip new blocks to peers)
-- [ ] Transaction propagation (gossip new txs to peers)
+- [x] Block propagation protocol (`p2p_network.py: propagate_block()` — serialize, broadcast, gossip on receive, stats tracking)
+- [x] Transaction propagation (`p2p_network.py: propagate_transaction()` — broadcast to all peers, gossip relay, stats)
 - [ ] Block sync protocol (catch up from behind)
 - [x] Peer scoring and eviction (`p2p_network.py: adjust_peer_score, penalize_peer, reward_peer, evict_low_score_peers, get_peers_by_score`)
 - [x] WebSocket endpoint for real-time subscriptions (`network/rpc.py: /ws`)
@@ -687,7 +687,8 @@
 
 ### 7.1 Test Suites
 - [x] L1 unit tests (consensus, mining, crypto, UTXO, database) — 57 tests (test_consensus, test_database, test_quantum, test_mining_and_utxo, test_genesis_validation)
-- [x] L2 unit tests (QVM opcodes, state management, gas metering) — 52 tests (test_qvm: opcodes, execution, precompiles, quantum opcodes)
+- [x] P2P network tests — 31 tests (test_peer_scoring: 16, test_block_propagation: 15 — propagation, dedup, stats)
+- [x] L2 unit tests (QVM opcodes, state management, gas metering) — 73 tests (test_qvm: 52, test_qvm_reentrancy: 21 — depth limits, static protection, gas, storage isolation, revert)
 - [x] L3 unit tests (knowledge graph, reasoning, Phi, Proof-of-Thought) — 139 tests (test_knowledge_graph, test_aether, test_sephirot, test_consciousness, test_memory, test_knowledge_extractor, test_reasoning_advanced, test_sephirot_nodes, test_knowledge_graph_advanced, test_task_protocol)
 - [x] Integration tests (`test_integration.py` — 13 tests: KG+reasoning, Phi+KG, consciousness, extractor, sephirot, safety)
 - [x] API tests (REST endpoints, JSON-RPC, WebSocket) — 9 tests (test_network: admin API, auth, models)
@@ -701,7 +702,7 @@
 ### 7.2 Security
 - [x] UTXO double-spend prevention verification (`test_mining_and_utxo.py: TestDoubleSpendPrevention`)
 - [ ] Dilithium signature verification test vectors
-- [ ] QVM reentrancy protection tests
+- [x] QVM reentrancy protection tests (`test_qvm_reentrancy.py` — 21 tests: depth limits, static call protection, gas forwarding, storage isolation, CALL value in static, CREATE2 static, revert behavior)
 - [ ] QVM integer overflow tests
 - [ ] Gas exhaustion attack tests
 - [ ] Bridge security audit preparation

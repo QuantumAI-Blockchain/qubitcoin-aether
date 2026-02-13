@@ -527,6 +527,70 @@ class P2PNetwork:
         )
         return [p.to_dict() for p in peers]
 
+    # ====================================================================
+    # BLOCK & TRANSACTION PROPAGATION
+    # ====================================================================
+
+    async def propagate_block(self, block: 'Block', exclude: Optional[str] = None) -> int:
+        """Propagate a new block to all connected peers.
+
+        Serializes the block via to_dict() and broadcasts as a 'block' message.
+        The receiving side validates, stores, and gossips further (see _handle_message).
+
+        Args:
+            block: The Block object to propagate.
+            exclude: Optional peer ID to skip (e.g., the peer that sent us this block).
+
+        Returns:
+            Number of peers the block was sent to.
+        """
+        block_data = block.to_dict()
+        peer_count = 0
+        tasks = []
+        for peer_id in list(self.connections.keys()):
+            if peer_id != exclude:
+                tasks.append(self.send_message(peer_id, 'block', block_data))
+                peer_count += 1
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self.stats['blocks_propagated'] += 1
+        logger.info(f"Propagated block {block.height} to {peer_count} peers")
+        return peer_count
+
+    async def propagate_transaction(self, tx_data: dict, exclude: Optional[str] = None) -> int:
+        """Propagate a new transaction to all connected peers.
+
+        Args:
+            tx_data: Transaction dictionary (already serialized).
+            exclude: Optional peer ID to skip.
+
+        Returns:
+            Number of peers the transaction was sent to.
+        """
+        peer_count = 0
+        tasks = []
+        for peer_id in list(self.connections.keys()):
+            if peer_id != exclude:
+                tasks.append(self.send_message(peer_id, 'transaction', tx_data))
+                peer_count += 1
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self.stats['txs_propagated'] += 1
+        logger.info(f"Propagated transaction to {peer_count} peers")
+        return peer_count
+
+    def get_propagation_stats(self) -> dict:
+        """Get block and transaction propagation statistics.
+
+        Returns:
+            Dict with blocks_propagated, txs_propagated, connected_peers.
+        """
+        return {
+            'blocks_propagated': self.stats['blocks_propagated'],
+            'txs_propagated': self.stats['txs_propagated'],
+            'connected_peers': len(self.connections),
+        }
+
     def get_peer_list(self) -> list:
         """Get list of connected peers"""
         return [peer.to_dict() for peer in self.connections.values()]
