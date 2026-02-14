@@ -213,3 +213,27 @@ class IPFSManager:
 
         except Exception as e:
             logger.error(f"Failed to store snapshot record: {e}")
+
+    # ── Periodic snapshot scheduling ────────────────────────────────
+    SNAPSHOT_INTERVAL: int = 1000  # blocks between automatic snapshots
+
+    def should_snapshot(self, current_height: int) -> bool:
+        """Return True if a periodic snapshot is due at *current_height*.
+
+        Snapshots are triggered every ``SNAPSHOT_INTERVAL`` blocks (default
+        1000).  Callers (typically the mining loop) invoke this after each
+        new block is committed and, if True, call ``create_snapshot()``.
+        """
+        if current_height <= 0:
+            return False
+        return current_height % self.SNAPSHOT_INTERVAL == 0
+
+    def maybe_snapshot(self, db_manager, current_height: int) -> Optional[str]:
+        """Convenience: create a snapshot only when the interval is met.
+
+        Returns:
+            The IPFS CID if a snapshot was created, else None.
+        """
+        if not self.should_snapshot(current_height):
+            return None
+        return self.create_snapshot(db_manager, current_height)

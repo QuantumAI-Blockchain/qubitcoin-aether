@@ -65,9 +65,9 @@ class TestCanonicalMapping:
         from qubitcoin.qvm.opcodes import CANONICAL_OPCODE_MAP
         assert isinstance(CANONICAL_OPCODE_MAP, dict)
 
-    def test_canonical_map_has_8_entries(self):
+    def test_canonical_map_has_10_entries(self):
         from qubitcoin.qvm.opcodes import CANONICAL_OPCODE_MAP
-        assert len(CANONICAL_OPCODE_MAP) == 8
+        assert len(CANONICAL_OPCODE_MAP) == 10
 
     def test_canonical_f0_is_qcreate(self):
         from qubitcoin.qvm.opcodes import CANONICAL_OPCODE_MAP, Opcode

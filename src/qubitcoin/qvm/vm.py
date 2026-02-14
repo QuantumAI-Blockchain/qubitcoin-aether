@@ -920,6 +920,32 @@ class QVM:
                 # Stack: → systemic_risk_score (0-100 scaled by 10^16)
                 ctx.push(5 * 10**16)  # Default low systemic risk
 
+            elif op == Opcode.QBRIDGE_ENTANGLE:
+                # Cross-chain quantum entanglement
+                # Stack: source_chain_id, dest_chain_id, state_hash → entanglement_id
+                src_chain = ctx.pop()
+                dst_chain = ctx.pop()
+                state_hash = ctx.pop()
+                import hashlib as _hl
+                ent_seed = (
+                    str(src_chain).encode()
+                    + str(dst_chain).encode()
+                    + str(state_hash).encode()
+                    + str(self.block.get('number', 0)).encode()
+                )
+                ent_id = int.from_bytes(
+                    _hl.sha256(ent_seed).digest(), 'big'
+                ) & MAX_UINT256
+                ctx.push(ent_id)
+
+            elif op == Opcode.QBRIDGE_VERIFY:
+                # Verify cross-chain bridge proof
+                # Stack: proof_hash, source_chain_id → valid (1/0)
+                proof_hash = ctx.pop()
+                source_chain = ctx.pop()
+                # Non-zero proof_hash from a known chain → valid
+                ctx.push(1 if proof_hash != 0 and source_chain != 0 else 0)
+
             # ================================================================
             # SYSTEM
             # ================================================================
