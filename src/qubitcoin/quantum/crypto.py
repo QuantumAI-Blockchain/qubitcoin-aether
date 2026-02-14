@@ -183,6 +183,73 @@ class Dilithium2:
         return hashlib.sha256(public_key).hexdigest()[:40]
 
 
+    @staticmethod
+    def export_keypair(public_key: bytes, private_key: bytes,
+                       fmt: str = 'hex') -> dict:
+        """Export a keypair in a standard interchange format.
+
+        Supported formats:
+            ``hex``  — raw hex strings (default, lightweight)
+            ``pem``  — PEM-like ASCII-armored base-64 blocks
+
+        Returns:
+            dict with ``public_key`` and ``private_key`` string values.
+        """
+        if fmt == 'hex':
+            return {
+                'public_key': public_key.hex(),
+                'private_key': private_key.hex(),
+                'format': 'hex',
+            }
+        elif fmt == 'pem':
+            import base64
+            b64_pk = base64.b64encode(public_key).decode()
+            b64_sk = base64.b64encode(private_key).decode()
+            pk_pem = (
+                "-----BEGIN DILITHIUM2 PUBLIC KEY-----\n"
+                + "\n".join(b64_pk[i:i + 64] for i in range(0, len(b64_pk), 64))
+                + "\n-----END DILITHIUM2 PUBLIC KEY-----"
+            )
+            sk_pem = (
+                "-----BEGIN DILITHIUM2 PRIVATE KEY-----\n"
+                + "\n".join(b64_sk[i:i + 64] for i in range(0, len(b64_sk), 64))
+                + "\n-----END DILITHIUM2 PRIVATE KEY-----"
+            )
+            return {
+                'public_key': pk_pem,
+                'private_key': sk_pem,
+                'format': 'pem',
+            }
+        else:
+            raise ValueError(f"Unsupported export format: {fmt}")
+
+    @staticmethod
+    def import_keypair(public_key_str: str, private_key_str: str,
+                       fmt: str = 'hex') -> Tuple[bytes, bytes]:
+        """Import a keypair from a standard interchange format.
+
+        Returns:
+            (public_key_bytes, private_key_bytes)
+        """
+        if fmt == 'hex':
+            return bytes.fromhex(public_key_str), bytes.fromhex(private_key_str)
+        elif fmt == 'pem':
+            import base64
+            pk_lines = [
+                ln for ln in public_key_str.splitlines()
+                if not ln.startswith('-----')
+            ]
+            sk_lines = [
+                ln for ln in private_key_str.splitlines()
+                if not ln.startswith('-----')
+            ]
+            pk = base64.b64decode(''.join(pk_lines))
+            sk = base64.b64decode(''.join(sk_lines))
+            return pk, sk
+        else:
+            raise ValueError(f"Unsupported import format: {fmt}")
+
+
 class CryptoManager:
     """High-level crypto operations"""
 
