@@ -206,8 +206,8 @@
 - [x] QUSD-pegged dynamic pricing (same oracle as Aether fees)
 - [x] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
 - [x] Template contract discount (configurable percentage)
-- [ ] Fee deduction from deployer UTXO before deployment
-- [ ] Fee UTXO creation to treasury address
+- [x] Fee deduction from deployer UTXO before deployment — `contracts/engine.py` integrates `FeeCollector`
+- [x] Fee UTXO creation to treasury address — `utils/fee_collector.py: collect_fee()` (UTXO spend → treasury + change)
 - [x] Add contract fee config parameters to `config.py`
 - [ ] Admin API: `PUT /admin/contract/fees` (hot reload)
 - [x] Fee estimation endpoint: `GET /qvm/deploy/estimate`
@@ -427,14 +427,14 @@
 - [x] Fee clamping (min/max QBC bounds to prevent extreme fees)
 - [x] Three pricing modes: `qusd_peg`, `fixed_qbc`, `direct_usd`
 - [x] Automatic fallback: QUSD failure → fixed_qbc mode
-- [ ] Fee deduction from user UTXO before processing chat message
-- [ ] Fee UTXO creation to treasury address
+- [x] Fee deduction from user UTXO before processing chat message — `aether/chat.py` integrates `FeeCollector`
+- [x] Fee UTXO creation to treasury address — `utils/fee_collector.py: collect_fee()` (UTXO spend → treasury + change)
 - [x] Free tier: first N messages per session (configurable onboarding)
 - [x] Fee tier multipliers (deep queries cost more than chat)
 - [x] Fee update interval (re-price every N blocks from QUSD oracle)
 - [x] Add fee config parameters to `config.py` (all from `.env`)
 - [ ] Admin API: `PUT /admin/aether/fees` (hot reload fee params)
-- [ ] Fee audit logging (track all fee changes for transparency)
+- [x] Fee audit logging (track all fee changes for transparency) — `utils/fee_collector.py: get_audit_log()` (in-memory, filterable by fee_type)
 
 ### 3.17 LLM Adapters (External Intelligence)
 - [ ] OpenAI GPT-4 adapter (knowledge distillation to Sephirot)
@@ -697,6 +697,7 @@
 - [ ] Fuzz testing (random bytecode to QVM)
 - [x] Privacy unit tests — 50 tests (test_privacy: 15, test_privacy_advanced: 18, test_privacy_integration: 17 — commitments, stealth, range proofs, susy swap, key images)
 - [x] Config unit tests — 8 tests (test_config: economics, chain IDs, fee params)
+- [x] Fee collector unit tests — 21 tests (test_fee_collector: UTXO selection, fee deduction, change, audit log, chat/contract integration)
 - [x] Test infrastructure — conftest.py with dependency stubs (Qiskit, gRPC, IPFS, etc.)
 
 ### 7.2 Security
