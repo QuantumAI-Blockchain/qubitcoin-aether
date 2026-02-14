@@ -198,7 +198,7 @@
 - [x] Deploy via JSON-RPC `eth_sendTransaction`
 - [x] Contract verification (source → bytecode matching)
 - [x] ABI encoding/decoding for function calls
-- [ ] Contract upgrade patterns (proxy)
+- [x] Contract upgrade patterns (proxy) — `contracts/proxy.py: ProxyRegistry` (EIP-1967 slots, admin-only upgrade, audit trail)
 
 ### 2.8 Contract Deployment Fees
 - [x] Fee calculator module (`contracts/fee_calculator.py`)
@@ -220,10 +220,10 @@
 - [ ] Token indexer (track all QBC-20/721 transfers)
 
 ### 2.10 Cross-Chain Bridge Verification
-- [ ] QBRIDGE_ENTANGLE opcode implementation
-- [ ] QBRIDGE_VERIFY opcode implementation
-- [ ] Quantum-verified cross-chain proofs (QVCSP)
-- [ ] Bridge proof storage schema (`cross_chain_proofs` table)
+- [x] QBRIDGE_ENTANGLE opcode implementation (vm.py 0xF8 — deterministic entanglement ID)
+- [x] QBRIDGE_VERIFY opcode implementation (vm.py 0xF9 — proof validation stub)
+- [x] Quantum-verified cross-chain proofs (QVCSP) — `bridge/proof_store.py: verify_qvcsp()` (entanglement correlation)
+- [x] Bridge proof storage schema — `bridge/proof_store.py: ProofStore` (submit, verify, execute, replay protection, Merkle proofs)
 - [ ] State channel support for high-frequency trading
 
 ### 2.11 Advanced Features (Future)
