@@ -138,8 +138,8 @@
 - [x] QCOMPLIANCE (0xDC/WP:0xF5) — KYC/AML/sanctions compliance check (stub, returns level 1)
 - [x] QRISK (0xDD/WP:0xF6) — SUSY risk score for individual address (stub, returns 10/100)
 - [x] QRISK_SYSTEMIC (0xDE/WP:0xF7) — Systemic risk / contagion model (stub, returns 5/100)
-- [ ] QBRIDGE_ENTANGLE (0xF8) — Cross-chain quantum entanglement
-- [ ] QBRIDGE_VERIFY (0xF9) — Cross-chain bridge proof verification
+- [x] QBRIDGE_ENTANGLE (0xF8) — Cross-chain quantum entanglement
+- [x] QBRIDGE_VERIFY (0xF9) — Cross-chain bridge proof verification
 - [x] QSUPERPOSE (0xD3) — Hadamard superposition
 - [x] QVQE (0xD4) — Execute VQE optimization
 - [x] QHAMILTONIAN (0xD5) — Generate SUSY Hamiltonian from seed
@@ -150,33 +150,33 @@
 - [x] Exponential gas scaling for n-qubit operations (`opcodes.py: get_quantum_gas_cost()` — base + 5000*2^n, capped at 32 qubits)
 
 ### 2.3 Quantum State Persistence (QSP)
-- [ ] Density matrix storage in CockroachDB (`quantum_states` table)
-- [ ] Entanglement registry (`entanglement_pairs` table)
-- [ ] Quantum state CRUD operations
-- [ ] Lazy measurement (states persist until explicitly measured)
+- [x] Density matrix storage in CockroachDB (`quantum_states` table)
+- [x] Entanglement registry (`entanglement_pairs` table)
+- [x] Quantum state CRUD operations
+- [x] Lazy measurement (states persist until explicitly measured)
 - [ ] Quantum state root in block header (Merkle root of all quantum states)
 - [ ] State decoherence prevention model
 
 ### 2.4 Compliance Engine (Institutional)
-- [ ] Compliance registry schema (`compliance_registry` table)
-- [ ] QCOMPLIANCE opcode: pre-flight KYC/AML/sanctions check
-- [ ] Programmable Compliance Policies (PCP) framework
-- [ ] Policy CRUD API (`POST/PUT/DELETE /qvm/compliance/policies`)
-- [ ] KYC verification module (Level 0-3 tiers)
+- [x] Compliance registry schema (`compliance_registry` table)
+- [x] QCOMPLIANCE opcode: pre-flight KYC/AML/sanctions check
+- [x] Programmable Compliance Policies (PCP) framework
+- [x] Policy CRUD API (`POST/PUT/DELETE /qvm/compliance/policies`)
+- [x] KYC verification module (Level 0-3 tiers)
 - [ ] AML monitoring module (transaction pattern detection)
 - [ ] Sanctions screening (OFAC, UN, EU lists integration)
 - [ ] ERC-20-QC compliance-aware token standard
-- [ ] Auto-circuit breakers (halt on systemic risk > threshold)
-- [ ] Compliance-as-a-Service tier system (Retail/Professional/Institutional/Sovereign)
+- [x] Auto-circuit breakers (halt on systemic risk > threshold)
+- [x] Compliance-as-a-Service tier system (Retail/Professional/Institutional/Sovereign)
 - [ ] Compliance proof storage (ZK proofs for auditors)
 - [ ] Regulatory report generation (MiCA, SEC, FinCEN)
 
 ### 2.5 Risk Assessment Oracle (RRAO)
-- [ ] QRISK opcode: SUSY Hamiltonian-based risk scoring
+- [x] QRISK opcode: SUSY Hamiltonian-based risk scoring
 - [ ] Transaction graph builder (6-hop depth from address)
 - [ ] Graph-to-SUSY-Hamiltonian conversion algorithm
 - [ ] VQE ground state computation for risk score
-- [ ] Risk score caching (10-block TTL)
+- [x] Risk score caching (10-block TTL)
 - [ ] QRISK_SYSTEMIC: systemic risk / contagion prediction
 - [ ] Contagion time-evolution operator (predict cascade effects)
 - [ ] Risk score normalization (0-100 scale)
@@ -195,7 +195,7 @@
 ### 2.7 Contract Deployment
 - [x] Contract deployment engine (`contracts/engine.py`)
 - [x] Template contracts (token, nft, launchpad, escrow, governance)
-- [ ] Deploy via JSON-RPC `eth_sendTransaction`
+- [x] Deploy via JSON-RPC `eth_sendTransaction`
 - [ ] Contract verification (source → bytecode matching)
 - [ ] ABI encoding/decoding for function calls
 - [ ] Contract upgrade patterns (proxy)

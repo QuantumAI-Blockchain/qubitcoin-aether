@@ -1116,6 +1116,77 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return await qusd_reserves()
 
     # ========================================================================
+    # COMPLIANCE POLICY ENDPOINTS (PCP — Programmable Compliance Policies)
+    # ========================================================================
+    from ..qvm.compliance import ComplianceEngine, KYCLevel
+    _compliance_engine = ComplianceEngine(db_manager)
+
+    @app.get("/qvm/compliance/policies")
+    async def list_compliance_policies():
+        """List all registered compliance policies."""
+        return {"policies": [p.to_dict() for p in _compliance_engine.list_policies()]}
+
+    @app.post("/qvm/compliance/policies")
+    async def create_compliance_policy(request: Request):
+        """Create a new compliance policy for an address."""
+        body = await request.json()
+        address = body.get('address', '')
+        if not address:
+            raise HTTPException(status_code=400, detail="address is required")
+        policy = _compliance_engine.create_policy(
+            address=address,
+            kyc_level=body.get('kyc_level', KYCLevel.BASIC),
+            aml_status=body.get('aml_status', 0),
+            sanctions_checked=body.get('sanctions_checked', False),
+            daily_limit=body.get('daily_limit', 10_000.0),
+            tier=body.get('tier', 0),
+            jurisdiction=body.get('jurisdiction', ''),
+        )
+        return {"policy": policy.to_dict()}
+
+    @app.get("/qvm/compliance/policies/{policy_id}")
+    async def get_compliance_policy(policy_id: str):
+        """Get a specific compliance policy by ID."""
+        policy = _compliance_engine.get_policy(policy_id)
+        if not policy:
+            raise HTTPException(status_code=404, detail="Policy not found")
+        return {"policy": policy.to_dict()}
+
+    @app.put("/qvm/compliance/policies/{policy_id}")
+    async def update_compliance_policy(policy_id: str, request: Request):
+        """Update fields on an existing compliance policy."""
+        body = await request.json()
+        updated = _compliance_engine.update_policy(policy_id, **body)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Policy not found")
+        return {"policy": updated.to_dict()}
+
+    @app.delete("/qvm/compliance/policies/{policy_id}")
+    async def delete_compliance_policy(policy_id: str):
+        """Delete a compliance policy."""
+        if not _compliance_engine.delete_policy(policy_id):
+            raise HTTPException(status_code=404, detail="Policy not found")
+        return {"deleted": True}
+
+    @app.get("/qvm/compliance/check/{address}")
+    async def check_compliance(address: str):
+        """Check compliance level for an address."""
+        level = _compliance_engine.check_compliance(address)
+        blocked = _compliance_engine.is_address_blocked(address)
+        return {"address": address, "kyc_level": level, "is_blocked": blocked}
+
+    @app.get("/qvm/compliance/circuit-breaker")
+    async def get_circuit_breaker():
+        """Get circuit breaker status."""
+        return _compliance_engine.circuit_breaker.to_dict()
+
+    @app.post("/qvm/compliance/circuit-breaker/reset")
+    async def reset_circuit_breaker():
+        """Manually reset the circuit breaker."""
+        _compliance_engine.reset_circuit_breaker()
+        return {"reset": True}
+
+    # ========================================================================
     # ADMIN API (Economics hot-reload)
     # ========================================================================
 
