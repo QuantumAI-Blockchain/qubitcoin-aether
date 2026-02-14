@@ -163,6 +163,7 @@ class JsonRpcHandler:
             'eth_getTransactionByHash': self.eth_getTransactionByHash,
             'eth_getTransactionReceipt': self.eth_getTransactionReceipt,
             'eth_sendRawTransaction': self.eth_sendRawTransaction,
+            'eth_sendTransaction': self.eth_sendTransaction,
             'eth_call': self.eth_call,
             'eth_estimateGas': self.eth_estimateGas,
 
@@ -318,6 +319,75 @@ class JsonRpcHandler:
             return '0x' + tx_hash
         except Exception as e:
             raise Exception(f"Failed to submit transaction: {e}")
+
+    async def eth_sendTransaction(self, params: list) -> str:
+        """Accept a transaction object and route deploys/calls through StateManager.
+
+        Params:
+            [{ from, to, data, gas, value, nonce }]
+
+        When *to* is null or empty the transaction is treated as a contract deploy;
+        otherwise it is a contract call.
+        """
+        tx_obj = params[0] if params else {}
+        from_addr = (tx_obj.get('from') or '').replace('0x', '') or '0' * 40
+        to_addr = (tx_obj.get('to') or '').replace('0x', '')
+        data_hex = (tx_obj.get('data') or '').replace('0x', '')
+        gas_limit = parse_hex_int(tx_obj['gas']) if tx_obj.get('gas') else Config.BLOCK_GAS_LIMIT
+        value = parse_hex_int(tx_obj['value']) if tx_obj.get('value') else 0
+        nonce = parse_hex_int(tx_obj['nonce']) if tx_obj.get('nonce') else 0
+
+        tx_type = 'contract_call' if to_addr else 'contract_deploy'
+        tx_hash = hashlib.sha256(
+            (from_addr + to_addr + data_hex + str(time.time())).encode()
+        ).hexdigest()
+
+        from ..database.models import Transaction as TxModel
+        tx = TxModel(
+            txid=tx_hash,
+            inputs=[],
+            outputs=[],
+            fee=Decimal(0),
+            signature='',
+            public_key='',
+            timestamp=time.time(),
+            tx_type=tx_type,
+            to_address=to_addr or None,
+            data=data_hex,
+            gas_limit=gas_limit,
+            gas_price=Decimal(0),
+            nonce=nonce,
+        )
+
+        if self.qvm:
+            receipt = self.qvm.process_transaction(
+                tx,
+                block_height=self.db.get_current_height(),
+                block_hash='0' * 64,
+                tx_index=0,
+            )
+            if receipt:
+                return '0x' + tx_hash
+
+        # Fallback — insert into mempool for deferred execution
+        from sqlalchemy import text as sql_text
+        with self.db.get_session() as session:
+            session.execute(
+                sql_text("""
+                    INSERT INTO transactions (txid, inputs, outputs, fee, signature,
+                                              public_key, timestamp, status, tx_type,
+                                              to_address, data, gas_limit, gas_price, nonce)
+                    VALUES (:txid, '[]', '[]', 0, '', '', :ts, 'pending',
+                            :tx_type, :to_addr, :data, :gas, 0, :nonce)
+                """),
+                {
+                    'txid': tx_hash, 'ts': time.time(), 'tx_type': tx_type,
+                    'to_addr': to_addr, 'data': data_hex, 'gas': gas_limit,
+                    'nonce': nonce,
+                },
+            )
+            session.commit()
+        return '0x' + tx_hash
 
     async def eth_call(self, params):
         """Read-only contract call (no state change)"""

@@ -155,6 +155,12 @@ class Block:
     thought_proof: Optional[dict] = None
 
     def calculate_hash(self) -> str:
+        # Derive a compact hash from the thought proof (if present)
+        thought_proof_hash = ''
+        if self.thought_proof:
+            tp_bytes = json.dumps(self.thought_proof, sort_keys=True).encode()
+            thought_proof_hash = hashlib.sha256(tp_bytes).hexdigest()
+
         data = {
             'height': self.height,
             'prev_hash': self.prev_hash,
@@ -163,7 +169,8 @@ class Block:
             'timestamp': self.timestamp,
             'difficulty': self.difficulty,
             'state_root': self.state_root,
-            'receipts_root': self.receipts_root
+            'receipts_root': self.receipts_root,
+            'thought_proof_hash': thought_proof_hash,
         }
         return hashlib.sha256(
             json.dumps(data, sort_keys=True).encode()
