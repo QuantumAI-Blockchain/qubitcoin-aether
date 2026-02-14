@@ -155,7 +155,7 @@
 - [x] Quantum state CRUD operations
 - [x] Lazy measurement (states persist until explicitly measured)
 - [x] Quantum state root in block header (Merkle root of all quantum states)
-- [ ] State decoherence prevention model
+- [x] State decoherence prevention model
 
 ### 2.4 Compliance Engine (Institutional)
 - [x] Compliance registry schema (`compliance_registry` table)
@@ -173,13 +173,13 @@
 
 ### 2.5 Risk Assessment Oracle (RRAO)
 - [x] QRISK opcode: SUSY Hamiltonian-based risk scoring
-- [ ] Transaction graph builder (6-hop depth from address)
+- [x] Transaction graph builder (6-hop depth from address)
 - [ ] Graph-to-SUSY-Hamiltonian conversion algorithm
 - [ ] VQE ground state computation for risk score
 - [x] Risk score caching (10-block TTL)
 - [ ] QRISK_SYSTEMIC: systemic risk / contagion prediction
 - [ ] Contagion time-evolution operator (predict cascade effects)
-- [ ] Risk score normalization (0-100 scale)
+- [x] Risk score normalization (0-100 scale)
 - [ ] High-risk connection detection (sanctioned entities, mixers, overleveraged)
 
 ### 2.6 Plugin Architecture
@@ -197,7 +197,7 @@
 - [x] Template contracts (token, nft, launchpad, escrow, governance)
 - [x] Deploy via JSON-RPC `eth_sendTransaction`
 - [x] Contract verification (source → bytecode matching)
-- [ ] ABI encoding/decoding for function calls
+- [x] ABI encoding/decoding for function calls
 - [ ] Contract upgrade patterns (proxy)
 
 ### 2.8 Contract Deployment Fees
