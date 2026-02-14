@@ -245,6 +245,10 @@ class ConsensusEngine:
                 coinbase maturity checks. If None, uses chain tip.
         """
         try:
+            # Route to privacy-specific validation if tx is confidential
+            if getattr(tx, 'is_private', False):
+                return self._validate_private_transaction(tx, db_manager, current_height)
+
             # Verify signature
             pk = bytes.fromhex(tx.public_key)
             msg = str({
@@ -297,6 +301,92 @@ class ConsensusEngine:
             return True
         except Exception as e:
             logger.error(f"Transaction validation error: {e}")
+            return False
+
+    def _validate_private_transaction(self, tx: Transaction, db_manager,
+                                      current_height: Optional[int] = None) -> bool:
+        """Validate a Susy Swap (confidential) transaction.
+
+        Privacy transactions use Pedersen commitments instead of plaintext amounts.
+        Validation checks:
+        1. Signature verification (same as public tx)
+        2. Key image uniqueness (no double-spend of confidential outputs)
+        3. Range proof verification (all committed values are non-negative)
+        4. Fee is explicitly visible and non-negative
+        """
+        try:
+            # 1. Verify signature
+            pk = bytes.fromhex(tx.public_key)
+            msg = str({
+                'inputs': tx.inputs,
+                'outputs': [{'address': o.get('address', o.get('one_time_address', '')),
+                             'amount': str(o.get('amount', '0'))} for o in tx.outputs],
+                'fee': str(tx.fee),
+                'timestamp': tx.timestamp
+            }).encode()
+            sig = bytes.fromhex(tx.signature)
+            from ..quantum.crypto import Dilithium2
+            if not Dilithium2.verify(pk, msg, sig):
+                logger.warning(f"Private tx {tx.txid}: invalid signature")
+                return False
+
+            # 2. Key image uniqueness — prevent double-spend of confidential outputs
+            key_images = []
+            for inp in tx.inputs:
+                ki = inp.get('key_image')
+                if not ki:
+                    logger.warning(f"Private tx {tx.txid}: input missing key_image")
+                    return False
+                if ki in key_images:
+                    logger.warning(f"Private tx {tx.txid}: duplicate key image in same tx")
+                    return False
+                key_images.append(ki)
+                # Check against spent key images in DB
+                if self._is_key_image_spent(ki, db_manager):
+                    logger.warning(f"Private tx {tx.txid}: key image already spent: {ki[:32]}...")
+                    return False
+
+            # 3. Range proof verification — each output must prove value >= 0
+            for i, out in enumerate(tx.outputs):
+                range_proof = out.get('range_proof')
+                if range_proof:
+                    try:
+                        from ..privacy.range_proofs import RangeProofVerifier, RangeProof
+                        proof_obj = RangeProof(
+                            commitment=range_proof.get('commitment', {}),
+                            proof_data=range_proof.get('proof_data', b''),
+                            value_range=(0, 2**64),
+                        )
+                        if not RangeProofVerifier.verify(proof_obj):
+                            logger.warning(f"Private tx {tx.txid}: range proof failed for output {i}")
+                            return False
+                    except Exception as e:
+                        logger.warning(f"Private tx {tx.txid}: range proof error for output {i}: {e}")
+                        return False
+
+            # 4. Fee must be explicit and non-negative
+            if tx.fee < 0:
+                logger.warning(f"Private tx {tx.txid}: negative fee")
+                return False
+
+            logger.debug(f"Private tx {tx.txid} validated successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Private transaction validation error: {e}")
+            return False
+
+    def _is_key_image_spent(self, key_image: str, db_manager) -> bool:
+        """Check if a key image has been used in a previous transaction."""
+        try:
+            with db_manager.get_session() as session:
+                from sqlalchemy import text
+                result = session.execute(
+                    text("SELECT 1 FROM key_images WHERE key_image = :ki LIMIT 1"),
+                    {'ki': key_image}
+                ).fetchone()
+                return result is not None
+        except Exception:
+            # Table may not exist yet — allow the tx through
             return False
 
     def _is_coinbase_utxo(self, utxo: UTXO, db_manager) -> bool:

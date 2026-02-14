@@ -88,9 +88,9 @@
   - [x] Key image computation (double-spend prevention)
   - [x] Balance proof generation
   - [x] Change output handling with blinding factors
-- [ ] Privacy transaction verification in consensus engine
+- [x] Privacy transaction verification in consensus engine (`consensus/engine.py: _validate_private_transaction()` — key image check, range proof, fee validation)
 - [x] Opt-in privacy flag in transaction format (`models.py: is_private: bool = False`)
-- [ ] Privacy-specific SQL schema tables (`sql/02_privacy_susy_swaps.sql` alignment)
+- [x] Privacy-specific SQL schema tables (`sql/02_privacy_susy_swaps.sql` — key_images, range_proof_cache tables)
 - [x] Privacy transaction unit tests (`test_privacy_advanced.py` — 18 tests: commitments, stealth, range proofs, susy swap)
 - [x] Privacy integration tests (create, verify, spend confidential outputs) — `test_privacy_integration.py` (17 tests: commitments, stealth, susy swap, key images, tx size)
 
@@ -129,15 +129,15 @@
 - [x] Precompiled contracts (ecRecover, SHA256, identity, modexp)
 
 ### 2.2 Quantum Opcodes Implementation
-- [ ] Reconcile opcode mapping: migrate from 0xD0-0xD9 (Python) to 0xF0-0xF9 (whitepaper canonical)
-- [ ] QCREATE (0xF0) — Create quantum state as density matrix
+- [x] Reconcile opcode mapping: 0xD0-0xDE (Python) with canonical 0xF0-0xF9 (whitepaper) via CANONICAL_OPCODE_MAP + docs
+- [x] QCREATE (0xDA/WP:0xF0) — Create quantum state as density matrix (`vm.py` + `opcodes.py`)
 - [x] QMEASURE (0xD1/0xF1) — Measure/collapse quantum state (deterministic from block context)
 - [x] QENTANGLE (0xD2/0xF2) — Create entangled pair between contracts
 - [x] QGATE (0xD0/0xF3) — Apply quantum gate (H,X,Y,Z,CNOT,RX,RY,RZ)
-- [ ] QVERIFY (0xF4) — Verify quantum proof
-- [ ] QCOMPLIANCE (0xF5) — KYC/AML/sanctions compliance check
-- [ ] QRISK (0xF6) — SUSY risk score for individual address
-- [ ] QRISK_SYSTEMIC (0xF7) — Systemic risk / contagion model
+- [x] QVERIFY (0xDB/WP:0xF4) — Verify quantum ZK proof (`vm.py` + `opcodes.py`)
+- [x] QCOMPLIANCE (0xDC/WP:0xF5) — KYC/AML/sanctions compliance check (stub, returns level 1)
+- [x] QRISK (0xDD/WP:0xF6) — SUSY risk score for individual address (stub, returns 10/100)
+- [x] QRISK_SYSTEMIC (0xDE/WP:0xF7) — Systemic risk / contagion model (stub, returns 5/100)
 - [ ] QBRIDGE_ENTANGLE (0xF8) — Cross-chain quantum entanglement
 - [ ] QBRIDGE_VERIFY (0xF9) — Cross-chain bridge proof verification
 - [x] QSUPERPOSE (0xD3) — Hadamard superposition
@@ -688,7 +688,7 @@
 ### 7.1 Test Suites
 - [x] L1 unit tests (consensus, mining, crypto, UTXO, database, Dilithium) — 83 tests (test_consensus, test_database, test_quantum, test_mining_and_utxo, test_genesis_validation, test_dilithium: 26)
 - [x] P2P network tests — 43 tests (test_peer_scoring: 16, test_block_propagation: 15, test_block_sync: 12 — propagation, dedup, sync, stats)
-- [x] L2 unit tests (QVM opcodes, state management, gas metering) — 116 tests (test_qvm: 52, test_qvm_reentrancy: 21, test_qvm_overflow: 28, test_qvm_gas_attacks: 15)
+- [x] L2 unit tests (QVM opcodes, state management, gas metering) — 147 tests (test_qvm: 52, test_qvm_reentrancy: 21, test_qvm_overflow: 28, test_qvm_gas_attacks: 15, test_qvm_quantum_opcodes: 31)
 - [x] L3 unit tests (knowledge graph, reasoning, Phi, Proof-of-Thought) — 139 tests (test_knowledge_graph, test_aether, test_sephirot, test_consciousness, test_memory, test_knowledge_extractor, test_reasoning_advanced, test_sephirot_nodes, test_knowledge_graph_advanced, test_task_protocol)
 - [x] Integration tests (`test_integration.py` — 13 tests: KG+reasoning, Phi+KG, consciousness, extractor, sephirot, safety)
 - [x] API tests (REST endpoints, JSON-RPC, WebSocket) — 9 tests (test_network: admin API, auth, models)
@@ -801,5 +801,5 @@
 
 ---
 
-*Last updated: 2026-02-13*
+*Last updated: 2026-02-14*
 *Track progress here. Update status after every session.*

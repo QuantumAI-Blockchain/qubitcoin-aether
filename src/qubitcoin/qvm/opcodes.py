@@ -181,7 +181,25 @@ class Opcode(IntEnum):
     LOG4 = 0xa4
 
     # ========================================================================
-    # QUANTUM OPCODES (0xd0-0xdf) - Qubitcoin extensions
+    # QUANTUM OPCODES (0xd0-0xde) - Qubitcoin extensions
+    #
+    # Current Python mapping (0xD0-0xDE): Active implementation
+    # Whitepaper canonical mapping (0xF0-0xF9): Reserved for Go production build
+    # Note: 0xF0-0xF5/0xFA are occupied by EVM system opcodes (CREATE, CALL, etc.)
+    # so the Python implementation uses 0xD0-0xDE to avoid collisions.
+    # The Go build will remap system opcodes to reconcile.
+    #
+    # Canonical mapping (whitepaper → Python):
+    #   QCREATE    (WP:0xF0) → 0xDA  (create quantum state as density matrix)
+    #   QMEASURE   (WP:0xF1) → 0xD1  (measure qubit, collapse)
+    #   QENTANGLE  (WP:0xF2) → 0xD2  (create entangled pair)
+    #   QGATE      (WP:0xF3) → 0xD0  (apply quantum gate)
+    #   QVERIFY    (WP:0xF4) → 0xDB  (verify quantum proof — ZK)
+    #   QCOMPLIANCE(WP:0xF5) → 0xDC  (KYC/AML/sanctions check)
+    #   QRISK      (WP:0xF6) → 0xDD  (SUSY risk score for address)
+    #   QRISK_SYS  (WP:0xF7) → 0xDE  (systemic risk / contagion)
+    #   QBRIDGE_ENT(WP:0xF8) → (reserved, not yet implemented)
+    #   QBRIDGE_VER(WP:0xF9) → (reserved, not yet implemented)
     # ========================================================================
     QGATE = 0xd0         # Apply quantum gate to qubit register
     QMEASURE = 0xd1      # Measure qubit, collapse to classical bit
@@ -193,6 +211,11 @@ class Opcode(IntEnum):
     QPROOF = 0xd7        # Validate quantum proof
     QFIDELITY = 0xd8     # Compute state fidelity
     QDILITHIUM = 0xd9    # Verify Dilithium signature (precompile)
+    QCREATE = 0xda       # Create quantum state as density matrix (WP: 0xF0)
+    QVERIFY = 0xdb       # Verify quantum ZK proof (WP: 0xF4)
+    QCOMPLIANCE = 0xdc   # KYC/AML/sanctions pre-flight check (WP: 0xF5)
+    QRISK = 0xdd         # SUSY risk score for individual address (WP: 0xF6)
+    QRISK_SYSTEMIC = 0xde  # Systemic risk / contagion model (WP: 0xF7)
 
     # ========================================================================
     # SYSTEM (0xf0-0xff)
@@ -244,6 +267,8 @@ GAS_COSTS = {
     Opcode.QVQE: 50000, Opcode.QHAMILTONIAN: 10000,
     Opcode.QENERGY: 15000, Opcode.QPROOF: 25000,
     Opcode.QFIDELITY: 10000, Opcode.QDILITHIUM: 3000,
+    Opcode.QCREATE: 5000, Opcode.QVERIFY: 8000,
+    Opcode.QCOMPLIANCE: 15000, Opcode.QRISK: 5000, Opcode.QRISK_SYSTEMIC: 10000,
     # System
     Opcode.CREATE: 32000, Opcode.CALL: 700, Opcode.CALLCODE: 700,
     Opcode.RETURN: 0, Opcode.DELEGATECALL: 700, Opcode.CREATE2: 32000,
@@ -270,6 +295,22 @@ QUANTUM_OPCODES = {
     Opcode.QGATE, Opcode.QMEASURE, Opcode.QENTANGLE,
     Opcode.QSUPERPOSE, Opcode.QVQE, Opcode.QHAMILTONIAN,
     Opcode.QENERGY, Opcode.QPROOF, Opcode.QFIDELITY,
+    Opcode.QCREATE,
+}
+
+# Canonical whitepaper mapping (0xF0-0xF9) → current Python opcodes
+# Used for documentation and future Go migration
+CANONICAL_OPCODE_MAP = {
+    0xF0: Opcode.QCREATE,       # Create quantum state (density matrix)
+    0xF1: Opcode.QMEASURE,      # Measure quantum state (collapse)
+    0xF2: Opcode.QENTANGLE,     # Create entangled pair
+    0xF3: Opcode.QGATE,         # Apply quantum gate
+    0xF4: Opcode.QVERIFY,       # Verify quantum proof (ZK)
+    0xF5: Opcode.QCOMPLIANCE,   # KYC/AML/sanctions check
+    0xF6: Opcode.QRISK,         # SUSY risk score (address)
+    0xF7: Opcode.QRISK_SYSTEMIC,  # Systemic risk (contagion)
+    # 0xF8: QBRIDGE_ENTANGLE   — reserved, not yet implemented
+    # 0xF9: QBRIDGE_VERIFY     — reserved, not yet implemented
 }
 
 
