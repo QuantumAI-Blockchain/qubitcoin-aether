@@ -174,20 +174,20 @@
 ### 2.5 Risk Assessment Oracle (RRAO)
 - [x] QRISK opcode: SUSY Hamiltonian-based risk scoring
 - [x] Transaction graph builder (6-hop depth from address)
-- [ ] Graph-to-SUSY-Hamiltonian conversion algorithm
-- [ ] VQE ground state computation for risk score
+- [x] Graph-to-SUSY-Hamiltonian conversion algorithm
+- [x] VQE ground state computation for risk score
 - [x] Risk score caching (10-block TTL)
-- [ ] QRISK_SYSTEMIC: systemic risk / contagion prediction
-- [ ] Contagion time-evolution operator (predict cascade effects)
+- [x] QRISK_SYSTEMIC: systemic risk / contagion prediction
+- [x] Contagion time-evolution operator (predict cascade effects)
 - [x] Risk score normalization (0-100 scale)
-- [ ] High-risk connection detection (sanctioned entities, mixers, overleveraged)
+- [x] High-risk connection detection (sanctioned entities, mixers, overleveraged)
 
 ### 2.6 Plugin Architecture
 - [x] Plugin manager module (lifecycle management)
 - [x] Dynamic plugin loading system
 - [x] Plugin registry and API interface
-- [ ] Privacy plugin (SUSY swaps, ZK proof generation)
-- [ ] Oracle plugin (quantum oracle, price feeds, aggregation)
+- [x] Privacy plugin (SUSY swaps, ZK proof generation)
+- [x] Oracle plugin (quantum oracle, price feeds, aggregation)
 - [ ] Governance plugin (DAO, voting, proposals)
 - [ ] DeFi plugin (lending, DEX, staking)
 - [ ] Plugin SDK documentation
