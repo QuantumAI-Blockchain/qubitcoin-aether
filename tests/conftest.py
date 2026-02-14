@@ -43,6 +43,13 @@ _STUBS = [
     'grpc', 'grpc._channel',
     # IPFS
     'ipfshttpclient',
+    # Web3 / bridge deps
+    'web3', 'web3.contract', 'web3.middleware', 'web3.types',
+    'eth_account', 'eth_account.signers', 'eth_account.signers.local',
+    'base58',
+    'solders', 'solders.keypair', 'solders.pubkey', 'solders.system_program',
+    'solana', 'solana.rpc', 'solana.rpc.async_api', 'solana.rpc.commitment',
+    'spl', 'spl.token', 'spl.token.client', 'spl.token.constants',
     # Cryptography (optional)
     'sha3',
     'oqs',
