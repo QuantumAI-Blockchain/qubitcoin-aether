@@ -41,5 +41,25 @@ CREATE TABLE IF NOT EXISTS susy_swap_pools (
     UNIQUE INDEX token_pair_idx (token_a_address, token_b_address)
 );
 
+-- Key images track spent confidential outputs to prevent double-spending
+CREATE TABLE IF NOT EXISTS key_images (
+    key_image STRING PRIMARY KEY,          -- Hex-encoded key image (unique per spending key)
+    tx_hash BYTES NOT NULL,                -- Transaction that spent this output
+    block_height BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    INDEX block_height_idx (block_height),
+    INDEX tx_hash_idx (tx_hash)
+);
+
+-- Range proof cache for verified proofs (avoid re-verification)
+CREATE TABLE IF NOT EXISTS range_proof_cache (
+    proof_hash STRING PRIMARY KEY,         -- SHA-256 of serialized proof
+    commitment_hash STRING NOT NULL,       -- Hash of the Pedersen commitment
+    verified BOOL NOT NULL DEFAULT true,
+    verified_at TIMESTAMP NOT NULL DEFAULT now(),
+    block_height BIGINT NOT NULL,
+    INDEX block_height_idx (block_height)
+);
+
 INSERT INTO schema_version (version, component, description)
-VALUES ('1.0.0', 'privacy', 'Privacy and Susy Swaps');
+VALUES ('1.1.0', 'privacy', 'Privacy: key images, range proof cache');

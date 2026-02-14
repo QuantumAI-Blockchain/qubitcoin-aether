@@ -8,7 +8,7 @@ class TestQuantumGasScaling:
     def test_import(self):
         from qubitcoin.qvm.opcodes import get_quantum_gas_cost, QUANTUM_OPCODES
         assert get_quantum_gas_cost is not None
-        assert len(QUANTUM_OPCODES) == 9
+        assert len(QUANTUM_OPCODES) == 10
 
     def test_single_qubit_cost(self):
         """1-qubit operation adds 5000 * 2^1 = 10000 to base cost."""
@@ -76,6 +76,7 @@ class TestQuantumGasScaling:
             Opcode.QGATE, Opcode.QMEASURE, Opcode.QENTANGLE,
             Opcode.QSUPERPOSE, Opcode.QVQE, Opcode.QHAMILTONIAN,
             Opcode.QENERGY, Opcode.QPROOF, Opcode.QFIDELITY,
+            Opcode.QCREATE,
         }
         assert QUANTUM_OPCODES == expected
 
