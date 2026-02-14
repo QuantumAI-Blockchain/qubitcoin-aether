@@ -61,16 +61,19 @@ class ChatSession:
 class AetherChat:
     """Manages Aether Tree chat interactions."""
 
-    def __init__(self, aether_engine, db_manager, fee_manager=None) -> None:
+    def __init__(self, aether_engine, db_manager, fee_manager=None,
+                 fee_collector=None) -> None:
         """
         Args:
             aether_engine: The main AetherEngine instance.
             db_manager: Database manager for persistence.
             fee_manager: Optional fee manager for pricing.
+            fee_collector: Optional FeeCollector for UTXO fee deduction.
         """
         self.engine = aether_engine
         self.db = db_manager
         self.fee_manager = fee_manager
+        self.fee_collector = fee_collector
         self._sessions: Dict[str, ChatSession] = {}
         self._max_sessions = 10000
 
@@ -138,6 +141,24 @@ class AetherChat:
         if not session:
             return {'error': 'Session not found. Create a session first.'}
 
+        # Deduct fee from user's UTXOs before processing
+        fee_record = None
+        fee_info = self.get_message_fee(session_id, is_deep_query)
+        fee_qbc = fee_info.get('fee_qbc', 0)
+
+        if fee_qbc > 0 and self.fee_collector and session.user_address:
+            from decimal import Decimal
+            fee_type = 'aether_query' if is_deep_query else 'aether_chat'
+            success, msg, fee_record = self.fee_collector.collect_fee(
+                payer_address=session.user_address,
+                fee_amount=Decimal(str(fee_qbc)),
+                fee_type=fee_type,
+            )
+            if not success:
+                return {'error': f'Fee payment failed: {msg}'}
+
+            session.fees_paid_atoms += int(Decimal(str(fee_qbc)) * 10**8)
+
         # Record user message
         user_msg = ChatMessage(role='user', content=message, timestamp=time.time())
         session.messages.append(user_msg)
@@ -187,7 +208,7 @@ class AetherChat:
         )
         session.messages.append(aether_msg)
 
-        return {
+        result = {
             'response': response_content,
             'reasoning_trace': reasoning_trace,
             'phi_at_response': phi_value,
@@ -196,6 +217,9 @@ class AetherChat:
             'session_id': session_id,
             'message_index': len(session.messages) - 1,
         }
+        if fee_record:
+            result['fee_paid'] = fee_record.to_dict()
+        return result
 
     def _search_knowledge(self, query: str) -> List[int]:
         """Search the knowledge graph for nodes relevant to the query."""

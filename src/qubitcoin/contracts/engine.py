@@ -23,10 +23,20 @@ logger = get_logger(__name__)
 class ContractEngine:
     """Manages smart contract deployment and execution"""
 
-    def __init__(self, db_manager, quantum_engine):
-        """Initialize contract engine"""
+    def __init__(self, db_manager, quantum_engine, fee_collector=None,
+                 fee_calculator=None):
+        """Initialize contract engine
+
+        Args:
+            db_manager: DatabaseManager for persistence.
+            quantum_engine: QuantumEngine for VQE proofs.
+            fee_collector: Optional FeeCollector for UTXO fee deduction.
+            fee_calculator: Optional ContractFeeCalculator for dynamic pricing.
+        """
         self.db = db_manager
         self.quantum = quantum_engine
+        self.fee_collector = fee_collector
+        self.fee_calculator = fee_calculator
         
         # Contract type validators
         self.validators = {
@@ -95,20 +105,36 @@ class ContractEngine:
                 if not valid:
                     return False, f"Contract validation failed: {error}", None
             
-            # Calculate gas cost
+            # Calculate deployment fee
             code_size = len(json.dumps(contract_code))
-            gas_cost = Config.GAS_CONTRACT_DEPLOY_BASE
-            gas_cost += Config.GAS_CONTRACT_DEPLOY_PER_KB * Decimal(code_size / 1024)
-            
+            is_template = contract_type in ('token', 'nft', 'launchpad', 'escrow', 'governance')
+
+            if self.fee_calculator:
+                gas_cost = self.fee_calculator.calculate_deploy_fee(code_size, is_template)
+            else:
+                gas_cost = Config.GAS_CONTRACT_DEPLOY_BASE
+                gas_cost += Config.GAS_CONTRACT_DEPLOY_PER_KB * Decimal(code_size / 1024)
+
             # Check deployer balance
             balance = self.db.get_balance(deployer_address)
             if balance < gas_cost:
                 return False, f"Insufficient balance. Need {gas_cost} QBC", None
-            
+
             # Check size limits
             if code_size > Config.MAX_CONTRACT_SIZE:
                 return False, f"Contract too large: {code_size} > {Config.MAX_CONTRACT_SIZE}", None
-            
+
+            # Deduct fee via UTXO and route to treasury
+            fee_record = None
+            if self.fee_collector:
+                success, fee_msg, fee_record = self.fee_collector.collect_fee(
+                    payer_address=deployer_address,
+                    fee_amount=gas_cost,
+                    fee_type='contract_deploy',
+                )
+                if not success:
+                    return False, f"Fee payment failed: {fee_msg}", None
+
             # Deploy contract
             with self.db.get_session() as session:
                 result = session.execute(
@@ -204,14 +230,27 @@ class ContractEngine:
             if not Dilithium2.verify(pk_bytes, msg, sig_bytes):
                 return False, "Invalid signature", None
             
-            # Calculate gas cost
-            gas_cost = Config.GAS_CONTRACT_EXECUTE_BASE
-            
+            # Calculate execution fee
+            if self.fee_calculator:
+                gas_cost = self.fee_calculator.calculate_execute_fee(21000)  # base gas
+            else:
+                gas_cost = Config.GAS_CONTRACT_EXECUTE_BASE
+
             # Check executor balance
             balance = self.db.get_balance(executor_address)
             if balance < gas_cost:
                 return False, f"Insufficient gas. Need {gas_cost} QBC", None
-            
+
+            # Deduct execution fee via UTXO and route to treasury
+            if self.fee_collector:
+                success, fee_msg, _ = self.fee_collector.collect_fee(
+                    payer_address=executor_address,
+                    fee_amount=gas_cost,
+                    fee_type='contract_execute',
+                )
+                if not success:
+                    return False, f"Fee payment failed: {fee_msg}", None
+
             # Execute method
             executor = self.executors.get(contract_type)
             if not executor:
