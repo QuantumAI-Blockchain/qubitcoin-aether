@@ -188,8 +188,8 @@
 - [x] Plugin registry and API interface
 - [x] Privacy plugin (SUSY swaps, ZK proof generation)
 - [x] Oracle plugin (quantum oracle, price feeds, aggregation)
-- [ ] Governance plugin (DAO, voting, proposals)
-- [ ] DeFi plugin (lending, DEX, staking)
+- [x] Governance plugin (DAO, voting, proposals)
+- [x] DeFi plugin (lending, DEX, staking)
 - [ ] Plugin SDK documentation
 
 ### 2.7 Contract Deployment
