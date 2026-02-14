@@ -216,6 +216,8 @@ class Opcode(IntEnum):
     QCOMPLIANCE = 0xdc   # KYC/AML/sanctions pre-flight check (WP: 0xF5)
     QRISK = 0xdd         # SUSY risk score for individual address (WP: 0xF6)
     QRISK_SYSTEMIC = 0xde  # Systemic risk / contagion model (WP: 0xF7)
+    QBRIDGE_ENTANGLE = 0xc0  # Cross-chain quantum entanglement (WP: 0xF8)
+    QBRIDGE_VERIFY = 0xc1    # Cross-chain bridge proof verification (WP: 0xF9)
 
     # ========================================================================
     # SYSTEM (0xf0-0xff)
@@ -269,6 +271,7 @@ GAS_COSTS = {
     Opcode.QFIDELITY: 10000, Opcode.QDILITHIUM: 3000,
     Opcode.QCREATE: 5000, Opcode.QVERIFY: 8000,
     Opcode.QCOMPLIANCE: 15000, Opcode.QRISK: 5000, Opcode.QRISK_SYSTEMIC: 10000,
+    Opcode.QBRIDGE_ENTANGLE: 20000, Opcode.QBRIDGE_VERIFY: 15000,
     # System
     Opcode.CREATE: 32000, Opcode.CALL: 700, Opcode.CALLCODE: 700,
     Opcode.RETURN: 0, Opcode.DELEGATECALL: 700, Opcode.CREATE2: 32000,
@@ -309,8 +312,8 @@ CANONICAL_OPCODE_MAP = {
     0xF5: Opcode.QCOMPLIANCE,   # KYC/AML/sanctions check
     0xF6: Opcode.QRISK,         # SUSY risk score (address)
     0xF7: Opcode.QRISK_SYSTEMIC,  # Systemic risk (contagion)
-    # 0xF8: QBRIDGE_ENTANGLE   — reserved, not yet implemented
-    # 0xF9: QBRIDGE_VERIFY     — reserved, not yet implemented
+    0xF8: Opcode.QBRIDGE_ENTANGLE,  # Cross-chain quantum entanglement
+    0xF9: Opcode.QBRIDGE_VERIFY,    # Cross-chain bridge proof verification
 }
 
 

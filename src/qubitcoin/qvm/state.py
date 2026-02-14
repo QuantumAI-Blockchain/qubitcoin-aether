@@ -303,3 +303,175 @@ class StateManager:
         receipts_root = self.compute_receipts_root(receipts)
 
         return state_root, receipts_root
+
+
+class QuantumStateStore:
+    """In-memory + DB-backed store for quantum state density matrices.
+
+    Each quantum state is keyed by a ``state_id`` (uint256 from QCREATE).
+    The store records the number of qubits, the creating contract address,
+    the block height, and whether the state has been measured (collapsed).
+
+    This is the implementation behind the QSP (Quantum State Persistence)
+    patent feature described in the QVM whitepaper.
+    """
+
+    def __init__(self, db_manager=None):
+        self.db = db_manager
+        # Fast in-memory index: state_id → state dict
+        self._states: Dict[int, dict] = {}
+
+    def create(self, state_id: int, n_qubits: int, contract_address: str,
+               block_height: int) -> dict:
+        """Register a new quantum state.
+
+        Args:
+            state_id: Unique identifier (hash from QCREATE).
+            n_qubits: Number of qubits in the density matrix.
+            contract_address: Contract that created the state.
+            block_height: Block in which the state was created.
+
+        Returns:
+            The stored state record.
+        """
+        record = {
+            'state_id': state_id,
+            'n_qubits': n_qubits,
+            'contract_address': contract_address,
+            'block_height': block_height,
+            'measured': False,
+            'entangled_with': None,
+        }
+        self._states[state_id] = record
+        self._persist(record)
+        return record
+
+    def get(self, state_id: int) -> Optional[dict]:
+        """Retrieve a quantum state by ID."""
+        if state_id in self._states:
+            return self._states[state_id]
+        return self._load(state_id)
+
+    def measure(self, state_id: int) -> bool:
+        """Mark a state as measured (collapsed). Returns False if not found."""
+        state = self.get(state_id)
+        if state is None:
+            return False
+        state['measured'] = True
+        self._states[state_id] = state
+        self._persist(state)
+        return True
+
+    def entangle(self, state_a: int, state_b: int) -> bool:
+        """Record an entanglement link between two states."""
+        a = self.get(state_a)
+        b = self.get(state_b)
+        if a is None or b is None:
+            return False
+        a['entangled_with'] = state_b
+        b['entangled_with'] = state_a
+        self._states[state_a] = a
+        self._states[state_b] = b
+        self._persist(a)
+        self._persist(b)
+        return True
+
+    def delete(self, state_id: int) -> bool:
+        """Remove a quantum state (e.g. after measurement and consumption)."""
+        if state_id in self._states:
+            del self._states[state_id]
+            return True
+        return False
+
+    def list_states(self, contract_address: Optional[str] = None) -> list:
+        """Return all states, optionally filtered by contract address."""
+        states = list(self._states.values())
+        if contract_address:
+            states = [s for s in states if s['contract_address'] == contract_address]
+        return states
+
+    def compute_state_root(self) -> str:
+        """Compute Merkle root over all quantum states.
+
+        Returns a 64-char hex digest.  Empty set → hash of 'empty_quantum'.
+        """
+        if not self._states:
+            return hashlib.sha256(b'empty_quantum').hexdigest()
+
+        leaves = []
+        for sid in sorted(self._states.keys()):
+            s = self._states[sid]
+            leaf_data = (
+                f"{s['state_id']}:{s['n_qubits']}:{s['contract_address']}:"
+                f"{s['block_height']}:{s['measured']}:{s['entangled_with']}"
+            )
+            leaves.append(hashlib.sha256(leaf_data.encode()).hexdigest())
+
+        while len(leaves) > 1:
+            if len(leaves) % 2 == 1:
+                leaves.append(leaves[-1])
+            new_leaves = []
+            for i in range(0, len(leaves), 2):
+                combined = hashlib.sha256(
+                    (leaves[i] + leaves[i + 1]).encode()
+                ).hexdigest()
+                new_leaves.append(combined)
+            leaves = new_leaves
+
+        return leaves[0]
+
+    # ── Persistence helpers ──────────────────────────────────────────
+    def _persist(self, record: dict) -> None:
+        """Write state record to CockroachDB if available."""
+        if not self.db:
+            return
+        try:
+            with self.db.get_session() as session:
+                from sqlalchemy import text
+                session.execute(
+                    text("""
+                        UPSERT INTO quantum_states
+                            (state_id, n_qubits, contract_address,
+                             block_height, measured, entangled_with)
+                        VALUES (:sid, :nq, :ca, :bh, :m, :ew)
+                    """),
+                    {
+                        'sid': str(record['state_id']),
+                        'nq': record['n_qubits'],
+                        'ca': record['contract_address'],
+                        'bh': record['block_height'],
+                        'm': record['measured'],
+                        'ew': str(record['entangled_with']) if record['entangled_with'] else None,
+                    },
+                )
+                session.commit()
+        except Exception as e:
+            logger.debug(f"Quantum state persist skipped: {e}")
+
+    def _load(self, state_id: int) -> Optional[dict]:
+        """Load a state from the DB (fallback when not in memory)."""
+        if not self.db:
+            return None
+        try:
+            with self.db.get_session() as session:
+                from sqlalchemy import text
+                row = session.execute(
+                    text("SELECT state_id, n_qubits, contract_address, "
+                         "block_height, measured, entangled_with "
+                         "FROM quantum_states WHERE state_id = :sid"),
+                    {'sid': str(state_id)},
+                ).fetchone()
+                if row:
+                    record = {
+                        'state_id': int(row[0]),
+                        'n_qubits': row[1],
+                        'contract_address': row[2],
+                        'block_height': row[3],
+                        'measured': row[4],
+                        'entangled_with': int(row[5]) if row[5] else None,
+                    }
+                    self._states[state_id] = record
+                    return record
+        except Exception as e:
+            logger.debug(f"Quantum state load skipped: {e}")
+        return None

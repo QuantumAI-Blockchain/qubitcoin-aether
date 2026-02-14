@@ -44,5 +44,48 @@ CREATE TABLE IF NOT EXISTS token_contracts (
     CONSTRAINT fk_contract FOREIGN KEY (contract_address) REFERENCES smart_contracts(contract_address)
 );
 
+-- Quantum State Persistence (QSP)
+CREATE TABLE IF NOT EXISTS quantum_states (
+    state_id STRING PRIMARY KEY,
+    n_qubits INT NOT NULL,
+    contract_address STRING NOT NULL,
+    block_height BIGINT NOT NULL,
+    measured BOOL NOT NULL DEFAULT false,
+    entangled_with STRING,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    INDEX contract_idx (contract_address),
+    INDEX block_height_idx (block_height),
+    INDEX unmeasured_idx (measured) WHERE measured = false
+);
+
+-- Entanglement registry
+CREATE TABLE IF NOT EXISTS entanglement_pairs (
+    pair_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    state_a STRING NOT NULL,
+    state_b STRING NOT NULL,
+    block_height BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    is_active BOOL NOT NULL DEFAULT true,
+    INDEX state_a_idx (state_a),
+    INDEX state_b_idx (state_b),
+    INDEX active_idx (is_active) WHERE is_active = true
+);
+
+-- Compliance registry (KYC/AML)
+CREATE TABLE IF NOT EXISTS compliance_registry (
+    address STRING PRIMARY KEY,
+    kyc_level INT NOT NULL DEFAULT 0,
+    aml_status VARCHAR(20) NOT NULL DEFAULT 'unknown',
+    sanctions_checked BOOL NOT NULL DEFAULT false,
+    last_verified TIMESTAMP,
+    jurisdiction VARCHAR(10),
+    daily_limit DECIMAL(20, 8) NOT NULL DEFAULT 10000,
+    is_blocked BOOL NOT NULL DEFAULT false,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now(),
+    INDEX kyc_level_idx (kyc_level),
+    INDEX blocked_idx (is_blocked) WHERE is_blocked = true
+);
+
 INSERT INTO schema_version (version, component, description)
-VALUES ('1.0.0', 'smart_contracts', 'Smart contracts and QVM');
+VALUES ('1.1.0', 'smart_contracts', 'QSP, entanglement registry, compliance');

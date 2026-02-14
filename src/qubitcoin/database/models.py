@@ -152,9 +152,16 @@ class Block:
     block_hash: Optional[str] = None
     state_root: str = ''
     receipts_root: str = ''
+    quantum_state_root: str = ''
     thought_proof: Optional[dict] = None
 
     def calculate_hash(self) -> str:
+        # Derive a compact hash from the thought proof (if present)
+        thought_proof_hash = ''
+        if self.thought_proof:
+            tp_bytes = json.dumps(self.thought_proof, sort_keys=True).encode()
+            thought_proof_hash = hashlib.sha256(tp_bytes).hexdigest()
+
         data = {
             'height': self.height,
             'prev_hash': self.prev_hash,
@@ -163,7 +170,9 @@ class Block:
             'timestamp': self.timestamp,
             'difficulty': self.difficulty,
             'state_root': self.state_root,
-            'receipts_root': self.receipts_root
+            'receipts_root': self.receipts_root,
+            'quantum_state_root': self.quantum_state_root,
+            'thought_proof_hash': thought_proof_hash,
         }
         return hashlib.sha256(
             json.dumps(data, sort_keys=True).encode()
@@ -180,6 +189,7 @@ class Block:
             'block_hash': self.block_hash or self.calculate_hash(),
             'state_root': self.state_root,
             'receipts_root': self.receipts_root,
+            'quantum_state_root': self.quantum_state_root,
             'thought_proof': self.thought_proof
         }
 
@@ -191,6 +201,7 @@ class Block:
         ]
         data.setdefault('state_root', '')
         data.setdefault('receipts_root', '')
+        data.setdefault('quantum_state_root', '')
         data.setdefault('thought_proof', None)
         # Filter to known fields to prevent TypeError on unexpected keys
         known_fields = {f.name for f in cls.__dataclass_fields__.values()}
