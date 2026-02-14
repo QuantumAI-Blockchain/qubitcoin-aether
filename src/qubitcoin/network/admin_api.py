@@ -5,13 +5,15 @@ Authenticated endpoints for managing fee parameters, treasury addresses,
 and oracle settings without restarting the node.
 
 All changes are logged for audit trail. Auth via API key or Dilithium signature.
+Rate limited: max 30 requests/minute per IP for admin endpoints.
 """
+import collections
 import time
 import hashlib
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Request
 from pydantic import BaseModel
 
 from ..config import Config
@@ -24,10 +26,37 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 # Audit log (in-memory; production should persist to DB)
 _audit_log: list = []
 
+# Admin-specific rate limiting (stricter than global)
+_admin_rate_limit: dict = {
+    'requests': collections.defaultdict(list),  # ip -> [timestamps]
+    'max_per_minute': 30,
+}
+
 
 # ========================================================================
-# AUTH
+# AUTH + RATE LIMITING
 # ========================================================================
+
+def _check_admin_rate_limit(request: Request) -> None:
+    """Enforce stricter rate limiting on admin endpoints (30 req/min)."""
+    client_ip = request.client.host if request.client else 'unknown'
+    now = time.time()
+    window = 60.0
+
+    timestamps = _admin_rate_limit['requests'][client_ip]
+    _admin_rate_limit['requests'][client_ip] = [
+        t for t in timestamps if now - t < window
+    ]
+
+    if len(_admin_rate_limit['requests'][client_ip]) >= _admin_rate_limit['max_per_minute']:
+        logger.warning(f"Admin rate limit exceeded for {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail="Admin rate limit exceeded (30/min). Try again later.",
+        )
+
+    _admin_rate_limit['requests'][client_ip].append(now)
+
 
 def _verify_admin(api_key: Optional[str] = None) -> bool:
     """Verify admin auth via API key.
@@ -129,10 +158,12 @@ async def get_economics(x_api_key: Optional[str] = Header(None)):
 
 @router.put("/aether/fees")
 async def update_aether_fees(
+    request: Request,
     body: AetherFeeUpdate,
     x_api_key: Optional[str] = Header(None),
 ):
     """Update Aether Tree fee parameters (hot reload)."""
+    _check_admin_rate_limit(request)
     _require_admin(x_api_key)
     changes = {}
 
@@ -187,10 +218,12 @@ async def update_aether_fees(
 
 @router.put("/contract/fees")
 async def update_contract_fees(
+    request: Request,
     body: ContractFeeUpdate,
     x_api_key: Optional[str] = Header(None),
 ):
     """Update contract deployment fee parameters (hot reload)."""
+    _check_admin_rate_limit(request)
     _require_admin(x_api_key)
     changes = {}
 
@@ -235,10 +268,12 @@ async def update_contract_fees(
 
 @router.put("/treasury")
 async def update_treasury(
+    request: Request,
     body: TreasuryUpdate,
     x_api_key: Optional[str] = Header(None),
 ):
     """Update treasury addresses."""
+    _check_admin_rate_limit(request)
     _require_admin(x_api_key)
     changes = {}
 
@@ -259,9 +294,11 @@ async def update_treasury(
 
 @router.get("/economics/history")
 async def get_economics_history(
+    request: Request,
     limit: int = 50,
     x_api_key: Optional[str] = Header(None),
 ):
     """Get audit log of economic parameter changes."""
+    _check_admin_rate_limit(request)
     _require_admin(x_api_key)
     return {"history": _audit_log[-limit:]}

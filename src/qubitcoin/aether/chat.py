@@ -74,8 +74,23 @@ class AetherChat:
         self.db = db_manager
         self.fee_manager = fee_manager
         self.fee_collector = fee_collector
+        self._query_translator = None
         self._sessions: Dict[str, ChatSession] = {}
         self._max_sessions = 10000
+
+        # Initialize query translator if KG and reasoning are available
+        self._init_query_translator()
+
+    def _init_query_translator(self) -> None:
+        """Initialize the NL→KG query translator if components are available."""
+        try:
+            if self.engine and self.engine.kg and self.engine.reasoning:
+                from .query_translator import QueryTranslator
+                self._query_translator = QueryTranslator(
+                    self.engine.kg, self.engine.reasoning
+                )
+        except Exception as e:
+            logger.debug(f"Query translator init skipped: {e}")
 
     def create_session(self, user_address: str = '') -> ChatSession:
         """Create a new chat session."""
@@ -168,19 +183,28 @@ class AetherChat:
         reasoning_trace = []
         knowledge_refs = []
         phi_value = 0.0
+        query_result = None
 
         try:
-            # Use knowledge graph to find relevant nodes
-            if self.engine.kg:
-                relevant = self._search_knowledge(message)
-                knowledge_refs = [n for n in relevant[:10]]
+            # Use NL→KG query translator if available (preferred path)
+            if self._query_translator:
+                depth = 5 if is_deep_query else 3
+                query_result = self._query_translator.translate_and_execute(
+                    message, max_results=10, reasoning_depth=depth,
+                )
+                knowledge_refs = query_result.matched_node_ids
+                reasoning_trace = query_result.reasoning_results
+            else:
+                # Fallback to simple keyword matching
+                if self.engine.kg:
+                    relevant = self._search_knowledge(message)
+                    knowledge_refs = [n for n in relevant[:10]]
 
-            # Run reasoning
-            if self.engine.reasoning and self.engine.kg:
-                if is_deep_query:
-                    reasoning_trace = self._deep_reason(message, knowledge_refs)
-                else:
-                    reasoning_trace = self._quick_reason(message, knowledge_refs)
+                if self.engine.reasoning and self.engine.kg:
+                    if is_deep_query:
+                        reasoning_trace = self._deep_reason(message, knowledge_refs)
+                    else:
+                        reasoning_trace = self._quick_reason(message, knowledge_refs)
 
             # Compute current Phi
             if self.engine.phi:
@@ -191,7 +215,9 @@ class AetherChat:
             logger.debug(f"Chat reasoning error: {e}")
 
         # Generate response content from reasoning trace
-        response_content = self._synthesize_response(message, reasoning_trace, knowledge_refs)
+        response_content = self._synthesize_response(
+            message, reasoning_trace, knowledge_refs, query_result,
+        )
 
         # Compute Proof-of-Thought hash for this response
         pot_hash = self._compute_response_hash(message, response_content, reasoning_trace, phi_value)
@@ -275,7 +301,8 @@ class AetherChat:
         return steps
 
     def _synthesize_response(self, query: str, reasoning_trace: List[dict],
-                             knowledge_refs: List[int]) -> str:
+                             knowledge_refs: List[int],
+                             query_result=None) -> str:
         """Synthesize a natural language response from reasoning results.
 
         This is a placeholder that generates structured responses from the
@@ -283,6 +310,15 @@ class AetherChat:
         an LLM adapter for natural language generation.
         """
         parts = []
+
+        # Use query translator explanation if available
+        if query_result and query_result.success:
+            parts.append(query_result.explanation)
+
+            # Add intent info
+            intent = query_result.intent
+            parts.append(f"Query classified as '{intent.intent_type}' "
+                         f"(confidence: {intent.confidence:.0%}).")
 
         if reasoning_trace:
             conclusions = [
