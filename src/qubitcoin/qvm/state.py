@@ -390,6 +390,36 @@ class QuantumStateStore:
             states = [s for s in states if s['contract_address'] == contract_address]
         return states
 
+    def compute_state_root(self) -> str:
+        """Compute Merkle root over all quantum states.
+
+        Returns a 64-char hex digest.  Empty set → hash of 'empty_quantum'.
+        """
+        if not self._states:
+            return hashlib.sha256(b'empty_quantum').hexdigest()
+
+        leaves = []
+        for sid in sorted(self._states.keys()):
+            s = self._states[sid]
+            leaf_data = (
+                f"{s['state_id']}:{s['n_qubits']}:{s['contract_address']}:"
+                f"{s['block_height']}:{s['measured']}:{s['entangled_with']}"
+            )
+            leaves.append(hashlib.sha256(leaf_data.encode()).hexdigest())
+
+        while len(leaves) > 1:
+            if len(leaves) % 2 == 1:
+                leaves.append(leaves[-1])
+            new_leaves = []
+            for i in range(0, len(leaves), 2):
+                combined = hashlib.sha256(
+                    (leaves[i] + leaves[i + 1]).encode()
+                ).hexdigest()
+                new_leaves.append(combined)
+            leaves = new_leaves
+
+        return leaves[0]
+
     # ── Persistence helpers ──────────────────────────────────────────
     def _persist(self, record: dict) -> None:
         """Write state record to CockroachDB if available."""

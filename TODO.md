@@ -154,7 +154,7 @@
 - [x] Entanglement registry (`entanglement_pairs` table)
 - [x] Quantum state CRUD operations
 - [x] Lazy measurement (states persist until explicitly measured)
-- [ ] Quantum state root in block header (Merkle root of all quantum states)
+- [x] Quantum state root in block header (Merkle root of all quantum states)
 - [ ] State decoherence prevention model
 
 ### 2.4 Compliance Engine (Institutional)
@@ -163,7 +163,7 @@
 - [x] Programmable Compliance Policies (PCP) framework
 - [x] Policy CRUD API (`POST/PUT/DELETE /qvm/compliance/policies`)
 - [x] KYC verification module (Level 0-3 tiers)
-- [ ] AML monitoring module (transaction pattern detection)
+- [x] AML monitoring module (transaction pattern detection)
 - [ ] Sanctions screening (OFAC, UN, EU lists integration)
 - [ ] ERC-20-QC compliance-aware token standard
 - [x] Auto-circuit breakers (halt on systemic risk > threshold)
@@ -183,9 +183,9 @@
 - [ ] High-risk connection detection (sanctioned entities, mixers, overleveraged)
 
 ### 2.6 Plugin Architecture
-- [ ] Plugin manager module (lifecycle management)
-- [ ] Dynamic plugin loading system
-- [ ] Plugin registry and API interface
+- [x] Plugin manager module (lifecycle management)
+- [x] Dynamic plugin loading system
+- [x] Plugin registry and API interface
 - [ ] Privacy plugin (SUSY swaps, ZK proof generation)
 - [ ] Oracle plugin (quantum oracle, price feeds, aggregation)
 - [ ] Governance plugin (DAO, voting, proposals)
@@ -196,7 +196,7 @@
 - [x] Contract deployment engine (`contracts/engine.py`)
 - [x] Template contracts (token, nft, launchpad, escrow, governance)
 - [x] Deploy via JSON-RPC `eth_sendTransaction`
-- [ ] Contract verification (source → bytecode matching)
+- [x] Contract verification (source → bytecode matching)
 - [ ] ABI encoding/decoding for function calls
 - [ ] Contract upgrade patterns (proxy)
 

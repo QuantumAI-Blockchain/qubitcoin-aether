@@ -152,6 +152,7 @@ class Block:
     block_hash: Optional[str] = None
     state_root: str = ''
     receipts_root: str = ''
+    quantum_state_root: str = ''
     thought_proof: Optional[dict] = None
 
     def calculate_hash(self) -> str:
@@ -170,6 +171,7 @@ class Block:
             'difficulty': self.difficulty,
             'state_root': self.state_root,
             'receipts_root': self.receipts_root,
+            'quantum_state_root': self.quantum_state_root,
             'thought_proof_hash': thought_proof_hash,
         }
         return hashlib.sha256(
@@ -187,6 +189,7 @@ class Block:
             'block_hash': self.block_hash or self.calculate_hash(),
             'state_root': self.state_root,
             'receipts_root': self.receipts_root,
+            'quantum_state_root': self.quantum_state_root,
             'thought_proof': self.thought_proof
         }
 
@@ -198,6 +201,7 @@ class Block:
         ]
         data.setdefault('state_root', '')
         data.setdefault('receipts_root', '')
+        data.setdefault('quantum_state_root', '')
         data.setdefault('thought_proof', None)
         # Filter to known fields to prevent TypeError on unexpected keys
         known_fields = {f.name for f in cls.__dataclass_fields__.values()}

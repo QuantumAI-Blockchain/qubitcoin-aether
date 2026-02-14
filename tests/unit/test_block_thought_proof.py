@@ -79,6 +79,7 @@ class TestThoughtProofInHash:
             'difficulty': b.difficulty,
             'state_root': b.state_root,
             'receipts_root': b.receipts_root,
+            'quantum_state_root': b.quantum_state_root,
             'thought_proof_hash': expected,
         }
         manual = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
