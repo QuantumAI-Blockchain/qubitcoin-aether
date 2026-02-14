@@ -34,7 +34,10 @@ CREATE TABLE IF NOT EXISTS blocks (
     transaction_count INT NOT NULL DEFAULT 0,
     block_size BIGINT NOT NULL,
     is_valid BOOL NOT NULL DEFAULT true,
-    
+
+    -- Aether Tree (Proof-of-Thought)
+    proof_of_thought_hash STRING NOT NULL DEFAULT '',
+
     INDEX block_height_idx (block_height DESC),
     INDEX timestamp_idx (timestamp DESC),
     INDEX miner_idx (miner_address),

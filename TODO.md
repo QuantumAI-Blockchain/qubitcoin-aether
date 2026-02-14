@@ -164,7 +164,7 @@
 - [x] Policy CRUD API (`POST/PUT/DELETE /qvm/compliance/policies`)
 - [x] KYC verification module (Level 0-3 tiers)
 - [x] AML monitoring module (transaction pattern detection)
-- [ ] Sanctions screening (OFAC, UN, EU lists integration)
+- [x] Sanctions screening (OFAC, UN, EU lists integration) — `compliance.py: SanctionsList` (add/remove/screen/bulk_add, 3 sources, wired into ComplianceEngine)
 - [ ] ERC-20-QC compliance-aware token standard
 - [x] Auto-circuit breakers (halt on systemic risk > threshold)
 - [x] Compliance-as-a-Service tier system (Retail/Professional/Institutional/Sovereign)
@@ -364,7 +364,7 @@
 ### 3.10 Proof-of-Thought Protocol
 - [x] AetherEngine with proof generation (`proof_of_thought.py`)
 - [x] Auto-reasoning on recent knowledge
-- [ ] Embed Proof-of-Thought hash in block headers
+- [x] Embed Proof-of-Thought hash in block headers — `models.py: Block.proof_of_thought_hash` (SHA-256, auto-computed, in to_dict/from_dict, included in block hash)
 - [x] Task submission system (`task_protocol.py: TaskMarket` — submit with QBC bounty, claim, solve)
 - [x] Node solution proposal (`task_protocol.py: submit_solution()` — solution + hash)
 - [x] Multi-node validation (`task_protocol.py: ProofOfThoughtProtocol.validate_solution()` — stake-weighted 67% BFT)

@@ -33,7 +33,10 @@ CREATE TABLE IF NOT EXISTS blocks (
     gas_used BIGINT NOT NULL DEFAULT 0,
     gas_limit BIGINT NOT NULL DEFAULT 30000000,
     is_valid BOOL NOT NULL DEFAULT true,
-    
+
+    -- Aether Tree (Proof-of-Thought)
+    proof_of_thought_hash STRING NOT NULL DEFAULT '',
+
     INDEX block_height_idx (block_height DESC),
     INDEX timestamp_idx (timestamp DESC),
     INDEX miner_idx (miner_address),

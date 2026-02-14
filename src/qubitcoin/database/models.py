@@ -154,13 +154,19 @@ class Block:
     receipts_root: str = ''
     quantum_state_root: str = ''
     thought_proof: Optional[dict] = None
+    proof_of_thought_hash: str = ''
+
+    def _compute_thought_proof_hash(self) -> str:
+        """Derive a compact SHA-256 hash from the thought proof dict."""
+        if not self.thought_proof:
+            return ''
+        tp_bytes = json.dumps(self.thought_proof, sort_keys=True).encode()
+        return hashlib.sha256(tp_bytes).hexdigest()
 
     def calculate_hash(self) -> str:
-        # Derive a compact hash from the thought proof (if present)
-        thought_proof_hash = ''
-        if self.thought_proof:
-            tp_bytes = json.dumps(self.thought_proof, sort_keys=True).encode()
-            thought_proof_hash = hashlib.sha256(tp_bytes).hexdigest()
+        # Populate the PoT hash field before hashing the block
+        if self.thought_proof and not self.proof_of_thought_hash:
+            self.proof_of_thought_hash = self._compute_thought_proof_hash()
 
         data = {
             'height': self.height,
@@ -172,7 +178,7 @@ class Block:
             'state_root': self.state_root,
             'receipts_root': self.receipts_root,
             'quantum_state_root': self.quantum_state_root,
-            'thought_proof_hash': thought_proof_hash,
+            'thought_proof_hash': self.proof_of_thought_hash,
         }
         return hashlib.sha256(
             json.dumps(data, sort_keys=True).encode()
@@ -190,7 +196,8 @@ class Block:
             'state_root': self.state_root,
             'receipts_root': self.receipts_root,
             'quantum_state_root': self.quantum_state_root,
-            'thought_proof': self.thought_proof
+            'thought_proof': self.thought_proof,
+            'proof_of_thought_hash': self.proof_of_thought_hash,
         }
 
     @classmethod
@@ -203,6 +210,7 @@ class Block:
         data.setdefault('receipts_root', '')
         data.setdefault('quantum_state_root', '')
         data.setdefault('thought_proof', None)
+        data.setdefault('proof_of_thought_hash', '')
         # Filter to known fields to prevent TypeError on unexpected keys
         known_fields = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known_fields}

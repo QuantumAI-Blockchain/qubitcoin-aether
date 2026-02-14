@@ -193,6 +193,7 @@ class TestModelFieldCoverage:
             "height", "prev_hash", "proof_data", "transactions",
             "timestamp", "difficulty", "block_hash", "state_root",
             "receipts_root", "quantum_state_root", "thought_proof",
+            "proof_of_thought_hash",
         }
         assert model_fields == expected
 

@@ -7,13 +7,14 @@ AML monitoring, sanctions screening, and daily transaction limits.
 
 Architecture:
     CompliancePolicy   — dataclass representing a single policy rule
+    SanctionsList      — OFAC / UN / EU sanctions list manager
     ComplianceEngine   — in-memory + DB-backed policy registry
 """
 import hashlib
 import time
 from dataclasses import dataclass, field, asdict
-from enum import IntEnum
-from typing import Dict, List, Optional
+from enum import Enum, IntEnum
+from typing import Dict, List, Optional, Set
 
 from ..utils.logger import get_logger
 
@@ -113,6 +114,130 @@ class CircuitBreaker:
         }
 
 
+# ── Sanctions List Sources ────────────────────────────────────────────
+class SanctionsSource(Enum):
+    """Supported sanctions list sources."""
+    OFAC = "ofac"       # US Treasury OFAC SDN list
+    UN = "un"           # United Nations Security Council
+    EU = "eu"           # European Union consolidated list
+
+
+@dataclass
+class SanctionsEntry:
+    """A single entry on a sanctions list."""
+    address: str
+    source: SanctionsSource
+    reason: str = ""
+    added_at: float = field(default_factory=time.time)
+
+    def to_dict(self) -> dict:
+        return {
+            "address": self.address,
+            "source": self.source.value,
+            "reason": self.reason,
+            "added_at": self.added_at,
+        }
+
+
+class SanctionsList:
+    """
+    Manages OFAC, UN, and EU sanctions lists for address screening.
+
+    Addresses on any sanctions list are automatically blocked from
+    transacting on the QBC chain via the compliance engine.
+    """
+
+    def __init__(self) -> None:
+        self._entries: Dict[str, SanctionsEntry] = {}  # address → entry
+        self._by_source: Dict[SanctionsSource, Set[str]] = {
+            s: set() for s in SanctionsSource
+        }
+
+    def add_address(
+        self,
+        address: str,
+        source: SanctionsSource,
+        reason: str = "",
+    ) -> SanctionsEntry:
+        """Add an address to a sanctions list."""
+        addr = address.lower()
+        entry = SanctionsEntry(address=addr, source=source, reason=reason)
+        self._entries[addr] = entry
+        self._by_source[source].add(addr)
+        logger.info(
+            f"Sanctions: added {addr[:16]}… to {source.value} list"
+        )
+        return entry
+
+    def remove_address(self, address: str) -> bool:
+        """Remove an address from all sanctions lists."""
+        addr = address.lower()
+        entry = self._entries.pop(addr, None)
+        if entry is None:
+            return False
+        for addrs in self._by_source.values():
+            addrs.discard(addr)
+        logger.info(f"Sanctions: removed {addr[:16]}…")
+        return True
+
+    def is_sanctioned(self, address: str) -> bool:
+        """Check if an address appears on any sanctions list."""
+        return address.lower() in self._entries
+
+    def get_entry(self, address: str) -> Optional[SanctionsEntry]:
+        """Get the sanctions entry for an address (if any)."""
+        return self._entries.get(address.lower())
+
+    def screen_address(self, address: str) -> Dict:
+        """
+        Full sanctions screening result for an address.
+
+        Returns a dict with:
+          - sanctioned: bool
+          - sources: list of matching list names
+          - reason: combined reason string
+        """
+        addr = address.lower()
+        entry = self._entries.get(addr)
+        if entry is None:
+            return {"sanctioned": False, "sources": [], "reason": ""}
+        sources = [
+            s.value for s, addrs in self._by_source.items() if addr in addrs
+        ]
+        return {
+            "sanctioned": True,
+            "sources": sources,
+            "reason": entry.reason,
+        }
+
+    def list_by_source(self, source: SanctionsSource) -> List[str]:
+        """List all addresses on a specific sanctions list."""
+        return sorted(self._by_source[source])
+
+    def bulk_add(
+        self,
+        addresses: List[str],
+        source: SanctionsSource,
+        reason: str = "",
+    ) -> int:
+        """Add multiple addresses at once. Returns count added."""
+        count = 0
+        for addr in addresses:
+            self.add_address(addr, source, reason)
+            count += 1
+        return count
+
+    def get_stats(self) -> Dict:
+        """Sanctions list statistics."""
+        return {
+            "total_entries": len(self._entries),
+            "by_source": {
+                s.value: len(addrs)
+                for s, addrs in self._by_source.items()
+            },
+        }
+
+
 # ── Risk cache entry ─────────────────────────────────────────────────
 @dataclass
 class _RiskCacheEntry:
@@ -140,6 +265,7 @@ class ComplianceEngine:
         self._risk_cache: Dict[str, _RiskCacheEntry] = {}   # address → cached score
         self._current_block: int = 0
         self.circuit_breaker = CircuitBreaker()
+        self.sanctions = SanctionsList()
 
     # ── Policy CRUD ───────────────────────────────────────────────────
 
@@ -232,10 +358,17 @@ class ComplianceEngine:
 
     def is_address_blocked(self, address: str) -> bool:
         """Check if an address is blocked (sanctions, AML flags, etc.)."""
+        # Sanctions check first — always blocks regardless of policy
+        if self.sanctions.is_sanctioned(address):
+            return True
         policy = self.get_policy_for_address(address)
         if policy is None:
             return False
         return policy.is_blocked or policy.aml_status == AMLStatus.BLOCKED
+
+    def screen_sanctions(self, address: str) -> Dict:
+        """Full sanctions screening for an address (OFAC, UN, EU)."""
+        return self.sanctions.screen_address(address)
 
     # ── Risk cache ────────────────────────────────────────────────────
 
