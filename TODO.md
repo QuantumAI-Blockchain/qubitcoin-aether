@@ -65,7 +65,7 @@
 
 ### 1.6 Storage
 - [x] IPFS integration (`storage/ipfs.py`)
-- [ ] Blockchain snapshot to IPFS (periodic)
+- [x] Blockchain snapshot to IPFS (periodic) — `storage/snapshot_scheduler.py: SnapshotScheduler` (interval-based scheduling, IPFS upload, snapshot history, failure tracking, manual trigger)
 - [ ] IPFS port conflict resolution (8080 vs CockroachDB admin)
 - [ ] Snapshot restoration from IPFS
 
@@ -97,7 +97,7 @@
 ### 1.8 SUSY Solution Database
 - [x] Public Hamiltonian solution storage (`hamiltonian_solutions` table)
 - [x] REST API endpoint: `GET /susy-database` (query by block height, energy range, qubit count)
-- [ ] IPFS archival of solution datasets (periodic export)
+- [x] IPFS archival of solution datasets (periodic export) — `storage/solution_archiver.py: SolutionArchiver` (block-range export, IPFS upload, CID tracking, archive history, graceful DB error handling)
 - [x] Solution verification count tracking — `mining/solution_tracker.py: SolutionVerificationTracker` (per-solution verification records, confidence scoring, duplicate verifier prevention, by-block/by-miner queries)
 - [x] Scientific data export formats (JSON, CSV for researchers) — `rpc.py: GET /susy-database/export?format=json|csv`
 
@@ -105,7 +105,7 @@
 - [ ] Light node implementation (SPV verification, block headers only)
 - [ ] Light node sync protocol (<5 minutes)
 - [x] Mining node VQE capability detection (classical vs quantum backend) — `mining/capability_detector.py: VQECapabilityDetector` (detect local/Aer/IBM backends, qubit count, P2P advertisement, config-based fallback)
-- [ ] Node capability advertisement in P2P protocol
+- [x] Node capability advertisement in P2P protocol — `network/capability_advertisement.py: CapabilityAdvertiser` (peer registry, mining power scoring, P2P broadcast/receive, network summary, stale cleanup, backend filtering)
 
 ---
 
