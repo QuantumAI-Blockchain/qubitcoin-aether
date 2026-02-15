@@ -168,8 +168,8 @@
 - [ ] ERC-20-QC compliance-aware token standard
 - [x] Auto-circuit breakers (halt on systemic risk > threshold)
 - [x] Compliance-as-a-Service tier system (Retail/Professional/Institutional/Sovereign)
-- [ ] Compliance proof storage (ZK proofs for auditors)
-- [ ] Regulatory report generation (MiCA, SEC, FinCEN)
+- [x] Compliance proof storage (ZK proofs for auditors) — `qvm/compliance_proofs.py: ComplianceProofStore` (hash-chain linkage, per-address audit trails, integrity verification, expiry)
+- [x] Regulatory report generation (MiCA, SEC, FinCEN) — `qvm/regulatory_reports.py: RegulatoryReportGenerator` (4 frameworks, integrity hash, period/block-range scoping)
 
 ### 2.5 Risk Assessment Oracle (RRAO)
 - [x] QRISK opcode: SUSY Hamiltonian-based risk scoring
@@ -374,7 +374,7 @@
 - [x] Task market contract (`TaskMarket.sol`)
 - [x] Validator registry contract (`ValidatorRegistry.sol`)
 - [x] Validator registry Python module (`task_protocol.py: ValidatorRegistry` — stake/unstake/slash/reward)
-- [ ] Proof-of-Thought explorer (view reasoning per block)
+- [x] Proof-of-Thought explorer (view reasoning per block) — `aether/pot_explorer.py: ProofOfThoughtExplorer` (block thought data, Phi progression, consciousness events, reasoning summary, phi-range search)
 
 ### 3.11 Safety & Alignment
 - [x] Gevurah veto system (`safety.py: GevurahVeto` — threat evaluation, constitutional principles, veto records)

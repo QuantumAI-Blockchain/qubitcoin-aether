@@ -1210,6 +1210,126 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return {"transfers": _token_indexer.get_transfers(address=address, limit=limit)}
 
     # ========================================================================
+    # PROOF-OF-THOUGHT EXPLORER
+    # ========================================================================
+
+    from ..aether.pot_explorer import ProofOfThoughtExplorer
+    _pot_explorer = ProofOfThoughtExplorer(aether_engine)
+    app.pot_explorer = _pot_explorer  # type: ignore[attr-defined]
+
+    @app.get("/aether/pot/{block_height}")
+    async def get_block_thought(block_height: int):
+        """Get Proof-of-Thought data for a specific block."""
+        data = _pot_explorer.get_block_thought(block_height)
+        if not data:
+            raise HTTPException(status_code=404, detail="No PoT data for this block")
+        return data
+
+    @app.get("/aether/pot/range/{start}/{end}")
+    async def get_pot_range(start: int, end: int):
+        """Get PoT data for a range of blocks."""
+        if end - start > 1000:
+            raise HTTPException(status_code=400, detail="Range too large (max 1000)")
+        return {"blocks": _pot_explorer.get_block_range(start, end)}
+
+    @app.get("/aether/pot/phi-progression")
+    async def get_phi_progression(limit: int = 100):
+        """Get Phi value progression over recent blocks."""
+        limit = max(1, min(limit, 1000))
+        return {"progression": _pot_explorer.get_phi_progression(limit)}
+
+    @app.get("/aether/pot/consciousness-events")
+    async def get_pot_consciousness_events(limit: int = 50):
+        """Get blocks where consciousness events occurred."""
+        return {"events": _pot_explorer.get_consciousness_events(limit)}
+
+    @app.get("/aether/pot/summary/{block_height}")
+    async def get_reasoning_summary(block_height: int):
+        """Get human-readable reasoning summary for a block."""
+        return _pot_explorer.get_reasoning_summary(block_height)
+
+    @app.get("/aether/pot/stats")
+    async def get_pot_stats():
+        """Get Proof-of-Thought explorer statistics."""
+        return _pot_explorer.get_stats()
+
+    # ========================================================================
+    # COMPLIANCE PROOFS
+    # ========================================================================
+
+    from ..qvm.compliance_proofs import ComplianceProofStore
+    _proof_store = ComplianceProofStore()
+    app.proof_store = _proof_store  # type: ignore[attr-defined]
+
+    @app.get("/qvm/compliance/proofs/stats")
+    async def compliance_proof_stats():
+        """Get compliance proof store statistics."""
+        return _proof_store.get_stats()
+
+    @app.get("/qvm/compliance/proofs/{proof_id}")
+    async def get_compliance_proof(proof_id: str):
+        """Get a specific compliance proof by ID."""
+        proof = _proof_store.get_proof(proof_id)
+        if not proof:
+            raise HTTPException(status_code=404, detail="Proof not found")
+        return proof
+
+    @app.get("/qvm/compliance/proofs/address/{address}")
+    async def get_address_compliance_proofs(address: str, limit: int = 100):
+        """Get all compliance proofs for an address."""
+        limit = max(1, min(limit, 500))
+        return {"proofs": _proof_store.get_address_proofs(address, limit=limit)}
+
+    @app.get("/qvm/compliance/proofs/verify/{address}")
+    async def verify_proof_chain(address: str):
+        """Verify the integrity of an address's compliance proof chain."""
+        return _proof_store.verify_proof_chain(address)
+
+    # ========================================================================
+    # REGULATORY REPORTS
+    # ========================================================================
+
+    from ..qvm.regulatory_reports import RegulatoryReportGenerator
+    _report_gen = RegulatoryReportGenerator(_compliance_engine, _proof_store)
+    app.report_generator = _report_gen  # type: ignore[attr-defined]
+
+    @app.post("/qvm/compliance/reports/generate")
+    async def generate_regulatory_report(request: Request):
+        """Generate a regulatory compliance report."""
+        body = await request.json()
+        report_type = body.get('report_type', 'general')
+        period = body.get('period', 'monthly')
+        report = _report_gen.generate_report(
+            report_type=report_type,
+            period=period,
+            period_start=body.get('period_start', 0.0),
+            period_end=body.get('period_end', 0.0),
+            block_start=body.get('block_start', 0),
+            block_end=body.get('block_end', 0),
+            additional_data=body.get('additional_data'),
+        )
+        return report.to_dict()
+
+    @app.get("/qvm/compliance/reports")
+    async def list_regulatory_reports(report_type: Optional[str] = None, limit: int = 50):
+        """List generated regulatory reports."""
+        limit = max(1, min(limit, 200))
+        return {"reports": _report_gen.list_reports(report_type, limit)}
+
+    @app.get("/qvm/compliance/reports/{report_id}")
+    async def get_regulatory_report(report_id: str):
+        """Get a specific regulatory report by ID."""
+        report = _report_gen.get_report(report_id)
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+        return report
+
+    @app.get("/qvm/compliance/reports/stats")
+    async def regulatory_report_stats():
+        """Get report generator statistics."""
+        return _report_gen.get_stats()
+
+    # ========================================================================
     # METRICS ENDPOINT
     # ========================================================================
 
