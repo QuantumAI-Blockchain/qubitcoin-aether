@@ -48,7 +48,7 @@
 - [x] SQL schemas for all 33+ tables (`sql/`)
 - [ ] Verify ALL SQL schemas match SQLAlchemy models in `database/models.py`
 - [ ] Add migration system (Alembic) for schema changes
-- [ ] Connection pool health monitoring
+- [x] Connection pool health monitoring — `database/pool_monitor.py: PoolHealthMonitor` (SQLAlchemy event listeners, checkout/checkin latency, utilization %, health status: healthy/degraded/critical, snapshot history)
 - [ ] Refactored domain-separated schemas (`sql_new/`)
 
 ### 1.5 Network
@@ -98,13 +98,13 @@
 - [x] Public Hamiltonian solution storage (`hamiltonian_solutions` table)
 - [x] REST API endpoint: `GET /susy-database` (query by block height, energy range, qubit count)
 - [ ] IPFS archival of solution datasets (periodic export)
-- [ ] Solution verification count tracking
+- [x] Solution verification count tracking — `mining/solution_tracker.py: SolutionVerificationTracker` (per-solution verification records, confidence scoring, duplicate verifier prevention, by-block/by-miner queries)
 - [x] Scientific data export formats (JSON, CSV for researchers) — `rpc.py: GET /susy-database/export?format=json|csv`
 
 ### 1.9 Node Types
 - [ ] Light node implementation (SPV verification, block headers only)
 - [ ] Light node sync protocol (<5 minutes)
-- [ ] Mining node VQE capability detection (classical vs quantum backend)
+- [x] Mining node VQE capability detection (classical vs quantum backend) — `mining/capability_detector.py: VQECapabilityDetector` (detect local/Aer/IBM backends, qubit count, P2P advertisement, config-based fallback)
 - [ ] Node capability advertisement in P2P protocol
 
 ---

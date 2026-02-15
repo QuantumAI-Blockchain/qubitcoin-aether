@@ -1449,6 +1449,117 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return {"reset": True}
 
     # ========================================================================
+    # DATABASE POOL HEALTH MONITORING
+    # ========================================================================
+
+    from ..database.pool_monitor import PoolHealthMonitor
+    _pool_monitor = PoolHealthMonitor(engine=getattr(db_manager, 'engine', None))
+    app.state.pool_monitor = _pool_monitor
+
+    @app.get("/db/pool/health")
+    async def db_pool_health():
+        """Get current connection pool health snapshot."""
+        snap = _pool_monitor.get_snapshot()
+        return snap.to_dict()
+
+    @app.get("/db/pool/stats")
+    async def db_pool_stats():
+        """Get aggregate pool statistics."""
+        return _pool_monitor.get_stats()
+
+    @app.get("/db/pool/history")
+    async def db_pool_history(limit: int = 20):
+        """Get recent pool health snapshots."""
+        return {"history": _pool_monitor.get_history(limit=min(limit, 100))}
+
+    # ========================================================================
+    # SUSY SOLUTION VERIFICATION TRACKING
+    # ========================================================================
+
+    from ..mining.solution_tracker import SolutionVerificationTracker
+    _solution_tracker = SolutionVerificationTracker()
+    app.state.solution_tracker = _solution_tracker
+
+    @app.get("/susy-database/verifications/stats")
+    async def solution_verification_stats():
+        """Get aggregate solution verification statistics."""
+        return _solution_tracker.get_stats()
+
+    @app.get("/susy-database/verifications/{solution_id}")
+    async def get_solution_verifications(solution_id: int):
+        """Get verification record for a specific solution."""
+        record = _solution_tracker.get_solution(solution_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Solution not found")
+        return record.to_dict()
+
+    @app.get("/susy-database/verifications/block/{block_height}")
+    async def get_solution_by_block(block_height: int):
+        """Get solution verification record by block height."""
+        record = _solution_tracker.get_by_block(block_height)
+        if record is None:
+            raise HTTPException(status_code=404, detail="No solution for block")
+        return record.to_dict()
+
+    @app.get("/susy-database/verifications/top")
+    async def get_top_verified(limit: int = 10):
+        """Get solutions with the most verifications."""
+        top = _solution_tracker.get_top_verified(limit=min(limit, 50))
+        return {"solutions": [r.to_dict() for r in top]}
+
+    @app.get("/susy-database/verifications/unverified")
+    async def get_unverified_solutions(limit: int = 20):
+        """Get solutions that have zero verifications."""
+        unv = _solution_tracker.get_unverified(limit=min(limit, 100))
+        return {"solutions": [r.to_dict() for r in unv]}
+
+    @app.post("/susy-database/verifications/{solution_id}/verify")
+    async def submit_verification(solution_id: int, request: Request):
+        """Submit a verification for a solution."""
+        body = await request.json()
+        verifier = body.get('verifier_address', '')
+        energy = body.get('verified_energy', 0.0)
+        tolerance = body.get('energy_tolerance', 0.01)
+        if not verifier:
+            raise HTTPException(status_code=400, detail="verifier_address required")
+        v = _solution_tracker.record_verification(
+            solution_id=solution_id,
+            verifier_address=verifier,
+            verified_energy=float(energy),
+            energy_tolerance=float(tolerance),
+        )
+        if v is None:
+            raise HTTPException(status_code=404, detail="Solution not found")
+        return v.to_dict()
+
+    # ========================================================================
+    # MINING NODE VQE CAPABILITY DETECTION
+    # ========================================================================
+
+    from ..mining.capability_detector import VQECapabilityDetector
+    _capability_detector = VQECapabilityDetector()
+    app.state.capability_detector = _capability_detector
+
+    # Auto-detect capabilities on startup
+    try:
+        _capability_detector.detect(quantum_engine)
+    except Exception as _e:
+        logger.warning(f"Auto-detect VQE capability failed: {_e}")
+
+    @app.get("/mining/capability")
+    async def mining_capability():
+        """Get this node's VQE mining capabilities."""
+        cap = _capability_detector.get_cached()
+        if cap is None:
+            cap = _capability_detector.detect_from_config()
+        return cap.to_dict()
+
+    @app.get("/mining/capability/advertisement")
+    async def mining_capability_advertisement():
+        """Get P2P capability advertisement message."""
+        return _capability_detector.get_p2p_advertisement()
+
+    # ========================================================================
     # ADMIN API (Economics hot-reload)
     # ========================================================================
 
