@@ -24,6 +24,8 @@ from .knowledge_extractor import KnowledgeExtractor
 from .task_protocol import ProofOfThoughtProtocol, TaskMarket, ValidatorRegistry
 from .consciousness import ConsciousnessDashboard
 from .query_translator import QueryTranslator, QueryIntent, QueryResult
+from .ws_streaming import AetherWSManager, AetherWSClient
+from .circulation import CirculationTracker, CirculationSnapshot
 from .sephirot_nodes import (
     BaseSephirah, NodeMessage, ProcessingResult,
     KeterNode, ChochmahNode, BinahNode, ChesedNode, GevurahNode,
@@ -60,6 +62,10 @@ __all__ = [
     'QueryTranslator',
     'QueryIntent',
     'QueryResult',
+    'AetherWSManager',
+    'AetherWSClient',
+    'CirculationTracker',
+    'CirculationSnapshot',
     'BaseSephirah',
     'NodeMessage',
     'ProcessingResult',
