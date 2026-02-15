@@ -31,8 +31,8 @@
 - [x] Update `config.py` to load `secure_key.env` before `.env` (explicit load order)
 - [x] Add `secure_key.env.example` template (with placeholder values)
 - [x] Verify Dilithium signature size in real transactions (~3KB expected) — `test_dilithium.py` (26 tests: keygen, signing, verification, size, addresses, CryptoManager)
-- [ ] Add key import/export in standard formats
-- [ ] Signature caching for performance
+- [x] Add key import/export in standard formats — `crypto.py: Dilithium2.export_keypair()/import_keypair()` (hex + PEM formats)
+- [x] Signature caching for performance — `crypto.py: _cached_verify()` LRU cache (4096 entries, SHA-256 keyed)
 - [ ] Key rotation procedure documentation
 
 ### 1.3 UTXO Model
@@ -391,7 +391,7 @@
 - [x] Procedural memory (learned skills) — `memory.py: ProceduralMemory` with proficiency tracking
 - [x] Working memory (active processing buffer) — `memory.py: WorkingMemory` (Miller's 7±2 capacity)
 - [x] Memory consolidation during Sleep/Deep Sleep phases — `memory.py: MemoryManager.consolidate()`
-- [ ] IPFS integration for long-term memory storage
+- [x] IPFS integration for long-term memory storage — `aether/ipfs_memory.py: IPFSMemoryStore` (store/retrieve/pin memories on IPFS, local cache fallback)
 
 ### 3.13 Consciousness Dashboard
 - [x] On-chain Phi tracking contract (`ConsciousnessDashboard.sol`)
@@ -437,10 +437,10 @@
 - [x] Fee audit logging (track all fee changes for transparency) — `utils/fee_collector.py: get_audit_log()` (in-memory, filterable by fee_type)
 
 ### 3.17 LLM Adapters (External Intelligence)
-- [ ] OpenAI GPT-4 adapter (knowledge distillation to Sephirot)
-- [ ] Anthropic Claude adapter
-- [ ] Open-source adapter (Llama, Mistral)
-- [ ] Knowledge distiller (extract insights to knowledge graph)
+- [x] OpenAI GPT-4 adapter (knowledge distillation to Sephirot) — `aether/llm_adapter.py: OpenAIAdapter`
+- [x] Anthropic Claude adapter — `aether/llm_adapter.py: ClaudeAdapter`
+- [x] Open-source adapter (Llama, Mistral) — `aether/llm_adapter.py: LocalAdapter` (OpenAI-compatible local API)
+- [x] Knowledge distiller (extract insights to knowledge graph) — `aether/llm_adapter.py: KnowledgeDistiller` (sentence splitting, classification, KG node creation)
 
 ---
 
@@ -699,6 +699,7 @@
 - [x] Config unit tests — 8 tests (test_config: economics, chain IDs, fee params)
 - [x] Fee collector unit tests — 21 tests (test_fee_collector: UTXO selection, fee deduction, change, audit log, chat/contract integration)
 - [x] Batch 23 unit tests — 63 tests (test_batch23: AetherWSManager 14, CirculationTracker 20, TokenIndexer 22, helpers 7)
+- [x] Batch 24 unit tests — 50 tests (test_batch24: LLM adapters 15, KnowledgeDistiller 8, LLMAdapterManager 6, IPFSMemoryStore 14, key import/export 6, system prompt 1)
 - [x] Test infrastructure — conftest.py with dependency stubs (Qiskit, gRPC, IPFS, etc.)
 
 ### 7.2 Security
