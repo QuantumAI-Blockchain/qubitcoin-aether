@@ -1068,6 +1068,148 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     app.broadcast_ws = broadcast_ws  # type: ignore[attr-defined]
 
     # ========================================================================
+    # AETHER WEBSOCKET STREAMING (/ws/aether)
+    # ========================================================================
+
+    from ..aether.ws_streaming import AetherWSManager
+    _aether_ws = AetherWSManager()
+    app.aether_ws = _aether_ws  # type: ignore[attr-defined]
+
+    @app.websocket("/ws/aether")
+    async def aether_websocket_endpoint(websocket: WebSocket):
+        """WebSocket for Aether Tree real-time events.
+
+        Connect with optional query params:
+          ?session_id=<uuid>  — bind to a chat session for response streaming
+          ?subscribe=phi_update,consciousness_event  — comma-separated events
+
+        Events: aether_response, phi_update, knowledge_node,
+                consciousness_event, circulation_update, token_transfer
+        """
+        await websocket.accept()
+
+        # Parse query parameters
+        session_id = websocket.query_params.get('session_id')
+        subscribe_param = websocket.query_params.get('subscribe', '')
+        subscriptions = None
+        if subscribe_param:
+            subscriptions = set(subscribe_param.split(','))
+
+        _aether_ws.register(websocket, session_id, subscriptions)
+        try:
+            while True:
+                # Keep-alive: read pings/subscriptions updates
+                data = await websocket.receive_text()
+                # Clients can update subscriptions dynamically
+                try:
+                    import json as _ws_json
+                    msg = _ws_json.loads(data)
+                    if msg.get('type') == 'subscribe' and 'events' in msg:
+                        client_id = id(websocket)
+                        if client_id in _aether_ws._clients:
+                            new_subs = set(msg['events']) & _aether_ws.VALID_EVENTS
+                            _aether_ws._clients[client_id].subscriptions = new_subs
+                except Exception:
+                    pass  # Not JSON or malformed — treat as ping
+        except WebSocketDisconnect:
+            pass
+        finally:
+            _aether_ws.unregister(websocket)
+
+    @app.get("/ws/aether/stats")
+    async def aether_ws_stats():
+        """Get Aether WebSocket streaming statistics."""
+        return _aether_ws.get_stats()
+
+    # ========================================================================
+    # QBC CIRCULATION TRACKING
+    # ========================================================================
+
+    from ..aether.circulation import CirculationTracker
+    _circulation_tracker = CirculationTracker()
+    app.circulation_tracker = _circulation_tracker  # type: ignore[attr-defined]
+
+    @app.get("/circulation/stats")
+    async def circulation_stats():
+        """Get current QBC circulation statistics."""
+        return _circulation_tracker.get_stats()
+
+    @app.get("/circulation/current")
+    async def circulation_current():
+        """Get the latest circulation snapshot."""
+        current = _circulation_tracker.get_current()
+        if not current:
+            return {"error": "No circulation data yet. Mine some blocks first."}
+        return current.to_dict()
+
+    @app.get("/circulation/history")
+    async def circulation_history(limit: int = 100):
+        """Get recent circulation snapshots."""
+        limit = max(1, min(limit, 1000))
+        return {"history": _circulation_tracker.get_history(limit)}
+
+    @app.get("/circulation/halvings")
+    async def circulation_halvings():
+        """Get all recorded phi-halving events."""
+        return {"halvings": _circulation_tracker.get_halving_events()}
+
+    @app.get("/circulation/emission-schedule")
+    async def circulation_emission_schedule(num_eras: int = 10):
+        """Get projected emission schedule for upcoming eras."""
+        num_eras = max(1, min(num_eras, 50))
+        return {"schedule": _circulation_tracker.get_emission_schedule(num_eras)}
+
+    # ========================================================================
+    # TOKEN INDEXER (QBC-20 / QBC-721)
+    # ========================================================================
+
+    from ..qvm.token_indexer import TokenIndexer
+    _token_indexer = TokenIndexer()
+    app.token_indexer = _token_indexer  # type: ignore[attr-defined]
+
+    @app.get("/tokens")
+    async def list_tokens():
+        """List all tracked token contracts."""
+        return {"tokens": _token_indexer.get_all_tokens()}
+
+    @app.get("/tokens/stats")
+    async def token_stats():
+        """Get token indexer statistics."""
+        return _token_indexer.get_stats()
+
+    @app.get("/tokens/{contract_address}")
+    async def get_token_info(contract_address: str):
+        """Get metadata about a specific token contract."""
+        info = _token_indexer.get_token_info(contract_address)
+        if not info:
+            raise HTTPException(status_code=404, detail="Token not found")
+        return info
+
+    @app.get("/tokens/{contract_address}/holders")
+    async def get_token_holders(contract_address: str, limit: int = 100):
+        """Get top holders for a token, sorted by balance."""
+        limit = max(1, min(limit, 1000))
+        return {"holders": _token_indexer.get_token_holders(contract_address, limit)}
+
+    @app.get("/tokens/{contract_address}/transfers")
+    async def get_token_transfers(contract_address: str, limit: int = 100):
+        """Get recent transfers for a specific token."""
+        limit = max(1, min(limit, 1000))
+        return {"transfers": _token_indexer.get_transfers(contract_address=contract_address, limit=limit)}
+
+    @app.get("/tokens/{contract_address}/balance/{holder_address}")
+    async def get_token_balance(contract_address: str, holder_address: str):
+        """Get a specific holder's balance for a token."""
+        balance = _token_indexer.get_token_balance(contract_address, holder_address)
+        return {"balance": str(balance), "token": contract_address, "holder": holder_address}
+
+    @app.get("/address/{address}/tokens")
+    async def get_address_token_transfers(address: str, limit: int = 100):
+        """Get all token transfers for a specific address (sent or received)."""
+        limit = max(1, min(limit, 1000))
+        return {"transfers": _token_indexer.get_transfers(address=address, limit=limit)}
+
+    # ========================================================================
     # METRICS ENDPOINT
     # ========================================================================
 

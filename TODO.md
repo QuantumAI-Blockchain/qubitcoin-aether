@@ -217,7 +217,7 @@
 - [x] QBC-721 reference implementation (`tokens/QBC721.sol`)
 - [ ] QBC-1155 reference implementation (Solidity)
 - [ ] ERC-20-QC compliance-aware token (Solidity)
-- [ ] Token indexer (track all QBC-20/721 transfers)
+- [x] Token indexer (track all QBC-20/721 transfers) — `qvm/token_indexer.py: TokenIndexer` (Transfer event parsing, balance tracking, holder ranking, mint/burn detection, REST API endpoints)
 
 ### 2.10 Cross-Chain Bridge Verification
 - [x] QBRIDGE_ENTANGLE opcode implementation (vm.py 0xF8 — deterministic entanglement ID)
@@ -408,7 +408,7 @@
 - [x] Treasury DAO contract (`TreasuryDAO.sol`)
 - [x] Task bounty pool management (`task_protocol.py: TaskMarket` — bounty lifecycle)
 - [x] Validator staking and reward system (`task_protocol.py: ValidatorRegistry` — stake/unstake/slash/reward)
-- [ ] QBC circulation tracking (no minting by AGI)
+- [x] QBC circulation tracking (no minting by AGI) — `aether/circulation.py: CirculationTracker` (era/reward computation, phi-halving detection, emission schedule, REST API endpoints)
 
 ### 3.15 Aether Chat System
 - [x] Chat endpoint: `POST /aether/chat/message` — conversational interface (`aether/chat.py`)
@@ -417,7 +417,7 @@
 - [x] Response generation from knowledge graph + reasoning traces
 - [x] Proof-of-Thought hash per response
 - [x] Chat history endpoint: `GET /aether/chat/history/{session_id}`
-- [ ] WebSocket for streaming responses: `/ws/aether`
+- [x] WebSocket for streaming responses: `/ws/aether` — `aether/ws_streaming.py: AetherWSManager` (session-scoped events, subscription filtering, capacity management, REST stats endpoint)
 - [x] Rate limiting and session management (max 10K sessions, LRU eviction)
 
 ### 3.16 Aether Tree Fee System
@@ -698,6 +698,7 @@
 - [x] Privacy unit tests — 50 tests (test_privacy: 15, test_privacy_advanced: 18, test_privacy_integration: 17 — commitments, stealth, range proofs, susy swap, key images)
 - [x] Config unit tests — 8 tests (test_config: economics, chain IDs, fee params)
 - [x] Fee collector unit tests — 21 tests (test_fee_collector: UTXO selection, fee deduction, change, audit log, chat/contract integration)
+- [x] Batch 23 unit tests — 63 tests (test_batch23: AetherWSManager 14, CirculationTracker 20, TokenIndexer 22, helpers 7)
 - [x] Test infrastructure — conftest.py with dependency stubs (Qiskit, gRPC, IPFS, etc.)
 
 ### 7.2 Security
@@ -802,5 +803,5 @@
 
 ---
 
-*Last updated: 2026-02-14*
+*Last updated: 2026-02-15*
 *Track progress here. Update status after every session.*
