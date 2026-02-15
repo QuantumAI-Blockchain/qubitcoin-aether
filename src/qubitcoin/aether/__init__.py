@@ -26,6 +26,11 @@ from .consciousness import ConsciousnessDashboard
 from .query_translator import QueryTranslator, QueryIntent, QueryResult
 from .ws_streaming import AetherWSManager, AetherWSClient
 from .circulation import CirculationTracker, CirculationSnapshot
+from .llm_adapter import (
+    LLMAdapter, LLMResponse, LLMAdapterManager,
+    OpenAIAdapter, ClaudeAdapter, LocalAdapter, KnowledgeDistiller,
+)
+from .ipfs_memory import IPFSMemoryStore
 from .sephirot_nodes import (
     BaseSephirah, NodeMessage, ProcessingResult,
     KeterNode, ChochmahNode, BinahNode, ChesedNode, GevurahNode,
@@ -66,6 +71,14 @@ __all__ = [
     'AetherWSClient',
     'CirculationTracker',
     'CirculationSnapshot',
+    'LLMAdapter',
+    'LLMResponse',
+    'LLMAdapterManager',
+    'OpenAIAdapter',
+    'ClaudeAdapter',
+    'LocalAdapter',
+    'KnowledgeDistiller',
+    'IPFSMemoryStore',
     'BaseSephirah',
     'NodeMessage',
     'ProcessingResult',
