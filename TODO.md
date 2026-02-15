@@ -209,7 +209,7 @@
 - [x] Fee deduction from deployer UTXO before deployment — `contracts/engine.py` integrates `FeeCollector`
 - [x] Fee UTXO creation to treasury address — `utils/fee_collector.py: collect_fee()` (UTXO spend → treasury + change)
 - [x] Add contract fee config parameters to `config.py`
-- [ ] Admin API: `PUT /admin/contract/fees` (hot reload)
+- [x] Admin API: `PUT /admin/contract/fees` (hot reload) — `network/admin_api.py` (already implemented in Phase 6.5.2)
 - [x] Fee estimation endpoint: `GET /qvm/deploy/estimate`
 
 ### 2.9 Token Standards
@@ -275,7 +275,7 @@
 - [x] Inductive reasoning (pattern generalization)
 - [x] Abductive reasoning (hypothesis generation)
 - [x] Chain-of-thought reasoning (`reasoning.py: chain_of_thought()` — multi-step iterative traces)
-- [ ] Reasoning over user queries (natural language → knowledge graph query)
+- [x] Reasoning over user queries (natural language → knowledge graph query) — `aether/query_translator.py: QueryTranslator` (intent classification, keyword extraction, KG node matching, reasoning strategy dispatch)
 - [x] Contradiction resolution (`reasoning.py: resolve_contradiction()` — evidence-weighted, loser penalized)
 - [x] Confidence propagation (`knowledge_graph.py: propagate_confidence()` — iterative support/contradict)
 
@@ -433,7 +433,7 @@
 - [x] Fee tier multipliers (deep queries cost more than chat)
 - [x] Fee update interval (re-price every N blocks from QUSD oracle)
 - [x] Add fee config parameters to `config.py` (all from `.env`)
-- [ ] Admin API: `PUT /admin/aether/fees` (hot reload fee params)
+- [x] Admin API: `PUT /admin/aether/fees` (hot reload fee params) — `network/admin_api.py` (already implemented in Phase 6.5.2)
 - [x] Fee audit logging (track all fee changes for transparency) — `utils/fee_collector.py: get_audit_log()` (in-memory, filterable by fee_type)
 
 ### 3.17 LLM Adapters (External Intelligence)
@@ -670,7 +670,7 @@
 - [x] `PUT /admin/contract/fees` — update contract deploy fees (hot reload)
 - [x] `PUT /admin/treasury` — update treasury addresses
 - [x] `GET /admin/economics/history` — audit log of parameter changes
-- [ ] Rate limiting on admin endpoints
+- [x] Rate limiting on admin endpoints — `network/admin_api.py: _check_admin_rate_limit()` (30 req/min per IP, 429 on excess)
 
 ### 6.5.3 QUSD Fee Oracle Integration
 - [x] Oracle client module (`utils/qusd_oracle.py`)

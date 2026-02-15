@@ -23,6 +23,7 @@ from .safety import SafetyManager, GevurahVeto, MultiNodeConsensus
 from .knowledge_extractor import KnowledgeExtractor
 from .task_protocol import ProofOfThoughtProtocol, TaskMarket, ValidatorRegistry
 from .consciousness import ConsciousnessDashboard
+from .query_translator import QueryTranslator, QueryIntent, QueryResult
 from .sephirot_nodes import (
     BaseSephirah, NodeMessage, ProcessingResult,
     KeterNode, ChochmahNode, BinahNode, ChesedNode, GevurahNode,
@@ -56,6 +57,9 @@ __all__ = [
     'TaskMarket',
     'ValidatorRegistry',
     'ConsciousnessDashboard',
+    'QueryTranslator',
+    'QueryIntent',
+    'QueryResult',
     'BaseSephirah',
     'NodeMessage',
     'ProcessingResult',
