@@ -1560,6 +1560,126 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return _capability_detector.get_p2p_advertisement()
 
     # ========================================================================
+    # P2P CAPABILITY ADVERTISEMENT REGISTRY
+    # ========================================================================
+
+    from .capability_advertisement import CapabilityAdvertiser
+    _node_peer_id = getattr(Config, 'ADDRESS', 'unknown')[:16]
+    _cap_advertiser = CapabilityAdvertiser(node_peer_id=_node_peer_id)
+    app.state.capability_advertiser = _cap_advertiser
+
+    # Seed local capability from detector
+    _local_ad = _capability_detector.get_p2p_advertisement()
+    if _local_ad:
+        _cap_advertiser.set_local_capability(_local_ad)
+
+    @app.get("/p2p/capabilities")
+    async def p2p_capabilities():
+        """Get all known peer capabilities."""
+        peers = _cap_advertiser.get_all_peers()
+        return {"peers": [p.to_dict() for p in peers]}
+
+    @app.get("/p2p/capabilities/ranked")
+    async def p2p_capabilities_ranked(limit: int = 20):
+        """Get peers ranked by mining power."""
+        ranked = _cap_advertiser.get_peers_by_power(limit=min(limit, 50))
+        return {"peers": [p.to_dict() for p in ranked]}
+
+    @app.get("/p2p/capabilities/summary")
+    async def p2p_capabilities_summary():
+        """Get network-wide capability summary."""
+        return _cap_advertiser.get_network_summary()
+
+    @app.get("/p2p/capabilities/local")
+    async def p2p_capabilities_local():
+        """Get this node's capability advertisement."""
+        ad = _cap_advertiser.get_local_advertisement()
+        if ad is None:
+            return {"error": "No local capability set"}
+        return ad
+
+    @app.post("/p2p/capabilities/report")
+    async def p2p_capabilities_report(request: Request):
+        """Receive a capability advertisement from a peer."""
+        body = await request.json()
+        peer_id = body.get('peer_id', '')
+        if not peer_id:
+            raise HTTPException(status_code=400, detail="peer_id required")
+        cap = _cap_advertiser.receive_advertisement(peer_id, body)
+        return cap.to_dict()
+
+    # ========================================================================
+    # BLOCKCHAIN SNAPSHOT SCHEDULER
+    # ========================================================================
+
+    from ..storage.snapshot_scheduler import SnapshotScheduler
+    _snapshot_scheduler = SnapshotScheduler()
+    app.state.snapshot_scheduler = _snapshot_scheduler
+
+    @app.get("/snapshots/stats")
+    async def snapshot_stats():
+        """Get snapshot scheduler statistics."""
+        return _snapshot_scheduler.get_stats()
+
+    @app.get("/snapshots/history")
+    async def snapshot_history(limit: int = 20):
+        """Get recent snapshot history."""
+        return {"history": _snapshot_scheduler.get_history(limit=min(limit, 100))}
+
+    @app.get("/snapshots/latest")
+    async def snapshot_latest():
+        """Get the most recent snapshot."""
+        latest = _snapshot_scheduler.get_latest()
+        if latest is None:
+            return {"error": "No snapshots taken yet"}
+        return latest.to_dict()
+
+    @app.post("/snapshots/trigger")
+    async def snapshot_trigger():
+        """Manually trigger a blockchain snapshot."""
+        height = db_manager.get_current_height()
+        record = _snapshot_scheduler.take_snapshot(
+            height=height, db_manager=db_manager, ipfs_manager=ipfs_manager,
+        )
+        return record.to_dict()
+
+    # ========================================================================
+    # SUSY SOLUTION ARCHIVER
+    # ========================================================================
+
+    from ..storage.solution_archiver import SolutionArchiver
+    _solution_archiver = SolutionArchiver()
+    app.state.solution_archiver = _solution_archiver
+
+    @app.get("/susy-database/archives/stats")
+    async def solution_archive_stats():
+        """Get solution archive statistics."""
+        return _solution_archiver.get_stats()
+
+    @app.get("/susy-database/archives/history")
+    async def solution_archive_history(limit: int = 20):
+        """Get recent archive history."""
+        return {"history": _solution_archiver.get_history(limit=min(limit, 100))}
+
+    @app.get("/susy-database/archives/cids")
+    async def solution_archive_cids():
+        """Get all IPFS CIDs from solution archives."""
+        return {"cids": _solution_archiver.get_all_cids()}
+
+    @app.post("/susy-database/archives/trigger")
+    async def solution_archive_trigger(
+        from_height: int = 0, to_height: Optional[int] = None,
+    ):
+        """Manually trigger a solution archive for a block range."""
+        if to_height is None:
+            to_height = db_manager.get_current_height()
+        record = _solution_archiver.archive_range(
+            from_height=from_height, to_height=to_height,
+            db_manager=db_manager, ipfs_manager=ipfs_manager,
+        )
+        return record.to_dict()
+
+    # ========================================================================
     # ADMIN API (Economics hot-reload)
     # ========================================================================
 
