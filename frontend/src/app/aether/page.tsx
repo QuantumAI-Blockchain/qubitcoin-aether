@@ -6,6 +6,16 @@ import { useQuery } from "@tanstack/react-query";
 import { api, type ChatResponse } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
+import { useToast } from "@/components/ui/toast";
+import {
+  ConversationSidebar,
+  type StoredSession,
+  loadSessions,
+  saveSessions,
+  saveSessionMessages,
+  loadSessionMessages,
+  deleteSessionStorage,
+} from "@/components/aether/conversation-sidebar";
 
 interface Message {
   role: "user" | "aether";
@@ -15,13 +25,27 @@ interface Message {
   phi?: number;
 }
 
+function deriveTitle(messages: Message[]): string {
+  const first = messages.find((m) => m.role === "user");
+  if (!first) return "New Chat";
+  const text = first.text.slice(0, 40);
+  return text.length < first.text.length ? `${text}...` : text;
+}
+
 export default function AetherPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedMsg, setSelectedMsg] = useState<number | null>(null);
+  const [sessions, setSessions] = useState<StoredSession[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  // Load saved sessions on mount
+  useEffect(() => {
+    setSessions(loadSessions());
+  }, []);
 
   const { data: consciousness } = useQuery({
     queryKey: ["consciousness"],
@@ -32,6 +56,33 @@ export default function AetherPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+
+  // Persist messages to localStorage whenever they change
+  useEffect(() => {
+    if (!sessionId || messages.length === 0) return;
+    saveSessionMessages(sessionId, messages);
+
+    // Update session metadata
+    setSessions((prev) => {
+      const userMsgCount = messages.filter((m) => m.role === "user").length;
+      const existing = prev.find((s) => s.id === sessionId);
+      let updated: StoredSession[];
+      if (existing) {
+        updated = prev.map((s) =>
+          s.id === sessionId
+            ? { ...s, title: deriveTitle(messages), messageCount: userMsgCount, updatedAt: Date.now() }
+            : s,
+        );
+      } else {
+        updated = [
+          ...prev,
+          { id: sessionId, title: deriveTitle(messages), messageCount: userMsgCount, updatedAt: Date.now() },
+        ];
+      }
+      saveSessions(updated);
+      return updated;
+    });
+  }, [messages, sessionId]);
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -63,10 +114,42 @@ export default function AetherPage() {
         ...prev,
         { role: "aether", text: "Unable to reach Aether Tree. The node may be offline." },
       ]);
+      toast("Failed to reach Aether Tree", "error");
     } finally {
       setLoading(false);
     }
-  }, [input, loading, sessionId]);
+  }, [input, loading, sessionId, toast]);
+
+  const handleNewChat = useCallback(() => {
+    setSessionId(null);
+    setMessages([]);
+    setSelectedMsg(null);
+  }, []);
+
+  const handleSelectSession = useCallback((session: StoredSession) => {
+    setSessionId(session.id);
+    const saved = loadSessionMessages(session.id) as Message[];
+    setMessages(saved);
+    setSelectedMsg(null);
+  }, []);
+
+  const handleDeleteSession = useCallback(
+    (id: string) => {
+      deleteSessionStorage(id);
+      setSessions((prev) => {
+        const updated = prev.filter((s) => s.id !== id);
+        saveSessions(updated);
+        return updated;
+      });
+      if (sessionId === id) {
+        setSessionId(null);
+        setMessages([]);
+        setSelectedMsg(null);
+      }
+      toast("Conversation deleted", "info");
+    },
+    [sessionId, toast],
+  );
 
   const phi = consciousness?.phi ?? 0;
   const threshold = consciousness?.threshold ?? 3.0;
@@ -74,8 +157,32 @@ export default function AetherPage() {
 
   return (
     <div className="flex h-[calc(100vh-4rem)] pt-16">
+      {/* Conversation sidebar */}
+      <div className="hidden md:block">
+        <ConversationSidebar
+          sessions={sessions}
+          activeSessionId={sessionId}
+          onSelect={handleSelectSession}
+          onNew={handleNewChat}
+          onDelete={handleDeleteSession}
+        />
+      </div>
+
       {/* Main chat area */}
       <div className="flex flex-1 flex-col">
+        {/* Mobile new-chat button */}
+        <div className="flex items-center gap-2 border-b border-surface-light px-4 py-2 md:hidden">
+          <button
+            onClick={handleNewChat}
+            className="rounded-lg bg-quantum-violet/20 px-3 py-1.5 text-xs font-medium text-quantum-violet"
+          >
+            + New Chat
+          </button>
+          <span className="text-xs text-text-secondary">
+            {sessionId ? deriveTitle(messages) || "Active session" : "No session"}
+          </span>
+        </div>
+
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
           <div className="mx-auto max-w-3xl space-y-4">

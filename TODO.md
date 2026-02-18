@@ -473,7 +473,7 @@
 - [x] "Quantum Virtual Machine" feature section
 - [x] "Aether Tree AGI" feature section
 - [x] Call-to-action buttons (Talk to Aether, Open Dashboard, Connect Wallet)
-- [ ] Footer with links, social, legal
+- [x] Footer with links, social, legal — `components/ui/footer.tsx` (nav links, resources, social icons, chain info, copyright)
 - [x] Mobile responsive design
 - [ ] Performance optimization (lazy loading, image optimization)
 
@@ -481,12 +481,12 @@
 - [x] Full-page chat interface (ChatGPT/Grok-like layout)
 - [x] Message input with quantum-themed styling
 - [ ] Streaming response display (typewriter effect)
-- [ ] Conversation sidebar (session list, new chat)
+- [x] Conversation sidebar (session list, new chat) — `components/aether/conversation-sidebar.tsx` (sorted by recency, new/delete/select, mobile fallback)
 - [ ] Knowledge graph 3D visualization panel (Three.js force-directed)
 - [x] Phi consciousness meter (animated gauge) — sidebar panel
 - [x] Reasoning trace accordion (expandable per response)
 - [x] Proof-of-Thought hash per response
-- [ ] Local storage for conversation history
+- [x] Local storage for conversation history — `conversation-sidebar.tsx` (loadSessions/saveSessions/saveSessionMessages/loadSessionMessages per-session persistence)
 - [x] Keyboard shortcuts (Enter to send)
 
 ### 4.4 Dashboard (`/dashboard`)
@@ -522,10 +522,10 @@
 
 ### 4.7 Shared Components
 - [x] Navbar (responsive, wallet connect button, Phi indicator)
-- [ ] Footer (links, quantum animation)
+- [x] Footer (links, quantum animation) — `components/ui/footer.tsx` (added to root layout)
 - [x] Wallet connect/disconnect button
 - [ ] Transaction confirmation modal
-- [ ] Toast notification system
+- [x] Toast notification system — `components/ui/toast.tsx` (ToastProvider context, success/error/info variants, auto-dismiss, animated)
 - [x] Loading states (phi-spiral spinner, skeleton)
 - [x] Card component with quantum glow variants
 - [ ] Error boundaries
@@ -804,5 +804,5 @@
 
 ---
 
-*Last updated: 2026-02-15*
+*Last updated: 2026-02-18*
 *Track progress here. Update status after every session.*
