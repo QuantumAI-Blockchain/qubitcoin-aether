@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { useWalletStore } from "@/stores/wallet-store";
 import { WalletButton } from "@/components/wallet/wallet-button";
 import { Card } from "@/components/ui/card";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { TransactionHistory } from "@/components/wallet/transaction-history";
 
 export default function WalletPage() {
   const { address, connected } = useWalletStore();
@@ -98,6 +100,11 @@ export default function WalletPage() {
             {address}
           </p>
         </Card>
+
+        {/* Transaction History */}
+        <ErrorBoundary>
+          <TransactionHistory address={address!} />
+        </ErrorBoundary>
       </div>
     </div>
   );

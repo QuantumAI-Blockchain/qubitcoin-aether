@@ -56,6 +56,28 @@ export interface ChatResponse {
   fee_charged: string;
 }
 
+export interface ContractInfo {
+  address: string;
+  creator: string;
+  bytecode_hash: string;
+  deployed_at: number;
+  contract_type: string;
+  is_active: boolean;
+  storage_slots: number;
+}
+
+export interface TransactionInfo {
+  txid: string;
+  sender: string;
+  recipient: string;
+  amount: number;
+  fee: number;
+  block_height: number | null;
+  timestamp: number;
+  status: "confirmed" | "pending" | "failed";
+  confirmations: number;
+}
+
 export const api = {
   getChainInfo: () => get<ChainInfo>("/chain/info"),
   getHealth: () => get<{ status: string }>("/health"),
@@ -65,6 +87,20 @@ export const api = {
   getPhiHistory: () => get<{ history: Array<{ block: number; phi: number }> }>("/aether/phi/history"),
   getKnowledge: () => get<Record<string, unknown>>("/aether/knowledge"),
 
+  // QVM / Contracts
+  getContract: (addr: string) => get<ContractInfo>(`/qvm/contract/${addr}`),
+  getContractStorage: (addr: string, key: string) =>
+    get<{ value: string }>(`/qvm/storage/${addr}/${key}`),
+
+  // Transactions
+  getUTXOs: (addr: string) =>
+    get<{ utxos: Array<{ txid: string; vout: number; amount: number; confirmations: number }> }>(
+      `/utxos/${addr}`,
+    ),
+  getMempool: () =>
+    get<{ transactions: TransactionInfo[] }>("/mempool"),
+
+  // Chat
   createChatSession: (userAddress: string = "") =>
     post<{ session_id: string; created_at: number; free_messages: number }>(
       "/aether/chat/session",
