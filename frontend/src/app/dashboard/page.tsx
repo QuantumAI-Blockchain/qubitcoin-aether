@@ -6,6 +6,9 @@ import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { PhiChart } from "@/components/dashboard/phi-chart";
+import { MiningControls } from "@/components/dashboard/mining-controls";
 import { useWalletStore } from "@/stores/wallet-store";
 
 const TABS = ["Overview", "Mining", "Aether", "Network"] as const;
@@ -140,39 +143,46 @@ function MiningTab({
   mining: Record<string, unknown> | undefined;
   chain: ReturnType<typeof api.getChainInfo> extends Promise<infer T> ? T | undefined : never;
 }) {
+  const isActive = !!mining;
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-text-secondary">Mining Status</h3>
-        <p className="text-lg font-semibold">
-          {mining ? (
-            <span className="text-quantum-green">Active</span>
-          ) : (
-            <span className="text-text-secondary">Offline</span>
-          )}
-        </p>
-        <p className="mt-2 text-xs text-text-secondary">
-          Difficulty: {chain?.difficulty?.toFixed(6) ?? "---"}
-        </p>
-      </Card>
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-text-secondary">Blocks Mined</h3>
-        <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
-          {(mining?.blocks_mined as number)?.toLocaleString() ?? "---"}
-        </p>
-      </Card>
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-text-secondary">VQE Energy</h3>
-        <p className="font-[family-name:var(--font-mono)] text-lg">
-          {(mining?.best_energy as number)?.toFixed(6) ?? "---"}
-        </p>
-      </Card>
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-text-secondary">Alignment Score</h3>
-        <p className="font-[family-name:var(--font-mono)] text-lg">
-          {(mining?.alignment_score as number)?.toFixed(4) ?? "---"}
-        </p>
-      </Card>
+    <div className="space-y-4">
+      <ErrorBoundary>
+        <MiningControls isActive={isActive} />
+      </ErrorBoundary>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Mining Status</h3>
+          <p className="text-lg font-semibold">
+            {isActive ? (
+              <span className="text-quantum-green">Active</span>
+            ) : (
+              <span className="text-text-secondary">Offline</span>
+            )}
+          </p>
+          <p className="mt-2 text-xs text-text-secondary">
+            Difficulty: {chain?.difficulty?.toFixed(6) ?? "---"}
+          </p>
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Blocks Mined</h3>
+          <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
+            {(mining?.blocks_mined as number)?.toLocaleString() ?? "---"}
+          </p>
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">VQE Energy</h3>
+          <p className="font-[family-name:var(--font-mono)] text-lg">
+            {(mining?.best_energy as number)?.toFixed(6) ?? "---"}
+          </p>
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Alignment Score</h3>
+          <p className="font-[family-name:var(--font-mono)] text-lg">
+            {(mining?.alignment_score as number)?.toFixed(4) ?? "---"}
+          </p>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -234,6 +244,10 @@ function AetherTab({
           </p>
         </Card>
       </div>
+
+      <ErrorBoundary>
+        <PhiChart />
+      </ErrorBoundary>
     </div>
   );
 }

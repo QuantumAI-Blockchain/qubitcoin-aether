@@ -496,8 +496,8 @@
 - [x] Network tab (peers, mempool, chain ID, block height)
 - [ ] Contract operator tab (deploy, view, interact)
 - [ ] Wallet tab with UTXO breakdown
-- [ ] Start/stop mining controls
-- [ ] Phi history chart (time series visualization)
+- [x] Start/stop mining controls — `components/dashboard/mining-controls.tsx` (start/stop buttons, confirmation modal, toast feedback)
+- [x] Phi history chart (time series visualization) — `components/dashboard/phi-chart.tsx` (SVG chart, threshold line, gradient fill, auto-refetch)
 
 ### 4.5 Wallet Page (`/wallet`)
 - [x] MetaMask connect button (ethers.js v6)
@@ -524,11 +524,11 @@
 - [x] Navbar (responsive, wallet connect button, Phi indicator)
 - [x] Footer (links, quantum animation) — `components/ui/footer.tsx` (added to root layout)
 - [x] Wallet connect/disconnect button
-- [ ] Transaction confirmation modal
+- [x] Transaction confirmation modal — `components/ui/confirm-modal.tsx` (animated backdrop, default/danger variants, loading state)
 - [x] Toast notification system — `components/ui/toast.tsx` (ToastProvider context, success/error/info variants, auto-dismiss, animated)
 - [x] Loading states (phi-spiral spinner, skeleton)
 - [x] Card component with quantum glow variants
-- [ ] Error boundaries
+- [x] Error boundaries — `components/ui/error-boundary.tsx` (class component, retry button, custom fallback support)
 - [x] SEO meta tags
 - [ ] Dark/light mode (default: dark quantum theme)
 
