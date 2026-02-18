@@ -480,7 +480,7 @@
 ### 4.3 Aether Chat Page (`/aether`)
 - [x] Full-page chat interface (ChatGPT/Grok-like layout)
 - [x] Message input with quantum-themed styling
-- [ ] Streaming response display (typewriter effect)
+- [x] Streaming response display (typewriter effect) — `components/aether/streaming-text.tsx` (character-by-character reveal, blinking cursor, configurable speed, onComplete callback)
 - [x] Conversation sidebar (session list, new chat) — `components/aether/conversation-sidebar.tsx` (sorted by recency, new/delete/select, mobile fallback)
 - [ ] Knowledge graph 3D visualization panel (Three.js force-directed)
 - [x] Phi consciousness meter (animated gauge) — sidebar panel
@@ -513,8 +513,8 @@
 ### 4.6 QVM Explorer (`/qvm`)
 - [x] Contract search and browser — `components/qvm/contract-browser.tsx` (address lookup, active/inactive status badge)
 - [x] Contract detail page (code, storage, events, transactions) — inline detail view in contract-browser.tsx (creator, type, storage slots, bytecode hash, deploy date)
-- [ ] Bytecode disassembler view
-- [ ] Storage slot inspector
+- [x] Bytecode disassembler view — `components/qvm/bytecode-disassembler.tsx` (80+ EVM opcodes + 10 quantum opcodes, PUSH inline data, quantum highlight, 500-op safety cap)
+- [x] Storage slot inspector — `components/qvm/storage-inspector.tsx` (address + key lookup, preset slot buttons, formatted result display)
 - [ ] Event log with filters
 - [x] Deploy contract interface (template selection + bytecode input)
 - [ ] Contract interaction interface (ABI-based)

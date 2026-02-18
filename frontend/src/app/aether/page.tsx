@@ -7,6 +7,7 @@ import { api, type ChatResponse } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
 import { useToast } from "@/components/ui/toast";
+import { StreamingText } from "@/components/aether/streaming-text";
 import {
   ConversationSidebar,
   type StoredSession,
@@ -38,6 +39,7 @@ export default function AetherPage() {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedMsg, setSelectedMsg] = useState<number | null>(null);
+  const [streamingIdx, setStreamingIdx] = useState<number | null>(null);
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -99,16 +101,20 @@ export default function AetherPage() {
         setSessionId(sid);
       }
       const res: ChatResponse = await api.sendChatMessage(sid, text);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "aether",
-          text: res.response,
-          reasoning: res.reasoning_trace,
-          potHash: res.proof_of_thought_hash,
-          phi: res.phi_at_response,
-        },
-      ]);
+      setMessages((prev) => {
+        const idx = prev.length; // index of the new message
+        setStreamingIdx(idx);
+        return [
+          ...prev,
+          {
+            role: "aether",
+            text: res.response,
+            reasoning: res.reasoning_trace,
+            potHash: res.proof_of_thought_hash,
+            phi: res.phi_at_response,
+          },
+        ];
+      });
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -217,7 +223,17 @@ export default function AetherPage() {
                       : "bg-surface-light text-text-primary"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{m.text}</p>
+                  <p className="whitespace-pre-wrap">
+                    {m.role === "aether" && i === streamingIdx ? (
+                      <StreamingText
+                        text={m.text}
+                        speed={16}
+                        onComplete={() => setStreamingIdx(null)}
+                      />
+                    ) : (
+                      m.text
+                    )}
+                  </p>
                   {m.role === "aether" && m.potHash && (
                     <button
                       onClick={() => setSelectedMsg(selectedMsg === i ? null : i)}

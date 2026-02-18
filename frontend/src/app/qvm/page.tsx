@@ -5,6 +5,8 @@ import { get } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ContractBrowser } from "@/components/qvm/contract-browser";
+import { BytecodeDisassembler } from "@/components/qvm/bytecode-disassembler";
+import { StorageInspector } from "@/components/qvm/storage-inspector";
 
 interface QVMInfo {
   total_contracts: number;
@@ -99,6 +101,20 @@ export default function QVMPage() {
             </button>
           </div>
         </Card>
+      </div>
+
+      {/* Bytecode disassembler */}
+      <div className="mt-8">
+        <ErrorBoundary>
+          <BytecodeDisassembler />
+        </ErrorBoundary>
+      </div>
+
+      {/* Storage inspector */}
+      <div className="mt-8">
+        <ErrorBoundary>
+          <StorageInspector />
+        </ErrorBoundary>
       </div>
 
       {/* Quantum opcodes reference */}
