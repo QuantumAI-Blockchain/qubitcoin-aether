@@ -7,6 +7,8 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ContractBrowser } from "@/components/qvm/contract-browser";
 import { BytecodeDisassembler } from "@/components/qvm/bytecode-disassembler";
 import { StorageInspector } from "@/components/qvm/storage-inspector";
+import { EventLog } from "@/components/qvm/event-log";
+import { ContractInteract } from "@/components/qvm/contract-interact";
 
 interface QVMInfo {
   total_contracts: number;
@@ -114,6 +116,20 @@ export default function QVMPage() {
       <div className="mt-8">
         <ErrorBoundary>
           <StorageInspector />
+        </ErrorBoundary>
+      </div>
+
+      {/* Event log */}
+      <div className="mt-8">
+        <ErrorBoundary>
+          <EventLog />
+        </ErrorBoundary>
+      </div>
+
+      {/* Contract interaction */}
+      <div className="mt-8">
+        <ErrorBoundary>
+          <ContractInteract />
         </ErrorBoundary>
       </div>
 

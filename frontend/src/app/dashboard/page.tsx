@@ -11,7 +11,7 @@ import { PhiChart } from "@/components/dashboard/phi-chart";
 import { MiningControls } from "@/components/dashboard/mining-controls";
 import { useWalletStore } from "@/stores/wallet-store";
 
-const TABS = ["Overview", "Mining", "Aether", "Network"] as const;
+const TABS = ["Overview", "Mining", "Contracts", "Wallet", "Aether", "Network"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function DashboardPage() {
@@ -83,6 +83,8 @@ export default function DashboardPage() {
           <OverviewTab chain={chain} phi={phi} balance={balance?.balance} connected={connected} />
         )}
         {tab === "Mining" && <MiningTab mining={mining} chain={chain} />}
+        {tab === "Contracts" && <ContractsTab />}
+        {tab === "Wallet" && <WalletTab address={address} connected={connected} />}
         {tab === "Aether" && <AetherTab phi={phi} />}
         {tab === "Network" && <NetworkTab chain={chain} />}
       </div>
@@ -248,6 +250,182 @@ function AetherTab({
       <ErrorBoundary>
         <PhiChart />
       </ErrorBoundary>
+    </div>
+  );
+}
+
+function ContractsTab() {
+  const [deployAddr, setDeployAddr] = useState("");
+  const [deployType, setDeployType] = useState("custom");
+  const [bytecode, setBytecode] = useState("");
+
+  return (
+    <div className="space-y-6">
+      {/* Deploy */}
+      <Card>
+        <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+          Deploy Contract
+        </h3>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs text-text-secondary">Contract Type</label>
+            <select
+              value={deployType}
+              onChange={(e) => setDeployType(e.target.value)}
+              className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            >
+              <option value="custom">Custom Bytecode</option>
+              <option value="token">QBC-20 Token</option>
+              <option value="nft">QBC-721 NFT</option>
+              <option value="governance">Governance</option>
+              <option value="escrow">Escrow</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-text-secondary">Bytecode (hex)</label>
+            <textarea
+              rows={3}
+              value={bytecode}
+              onChange={(e) => setBytecode(e.target.value)}
+              placeholder="0x6080604052..."
+              className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            />
+          </div>
+          <button className="rounded-lg bg-quantum-violet px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-quantum-violet/80">
+            Deploy to QVM
+          </button>
+        </div>
+      </Card>
+
+      {/* Lookup */}
+      <Card>
+        <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+          View Contract
+        </h3>
+        <div className="flex gap-3">
+          <input
+            value={deployAddr}
+            onChange={(e) => setDeployAddr(e.target.value)}
+            placeholder="Contract address (0x...)"
+            className="flex-1 rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+          />
+          <a
+            href={`/qvm?contract=${deployAddr}`}
+            className="rounded-lg bg-quantum-green/20 px-5 py-2.5 text-sm font-medium text-quantum-green transition hover:bg-quantum-green/30"
+          >
+            Open in QVM
+          </a>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function WalletTab({
+  address,
+  connected,
+}: {
+  address: string | null;
+  connected: boolean;
+}) {
+  const { data: utxos } = useQuery({
+    queryKey: ["utxos", address],
+    queryFn: () => api.getUTXOs(address!),
+    enabled: !!address,
+    refetchInterval: 15_000,
+  });
+
+  const { data: balance } = useQuery({
+    queryKey: ["balance-wallet-tab", address],
+    queryFn: () => api.getBalance(address!),
+    enabled: !!address,
+    refetchInterval: 10_000,
+  });
+
+  if (!connected || !address) {
+    return (
+      <Card>
+        <p className="text-center text-sm text-text-secondary">
+          Connect your wallet to view UTXO breakdown.
+        </p>
+      </Card>
+    );
+  }
+
+  const utxoList = utxos?.utxos ?? [];
+  const totalBalance = balance?.balance ?? 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Balance summary */}
+      <Card glow="green">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-text-secondary">Total Balance</p>
+            <p className="mt-1 font-[family-name:var(--font-mono)] text-3xl font-bold text-quantum-green">
+              {totalBalance.toLocaleString()} QBC
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-text-secondary">UTXOs</p>
+            <p className="mt-1 font-[family-name:var(--font-mono)] text-2xl font-bold">
+              {utxoList.length}
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* UTXO list */}
+      <Card>
+        <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+          UTXO Breakdown
+        </h3>
+        {utxoList.length === 0 ? (
+          <p className="text-sm text-text-secondary">No UTXOs found.</p>
+        ) : (
+          <div className="max-h-96 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-surface">
+                <tr className="border-b border-surface-light text-left text-xs text-text-secondary">
+                  <th className="pb-2 pr-4">Tx ID</th>
+                  <th className="pb-2 pr-4">Vout</th>
+                  <th className="pb-2 pr-4 text-right">Amount</th>
+                  <th className="pb-2 text-right">Confirmations</th>
+                </tr>
+              </thead>
+              <tbody className="font-[family-name:var(--font-mono)]">
+                {utxoList.map((utxo) => (
+                  <tr
+                    key={`${utxo.txid}-${utxo.vout}`}
+                    className="border-b border-surface-light/30"
+                  >
+                    <td className="py-2 pr-4 text-xs text-quantum-violet">
+                      {utxo.txid.slice(0, 12)}...{utxo.txid.slice(-8)}
+                    </td>
+                    <td className="py-2 pr-4 text-xs text-text-secondary">
+                      {utxo.vout}
+                    </td>
+                    <td className="py-2 pr-4 text-right text-quantum-green">
+                      {utxo.amount.toLocaleString()} QBC
+                    </td>
+                    <td className="py-2 text-right text-xs text-text-secondary">
+                      {utxo.confirmations.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* Address */}
+      <Card>
+        <h3 className="mb-2 text-sm font-semibold text-text-secondary">Address</h3>
+        <p className="break-all font-[family-name:var(--font-mono)] text-xs text-quantum-green">
+          {address}
+        </p>
+      </Card>
     </div>
   );
 }

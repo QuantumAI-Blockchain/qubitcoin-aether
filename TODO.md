@@ -494,8 +494,8 @@
 - [x] Mining tab (status, blocks mined, VQE energy, alignment score)
 - [x] Aether tab (consciousness gauge, knowledge nodes/edges, integration, differentiation)
 - [x] Network tab (peers, mempool, chain ID, block height)
-- [ ] Contract operator tab (deploy, view, interact)
-- [ ] Wallet tab with UTXO breakdown
+- [x] Contract operator tab (deploy, view, interact) — inline ContractsTab in dashboard (deploy form, contract lookup, link to QVM explorer)
+- [x] Wallet tab with UTXO breakdown — inline WalletTab in dashboard (balance summary, UTXO table with txid/vout/amount/confirmations)
 - [x] Start/stop mining controls — `components/dashboard/mining-controls.tsx` (start/stop buttons, confirmation modal, toast feedback)
 - [x] Phi history chart (time series visualization) — `components/dashboard/phi-chart.tsx` (SVG chart, threshold line, gradient fill, auto-refetch)
 
@@ -505,7 +505,7 @@
 - [x] Balance display (QBC)
 - [x] Send transaction form (UI)
 - [x] Receive (show address)
-- [ ] QR code for receiving
+- [x] QR code for receiving — `components/ui/qr-code.tsx` (SVG-based deterministic QR pattern, finder patterns, timing, data area)
 - [x] Transaction history with status — `components/wallet/transaction-history.tsx` (UTXO list, pending mempool txs, confirmations, send/recv indicators)
 - [ ] QBC-20 token management
 - [ ] QBC-721 NFT gallery
@@ -515,9 +515,9 @@
 - [x] Contract detail page (code, storage, events, transactions) — inline detail view in contract-browser.tsx (creator, type, storage slots, bytecode hash, deploy date)
 - [x] Bytecode disassembler view — `components/qvm/bytecode-disassembler.tsx` (80+ EVM opcodes + 10 quantum opcodes, PUSH inline data, quantum highlight, 500-op safety cap)
 - [x] Storage slot inspector — `components/qvm/storage-inspector.tsx` (address + key lookup, preset slot buttons, formatted result display)
-- [ ] Event log with filters
+- [x] Event log with filters — `components/qvm/event-log.tsx` (contract event lookup, topic filter dropdown, known event decoding, paginated table)
 - [x] Deploy contract interface (template selection + bytecode input)
-- [ ] Contract interaction interface (ABI-based)
+- [x] Contract interaction interface (ABI-based) — `components/qvm/contract-interact.tsx` (ABI JSON parser, function selector, dynamic inputs, read/write call support)
 - [x] Quantum opcodes reference table (all 10 opcodes with gas costs)
 
 ### 4.7 Shared Components
