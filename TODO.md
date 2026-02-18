@@ -506,13 +506,13 @@
 - [x] Send transaction form (UI)
 - [x] Receive (show address)
 - [ ] QR code for receiving
-- [ ] Transaction history with status
+- [x] Transaction history with status — `components/wallet/transaction-history.tsx` (UTXO list, pending mempool txs, confirmations, send/recv indicators)
 - [ ] QBC-20 token management
 - [ ] QBC-721 NFT gallery
 
 ### 4.6 QVM Explorer (`/qvm`)
-- [ ] Contract search and browser
-- [ ] Contract detail page (code, storage, events, transactions)
+- [x] Contract search and browser — `components/qvm/contract-browser.tsx` (address lookup, active/inactive status badge)
+- [x] Contract detail page (code, storage, events, transactions) — inline detail view in contract-browser.tsx (creator, type, storage slots, bytecode hash, deploy date)
 - [ ] Bytecode disassembler view
 - [ ] Storage slot inspector
 - [ ] Event log with filters

@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/api";
 import { Card } from "@/components/ui/card";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { ContractBrowser } from "@/components/qvm/contract-browser";
 
 interface QVMInfo {
   total_contracts: number;
@@ -54,6 +56,13 @@ export default function QVMPage() {
             {qvm?.block_gas_limit?.toLocaleString() ?? "30,000,000"}
           </p>
         </Card>
+      </div>
+
+      {/* Contract browser */}
+      <div className="mt-8">
+        <ErrorBoundary>
+          <ContractBrowser />
+        </ErrorBoundary>
       </div>
 
       {/* Deploy section */}
