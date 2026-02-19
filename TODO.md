@@ -46,7 +46,7 @@
 ### 1.4 Database
 - [x] CockroachDB connection + SQLAlchemy models (`database/`)
 - [x] SQL schemas for all 33+ tables (`sql/`)
-- [ ] Verify ALL SQL schemas match SQLAlchemy models in `database/models.py`
+- [x] Verify ALL SQL schemas match SQLAlchemy models in `database/models.py` — Audited: models.py uses dataclasses (7 classes) not ORM; SQL has 55+ tables. Gap documented, validation tests added (test_schema_validation: 14 tests)
 - [ ] Add migration system (Alembic) for schema changes
 - [x] Connection pool health monitoring — `database/pool_monitor.py: PoolHealthMonitor` (SQLAlchemy event listeners, checkout/checkin latency, utilization %, health status: healthy/degraded/critical, snapshot history)
 - [ ] Refactored domain-separated schemas (`sql_new/`)
@@ -687,14 +687,15 @@
 
 ### 7.1 Test Suites
 - [x] L1 unit tests (consensus, mining, crypto, UTXO, database, Dilithium) — 83 tests (test_consensus, test_database, test_quantum, test_mining_and_utxo, test_genesis_validation, test_dilithium: 26)
+- [x] Batch 35 unit tests — 51 tests (test_mining: 14, test_contracts: 11, test_bridge: 14, test_stablecoin: 12 — engine init, deployment, validation, oracle, aggregation, bridge types/detection/deposit/shutdown)
 - [x] P2P network tests — 43 tests (test_peer_scoring: 16, test_block_propagation: 15, test_block_sync: 12 — propagation, dedup, sync, stats)
 - [x] L2 unit tests (QVM opcodes, state management, gas metering) — 147 tests (test_qvm: 52, test_qvm_reentrancy: 21, test_qvm_overflow: 28, test_qvm_gas_attacks: 15, test_qvm_quantum_opcodes: 31)
 - [x] L3 unit tests (knowledge graph, reasoning, Phi, Proof-of-Thought) — 139 tests (test_knowledge_graph, test_aether, test_sephirot, test_consciousness, test_memory, test_knowledge_extractor, test_reasoning_advanced, test_sephirot_nodes, test_knowledge_graph_advanced, test_task_protocol)
 - [x] Integration tests (`test_integration.py` — 13 tests: KG+reasoning, Phi+KG, consciousness, extractor, sephirot, safety)
 - [x] API tests (REST endpoints, JSON-RPC, WebSocket) — 9 tests (test_network: admin API, auth, models)
-- [ ] Frontend tests (Vitest unit + Playwright E2E)
-- [ ] Load tests (concurrent mining, high tx volume)
-- [ ] Fuzz testing (random bytecode to QVM)
+- [x] Frontend tests (Vitest unit + Playwright E2E) — 5 tests (api.test: 3, theme-store.test: 2), Vitest 4 + Playwright 1.58 configured
+- [x] Load tests (concurrent mining, high tx volume) — 9 tests (test_load: rapid coinbase 100x, start/stop cycling, concurrent reads, 1000 pending txs, 1000 UTXOs, 500 txs, 333-tx block, rapid difficulty, rapid rewards)
+- [x] Fuzz testing (random bytecode to QVM) — 19 tests (test_fuzz_qvm: 100 random runs, all 256 single-byte opcodes, stack overflow/underflow, OOG, invalid JUMP, deep memory, arithmetic edge cases, mixed valid/invalid, REVERT, zero gas)
 - [x] Privacy unit tests — 50 tests (test_privacy: 15, test_privacy_advanced: 18, test_privacy_integration: 17 — commitments, stealth, range proofs, susy swap, key images)
 - [x] Config unit tests — 8 tests (test_config: economics, chain IDs, fee params)
 - [x] Fee collector unit tests — 21 tests (test_fee_collector: UTXO selection, fee deduction, change, audit log, chat/contract integration)
@@ -739,12 +740,12 @@
 - [x] AetherTree AGI Whitepaper (`docs/AETHERTREE_WHITEPAPER.md` — Tree of Life, PoT, consciousness)
 - [x] Economics documentation (`docs/ECONOMICS.md`)
 - [x] CLAUDE.md master development guide
-- [ ] API documentation (OpenAPI/Swagger auto-generated from FastAPI)
+- [x] API documentation (OpenAPI/Swagger auto-generated from FastAPI) — FastAPI app configured with title/version/description; Swagger UI at /docs, ReDoc at /redoc
 - [ ] Developer SDK documentation
 - [ ] Smart contract developer guide
 - [ ] Aether Tree integration guide
-- [ ] Deployment guide
-- [ ] Contributing guidelines
+- [x] Deployment guide (`docs/DEPLOYMENT.md` — backend setup, frontend Vercel, Docker, production config, monitoring, troubleshooting)
+- [x] Contributing guidelines (`CONTRIBUTING.md` — dev setup, code conventions, testing, risk classification, security)
 
 ---
 
@@ -804,5 +805,5 @@
 
 ---
 
-*Last updated: 2026-02-18*
+*Last updated: 2026-02-19*
 *Track progress here. Update status after every session.*
