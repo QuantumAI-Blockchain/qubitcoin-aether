@@ -9,6 +9,7 @@ import { PhiSpinner } from "@/components/ui/loading";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { PhiChart } from "@/components/dashboard/phi-chart";
 import { MiningControls } from "@/components/dashboard/mining-controls";
+import { QUSDReserveGauge, QUSDMilestoneTimeline } from "@/components/dashboard/qusd-reserve";
 import { useWalletStore } from "@/stores/wallet-store";
 
 const TABS = ["Overview", "Mining", "Contracts", "Wallet", "Aether", "Network"] as const;
@@ -133,6 +134,16 @@ function OverviewTab({
             </p>
           </Card>
         ))}
+      </div>
+
+      {/* QUSD Reserve Status */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ErrorBoundary>
+          <QUSDReserveGauge />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <QUSDMilestoneTimeline />
+        </ErrorBoundary>
       </div>
     </div>
   );

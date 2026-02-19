@@ -100,6 +100,12 @@ export const api = {
   getMempool: () =>
     get<{ transactions: TransactionInfo[] }>("/mempool"),
 
+  // QUSD Reserves
+  getQUSDReserves: () =>
+    get<{ total_minted: string; total_backed: string; backing_percentage: number }>(
+      "/qusd/reserves",
+    ),
+
   // Chat
   createChatSession: (userAddress: string = "") =>
     post<{ session_id: string; created_at: number; free_messages: number }>(
