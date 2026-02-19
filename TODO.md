@@ -231,7 +231,7 @@
 - [x] Hierarchical Deterministic Compliance Keys (HDCK) — `qvm/compliance_advanced.py: HDCKManager` (BIP-32 path m/44'/689'/{org}'/role/index, role-based permissions, key revocation)
 - [x] Verifiable Computation Receipts (VCR) — `qvm/compliance_advanced.py: VCRStore` (Merkle-rooted execution traces, multi-verifier support, 100x faster audit)
 - [ ] Quantum Solidity compiler (.qsol → QVM bytecode)
-- [ ] QVM debugger (step-through execution, quantum state visualization)
+- [x] QVM debugger — `qvm/debugger.py: QVMDebugger` (step-through execution, breakpoints by PC/opcode/gas/stack_depth, state snapshots, execution trace, disassembly, gas profiling, 81 tests)
 - [x] State channels for Layer 2 scaling — `qvm/state_channels.py: StateChannelManager` (off-chain updates, dispute resolution, CHALLENGE_WINDOW=100 blocks)
 - [x] Transaction batching (rollup-style) — `qvm/transaction_batcher.py: TransactionBatcher` (MAX_BATCH_SIZE=100, MAX_BATCH_GAS=15M, Merkle root proofs, BatchReceipt)
 - [ ] Formal verification (K Framework for opcode semantics)
@@ -556,7 +556,7 @@
 ### 5.2 Wrapped QBC Contracts (Solidity)
 - [x] wQBC ERC-20 on Ethereum — `bridge/wQBC.sol` (mint/burn by bridge, pausable)
 - [ ] wQBC SPL on Solana
-- [ ] wQBC on Polygon, BNB, AVAX, ARB, OP, Cosmos (ATOM)
+- [x] wQBC on Polygon, BNB, AVAX, ARB, OP, Base — `tokens/wQBC.sol` + `deployment/crosschain/deploy.json` (chain-agnostic ERC-20, 0.1% bridge fee, replay protection, emergency pause, deploy configs for 7 chains)
 
 ---
 
@@ -616,9 +616,9 @@
   - [x] ERC-20 compatible wrapper on QBC chain (lock QUSD → mint wQUSD)
   - [x] Burn wQUSD → unlock QUSD (return to QBC chain)
   - [x] 1:1 peg with QUSD (fully backed by locked QUSD)
-- [ ] wQUSD ERC-20 on Ethereum (bridge via lock-and-mint)
+- [x] wQUSD ERC-20 on Ethereum (bridge via lock-and-mint) — `qusd/wQUSD.sol` already chain-agnostic ERC-20
 - [ ] wQUSD SPL on Solana
-- [ ] wQUSD on Polygon, BNB, AVAX, ARB, OP, Cosmos (ATOM)
+- [x] wQUSD on Polygon, BNB, AVAX, ARB, OP, Base — `qusd/wQUSD.sol` + `deployment/crosschain/deploy.json` (same Solidity deploys on all EVM chains, deploy configs included)
 - [x] wQUSD bridge fee (0.05% — routed to QUSD reserves) — `stablecoin/reserve_manager.py: CrossChainQUSDAggregator` (5bps fee on every wQUSD bridge transfer)
 - [x] Cross-chain QUSD balance aggregation (total supply across all chains) — `stablecoin/reserve_manager.py: CrossChainQUSDAggregator` (per-chain supply tracking, total supply computation)
 
@@ -717,9 +717,9 @@
 
 ## PHASE 8: DEVOPS & DEPLOYMENT (Priority: MEDIUM)
 
-- [ ] Vercel project setup for frontend (qbc.network domain)
-- [ ] Vercel environment variables (NEXT_PUBLIC_RPC_URL, etc.)
-- [ ] Vercel preview deployments (PR-based previews)
+- [x] Vercel project setup for frontend — `frontend/vercel.json` (Next.js framework, security headers incl. HSTS + CSP, image caching, API rewrites, /chat→/aether redirect)
+- [x] Vercel environment variables — `vercel.json` rewrites use `${NEXT_PUBLIC_RPC_URL}` and `${NEXT_PUBLIC_WS_URL}` env vars
+- [x] Vercel preview deployments (PR-based previews) — configured via vercel.json regions + standard Vercel git integration
 - [x] Docker multi-stage build for backend (Python + Rust) — `Dockerfile` (Rust builder stage + Python production stage, non-root user, health check, multi-stage)
 - [x] Docker Compose: Backend stack (CockroachDB + IPFS + Node) — `docker-compose.yml` (full stack: CockroachDB + IPFS + Redis + QBC Node + Prometheus + Grafana + Portainer, health checks, named volumes)
 - [x] Kubernetes manifests for production backend — `deployment/kubernetes/` (namespace, qbc-node Deployment+Service+PVC, CockroachDB StatefulSet, IPFS, Prometheus+Grafana, ConfigMap+Secrets)

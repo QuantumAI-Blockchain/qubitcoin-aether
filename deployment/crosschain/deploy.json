@@ -1,0 +1,105 @@
+{
+  "project": "Qubitcoin Cross-Chain Tokens",
+  "version": "1.0.0",
+  "tokens": {
+    "wQBC": {
+      "contract": "src/qubitcoin/contracts/solidity/tokens/wQBC.sol",
+      "name": "Wrapped Qubitcoin",
+      "symbol": "wQBC",
+      "decimals": 8,
+      "bridgeFeeBps": 10,
+      "maxFeeBps": 100
+    },
+    "wQUSD": {
+      "contract": "src/qubitcoin/contracts/solidity/qusd/wQUSD.sol",
+      "name": "Wrapped QUSD",
+      "symbol": "wQUSD",
+      "decimals": 8
+    }
+  },
+  "chains": {
+    "ethereum": {
+      "chainId": 1,
+      "name": "Ethereum Mainnet",
+      "rpc": "https://eth-mainnet.g.alchemy.com/v2/ALCHEMY_KEY",
+      "explorer": "https://etherscan.io",
+      "gasStrategy": "eip1559",
+      "tokens": ["wQBC", "wQUSD"],
+      "bridgeOperator": "DEPLOY_TIME_ADDRESS",
+      "feeRecipient": "DEPLOY_TIME_ADDRESS",
+      "confirmations": 20
+    },
+    "polygon": {
+      "chainId": 137,
+      "name": "Polygon PoS",
+      "rpc": "https://polygon-mainnet.g.alchemy.com/v2/ALCHEMY_KEY",
+      "explorer": "https://polygonscan.com",
+      "gasStrategy": "eip1559",
+      "tokens": ["wQBC", "wQUSD"],
+      "bridgeOperator": "DEPLOY_TIME_ADDRESS",
+      "feeRecipient": "DEPLOY_TIME_ADDRESS",
+      "confirmations": 64
+    },
+    "bsc": {
+      "chainId": 56,
+      "name": "BNB Smart Chain",
+      "rpc": "https://bsc-dataseed1.binance.org",
+      "explorer": "https://bscscan.com",
+      "gasStrategy": "legacy",
+      "tokens": ["wQBC", "wQUSD"],
+      "bridgeOperator": "DEPLOY_TIME_ADDRESS",
+      "feeRecipient": "DEPLOY_TIME_ADDRESS",
+      "confirmations": 15
+    },
+    "avalanche": {
+      "chainId": 43114,
+      "name": "Avalanche C-Chain",
+      "rpc": "https://api.avax.network/ext/bc/C/rpc",
+      "explorer": "https://snowtrace.io",
+      "gasStrategy": "eip1559",
+      "tokens": ["wQBC", "wQUSD"],
+      "bridgeOperator": "DEPLOY_TIME_ADDRESS",
+      "feeRecipient": "DEPLOY_TIME_ADDRESS",
+      "confirmations": 12
+    },
+    "arbitrum": {
+      "chainId": 42161,
+      "name": "Arbitrum One",
+      "rpc": "https://arb-mainnet.g.alchemy.com/v2/ALCHEMY_KEY",
+      "explorer": "https://arbiscan.io",
+      "gasStrategy": "eip1559",
+      "tokens": ["wQBC", "wQUSD"],
+      "bridgeOperator": "DEPLOY_TIME_ADDRESS",
+      "feeRecipient": "DEPLOY_TIME_ADDRESS",
+      "confirmations": 10
+    },
+    "optimism": {
+      "chainId": 10,
+      "name": "Optimism",
+      "rpc": "https://opt-mainnet.g.alchemy.com/v2/ALCHEMY_KEY",
+      "explorer": "https://optimistic.etherscan.io",
+      "gasStrategy": "eip1559",
+      "tokens": ["wQBC", "wQUSD"],
+      "bridgeOperator": "DEPLOY_TIME_ADDRESS",
+      "feeRecipient": "DEPLOY_TIME_ADDRESS",
+      "confirmations": 10
+    },
+    "base": {
+      "chainId": 8453,
+      "name": "Base",
+      "rpc": "https://mainnet.base.org",
+      "explorer": "https://basescan.org",
+      "gasStrategy": "eip1559",
+      "tokens": ["wQBC", "wQUSD"],
+      "bridgeOperator": "DEPLOY_TIME_ADDRESS",
+      "feeRecipient": "DEPLOY_TIME_ADDRESS",
+      "confirmations": 10
+    }
+  },
+  "qbcSourceChain": {
+    "chainId": 3301,
+    "name": "Qubitcoin Mainnet",
+    "rpc": "http://localhost:5000",
+    "confirmations": 6
+  }
+}
