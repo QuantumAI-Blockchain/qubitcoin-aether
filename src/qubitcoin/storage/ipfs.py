@@ -23,6 +23,11 @@ class IPFSManager:
         self.client = None
         self._connect()
 
+    @property
+    def gateway_url(self) -> str:
+        """IPFS gateway URL (port 8081 default, avoids CockroachDB 8080 conflict)."""
+        return f"http://127.0.0.1:{Config.IPFS_GATEWAY_PORT}"
+
     def _connect(self):
         """Connect to IPFS daemon"""
         try:
@@ -30,7 +35,12 @@ class IPFSManager:
 
             # Test connection
             version = self.client.version()
-            logger.info(f"✓ IPFS connected: {version['Version']}")
+            logger.info(f"IPFS connected: {version['Version']}")
+            logger.info(
+                f"IPFS API: {Config.IPFS_API} | "
+                f"Gateway: port {Config.IPFS_GATEWAY_PORT} "
+                f"(CockroachDB admin on 8080)"
+            )
 
         except Exception as e:
             logger.warning(f"IPFS connection failed: {e}")

@@ -79,6 +79,8 @@ class Config:
     # STORAGE SETTINGS
     # ============================================================================
     IPFS_API: str = os.getenv('IPFS_API', '/ip4/127.0.0.1/tcp/5002/http')
+    # IPFS gateway port — default 8081 to avoid conflict with CockroachDB admin UI (8080)
+    IPFS_GATEWAY_PORT: int = int(os.getenv('IPFS_GATEWAY_PORT', 8081))
     PINATA_JWT: Optional[str] = os.getenv('PINATA_JWT')
     SNAPSHOT_INTERVAL: int = int(os.getenv('SNAPSHOT_INTERVAL', 100))
 
@@ -275,7 +277,8 @@ Database:
   URL:                  {cls.DATABASE_URL.split('@')[1].split('?')[0] if '@' in cls.DATABASE_URL else cls.DATABASE_URL.split('?')[0]}
   
 Storage:
-  IPFS:                 {cls.IPFS_API}
+  IPFS API:             {cls.IPFS_API}
+  IPFS Gateway Port:    {cls.IPFS_GATEWAY_PORT} (CockroachDB admin on 8080)
   Snapshot Interval:    {cls.SNAPSHOT_INTERVAL} blocks
 
 Expected Emission:

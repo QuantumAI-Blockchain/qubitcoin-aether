@@ -307,6 +307,181 @@ class SnapshotScheduler:
             return 0
 
     # ------------------------------------------------------------------
+    # Restore
+    # ------------------------------------------------------------------
+
+    def restore_from_snapshot(
+        self,
+        cid: str,
+        db_manager: object,
+        ipfs_manager: object,
+    ) -> dict:
+        """Restore blockchain state from an IPFS snapshot.
+
+        Downloads the snapshot identified by *cid* from IPFS, validates its
+        structure, and replays the data into the database (blocks, UTXOs,
+        transactions).
+
+        Args:
+            cid: IPFS content identifier of the snapshot.
+            db_manager: DatabaseManager instance.
+            ipfs_manager: IPFSManager instance (must have IPFS client connected).
+
+        Returns:
+            Dict with restore results: blocks/utxos/txs restored, errors.
+
+        Raises:
+            ValueError: If the snapshot data is invalid or missing.
+            RuntimeError: If IPFS client is not available.
+        """
+        start = time.monotonic()
+        logger.info(f"Restoring blockchain from snapshot CID: {cid}")
+
+        # 1. Retrieve snapshot from IPFS
+        retrieve_fn = getattr(ipfs_manager, 'retrieve_snapshot', None)
+        if retrieve_fn is None:
+            raise RuntimeError("IPFSManager does not support retrieve_snapshot")
+
+        snapshot = retrieve_fn(cid)
+        if snapshot is None:
+            raise ValueError(f"Failed to retrieve snapshot CID: {cid}")
+
+        # 2. Validate snapshot structure
+        required_keys = {'version', 'height', 'blocks', 'utxos', 'transactions'}
+        missing = required_keys - set(snapshot.keys())
+        if missing:
+            raise ValueError(f"Invalid snapshot: missing keys {missing}")
+
+        blocks = snapshot.get('blocks', [])
+        utxos = snapshot.get('utxos', [])
+        transactions = snapshot.get('transactions', [])
+        snap_height = snapshot.get('height', 0)
+
+        logger.info(
+            f"Snapshot data: height={snap_height}, "
+            f"blocks={len(blocks)}, utxos={len(utxos)}, txs={len(transactions)}"
+        )
+
+        # 3. Replay into database
+        errors: List[str] = []
+        blocks_restored = self._restore_blocks(db_manager, blocks, errors)
+        utxos_restored = self._restore_utxos(db_manager, utxos, errors)
+        txs_restored = self._restore_transactions(db_manager, transactions, errors)
+
+        duration = time.monotonic() - start
+        result = {
+            'cid': cid,
+            'height': snap_height,
+            'blocks_restored': blocks_restored,
+            'utxos_restored': utxos_restored,
+            'txs_restored': txs_restored,
+            'errors': errors,
+            'duration_s': round(duration, 3),
+            'success': len(errors) == 0,
+        }
+
+        if errors:
+            logger.warning(f"Snapshot restore completed with {len(errors)} errors")
+        else:
+            logger.info(
+                f"Snapshot restore complete: {blocks_restored} blocks, "
+                f"{utxos_restored} UTXOs, {txs_restored} txs in {duration:.2f}s"
+            )
+
+        return result
+
+    def _restore_blocks(self, db_manager: object, blocks: list,
+                        errors: list) -> int:
+        """Insert blocks from snapshot into the database."""
+        from sqlalchemy import text as sa_text
+        count = 0
+        try:
+            with db_manager.get_session() as session:  # type: ignore[attr-defined]
+                for b in blocks:
+                    try:
+                        session.execute(
+                            sa_text(
+                                "INSERT INTO blocks (height, prev_hash, difficulty, block_hash, created_at) "
+                                "VALUES (:height, :prev_hash, :difficulty, :block_hash, :created_at) "
+                                "ON CONFLICT (height) DO NOTHING"
+                            ),
+                            {
+                                'height': b.get('height'),
+                                'prev_hash': b.get('prev_hash', ''),
+                                'difficulty': b.get('difficulty', 0.0),
+                                'block_hash': b.get('block_hash', ''),
+                                'created_at': b.get('created_at', ''),
+                            },
+                        )
+                        count += 1
+                    except Exception as e:
+                        errors.append(f"Block {b.get('height')}: {e}")
+                session.commit()
+        except Exception as e:
+            errors.append(f"Block restore session error: {e}")
+        return count
+
+    def _restore_utxos(self, db_manager: object, utxos: list,
+                       errors: list) -> int:
+        """Insert UTXOs from snapshot into the database."""
+        from sqlalchemy import text as sa_text
+        count = 0
+        try:
+            with db_manager.get_session() as session:  # type: ignore[attr-defined]
+                for u in utxos:
+                    try:
+                        session.execute(
+                            sa_text(
+                                "INSERT INTO utxos (txid, vout, amount, address, block_height, spent) "
+                                "VALUES (:txid, :vout, :amount, :address, :block_height, false) "
+                                "ON CONFLICT (txid, vout) DO NOTHING"
+                            ),
+                            {
+                                'txid': u.get('txid', ''),
+                                'vout': u.get('vout', 0),
+                                'amount': u.get('amount', '0'),
+                                'address': u.get('address', ''),
+                                'block_height': u.get('block_height', 0),
+                            },
+                        )
+                        count += 1
+                    except Exception as e:
+                        errors.append(f"UTXO {u.get('txid')}:{u.get('vout')}: {e}")
+                session.commit()
+        except Exception as e:
+            errors.append(f"UTXO restore session error: {e}")
+        return count
+
+    def _restore_transactions(self, db_manager: object, transactions: list,
+                              errors: list) -> int:
+        """Insert transactions from snapshot into the database."""
+        from sqlalchemy import text as sa_text
+        count = 0
+        try:
+            with db_manager.get_session() as session:  # type: ignore[attr-defined]
+                for tx in transactions:
+                    try:
+                        session.execute(
+                            sa_text(
+                                "INSERT INTO transactions (txid, block_height, fee, status) "
+                                "VALUES (:txid, :block_height, :fee, 'confirmed') "
+                                "ON CONFLICT (txid) DO NOTHING"
+                            ),
+                            {
+                                'txid': tx.get('txid', ''),
+                                'block_height': tx.get('block_height', 0),
+                                'fee': tx.get('fee', '0'),
+                            },
+                        )
+                        count += 1
+                    except Exception as e:
+                        errors.append(f"Transaction {tx.get('txid')}: {e}")
+                session.commit()
+        except Exception as e:
+            errors.append(f"Transaction restore session error: {e}")
+        return count
+
+    # ------------------------------------------------------------------
     # Queries
     # ------------------------------------------------------------------
 
