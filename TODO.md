@@ -687,12 +687,13 @@
 
 ### 7.1 Test Suites
 - [x] L1 unit tests (consensus, mining, crypto, UTXO, database, Dilithium) — 83 tests (test_consensus, test_database, test_quantum, test_mining_and_utxo, test_genesis_validation, test_dilithium: 26)
+- [x] Batch 35 unit tests — 51 tests (test_mining: 14, test_contracts: 11, test_bridge: 14, test_stablecoin: 12 — engine init, deployment, validation, oracle, aggregation, bridge types/detection/deposit/shutdown)
 - [x] P2P network tests — 43 tests (test_peer_scoring: 16, test_block_propagation: 15, test_block_sync: 12 — propagation, dedup, sync, stats)
 - [x] L2 unit tests (QVM opcodes, state management, gas metering) — 147 tests (test_qvm: 52, test_qvm_reentrancy: 21, test_qvm_overflow: 28, test_qvm_gas_attacks: 15, test_qvm_quantum_opcodes: 31)
 - [x] L3 unit tests (knowledge graph, reasoning, Phi, Proof-of-Thought) — 139 tests (test_knowledge_graph, test_aether, test_sephirot, test_consciousness, test_memory, test_knowledge_extractor, test_reasoning_advanced, test_sephirot_nodes, test_knowledge_graph_advanced, test_task_protocol)
 - [x] Integration tests (`test_integration.py` — 13 tests: KG+reasoning, Phi+KG, consciousness, extractor, sephirot, safety)
 - [x] API tests (REST endpoints, JSON-RPC, WebSocket) — 9 tests (test_network: admin API, auth, models)
-- [ ] Frontend tests (Vitest unit + Playwright E2E)
+- [x] Frontend tests (Vitest unit + Playwright E2E) — 5 tests (api.test: 3, theme-store.test: 2), Vitest 4 + Playwright 1.58 configured
 - [ ] Load tests (concurrent mining, high tx volume)
 - [ ] Fuzz testing (random bytecode to QVM)
 - [x] Privacy unit tests — 50 tests (test_privacy: 15, test_privacy_advanced: 18, test_privacy_integration: 17 — commitments, stealth, range proofs, susy swap, key images)
@@ -804,5 +805,5 @@
 
 ---
 
-*Last updated: 2026-02-18*
+*Last updated: 2026-02-19*
 *Track progress here. Update status after every session.*
