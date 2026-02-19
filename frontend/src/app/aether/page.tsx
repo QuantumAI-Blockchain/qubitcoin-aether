@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { api, type ChatResponse } from "@/lib/api";
@@ -17,6 +18,11 @@ import {
   loadSessionMessages,
   deleteSessionStorage,
 } from "@/components/aether/conversation-sidebar";
+
+const KnowledgeGraph3D = dynamic(
+  () => import("@/components/aether/knowledge-graph-3d").then((m) => m.KnowledgeGraph3D),
+  { ssr: false, loading: () => <div className="h-[400px] rounded-lg bg-void animate-pulse" /> },
+);
 
 interface Message {
   role: "user" | "aether";
@@ -358,6 +364,9 @@ export default function AetherPage() {
             {messages.filter((m) => m.role === "user").length} messages sent
           </p>
         </Card>
+        <div className="mt-4">
+          <KnowledgeGraph3D />
+        </div>
       </aside>
     </div>
   );
