@@ -33,7 +33,7 @@
 - [x] Verify Dilithium signature size in real transactions (~3KB expected) — `test_dilithium.py` (26 tests: keygen, signing, verification, size, addresses, CryptoManager)
 - [x] Add key import/export in standard formats — `crypto.py: Dilithium2.export_keypair()/import_keypair()` (hex + PEM formats)
 - [x] Signature caching for performance — `crypto.py: _cached_verify()` LRU cache (4096 entries, SHA-256 keyed)
-- [ ] Key rotation procedure documentation
+- [x] Key rotation procedure documentation — `docs/KEY_ROTATION.md` (pre-rotation checklist, step-by-step procedure, emergency rotation, multi-node, HSM integration)
 
 ### 1.3 UTXO Model
 - [x] Basic UTXO tracking in CockroachDB
@@ -47,9 +47,9 @@
 - [x] CockroachDB connection + SQLAlchemy models (`database/`)
 - [x] SQL schemas for all 33+ tables (`sql/`)
 - [x] Verify ALL SQL schemas match SQLAlchemy models in `database/models.py` — Audited: models.py uses dataclasses (7 classes) not ORM; SQL has 55+ tables. Gap documented, validation tests added (test_schema_validation: 14 tests)
-- [ ] Add migration system (Alembic) for schema changes
+- [x] Add migration system (Alembic) for schema changes — `alembic.ini` + `migrations/` (env.py loads DATABASE_URL from .env, manual migration scripts, offline/online modes)
 - [x] Connection pool health monitoring — `database/pool_monitor.py: PoolHealthMonitor` (SQLAlchemy event listeners, checkout/checkin latency, utilization %, health status: healthy/degraded/critical, snapshot history)
-- [ ] Refactored domain-separated schemas (`sql_new/`)
+- [x] Refactored domain-separated schemas (`sql_new/`) — 5 domains: qbc/ (6 files), agi/ (4 files), qvm/ (4 files), research/ (3 files), shared/ (2 files) + deploy.sh
 
 ### 1.5 Network
 - [x] FastAPI RPC server (`network/rpc.py`)
@@ -165,7 +165,7 @@
 - [x] KYC verification module (Level 0-3 tiers)
 - [x] AML monitoring module (transaction pattern detection)
 - [x] Sanctions screening (OFAC, UN, EU lists integration) — `compliance.py: SanctionsList` (add/remove/screen/bulk_add, 3 sources, wired into ComplianceEngine)
-- [ ] ERC-20-QC compliance-aware token standard
+- [x] ERC-20-QC compliance-aware token standard — `contracts/solidity/tokens/ERC20QC.sol`
 - [x] Auto-circuit breakers (halt on systemic risk > threshold)
 - [x] Compliance-as-a-Service tier system (Retail/Professional/Institutional/Sovereign)
 - [x] Compliance proof storage (ZK proofs for auditors) — `qvm/compliance_proofs.py: ComplianceProofStore` (hash-chain linkage, per-address audit trails, integrity verification, expiry)
@@ -190,7 +190,7 @@
 - [x] Oracle plugin (quantum oracle, price feeds, aggregation)
 - [x] Governance plugin (DAO, voting, proposals)
 - [x] DeFi plugin (lending, DEX, staking)
-- [ ] Plugin SDK documentation
+- [x] Plugin SDK documentation — `docs/PLUGIN_SDK.md` (plugin architecture, hook types, lifecycle, built-in plugins, testing guide, security considerations)
 
 ### 2.7 Contract Deployment
 - [x] Contract deployment engine (`contracts/engine.py`)
@@ -215,8 +215,8 @@
 ### 2.9 Token Standards
 - [x] QBC-20 reference implementation (`tokens/QBC20.sol`)
 - [x] QBC-721 reference implementation (`tokens/QBC721.sol`)
-- [ ] QBC-1155 reference implementation (Solidity)
-- [ ] ERC-20-QC compliance-aware token (Solidity)
+- [x] QBC-1155 reference implementation — `contracts/solidity/tokens/QBC1155.sol` (ERC-1155 compatible, single/batch mint/burn/transfer, per-token URI, totalSupply tracking)
+- [x] ERC-20-QC compliance-aware token — `contracts/solidity/tokens/ERC20QC.sol` (KYC level requirement, address freezing, compliance officer role, pause/unpause, QCOMPLIANCE opcode hook)
 - [x] Token indexer (track all QBC-20/721 transfers) — `qvm/token_indexer.py: TokenIndexer` (Transfer event parsing, balance tracking, holder ranking, mint/burn detection, REST API endpoints)
 
 ### 2.10 Cross-Chain Bridge Verification
@@ -709,7 +709,7 @@
 - [x] QVM reentrancy protection tests (`test_qvm_reentrancy.py` — 21 tests: depth limits, static call protection, gas forwarding, storage isolation, CALL value in static, CREATE2 static, revert behavior)
 - [x] QVM integer overflow tests (`test_qvm_overflow.py` — 28 tests: ADD/SUB/MUL overflow wrap, DIV/MOD by zero, EXP overflow, ADDMOD/MULMOD, signed arithmetic, SHL/SHR/SAR extremes)
 - [x] Gas exhaustion attack tests (`test_qvm_gas_attacks.py` — 15 tests: infinite loops, memory expansion, stack overflow, keccak/exp/calldatacopy gas scaling, SSTORE gas, GAS opcode)
-- [ ] Bridge security audit preparation
+- [x] Bridge security audit preparation — `docs/BRIDGE_SECURITY_AUDIT.md` (threat model, 10 attack vectors, security checklist, confirmation depth analysis, known issues, pre-audit tasks)
 - [x] Rate limiting on all public endpoints (`rpc.py: rate_limit_middleware` — per-IP, 120/min configurable via RPC_RATE_LIMIT)
 - [x] Input validation on all endpoints (query param bounds checking on all /aether/* endpoints)
 
@@ -741,9 +741,9 @@
 - [x] Economics documentation (`docs/ECONOMICS.md`)
 - [x] CLAUDE.md master development guide
 - [x] API documentation (OpenAPI/Swagger auto-generated from FastAPI) — FastAPI app configured with title/version/description; Swagger UI at /docs, ReDoc at /redoc
-- [ ] Developer SDK documentation
-- [ ] Smart contract developer guide
-- [ ] Aether Tree integration guide
+- [x] Developer SDK documentation — `docs/SDK.md` (REST, JSON-RPC, WebSocket, L1/L2/L3 integration, admin API, rate limits)
+- [x] Smart contract developer guide — `docs/SMART_CONTRACTS.md` (QVM deployment, token standards, quantum opcodes, Hardhat/Foundry config, fee estimation)
+- [x] Aether Tree integration guide — `docs/AETHER_INTEGRATION.md` (chat API, consciousness metrics, knowledge graph, PoT, Sephirot, WebSocket streaming, integration patterns)
 - [x] Deployment guide (`docs/DEPLOYMENT.md` — backend setup, frontend Vercel, Docker, production config, monitoring, troubleshooting)
 - [x] Contributing guidelines (`CONTRIBUTING.md` — dev setup, code conventions, testing, risk classification, security)
 
