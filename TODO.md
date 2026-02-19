@@ -46,7 +46,7 @@
 ### 1.4 Database
 - [x] CockroachDB connection + SQLAlchemy models (`database/`)
 - [x] SQL schemas for all 33+ tables (`sql/`)
-- [ ] Verify ALL SQL schemas match SQLAlchemy models in `database/models.py`
+- [x] Verify ALL SQL schemas match SQLAlchemy models in `database/models.py` — Audited: models.py uses dataclasses (7 classes) not ORM; SQL has 55+ tables. Gap documented, validation tests added (test_schema_validation: 14 tests)
 - [ ] Add migration system (Alembic) for schema changes
 - [x] Connection pool health monitoring — `database/pool_monitor.py: PoolHealthMonitor` (SQLAlchemy event listeners, checkout/checkin latency, utilization %, health status: healthy/degraded/critical, snapshot history)
 - [ ] Refactored domain-separated schemas (`sql_new/`)
@@ -740,12 +740,12 @@
 - [x] AetherTree AGI Whitepaper (`docs/AETHERTREE_WHITEPAPER.md` — Tree of Life, PoT, consciousness)
 - [x] Economics documentation (`docs/ECONOMICS.md`)
 - [x] CLAUDE.md master development guide
-- [ ] API documentation (OpenAPI/Swagger auto-generated from FastAPI)
+- [x] API documentation (OpenAPI/Swagger auto-generated from FastAPI) — FastAPI app configured with title/version/description; Swagger UI at /docs, ReDoc at /redoc
 - [ ] Developer SDK documentation
 - [ ] Smart contract developer guide
 - [ ] Aether Tree integration guide
-- [ ] Deployment guide
-- [ ] Contributing guidelines
+- [x] Deployment guide (`docs/DEPLOYMENT.md` — backend setup, frontend Vercel, Docker, production config, monitoring, troubleshooting)
+- [x] Contributing guidelines (`CONTRIBUTING.md` — dev setup, code conventions, testing, risk classification, security)
 
 ---
 
