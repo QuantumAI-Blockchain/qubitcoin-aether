@@ -224,16 +224,16 @@
 - [x] QBRIDGE_VERIFY opcode implementation (vm.py 0xF9 — proof validation stub)
 - [x] Quantum-verified cross-chain proofs (QVCSP) — `bridge/proof_store.py: verify_qvcsp()` (entanglement correlation)
 - [x] Bridge proof storage schema — `bridge/proof_store.py: ProofStore` (submit, verify, execute, replay protection, Merkle proofs)
-- [ ] State channel support for high-frequency trading
+- [x] State channel support for high-frequency trading — `qvm/state_channels.py: StateChannelManager` (open/update/close/dispute/finalize lifecycle, balance conservation, challenge window)
 
 ### 2.11 Advanced Features (Future)
-- [ ] Time-Locked Atomic Compliance (TLAC) — multi-jurisdictional approval
-- [ ] Hierarchical Deterministic Compliance Keys (HDCK) — BIP-32 extension
-- [ ] Verifiable Computation Receipts (VCR) — quantum audit trails
+- [x] Time-Locked Atomic Compliance (TLAC) — `qvm/compliance_advanced.py: TLACManager` (multi-jurisdiction approval, deadline enforcement, auto-expiry)
+- [x] Hierarchical Deterministic Compliance Keys (HDCK) — `qvm/compliance_advanced.py: HDCKManager` (BIP-32 path m/44'/689'/{org}'/role/index, role-based permissions, key revocation)
+- [x] Verifiable Computation Receipts (VCR) — `qvm/compliance_advanced.py: VCRStore` (Merkle-rooted execution traces, multi-verifier support, 100x faster audit)
 - [ ] Quantum Solidity compiler (.qsol → QVM bytecode)
 - [ ] QVM debugger (step-through execution, quantum state visualization)
-- [ ] State channels for Layer 2 scaling
-- [ ] Transaction batching (rollup-style)
+- [x] State channels for Layer 2 scaling — `qvm/state_channels.py: StateChannelManager` (off-chain updates, dispute resolution, CHALLENGE_WINDOW=100 blocks)
+- [x] Transaction batching (rollup-style) — `qvm/transaction_batcher.py: TransactionBatcher` (MAX_BATCH_SIZE=100, MAX_BATCH_GAS=15M, Merkle root proofs, BatchReceipt)
 - [ ] Formal verification (K Framework for opcode semantics)
 - [ ] TLA+ compliance invariant proofs
 
@@ -543,15 +543,15 @@
 - [x] Solana bridge skeleton (`bridge/solana.py`)
 - [x] Lock-and-mint implementation (QBC → wQBC on ETH) — `BridgeVault.sol: deposit()`
 - [x] Burn-and-unlock implementation (wQBC → QBC) — `BridgeVault.sol: processWithdrawal()`
-- [ ] Federated validator set (7-of-11 multi-sig, path to 101+)
-- [ ] Validator economic bonding (10,000+ QBC slashable stake)
-- [ ] Bridge event monitoring (multi-source: direct observation + oracle)
-- [ ] Transfer status tracking
-- [ ] Bridge fee collection (0.1% of transfer, 100% to QUSD reserves)
-- [ ] Daily transfer limits (security cap)
-- [ ] Deep confirmation requirements (reorg protection)
-- [ ] Emergency pause mechanism
-- [ ] Bridge insurance fund
+- [x] Federated validator set (7-of-11 multi-sig, path to 101+) — `bridge/validators.py: FederatedValidatorSet` (registration, bonding, quorum, attestation aggregation)
+- [x] Validator economic bonding (10,000+ QBC slashable stake) — `bridge/validators.py: ValidatorBond` (MIN_BOND=10K, slash 5-50%, unbonding delay 181K blocks)
+- [x] Bridge event monitoring (multi-source: direct observation + oracle) — `bridge/monitoring.py: BridgeEventMonitor` (multi-source verification, dedup, chain-specific confirmation depths)
+- [x] Transfer status tracking — `bridge/monitoring.py: TransferTracker` (INITIATED→CONFIRMING→VALIDATED→EXECUTING→COMPLETED lifecycle)
+- [x] Bridge fee collection (0.1% of transfer, 100% to QUSD reserves) — `bridge/monitoring.py: TransferTracker` (10bps fee, auto-collection on initiation)
+- [x] Daily transfer limits (security cap) — `bridge/monitoring.py: TransferTracker` (1M QBC/chain/day default, 100K per-tx limit)
+- [x] Deep confirmation requirements (reorg protection) — `bridge/monitoring.py: CONFIRMATION_DEPTHS` (ETH=20, Polygon=64, Solana=32, QBC=6)
+- [x] Emergency pause mechanism — `bridge/monitoring.py: TransferTracker.pause()/unpause()` (blocks all new transfers)
+- [x] Bridge insurance fund — `bridge/monitoring.py: TransferTracker.contribute_to_insurance()` (dedicated fund for bridge losses)
 
 ### 5.2 Wrapped QBC Contracts (Solidity)
 - [x] wQBC ERC-20 on Ethereum — `bridge/wQBC.sol` (mint/burn by bridge, pausable)
