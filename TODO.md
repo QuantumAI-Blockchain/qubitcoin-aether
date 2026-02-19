@@ -482,7 +482,7 @@
 - [x] Message input with quantum-themed styling
 - [x] Streaming response display (typewriter effect) — `components/aether/streaming-text.tsx` (character-by-character reveal, blinking cursor, configurable speed, onComplete callback)
 - [x] Conversation sidebar (session list, new chat) — `components/aether/conversation-sidebar.tsx` (sorted by recency, new/delete/select, mobile fallback)
-- [ ] Knowledge graph 3D visualization panel (Three.js force-directed)
+- [x] Knowledge graph 3D visualization panel (Three.js force-directed) — `components/aether/knowledge-graph-3d.tsx` (R3F Canvas, force-directed layout, node types color-coded, edge rendering, orbit controls, hover labels, dynamic import SSR-safe)
 - [x] Phi consciousness meter (animated gauge) — sidebar panel
 - [x] Reasoning trace accordion (expandable per response)
 - [x] Proof-of-Thought hash per response
@@ -507,8 +507,8 @@
 - [x] Receive (show address)
 - [x] QR code for receiving — `components/ui/qr-code.tsx` (SVG-based deterministic QR pattern, finder patterns, timing, data area)
 - [x] Transaction history with status — `components/wallet/transaction-history.tsx` (UTXO list, pending mempool txs, confirmations, send/recv indicators)
-- [ ] QBC-20 token management
-- [ ] QBC-721 NFT gallery
+- [x] QBC-20 token management — `components/wallet/token-manager.tsx` (balance list, send panel, token lookup, format amounts, symbol/decimals display)
+- [x] QBC-721 NFT gallery — `components/wallet/nft-gallery.tsx` (responsive grid, image cards, detail modal, collection name, token ID, metadata URI)
 
 ### 4.6 QVM Explorer (`/qvm`)
 - [x] Contract search and browser — `components/qvm/contract-browser.tsx` (address lookup, active/inactive status badge)

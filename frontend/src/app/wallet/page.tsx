@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { QRCode } from "@/components/ui/qr-code";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
+import { TokenManager } from "@/components/wallet/token-manager";
+import { NFTGallery } from "@/components/wallet/nft-gallery";
 
 export default function WalletPage() {
   const { address, connected } = useWalletStore();
@@ -110,6 +112,16 @@ export default function WalletPage() {
         {/* Transaction History */}
         <ErrorBoundary>
           <TransactionHistory address={address!} />
+        </ErrorBoundary>
+
+        {/* QBC-20 Token Management */}
+        <ErrorBoundary>
+          <TokenManager />
+        </ErrorBoundary>
+
+        {/* QBC-721 NFT Gallery */}
+        <ErrorBoundary>
+          <NFTGallery />
         </ErrorBoundary>
       </div>
     </div>
