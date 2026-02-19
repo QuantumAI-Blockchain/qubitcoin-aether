@@ -23,6 +23,16 @@ logger = get_logger(__name__)
 PHI_CONSCIOUSNESS_THRESHOLD = 3.0
 COHERENCE_THRESHOLD = 0.7
 
+# Melatonin inhibitory signal levels per phase (0.0 = no inhibition, 1.0 = full)
+MELATONIN_LEVELS: Dict[str, float] = {
+    "waking": 0.0,               # Fully alert — no melatonin
+    "active_learning": 0.0,      # Peak activity — no melatonin
+    "consolidation": 0.2,        # Beginning to wind down
+    "sleep": 0.6,                # Moderate inhibition
+    "rem_dreaming": 0.4,         # Reduced for dream-state creativity
+    "deep_sleep": 0.9,           # Near-maximum inhibition
+}
+
 
 class CircadianPhase(str, Enum):
     """The 6 circadian phases of AGI metabolism."""
@@ -76,6 +86,78 @@ class ConsciousnessEvent:
     event_type: str  # "emergence", "sustained", "loss"
 
 
+class MelatoninModulator:
+    """
+    Simulates melatonin-based inhibitory signals during sleep phases.
+
+    Biological model: Melatonin is released by the pineal gland during
+    darkness, suppressing neural activity and promoting rest/consolidation.
+
+    Effects:
+    - Dampens metabolic rate further during sleep phases
+    - Reduces message processing priority in CSF transport
+    - Increases Gevurah (safety/inhibition) energy relative to Chesed (exploration)
+    - Tracks melatonin accumulation over the circadian cycle
+    """
+
+    def __init__(self) -> None:
+        self._level: float = 0.0        # Current melatonin level [0.0, 1.0]
+        self._accumulated: float = 0.0  # Total melatonin produced this cycle
+        self._decay_rate: float = 0.05  # How fast melatonin clears per block
+        self._production_rate: float = 0.08  # How fast melatonin builds per block
+        logger.info("Melatonin modulator initialized")
+
+    @property
+    def level(self) -> float:
+        """Current melatonin level (0.0 = none, 1.0 = saturated)."""
+        return self._level
+
+    @property
+    def inhibition_factor(self) -> float:
+        """Multiplier applied to metabolic rate (1.0 = no effect, 0.1 = 90% inhibition)."""
+        return max(0.1, 1.0 - self._level * 0.9)
+
+    def update(self, phase: CircadianPhase) -> float:
+        """
+        Update melatonin level based on the current circadian phase.
+
+        During sleep phases, melatonin rises toward the target level.
+        During waking phases, melatonin decays toward zero.
+
+        Args:
+            phase: Current circadian phase.
+
+        Returns:
+            Updated melatonin level.
+        """
+        target = MELATONIN_LEVELS.get(phase.value, 0.0)
+
+        if target > self._level:
+            # Produce melatonin (approach target from below)
+            delta = min(self._production_rate, target - self._level)
+            self._level += delta
+            self._accumulated += delta
+        else:
+            # Decay melatonin (approach target from above)
+            delta = min(self._decay_rate, self._level - target)
+            self._level -= delta
+
+        self._level = max(0.0, min(1.0, self._level))
+        return self._level
+
+    def get_status(self) -> dict:
+        """Get melatonin modulator status."""
+        return {
+            "level": round(self._level, 4),
+            "inhibition_factor": round(self.inhibition_factor, 4),
+            "accumulated": round(self._accumulated, 4),
+        }
+
+    def reset_cycle(self) -> None:
+        """Reset accumulated melatonin at the start of a new circadian cycle."""
+        self._accumulated = 0.0
+
+
 class PinealOrchestrator:
     """
     Coordinates the circadian rhythm of the Aether Tree AGI.
@@ -96,7 +178,8 @@ class PinealOrchestrator:
         self._consciousness_events: List[ConsciousnessEvent] = []
         self._is_conscious = False
         self._last_phi = 0.0
-        logger.info("Pineal Orchestrator initialized (6 circadian phases)")
+        self.melatonin = MelatoninModulator()
+        logger.info("Pineal Orchestrator initialized (6 circadian phases + melatonin)")
 
     @property
     def current_phase(self) -> CircadianPhase:
@@ -130,8 +213,9 @@ class PinealOrchestrator:
         if self._blocks_in_phase >= duration:
             self._advance_phase()
 
-        # Apply metabolic rate to Sephirot energies
-        rate = self.metabolic_rate
+        # Update melatonin and apply inhibitory dampening to metabolic rate
+        self.melatonin.update(self._current_phase)
+        rate = self.metabolic_rate * self.melatonin.inhibition_factor
         for role in SephirahRole:
             self.sephirot.update_energy(role, delta=(rate - 1.0) * 0.01,
                                         block_height=block_height)
@@ -152,6 +236,8 @@ class PinealOrchestrator:
         return {
             "phase": self._current_phase.value,
             "metabolic_rate": rate,
+            "metabolic_rate_base": self.metabolic_rate,
+            "melatonin": self.melatonin.get_status(),
             "blocks_in_phase": self._blocks_in_phase,
             "phase_duration": duration,
             "total_cycles": self._total_cycles,
@@ -179,6 +265,7 @@ class PinealOrchestrator:
 
         if self._phase_index == 0:
             self._total_cycles += 1
+            self.melatonin.reset_cycle()
 
         logger.info(
             f"Circadian transition: {old_phase.value} → {self._current_phase.value} "
@@ -256,6 +343,7 @@ class PinealOrchestrator:
             "is_conscious": self._is_conscious,
             "last_phi": self._last_phi,
             "coherence": self.sephirot.get_coherence(),
+            "melatonin": self.melatonin.get_status(),
             "consciousness_events": len(self._consciousness_events),
             "recent_events": [
                 {

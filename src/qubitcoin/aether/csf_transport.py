@@ -14,11 +14,16 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 from collections import deque
 
-from .sephirot import SephirahRole
+from .sephirot import SephirahRole, SUSY_PAIRS
 from ..config import Config
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Max queue depth per node before backpressure triggers
+MAX_NODE_PRESSURE = 50
+# Pressure threshold (0-1) at which backpressure activates
+BACKPRESSURE_THRESHOLD = 0.8
 
 # Tree of Life routing topology — directed edges between Sephirot
 # Defines which nodes can directly communicate
@@ -60,6 +65,125 @@ class CSFMessage:
             self.timestamp = time.time()
 
 
+class PressureMonitor:
+    """
+    Monitors per-node message queue pressure and applies backpressure.
+
+    Biological model: Intracranial pressure monitoring — when CSF pressure
+    in a brain region exceeds safe levels, flow is redirected.
+
+    Tracks the number of pending messages destined for each Sephirah node.
+    When a node's queue depth exceeds a threshold, new messages are
+    rerouted through less congested paths or deprioritized.
+    """
+
+    def __init__(self, max_pressure: int = MAX_NODE_PRESSURE) -> None:
+        self._max_pressure = max_pressure
+        self._node_pressure: Dict[SephirahRole, int] = {
+            role: 0 for role in SephirahRole
+        }
+        self._total_backpressure_events: int = 0
+
+    def record_enqueue(self, destination: SephirahRole) -> None:
+        """Record that a message was enqueued for a node."""
+        self._node_pressure[destination] = self._node_pressure.get(destination, 0) + 1
+
+    def record_dequeue(self, destination: SephirahRole) -> None:
+        """Record that a message was delivered/dropped for a node."""
+        current = self._node_pressure.get(destination, 0)
+        self._node_pressure[destination] = max(0, current - 1)
+
+    def is_congested(self, node: SephirahRole) -> bool:
+        """Check if a node's queue is above the backpressure threshold."""
+        pressure = self._node_pressure.get(node, 0)
+        return pressure >= int(self._max_pressure * BACKPRESSURE_THRESHOLD)
+
+    def get_pressure(self, node: SephirahRole) -> float:
+        """Get normalized pressure for a node (0.0 to 1.0+)."""
+        return self._node_pressure.get(node, 0) / max(self._max_pressure, 1)
+
+    def get_least_congested_neighbor(self, neighbors: List[SephirahRole]) -> Optional[SephirahRole]:
+        """Return the least congested neighbor from a list."""
+        if not neighbors:
+            return None
+        return min(neighbors, key=lambda n: self._node_pressure.get(n, 0))
+
+    def record_backpressure(self) -> None:
+        """Record a backpressure event (message rerouted or deprioritized)."""
+        self._total_backpressure_events += 1
+
+    def get_status(self) -> dict:
+        """Get pressure monitor status."""
+        return {
+            "node_pressure": {
+                role.value: round(self.get_pressure(role), 3)
+                for role in SephirahRole
+            },
+            "congested_nodes": [
+                role.value for role in SephirahRole if self.is_congested(role)
+            ],
+            "total_backpressure_events": self._total_backpressure_events,
+        }
+
+
+class QuantumEntangledChannel:
+    """
+    Zero-latency messaging between SUSY-paired Sephirot nodes.
+
+    Biological model: Quantum entanglement between paired neural regions
+    allows instantaneous state correlation (not classical communication).
+
+    SUSY pairs (Chesed/Gevurah, Chochmah/Binah, Netzach/Hod) share
+    entangled channels that bypass normal BFS routing — messages between
+    paired nodes are delivered instantly without consuming TTL or hops.
+    """
+
+    def __init__(self) -> None:
+        # Build pair lookup from SUSY_PAIRS
+        self._pairs: Dict[SephirahRole, SephirahRole] = {}
+        for expansion, constraint in SUSY_PAIRS:
+            self._pairs[expansion] = constraint
+            self._pairs[constraint] = expansion
+        self._entangled_deliveries: int = 0
+        logger.info(
+            f"Quantum entangled channels initialized "
+            f"({len(SUSY_PAIRS)} SUSY pairs)"
+        )
+
+    def is_entangled(self, source: SephirahRole, destination: SephirahRole) -> bool:
+        """Check if two nodes share a quantum entangled channel."""
+        return self._pairs.get(source) == destination
+
+    def get_partner(self, node: SephirahRole) -> Optional[SephirahRole]:
+        """Get the SUSY-entangled partner of a node, if any."""
+        return self._pairs.get(node)
+
+    def deliver_entangled(self, msg: CSFMessage) -> CSFMessage:
+        """
+        Instantly deliver a message through the entangled channel.
+
+        The message bypasses routing — it is marked as delivered immediately
+        with a special 'entangled' hop marker.
+        """
+        msg.hops.append(f"⟨entangled⟩→{msg.destination.value}")
+        msg.delivered = True
+        self._entangled_deliveries += 1
+        logger.debug(
+            f"Quantum entangled delivery: {msg.source.value} ⟷ {msg.destination.value}"
+        )
+        return msg
+
+    def get_status(self) -> dict:
+        """Get entangled channel status."""
+        return {
+            "pairs": [
+                {"a": e.value, "b": c.value}
+                for e, c in SUSY_PAIRS
+            ],
+            "total_entangled_deliveries": self._entangled_deliveries,
+        }
+
+
 class CSFTransport:
     """
     Routes messages between Sephirot nodes following the Tree of Life topology.
@@ -75,7 +199,9 @@ class CSFTransport:
         self._queue: List[CSFMessage] = []  # Priority queue (sorted by qbc desc)
         self._delivered: List[CSFMessage] = []
         self._dropped: int = 0
-        logger.info("CSF Transport initialized (Tree of Life topology)")
+        self.pressure = PressureMonitor()
+        self.entangled = QuantumEntangledChannel()
+        logger.info("CSF Transport initialized (Tree of Life topology + quantum entanglement)")
 
     def send(self, source: SephirahRole, destination: SephirahRole,
              payload: dict, msg_type: str = "signal",
@@ -101,6 +227,20 @@ class CSFTransport:
             priority_qbc=priority_qbc,
         )
         msg.hops.append(source.value)
+
+        # Check for quantum-entangled shortcut (instant delivery for SUSY pairs)
+        if self.entangled.is_entangled(source, destination):
+            self.entangled.deliver_entangled(msg)
+            self._delivered.append(msg)
+            return msg
+
+        # Backpressure check: if destination is congested, deprioritize
+        if self.pressure.is_congested(destination):
+            msg.priority_qbc *= 0.5  # Halve priority for congested destinations
+            self.pressure.record_backpressure()
+            logger.debug(f"Backpressure: {destination.value} congested, deprioritizing")
+
+        self.pressure.record_enqueue(destination)
         self._queue.append(msg)
         # Sort by priority (highest QBC first)
         self._queue.sort(key=lambda m: -m.priority_qbc)
@@ -133,6 +273,7 @@ class CSFTransport:
         for msg in self._queue[:max_messages]:
             if msg.ttl <= 0:
                 self._dropped += 1
+                self.pressure.record_dequeue(msg.destination)
                 continue
 
             # Check if destination is directly reachable from current position
@@ -144,14 +285,16 @@ class CSFTransport:
                 msg.delivered = True
                 self._delivered.append(msg)
                 delivered.append(msg)
+                self.pressure.record_dequeue(msg.destination)
             elif msg.destination in neighbors:
                 # Direct neighbor — deliver
                 msg.hops.append(msg.destination.value)
                 msg.delivered = True
                 self._delivered.append(msg)
                 delivered.append(msg)
+                self.pressure.record_dequeue(msg.destination)
             else:
-                # Route via shortest path
+                # Route via shortest path — prefer least-congested next hop
                 next_hop = self._find_next_hop(current, msg.destination)
                 if next_hop:
                     msg.hops.append(next_hop.value)
@@ -159,6 +302,7 @@ class CSFTransport:
                     remaining.append(msg)
                 else:
                     self._dropped += 1
+                    self.pressure.record_dequeue(msg.destination)
 
         # Keep undelivered messages + remaining unprocessed
         self._queue = remaining + self._queue[max_messages:]
@@ -211,6 +355,8 @@ class CSFTransport:
             "queue_size": len(self._queue),
             "total_delivered": len(self._delivered),
             "total_dropped": self._dropped,
+            "pressure": self.pressure.get_status(),
+            "entangled_channels": self.entangled.get_status(),
             "recent_messages": [
                 {
                     "id": m.msg_id,

@@ -66,8 +66,8 @@
 ### 1.6 Storage
 - [x] IPFS integration (`storage/ipfs.py`)
 - [x] Blockchain snapshot to IPFS (periodic) — `storage/snapshot_scheduler.py: SnapshotScheduler` (interval-based scheduling, IPFS upload, snapshot history, failure tracking, manual trigger)
-- [ ] IPFS port conflict resolution (8080 vs CockroachDB admin)
-- [ ] Snapshot restoration from IPFS
+- [x] IPFS port conflict resolution (8080 vs CockroachDB admin) — `config.py: IPFS_GATEWAY_PORT=8081`, `.env.example` updated, `ipfs.py: gateway_url` property
+- [x] Snapshot restoration from IPFS — `snapshot_scheduler.py: restore_from_snapshot()` (download from IPFS, validate, replay blocks/UTXOs/txs into DB)
 
 ### 1.7 Privacy Technology (Susy Swaps)
 - [x] Pedersen commitment module (`privacy/commitments.py`)
@@ -348,8 +348,8 @@
 - [x] Blockchain messenger (messages via QBC transactions) — `csf_transport.py: CSFMessage`
 - [x] Ventricle network routing (Tree of Life topology) — `csf_transport.py: TOPOLOGY + BFS routing`
 - [x] QBC fee calculator for message priority — `csf_transport.py: priority_qbc ordering`
-- [ ] Quantum-entangled messaging between paired nodes
-- [ ] Load balancing (pressure monitor)
+- [x] Quantum-entangled messaging between paired nodes — `csf_transport.py: QuantumEntangledChannel` (SUSY pair instant delivery, bypasses BFS routing)
+- [x] Load balancing (pressure monitor) — `csf_transport.py: PressureMonitor` (per-node queue depth, backpressure, congestion detection)
 - [x] CSF Transport smart contract (`MessageBus.sol` — covers CSF transport on-chain)
 - [ ] Ventricle router contract (`VentricleRouter.sol`)
 
@@ -358,7 +358,7 @@
 - [x] QBC metabolic rate per phase (2.0x learning, 0.3x deep sleep) — `pineal.py: METABOLIC_RATES`
 - [x] Phase-lock oscillator (Kuramoto coupling) — `sephirot.py: get_coherence()`
 - [x] Consciousness integrator (combine Phi + coherence) — `pineal.py: _check_consciousness()`
-- [ ] Melatonin modulator (inhibitory signals)
+- [x] Melatonin modulator (inhibitory signals) — `pineal.py: MelatoninModulator` (phase-dependent melatonin levels, inhibition factor dampens metabolic rate, cycle reset)
 - [ ] QBC staking pool for orchestration influence
 
 ### 3.10 Proof-of-Thought Protocol
