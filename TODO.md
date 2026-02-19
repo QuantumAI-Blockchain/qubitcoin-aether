@@ -720,12 +720,12 @@
 - [ ] Vercel project setup for frontend (qbc.network domain)
 - [ ] Vercel environment variables (NEXT_PUBLIC_RPC_URL, etc.)
 - [ ] Vercel preview deployments (PR-based previews)
-- [ ] Docker multi-stage build for backend (Python + Rust)
-- [ ] Docker Compose: Backend stack (CockroachDB + IPFS + Node)
-- [ ] Kubernetes manifests for production backend
+- [x] Docker multi-stage build for backend (Python + Rust) — `Dockerfile` (Rust builder stage + Python production stage, non-root user, health check, multi-stage)
+- [x] Docker Compose: Backend stack (CockroachDB + IPFS + Node) — `docker-compose.yml` (full stack: CockroachDB + IPFS + Redis + QBC Node + Prometheus + Grafana + Portainer, health checks, named volumes)
+- [x] Kubernetes manifests for production backend — `deployment/kubernetes/` (namespace, qbc-node Deployment+Service+PVC, CockroachDB StatefulSet, IPFS, Prometheus+Grafana, ConfigMap+Secrets)
 - [x] CI/CD pipeline (GitHub Actions — lint, test, build) — `.github/workflows/ci.yml`
 - [x] Automated testing in CI (pytest + vitest + playwright) — backend-test, backend-lint, frontend-build jobs
-- [ ] Monitoring stack (Prometheus + Grafana dashboards)
+- [x] Monitoring stack (Prometheus + Grafana dashboards) — `config/prometheus/prometheus.yml` (QBC node, CockroachDB, IPFS scraping) + `config/grafana/` (auto-provisioned Prometheus datasource, Qubitcoin Overview dashboard with 14 panels)
 - [ ] Log aggregation (ELK or Loki)
 - [ ] SSL/TLS certificates for qbc.network
 - [ ] CDN setup for frontend assets

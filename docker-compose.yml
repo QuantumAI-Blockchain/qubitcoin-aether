@@ -1,71 +1,161 @@
+# ============================================================================
+# Qubitcoin Development Stack
+# Full backend: CockroachDB + IPFS + Redis + QBC Node + Monitoring
+# Usage: docker compose up -d
+# ============================================================================
+
 services:
-  # CockroachDB Node 1
+  # ── CockroachDB (single-node dev mode) ──────────────────────────────
   cockroachdb:
     image: cockroachdb/cockroach:v24.2.0
     container_name: qbc-cockroachdb
     ports:
-      - "26257:26257"
-      - "8080:8080"
+      - "26257:26257"   # SQL
+      - "8080:8080"     # Admin UI
     volumes:
-      - ./data/cockroach:/cockroach/cockroach-data
-    command: start --insecure --advertise-addr=qbc-cockroachdb --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --join=qbc-cockroachdb
+      - cockroach-data:/cockroach/cockroach-data
+    command: >
+      start-single-node
+      --insecure
+      --listen-addr=0.0.0.0:26257
+      --http-addr=0.0.0.0:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── Database initialization ─────────────────────────────────────────
+  db-init:
+    image: cockroachdb/cockroach:v24.2.0
+    container_name: qbc-db-init
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+    volumes:
+      - ./sql/:/sql/:ro
+      - ./sql_new/:/sql_new/:ro
+    entrypoint: >
+      /bin/sh -c "
+        cockroach sql --insecure --host=cockroachdb:26257 -e 'CREATE DATABASE IF NOT EXISTS qbc;' &&
+        echo 'Database qbc created or already exists.'
+      "
     networks:
       - qbc-net
 
-  # IPFS
+  # ── IPFS (Kubo) ────────────────────────────────────────────────────
   ipfs:
     image: ipfs/kubo:v0.30.0
     container_name: qbc-ipfs
     ports:
-      - "4001:4001"
-      - "5001:5001"
-      - "8081:8080"
+      - "4001:4001"     # P2P swarm
+      - "5002:5001"     # API (mapped to 5002 to avoid conflicts)
+      - "8081:8080"     # Gateway (mapped to 8081 to avoid CockroachDB)
     volumes:
-      - ./data/ipfs:/data/ipfs
+      - ipfs-data:/data/ipfs
+    healthcheck:
+      test: ["CMD-SHELL", "ipfs id || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
       - qbc-net
+    restart: unless-stopped
 
-  # Redis
+  # ── Redis (caching, rate limiting) ──────────────────────────────────
   redis:
-    image: redis:7.2-alpine
+    image: redis:7.4-alpine
     container_name: qbc-redis
     ports:
       - "6379:6379"
     volumes:
-      - ./data/redis:/data
+      - redis-data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     networks:
       - qbc-net
+    restart: unless-stopped
 
-  # Prometheus
+  # ── Qubitcoin Node ──────────────────────────────────────────────────
+  qbc-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qbc-node
+    ports:
+      - "5000:5000"     # RPC API
+      - "4002:4001"     # P2P (host 4002 since IPFS uses 4001)
+      - "50051:50051"   # gRPC (Rust P2P bridge)
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
+      - IPFS_API=/ip4/ipfs/tcp/5001/http
+      - IPFS_GATEWAY_PORT=8080
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+      ipfs:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - node-data:/app/data
+      - node-logs:/app/logs
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── Prometheus ──────────────────────────────────────────────────────
   prometheus:
-    image: prom/prometheus:v2.48.1
+    image: prom/prometheus:v2.54.0
     container_name: qbc-prometheus
     ports:
       - "9090:9090"
     volumes:
-      - ./data/prometheus:/prometheus
+      - prometheus-data:/prometheus
       - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - qbc-node
     networks:
       - qbc-net
+    restart: unless-stopped
 
-  # Grafana
+  # ── Grafana ─────────────────────────────────────────────────────────
   grafana:
-    image: grafana/grafana:10.2.3
+    image: grafana/grafana:11.3.0
     container_name: qbc-grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"     # 3001 to avoid conflict with frontend dev on 3000
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=qbc_grafana_change_me
+      - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
-      - ./data/grafana:/var/lib/grafana
-    user: "472"
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
     networks:
       - qbc-net
+    restart: unless-stopped
 
-  # Portainer
+  # ── Portainer (container management UI) ─────────────────────────────
   portainer:
     image: portainer/portainer-ce:2.22.1
     container_name: qbc-portainer
@@ -74,10 +164,23 @@ services:
       - "9000:9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./data/portainer:/data
+      - portainer-data:/data
     networks:
       - qbc-net
+    restart: unless-stopped
 
+# ── Named Volumes ───────────────────────────────────────────────────────
+volumes:
+  cockroach-data:
+  ipfs-data:
+  redis-data:
+  node-data:
+  node-logs:
+  prometheus-data:
+  grafana-data:
+  portainer-data:
+
+# ── Network ─────────────────────────────────────────────────────────────
 networks:
   qbc-net:
-    external: true
+    driver: bridge

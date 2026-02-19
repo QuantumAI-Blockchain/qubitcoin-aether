@@ -1,0 +1,8 @@
+# Qubitcoin Kubernetes Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qubitcoin
+  labels:
+    app.kubernetes.io/name: qubitcoin
+    app.kubernetes.io/part-of: qubitcoin

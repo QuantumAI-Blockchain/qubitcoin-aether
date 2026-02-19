@@ -1,0 +1,335 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Block Height",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "qbc_current_height",
+          "legendFormat": "Height",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Blocks Mined",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [
+        {
+          "expr": "qbc_blocks_mined_total",
+          "legendFormat": "Mined",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Active Peers",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "qbc_active_peers",
+          "legendFormat": "Peers",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "green", "value": 6 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Total Supply (QBC)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "qbc_total_supply",
+          "legendFormat": "Supply",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Phi (Consciousness)",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "qbc_agi_phi_current",
+          "legendFormat": "Phi",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 5,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 1.5 },
+              { "color": "green", "value": 3.0 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Difficulty",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "targets": [
+        {
+          "expr": "qbc_difficulty",
+          "legendFormat": "Difficulty",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Block Height Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "qbc_current_height",
+          "legendFormat": "Height",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#00ff88", "mode": "fixed" },
+          "custom": { "fillOpacity": 10, "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "title": "Mining: VQE Optimization Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "rate(qbc_vqe_optimization_time_sum[5m]) / rate(qbc_vqe_optimization_time_count[5m])",
+          "legendFormat": "Avg VQE Time",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "fixedColor": "#7c3aed", "mode": "fixed" },
+          "custom": { "fillOpacity": 10, "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "title": "QVM: Contracts Deployed",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "qbc_qvm_total_contracts",
+          "legendFormat": "Contracts",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "QVM: Gas Used",
+      "type": "timeseries",
+      "gridPos": { "h": 4, "w": 8, "x": 4, "y": 12 },
+      "targets": [
+        {
+          "expr": "rate(qbc_qvm_gas_used_total[5m])",
+          "legendFormat": "Gas/sec",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "fixedColor": "#f59e0b", "mode": "fixed" },
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "title": "AGI: Knowledge Nodes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "qbc_agi_knowledge_nodes",
+          "legendFormat": "Nodes",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Mempool Size",
+      "type": "timeseries",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 12 },
+      "targets": [
+        {
+          "expr": "qbc_mempool_size",
+          "legendFormat": "Pending Txs",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#ef4444", "mode": "fixed" },
+          "custom": { "fillOpacity": 15, "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "title": "Phi History",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "qbc_agi_phi_current",
+          "legendFormat": "Phi (Consciousness)",
+          "refId": "A"
+        },
+        {
+          "expr": "3.0",
+          "legendFormat": "Threshold",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 5, "lineWidth": 2 }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Threshold" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#ef4444", "mode": "fixed" } },
+              { "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Phi (Consciousness)" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#00ff88", "mode": "fixed" } }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "title": "Network: Peers & Messages",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "qbc_active_peers",
+          "legendFormat": "Active Peers",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(qbc_messages_sent_total[5m])",
+          "legendFormat": "Msgs Sent/s",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(qbc_messages_received_total[5m])",
+          "legendFormat": "Msgs Recv/s",
+          "refId": "C"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["qubitcoin", "blockchain", "agi"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Qubitcoin Overview",
+  "uid": "qbc-overview",
+  "version": 1
+}

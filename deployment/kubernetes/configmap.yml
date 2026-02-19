@@ -1,0 +1,77 @@
+# ============================================================================
+# Qubitcoin Configuration — ConfigMap + Secrets
+# ============================================================================
+
+# Non-secret configuration for QBC node
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qbc-config
+  namespace: qubitcoin
+  labels:
+    app.kubernetes.io/name: qubitcoin
+data:
+  # Network
+  RPC_PORT: "5000"
+  P2P_PORT: "4001"
+  ENABLE_RUST_P2P: "true"
+  RUST_P2P_PORT: "4001"
+  RUST_P2P_GRPC: "50051"
+
+  # Chain
+  CHAIN_ID: "3301"
+  BLOCK_GAS_LIMIT: "30000000"
+
+  # Quantum (local simulator for now)
+  USE_LOCAL_ESTIMATOR: "true"
+  USE_SIMULATOR: "false"
+
+  # Mining
+  AUTO_MINE: "true"
+
+  # IPFS
+  IPFS_GATEWAY_PORT: "8080"
+
+  # Aether fees
+  AETHER_CHAT_FEE_QBC: "0.01"
+  AETHER_CHAT_FEE_USD_TARGET: "0.005"
+  AETHER_FEE_PRICING_MODE: "qusd_peg"
+  AETHER_FEE_MIN_QBC: "0.001"
+  AETHER_FEE_MAX_QBC: "1.0"
+  AETHER_FEE_UPDATE_INTERVAL: "100"
+
+  # Contract fees
+  CONTRACT_DEPLOY_BASE_FEE_QBC: "1.0"
+  CONTRACT_DEPLOY_PER_KB_FEE_QBC: "0.1"
+  CONTRACT_DEPLOY_FEE_USD_TARGET: "5.0"
+  CONTRACT_FEE_PRICING_MODE: "qusd_peg"
+
+---
+# Secret configuration (keys, passwords)
+# In production, use a secrets manager (Vault, AWS Secrets Manager, etc.)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: qbc-secrets
+  namespace: qubitcoin
+  labels:
+    app.kubernetes.io/name: qubitcoin
+type: Opaque
+stringData:
+  # IMPORTANT: Replace with actual keys in production
+  # Generate with: python scripts/setup/generate_keys.py
+  ADDRESS: "REPLACE_WITH_GENERATED_ADDRESS"
+  PUBLIC_KEY_HEX: "REPLACE_WITH_PUBLIC_KEY"
+  PRIVATE_KEY_HEX: "REPLACE_WITH_PRIVATE_KEY"
+  ADMIN_API_KEY: "REPLACE_WITH_ADMIN_API_KEY"
+
+---
+# Grafana admin password
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-secrets
+  namespace: qubitcoin
+type: Opaque
+stringData:
+  admin-password: "qbc_grafana_change_me"
