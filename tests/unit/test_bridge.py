@@ -131,23 +131,24 @@ class TestBridgeDeposit:
         from qubitcoin.bridge.manager import BridgeManager
         return BridgeManager(db_manager=MagicMock())
 
-    @pytest.mark.asyncio
-    async def test_deposit_unavailable_chain(self):
+    def test_deposit_unavailable_chain(self):
         """Deposit to unavailable chain returns None."""
         from qubitcoin.bridge.base import ChainType
         mgr = self._make_manager()
-        # No bridges initialized
-        result = await mgr.process_deposit(
-            chain=ChainType.ETHEREUM,
-            qbc_txid='tx123',
-            qbc_address='qbc1sender',
-            target_address='0xreceiver',
-            amount=Decimal('100'),
-        )
+
+        async def _run():
+            return await mgr.process_deposit(
+                chain=ChainType.ETHEREUM,
+                qbc_txid='tx123',
+                qbc_address='qbc1sender',
+                target_address='0xreceiver',
+                amount=Decimal('100'),
+            )
+
+        result = asyncio.run(_run())
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_deposit_routes_to_bridge(self):
+    def test_deposit_routes_to_bridge(self):
         """Deposit routes to correct bridge's process_deposit."""
         from qubitcoin.bridge.base import ChainType
         mgr = self._make_manager()
@@ -155,13 +156,16 @@ class TestBridgeDeposit:
         mock_bridge.process_deposit.return_value = '0xtxhash'
         mgr.bridges[ChainType.ETHEREUM] = mock_bridge
 
-        result = await mgr.process_deposit(
-            chain=ChainType.ETHEREUM,
-            qbc_txid='tx123',
-            qbc_address='qbc1sender',
-            target_address='0xreceiver',
-            amount=Decimal('50'),
-        )
+        async def _run():
+            return await mgr.process_deposit(
+                chain=ChainType.ETHEREUM,
+                qbc_txid='tx123',
+                qbc_address='qbc1sender',
+                target_address='0xreceiver',
+                amount=Decimal('50'),
+            )
+
+        result = asyncio.run(_run())
         assert result == '0xtxhash'
         mock_bridge.process_deposit.assert_called_once()
 
@@ -169,8 +173,7 @@ class TestBridgeDeposit:
 class TestBridgeShutdown:
     """Test bridge shutdown."""
 
-    @pytest.mark.asyncio
-    async def test_shutdown_disconnects_all(self):
+    def test_shutdown_disconnects_all(self):
         """Shutdown disconnects all active bridges."""
         from qubitcoin.bridge.manager import BridgeManager
         from qubitcoin.bridge.base import ChainType
@@ -181,13 +184,12 @@ class TestBridgeShutdown:
         mgr.bridges[ChainType.ETHEREUM] = bridge1
         mgr.bridges[ChainType.POLYGON] = bridge2
 
-        await mgr.shutdown()
+        asyncio.run(mgr.shutdown())
         bridge1.disconnect.assert_called_once()
         bridge2.disconnect.assert_called_once()
         assert len(mgr.bridges) == 0
 
-    @pytest.mark.asyncio
-    async def test_shutdown_handles_errors(self):
+    def test_shutdown_handles_errors(self):
         """Shutdown continues even if one bridge fails."""
         from qubitcoin.bridge.manager import BridgeManager
         from qubitcoin.bridge.base import ChainType
@@ -199,6 +201,6 @@ class TestBridgeShutdown:
         mgr.bridges[ChainType.ETHEREUM] = bridge1
         mgr.bridges[ChainType.POLYGON] = bridge2
 
-        await mgr.shutdown()  # should not raise
+        asyncio.run(mgr.shutdown())  # should not raise
         bridge2.disconnect.assert_called_once()
         assert len(mgr.bridges) == 0
