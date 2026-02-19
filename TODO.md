@@ -230,12 +230,12 @@
 - [x] Time-Locked Atomic Compliance (TLAC) — `qvm/compliance_advanced.py: TLACManager` (multi-jurisdiction approval, deadline enforcement, auto-expiry)
 - [x] Hierarchical Deterministic Compliance Keys (HDCK) — `qvm/compliance_advanced.py: HDCKManager` (BIP-32 path m/44'/689'/{org}'/role/index, role-based permissions, key revocation)
 - [x] Verifiable Computation Receipts (VCR) — `qvm/compliance_advanced.py: VCRStore` (Merkle-rooted execution traces, multi-verifier support, 100x faster audit)
-- [ ] Quantum Solidity compiler (.qsol → QVM bytecode)
+- [x] Quantum Solidity compiler — `qvm/qsol_compiler.py` (QSolLexer + QSolParser + QSolCodeGenerator + QSolCompiler, .qsol → AST → QVM bytecode, quantum keywords: qstate/qregister/measure/entangle/apply_gate/superpose/q_verify, ABI generation, 41 tests)
 - [x] QVM debugger — `qvm/debugger.py: QVMDebugger` (step-through execution, breakpoints by PC/opcode/gas/stack_depth, state snapshots, execution trace, disassembly, gas profiling, 81 tests)
 - [x] State channels for Layer 2 scaling — `qvm/state_channels.py: StateChannelManager` (off-chain updates, dispute resolution, CHALLENGE_WINDOW=100 blocks)
 - [x] Transaction batching (rollup-style) — `qvm/transaction_batcher.py: TransactionBatcher` (MAX_BATCH_SIZE=100, MAX_BATCH_GAS=15M, Merkle root proofs, BatchReceipt)
-- [ ] Formal verification (K Framework for opcode semantics)
-- [ ] TLA+ compliance invariant proofs
+- [x] Formal verification (K Framework) — `docs/formal_verification/qvm_opcodes.k` (executable semantics for EVM arithmetic, memory, storage, flow control + quantum opcodes QGATE/QMEASURE/QENTANGLE/QCREATE/QVERIFY with gas accounting)
+- [x] TLA+ compliance invariant proofs — `docs/formal_verification/compliance_invariants.tla` (6 safety invariants: SanctionsEnforced, KYCBeforeTransfer, CircuitBreakerBlocks, RiskScoresBounded, SystemicRiskBounded, CircuitBreakerConsistency + 2 liveness properties)
 
 ### 2.12 Go Production Implementation (qubitcoin-qvm/)
 - [ ] Initialize Go module (`go.mod`, project structure)
@@ -642,7 +642,7 @@
 - [x] Public API for third-party reserve verification — `stablecoin/reserve_verification.py: ReserveVerifier.get_reserve_status()` (no-auth public endpoint)
 - [x] Automated daily reserve snapshots to IPFS — `stablecoin/reserve_verification.py: ReserveVerifier.create_snapshot()` (26K block interval, Merkle root, IPFS CID attachment)
 - [x] Quarterly audit report generation (on-chain proof of reserves) — `stablecoin/reserve_verification.py: ReserveVerifier.generate_audit_report()` (quarter identifier, inflow summary, violation count)
-- [ ] Real-time backing ratio on frontend dashboard
+- [x] Real-time backing ratio on frontend dashboard — `components/dashboard/qusd-reserve.tsx` (QUSDReserveGauge donut chart + QUSDMilestoneTimeline progress bars, polls /qusd/reserves every 15s, color-coded status, 10-year milestone roadmap)
 
 ### 6.5 QUSD Oracle Integration Module (Python)
 - [x] `utils/qusd_oracle.py` — Read QBC/USD price from QUSDOracle.sol
