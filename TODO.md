@@ -543,15 +543,15 @@
 - [x] Solana bridge skeleton (`bridge/solana.py`)
 - [x] Lock-and-mint implementation (QBC → wQBC on ETH) — `BridgeVault.sol: deposit()`
 - [x] Burn-and-unlock implementation (wQBC → QBC) — `BridgeVault.sol: processWithdrawal()`
-- [ ] Federated validator set (7-of-11 multi-sig, path to 101+)
-- [ ] Validator economic bonding (10,000+ QBC slashable stake)
-- [ ] Bridge event monitoring (multi-source: direct observation + oracle)
-- [ ] Transfer status tracking
-- [ ] Bridge fee collection (0.1% of transfer, 100% to QUSD reserves)
-- [ ] Daily transfer limits (security cap)
-- [ ] Deep confirmation requirements (reorg protection)
-- [ ] Emergency pause mechanism
-- [ ] Bridge insurance fund
+- [x] Federated validator set (7-of-11 multi-sig, path to 101+) — `bridge/validators.py: FederatedValidatorSet` (registration, bonding, quorum, attestation aggregation)
+- [x] Validator economic bonding (10,000+ QBC slashable stake) — `bridge/validators.py: ValidatorBond` (MIN_BOND=10K, slash 5-50%, unbonding delay 181K blocks)
+- [x] Bridge event monitoring (multi-source: direct observation + oracle) — `bridge/monitoring.py: BridgeEventMonitor` (multi-source verification, dedup, chain-specific confirmation depths)
+- [x] Transfer status tracking — `bridge/monitoring.py: TransferTracker` (INITIATED→CONFIRMING→VALIDATED→EXECUTING→COMPLETED lifecycle)
+- [x] Bridge fee collection (0.1% of transfer, 100% to QUSD reserves) — `bridge/monitoring.py: TransferTracker` (10bps fee, auto-collection on initiation)
+- [x] Daily transfer limits (security cap) — `bridge/monitoring.py: TransferTracker` (1M QBC/chain/day default, 100K per-tx limit)
+- [x] Deep confirmation requirements (reorg protection) — `bridge/monitoring.py: CONFIRMATION_DEPTHS` (ETH=20, Polygon=64, Solana=32, QBC=6)
+- [x] Emergency pause mechanism — `bridge/monitoring.py: TransferTracker.pause()/unpause()` (blocks all new transfers)
+- [x] Bridge insurance fund — `bridge/monitoring.py: TransferTracker.contribute_to_insurance()` (dedicated fund for bridge losses)
 
 ### 5.2 Wrapped QBC Contracts (Solidity)
 - [x] wQBC ERC-20 on Ethereum — `bridge/wQBC.sol` (mint/burn by bridge, pausable)
