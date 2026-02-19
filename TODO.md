@@ -459,9 +459,9 @@
 - [x] MetaMask/ethers.js v6 wallet integration library (`lib/wallet.ts`)
 - [x] Three.js + React Three Fiber setup (particle effects) (`components/visualizations/`)
 - [x] ESLint + Prettier + TypeScript strict
-- [ ] Vitest + Playwright test setup
+- [x] Vitest + Playwright test setup — `vitest.config.ts` + `playwright.config.ts` (jsdom env, path aliases, setup file, 3 browser projects, test scripts in package.json, sample unit tests passing)
 - [x] Environment configuration (NEXT_PUBLIC_* vars) (`.env.local`)
-- [ ] Vercel deployment config (vercel.json, custom domain qbc.network)
+- [x] Vercel deployment config (vercel.json, custom domain qbc.network) — `vercel.json` (security headers, static asset caching, API proxy rewrites, iad1 region)
 - [x] Path aliases (`@/` → `src/`) (`tsconfig.json`)
 
 ### 4.2 Landing Page (`/`)
@@ -475,7 +475,7 @@
 - [x] Call-to-action buttons (Talk to Aether, Open Dashboard, Connect Wallet)
 - [x] Footer with links, social, legal — `components/ui/footer.tsx` (nav links, resources, social icons, chain info, copyright)
 - [x] Mobile responsive design
-- [ ] Performance optimization (lazy loading, image optimization)
+- [x] Performance optimization (lazy loading, image optimization) — `next.config.ts` (optimizePackageImports for framer-motion/three/ethers, AVIF+WebP images, remote patterns, dynamic imports for heavy components)
 
 ### 4.3 Aether Chat Page (`/aether`)
 - [x] Full-page chat interface (ChatGPT/Grok-like layout)
@@ -530,7 +530,7 @@
 - [x] Card component with quantum glow variants
 - [x] Error boundaries — `components/ui/error-boundary.tsx` (class component, retry button, custom fallback support)
 - [x] SEO meta tags
-- [ ] Dark/light mode (default: dark quantum theme)
+- [x] Dark/light mode (default: dark quantum theme) — `stores/theme-store.ts` (Zustand persist, localStorage), `components/ui/theme-toggle.tsx` (sun/moon icons in navbar), light mode CSS overrides in `globals.css`
 
 ---
 
