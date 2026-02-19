@@ -619,29 +619,29 @@
 - [ ] wQUSD ERC-20 on Ethereum (bridge via lock-and-mint)
 - [ ] wQUSD SPL on Solana
 - [ ] wQUSD on Polygon, BNB, AVAX, ARB, OP, Cosmos (ATOM)
-- [ ] wQUSD bridge fee (0.05% — routed to QUSD reserves)
-- [ ] Cross-chain QUSD balance aggregation (total supply across all chains)
+- [x] wQUSD bridge fee (0.05% — routed to QUSD reserves) — `stablecoin/reserve_manager.py: CrossChainQUSDAggregator` (5bps fee on every wQUSD bridge transfer)
+- [x] Cross-chain QUSD balance aggregation (total supply across all chains) — `stablecoin/reserve_manager.py: CrossChainQUSDAggregator` (per-chain supply tracking, total supply computation)
 
 ### 6.3 Reserve Building Mechanisms
-- [ ] Bridge fee collection → QUSD reserves (0.1% of all bridge transfers)
-- [ ] QUSD transaction fees → reserves (0.05% per transfer)
-- [ ] LP fee revenue → reserves (percentage of DEX fees)
-- [ ] Treasury controlled sales → reserves (governance-approved)
-- [ ] Aether Tree chat fees → partial allocation to reserves
-- [ ] Contract deployment fees → partial allocation to reserves
-- [ ] All reserve inflows tracked as debt payback events on-chain
+- [x] Bridge fee collection → QUSD reserves (0.1% of all bridge transfers) — `stablecoin/reserve_manager.py: ReserveFeeRouter` (BRIDGE_FEE source, 100% allocation)
+- [x] QUSD transaction fees → reserves (0.05% per transfer) — `stablecoin/reserve_manager.py: ReserveFeeRouter` (QUSD_TX_FEE source, 100% allocation)
+- [x] LP fee revenue → reserves (percentage of DEX fees) — `stablecoin/reserve_manager.py: ReserveFeeRouter` (LP_FEE source, 50% default allocation)
+- [x] Treasury controlled sales → reserves (governance-approved) — `stablecoin/reserve_manager.py: ReserveFeeRouter` (TREASURY_SALE source, 100% allocation)
+- [x] Aether Tree chat fees → partial allocation to reserves — `stablecoin/reserve_manager.py: ReserveFeeRouter` (AETHER_CHAT_FEE source, 10% default allocation)
+- [x] Contract deployment fees → partial allocation to reserves — `stablecoin/reserve_manager.py: ReserveFeeRouter` (CONTRACT_DEPLOY_FEE source, 10% default allocation)
+- [x] All reserve inflows tracked as debt payback events on-chain — `stablecoin/reserve_manager.py: ReserveInflow` (deterministic IDs, Merkle-committable)
 
 ### 6.4 Reserve Milestones & Safety
-- [ ] Minimum reserve ratio enforcement by year:
-  - [ ] Years 1-2: 5% minimum backing
-  - [ ] Years 3-4: 15% minimum backing
-  - [ ] Years 5-6: 30% minimum backing
-  - [ ] Years 7-9: 50% minimum backing
-  - [ ] Year 10+: 100% backing (fully collateralized)
-- [ ] Emergency actions on backing ratio breach (halt minting, increase fees)
-- [ ] Public API for third-party reserve verification
-- [ ] Automated daily reserve snapshots to IPFS
-- [ ] Quarterly audit report generation (on-chain proof of reserves)
+- [x] Minimum reserve ratio enforcement by year — `stablecoin/reserve_manager.py: ReserveMilestoneEnforcer`:
+  - [x] Years 1-2: 5% minimum backing
+  - [x] Years 3-4: 15% minimum backing
+  - [x] Years 5-6: 30% minimum backing
+  - [x] Years 7-9: 50% minimum backing
+  - [x] Year 10+: 100% backing (fully collateralized)
+- [x] Emergency actions on backing ratio breach (halt minting, increase fees) — `ReserveMilestoneEnforcer._determine_emergency_actions()` (relative thresholds: 50% deficit → halt, 20% → fee increase)
+- [x] Public API for third-party reserve verification — `stablecoin/reserve_verification.py: ReserveVerifier.get_reserve_status()` (no-auth public endpoint)
+- [x] Automated daily reserve snapshots to IPFS — `stablecoin/reserve_verification.py: ReserveVerifier.create_snapshot()` (26K block interval, Merkle root, IPFS CID attachment)
+- [x] Quarterly audit report generation (on-chain proof of reserves) — `stablecoin/reserve_verification.py: ReserveVerifier.generate_audit_report()` (quarter identifier, inflow summary, violation count)
 - [ ] Real-time backing ratio on frontend dashboard
 
 ### 6.5 QUSD Oracle Integration Module (Python)
