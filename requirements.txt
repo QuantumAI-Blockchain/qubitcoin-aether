@@ -42,3 +42,7 @@ python-jose==3.3.0
 # Math/Science
 numpy==1.26.2
 scipy==1.11.4
+
+# Testing
+pytest>=7.0
+pytest-asyncio>=0.23.0

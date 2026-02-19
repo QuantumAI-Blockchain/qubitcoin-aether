@@ -101,7 +101,7 @@ class TestPeerEviction:
         _add_peer(p2p, 'good_peer', score=80)
         _add_peer(p2p, 'bad_peer', score=10)
         p2p._disconnect_peer = AsyncMock()
-        evicted = asyncio.get_event_loop().run_until_complete(
+        evicted = asyncio.run(
             p2p.evict_low_score_peers(min_score=20)
         )
         assert 'bad_peer' in evicted
@@ -113,7 +113,7 @@ class TestPeerEviction:
         _add_peer(p2p, 'p1', score=80)
         _add_peer(p2p, 'p2', score=50)
         p2p._disconnect_peer = AsyncMock()
-        evicted = asyncio.get_event_loop().run_until_complete(
+        evicted = asyncio.run(
             p2p.evict_low_score_peers(min_score=20)
         )
         assert len(evicted) == 0
@@ -125,7 +125,7 @@ class TestPeerEviction:
         _add_peer(p2p, 'bad2', score=10)
         _add_peer(p2p, 'good', score=90)
         p2p._disconnect_peer = AsyncMock()
-        evicted = asyncio.get_event_loop().run_until_complete(
+        evicted = asyncio.run(
             p2p.evict_low_score_peers(min_score=15)
         )
         assert len(evicted) == 2

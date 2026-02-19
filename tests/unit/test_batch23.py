@@ -91,7 +91,7 @@ class TestAetherWSManager:
         ws.send_text = AsyncMock()
         mgr.register(ws, subscriptions={'phi_update'})
 
-        sent = asyncio.get_event_loop().run_until_complete(
+        sent = asyncio.run(
             mgr.broadcast('phi_update', {'value': 2.5})
         )
         assert sent == 1
@@ -103,7 +103,7 @@ class TestAetherWSManager:
         ws.send_text = AsyncMock()
         mgr.register(ws, subscriptions={'phi_update'})
 
-        sent = asyncio.get_event_loop().run_until_complete(
+        sent = asyncio.run(
             mgr.broadcast('consciousness_event', {'event': 'test'})
         )
         assert sent == 0
@@ -117,7 +117,7 @@ class TestAetherWSManager:
         mgr.register(ws1, session_id='session-A')
         mgr.register(ws2, session_id='session-B')
 
-        sent = asyncio.get_event_loop().run_until_complete(
+        sent = asyncio.run(
             mgr.broadcast('aether_response',
                           {'text': 'hello'}, session_id='session-A')
         )
@@ -132,7 +132,7 @@ class TestAetherWSManager:
         mgr.register(ws, subscriptions={'phi_update'})
         assert mgr.client_count == 1
 
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             mgr.broadcast('phi_update', {'value': 1.0})
         )
         assert mgr.client_count == 0
@@ -143,7 +143,7 @@ class TestAetherWSManager:
         ws.send_text = AsyncMock()
         mgr.register(ws, subscriptions={'phi_update'})
 
-        sent = asyncio.get_event_loop().run_until_complete(
+        sent = asyncio.run(
             mgr.broadcast('nonexistent_event', {})
         )
         assert sent == 0

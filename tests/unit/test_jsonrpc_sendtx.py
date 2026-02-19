@@ -20,7 +20,7 @@ def _handler(qvm: MagicMock | None = None) -> JsonRpcHandler:
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 class TestEthSendTransactionExists:
