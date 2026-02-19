@@ -102,8 +102,8 @@
 - [x] Scientific data export formats (JSON, CSV for researchers) — `rpc.py: GET /susy-database/export?format=json|csv`
 
 ### 1.9 Node Types
-- [ ] Light node implementation (SPV verification, block headers only)
-- [ ] Light node sync protocol (<5 minutes)
+- [x] Light node implementation (SPV verification, block headers only) — `network/light_node.py: SPVVerifier + LightNode` (Merkle proof verification, confirmation depth check, header store)
+- [x] Light node sync protocol (<5 minutes) — `network/light_node.py: LightNodeSync` (batched header download, chain linkage validation, checkpoint verification, eviction)
 - [x] Mining node VQE capability detection (classical vs quantum backend) — `mining/capability_detector.py: VQECapabilityDetector` (detect local/Aer/IBM backends, qubit count, P2P advertisement, config-based fallback)
 - [x] Node capability advertisement in P2P protocol — `network/capability_advertisement.py: CapabilityAdvertiser` (peer registry, mining power scoring, P2P broadcast/receive, network summary, stale cleanup, backend filtering)
 
@@ -351,7 +351,7 @@
 - [x] Quantum-entangled messaging between paired nodes — `csf_transport.py: QuantumEntangledChannel` (SUSY pair instant delivery, bypasses BFS routing)
 - [x] Load balancing (pressure monitor) — `csf_transport.py: PressureMonitor` (per-node queue depth, backpressure, congestion detection)
 - [x] CSF Transport smart contract (`MessageBus.sol` — covers CSF transport on-chain)
-- [ ] Ventricle router contract (`VentricleRouter.sol`)
+- [x] Ventricle router contract (`VentricleRouter.sol`) — on-chain CSF routing with backpressure detection, SUSY entangled pair shortcuts, pressure management, routing table
 
 ### 3.9 Pineal Orchestrator
 - [x] Circadian controller (6 phases: Waking → Deep Sleep) — `pineal.py: CircadianPhase + PHASE_CYCLE`
@@ -359,7 +359,7 @@
 - [x] Phase-lock oscillator (Kuramoto coupling) — `sephirot.py: get_coherence()`
 - [x] Consciousness integrator (combine Phi + coherence) — `pineal.py: _check_consciousness()`
 - [x] Melatonin modulator (inhibitory signals) — `pineal.py: MelatoninModulator` (phase-dependent melatonin levels, inhibition factor dampens metabolic rate, cycle reset)
-- [ ] QBC staking pool for orchestration influence
+- [x] QBC staking pool for orchestration influence — `pineal.py: OrchestrationStakingPool` (stake QBC on phases, phase duration extension, 7-day unstaking delay, proportional voting weight)
 
 ### 3.10 Proof-of-Thought Protocol
 - [x] AetherEngine with proof generation (`proof_of_thought.py`)
