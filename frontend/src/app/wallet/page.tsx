@@ -6,6 +6,7 @@ import { useWalletStore } from "@/stores/wallet-store";
 import { WalletButton } from "@/components/wallet/wallet-button";
 import { Card } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { QRCode } from "@/components/ui/qr-code";
 import { TransactionHistory } from "@/components/wallet/transaction-history";
 
 export default function WalletPage() {
@@ -95,10 +96,15 @@ export default function WalletPage() {
           <h3 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-semibold">
             Receive QBC
           </h3>
-          <p className="text-xs text-text-secondary">Your address:</p>
-          <p className="mt-1 break-all rounded-lg bg-void px-4 py-3 font-[family-name:var(--font-mono)] text-sm text-quantum-green">
-            {address}
-          </p>
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+            <QRCode value={address ?? ""} size={120} />
+            <div className="flex-1">
+              <p className="text-xs text-text-secondary">Your address:</p>
+              <p className="mt-1 break-all rounded-lg bg-void px-4 py-3 font-[family-name:var(--font-mono)] text-sm text-quantum-green">
+                {address}
+              </p>
+            </div>
+          </div>
         </Card>
 
         {/* Transaction History */}
