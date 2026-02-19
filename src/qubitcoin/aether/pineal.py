@@ -363,3 +363,185 @@ class PinealOrchestrator:
                 for p in PHASE_CYCLE
             },
         }
+
+
+class OrchestrationStakingPool:
+    """
+    QBC staking pool for orchestration influence.
+
+    Stakers can lock QBC to influence the Pineal Orchestrator's behavior:
+    - Phase extension: Staking on a phase extends its duration proportionally
+    - Priority boost: Staked QBC increases message processing priority during that phase
+    - Voting weight: Stakers get proportional influence on phase parameter changes
+
+    Economic model:
+    - Stakers earn a share of Aether Tree chat fees proportional to their stake
+    - Minimum stake: 10 QBC (prevent dust spam)
+    - Unstaking delay: 7 days (prevent manipulation via rapid stake/unstake)
+    - Phase influence cap: max 2x extension (prevent single staker from freezing a phase)
+    """
+
+    MIN_STAKE: float = 10.0
+    MAX_PHASE_EXTENSION: float = 2.0  # Max 2x phase duration
+    UNSTAKE_DELAY_BLOCKS: int = 181_818  # ~7 days at 3.3s/block
+
+    def __init__(self) -> None:
+        self._stakes: Dict[str, Dict[str, float]] = {}  # address → {phase → amount}
+        self._total_staked: float = 0.0
+        self._phase_totals: Dict[str, float] = {
+            p.value: 0.0 for p in CircadianPhase
+        }
+        self._pending_unstakes: List[Dict] = []
+        logger.info("Orchestration Staking Pool initialized")
+
+    def stake(self, address: str, phase: str, amount: float,
+              block_height: int) -> dict:
+        """
+        Stake QBC on a circadian phase for orchestration influence.
+
+        Args:
+            address: Staker's QBC address.
+            phase: Circadian phase to stake on (e.g., "active_learning").
+            amount: Amount of QBC to stake.
+            block_height: Current block height.
+
+        Returns:
+            Dict with stake result.
+        """
+        if amount < self.MIN_STAKE:
+            return {"success": False, "error": f"Minimum stake is {self.MIN_STAKE} QBC"}
+
+        if phase not in self._phase_totals:
+            return {"success": False, "error": f"Invalid phase: {phase}"}
+
+        if address not in self._stakes:
+            self._stakes[address] = {}
+
+        current = self._stakes[address].get(phase, 0.0)
+        self._stakes[address][phase] = current + amount
+        self._phase_totals[phase] += amount
+        self._total_staked += amount
+
+        logger.info(
+            f"Stake: {address[:16]}... staked {amount} QBC on {phase} "
+            f"(total phase stake: {self._phase_totals[phase]:.2f})"
+        )
+        return {
+            "success": True,
+            "address": address,
+            "phase": phase,
+            "amount": amount,
+            "total_stake": self._stakes[address][phase],
+            "block_height": block_height,
+        }
+
+    def request_unstake(self, address: str, phase: str, amount: float,
+                        block_height: int) -> dict:
+        """
+        Request to unstake QBC (subject to delay).
+
+        Args:
+            address: Staker's QBC address.
+            phase: Phase to unstake from.
+            amount: Amount to unstake.
+            block_height: Current block height.
+
+        Returns:
+            Dict with unstake request result.
+        """
+        current = self._stakes.get(address, {}).get(phase, 0.0)
+        if amount > current:
+            return {"success": False, "error": "Insufficient stake"}
+
+        release_block = block_height + self.UNSTAKE_DELAY_BLOCKS
+        self._pending_unstakes.append({
+            "address": address,
+            "phase": phase,
+            "amount": amount,
+            "request_block": block_height,
+            "release_block": release_block,
+        })
+
+        logger.info(
+            f"Unstake request: {address[:16]}... unstaking {amount} QBC from {phase} "
+            f"(release at block {release_block})"
+        )
+        return {
+            "success": True,
+            "address": address,
+            "phase": phase,
+            "amount": amount,
+            "release_block": release_block,
+        }
+
+    def process_unstakes(self, block_height: int) -> int:
+        """Process matured unstake requests. Returns count of processed unstakes."""
+        processed = 0
+        remaining = []
+
+        for req in self._pending_unstakes:
+            if block_height >= req["release_block"]:
+                addr = req["address"]
+                phase = req["phase"]
+                amount = req["amount"]
+
+                if addr in self._stakes and phase in self._stakes[addr]:
+                    self._stakes[addr][phase] = max(
+                        0.0, self._stakes[addr][phase] - amount
+                    )
+                    self._phase_totals[phase] = max(
+                        0.0, self._phase_totals[phase] - amount
+                    )
+                    self._total_staked = max(0.0, self._total_staked - amount)
+                    processed += 1
+            else:
+                remaining.append(req)
+
+        self._pending_unstakes = remaining
+        return processed
+
+    def get_phase_extension(self, phase: str) -> float:
+        """
+        Get the staking-based duration extension multiplier for a phase.
+
+        The extension is proportional to QBC staked on this phase relative
+        to total staked, capped at MAX_PHASE_EXTENSION.
+
+        Returns:
+            Multiplier (1.0 = no extension, 2.0 = max extension).
+        """
+        if self._total_staked <= 0:
+            return 1.0
+        phase_ratio = self._phase_totals.get(phase, 0.0) / self._total_staked
+        extension = 1.0 + phase_ratio * (self.MAX_PHASE_EXTENSION - 1.0)
+        return min(extension, self.MAX_PHASE_EXTENSION)
+
+    def get_staker_info(self, address: str) -> dict:
+        """Get staking info for a specific address."""
+        stakes = self._stakes.get(address, {})
+        pending = [
+            u for u in self._pending_unstakes if u["address"] == address
+        ]
+        return {
+            "address": address,
+            "stakes": dict(stakes),
+            "total_staked": sum(stakes.values()),
+            "pending_unstakes": pending,
+        }
+
+    def get_status(self) -> dict:
+        """Get staking pool status."""
+        return {
+            "total_staked": round(self._total_staked, 4),
+            "stakers": len(self._stakes),
+            "phase_stakes": {
+                phase: round(amount, 4)
+                for phase, amount in self._phase_totals.items()
+            },
+            "phase_extensions": {
+                phase: round(self.get_phase_extension(phase), 4)
+                for phase in self._phase_totals
+            },
+            "pending_unstakes": len(self._pending_unstakes),
+        }
+
