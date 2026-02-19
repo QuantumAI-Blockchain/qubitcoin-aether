@@ -1,0 +1,140 @@
+# ============================================================================
+# Qubitcoin Node — Deployment + Service
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbc-node
+  namespace: qubitcoin
+  labels:
+    app.kubernetes.io/name: qbc-node
+    app.kubernetes.io/component: blockchain
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qbc-node
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: qbc-node
+        app.kubernetes.io/component: blockchain
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: qbc-node
+          image: qubitcoin/node:latest
+          ports:
+            - name: rpc
+              containerPort: 5000
+              protocol: TCP
+            - name: p2p
+              containerPort: 4001
+              protocol: TCP
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: qbc-config
+            - secretRef:
+                name: qbc-secrets
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://root@cockroachdb:26257/qbc?sslmode=disable"
+            - name: IPFS_API
+              value: "/ip4/ipfs/tcp/5001/http"
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "8Gi"
+              cpu: "4000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: rpc
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: node-data
+              mountPath: /app/data
+            - name: node-logs
+              mountPath: /app/logs
+      volumes:
+        - name: node-data
+          persistentVolumeClaim:
+            claimName: qbc-node-data
+        - name: node-logs
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbc-node
+  namespace: qubitcoin
+  labels:
+    app.kubernetes.io/name: qbc-node
+spec:
+  type: ClusterIP
+  ports:
+    - name: rpc
+      port: 5000
+      targetPort: rpc
+    - name: p2p
+      port: 4001
+      targetPort: p2p
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+  selector:
+    app.kubernetes.io/name: qbc-node
+
+---
+# External access for RPC API
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbc-node-external
+  namespace: qubitcoin
+  labels:
+    app.kubernetes.io/name: qbc-node
+spec:
+  type: LoadBalancer
+  ports:
+    - name: rpc
+      port: 5000
+      targetPort: rpc
+    - name: p2p
+      port: 4001
+      targetPort: p2p
+  selector:
+    app.kubernetes.io/name: qbc-node
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbc-node-data
+  namespace: qubitcoin
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: standard

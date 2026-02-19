@@ -1,35 +1,52 @@
+# ============================================================================
+# Prometheus Configuration — Qubitcoin Monitoring
+# Scrapes: QBC Node, CockroachDB, IPFS, Redis
+# ============================================================================
+
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  scrape_timeout: 10s
 
+# ── Alerting (Alertmanager integration, optional) ───────────────────────
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# ── Recording & Alert Rules ─────────────────────────────────────────────
+# rule_files:
+#   - '/etc/prometheus/rules/*.yml'
+
+# ── Scrape Targets ──────────────────────────────────────────────────────
 scrape_configs:
-  # Qubitcoin Node Metrics
+  # Qubitcoin Node — all blockchain, QVM, AGI, and bridge metrics
   - job_name: 'qubitcoin-node'
+    metrics_path: '/metrics'
     static_configs:
-      - targets: ['host.docker.internal:5000']  # RPC server exposes /metrics
+      - targets: ['qbc-node:5000']
         labels:
-          instance: 'local-node'
+          instance: 'node-1'
           chain: 'mainnet'
-  
-  # CockroachDB Nodes
-  - job_name: 'cockroachdb-1'
-    static_configs:
-      - targets: ['cockroachdb-1:8080']
-  
-  - job_name: 'cockroachdb-2'
-    static_configs:
-      - targets: ['cockroachdb-2:8080']
-    
-  - job_name: 'cockroachdb-3'
-    static_configs:
-      - targets: ['cockroachdb-3:8080']
-  
-  # IPFS
-  - job_name: 'ipfs'
-    static_configs:
-      - targets: ['qbc-ipfs:5001']
+          chain_id: '3301'
 
-  # Redis
-  - job_name: 'redis'
+  # CockroachDB — database health and performance
+  - job_name: 'cockroachdb'
+    metrics_path: '/_status/vars'
     static_configs:
-      - targets: ['qbc-redis:6379']
+      - targets: ['cockroachdb:8080']
+        labels:
+          instance: 'crdb-1'
+
+  # IPFS (Kubo) — content-addressed storage metrics
+  - job_name: 'ipfs'
+    metrics_path: '/debug/metrics/prometheus'
+    static_configs:
+      - targets: ['ipfs:5001']
+        labels:
+          instance: 'ipfs-1'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
