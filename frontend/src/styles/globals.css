@@ -82,3 +82,42 @@ code, pre, kbd {
 .consciousness-pulse {
   animation: consciousness-pulse 3.3s ease-in-out infinite;
 }
+
+/* ============================================================
+   LIGHT MODE OVERRIDES
+   Applied when <html class="light"> is present.
+   Default is dark (quantum theme). Light mode inverts surfaces.
+   ============================================================ */
+
+.light {
+  --color-void: #f8fafc;
+  --color-surface: #f1f5f9;
+  --color-surface-light: #e2e8f0;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-quantum-green: #059669;
+  --color-quantum-violet: #6d28d9;
+  --color-golden: #d97706;
+  --color-quantum-red: #dc2626;
+  --color-success: #16a34a;
+}
+
+.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #6d28d9;
+}
+
+.light .quantum-glow {
+  box-shadow: 0 0 20px rgba(5, 150, 105, 0.12), 0 0 60px rgba(5, 150, 105, 0.04);
+}
+
+.light .quantum-glow-violet {
+  box-shadow: 0 0 20px rgba(109, 40, 217, 0.15), 0 0 60px rgba(109, 40, 217, 0.06);
+}

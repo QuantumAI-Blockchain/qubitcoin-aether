@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { WalletButton } from "@/components/wallet/wallet-button";
 import { PhiIndicator } from "@/components/ui/phi-indicator";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const links = [
   { href: "/", label: "Home" },
@@ -61,6 +62,7 @@ export function Navbar() {
         {/* Right side */}
         <div className="flex items-center gap-3">
           <PhiIndicator />
+          <ThemeToggle />
           <WalletButton />
         </div>
       </nav>
