@@ -694,8 +694,8 @@
 - [x] Integration tests (`test_integration.py` — 13 tests: KG+reasoning, Phi+KG, consciousness, extractor, sephirot, safety)
 - [x] API tests (REST endpoints, JSON-RPC, WebSocket) — 9 tests (test_network: admin API, auth, models)
 - [x] Frontend tests (Vitest unit + Playwright E2E) — 5 tests (api.test: 3, theme-store.test: 2), Vitest 4 + Playwright 1.58 configured
-- [ ] Load tests (concurrent mining, high tx volume)
-- [ ] Fuzz testing (random bytecode to QVM)
+- [x] Load tests (concurrent mining, high tx volume) — 9 tests (test_load: rapid coinbase 100x, start/stop cycling, concurrent reads, 1000 pending txs, 1000 UTXOs, 500 txs, 333-tx block, rapid difficulty, rapid rewards)
+- [x] Fuzz testing (random bytecode to QVM) — 19 tests (test_fuzz_qvm: 100 random runs, all 256 single-byte opcodes, stack overflow/underflow, OOG, invalid JUMP, deep memory, arithmetic edge cases, mixed valid/invalid, REVERT, zero gas)
 - [x] Privacy unit tests — 50 tests (test_privacy: 15, test_privacy_advanced: 18, test_privacy_integration: 17 — commitments, stealth, range proofs, susy swap, key images)
 - [x] Config unit tests — 8 tests (test_config: economics, chain IDs, fee params)
 - [x] Fee collector unit tests — 21 tests (test_fee_collector: UTXO selection, fee deduction, change, audit log, chat/contract integration)
