@@ -38,8 +38,8 @@ class Config:
     IBM_TOKEN: Optional[str] = os.getenv('IBM_TOKEN')
     IBM_INSTANCE: Optional[str] = os.getenv('IBM_INSTANCE')
 
-    VQE_REPS: int = 1
-    VQE_MAXITER: int = int(os.getenv('VQE_MAXITER', 50))
+    VQE_REPS: int = int(os.getenv('VQE_REPS', 2))
+    VQE_MAXITER: int = int(os.getenv('VQE_MAXITER', 200))
     VQE_TOLERANCE: float = 1e-6
     ENERGY_VALIDATION_TOLERANCE: float = 1e-3
 
@@ -112,7 +112,7 @@ class Config:
     # ============================================================================
     # CONSENSUS PARAMETERS
     # ============================================================================
-    INITIAL_DIFFICULTY: float = 0.5
+    INITIAL_DIFFICULTY: float = float(os.getenv('INITIAL_DIFFICULTY', 1.0))
     DIFFICULTY_WINDOW: int = 144  # 144-block lookback window for difficulty calc
     DIFFICULTY_ADJUSTMENT_INTERVAL: int = 1  # Adjust EVERY block (per-block adjustment)
     MAX_DIFFICULTY_CHANGE: float = 0.10  # Max +/-10% per adjustment

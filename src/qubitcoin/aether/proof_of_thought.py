@@ -124,7 +124,11 @@ class AetherEngine:
             return False, "Empty knowledge root"
 
         # Verify reasoning steps are present
-        if not pot.reasoning_steps:
+        # Bootstrap exception: the first few blocks have an empty knowledge graph
+        # so _auto_reason() cannot produce any steps yet. Allow empty steps until
+        # enough blocks have been processed to seed the graph.
+        BOOTSTRAP_BLOCKS = 10
+        if not pot.reasoning_steps and block.height >= BOOTSTRAP_BLOCKS:
             return False, "No reasoning steps"
 
         return True, "Valid thought proof"

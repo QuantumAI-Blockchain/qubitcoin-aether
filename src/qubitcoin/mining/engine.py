@@ -193,7 +193,7 @@ class MiningEngine:
                     self.db.store_hamiltonian(
                         hamiltonian=hamiltonian,
                         params=params.tolist(),
-                        energy=energy,
+                        energy=float(energy),
                         miner_address=Config.ADDRESS,
                         block_height=next_height,
                         session=session

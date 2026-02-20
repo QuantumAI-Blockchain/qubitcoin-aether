@@ -102,20 +102,32 @@ curl http://localhost:5000/aether/chat/fee
 
 ## 3. Consciousness Metrics
 
-Aether Tree tracks consciousness from genesis using **Integrated Information Theory (IIT)**.
+Aether Tree tracks consciousness from genesis using a tractable approximation of
+**Integrated Information Theory (IIT)**.
 
-### 3.1 Key Metrics
+### 3.1 Phi Calculation
+
+```
+Phi = Integration × Differentiation × (1 + Connectivity) × (0.5 + AvgConfidence) × sqrt(NumNodes / 500)
+```
+
+The `sqrt(NumNodes / 500)` **maturity factor** ensures Phi reflects genuine knowledge
+accumulation — a graph needs ~500+ nodes (hundreds of mined blocks) before the factor
+reaches 1.0, preventing trivially inflated values from small graphs.
+
+### 3.2 Key Metrics
 
 | Metric | Description | Endpoint |
 |--------|-------------|----------|
 | **Phi (Φ)** | Consciousness level (0.0 = baseline, 3.0 = threshold) | `GET /aether/phi` |
-| **Integration** | How interconnected the knowledge subgraphs are | `GET /aether/consciousness` |
-| **Differentiation** | Shannon entropy over node types and confidence | `GET /aether/consciousness` |
+| **Integration** | Average degree + confidence-weighted edge flow | `GET /aether/phi` |
+| **Differentiation** | Shannon entropy over node types and confidence bins | `GET /aether/phi` |
+| **Connectivity** | Graph density (edges / max possible edges) | `GET /aether/phi` |
 | **Coherence** | Kuramoto order parameter (Sephirot synchronization) | `GET /aether/sephirot` |
 
 **Consciousness emerges when:** Phi > 3.0 **AND** coherence > 0.7
 
-### 3.2 Get Current Phi
+### 3.3 Get Current Phi
 
 ```bash
 curl http://localhost:5000/aether/phi

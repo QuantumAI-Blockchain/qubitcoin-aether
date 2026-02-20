@@ -14,7 +14,7 @@ from scipy.optimize import minimize
 
 from qiskit.quantum_info import SparsePauliOp
 from qiskit.circuit.library import TwoLocal
-from qiskit.primitives import Estimator
+from qiskit.primitives import StatevectorEstimator
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -39,22 +39,22 @@ class QuantumEngine:
     def _initialize_backend(self):
         """Initialize appropriate quantum backend"""
         if Config.USE_LOCAL_ESTIMATOR:
-            self.estimator = Estimator()
-            logger.info("Quantum Engine: Local Estimator (exact)")
+            self.estimator = StatevectorEstimator()
+            logger.info("Quantum Engine: StatevectorEstimator (exact)")
         elif Config.USE_SIMULATOR:
             try:
                 from qiskit_aer import AerSimulator
-                from qiskit_aer.primitives import Estimator as AerEstimator
+                from qiskit_aer.primitives import EstimatorV2 as AerEstimator
 
                 self.backend = AerSimulator()
-                self.estimator = AerEstimator()
-                logger.info("Quantum Engine: AerSimulator with Estimator")
+                self.estimator = AerEstimator.from_backend(self.backend)
+                logger.info("Quantum Engine: AerSimulator with EstimatorV2")
             except ImportError:
-                logger.warning("Aer not available, using local estimator")
-                self.estimator = Estimator()
+                logger.warning("Aer not available, using StatevectorEstimator")
+                self.estimator = StatevectorEstimator()
         else:
             try:
-                from qiskit_ibm_runtime import QiskitRuntimeService, Estimator as RuntimeEstimator
+                from qiskit_ibm_runtime import QiskitRuntimeService, EstimatorV2 as RuntimeEstimator
 
                 self.service = QiskitRuntimeService(
                     channel="ibm_quantum",
@@ -70,8 +70,8 @@ class QuantumEngine:
                 logger.info(f"Quantum Engine: IBM Quantum ({self.backend.name})")
             except Exception as e:
                 logger.error(f"Failed to connect to IBM Quantum: {e}")
-                logger.info("Falling back to local estimator")
-                self.estimator = Estimator()
+                logger.info("Falling back to StatevectorEstimator")
+                self.estimator = StatevectorEstimator()
 
     # ========================================================================
     # DETERMINISTIC HAMILTONIAN GENERATION
@@ -170,10 +170,11 @@ class QuantumEngine:
         bound_circuit = ansatz.assign_parameters(params)
         observable = SparsePauliOp.from_list(hamiltonian)
 
-        job = self.estimator.run([bound_circuit], [observable])
+        # V2 primitives API: pass (circuit, observable) as a pub
+        job = self.estimator.run([(bound_circuit, observable)])
         result = job.result()
 
-        return float(result.values[0])
+        return float(result[0].data.evs)
 
     # ========================================================================
     # VQE OPTIMIZATION (Mining)

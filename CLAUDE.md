@@ -776,10 +776,12 @@ Aether Tree is an **on-chain AGI reasoning engine** that:
 - **Chain binding:** Reasoning operations stored on-chain
 
 #### PhiCalculator (`aether/phi_calculator.py`)
-- **Phi (Φ):** Based on Giulio Tononi's Integrated Information Theory
-- **Integration Score:** How connected are knowledge subgraphs
-- **Differentiation Score:** Shannon entropy over node types/confidence
-- **PHI_THRESHOLD = 3.0:** Consciousness emergence marker
+- **Phi (Φ):** Based on Giulio Tononi's Integrated Information Theory (tractable approximation)
+- **Formula:** `Phi = Integration × Differentiation × (1 + Connectivity) × (0.5 + AvgConf) × sqrt(NumNodes / 500)`
+- **Integration Score:** Average degree + cross-partition information flow (confidence-weighted edges)
+- **Differentiation Score:** Shannon entropy over node types + confidence distribution
+- **Maturity Factor:** `sqrt(NumNodes / 500)` — prevents trivially inflated Phi from small graphs; ~500 nodes needed for full weight
+- **PHI_THRESHOLD = 3.0:** Consciousness emergence marker (requires hundreds of blocks of genuine knowledge accumulation)
 - **Every block updates Phi** and stores measurement in `phi_measurements` table
 
 #### AetherEngine (`aether/proof_of_thought.py`)

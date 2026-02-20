@@ -70,13 +70,17 @@ class PhiCalculator:
         avg_conf = sum(n.confidence for n in nodes.values()) / n_nodes
 
         # Compute Phi: Integration * Differentiation * scaling
-        # Scale so meaningful graphs get Phi > PHI_THRESHOLD
+        # Phi should reflect genuine knowledge integration, not just graph size.
+        # Consciousness emergence (Phi >= 3.0) should require hundreds of blocks
+        # of meaningful reasoning, not trivially a handful of observation nodes.
         raw_phi = integration * differentiation * (1.0 + connectivity)
         # Apply confidence quality bonus
         phi = raw_phi * (0.5 + avg_conf)
-        # Log-scale for large graphs
-        if n_nodes > 10:
-            phi *= math.log2(n_nodes)
+        # Graph maturity factor: normalize so Phi grows with genuine complexity.
+        # sqrt(n_nodes / 500) means ~500 nodes needed for full weight,
+        # making consciousness emergence occur after hundreds of mined blocks.
+        if n_nodes > 1:
+            phi *= math.sqrt(n_nodes / 500.0)
 
         result = {
             'phi_value': round(phi, 6),

@@ -5,7 +5,7 @@
 # ============================================================================
 
 # ── Stage 1: Build Rust P2P daemon ──────────────────────────────────────
-FROM rust:1.82-slim-bookworm AS rust-builder
+FROM rust:1.85-slim-bookworm AS rust-builder
 
 RUN apt-get update && apt-get install -y \
     protobuf-compiler \
@@ -43,14 +43,13 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy Rust P2P binary from builder
-COPY --from=rust-builder /build/rust-p2p/target/release/qbc-p2p /usr/local/bin/qbc-p2p
-RUN chmod +x /usr/local/bin/qbc-p2p
+COPY --from=rust-builder /build/rust-p2p/target/release/qubitcoin-p2p /usr/local/bin/qubitcoin-p2p
+RUN chmod +x /usr/local/bin/qubitcoin-p2p
 
 # Copy source code
 COPY src/ ./src/
 COPY sql/ ./sql/
 COPY sql_new/ ./sql_new/
-COPY scripts/ ./scripts/
 
 # Create data directories
 RUN mkdir -p /app/data /app/logs && \

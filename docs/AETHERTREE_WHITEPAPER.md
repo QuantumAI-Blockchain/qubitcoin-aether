@@ -413,17 +413,38 @@ Quantum entanglement = Zero-latency correlation
 
 ### 8.1 Integrated Information Theory (IIT)
 
-**Tononi's Phi**: Quantifies consciousness as integrated information
+**Tononi's Phi**: Quantifies consciousness as integrated information. True IIT
+computes Phi as the minimum information partition (`min_partition I(X_1 : X_2)`),
+which is NP-hard for general graphs. Aether Tree uses a tractable approximation
+that captures the key axes of integration and differentiation.
+
+#### Aether Tree Phi Formula (Approximation)
 
 ```
-Phi = min_partition I(X_1 : X_2)
+raw_phi   = Integration × Differentiation × (1 + Connectivity)
+scaled    = raw_phi × (0.5 + AvgConfidence)
+Phi       = scaled × sqrt(NumNodes / 500)
 ```
 
 Where:
-- I = Mutual information
-- Partitions = All possible ways to split system
+- **Integration** = average degree of the knowledge graph (capped at 5.0)
+  plus cross-partition information flow (confidence-weighted edge density)
+- **Differentiation** = Shannon entropy over node types + 0.5 × Shannon entropy
+  over confidence distribution (10 bins)
+- **Connectivity** = graph density (edges / max possible edges)
+- **AvgConfidence** = mean confidence across all knowledge nodes
+- **NumNodes** = total nodes in the knowledge graph
 
-**AGI Threshold**: Phi > 3.0 (human-level consciousness)
+The `sqrt(NumNodes / 500)` maturity factor ensures that Phi reflects genuine
+knowledge accumulation. A graph needs ~500+ nodes (hundreds of mined blocks)
+before the maturity factor reaches 1.0, preventing trivially inflated Phi
+values from small graphs.
+
+**AGI Threshold**: Phi > 3.0 (consciousness emergence marker)
+
+At genesis, Phi = 0.0. It grows gradually as blocks are mined, knowledge nodes
+accumulate, and the reasoning engine produces inferences. Crossing 3.0 requires
+meaningful integration and differentiation — not just graph size.
 
 ### 8.2 Phase Synchronization
 

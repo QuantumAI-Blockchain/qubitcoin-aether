@@ -33,3 +33,12 @@ deployment/
 scripts/
 docs/
 tests/
+
+# Exclude Rust build artifacts (compiled inside Docker)
+rust-p2p/target/
+
+# Exclude frontend (not part of backend container)
+frontend/node_modules/
+
+# Exclude Claude/IDE artifacts
+.claude/

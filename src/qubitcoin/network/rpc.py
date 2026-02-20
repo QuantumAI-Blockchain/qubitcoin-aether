@@ -1286,12 +1286,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return _proof_store.verify_proof_chain(address)
 
     # ========================================================================
-    # REGULATORY REPORTS
+    # REGULATORY REPORTS (initialized after compliance engine below)
     # ========================================================================
-
-    from ..qvm.regulatory_reports import RegulatoryReportGenerator
-    _report_gen = RegulatoryReportGenerator(_compliance_engine, _proof_store)
-    app.report_generator = _report_gen  # type: ignore[attr-defined]
 
     @app.post("/qvm/compliance/reports/generate")
     async def generate_regulatory_report(request: Request):
@@ -1382,6 +1378,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
     from ..qvm.compliance import ComplianceEngine, KYCLevel
     _compliance_engine = ComplianceEngine(db_manager)
+
+    from ..qvm.regulatory_reports import RegulatoryReportGenerator
+    _report_gen = RegulatoryReportGenerator(_compliance_engine, _proof_store)
+    app.report_generator = _report_gen  # type: ignore[attr-defined]
 
     @app.get("/qvm/compliance/policies")
     async def list_compliance_policies():
