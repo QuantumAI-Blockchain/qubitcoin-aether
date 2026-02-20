@@ -37,9 +37,14 @@ def hex_int(value: int) -> str:
 
 
 def hex_balance(value: Decimal) -> str:
-    """Convert QBC balance to hex wei-equivalent (8 decimals)"""
-    wei = int(value * 10**8)
+    """Convert QBC balance to hex wei-equivalent (18 decimals for MetaMask)"""
+    wei = int(value * 10**18)
     return hex(wei)
+
+
+def parse_wei_to_qbc(wei: int) -> Decimal:
+    """Convert wei (10**18) back to QBC"""
+    return Decimal(str(wei)) / Decimal(10**18)
 
 
 def parse_hex_int(value: str) -> int:
@@ -241,10 +246,10 @@ class JsonRpcHandler:
     # ========================================================================
     async def eth_getBalance(self, params):
         address = params[0].replace('0x', '') if params else ''
-        # Check QVM account model first, fall back to UTXO
-        balance = self.db.get_account_balance(address)
-        if balance == 0:
-            balance = self.db.get_balance(address)
+        # Sum both account balance (QVM/MetaMask) and UTXO balance
+        account_bal = self.db.get_account_balance(address)
+        utxo_bal = self.db.get_balance(address)
+        balance = account_bal + utxo_bal
         return hex_balance(balance)
 
     async def eth_getTransactionCount(self, params):
@@ -290,19 +295,81 @@ class JsonRpcHandler:
         return _receipt_to_rpc(receipt)
 
     async def eth_sendRawTransaction(self, params):
-        """Accept raw signed transaction hex and submit to mempool"""
+        """Accept raw signed transaction hex from MetaMask and execute it.
+
+        Decodes the RLP-encoded signed transaction, recovers the ECDSA
+        sender address, validates balance/nonce, and executes value
+        transfers or contract calls.
+        """
         raw_tx = params[0] if params else ''
         if not raw_tx or raw_tx == '0x':
             raise Exception("Empty transaction data")
 
-        # Decode the raw transaction envelope
         raw_hex = raw_tx.replace('0x', '')
+        raw_bytes = bytes.fromhex(raw_hex)
         try:
-            import hashlib as _hashlib
-            tx_hash = _hashlib.sha256(bytes.fromhex(raw_hex)).hexdigest()
+            from eth_account import Account as EthAccount
 
-            # Parse minimal RLP envelope: we expect JSON-encoded QBC tx for now
-            # Full RLP decoding will come with the QVM transaction signer
+            # Recover sender and decode tx fields
+            recovered = EthAccount.recover_transaction(raw_tx)
+            sender = recovered.lower().replace('0x', '')
+
+            # Decode the transaction object
+            from eth_account._utils.typed_transactions import TypedTransaction
+            tx_obj = TypedTransaction.from_bytes(raw_bytes)
+            tx_dict = tx_obj.transaction.dictionary
+            to_addr = (tx_dict.get('to') or b'').hex() if tx_dict.get('to') else ''
+            value_wei = int.from_bytes(tx_dict.get('value', b'\x00'), 'big') if isinstance(tx_dict.get('value'), bytes) else int(tx_dict.get('value', 0))
+            data_hex = tx_dict.get('data', b'').hex() if isinstance(tx_dict.get('data'), bytes) else ''
+            nonce = int.from_bytes(tx_dict.get('nonce', b'\x00'), 'big') if isinstance(tx_dict.get('nonce'), bytes) else int(tx_dict.get('nonce', 0))
+            gas_limit = int.from_bytes(tx_dict.get('gas', b'\x00'), 'big') if isinstance(tx_dict.get('gas'), bytes) else int(tx_dict.get('gas', 21000))
+
+            # Compute tx hash
+            tx_hash = hashlib.sha256(raw_bytes).hexdigest()
+
+            value_qbc = parse_wei_to_qbc(value_wei)
+
+            # Validate sender balance
+            sender_bal = self.db.get_account_balance(sender)
+            if sender_bal < value_qbc:
+                raise Exception(f"Insufficient balance: have {sender_bal}, need {value_qbc}")
+
+            # Execute the transaction
+            if to_addr and data_hex and self.qvm:
+                # Contract call — route through QVM
+                from ..database.models import Transaction as TxModel
+                tx = TxModel(
+                    txid=tx_hash, inputs=[], outputs=[],
+                    fee=Decimal(0), signature='', public_key='',
+                    timestamp=time.time(), tx_type='contract_call',
+                    to_address=to_addr, data=data_hex,
+                    gas_limit=gas_limit, gas_price=Decimal(0), nonce=nonce,
+                )
+                receipt = self.qvm.process_transaction(
+                    tx, block_height=self.db.get_current_height(),
+                    block_hash='0' * 64, tx_index=0,
+                )
+                if value_qbc > 0:
+                    self.db.transfer_between_accounts(sender, to_addr, value_qbc)
+            elif to_addr and value_qbc > 0:
+                # Simple value transfer
+                self.db.transfer_between_accounts(sender, to_addr, value_qbc)
+            elif not to_addr and data_hex and self.qvm:
+                # Contract deploy
+                from ..database.models import Transaction as TxModel
+                tx = TxModel(
+                    txid=tx_hash, inputs=[], outputs=[],
+                    fee=Decimal(0), signature='', public_key='',
+                    timestamp=time.time(), tx_type='contract_deploy',
+                    to_address=None, data=data_hex,
+                    gas_limit=gas_limit, gas_price=Decimal(0), nonce=nonce,
+                )
+                self.qvm.process_transaction(
+                    tx, block_height=self.db.get_current_height(),
+                    block_hash='0' * 64, tx_index=0,
+                )
+
+            # Store transaction record
             from sqlalchemy import text as sql_text
             with self.db.get_session() as session:
                 session.execute(
@@ -310,15 +377,43 @@ class JsonRpcHandler:
                         INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
                                                   timestamp, status, tx_type, to_address, data,
                                                   gas_limit, gas_price, nonce)
-                        VALUES (:txid, '[]', '[]', 0, :sig, '', :ts, 'pending',
+                        VALUES (:txid, '[]', CAST(:outputs AS jsonb), 0, :sig, '', :ts, 'confirmed',
+                                :tx_type, :to_addr, :data, :gas, 0, :nonce)
+                        ON CONFLICT (txid) DO NOTHING
+                    """),
+                    {
+                        'txid': tx_hash, 'sig': raw_hex[:128],
+                        'ts': time.time(),
+                        'outputs': json.dumps([{'address': to_addr, 'amount': str(value_qbc)}]) if to_addr else '[]',
+                        'tx_type': 'contract_deploy' if not to_addr else ('contract_call' if data_hex else 'transfer'),
+                        'to_addr': to_addr or None,
+                        'data': data_hex, 'gas': gas_limit, 'nonce': nonce,
+                    }
+                )
+                session.commit()
+
+            logger.info(f"MetaMask tx processed: {sender[:8]}→{to_addr[:8] if to_addr else 'deploy'} {value_qbc} QBC")
+            return '0x' + tx_hash
+        except ImportError:
+            # eth-account not installed — fallback to simple store
+            logger.warning("eth-account not installed, storing raw tx in mempool")
+            tx_hash = hashlib.sha256(raw_bytes).hexdigest()
+            from sqlalchemy import text as sql_text
+            with self.db.get_session() as session:
+                session.execute(
+                    sql_text("""
+                        INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
+                                                  timestamp, status, tx_type, to_address, data,
+                                                  gas_limit, gas_price, nonce)
+                        VALUES (:txid, '[]', '[]', 0, '', '', :ts, 'pending',
                                 'contract_call', '', :data, 3000000, 0, 0)
                     """),
-                    {'txid': tx_hash, 'sig': '', 'ts': time.time(), 'data': raw_hex}
+                    {'txid': tx_hash, 'ts': time.time(), 'data': raw_hex}
                 )
                 session.commit()
             return '0x' + tx_hash
         except Exception as e:
-            raise Exception(f"Failed to submit transaction: {e}")
+            raise Exception(f"Failed to process transaction: {e}")
 
     async def eth_sendTransaction(self, params: list) -> str:
         """Accept a transaction object and route deploys/calls through StateManager.

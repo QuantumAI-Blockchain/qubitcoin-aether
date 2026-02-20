@@ -127,6 +127,38 @@ export interface EmissionSchedule {
   phi: number;
 }
 
+export interface SephirotNode {
+  id: number;
+  name: string;
+  title: string;
+  function: string;
+  brain_analog: string;
+  min_stake: number;
+  current_stakers: number;
+  total_staked: string;
+  apy_estimate: number;
+}
+
+export interface SephirotStake {
+  stake_id: string;
+  address: string;
+  node_id: number;
+  node_name?: string;
+  amount: string;
+  status: string;
+  staked_at: string | null;
+  unstake_requested_at: string | null;
+  rewards_earned: string;
+  rewards_claimed: string;
+}
+
+export interface SephirotRewards {
+  total_earned: string;
+  pending_claim: string;
+  claimed: string;
+  stakes: SephirotStake[];
+}
+
 /* ---- Typed helpers ---- */
 
 export const api = {
@@ -185,4 +217,64 @@ export const api = {
       message,
       is_deep_query: isDeep,
     }),
+  // Native wallet
+  createWallet: () =>
+    post<{ address: string; public_key_hex: string; private_key_hex: string }>(
+      "/wallet/create",
+      {},
+    ),
+  sendNative: (body: {
+    from_address: string;
+    to_address: string;
+    amount: string;
+    signature_hex: string;
+    public_key_hex: string;
+  }) => post<{ tx_hash: string; status: string }>("/wallet/send", body),
+  signMessage: (body: { message_hash: string; private_key_hex: string }) =>
+    post<{ signature_hex: string }>("/wallet/sign", body),
+
+  // Transfer (UTXO → Account bridge)
+  transferToAccount: (body: { to: string; amount: string }) =>
+    post<{ tx_hash: string; from: string; to: string; amount: string }>(
+      "/transfer",
+      body,
+    ),
+
+  // Sephirot
+  getSephirotNodes: () =>
+    get<{ nodes: SephirotNode[] }>("/sephirot/nodes"),
+  stakeSephirot: (body: {
+    address: string;
+    node_id: number;
+    amount: string;
+    signature_hex: string;
+    public_key_hex: string;
+  }) =>
+    post<{ stake_id: string; node_id: number; amount: string; status: string }>(
+      "/sephirot/stake",
+      body,
+    ),
+  unstakeSephirot: (body: {
+    address: string;
+    stake_id: string;
+    signature_hex: string;
+    public_key_hex: string;
+  }) =>
+    post<{ stake_id: string; status: string; available_at: string }>(
+      "/sephirot/unstake",
+      body,
+    ),
+  getMyStakes: (address: string) =>
+    get<{ stakes: SephirotStake[] }>(`/sephirot/stakes/${address}`),
+  getMyRewards: (address: string) =>
+    get<SephirotRewards>(`/sephirot/rewards/${address}`),
+  claimRewards: (body: {
+    address: string;
+    signature_hex: string;
+    public_key_hex: string;
+  }) =>
+    post<{ claimed_amount: string; tx_hash: string | null }>(
+      "/sephirot/claim-rewards",
+      body,
+    ),
 } as const;

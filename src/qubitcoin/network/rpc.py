@@ -1086,6 +1086,465 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return session.to_dict()
 
     # ========================================================================
+    # WALLET ENDPOINTS — UTXO-to-Account Bridge & Native Wallet
+    # ========================================================================
+
+    class TransferRequest(BaseModel):
+        to: str
+        amount: str
+
+    @app.post("/transfer")
+    async def transfer_to_account(req: TransferRequest):
+        """Bridge UTXO funds to an account-model address (for MetaMask).
+
+        Selects UTXOs from the mining wallet, marks them spent, and credits
+        the recipient in the accounts table.
+        """
+        import hashlib
+        import time as _time
+
+        to_addr = req.to.replace('0x', '')
+        amount = Decimal(req.amount)
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be positive")
+
+        miner_addr = Config.ADDRESS
+        utxos = db_manager.get_utxos(miner_addr)
+        if not utxos:
+            raise HTTPException(status_code=400, detail="No UTXOs available")
+
+        # Greedy largest-first selection
+        utxos.sort(key=lambda u: u.amount, reverse=True)
+        selected = []
+        total = Decimal(0)
+        for u in utxos:
+            selected.append(u)
+            total += u.amount
+            if total >= amount:
+                break
+        if total < amount:
+            raise HTTPException(status_code=400, detail=f"Insufficient UTXO balance: have {total}, need {amount}")
+
+        change = total - amount
+        tx_hash = hashlib.sha256(
+            f"{miner_addr}:{to_addr}:{amount}:{_time.time()}".encode()
+        ).hexdigest()
+
+        with db_manager.get_session() as session:
+            from sqlalchemy import text as sa_text
+            # Mark selected UTXOs as spent
+            for u in selected:
+                session.execute(
+                    sa_text("UPDATE utxos SET spent = true, spent_by = :txid WHERE txid = :utxid AND vout = :vout AND spent = false"),
+                    {'txid': tx_hash, 'utxid': u.txid, 'vout': u.vout}
+                )
+            # Create change UTXO if needed
+            if change > 0:
+                session.execute(
+                    sa_text("""
+                        INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent)
+                        VALUES (:txid, 0, :amt, :addr, '{}', :h, false)
+                    """),
+                    {'txid': tx_hash, 'amt': str(change), 'addr': miner_addr, 'h': db_manager.get_current_height()}
+                )
+            # Credit recipient in accounts table
+            session.execute(
+                sa_text("""
+                    INSERT INTO accounts (address, nonce, balance, code_hash, storage_root)
+                    VALUES (:addr, 0, :amt, '', '')
+                    ON CONFLICT (address) DO UPDATE SET balance = accounts.balance + :amt
+                """),
+                {'addr': to_addr, 'amt': str(amount)}
+            )
+            # Store transaction record
+            outputs = [{'address': to_addr, 'amount': str(amount)}]
+            if change > 0:
+                outputs.append({'address': miner_addr, 'amount': str(change)})
+            import json as _json
+            session.execute(
+                sa_text("""
+                    INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
+                                              timestamp, status, tx_type, to_address, data,
+                                              gas_limit, gas_price, nonce)
+                    VALUES (:txid, CAST(:inputs AS jsonb), CAST(:outputs AS jsonb), 0, '', '',
+                            :ts, 'confirmed', 'transfer', :to_addr, '', 0, 0, 0)
+                """),
+                {
+                    'txid': tx_hash,
+                    'inputs': _json.dumps([{'txid': u.txid, 'vout': u.vout} for u in selected]),
+                    'outputs': _json.dumps(outputs),
+                    'ts': _time.time(), 'to_addr': to_addr,
+                }
+            )
+            session.commit()
+
+        logger.info(f"Transfer: {miner_addr[:8]}→{to_addr[:8]} {amount} QBC (tx={tx_hash[:12]})")
+        return {
+            'tx_hash': tx_hash,
+            'from': miner_addr,
+            'to': to_addr,
+            'amount': str(amount),
+            'change': str(change),
+        }
+
+    # ========================================================================
+    # NATIVE WALLET — Dilithium2 quantum-secure wallet
+    # ========================================================================
+
+    @app.post("/wallet/create")
+    async def wallet_create():
+        """Generate a new Dilithium2 quantum-secure wallet."""
+        from ..quantum.crypto import Dilithium2
+        pk, sk = Dilithium2.keygen()
+        address = Dilithium2.derive_address(pk)
+        logger.info(f"Native wallet created: {address[:12]}...")
+        return {
+            'address': address,
+            'public_key_hex': pk.hex(),
+            'private_key_hex': sk.hex(),  # Returned ONCE — client stores securely
+        }
+
+    class WalletSendRequest(BaseModel):
+        from_address: str
+        to_address: str
+        amount: str
+        signature_hex: str
+        public_key_hex: str
+
+    @app.post("/wallet/send")
+    async def wallet_send(req: WalletSendRequest):
+        """Send QBC from a native Dilithium wallet."""
+        import hashlib
+        import time as _time
+        from ..quantum.crypto import Dilithium2
+
+        amount = Decimal(req.amount)
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be positive")
+
+        # Verify Dilithium signature
+        pk = bytes.fromhex(req.public_key_hex)
+        derived_addr = Dilithium2.derive_address(pk)
+        if derived_addr != req.from_address:
+            raise HTTPException(status_code=400, detail="Public key does not match from_address")
+
+        tx_data = {'from': req.from_address, 'to': req.to_address, 'amount': req.amount}
+        import json as _json
+        msg = _json.dumps(tx_data, sort_keys=True).encode()
+        sig = bytes.fromhex(req.signature_hex)
+        if not Dilithium2.verify(pk, msg, sig):
+            raise HTTPException(status_code=400, detail="Invalid signature")
+
+        # Select UTXOs
+        utxos = db_manager.get_utxos(req.from_address)
+        utxos.sort(key=lambda u: u.amount, reverse=True)
+        selected = []
+        total = Decimal(0)
+        for u in utxos:
+            selected.append(u)
+            total += u.amount
+            if total >= amount:
+                break
+        if total < amount:
+            raise HTTPException(status_code=400, detail=f"Insufficient balance: have {total}, need {amount}")
+
+        change = total - amount
+        tx_hash = hashlib.sha256(
+            f"{req.from_address}:{req.to_address}:{amount}:{_time.time()}".encode()
+        ).hexdigest()
+
+        to_addr = req.to_address.replace('0x', '')
+
+        with db_manager.get_session() as session:
+            from sqlalchemy import text as sa_text
+            # Spend inputs
+            for u in selected:
+                session.execute(
+                    sa_text("UPDATE utxos SET spent = true, spent_by = :txid WHERE txid = :utxid AND vout = :vout AND spent = false"),
+                    {'txid': tx_hash, 'utxid': u.txid, 'vout': u.vout}
+                )
+            # Create outputs
+            outputs = []
+            vout = 0
+            if req.to_address.startswith('0x'):
+                # Cross-model: credit accounts table
+                session.execute(
+                    sa_text("""
+                        INSERT INTO accounts (address, nonce, balance, code_hash, storage_root)
+                        VALUES (:addr, 0, :amt, '', '')
+                        ON CONFLICT (address) DO UPDATE SET balance = accounts.balance + :amt
+                    """),
+                    {'addr': to_addr, 'amt': str(amount)}
+                )
+                outputs.append({'address': to_addr, 'amount': str(amount)})
+            else:
+                # Same model: create UTXO
+                session.execute(
+                    sa_text("""
+                        INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent)
+                        VALUES (:txid, :vout, :amt, :addr, '{}', :h, false)
+                    """),
+                    {'txid': tx_hash, 'vout': vout, 'amt': str(amount), 'addr': to_addr, 'h': db_manager.get_current_height()}
+                )
+                outputs.append({'address': to_addr, 'amount': str(amount)})
+                vout += 1
+            # Change UTXO
+            if change > 0:
+                session.execute(
+                    sa_text("""
+                        INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent)
+                        VALUES (:txid, :vout, :amt, :addr, '{}', :h, false)
+                    """),
+                    {'txid': tx_hash, 'vout': vout, 'amt': str(change), 'addr': req.from_address, 'h': db_manager.get_current_height()}
+                )
+                outputs.append({'address': req.from_address, 'amount': str(change)})
+            # Transaction record
+            session.execute(
+                sa_text("""
+                    INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
+                                              timestamp, status, tx_type, to_address, data,
+                                              gas_limit, gas_price, nonce)
+                    VALUES (:txid, CAST(:inputs AS jsonb), CAST(:outputs AS jsonb), 0, :sig, :pk,
+                            :ts, 'confirmed', 'transfer', :to_addr, '', 0, 0, 0)
+                """),
+                {
+                    'txid': tx_hash,
+                    'inputs': _json.dumps([{'txid': u.txid, 'vout': u.vout} for u in selected]),
+                    'outputs': _json.dumps(outputs),
+                    'sig': req.signature_hex[:128], 'pk': req.public_key_hex[:128],
+                    'ts': _time.time(), 'to_addr': to_addr,
+                }
+            )
+            session.commit()
+
+        logger.info(f"Native send: {req.from_address[:8]}→{to_addr[:8]} {amount} QBC")
+        return {'tx_hash': tx_hash, 'status': 'confirmed'}
+
+    class WalletSignRequest(BaseModel):
+        message_hash: str
+        private_key_hex: str
+
+    @app.post("/wallet/sign")
+    async def wallet_sign(req: WalletSignRequest):
+        """Sign a message hash with a Dilithium2 private key.
+
+        The private key is used only for this signing operation and not stored.
+        """
+        from ..quantum.crypto import Dilithium2
+        try:
+            sk = bytes.fromhex(req.private_key_hex)
+            msg = bytes.fromhex(req.message_hash)
+            signature = Dilithium2.sign(sk, msg)
+            return {'signature_hex': signature.hex()}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Signing failed: {e}")
+
+    # ========================================================================
+    # SEPHIROT NODE STAKING
+    # ========================================================================
+
+    SEPHIROT_NODES = [
+        {'id': 0, 'name': 'Keter', 'title': 'Crown', 'function': 'Meta-learning, goal formation', 'brain_analog': 'Prefrontal cortex', 'min_stake': 100},
+        {'id': 1, 'name': 'Chochmah', 'title': 'Wisdom', 'function': 'Intuition, pattern discovery', 'brain_analog': 'Right hemisphere', 'min_stake': 100},
+        {'id': 2, 'name': 'Binah', 'title': 'Understanding', 'function': 'Logic, causal inference', 'brain_analog': 'Left hemisphere', 'min_stake': 100},
+        {'id': 3, 'name': 'Chesed', 'title': 'Mercy', 'function': 'Exploration, divergent thinking', 'brain_analog': 'Default mode network', 'min_stake': 100},
+        {'id': 4, 'name': 'Gevurah', 'title': 'Severity', 'function': 'Constraint, safety validation', 'brain_analog': 'Amygdala', 'min_stake': 100},
+        {'id': 5, 'name': 'Tiferet', 'title': 'Beauty', 'function': 'Integration, conflict resolution', 'brain_analog': 'Thalamocortical loops', 'min_stake': 100},
+        {'id': 6, 'name': 'Netzach', 'title': 'Victory', 'function': 'Reinforcement learning, habits', 'brain_analog': 'Basal ganglia', 'min_stake': 100},
+        {'id': 7, 'name': 'Hod', 'title': 'Splendor', 'function': 'Language, semantic encoding', 'brain_analog': "Broca/Wernicke", 'min_stake': 100},
+        {'id': 8, 'name': 'Yesod', 'title': 'Foundation', 'function': 'Memory, multimodal fusion', 'brain_analog': 'Hippocampus', 'min_stake': 100},
+        {'id': 9, 'name': 'Malkuth', 'title': 'Kingdom', 'function': 'Action, world interaction', 'brain_analog': 'Motor cortex', 'min_stake': 100},
+    ]
+
+    @app.get("/sephirot/nodes")
+    async def get_sephirot_nodes():
+        """Get all 10 Sephirot node definitions with staking stats."""
+        summary = db_manager.get_sephirot_summary()
+        nodes = []
+        for n in SEPHIROT_NODES:
+            stats = summary.get(n['id'], {'staker_count': 0, 'total_staked': '0'})
+            nodes.append({
+                **n,
+                'current_stakers': stats['staker_count'],
+                'total_staked': stats['total_staked'],
+                'apy_estimate': 5.0,  # ~5% from Proof-of-Thought bounties
+            })
+        return {'nodes': nodes}
+
+    class StakeRequest(BaseModel):
+        address: str
+        node_id: int
+        amount: str
+        signature_hex: str
+        public_key_hex: str
+
+    @app.post("/sephirot/stake")
+    async def sephirot_stake(req: StakeRequest):
+        """Stake QBC on a Sephirot node."""
+        from ..quantum.crypto import Dilithium2
+        import json as _json
+
+        amount = Decimal(req.amount)
+        if req.node_id < 0 or req.node_id > 9:
+            raise HTTPException(status_code=400, detail="node_id must be 0-9")
+        min_stake = SEPHIROT_NODES[req.node_id]['min_stake']
+        if amount < min_stake:
+            raise HTTPException(status_code=400, detail=f"Minimum stake is {min_stake} QBC")
+
+        # Verify signature
+        pk = bytes.fromhex(req.public_key_hex)
+        derived_addr = Dilithium2.derive_address(pk)
+        if derived_addr != req.address:
+            raise HTTPException(status_code=400, detail="Public key does not match address")
+        tx_data = {'address': req.address, 'node_id': req.node_id, 'amount': req.amount, 'action': 'stake'}
+        msg = _json.dumps(tx_data, sort_keys=True).encode()
+        sig = bytes.fromhex(req.signature_hex)
+        if not Dilithium2.verify(pk, msg, sig):
+            raise HTTPException(status_code=400, detail="Invalid signature")
+
+        # Check balance
+        balance = db_manager.get_balance(req.address)
+        if balance < amount:
+            raise HTTPException(status_code=400, detail=f"Insufficient balance: have {balance}, need {amount}")
+
+        # Deduct UTXOs
+        import hashlib
+        import time as _time
+        utxos = db_manager.get_utxos(req.address)
+        utxos.sort(key=lambda u: u.amount, reverse=True)
+        selected = []
+        total = Decimal(0)
+        for u in utxos:
+            selected.append(u)
+            total += u.amount
+            if total >= amount:
+                break
+        change = total - amount
+        tx_hash = hashlib.sha256(f"stake:{req.address}:{req.node_id}:{amount}:{_time.time()}".encode()).hexdigest()
+
+        with db_manager.get_session() as session:
+            from sqlalchemy import text as sa_text
+            for u in selected:
+                session.execute(
+                    sa_text("UPDATE utxos SET spent = true, spent_by = :txid WHERE txid = :utxid AND vout = :vout AND spent = false"),
+                    {'txid': tx_hash, 'utxid': u.txid, 'vout': u.vout}
+                )
+            if change > 0:
+                session.execute(
+                    sa_text("INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent) VALUES (:txid, 0, :amt, :addr, '{}', :h, false)"),
+                    {'txid': tx_hash, 'amt': str(change), 'addr': req.address, 'h': db_manager.get_current_height()}
+                )
+            session.commit()
+
+        stake_id = db_manager.create_stake(req.address, req.node_id, amount)
+        logger.info(f"Sephirot stake: {req.address[:8]} → node {req.node_id} ({SEPHIROT_NODES[req.node_id]['name']}) {amount} QBC")
+        return {'stake_id': stake_id, 'node_id': req.node_id, 'amount': str(amount), 'status': 'active'}
+
+    class UnstakeRequest(BaseModel):
+        address: str
+        stake_id: str
+        signature_hex: str
+        public_key_hex: str
+
+    @app.post("/sephirot/unstake")
+    async def sephirot_unstake(req: UnstakeRequest):
+        """Request unstaking (7-day delay)."""
+        from ..quantum.crypto import Dilithium2
+        import json as _json
+
+        pk = bytes.fromhex(req.public_key_hex)
+        derived_addr = Dilithium2.derive_address(pk)
+        if derived_addr != req.address:
+            raise HTTPException(status_code=400, detail="Public key does not match address")
+        tx_data = {'address': req.address, 'stake_id': req.stake_id, 'action': 'unstake'}
+        msg = _json.dumps(tx_data, sort_keys=True).encode()
+        sig = bytes.fromhex(req.signature_hex)
+        if not Dilithium2.verify(pk, msg, sig):
+            raise HTTPException(status_code=400, detail="Invalid signature")
+
+        # Verify stake belongs to address
+        stake = db_manager.get_stake(req.stake_id)
+        if not stake:
+            raise HTTPException(status_code=404, detail="Stake not found")
+        if stake['address'] != req.address:
+            raise HTTPException(status_code=403, detail="Stake does not belong to this address")
+        if stake['status'] != 'active':
+            raise HTTPException(status_code=400, detail=f"Stake is already {stake['status']}")
+
+        success = db_manager.request_unstake(req.stake_id, req.address)
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to unstake")
+
+        import datetime
+        available_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
+        return {'stake_id': req.stake_id, 'status': 'unstaking', 'available_at': available_at.isoformat()}
+
+    @app.get("/sephirot/stakes/{address}")
+    async def get_sephirot_stakes(address: str):
+        """Get all stakes for an address."""
+        stakes = db_manager.get_stakes_by_address(address)
+        # Attach node name
+        for s in stakes:
+            nid = s['node_id']
+            if 0 <= nid <= 9:
+                s['node_name'] = SEPHIROT_NODES[nid]['name']
+        return {'stakes': stakes}
+
+    @app.get("/sephirot/rewards/{address}")
+    async def get_sephirot_rewards(address: str):
+        """Get accumulated rewards for an address."""
+        stakes = db_manager.get_stakes_by_address(address)
+        total_earned = sum(Decimal(s['rewards_earned']) for s in stakes)
+        total_claimed = sum(Decimal(s['rewards_claimed']) for s in stakes)
+        pending = total_earned - total_claimed
+        return {
+            'total_earned': str(total_earned),
+            'pending_claim': str(pending),
+            'claimed': str(total_claimed),
+            'stakes': stakes,
+        }
+
+    class ClaimRewardsRequest(BaseModel):
+        address: str
+        signature_hex: str
+        public_key_hex: str
+
+    @app.post("/sephirot/claim-rewards")
+    async def sephirot_claim_rewards(req: ClaimRewardsRequest):
+        """Claim all pending staking rewards."""
+        from ..quantum.crypto import Dilithium2
+        import json as _json
+        import hashlib
+        import time as _time
+
+        pk = bytes.fromhex(req.public_key_hex)
+        derived_addr = Dilithium2.derive_address(pk)
+        if derived_addr != req.address:
+            raise HTTPException(status_code=400, detail="Public key does not match address")
+        tx_data = {'address': req.address, 'action': 'claim_rewards'}
+        msg = _json.dumps(tx_data, sort_keys=True).encode()
+        sig = bytes.fromhex(req.signature_hex)
+        if not Dilithium2.verify(pk, msg, sig):
+            raise HTTPException(status_code=400, detail="Invalid signature")
+
+        claimed = db_manager.claim_rewards(req.address)
+        if claimed <= 0:
+            return {'claimed_amount': '0', 'tx_hash': None}
+
+        # Create UTXO for claimed rewards
+        tx_hash = hashlib.sha256(f"claim:{req.address}:{claimed}:{_time.time()}".encode()).hexdigest()
+        with db_manager.get_session() as session:
+            from sqlalchemy import text as sa_text
+            session.execute(
+                sa_text("INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent) VALUES (:txid, 0, :amt, :addr, '{}', :h, false)"),
+                {'txid': tx_hash, 'amt': str(claimed), 'addr': req.address, 'h': db_manager.get_current_height()}
+            )
+            session.commit()
+
+        logger.info(f"Rewards claimed: {req.address[:8]} → {claimed} QBC")
+        return {'claimed_amount': str(claimed), 'tx_hash': tx_hash}
+
+    # ========================================================================
     # SUSY SOLUTION DATABASE (Scientific Research API)
     # ========================================================================
 

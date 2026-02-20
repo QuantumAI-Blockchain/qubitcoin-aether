@@ -447,6 +447,22 @@ class ConsciousnessEventModel(Base):
     block_height = Column(BigInteger)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
 
+# -----------------------------------------------------------
+# Sephirot Staking Tables
+# -----------------------------------------------------------
+
+class SephirotStakeModel(Base):
+    __tablename__ = 'sephirot_stakes'
+    stake_id = Column(String(66), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    address = Column(String(64), nullable=False)
+    node_id = Column(Integer, nullable=False)  # 0-9 (Keter through Malkuth)
+    amount = Column(Numeric(20, 8), nullable=False)
+    status = Column(String(20), default='active')  # active, unstaking, withdrawn
+    staked_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    unstake_requested_at = Column(DateTime, nullable=True)
+    rewards_earned = Column(Numeric(20, 8), default=0)
+    rewards_claimed = Column(Numeric(20, 8), default=0)
+
 # ===========================================================
 # Database Manager
 # ===========================================================
@@ -1177,3 +1193,201 @@ class DatabaseManager:
             if not result:
                 return None
             return self.get_block(result[0])
+
+    # ========================================================================
+    # ACCOUNT TRANSFERS (MetaMask / EVM-style)
+    # ========================================================================
+    def transfer_between_accounts(self, from_addr: str, to_addr: str,
+                                  amount: Decimal) -> bool:
+        """Atomic debit/credit between QVM accounts.
+
+        Debits from_addr and credits to_addr in a single transaction.
+        Creates the recipient account if it doesn't exist.
+
+        Returns:
+            True on success, raises on insufficient balance.
+        """
+        with self.get_session() as session:
+            # Debit sender (fails if balance < amount)
+            result = session.execute(
+                text("""
+                    UPDATE accounts SET balance = balance - :amt
+                    WHERE address = :addr AND balance >= :amt
+                """),
+                {'addr': from_addr, 'amt': str(amount)}
+            )
+            if result.rowcount == 0:
+                raise ValueError(f"Insufficient balance for {from_addr}")
+            # Credit recipient (upsert)
+            session.execute(
+                text("""
+                    INSERT INTO accounts (address, nonce, balance, code_hash, storage_root)
+                    VALUES (:addr, 0, :amt, '', '')
+                    ON CONFLICT (address) DO UPDATE SET balance = accounts.balance + :amt
+                """),
+                {'addr': to_addr, 'amt': str(amount)}
+            )
+            # Increment sender nonce
+            session.execute(
+                text("UPDATE accounts SET nonce = nonce + 1 WHERE address = :addr"),
+                {'addr': from_addr}
+            )
+            session.commit()
+            return True
+
+    # ========================================================================
+    # SEPHIROT STAKING
+    # ========================================================================
+    def create_stake(self, address: str, node_id: int, amount: Decimal) -> str:
+        """Create a new Sephirot stake. Returns stake_id."""
+        with self.get_session() as session:
+            result = session.execute(
+                text("""
+                    INSERT INTO sephirot_stakes (address, node_id, amount, status)
+                    VALUES (:addr, :nid, :amt, 'active')
+                    RETURNING stake_id
+                """),
+                {'addr': address, 'nid': node_id, 'amt': str(amount)}
+            )
+            stake_id = result.scalar()
+            session.commit()
+            return stake_id
+
+    def get_stakes_by_address(self, address: str) -> list:
+        """Get all stakes for an address."""
+        with self.get_session() as session:
+            rows = session.execute(
+                text("""
+                    SELECT stake_id, address, node_id, amount, status,
+                           staked_at, unstake_requested_at,
+                           rewards_earned, rewards_claimed
+                    FROM sephirot_stakes
+                    WHERE address = :addr AND status != 'withdrawn'
+                    ORDER BY staked_at DESC
+                """),
+                {'addr': address}
+            ).fetchall()
+            return [
+                {
+                    'stake_id': r[0], 'address': r[1], 'node_id': r[2],
+                    'amount': str(r[3]), 'status': r[4],
+                    'staked_at': str(r[5]) if r[5] else None,
+                    'unstake_requested_at': str(r[6]) if r[6] else None,
+                    'rewards_earned': str(r[7] or 0),
+                    'rewards_claimed': str(r[8] or 0),
+                }
+                for r in rows
+            ]
+
+    def request_unstake(self, stake_id: str, address: str) -> bool:
+        """Request unstaking (7-day delay). Returns True if found."""
+        with self.get_session() as session:
+            result = session.execute(
+                text("""
+                    UPDATE sephirot_stakes
+                    SET status = 'unstaking', unstake_requested_at = CURRENT_TIMESTAMP
+                    WHERE stake_id = :sid AND address = :addr AND status = 'active'
+                """),
+                {'sid': stake_id, 'addr': address}
+            )
+            session.commit()
+            return result.rowcount > 0
+
+    def get_sephirot_summary(self) -> list:
+        """Get aggregated staking summary for all 10 nodes."""
+        with self.get_session() as session:
+            rows = session.execute(
+                text("""
+                    SELECT node_id,
+                           COUNT(*) AS staker_count,
+                           COALESCE(SUM(amount), 0) AS total_staked
+                    FROM sephirot_stakes
+                    WHERE status = 'active'
+                    GROUP BY node_id
+                    ORDER BY node_id
+                """)
+            ).fetchall()
+            summary = {}
+            for r in rows:
+                summary[r[0]] = {
+                    'staker_count': r[1],
+                    'total_staked': str(r[2]),
+                }
+            return summary
+
+    def get_stake(self, stake_id: str) -> Optional[dict]:
+        """Get a single stake by ID."""
+        with self.get_session() as session:
+            r = session.execute(
+                text("""
+                    SELECT stake_id, address, node_id, amount, status,
+                           staked_at, unstake_requested_at,
+                           rewards_earned, rewards_claimed
+                    FROM sephirot_stakes WHERE stake_id = :sid
+                """),
+                {'sid': stake_id}
+            ).fetchone()
+            if not r:
+                return None
+            return {
+                'stake_id': r[0], 'address': r[1], 'node_id': r[2],
+                'amount': str(r[3]), 'status': r[4],
+                'staked_at': str(r[5]) if r[5] else None,
+                'unstake_requested_at': str(r[6]) if r[6] else None,
+                'rewards_earned': str(r[7] or 0),
+                'rewards_claimed': str(r[8] or 0),
+            }
+
+    def claim_rewards(self, address: str) -> Decimal:
+        """Claim all pending rewards for an address. Returns amount claimed."""
+        with self.get_session() as session:
+            # Sum pending rewards
+            result = session.execute(
+                text("""
+                    SELECT COALESCE(SUM(rewards_earned - rewards_claimed), 0)
+                    FROM sephirot_stakes
+                    WHERE address = :addr AND status = 'active'
+                      AND rewards_earned > rewards_claimed
+                """),
+                {'addr': address}
+            ).scalar()
+            claimable = Decimal(str(result or 0))
+            if claimable <= 0:
+                return Decimal(0)
+            # Mark claimed
+            session.execute(
+                text("""
+                    UPDATE sephirot_stakes
+                    SET rewards_claimed = rewards_earned
+                    WHERE address = :addr AND status = 'active'
+                      AND rewards_earned > rewards_claimed
+                """),
+                {'addr': address}
+            )
+            session.commit()
+            return claimable
+
+    def distribute_rewards(self, node_id: int, reward_amount: Decimal) -> None:
+        """Distribute rewards pro-rata to all active stakers on a node."""
+        with self.get_session() as session:
+            # Get total staked on this node
+            total = session.execute(
+                text("""
+                    SELECT COALESCE(SUM(amount), 0) FROM sephirot_stakes
+                    WHERE node_id = :nid AND status = 'active'
+                """),
+                {'nid': node_id}
+            ).scalar()
+            total = Decimal(str(total or 0))
+            if total <= 0:
+                return
+            # Pro-rata distribution
+            session.execute(
+                text("""
+                    UPDATE sephirot_stakes
+                    SET rewards_earned = rewards_earned + (:reward * amount / :total)
+                    WHERE node_id = :nid AND status = 'active'
+                """),
+                {'reward': str(reward_amount), 'total': str(total), 'nid': node_id}
+            )
+            session.commit()
