@@ -109,6 +109,7 @@ services:
       - "50051:50051"   # gRPC (Rust P2P bridge)
     env_file:
       - .env
+      - secure_key.env
     environment:
       - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
       - IPFS_API=/ip4/ipfs/tcp/5001/http

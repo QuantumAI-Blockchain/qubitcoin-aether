@@ -183,7 +183,12 @@ AUTO_MINE=true              # Start mining immediately (KEEP THIS)
 USE_LOCAL_ESTIMATOR=true    # Use local Qiskit simulator (no IBM account needed)
 RPC_PORT=5000               # API port
 CHAIN_ID=3301               # Mainnet chain ID
+ENABLE_RUST_P2P=false       # Use Python P2P (Rust P2P requires separate daemon)
 ```
+
+> **IMPORTANT FOR DOCKER:** The `docker-compose.yml` loads BOTH `.env` and `secure_key.env`
+> via `env_file`. Both files must exist in the project root before running `docker compose up`.
+> If `secure_key.env` is missing, the container will fail to start.
 
 ### 4.4 Verify Files Exist
 
@@ -195,10 +200,19 @@ CHAIN_ID=3301               # Mainnet chain ID
 
 ## 5. PHASE 3: START BACKEND (DOCKER)
 
-### 5.1 Build and Start All Services
+### 5.1 Pre-flight Check
+
+Before starting Docker, verify both env files exist:
 
 ```bash
 cd /path/to/Qubitcoin
+ls -la .env secure_key.env
+# Both files MUST exist. If not, go back to Phase 2.
+```
+
+### 5.2 Build and Start All Services
+
+```bash
 docker compose up -d
 ```
 
@@ -207,7 +221,10 @@ Portainer, Loki, Promtail.
 
 **First run will take 3-5 minutes** (Docker pulls images + builds QBC node from Dockerfile).
 
-### 5.2 Monitor Startup
+> **If you see `secure_key.env: no such file`** — go back to Phase 2, step 4.2.
+> The Docker Compose loads both `.env` and `secure_key.env` into the node container.
+
+### 5.3 Monitor Startup
 
 ```bash
 # Watch all service status
@@ -235,7 +252,7 @@ INFO: Aether genesis initialized: 4 nodes seeded, Phi=0.0
 INFO: Block 1 mined! Reward: 15.27 QBC
 ```
 
-### 5.3 Verify Services Are Healthy
+### 5.4 Verify Services Are Healthy
 
 ```bash
 # Node health
@@ -254,7 +271,7 @@ curl http://localhost:5000/chain/info
 # Open http://localhost:9090 in browser
 ```
 
-### 5.4 Checklist
+### 5.5 Checklist
 
 - [ ] `docker compose ps` shows all services "Up" or "healthy"
 - [ ] `curl http://localhost:5000/health` returns OK
