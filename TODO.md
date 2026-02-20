@@ -239,7 +239,7 @@
 
 ### 2.12 Go Production Implementation (qubitcoin-qvm/)
 - [x] Initialize Go module (`go.mod`, project structure) — `qubitcoin-qvm/go.mod` (Go 1.23, go-ethereum, circl, grpc-gateway, prometheus, cobra, viper, testify, cockroach-go, pgx, zap)
-- [ ] Port EVM core (15 files: opcodes, stack, memory, storage, gas, precompiles)
+- [x] Port EVM core (5/15 files: opcodes, stack, memory, gas, interpreter, context) — `pkg/vm/evm/stack.go` (1024-item bounded stack, big.Int, signed/unsigned helpers), `pkg/vm/evm/memory.go` (word-aligned, EVM expansion cost), `pkg/vm/evm/context.go` (BlockContext, TxContext, CallContext, ExecutionContext, JUMPDEST analysis), `pkg/vm/evm/gas.go` (Berlin/Shanghai constants, EIP-2200 SSTORE, dynamic cost functions), `pkg/vm/evm/interpreter.go` (full opcode dispatch: arithmetic, bitwise, keccak256, environment, block info, stack/memory/storage, push/dup/swap, log, return/revert, CREATE/CALL stubs)
 - [ ] Port quantum extensions (8 files: states, circuits, entanglement, gates)
 - [ ] Implement compliance engine (9 files: KYC, AML, sanctions, risk)
 - [ ] Implement plugin system (5 files: manager, loader, registry)
