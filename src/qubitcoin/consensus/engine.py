@@ -44,14 +44,26 @@ class ConsensusEngine:
         logger.debug(f"Block {height}: Era {era}, Reward {reward:.8f} QBC")
         return reward
 
+    # Height at which the difficulty ratio formula was corrected.
+    # Blocks before this used inverted ratio (expected/actual) which caused a
+    # death spiral — lowering difficulty when blocks were slow made VQE harder.
+    # Blocks at or after this height use corrected ratio (actual/expected) so
+    # that slow blocks raise the threshold, making mining easier.
+    DIFFICULTY_FIX_HEIGHT = 724
+
     def calculate_difficulty(self, height: int, db_manager) -> float:
         """Calculate difficulty using per-block adjustment with 144-block lookback window.
 
+        In VQE mining, energy must be BELOW the difficulty threshold to mine a
+        block.  Therefore higher difficulty = easier mining.
+
         Algorithm:
-          1. For each new block, look back DIFFICULTY_WINDOW (144) blocks.
-          2. Compute actual_time = timestamp(head) - timestamp(head - window).
-          3. expected_time = DIFFICULTY_WINDOW * TARGET_BLOCK_TIME (144 * 3.3s = 475.2s).
-          4. ratio = expected_time / actual_time (>1 means blocks too slow, <1 too fast).
+          1. Look back DIFFICULTY_WINDOW (144) blocks.
+          2. actual_time = timestamp(head) - timestamp(head - window).
+          3. expected_time = DIFFICULTY_WINDOW * TARGET_BLOCK_TIME.
+          4. ratio = actual_time / expected_time
+             (>1 means blocks too slow → raise difficulty to make mining easier,
+              <1 means blocks too fast → lower difficulty to make mining harder).
           5. Clamp ratio to ±MAX_DIFFICULTY_CHANGE (10%) per adjustment.
           6. new_difficulty = prev_difficulty * clamped_ratio.
         """
@@ -61,6 +73,12 @@ class ConsensusEngine:
         window = Config.DIFFICULTY_WINDOW  # 144
 
         if height < window:
+            return Config.INITIAL_DIFFICULTY
+
+        # One-time difficulty reset at fix height to escape death-spiral
+        if height == self.DIFFICULTY_FIX_HEIGHT:
+            self.difficulty_cache[height] = Config.INITIAL_DIFFICULTY
+            logger.info(f"Difficulty reset to {Config.INITIAL_DIFFICULTY} at fork height {height}")
             return Config.INITIAL_DIFFICULTY
 
         try:
@@ -82,14 +100,18 @@ class ConsensusEngine:
             actual_time = head_time - start_time
             expected_time = Config.TARGET_BLOCK_TIME * window
 
-            ratio = expected_time / actual_time
+            # Pre-fix blocks used inverted ratio; post-fix uses corrected ratio
+            if height < self.DIFFICULTY_FIX_HEIGHT:
+                ratio = expected_time / actual_time  # Legacy (inverted)
+            else:
+                ratio = actual_time / expected_time  # Corrected: slow → raise, fast → lower
 
             # Clamp to ±MAX_DIFFICULTY_CHANGE (default ±10%)
             max_change = Config.MAX_DIFFICULTY_CHANGE
             ratio = max(1.0 - max_change, min(1.0 + max_change, ratio))
 
             new_difficulty = prev_difficulty * ratio
-            new_difficulty = max(0.01, min(10.0, new_difficulty))
+            new_difficulty = max(0.05, min(10.0, new_difficulty))
 
             # Cache to avoid re-computation
             self.difficulty_cache[height] = new_difficulty

@@ -576,29 +576,48 @@ def is_valid_solution(params: np.ndarray,
 
 ### 4.4 Difficulty Adjustment
 
-Qubitcoin uses Kimoto Gravity Well (KGW) for rapid response to hash rate changes:
+Qubitcoin adjusts difficulty every block using a 144-block lookback window with
+±10% maximum change per adjustment.
+
+**Key insight:** In VQE mining, the miner must find parameters yielding energy
+*below* the difficulty threshold. Therefore **higher difficulty = easier mining**
+(the threshold is more generous) and **lower difficulty = harder mining** (the
+threshold is tighter). This is the inverse of hash-based PoW where lower target
+= harder mining.
+
+The adjustment ratio reflects this: when blocks are arriving slowly the
+difficulty threshold is raised (making mining easier), and when blocks are
+arriving quickly it is lowered (making mining harder).
 
 ```python
-def calculate_new_difficulty(recent_blocks: List[Block]) -> float:
+def calculate_difficulty(height: int, db_manager) -> float:
     """
-    Adjust difficulty based on recent block times.
+    Per-block difficulty adjustment with 144-block lookback.
 
-    Target: 2 minutes per block
-    Window: 144 blocks (~4.8 hours)
+    Target: 3.3 seconds per block
+    Window: 144 blocks (~475.2 seconds)
+    Max change: ±10% per adjustment
+    Floor: 0.05  |  Ceiling: 10.0
     """
-    if len(recent_blocks) < 144:
-        return INITIAL_DIFFICULTY
+    WINDOW = 144
+    if height < WINDOW:
+        return INITIAL_DIFFICULTY  # 1.0
 
-    actual_time = recent_blocks[0].timestamp - recent_blocks[143].timestamp
-    expected_time = 144 * 120
+    head_block = db_manager.get_block(height - 1)
+    window_start = db_manager.get_block(height - WINDOW)
 
+    actual_time = head_block.timestamp - window_start.timestamp
+    expected_time = WINDOW * 3.3  # 475.2 seconds
+
+    # ratio > 1 → blocks too slow → raise difficulty (easier mining)
+    # ratio < 1 → blocks too fast → lower difficulty (harder mining)
     ratio = actual_time / expected_time
 
-    new_difficulty = recent_blocks[0].difficulty * ratio
-    new_difficulty = max(new_difficulty, recent_blocks[0].difficulty * 0.25)
-    new_difficulty = min(new_difficulty, recent_blocks[0].difficulty * 4.0)
+    # Clamp to ±10% per adjustment
+    ratio = max(0.9, min(1.1, ratio))
 
-    return new_difficulty
+    new_difficulty = head_block.difficulty * ratio
+    return max(0.05, min(10.0, new_difficulty))
 ```
 
 ### 4.5 Block Structure

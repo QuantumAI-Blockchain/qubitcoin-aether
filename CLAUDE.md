@@ -466,7 +466,7 @@ BLOCK_GAS_LIMIT = 30,000,000     # QVM gas limit per block
 
 1. **Hamiltonian Generation:** Deterministic SUSY Hamiltonian from prev_block_hash
 2. **VQE Mining:** 4-qubit ansatz, find parameters where Energy < Difficulty
-3. **Difficulty Adjustment:** Every block, 144-block window, +/-10% max change
+3. **Difficulty Adjustment:** Every block, 144-block window, +/-10% max change. **Higher difficulty = easier mining** (threshold is more generous). `ratio = actual_time / expected_time` — slow blocks raise difficulty, fast blocks lower it.
 4. **Reward Distribution:** phi-halving (reward / PHI^era)
 5. **Proof-of-Thought:** Aether Tree generates reasoning proof per block
 
@@ -1314,7 +1314,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 |-------|------|
 | **UTXO** | Balance = sum(unspent outputs). NOT account balance. |
 | **Dilithium** | ~3KB signatures. Affects tx size, block capacity (~333 tx/MB), bandwidth. |
-| **VQE mining** | Energy threshold (E < D), not hash difficulty. 4-qubit SUSY Hamiltonian. |
+| **VQE mining** | Energy threshold (E < D), not hash difficulty. 4-qubit SUSY Hamiltonian. **Higher difficulty = easier mining** (inverse of PoW). |
 | **phi-halving** | Golden ratio halving. NOT Bitcoin's fixed 210K blocks. |
 | **Block time** | 3.3s target. Difficulty adjusts every block (144-block window, +/-10% max). |
 | **CockroachDB** | Pin v24.2.0. Health: `curl --fail http://localhost:8080/health?ready=1` |

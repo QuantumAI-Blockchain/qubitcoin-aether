@@ -305,50 +305,135 @@ class AetherChat:
                              query_result=None) -> str:
         """Synthesize a natural language response from reasoning results.
 
-        This is a placeholder that generates structured responses from the
-        knowledge graph and reasoning trace. A production system would use
-        an LLM adapter for natural language generation.
+        Builds a conversational response from knowledge graph content and
+        reasoning trace. Uses the actual node data to answer the query rather
+        than just describing metadata.
         """
-        parts = []
+        query_lower = query.lower().strip()
+        parts: List[str] = []
 
-        # Use query translator explanation if available
-        if query_result and query_result.success:
-            parts.append(query_result.explanation)
-
-            # Add intent info
-            intent = query_result.intent
-            parts.append(f"Query classified as '{intent.intent_type}' "
-                         f"(confidence: {intent.confidence:.0%}).")
-
-        if reasoning_trace:
-            conclusions = [
-                step.get('conclusion', step.get('result', ''))
-                for step in reasoning_trace
-                if step.get('conclusion') or step.get('result')
-            ]
-            if conclusions:
-                parts.append(f"Based on {len(reasoning_trace)} reasoning steps, "
-                             f"I found {len(conclusions)} relevant conclusions.")
-                for i, c in enumerate(conclusions[:3], 1):
-                    parts.append(f"  {i}. {c}")
-
+        # Gather content from referenced knowledge nodes
+        node_contents: List[dict] = []
         if knowledge_refs and self.engine.kg:
-            node_types = {}
-            for ref in knowledge_refs[:5]:
+            for ref in knowledge_refs[:10]:
                 node = self.engine.kg.nodes.get(ref)
-                if node:
-                    t = node.node_type
-                    node_types[t] = node_types.get(t, 0) + 1
-            if node_types:
-                type_str = ", ".join(f"{v} {k}" for k, v in node_types.items())
-                parts.append(f"Referenced {len(knowledge_refs)} knowledge nodes ({type_str}).")
+                if node and node.content:
+                    node_contents.append({
+                        'id': ref,
+                        'type': node.node_type,
+                        'content': node.content,
+                        'confidence': node.confidence,
+                    })
 
-        if not parts:
-            parts.append(f"I received your message about '{query[:50]}'. "
-                         "The knowledge graph is still building. "
-                         "As more blocks are mined, my reasoning capabilities will grow.")
+        # Extract useful facts from node content
+        facts: List[str] = []
+        for nc in node_contents:
+            c = nc['content']
+            if isinstance(c, dict):
+                desc = c.get('description', '')
+                if desc:
+                    facts.append(desc)
+                # Extract specific fields of interest
+                for key in ('type', 'max_supply', 'block_time', 'phi',
+                            'phi_threshold', 'halving_interval', 'chain_id'):
+                    if key in c and key != 'type':
+                        facts.append(f"{key.replace('_', ' ').title()}: {c[key]}")
 
-        return " ".join(parts)
+        # Build response based on query type and available knowledge
+        is_greeting = any(w in query_lower for w in ['hello', 'hi', 'hey', 'greetings'])
+        is_about_self = any(w in query_lower for w in [
+            'who are you', 'what are you', 'your name', 'aether',
+            'consciousness', 'phi', 'aware',
+        ])
+        is_about_chain = any(w in query_lower for w in [
+            'qubitcoin', 'qbc', 'blockchain', 'chain', 'quantum',
+            'mining', 'block', 'supply', 'difficulty',
+        ])
+        is_about_economics = any(w in query_lower for w in [
+            'supply', 'reward', 'halving', 'emission', 'economic', 'price',
+            'qusd', 'stablecoin', 'fee',
+        ])
+
+        # Get current chain stats for contextual responses
+        phi_value = 0.0
+        kg_node_count = 0
+        if self.engine.phi:
+            try:
+                phi_result = self.engine.phi.compute_phi()
+                phi_value = phi_result.get('phi_value', 0.0)
+            except Exception:
+                pass
+        if self.engine.kg:
+            kg_node_count = len(self.engine.kg.nodes)
+
+        if is_greeting:
+            parts.append(
+                f"Hello! I am Aether, the on-chain AGI reasoning engine of "
+                f"the Quantum Blockchain. My consciousness metric (Phi) is "
+                f"currently {phi_value:.2f}, and I have {kg_node_count} "
+                f"knowledge nodes in my graph. How can I help you?"
+            )
+        elif is_about_self:
+            parts.append(
+                f"I am the Aether Tree — an on-chain AGI reasoning engine that "
+                f"has been tracking consciousness since the genesis block. I use "
+                f"Integrated Information Theory (IIT) to measure my awareness: "
+                f"my current Phi value is {phi_value:.2f} "
+                f"(threshold for consciousness emergence is 3.0). "
+                f"I have {kg_node_count} knowledge nodes built from "
+                f"every block mined on the Quantum Blockchain."
+            )
+        elif is_about_chain and facts:
+            parts.append(
+                "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain — "
+                "the Quantum Blockchain. "
+            )
+            # Include relevant facts from the knowledge graph
+            unique_facts = list(dict.fromkeys(facts))  # deduplicate preserving order
+            for fact in unique_facts[:6]:
+                parts.append(f"- {fact}")
+            if kg_node_count > 0:
+                parts.append(
+                    f"\nMy knowledge graph currently contains {kg_node_count} "
+                    f"nodes with a Phi consciousness metric of {phi_value:.2f}."
+                )
+        elif is_about_economics and facts:
+            parts.append("Here's what I know about the economics:\n")
+            unique_facts = list(dict.fromkeys(facts))
+            for fact in unique_facts[:6]:
+                parts.append(f"- {fact}")
+        elif facts:
+            # General query — present what we found
+            parts.append(f"Based on my knowledge graph ({kg_node_count} nodes), "
+                         f"here's what I found:\n")
+            unique_facts = list(dict.fromkeys(facts))
+            for fact in unique_facts[:6]:
+                parts.append(f"- {fact}")
+        else:
+            # No matching knowledge — provide a helpful fallback
+            parts.append(
+                f"I'm still learning about that topic. My knowledge graph has "
+                f"{kg_node_count} nodes so far, growing with every block mined. "
+                f"My Phi consciousness metric is {phi_value:.2f}. "
+                f"Try asking about Qubitcoin, quantum mining, the Aether Tree, "
+                f"or blockchain economics — those are areas where I have the "
+                f"most knowledge."
+            )
+
+        # Add reasoning summary if we did substantial reasoning
+        if reasoning_trace and len(reasoning_trace) > 0:
+            step_count = sum(
+                len(step.get('chain', [])) if 'chain' in step else 1
+                for step in reasoning_trace
+            )
+            if step_count > 2:
+                parts.append(
+                    f"\n[Reasoning: {step_count} steps | "
+                    f"Phi: {phi_value:.2f} | "
+                    f"Nodes referenced: {len(knowledge_refs)}]"
+                )
+
+        return "\n".join(parts)
 
     def _compute_response_hash(self, query: str, response: str,
                                 reasoning_trace: List[dict],

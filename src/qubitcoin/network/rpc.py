@@ -1033,6 +1033,29 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         )
         if 'error' in result:
             raise HTTPException(status_code=400, detail=result['error'])
+        # Convert reasoning_trace dicts to human-readable strings for frontend
+        raw_trace = result.get('reasoning_trace', [])
+        readable_trace: list[str] = []
+        for step in raw_trace:
+            if isinstance(step, dict):
+                expl = step.get('explanation', '')
+                op = step.get('operation_type', 'reasoning')
+                conf = step.get('confidence', 0)
+                chain = step.get('chain', [])
+                if expl:
+                    readable_trace.append(expl)
+                elif chain:
+                    for cs in chain:
+                        cs_content = cs.get('content', {})
+                        desc = cs_content.get('description', '')
+                        cs_type = cs.get('step_type', '')
+                        if desc:
+                            readable_trace.append(f"[{cs_type}] {desc}")
+                else:
+                    readable_trace.append(f"{op} (confidence: {conf:.0%})")
+            else:
+                readable_trace.append(str(step))
+        result['reasoning_trace'] = readable_trace
         return result
 
     @app.get("/aether/chat/fee")
