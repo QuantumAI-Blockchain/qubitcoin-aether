@@ -212,6 +212,14 @@ class MiningEngine:
                 except Exception as e:
                     logger.debug(f"Aether knowledge processing: {e}")
 
+            # Process matured Sephirot unstaking requests (7-day lock)
+            try:
+                withdrawn = self.db.process_unstakes(next_height)
+                if withdrawn > 0:
+                    logger.info(f"Processed {withdrawn} matured unstake(s) at block {next_height}")
+            except Exception as e:
+                logger.debug(f"Unstake processing: {e}")
+
             # Broadcast mined block to P2P network via node (handles Rust/Python P2P)
             if self.node and hasattr(self.node, 'on_block_mined'):
                 try:

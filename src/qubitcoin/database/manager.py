@@ -1391,3 +1391,64 @@ class DatabaseManager:
                 {'reward': str(reward_amount), 'total': str(total), 'nid': node_id}
             )
             session.commit()
+
+    def process_unstakes(self, block_height: int) -> int:
+        """Process matured unstaking requests (7-day lock expired).
+
+        Called once per block. Finds stakes where status='unstaking' and
+        unstake_requested_at is older than 7 days, creates UTXOs to return
+        the staked amount, and marks them as 'withdrawn'.
+
+        Returns:
+            Number of stakes withdrawn.
+        """
+        import hashlib
+        import time as _time
+
+        with self.get_session() as session:
+            # Find matured unstakes (7 days = 168 hours)
+            rows = session.execute(
+                text("""
+                    SELECT stake_id, address, amount, rewards_earned, rewards_claimed
+                    FROM sephirot_stakes
+                    WHERE status = 'unstaking'
+                      AND unstake_requested_at <= CURRENT_TIMESTAMP - INTERVAL '7 days'
+                """)
+            ).fetchall()
+
+            if not rows:
+                return 0
+
+            withdrawn = 0
+            for r in rows:
+                stake_id, address, amount, rewards_earned, rewards_claimed = r
+                amount = Decimal(str(amount))
+                unclaimed = Decimal(str(rewards_earned or 0)) - Decimal(str(rewards_claimed or 0))
+                total_return = amount + unclaimed
+
+                # Create UTXO returning staked amount + unclaimed rewards
+                tx_hash = hashlib.sha256(
+                    f"unstake:{stake_id}:{block_height}:{_time.time()}".encode()
+                ).hexdigest()
+                session.execute(
+                    text("""
+                        INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent)
+                        VALUES (:txid, 0, :amt, :addr, '{}', :h, false)
+                    """),
+                    {'txid': tx_hash, 'amt': str(total_return), 'addr': address, 'h': block_height}
+                )
+
+                # Mark stake as withdrawn
+                session.execute(
+                    text("""
+                        UPDATE sephirot_stakes
+                        SET status = 'withdrawn', rewards_claimed = rewards_earned
+                        WHERE stake_id = :sid
+                    """),
+                    {'sid': stake_id}
+                )
+                withdrawn += 1
+                logger.info(f"Unstake matured: {address[:8]} stake {stake_id[:8]} → {total_return} QBC returned")
+
+            session.commit()
+            return withdrawn
