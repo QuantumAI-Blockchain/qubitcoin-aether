@@ -322,7 +322,7 @@ export function KnowledgeGraph3D() {
         </div>
       </div>
 
-      <div className="relative h-[400px] w-full overflow-hidden rounded-lg bg-void">
+      <div className="relative h-[500px] w-full overflow-hidden rounded-lg bg-void">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-text-secondary">
             Loading knowledge graph...
