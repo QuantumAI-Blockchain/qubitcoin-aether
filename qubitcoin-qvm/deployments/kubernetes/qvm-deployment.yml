@@ -1,0 +1,246 @@
+# ============================================================================
+# Kubernetes Manifests — Qubitcoin QVM (Go Production Build)
+# Deploys: QVM StatefulSet, Service, ConfigMap, HPA, PDB
+# ============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qbc-qvm
+  labels:
+    app.kubernetes.io/part-of: qubitcoin
+---
+# ── ConfigMap ──────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qvm-config
+  namespace: qbc-qvm
+data:
+  CHAIN_ID: "3301"
+  GRPC_ADDR: ":50052"
+  HTTP_ADDR: ":8080"
+  BLOCK_GAS_LIMIT: "30000000"
+  LOG_LEVEL: "info"
+  METRICS_ENABLED: "true"
+  DATABASE_URL: "postgresql://root@cockroachdb.qbc.svc.cluster.local:26257/qbc?sslmode=verify-full"
+---
+# ── Service (headless for StatefulSet + ClusterIP for clients) ─────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: qvm
+  namespace: qbc-qvm
+  labels:
+    app: qvm
+spec:
+  selector:
+    app: qvm
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: grpc
+      port: 50052
+      targetPort: 50052
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qvm-headless
+  namespace: qbc-qvm
+spec:
+  selector:
+    app: qvm
+  clusterIP: None
+  ports:
+    - name: grpc
+      port: 50052
+---
+# ── StatefulSet ────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: qvm
+  namespace: qbc-qvm
+  labels:
+    app: qvm
+spec:
+  serviceName: qvm-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: qvm
+  template:
+    metadata:
+      labels:
+        app: qvm
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: qvm
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: qvm
+          image: ghcr.io/blockartica/qubitcoin-qvm:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: grpc
+              containerPort: 50052
+          envFrom:
+            - configMapRef:
+                name: qvm-config
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: qvm-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: qvm-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: fast-ssd
+        resources:
+          requests:
+            storage: 50Gi
+---
+# ── ServiceAccount ─────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: qvm
+  namespace: qbc-qvm
+---
+# ── HorizontalPodAutoscaler ───────────────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: qvm
+  namespace: qbc-qvm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    name: qvm
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+---
+# ── PodDisruptionBudget ───────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: qvm
+  namespace: qbc-qvm
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: qvm
+---
+# ── NetworkPolicy ─────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qvm-network
+  namespace: qbc-qvm
+spec:
+  podSelector:
+    matchLabels:
+      app: qvm
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: qubitcoin
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 50052
+          protocol: TCP
+    # Allow Prometheus scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - port: 8080
+          protocol: TCP
+  egress:
+    # CockroachDB
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: qubitcoin
+      ports:
+        - port: 26257
+          protocol: TCP
+    # DNS
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
