@@ -4,30 +4,14 @@ import { useRef, useMemo, useCallback, useState } from "react";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
 import { useQuery } from "@tanstack/react-query";
-import { get } from "@/lib/api";
+import { api, type KnowledgeGraphData } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import * as THREE from "three";
 
 /* --- Types --- */
 
-interface KnowledgeNode {
-  id: number;
-  content: string;
-  node_type: string;
-  confidence: number;
-}
-
-interface KnowledgeEdge {
-  source: number;
-  target: number;
-  edge_type: string;
-  weight: number;
-}
-
-interface KnowledgeGraphData {
-  nodes: KnowledgeNode[];
-  edges: KnowledgeEdge[];
-}
+type KnowledgeNode = KnowledgeGraphData["nodes"][number];
+type KnowledgeEdge = KnowledgeGraphData["edges"][number];
 
 /* --- Force layout (simple spring simulation) --- */
 
@@ -306,8 +290,7 @@ function GraphScene({ data }: { data: KnowledgeGraphData }) {
 export function KnowledgeGraph3D() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["knowledgeGraph"],
-    queryFn: () =>
-      get<KnowledgeGraphData>("/aether/knowledge/graph"),
+    queryFn: () => api.getKnowledgeGraph(),
     refetchInterval: 30_000,
     retry: false,
   });

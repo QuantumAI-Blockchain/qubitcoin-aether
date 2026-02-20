@@ -275,15 +275,34 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 'hours_until_halving': (Config.HALVING_INTERVAL * Config.TARGET_BLOCK_TIME) / 3600
             }
 
+        # Peer count
+        peers = 0
+        if hasattr(app, 'node'):
+            node = app.node
+            if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
+                peers = node.rust_p2p.get_peer_count()
+            elif hasattr(node, 'p2p') and node.p2p:
+                peers = len(node.p2p.connections)
+
+        # Mempool size
+        try:
+            pending = db_manager.get_pending_transactions()
+            mempool_size = len(pending)
+        except Exception:
+            mempool_size = 0
+
         return {
+            "chain_id": Config.CHAIN_ID,
             "height": emission_stats['current_height'],
-            "total_supply": str(emission_stats['total_supply']),
-            "max_supply": str(Config.MAX_SUPPLY),
+            "total_supply": float(emission_stats['total_supply']),
+            "max_supply": float(Config.MAX_SUPPLY),
             "percent_emitted": f"{emission_stats['percent_emitted']:.4f}%",
             "current_era": emission_stats.get('current_era', 0),
-            "current_reward": str(emission_stats.get('current_reward', 50.0)),
+            "current_reward": float(emission_stats.get('current_reward', 50.0)),
             "difficulty": mining_engine.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY),
-            "target_block_time": Config.TARGET_BLOCK_TIME
+            "target_block_time": Config.TARGET_BLOCK_TIME,
+            "peers": peers,
+            "mempool_size": mempool_size,
         }
 
     @app.get("/chain/tip")
@@ -404,7 +423,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "blocks_found": mining_engine.stats['blocks_found'],
             "total_attempts": mining_engine.stats['total_attempts'],
             "current_difficulty": mining_engine.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY),
-            "success_rate": mining_engine.stats['blocks_found'] / max(1, mining_engine.stats['total_attempts'])
+            "success_rate": mining_engine.stats['blocks_found'] / max(1, mining_engine.stats['total_attempts']),
+            "best_energy": mining_engine.stats.get('best_energy', None),
+            "alignment_score": mining_engine.stats.get('alignment_score', None),
         }
 
     @app.post("/mining/start")
@@ -659,6 +680,44 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
     # KNOWLEDGE GRAPH QUERY ENDPOINTS
     # ========================================================================
+
+    @app.get("/aether/knowledge/graph")
+    async def aether_knowledge_graph(limit: int = 200):
+        """Get knowledge graph nodes and edges for 3D visualization."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        if limit < 1:
+            limit = 1
+        if limit > 500:
+            limit = 500
+        kg = aether_engine.kg
+        # Get most recent nodes up to limit
+        recent = kg.find_recent(limit)
+        node_ids = {n.node_id for n in recent}
+        nodes_out = []
+        for n in recent:
+            content_str = ''
+            if isinstance(n.content, dict):
+                content_str = n.content.get('description', n.content.get('content', str(n.content)))
+            else:
+                content_str = str(n.content)
+            nodes_out.append({
+                'id': n.node_id,
+                'content': content_str[:120],
+                'node_type': n.node_type,
+                'confidence': n.confidence,
+            })
+        # Filter edges to only those connecting visible nodes
+        edges_out = []
+        for edge in kg.edges:
+            if edge.from_node_id in node_ids and edge.to_node_id in node_ids:
+                edges_out.append({
+                    'source': edge.from_node_id,
+                    'target': edge.to_node_id,
+                    'edge_type': edge.edge_type,
+                    'weight': edge.weight,
+                })
+        return {'nodes': nodes_out, 'edges': edges_out}
 
     @app.get("/aether/knowledge/search")
     async def knowledge_search(type: Optional[str] = None, key: Optional[str] = None,

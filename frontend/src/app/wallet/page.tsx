@@ -14,12 +14,14 @@ import { NFTGallery } from "@/components/wallet/nft-gallery";
 export default function WalletPage() {
   const { address, connected } = useWalletStore();
 
-  const { data: balance } = useQuery({
+  const { data: balanceData } = useQuery({
     queryKey: ["balance", address],
     queryFn: () => api.getBalance(address!),
     enabled: !!address,
     refetchInterval: 10_000,
   });
+
+  const balance = balanceData?.balance ? parseFloat(balanceData.balance) : undefined;
 
   if (!connected) {
     return (
@@ -48,7 +50,7 @@ export default function WalletPage() {
         <Card glow="green">
           <p className="text-sm text-text-secondary">QBC Balance</p>
           <p className="mt-2 font-[family-name:var(--font-mono)] text-4xl font-bold text-quantum-green">
-            {balance?.balance?.toLocaleString() ?? "---"} QBC
+            {balance != null ? balance.toLocaleString() : "---"} QBC
           </p>
           <p className="mt-2 font-[family-name:var(--font-mono)] text-xs text-text-secondary">
             {address}

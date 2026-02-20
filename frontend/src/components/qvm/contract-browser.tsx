@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, type ContractInfo } from "@/lib/api";
+import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
 
@@ -69,24 +69,11 @@ export function ContractBrowser() {
   );
 }
 
-function ContractDetail({ contract }: { contract: ContractInfo }) {
-  const deployedDate = new Date(contract.deployed_at * 1000);
-
+function ContractDetail({ contract }: { contract: { address: string; code_hash: string; nonce: number; bytecode_size: number } }) {
   return (
     <div className="mt-6 space-y-4">
       <div className="rounded-lg border border-surface-light bg-void p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-text-primary">Contract Details</h4>
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              contract.is_active
-                ? "bg-quantum-green/10 text-quantum-green"
-                : "bg-text-secondary/10 text-text-secondary"
-            }`}
-          >
-            {contract.is_active ? "Active" : "Inactive"}
-          </span>
-        </div>
+        <h4 className="mb-3 text-sm font-semibold text-text-primary">Contract Details</h4>
 
         <dl className="space-y-3 text-sm">
           <div>
@@ -95,38 +82,25 @@ function ContractDetail({ contract }: { contract: ContractInfo }) {
               {contract.address}
             </dd>
           </div>
-          <div>
-            <dt className="text-xs text-text-secondary">Creator</dt>
-            <dd className="mt-0.5 break-all font-[family-name:var(--font-mono)] text-text-primary">
-              {contract.creator}
-            </dd>
-          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <dt className="text-xs text-text-secondary">Type</dt>
-              <dd className="mt-0.5 font-medium text-text-primary">{contract.contract_type}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-text-secondary">Storage Slots</dt>
-              <dd className="mt-0.5 font-[family-name:var(--font-mono)] text-text-primary">
-                {contract.storage_slots.toLocaleString()}
-              </dd>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <dt className="text-xs text-text-secondary">Deployed</dt>
-              <dd className="mt-0.5 text-text-primary">
-                {deployedDate.toLocaleDateString()}{" "}
-                <span className="text-text-secondary">{deployedDate.toLocaleTimeString()}</span>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-text-secondary">Bytecode Hash</dt>
+              <dt className="text-xs text-text-secondary">Code Hash</dt>
               <dd className="mt-0.5 truncate font-[family-name:var(--font-mono)] text-xs text-text-secondary">
-                {contract.bytecode_hash}
+                {contract.code_hash}
               </dd>
             </div>
+            <div>
+              <dt className="text-xs text-text-secondary">Nonce</dt>
+              <dd className="mt-0.5 font-[family-name:var(--font-mono)] text-text-primary">
+                {contract.nonce}
+              </dd>
+            </div>
+          </div>
+          <div>
+            <dt className="text-xs text-text-secondary">Bytecode Size</dt>
+            <dd className="mt-0.5 font-[family-name:var(--font-mono)] text-text-primary">
+              {contract.bytecode_size.toLocaleString()} bytes
+            </dd>
           </div>
         </dl>
       </div>

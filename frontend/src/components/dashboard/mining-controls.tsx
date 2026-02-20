@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import { post } from "@/lib/api";
+import { api } from "@/lib/api";
 
 interface MiningControlsProps {
   isActive: boolean;
@@ -14,12 +15,20 @@ export function MiningControls({ isActive }: MiningControlsProps) {
   const [pending, setPending] = useState(false);
   const [confirm, setConfirm] = useState<"start" | "stop" | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   async function handleAction(action: "start" | "stop") {
     setPending(true);
     try {
-      await post(`/mining/${action}`, {});
+      if (action === "start") {
+        await api.startMining();
+      } else {
+        await api.stopMining();
+      }
       toast(`Mining ${action === "start" ? "started" : "stopped"}`, "success");
+      // Refresh mining stats and chain info after action
+      await queryClient.invalidateQueries({ queryKey: ["miningStats"] });
+      await queryClient.invalidateQueries({ queryKey: ["chainInfo"] });
     } catch {
       toast(`Failed to ${action} mining`, "error");
     } finally {

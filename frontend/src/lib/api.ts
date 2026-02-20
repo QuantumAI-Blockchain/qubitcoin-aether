@@ -25,15 +25,30 @@ export function post<T>(path: string, body: unknown): Promise<T> {
   });
 }
 
-/* ---- Typed helpers ---- */
+/* ---- Typed interfaces ---- */
 
 export interface ChainInfo {
   chain_id: number;
   height: number;
   total_supply: number;
+  max_supply: number;
+  percent_emitted: string;
+  current_era: number;
+  current_reward: number;
   difficulty: number;
+  target_block_time: number;
   peers: number;
   mempool_size: number;
+}
+
+export interface MiningStats {
+  is_mining: boolean;
+  blocks_found: number;
+  total_attempts: number;
+  current_difficulty: number;
+  success_rate: number;
+  best_energy: number | null;
+  alignment_score: number | null;
 }
 
 export interface PhiData {
@@ -58,12 +73,9 @@ export interface ChatResponse {
 
 export interface ContractInfo {
   address: string;
-  creator: string;
-  bytecode_hash: string;
-  deployed_at: number;
-  contract_type: string;
-  is_active: boolean;
-  storage_slots: number;
+  code_hash: string;
+  nonce: number;
+  bytecode_size: number;
 }
 
 export interface TransactionInfo {
@@ -78,14 +90,69 @@ export interface TransactionInfo {
   confirmations: number;
 }
 
+export interface PeerInfo {
+  type: string;
+  peer_count: number;
+  peers: Array<Record<string, unknown>>;
+}
+
+export interface P2PStats {
+  network: { type: string; connected_peers: number; [k: string]: unknown };
+  messages: Record<string, number>;
+  connections: Record<string, number>;
+}
+
+export interface KnowledgeGraphData {
+  nodes: Array<{ id: number; content: string; node_type: string; confidence: number }>;
+  edges: Array<{ source: number; target: number; edge_type: string; weight: number }>;
+}
+
+export interface AetherInfo {
+  knowledge_graph: { total_nodes: number; total_edges: number; [k: string]: unknown };
+  phi: { current_phi: number; [k: string]: unknown };
+  [k: string]: unknown;
+}
+
+export interface EmissionSchedule {
+  schedule: Array<{
+    year: number;
+    emission: number;
+    total_supply: number;
+    percent_emitted: number;
+    era: number;
+  }>;
+  max_supply: number;
+  halving_interval: number;
+  blocks_per_year: number;
+  phi: number;
+}
+
+/* ---- Typed helpers ---- */
+
 export const api = {
+  // Chain
   getChainInfo: () => get<ChainInfo>("/chain/info"),
   getHealth: () => get<{ status: string }>("/health"),
-  getBalance: (addr: string) => get<{ balance: number }>(`/balance/${addr}`),
-  getMiningStats: () => get<Record<string, unknown>>("/mining/stats"),
+  getBalance: (addr: string) => get<{ balance: string; utxo_count: number }>(`/balance/${addr}`),
+  getEmission: () => get<EmissionSchedule>("/economics/simulate"),
+
+  // Mining
+  getMiningStats: () => get<MiningStats>("/mining/stats"),
+  startMining: () => post<{ status: string }>("/mining/start", {}),
+  stopMining: () => post<{ status: string }>("/mining/stop", {}),
+
+  // P2P
+  getPeers: () => get<PeerInfo>("/p2p/peers"),
+  getPeerStats: () => get<P2PStats>("/p2p/stats"),
+
+  // Aether
   getPhi: () => get<PhiData>("/aether/consciousness"),
   getPhiHistory: () => get<{ history: Array<{ block: number; phi: number }> }>("/aether/phi/history"),
+  getAetherInfo: () => get<AetherInfo>("/aether/info"),
   getKnowledge: () => get<Record<string, unknown>>("/aether/knowledge"),
+  getKnowledgeGraph: (limit = 200) => get<KnowledgeGraphData>(`/aether/knowledge/graph?limit=${limit}`),
+  getChatHistory: (sessionId: string) => get<Record<string, unknown>>(`/aether/chat/history/${sessionId}`),
+  getChatFee: (sessionId: string) => get<Record<string, unknown>>(`/aether/chat/fee?session_id=${sessionId}`),
 
   // QVM / Contracts
   getContract: (addr: string) => get<ContractInfo>(`/qvm/contract/${addr}`),
@@ -98,7 +165,7 @@ export const api = {
       `/utxos/${addr}`,
     ),
   getMempool: () =>
-    get<{ transactions: TransactionInfo[] }>("/mempool"),
+    get<{ size: number; total_fees: string; transactions: TransactionInfo[] }>("/mempool"),
 
   // QUSD Reserves
   getQUSDReserves: () =>

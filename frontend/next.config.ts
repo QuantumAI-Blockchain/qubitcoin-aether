@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**" },
     ],
   },
+  turbopack: {
+    root: __dirname,
+  },
   experimental: {
     optimizePackageImports: ["framer-motion", "three", "@react-three/fiber", "@react-three/drei", "ethers"],
   },

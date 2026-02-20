@@ -37,12 +37,14 @@ export default function DashboardPage() {
     refetchInterval: 10_000,
   });
 
-  const { data: balance } = useQuery({
+  const { data: balanceData } = useQuery({
     queryKey: ["balance", address],
     queryFn: () => api.getBalance(address!),
     enabled: !!address,
     refetchInterval: 10_000,
   });
+
+  const parsedBalance = balanceData?.balance ? parseFloat(balanceData.balance) : undefined;
 
   if (chainLoading) {
     return (
@@ -81,7 +83,7 @@ export default function DashboardPage() {
 
       <div className="mt-6">
         {tab === "Overview" && (
-          <OverviewTab chain={chain} phi={phi} balance={balance?.balance} connected={connected} />
+          <OverviewTab chain={chain} phi={phi} balance={parsedBalance} connected={connected} />
         )}
         {tab === "Mining" && <MiningTab mining={mining} chain={chain} />}
         {tab === "Contracts" && <ContractsTab />}
@@ -153,21 +155,19 @@ function MiningTab({
   mining,
   chain,
 }: {
-  mining: Record<string, unknown> | undefined;
+  mining: ReturnType<typeof api.getMiningStats> extends Promise<infer T> ? T | undefined : never;
   chain: ReturnType<typeof api.getChainInfo> extends Promise<infer T> ? T | undefined : never;
 }) {
-  const isActive = !!mining;
-
   return (
     <div className="space-y-4">
       <ErrorBoundary>
-        <MiningControls isActive={isActive} />
+        <MiningControls isActive={mining?.is_mining ?? false} />
       </ErrorBoundary>
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">Mining Status</h3>
           <p className="text-lg font-semibold">
-            {isActive ? (
+            {mining?.is_mining ? (
               <span className="text-quantum-green">Active</span>
             ) : (
               <span className="text-text-secondary">Offline</span>
@@ -178,21 +178,24 @@ function MiningTab({
           </p>
         </Card>
         <Card>
-          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Blocks Mined</h3>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Blocks Found</h3>
           <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
-            {(mining?.blocks_mined as number)?.toLocaleString() ?? "---"}
+            {mining?.blocks_found?.toLocaleString() ?? "---"}
+          </p>
+          <p className="mt-1 text-xs text-text-secondary">
+            Attempts: {mining?.total_attempts?.toLocaleString() ?? "---"}
+          </p>
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Success Rate</h3>
+          <p className="font-[family-name:var(--font-mono)] text-lg">
+            {mining?.success_rate != null ? `${(mining.success_rate * 100).toFixed(2)}%` : "---"}
           </p>
         </Card>
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">VQE Energy</h3>
           <p className="font-[family-name:var(--font-mono)] text-lg">
-            {(mining?.best_energy as number)?.toFixed(6) ?? "---"}
-          </p>
-        </Card>
-        <Card>
-          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Alignment Score</h3>
-          <p className="font-[family-name:var(--font-mono)] text-lg">
-            {(mining?.alignment_score as number)?.toFixed(4) ?? "---"}
+            {mining?.best_energy != null ? mining.best_energy.toFixed(6) : "---"}
           </p>
         </Card>
       </div>
@@ -364,7 +367,7 @@ function WalletTab({
   }
 
   const utxoList = utxos?.utxos ?? [];
-  const totalBalance = balance?.balance ?? 0;
+  const totalBalance = balance?.balance ? parseFloat(balance.balance) : 0;
 
   return (
     <div className="space-y-6">
@@ -446,32 +449,61 @@ function NetworkTab({
 }: {
   chain: ReturnType<typeof api.getChainInfo> extends Promise<infer T> ? T | undefined : never;
 }) {
+  const { data: peerStats } = useQuery({
+    queryKey: ["p2pStats"],
+    queryFn: api.getPeerStats,
+    refetchInterval: 15_000,
+    retry: false,
+  });
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-text-secondary">Peers</h3>
-        <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
-          {chain?.peers?.toString() ?? "---"}
-        </p>
-      </Card>
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-text-secondary">Mempool</h3>
-        <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
-          {chain?.mempool_size?.toString() ?? "---"} tx
-        </p>
-      </Card>
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-text-secondary">Chain ID</h3>
-        <p className="font-[family-name:var(--font-mono)] text-xl">
-          {chain?.chain_id ?? "3301"}
-        </p>
-      </Card>
-      <Card>
-        <h3 className="mb-3 text-sm font-semibold text-text-secondary">Block Height</h3>
-        <p className="font-[family-name:var(--font-mono)] text-xl">
-          {chain?.height?.toLocaleString() ?? "---"}
-        </p>
-      </Card>
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Peers</h3>
+          <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
+            {chain?.peers?.toString() ?? "---"}
+          </p>
+          <p className="mt-1 text-xs text-text-secondary">
+            Type: {peerStats?.network?.type ?? "---"}
+          </p>
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Mempool</h3>
+          <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
+            {chain?.mempool_size?.toString() ?? "---"} tx
+          </p>
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Chain ID</h3>
+          <p className="font-[family-name:var(--font-mono)] text-xl">
+            {chain?.chain_id ?? "3301"}
+          </p>
+        </Card>
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">Block Height</h3>
+          <p className="font-[family-name:var(--font-mono)] text-xl">
+            {chain?.height?.toLocaleString() ?? "---"}
+          </p>
+        </Card>
+      </div>
+
+      {/* Message stats */}
+      {peerStats?.messages && Object.keys(peerStats.messages).length > 0 && (
+        <Card>
+          <h3 className="mb-3 text-sm font-semibold text-text-secondary">P2P Messages</h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(peerStats.messages).map(([key, val]) => (
+              <div key={key} className="text-sm">
+                <span className="text-text-secondary">{key}: </span>
+                <span className="font-[family-name:var(--font-mono)] text-text-primary">
+                  {val?.toLocaleString() ?? "0"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

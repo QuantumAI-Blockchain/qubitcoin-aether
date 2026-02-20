@@ -18,7 +18,8 @@
 7. [Phase 5: Start Frontend](#7-phase-5-start-frontend)
 8. [Phase 6: Deploy Smart Contracts](#8-phase-6-deploy-smart-contracts)
 9. [Phase 7: Bridge Contracts (Multi-Chain)](#9-phase-7-bridge-contracts-multi-chain)
-10. [Phase 8: Production Deployment](#10-phase-8-production-deployment)
+9.5. [Phase 4.5: Create Private Node Runner Repo](#95-phase-45-create-private-node-runner-repo)
+10. [Phase 8: Production Deployment (Digital Ocean)](#10-phase-8-production-deployment)
 11. [Port Reference](#11-port-reference)
 12. [Troubleshooting](#12-troubleshooting)
 13. [Architecture Diagram](#13-architecture-diagram)
@@ -609,51 +610,216 @@ For each EVM chain:
 
 ---
 
-## 10. PHASE 8: PRODUCTION DEPLOYMENT
+## 9.5. PHASE 4.5: CREATE PRIVATE NODE RUNNER REPO
 
-### 10.1 Backend Production (VPS/Dedicated Server)
+> **Goal:** A private `BlockArtica/qubitcoin-node` repo containing ONLY the files
+> needed to run a QBC node. No frontend, no tests, no docs, no git history.
+> Node runners clone this repo, generate keys, and `docker compose up`.
 
-**Minimum server specs:**
-- 8+ CPU cores
-- 16+ GB RAM
-- 500+ GB SSD
-- 100+ Mbps network
-- Ubuntu 22.04 LTS or Debian 12
+### 9.5.1 What to Include
 
-**Steps:**
+```
+qubitcoin-node/
+  src/                          # Full Python source (all modules)
+  sql/                          # Legacy SQL schemas
+  sql_new/                      # Domain-separated schemas
+  config/                       # Prometheus config
+  rust-p2p/                     # Rust P2P daemon source
+  scripts/setup/                # Key generation script
+  docker-compose.yml            # Docker stack
+  Dockerfile                    # Node build
+  requirements.txt              # Python dependencies
+  .env.example                  # Environment template
+  .dockerignore                 # Build excludes
+  .gitignore                    # Git excludes
+  setup.py                      # Package setup
+  README.md                     # Node runner quick-start guide
+```
+
+### 9.5.2 What to Exclude
+
+- `frontend/` — node runners don't need the website
+- `tests/` — not needed for production operation
+- `docs/` — whitepapers live in the public repo
+- `.claude/` — AI development context
+- `CLAUDE.md` — development guide
+- `TODO.md`, `LAUNCHTODO.md` — internal planning
+- Git history — fresh repo, no 60+ commits of dev history
+
+### 9.5.3 Steps
 
 ```bash
-# 1. Clone repo on production server
-git clone https://github.com/BlockArtica/Qubitcoin.git
-cd Qubitcoin
+# 1. Create the directory with copied files
+mkdir -p /path/to/qubitcoin-node
+cp -r src/ sql/ sql_new/ config/ rust-p2p/ scripts/ \
+      docker-compose.yml Dockerfile requirements.txt \
+      .env.example .dockerignore setup.py \
+      /path/to/qubitcoin-node/
 
-# 2. Generate production keys
+# 2. Create .gitignore
+cat > /path/to/qubitcoin-node/.gitignore << 'EOF'
+secure_key.env
+.env
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+rust-p2p/target/
+node_modules/
+.claude/
+EOF
+
+# 3. Write README.md (quick-start for node runners)
+
+# 4. Init git and push
+cd /path/to/qubitcoin-node
+git init
+git add .
+git commit -m "Initial: QBC node runner package"
+gh repo create BlockArtica/qubitcoin-node --private --source=. --push
+```
+
+### 9.5.4 Checklist
+
+- [ ] `/path/to/qubitcoin-node/` created with all node files
+- [ ] `README.md` written with quick-start instructions
+- [ ] `.gitignore` excludes `secure_key.env`, `.env`, `__pycache__/`, `target/`
+- [ ] No frontend, test, doc, or Claude files present
+- [ ] `git init && git add . && git commit`
+- [ ] Pushed to `BlockArtica/qubitcoin-node` (private)
+
+---
+
+## 10. PHASE 8: PRODUCTION DEPLOYMENT
+
+### 10.1 Backend Production on Digital Ocean
+
+**Recommended droplet:**
+- **Size:** 8 vCPU / 16 GB RAM / 320 GB SSD (General Purpose, ~$96/mo)
+- **Region:** NYC1 or SFO3 (low latency to US users)
+- **OS:** Ubuntu 24.04 LTS
+- **Extras:** Enable monitoring, add SSH key
+
+#### Step 1: Provision the Droplet
+
+```bash
+# Create via doctl CLI (or use the web UI)
+doctl compute droplet create qbc-node-1 \
+  --size g-4vcpu-16gb \
+  --image ubuntu-24-04-x64 \
+  --region nyc1 \
+  --ssh-keys <your-key-id> \
+  --enable-monitoring
+```
+
+#### Step 2: Initial Server Setup
+
+```bash
+ssh root@<droplet-ip>
+
+# Update system
+apt update && apt upgrade -y
+
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+systemctl enable docker
+
+# Add swap (recommended for VQE mining spikes)
+fallocate -l 4G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+# Configure firewall
+ufw allow 22/tcp       # SSH
+ufw allow 80/tcp       # HTTP (certbot + redirect)
+ufw allow 443/tcp      # HTTPS (API)
+ufw allow 4001/tcp     # P2P networking
+ufw allow 50051/tcp    # gRPC (P2P bridge)
+ufw enable
+```
+
+#### Step 3: Deploy QBC Stack
+
+```bash
+# Clone the private node runner repo
+git clone https://github.com/BlockArtica/qubitcoin-node.git
+cd qubitcoin-node
+
+# Install Python deps for key generation
+apt install -y python3-pip python3-venv
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+
+# Generate node identity
 python3 scripts/setup/generate_keys.py
 
-# 3. Create production .env
+# Create environment file
 cp .env.example .env
 nano .env
-# Set:
-#   AUTO_MINE=true
-#   CHAIN_ID=3301
-#   DEBUG=false
-#   AETHER_FEE_TREASURY_ADDRESS=<your-treasury-address>
-#   CONTRACT_FEE_TREASURY_ADDRESS=<your-treasury-address>
+# Set: AUTO_MINE=true, CHAIN_ID=3301, ENABLE_RUST_P2P=false
 
-# 4. Start with production profile (includes Nginx + SSL)
-docker compose --profile production up -d
+# Start the stack
+docker compose up -d
 
-# 5. Initialize SSL certificate (first time only)
-docker compose run --rm certbot certonly \
-  --webroot -w /var/www/certbot \
-  -d api.qbc.network \
-  --email info@qbc.network \
-  --agree-tos --no-eff-email
-
-# 6. Reload Nginx to pick up certificate
-docker compose restart nginx
+# Verify
+docker compose ps
+curl http://localhost:5000/health
+curl http://localhost:5000/chain/info
 ```
+
+#### Step 4: SSL via Nginx + Certbot
+
+```bash
+# Install nginx and certbot
+apt install -y nginx certbot python3-certbot-nginx
+
+# Create nginx config for api.qbc.network
+cat > /etc/nginx/sites-available/qbc-api << 'NGINX'
+server {
+    listen 80;
+    server_name api.qbc.network;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /ws {
+        proxy_pass http://127.0.0.1:5000/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+}
+NGINX
+
+ln -s /etc/nginx/sites-available/qbc-api /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+nginx -t && systemctl reload nginx
+
+# Get SSL certificate (ensure DNS points to this server first)
+certbot --nginx -d api.qbc.network --email info@qbc.network --agree-tos --no-eff-email
+
+# Auto-renewal is configured by certbot automatically
+systemctl enable certbot.timer
+```
+
+#### Step 5: DNS Configuration
+
+Point these records to your droplet IP **before** running certbot:
+
+| Record | Type | Value | Purpose |
+|--------|------|-------|---------|
+| `api.qbc.network` | A | `<droplet-ip>` | Backend RPC API |
+| `qbc.network` | CNAME | `cname.vercel-dns.com` | Frontend (Vercel) |
+| `www.qbc.network` | CNAME | `cname.vercel-dns.com` | WWW redirect |
 
 ### 10.2 Frontend Production (Vercel)
 
@@ -847,17 +1013,18 @@ PHASE 1: Prerequisites         [~5 min]   Install Docker, Python, Node.js, pnpm
 PHASE 2: Generate Identity     [~2 min]   Run key generation, create .env
 PHASE 3: Start Backend         [~5 min]   docker compose up -d → MINING STARTS
 PHASE 4: Verify Genesis        [~2 min]   Confirm blocks, balance, Aether Tree
+PHASE 4.5: Node Runner Repo   [~15 min]  Create private repo for node operators
 PHASE 5: Start Frontend        [~3 min]   pnpm install && pnpm dev → SITE LIVE
 PHASE 6: Deploy Contracts      [~30 min]  37 contracts in 7 tiers
 PHASE 7: Bridge Contracts      [~2 hrs]   Optional — deploy wQBC on target chains
-PHASE 8: Production Deploy     [~1 hr]    VPS + Vercel + SSL + DNS
+PHASE 8: Production Deploy     [~1 hr]    Digital Ocean + Vercel + SSL + DNS
 ```
 
 **To get mining ASAP: Phase 1 → Phase 2 → Phase 3. That's it. ~10 minutes.**
 
 **To get the frontend up: Add Phase 5. ~3 more minutes.**
 
-**To go fully production: Complete all 8 phases.**
+**To go fully production: Complete all phases including Phase 8 (Digital Ocean).**
 
 ---
 

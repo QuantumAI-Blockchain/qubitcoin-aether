@@ -1,8 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { ParticleField } from "@/components/visualizations/particle-field";
+
+const ParticleField = dynamic(
+  () => import("@/components/visualizations/particle-field").then((m) => m.ParticleField),
+  { ssr: false },
+);
 
 export function HeroSection() {
   return (
