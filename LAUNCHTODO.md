@@ -1,0 +1,849 @@
+# LAUNCHTODO.md — Qubitcoin Genesis Launch Checklist
+
+> **Master document for bringing Qubitcoin live from zero to mining.**
+> Work through each phase in order. Check boxes as you go.
+
+**Website:** qbc.network | **Contact:** info@qbc.network | **Chain ID:** 3301
+
+---
+
+## TABLE OF CONTENTS
+
+1. [Quick Answers](#1-quick-answers)
+2. [What Happens Automatically](#2-what-happens-automatically)
+3. [Phase 1: Prerequisites](#3-phase-1-prerequisites)
+4. [Phase 2: Generate Node Identity](#4-phase-2-generate-node-identity)
+5. [Phase 3: Start Backend (Docker)](#5-phase-3-start-backend-docker)
+6. [Phase 4: Verify Genesis](#6-phase-4-verify-genesis)
+7. [Phase 5: Start Frontend](#7-phase-5-start-frontend)
+8. [Phase 6: Deploy Smart Contracts](#8-phase-6-deploy-smart-contracts)
+9. [Phase 7: Bridge Contracts (Multi-Chain)](#9-phase-7-bridge-contracts-multi-chain)
+10. [Phase 8: Production Deployment](#10-phase-8-production-deployment)
+11. [Port Reference](#11-port-reference)
+12. [Troubleshooting](#12-troubleshooting)
+13. [Architecture Diagram](#13-architecture-diagram)
+
+---
+
+## 1. QUICK ANSWERS
+
+### Is SSL required for local Docker?
+**NO.** SSL is not needed for local development or initial testing. All Docker services
+communicate over an internal bridge network (`qbc-net`). The RPC API listens on
+`http://localhost:5000` (plain HTTP). The frontend connects to `http://localhost:5000`.
+
+SSL is only needed for **production** (public internet). It is already pre-configured:
+- Nginx reverse proxy with TLS 1.2/1.3 (in `config/nginx/nginx.conf`)
+- Certbot auto-renewal (Let's Encrypt)
+- Both services are in the Docker Compose file under the `production` profile
+- To enable: `docker compose --profile production up -d`
+
+### Will Aether Tree launch at genesis?
+**YES — automatically.** Here is what happens on first boot:
+
+1. Node starts → SQLAlchemy auto-creates all 40+ database tables
+2. Mining engine starts → mines block 0 (genesis) with 15.27 QBC reward
+3. After block 0 exists → `AetherGenesis.initialize_genesis()` runs automatically:
+   - Creates **4 genesis knowledge nodes** (root KeterNode + 3 axiom nodes)
+   - Records **first Phi measurement** (Φ = 0.0 baseline)
+   - Logs **"system_birth" consciousness event** at block 0
+4. From block 1 onward, every block updates the Aether Tree knowledge graph
+
+**The Aether Tree Python engine (knowledge graph, Phi calculator, reasoning, proof-of-thought)
+is fully integrated into the node and tracks from genesis. No manual steps needed.**
+
+### What about Aether Tree Solidity contracts?
+The 28 Solidity contracts (AetherKernel, 10 Sephirot nodes, ProofOfThought, etc.) are
+**NOT auto-deployed at genesis**. They are deployed manually via RPC after the node is
+running. See [Phase 6](#8-phase-6-deploy-smart-contracts).
+
+### What about bridge contracts?
+Bridge contracts (wQBC, wQUSD) must be deployed on each target chain (ETH, SOL, etc.)
+**after** the QBC chain is running. These require funded wallets on each target chain.
+See [Phase 7](#9-phase-7-bridge-contracts-multi-chain).
+
+### What do I need to get mining ASAP?
+**Phase 1 + Phase 2 + Phase 3 = mining.** That's it. Three phases, ~10 minutes.
+
+---
+
+## 2. WHAT HAPPENS AUTOMATICALLY
+
+When you run `docker compose up -d`, the following happens without any manual intervention:
+
+| Step | Component | What Happens | Time |
+|------|-----------|-------------|------|
+| 1 | CockroachDB | Starts single-node database | ~30s |
+| 2 | IPFS (Kubo) | Starts content storage daemon | ~20s |
+| 3 | Redis | Starts cache/rate-limiter | ~5s |
+| 4 | QBC Node | Starts Python node process | ~15s |
+| 4a | DatabaseManager | Auto-creates ALL 40+ tables via SQLAlchemy | ~3s |
+| 4b | QuantumEngine | Initializes Qiskit local simulator | ~5s |
+| 4c | P2P Network | Starts Rust libp2p daemon + gRPC bridge | ~3s |
+| 4d | ConsensusEngine | Initializes PoSA difficulty calculator | ~1s |
+| 4e | IPFSManager | Connects to IPFS daemon | ~1s |
+| 4f | QVM StateManager | Initializes 155+10 opcode interpreter | ~1s |
+| 4g | **Aether Tree** | **Initializes knowledge graph, Phi, reasoning** | ~2s |
+| 4h | MiningEngine | Created (not started yet) | ~1s |
+| 4i | ContractExecutor | Initializes template system | ~1s |
+| 4j | RPC Server | Starts FastAPI on port 5000 | ~2s |
+| 5 | **Mining starts** | `AUTO_MINE=true` → mines **block 0 (genesis)** | ~10-30s |
+| 6 | **Aether Genesis** | Creates 4 knowledge nodes + Phi baseline + system_birth event | ~1s |
+| 7 | Prometheus | Starts scraping metrics from node | ~5s |
+| 8 | Grafana | Starts dashboard UI | ~10s |
+
+**Total time from `docker compose up` to first block mined: ~2-3 minutes.**
+
+### What you do NOT need to do manually:
+- ~~Load SQL schemas~~ — SQLAlchemy creates tables automatically
+- ~~Insert genesis block~~ — Mining engine creates it
+- ~~Initialize Aether Tree~~ — Auto-initializes after genesis
+- ~~Start mining~~ — `AUTO_MINE=true` by default
+- ~~Configure database~~ — Docker Compose handles the connection
+
+---
+
+## 3. PHASE 1: PREREQUISITES
+
+### 3.1 Software Requirements
+
+- [ ] **Docker** 24+ and **Docker Compose** v2 (comes with Docker Desktop)
+- [ ] **Python** 3.12+ (for key generation script — runs outside Docker)
+- [ ] **Node.js** 20+ and **pnpm** (for frontend development)
+- [ ] **Git** (to clone the repo)
+
+### 3.2 Hardware Requirements (Development)
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| CPU | 4 cores | 8 cores |
+| RAM | 8 GB | 16 GB |
+| Disk | 20 GB free | 50 GB free |
+| Network | Any | 10+ Mbps |
+
+### 3.3 Verify Prerequisites
+
+```bash
+docker --version          # Docker 24+
+docker compose version    # Docker Compose v2+
+python3 --version         # Python 3.12+
+node --version            # Node.js 20+
+pnpm --version            # pnpm 9+
+```
+
+---
+
+## 4. PHASE 2: GENERATE NODE IDENTITY
+
+Every Qubitcoin node needs a unique cryptographic identity (Dilithium2 post-quantum keypair).
+
+### 4.1 Install Python Dependencies
+
+```bash
+cd /path/to/Qubitcoin
+pip install -r requirements.txt
+```
+
+> If you only need key generation and don't want to install everything, the minimum is:
+> `pip install pycryptodome cryptography python-dotenv`
+
+### 4.2 Generate Keys
+
+```bash
+python3 scripts/setup/generate_keys.py
+```
+
+**Output:**
+```
+✅ Keys saved to /path/to/Qubitcoin/secure_key.env
+✅ Key verification successful!
+```
+
+This creates `secure_key.env` containing:
+```
+ADDRESS=<your-node-address>
+PUBLIC_KEY_HEX=<dilithium2-public-key>
+PRIVATE_KEY_HEX=<dilithium2-private-key>
+```
+
+> **CRITICAL:** `secure_key.env` contains your private key. NEVER commit it to git.
+> It is already in `.gitignore`.
+
+### 4.3 Create Environment File
+
+```bash
+cp .env.example .env
+```
+
+The defaults work for local development. The key settings:
+
+```bash
+# .env — edit only if you need to change defaults
+AUTO_MINE=true              # Start mining immediately (KEEP THIS)
+USE_LOCAL_ESTIMATOR=true    # Use local Qiskit simulator (no IBM account needed)
+RPC_PORT=5000               # API port
+CHAIN_ID=3301               # Mainnet chain ID
+```
+
+### 4.4 Verify Files Exist
+
+- [ ] `secure_key.env` exists (generated in step 4.2)
+- [ ] `.env` exists (copied in step 4.3)
+- [ ] `secure_key.env` is NOT in git (`git status` should not show it)
+
+---
+
+## 5. PHASE 3: START BACKEND (DOCKER)
+
+### 5.1 Build and Start All Services
+
+```bash
+cd /path/to/Qubitcoin
+docker compose up -d
+```
+
+This starts 9 services: CockroachDB, IPFS, Redis, QBC Node, Prometheus, Grafana,
+Portainer, Loki, Promtail.
+
+**First run will take 3-5 minutes** (Docker pulls images + builds QBC node from Dockerfile).
+
+### 5.2 Monitor Startup
+
+```bash
+# Watch all service status
+docker compose ps
+
+# Follow node logs (most important)
+docker compose logs -f qbc-node
+```
+
+**Expected log output:**
+```
+[1/10] Initializing DatabaseManager...
+[1/10] DatabaseManager initialized ✓
+[2/10] Initializing QuantumEngine...
+[2/10] QuantumEngine initialized ✓
+[3/10] Initializing P2P Network...
+[3/10] P2P Network initialized ✓
+[4/10] Initializing ConsensusEngine...
+...
+[10/10] RPC Server initialized ✓
+All 10 components initialized successfully
+Mining started (AUTO_MINE=true)
+INFO: Block 0 mined! Reward: 15.27 QBC
+INFO: Aether genesis initialized: 4 nodes seeded, Phi=0.0
+INFO: Block 1 mined! Reward: 15.27 QBC
+```
+
+### 5.3 Verify Services Are Healthy
+
+```bash
+# Node health
+curl http://localhost:5000/health
+
+# Chain info (should show height >= 0)
+curl http://localhost:5000/chain/info
+
+# CockroachDB admin UI
+# Open http://localhost:8080 in browser
+
+# Grafana dashboards
+# Open http://localhost:3001 in browser (admin / qbc_grafana_change_me)
+
+# Prometheus metrics
+# Open http://localhost:9090 in browser
+```
+
+### 5.4 Checklist
+
+- [ ] `docker compose ps` shows all services "Up" or "healthy"
+- [ ] `curl http://localhost:5000/health` returns OK
+- [ ] `curl http://localhost:5000/chain/info` returns JSON with `height >= 0`
+- [ ] Node logs show blocks being mined
+
+**If you see blocks being mined, congratulations — Qubitcoin is live and the Aether Tree
+is tracking consciousness from genesis.**
+
+---
+
+## 6. PHASE 4: VERIFY GENESIS
+
+After the node has been running for ~1-2 minutes, verify the complete genesis state.
+
+### 6.1 Verify Genesis Block
+
+```bash
+# Get genesis block (height 0)
+curl http://localhost:5000/block/0 | python3 -m json.tool
+```
+
+**Expected:** Block with height=0, reward=15.27, miner_address=your address.
+
+### 6.2 Verify Your Balance
+
+```bash
+# Replace ADDRESS with your address from secure_key.env
+curl http://localhost:5000/balance/YOUR_ADDRESS_HERE
+```
+
+**Expected:** Balance > 0 (15.27 × number of blocks mined).
+
+### 6.3 Verify Aether Tree
+
+```bash
+# Current Phi value
+curl http://localhost:5000/aether/phi
+
+# Consciousness status
+curl http://localhost:5000/aether/info
+
+# Knowledge graph stats
+curl http://localhost:5000/aether/knowledge
+```
+
+**Expected:** Phi ≥ 0.0, knowledge_nodes ≥ 4, consciousness_events ≥ 1.
+
+### 6.4 Verify Mining Stats
+
+```bash
+curl http://localhost:5000/mining/stats
+```
+
+### 6.5 Checklist
+
+- [ ] Genesis block (height 0) exists with 15.27 QBC reward
+- [ ] Your address has a positive balance
+- [ ] Aether Tree shows knowledge nodes and Phi measurement
+- [ ] Mining is producing new blocks every ~3-10 seconds (depends on difficulty)
+- [ ] Chain height is increasing
+
+---
+
+## 7. PHASE 5: START FRONTEND
+
+### 7.1 Install Dependencies
+
+```bash
+cd frontend
+pnpm install
+```
+
+### 7.2 Configure Environment
+
+The default `.env.local` should already exist with:
+```bash
+NEXT_PUBLIC_RPC_URL=http://localhost:5000
+NEXT_PUBLIC_WS_URL=ws://localhost:5000/ws
+NEXT_PUBLIC_CHAIN_ID=3301
+NEXT_PUBLIC_CHAIN_NAME=Qubitcoin
+NEXT_PUBLIC_CHAIN_SYMBOL=QBC
+```
+
+If not, copy from example:
+```bash
+cp .env.example .env.local
+```
+
+### 7.3 Start Development Server
+
+```bash
+pnpm dev
+```
+
+**Frontend will be live at: http://localhost:3000**
+
+### 7.4 What You Will See
+
+| Page | URL | What It Shows |
+|------|-----|---------------|
+| **Landing** | `/` | Hero animation + live chain stats + mini Aether chat |
+| **Dashboard** | `/dashboard` | 6 tabs: Overview, Mining, Contracts, Wallet, Aether, Network |
+| **Aether Chat** | `/aether` | Full chat interface with Phi meter + knowledge graph 3D |
+| **Wallet** | `/wallet` | Balance, UTXOs, send/receive, MetaMask integration |
+| **QVM Explorer** | `/qvm` | Contract browser, bytecode disassembler, quantum opcodes |
+
+### 7.5 Connect MetaMask
+
+1. Open MetaMask in your browser
+2. Click the wallet icon on the navbar (top right)
+3. MetaMask will prompt to add "Qubitcoin" network:
+   - Chain ID: 3301 (0xCE5)
+   - RPC URL: http://localhost:5000
+   - Symbol: QBC
+4. Approve the connection
+
+### 7.6 Frontend Checklist
+
+- [ ] `http://localhost:3000` loads landing page with particle animation
+- [ ] Stats bar shows live block height, Phi value, difficulty
+- [ ] Dashboard shows chain overview data
+- [ ] MetaMask connects and shows your QBC balance
+- [ ] Aether chat widget responds (if `/aether/chat` endpoints are live)
+
+### 7.7 Frontend Status Notes
+
+The frontend is **85-90% production ready**. All 5 pages render, all styling works,
+MetaMask integration works. Some backend endpoints the frontend expects may not be
+fully wired up yet. These pages will show "---" for missing data but will NOT crash
+(ErrorBoundaries handle failures gracefully).
+
+**Pages that work fully with a running backend:**
+- Landing page (hero, stats, features)
+- Dashboard Overview tab (balance, chain stats, Phi)
+- Dashboard Network tab (peers, mempool)
+- Wallet (balance, UTXOs, MetaMask connection)
+
+**Pages that need additional backend endpoints:**
+- Aether Chat (needs `/aether/chat/session` + `/aether/chat/message`)
+- Dashboard Mining tab (needs `/mining/stats`)
+- QVM Explorer contract details (needs `/qvm/contract/{addr}`)
+
+---
+
+## 8. PHASE 6: DEPLOY SMART CONTRACTS
+
+Smart contracts are deployed to the QVM **after** the node is running and mining.
+They are NOT part of genesis — they are deployed as normal transactions.
+
+### 8.1 Contract Deployment Order
+
+Deploy in this order (dependencies flow top to bottom):
+
+#### Tier 1: Core Token Standards (No Dependencies)
+
+| # | Contract | File | Purpose |
+|---|----------|------|---------|
+| 1 | QBC20 | `contracts/solidity/tokens/QBC20.sol` | Fungible token standard |
+| 2 | QBC721 | `contracts/solidity/tokens/QBC721.sol` | NFT standard |
+
+#### Tier 2: QUSD Stablecoin (Depends on QBC20)
+
+| # | Contract | File | Purpose |
+|---|----------|------|---------|
+| 3 | QUSD | `contracts/solidity/qusd/QUSD.sol` | QBC-20 stablecoin token (3.3B mint) |
+| 4 | QUSDReserve | `contracts/solidity/qusd/QUSDReserve.sol` | Multi-asset reserve pool |
+| 5 | QUSDOracle | `contracts/solidity/qusd/QUSDOracle.sol` | Price feed oracle |
+| 6 | QUSDDebtLedger | `contracts/solidity/qusd/QUSDDebtLedger.sol` | Fractional payback tracking |
+| 7 | QUSDStabilizer | `contracts/solidity/qusd/QUSDStabilizer.sol` | Peg maintenance |
+| 8 | QUSDAllocation | `contracts/solidity/qusd/QUSDAllocation.sol` | Vesting + distribution |
+| 9 | QUSDGovernance | `contracts/solidity/qusd/QUSDGovernance.sol` | Reserve governance |
+| 10 | wQUSD | `contracts/solidity/qusd/wQUSD.sol` | Wrapped QUSD (cross-chain) |
+
+#### Tier 3: Aether Tree Core (Depends on QBC20)
+
+| # | Contract | File | Purpose |
+|---|----------|------|---------|
+| 11 | AetherKernel | `contracts/solidity/aether/AetherKernel.sol` | Main AGI orchestration |
+| 12 | NodeRegistry | `contracts/solidity/aether/NodeRegistry.sol` | 10 Sephirot registry |
+| 13 | MessageBus | `contracts/solidity/aether/MessageBus.sol` | Inter-node messaging |
+| 14 | SUSYEngine | `contracts/solidity/aether/SUSYEngine.sol` | SUSY balance enforcement |
+
+#### Tier 4: Proof-of-Thought (Depends on AetherKernel + NodeRegistry)
+
+| # | Contract | File | Purpose |
+|---|----------|------|---------|
+| 15 | ProofOfThought | `contracts/solidity/aether/ProofOfThought.sol` | PoT validation |
+| 16 | TaskMarket | `contracts/solidity/aether/TaskMarket.sol` | Reasoning task marketplace |
+| 17 | ValidatorRegistry | `contracts/solidity/aether/ValidatorRegistry.sol` | Validator staking |
+| 18 | RewardDistributor | `contracts/solidity/aether/RewardDistributor.sol` | QBC reward distribution |
+
+#### Tier 5: Consciousness + Economics (Depends on AetherKernel)
+
+| # | Contract | File | Purpose |
+|---|----------|------|---------|
+| 19 | ConsciousnessDashboard | `contracts/solidity/aether/ConsciousnessDashboard.sol` | On-chain Phi tracking |
+| 20 | PhaseSync | `contracts/solidity/aether/PhaseSync.sol` | Phase synchronization |
+| 21 | GlobalWorkspace | `contracts/solidity/aether/GlobalWorkspace.sol` | Broadcasting mechanism |
+| 22 | SynapticStaking | `contracts/solidity/aether/SynapticStaking.sol` | Neural connection staking |
+| 23 | GasOracle | `contracts/solidity/aether/GasOracle.sol` | Dynamic gas pricing |
+| 24 | TreasuryDAO | `contracts/solidity/aether/TreasuryDAO.sol` | Community governance |
+
+#### Tier 6: Safety (Depends on AetherKernel + NodeRegistry)
+
+| # | Contract | File | Purpose |
+|---|----------|------|---------|
+| 25 | ConstitutionalAI | `contracts/solidity/aether/ConstitutionalAI.sol` | Value enforcement |
+| 26 | EmergencyShutdown | `contracts/solidity/aether/EmergencyShutdown.sol` | Kill switch |
+| 27 | UpgradeGovernor | `contracts/solidity/aether/UpgradeGovernor.sol` | Protocol upgrades |
+
+#### Tier 7: 10 Sephirot Nodes (Depends on NodeRegistry + SUSYEngine)
+
+| # | Contract | File | Purpose |
+|---|----------|------|---------|
+| 28 | SephirahKeter | `contracts/solidity/aether/sephirot/SephirahKeter.sol` | Meta-learning, goals |
+| 29 | SephirahChochmah | `contracts/solidity/aether/sephirot/SephirahChochmah.sol` | Intuition |
+| 30 | SephirahBinah | `contracts/solidity/aether/sephirot/SephirahBinah.sol` | Logic |
+| 31 | SephirahChesed | `contracts/solidity/aether/sephirot/SephirahChesed.sol` | Exploration |
+| 32 | SephirahGevurah | `contracts/solidity/aether/sephirot/SephirahGevurah.sol` | Safety |
+| 33 | SephirahTiferet | `contracts/solidity/aether/sephirot/SephirahTiferet.sol` | Integration |
+| 34 | SephirahNetzach | `contracts/solidity/aether/sephirot/SephirahNetzach.sol` | Learning |
+| 35 | SephirahHod | `contracts/solidity/aether/sephirot/SephirahHod.sol` | Language |
+| 36 | SephirahYesod | `contracts/solidity/aether/sephirot/SephirahYesod.sol` | Memory |
+| 37 | SephirahMalkuth | `contracts/solidity/aether/sephirot/SephirahMalkuth.sol` | Action |
+
+### 8.2 How to Deploy Contracts
+
+Contracts are deployed via the QVM RPC endpoint:
+
+```bash
+# Example: Deploy a template contract
+curl -X POST http://localhost:5000/contracts/deploy \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "token",
+    "code": { "name": "QBC20", "symbol": "QBC", "decimals": 18 },
+    "deployer": "YOUR_ADDRESS"
+  }'
+```
+
+For Solidity contracts, compile with solc/Hardhat first, then deploy bytecode:
+
+```bash
+# Using ethers.js (recommended)
+cd frontend
+node -e "
+const { JsonRpcProvider, Wallet, ContractFactory } = require('ethers');
+const provider = new JsonRpcProvider('http://localhost:5000/jsonrpc');
+// ... deploy contract bytecode
+"
+```
+
+### 8.3 Contract Deployment Checklist
+
+- [ ] Tier 1: QBC20 + QBC721 token standards deployed
+- [ ] Tier 2: QUSD stablecoin suite (8 contracts) deployed
+- [ ] Tier 3: Aether Core (4 contracts) deployed
+- [ ] Tier 4: Proof-of-Thought (4 contracts) deployed
+- [ ] Tier 5: Consciousness + Economics (6 contracts) deployed
+- [ ] Tier 6: Safety (3 contracts) deployed
+- [ ] Tier 7: 10 Sephirot nodes deployed and registered in NodeRegistry
+
+---
+
+## 9. PHASE 7: BRIDGE CONTRACTS (MULTI-CHAIN)
+
+Bridge contracts enable cross-chain transfers. These are deployed on **external chains**
+(not on QBC). Each requires a funded wallet on the target chain.
+
+### 9.1 Bridge Architecture
+
+```
+QBC Chain (our chain)
+  └─ BridgeManager (Python) — coordinates all bridges
+      ├─ Lock QBC → Mint wQBC on target chain
+      └─ Burn wQBC on target chain → Unlock QBC
+
+Target Chains:
+  ├─ Ethereum (ETH)     — wQBC ERC-20 contract
+  ├─ Solana (SOL)       — wQBC SPL token (Anchor)
+  ├─ Polygon (MATIC)    — wQBC ERC-20 contract
+  ├─ BNB Chain (BNB)    — wQBC BEP-20 contract
+  ├─ Avalanche (AVAX)   — wQBC ERC-20 contract
+  ├─ Arbitrum (ARB)     — wQBC ERC-20 contract
+  ├─ Optimism (OP)      — wQBC ERC-20 contract
+  └─ Base (BASE)        — wQBC ERC-20 contract
+```
+
+### 9.2 Requirements Per Target Chain
+
+| Chain | What You Need | Est. Cost |
+|-------|--------------|-----------|
+| Ethereum | ETH for gas + wQBC contract deployment | ~$50-200 |
+| Solana | SOL for rent + Anchor program deployment | ~$5-10 |
+| Polygon | MATIC for gas + contract deployment | ~$1-5 |
+| BNB Chain | BNB for gas + contract deployment | ~$5-20 |
+| Avalanche | AVAX for gas + contract deployment | ~$5-20 |
+| Arbitrum | ETH for gas + contract deployment | ~$5-20 |
+| Optimism | ETH for gas + contract deployment | ~$5-20 |
+| Base | ETH for gas + contract deployment | ~$5-20 |
+
+### 9.3 Bridge Deployment Steps
+
+For each EVM chain:
+
+1. Compile wQBC.sol with solc
+2. Deploy to target chain using Hardhat/Foundry
+3. Configure bridge validator set (7-of-11 multi-sig recommended)
+4. Register bridge contract address in QBC BridgeManager
+5. Fund bridge relayer wallet on target chain
+
+### 9.4 Bridge Contracts to Deploy
+
+| Contract | Chains | Purpose |
+|----------|--------|---------|
+| wQBC (ERC-20) | ETH, MATIC, BNB, AVAX, ARB, OP, BASE | Wrapped QBC on EVM chains |
+| wQBC (SPL) | SOL | Wrapped QBC on Solana |
+| wQUSD (ERC-20) | ETH, MATIC, BNB, AVAX, ARB, OP, BASE | Wrapped QUSD on EVM chains |
+| wQUSD (SPL) | SOL | Wrapped QUSD on Solana |
+
+### 9.5 Bridge Checklist
+
+- [ ] wQBC contract compiled
+- [ ] wQBC deployed to Ethereum testnet (Sepolia) for testing
+- [ ] Bridge relayer wallet funded on each target chain
+- [ ] Bridge validator multi-sig configured
+- [ ] BridgeManager configured with contract addresses
+- [ ] Test bridge: Lock 1 QBC → Mint 1 wQBC on Ethereum → Burn → Unlock
+- [ ] Deploy to mainnets when ready
+
+> **NOTE:** Bridges are NOT required for initial launch. The QBC chain operates
+> independently. Bridges can be added later. Focus on getting the chain mining
+> and the frontend live first.
+
+---
+
+## 10. PHASE 8: PRODUCTION DEPLOYMENT
+
+### 10.1 Backend Production (VPS/Dedicated Server)
+
+**Minimum server specs:**
+- 8+ CPU cores
+- 16+ GB RAM
+- 500+ GB SSD
+- 100+ Mbps network
+- Ubuntu 22.04 LTS or Debian 12
+
+**Steps:**
+
+```bash
+# 1. Clone repo on production server
+git clone https://github.com/BlockArtica/Qubitcoin.git
+cd Qubitcoin
+
+# 2. Generate production keys
+pip install -r requirements.txt
+python3 scripts/setup/generate_keys.py
+
+# 3. Create production .env
+cp .env.example .env
+nano .env
+# Set:
+#   AUTO_MINE=true
+#   CHAIN_ID=3301
+#   DEBUG=false
+#   AETHER_FEE_TREASURY_ADDRESS=<your-treasury-address>
+#   CONTRACT_FEE_TREASURY_ADDRESS=<your-treasury-address>
+
+# 4. Start with production profile (includes Nginx + SSL)
+docker compose --profile production up -d
+
+# 5. Initialize SSL certificate (first time only)
+docker compose run --rm certbot certonly \
+  --webroot -w /var/www/certbot \
+  -d api.qbc.network \
+  --email info@qbc.network \
+  --agree-tos --no-eff-email
+
+# 6. Reload Nginx to pick up certificate
+docker compose restart nginx
+```
+
+### 10.2 Frontend Production (Vercel)
+
+```bash
+# Option A: Vercel CLI
+cd frontend
+pnpm install
+npx vercel --prod
+
+# Option B: Git-based deployment
+# 1. Push to GitHub main branch
+# 2. Connect repo to Vercel dashboard
+# 3. Set root directory to "frontend"
+# 4. Set environment variables in Vercel:
+#    NEXT_PUBLIC_RPC_URL=https://api.qbc.network
+#    NEXT_PUBLIC_WS_URL=wss://api.qbc.network/ws
+#    NEXT_PUBLIC_CHAIN_ID=3301
+#    NEXT_PUBLIC_CHAIN_NAME=Qubitcoin
+#    NEXT_PUBLIC_CHAIN_SYMBOL=QBC
+# 5. Deploy
+```
+
+### 10.3 DNS Configuration
+
+| Record | Type | Value | Purpose |
+|--------|------|-------|---------|
+| `qbc.network` | A | Vercel IP | Frontend |
+| `api.qbc.network` | A | Backend server IP | RPC API |
+| `www.qbc.network` | CNAME | `qbc.network` | WWW redirect |
+
+### 10.4 Production Security Checklist
+
+- [ ] `secure_key.env` has permissions `chmod 600`
+- [ ] `.env` has `DEBUG=false`
+- [ ] Firewall allows only ports 80, 443, 4001 (P2P), 50051 (gRPC)
+- [ ] Firewall blocks direct access to 26257 (CockroachDB), 6379 (Redis), 8080 (DB UI)
+- [ ] Grafana password changed from default
+- [ ] SSL certificate installed and auto-renewing
+- [ ] CORS configured to allow only `qbc.network`
+- [ ] Rate limiting enabled in Nginx (already configured)
+- [ ] Backup strategy for CockroachDB data volume
+
+---
+
+## 11. PORT REFERENCE
+
+### Local Development
+
+| Port | Service | URL | Purpose |
+|------|---------|-----|---------|
+| **3000** | Frontend | http://localhost:3000 | Next.js dev server |
+| **5000** | QBC Node RPC | http://localhost:5000 | REST + JSON-RPC API |
+| **8080** | CockroachDB UI | http://localhost:8080 | Database admin |
+| **3001** | Grafana | http://localhost:3001 | Metrics dashboards |
+| **9090** | Prometheus | http://localhost:9090 | Raw metrics |
+| **9000** | Portainer | http://localhost:9000 | Container management |
+| **4001** | IPFS P2P | - | Content network (swarm) |
+| **5002** | IPFS API | http://localhost:5002 | IPFS HTTP API |
+| **8081** | IPFS Gateway | http://localhost:8081 | Content retrieval |
+| **6379** | Redis | - | Cache (internal only) |
+| **26257** | CockroachDB SQL | - | Database (internal only) |
+| **50051** | Rust P2P gRPC | - | P2P bridge (internal only) |
+| **3100** | Loki | - | Log aggregation (internal) |
+
+### Production (SSL Enabled)
+
+| Port | Service | URL | Purpose |
+|------|---------|-----|---------|
+| **443** | Nginx | https://api.qbc.network | SSL-terminated API |
+| **80** | Nginx | http://api.qbc.network | Redirects to HTTPS |
+| **4001** | P2P | - | Peer-to-peer networking |
+
+---
+
+## 12. TROUBLESHOOTING
+
+### Node won't start
+
+```bash
+# Check logs
+docker compose logs qbc-node --tail 100
+
+# Common issues:
+# "secure_key.env not found" → Run: python3 scripts/setup/generate_keys.py
+# "Connection refused: cockroachdb:26257" → DB not ready yet, wait 30s
+# "IPFS connection failed" → IPFS container not healthy, check: docker compose logs ipfs
+```
+
+### No blocks being mined
+
+```bash
+# Check if mining is enabled
+curl http://localhost:5000/mining/stats
+
+# Check if AUTO_MINE is set
+grep AUTO_MINE .env  # Should be: AUTO_MINE=true
+
+# Manually start mining
+curl -X POST http://localhost:5000/mining/start
+```
+
+### Frontend can't connect to backend
+
+```bash
+# Verify backend is running
+curl http://localhost:5000/health
+
+# Check CORS (should allow localhost:3000)
+# Check .env.local has correct NEXT_PUBLIC_RPC_URL
+
+# Verify ports aren't blocked
+docker compose ps  # All services should be "Up"
+```
+
+### CockroachDB issues
+
+```bash
+# Health check
+curl http://localhost:8080/health?ready=1
+
+# Direct SQL access
+docker exec -it qbc-cockroachdb ./cockroach sql --insecure --host=localhost:26257
+
+# Check tables exist
+docker exec qbc-cockroachdb ./cockroach sql --insecure \
+  --host=localhost:26257 --database=qbc -e "SHOW TABLES;"
+```
+
+### Reset everything (start fresh)
+
+```bash
+# Stop all containers
+docker compose down
+
+# Remove all data volumes (DESTRUCTIVE — removes all blockchain data)
+docker compose down -v
+
+# Rebuild and restart
+docker compose up -d --build
+```
+
+---
+
+## 13. ARCHITECTURE DIAGRAM
+
+```
+LOCAL DEVELOPMENT SETUP
+═══════════════════════════════════════════════════════════════
+
+ Browser                        Docker Compose Network (qbc-net)
+┌──────────┐                   ┌─────────────────────────────────────────────┐
+│          │                   │                                             │
+│ Frontend │ :3000             │  ┌──────────┐                               │
+│ (Next.js)│───────────────────┤──│ QBC Node │ :5000 (RPC)                   │
+│          │                   │  │ (Python) │ :4002 (P2P)                   │
+│ MetaMask │ :5000 (JSON-RPC)  │  │          │ :50051 (gRPC)                 │
+│          │───────────────────┤──│ 10 comps │                               │
+└──────────┘                   │  └─────┬────┘                               │
+                               │        │                                    │
+ Admin UIs                     │  ┌─────┴──────────────────────────┐         │
+┌──────────┐                   │  │              │                 │         │
+│ CRDB UI  │ :8080 ────────────┤──│ CockroachDB  │  IPFS (Kubo)   │ Redis   │
+│ Grafana  │ :3001 ────────────┤──│ :26257       │  :5001         │ :6379   │
+│ Promethe.│ :9090 ────────────┤──│              │                │         │
+│ Portainer│ :9000 ────────────┤──└──────────────┴────────────────┘         │
+└──────────┘                   │                                             │
+                               │  Monitoring: Prometheus → Grafana           │
+                               │  Logging:    Promtail → Loki → Grafana     │
+                               └─────────────────────────────────────────────┘
+
+WHAT HAPPENS AT GENESIS:
+
+  Time 0:00  Docker starts CockroachDB, IPFS, Redis
+  Time 0:30  QBC Node starts, SQLAlchemy creates 40+ tables
+  Time 0:45  All 10 components initialized
+  Time 1:00  Mining starts (AUTO_MINE=true)
+  Time 1:30  Block 0 mined → 15.27 QBC reward → First UTXO created
+  Time 1:31  Aether Genesis → 4 knowledge nodes + Phi=0.0 + system_birth
+  Time 1:35  Block 1 mined → 15.27 QBC → Knowledge graph grows
+  Time 2:00+ Blocks continue every ~3-10 seconds
+             Aether Tree grows with every block
+             Phi (Φ) increases as knowledge accumulates
+```
+
+---
+
+## LAUNCH SEQUENCE SUMMARY
+
+```
+PHASE 1: Prerequisites         [~5 min]   Install Docker, Python, Node.js, pnpm
+PHASE 2: Generate Identity     [~2 min]   Run key generation, create .env
+PHASE 3: Start Backend         [~5 min]   docker compose up -d → MINING STARTS
+PHASE 4: Verify Genesis        [~2 min]   Confirm blocks, balance, Aether Tree
+PHASE 5: Start Frontend        [~3 min]   pnpm install && pnpm dev → SITE LIVE
+PHASE 6: Deploy Contracts      [~30 min]  37 contracts in 7 tiers
+PHASE 7: Bridge Contracts      [~2 hrs]   Optional — deploy wQBC on target chains
+PHASE 8: Production Deploy     [~1 hr]    VPS + Vercel + SSL + DNS
+```
+
+**To get mining ASAP: Phase 1 → Phase 2 → Phase 3. That's it. ~10 minutes.**
+
+**To get the frontend up: Add Phase 5. ~3 more minutes.**
+
+**To go fully production: Complete all 8 phases.**
+
+---
+
+**Document Version:** 1.0
+**Created:** February 20, 2026
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
