@@ -323,3 +323,8 @@ src/qubitcoin/qvm/
 ├── governance_plugin.py  # DAO, voting, proposals
 └── defi_plugin.py        # Lending, DEX, staking
 ```
+
+---
+
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)
+```

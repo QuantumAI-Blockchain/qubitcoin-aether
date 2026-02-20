@@ -577,3 +577,6 @@ JSON-RPC errors follow the JSON-RPC 2.0 spec:
 
 *For smart contract development, see [Smart Contract Developer Guide](SMART_CONTRACTS.md).*
 *For Aether Tree integration, see [Aether Integration Guide](AETHER_INTEGRATION.md).*
+
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)
+*For Aether Tree integration, see [Aether Integration Guide](AETHER_INTEGRATION.md).*

@@ -656,3 +656,5 @@ Contract addresses are assigned at deployment and queryable via `/qvm/info`.
 
 *For the full API reference, see [Developer SDK Guide](SDK.md).*
 *For contract development, see [Smart Contract Developer Guide](SMART_CONTRACTS.md).*
+
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)

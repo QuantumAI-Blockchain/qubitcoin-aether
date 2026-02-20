@@ -209,3 +209,7 @@ For a formal security audit, consider:
 8. [ ] Write comprehensive bridge integration tests
 9. [ ] Deploy to testnet and run adversarial testing
 10. [ ] Prepare audit documentation package (architecture, code, tests)
+
+---
+
+**Responsible Disclosure:** info@qbc.network | **Website:** [qbc.network](https://qbc.network)

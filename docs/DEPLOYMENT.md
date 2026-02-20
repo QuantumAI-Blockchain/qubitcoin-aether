@@ -414,4 +414,6 @@ curl http://localhost:5000/p2p/stats
 
 ---
 
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)
+
 *For more details, see `CLAUDE.md` (master development guide) and `docs/WHITEPAPER.md`.*

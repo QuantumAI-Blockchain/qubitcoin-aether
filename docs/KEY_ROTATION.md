@@ -215,3 +215,7 @@ HSM-backed signing.
 - **ALWAYS** verify the new address has received funds before deleting old keys
 - **ALWAYS** wait for sufficient confirmations (6+) before considering a transfer final
 - **ALWAYS** shred old key files after rotation (use `shred -u`, not `rm`)
+
+---
+
+**Responsible Disclosure:** info@qbc.network | **Website:** [qbc.network](https://qbc.network)

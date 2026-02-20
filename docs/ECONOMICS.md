@@ -1091,7 +1091,8 @@ Speculation and holding add additional premium
 - Version: 1.0
 - Date: January 30, 2026
 - Authors: Qubitcoin Economics Team
-- Contact: economics@qubitcoin.org
+- Contact: info@qbc.network
+- Website: [qbc.network](https://qbc.network)
 - License: CC BY-SA 4.0
 
 ---
