@@ -102,9 +102,31 @@ export interface P2PStats {
   connections: Record<string, number>;
 }
 
+export interface KnowledgeGraphNode {
+  id: number;
+  content: string;
+  node_type: "assertion" | "observation" | "inference" | "axiom" | "sephirot" | (string & {});
+  confidence: number;
+  is_contract?: boolean;
+  source_block?: number | null;
+  sephirot_name?: string;
+  sephirot_title?: string;
+  sephirot_function?: string;
+  brain_analog?: string;
+}
+
+export interface KnowledgeGraphEdge {
+  source: number;
+  target: number;
+  edge_type: string;
+  weight: number;
+}
+
 export interface KnowledgeGraphData {
-  nodes: Array<{ id: number; content: string; node_type: string; confidence: number }>;
-  edges: Array<{ source: number; target: number; edge_type: string; weight: number }>;
+  nodes: KnowledgeGraphNode[];
+  edges: KnowledgeGraphEdge[];
+  total_nodes: number;
+  total_edges: number;
 }
 
 export interface AetherInfo {
@@ -182,7 +204,7 @@ export const api = {
   getPhiHistory: () => get<{ history: Array<{ block: number; phi: number }> }>("/aether/phi/history"),
   getAetherInfo: () => get<AetherInfo>("/aether/info"),
   getKnowledge: () => get<Record<string, unknown>>("/aether/knowledge"),
-  getKnowledgeGraph: (limit = 200) => get<KnowledgeGraphData>(`/aether/knowledge/graph?limit=${limit}`),
+  getKnowledgeGraph: (limit = 500) => get<KnowledgeGraphData>(`/aether/knowledge/graph?limit=${limit}`),
   getChatHistory: (sessionId: string) => get<Record<string, unknown>>(`/aether/chat/history/${sessionId}`),
   getChatFee: (sessionId: string) => get<Record<string, unknown>>(`/aether/chat/fee?session_id=${sessionId}`),
 

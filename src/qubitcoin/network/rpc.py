@@ -802,31 +802,52 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
 
     @app.get("/aether/knowledge/graph")
-    async def aether_knowledge_graph(limit: int = 200):
+    async def aether_knowledge_graph(limit: int = 500, include_sephirot: bool = True):
         """Get knowledge graph nodes and edges for 3D visualization."""
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
         if limit < 1:
             limit = 1
-        if limit > 500:
-            limit = 500
+        if limit > 1000:
+            limit = 1000
         kg = aether_engine.kg
+        stats = kg.get_stats()
         # Get most recent nodes up to limit
         recent = kg.find_recent(limit)
         node_ids = {n.node_id for n in recent}
         nodes_out = []
         for n in recent:
             content_str = ''
+            is_contract = False
             if isinstance(n.content, dict):
                 content_str = n.content.get('description', n.content.get('content', str(n.content)))
+                if n.content.get('type') == 'contract_activity':
+                    is_contract = True
             else:
                 content_str = str(n.content)
-            nodes_out.append({
+            node_data: dict = {
                 'id': n.node_id,
                 'content': content_str[:120],
                 'node_type': n.node_type,
                 'confidence': n.confidence,
-            })
+                'source_block': getattr(n, 'source_block', None),
+            }
+            if is_contract:
+                node_data['is_contract'] = True
+            nodes_out.append(node_data)
+        # Inject synthetic Sephirot nodes (negative IDs to avoid collisions)
+        if include_sephirot:
+            for s in SEPHIROT_NODES:
+                nodes_out.append({
+                    'id': -(s['id'] + 1),  # -1 to -10
+                    'content': f"{s['name']} ({s['title']}): {s['function']}",
+                    'node_type': 'sephirot',
+                    'confidence': 1.0,
+                    'sephirot_name': s['name'],
+                    'sephirot_title': s['title'],
+                    'sephirot_function': s['function'],
+                    'brain_analog': s['brain_analog'],
+                })
         # Filter edges to only those connecting visible nodes
         edges_out = []
         for edge in kg.edges:
@@ -837,7 +858,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                     'edge_type': edge.edge_type,
                     'weight': edge.weight,
                 })
-        return {'nodes': nodes_out, 'edges': edges_out}
+        return {
+            'nodes': nodes_out,
+            'edges': edges_out,
+            'total_nodes': stats.get('total_nodes', 0),
+            'total_edges': stats.get('total_edges', 0),
+        }
 
     @app.get("/aether/knowledge/search")
     async def knowledge_search(type: Optional[str] = None, key: Optional[str] = None,
