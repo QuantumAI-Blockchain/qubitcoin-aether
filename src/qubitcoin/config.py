@@ -116,6 +116,8 @@ class Config:
     DIFFICULTY_WINDOW: int = 144  # 144-block lookback window for difficulty calc
     DIFFICULTY_ADJUSTMENT_INTERVAL: int = 1  # Adjust EVERY block (per-block adjustment)
     MAX_DIFFICULTY_CHANGE: float = 0.10  # Max +/-10% per adjustment
+    DIFFICULTY_FLOOR: float = float(os.getenv('DIFFICULTY_FLOOR', 0.05))
+    DIFFICULTY_CEILING: float = float(os.getenv('DIFFICULTY_CEILING', 1000.0))
     COINBASE_MATURITY: int = 100  # Coinbase outputs unspendable for 100 blocks
     MAX_FUTURE_BLOCK_TIME: int = 7200  # Max seconds a block timestamp can be in the future
     CONFIRMATION_DEPTH: int = 180  # Wait 180 blocks (~10 min) for finality

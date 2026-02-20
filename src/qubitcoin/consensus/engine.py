@@ -111,7 +111,7 @@ class ConsensusEngine:
             ratio = max(1.0 - max_change, min(1.0 + max_change, ratio))
 
             new_difficulty = prev_difficulty * ratio
-            new_difficulty = max(0.05, min(10.0, new_difficulty))
+            new_difficulty = max(Config.DIFFICULTY_FLOOR, min(Config.DIFFICULTY_CEILING, new_difficulty))
 
             # Cache to avoid re-computation
             self.difficulty_cache[height] = new_difficulty

@@ -1,7 +1,12 @@
 # ============================================================================
 # Qubitcoin Development Stack
-# Full backend: CockroachDB + IPFS + Redis + QBC Node + Monitoring
-# Usage: docker compose up -d
+# Core backend: CockroachDB + IPFS + Redis + QBC Node
+#
+# Usage:
+#   docker compose up -d                              # Core only (lean, ~2GB RAM)
+#   docker compose --profile monitoring up -d         # Core + monitoring stack
+#   docker compose --profile production up -d         # Core + nginx/SSL
+#   docker compose --profile monitoring --profile production up -d  # Everything
 # ============================================================================
 
 services:
@@ -143,6 +148,8 @@ services:
     networks:
       - qbc-net
     restart: unless-stopped
+    profiles:
+      - monitoring
 
   # ── Grafana ─────────────────────────────────────────────────────────
   grafana:
@@ -163,6 +170,8 @@ services:
     networks:
       - qbc-net
     restart: unless-stopped
+    profiles:
+      - monitoring
 
   # ── Portainer (container management UI) ─────────────────────────────
   portainer:
@@ -177,6 +186,8 @@ services:
     networks:
       - qbc-net
     restart: unless-stopped
+    profiles:
+      - monitoring
 
   # ── Loki (log aggregation) ────────────────────────────────────────────
   loki:
@@ -197,6 +208,8 @@ services:
     networks:
       - qbc-net
     restart: unless-stopped
+    profiles:
+      - monitoring
 
   # ── Promtail (log collection agent) ───────────────────────────────────
   promtail:
@@ -213,6 +226,8 @@ services:
     networks:
       - qbc-net
     restart: unless-stopped
+    profiles:
+      - monitoring
 
   # ── Nginx (reverse proxy + SSL termination) ──────────────────────────
   nginx:

@@ -12,6 +12,19 @@ import { MiningControls } from "@/components/dashboard/mining-controls";
 import { QUSDReserveGauge, QUSDMilestoneTimeline } from "@/components/dashboard/qusd-reserve";
 import { useWalletStore } from "@/stores/wallet-store";
 
+function formatSupply(supply: number): string {
+  if (supply >= 1e9) return `${(supply / 1e9).toFixed(2)}B QBC`;
+  if (supply >= 1e6) return `${(supply / 1e6).toFixed(2)}M QBC`;
+  if (supply >= 1e3) return `${(supply / 1e3).toFixed(2)}K QBC`;
+  return `${supply.toFixed(2)} QBC`;
+}
+
+function formatDifficulty(d: number): string {
+  if (d >= 1000) return d.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (d >= 10) return d.toFixed(4);
+  return d.toFixed(6);
+}
+
 const TABS = ["Overview", "Mining", "Contracts", "Wallet", "Aether", "Network"] as const;
 type Tab = (typeof TABS)[number];
 
@@ -110,8 +123,8 @@ function OverviewTab({
 }) {
   const stats = [
     { label: "Block Height", value: chain?.height?.toLocaleString() ?? "---" },
-    { label: "Total Supply", value: chain?.total_supply ? `${(chain.total_supply / 1e9).toFixed(4)}B` : "---" },
-    { label: "Difficulty", value: chain?.difficulty?.toFixed(6) ?? "---" },
+    { label: "Total Supply", value: chain?.total_supply != null ? formatSupply(chain.total_supply) : "---" },
+    { label: "Difficulty", value: chain?.difficulty != null ? formatDifficulty(chain.difficulty) : "---" },
     { label: "Mempool", value: chain?.mempool_size?.toString() ?? "---" },
     { label: "Phi (\u03A6)", value: phi?.phi?.toFixed(4) ?? "---" },
     { label: "Knowledge", value: phi?.knowledge_nodes?.toLocaleString() ?? "---" },
