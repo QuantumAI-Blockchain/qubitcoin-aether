@@ -41,8 +41,20 @@ services:
       - ./sql_new/:/sql_new/:ro
     entrypoint: >
       /bin/sh -c "
+        echo '=== Qubitcoin DB Init: Creating database ===' &&
         cockroach sql --insecure --host=cockroachdb:26257 -e 'CREATE DATABASE IF NOT EXISTS qbc;' &&
-        echo 'Database qbc created or already exists.'
+        echo '=== Loading core schemas (sql_new/) ===' &&
+        for dir in qbc agi qvm research shared; do
+          if [ -d /sql_new/$$dir ]; then
+            for f in /sql_new/$$dir/*.sql; do
+              echo \"  Loading $$f\" &&
+              cockroach sql --insecure --host=cockroachdb:26257 --database=qbc < $$f || true;
+            done;
+          fi;
+        done &&
+        echo '=== Loading genesis block ===' &&
+        cockroach sql --insecure --host=cockroachdb:26257 --database=qbc < /sql/09_genesis_block.sql || true &&
+        echo '=== Qubitcoin DB Init: Complete ==='
       "
     networks:
       - qbc-net
@@ -102,8 +114,8 @@ services:
       - IPFS_API=/ip4/ipfs/tcp/5001/http
       - IPFS_GATEWAY_PORT=8080
     depends_on:
-      cockroachdb:
-        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
       ipfs:
         condition: service_healthy
       redis:
