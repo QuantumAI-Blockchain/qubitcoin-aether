@@ -1,0 +1,131 @@
+{
+  "_comment": "Cloudflare Configuration — Qubitcoin (qbc.network)",
+  "_note": "Apply via Cloudflare Dashboard or Terraform. This file documents target settings.",
+
+  "zone": "qbc.network",
+
+  "ssl_tls": {
+    "mode": "full_strict",
+    "min_tls_version": "1.2",
+    "tls_1_3": "on",
+    "always_use_https": true,
+    "automatic_https_rewrites": true,
+    "hsts": {
+      "enabled": true,
+      "max_age": 63072000,
+      "include_subdomains": true,
+      "preload": true,
+      "no_sniff": true
+    }
+  },
+
+  "caching": {
+    "cache_level": "aggressive",
+    "browser_cache_ttl": 14400,
+    "page_rules": [
+      {
+        "target": "qbc.network/assets/*",
+        "actions": {
+          "cache_level": "cache_everything",
+          "edge_cache_ttl": 2592000,
+          "browser_cache_ttl": 86400
+        }
+      },
+      {
+        "target": "qbc.network/_next/static/*",
+        "actions": {
+          "cache_level": "cache_everything",
+          "edge_cache_ttl": 31536000,
+          "browser_cache_ttl": 31536000
+        }
+      },
+      {
+        "target": "api.qbc.network/*",
+        "actions": {
+          "cache_level": "bypass",
+          "disable_performance": true
+        }
+      },
+      {
+        "target": "rpc.qbc.network/*",
+        "actions": {
+          "cache_level": "bypass",
+          "disable_performance": true
+        }
+      }
+    ]
+  },
+
+  "security": {
+    "waf": true,
+    "security_level": "medium",
+    "challenge_ttl": 3600,
+    "browser_integrity_check": true,
+    "bot_management": {
+      "enabled": true,
+      "ai_bots": "block",
+      "verified_bots": "allow"
+    },
+    "rate_limiting": [
+      {
+        "description": "API rate limit",
+        "expression": "http.host eq \"api.qbc.network\"",
+        "period": 60,
+        "requests_per_period": 300,
+        "action": "block",
+        "timeout": 60
+      },
+      {
+        "description": "JSON-RPC rate limit",
+        "expression": "http.host eq \"rpc.qbc.network\" and http.request.uri.path eq \"/jsonrpc\"",
+        "period": 60,
+        "requests_per_period": 120,
+        "action": "challenge",
+        "timeout": 300
+      }
+    ],
+    "firewall_rules": [
+      {
+        "description": "Block admin access from outside",
+        "expression": "http.request.uri.path contains \"/admin\" and not ip.src in {10.0.0.0/8 172.16.0.0/12}",
+        "action": "block"
+      },
+      {
+        "description": "Block metrics access from outside",
+        "expression": "http.request.uri.path eq \"/metrics\"",
+        "action": "block"
+      }
+    ]
+  },
+
+  "performance": {
+    "minify": {
+      "javascript": true,
+      "css": true,
+      "html": true
+    },
+    "brotli": true,
+    "early_hints": true,
+    "http2": true,
+    "http3": true,
+    "zero_rtt": true,
+    "websockets": true,
+    "rocket_loader": false,
+    "polish": "lossy",
+    "image_resizing": true
+  },
+
+  "dns": {
+    "_comment": "DNS records managed via config/dns/zone.conf",
+    "dnssec": true,
+    "flatten_cname_at_root": true
+  },
+
+  "network": {
+    "ipv6": true,
+    "websockets": true,
+    "grpc": true,
+    "pseudo_ipv4": "add_header",
+    "ip_geolocation": true
+  }
+}

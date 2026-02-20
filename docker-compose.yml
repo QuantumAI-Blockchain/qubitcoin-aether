@@ -169,6 +169,74 @@ services:
       - qbc-net
     restart: unless-stopped
 
+  # ── Loki (log aggregation) ────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.3.0
+    container_name: qbc-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+      - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --output-document=- http://localhost:3100/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── Promtail (log collection agent) ───────────────────────────────────
+  promtail:
+    image: grafana/promtail:3.3.0
+    container_name: qbc-promtail
+    volumes:
+      - ./config/loki/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - node-logs:/var/log/qbc:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── Nginx (reverse proxy + SSL termination) ──────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: qbc-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certbot-conf:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
+    depends_on:
+      - qbc-node
+    networks:
+      - qbc-net
+    restart: unless-stopped
+    profiles:
+      - production
+
+  # ── Certbot (SSL certificate auto-renewal) ───────────────────────────
+  certbot:
+    image: certbot/certbot:v3.1.0
+    container_name: qbc-certbot
+    volumes:
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done;'"
+    networks:
+      - qbc-net
+    profiles:
+      - production
+
 # ── Named Volumes ───────────────────────────────────────────────────────
 volumes:
   cockroach-data:
@@ -179,6 +247,9 @@ volumes:
   prometheus-data:
   grafana-data:
   portainer-data:
+  loki-data:
+  certbot-conf:
+  certbot-www:
 
 # ── Network ─────────────────────────────────────────────────────────────
 networks:

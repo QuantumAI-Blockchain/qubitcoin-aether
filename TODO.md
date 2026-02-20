@@ -238,7 +238,7 @@
 - [x] TLA+ compliance invariant proofs — `docs/formal_verification/compliance_invariants.tla` (6 safety invariants: SanctionsEnforced, KYCBeforeTransfer, CircuitBreakerBlocks, RiskScoresBounded, SystemicRiskBounded, CircuitBreakerConsistency + 2 liveness properties)
 
 ### 2.12 Go Production Implementation (qubitcoin-qvm/)
-- [ ] Initialize Go module (`go.mod`, project structure)
+- [x] Initialize Go module (`go.mod`, project structure) — `qubitcoin-qvm/go.mod` (Go 1.23, go-ethereum, circl, grpc-gateway, prometheus, cobra, viper, testify, cockroach-go, pgx, zap)
 - [ ] Port EVM core (15 files: opcodes, stack, memory, storage, gas, precompiles)
 - [ ] Port quantum extensions (8 files: states, circuits, entanglement, gates)
 - [ ] Implement compliance engine (9 files: KYC, AML, sanctions, risk)
@@ -249,9 +249,9 @@
 - [ ] Port all 55 database schemas
 - [ ] Ethereum test suite compatibility (official EVM tests)
 - [ ] Benchmark suite (EVM, quantum, storage, compliance)
-- [ ] Docker deployment (dev + prod)
+- [x] Docker deployment (dev + prod) — `qubitcoin-qvm/deployments/docker/Dockerfile` (multi-stage: golang:1.23-bookworm builder → distroless/static-debian12:nonroot runtime, CGO_ENABLED=0, trimpath)
 - [ ] Kubernetes manifests
-- [ ] CI/CD pipeline (build, test, lint, security scan)
+- [x] CI/CD pipeline (build, test, lint, security scan) — `.github/workflows/qvm-ci.yml` (5 jobs: build, test, lint w/ golangci-lint, benchmark on main, security scan w/ govulncheck, Docker build)
 
 ---
 
@@ -555,7 +555,7 @@
 
 ### 5.2 Wrapped QBC Contracts (Solidity)
 - [x] wQBC ERC-20 on Ethereum — `bridge/wQBC.sol` (mint/burn by bridge, pausable)
-- [ ] wQBC SPL on Solana
+- [x] wQBC SPL on Solana — `deployment/solana/wqbc/` (Anchor 0.30 program, PDA bridge state, 10bps fee, replay protection via TxReceipt, pause/unpause, events)
 - [x] wQBC on Polygon, BNB, AVAX, ARB, OP, Base — `tokens/wQBC.sol` + `deployment/crosschain/deploy.json` (chain-agnostic ERC-20, 0.1% bridge fee, replay protection, emergency pause, deploy configs for 7 chains)
 
 ---
@@ -617,7 +617,7 @@
   - [x] Burn wQUSD → unlock QUSD (return to QBC chain)
   - [x] 1:1 peg with QUSD (fully backed by locked QUSD)
 - [x] wQUSD ERC-20 on Ethereum (bridge via lock-and-mint) — `qusd/wQUSD.sol` already chain-agnostic ERC-20
-- [ ] wQUSD SPL on Solana
+- [x] wQUSD SPL on Solana — `deployment/solana/wqusd/` (Anchor 0.30 program, PDA bridge state, 5bps fee to QUSD reserves, replay protection, pause/unpause, events)
 - [x] wQUSD on Polygon, BNB, AVAX, ARB, OP, Base — `qusd/wQUSD.sol` + `deployment/crosschain/deploy.json` (same Solidity deploys on all EVM chains, deploy configs included)
 - [x] wQUSD bridge fee (0.05% — routed to QUSD reserves) — `stablecoin/reserve_manager.py: CrossChainQUSDAggregator` (5bps fee on every wQUSD bridge transfer)
 - [x] Cross-chain QUSD balance aggregation (total supply across all chains) — `stablecoin/reserve_manager.py: CrossChainQUSDAggregator` (per-chain supply tracking, total supply computation)
@@ -726,10 +726,10 @@
 - [x] CI/CD pipeline (GitHub Actions — lint, test, build) — `.github/workflows/ci.yml`
 - [x] Automated testing in CI (pytest + vitest + playwright) — backend-test, backend-lint, frontend-build jobs
 - [x] Monitoring stack (Prometheus + Grafana dashboards) — `config/prometheus/prometheus.yml` (QBC node, CockroachDB, IPFS scraping) + `config/grafana/` (auto-provisioned Prometheus datasource, Qubitcoin Overview dashboard with 14 panels)
-- [ ] Log aggregation (ELK or Loki)
-- [ ] SSL/TLS certificates for qbc.network
-- [ ] CDN setup for frontend assets
-- [ ] DNS configuration for qbc.network
+- [x] Log aggregation (Loki + Promtail) — `config/loki/loki-config.yml` (TSDB storage, 30-day retention, compactor, embedded cache) + `config/loki/promtail-config.yml` (Docker SD, JSON/regex log parsing, health check noise filtering) + Loki/Promtail services in `docker-compose.yml` + Loki datasource in Grafana provisioning
+- [x] SSL/TLS certificates for qbc.network — `config/nginx/nginx.conf` (TLS 1.2/1.3, OCSP stapling, HSTS, security headers, rate limiting, WebSocket proxy, admin/metrics access restriction) + `config/nginx/certbot-renew.sh` (init/renew/status commands) + Nginx/Certbot services in `docker-compose.yml` (production profile)
+- [x] CDN setup for frontend assets — `config/cloudflare/cloudflare-config.json` (full_strict SSL, aggressive caching, static asset edge TTL 30d, API bypass, WAF, rate limiting, bot management, Brotli, HTTP/3, image optimization, firewall rules for admin/metrics)
+- [x] DNS configuration for qbc.network — `config/dns/zone.conf` (Vercel CNAME at root, api/rpc subdomains, seed node A records, P2P SRV records, MX/SPF/DMARC for email, CAA cert restriction, monitoring subdomains)
 
 ---
 
@@ -805,5 +805,5 @@
 
 ---
 
-*Last updated: 2026-02-19*
+*Last updated: 2026-02-20*
 *Track progress here. Update status after every session.*

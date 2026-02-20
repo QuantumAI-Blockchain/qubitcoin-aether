@@ -1,0 +1,21 @@
+[package]
+name = "wqusd"
+version = "1.0.0"
+description = "Wrapped QUSD (wQUSD) — SPL Token on Solana"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "wqusd"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30"
+anchor-spl = "0.30"
