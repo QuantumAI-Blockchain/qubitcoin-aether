@@ -51,6 +51,12 @@ class ConsensusEngine:
     # that slow blocks raise the threshold, making mining easier.
     DIFFICULTY_FIX_HEIGHT = 724
 
+    # Height at which the meaningful-max clamp was added.  Before this,
+    # difficulty ran away to 1000 because the ceiling was raised but
+    # there was no check for "already trivially easy".  Reset to
+    # INITIAL_DIFFICULTY at this height to recover.
+    DIFFICULTY_CEILING_FIX_HEIGHT = 2750
+
     def calculate_difficulty(self, height: int, db_manager) -> float:
         """Calculate difficulty using per-block adjustment with 144-block lookback window.
 
@@ -81,6 +87,13 @@ class ConsensusEngine:
             logger.info(f"Difficulty reset to {Config.INITIAL_DIFFICULTY} at fork height {height}")
             return Config.INITIAL_DIFFICULTY
 
+        # One-time reset to recover from ceiling runaway (difficulty hit 1000
+        # because compute-time bottleneck wasn't accounted for)
+        if height == self.DIFFICULTY_CEILING_FIX_HEIGHT:
+            self.difficulty_cache[height] = Config.INITIAL_DIFFICULTY
+            logger.info(f"Difficulty reset to {Config.INITIAL_DIFFICULTY} at ceiling-fix height {height}")
+            return Config.INITIAL_DIFFICULTY
+
         try:
             head_block = db_manager.get_block(height - 1)
             window_start_block = db_manager.get_block(height - window)
@@ -109,6 +122,14 @@ class ConsensusEngine:
             # Clamp to ±MAX_DIFFICULTY_CHANGE (default ±10%)
             max_change = Config.MAX_DIFFICULTY_CHANGE
             ratio = max(1.0 - max_change, min(1.0 + max_change, ratio))
+
+            # When difficulty is already trivially easy (well above typical
+            # VQE energies of -5 to +5), blocks are slow due to compute time,
+            # not puzzle hardness.  Only allow upward adjustment when difficulty
+            # is still in the meaningful range; once above the meaningful
+            # threshold, hold steady so we don't run away to the ceiling.
+            if ratio > 1.0 and prev_difficulty > Config.DIFFICULTY_MEANINGFUL_MAX:
+                ratio = 1.0  # Hold steady — can't mine faster than VQE allows
 
             new_difficulty = prev_difficulty * ratio
             new_difficulty = max(Config.DIFFICULTY_FLOOR, min(Config.DIFFICULTY_CEILING, new_difficulty))

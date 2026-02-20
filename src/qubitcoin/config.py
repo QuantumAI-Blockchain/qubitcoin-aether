@@ -118,6 +118,11 @@ class Config:
     MAX_DIFFICULTY_CHANGE: float = 0.10  # Max +/-10% per adjustment
     DIFFICULTY_FLOOR: float = float(os.getenv('DIFFICULTY_FLOOR', 0.05))
     DIFFICULTY_CEILING: float = float(os.getenv('DIFFICULTY_CEILING', 1000.0))
+    # VQE ground-state energies are typically in [-5, +5].  Once difficulty
+    # exceeds this threshold it is trivially easy (energy < difficulty always
+    # true) and further increases can't speed up mining — compute time is the
+    # bottleneck.  The adjustment algorithm holds steady above this value.
+    DIFFICULTY_MEANINGFUL_MAX: float = float(os.getenv('DIFFICULTY_MEANINGFUL_MAX', 10.0))
     COINBASE_MATURITY: int = 100  # Coinbase outputs unspendable for 100 blocks
     MAX_FUTURE_BLOCK_TIME: int = 7200  # Max seconds a block timestamp can be in the future
     CONFIRMATION_DEPTH: int = 180  # Wait 180 blocks (~10 min) for finality
