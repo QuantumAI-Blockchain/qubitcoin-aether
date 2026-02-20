@@ -353,7 +353,7 @@ The default `.env.local` should already exist with:
 NEXT_PUBLIC_RPC_URL=http://localhost:5000
 NEXT_PUBLIC_WS_URL=ws://localhost:5000/ws
 NEXT_PUBLIC_CHAIN_ID=3301
-NEXT_PUBLIC_CHAIN_NAME=Qubitcoin
+NEXT_PUBLIC_CHAIN_NAME=Quantum Blockchain
 NEXT_PUBLIC_CHAIN_SYMBOL=QBC
 ```
 
@@ -837,7 +837,7 @@ npx vercel --prod
 #    NEXT_PUBLIC_RPC_URL=https://api.qbc.network
 #    NEXT_PUBLIC_WS_URL=wss://api.qbc.network/ws
 #    NEXT_PUBLIC_CHAIN_ID=3301
-#    NEXT_PUBLIC_CHAIN_NAME=Qubitcoin
+#    NEXT_PUBLIC_CHAIN_NAME=Quantum Blockchain
 #    NEXT_PUBLIC_CHAIN_SYMBOL=QBC
 # 5. Deploy
 ```
