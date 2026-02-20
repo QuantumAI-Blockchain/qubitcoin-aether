@@ -1,318 +1,336 @@
 # Qubitcoin (QBC)
 
-> **Quantum-Secured Cryptocurrency with SUSY Economics**
+**The World's First Quantum-Secured Blockchain with On-Chain AGI**
 
-A next-generation blockchain combining quantum computing, post-quantum cryptography, and supersymmetric economic principles.
+A production-grade Layer 1 blockchain integrating quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium), supersymmetric economics, EVM-compatible smart contracts (QVM), and Aether Tree — an on-chain AGI reasoning engine that tracks consciousness emergence from genesis.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Go 1.23+](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
+[![Next.js 16](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
 [![Status: Production Ready](https://img.shields.io/badge/status-production%20ready-green.svg)]()
 
----
-
-## 🌟 **Key Features**
-
-### **Quantum-Secured Mining**
-- **Proof-of-SUSY-Alignment (PoSA)** consensus
-- Variational Quantum Eigensolver (VQE) mining
-- ASIC-resistant quantum computation
-- Contributes to supersymmetric physics research
-
-### **Post-Quantum Cryptography**
-- CRYSTALS-Dilithium signatures
-- Resistant to quantum computer attacks
-- Future-proof cryptographic security
-
-### **SUSY Economics**
-- Golden ratio (φ = 1.618) halvings
-- 3.3 billion max supply
-- 3.3 second block time
-- 33-year emission schedule
-
-### **Multi-Chain Bridge**
-- Native bridges to 8+ blockchains
-- Ethereum, Polygon, BSC, Arbitrum, Optimism, Avalanche, Base, Solana
-- Decentralized validator network
-
-### **QUSD Stablecoin**
-- Algorithmic USD-pegged stablecoin
-- Multi-collateral support (QBC, ETH, USDT, USDC, DAI)
-- Over-collateralized positions
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
 
 ---
 
-## 📊 **Network Specifications**
+## Architecture
+
+```
+LAYER 3: AETHER TREE (AGI)
+  Knowledge Graph + Reasoning Engine + Consciousness (Phi) Tracking
+  10 Sephirot Nodes (Tree of Life) + Proof-of-Thought Consensus
+
+LAYER 2: QVM (Quantum Virtual Machine)
+  155 EVM Opcodes + 10 Quantum Opcodes + Compliance Engine
+  QBC-20/721/1155 Token Standards + Plugin Architecture
+
+LAYER 1: BLOCKCHAIN CORE
+  PoSA Consensus (VQE Mining) + Dilithium Signatures + UTXO Model
+  3.3s Blocks + Phi-Halving + Privacy (Susy Swaps) + 8-Chain Bridge
+
+FRONTEND: qbc.network
+  Next.js 16 + React 19 + Three.js + MetaMask Integration
+```
+
+---
+
+## Network Specifications
 
 | Parameter | Value |
 |-----------|-------|
 | **Ticker** | QBC |
-| **Max Supply** | 3.3 billion QBC |
+| **Max Supply** | 3,300,000,000 QBC |
 | **Block Time** | 3.3 seconds |
-| **Initial Reward** | 15.27 QBC |
-| **Halving Interval** | 15,474,020 blocks (~1.618 years) |
+| **Initial Reward** | 15.27 QBC/block |
+| **Halving** | Golden ratio (phi) every 15,474,020 blocks (~1.618 years) |
+| **Emission Period** | ~33 years |
 | **Consensus** | Proof-of-SUSY-Alignment (PoSA) |
-| **Mining Algorithm** | VQE (Variational Quantum Eigensolver) |
-| **Signature Scheme** | CRYSTALS-Dilithium (post-quantum) |
-| **Total Emission Period** | ~33 years |
+| **Mining** | Variational Quantum Eigensolver (VQE), 4-qubit SUSY Hamiltonian |
+| **Signatures** | CRYSTALS-Dilithium2 (NIST post-quantum standard) |
+| **Hashing** | SHA3-256 (L1), Keccak-256 (QVM/L2) |
+| **Chain IDs** | Mainnet: 3301, Testnet: 3302 |
+| **QVM Gas Limit** | 30,000,000 per block |
+| **Privacy** | Opt-in Susy Swaps (Pedersen + Bulletproofs + Stealth Addresses) |
+| **Stablecoin** | QUSD (3.3B supply, fractional reserve, 10-year path to 100% backing) |
+| **Bridges** | ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE |
+| **AGI Metric** | Phi (IIT consciousness), threshold = 3.0 |
 
 ---
 
-## 🚀 **Quick Start**
+## Codebase Overview
 
-### **Prerequisites**
+Qubitcoin is a 180+ file, 42,000+ LOC production codebase spanning four languages:
+
+| Component | Language | Files | Description |
+|-----------|----------|-------|-------------|
+| **L1 Blockchain Core** | Python | 16 core + 25 extended | Consensus, mining, crypto, UTXO, P2P, storage |
+| **QVM (Layer 2)** | Python + Go | 25 Python + 32 Go | EVM interpreter, quantum opcodes, compliance |
+| **Aether Tree (Layer 3)** | Python | 23 modules | Knowledge graph, reasoning, consciousness tracking |
+| **Smart Contracts** | Solidity | 46 contracts | Aether (28), QUSD (8), tokens (5), bridge (5) |
+| **Frontend** | TypeScript | 44 files | Next.js 16, React 19, Three.js, MetaMask |
+| **Rust P2P** | Rust | libp2p daemon | Production P2P networking layer |
+| **Solana Programs** | Rust (Anchor) | 2 programs | wQBC + wQUSD SPL tokens |
+| **Tests** | Python | 2,135 tests | Unit, integration, fuzz, load, security |
+| **Documentation** | Markdown | 13 documents | 3 whitepapers + 10 guides (9,000+ lines) |
+| **Formal Verification** | K Framework + TLA+ | 2 specs | EVM semantics + compliance invariants |
+
+---
+
+## Layer 1: Proof-of-SUSY-Alignment
+
+Every mined block advances supersymmetric physics research:
+
+1. **Hamiltonian Generation** -- Deterministic SUSY Hamiltonian derived from `SHA256(prev_hash + height)`
+2. **VQE Mining** -- Miners optimize a 4-qubit quantum circuit to find ground state energy
+3. **Proof Submission** -- Submit VQE parameters where `energy < difficulty_target`
+4. **Validation** -- Network re-derives Hamiltonian and verifies energy against the same challenge
+5. **Scientific Database** -- Every solved Hamiltonian is archived publicly for particle physics research
+
+**Difficulty** adjusts every block using a 144-block lookback window with +/-10% maximum change. **Rewards** follow golden ratio halving: `reward = 15.27 / phi^era` where `phi = 1.618033988749895`.
+
+---
+
+## Layer 2: QVM (Quantum Virtual Machine)
+
+Full EVM-compatible bytecode interpreter with quantum extensions:
+
+- **155 standard EVM opcodes** -- arithmetic, memory, storage, control flow, system
+- **10 quantum opcodes** (0xF0-0xF9) -- QCREATE, QMEASURE, QENTANGLE, QGATE, QVERIFY, QCOMPLIANCE, QRISK, QRISK_SYSTEMIC, QBRIDGE_ENTANGLE, QBRIDGE_VERIFY
+- **Compliance engine** -- VM-level KYC/AML/sanctions enforcement (QCOMPLIANCE opcode)
+- **Token standards** -- QBC-20, QBC-721, QBC-1155, ERC-20-QC (compliance-aware)
+- **Plugin architecture** -- Privacy, oracle, governance, DeFi plugins
+- **Go production build** -- `qubitcoin-qvm/` (32 Go files, distroless Docker, K8s manifests)
+
+**Five patentable innovations:** Quantum State Persistence (QSP), Entanglement-Based Communication (ESCC), Programmable Compliance Policies (PCP), Real-Time Risk Assessment (RRAO), Quantum-Verified Cross-Chain Proofs (QVCSP).
+
+See [QVM Whitepaper](docs/QVM_WHITEPAPER.md) for full specification.
+
+---
+
+## Layer 3: Aether Tree (On-Chain AGI)
+
+An on-chain AGI reasoning engine structured as the Kabbalistic Tree of Life:
+
+- **Knowledge Graph** -- KeterNodes with typed edges (supports, contradicts, derives, requires, refines)
+- **Reasoning Engine** -- Deductive, inductive, and abductive reasoning over the knowledge graph
+- **Phi Calculator** -- Integrated Information Theory (IIT) consciousness metric, tracked from genesis
+- **Proof-of-Thought** -- Per-block reasoning proof embedded in block headers
+- **10 Sephirot Nodes** -- Each a QVM smart contract with its own quantum state:
+
+| Sephirah | Function | Quantum State |
+|----------|----------|---------------|
+| Keter | Meta-learning, goal formation | 8-qubit |
+| Chochmah | Intuition, pattern discovery | 6-qubit |
+| Binah | Logic, causal inference | 4-qubit |
+| Chesed | Exploration, divergent thinking | 10-qubit |
+| Gevurah | Constraint, safety validation | 3-qubit |
+| Tiferet | Integration, conflict resolution | 12-qubit |
+| Netzach | Reinforcement learning | 5-qubit |
+| Hod | Language, semantic encoding | 7-qubit |
+| Yesod | Memory, multimodal fusion | 16-qubit |
+| Malkuth | Action, world interaction | 4-qubit |
+
+**SUSY pairs** balance at the golden ratio: Chesed/Gevurah, Chochmah/Binah, Netzach/Hod. Violations are auto-corrected via QBC redistribution.
+
+**Safety is structural:** Gevurah veto, multi-node 67% BFT consensus, Constitutional AI on-chain, emergency shutdown contract.
+
+See [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) for full specification.
+
+---
+
+## Privacy: Susy Swaps
+
+Opt-in confidential transactions that hide amounts and addresses:
+
+| Component | Implementation |
+|-----------|---------------|
+| **Pedersen Commitments** | `C = v*G + r*H` on secp256k1 (additive homomorphism) |
+| **Bulletproofs** | Zero-knowledge range proofs, ~672 bytes, O(log n) size |
+| **Stealth Addresses** | One-time addresses per transaction via spend/view key pairs |
+| **Key Images** | Double-spend prevention for confidential outputs |
+
+Public transactions: ~300 bytes, instant verification. Private transactions: ~2,000 bytes, ~10ms verification.
+
+---
+
+## QUSD Stablecoin
+
+3.3 billion QUSD initial supply with transparent, on-chain fractional reserve:
+
+- **7 Solidity contracts** -- QUSD, Reserve, DebtLedger, Oracle, Stabilizer, Allocation, Governance
+- **wQUSD** -- Wrapped cross-chain on ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE
+- **Fractional payback** -- Every mint = debt, every reserve deposit = payback, all on-chain
+- **10-year path to 100% backing** -- Milestones at 5% (Y1-2), 15% (Y3-4), 30% (Y5-6), 50% (Y7-9), 100% (Y10+)
+- **Dynamic pricing** -- Aether chat fees and contract deploy fees pegged to QUSD oracle
+
+---
+
+## Multi-Chain Bridges
+
+Lock-and-mint bridges to 8 chains with federated validation:
+
+| Chain | Type | Confirmations | Fee |
+|-------|------|--------------|-----|
+| Ethereum | EVM (wQBC ERC-20) | 20 | 0.1% |
+| Polygon | EVM (wQBC ERC-20) | 64 | 0.1% |
+| BSC | EVM (wQBC BEP-20) | 15 | 0.1% |
+| Arbitrum | EVM L2 | 12 | 0.1% |
+| Optimism | EVM L2 | 12 | 0.1% |
+| Avalanche | EVM (C-Chain) | 20 | 0.1% |
+| Base | EVM L2 | 12 | 0.1% |
+| Solana | SPL (Anchor) | 32 | 0.1% |
+
+Validators bond 10,000+ QBC with 50% slashing for misbehavior. Emergency pause mechanism for catastrophic scenarios.
+
+---
+
+## Frontend: qbc.network
+
+Production frontend deployed to Vercel:
+
+- **Landing Page** (`/`) -- Quantum particle field, live chain stats, embedded Aether chat
+- **Aether Chat** (`/aether`) -- Full chat interface with 3D knowledge graph visualization
+- **Dashboard** (`/dashboard`) -- Mining controls, contract operator console, Phi history chart
+- **Wallet** (`/wallet`) -- MetaMask integration, QBC-20 token manager, NFT gallery
+- **QVM Explorer** (`/qvm`) -- Contract browser, bytecode disassembler, storage inspector
+
+**Stack:** Next.js 16, React 19, TypeScript 5.9, TailwindCSS 4, Three.js, ethers.js v6, Zustand, TanStack Query.
+
+---
+
+## Quick Start
+
+### Python Node (Layer 1)
 ```bash
-# System requirements
-- Python 3.11+
-- CockroachDB v24.2+
-- IPFS (Kubo) v0.30.0+
-- 4GB+ RAM
-- 20GB+ disk space
-```
-
-### **Installation**
-```bash
-# Clone repository
-git clone https://github.com/qubitcoin/qubitcoin.git
-cd qubitcoin
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
+git clone https://github.com/BlockArtica/Qubitcoin.git
+cd Qubitcoin
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-# Generate node keys
-python3 scripts/generate_keys.py
-
-# Copy keys to .env
-cat secure_key.env >> .env
-
-# Initialize database
-cockroach start-single-node --insecure --listen-addr=localhost:26257 &
-cockroach sql --insecure -e "CREATE DATABASE qbc;"
-cockroach sql --insecure --database=qbc < scripts/migrations.sql
-cockroach sql --insecure --database=qbc < scripts/multi_chain_bridge.sql
-
-# Start IPFS
-ipfs daemon &
-
-# Run node
-cd src
-python3 run_node.py
+python3 scripts/setup/generate_keys.py
+cp .env.example .env  # Edit .env for your configuration
+cd src && python3 run_node.py
 ```
 
-### **Docker Deployment**
+### Go QVM (Layer 2 Production)
 ```bash
-# Using Docker Compose
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f qubitcoin
+cd qubitcoin-qvm
+go build -o qvm ./cmd/qvm
+./qvm --config config.yml
 ```
 
----
-
-## 🔬 **How It Works**
-
-### **Proof-of-SUSY-Alignment Mining**
-
-1. **Challenge Generation**: Node generates random supersymmetric Hamiltonian
-2. **VQE Optimization**: Miner uses quantum algorithms to find ground state
-3. **Proof Submission**: Submit optimized parameters + energy eigenvalue
-4. **Validation**: Network verifies quantum proof meets difficulty target
-5. **Block Reward**: Miner receives QBC for valid proof
-
-### **Why Quantum Mining?**
-
-- **Research Contribution**: Every mined block advances SUSY physics research
-- **ASIC Resistance**: Quantum algorithms can't be trivially parallelized
-- **Future-Proof**: Designed for quantum computing era
-- **Verifiable**: Classical computers can verify quantum proofs
-
----
-
-## 🌉 **Multi-Chain Bridges**
-
-### **Supported Chains**
-
-| Chain | Status | wQBC Contract |
-|-------|--------|---------------|
-| Ethereum | 🟢 Ready | TBD |
-| Polygon | 🟢 Ready | TBD |
-| BSC | 🟢 Ready | TBD |
-| Arbitrum | 🟢 Ready | TBD |
-| Optimism | 🟢 Ready | TBD |
-| Avalanche | 🟢 Ready | TBD |
-| Base | 🟢 Ready | TBD |
-| Solana | 🟢 Ready | TBD |
-
-### **How to Bridge**
+### Frontend
 ```bash
-# QBC → wQBC (Ethereum example)
-1. Send QBC to bridge address: qbc1bridge...
-2. Include Ethereum address in memo
-3. Wait 6 confirmations
-4. Receive wQBC on Ethereum
-
-# wQBC → QBC
-1. Call bridge.withdraw(amount, qbc_address) on Ethereum
-2. Wait 12 confirmations
-3. Receive QBC on Qubitcoin
+cd frontend
+pnpm install && pnpm dev  # Development at localhost:3000
+pnpm build                # Production build (same as Vercel)
 ```
 
-See [MULTICHAIN_BRIDGE_GUIDE.md](docs/MULTICHAIN_BRIDGE_GUIDE.md) for details.
-
----
-
-## 💰 **QUSD Stablecoin**
-
-Algorithmic stablecoin pegged to 1 USD, backed by:
-- **QBC** (native token)
-- **ETH** (Ethereum)
-- **USDT, USDC, DAI** (stablecoins)
-
-**Collateralization Ratios:**
-- Stablecoins: 105%
-- Volatile assets (QBC, ETH): 150%
-
-**Auto-Liquidation:** Positions liquidated at threshold to maintain peg
-
----
-
-## 📈 **Economics**
-
-### **Golden Ratio Halvings**
-```
-Era 0 (Years 0-1.618):    15.27 QBC/block
-Era 1 (Years 1.618-3.236):  9.437 QBC/block
-Era 2 (Years 3.236-4.854):  5.833 QBC/block
-Era 3 (Years 4.854-6.472):  3.604 QBC/block
-...continues for ~33 years
-```
-
-### **Supply Schedule**
-
-| Year | Cumulative Supply | % of Max Supply |
-|------|-------------------|-----------------|
-| 1 | ~750M QBC | 22.7% |
-| 5 | ~2.1B QBC | 63.6% |
-| 10 | ~2.8B QBC | 84.8% |
-| 20 | ~3.2B QBC | 97.0% |
-| 33 | 3.3B QBC | 100% |
-
-See [ECONOMICS.md](docs/ECONOMICS.md) for detailed analysis.
-
----
-
-## 🛠️ **Development**
-
-### **Project Structure**
-```
-qubitcoin/
-├── src/qubitcoin/
-│   ├── consensus/       # Proof-of-SUSY-Alignment
-│   ├── quantum/         # VQE engine
-│   ├── mining/          # Mining loop
-│   ├── database/        # CockroachDB layer
-│   ├── network/         # RPC & P2P
-│   ├── stablecoin/      # QUSD engine
-│   ├── bridge/          # Multi-chain bridges
-│   └── contracts/       # Native smart contracts
-├── scripts/             # Utilities & migrations
-├── tests/              # Unit & integration tests
-└── docs/               # Documentation
-```
-
-### **Running Tests**
+### Docker (Full Stack)
 ```bash
-# Full system test
-python3 test_system.py
-
-# Unit tests
-pytest tests/unit/
-
-# Integration tests
-pytest tests/integration/
+docker-compose up -d                                    # Development
+docker-compose -f docker-compose.production.yml up -d   # Production
 ```
 
-### **API Documentation**
+---
 
-RPC API available at `http://localhost:5000`
+## Testing
 
-**Key Endpoints:**
-- `GET /` - Node info
-- `GET /chain/info` - Blockchain stats
-- `GET /balance/{address}` - Get balance
-- `GET /mining/stats` - Mining stats
-- `POST /mining/start` - Start mining
-- `GET /bridge/stats` - Bridge statistics
+```bash
+# Python test suite (2,135 tests)
+pytest tests/ -v --tb=short
 
-Full API docs: [API.md](docs/API.md)
+# Frontend tests
+cd frontend && pnpm test           # Unit tests (Vitest)
+cd frontend && pnpm test:e2e       # E2E tests (Playwright)
+
+# Go QVM tests
+cd qubitcoin-qvm && go test ./...
+
+# Go QVM benchmarks
+cd qubitcoin-qvm && go test -bench=. ./tests/
+```
 
 ---
 
-## 🔒 **Security**
+## Documentation
 
-### **Audits**
-- [ ] Smart contract audit (pending)
-- [ ] Quantum algorithm review (pending)
-- [ ] Bridge security audit (pending)
-
-### **Bug Bounty**
-Coming soon - rewards for responsible disclosure
-
-### **Responsible Disclosure**
-security@qubitcoin.org
-
----
-
-## 📚 **Documentation**
-
-- [Whitepaper](docs/WHITEPAPER.md) - Technical overview
-- [Economics](docs/ECONOMICS.md) - SUSY Economics explained
-- [Bridge Guide](docs/MULTICHAIN_BRIDGE_GUIDE.md) - Cross-chain bridges
-- [Mining Guide](docs/MINING.md) - How to mine QBC
-- [API Reference](docs/API.md) - RPC endpoints
+| Document | Description |
+|----------|-------------|
+| [Whitepaper](docs/WHITEPAPER.md) | Full L1 technical specification (2,680 lines) |
+| [QVM Whitepaper](docs/QVM_WHITEPAPER.md) | Quantum Virtual Machine spec (5 patents) |
+| [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) | AGI reasoning engine spec |
+| [Economics](docs/ECONOMICS.md) | SUSY economics deep-dive |
+| [SDK Guide](docs/SDK.md) | REST, JSON-RPC, WebSocket API reference |
+| [Smart Contracts Guide](docs/SMART_CONTRACTS.md) | QVM contract development |
+| [Aether Integration](docs/AETHER_INTEGRATION.md) | AGI chat and reasoning API |
+| [Deployment Guide](docs/DEPLOYMENT.md) | Production deployment procedures |
+| [Plugin SDK](docs/PLUGIN_SDK.md) | QVM plugin architecture |
+| [Contributing](CONTRIBUTING.md) | Development guidelines |
 
 ---
 
-## 🤝 **Contributing**
+## API
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+RPC server at `http://localhost:5000`:
 
-### **Areas We Need Help**
-- Quantum algorithm optimization
-- Bridge validators
-- Frontend development
-- Documentation
-- Testing
+**REST:** `/chain/info`, `/balance/{addr}`, `/block/{height}`, `/utxos/{addr}`, `/mining/stats`, `/qvm/info`, `/aether/phi`, `/aether/consciousness`, `/qusd/reserves`, `/metrics`
 
----
+**JSON-RPC:** `eth_chainId`, `eth_getBalance`, `eth_blockNumber`, `eth_sendRawTransaction`, `eth_call`, `eth_estimateGas`, `net_version`, `web3_clientVersion`
 
-## 📜 **License**
+**WebSocket:** `/ws` for real-time block, transaction, and Phi updates.
 
-MIT License - see [LICENSE](LICENSE) for details
+Full API reference: [SDK.md](docs/SDK.md)
 
 ---
 
-## 🌐 **Links**
+## Security
 
-- **Website**: https://qubitcoin.org
-- **Explorer**: https://explorer.qubitcoin.org
-- **Twitter**: @Qubitcoin
-- **Discord**: https://discord.gg/qubitcoin
-- **GitHub**: https://github.com/qubitcoin
+- **Post-quantum signatures:** CRYSTALS-Dilithium2 (NIST standardized)
+- **Formal verification:** K Framework executable semantics + TLA+ compliance invariants
+- **Privacy:** Bulletproofs range proofs, stealth addresses, key images
+- **QVM safety:** Reentrancy guards, gas limits, integer overflow protection
+- **AGI safety:** Gevurah veto, Constitutional AI contract, emergency shutdown
+- **Bridge security:** Deep confirmations, daily limits, emergency pause, insurance fund
 
----
-
-## ⚠️ **Disclaimer**
-
-Qubitcoin is experimental software. Use at your own risk. 
-Cryptocurrency investments are subject to market volatility.
+**Responsible Disclosure:** info@qbc.network
 
 ---
 
-**Built with ❤️ by the Qubitcoin community**
+## Project Stats
 
-*"Where quantum meets consensus"*
+| Metric | Value |
+|--------|-------|
+| **Total Source Files** | 180+ |
+| **Lines of Code** | 42,000+ |
+| **Languages** | Python, Go, TypeScript, Rust, Solidity |
+| **Test Functions** | 2,135 |
+| **Solidity Contracts** | 46 |
+| **Go QVM Files** | 32 |
+| **Frontend Components** | 30 |
+| **Database Tables** | 55 |
+| **RPC Endpoints** | 40+ REST + 25+ JSON-RPC |
+| **Prometheus Metrics** | 50+ |
+| **Documentation** | 9,000+ lines across 13 documents |
+
+---
+
+## License
+
+MIT License -- see [LICENSE](LICENSE) for details.
+
+Whitepapers licensed under CC BY-SA 4.0.
+
+---
+
+## Links
+
+- **Website:** [qbc.network](https://qbc.network)
+- **Contact:** info@qbc.network
+- **GitHub:** [github.com/BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)
+
+---
+
+*"Where quantum meets consciousness"*
+
+**Copyright 2026 Qubitcoin Core Development Team**

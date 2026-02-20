@@ -244,7 +244,7 @@ Changes are classified by risk level:
 
 If you discover a security vulnerability, please report it responsibly:
 - Do NOT open a public issue
-- Contact the maintainers directly
+- Email: **info@qbc.network**
 - Provide detailed reproduction steps
 
 ### Security Practices
@@ -259,3 +259,5 @@ If you discover a security vulnerability, please report it responsibly:
 
 *For detailed technical documentation, see `CLAUDE.md` (master development guide),
 `docs/WHITEPAPER.md`, `docs/QVM_WHITEPAPER.md`, and `docs/AETHERTREE_WHITEPAPER.md`.*
+
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)

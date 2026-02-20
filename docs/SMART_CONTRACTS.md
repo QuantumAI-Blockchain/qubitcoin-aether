@@ -400,3 +400,6 @@ contracts/solidity/
 
 *For the full API reference, see [Developer SDK Guide](SDK.md).*
 *For Aether Tree integration, see [Aether Integration Guide](AETHER_INTEGRATION.md).*
+
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)
+*For Aether Tree integration, see [Aether Integration Guide](AETHER_INTEGRATION.md).*
