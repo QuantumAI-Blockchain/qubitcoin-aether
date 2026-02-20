@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from fastapi.responses import Response
 
 from ..config import Config
@@ -589,6 +590,125 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             'is_template': is_template,
             'fee_qbc': str(fee),
             'pricing_mode': Config.CONTRACT_FEE_PRICING_MODE,
+        }
+
+    class DeployRequest(BaseModel):
+        contract_type: str
+        contract_code: dict
+        deployer: str
+
+    @app.post("/contracts/deploy")
+    async def deploy_contract(req: DeployRequest):
+        """Deploy a smart contract via ContractExecutor (template contracts)."""
+        if not contract_engine:
+            raise HTTPException(status_code=503, detail="Contract engine not available")
+
+        height = db_manager.get_current_height()
+        success, message, contract_id = contract_engine.deploy_contract(
+            contract_type=req.contract_type,
+            contract_code=req.contract_code,
+            deployer_address=req.deployer,
+            block_height=height,
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+        return {
+            "success": True,
+            "message": message,
+            "contract_id": contract_id,
+            "deployer": req.deployer,
+            "contract_type": req.contract_type,
+            "block_height": height,
+        }
+
+    class ExecuteRequest(BaseModel):
+        contract_id: str
+        function: str
+        args: dict
+        caller: str
+
+    @app.post("/contracts/execute")
+    async def execute_contract(req: ExecuteRequest):
+        """Execute a smart contract function."""
+        if not contract_engine:
+            raise HTTPException(status_code=503, detail="Contract engine not available")
+
+        height = db_manager.get_current_height()
+        success, message, result = contract_engine.execute(
+            contract_id=req.contract_id,
+            function=req.function,
+            args=req.args,
+            caller=req.caller,
+            block_height=height,
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=message)
+        return {
+            "success": True,
+            "message": message,
+            "result": result,
+        }
+
+    @app.get("/contracts")
+    async def list_contracts(limit: int = 50, offset: int = 0):
+        """List deployed contracts."""
+        from sqlalchemy import text as sa_text
+        limit = max(1, min(limit, 200))
+        with db_manager.get_session() as session:
+            rows = session.execute(
+                sa_text("""
+                    SELECT contract_id, deployer_address, contract_type,
+                           gas_paid, block_height, is_active, deployed_at
+                    FROM contracts
+                    ORDER BY deployed_at DESC
+                    LIMIT :lim OFFSET :off
+                """),
+                {'lim': limit, 'off': offset}
+            ).fetchall()
+            count = session.execute(
+                sa_text("SELECT COUNT(*) FROM contracts")
+            ).scalar()
+        contracts = []
+        for r in rows:
+            contracts.append({
+                "contract_id": r[0],
+                "deployer": r[1],
+                "type": r[2],
+                "gas_paid": str(r[3]),
+                "block_height": r[4],
+                "is_active": r[5],
+                "deployed_at": str(r[6]) if r[6] else None,
+            })
+        return {"contracts": contracts, "total": count}
+
+    @app.get("/contracts/{contract_id}")
+    async def get_contract(contract_id: str):
+        """Get contract details by ID."""
+        from sqlalchemy import text as sa_text
+        with db_manager.get_session() as session:
+            row = session.execute(
+                sa_text("""
+                    SELECT contract_id, deployer_address, contract_type,
+                           contract_code, contract_state, gas_paid,
+                           block_height, is_active, deployed_at, execution_count
+                    FROM contracts WHERE contract_id = :cid
+                """),
+                {'cid': contract_id}
+            ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Contract not found")
+        import json
+        return {
+            "contract_id": row[0],
+            "deployer": row[1],
+            "type": row[2],
+            "code": json.loads(row[3]) if isinstance(row[3], str) else row[3],
+            "state": json.loads(row[4]) if isinstance(row[4], str) else row[4],
+            "gas_paid": str(row[5]),
+            "block_height": row[6],
+            "is_active": row[7],
+            "deployed_at": str(row[8]) if row[8] else None,
+            "execution_count": row[9],
         }
 
     # ========================================================================
