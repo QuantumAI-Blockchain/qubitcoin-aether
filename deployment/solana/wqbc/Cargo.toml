@@ -1,0 +1,21 @@
+[package]
+name = "wqbc"
+version = "1.0.0"
+description = "Wrapped Qubitcoin (wQBC) — SPL Token on Solana"
+edition = "2021"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "wqbc"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "0.30"
+anchor-spl = "0.30"
