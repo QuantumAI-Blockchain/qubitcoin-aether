@@ -8,13 +8,15 @@
 
 ## 1. PROJECT IDENTITY
 
-**Qubitcoin (QBC)** is a quantum-secured Layer 1 blockchain that combines:
+**Qubitcoin (QBC) | Quantum Blockchain** is a physics-secured Layer 1 blockchain that combines:
 - **Quantum Computing** (Qiskit VQE) for Proof-of-SUSY-Alignment mining
 - **Post-Quantum Cryptography** (CRYSTALS-Dilithium2) for quantum-resistant signatures
 - **Supersymmetric (SUSY) Economics** with golden ratio (phi) emission principles
-- **Aether Tree** — an on-chain AGI reasoning engine that tracks consciousness metrics from genesis
-- **QVM** — a full EVM-compatible virtual machine with quantum opcode extensions
+- **Aether Tree** : an on-chain AGI reasoning engine that tracks consciousness metrics from genesis
+- **QVM** : a full EVM-compatible virtual machine with quantum opcode extensions
 - **Multi-chain bridges** to ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE
+
+**Tagline:** Physics-Secured Digital Assets with On-Chain AGI
 
 **Domain:** qbc.network
 **License:** MIT

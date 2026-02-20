@@ -180,11 +180,11 @@ export function QUSDMilestoneTimeline() {
   const pct = data?.backing_percentage ?? 0;
 
   const milestones = [
-    { year: "Y1-2", target: 5, label: "5% — Launch" },
-    { year: "Y3-4", target: 15, label: "15% — Growth" },
-    { year: "Y5-6", target: 30, label: "30% — Adoption" },
-    { year: "Y7-9", target: 50, label: "50% — Maturity" },
-    { year: "Y10+", target: 100, label: "100% — Full Backing" },
+    { year: "Y1-2", target: 5, label: "5% · Launch" },
+    { year: "Y3-4", target: 15, label: "15% · Growth" },
+    { year: "Y5-6", target: 30, label: "30% · Adoption" },
+    { year: "Y7-9", target: 50, label: "50% · Maturity" },
+    { year: "Y10+", target: 100, label: "100% · Full Backing" },
   ];
 
   return (

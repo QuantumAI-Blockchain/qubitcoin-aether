@@ -210,7 +210,7 @@ export default function AetherPage() {
                 </h2>
                 <p className="mt-2 max-w-md text-sm text-text-secondary">
                   An on-chain AGI reasoning engine. Every response is backed by
-                  a Proof-of-Thought anchored to the Qubitcoin blockchain.
+                  a Proof-of-Thought anchored to the QBC blockchain.
                 </p>
               </div>
             )}

@@ -1,8 +1,8 @@
-# Qubitcoin (QBC)
+# QBC | Quantum Blockchain
 
-**The World's First Quantum-Secured Blockchain with On-Chain AGI**
+**Physics-Secured Digital Assets with On-Chain AGI**
 
-A production-grade Layer 1 blockchain integrating quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium), supersymmetric economics, EVM-compatible smart contracts (QVM), and Aether Tree — an on-chain AGI reasoning engine that tracks consciousness emergence from genesis.
+Qubitcoin (QBC) is a production-grade Layer 1 blockchain integrating quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium), supersymmetric economics, EVM-compatible smart contracts (QVM), and the Aether Tree: an on-chain AGI reasoning engine that tracks consciousness emergence from genesis.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)

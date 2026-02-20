@@ -220,7 +220,7 @@ export function ContractInteract() {
             }`}
           >
             <p className="text-xs font-medium text-text-secondary">
-              {result.success ? "Success" : "Failed"} — Gas used:{" "}
+              {result.success ? "Success" : "Failed"} | Gas used:{" "}
               {result.gas_used.toLocaleString()}
             </p>
             <p className="mt-1 break-all font-[family-name:var(--font-mono)] text-sm text-text-primary">

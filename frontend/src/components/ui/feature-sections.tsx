@@ -14,7 +14,7 @@ const features = [
     ),
     items: [
       "Proof-of-SUSY-Alignment mining with VQE quantum circuits",
-      "Post-quantum Dilithium2 signatures — future-proof security",
+      "Post-quantum Dilithium2 signatures for future-proof security",
       "Golden ratio (phi) emission: 3.3B supply over 33 years",
       "3.3-second blocks with per-block difficulty adjustment",
     ],

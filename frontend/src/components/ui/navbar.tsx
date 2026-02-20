@@ -27,7 +27,7 @@ export function Navbar() {
             QBC
           </span>
           <span className="hidden text-sm text-text-secondary sm:inline">
-            Qubitcoin
+            Quantum Blockchain
           </span>
         </Link>
 

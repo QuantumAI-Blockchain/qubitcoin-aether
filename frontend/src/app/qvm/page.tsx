@@ -31,7 +31,7 @@ export default function QVMPage() {
         QVM Explorer
       </h1>
       <p className="mt-2 text-text-secondary">
-        Quantum Virtual Machine — 155 EVM opcodes + 10 quantum extensions
+        Quantum Virtual Machine: 155 EVM opcodes + 10 quantum extensions
       </p>
 
       {/* Stats */}

@@ -56,7 +56,7 @@ export function Footer() {
               QBC
             </span>
             <p className="mt-3 text-sm leading-relaxed text-text-secondary">
-              Quantum-secured Layer 1 blockchain with post-quantum cryptography and
+              Physics-secured digital assets with post-quantum cryptography and
               the Aether Tree on-chain AGI engine.
             </p>
             <div className="mt-4 flex gap-3">

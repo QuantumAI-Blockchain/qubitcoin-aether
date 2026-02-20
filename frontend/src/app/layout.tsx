@@ -9,9 +9,9 @@ import { Providers } from "./providers";
    in <head> or switch to next/font/google imports. */
 
 export const metadata: Metadata = {
-  title: "Qubitcoin — Quantum-Secured Blockchain with On-Chain AGI",
+  title: "QBC | Physics-Secured Digital Assets with On-Chain AGI",
   description:
-    "QBC is a quantum-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree on-chain AGI engine.",
+    "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree on-chain AGI engine.",
   keywords: ["qubitcoin", "qbc", "quantum", "blockchain", "AGI", "aether tree"],
 };
 

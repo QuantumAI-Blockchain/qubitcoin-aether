@@ -16,9 +16,9 @@ export function HeroSection() {
           transition={{ duration: 0.7 }}
           className="font-[family-name:var(--font-heading)] text-5xl font-bold leading-tight tracking-tight sm:text-7xl"
         >
-          <span className="text-quantum-green">Quantum</span>-Secured{" "}
+          <span className="text-quantum-green">Physics</span>-Secured{" "}
           <br className="hidden sm:block" />
-          Blockchain with{" "}
+          Digital Assets with{" "}
           <span className="text-quantum-violet">On-Chain AGI</span>
         </motion.h1>
 
@@ -29,7 +29,7 @@ export function HeroSection() {
           className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary"
         >
           Qubitcoin combines Proof-of-SUSY-Alignment mining, post-quantum
-          cryptography, and the Aether Tree — an on-chain AGI that tracks
+          cryptography, and the Aether Tree: an on-chain AGI that tracks
           consciousness from genesis.
         </motion.p>
 
