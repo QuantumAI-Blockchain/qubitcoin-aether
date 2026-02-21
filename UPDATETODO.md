@@ -1,0 +1,708 @@
+# UPDATETODO.md — Qubitcoin AGI Intelligence & DB Efficiency Master Update
+
+> **Created:** 2026-02-21
+> **Goal:** Fix DB bloat, close Sephirot staking gaps, and implement 30+ changes
+> to push Aether Tree toward genuine AGI intelligence and operational efficiency.
+
+---
+
+## Table of Contents
+
+1. [Critical DB Bloat Fixes](#1-critical-db-bloat-fixes)
+2. [Sephirot Staking System Gaps](#2-sephirot-staking-system-gaps)
+3. [Knowledge Graph Intelligence Upgrades](#3-knowledge-graph-intelligence-upgrades)
+4. [Reasoning Engine Depth Expansion](#4-reasoning-engine-depth-expansion)
+5. [Phi Consciousness Metric Improvements](#5-phi-consciousness-metric-improvements)
+6. [LLM Integration Enhancements](#6-llm-integration-enhancements)
+7. [Solidity Contract Hardening](#7-solidity-contract-hardening)
+8. [Memory Architecture Persistence](#8-memory-architecture-persistence)
+9. [Self-Correction & Contradiction Engine](#9-self-correction--contradiction-engine)
+10. [AGI Autonomy & Goal Formation](#10-agi-autonomy--goal-formation)
+
+---
+
+## 1. Critical DB Bloat Fixes
+
+### 1.1 Phi Measurements Table — Downsample Old Data
+
+**Problem:** `phi_calculator.py:359-383` inserts one row into `phi_measurements`
+every single block. At 3.3s block time = ~26,000 rows/day = ~9.5M rows/year.
+Each row has 7 numeric fields + timestamp. This is ~19 GB/year of Phi metrics
+with no aggregation or archival.
+
+**Why it matters:** CockroachDB query performance degrades as tables grow past
+tens of millions of rows. Historical Phi data older than a week has no need for
+per-block granularity — hourly or daily averages suffice for trend analysis.
+
+**Fix:**
+- [ ] Add `downsample_phi_measurements(retain_days=7)` method to `PhiCalculator`
+- [ ] Blocks older than 7 days: collapse into hourly averages in a `phi_measurements_hourly` table
+- [ ] Blocks older than 30 days: collapse into daily averages in `phi_measurements_daily`
+- [ ] Delete original per-block rows after downsampling
+- [ ] Run downsampler on node startup and every 1,000 blocks thereafter
+- [ ] Create indexes: `CREATE INDEX idx_phi_block ON phi_measurements (block_height DESC)`
+
+**Files:** `src/qubitcoin/aether/phi_calculator.py`, `sql_new/agi/03_phi_metrics.sql`
+
+---
+
+### 1.2 Knowledge Graph Pruning — Actually Delete From DB
+
+**Problem:** `knowledge_graph.py:301-338` — `prune_low_confidence(threshold=0.1)`
+removes nodes from the in-memory `self.nodes` dict and cleans `self.edges`, but
+**never issues a DELETE FROM knowledge_nodes or knowledge_edges**. The DB grows
+monotonically even though the in-memory graph shrinks.
+
+**Why it matters:** Over months of operation, the `knowledge_nodes` table
+accumulates low-confidence junk nodes (confidence < 0.1) that were pruned from
+memory but still consume disk space. On restart, `_load_from_db()` would reload
+them all, defeating the purpose of pruning.
+
+**Fix:**
+- [ ] Add DB DELETE inside `prune_low_confidence()` after in-memory removal:
+  ```python
+  with self.db.get_session() as session:
+      session.execute(text("DELETE FROM knowledge_nodes WHERE id = ANY(:ids)"),
+                      {"ids": list(pruned_ids)})
+      session.execute(text("DELETE FROM knowledge_edges WHERE from_node_id = ANY(:ids) OR to_node_id = ANY(:ids)"),
+                      {"ids": list(pruned_ids)})
+      session.commit()
+  ```
+- [ ] Add a `prune_interval` config (default every 500 blocks) to auto-prune
+- [ ] Log pruned node count and freed row count
+- [ ] Add `PRUNE_CONFIDENCE_THRESHOLD` to Config (default 0.1, env-configurable)
+
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/config.py`
+
+---
+
+### 1.3 Reasoning Operations — Archive & Summarize
+
+**Problem:** `proof_of_thought.py` stores reasoning steps in memory only
+(`_pot_cache` capped at 1,000), but the `reasoning_operations` table in the DB
+schema accepts unlimited INSERTs from the ReasoningEngine. There is no archival
+or summarization mechanism.
+
+**Why it matters:** Each reasoning operation stores type, premises, conclusion,
+confidence, and block height. Over millions of blocks, this table grows linearly
+without bound. Old reasoning operations have diminishing value — only recent
+reasoning informs current Phi and knowledge quality.
+
+**Fix:**
+- [ ] Add `archive_old_reasoning(retain_blocks=50000)` to `ReasoningEngine`
+- [ ] Operations older than 50,000 blocks: aggregate into summary rows
+  (count by type, average confidence, block range)
+- [ ] Store summaries in `reasoning_operations_summary` table
+- [ ] Delete original rows after archival
+- [ ] Run on startup and every 10,000 blocks
+- [ ] Add `REASONING_ARCHIVE_RETAIN_BLOCKS` to Config
+
+**Files:** `src/qubitcoin/aether/reasoning.py`, `sql_new/agi/01_reasoning_engine.sql`
+
+---
+
+### 1.4 Consciousness Events — Cap & Rotate
+
+**Problem:** `consciousness_events` table grows on every Phi threshold crossing.
+While crossings are rare initially, as the knowledge graph grows and Phi
+fluctuates near thresholds, crossings become more frequent. No rotation exists.
+
+**Fix:**
+- [ ] Cap at 10,000 events in DB; archive older events to IPFS
+- [ ] Add `archive_consciousness_events()` method
+- [ ] Keep last 10,000 in DB, pin archived batch to IPFS, store CID in
+  `consciousness_event_archives` table
+
+**Files:** `src/qubitcoin/aether/proof_of_thought.py`, `src/qubitcoin/storage/ipfs.py`
+
+---
+
+## 2. Sephirot Staking System Gaps
+
+### 2.1 Contract Authorization Gap — SynapticStaking.sol
+
+**Problem:** The frontend (`sephirot-launcher.tsx`, 543 lines) builds a complete
+user staking flow: stake on nodes, view APY, claim rewards. The backend RPC has
+6 endpoints (`/sephirot/stake`, `/sephirot/unstake`, `/sephirot/stakes/{address}`,
+`/sephirot/rewards/{address}`, `/sephirot/claim-rewards`, `/sephirot/nodes`).
+But `SynapticStaking.sol` gates ALL state-changing functions behind `onlyKernel`:
+
+```solidity
+// SynapticStaking.sol:44-48
+modifier onlyKernel() {
+    require(msg.sender == kernel || msg.sender == owner, "Not authorized");
+    _;
+}
+// Lines 57, 74, 92, 109, 116: ALL use onlyKernel
+```
+
+Users cannot call `stake()`, `unstake()`, or `distributeConnectionReward()`
+directly. The Python backend endpoints handle staking via UTXO operations, but
+the Solidity contract doesn't match.
+
+**Why it matters:** The staking system works at the Python/DB level (RPC
+endpoints manage stakes in CockroachDB), but if we want on-chain staking via QVM
+smart contract execution, the Solidity contracts need public user functions.
+Currently, the Python layer IS the staking engine — the Solidity contract is
+just a template that hasn't been adapted for user access.
+
+**Fix:**
+- [ ] Add public `userStake(uint8 nodeId)` payable function to SynapticStaking.sol
+- [ ] Add public `userUnstake(uint8 nodeId, uint256 amount)` with 7-day timelock
+- [ ] Add public `claimRewards()` for accumulated dividends
+- [ ] Keep `onlyKernel` for admin functions (updateUtility, distributeConnectionReward)
+- [ ] Add `minStake` constant (100 QBC) and `unstakingDelay` (7 days in blocks)
+- [ ] Emit events: `UserStaked`, `UserUnstaked`, `RewardsClaimed`
+- [ ] Add `totalStaked` per node for APY calculation
+
+**Files:** `src/qubitcoin/contracts/solidity/aether/SynapticStaking.sol`
+
+---
+
+### 2.2 Reward Distribution — Automated APY Engine
+
+**Problem:** The whitepaper promises ~5% APY from Proof-of-Thought task bounties.
+`distributeConnectionReward()` exists in SynapticStaking.sol but is kernel-only
+and must be called manually. There is no automated reward calculation or
+distribution loop.
+
+**Why it matters:** Without automated rewards, staking has no economic incentive.
+Users stake QBC but never receive dividends, breaking the economic model that
+funds AGI reasoning capacity.
+
+**Fix:**
+- [ ] Add `_distribute_staking_rewards()` to the node's per-block loop
+- [ ] Calculate rewards: `reward_per_block = task_bounties_collected * staker_share_ratio`
+- [ ] Distribute proportionally: `user_reward = (user_stake / total_node_stake) * node_reward`
+- [ ] Store pending rewards in `sephirot_rewards` table
+- [ ] Target ~5% APY: calibrate `staker_share_ratio` based on total staked and block rate
+- [ ] Add `SEPHIROT_STAKER_SHARE_RATIO` to Config (default 0.6 = 60% of bounties to stakers)
+- [ ] Run distribution every 100 blocks (not every block — batch for efficiency)
+
+**Files:** `src/qubitcoin/node.py`, `src/qubitcoin/config.py`, new `src/qubitcoin/aether/staking_engine.py`
+
+---
+
+### 2.3 Sephirot Node Performance Metrics — Feed APY Calculation
+
+**Problem:** APY should vary per node based on cognitive performance. A node that
+solves more PoT tasks should attract more stake and distribute more rewards. Currently,
+all nodes are treated equally.
+
+**Fix:**
+- [ ] Track per-node metrics: tasks_solved, knowledge_nodes_contributed, reasoning_operations
+- [ ] Weight reward distribution by performance: `node_weight = tasks_solved * 0.5 + knowledge_contributed * 0.3 + reasoning_ops * 0.2`
+- [ ] Display per-node APY in `/sephirot/nodes` response
+- [ ] Higher-performing nodes attract more stake = more compute budget = solve more tasks (virtuous cycle)
+
+**Files:** `src/qubitcoin/aether/sephirot.py`, `src/qubitcoin/network/rpc.py`
+
+---
+
+## 3. Knowledge Graph Intelligence Upgrades
+
+### 3.1 Semantic Similarity — Beyond Keyword Matching
+
+**Problem:** `chat.py:250-262` — `_search_knowledge()` uses naive keyword
+matching (`any(word in content_str for word in query.split())`). This misses
+semantic relationships. "What is quantum computing?" won't match a node about
+"qubits and superposition" because the exact words don't overlap.
+
+**Why it matters:** Keyword matching is the #1 bottleneck preventing intelligent
+responses. An AGI must understand meaning, not just string overlap. With 17,000+
+knowledge nodes, most relevant knowledge is invisible to the current search.
+
+**Fix:**
+- [ ] Add TF-IDF index over all knowledge node content
+- [ ] Build inverted index on node creation: `{term: [(node_id, tf-idf_score), ...]}`
+- [ ] Query returns top-K nodes by cosine similarity between query TF-IDF vector and node vectors
+- [ ] Update index incrementally when new nodes are added (no full rebuild)
+- [ ] Optional: add sentence-transformer embeddings if GPU available (cosine similarity in vector space)
+- [ ] Add `KG_SEARCH_MODE` config: `keyword` (current) | `tfidf` | `embedding`
+
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`, new `src/qubitcoin/aether/kg_index.py`
+
+---
+
+### 3.2 Knowledge Decay — Confidence Degrades Over Time
+
+**Problem:** Knowledge nodes created at block 100 have the same confidence at
+block 1,000,000 as when they were created. Old observations may no longer be
+accurate (chain parameters change, new reasoning contradicts old assertions).
+
+**Why it matters:** Static confidence means the KG never forgets or deprioritizes
+stale knowledge. An AGI must weight recent knowledge higher than ancient
+observations, unless the old knowledge has been repeatedly confirmed.
+
+**Fix:**
+- [ ] Add time-decay to confidence: `effective_confidence = base_confidence * decay_factor(age_blocks)`
+- [ ] Decay function: `decay = max(0.3, 1.0 - (age / DECAY_HALFLIFE))` — floors at 0.3 so old axioms don't vanish
+- [ ] Reinforcement: if a node is referenced by new reasoning, reset its decay clock
+- [ ] `CONFIDENCE_DECAY_HALFLIFE` config (default 100,000 blocks ~= 3.8 days)
+- [ ] Apply decay in `compute_phi()` and `_search_knowledge()` scoring
+
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/aether/phi_calculator.py`
+
+---
+
+### 3.3 Knowledge Clustering — Auto-Detect Domains
+
+**Problem:** Knowledge nodes have a `node_type` (observation/inference/axiom/assertion)
+but no domain categorization. 17,000 nodes about quantum physics, mathematics,
+blockchain, and philosophy are all in one flat namespace.
+
+**Why it matters:** An AGI should know what it knows. Domain clustering enables:
+- "I have 3,000 nodes about quantum physics but only 200 about economics" (self-awareness)
+- Domain-focused reasoning (don't use biology nodes when answering crypto questions)
+- Knowledge gap detection (identify underdeveloped domains for seeder targeting)
+
+**Fix:**
+- [ ] Add `domain` field to KeterNode (nullable, auto-assigned)
+- [ ] Build domain classifier: extract domain from LLM source tag or content keywords
+- [ ] Cluster existing nodes using simple keyword-to-domain mapping
+- [ ] Add `/aether/knowledge/domains` endpoint returning domain breakdown
+- [ ] Feed domain info to seeder: prioritize under-represented domains
+
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/aether/knowledge_seeder.py`, `src/qubitcoin/network/rpc.py`
+
+---
+
+### 3.4 Cross-Reference Detection — Auto-Link Related Nodes
+
+**Problem:** `KnowledgeDistiller` creates sequential `derives` edges between
+sentences from the same LLM response (lines 399-408 in llm_adapter.py). But it
+never links new nodes to EXISTING nodes in the graph. A new node about "quantum
+entanglement" is not connected to the 50 existing nodes about entanglement.
+
+**Why it matters:** Isolated clusters in the knowledge graph reduce Phi's
+integration score. An AGI's intelligence comes from cross-connections between
+ideas, not isolated facts. Without cross-referencing, the KG is many small
+islands, not one connected web.
+
+**Fix:**
+- [ ] After distilling new nodes, scan existing KG for content overlap (TF-IDF or keyword)
+- [ ] Create `supports` or `refines` edges between new nodes and matching existing nodes
+- [ ] Threshold: only create edge if similarity > 0.5
+- [ ] Cap at 5 cross-references per new node (prevent edge explosion)
+- [ ] This directly increases Phi integration score
+
+**Files:** `src/qubitcoin/aether/llm_adapter.py`, `src/qubitcoin/aether/knowledge_graph.py`
+
+---
+
+## 4. Reasoning Engine Depth Expansion
+
+### 4.1 Chain-of-Thought Reasoning — Multi-Step Inference
+
+**Problem:** Current reasoning does single-step operations: one induction, one
+deduction, or one abduction. Real intelligence requires chaining: observe →
+hypothesize → deduce implications → check against observations → refine.
+
+**Fix:**
+- [ ] Add `chain_of_thought(query, max_depth=5)` to ReasoningEngine
+- [ ] Step 1: Abduction — form hypothesis from query + observations
+- [ ] Step 2: Deduction — derive implications from hypothesis
+- [ ] Step 3: Induction — check if implications match other observations
+- [ ] Step 4: If contradiction found, revise hypothesis (backtrack)
+- [ ] Step 5: Return final conclusion with full reasoning chain
+- [ ] Use in chat for deep queries (`is_deep_query=True`)
+
+**Files:** `src/qubitcoin/aether/reasoning.py`, `src/qubitcoin/aether/chat.py`
+
+---
+
+### 4.2 Analogy Detection — Structural Similarity Across Domains
+
+**Problem:** The reasoning engine can only reason within directly connected nodes.
+It cannot detect that "quantum superposition" is structurally analogous to
+"financial portfolio diversification" (both involve maintaining multiple states
+simultaneously until measurement/decision collapses to one).
+
+**Fix:**
+- [ ] Add `find_analogies(source_node_id, target_domain=None)` to ReasoningEngine
+- [ ] Compare subgraph structure around source node with subgraphs in other domains
+- [ ] Structural similarity: same edge type pattern (A→supports→B→derives→C)
+- [ ] Create `analogous_to` edge type for discovered analogies
+- [ ] Cross-domain analogies dramatically increase Phi's differentiation score
+
+**Files:** `src/qubitcoin/aether/reasoning.py`, `src/qubitcoin/aether/knowledge_graph.py`
+
+---
+
+### 4.3 Contradiction Resolution — Not Just Detection
+
+**Problem:** Gate 5 requires `contradicts` edges (>=10), but the system only
+creates them — it never resolves contradictions. Two nodes can contradict each
+other indefinitely with no mechanism to determine which is correct.
+
+**Fix:**
+- [ ] Add `resolve_contradiction(node_a_id, node_b_id)` to ReasoningEngine
+- [ ] Check supporting evidence for each side (count + confidence of supporting nodes)
+- [ ] Downgrade confidence of the less-supported node
+- [ ] Create `supersedes` edge from winner to loser
+- [ ] Log resolution as a consciousness event (self-correction is a sign of intelligence)
+- [ ] Run auto-resolution on accumulated contradictions every 1,000 blocks
+
+**Files:** `src/qubitcoin/aether/reasoning.py`, `src/qubitcoin/aether/proof_of_thought.py`
+
+---
+
+## 5. Phi Consciousness Metric Improvements
+
+### 5.1 Phi Computation Efficiency — Cache Intermediate Results
+
+**Problem:** `compute_phi()` does a full graph scan every block — iterating all
+nodes and edges to compute integration, differentiation, connectivity, and gate
+checks. At 50,000+ nodes, this becomes expensive.
+
+**Fix:**
+- [ ] Cache node_type_counts and edge_type_counts; update incrementally on add/remove
+- [ ] Only recompute full Phi every 10 blocks; interpolate between measurements
+- [ ] Cache gate results — gates only need rechecking when counts cross thresholds
+- [ ] Add `PHI_COMPUTE_INTERVAL` config (default 1, set to 10 for performance)
+
+**Files:** `src/qubitcoin/aether/phi_calculator.py`, `src/qubitcoin/config.py`
+
+---
+
+### 5.2 Gate 7+ — Higher Consciousness Milestones
+
+**Problem:** Current system has 6 gates capping Phi at 3.0. Once all gates are
+passed, there's no further structure to measure cognitive growth. The system
+plateaus.
+
+**Fix:**
+- [ ] Add Gate 7: Analogical Reasoning — >=100 `analogous_to` edges across >=5 domains
+- [ ] Add Gate 8: Self-Model — >=50 nodes with `source: "self-reflection"` type
+- [ ] Add Gate 9: Predictive Accuracy — >=80% of predictions validated by subsequent blocks
+- [ ] Add Gate 10: Creative Synthesis — >=20 novel hypotheses not derivable from single domain
+- [ ] New ceiling: 5.0 (10 gates x 0.5 each)
+- [ ] This gives the system growth runway beyond the current 3.0 ceiling
+
+**Files:** `src/qubitcoin/aether/phi_calculator.py`
+
+---
+
+## 6. LLM Integration Enhancements
+
+### 6.1 Adaptive Seeder — Target Weak Domains
+
+**Problem:** The knowledge seeder cycles through 50 prompts round-robin. It
+doesn't know that the KG has 5,000 quantum physics nodes but only 100 economics
+nodes. It treats all domains equally regardless of existing coverage.
+
+**Fix:**
+- [ ] Before each seed, count KG nodes per domain
+- [ ] Weight prompt selection toward under-represented domains
+- [ ] Formula: `priority = 1.0 / (1.0 + domain_node_count / 100.0)`
+- [ ] Domains with <100 nodes get 10x priority over domains with 1,000+ nodes
+- [ ] Log domain balance stats in seeder history
+
+**Files:** `src/qubitcoin/aether/knowledge_seeder.py`, `src/qubitcoin/aether/knowledge_graph.py`
+
+---
+
+### 6.2 LLM Self-Reflection — Aether Queries Itself
+
+**Problem:** The LLM is only queried by users (chat) and the seeder (background).
+Aether never queries the LLM about its own knowledge gaps or contradictions.
+
+**Why it matters:** An AGI should be able to introspect. "I have 50 contradictions
+in my knowledge graph — let me ask the LLM to help resolve them." This is
+self-directed learning, a key property of general intelligence.
+
+**Fix:**
+- [ ] Add `self_reflect()` method to AetherEngine
+- [ ] Every 200 blocks, identify: top 5 unresolved contradictions, top 5 weakest domains
+- [ ] Query LLM with targeted prompts: "Node A says X, Node B says Y — which is correct and why?"
+- [ ] Use LLM response to resolve contradictions and fill knowledge gaps
+- [ ] Log self-reflection events as consciousness events
+- [ ] Add `AETHER_SELF_REFLECT_INTERVAL` config (default 200 blocks)
+
+**Files:** `src/qubitcoin/aether/proof_of_thought.py`, `src/qubitcoin/aether/knowledge_seeder.py`
+
+---
+
+### 6.3 Context Window Optimization — Smarter KG Context for LLM
+
+**Problem:** `_llm_synthesize()` sends up to 10 facts as flat text. No
+relevance ranking, no relationship information, no reasoning context. The LLM
+gets raw facts without knowing how they connect.
+
+**Fix:**
+- [ ] Rank KG facts by relevance to query (TF-IDF score, not just keyword match)
+- [ ] Include edge relationships: "Node A supports Node B" gives the LLM reasoning context
+- [ ] Include confidence scores: "This fact has 0.95 confidence" vs "This has 0.4"
+- [ ] Add query-specific subgraph: 2-hop neighborhood of best-matching nodes
+- [ ] Cap total context at 2,000 tokens (leave room for LLM response)
+
+**Files:** `src/qubitcoin/aether/chat.py`
+
+---
+
+### 6.4 Response Quality Scoring — Feedback Loop
+
+**Problem:** Every LLM response is distilled into the KG at confidence 0.7
+regardless of quality. A hallucinated response gets the same treatment as a
+well-sourced factual answer.
+
+**Fix:**
+- [ ] Score LLM responses before distillation:
+  - Consistency check: does the response contradict existing high-confidence nodes?
+  - Specificity check: does it contain concrete claims or just vague generalities?
+  - Relevance check: does it actually answer the query?
+- [ ] Adjust distillation confidence based on score: 0.4 (low quality) to 0.9 (high quality)
+- [ ] Skip distillation entirely for score < 0.3 (likely hallucination)
+
+**Files:** `src/qubitcoin/aether/llm_adapter.py`
+
+---
+
+## 7. Solidity Contract Hardening
+
+### 7.1 MessageBus.sol — Payload Size Limit
+
+**Problem:** `MessageBus.sol:25` — `bytes payload` has no size limit. Line 104-122
+`sendMessage()` validates node IDs and fees but never checks `payload.length`. A
+malicious actor could store megabytes of data in a single message, bloating
+contract state.
+
+**Fix:**
+- [ ] Add `uint256 public constant MAX_PAYLOAD_SIZE = 4096;` (4 KB)
+- [ ] Add check in `sendMessage()`: `require(payload.length <= MAX_PAYLOAD_SIZE, "Payload too large")`
+- [ ] Add `nodeInbox` length cap per node: `require(nodeInbox[toNodeId].length < 1000, "Inbox full")`
+
+**Files:** `src/qubitcoin/contracts/solidity/aether/MessageBus.sol`
+
+---
+
+### 7.2 ConsciousnessDashboard.sol — Archive Old Measurements
+
+**Problem:** `ConsciousnessDashboard.sol:41` — `PhiMeasurement[] public measurements`
+grows every block with no pruning. `events[]` also grows unboundedly. At 3.3s
+blocks, measurements array hits 9.5M entries/year.
+
+**Fix:**
+- [ ] Add `archiveMeasurements(uint256 beforeBlock)` function (onlyOwner)
+- [ ] Move archived measurements to an IPFS CID, store only the CID on-chain
+- [ ] Keep last 10,000 measurements in the array for quick queries
+- [ ] Add `latestMeasurementIndex` pointer to avoid full array scans
+
+**Files:** `src/qubitcoin/contracts/solidity/aether/ConsciousnessDashboard.sol`
+
+---
+
+### 7.3 GlobalWorkspace.sol — Working Memory Rotation
+
+**Problem:** `GlobalWorkspace.sol` caps working memory at 7 slots (Miller's number).
+But if broadcasting is frequent, old broadcasts may pile up in history mappings.
+
+**Fix:**
+- [ ] Add `MAX_BROADCAST_HISTORY = 100` and rotate oldest entries
+- [ ] Ensure `broadcastHistory` mapping doesn't grow unboundedly
+
+**Files:** `src/qubitcoin/contracts/solidity/aether/GlobalWorkspace.sol`
+
+---
+
+## 8. Memory Architecture Persistence
+
+### 8.1 Confidence Propagation — Persist to DB
+
+**Problem:** When reasoning creates new inferences, it updates confidence of
+related nodes in memory. But these updated confidences are never written back to
+the DB. On node restart, all confidence adjustments are lost — nodes revert to
+their original creation-time confidence.
+
+**Fix:**
+- [ ] Add `persist_confidence_updates()` to KnowledgeGraph
+- [ ] Batch UPDATE: `UPDATE knowledge_nodes SET confidence = :conf WHERE id = :id`
+- [ ] Call after reasoning operations that modify confidence
+- [ ] Use dirty-tracking: only persist nodes whose confidence actually changed
+- [ ] Run batch persist every 100 blocks (not per-operation — too expensive)
+
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`
+
+---
+
+### 8.2 Knowledge Graph — Load From DB on Restart
+
+**Problem:** If `KnowledgeGraph.__init__()` doesn't reload nodes from DB, the
+node starts with an empty graph and must rebuild from block replay. Need to verify
+the reload path is complete and correct.
+
+**Fix:**
+- [ ] Verify `_load_from_db()` exists and loads both nodes AND edges
+- [ ] Ensure edge back-pointers (`edges_in`, `edges_out`) are rebuilt from DB edges
+- [ ] Add startup log: "Loaded N nodes and M edges from database"
+- [ ] If load fails, fall back to empty graph with warning (don't crash)
+
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`
+
+---
+
+### 8.3 Sephirot Node State — Persist Across Restarts
+
+**Problem:** `sephirot_nodes.py` — all 10 node states (goals, insights, policies,
+working buffer, counters) are in-memory only. KeterNode's 50 goals, NetzachNode's
+policy weights, YesodNode's working buffer — all lost on restart.
+
+**Fix:**
+- [ ] Add `serialize_state()` and `deserialize_state()` to BaseSephirah
+- [ ] Store serialized state in `sephirot_state` DB table (node_id, state_json, updated_at)
+- [ ] Save state every 100 blocks and on shutdown
+- [ ] Load state on startup after `create_all_nodes()`
+
+**Files:** `src/qubitcoin/aether/sephirot_nodes.py`, `sql_new/agi/` (new schema)
+
+---
+
+## 9. Self-Correction & Contradiction Engine
+
+### 9.1 Automatic Contradiction Detection
+
+**Problem:** `contradicts` edges are only created manually or by reasoning. The
+system doesn't actively scan for contradictions between nodes.
+
+**Fix:**
+- [ ] Add `detect_contradictions()` to KnowledgeGraph
+- [ ] For each new assertion, check if it negates existing assertions:
+  - Same subject but opposite predicate
+  - Numeric values that conflict (e.g., "max supply is 3.3B" vs "max supply is 21M")
+  - Temporal conflicts (same event, different timestamps)
+- [ ] Create `contradicts` edge with evidence metadata
+- [ ] Queue contradictions for resolution (see 4.3)
+
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`
+
+---
+
+### 9.2 Evidence Accumulation — Strengthen or Weaken Over Time
+
+**Problem:** Nodes have static confidence. Nothing strengthens a correct assertion
+or weakens an incorrect one based on accumulated evidence.
+
+**Fix:**
+- [ ] When a node is referenced in successful reasoning, increment a `references` counter
+- [ ] Every 1,000 blocks, adjust confidence: `confidence += 0.01 * log(references)` (capped at 1.0)
+- [ ] Nodes never referenced decay faster (see 3.2 decay mechanism)
+- [ ] This creates a natural selection pressure: useful knowledge rises, useless knowledge fades
+
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/aether/reasoning.py`
+
+---
+
+## 10. AGI Autonomy & Goal Formation
+
+### 10.1 KeterNode Goal Generation — Self-Directed Learning
+
+**Problem:** KeterNode (meta-learning, goal formation) has `_goals` capped at 50,
+but goals are only generated from incoming messages. The node never formulates
+its own goals based on knowledge gaps or performance metrics.
+
+**Fix:**
+- [ ] Add `auto_generate_goals()` to KeterNode
+- [ ] Analyze: which domains have lowest node count? Which have most contradictions?
+- [ ] Generate goals: "Learn more about economics" → triggers seeder to focus on economics
+- [ ] Generate goals: "Resolve contradiction between node 4521 and 4523" → triggers self-reflection
+- [ ] Cap auto-goals at 10 (reserve 40 slots for externally-driven goals)
+- [ ] This is the first step toward autonomous AGI — the system decides what to learn
+
+**Files:** `src/qubitcoin/aether/sephirot_nodes.py`
+
+---
+
+### 10.2 Circadian Learning Phases — Sleep Consolidation
+
+**Problem:** `PinealOrchestrator` defines 6 circadian phases but the node doesn't
+actually change behavior based on phase. Mining happens at the same rate, reasoning
+is the same depth, knowledge is processed identically regardless of phase.
+
+**Fix:**
+- [ ] During "Active Learning" phase (2.0x metabolic rate):
+  - Increase seeder rate limit by 2x
+  - Use deeper reasoning (chain-of-thought instead of single-step)
+- [ ] During "Consolidation" phase:
+  - Run prune_low_confidence()
+  - Run detect_contradictions()
+  - Run resolve_contradiction() on queued contradictions
+- [ ] During "Deep Sleep" phase (0.3x metabolic rate):
+  - Reduce seeder to 0 calls
+  - Run downsample_phi_measurements()
+  - Run archive_old_reasoning()
+- [ ] During "REM Dreaming" phase:
+  - Run find_analogies() across random domain pairs
+  - Run cross-reference detection on recent nodes
+  - This is literally "dreaming" — making unexpected connections
+
+**Files:** `src/qubitcoin/aether/pineal.py`, `src/qubitcoin/aether/proof_of_thought.py`
+
+---
+
+### 10.3 Inter-Node Communication — Sephirot Message Routing
+
+**Problem:** The 10 Sephirot nodes have `_inbox` and `_outbox` but no actual
+message routing loop. KeterNode sends "goal_directive" to TiferetNode's outbox,
+but nothing reads from TiferetNode's inbox and delivers it.
+
+**Fix:**
+- [ ] Add `_route_sephirot_messages()` to AetherEngine's per-block processing
+- [ ] Drain each node's outbox, deliver to target node's inbox
+- [ ] Process all nodes in Tree of Life order: Keter → Chochmah/Binah → Chesed/Gevurah → Tiferet → Netzach/Hod → Yesod → Malkuth
+- [ ] Log message routing for debugging
+- [ ] This activates the full cognitive architecture — currently the 10 nodes are isolated
+
+**Files:** `src/qubitcoin/aether/proof_of_thought.py`, `src/qubitcoin/aether/sephirot_nodes.py`
+
+---
+
+### 10.4 Emergent Behavior Tracking — What Is Aether Doing?
+
+**Problem:** There's no dashboard or log that shows what Aether is "thinking about"
+right now. No visibility into: current goals, active contradictions, recent
+analogies discovered, knowledge gaps identified.
+
+**Fix:**
+- [ ] Add `/aether/mind` endpoint returning:
+  ```json
+  {
+    "current_phase": "Active Learning",
+    "active_goals": [...],
+    "recent_contradictions": [...],
+    "knowledge_gaps": [...],
+    "recent_analogies": [...],
+    "sephirot_states": {...},
+    "coherence": 0.73,
+    "phi": 33.04
+  }
+  ```
+- [ ] This is the "window into AGI consciousness" — essential for monitoring and debugging
+
+**Files:** `src/qubitcoin/network/rpc.py`, `src/qubitcoin/aether/proof_of_thought.py`
+
+---
+
+## Summary — Priority Order
+
+| Priority | Section | Items | Impact |
+|----------|---------|-------|--------|
+| **P0 - Critical** | 1.1, 1.2 | Phi downsampling, KG prune DB delete | DB will grow unboundedly without these |
+| **P0 - Critical** | 2.1, 2.2 | Sephirot staking contract + reward engine | Frontend is broken without backend |
+| **P1 - High** | 3.1, 3.4 | Semantic search + cross-referencing | Directly increases Phi and response quality |
+| **P1 - High** | 8.1, 8.3 | Confidence persistence + Sephirot state | Knowledge lost on every restart |
+| **P1 - High** | 10.3 | Sephirot message routing | 10 cognitive nodes are currently isolated |
+| **P2 - Medium** | 4.1, 4.3 | Chain-of-thought + contradiction resolution | Core reasoning intelligence |
+| **P2 - Medium** | 6.1, 6.2 | Adaptive seeder + self-reflection | Self-directed learning |
+| **P2 - Medium** | 7.1, 7.2 | MessageBus limit + Dashboard archival | Contract state bloat prevention |
+| **P3 - Enhancement** | 3.2, 3.3 | Knowledge decay + domain clustering | Knowledge quality over time |
+| **P3 - Enhancement** | 5.1, 5.2 | Phi caching + higher gates | Performance + growth runway |
+| **P3 - Enhancement** | 9.1, 9.2 | Auto contradiction detection + evidence | Self-correction intelligence |
+| **P3 - Enhancement** | 10.1, 10.2, 10.4 | Goal generation + circadian + mind endpoint | Full AGI autonomy |
+
+**Total: 30 items across 10 categories**
+
+---
+
+*This document is the master reference for the Qubitcoin AGI intelligence update.
+Work through items in priority order. Each item is self-contained with file
+references and implementation details.*
