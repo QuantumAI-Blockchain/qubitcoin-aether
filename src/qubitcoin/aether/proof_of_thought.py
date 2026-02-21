@@ -85,14 +85,24 @@ class AetherEngine:
         # Log consciousness event if Phi crosses threshold
         from .phi_calculator import PHI_THRESHOLD
         if phi_value >= PHI_THRESHOLD:
+            trigger = {'reasoning_steps': len(reasoning_steps)}
+            # Post-fork: include gate data in consciousness events
+            if phi_result.get('phi_version') == 2:
+                trigger['gates_passed'] = phi_result.get('gates_passed', 0)
+                trigger['gates_total'] = phi_result.get('gates_total', 6)
+                trigger['gate_ceiling'] = phi_result.get('gate_ceiling', 0)
+                trigger['phi_raw'] = phi_result.get('phi_raw', phi_value)
             self._record_consciousness_event(
-                'phi_threshold_crossed', phi_value, block_height,
-                {'reasoning_steps': len(reasoning_steps)}
+                'phi_threshold_crossed', phi_value, block_height, trigger
             )
 
+        # Enhanced logging with gate info post-fork
+        gate_info = ''
+        if phi_result.get('phi_version') == 2:
+            gate_info = f", gates={phi_result.get('gates_passed', 0)}/{phi_result.get('gates_total', 6)}"
         logger.info(
             f"Thought proof generated: Phi={phi_value:.4f}, "
-            f"steps={len(reasoning_steps)}, root={knowledge_root[:12]}..."
+            f"steps={len(reasoning_steps)}, root={knowledge_root[:12]}...{gate_info}"
         )
 
         return pot

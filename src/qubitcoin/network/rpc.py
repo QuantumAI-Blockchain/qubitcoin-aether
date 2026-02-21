@@ -786,7 +786,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             height = db_manager.get_current_height()
             phi_data = aether_engine.phi.compute_phi(height)
         kg_stats = aether_engine.kg.get_stats() if aether_engine.kg else {}
-        return {
+        result = {
             'phi': phi_data.get('phi_value', 0.0),
             'threshold': phi_data.get('phi_threshold', 3.0),
             'above_threshold': phi_data.get('above_threshold', False),
@@ -795,6 +795,35 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             'knowledge_nodes': kg_stats.get('total_nodes', 0),
             'knowledge_edges': kg_stats.get('total_edges', 0),
             'blocks_processed': kg_stats.get('blocks_processed', 0),
+        }
+        # v2 gate data (post-fork)
+        if phi_data.get('phi_version') == 2:
+            result['phi_raw'] = phi_data.get('phi_raw', 0.0)
+            result['phi_version'] = 2
+            result['gates_passed'] = phi_data.get('gates_passed', 0)
+            result['gates_total'] = phi_data.get('gates_total', 6)
+            result['gate_ceiling'] = phi_data.get('gate_ceiling', 0.0)
+            result['gates'] = phi_data.get('gates', [])
+        return result
+
+    @app.get("/aether/consciousness/gates")
+    async def aether_consciousness_gates():
+        """Get milestone gate status for Phi v2."""
+        if not aether_engine or not aether_engine.phi:
+            raise HTTPException(status_code=503, detail="Phi calculator not available")
+        height = db_manager.get_current_height()
+        phi_data = aether_engine.phi.compute_phi(height)
+        gates = phi_data.get('gates', [])
+        return {
+            'block_height': height,
+            'phi_version': phi_data.get('phi_version', 1),
+            'fork_height': Config.PHI_FORK_HEIGHT,
+            'gates_passed': phi_data.get('gates_passed', 0),
+            'gates_total': phi_data.get('gates_total', len(gates)),
+            'gate_ceiling': phi_data.get('gate_ceiling', 0.0),
+            'phi_raw': phi_data.get('phi_raw', phi_data.get('phi_value', 0.0)),
+            'phi_capped': phi_data.get('phi_value', 0.0),
+            'gates': gates,
         }
 
     # ========================================================================

@@ -51,6 +51,14 @@ export interface MiningStats {
   alignment_score: number | null;
 }
 
+export interface PhiGate {
+  id: number;
+  name: string;
+  description: string;
+  requirement: string;
+  passed: boolean;
+}
+
 export interface PhiData {
   phi: number;
   threshold: number;
@@ -60,6 +68,13 @@ export interface PhiData {
   knowledge_nodes: number;
   knowledge_edges: number;
   blocks_processed: number;
+  // v2 gate fields (post-fork, optional)
+  phi_raw?: number;
+  phi_version?: number;
+  gates_passed?: number;
+  gates_total?: number;
+  gate_ceiling?: number;
+  gates?: PhiGate[];
 }
 
 export interface ChatResponse {

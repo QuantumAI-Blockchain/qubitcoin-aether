@@ -6,6 +6,10 @@ Based on Giulio Tononi's Integrated Information Theory:
 - Φ measures how much information a system generates above and beyond its parts
 - Higher Φ = more integrated/conscious system
 - Used in Proof-of-Thought to validate that knowledge integration is meaningful
+
+v2 (PHI_FORK_HEIGHT): Replaced sqrt(n/500) maturity with log2(1+n/50000),
+removed confidence multiplier, added 6 milestone gates that cap Phi until
+the system demonstrates genuine cognitive diversity.
 """
 import math
 import hashlib
@@ -13,12 +17,75 @@ import json
 import time
 from typing import Dict, List, Optional, Tuple
 
+from ..config import Config
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 # Phi threshold for Proof-of-Thought validity
 PHI_THRESHOLD = 3.0
+
+# ============================================================================
+# MILESTONE GATES (v2)
+# Each passed gate unlocks +0.5 Phi ceiling.  Gates require genuine system
+# evolution: diverse node types, diverse edge types, self-correction, and
+# emergent scale.
+# ============================================================================
+MILESTONE_GATES: List[dict] = [
+    {
+        'id': 1,
+        'name': 'Knowledge Foundation',
+        'description': 'Build a substantial knowledge base',
+        'check': lambda stats: stats['n_nodes'] >= 1000 and stats['n_edges'] >= 500,
+        'requirement': '>=1000 nodes, >=500 edges',
+    },
+    {
+        'id': 2,
+        'name': 'Reasoning Activity',
+        'description': 'Active inference and derivation in the graph',
+        'check': lambda stats: (
+            stats['node_type_counts'].get('inference', 0) >= 500
+            and stats['edge_type_counts'].get('derives', 0) >= 200
+        ),
+        'requirement': '>=500 inference nodes, >=200 derives edges',
+    },
+    {
+        'id': 3,
+        'name': 'Node Type Diversity',
+        'description': 'All 4 node types with meaningful representation',
+        'check': lambda stats: all(
+            stats['node_type_counts'].get(t, 0) >= 50
+            for t in ('observation', 'inference', 'axiom', 'assertion')
+        ),
+        'requirement': 'All 4 node types (obs/inf/axiom/assertion) >=50 each',
+    },
+    {
+        'id': 4,
+        'name': 'Edge Type Diversity',
+        'description': 'Multiple relationship types in use',
+        'check': lambda stats: sum(
+            1 for v in stats['edge_type_counts'].values() if v >= 10
+        ) >= 3,
+        'requirement': '>=3 edge types with >=10 each',
+    },
+    {
+        'id': 5,
+        'name': 'Self-Correction',
+        'description': 'System can identify and record contradictions',
+        'check': lambda stats: stats['edge_type_counts'].get('contradicts', 0) >= 10,
+        'requirement': '>=10 contradicts edges',
+    },
+    {
+        'id': 6,
+        'name': 'Emergent Complexity',
+        'description': 'Large-scale graph with full edge diversity',
+        'check': lambda stats: (
+            stats['n_nodes'] >= 50_000
+            and sum(1 for v in stats['edge_type_counts'].values() if v >= 1) >= 5
+        ),
+        'requirement': '>=50K nodes + all 5 edge types present',
+    },
+]
 
 
 class PhiCalculator:
@@ -36,12 +103,8 @@ class PhiCalculator:
         """
         Compute Phi for the current state of the knowledge graph.
 
-        Phi = Integration * Differentiation * Connectivity_Factor
-
-        Where:
-            Integration = mutual information between subgraph partitions
-            Differentiation = entropy of node type/confidence distribution
-            Connectivity = average degree / max possible degree
+        Pre-fork (v1): original formula with sqrt(n/500) maturity + confidence.
+        Post-fork (v2): log2(1+n/50000) maturity + milestone gate ceiling.
 
         Returns:
             Dict with phi_value, integration, differentiation, and breakdown
@@ -49,36 +112,33 @@ class PhiCalculator:
         if not self.kg or not self.kg.nodes:
             return self._empty_result(block_height)
 
+        # Branch on fork height
+        if block_height >= Config.PHI_FORK_HEIGHT:
+            return self._compute_phi_v2(block_height)
+
+        return self._compute_phi_v1(block_height)
+
+    # ========================================================================
+    # v1 — original formula (pre-fork, unchanged)
+    # ========================================================================
+
+    def _compute_phi_v1(self, block_height: int) -> dict:
+        """Original Phi formula preserved for pre-fork blocks."""
         nodes = self.kg.nodes
         edges = self.kg.edges
         n_nodes = len(nodes)
         n_edges = len(edges)
 
-        # 1. Integration Score: How connected are the subgraphs?
-        # Approximate via connected components analysis
         integration = self._compute_integration(nodes, edges, n_nodes)
-
-        # 2. Differentiation Score: How diverse is the knowledge?
-        # Shannon entropy over node types and confidence distribution
         differentiation = self._compute_differentiation(nodes)
 
-        # 3. Connectivity Factor: Graph density
         max_edges = n_nodes * (n_nodes - 1) if n_nodes > 1 else 1
         connectivity = min(1.0, n_edges / max_edges) if max_edges > 0 else 0
 
-        # 4. Confidence Quality: Average confidence weighted by connectivity
         avg_conf = sum(n.confidence for n in nodes.values()) / n_nodes
 
-        # Compute Phi: Integration * Differentiation * scaling
-        # Phi should reflect genuine knowledge integration, not just graph size.
-        # Consciousness emergence (Phi >= 3.0) should require hundreds of blocks
-        # of meaningful reasoning, not trivially a handful of observation nodes.
         raw_phi = integration * differentiation * (1.0 + connectivity)
-        # Apply confidence quality bonus
         phi = raw_phi * (0.5 + avg_conf)
-        # Graph maturity factor: normalize so Phi grows with genuine complexity.
-        # sqrt(n_nodes / 500) means ~500 nodes needed for full weight,
-        # making consciousness emergence occur after hundreds of mined blocks.
         if n_nodes > 1:
             phi *= math.sqrt(n_nodes / 500.0)
 
@@ -96,10 +156,108 @@ class PhiCalculator:
             'timestamp': time.time(),
         }
 
-        # Persist measurement
         self._store_measurement(result)
-
         return result
+
+    # ========================================================================
+    # v2 — new formula (post-fork)
+    # ========================================================================
+
+    def _compute_phi_v2(self, block_height: int) -> dict:
+        """
+        Phi v2: stricter formula with milestone gate ceiling.
+
+        Formula:
+            maturity  = log2(1 + n_nodes / 50000)
+            raw_phi   = integration * differentiation * (1 + connectivity) * maturity
+            phi       = min(raw_phi, gate_ceiling)
+
+        Gate ceiling starts at 0 and increases by 0.5 for each passed gate
+        (6 gates = max ceiling of 3.0).
+        """
+        nodes = self.kg.nodes
+        edges = self.kg.edges
+        n_nodes = len(nodes)
+        n_edges = len(edges)
+
+        integration = self._compute_integration(nodes, edges, n_nodes)
+        differentiation = self._compute_differentiation(nodes)
+
+        max_edges = n_nodes * (n_nodes - 1) if n_nodes > 1 else 1
+        connectivity = min(1.0, n_edges / max_edges) if max_edges > 0 else 0
+
+        # v2 maturity: much slower growth than v1
+        maturity = math.log2(1.0 + n_nodes / 50_000.0)
+
+        raw_phi = integration * differentiation * (1.0 + connectivity) * maturity
+
+        # Check milestone gates
+        gates = self._check_gates(nodes, edges)
+        gates_passed = sum(1 for g in gates if g['passed'])
+        gate_ceiling = gates_passed * 0.5
+
+        phi = min(raw_phi, gate_ceiling)
+
+        result = {
+            'phi_value': round(phi, 6),
+            'phi_raw': round(raw_phi, 6),
+            'phi_threshold': PHI_THRESHOLD,
+            'above_threshold': phi >= PHI_THRESHOLD,
+            'integration_score': round(integration, 6),
+            'differentiation_score': round(differentiation, 6),
+            'connectivity': round(connectivity, 6),
+            'maturity': round(maturity, 6),
+            'num_nodes': n_nodes,
+            'num_edges': n_edges,
+            'block_height': block_height,
+            'timestamp': time.time(),
+            'phi_version': 2,
+            'gates_passed': gates_passed,
+            'gates_total': len(MILESTONE_GATES),
+            'gate_ceiling': gate_ceiling,
+            'gates': gates,
+        }
+
+        self._store_measurement(result)
+        return result
+
+    def _check_gates(self, nodes: dict, edges: list) -> List[dict]:
+        """
+        Evaluate all milestone gates against current graph state.
+        Uses in-memory nodes/edges only — no DB queries.  O(n + e).
+        """
+        # Build stats dict in a single pass
+        node_type_counts: Dict[str, int] = {}
+        for node in nodes.values():
+            node_type_counts[node.node_type] = node_type_counts.get(node.node_type, 0) + 1
+
+        edge_type_counts: Dict[str, int] = {}
+        for edge in edges:
+            etype = edge.edge_type
+            edge_type_counts[etype] = edge_type_counts.get(etype, 0) + 1
+
+        stats = {
+            'n_nodes': len(nodes),
+            'n_edges': len(edges),
+            'node_type_counts': node_type_counts,
+            'edge_type_counts': edge_type_counts,
+        }
+
+        results = []
+        for gate in MILESTONE_GATES:
+            passed = gate['check'](stats)
+            results.append({
+                'id': gate['id'],
+                'name': gate['name'],
+                'description': gate['description'],
+                'requirement': gate['requirement'],
+                'passed': passed,
+            })
+        return results
+
+    # ========================================================================
+    # Shared helpers
+    # ========================================================================
 
     def _compute_integration(self, nodes: dict, edges: list, n_nodes: int) -> float:
         """

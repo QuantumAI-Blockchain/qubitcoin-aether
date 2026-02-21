@@ -222,6 +222,7 @@ function AetherTab({
   phi: ReturnType<typeof api.getPhi> extends Promise<infer T> ? T | undefined : never;
 }) {
   const pct = phi ? Math.min((phi.phi / phi.threshold) * 100, 100) : 0;
+  const isV2 = phi?.phi_version === 2;
 
   return (
     <div className="space-y-6">
@@ -237,6 +238,11 @@ function AetherTab({
             / {phi?.threshold?.toFixed(1) ?? "3.0"} threshold ({pct.toFixed(1)}%)
           </p>
         </div>
+        {isV2 && phi?.phi_raw != null && (
+          <p className="mt-1 text-xs text-text-secondary">
+            Raw: {phi.phi_raw.toFixed(4)} | Ceiling: {phi.gate_ceiling?.toFixed(1) ?? "---"}
+          </p>
+        )}
         <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-void">
           <motion.div
             className="h-full rounded-full bg-gradient-to-r from-quantum-violet to-quantum-green"
@@ -246,6 +252,33 @@ function AetherTab({
           />
         </div>
       </Card>
+
+      {/* Milestone Gates (v2 only) */}
+      {isV2 && phi?.gates && phi.gates.length > 0 && (
+        <Card>
+          <h3 className="mb-3 font-[family-name:var(--font-heading)] text-sm font-semibold text-text-secondary">
+            Milestone Gates ({phi.gates_passed ?? 0}/{phi.gates_total ?? 6})
+          </h3>
+          <div className="space-y-2">
+            {phi.gates.map((gate) => (
+              <div
+                key={gate.id}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
+                  gate.passed
+                    ? "bg-quantum-green/10 text-quantum-green"
+                    : "bg-void text-text-secondary"
+                }`}
+              >
+                <span className="font-[family-name:var(--font-mono)] text-xs">
+                  {gate.passed ? "[PASS]" : "[----]"}
+                </span>
+                <span className="font-medium">{gate.name}</span>
+                <span className="ml-auto text-xs opacity-70">{gate.requirement}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
