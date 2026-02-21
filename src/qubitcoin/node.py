@@ -740,15 +740,22 @@ class QubitcoinNode:
             # ============================================================
             # QVM METRICS
             # ============================================================
-            contract_stats = self.db.query_one("""
+            # Query both tables: accounts (EVM bytecode) + contracts (template)
+            evm_stats = self.db.query_one("""
+                SELECT COUNT(*) as cnt
+                FROM accounts WHERE code_hash != '' AND code_hash IS NOT NULL
+            """)
+            template_stats = self.db.query_one("""
                 SELECT
                     COUNT(*) as total,
                     COUNT(*) FILTER (WHERE is_active = true) as active_count
                 FROM contracts
             """)
-            if contract_stats:
-                total_contracts.set(contract_stats.get('total', 0))
-                active_contracts.set(contract_stats.get('active_count', 0))
+            evm_count = (evm_stats or {}).get('cnt', 0)
+            tmpl_total = (template_stats or {}).get('total', 0)
+            tmpl_active = (template_stats or {}).get('active_count', 0)
+            total_contracts.set(evm_count + tmpl_total)
+            active_contracts.set(evm_count + tmpl_active)
 
             # ============================================================
             # AGI METRICS
@@ -827,9 +834,9 @@ class QubitcoinNode:
                     compliance_circuit_breaker.set(1 if getattr(cb, 'is_open', False) else 0)
                 except Exception:
                     pass
-                if self.aml_monitor:
+                if self.compliance_engine and hasattr(self.compliance_engine, 'sanctions'):
                     try:
-                        sanctions_entries_total.set(len(getattr(self.aml_monitor, 'sanctions_list', [])))
+                        sanctions_entries_total.set(len(self.compliance_engine.sanctions._entries))
                     except Exception:
                         pass
             subsystem_compliance_up.set(1 if self.compliance_engine else 0)
@@ -911,8 +918,8 @@ class QubitcoinNode:
             if self.fee_collector:
                 try:
                     fc_stats = self.fee_collector.get_stats()
-                    fees_collected_total.inc(0)  # Keep counter alive
-                    fees_collected_qbc_total.inc(0)
+                    fees_collected_total.set(fc_stats.get('total_events', 0))
+                    fees_collected_qbc_total.set(float(fc_stats.get('total_collected', 0)))
                 except Exception:
                     pass
 

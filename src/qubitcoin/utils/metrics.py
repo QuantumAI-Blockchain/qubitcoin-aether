@@ -129,8 +129,8 @@ safety_evaluations_total = Counter('qbc_safety_evaluations_total', 'Total safety
 # ============================================================================
 # FEE COLLECTOR METRICS
 # ============================================================================
-fees_collected_total = Counter('qbc_fees_collected_total', 'Total fee collection events')
-fees_collected_qbc_total = Counter('qbc_fees_collected_qbc_total', 'Total QBC collected in fees')
+fees_collected_total = Gauge('qbc_fees_collected_total', 'Total fee collection events')
+fees_collected_qbc_total = Gauge('qbc_fees_collected_qbc_total', 'Total QBC collected in fees')
 
 # ============================================================================
 # QUSD ORACLE METRICS

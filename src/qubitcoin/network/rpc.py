@@ -600,18 +600,23 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not state_manager:
             raise HTTPException(status_code=503, detail="QVM not available")
 
-        # Count contracts from the accounts table (accounts with non-empty code_hash)
+        # Count contracts from BOTH tables (accounts = EVM bytecode, contracts = template)
         total_contracts = 0
         active_contracts = 0
         try:
             from sqlalchemy import text as sa_text
             with db_manager.get_session() as session:
-                total_contracts = session.execute(
+                evm_count = session.execute(
                     sa_text("SELECT COUNT(*) FROM accounts WHERE code_hash != '' AND code_hash IS NOT NULL")
                 ).scalar() or 0
-                # Active contracts = contracts that exist and haven't been self-destructed
-                # For now, all deployed contracts are considered active
-                active_contracts = total_contracts
+                template_count = session.execute(
+                    sa_text("SELECT COUNT(*) FROM contracts")
+                ).scalar() or 0
+                template_active = session.execute(
+                    sa_text("SELECT COUNT(*) FROM contracts WHERE is_active = true")
+                ).scalar() or 0
+                total_contracts = evm_count + template_count
+                active_contracts = evm_count + template_active
         except Exception as e:
             logger.debug(f"Could not count contracts: {e}")
 
@@ -3674,7 +3679,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not fee_collector:
             return {"audit": [], "error": "Fee collector not available"}
         try:
-            return fee_collector.get_stats()
+            return {"audit": fee_collector.get_audit_log()}
         except Exception:
             return {"audit": []}
 
@@ -3684,8 +3689,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not fee_collector:
             return {"total_qbc": "0", "error": "Fee collector not available"}
         try:
-            stats = fee_collector.get_stats()
-            return {"total_qbc": str(stats.get('total_collected', 0))}
+            return {"total_qbc": str(fee_collector.get_total_fees_collected())}
         except Exception:
             return {"total_qbc": "0"}
 
