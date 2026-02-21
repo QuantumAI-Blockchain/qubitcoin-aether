@@ -258,37 +258,75 @@ class MiningEngine:
 
     def _distribute_staking_rewards(self, block_reward: Decimal, block_height: int) -> None:
         """
-        Distribute staking rewards to all 10 Sephirot nodes' stakers.
+        Distribute staking rewards to all 10 Sephirot nodes' stakers,
+        weighted by each node's performance.
 
         Called every SEPHIROT_REWARD_INTERVAL blocks. Allocates a share of
-        the accumulated block rewards to stakers proportionally.
-
-        The staker share is: block_reward * SEPHIROT_STAKER_SHARE_RATIO / 10
-        per node (split equally across all 10 nodes, then pro-rata within).
+        the accumulated block rewards. Active nodes earn more; idle nodes
+        still get a baseline.
         """
         share_ratio = Decimal(str(Config.SEPHIROT_STAKER_SHARE_RATIO))
         interval = Config.SEPHIROT_REWARD_INTERVAL
-        # Total pool = single block reward * share_ratio * interval blocks
         total_pool = block_reward * share_ratio * Decimal(str(interval))
-        per_node = total_pool / Decimal('10')
 
-        if per_node <= 0:
+        if total_pool <= 0:
             return
+
+        # Collect performance weights from Sephirot nodes
+        weights: dict = {}
+        if self.aether and self.aether._sephirot:
+            from ..aether.sephirot import SephirahRole
+            for i, role in enumerate(SephirahRole):
+                node = self.aether._sephirot.get(role)
+                if node:
+                    weights[i] = node.get_performance_weight()
+                else:
+                    weights[i] = 1.0
+        else:
+            # Fallback: equal weight
+            for i in range(10):
+                weights[i] = 1.0
+
+        sum_weights = sum(weights.values())
+        if sum_weights <= 0:
+            sum_weights = 10.0
 
         distributed = 0
         for node_id in range(10):
             try:
-                self.db.distribute_rewards(node_id, per_node)
-                distributed += 1
+                per_node = total_pool * Decimal(str(weights.get(node_id, 1.0))) / Decimal(str(sum_weights))
+                if per_node > 0:
+                    self.db.distribute_rewards(node_id, per_node)
+                    distributed += 1
             except Exception as e:
                 logger.debug(f"Reward distribution for node {node_id}: {e}")
+
+        # Periodic stake-energy sync: update qbc_stake and energy from DB
+        self._sync_all_stake_energy(block_height)
 
         if distributed > 0:
             logger.info(
                 f"Distributed staking rewards at block {block_height}: "
-                f"{total_pool:.4f} QBC across {distributed} nodes "
-                f"({per_node:.4f} QBC/node)"
+                f"{total_pool:.4f} QBC (performance-weighted across {distributed} nodes)"
             )
+
+    def _sync_all_stake_energy(self, block_height: int) -> None:
+        """Read DB stake totals for all 10 nodes and update in-memory energy."""
+        if not self.aether or not self.aether._sephirot:
+            return
+        try:
+            import math
+            from ..aether.sephirot import SephirahRole
+            factor = Config.SEPHIROT_STAKE_ENERGY_FACTOR if hasattr(Config, 'SEPHIROT_STAKE_ENERGY_FACTOR') else 0.5
+            for i, role in enumerate(SephirahRole):
+                node = self.aether._sephirot.get(role)
+                if not node:
+                    continue
+                total_stake = float(self.db.get_node_total_stake(i))
+                node.state.qbc_stake = total_stake
+                node.state.energy = 1.0 + factor * math.log2(1.0 + total_stake / 100.0)
+        except Exception as e:
+            logger.debug(f"Stake energy sync at block {block_height}: {e}")
 
     def _get_prev_hash(self, current_height: int) -> str:
         """Get previous block hash"""

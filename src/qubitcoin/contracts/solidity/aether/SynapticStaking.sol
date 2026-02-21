@@ -11,6 +11,7 @@ contract SynapticStaking {
     address public kernel;
 
     uint256 public constant MIN_STAKE = 100 ether;           // 100 QBC minimum
+    uint256 public constant MAX_STAKE_PER_CONNECTION = 1000000 ether; // 1M QBC max per connection
     uint256 public constant UNSTAKING_DELAY = 183272;        // ~7 days at 3.3s blocks
 
     struct Connection {
@@ -96,6 +97,10 @@ contract SynapticStaking {
     function userStake(uint256 connectionId) external payable {
         require(connections[connectionId].active, "Synaptic: not active");
         require(msg.value >= MIN_STAKE, "Synaptic: below minimum stake");
+        require(
+            connections[connectionId].totalStaked + msg.value <= MAX_STAKE_PER_CONNECTION,
+            "Synaptic: exceeds max stake per connection"
+        );
 
         connections[connectionId].totalStaked += msg.value;
         totalStaked += msg.value;

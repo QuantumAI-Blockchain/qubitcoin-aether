@@ -216,6 +216,36 @@ class SephirotManager:
 
         return corrections
 
+    def sync_stake_totals(self, db_manager: object, block_height: int) -> int:
+        """Read all 10 nodes' stake totals from DB, recompute energy, enforce SUSY.
+
+        Args:
+            db_manager: DatabaseManager with get_node_total_stake().
+            block_height: Current block height for SUSY enforcement.
+
+        Returns:
+            Number of nodes updated.
+        """
+        import math
+        updated = 0
+        factor = Config.SEPHIROT_STAKE_ENERGY_FACTOR if hasattr(Config, 'SEPHIROT_STAKE_ENERGY_FACTOR') else 0.5
+        role_list = list(SephirahRole)
+        for i, role in enumerate(role_list):
+            node = self.nodes.get(role)
+            if not node:
+                continue
+            try:
+                total_stake = float(db_manager.get_node_total_stake(i))
+                node.qbc_stake = total_stake
+                node.energy = 1.0 + factor * math.log2(1.0 + total_stake / 100.0)
+                updated += 1
+            except Exception as e:
+                logger.debug(f"Stake sync for {role.value}: {e}")
+        if updated > 0:
+            self.enforce_susy_balance(block_height)
+            logger.debug(f"Synced stake totals for {updated} nodes at block {block_height}")
+        return updated
+
     def get_coherence(self) -> float:
         """
         Compute Kuramoto order parameter measuring phase synchronization.

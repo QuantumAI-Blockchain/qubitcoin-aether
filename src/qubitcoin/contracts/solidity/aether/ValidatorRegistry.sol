@@ -7,6 +7,7 @@ pragma solidity ^0.8.24;
 contract ValidatorRegistry {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant MIN_STAKE        = 100 * 10**8;  // 100 QBC (8 decimals)
+    uint256 public constant MAX_STAKE        = 1000000 * 10**8; // 1M QBC (8 decimals)
     uint256 public constant UNSTAKING_DELAY  = 7 days;
 
     // ─── State ───────────────────────────────────────────────────────────
@@ -51,6 +52,10 @@ contract ValidatorRegistry {
     /// @notice Stake QBC to become a validator
     function stake(address validator, uint256 amount) external onlyKernel {
         require(amount >= MIN_STAKE, "VReg: below minimum (100 QBC)");
+        require(
+            validators[validator].stakeAmount + amount <= MAX_STAKE,
+            "VReg: exceeds max stake (1M QBC)"
+        );
 
         if (!validators[validator].active) {
             validators[validator] = Validator({

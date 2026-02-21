@@ -1315,6 +1315,44 @@ class DatabaseManager:
                 }
             return summary
 
+    def get_address_stake_on_node(self, address: str, node_id: int) -> Decimal:
+        """Get total active stake for a specific address on a specific node."""
+        with self.get_session() as session:
+            result = session.execute(
+                text("""
+                    SELECT COALESCE(SUM(amount), 0)
+                    FROM sephirot_stakes
+                    WHERE address = :addr AND node_id = :nid AND status = 'active'
+                """),
+                {'addr': address, 'nid': node_id}
+            ).scalar()
+            return Decimal(str(result or 0))
+
+    def get_node_total_stake(self, node_id: int) -> Decimal:
+        """Get total active stake on a specific Sephirot node."""
+        with self.get_session() as session:
+            result = session.execute(
+                text("""
+                    SELECT COALESCE(SUM(amount), 0)
+                    FROM sephirot_stakes
+                    WHERE node_id = :nid AND status = 'active'
+                """),
+                {'nid': node_id}
+            ).scalar()
+            return Decimal(str(result or 0))
+
+    def get_total_staked_all_nodes(self) -> Decimal:
+        """Get total active stake across all 10 Sephirot nodes."""
+        with self.get_session() as session:
+            result = session.execute(
+                text("""
+                    SELECT COALESCE(SUM(amount), 0)
+                    FROM sephirot_stakes
+                    WHERE status = 'active'
+                """)
+            ).scalar()
+            return Decimal(str(result or 0))
+
     def get_stake(self, stake_id: str) -> Optional[dict]:
         """Get a single stake by ID."""
         with self.get_session() as session:

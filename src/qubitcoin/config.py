@@ -223,6 +223,11 @@ class Config:
     SEPHIROT_REWARD_INTERVAL: int = int(os.getenv('SEPHIROT_REWARD_INTERVAL', '100'))
     SEPHIROT_MIN_STAKE: float = float(os.getenv('SEPHIROT_MIN_STAKE', '100.0'))
     SEPHIROT_UNSTAKING_DELAY_BLOCKS: int = int(os.getenv('SEPHIROT_UNSTAKING_DELAY_BLOCKS', '183272'))
+    SEPHIROT_MAX_STAKE_PER_NODE: float = float(os.getenv('SEPHIROT_MAX_STAKE_PER_NODE', '1000000.0'))
+    SEPHIROT_MAX_STAKE_PER_ADDRESS: float = float(os.getenv('SEPHIROT_MAX_STAKE_PER_ADDRESS', '100000.0'))
+    SEPHIROT_NODE_MAX_SHARE: float = float(os.getenv('SEPHIROT_NODE_MAX_SHARE', '0.20'))
+    SEPHIROT_STAKE_ENERGY_FACTOR: float = float(os.getenv('SEPHIROT_STAKE_ENERGY_FACTOR', '0.5'))
+    POT_VALIDATOR_MAX_VOTE_WEIGHT: float = float(os.getenv('POT_VALIDATOR_MAX_VOTE_WEIGHT', '0.33'))
 
     # ============================================================================
     # ADMIN API

@@ -379,15 +379,30 @@ class ProofOfThoughtProtocol:
         if not task.validation_votes:
             return None
 
-        # Calculate stake-weighted approval
-        total_stake = 0.0
-        approve_stake = 0.0
+        # Calculate stake-weighted approval with per-validator vote weight cap
+        max_weight = Config.POT_VALIDATOR_MAX_VOTE_WEIGHT if hasattr(Config, 'POT_VALIDATOR_MAX_VOTE_WEIGHT') else 0.33
+
+        # First pass: compute raw total stake for capping
+        raw_total = 0.0
+        validator_stakes: Dict[str, float] = {}
         for addr, vote in task.validation_votes.items():
             v = self.validator_registry.get_validator(addr)
             if v:
-                total_stake += v.stake_qbc
-                if vote:
-                    approve_stake += v.stake_qbc
+                validator_stakes[addr] = v.stake_qbc
+                raw_total += v.stake_qbc
+
+        if raw_total == 0:
+            return None
+
+        # Second pass: cap each validator's effective weight
+        total_stake = 0.0
+        approve_stake = 0.0
+        for addr, vote in task.validation_votes.items():
+            raw = validator_stakes.get(addr, 0.0)
+            capped = min(raw, raw_total * max_weight)
+            total_stake += capped
+            if vote:
+                approve_stake += capped
 
         if total_stake == 0:
             return None

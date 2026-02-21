@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    quantum_engine, ipfs_manager, contract_engine=None,
                    state_manager=None, aether_engine=None,
-                   llm_manager=None) -> FastAPI:
+                   llm_manager=None, pot_protocol=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -37,6 +37,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         state_manager: QVM state manager instance (optional)
         aether_engine: Aether Tree AGI engine instance (optional)
         llm_manager: LLMAdapterManager instance (optional)
+        pot_protocol: ProofOfThoughtProtocol instance (optional)
 
     Returns:
         Configured FastAPI app
@@ -1461,6 +1462,36 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         {'id': 9, 'name': 'Malkuth', 'title': 'Kingdom', 'function': 'Action, world interaction', 'brain_analog': 'Motor cortex', 'min_stake': 100},
     ]
 
+    def _sync_stake_energy(node_id: int) -> None:
+        """Sync a Sephirot node's qbc_stake and energy from DB stake totals.
+
+        Reads the total stake for the node, updates the in-memory SephirahState,
+        recomputes energy using log-diminishing returns, and enforces SUSY balance.
+        """
+        import math
+        if not aether_engine or not aether_engine._sephirot:
+            return
+        try:
+            from ..aether.sephirot import SephirahRole
+            role_map = {i: role for i, role in enumerate(SephirahRole)}
+            role = role_map.get(node_id)
+            if not role:
+                return
+            node = aether_engine._sephirot.get(role)
+            if not node:
+                return
+            total_stake = float(db_manager.get_node_total_stake(node_id))
+            node.state.qbc_stake = total_stake
+            factor = Config.SEPHIROT_STAKE_ENERGY_FACTOR
+            node.state.energy = 1.0 + factor * math.log2(1.0 + total_stake / 100.0)
+            # Enforce SUSY balance across all pairs after energy change
+            if hasattr(aether_engine, '_sephirot_manager'):
+                aether_engine._sephirot_manager.enforce_susy_balance(
+                    db_manager.get_current_height()
+                )
+        except Exception as e:
+            logger.debug(f"Stake energy sync for node {node_id}: {e}")
+
     @app.get("/sephirot/nodes")
     async def get_sephirot_nodes():
         """Get all 10 Sephirot node definitions with staking and performance stats."""
@@ -1533,6 +1564,31 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not Dilithium2.verify(pk, msg, sig):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
+        # Stake cap A2: max stake per address on this node
+        current_addr_stake = db_manager.get_address_stake_on_node(req.address, req.node_id)
+        max_per_addr = Decimal(str(Config.SEPHIROT_MAX_STAKE_PER_ADDRESS))
+        if current_addr_stake + amount > max_per_addr:
+            remaining = max_per_addr - current_addr_stake
+            raise HTTPException(
+                status_code=400,
+                detail=f"Exceeds per-address cap ({max_per_addr} QBC). "
+                       f"Current: {current_addr_stake}, remaining capacity: {max(Decimal(0), remaining)}"
+            )
+
+        # Stake cap A1: max stake per node (absolute cap or share cap)
+        node_total = db_manager.get_node_total_stake(req.node_id)
+        total_all = db_manager.get_total_staked_all_nodes()
+        absolute_cap = Decimal(str(Config.SEPHIROT_MAX_STAKE_PER_NODE))
+        share_cap = total_all * Decimal(str(Config.SEPHIROT_NODE_MAX_SHARE)) if total_all > 0 else absolute_cap
+        effective_cap = min(absolute_cap, share_cap) if share_cap > 0 else absolute_cap
+        if node_total + amount > effective_cap:
+            remaining = effective_cap - node_total
+            raise HTTPException(
+                status_code=400,
+                detail=f"Exceeds node stake cap ({effective_cap:.0f} QBC). "
+                       f"Current: {node_total}, remaining capacity: {max(Decimal(0), remaining)}"
+            )
+
         # Check balance
         balance = db_manager.get_balance(req.address)
         if balance < amount:
@@ -1568,6 +1624,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             session.commit()
 
         stake_id = db_manager.create_stake(req.address, req.node_id, amount)
+        _sync_stake_energy(req.node_id)
         logger.info(f"Sephirot stake: {req.address[:8]} → node {req.node_id} ({SEPHIROT_NODES[req.node_id]['name']}) {amount} QBC")
         return {'stake_id': stake_id, 'node_id': req.node_id, 'amount': str(amount), 'status': 'active'}
 
@@ -1605,6 +1662,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         success = db_manager.request_unstake(req.stake_id, req.address)
         if not success:
             raise HTTPException(status_code=400, detail="Failed to unstake")
+
+        _sync_stake_energy(stake['node_id'])
 
         import datetime
         available_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)
@@ -1674,6 +1733,112 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
         logger.info(f"Rewards claimed: {req.address[:8]} → {claimed} QBC")
         return {'claimed_amount': str(claimed), 'tx_hash': tx_hash}
+
+    # ========================================================================
+    # PROOF-OF-THOUGHT PROTOCOL
+    # ========================================================================
+
+    @app.get("/pot/stats")
+    async def pot_stats():
+        """Get Proof-of-Thought protocol statistics."""
+        if not pot_protocol:
+            return {"error": "PoT protocol not initialized", "task_market": {}, "validators": {}}
+        return pot_protocol.get_stats()
+
+    @app.get("/pot/tasks")
+    async def pot_tasks(limit: int = 20):
+        """Get open reasoning tasks."""
+        if not pot_protocol:
+            return {"tasks": []}
+        tasks = pot_protocol.task_market.get_open_tasks(limit=limit)
+        return {"tasks": [
+            {
+                "task_id": t.task_id,
+                "submitter": t.submitter,
+                "description": t.description,
+                "query_type": t.query_type,
+                "bounty_qbc": t.bounty_qbc,
+                "status": t.status.value,
+                "created_block": t.created_block,
+            }
+            for t in tasks
+        ]}
+
+    @app.get("/pot/task/{task_id}")
+    async def pot_task_detail(task_id: str):
+        """Get details of a specific reasoning task."""
+        if not pot_protocol:
+            raise HTTPException(status_code=503, detail="PoT protocol not initialized")
+        task = pot_protocol.task_market.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        return {
+            "task_id": task.task_id,
+            "submitter": task.submitter,
+            "description": task.description,
+            "query_type": task.query_type,
+            "bounty_qbc": task.bounty_qbc,
+            "status": task.status.value,
+            "created_block": task.created_block,
+            "claimed_by": task.claimed_by,
+            "solution_hash": task.solution_hash,
+            "votes": len(task.validation_votes),
+            "reward_distributed": task.reward_distributed,
+        }
+
+    class SubmitTaskRequest(BaseModel):
+        submitter: str
+        description: str
+        bounty_qbc: float
+        query_type: str = "general"
+
+    @app.post("/pot/submit-task")
+    async def pot_submit_task(req: SubmitTaskRequest):
+        """Submit a reasoning task with QBC bounty."""
+        if not pot_protocol:
+            raise HTTPException(status_code=503, detail="PoT protocol not initialized")
+        block_height = db_manager.get_current_height()
+        task = pot_protocol.task_market.submit_task(
+            submitter=req.submitter,
+            description=req.description,
+            bounty_qbc=req.bounty_qbc,
+            query_type=req.query_type,
+            block_height=block_height,
+        )
+        if not task:
+            raise HTTPException(status_code=400, detail="Task submission failed (check bounty minimum)")
+        return {
+            "task_id": task.task_id,
+            "bounty_qbc": task.bounty_qbc,
+            "status": task.status.value,
+        }
+
+    class ValidateRequest(BaseModel):
+        task_id: str
+        validator_address: str
+        approve: bool
+
+    @app.post("/pot/validate")
+    async def pot_validate(req: ValidateRequest):
+        """Submit a validation vote on a proposed solution."""
+        if not pot_protocol:
+            raise HTTPException(status_code=503, detail="PoT protocol not initialized")
+        success = pot_protocol.validate_solution(
+            req.task_id, req.validator_address, req.approve
+        )
+        if not success:
+            raise HTTPException(
+                status_code=400,
+                detail="Validation failed (task not in validating state or validator not active)"
+            )
+        return {"task_id": req.task_id, "validator": req.validator_address, "approve": req.approve}
+
+    @app.get("/pot/validators")
+    async def pot_validators():
+        """Get validator registry statistics."""
+        if not pot_protocol:
+            return {"validators": {}}
+        return pot_protocol.validator_registry.get_stats()
 
     # ========================================================================
     # SUSY SOLUTION DATABASE (Scientific Research API)

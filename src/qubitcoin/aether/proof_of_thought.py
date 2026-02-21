@@ -24,13 +24,15 @@ class AetherEngine:
     """
 
     def __init__(self, db_manager, knowledge_graph=None, phi_calculator=None,
-                 reasoning_engine=None, llm_manager=None, pineal=None):
+                 reasoning_engine=None, llm_manager=None, pineal=None,
+                 pot_protocol=None):
         self.db = db_manager
         self.kg = knowledge_graph
         self.phi = phi_calculator
         self.reasoning = reasoning_engine
         self.llm_manager = llm_manager
         self.pineal = pineal  # PinealOrchestrator for circadian phases
+        self.pot_protocol = pot_protocol  # ProofOfThoughtProtocol instance
         self._pot_cache: Dict[int, ProofOfThought] = {}
         self._pot_cache_max = 1000  # Bound cache to prevent unbounded memory growth
 
@@ -248,6 +250,10 @@ class AetherEngine:
             if block.height % 10 == 0:
                 self.kg.propagate_confidence(block_node.node_id)
 
+            # Process Proof-of-Thought protocol every 5 blocks
+            if block.height % 5 == 0:
+                self._process_pot_block(block.height)
+
             # Route messages between Sephirot cognitive nodes
             if block.height % 5 == 0:
                 self._route_sephirot_messages(block)
@@ -304,6 +310,23 @@ class AetherEngine:
 
         except Exception as e:
             logger.debug(f"Error processing block knowledge: {e}")
+
+    def _process_pot_block(self, block_height: int) -> None:
+        """Run the Proof-of-Thought protocol's per-block maintenance.
+
+        Expires old tasks and logs stats periodically.
+        """
+        if not self.pot_protocol:
+            return
+        try:
+            result = self.pot_protocol.process_block(block_height)
+            if result.get('expired_tasks', 0) > 0:
+                logger.debug(
+                    f"PoT block {block_height}: expired={result['expired_tasks']}, "
+                    f"open={result['open_tasks']}, validators={result['active_validators']}"
+                )
+        except Exception as e:
+            logger.debug(f"PoT block processing error: {e}")
 
     def _route_sephirot_messages(self, block) -> int:
         """

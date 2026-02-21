@@ -154,6 +154,12 @@ class QubitcoinNode:
             )
             self.consensus.aether = self.aether
 
+            # Instantiate Proof-of-Thought protocol and wire to Aether
+            from .aether.task_protocol import ProofOfThoughtProtocol
+            self.pot_protocol = ProofOfThoughtProtocol()
+            self.aether.pot_protocol = self.pot_protocol
+            logger.info("Proof-of-Thought protocol wired to Aether Engine")
+
             # Initialize AGI from genesis if this is the first run
             self.aether_genesis = AetherGenesis(
                 self.db, self.knowledge_graph, self.phi_calculator
@@ -266,6 +272,7 @@ class QubitcoinNode:
                 state_manager=self.state_manager,
                 aether_engine=self.aether,
                 llm_manager=self.llm_manager,
+                pot_protocol=self.pot_protocol,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)

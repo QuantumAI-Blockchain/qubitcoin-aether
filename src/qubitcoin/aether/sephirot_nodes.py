@@ -93,6 +93,7 @@ class BaseSephirah(ABC):
             'state': {
                 'active': self.state.active,
                 'energy': self.state.energy,
+                'qbc_stake': self.state.qbc_stake,
                 'messages_processed': self.state.messages_processed,
                 'reasoning_ops': self.state.reasoning_ops,
             },
@@ -110,6 +111,7 @@ class BaseSephirah(ABC):
         state_data = data.get('state', {})
         self.state.active = state_data.get('active', True)
         self.state.energy = state_data.get('energy', 1.0)
+        self.state.qbc_stake = state_data.get('qbc_stake', 0.0)
         self.state.messages_processed = state_data.get('messages_processed', 0)
         self.state.reasoning_ops = state_data.get('reasoning_ops', 0)
 
