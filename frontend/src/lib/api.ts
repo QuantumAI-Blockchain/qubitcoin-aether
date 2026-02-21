@@ -176,6 +176,31 @@ export interface SephirotNode {
   apy_estimate: number;
 }
 
+export interface SephirotStatusNode {
+  role: string;
+  contract_address?: string;
+  energy: number;
+  qbc_stake: number;
+  qubits: number;
+  active: boolean;
+  messages_processed: number;
+  reasoning_ops: number;
+}
+
+export interface SUSYPair {
+  expansion: string;
+  constraint: string;
+  ratio: number;
+  target_ratio: number;
+}
+
+export interface SephirotStatus {
+  [key: string]: SephirotStatusNode | SUSYPair[] | number;
+  susy_pairs: SUSYPair[];
+  coherence: number;
+  total_violations: number;
+}
+
 export interface SephirotStake {
   stake_id: string;
   address: string;
@@ -280,6 +305,8 @@ export const api = {
   // Sephirot
   getSephirotNodes: () =>
     get<{ nodes: SephirotNode[] }>("/sephirot/nodes"),
+  getSephirotStatus: () =>
+    get<SephirotStatus>("/aether/sephirot"),
   stakeSephirot: (body: {
     address: string;
     node_id: number;

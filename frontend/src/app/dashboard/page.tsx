@@ -10,6 +10,8 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { PhiChart } from "@/components/dashboard/phi-chart";
 import { MiningControls } from "@/components/dashboard/mining-controls";
 import { QUSDReserveGauge, QUSDMilestoneTimeline } from "@/components/dashboard/qusd-reserve";
+import { MilestoneGates } from "@/components/dashboard/milestone-gates";
+import { SephirotExplorer } from "@/components/dashboard/sephirot-explorer";
 import { useWalletStore } from "@/stores/wallet-store";
 
 function formatSupply(supply: number): string {
@@ -255,29 +257,13 @@ function AetherTab({
 
       {/* Milestone Gates (v2 only) */}
       {isV2 && phi?.gates && phi.gates.length > 0 && (
-        <Card>
-          <h3 className="mb-3 font-[family-name:var(--font-heading)] text-sm font-semibold text-text-secondary">
-            Milestone Gates ({phi.gates_passed ?? 0}/{phi.gates_total ?? 6})
-          </h3>
-          <div className="space-y-2">
-            {phi.gates.map((gate) => (
-              <div
-                key={gate.id}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
-                  gate.passed
-                    ? "bg-quantum-green/10 text-quantum-green"
-                    : "bg-void text-text-secondary"
-                }`}
-              >
-                <span className="font-[family-name:var(--font-mono)] text-xs">
-                  {gate.passed ? "[PASS]" : "[----]"}
-                </span>
-                <span className="font-medium">{gate.name}</span>
-                <span className="ml-auto text-xs opacity-70">{gate.requirement}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <MilestoneGates
+          gates={phi.gates}
+          gatesPassed={phi.gates_passed ?? 0}
+          gatesTotal={phi.gates_total ?? 6}
+          gateCeiling={phi.gate_ceiling ?? 0}
+          phiRaw={phi.phi_raw ?? phi.phi}
+        />
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -306,6 +292,10 @@ function AetherTab({
           </p>
         </Card>
       </div>
+
+      <ErrorBoundary>
+        <SephirotExplorer />
+      </ErrorBoundary>
 
       <ErrorBoundary>
         <PhiChart />
