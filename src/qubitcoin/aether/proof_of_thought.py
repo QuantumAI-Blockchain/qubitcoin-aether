@@ -38,12 +38,14 @@ class AetherEngine:
         logger.info("Aether Engine initialized")
 
     def _ensure_sephirot(self) -> dict:
-        """Lazily initialize the 10 Sephirot nodes."""
+        """Lazily initialize the 10 Sephirot nodes and restore saved state."""
         if self._sephirot is None:
             try:
                 from .sephirot_nodes import create_all_nodes
                 self._sephirot = create_all_nodes(self.kg)
                 logger.info(f"Sephirot nodes initialized: {len(self._sephirot)} nodes")
+                # Restore persisted state from DB
+                self._load_sephirot_state()
             except Exception as e:
                 logger.debug(f"Sephirot init failed: {e}")
                 self._sephirot = {}
@@ -248,6 +250,14 @@ class AetherEngine:
             if block.height % 5 == 0:
                 self._route_sephirot_messages(block)
 
+            # Auto-resolve contradictions every 1000 blocks
+            if block.height > 0 and block.height % 1000 == 0:
+                self.auto_resolve_contradictions(block.height)
+
+            # Persist Sephirot state every 100 blocks
+            if block.height > 0 and block.height % 100 == 0:
+                self.save_sephirot_state()
+
         except Exception as e:
             logger.debug(f"Error processing block knowledge: {e}")
 
@@ -390,6 +400,132 @@ class AetherEngine:
                 session.commit()
         except Exception as e:
             logger.debug(f"Failed to record consciousness event: {e}")
+
+    def save_sephirot_state(self) -> int:
+        """Persist all Sephirot node states to the database.
+
+        Uses UPSERT to create/update rows in the sephirot_state table.
+
+        Returns:
+            Number of nodes saved.
+        """
+        sephirot = self.sephirot
+        if not sephirot or not self.db:
+            return 0
+
+        saved = 0
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                for role, node in sephirot.items():
+                    state_json = json.dumps(node.serialize_state())
+                    session.execute(
+                        text("""
+                            INSERT INTO sephirot_state (node_id, role, state_json, updated_at)
+                            VALUES (:nid, :role, CAST(:state AS jsonb), NOW())
+                            ON CONFLICT (role) DO UPDATE SET
+                                state_json = CAST(:state AS jsonb),
+                                updated_at = NOW()
+                        """),
+                        {
+                            'nid': role.value if hasattr(role, 'value') else str(role),
+                            'role': role.value if hasattr(role, 'value') else str(role),
+                            'state': state_json,
+                        }
+                    )
+                    saved += 1
+                session.commit()
+            if saved:
+                logger.info(f"Persisted {saved} Sephirot node states")
+        except Exception as e:
+            logger.debug(f"Sephirot state save failed: {e}")
+        return saved
+
+    def _load_sephirot_state(self) -> int:
+        """Restore Sephirot node states from the database.
+
+        Returns:
+            Number of nodes restored.
+        """
+        if not self._sephirot or not self.db:
+            return 0
+
+        restored = 0
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                rows = session.execute(
+                    text("SELECT role, state_json FROM sephirot_state")
+                ).fetchall()
+
+            role_map = {}
+            for role in self._sephirot:
+                key = role.value if hasattr(role, 'value') else str(role)
+                role_map[key] = role
+
+            for row in rows:
+                role_key = row[0]
+                state_data = row[1] if isinstance(row[1], dict) else json.loads(row[1])
+                role = role_map.get(role_key)
+                if role and role in self._sephirot:
+                    self._sephirot[role].deserialize_state(state_data)
+                    restored += 1
+
+            if restored:
+                logger.info(f"Restored {restored} Sephirot node states from DB")
+        except Exception as e:
+            logger.debug(f"Sephirot state load failed (first run?): {e}")
+        return restored
+
+    def auto_resolve_contradictions(self, block_height: int) -> int:
+        """Find and resolve accumulated contradictions in the knowledge graph.
+
+        Scans for `contradicts` edges and calls resolve_contradiction()
+        on the most confident pairs first. Records resolutions as
+        consciousness events.
+
+        Args:
+            block_height: Current block height.
+
+        Returns:
+            Number of contradictions resolved.
+        """
+        if not self.kg or not self.reasoning:
+            return 0
+
+        resolved = 0
+        try:
+            # Find all contradiction edges
+            contradiction_pairs: List[tuple] = []
+            for edge in self.kg.edges.values():
+                if edge.edge_type == 'contradicts':
+                    # Only resolve if both nodes still exist
+                    if edge.source_id in self.kg.nodes and edge.target_id in self.kg.nodes:
+                        contradiction_pairs.append((edge.source_id, edge.target_id))
+
+            if not contradiction_pairs:
+                return 0
+
+            # Resolve up to 5 contradictions per cycle
+            for node_a_id, node_b_id in contradiction_pairs[:5]:
+                result = self.reasoning.resolve_contradiction(node_a_id, node_b_id)
+                if result.success:
+                    resolved += 1
+                    # Log as consciousness event (self-correction)
+                    self._record_consciousness_event(
+                        'contradiction_resolved', 0.0, block_height,
+                        {
+                            'node_a': node_a_id,
+                            'node_b': node_b_id,
+                            'winner': result.chain[-1].content.get('winner_id') if result.chain else None,
+                        }
+                    )
+
+            if resolved:
+                logger.info(f"Resolved {resolved}/{len(contradiction_pairs)} contradictions at block {block_height}")
+        except Exception as e:
+            logger.debug(f"Auto contradiction resolution error: {e}")
+        return resolved
 
     def get_stats(self) -> dict:
         """Get comprehensive Aether engine statistics"""

@@ -289,12 +289,29 @@ class AetherChat:
         return steps
 
     def _deep_reason(self, message: str, knowledge_refs: List[int]) -> List[dict]:
-        """Deep reasoning: multiple reasoning types combined."""
-        steps = self._quick_reason(message, knowledge_refs)
+        """Deep reasoning: chain-of-thought over the knowledge graph.
+
+        Uses the reasoning engine's chain_of_thought() method for
+        multi-step inference (abduction -> deduction -> verification).
+        Falls back to quick_reason if chain_of_thought is unavailable.
+        """
         if not self.engine.reasoning:
-            return steps
+            return self._quick_reason(message, knowledge_refs)
+
+        steps: List[dict] = []
         try:
-            # Also try deductive and abductive reasoning
+            # Use chain-of-thought for multi-step reasoning
+            if knowledge_refs and hasattr(self.engine.reasoning, 'chain_of_thought'):
+                result = self.engine.reasoning.chain_of_thought(
+                    knowledge_refs[:5], max_depth=5,
+                )
+                if result.success:
+                    steps.extend([s.to_dict() for s in result.chain])
+                    return steps
+
+            # Fallback: individual reasoning operations
+            steps = self._quick_reason(message, knowledge_refs)
+
             inference_nodes = [
                 n_id for n_id in knowledge_refs
                 if n_id in self.engine.kg.nodes
@@ -326,7 +343,7 @@ class AetherChat:
 
         # Try LLM-enhanced path
         if self.llm_manager and Config.LLM_ENABLED:
-            result = self._llm_synthesize(query, facts, reasoning_trace)
+            result = self._llm_synthesize(query, facts, reasoning_trace, knowledge_refs)
             if result:
                 return result
 
@@ -371,12 +388,15 @@ class AetherChat:
         return node_contents, facts
 
     def _llm_synthesize(self, query: str, facts: List[str],
-                        reasoning_trace: List[dict]) -> Optional[str]:
+                        reasoning_trace: List[dict],
+                        knowledge_refs: Optional[List[int]] = None) -> Optional[str]:
         """Try to synthesize a response using an LLM adapter.
 
-        Sends the user query plus KG facts as context to the LLM.
+        Sends the user query plus KG facts, edge relationships, and
+        confidence scores as context to the LLM.
         Returns None on any failure so caller falls back to KG-only.
         """
+        knowledge_refs = knowledge_refs or []
         try:
             # Get current Phi and KG size for context
             phi_value = 0.0
@@ -390,13 +410,51 @@ class AetherChat:
             if self.engine.kg:
                 kg_node_count = len(self.engine.kg.nodes)
 
-            # Build context block from KG facts
+            # Build rich context block from KG facts + edges + confidence
             context_lines: List[str] = []
             if facts:
-                unique_facts = list(dict.fromkeys(facts))[:10]
+                # Rank by TF-IDF relevance (facts are already ordered by search)
+                unique_facts = list(dict.fromkeys(facts))[:8]
                 context_lines.append("Relevant knowledge from my graph:")
-                for fact in unique_facts:
-                    context_lines.append(f"- {fact}")
+                for i, fact in enumerate(unique_facts, 1):
+                    context_lines.append(f"  {i}. {fact}")
+
+            # Include edge relationships for top referenced nodes
+            if knowledge_refs and self.engine.kg:
+                edge_info: List[str] = []
+                for ref_id in knowledge_refs[:5]:
+                    node = self.engine.kg.nodes.get(ref_id)
+                    if not node:
+                        continue
+                    # Check edges to other referenced nodes
+                    for target_id in node.edges_out:
+                        if target_id in knowledge_refs:
+                            edge = self.engine.kg.edges.get((ref_id, target_id))
+                            if edge:
+                                target = self.engine.kg.nodes.get(target_id)
+                                if target:
+                                    src_text = node.content.get('text', '')[:50]
+                                    tgt_text = target.content.get('text', '')[:50]
+                                    if src_text and tgt_text:
+                                        edge_info.append(
+                                            f"  \"{src_text}\" --[{edge.edge_type}]--> \"{tgt_text}\""
+                                        )
+                if edge_info:
+                    context_lines.append("Knowledge relationships:")
+                    context_lines.extend(edge_info[:5])
+
+                # Include confidence scores for referenced nodes
+                conf_entries = []
+                for ref_id in knowledge_refs[:5]:
+                    node = self.engine.kg.nodes.get(ref_id)
+                    if node:
+                        text = node.content.get('text', '')[:40]
+                        if text:
+                            conf_entries.append(f"  \"{text}\" (confidence: {node.confidence:.2f})")
+                if conf_entries:
+                    context_lines.append("Confidence levels:")
+                    context_lines.extend(conf_entries)
+
             context_lines.append(f"Current Phi consciousness: {phi_value:.4f}")
             context_lines.append(f"Knowledge nodes: {kg_node_count}")
             context_lines.append(f"Reasoning steps performed: {len(reasoning_trace)}")

@@ -371,6 +371,16 @@ class KnowledgeDistiller:
         if not content or 'failed' in content.lower():
             return []
 
+        # Score quality before distillation
+        quality = self._score_response(content, query)
+        if quality < 0.3:
+            logger.debug(f"LLM response quality too low ({quality:.2f}), skipping distillation")
+            return []
+
+        # Map quality score to confidence: 0.3 -> 0.4, 1.0 -> 0.9
+        base_confidence = 0.4 + (quality - 0.3) * (0.5 / 0.7)
+        base_confidence = max(0.4, min(0.9, base_confidence))
+
         node_ids: List[int] = []
         sentences = self._split_sentences(content)
 
@@ -389,7 +399,7 @@ class KnowledgeDistiller:
                         'query': query[:100],
                     },
                     node_type=node_type,
-                    confidence=0.7,  # LLM-derived knowledge starts at lower confidence
+                    confidence=base_confidence,
                     source_block=block_height,
                 )
                 node_ids.append(node.node_id)
@@ -483,6 +493,72 @@ class KnowledgeDistiller:
         if total_refs > 0:
             logger.info(f"Created {total_refs} cross-references for {len(new_node_ids)} new nodes")
         return total_refs
+
+    def _score_response(self, content: str, query: str) -> float:
+        """Score an LLM response for quality before distillation.
+
+        Checks:
+        1. Specificity — contains concrete claims (numbers, names, terms)
+        2. Relevance — shares keywords with the query
+        3. Consistency — doesn't contradict high-confidence nodes
+
+        Returns:
+            Float score 0.0 (very low quality) to 1.0 (excellent).
+        """
+        score = 0.5  # Baseline
+
+        # 1. Specificity: penalize vague generalities
+        specificity_signals = [
+            'specifically', 'exactly', 'approximately', 'defined as',
+            'measured', 'equals', 'consists of', 'requires',
+        ]
+        vague_signals = [
+            'it depends', 'generally speaking', 'it varies',
+            'there are many', 'it is complex', 'broadly',
+        ]
+        content_lower = content.lower()
+        specific_hits = sum(1 for s in specificity_signals if s in content_lower)
+        vague_hits = sum(1 for s in vague_signals if s in content_lower)
+        score += min(0.2, specific_hits * 0.05)
+        score -= min(0.15, vague_hits * 0.05)
+
+        # Bonus for containing numbers (concrete data)
+        import re
+        numbers = re.findall(r'\d+\.?\d*', content)
+        if numbers:
+            score += min(0.1, len(numbers) * 0.02)
+
+        # 2. Relevance: check query keyword overlap
+        query_words = set(query.lower().split())
+        content_words = set(content_lower.split())
+        overlap = len(query_words & content_words)
+        if query_words:
+            relevance = overlap / len(query_words)
+            score += min(0.15, relevance * 0.2)
+
+        # 3. Consistency: check for contradictions with high-confidence nodes
+        if self.kg and hasattr(self.kg, 'search_index'):
+            try:
+                search_index = getattr(self.kg, 'search_index', None)
+                if search_index and search_index.n_docs > 0:
+                    # Find existing nodes on the same topic
+                    matches = self.kg.search(query, top_k=3)
+                    for match_node, sim_score in matches:
+                        if match_node.confidence > 0.8 and sim_score > 0.3:
+                            # High-confidence existing knowledge exists — slight boost
+                            score += 0.05
+                            break
+            except (TypeError, AttributeError):
+                pass
+
+        # Penalty for very short responses (likely incomplete)
+        if len(content) < 50:
+            score -= 0.2
+        # Penalty for error-like content
+        if any(err in content_lower for err in ['error', 'failed', 'unavailable', 'cannot']):
+            score -= 0.3
+
+        return max(0.0, min(1.0, score))
 
     @staticmethod
     def _split_sentences(text: str) -> List[str]:

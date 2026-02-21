@@ -74,6 +74,35 @@ class BaseSephirah(ABC):
         self._quantum_state: Optional[List[List[complex]]] = None
         logger.debug(f"Sephirah {role.value} initialized ({QUBIT_ALLOCATION[role]} qubits)")
 
+    def serialize_state(self) -> Dict[str, Any]:
+        """Serialize this node's state to a dict for DB persistence.
+
+        Subclasses with additional state (goals, policies, etc.)
+        should override and call super().
+        """
+        return {
+            'role': self.role.value,
+            'processing_count': self._processing_count,
+            'state': {
+                'active': self.state.active,
+                'energy': self.state.energy,
+                'messages_processed': self.state.messages_processed,
+                'reasoning_ops': self.state.reasoning_ops,
+            },
+        }
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        """Restore this node's state from a serialized dict.
+
+        Subclasses should override and call super().
+        """
+        self._processing_count = data.get('processing_count', 0)
+        state_data = data.get('state', {})
+        self.state.active = state_data.get('active', True)
+        self.state.energy = state_data.get('energy', 1.0)
+        self.state.messages_processed = state_data.get('messages_processed', 0)
+        self.state.reasoning_ops = state_data.get('reasoning_ops', 0)
+
     @abstractmethod
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """
@@ -192,6 +221,17 @@ class KeterNode(BaseSephirah):
             messages_out=self.get_outbox(),
         )
 
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['goals'] = self._goals[-50:]
+        data['meta_patterns'] = self._meta_patterns[-100:]
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._goals = data.get('goals', [])
+        self._meta_patterns = data.get('meta_patterns', [])
+
 
 class ChochmahNode(BaseSephirah):
     """
@@ -249,6 +289,15 @@ class ChochmahNode(BaseSephirah):
             messages_out=self.get_outbox(),
         )
 
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['insights'] = self._insights[-100:]
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._insights = data.get('insights', [])
+
 
 class BinahNode(BaseSephirah):
     """
@@ -295,6 +344,17 @@ class BinahNode(BaseSephirah):
             confidence=0.9,
             messages_out=self.get_outbox(),
         )
+
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['verified'] = self._verified
+        data['rejected'] = self._rejected
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._verified = data.get('verified', 0)
+        self._rejected = data.get('rejected', 0)
 
 
 class ChesedNode(BaseSephirah):
@@ -347,6 +407,15 @@ class ChesedNode(BaseSephirah):
             messages_out=self.get_outbox(),
         )
 
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['explorations'] = self._explorations
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._explorations = data.get('explorations', 0)
+
 
 class GevurahNode(BaseSephirah):
     """
@@ -397,6 +466,17 @@ class GevurahNode(BaseSephirah):
             confidence=0.95,
             messages_out=self.get_outbox(),
         )
+
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['vetoes'] = self._vetoes
+        data['approvals'] = self._approvals
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._vetoes = data.get('vetoes', 0)
+        self._approvals = data.get('approvals', 0)
 
 
 class TiferetNode(BaseSephirah):
@@ -450,6 +530,15 @@ class TiferetNode(BaseSephirah):
             messages_out=self.get_outbox(),
         )
 
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['integrations'] = self._integrations
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._integrations = data.get('integrations', 0)
+
 
 class NetzachNode(BaseSephirah):
     """
@@ -499,6 +588,17 @@ class NetzachNode(BaseSephirah):
             messages_out=self.get_outbox(),
         )
 
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['policies'] = self._policies
+        data['total_rewards'] = self._total_rewards
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._policies = data.get('policies', {})
+        self._total_rewards = data.get('total_rewards', 0.0)
+
 
 class HodNode(BaseSephirah):
     """
@@ -543,6 +643,15 @@ class HodNode(BaseSephirah):
             confidence=0.75,
             messages_out=self.get_outbox(),
         )
+
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['encodings'] = self._encodings
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._encodings = data.get('encodings', 0)
 
 
 class YesodNode(BaseSephirah):
@@ -590,6 +699,17 @@ class YesodNode(BaseSephirah):
             messages_out=self.get_outbox(),
         )
 
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['consolidations'] = self._consolidations
+        data['working_buffer'] = self._working_buffer[-self._buffer_capacity:]
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._consolidations = data.get('consolidations', 0)
+        self._working_buffer = data.get('working_buffer', [])
+
 
 class MalkuthNode(BaseSephirah):
     """
@@ -635,6 +755,15 @@ class MalkuthNode(BaseSephirah):
             confidence=0.85,
             messages_out=self.get_outbox(),
         )
+
+    def serialize_state(self) -> Dict[str, Any]:
+        data = super().serialize_state()
+        data['actions_executed'] = self._actions_executed
+        return data
+
+    def deserialize_state(self, data: Dict[str, Any]) -> None:
+        super().deserialize_state(data)
+        self._actions_executed = data.get('actions_executed', 0)
 
 
 # Registry mapping roles to their node classes
