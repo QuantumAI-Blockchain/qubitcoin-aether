@@ -146,7 +146,14 @@ class TestKnowledgeDistiller:
 
     def test_distill_with_kg(self):
         kg = MagicMock()
-        kg.add_node = MagicMock(side_effect=lambda **kw: len(kg.add_node.call_args_list))
+        # add_node returns a KeterNode-like object with .node_id
+        _counter = [0]
+        def _mock_add_node(**kw):
+            _counter[0] += 1
+            node = MagicMock()
+            node.node_id = _counter[0]
+            return node
+        kg.add_node = MagicMock(side_effect=_mock_add_node)
         kg.add_edge = MagicMock()
 
         distiller = KnowledgeDistiller(kg)
@@ -174,7 +181,9 @@ class TestKnowledgeDistiller:
 
     def test_distill_skips_short_sentences(self):
         kg = MagicMock()
-        kg.add_node = MagicMock(return_value=1)
+        node_mock = MagicMock()
+        node_mock.node_id = 1
+        kg.add_node = MagicMock(return_value=node_mock)
         distiller = KnowledgeDistiller(kg)
         resp = LLMResponse(
             content="OK. Yes. This is a longer sentence about blockchain technology.",

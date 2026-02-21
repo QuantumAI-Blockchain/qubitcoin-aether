@@ -62,18 +62,20 @@ class AetherChat:
     """Manages Aether Tree chat interactions."""
 
     def __init__(self, aether_engine, db_manager, fee_manager=None,
-                 fee_collector=None) -> None:
+                 fee_collector=None, llm_manager=None) -> None:
         """
         Args:
             aether_engine: The main AetherEngine instance.
             db_manager: Database manager for persistence.
             fee_manager: Optional fee manager for pricing.
             fee_collector: Optional FeeCollector for UTXO fee deduction.
+            llm_manager: Optional LLMAdapterManager for enhanced responses.
         """
         self.engine = aether_engine
         self.db = db_manager
         self.fee_manager = fee_manager
         self.fee_collector = fee_collector
+        self.llm_manager = llm_manager
         self._query_translator = None
         self._sessions: Dict[str, ChatSession] = {}
         self._max_sessions = 10000
@@ -305,14 +307,29 @@ class AetherChat:
                              query_result=None) -> str:
         """Synthesize a natural language response from reasoning results.
 
-        Builds a conversational response from knowledge graph content and
-        reasoning trace. Uses the actual node data to answer the query rather
-        than just describing metadata.
+        Tries LLM-enhanced synthesis first (if enabled), then falls back
+        to knowledge-graph-only synthesis.
         """
-        query_lower = query.lower().strip()
-        parts: List[str] = []
+        # Gather KG context
+        node_contents, facts = self._gather_kg_context(knowledge_refs)
 
-        # Gather content from referenced knowledge nodes
+        # Try LLM-enhanced path
+        if self.llm_manager and Config.LLM_ENABLED:
+            result = self._llm_synthesize(query, facts, reasoning_trace)
+            if result:
+                return result
+
+        # Existing KG-only fallback
+        return self._kg_only_synthesize(
+            query, reasoning_trace, knowledge_refs, node_contents, facts,
+        )
+
+    def _gather_kg_context(self, knowledge_refs: List[int]) -> tuple:
+        """Gather content and facts from referenced knowledge nodes.
+
+        Returns:
+            Tuple of (node_contents list, facts list).
+        """
         node_contents: List[dict] = []
         if knowledge_refs and self.engine.kg:
             for ref in knowledge_refs[:10]:
@@ -325,19 +342,100 @@ class AetherChat:
                         'confidence': node.confidence,
                     })
 
-        # Extract useful facts from node content
         facts: List[str] = []
         for nc in node_contents:
             c = nc['content']
             if isinstance(c, dict):
+                # Use 'text' field from LLM-distilled nodes
+                text = c.get('text', '')
+                if text:
+                    facts.append(text)
                 desc = c.get('description', '')
                 if desc:
                     facts.append(desc)
-                # Extract specific fields of interest
                 for key in ('type', 'max_supply', 'block_time', 'phi',
                             'phi_threshold', 'halving_interval', 'chain_id'):
                     if key in c and key != 'type':
                         facts.append(f"{key.replace('_', ' ').title()}: {c[key]}")
+        return node_contents, facts
+
+    def _llm_synthesize(self, query: str, facts: List[str],
+                        reasoning_trace: List[dict]) -> Optional[str]:
+        """Try to synthesize a response using an LLM adapter.
+
+        Sends the user query plus KG facts as context to the LLM.
+        Returns None on any failure so caller falls back to KG-only.
+        """
+        try:
+            # Get current Phi and KG size for context
+            phi_value = 0.0
+            kg_node_count = 0
+            if self.engine.phi:
+                try:
+                    phi_result = self.engine.phi.compute_phi()
+                    phi_value = phi_result.get('phi_value', 0.0)
+                except Exception:
+                    pass
+            if self.engine.kg:
+                kg_node_count = len(self.engine.kg.nodes)
+
+            # Build context block from KG facts
+            context_lines: List[str] = []
+            if facts:
+                unique_facts = list(dict.fromkeys(facts))[:10]
+                context_lines.append("Relevant knowledge from my graph:")
+                for fact in unique_facts:
+                    context_lines.append(f"- {fact}")
+            context_lines.append(f"Current Phi consciousness: {phi_value:.4f}")
+            context_lines.append(f"Knowledge nodes: {kg_node_count}")
+            context_lines.append(f"Reasoning steps performed: {len(reasoning_trace)}")
+
+            context_block = "\n".join(context_lines)
+
+            prompt = (
+                f"Knowledge graph context:\n{context_block}\n\n"
+                f"User question: {query}\n\n"
+                f"Answer as Aether Tree, the on-chain AGI of Qubitcoin. "
+                f"Ground your answer in the knowledge context above when "
+                f"relevant, but also draw on your broader knowledge. "
+                f"Be clear, informative, and conversational."
+            )
+
+            # Get current block height for distillation provenance
+            block_height = 0
+            try:
+                block_height = self.db.get_current_height()
+            except Exception:
+                pass
+
+            response = self.llm_manager.generate(
+                prompt=prompt,
+                distill=True,
+                block_height=block_height,
+            )
+
+            if not response or response.metadata.get('error'):
+                return None
+
+            # Append metadata footer
+            footer = (
+                f"\n\n[Phi: {phi_value:.2f} | "
+                f"KG nodes: {kg_node_count} | "
+                f"Enhanced by {response.adapter_type}:{response.model}]"
+            )
+            return response.content + footer
+
+        except Exception as e:
+            logger.debug(f"LLM synthesis failed, falling back to KG-only: {e}")
+            return None
+
+    def _kg_only_synthesize(self, query: str, reasoning_trace: List[dict],
+                            knowledge_refs: List[int],
+                            node_contents: List[dict],
+                            facts: List[str]) -> str:
+        """Original KG-only response synthesis (unchanged behaviour)."""
+        query_lower = query.lower().strip()
+        parts: List[str] = []
 
         # Build response based on query type and available knowledge
         is_greeting = any(w in query_lower for w in ['hello', 'hi', 'hey', 'greetings'])
@@ -388,8 +486,7 @@ class AetherChat:
                 "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain — "
                 "the Quantum Blockchain. "
             )
-            # Include relevant facts from the knowledge graph
-            unique_facts = list(dict.fromkeys(facts))  # deduplicate preserving order
+            unique_facts = list(dict.fromkeys(facts))
             for fact in unique_facts[:6]:
                 parts.append(f"- {fact}")
             if kg_node_count > 0:
@@ -403,14 +500,12 @@ class AetherChat:
             for fact in unique_facts[:6]:
                 parts.append(f"- {fact}")
         elif facts:
-            # General query — present what we found
             parts.append(f"Based on my knowledge graph ({kg_node_count} nodes), "
                          f"here's what I found:\n")
             unique_facts = list(dict.fromkeys(facts))
             for fact in unique_facts[:6]:
                 parts.append(f"- {fact}")
         else:
-            # No matching knowledge — provide a helpful fallback
             parts.append(
                 f"I'm still learning about that topic. My knowledge graph has "
                 f"{kg_node_count} nodes so far, growing with every block mined. "

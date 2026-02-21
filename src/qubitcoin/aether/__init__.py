@@ -30,6 +30,7 @@ from .llm_adapter import (
     LLMAdapter, LLMResponse, LLMAdapterManager,
     OpenAIAdapter, ClaudeAdapter, LocalAdapter, KnowledgeDistiller,
 )
+from .knowledge_seeder import KnowledgeSeeder, MASTER_PROMPTS
 from .ipfs_memory import IPFSMemoryStore
 from .sephirot_nodes import (
     BaseSephirah, NodeMessage, ProcessingResult,
@@ -78,6 +79,8 @@ __all__ = [
     'ClaudeAdapter',
     'LocalAdapter',
     'KnowledgeDistiller',
+    'KnowledgeSeeder',
+    'MASTER_PROMPTS',
     'IPFSMemoryStore',
     'BaseSephirah',
     'NodeMessage',

@@ -4,6 +4,7 @@ can run without Qiskit, CockroachDB, IBM Quantum, etc.
 
 This file is auto-loaded by pytest before any test module imports.
 """
+import os
 import sys
 import types
 from pathlib import Path
@@ -12,6 +13,20 @@ from pathlib import Path
 _src = str(Path(__file__).resolve().parent.parent / "src")
 if _src not in sys.path:
     sys.path.insert(0, _src)
+
+# Ensure log directory is writable — Docker may leave logs/ root-owned.
+# Redirect to /tmp if the default path is not writable.
+_project_root = Path(__file__).resolve().parent.parent
+_log_dir = _project_root / "logs"
+try:
+    _log_dir.mkdir(parents=True, exist_ok=True)
+    _test_file = _log_dir / ".write_test"
+    _test_file.touch()
+    _test_file.unlink()
+except (PermissionError, OSError):
+    _tmp_log = Path("/tmp/qbc_test_logs")
+    _tmp_log.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("QBC_LOG_DIR", str(_tmp_log))
 
 
 def _make_stub(name: str) -> types.ModuleType:
@@ -53,6 +68,8 @@ _STUBS = [
     # Cryptography (optional)
     'sha3',
     'oqs',
+    # gRPC generated stubs
+    'p2p_service_pb2', 'p2p_service_pb2_grpc',
 ]
 
 for _name in _STUBS:

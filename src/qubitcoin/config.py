@@ -184,6 +184,24 @@ class Config:
     CONTRACT_TEMPLATE_DISCOUNT: float = float(os.getenv('CONTRACT_TEMPLATE_DISCOUNT', '0.5'))
 
     # ============================================================================
+    # LLM / EXTERNAL AI CONFIGURATION
+    # ============================================================================
+    LLM_ENABLED: bool = os.getenv('LLM_ENABLED', 'false').lower() == 'true'
+    OPENAI_API_KEY: str = os.getenv('OPENAI_API_KEY', '')
+    OPENAI_MODEL: str = os.getenv('OPENAI_MODEL', 'gpt-4')
+    OPENAI_MAX_TOKENS: int = int(os.getenv('OPENAI_MAX_TOKENS', '1024'))
+    OPENAI_TEMPERATURE: float = float(os.getenv('OPENAI_TEMPERATURE', '0.7'))
+    CLAUDE_API_KEY: str = os.getenv('CLAUDE_API_KEY', '')
+    CLAUDE_MODEL: str = os.getenv('CLAUDE_MODEL', 'claude-sonnet-4-5-20250929')
+    LOCAL_LLM_URL: str = os.getenv('LOCAL_LLM_URL', '')
+    LLM_PRIMARY_ADAPTER: str = os.getenv('LLM_PRIMARY_ADAPTER', 'openai')
+    LLM_SEEDER_ENABLED: bool = os.getenv('LLM_SEEDER_ENABLED', 'false').lower() == 'true'
+    LLM_SEEDER_INTERVAL_BLOCKS: int = int(os.getenv('LLM_SEEDER_INTERVAL_BLOCKS', '50'))
+    LLM_SEEDER_RATE_LIMIT_PER_HOUR: int = int(os.getenv('LLM_SEEDER_RATE_LIMIT_PER_HOUR', '10'))
+    LLM_SEEDER_MAX_TOKENS: int = int(os.getenv('LLM_SEEDER_MAX_TOKENS', '2048'))
+    LLM_SEEDER_COOLDOWN_SECONDS: int = int(os.getenv('LLM_SEEDER_COOLDOWN_SECONDS', '15'))
+
+    # ============================================================================
     # ADMIN API
     # ============================================================================
     ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')

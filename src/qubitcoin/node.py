@@ -176,6 +176,59 @@ class QubitcoinNode:
             logger.error(f"[7/10] Aether Engine failed: {e}", exc_info=True)
             raise
 
+        # Component 7b: LLM Adapters + Knowledge Seeder (optional)
+        self.llm_manager = None
+        self.knowledge_seeder = None
+        if Config.LLM_ENABLED:
+            try:
+                from .aether.llm_adapter import (
+                    LLMAdapterManager, OpenAIAdapter, ClaudeAdapter, LocalAdapter,
+                )
+                self.llm_manager = LLMAdapterManager(self.knowledge_graph)
+
+                # Register adapters in priority order based on LLM_PRIMARY_ADAPTER
+                primary = Config.LLM_PRIMARY_ADAPTER
+                adapters_to_register = []
+                if Config.OPENAI_API_KEY:
+                    adapters_to_register.append((
+                        OpenAIAdapter(
+                            api_key=Config.OPENAI_API_KEY,
+                            model=Config.OPENAI_MODEL,
+                            max_tokens=Config.OPENAI_MAX_TOKENS,
+                            temperature=Config.OPENAI_TEMPERATURE,
+                        ),
+                        10 if primary == 'openai' else 50,
+                    ))
+                if Config.CLAUDE_API_KEY:
+                    adapters_to_register.append((
+                        ClaudeAdapter(
+                            api_key=Config.CLAUDE_API_KEY,
+                            model=Config.CLAUDE_MODEL,
+                        ),
+                        10 if primary == 'claude' else 50,
+                    ))
+                if Config.LOCAL_LLM_URL:
+                    adapters_to_register.append((
+                        LocalAdapter(base_url=Config.LOCAL_LLM_URL),
+                        10 if primary == 'local' else 90,
+                    ))
+
+                for adapter, priority in adapters_to_register:
+                    self.llm_manager.register_adapter(adapter, priority)
+
+                available = self.llm_manager.get_available_adapters()
+                logger.info(f"LLM adapters initialized: {available}")
+
+                # Knowledge Seeder
+                if Config.LLM_SEEDER_ENABLED and available:
+                    from .aether.knowledge_seeder import KnowledgeSeeder
+                    self.knowledge_seeder = KnowledgeSeeder(self.llm_manager, self.db)
+                    logger.info("Knowledge seeder initialized (will start on node startup)")
+            except Exception as e:
+                logger.warning(f"LLM initialization failed (non-fatal): {e}")
+                self.llm_manager = None
+                self.knowledge_seeder = None
+
         # Component 8: Mining Engine
         logger.info("[8/10] Initializing MiningEngine...")
         try:
@@ -211,7 +264,8 @@ class QubitcoinNode:
                 self.ipfs,
                 contract_engine=self.contracts,
                 state_manager=self.state_manager,
-                aether_engine=self.aether
+                aether_engine=self.aether,
+                llm_manager=self.llm_manager,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
@@ -495,6 +549,11 @@ class QubitcoinNode:
         self.metrics_task = asyncio.create_task(self._update_metrics_loop())
         logger.info("Metrics collection started")
 
+        # Start knowledge seeder
+        if self.knowledge_seeder:
+            self.knowledge_seeder.start()
+            logger.info("Knowledge seeder started")
+
         # Start mining
         if Config.AUTO_MINE:
             self.mining.start()
@@ -518,6 +577,10 @@ class QubitcoinNode:
                 await self.metrics_task
             except asyncio.CancelledError:
                 pass
+
+        # Stop knowledge seeder
+        if self.knowledge_seeder:
+            self.knowledge_seeder.stop()
 
         self.mining.stop()
 

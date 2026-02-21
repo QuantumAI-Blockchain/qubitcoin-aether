@@ -381,7 +381,7 @@ class KnowledgeDistiller:
 
             node_type = self._classify_sentence(sentence)
             try:
-                node_id = self.kg.add_node(
+                node = self.kg.add_node(
                     content={
                         'text': sentence,
                         'source': f"llm:{llm_response.adapter_type}",
@@ -392,7 +392,7 @@ class KnowledgeDistiller:
                     confidence=0.7,  # LLM-derived knowledge starts at lower confidence
                     source_block=block_height,
                 )
-                node_ids.append(node_id)
+                node_ids.append(node.node_id)
             except Exception as e:
                 logger.debug(f"Failed to add distilled node: {e}")
 
@@ -459,6 +459,7 @@ class LLMAdapterManager:
 
     def __init__(self, knowledge_graph: object = None) -> None:
         self._adapters: Dict[str, LLMAdapter] = {}
+        self._adapter_priorities: Dict[str, int] = {}
         self._priority: List[str] = []  # Ordered adapter type names
         self._distiller = KnowledgeDistiller(knowledge_graph)
 
@@ -471,13 +472,14 @@ class LLMAdapterManager:
             priority: Lower number = higher priority (tried first).
         """
         self._adapters[adapter.adapter_type] = adapter
-        # Rebuild priority list
+        self._adapter_priorities[adapter.adapter_type] = priority
+        # Rebuild priority list sorted by stored priority
         items = sorted(
             self._adapters.items(),
-            key=lambda x: x[1]._request_count,  # Use request count as tiebreaker
+            key=lambda x: self._adapter_priorities.get(x[0], 100),
         )
         self._priority = [k for k, _ in items]
-        logger.info(f"LLM adapter registered: {adapter.adapter_type} ({adapter.model})")
+        logger.info(f"LLM adapter registered: {adapter.adapter_type} ({adapter.model}) priority={priority}")
 
     def generate(self, prompt: str, context: Optional[List[dict]] = None,
                  system_prompt: Optional[str] = None,

@@ -22,7 +22,8 @@ logger = get_logger(__name__)
 
 def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    quantum_engine, ipfs_manager, contract_engine=None,
-                   state_manager=None, aether_engine=None) -> FastAPI:
+                   state_manager=None, aether_engine=None,
+                   llm_manager=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -35,6 +36,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         contract_engine: Smart contract engine instance (optional for v1 compatibility)
         state_manager: QVM state manager instance (optional)
         aether_engine: Aether Tree AGI engine instance (optional)
+        llm_manager: LLMAdapterManager instance (optional)
 
     Returns:
         Configured FastAPI app
@@ -1061,7 +1063,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             from ..aether.fee_manager import AetherFeeManager
             fee_mgr = AetherFeeManager()
             _chat_state['fee_mgr'] = fee_mgr
-            _chat_state['chat'] = AetherChat(aether_engine, db_manager, fee_mgr)
+            _chat_state['chat'] = AetherChat(
+                aether_engine, db_manager, fee_mgr,
+                llm_manager=llm_manager,
+            )
         return _chat_state['chat'], _chat_state['fee_mgr']
 
     @app.post("/aether/chat/session")
@@ -1139,6 +1144,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         return session.to_dict()
+
+    # ========================================================================
+    # LLM / KNOWLEDGE SEEDER STATS
+    # ========================================================================
+
+    @app.get("/aether/llm/stats")
+    async def get_llm_stats():
+        """Get LLM adapter and knowledge seeder statistics."""
+        stats: dict = {"llm_enabled": Config.LLM_ENABLED}
+        if llm_manager:
+            stats["adapters"] = llm_manager.get_stats()
+        # Seeder stats are on the node object (attached by node.py)
+        node = getattr(app, 'node', None)
+        if node and getattr(node, 'knowledge_seeder', None):
+            stats["seeder"] = node.knowledge_seeder.get_stats()
+        return stats
 
     # ========================================================================
     # WALLET ENDPOINTS — UTXO-to-Account Bridge & Native Wallet
