@@ -616,6 +616,84 @@ class ReasoningEngine:
             self._operations = self._operations[-self._max_operations:]
         return result
 
+    def archive_old_reasoning(self, current_block: int, retain_blocks: int = 50000) -> int:
+        """Archive old reasoning operations to summary rows.
+
+        Operations older than ``retain_blocks`` are aggregated by type
+        into summary rows and the originals are deleted from the DB.
+
+        Args:
+            current_block: Current block height.
+            retain_blocks: Keep individual operations from the last N blocks.
+
+        Returns:
+            Number of rows archived (deleted).
+        """
+        cutoff_block = current_block - retain_blocks
+        if cutoff_block <= 0:
+            return 0
+
+        archived = 0
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                # Aggregate old operations into summary rows
+                summaries = session.execute(
+                    text("""
+                        SELECT operation_type, COUNT(*) as cnt,
+                               AVG(confidence) as avg_conf,
+                               MIN(block_height) as min_block,
+                               MAX(block_height) as max_block
+                        FROM reasoning_operations
+                        WHERE block_height < :cutoff
+                        GROUP BY operation_type
+                    """),
+                    {'cutoff': cutoff_block}
+                ).fetchall()
+
+                for row in summaries:
+                    if row[1] > 0:  # cnt > 0
+                        session.execute(
+                            text("""
+                                INSERT INTO reasoning_operations
+                                (operation_type, confidence, block_height, premises, conclusion, is_summary)
+                                VALUES (:otype, :conf, :block,
+                                        CAST(:premises AS jsonb), CAST(:conclusion AS jsonb), true)
+                                ON CONFLICT DO NOTHING
+                            """),
+                            {
+                                'otype': f"summary_{row[0]}",
+                                'conf': float(row[2] or 0),
+                                'block': cutoff_block,
+                                'premises': json.dumps({
+                                    'count': row[1],
+                                    'block_range': [row[3], row[4]],
+                                }),
+                                'conclusion': json.dumps({
+                                    'archived_count': row[1],
+                                    'avg_confidence': round(float(row[2] or 0), 4),
+                                }),
+                            }
+                        )
+
+                # Delete old individual operations
+                result = session.execute(
+                    text("""
+                        DELETE FROM reasoning_operations
+                        WHERE block_height < :cutoff
+                          AND (is_summary IS NULL OR is_summary = false)
+                    """),
+                    {'cutoff': cutoff_block}
+                )
+                archived = result.rowcount
+                session.commit()
+
+            if archived > 0:
+                logger.info(f"Archived {archived} old reasoning operations (before block {cutoff_block})")
+        except Exception as e:
+            logger.debug(f"Reasoning archive failed: {e}")
+        return archived
+
     def get_stats(self) -> dict:
         """Get reasoning engine statistics"""
         type_counts: Dict[str, int] = {}

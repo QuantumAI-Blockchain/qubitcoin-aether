@@ -98,6 +98,11 @@ class PhiCalculator:
         self.db = db_manager
         self.kg = knowledge_graph
         self._cache: Dict[int, float] = {}  # block_height -> phi
+        self._last_full_result: Optional[dict] = None
+        self._last_computed_block: int = -1
+        self._compute_interval: int = int(
+            __import__('os').getenv('PHI_COMPUTE_INTERVAL', '1')
+        )
 
     def compute_phi(self, block_height: int = 0) -> dict:
         """
@@ -106,17 +111,36 @@ class PhiCalculator:
         Pre-fork (v1): original formula with sqrt(n/500) maturity + confidence.
         Post-fork (v2): log2(1+n/50000) maturity + milestone gate ceiling.
 
+        If PHI_COMPUTE_INTERVAL > 1, returns the cached result for intermediate
+        blocks (avoids expensive full-graph scan on every block).
+
         Returns:
             Dict with phi_value, integration, differentiation, and breakdown
         """
         if not self.kg or not self.kg.nodes:
             return self._empty_result(block_height)
 
-        # Branch on fork height
-        if block_height >= Config.PHI_FORK_HEIGHT:
-            return self._compute_phi_v2(block_height)
+        # Return cached result if within compute interval
+        if (self._compute_interval > 1
+                and self._last_full_result is not None
+                and block_height > 0
+                and self._last_computed_block > 0
+                and (block_height - self._last_computed_block) < self._compute_interval):
+            # Return cached result with updated block height
+            cached = dict(self._last_full_result)
+            cached['block_height'] = block_height
+            cached['cached'] = True
+            return cached
 
-        return self._compute_phi_v1(block_height)
+        # Full computation
+        if block_height >= Config.PHI_FORK_HEIGHT:
+            result = self._compute_phi_v2(block_height)
+        else:
+            result = self._compute_phi_v1(block_height)
+
+        self._last_full_result = result
+        self._last_computed_block = block_height
+        return result
 
     # ========================================================================
     # v1 — original formula (pre-fork, unchanged)

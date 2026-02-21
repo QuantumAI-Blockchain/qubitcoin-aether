@@ -30,6 +30,7 @@ class KeterNode:
     timestamp: float = 0.0
     domain: str = ''  # Auto-assigned domain (quantum_physics, mathematics, etc.)
     last_referenced_block: int = 0  # Last block where this node was used in reasoning
+    reference_count: int = 0  # How many times this node has been used in reasoning
     # In-memory graph links
     edges_out: List[int] = field(default_factory=list)
     edges_in: List[int] = field(default_factory=list)
@@ -614,13 +615,43 @@ class KnowledgeGraph:
         }
 
     def touch_node(self, node_id: int, current_block: int) -> None:
-        """Update a node's last_referenced_block to reset its decay clock.
+        """Update a node's last_referenced_block and increment reference count.
 
         Called when a node is used in reasoning or referenced in a query.
+        Resets the decay clock and builds evidence for the node.
         """
         node = self.nodes.get(node_id)
         if node:
             node.last_referenced_block = current_block
+            node.reference_count += 1
+
+    def boost_referenced_nodes(self, min_references: int = 5, boost_per_ref: float = 0.01,
+                               max_boost: float = 0.15) -> int:
+        """Boost confidence of frequently-referenced nodes.
+
+        Nodes that have been used in reasoning multiple times get a small
+        confidence increase, creating natural selection pressure: useful
+        knowledge rises, unused knowledge fades (via decay).
+
+        Args:
+            min_references: Minimum references before boost applies.
+            boost_per_ref: Confidence increase per log(references).
+            max_boost: Maximum total boost per call.
+
+        Returns:
+            Number of nodes boosted.
+        """
+        boosted = 0
+        for node in self.nodes.values():
+            if node.reference_count >= min_references:
+                boost = min(max_boost, boost_per_ref * math.log(node.reference_count))
+                new_conf = min(1.0, node.confidence + boost)
+                if new_conf > node.confidence:
+                    node.confidence = new_conf
+                    boosted += 1
+        if boosted:
+            logger.info(f"Boosted confidence for {boosted} frequently-referenced nodes")
+        return boosted
 
     def get_domain_stats(self) -> Dict[str, dict]:
         """Get node counts and average confidence per domain."""

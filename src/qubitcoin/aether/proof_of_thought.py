@@ -254,6 +254,21 @@ class AetherEngine:
             if block.height > 0 and block.height % 1000 == 0:
                 self.auto_resolve_contradictions(block.height)
 
+            # Auto-generate Keter goals every 500 blocks
+            if block.height > 0 and block.height % 500 == 0:
+                self._auto_generate_keter_goals(block.height)
+
+            # Boost frequently-referenced knowledge nodes every 1000 blocks
+            if block.height > 0 and block.height % 1000 == 0 and self.kg:
+                self.kg.boost_referenced_nodes()
+
+            # Archive old reasoning operations every 10000 blocks
+            if block.height > 0 and block.height % 10000 == 0 and self.reasoning:
+                from ..config import Config
+                self.reasoning.archive_old_reasoning(
+                    block.height, Config.REASONING_ARCHIVE_RETAIN_BLOCKS
+                )
+
             # Persist Sephirot state every 100 blocks
             if block.height > 0 and block.height % 100 == 0:
                 self.save_sephirot_state()
@@ -526,6 +541,36 @@ class AetherEngine:
         except Exception as e:
             logger.debug(f"Auto contradiction resolution error: {e}")
         return resolved
+
+    def _auto_generate_keter_goals(self, block_height: int) -> int:
+        """Have KeterNode auto-generate goals based on knowledge gaps.
+
+        Args:
+            block_height: Current block height.
+
+        Returns:
+            Number of goals generated.
+        """
+        sephirot = self.sephirot
+        if not sephirot:
+            return 0
+
+        from .sephirot import SephirahRole
+        keter = sephirot.get(SephirahRole.KETER)
+        if not keter or not hasattr(keter, 'auto_generate_goals'):
+            return 0
+
+        domain_stats = self.kg.get_domain_stats() if self.kg else {}
+
+        # Count unresolved contradictions
+        contradiction_count = 0
+        if self.kg:
+            for edge in self.kg.edges:
+                if edge.edge_type == 'contradicts':
+                    contradiction_count += 1
+
+        goals = keter.auto_generate_goals(domain_stats, contradiction_count)
+        return len(goals)
 
     def get_mind_state(self, block_height: int = 0) -> dict:
         """Return a snapshot of Aether's current cognitive state.

@@ -221,6 +221,72 @@ class KeterNode(BaseSephirah):
             messages_out=self.get_outbox(),
         )
 
+    def auto_generate_goals(self, domain_stats: Dict[str, dict] = None,
+                            contradiction_count: int = 0) -> List[Dict[str, Any]]:
+        """Generate goals autonomously based on knowledge gaps and contradictions.
+
+        This is the first step toward autonomous AGI — the system decides
+        what to learn based on its own self-assessment.
+
+        Args:
+            domain_stats: Dict of domain -> {count, avg_confidence} from KG.
+            contradiction_count: Number of unresolved contradictions.
+
+        Returns:
+            List of newly generated goals (max 10 auto-goals).
+        """
+        auto_goals: List[Dict[str, Any]] = []
+
+        # Goal 1: Learn about under-represented domains
+        if domain_stats:
+            sorted_domains = sorted(domain_stats.items(), key=lambda x: x[1]['count'])
+            for domain, info in sorted_domains[:3]:
+                if info['count'] < 100:
+                    auto_goals.append({
+                        'type': 'learn_domain',
+                        'domain': domain,
+                        'current_count': info['count'],
+                        'priority': 'high' if info['count'] < 20 else 'medium',
+                        'source': 'auto',
+                    })
+
+        # Goal 2: Resolve contradictions
+        if contradiction_count > 0:
+            auto_goals.append({
+                'type': 'resolve_contradictions',
+                'count': contradiction_count,
+                'priority': 'high' if contradiction_count > 5 else 'medium',
+                'source': 'auto',
+            })
+
+        # Goal 3: Boost low-confidence domains
+        if domain_stats:
+            for domain, info in domain_stats.items():
+                if info.get('avg_confidence', 1.0) < 0.5 and info['count'] > 10:
+                    auto_goals.append({
+                        'type': 'improve_confidence',
+                        'domain': domain,
+                        'avg_confidence': info['avg_confidence'],
+                        'priority': 'medium',
+                        'source': 'auto',
+                    })
+                    if len(auto_goals) >= 10:
+                        break
+
+        # Cap at 10 auto-goals, reserve 40 slots for external goals
+        auto_goals = auto_goals[:10]
+
+        # Remove old auto-goals, add new ones
+        self._goals = [g for g in self._goals if g.get('source') != 'auto']
+        self._goals.extend(auto_goals)
+        if len(self._goals) > 50:
+            self._goals = self._goals[-50:]
+
+        if auto_goals:
+            logger.info(f"Keter auto-generated {len(auto_goals)} goals")
+
+        return auto_goals
+
     def serialize_state(self) -> Dict[str, Any]:
         data = super().serialize_state()
         data['goals'] = self._goals[-50:]

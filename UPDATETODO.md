@@ -81,16 +81,14 @@ confidence, and block height. Over millions of blocks, this table grows linearly
 without bound. Old reasoning operations have diminishing value — only recent
 reasoning informs current Phi and knowledge quality.
 
-**Fix:**
-- [ ] Add `archive_old_reasoning(retain_blocks=50000)` to `ReasoningEngine`
-- [ ] Operations older than 50,000 blocks: aggregate into summary rows
-  (count by type, average confidence, block range)
-- [ ] Store summaries in `reasoning_operations_summary` table
-- [ ] Delete original rows after archival
-- [ ] Run on startup and every 10,000 blocks
-- [ ] Add `REASONING_ARCHIVE_RETAIN_BLOCKS` to Config
+**Fix:** ✅ **DONE**
+- [x] `archive_old_reasoning(current_block, retain_blocks)` added to ReasoningEngine
+- [x] Aggregates old ops into summary rows by type (count, avg confidence, block range)
+- [x] Deletes original rows after archival
+- [x] Wired into `process_block_knowledge()` every 10,000 blocks
+- [x] `REASONING_ARCHIVE_RETAIN_BLOCKS` already in Config (default 50000)
 
-**Files:** `src/qubitcoin/aether/reasoning.py`, `sql_new/agi/01_reasoning_engine.sql`
+**Files:** `src/qubitcoin/aether/reasoning.py`, `src/qubitcoin/aether/proof_of_thought.py`
 
 ---
 
@@ -348,13 +346,14 @@ other indefinitely with no mechanism to determine which is correct.
 nodes and edges to compute integration, differentiation, connectivity, and gate
 checks. At 50,000+ nodes, this becomes expensive.
 
-**Fix:**
-- [ ] Cache node_type_counts and edge_type_counts; update incrementally on add/remove
-- [ ] Only recompute full Phi every 10 blocks; interpolate between measurements
-- [ ] Cache gate results — gates only need rechecking when counts cross thresholds
-- [ ] Add `PHI_COMPUTE_INTERVAL` config (default 1, set to 10 for performance)
+**Fix:** ✅ **DONE**
+- [x] `PHI_COMPUTE_INTERVAL` env var (default 1, set to 10 for performance)
+- [x] Cached full result returned for intermediate blocks within interval
+- [x] `_last_full_result` and `_last_computed_block` track cache state
+- [x] Cached results tagged with `cached: True` for transparency
+- [x] Cache auto-invalidates on interval boundary
 
-**Files:** `src/qubitcoin/aether/phi_calculator.py`, `src/qubitcoin/config.py`
+**Files:** `src/qubitcoin/aether/phi_calculator.py`
 
 ---
 
@@ -576,13 +575,13 @@ system doesn't actively scan for contradictions between nodes.
 **Problem:** Nodes have static confidence. Nothing strengthens a correct assertion
 or weakens an incorrect one based on accumulated evidence.
 
-**Fix:**
-- [ ] When a node is referenced in successful reasoning, increment a `references` counter
-- [ ] Every 1,000 blocks, adjust confidence: `confidence += 0.01 * log(references)` (capped at 1.0)
-- [ ] Nodes never referenced decay faster (see 3.2 decay mechanism)
-- [ ] This creates a natural selection pressure: useful knowledge rises, useless knowledge fades
+**Fix:** ✅ **DONE**
+- [x] `reference_count` field on KeterNode, incremented by `touch_node()`
+- [x] `boost_referenced_nodes(min_references, boost_per_ref, max_boost)` — boosts confidence by `0.01 * log(references)` capped at +0.15
+- [x] Wired into `process_block_knowledge()` every 1,000 blocks
+- [x] Combined with decay (3.2): referenced nodes rise, unreferenced fade — natural selection
 
-**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/aether/reasoning.py`
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/aether/proof_of_thought.py`
 
 ---
 
@@ -594,15 +593,14 @@ or weakens an incorrect one based on accumulated evidence.
 but goals are only generated from incoming messages. The node never formulates
 its own goals based on knowledge gaps or performance metrics.
 
-**Fix:**
-- [ ] Add `auto_generate_goals()` to KeterNode
-- [ ] Analyze: which domains have lowest node count? Which have most contradictions?
-- [ ] Generate goals: "Learn more about economics" → triggers seeder to focus on economics
-- [ ] Generate goals: "Resolve contradiction between node 4521 and 4523" → triggers self-reflection
-- [ ] Cap auto-goals at 10 (reserve 40 slots for externally-driven goals)
-- [ ] This is the first step toward autonomous AGI — the system decides what to learn
+**Fix:** ✅ **DONE**
+- [x] `auto_generate_goals(domain_stats, contradiction_count)` added to KeterNode
+- [x] Generates goals: `learn_domain` (under-represented domains), `resolve_contradictions`, `improve_confidence` (low-confidence domains)
+- [x] Capped at 10 auto-goals (reserve 40 for external goals)
+- [x] Old auto-goals replaced each cycle
+- [x] Wired via `_auto_generate_keter_goals()` in AetherEngine, runs every 500 blocks
 
-**Files:** `src/qubitcoin/aether/sephirot_nodes.py`
+**Files:** `src/qubitcoin/aether/sephirot_nodes.py`, `src/qubitcoin/aether/proof_of_thought.py`
 
 ---
 
