@@ -262,6 +262,10 @@ class AetherEngine:
             if block.height > 0 and block.height % 1000 == 0 and self.kg:
                 self.kg.boost_referenced_nodes()
 
+            # Archive old consciousness events every 5000 blocks
+            if block.height > 0 and block.height % 5000 == 0:
+                self.archive_consciousness_events()
+
             # Archive old reasoning operations every 10000 blocks
             if block.height > 0 and block.height % 10000 == 0 and self.reasoning:
                 from ..config import Config
@@ -415,6 +419,51 @@ class AetherEngine:
                 session.commit()
         except Exception as e:
             logger.debug(f"Failed to record consciousness event: {e}")
+
+    def archive_consciousness_events(self, max_keep: int = 10000) -> int:
+        """Archive old consciousness events, keeping only the most recent.
+
+        Events beyond ``max_keep`` are deleted.  In a future enhancement,
+        archived events can be pinned to IPFS before deletion.
+
+        Args:
+            max_keep: Number of recent events to retain in DB.
+
+        Returns:
+            Number of events archived (deleted).
+        """
+        archived = 0
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                # Count total events
+                total = session.execute(
+                    text("SELECT COUNT(*) FROM consciousness_events")
+                ).scalar() or 0
+
+                if total <= max_keep:
+                    return 0
+
+                # Delete oldest events beyond the cap
+                result = session.execute(
+                    text("""
+                        DELETE FROM consciousness_events
+                        WHERE id IN (
+                            SELECT id FROM consciousness_events
+                            ORDER BY block_height ASC, created_at ASC
+                            LIMIT :delete_count
+                        )
+                    """),
+                    {'delete_count': total - max_keep}
+                )
+                archived = result.rowcount
+                session.commit()
+
+            if archived > 0:
+                logger.info(f"Archived {archived} old consciousness events (kept {max_keep})")
+        except Exception as e:
+            logger.debug(f"Consciousness events archive failed: {e}")
+        return archived
 
     def save_sephirot_state(self) -> int:
         """Persist all Sephirot node states to the database.

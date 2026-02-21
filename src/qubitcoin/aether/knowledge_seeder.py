@@ -464,6 +464,9 @@ class KnowledgeSeeder:
         self._total_nodes_created: int = 0
         self._total_tokens_used: int = 0
 
+        # Knowledge graph reference (set externally for domain-weighted selection)
+        self._kg: Optional[object] = None
+
         # Thread control
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -585,16 +588,59 @@ class KnowledgeSeeder:
     # ------------------------------------------------------------------
 
     def _pick_prompt(self, domain: Optional[str] = None) -> Optional[Dict[str, str]]:
-        """Pick the next prompt to seed."""
+        """Pick the next prompt to seed.
+
+        If no domain is specified and a knowledge graph is available,
+        weights prompt selection toward under-represented domains.
+        Otherwise falls back to round-robin.
+        """
         if domain:
             matches = [p for p in MASTER_PROMPTS if p["domain"] == domain]
             return random.choice(matches) if matches else None
 
         if not MASTER_PROMPTS:
             return None
+
+        # Try domain-weighted selection if KG is available
+        if self._kg:
+            try:
+                domain_stats = self._kg.get_domain_stats()
+                if domain_stats:
+                    return self._pick_weighted_prompt(domain_stats)
+            except Exception:
+                pass
+
+        # Fallback: round-robin
         prompt = MASTER_PROMPTS[self._prompt_index % len(MASTER_PROMPTS)]
         self._prompt_index = (self._prompt_index + 1) % len(MASTER_PROMPTS)
         return prompt
+
+    def _pick_weighted_prompt(self, domain_stats: Dict) -> Optional[Dict[str, str]]:
+        """Pick a prompt weighted toward under-represented domains.
+
+        Priority formula: 1.0 / (1.0 + domain_node_count / 100.0)
+        Domains with <100 nodes get 10x priority over 1000+ node domains.
+        """
+        # Compute weights for each prompt's domain
+        weights: List[float] = []
+        for p in MASTER_PROMPTS:
+            d = p["domain"]
+            count = domain_stats.get(d, {}).get('count', 0)
+            weight = 1.0 / (1.0 + count / 100.0)
+            weights.append(weight)
+
+        total = sum(weights)
+        if total <= 0:
+            return MASTER_PROMPTS[0]
+
+        # Weighted random selection
+        r = random.random() * total
+        cumulative = 0.0
+        for i, w in enumerate(weights):
+            cumulative += w
+            if r <= cumulative:
+                return MASTER_PROMPTS[i]
+        return MASTER_PROMPTS[-1]
 
     def _execute_seed(self, prompt_entry: Dict[str, str],
                       block_height: int = 0) -> Optional[Dict]:

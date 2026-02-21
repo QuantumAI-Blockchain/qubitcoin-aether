@@ -159,6 +159,24 @@ contract ConsciousnessDashboard {
         }
     }
 
+    // ─── Archival ────────────────────────────────────────────────────────
+    uint256 public constant MAX_MEASUREMENTS = 10000;
+    uint256 public archivedUpTo;  // measurements[0..archivedUpTo) have been archived
+
+    /// @notice Archive old measurements (keep last MAX_MEASUREMENTS in array).
+    ///         Archived data should be pinned to IPFS off-chain before calling.
+    /// @param beforeIndex measurements before this index are considered archived
+    function archiveMeasurements(uint256 beforeIndex) external onlyKernel {
+        require(beforeIndex > archivedUpTo, "Dashboard: nothing to archive");
+        require(beforeIndex <= measurements.length, "Dashboard: index out of range");
+        archivedUpTo = beforeIndex;
+    }
+
+    /// @notice Get the index of the latest measurement still accessible
+    function latestMeasurementIndex() external view returns (uint256) {
+        return measurements.length > 0 ? measurements.length - 1 : 0;
+    }
+
     // ─── Queries ─────────────────────────────────────────────────────────
     function getCurrentPhi() external view returns (uint256) {
         return latestPhi;

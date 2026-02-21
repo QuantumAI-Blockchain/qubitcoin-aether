@@ -33,6 +33,7 @@ contract GlobalWorkspace {
         uint256 timestamp;
         uint8   recipientCount;
     }
+    uint256 public constant MAX_BROADCAST_HISTORY = 100;
     Broadcast[] public broadcasts;
 
     /// @notice Node attention votes (item id → node id → score)
@@ -110,6 +111,21 @@ contract GlobalWorkspace {
         }));
 
         emit BroadcastSent(broadcastId, item.contentHash, item.sourceNodeId, recipientCount);
+    }
+
+    /// @notice Prune old broadcast history to prevent unbounded growth.
+    ///         Keeps only the last MAX_BROADCAST_HISTORY entries.
+    function pruneBroadcastHistory() external onlyKernel {
+        if (broadcasts.length <= MAX_BROADCAST_HISTORY) return;
+        uint256 excess = broadcasts.length - MAX_BROADCAST_HISTORY;
+        // Shift remaining entries to the front
+        for (uint256 i = 0; i < MAX_BROADCAST_HISTORY; i++) {
+            broadcasts[i] = broadcasts[i + excess];
+        }
+        // Remove trailing entries
+        for (uint256 i = 0; i < excess; i++) {
+            broadcasts.pop();
+        }
     }
 
     /// @notice Clear the workspace

@@ -686,6 +686,76 @@ class KnowledgeGraph:
             logger.info(f"Reclassified domains for {count} nodes")
         return count
 
+    def detect_contradictions(self, new_node_id: int, max_checks: int = 20) -> int:
+        """Scan for potential contradictions between a new node and existing ones.
+
+        Checks for numeric value conflicts and opposing assertions
+        in nodes of the same domain.
+
+        Args:
+            new_node_id: The newly-added node to check.
+            max_checks: Max existing nodes to compare against.
+
+        Returns:
+            Number of contradiction edges created.
+        """
+        new_node = self.nodes.get(new_node_id)
+        if not new_node or new_node.node_type not in ('assertion', 'inference'):
+            return 0
+
+        new_text = str(new_node.content.get('text', '')).lower()
+        if not new_text:
+            return 0
+
+        created = 0
+        # Find nodes in the same domain to compare
+        candidates = [
+            n for n in self.nodes.values()
+            if n.node_id != new_node_id
+            and n.node_type in ('assertion', 'inference')
+            and (n.domain == new_node.domain or not new_node.domain)
+            and n.content.get('text')
+        ]
+        # Sort by most recent first
+        candidates.sort(key=lambda n: n.source_block, reverse=True)
+        candidates = candidates[:max_checks]
+
+        for existing in candidates:
+            existing_text = str(existing.content.get('text', '')).lower()
+            if not existing_text:
+                continue
+
+            # Check for numeric value conflicts
+            import re
+            new_numbers = set(re.findall(r'\b\d+\.?\d*\b', new_text))
+            existing_numbers = set(re.findall(r'\b\d+\.?\d*\b', existing_text))
+
+            # Same subject (high word overlap) but different numbers
+            new_words = set(new_text.split())
+            existing_words = set(existing_text.split())
+            overlap = len(new_words & existing_words)
+            total = len(new_words | existing_words)
+            word_similarity = overlap / total if total > 0 else 0
+
+            if (word_similarity > 0.4
+                    and new_numbers and existing_numbers
+                    and new_numbers != existing_numbers
+                    and len(new_numbers & existing_numbers) == 0):
+                # Likely contradiction: same subject, different numeric values
+                edge = self.add_edge(
+                    new_node_id, existing.node_id, 'contradicts', weight=0.7
+                )
+                if edge:
+                    created += 1
+                if created >= 3:
+                    break
+
+        if created:
+            logger.info(
+                f"Detected {created} potential contradictions for node {new_node_id}"
+            )
+        return created
+
     def get_stats(self) -> dict:
         """Get knowledge graph statistics"""
         type_counts = {}
