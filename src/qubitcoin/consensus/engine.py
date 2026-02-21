@@ -3,7 +3,7 @@ Consensus engine for Qubitcoin
 Handles difficulty adjustment, golden ratio rewards, and validation
 """
 from decimal import Decimal
-from typing import Tuple, Optional, Dict, List
+from typing import Tuple, Optional, Dict
 import time
 import asyncio
 from ..config import Config
@@ -11,6 +11,7 @@ from ..database.models import Block, Transaction, UTXO
 from ..quantum.engine import QuantumEngine
 from ..quantum.crypto import CryptoManager
 from ..utils.logger import get_logger
+from ..utils.metrics import block_validation_time
 
 logger = get_logger(__name__)
 
@@ -152,6 +153,7 @@ class ConsensusEngine:
 
     def validate_block(self, block: Block, prev_block: Optional[Block], db_manager) -> Tuple[bool, str]:
         """Comprehensive block validation"""
+        validation_start = time.time()
         try:
             expected_height = (prev_block.height + 1) if prev_block else 0
             if block.height != expected_height:
@@ -272,9 +274,11 @@ class ConsensusEngine:
                         logger.debug(f"Thought proof validation error: {e}")
 
             logger.debug(f"Block {block.height} validated successfully")
+            block_validation_time.observe(time.time() - validation_start)
             return True, "Valid"
         except Exception as e:
             logger.error(f"Block validation error: {e}", exc_info=True)
+            block_validation_time.observe(time.time() - validation_start)
             return False, f"Validation exception: {str(e)}"
 
     def validate_transaction(self, tx: Transaction, db_manager,
@@ -396,9 +400,14 @@ class ConsensusEngine:
                     try:
                         from ..privacy.range_proofs import RangeProofVerifier, RangeProof
                         proof_obj = RangeProof(
-                            commitment=range_proof.get('commitment', {}),
-                            proof_data=range_proof.get('proof_data', b''),
-                            value_range=(0, 2**64),
+                            commitment=range_proof.get('commitment', b''),
+                            A=range_proof.get('A', b''),
+                            S=range_proof.get('S', b''),
+                            T1=range_proof.get('T1', b''),
+                            T2=range_proof.get('T2', b''),
+                            tau_x=range_proof.get('tau_x', 0),
+                            mu=range_proof.get('mu', 0),
+                            t_hat=range_proof.get('t_hat', 0),
                         )
                         if not RangeProofVerifier.verify(proof_obj):
                             logger.warning(f"Private tx {tx.txid}: range proof failed for output {i}")
@@ -455,6 +464,16 @@ class ConsensusEngine:
         """Resolve fork by adopting longer valid chain"""
         current_height = self.db.get_current_height()
         if new_block.height <= current_height:
+            return
+
+        # In Rust P2P mode self.p2p is None; fork resolution requires the
+        # Python P2P layer to request missing blocks from peers.
+        if self.p2p is None:
+            logger.warning(
+                f"Cannot resolve fork to height {new_block.height}: "
+                f"P2P network is None (Rust P2P mode). "
+                f"Fork resolution requires Python P2P layer."
+            )
             return
 
         logger.info(f"Resolving fork: Peer {sender_id} has block at height {new_block.height}")

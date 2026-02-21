@@ -3,11 +3,9 @@ Reasoning Engine - Logical Inference for Aether Tree
 Supports deductive, inductive, and abductive reasoning over the knowledge graph.
 Generates new KeterNodes from existing knowledge through logical inference.
 """
-import hashlib
 import json
-import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from ..utils.logger import get_logger
 

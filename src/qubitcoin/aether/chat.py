@@ -429,7 +429,8 @@ class AetherChat:
                     # Check edges to other referenced nodes
                     for target_id in node.edges_out:
                         if target_id in knowledge_refs:
-                            edge = self.engine.kg.edges.get((ref_id, target_id))
+                            edge = next((e for e in self.engine.kg.edges
+                                         if e.from_node_id == ref_id and e.to_node_id == target_id), None)
                             if edge:
                                 target = self.engine.kg.nodes.get(target_id)
                                 if target:

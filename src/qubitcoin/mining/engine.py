@@ -5,17 +5,14 @@ Handles block creation and mining loop with SUSY Economics
 import threading
 import time
 import hashlib
-import json
-import asyncio
 from decimal import Decimal
-import numpy as np
 from ..config import Config
 from ..database.models import Transaction, Block
 from ..quantum.engine import QuantumEngine
 from ..quantum.crypto import Dilithium2
 from ..consensus.engine import ConsensusEngine
 from ..utils.logger import get_logger
-from ..utils.metrics import blocks_mined, mining_attempts, current_height_metric
+from ..utils.metrics import blocks_mined, mining_attempts, current_height_metric, vqe_optimization_time
 
 logger = get_logger(__name__)
 
@@ -33,13 +30,18 @@ class MiningEngine:
         self.state_manager = state_manager
         self.aether = aether_engine
         self.node = None
+        self.circulation_tracker = None  # Wired from node.py after RPC app creation
         self.is_mining = False
         self.mining_thread = None
         self._lock = threading.Lock()
+        self._mining_start_time: float | None = None
         self.stats = {
             'blocks_found': 0,
             'total_attempts': 0,
-            'current_difficulty': Config.INITIAL_DIFFICULTY
+            'current_difficulty': Config.INITIAL_DIFFICULTY,
+            'uptime': 0,
+            'best_energy': None,
+            'alignment_score': None,
         }
         logger.info("Mining engine initialized (SUSY Economics + QVM)")
 
@@ -49,6 +51,7 @@ class MiningEngine:
             logger.warning("Mining already running")
             return
         self.is_mining = True
+        self._mining_start_time = time.time()
         self.mining_thread = threading.Thread(
             target=self._mine_loop,
             daemon=True,
@@ -70,6 +73,8 @@ class MiningEngine:
         """Main mining loop"""
         while self.is_mining:
             try:
+                if self._mining_start_time is not None:
+                    self.stats['uptime'] = int(time.time() - self._mining_start_time)
                 self._mine_block()
             except Exception as e:
                 logger.error(f"Mining error: {e}", exc_info=True)
@@ -113,13 +118,23 @@ class MiningEngine:
                 return
 
             try:
+                vqe_start = time.time()
                 params, energy = self.quantum.optimize_vqe(hamiltonian)
+                vqe_optimization_time.observe(time.time() - vqe_start)
             except Exception as e:
                 logger.error(f"VQE optimization failed (attempt {attempt+1}): {e}")
                 continue
 
             self.stats['total_attempts'] += 1
             mining_attempts.inc()
+
+            # Track best energy and alignment score across all attempts
+            if self.stats['best_energy'] is None or energy < self.stats['best_energy']:
+                self.stats['best_energy'] = float(energy)
+            if difficulty != 0:
+                score = float(energy / difficulty)
+                if self.stats['alignment_score'] is None or score < self.stats['alignment_score']:
+                    self.stats['alignment_score'] = score
 
             if energy < difficulty:
                 logger.info(f"Solution found! energy={energy:.6f} < difficulty={difficulty:.6f} (attempt {attempt+1})")
@@ -205,6 +220,18 @@ class MiningEngine:
             current_height_metric.set(next_height)
             self._display_success(block, energy, reward)
 
+            # Feed CirculationTracker with the new block
+            if self.circulation_tracker is not None:
+                try:
+                    total_fees = sum(tx.fee for tx in pending_txs)
+                    self.circulation_tracker.record_block(
+                        block_height=next_height,
+                        block_timestamp=block.timestamp,
+                        fees_in_block=total_fees,
+                    )
+                except Exception as e:
+                    logger.debug(f"Circulation tracking: {e}")
+
             # Process block knowledge for Aether Tree
             if self.aether:
                 try:
@@ -230,13 +257,13 @@ class MiningEngine:
             # Periodic DB maintenance
             if next_height % Config.PHI_DOWNSAMPLE_INTERVAL == 0 and self.aether:
                 try:
-                    self.aether.phi_calculator.downsample_phi_measurements()
+                    self.aether.phi.downsample_phi_measurements()
                 except Exception as e:
                     logger.debug(f"Phi downsample: {e}")
 
             if next_height % Config.PRUNE_INTERVAL_BLOCKS == 0 and self.aether:
                 try:
-                    kg = self.aether.knowledge_graph
+                    kg = self.aether.kg
                     if kg:
                         pruned = kg.prune_low_confidence(Config.PRUNE_CONFIDENCE_THRESHOLD)
                         if pruned > 0:

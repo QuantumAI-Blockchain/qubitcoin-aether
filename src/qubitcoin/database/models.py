@@ -219,7 +219,13 @@ class Block:
 
 @dataclass
 class ProofOfSUSY:
-    """Proof-of-SUSY-Alignment data structure"""
+    """Proof-of-SUSY-Alignment data structure.
+
+    NOTE: Not instantiated in production code. The consensus engine builds
+    proof dicts inline rather than using this dataclass. Retained because
+    tests/unit/test_schema_validation.py validates its field structure, and
+    it serves as the canonical schema definition for SUSY proofs.
+    """
     challenge: List[tuple]
     params: List[float]
     energy: float

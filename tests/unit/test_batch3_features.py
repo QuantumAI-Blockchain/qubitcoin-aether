@@ -222,13 +222,12 @@ class TestAutoContradictionResolution:
     def test_resolves_contradiction(self):
         engine, kg, reasoning = self._make_engine()
 
-        # Create a mock contradicts edge
+        # Create a mock contradicts edge with correct attribute names
         mock_edge = MagicMock()
         mock_edge.edge_type = 'contradicts'
-        mock_edge.source_id = 1
-        mock_edge.target_id = 2
-        kg.edges = MagicMock()
-        kg.edges.values.return_value = [mock_edge]
+        mock_edge.from_node_id = 1
+        mock_edge.to_node_id = 2
+        kg.edges = [mock_edge]
         kg.nodes = {1: MagicMock(), 2: MagicMock()}
 
         # Mock successful resolution
@@ -244,16 +243,15 @@ class TestAutoContradictionResolution:
     def test_caps_at_five_per_cycle(self):
         engine, kg, reasoning = self._make_engine()
 
-        # Create 10 contradiction edges
+        # Create 10 contradiction edges with correct attribute names
         edges = []
         for i in range(10):
             e = MagicMock()
             e.edge_type = 'contradicts'
-            e.source_id = i * 2
-            e.target_id = i * 2 + 1
+            e.from_node_id = i * 2
+            e.to_node_id = i * 2 + 1
             edges.append(e)
-        kg.edges = MagicMock()
-        kg.edges.values.return_value = edges
+        kg.edges = edges
         kg.nodes = {i: MagicMock() for i in range(20)}
 
         result = MagicMock()
@@ -380,9 +378,11 @@ class TestContextWindowOptimization:
         edge = MagicMock()
         edge.edge_type = 'supports'
 
+        edge.from_node_id = 1
+        edge.to_node_id = 2
         engine.kg = MagicMock()
         engine.kg.nodes = {1: node1, 2: node2}
-        engine.kg.edges = {(1, 2): edge}
+        engine.kg.edges = [edge]
         engine.phi = None
 
         db = MagicMock()

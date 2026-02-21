@@ -70,9 +70,12 @@ def _verify_admin(api_key: Optional[str] = None) -> bool:
     return api_key == admin_key
 
 
-def _require_admin(x_api_key: Optional[str] = Header(None)) -> None:
-    if not _verify_admin(x_api_key):
-        raise HTTPException(status_code=403, detail="Admin authentication required")
+def _require_admin(x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key")) -> None:
+    admin_key = Config.ADMIN_API_KEY if hasattr(Config, "ADMIN_API_KEY") else ""
+    if not admin_key:
+        raise HTTPException(status_code=403, detail="Admin API key not configured")
+    if not x_admin_key or x_admin_key != admin_key:
+        raise HTTPException(status_code=403, detail="Invalid admin API key")
 
 
 def _audit(action: str, params: dict) -> None:
@@ -124,7 +127,7 @@ class TreasuryUpdate(BaseModel):
 # ========================================================================
 
 @router.get("/economics")
-async def get_economics(x_api_key: Optional[str] = Header(None)):
+async def get_economics():
     """Get current economic configuration (no auth required for read)."""
     return {
         "aether_fees": {
@@ -160,11 +163,11 @@ async def get_economics(x_api_key: Optional[str] = Header(None)):
 async def update_aether_fees(
     request: Request,
     body: AetherFeeUpdate,
-    x_api_key: Optional[str] = Header(None),
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
 ):
     """Update Aether Tree fee parameters (hot reload)."""
     _check_admin_rate_limit(request)
-    _require_admin(x_api_key)
+    _require_admin(x_admin_key)
     changes = {}
 
     if body.chat_fee_qbc is not None:
@@ -220,11 +223,11 @@ async def update_aether_fees(
 async def update_contract_fees(
     request: Request,
     body: ContractFeeUpdate,
-    x_api_key: Optional[str] = Header(None),
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
 ):
     """Update contract deployment fee parameters (hot reload)."""
     _check_admin_rate_limit(request)
-    _require_admin(x_api_key)
+    _require_admin(x_admin_key)
     changes = {}
 
     if body.base_fee_qbc is not None:
@@ -270,11 +273,11 @@ async def update_contract_fees(
 async def update_treasury(
     request: Request,
     body: TreasuryUpdate,
-    x_api_key: Optional[str] = Header(None),
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
 ):
     """Update treasury addresses."""
     _check_admin_rate_limit(request)
-    _require_admin(x_api_key)
+    _require_admin(x_admin_key)
     changes = {}
 
     if body.aether_treasury is not None:
@@ -296,9 +299,9 @@ async def update_treasury(
 async def get_economics_history(
     request: Request,
     limit: int = 50,
-    x_api_key: Optional[str] = Header(None),
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
 ):
     """Get audit log of economic parameter changes."""
     _check_admin_rate_limit(request)
-    _require_admin(x_api_key)
+    _require_admin(x_admin_key)
     return {"history": _audit_log[-limit:]}

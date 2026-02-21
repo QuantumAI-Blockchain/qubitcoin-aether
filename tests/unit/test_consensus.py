@@ -98,7 +98,7 @@ class TestDifficultyAdjustment:
 
         db.get_block = lambda h: head if h == window - 1 else start
         diff = eng.calculate_difficulty(height=window, db_manager=db)
-        # ratio = expected/actual = 1.0 → no change
+        # height < DIFFICULTY_FIX_HEIGHT → legacy ratio = expected/actual = 1.0 → no change
         assert abs(diff - 1.0) < 0.01
 
     def test_slow_blocks_increase_difficulty(self):
@@ -117,9 +117,8 @@ class TestDifficultyAdjustment:
 
         db.get_block = lambda h: head if h == window - 1 else start
         diff = eng.calculate_difficulty(height=window, db_manager=db)
-        # Clamped: can't decrease more than MAX_DIFFICULTY_CHANGE (10%)
-        # ratio = expected/actual = 0.5, clamped to 0.9
-        assert diff < 1.0  # difficulty decreased because blocks are slow (ratio < 1)
+        # height < DIFFICULTY_FIX_HEIGHT → legacy ratio = expected/actual = 0.5, clamped to 0.9
+        assert diff < 1.0  # legacy formula: slow blocks decrease difficulty (inverted)
 
     def test_fast_blocks_decrease_difficulty(self):
         """If blocks are faster than target, difficulty should change."""

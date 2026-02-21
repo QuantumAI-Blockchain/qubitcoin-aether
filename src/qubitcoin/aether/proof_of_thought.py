@@ -4,7 +4,6 @@ Combines Proof-of-SUSY-Alignment with knowledge graph validation.
 Validators must demonstrate meaningful reasoning (Phi > threshold) to
 participate in block production.
 """
-import hashlib
 import json
 import time
 from typing import Dict, List, Optional, Tuple
@@ -38,6 +37,9 @@ class AetherEngine:
 
         # Sephirot cognitive nodes — initialized lazily
         self._sephirot: Optional[dict] = None
+
+        # ConsciousnessDashboard — wired after RPC app creation (see node.py)
+        self.consciousness_dashboard = None
 
         logger.info("Aether Engine initialized")
 
@@ -108,6 +110,20 @@ class AetherEngine:
         if len(self._pot_cache) > self._pot_cache_max:
             oldest = min(self._pot_cache.keys())
             del self._pot_cache[oldest]
+
+        # Feed the ConsciousnessDashboard if wired
+        if self.consciousness_dashboard is not None:
+            try:
+                self.consciousness_dashboard.record_measurement(
+                    block_height=block_height,
+                    phi_value=phi_value,
+                    integration=phi_result.get('integration', 0.0),
+                    differentiation=phi_result.get('differentiation', 0.0),
+                    knowledge_nodes=phi_result.get('num_nodes', 0),
+                    knowledge_edges=phi_result.get('num_edges', 0),
+                )
+            except Exception as e:
+                logger.debug(f"ConsciousnessDashboard update failed: {e}")
 
         # Log consciousness event if Phi crosses threshold
         from .phi_calculator import PHI_THRESHOLD
@@ -609,11 +625,11 @@ class AetherEngine:
         try:
             # Find all contradiction edges
             contradiction_pairs: List[tuple] = []
-            for edge in self.kg.edges.values():
+            for edge in self.kg.edges:
                 if edge.edge_type == 'contradicts':
                     # Only resolve if both nodes still exist
-                    if edge.source_id in self.kg.nodes and edge.target_id in self.kg.nodes:
-                        contradiction_pairs.append((edge.source_id, edge.target_id))
+                    if edge.from_node_id in self.kg.nodes and edge.to_node_id in self.kg.nodes:
+                        contradiction_pairs.append((edge.from_node_id, edge.to_node_id))
 
             if not contradiction_pairs:
                 return 0
@@ -884,9 +900,9 @@ class AetherEngine:
                     f"created {created} knowledge nodes"
                 )
                 self._record_consciousness_event(
-                    block_height, 0.0, 'self_reflection',
-                    f"Self-reflection: {created} nodes from {len(contradictions)} "
-                    f"contradictions and {len(weak_domains)} weak domains"
+                    'self_reflection', 0.0, block_height,
+                    {"detail": f"Self-reflection: {created} nodes from {len(contradictions)} "
+                     f"contradictions and {len(weak_domains)} weak domains"}
                 )
 
         except Exception as e:

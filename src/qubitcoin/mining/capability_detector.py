@@ -199,8 +199,8 @@ class VQECapabilityDetector:
                 start = time.monotonic()
                 # Use a simple 4-qubit Hamiltonian
                 seed = quantum_engine.derive_hamiltonian_seed("0" * 64, 0)
-                hamiltonian = quantum_engine.generate_hamiltonian(seed)
-                quantum_engine.run_vqe(hamiltonian)
+                hamiltonian = quantum_engine.generate_hamiltonian(seed=seed)
+                quantum_engine.optimize_vqe(hamiltonian)
                 elapsed = time.monotonic() - start
                 times.append(elapsed)
         except Exception as e:

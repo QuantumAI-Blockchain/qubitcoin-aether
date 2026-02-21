@@ -3,8 +3,7 @@ QVM - Qubitcoin Virtual Machine
 Stack-based bytecode interpreter, EVM-compatible with quantum extensions
 """
 import hashlib
-from decimal import Decimal
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 
 from .opcodes import (
     Opcode, GAS_COSTS, get_gas_cost,

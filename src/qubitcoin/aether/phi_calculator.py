@@ -12,10 +12,8 @@ removed confidence multiplier, added 6 milestone gates that cap Phi until
 the system demonstrates genuine cognitive diversity.
 """
 import math
-import hashlib
-import json
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from ..config import Config
 from ..utils.logger import get_logger

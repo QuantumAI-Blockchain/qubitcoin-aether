@@ -6,7 +6,7 @@ import asyncio
 import signal
 import sys
 import time
-from decimal import getcontext, Decimal
+from decimal import getcontext
 from rich.console import Console
 from rich.panel import Panel
 from .config import Config
@@ -24,31 +24,27 @@ from .aether import KnowledgeGraph, PhiCalculator, ReasoningEngine, AetherEngine
 from .aether.genesis import AetherGenesis
 from .utils.logger import get_logger
 
-# Import ALL metrics
+# Import metrics (only those that are instrumented)
 from .utils.metrics import (
     # Blockchain
     blocks_mined, blocks_received, current_height_metric, total_supply_metric,
-    current_difficulty_metric, network_hashrate_metric, avg_block_time_metric,
-    blockchain_size_metric,
+    current_difficulty_metric, avg_block_time_metric,
     # Mining
-    mining_attempts, vqe_optimization_time, block_validation_time,
-    alignment_score_metric, best_alignment_ever,
+    alignment_score_metric,
     # Network
-    active_peers, rust_p2p_peers, messages_sent, messages_received,
+    active_peers, rust_p2p_peers,
     # Transactions
-    transactions_pending, transactions_confirmed, mempool_size_bytes, avg_tx_fee,
+    transactions_pending, transactions_confirmed,
     # Quantum Research
-    quantum_backend_metric, circuit_depth_metric, active_hamiltonians,
-    vqe_solutions_total, research_contributions,
+    quantum_backend_metric, active_hamiltonians, vqe_solutions_total,
     # QVM
-    total_contracts, active_contracts, contract_executions_total,
-    contract_execution_time, gas_used_total, avg_gas_price, contract_storage_size,
+    total_contracts, active_contracts,
     # AGI
     phi_current, phi_threshold_distance, knowledge_nodes_total, knowledge_edges_total,
     reasoning_operations_total, consciousness_events_total, integration_score,
-    differentiation_score, causal_chain_length, agi_training_datasets, agi_models_deployed,
+    differentiation_score,
     # IPFS
-    ipfs_pins_total, ipfs_storage_bytes, blockchain_snapshots_total
+    blockchain_snapshots_total,
 )
 
 getcontext().prec = 28
@@ -277,6 +273,13 @@ class QubitcoinNode:
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
             self.app.on_event("shutdown")(self.on_shutdown)
+
+            # Wire RPC-created trackers back into engines so they receive data
+            if self.aether and hasattr(self.app, 'consciousness_dashboard'):
+                self.aether.consciousness_dashboard = self.app.consciousness_dashboard
+            if hasattr(self.app, 'circulation_tracker'):
+                self.mining.circulation_tracker = self.app.circulation_tracker
+
             logger.info("[10/10] RPC and handlers initialized")
         except Exception as e:
             logger.error(f"[10/10] RPC initialization failed: {e}", exc_info=True)
@@ -407,6 +410,16 @@ class QubitcoinNode:
                 self.mining.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY)
             )
 
+            # Average block time (last 100 blocks)
+            block_time_row = self.db.query_one("""
+                SELECT AVG(t2.timestamp - t1.timestamp) as avg_time
+                FROM (SELECT height, timestamp FROM blocks ORDER BY height DESC LIMIT 101) t1
+                JOIN (SELECT height, timestamp FROM blocks ORDER BY height DESC LIMIT 101) t2
+                  ON t2.height = t1.height + 1
+            """)
+            if block_time_row and block_time_row.get('avg_time') is not None:
+                avg_block_time_metric.set(float(block_time_row['avg_time']))
+
             # ============================================================
             # NETWORK METRICS
             # ============================================================
@@ -426,6 +439,12 @@ class QubitcoinNode:
             if mempool_count:
                 transactions_pending.set(mempool_count.get('count', 0))
 
+            confirmed_count = self.db.query_one(
+                "SELECT COUNT(*) as count FROM transactions WHERE status = 'confirmed'"
+            )
+            if confirmed_count:
+                transactions_confirmed.set(confirmed_count.get('count', 0))
+
             # ============================================================
             # QUANTUM RESEARCH METRICS
             # ============================================================
@@ -434,6 +453,7 @@ class QubitcoinNode:
             )
             if hamiltonian_stats:
                 active_hamiltonians.set(hamiltonian_stats.get('total_count', 0))
+                vqe_solutions_total.set(hamiltonian_stats.get('total_count', 0))
 
             # ============================================================
             # QVM METRICS
@@ -480,12 +500,18 @@ class QubitcoinNode:
                 knowledge_nodes_total.set(knowledge_stats.get('node_count', 0))
                 knowledge_edges_total.set(knowledge_stats.get('edge_count', 0))
 
-            # Consciousness events
+            # Consciousness events + reasoning operations
             consciousness_count = self.db.query_one(
                 "SELECT COUNT(*) as count FROM consciousness_events"
             )
             if consciousness_count:
-                consciousness_events_total.labels(severity='all').inc(0)
+                consciousness_events_total.set(consciousness_count.get('count', 0))
+
+            reasoning_count = self.db.query_one(
+                "SELECT COUNT(*) as count FROM reasoning_operations"
+            )
+            if reasoning_count:
+                reasoning_operations_total.set(reasoning_count.get('count', 0))
 
             # ============================================================
             # IPFS METRICS

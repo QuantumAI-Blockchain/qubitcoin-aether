@@ -136,6 +136,12 @@ class PoolHealthMonitor:
 
     # ------------------------------------------------------------------
     # Manual event recording (for non-engine usage or testing)
+    #
+    # NOTE: These methods currently have zero production callers.
+    # In production, pool metrics are collected automatically via the
+    # SQLAlchemy event listeners attached in _attach_listeners().
+    # These manual methods exist for unit testing and for scenarios
+    # where the monitor is used without an SQLAlchemy engine.
     # ------------------------------------------------------------------
 
     def record_checkout(self) -> None:
@@ -248,6 +254,11 @@ class PoolHealthMonitor:
             }
 
     def is_healthy(self) -> bool:
-        """Quick boolean health check."""
+        """Quick boolean health check.
+
+        NOTE: Currently unused in production. The RPC layer exposes
+        get_snapshot() and get_stats() directly. Retained as a
+        convenience helper for operational scripts and tests.
+        """
         snap = self.get_snapshot()
         return snap.status == 'healthy'

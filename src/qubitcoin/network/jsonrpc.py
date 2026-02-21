@@ -6,7 +6,7 @@ import json
 import hashlib
 import time
 from decimal import Decimal
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 

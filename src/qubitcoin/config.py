@@ -8,7 +8,6 @@ from decimal import Decimal
 from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
-import math
 
 # Load secure_key.env FIRST (private key material), then .env (node config).
 # secure_key.env values take precedence for key fields; .env provides all other config.

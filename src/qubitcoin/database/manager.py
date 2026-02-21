@@ -3,7 +3,6 @@ Database manager for CockroachDB
 Handles all database operations with proper compatibility
 """
 import json
-import threading
 from contextlib import contextmanager
 from decimal import Decimal
 from typing import List, Optional
@@ -14,8 +13,6 @@ from sqlalchemy import (
     Float, Numeric, Boolean, JSON, DateTime, Text, UniqueConstraint
 )
 from sqlalchemy.orm import sessionmaker, Session as DBSession, declarative_base
-from sqlalchemy.exc import IntegrityError, OperationalError
-from sqlalchemy.pool import StaticPool
 from .models import UTXO, Transaction, Block, Account, TransactionReceipt
 from ..config import Config
 from ..utils.logger import get_logger
@@ -445,6 +442,18 @@ class ConsciousnessEventModel(Base):
     trigger_data = Column(JSON)
     is_verified = Column(Boolean, default=False)
     block_height = Column(BigInteger)
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+
+# -----------------------------------------------------------
+# Privacy Tables (Key Images for double-spend prevention)
+# -----------------------------------------------------------
+
+class KeyImageModel(Base):
+    __tablename__ = 'key_images'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    key_image = Column(String(128), nullable=False, unique=True, index=True)
+    txid = Column(String(64), nullable=False)
+    block_height = Column(BigInteger, nullable=True)
     created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
 
 # -----------------------------------------------------------
@@ -882,36 +891,6 @@ class DatabaseManager:
     # ========================================================================
     # UTXO MAINTENANCE
     # ========================================================================
-    def prune_spent_utxos(self, keep_depth: int = 1000) -> int:
-        """Prune spent UTXOs older than keep_depth blocks from chain tip.
-
-        Spent UTXOs beyond keep_depth blocks deep are unlikely to ever be needed
-        for reorg resolution, so they can be safely deleted to reclaim storage.
-
-        Args:
-            keep_depth: Keep spent UTXOs within this many blocks of chain tip.
-
-        Returns:
-            Number of pruned rows.
-        """
-        current_height = self.get_current_height()
-        prune_below = current_height - keep_depth
-        if prune_below <= 0:
-            return 0
-        with self.get_session() as session:
-            result = session.execute(
-                text("""
-                    DELETE FROM utxos
-                    WHERE spent = true AND block_height < :cutoff
-                """),
-                {'cutoff': prune_below}
-            )
-            pruned = result.rowcount
-            session.commit()
-            if pruned > 0:
-                logger.info(f"Pruned {pruned} spent UTXOs below height {prune_below}")
-            return pruned
-
     def compute_utxo_commitment(self) -> str:
         """Compute a SHA-256 commitment over the entire unspent UTXO set.
 
@@ -1039,7 +1018,8 @@ class DatabaseManager:
                     VALUES (:addr, :nonce, :balance, :code_hash, :storage_root, :bytecode)
                     ON CONFLICT (address) DO UPDATE SET
                         nonce = :nonce, balance = :balance,
-                        code_hash = :code_hash, storage_root = :storage_root
+                        code_hash = :code_hash, storage_root = :storage_root,
+                        bytecode = COALESCE(EXCLUDED.bytecode, accounts.bytecode)
                 """),
                 {
                     'addr': account.address,
@@ -1293,7 +1273,7 @@ class DatabaseManager:
             session.commit()
             return result.rowcount > 0
 
-    def get_sephirot_summary(self) -> list:
+    def get_sephirot_summary(self) -> dict:
         """Get aggregated staking summary for all 10 nodes."""
         with self.get_session() as session:
             rows = session.execute(
