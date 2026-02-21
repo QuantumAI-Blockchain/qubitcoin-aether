@@ -244,7 +244,7 @@ export const api = {
   getPhiHistory: () => get<{ history: Array<{ block: number; phi: number }> }>("/aether/phi/history"),
   getAetherInfo: () => get<AetherInfo>("/aether/info"),
   getKnowledge: () => get<Record<string, unknown>>("/aether/knowledge"),
-  getKnowledgeGraph: (limit = 500) => get<KnowledgeGraphData>(`/aether/knowledge/graph?limit=${limit}`),
+  getKnowledgeGraph: (limit = 3300) => get<KnowledgeGraphData>(`/aether/knowledge/graph?limit=${limit}`),
   getChatHistory: (sessionId: string) => get<Record<string, unknown>>(`/aether/chat/history/${sessionId}`),
   getChatFee: (sessionId: string) => get<Record<string, unknown>>(`/aether/chat/fee?session_id=${sessionId}`),
 

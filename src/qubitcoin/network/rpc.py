@@ -831,14 +831,14 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
 
     @app.get("/aether/knowledge/graph")
-    async def aether_knowledge_graph(limit: int = 500, include_sephirot: bool = True):
+    async def aether_knowledge_graph(limit: int = 3300, include_sephirot: bool = True):
         """Get knowledge graph nodes and edges for 3D visualization."""
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
         if limit < 1:
             limit = 1
-        if limit > 1000:
-            limit = 1000
+        if limit > 5000:
+            limit = 5000
         kg = aether_engine.kg
         stats = kg.get_stats()
         # Get most recent nodes up to limit
