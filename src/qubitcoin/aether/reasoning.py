@@ -616,6 +616,126 @@ class ReasoningEngine:
             self._operations = self._operations[-self._max_operations:]
         return result
 
+    def find_analogies(self, source_node_id: int,
+                       target_domain: Optional[str] = None,
+                       max_results: int = 5) -> ReasoningResult:
+        """Find structural analogies between a source node and nodes in other domains.
+
+        Compares the edge-type pattern around the source node with patterns
+        around nodes in different domains.  Matching patterns indicate an
+        analogous relationship.
+
+        Args:
+            source_node_id: Node to find analogies for.
+            target_domain: If set, only search this domain. Otherwise all domains.
+            max_results: Maximum analogies to return.
+
+        Returns:
+            ReasoningResult with analogy findings.
+        """
+        chain: List[ReasoningStep] = []
+        source = self.kg.get_node(source_node_id)
+        if not source:
+            return ReasoningResult(
+                operation_type='analogy_detection',
+                premise_ids=[source_node_id],
+                success=False,
+                explanation='Source node not found',
+            )
+
+        # Build edge-type pattern for source (outgoing edge types sorted)
+        source_pattern = self._get_edge_pattern(source_node_id)
+        if not source_pattern:
+            return ReasoningResult(
+                operation_type='analogy_detection',
+                premise_ids=[source_node_id],
+                success=False,
+                explanation='Source node has no edges — no pattern to match',
+            )
+
+        chain.append(ReasoningStep(
+            step_type='premise', node_id=source_node_id,
+            content=source.content, confidence=source.confidence,
+        ))
+
+        # Find candidates in other domains
+        source_domain = source.domain or ''
+        candidates = [
+            n for n in self.kg.nodes.values()
+            if n.node_id != source_node_id
+            and (n.domain != source_domain or not source_domain)
+            and (not target_domain or n.domain == target_domain)
+            and n.node_type in ('assertion', 'inference')
+        ]
+
+        analogies_found: List[dict] = []
+        for candidate in candidates:
+            cand_pattern = self._get_edge_pattern(candidate.node_id)
+            if not cand_pattern:
+                continue
+
+            # Compare patterns: count matching edge types
+            common = len(source_pattern & cand_pattern)
+            total = len(source_pattern | cand_pattern)
+            similarity = common / total if total > 0 else 0
+
+            if similarity >= 0.5 and common >= 2:
+                analogies_found.append({
+                    'node_id': candidate.node_id,
+                    'domain': candidate.domain,
+                    'similarity': round(similarity, 3),
+                    'common_edge_types': list(source_pattern & cand_pattern),
+                })
+                if len(analogies_found) >= max_results:
+                    break
+
+        # Create analogous_to edges for strong matches
+        created_edges = 0
+        conclusion_id = None
+        for analogy in analogies_found:
+            edge = self.kg.add_edge(
+                source_node_id, analogy['node_id'], 'analogous_to',
+                weight=analogy['similarity']
+            )
+            if edge:
+                created_edges += 1
+                chain.append(ReasoningStep(
+                    step_type='conclusion',
+                    node_id=analogy['node_id'],
+                    content={
+                        'type': 'analogy',
+                        'source_domain': source_domain,
+                        'target_domain': analogy['domain'],
+                        'similarity': analogy['similarity'],
+                        'common_patterns': analogy['common_edge_types'],
+                    },
+                    confidence=analogy['similarity'],
+                ))
+                conclusion_id = analogy['node_id']
+
+        result = ReasoningResult(
+            operation_type='analogy_detection',
+            premise_ids=[source_node_id],
+            conclusion_node_id=conclusion_id,
+            confidence=max((a['similarity'] for a in analogies_found), default=0.0),
+            chain=chain,
+            success=created_edges > 0,
+            explanation=f"Found {created_edges} analogies across domains",
+        )
+        self._store_operation(result)
+        self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
+        return result
+
+    def _get_edge_pattern(self, node_id: int) -> set:
+        """Get the set of edge types connected to a node (both in and out)."""
+        pattern: set = set()
+        for edge in self.kg.edges:
+            if edge.from_node_id == node_id or edge.to_node_id == node_id:
+                pattern.add(edge.edge_type)
+        return pattern
+
     def archive_old_reasoning(self, current_block: int, retain_blocks: int = 50000) -> int:
         """Archive old reasoning operations to summary rows.
 

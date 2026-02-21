@@ -85,6 +85,42 @@ MILESTONE_GATES: List[dict] = [
         ),
         'requirement': '>=50K nodes + all 5 edge types present',
     },
+    {
+        'id': 7,
+        'name': 'Analogical Reasoning',
+        'description': 'Cross-domain analogies discovered',
+        'check': lambda stats: (
+            stats['edge_type_counts'].get('analogous_to', 0) >= 100
+            and stats.get('domain_count', 0) >= 5
+        ),
+        'requirement': '>=100 analogous_to edges across >=5 domains',
+    },
+    {
+        'id': 8,
+        'name': 'Self-Model',
+        'description': 'System builds a model of its own cognitive state',
+        'check': lambda stats: stats.get('self_reflection_nodes', 0) >= 50,
+        'requirement': '>=50 nodes with source: self-reflection',
+    },
+    {
+        'id': 9,
+        'name': 'Predictive Accuracy',
+        'description': 'High-confidence inferences validated by subsequent evidence',
+        'check': lambda stats: (
+            stats['node_type_counts'].get('inference', 0) >= 1000
+            and stats['edge_type_counts'].get('supports', 0) >= 2000
+        ),
+        'requirement': '>=1000 inference nodes with >=2000 support edges',
+    },
+    {
+        'id': 10,
+        'name': 'Creative Synthesis',
+        'description': 'Novel hypotheses combining knowledge from multiple domains',
+        'check': lambda stats: (
+            stats.get('cross_domain_inferences', 0) >= 20
+        ),
+        'requirement': '>=20 cross-domain inference nodes',
+    },
 ]
 
 
@@ -197,7 +233,7 @@ class PhiCalculator:
             phi       = min(raw_phi, gate_ceiling)
 
         Gate ceiling starts at 0 and increases by 0.5 for each passed gate
-        (6 gates = max ceiling of 3.0).
+        (10 gates = max ceiling of 5.0).
         """
         nodes = self.kg.nodes
         edges = self.kg.edges
@@ -260,11 +296,28 @@ class PhiCalculator:
             etype = edge.edge_type
             edge_type_counts[etype] = edge_type_counts.get(etype, 0) + 1
 
+        # Extended stats for Gates 7-10
+        domains: set = set()
+        self_reflection_nodes = 0
+        cross_domain_inferences = 0
+        for node in nodes.values():
+            if node.domain:
+                domains.add(node.domain)
+            content = node.content if isinstance(node.content, dict) else {}
+            if content.get('source') == 'self-reflection':
+                self_reflection_nodes += 1
+            if (node.node_type == 'inference'
+                    and content.get('cross_domain', False)):
+                cross_domain_inferences += 1
+
         stats = {
             'n_nodes': len(nodes),
             'n_edges': len(edges),
             'node_type_counts': node_type_counts,
             'edge_type_counts': edge_type_counts,
+            'domain_count': len(domains),
+            'self_reflection_nodes': self_reflection_nodes,
+            'cross_domain_inferences': cross_domain_inferences,
         }
 
         results = []

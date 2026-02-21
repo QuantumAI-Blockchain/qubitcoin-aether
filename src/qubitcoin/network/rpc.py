@@ -840,6 +840,16 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         height = db_manager.get_current_height()
         return aether_engine.get_mind_state(height)
 
+    @app.get("/aether/circadian")
+    async def aether_circadian():
+        """Get current circadian phase and metabolic status."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        status = aether_engine.get_circadian_status()
+        if status is None:
+            return {"phase": "waking", "metabolic_rate": 1.0, "note": "Pineal not active"}
+        return status
+
     @app.get("/aether/knowledge/domains")
     async def aether_knowledge_domains():
         """Get knowledge graph domain breakdown."""
@@ -1453,16 +1463,42 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.get("/sephirot/nodes")
     async def get_sephirot_nodes():
-        """Get all 10 Sephirot node definitions with staking stats."""
+        """Get all 10 Sephirot node definitions with staking and performance stats."""
         summary = db_manager.get_sephirot_summary()
+
+        # Collect live performance metrics from AetherEngine sephirot
+        perf_data: dict = {}
+        if aether_engine and aether_engine._sephirot:
+            total_weight = 0.0
+            weights: dict = {}
+            for role, node in aether_engine._sephirot.items():
+                role_name = role.value if hasattr(role, 'value') else str(role)
+                w = node.get_performance_weight()
+                weights[role_name] = w
+                total_weight += w
+                perf_data[role_name] = {
+                    'tasks_solved': node._tasks_solved,
+                    'knowledge_contributed': node._knowledge_contributed,
+                    'reasoning_ops': node.state.reasoning_ops,
+                    'messages_processed': node.state.messages_processed,
+                    'performance_weight': round(w, 2),
+                }
+            # Compute weighted APY per node
+            if total_weight > 0:
+                for role_name in perf_data:
+                    share = weights[role_name] / total_weight
+                    perf_data[role_name]['apy_weighted'] = round(5.0 * share * 10, 2)
+
         nodes = []
         for n in SEPHIROT_NODES:
             stats = summary.get(n['id'], {'staker_count': 0, 'total_staked': '0'})
+            node_perf = perf_data.get(n['name'].lower(), {})
             nodes.append({
                 **n,
                 'current_stakers': stats['staker_count'],
                 'total_staked': stats['total_staked'],
-                'apy_estimate': 5.0,  # ~5% from Proof-of-Thought bounties
+                'apy_estimate': node_perf.get('apy_weighted', 5.0),
+                'performance': node_perf,
             })
         return {'nodes': nodes}
 

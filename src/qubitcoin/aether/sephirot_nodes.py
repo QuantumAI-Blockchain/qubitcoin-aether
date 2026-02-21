@@ -72,6 +72,10 @@ class BaseSephirah(ABC):
         self._outbox: List[NodeMessage] = []
         self._processing_count: int = 0
         self._quantum_state: Optional[List[List[complex]]] = None
+        # Performance metrics for reward weighting (item 2.3)
+        self._tasks_solved: int = 0
+        self._knowledge_contributed: int = 0
+        self._errors: int = 0
         logger.debug(f"Sephirah {role.value} initialized ({QUBIT_ALLOCATION[role]} qubits)")
 
     def serialize_state(self) -> Dict[str, Any]:
@@ -83,6 +87,9 @@ class BaseSephirah(ABC):
         return {
             'role': self.role.value,
             'processing_count': self._processing_count,
+            'tasks_solved': self._tasks_solved,
+            'knowledge_contributed': self._knowledge_contributed,
+            'errors': self._errors,
             'state': {
                 'active': self.state.active,
                 'energy': self.state.energy,
@@ -97,6 +104,9 @@ class BaseSephirah(ABC):
         Subclasses should override and call super().
         """
         self._processing_count = data.get('processing_count', 0)
+        self._tasks_solved = data.get('tasks_solved', 0)
+        self._knowledge_contributed = data.get('knowledge_contributed', 0)
+        self._errors = data.get('errors', 0)
         state_data = data.get('state', {})
         self.state.active = state_data.get('active', True)
         self.state.energy = state_data.get('energy', 1.0)
@@ -150,7 +160,22 @@ class BaseSephirah(ABC):
             "processing_count": self._processing_count,
             "inbox_size": len(self._inbox),
             "outbox_size": len(self._outbox),
+            "tasks_solved": self._tasks_solved,
+            "knowledge_contributed": self._knowledge_contributed,
+            "errors": self._errors,
         }
+
+    def get_performance_weight(self) -> float:
+        """Compute performance weight for reward distribution.
+
+        Weight = tasks_solved * 0.5 + knowledge_contributed * 0.3 + reasoning_ops * 0.2
+        Minimum weight is 1.0 so idle nodes still get baseline reward.
+        """
+        return max(1.0, (
+            self._tasks_solved * 0.5
+            + self._knowledge_contributed * 0.3
+            + self.state.reasoning_ops * 0.2
+        ))
 
     def _consume_inbox(self) -> List[NodeMessage]:
         """Consume all messages from inbox."""

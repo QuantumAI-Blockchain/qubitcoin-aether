@@ -24,11 +24,13 @@ class AetherEngine:
     """
 
     def __init__(self, db_manager, knowledge_graph=None, phi_calculator=None,
-                 reasoning_engine=None):
+                 reasoning_engine=None, llm_manager=None, pineal=None):
         self.db = db_manager
         self.kg = knowledge_graph
         self.phi = phi_calculator
         self.reasoning = reasoning_engine
+        self.llm_manager = llm_manager
+        self.pineal = pineal  # PinealOrchestrator for circadian phases
         self._pot_cache: Dict[int, ProofOfThought] = {}
         self._pot_cache_max = 1000  # Bound cache to prevent unbounded memory growth
 
@@ -262,6 +264,15 @@ class AetherEngine:
             if block.height > 0 and block.height % 1000 == 0 and self.kg:
                 self.kg.boost_referenced_nodes()
 
+            # Self-reflection via LLM every 200 blocks
+            if (block.height > 0 and block.height % 200 == 0
+                    and self.llm_manager):
+                self.self_reflect(block.height)
+
+            # Find analogies during REM-like phases (every 500 blocks)
+            if block.height > 0 and block.height % 500 == 0 and self.reasoning and self.kg:
+                self._dream_analogies(block.height)
+
             # Archive old consciousness events every 5000 blocks
             if block.height > 0 and block.height % 5000 == 0:
                 self.archive_consciousness_events()
@@ -276,6 +287,20 @@ class AetherEngine:
             # Persist Sephirot state every 100 blocks
             if block.height > 0 and block.height % 100 == 0:
                 self.save_sephirot_state()
+
+            # Tick pineal orchestrator for circadian phase management
+            if self.pineal and block.height > 0:
+                phi_val = 0.0
+                if self.phi:
+                    try:
+                        phi_data = self.phi.compute_phi(block.height)
+                        phi_val = phi_data.get('phi_value', 0.0)
+                    except Exception:
+                        pass
+                self.pineal.tick(block.height, phi_val)
+
+                # Phase-aware behavior (item 10.2)
+                self._apply_circadian_behavior(block)
 
         except Exception as e:
             logger.debug(f"Error processing block knowledge: {e}")
@@ -701,6 +726,198 @@ class AetherEngine:
             result['recent_reasoning_count'] = stats.get('total_operations', 0)
 
         return result
+
+    def _apply_circadian_behavior(self, block) -> None:
+        """Adjust AGI behavior based on current circadian phase.
+
+        Phases affect what maintenance / learning activities run:
+        - Active Learning: deeper reasoning (already via chain_of_thought)
+        - Consolidation: prune low confidence, resolve contradictions
+        - Deep Sleep: archive old data, downsample Phi
+        - REM Dreaming: find cross-domain analogies
+        """
+        if not self.pineal:
+            return
+
+        from .pineal import CircadianPhase
+        phase = self.pineal.current_phase
+
+        if phase == CircadianPhase.CONSOLIDATION:
+            # During consolidation: extra pruning and contradiction resolution
+            if block.height % 50 == 0 and self.kg:
+                self.kg.prune_low_confidence()
+            if block.height % 100 == 0:
+                self.auto_resolve_contradictions(block.height)
+
+        elif phase == CircadianPhase.DEEP_SLEEP:
+            # During deep sleep: archive and downsample
+            if block.height % 100 == 0 and self.phi:
+                try:
+                    self.phi.downsample_phi_measurements()
+                except Exception:
+                    pass
+            if block.height % 100 == 0 and self.reasoning:
+                try:
+                    self.reasoning.archive_old_reasoning(block.height, 50000)
+                except Exception:
+                    pass
+
+        elif phase == CircadianPhase.REM_DREAMING:
+            # During REM: find analogies across random domain pairs
+            if block.height % 50 == 0:
+                self._dream_analogies(block.height)
+
+    def get_circadian_status(self) -> Optional[dict]:
+        """Return current circadian phase info if pineal is active."""
+        if not self.pineal:
+            return None
+        return self.pineal.get_status()
+
+    def self_reflect(self, block_height: int = 0) -> int:
+        """Query the LLM about Aether's own knowledge gaps and contradictions.
+
+        Identifies the top unresolved contradictions and weakest domains,
+        then asks the LLM targeted questions to resolve or fill them.
+        LLM responses are distilled into the knowledge graph as
+        self-reflection nodes (source: 'self-reflection').
+
+        Args:
+            block_height: Current block height for logging.
+
+        Returns:
+            Number of self-reflection nodes created.
+        """
+        if not self.llm_manager or not self.kg:
+            return 0
+
+        created = 0
+        try:
+            from ..config import Config
+            if not Config.LLM_ENABLED:
+                return 0
+
+            # Find top contradictions
+            contradictions: List[dict] = []
+            for edge in self.kg.edges:
+                if edge.edge_type == 'contradicts':
+                    a = self.kg.nodes.get(edge.from_node_id)
+                    b = self.kg.nodes.get(edge.to_node_id)
+                    if a and b:
+                        contradictions.append({
+                            'a_text': str(a.content.get('text', ''))[:200],
+                            'b_text': str(b.content.get('text', ''))[:200],
+                            'a_id': a.node_id,
+                            'b_id': b.node_id,
+                        })
+                    if len(contradictions) >= 3:
+                        break
+
+            # Find weakest domains
+            domain_stats = self.kg.get_domain_stats()
+            weak_domains = sorted(domain_stats.items(), key=lambda x: x[1]['count'])[:3]
+
+            # Query LLM about contradictions
+            for c in contradictions[:2]:
+                prompt = (
+                    f"Two knowledge nodes contradict each other. "
+                    f"Node A: '{c['a_text']}' "
+                    f"Node B: '{c['b_text']}' "
+                    f"Which is more accurate and why? Provide a clear resolution."
+                )
+                try:
+                    response = self.llm_manager.generate(prompt, distill=False)
+                    if response and response.get('content'):
+                        node = self.kg.add_node(
+                            node_type='inference',
+                            content={
+                                'text': response['content'][:500],
+                                'source': 'self-reflection',
+                                'reflects_on': [c['a_id'], c['b_id']],
+                            },
+                            confidence=0.6,
+                            source_block=block_height,
+                        )
+                        if node:
+                            created += 1
+                except Exception:
+                    pass
+
+            # Query LLM about weak domains
+            for domain, info in weak_domains[:2]:
+                prompt = (
+                    f"Explain a key concept in {domain.replace('_', ' ')} "
+                    f"that would be important for a knowledge graph to understand."
+                )
+                try:
+                    response = self.llm_manager.generate(prompt, distill=True)
+                    if response and response.get('content'):
+                        created += 1
+                except Exception:
+                    pass
+
+            if created > 0:
+                logger.info(
+                    f"Self-reflection at block {block_height}: "
+                    f"created {created} knowledge nodes"
+                )
+                self._record_consciousness_event(
+                    block_height, 0.0, 'self_reflection',
+                    f"Self-reflection: {created} nodes from {len(contradictions)} "
+                    f"contradictions and {len(weak_domains)} weak domains"
+                )
+
+        except Exception as e:
+            logger.debug(f"Self-reflection error: {e}")
+
+        return created
+
+    def _dream_analogies(self, block_height: int = 0) -> int:
+        """Find cross-domain analogies — 'dreaming' phase.
+
+        Picks random nodes from different domains and looks for
+        structural analogies.
+
+        Returns:
+            Number of analogies found.
+        """
+        if not self.reasoning or not self.kg:
+            return 0
+
+        import random
+        found = 0
+        try:
+            # Pick random assertion/inference nodes from populated domains
+            domain_nodes: Dict[str, List[int]] = {}
+            for node in self.kg.nodes.values():
+                if node.domain and node.node_type in ('assertion', 'inference'):
+                    domain_nodes.setdefault(node.domain, []).append(node.node_id)
+
+            domains = list(domain_nodes.keys())
+            if len(domains) < 2:
+                return 0
+
+            # Try up to 5 random cross-domain pairs
+            for _ in range(5):
+                d1, d2 = random.sample(domains, 2)
+                if not domain_nodes[d1] or not domain_nodes[d2]:
+                    continue
+                source_id = random.choice(domain_nodes[d1])
+                result = self.reasoning.find_analogies(
+                    source_id, target_domain=d2, max_results=2
+                )
+                if result.success:
+                    found += 1
+
+            if found > 0:
+                logger.info(
+                    f"Dream analogies at block {block_height}: "
+                    f"found {found} cross-domain analogies"
+                )
+
+        except Exception as e:
+            logger.debug(f"Dream analogies error: {e}")
+
+        return found
 
     def get_stats(self) -> dict:
         """Get comprehensive Aether engine statistics"""
