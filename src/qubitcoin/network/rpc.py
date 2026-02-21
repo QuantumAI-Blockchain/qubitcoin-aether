@@ -828,6 +828,25 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             'gates': gates,
         }
 
+    @app.get("/aether/mind")
+    async def aether_mind():
+        """Get Aether's current cognitive state — the 'window into AGI consciousness'.
+
+        Returns active goals, contradictions, knowledge gaps, domain balance,
+        sephirot states, and phi.
+        """
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        height = db_manager.get_current_height()
+        return aether_engine.get_mind_state(height)
+
+    @app.get("/aether/knowledge/domains")
+    async def aether_knowledge_domains():
+        """Get knowledge graph domain breakdown."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        return aether_engine.kg.get_domain_stats()
+
     # ========================================================================
     # KNOWLEDGE GRAPH QUERY ENDPOINTS
     # ========================================================================

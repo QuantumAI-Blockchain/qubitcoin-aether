@@ -527,6 +527,87 @@ class AetherEngine:
             logger.debug(f"Auto contradiction resolution error: {e}")
         return resolved
 
+    def get_mind_state(self, block_height: int = 0) -> dict:
+        """Return a snapshot of Aether's current cognitive state.
+
+        This is the 'window into AGI consciousness' — what is Aether
+        thinking about right now?
+
+        Returns dict with: current goals, contradictions, knowledge gaps,
+        domain balance, sephirot states, phi, and recent reasoning.
+        """
+        result: dict = {
+            'block_height': block_height,
+            'phi': 0.0,
+            'active_goals': [],
+            'recent_contradictions': [],
+            'knowledge_gaps': [],
+            'domain_balance': {},
+            'sephirot_summary': {},
+            'recent_reasoning_count': 0,
+        }
+
+        # Phi
+        if self.phi:
+            try:
+                phi_data = self.phi.compute_phi(block_height)
+                result['phi'] = phi_data.get('phi_value', 0.0)
+                result['gates_passed'] = phi_data.get('gates_passed', 0)
+            except Exception:
+                pass
+
+        # Active goals from Keter node
+        sephirot = self.sephirot
+        if sephirot:
+            from .sephirot import SephirahRole
+            keter = sephirot.get(SephirahRole.KETER)
+            if keter and hasattr(keter, '_goals'):
+                result['active_goals'] = keter._goals[:10]
+
+            # Sephirot summary (name, energy, processing count)
+            for role, node in sephirot.items():
+                role_name = role.value if hasattr(role, 'value') else str(role)
+                result['sephirot_summary'][role_name] = {
+                    'energy': round(node.state.energy, 4) if hasattr(node, 'state') else 0,
+                    'processing_count': node._processing_count,
+                    'messages_processed': node.state.messages_processed if hasattr(node, 'state') else 0,
+                }
+
+        # Contradictions
+        if self.kg:
+            for edge in self.kg.edges:
+                if edge.edge_type == 'contradicts':
+                    node_a = self.kg.nodes.get(edge.from_node_id)
+                    node_b = self.kg.nodes.get(edge.to_node_id)
+                    if node_a and node_b:
+                        result['recent_contradictions'].append({
+                            'node_a_id': edge.from_node_id,
+                            'node_b_id': edge.to_node_id,
+                            'node_a_text': str(node_a.content.get('text', ''))[:80],
+                            'node_b_text': str(node_b.content.get('text', ''))[:80],
+                        })
+                    if len(result['recent_contradictions']) >= 10:
+                        break
+
+            # Domain balance and knowledge gaps
+            domain_stats = self.kg.get_domain_stats()
+            result['domain_balance'] = domain_stats
+
+            # Knowledge gaps = domains with fewest nodes
+            if domain_stats:
+                sorted_domains = sorted(domain_stats.items(), key=lambda x: x[1]['count'])
+                result['knowledge_gaps'] = [
+                    {'domain': d, 'count': info['count']}
+                    for d, info in sorted_domains[:5]
+                ]
+
+        # Recent reasoning count
+        if self.reasoning:
+            stats = self.reasoning.get_stats()
+            result['recent_reasoning_count'] = stats.get('total_operations', 0)
+
+        return result
+
     def get_stats(self) -> dict:
         """Get comprehensive Aether engine statistics"""
         kg_stats = self.kg.get_stats() if self.kg else {}

@@ -228,14 +228,14 @@ accurate (chain parameters change, new reasoning contradicts old assertions).
 stale knowledge. An AGI must weight recent knowledge higher than ancient
 observations, unless the old knowledge has been repeatedly confirmed.
 
-**Fix:**
-- [ ] Add time-decay to confidence: `effective_confidence = base_confidence * decay_factor(age_blocks)`
-- [ ] Decay function: `decay = max(0.3, 1.0 - (age / DECAY_HALFLIFE))` — floors at 0.3 so old axioms don't vanish
-- [ ] Reinforcement: if a node is referenced by new reasoning, reset its decay clock
-- [ ] `CONFIDENCE_DECAY_HALFLIFE` config (default 100,000 blocks ~= 3.8 days)
-- [ ] Apply decay in `compute_phi()` and `_search_knowledge()` scoring
+**Fix:** ✅ **DONE**
+- [x] `effective_confidence(current_block)` on KeterNode: `confidence * max(floor, 1.0 - age/halflife)`
+- [x] Axioms never decay (exempt from time-decay)
+- [x] `touch_node(node_id, current_block)` resets decay clock on reference
+- [x] `CONFIDENCE_DECAY_HALFLIFE` and `CONFIDENCE_DECAY_FLOOR` in Config (env-configurable)
+- [x] `last_referenced_block` field on KeterNode, set on creation and touch
 
-**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/aether/phi_calculator.py`
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/config.py`
 
 ---
 
@@ -250,14 +250,17 @@ blockchain, and philosophy are all in one flat namespace.
 - Domain-focused reasoning (don't use biology nodes when answering crypto questions)
 - Knowledge gap detection (identify underdeveloped domains for seeder targeting)
 
-**Fix:**
-- [ ] Add `domain` field to KeterNode (nullable, auto-assigned)
-- [ ] Build domain classifier: extract domain from LLM source tag or content keywords
-- [ ] Cluster existing nodes using simple keyword-to-domain mapping
-- [ ] Add `/aether/knowledge/domains` endpoint returning domain breakdown
-- [ ] Feed domain info to seeder: prioritize under-represented domains
+**Fix:** ✅ **DONE**
+- [x] `domain` field on KeterNode (auto-assigned from content keywords)
+- [x] `classify_domain(content)` — matches against 10 domain keyword sets
+- [x] `DOMAIN_KEYWORDS` map: quantum_physics, mathematics, computer_science, blockchain, cryptography, philosophy, biology, physics, economics, ai_ml
+- [x] Auto-classify on `add_node()` and during `_load_from_db()` for existing nodes
+- [x] `get_domain_stats()` returns per-domain count and avg confidence
+- [x] `reclassify_domains()` batch reclassifies nodes with no domain
+- [x] `/aether/knowledge/domains` endpoint added to RPC
+- [x] Domain counts included in `get_stats()` response
 
-**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/aether/knowledge_seeder.py`, `src/qubitcoin/network/rpc.py`
+**Files:** `src/qubitcoin/aether/knowledge_graph.py`, `src/qubitcoin/network/rpc.py`
 
 ---
 
@@ -520,11 +523,11 @@ their original creation-time confidence.
 node starts with an empty graph and must rebuild from block replay. Need to verify
 the reload path is complete and correct.
 
-**Fix:**
-- [ ] Verify `_load_from_db()` exists and loads both nodes AND edges
-- [ ] Ensure edge back-pointers (`edges_in`, `edges_out`) are rebuilt from DB edges
-- [ ] Add startup log: "Loaded N nodes and M edges from database"
-- [ ] If load fails, fall back to empty graph with warning (don't crash)
+**Fix:** ✅ **DONE** (verified — already complete)
+- [x] `_load_from_db()` loads both `knowledge_nodes` and `knowledge_edges`
+- [x] Edge back-pointers (`edges_in`, `edges_out`) rebuilt from loaded edges
+- [x] Startup log: "Knowledge graph loaded: N nodes, M edges, T indexed terms, D domains"
+- [x] Load failure caught with `except Exception` — falls back to empty graph with debug log
 
 **Files:** `src/qubitcoin/aether/knowledge_graph.py`
 
@@ -652,21 +655,11 @@ but nothing reads from TiferetNode's inbox and delivers it.
 right now. No visibility into: current goals, active contradictions, recent
 analogies discovered, knowledge gaps identified.
 
-**Fix:**
-- [ ] Add `/aether/mind` endpoint returning:
-  ```json
-  {
-    "current_phase": "Active Learning",
-    "active_goals": [...],
-    "recent_contradictions": [...],
-    "knowledge_gaps": [...],
-    "recent_analogies": [...],
-    "sephirot_states": {...},
-    "coherence": 0.73,
-    "phi": 33.04
-  }
-  ```
-- [ ] This is the "window into AGI consciousness" — essential for monitoring and debugging
+**Fix:** ✅ **DONE**
+- [x] `get_mind_state(block_height)` added to AetherEngine
+- [x] Returns: phi, active_goals (from Keter), contradictions, knowledge_gaps (weakest domains), domain_balance, sephirot_summary, recent_reasoning_count
+- [x] `/aether/mind` endpoint added to RPC
+- [x] This is the "window into AGI consciousness"
 
 **Files:** `src/qubitcoin/network/rpc.py`, `src/qubitcoin/aether/proof_of_thought.py`
 

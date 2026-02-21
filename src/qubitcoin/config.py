@@ -211,6 +211,12 @@ class Config:
     REASONING_ARCHIVE_RETAIN_BLOCKS: int = int(os.getenv('REASONING_ARCHIVE_RETAIN_BLOCKS', '50000'))
 
     # ============================================================================
+    # KNOWLEDGE GRAPH INTELLIGENCE
+    # ============================================================================
+    CONFIDENCE_DECAY_HALFLIFE: int = int(os.getenv('CONFIDENCE_DECAY_HALFLIFE', '100000'))
+    CONFIDENCE_DECAY_FLOOR: float = float(os.getenv('CONFIDENCE_DECAY_FLOOR', '0.3'))
+
+    # ============================================================================
     # SEPHIROT STAKING
     # ============================================================================
     SEPHIROT_STAKER_SHARE_RATIO: float = float(os.getenv('SEPHIROT_STAKER_SHARE_RATIO', '0.6'))

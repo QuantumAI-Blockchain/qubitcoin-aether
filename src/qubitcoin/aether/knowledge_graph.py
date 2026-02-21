@@ -28,9 +28,28 @@ class KeterNode:
     confidence: float = 0.5  # [0.0, 1.0]
     source_block: int = 0
     timestamp: float = 0.0
+    domain: str = ''  # Auto-assigned domain (quantum_physics, mathematics, etc.)
+    last_referenced_block: int = 0  # Last block where this node was used in reasoning
     # In-memory graph links
     edges_out: List[int] = field(default_factory=list)
     edges_in: List[int] = field(default_factory=list)
+
+    def effective_confidence(self, current_block: int = 0) -> float:
+        """Return confidence adjusted for time-decay.
+
+        Decay is based on blocks since last reference (or creation if never
+        referenced).  Axioms never decay.  Floor is configurable
+        (default 0.3) so old knowledge never fully vanishes.
+        """
+        if self.node_type == 'axiom' or current_block <= 0:
+            return self.confidence
+        from ..config import Config
+        halflife = Config.CONFIDENCE_DECAY_HALFLIFE
+        floor = Config.CONFIDENCE_DECAY_FLOOR
+        ref_block = self.last_referenced_block or self.source_block
+        age = max(0, current_block - ref_block)
+        decay = max(floor, 1.0 - (age / halflife))
+        return self.confidence * decay
 
     def calculate_hash(self) -> str:
         data = json.dumps({
@@ -55,6 +74,52 @@ class KeterEdge:
     edge_type: str = 'supports'  # supports, contradicts, derives, requires, refines
     weight: float = 1.0
     timestamp: float = 0.0
+
+
+# Domain keyword mapping for auto-classification
+DOMAIN_KEYWORDS: Dict[str, Set[str]] = {
+    'quantum_physics': {'qubit', 'quantum', 'superposition', 'entanglement', 'decoherence',
+                        'hamiltonian', 'vqe', 'qiskit', 'photon', 'wave', 'particle'},
+    'mathematics': {'theorem', 'proof', 'algebra', 'topology', 'geometry', 'calculus',
+                    'prime', 'fibonacci', 'equation', 'integral', 'matrix', 'vector'},
+    'computer_science': {'algorithm', 'compiler', 'database', 'hash', 'binary',
+                         'complexity', 'turing', 'sorting', 'graph_theory', 'recursion'},
+    'blockchain': {'block', 'transaction', 'consensus', 'mining', 'utxo', 'merkle',
+                   'ledger', 'token', 'smart_contract', 'defi', 'bridge', 'staking'},
+    'cryptography': {'encryption', 'signature', 'dilithium', 'lattice', 'zero_knowledge',
+                     'zkp', 'aes', 'rsa', 'cipher', 'post_quantum'},
+    'philosophy': {'consciousness', 'qualia', 'epistemology', 'ethics', 'ontology',
+                   'kabbalah', 'sephirot', 'phenomenology', 'mind', 'metaphysics'},
+    'biology': {'neuron', 'dna', 'gene', 'evolution', 'cell', 'protein',
+                'ecology', 'organism', 'neural', 'brain', 'synapse'},
+    'physics': {'relativity', 'gravity', 'thermodynamics', 'entropy', 'energy',
+                'electromagnetism', 'nuclear', 'optics', 'cosmology', 'dark_matter'},
+    'economics': {'market', 'inflation', 'monetary', 'gdp', 'trade',
+                  'supply_demand', 'fiscal', 'currency', 'game_theory'},
+    'ai_ml': {'transformer', 'neural_network', 'reinforcement', 'gradient',
+              'backpropagation', 'llm', 'attention', 'embedding', 'training', 'inference'},
+}
+
+
+def classify_domain(content: dict) -> str:
+    """Classify a knowledge node's domain from its content.
+
+    Scans all text fields in the content dict against keyword sets.
+    Returns the best-matching domain or 'general' if no strong match.
+    """
+    text = ' '.join(str(v) for v in content.values()).lower()
+    # Normalize separators
+    text = text.replace('-', '_').replace('.', ' ')
+    words = set(text.split())
+
+    best_domain = 'general'
+    best_score = 0
+    for domain, keywords in DOMAIN_KEYWORDS.items():
+        score = len(words & keywords)
+        if score > best_score:
+            best_score = score
+            best_domain = domain
+    return best_domain
 
 
 class KnowledgeGraph:
@@ -108,17 +173,28 @@ class KnowledgeGraph:
                     if r[1] in self.nodes:
                         self.nodes[r[1]].edges_in.append(r[0])
 
-            # Build TF-IDF index from loaded nodes
+            # Build TF-IDF index and auto-classify domains for loaded nodes
+            unclassified = 0
             for nid, node in self.nodes.items():
                 self.search_index.add_node(nid, node.content)
+                if not node.domain:
+                    node.domain = classify_domain(node.content)
+                    unclassified += 1
+
+            domain_counts = {}
+            for node in self.nodes.values():
+                d = node.domain or 'general'
+                domain_counts[d] = domain_counts.get(d, 0) + 1
 
             logger.info(f"Knowledge graph loaded: {len(self.nodes)} nodes, {len(self.edges)} edges, "
-                         f"{self.search_index.get_stats()['unique_terms']} indexed terms")
+                         f"{self.search_index.get_stats()['unique_terms']} indexed terms, "
+                         f"{len(domain_counts)} domains"
+                         + (f" ({unclassified} auto-classified)" if unclassified else ''))
         except Exception as e:
             logger.debug(f"Knowledge graph load: {e}")
 
     def add_node(self, node_type: str, content: dict, confidence: float,
-                 source_block: int) -> KeterNode:
+                 source_block: int, domain: str = '') -> KeterNode:
         """Add a new knowledge node"""
         node = KeterNode(
             node_id=self._next_id,
@@ -127,6 +203,8 @@ class KnowledgeGraph:
             confidence=max(0.0, min(1.0, confidence)),
             source_block=source_block,
             timestamp=time.time(),
+            domain=domain or classify_domain(content),
+            last_referenced_block=source_block,
         )
         node.content_hash = node.calculate_hash()
         self._next_id += 1
@@ -535,6 +613,48 @@ class KnowledgeGraph:
             },
         }
 
+    def touch_node(self, node_id: int, current_block: int) -> None:
+        """Update a node's last_referenced_block to reset its decay clock.
+
+        Called when a node is used in reasoning or referenced in a query.
+        """
+        node = self.nodes.get(node_id)
+        if node:
+            node.last_referenced_block = current_block
+
+    def get_domain_stats(self) -> Dict[str, dict]:
+        """Get node counts and average confidence per domain."""
+        domains: Dict[str, dict] = {}
+        for node in self.nodes.values():
+            d = node.domain or 'general'
+            if d not in domains:
+                domains[d] = {'count': 0, 'total_confidence': 0.0}
+            domains[d]['count'] += 1
+            domains[d]['total_confidence'] += node.confidence
+
+        result: Dict[str, dict] = {}
+        for d, info in sorted(domains.items(), key=lambda x: x[1]['count'], reverse=True):
+            result[d] = {
+                'count': info['count'],
+                'avg_confidence': round(info['total_confidence'] / info['count'], 4) if info['count'] else 0.0,
+            }
+        return result
+
+    def reclassify_domains(self) -> int:
+        """Reclassify domains for all nodes that have no domain set.
+
+        Returns:
+            Number of nodes reclassified.
+        """
+        count = 0
+        for node in self.nodes.values():
+            if not node.domain:
+                node.domain = classify_domain(node.content)
+                count += 1
+        if count:
+            logger.info(f"Reclassified domains for {count} nodes")
+        return count
+
     def get_stats(self) -> dict:
         """Get knowledge graph statistics"""
         type_counts = {}
@@ -550,11 +670,17 @@ class KnowledgeGraph:
             if self.nodes else 0.0
         )
 
+        domain_counts = {}
+        for node in self.nodes.values():
+            d = node.domain or 'general'
+            domain_counts[d] = domain_counts.get(d, 0) + 1
+
         return {
             'total_nodes': len(self.nodes),
             'total_edges': len(self.edges),
             'node_types': type_counts,
             'edge_types': edge_type_counts,
             'avg_confidence': round(avg_confidence, 4),
+            'domains': domain_counts,
             'knowledge_root': self.compute_knowledge_root()[:16] + '...',
         }
