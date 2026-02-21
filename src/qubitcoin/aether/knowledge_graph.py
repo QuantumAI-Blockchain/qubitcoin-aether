@@ -61,6 +61,7 @@ class KnowledgeGraph:
     """
     In-memory knowledge graph backed by database persistence.
     Supports CRUD operations, graph traversal, and root hash computation.
+    Includes a TF-IDF index for semantic search.
     """
 
     def __init__(self, db_manager):
@@ -68,6 +69,9 @@ class KnowledgeGraph:
         self.nodes: Dict[int, KeterNode] = {}
         self.edges: List[KeterEdge] = []
         self._next_id = 1
+        # TF-IDF semantic search index
+        from .kg_index import TFIDFIndex
+        self.search_index = TFIDFIndex()
         self._load_from_db()
 
     def _load_from_db(self):
@@ -104,7 +108,12 @@ class KnowledgeGraph:
                     if r[1] in self.nodes:
                         self.nodes[r[1]].edges_in.append(r[0])
 
-            logger.info(f"Knowledge graph loaded: {len(self.nodes)} nodes, {len(self.edges)} edges")
+            # Build TF-IDF index from loaded nodes
+            for nid, node in self.nodes.items():
+                self.search_index.add_node(nid, node.content)
+
+            logger.info(f"Knowledge graph loaded: {len(self.nodes)} nodes, {len(self.edges)} edges, "
+                         f"{self.search_index.get_stats()['unique_terms']} indexed terms")
         except Exception as e:
             logger.debug(f"Knowledge graph load: {e}")
 
@@ -122,6 +131,9 @@ class KnowledgeGraph:
         node.content_hash = node.calculate_hash()
         self._next_id += 1
         self.nodes[node.node_id] = node
+
+        # Update search index
+        self.search_index.add_node(node.node_id, content)
 
         # Persist
         try:
@@ -300,7 +312,7 @@ class KnowledgeGraph:
 
     def prune_low_confidence(self, threshold: float = 0.1, protect_types: Optional[Set[str]] = None) -> int:
         """
-        Remove nodes with confidence below threshold.
+        Remove nodes with confidence below threshold from memory AND database.
 
         Nodes of protected types (e.g. 'axiom') are never pruned.
         Edges referencing pruned nodes are also removed.
@@ -318,13 +330,15 @@ class KnowledgeGraph:
             if node.confidence < threshold and node.node_type not in protect
         ]
 
+        if not to_remove:
+            return 0
+
+        # Remove from in-memory graph
         for nid in to_remove:
-            # Remove edges referencing this node
             self.edges = [
                 e for e in self.edges
                 if e.from_node_id != nid and e.to_node_id != nid
             ]
-            # Clean up neighbor references in remaining nodes
             for other_node in self.nodes.values():
                 if nid in other_node.edges_out:
                     other_node.edges_out.remove(nid)
@@ -332,10 +346,92 @@ class KnowledgeGraph:
                     other_node.edges_in.remove(nid)
             del self.nodes[nid]
 
-        if to_remove:
-            logger.info(f"Pruned {len(to_remove)} low-confidence nodes (threshold={threshold})")
+        # Delete from database
+        db_deleted_nodes = 0
+        db_deleted_edges = 0
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                # Delete edges first (referential integrity)
+                result = session.execute(
+                    text("""
+                        DELETE FROM knowledge_edges
+                        WHERE from_node_id = ANY(:ids) OR to_node_id = ANY(:ids)
+                    """),
+                    {"ids": to_remove}
+                )
+                db_deleted_edges = result.rowcount
 
+                # Delete nodes
+                result = session.execute(
+                    text("DELETE FROM knowledge_nodes WHERE id = ANY(:ids)"),
+                    {"ids": to_remove}
+                )
+                db_deleted_nodes = result.rowcount
+
+                session.commit()
+        except Exception as e:
+            logger.error(f"Failed to delete pruned nodes from DB: {e}")
+
+        logger.info(
+            f"Pruned {len(to_remove)} low-confidence nodes (threshold={threshold}), "
+            f"DB: {db_deleted_nodes} nodes + {db_deleted_edges} edges deleted"
+        )
         return len(to_remove)
+
+    def persist_confidence_updates(self) -> int:
+        """
+        Write changed confidence values back to the database.
+
+        Called periodically (e.g. every 100 blocks) to ensure that
+        confidence adjustments from reasoning/propagation survive restarts.
+
+        Returns:
+            Number of rows updated.
+        """
+        if not self.nodes:
+            return 0
+
+        try:
+            from sqlalchemy import text
+            updated = 0
+            with self.db.get_session() as session:
+                # Batch update — send all current confidences
+                for nid, node in self.nodes.items():
+                    result = session.execute(
+                        text("""
+                            UPDATE knowledge_nodes SET confidence = :conf
+                            WHERE id = :id AND confidence != :conf
+                        """),
+                        {'conf': node.confidence, 'id': nid}
+                    )
+                    updated += result.rowcount
+                session.commit()
+
+            if updated > 0:
+                logger.info(f"Persisted confidence updates for {updated} nodes")
+            return updated
+        except Exception as e:
+            logger.error(f"Failed to persist confidence updates: {e}")
+            return 0
+
+    def search(self, query: str, top_k: int = 10) -> List[Tuple[KeterNode, float]]:
+        """
+        Semantic search over the knowledge graph using TF-IDF cosine similarity.
+
+        Args:
+            query: Natural language search query
+            top_k: Maximum results to return
+
+        Returns:
+            List of (KeterNode, similarity_score) tuples, best match first.
+        """
+        results = self.search_index.query(query, top_k=top_k)
+        return [
+            (self.nodes[nid], score)
+            for nid, score in results
+            if nid in self.nodes
+        ]
 
     def find_by_type(self, node_type: str, limit: int = 100) -> List[KeterNode]:
         """Find nodes by type, sorted by confidence descending."""

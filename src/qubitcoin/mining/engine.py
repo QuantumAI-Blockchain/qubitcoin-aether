@@ -220,6 +220,30 @@ class MiningEngine:
             except Exception as e:
                 logger.debug(f"Unstake processing: {e}")
 
+            # Distribute staking rewards every N blocks
+            if next_height % Config.SEPHIROT_REWARD_INTERVAL == 0:
+                try:
+                    self._distribute_staking_rewards(reward, next_height)
+                except Exception as e:
+                    logger.debug(f"Staking reward distribution: {e}")
+
+            # Periodic DB maintenance
+            if next_height % Config.PHI_DOWNSAMPLE_INTERVAL == 0 and self.aether:
+                try:
+                    self.aether.phi_calculator.downsample_phi_measurements()
+                except Exception as e:
+                    logger.debug(f"Phi downsample: {e}")
+
+            if next_height % Config.PRUNE_INTERVAL_BLOCKS == 0 and self.aether:
+                try:
+                    kg = self.aether.knowledge_graph
+                    if kg:
+                        pruned = kg.prune_low_confidence(Config.PRUNE_CONFIDENCE_THRESHOLD)
+                        if pruned > 0:
+                            kg.persist_confidence_updates()
+                except Exception as e:
+                    logger.debug(f"KG prune: {e}")
+
             # Broadcast mined block to P2P network via node (handles Rust/Python P2P)
             if self.node and hasattr(self.node, 'on_block_mined'):
                 try:
@@ -231,6 +255,40 @@ class MiningEngine:
             logger.error(f"Failed to store block: {e}", exc_info=True)
 
         time.sleep(Config.MINING_INTERVAL)
+
+    def _distribute_staking_rewards(self, block_reward: Decimal, block_height: int) -> None:
+        """
+        Distribute staking rewards to all 10 Sephirot nodes' stakers.
+
+        Called every SEPHIROT_REWARD_INTERVAL blocks. Allocates a share of
+        the accumulated block rewards to stakers proportionally.
+
+        The staker share is: block_reward * SEPHIROT_STAKER_SHARE_RATIO / 10
+        per node (split equally across all 10 nodes, then pro-rata within).
+        """
+        share_ratio = Decimal(str(Config.SEPHIROT_STAKER_SHARE_RATIO))
+        interval = Config.SEPHIROT_REWARD_INTERVAL
+        # Total pool = single block reward * share_ratio * interval blocks
+        total_pool = block_reward * share_ratio * Decimal(str(interval))
+        per_node = total_pool / Decimal('10')
+
+        if per_node <= 0:
+            return
+
+        distributed = 0
+        for node_id in range(10):
+            try:
+                self.db.distribute_rewards(node_id, per_node)
+                distributed += 1
+            except Exception as e:
+                logger.debug(f"Reward distribution for node {node_id}: {e}")
+
+        if distributed > 0:
+            logger.info(
+                f"Distributed staking rewards at block {block_height}: "
+                f"{total_pool:.4f} QBC across {distributed} nodes "
+                f"({per_node:.4f} QBC/node)"
+            )
 
     def _get_prev_hash(self, current_height: int) -> str:
         """Get previous block hash"""

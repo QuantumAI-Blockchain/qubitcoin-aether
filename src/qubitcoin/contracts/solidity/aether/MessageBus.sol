@@ -11,6 +11,9 @@ contract MessageBus {
     bytes32 public constant MSG_SYNC       = keccak256("SYNC");
     bytes32 public constant MSG_EMERGENCY  = keccak256("EMERGENCY");
 
+    uint256 public constant MAX_PAYLOAD_SIZE = 4096;  // 4 KB max payload
+    uint256 public constant MAX_INBOX_SIZE   = 1000;  // max messages per node inbox
+
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
@@ -104,6 +107,8 @@ contract MessageBus {
     ) external onlyKernel returns (uint256 msgId) {
         require(fromNodeId < 10 && toNodeId < 10, "MessageBus: invalid node");
         require(fee >= baseFee || messageType == MSG_EMERGENCY, "MessageBus: fee too low");
+        require(payload.length <= MAX_PAYLOAD_SIZE, "MessageBus: payload too large");
+        require(nodeInbox[toNodeId].length < MAX_INBOX_SIZE, "MessageBus: inbox full");
 
         msgId = ++messageCount;
         messages[msgId] = Message({

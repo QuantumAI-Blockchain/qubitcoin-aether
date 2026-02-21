@@ -397,6 +397,168 @@ class PhiCalculator:
             'timestamp': time.time(),
         }
 
+    def downsample_phi_measurements(self, retain_days: int = None) -> dict:
+        """
+        Downsample old phi measurements to reduce DB bloat.
+
+        - Rows within retain_days: kept as-is (per-block granularity)
+        - Rows older than retain_days but < 30 days: collapsed to hourly averages
+        - Rows older than 30 days: collapsed to daily averages
+
+        Returns:
+            Dict with counts of rows downsampled and deleted.
+        """
+        if retain_days is None:
+            retain_days = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
+
+        stats = {'hourly_created': 0, 'daily_created': 0, 'rows_deleted': 0}
+
+        try:
+            from sqlalchemy import text
+            import datetime
+
+            now = datetime.datetime.now(datetime.timezone.utc)
+            retain_cutoff = now - datetime.timedelta(days=retain_days)
+            daily_cutoff = now - datetime.timedelta(days=30)
+
+            with self.db.get_session() as session:
+                # --- Phase 1: Collapse retain_days..30 days into hourly averages ---
+                hourly_rows = session.execute(
+                    text("""
+                        SELECT
+                            date_trunc('hour', created_at) AS hour_bucket,
+                            AVG(phi_value) AS avg_phi,
+                            AVG(phi_threshold) AS avg_threshold,
+                            AVG(integration_score) AS avg_int,
+                            AVG(differentiation_score) AS avg_diff,
+                            AVG(num_nodes) AS avg_nodes,
+                            AVG(num_edges) AS avg_edges,
+                            MIN(block_height) AS min_block,
+                            MAX(block_height) AS max_block,
+                            COUNT(*) AS cnt
+                        FROM phi_measurements
+                        WHERE created_at < :retain_cutoff
+                          AND created_at >= :daily_cutoff
+                        GROUP BY date_trunc('hour', created_at)
+                        HAVING COUNT(*) > 1
+                        ORDER BY hour_bucket
+                    """),
+                    {'retain_cutoff': retain_cutoff, 'daily_cutoff': daily_cutoff}
+                )
+                hourly_data = list(hourly_rows)
+
+                for row in hourly_data:
+                    # Insert hourly summary row
+                    session.execute(
+                        text("""
+                            INSERT INTO phi_measurements
+                            (phi_value, phi_threshold, integration_score,
+                             differentiation_score, num_nodes, num_edges, block_height)
+                            VALUES (:phi, :threshold, :int_score, :diff_score,
+                                    :nodes, :edges, :bh)
+                        """),
+                        {
+                            'phi': float(row[1]),
+                            'threshold': float(row[2]),
+                            'int_score': float(row[3]),
+                            'diff_score': float(row[4]),
+                            'nodes': int(row[5]),
+                            'edges': int(row[6]),
+                            'bh': int(row[8]),  # max block_height as representative
+                        }
+                    )
+                    stats['hourly_created'] += 1
+
+                # Delete original per-block rows in the hourly window (keep the new summaries)
+                if hourly_data:
+                    result = session.execute(
+                        text("""
+                            DELETE FROM phi_measurements
+                            WHERE created_at < :retain_cutoff
+                              AND created_at >= :daily_cutoff
+                              AND id NOT IN (
+                                  SELECT MAX(id) FROM phi_measurements
+                                  WHERE created_at < :retain_cutoff
+                                    AND created_at >= :daily_cutoff
+                                  GROUP BY date_trunc('hour', created_at)
+                              )
+                        """),
+                        {'retain_cutoff': retain_cutoff, 'daily_cutoff': daily_cutoff}
+                    )
+                    stats['rows_deleted'] += result.rowcount
+
+                # --- Phase 2: Collapse > 30 days into daily averages ---
+                daily_rows = session.execute(
+                    text("""
+                        SELECT
+                            date_trunc('day', created_at) AS day_bucket,
+                            AVG(phi_value) AS avg_phi,
+                            AVG(phi_threshold) AS avg_threshold,
+                            AVG(integration_score) AS avg_int,
+                            AVG(differentiation_score) AS avg_diff,
+                            AVG(num_nodes) AS avg_nodes,
+                            AVG(num_edges) AS avg_edges,
+                            MIN(block_height) AS min_block,
+                            MAX(block_height) AS max_block,
+                            COUNT(*) AS cnt
+                        FROM phi_measurements
+                        WHERE created_at < :daily_cutoff
+                        GROUP BY date_trunc('day', created_at)
+                        HAVING COUNT(*) > 1
+                        ORDER BY day_bucket
+                    """),
+                    {'daily_cutoff': daily_cutoff}
+                )
+                daily_data = list(daily_rows)
+
+                for row in daily_data:
+                    session.execute(
+                        text("""
+                            INSERT INTO phi_measurements
+                            (phi_value, phi_threshold, integration_score,
+                             differentiation_score, num_nodes, num_edges, block_height)
+                            VALUES (:phi, :threshold, :int_score, :diff_score,
+                                    :nodes, :edges, :bh)
+                        """),
+                        {
+                            'phi': float(row[1]),
+                            'threshold': float(row[2]),
+                            'int_score': float(row[3]),
+                            'diff_score': float(row[4]),
+                            'nodes': int(row[5]),
+                            'edges': int(row[6]),
+                            'bh': int(row[8]),
+                        }
+                    )
+                    stats['daily_created'] += 1
+
+                if daily_data:
+                    result = session.execute(
+                        text("""
+                            DELETE FROM phi_measurements
+                            WHERE created_at < :daily_cutoff
+                              AND id NOT IN (
+                                  SELECT MAX(id) FROM phi_measurements
+                                  WHERE created_at < :daily_cutoff
+                                  GROUP BY date_trunc('day', created_at)
+                              )
+                        """),
+                        {'daily_cutoff': daily_cutoff}
+                    )
+                    stats['rows_deleted'] += result.rowcount
+
+                session.commit()
+
+            if stats['rows_deleted'] > 0:
+                logger.info(
+                    f"Phi downsample: deleted {stats['rows_deleted']} rows, "
+                    f"created {stats['hourly_created']} hourly + {stats['daily_created']} daily summaries"
+                )
+        except Exception as e:
+            logger.debug(f"Phi downsample failed (table may not have created_at): {e}")
+
+        return stats
+
     def get_history(self, limit: int = 50) -> List[dict]:
         """Get recent phi measurement history"""
         try:

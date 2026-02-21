@@ -31,7 +31,28 @@ class AetherEngine:
         self.reasoning = reasoning_engine
         self._pot_cache: Dict[int, ProofOfThought] = {}
         self._pot_cache_max = 1000  # Bound cache to prevent unbounded memory growth
+
+        # Sephirot cognitive nodes — initialized lazily
+        self._sephirot: Optional[dict] = None
+
         logger.info("Aether Engine initialized")
+
+    def _ensure_sephirot(self) -> dict:
+        """Lazily initialize the 10 Sephirot nodes."""
+        if self._sephirot is None:
+            try:
+                from .sephirot_nodes import create_all_nodes
+                self._sephirot = create_all_nodes(self.kg)
+                logger.info(f"Sephirot nodes initialized: {len(self._sephirot)} nodes")
+            except Exception as e:
+                logger.debug(f"Sephirot init failed: {e}")
+                self._sephirot = {}
+        return self._sephirot
+
+    @property
+    def sephirot(self) -> dict:
+        """Get the Sephirot nodes dict."""
+        return self._ensure_sephirot()
 
     def generate_thought_proof(self, block_height: int,
                                validator_address: str) -> Optional[ProofOfThought]:
@@ -223,8 +244,79 @@ class AetherEngine:
             if block.height % 10 == 0:
                 self.kg.propagate_confidence(block_node.node_id)
 
+            # Route messages between Sephirot cognitive nodes
+            if block.height % 5 == 0:
+                self._route_sephirot_messages(block)
+
         except Exception as e:
             logger.debug(f"Error processing block knowledge: {e}")
+
+    def _route_sephirot_messages(self, block) -> int:
+        """
+        Route messages between Sephirot cognitive nodes.
+
+        Processes all 10 nodes in Tree of Life order, drains each node's
+        outbox and delivers messages to target nodes' inboxes.
+        Then runs each node's process() method with block context.
+
+        Returns:
+            Number of messages routed.
+        """
+        from .sephirot import SephirahRole
+
+        sephirot = self.sephirot
+        if not sephirot:
+            return 0
+
+        # Tree of Life processing order (top-down)
+        processing_order = [
+            SephirahRole.KETER,     # Crown — meta-learning
+            SephirahRole.CHOCHMAH,  # Wisdom — intuition
+            SephirahRole.BINAH,     # Understanding — logic
+            SephirahRole.CHESED,    # Mercy — exploration
+            SephirahRole.GEVURAH,   # Severity — safety
+            SephirahRole.TIFERET,   # Beauty — integration
+            SephirahRole.NETZACH,   # Victory — persistence
+            SephirahRole.HOD,       # Splendor — communication
+            SephirahRole.YESOD,     # Foundation — memory
+            SephirahRole.MALKUTH,   # Kingdom — action
+        ]
+
+        # Build block context
+        context = {
+            'block_height': block.height,
+            'timestamp': block.timestamp,
+            'difficulty': block.difficulty,
+            'tx_count': len(block.transactions),
+            'kg_node_count': len(self.kg.nodes) if self.kg else 0,
+            'kg_edge_count': len(self.kg.edges) if self.kg else 0,
+        }
+
+        total_routed = 0
+
+        # Process each node and collect outgoing messages
+        for role in processing_order:
+            node = sephirot.get(role)
+            if not node:
+                continue
+
+            try:
+                node.process(context)
+            except Exception as e:
+                logger.debug(f"Sephirot {role.value} process error: {e}")
+
+            # Drain outbox and deliver to targets
+            outgoing = node.get_outbox()
+            for msg in outgoing:
+                target = sephirot.get(msg.receiver)
+                if target:
+                    target.receive_message(msg)
+                    total_routed += 1
+
+        if total_routed > 0:
+            logger.debug(f"Routed {total_routed} Sephirot messages at block {block.height}")
+
+        return total_routed
 
     def _auto_reason(self, block_height: int) -> List[dict]:
         """

@@ -407,6 +407,9 @@ class KnowledgeDistiller:
             except Exception:
                 pass
 
+        # Cross-reference: link new nodes to existing graph nodes with similar content
+        self._cross_reference(node_ids)
+
         self._distilled_count += len(node_ids)
         if node_ids:
             logger.info(
@@ -414,6 +417,72 @@ class KnowledgeDistiller:
                 f"{llm_response.adapter_type}:{llm_response.model}"
             )
         return node_ids
+
+    def _cross_reference(self, new_node_ids: List[int],
+                         max_refs_per_node: int = 5) -> int:
+        """Link new nodes to existing graph nodes with similar content.
+
+        Uses TF-IDF search to find semantically related existing nodes
+        and creates 'supports' or 'refines' edges between them.
+
+        Args:
+            new_node_ids: IDs of newly created nodes.
+            max_refs_per_node: Max cross-references per new node.
+
+        Returns:
+            Total number of cross-reference edges created.
+        """
+        if not self.kg:
+            return 0
+        try:
+            search_index = getattr(self.kg, 'search_index', None)
+            if not search_index or search_index.n_docs < 10:
+                return 0  # Not enough data for meaningful cross-references
+        except (TypeError, AttributeError):
+            return 0
+
+        total_refs = 0
+        new_ids_set = set(new_node_ids)
+
+        for nid in new_node_ids:
+            node = self.kg.nodes.get(nid)
+            if not node:
+                continue
+
+            text = node.content.get('text', '')
+            if not text:
+                continue
+
+            # Find similar existing nodes via TF-IDF
+            try:
+                matches = self.kg.search(text, top_k=max_refs_per_node + len(new_node_ids))
+            except Exception:
+                continue
+
+            refs_created = 0
+            for match_node, score in matches:
+                if refs_created >= max_refs_per_node:
+                    break
+                # Skip self-references and other new nodes from same batch
+                if match_node.node_id == nid or match_node.node_id in new_ids_set:
+                    continue
+                # Only link if similarity is meaningful
+                if score < 0.15:
+                    break
+
+                # Choose edge type: 'supports' for same type, 'refines' for inference
+                edge_type = 'refines' if node.node_type == 'inference' else 'supports'
+                try:
+                    self.kg.add_edge(nid, match_node.node_id, edge_type=edge_type,
+                                     weight=min(1.0, score))
+                    refs_created += 1
+                    total_refs += 1
+                except Exception:
+                    pass
+
+        if total_refs > 0:
+            logger.info(f"Created {total_refs} cross-references for {len(new_node_ids)} new nodes")
+        return total_refs
 
     @staticmethod
     def _split_sentences(text: str) -> List[str]:

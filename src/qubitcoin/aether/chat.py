@@ -250,10 +250,21 @@ class AetherChat:
         return result
 
     def _search_knowledge(self, query: str) -> List[int]:
-        """Search the knowledge graph for nodes relevant to the query."""
+        """Search the knowledge graph for nodes relevant to the query.
+
+        Uses TF-IDF cosine similarity when the search index is available,
+        falling back to keyword matching otherwise.
+        """
         if not self.engine.kg or not self.engine.kg.nodes:
             return []
-        # Simple keyword matching on node content
+
+        # TF-IDF semantic search (preferred)
+        if hasattr(self.engine.kg, 'search_index') and self.engine.kg.search_index.n_docs > 0:
+            results = self.engine.kg.search(query, top_k=10)
+            if results:
+                return [node.node_id for node, score in results]
+
+        # Fallback: keyword matching
         query_lower = query.lower()
         scored = []
         for node_id, node in self.engine.kg.nodes.items():

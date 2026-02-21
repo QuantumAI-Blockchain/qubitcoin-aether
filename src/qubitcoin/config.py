@@ -202,6 +202,23 @@ class Config:
     LLM_SEEDER_COOLDOWN_SECONDS: int = int(os.getenv('LLM_SEEDER_COOLDOWN_SECONDS', '15'))
 
     # ============================================================================
+    # DB MAINTENANCE / PRUNING
+    # ============================================================================
+    PHI_DOWNSAMPLE_RETAIN_DAYS: int = int(os.getenv('PHI_DOWNSAMPLE_RETAIN_DAYS', '7'))
+    PHI_DOWNSAMPLE_INTERVAL: int = int(os.getenv('PHI_DOWNSAMPLE_INTERVAL', '1000'))
+    PRUNE_CONFIDENCE_THRESHOLD: float = float(os.getenv('PRUNE_CONFIDENCE_THRESHOLD', '0.1'))
+    PRUNE_INTERVAL_BLOCKS: int = int(os.getenv('PRUNE_INTERVAL_BLOCKS', '500'))
+    REASONING_ARCHIVE_RETAIN_BLOCKS: int = int(os.getenv('REASONING_ARCHIVE_RETAIN_BLOCKS', '50000'))
+
+    # ============================================================================
+    # SEPHIROT STAKING
+    # ============================================================================
+    SEPHIROT_STAKER_SHARE_RATIO: float = float(os.getenv('SEPHIROT_STAKER_SHARE_RATIO', '0.6'))
+    SEPHIROT_REWARD_INTERVAL: int = int(os.getenv('SEPHIROT_REWARD_INTERVAL', '100'))
+    SEPHIROT_MIN_STAKE: float = float(os.getenv('SEPHIROT_MIN_STAKE', '100.0'))
+    SEPHIROT_UNSTAKING_DELAY_BLOCKS: int = int(os.getenv('SEPHIROT_UNSTAKING_DELAY_BLOCKS', '183272'))
+
+    # ============================================================================
     # ADMIN API
     # ============================================================================
     ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')
