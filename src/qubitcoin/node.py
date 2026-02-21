@@ -45,6 +45,32 @@ from .utils.metrics import (
     differentiation_score,
     # IPFS
     blockchain_snapshots_total,
+    # Bridge
+    bridge_active_chains, bridge_tvl,
+    # Compliance
+    compliance_policies_total, compliance_blocked_addresses, compliance_circuit_breaker,
+    sanctions_entries_total,
+    # Plugins
+    qvm_plugins_registered, qvm_plugins_active,
+    # QVM Extensions
+    qvm_state_channels_open, qvm_state_channels_tvl, qvm_batch_pending_txs,
+    qvm_decoherence_active, tlac_pending,
+    # Stablecoin
+    qusd_total_supply, qusd_reserve_backing_pct, qusd_active_vaults, qusd_total_debt,
+    # Cognitive Architecture
+    sephirot_active_nodes, csf_queue_depth,
+    pineal_current_phase, pineal_metabolic_rate, pineal_is_conscious,
+    # Fee Collector
+    fees_collected_total, fees_collected_qbc_total,
+    # QUSD Oracle
+    qusd_price_qbc_usd, qusd_oracle_stale,
+    # Capability
+    capability_active_peers, capability_total_mining_power,
+    # IPFS Memory
+    ipfs_memory_cache_size,
+    # Subsystem Health
+    subsystem_bridge_up, subsystem_stablecoin_up, subsystem_compliance_up,
+    subsystem_plugins_up, subsystem_cognitive_up, subsystem_privacy_up,
 )
 
 getcontext().prec = 28
@@ -69,31 +95,31 @@ class QubitcoinNode:
         logger.info("Initializing components...")
 
         # Component 1: Database
-        logger.info("[1/10] Initializing DatabaseManager...")
+        logger.info("[1/22] Initializing DatabaseManager...")
         try:
             self.db = DatabaseManager()
-            logger.info("[1/10] DatabaseManager initialized")
+            logger.info("[1/22] DatabaseManager initialized")
         except Exception as e:
-            logger.error(f"[1/10] DatabaseManager failed: {e}", exc_info=True)
+            logger.error(f"[1/22] DatabaseManager failed: {e}", exc_info=True)
             raise
 
         # Component 2: Quantum Engine
-        logger.info("[2/10] Initializing QuantumEngine...")
+        logger.info("[2/22] Initializing QuantumEngine...")
         try:
             self.quantum = QuantumEngine()
-            logger.info("[2/10] QuantumEngine initialized")
+            logger.info("[2/22] QuantumEngine initialized")
         except Exception as e:
-            logger.error(f"[2/10] QuantumEngine failed: {e}", exc_info=True)
+            logger.error(f"[2/22] QuantumEngine failed: {e}", exc_info=True)
             raise
 
         # Component 3: P2P Network (Python or Rust)
-        logger.info("[3/10] Initializing P2P Network...")
+        logger.info("[3/22] Initializing P2P Network...")
         try:
             if Config.ENABLE_RUST_P2P:
                 logger.info("Using Rust P2P (libp2p 0.56)")
                 self.rust_p2p = RustP2PClient(f"127.0.0.1:{Config.RUST_P2P_GRPC}")
                 self.p2p = None  # Disable Python P2P
-                logger.info("[3/10] Rust P2P client initialized")
+                logger.info("[3/22] Rust P2P client initialized")
             else:
                 logger.info("Using Python P2P (legacy)")
                 self.p2p = P2PNetwork(
@@ -103,43 +129,43 @@ class QubitcoinNode:
                     max_peers=Config.MAX_PEERS
                 )
                 self.rust_p2p = None
-                logger.info("[3/10] Python P2P initialized")
+                logger.info("[3/22] Python P2P initialized")
         except Exception as e:
-            logger.error(f"[3/10] P2P initialization failed: {e}", exc_info=True)
+            logger.error(f"[3/22] P2P initialization failed: {e}", exc_info=True)
             raise
 
         # Component 4: Consensus Engine
-        logger.info("[4/10] Initializing ConsensusEngine...")
+        logger.info("[4/22] Initializing ConsensusEngine...")
         try:
             self.consensus = ConsensusEngine(self.quantum, self.db, self.p2p)
             if self.p2p:
                 self.p2p.consensus = self.consensus
-            logger.info("[4/10] ConsensusEngine initialized")
+            logger.info("[4/22] ConsensusEngine initialized")
         except Exception as e:
-            logger.error(f"[4/10] ConsensusEngine failed: {e}", exc_info=True)
+            logger.error(f"[4/22] ConsensusEngine failed: {e}", exc_info=True)
             raise
 
         # Component 5: IPFS
-        logger.info("[5/10] Initializing IPFSManager...")
+        logger.info("[5/22] Initializing IPFSManager...")
         try:
             self.ipfs = IPFSManager()
-            logger.info("[5/10] IPFSManager initialized")
+            logger.info("[5/22] IPFSManager initialized")
         except Exception as e:
-            logger.error(f"[5/10] IPFSManager failed: {e}", exc_info=True)
+            logger.error(f"[5/22] IPFSManager failed: {e}", exc_info=True)
             raise
 
         # Component 6: QVM State Manager (bytecode VM + state roots)
-        logger.info("[6/10] Initializing QVM StateManager...")
+        logger.info("[6/22] Initializing QVM StateManager...")
         try:
             self.state_manager = StateManager(self.db, self.quantum)
             self.consensus.state_manager = self.state_manager
-            logger.info("[6/10] QVM StateManager initialized (155 opcodes, 10 quantum)")
+            logger.info("[6/22] QVM StateManager initialized (155 opcodes, 10 quantum)")
         except Exception as e:
-            logger.error(f"[6/10] QVM StateManager failed: {e}", exc_info=True)
+            logger.error(f"[6/22] QVM StateManager failed: {e}", exc_info=True)
             raise
 
         # Component 7: Aether Tree (AGI layer)
-        logger.info("[7/10] Initializing Aether Engine...")
+        logger.info("[7/22] Initializing Aether Engine...")
         try:
             self.knowledge_graph = KnowledgeGraph(self.db)
             self.phi_calculator = PhiCalculator(self.db, self.knowledge_graph)
@@ -173,9 +199,9 @@ class QubitcoinNode:
                 except Exception as e:
                     logger.debug(f"Aether genesis init skipped (DB not ready): {e}")
 
-            logger.info("[7/10] Aether Engine initialized (KnowledgeGraph + Phi + Reasoning + PoT)")
+            logger.info("[7/22] Aether Engine initialized (KnowledgeGraph + Phi + Reasoning + PoT)")
         except Exception as e:
-            logger.error(f"[7/10] Aether Engine failed: {e}", exc_info=True)
+            logger.error(f"[7/22] Aether Engine failed: {e}", exc_info=True)
             raise
 
         # Component 7b: LLM Adapters + Knowledge Seeder (optional)
@@ -231,29 +257,237 @@ class QubitcoinNode:
                 self.llm_manager = None
                 self.knowledge_seeder = None
 
-        # Component 8: Mining Engine
-        logger.info("[8/10] Initializing MiningEngine...")
+        # ================================================================
+        # NEW SUBSYSTEM WIRING (Components 8-20) — all non-fatal
+        # ================================================================
+
+        # Component 8: Fee Collector
+        self.fee_collector = None
+        try:
+            from .utils.fee_collector import FeeCollector
+            self.fee_collector = FeeCollector(self.db)
+            logger.info("[8/22] FeeCollector initialized")
+        except Exception as e:
+            logger.warning(f"[8/22] FeeCollector failed (non-fatal): {e}")
+
+        # Component 9: QUSD Oracle
+        self.qusd_oracle = None
+        try:
+            from .utils.qusd_oracle import QUSDOracle
+            self.qusd_oracle = QUSDOracle(self.state_manager)
+            logger.info("[9/22] QUSDOracle initialized")
+        except Exception as e:
+            logger.warning(f"[9/22] QUSDOracle failed (non-fatal): {e}")
+
+        # Component 10: Compliance Engine + AML Monitor
+        self.compliance_engine = None
+        self.aml_monitor = None
+        try:
+            from .qvm.compliance import ComplianceEngine
+            self.compliance_engine = ComplianceEngine(self.db)
+            logger.info("[10/22] ComplianceEngine initialized")
+        except Exception as e:
+            logger.warning(f"[10/22] ComplianceEngine failed (non-fatal): {e}")
+        try:
+            from .qvm.aml import AMLMonitor
+            self.aml_monitor = AMLMonitor()
+            logger.info("[10/22] AMLMonitor initialized")
+        except Exception as e:
+            logger.warning(f"[10/22] AMLMonitor failed (non-fatal): {e}")
+
+        # Component 11: Compliance Proof Store + TLAC + Risk Normalizer
+        self.compliance_proof_store = None
+        self.tlac_manager = None
+        self.risk_normalizer = None
+        try:
+            from .qvm.compliance_proofs import ComplianceProofStore
+            self.compliance_proof_store = ComplianceProofStore()
+            logger.info("[11/22] ComplianceProofStore initialized")
+        except Exception as e:
+            logger.warning(f"[11/22] ComplianceProofStore failed (non-fatal): {e}")
+        try:
+            from .qvm.compliance_advanced import TLACManager
+            self.tlac_manager = TLACManager()
+            logger.info("[11/22] TLACManager initialized")
+        except Exception as e:
+            logger.warning(f"[11/22] TLACManager failed (non-fatal): {e}")
+        try:
+            from .qvm.risk import RiskNormalizer
+            self.risk_normalizer = RiskNormalizer()
+            logger.info("[11/22] RiskNormalizer initialized")
+        except Exception as e:
+            logger.warning(f"[11/22] RiskNormalizer failed (non-fatal): {e}")
+
+        # Component 12: Plugin Manager + register plugins
+        self.plugin_manager = None
+        try:
+            from .qvm.plugins import PluginManager
+            self.plugin_manager = PluginManager()
+            # Register available plugins
+            self._register_plugins()
+            logger.info("[12/22] PluginManager initialized")
+        except Exception as e:
+            logger.warning(f"[12/22] PluginManager failed (non-fatal): {e}")
+
+        # Component 13: QVM Extensions (standalone modules)
+        self.decoherence_manager = None
+        self.transaction_batcher = None
+        self.state_channel_manager = None
+        self.qvm_debugger = None
+        self.qsol_compiler = None
+        self.systemic_risk_model = None
+        self.tx_graph = None
+        try:
+            from .qvm.decoherence import DecoherenceManager
+            self.decoherence_manager = DecoherenceManager()
+        except Exception as e:
+            logger.debug(f"DecoherenceManager init: {e}")
+        try:
+            from .qvm.transaction_batcher import TransactionBatcher
+            self.transaction_batcher = TransactionBatcher()
+        except Exception as e:
+            logger.debug(f"TransactionBatcher init: {e}")
+        try:
+            from .qvm.state_channels import StateChannelManager
+            self.state_channel_manager = StateChannelManager()
+        except Exception as e:
+            logger.debug(f"StateChannelManager init: {e}")
+        try:
+            from .qvm.debugger import QVMDebugger
+            self.qvm_debugger = QVMDebugger()
+        except Exception as e:
+            logger.debug(f"QVMDebugger init: {e}")
+        try:
+            from .qvm.qsol_compiler import QSolCompiler
+            self.qsol_compiler = QSolCompiler()
+        except Exception as e:
+            logger.debug(f"QSolCompiler init: {e}")
+        try:
+            from .qvm.systemic_risk import SystemicRiskModel
+            self.systemic_risk_model = SystemicRiskModel()
+        except Exception as e:
+            logger.debug(f"SystemicRiskModel init: {e}")
+        try:
+            from .qvm.tx_graph import TransactionGraph
+            self.tx_graph = TransactionGraph()
+        except Exception as e:
+            logger.debug(f"TransactionGraph init: {e}")
+        logger.info("[13/22] QVM extensions initialized")
+
+        # Component 14: Stablecoin Engine
+        self.stablecoin_engine = None
+        self.reserve_fee_router = None
+        self.reserve_verifier = None
+        try:
+            from .stablecoin.engine import StablecoinEngine
+            self.stablecoin_engine = StablecoinEngine(self.db, self.quantum)
+            logger.info("[14/22] StablecoinEngine initialized")
+        except Exception as e:
+            logger.warning(f"[14/22] StablecoinEngine failed (non-fatal): {e}")
+        try:
+            from .stablecoin.reserve_manager import ReserveFeeRouter
+            self.reserve_fee_router = ReserveFeeRouter()
+        except Exception as e:
+            logger.debug(f"ReserveFeeRouter init: {e}")
+        try:
+            from .stablecoin.reserve_verification import ReserveVerifier
+            self.reserve_verifier = ReserveVerifier()
+        except Exception as e:
+            logger.debug(f"ReserveVerifier init: {e}")
+
+        # Component 15: Bridge Manager
+        self.bridge_manager = None
+        try:
+            from .bridge.manager import BridgeManager
+            self.bridge_manager = BridgeManager(self.db)
+            logger.info("[15/22] BridgeManager initialized")
+        except Exception as e:
+            logger.warning(f"[15/22] BridgeManager failed (non-fatal): {e}")
+
+        # Component 16: Cognitive Architecture
+        self.sephirot_manager = None
+        self.csf_transport = None
+        self.pineal_orchestrator = None
+        self.safety_manager = None
+        try:
+            from .aether.sephirot import SephirotManager
+            self.sephirot_manager = SephirotManager(self.db, self.state_manager)
+            logger.info("[16/22] SephirotManager initialized")
+        except Exception as e:
+            logger.warning(f"[16/22] SephirotManager failed (non-fatal): {e}")
+        try:
+            from .aether.csf_transport import CSFTransport
+            self.csf_transport = CSFTransport()
+            logger.info("[16/22] CSFTransport initialized")
+        except Exception as e:
+            logger.debug(f"CSFTransport init: {e}")
+        try:
+            from .aether.pineal import PinealOrchestrator
+            if self.sephirot_manager:
+                self.pineal_orchestrator = PinealOrchestrator(self.sephirot_manager)
+                logger.info("[16/22] PinealOrchestrator initialized")
+            else:
+                logger.debug("PinealOrchestrator skipped — SephirotManager not available")
+        except Exception as e:
+            logger.debug(f"PinealOrchestrator init: {e}")
+        try:
+            from .aether.safety import SafetyManager
+            self.safety_manager = SafetyManager()
+            logger.info("[16/22] SafetyManager initialized")
+        except Exception as e:
+            logger.debug(f"SafetyManager init: {e}")
+
+        # Component 17: SPV Verifier
+        self.spv_verifier = None
+        try:
+            from .network.light_node import SPVVerifier
+            self.spv_verifier = SPVVerifier()
+            logger.info("[17/22] SPVVerifier initialized")
+        except Exception as e:
+            logger.debug(f"SPVVerifier init: {e}")
+
+        # Component 18: IPFS Memory Store
+        self.ipfs_memory = None
+        try:
+            from .aether.ipfs_memory import IPFSMemoryStore
+            self.ipfs_memory = IPFSMemoryStore(self.ipfs)
+            logger.info("[18/22] IPFSMemoryStore initialized")
+        except Exception as e:
+            logger.debug(f"IPFSMemoryStore init: {e}")
+
+        # Component 19: Capability Advertiser
+        self.capability_advertiser = None
+        try:
+            from .network.capability_advertisement import CapabilityAdvertiser
+            peer_id = Config.ADDRESS[:16]
+            self.capability_advertiser = CapabilityAdvertiser(node_peer_id=peer_id)
+            logger.info("[19/22] CapabilityAdvertiser initialized")
+        except Exception as e:
+            logger.debug(f"CapabilityAdvertiser init: {e}")
+
+        # Component 20: Mining Engine
+        logger.info("[20/22] Initializing MiningEngine...")
         try:
             self.mining = MiningEngine(self.quantum, self.consensus, self.db, console,
                                        state_manager=self.state_manager,
                                        aether_engine=self.aether)
             self.mining.node = self
-            logger.info("[8/10] MiningEngine initialized")
+            logger.info("[20/22] MiningEngine initialized")
         except Exception as e:
-            logger.error(f"[8/10] MiningEngine failed: {e}", exc_info=True)
+            logger.error(f"[20/22] MiningEngine failed: {e}", exc_info=True)
             raise
 
-        # Component 9: Contract Executor (legacy template contracts)
-        logger.info("[9/10] Initializing ContractExecutor...")
+        # Component 21: Contract Executor (legacy template contracts)
+        logger.info("[21/22] Initializing ContractExecutor...")
         try:
             self.contracts = ContractExecutor(self.db, self.quantum)
-            logger.info("[9/10] ContractExecutor initialized")
+            logger.info("[21/22] ContractExecutor initialized")
         except Exception as e:
-            logger.error(f"[9/10] ContractExecutor failed: {e}", exc_info=True)
+            logger.error(f"[21/22] ContractExecutor failed: {e}", exc_info=True)
             raise
 
-        # Component 10: RPC & Handlers
-        logger.info("[10/10] Initializing RPC and handlers...")
+        # Component 22: RPC & Handlers
+        logger.info("[22/22] Initializing RPC and handlers...")
         try:
             if self.p2p:
                 self._setup_p2p_handlers()
@@ -269,6 +503,33 @@ class QubitcoinNode:
                 aether_engine=self.aether,
                 llm_manager=self.llm_manager,
                 pot_protocol=self.pot_protocol,
+                # New subsystems
+                fee_collector=self.fee_collector,
+                qusd_oracle=self.qusd_oracle,
+                compliance_engine=self.compliance_engine,
+                aml_monitor=self.aml_monitor,
+                compliance_proof_store=self.compliance_proof_store,
+                tlac_manager=self.tlac_manager,
+                risk_normalizer=self.risk_normalizer,
+                plugin_manager=self.plugin_manager,
+                decoherence_manager=self.decoherence_manager,
+                transaction_batcher=self.transaction_batcher,
+                state_channel_manager=self.state_channel_manager,
+                qvm_debugger=self.qvm_debugger,
+                qsol_compiler=self.qsol_compiler,
+                systemic_risk_model=self.systemic_risk_model,
+                tx_graph=self.tx_graph,
+                stablecoin_engine=self.stablecoin_engine,
+                reserve_fee_router=self.reserve_fee_router,
+                reserve_verifier=self.reserve_verifier,
+                bridge_manager=self.bridge_manager,
+                sephirot_manager=self.sephirot_manager,
+                csf_transport=self.csf_transport,
+                pineal_orchestrator=self.pineal_orchestrator,
+                safety_manager=self.safety_manager,
+                spv_verifier=self.spv_verifier,
+                ipfs_memory=self.ipfs_memory,
+                capability_advertiser=self.capability_advertiser,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
@@ -280,12 +541,33 @@ class QubitcoinNode:
             if hasattr(self.app, 'circulation_tracker'):
                 self.mining.circulation_tracker = self.app.circulation_tracker
 
-            logger.info("[10/10] RPC and handlers initialized")
+            logger.info("[22/22] RPC and handlers initialized")
         except Exception as e:
-            logger.error(f"[10/10] RPC initialization failed: {e}", exc_info=True)
+            logger.error(f"[22/22] RPC initialization failed: {e}", exc_info=True)
             raise
 
-        logger.info("All 10 components initialized successfully")
+        logger.info("All 22 components initialized successfully")
+
+    def _register_plugins(self) -> None:
+        """Register QVM plugins (DeFi, Governance, Oracle, Privacy)."""
+        if not self.plugin_manager:
+            return
+        plugin_list = [
+            ('defi', '.qvm.defi_plugin', 'DeFiPlugin'),
+            ('governance', '.qvm.governance_plugin', 'GovernancePlugin'),
+            ('oracle', '.qvm.oracle_plugin', 'OraclePlugin'),
+            ('privacy', '.qvm.privacy_plugin', 'PrivacyPlugin'),
+        ]
+        for name, module_path, class_name in plugin_list:
+            try:
+                import importlib
+                mod = importlib.import_module(module_path, package='qubitcoin')
+                cls = getattr(mod, class_name)
+                plugin = cls()
+                self.plugin_manager.register(plugin)
+                logger.debug(f"Plugin '{name}' registered")
+            except Exception as e:
+                logger.debug(f"Plugin '{name}' registration failed: {e}")
 
     def _setup_p2p_handlers(self):
         """Register handlers for Python P2P messages"""
@@ -522,6 +804,147 @@ class QubitcoinNode:
             if ipfs_stats:
                 blockchain_snapshots_total.set(ipfs_stats.get('snapshots', 0))
 
+            # ============================================================
+            # NEW SUBSYSTEM METRICS
+            # ============================================================
+
+            # Bridge
+            if self.bridge_manager:
+                try:
+                    bridge_active_chains.set(len(self.bridge_manager.bridges))
+                except Exception:
+                    pass
+            subsystem_bridge_up.set(1 if self.bridge_manager else 0)
+
+            # Compliance
+            if self.compliance_engine:
+                try:
+                    policies = self.compliance_engine.list_policies()
+                    compliance_policies_total.set(len(policies))
+                    blocked = sum(1 for p in policies if getattr(p, 'is_blocked', False))
+                    compliance_blocked_addresses.set(blocked)
+                    cb = self.compliance_engine.circuit_breaker
+                    compliance_circuit_breaker.set(1 if getattr(cb, 'is_open', False) else 0)
+                except Exception:
+                    pass
+                if self.aml_monitor:
+                    try:
+                        sanctions_entries_total.set(len(getattr(self.aml_monitor, 'sanctions_list', [])))
+                    except Exception:
+                        pass
+            subsystem_compliance_up.set(1 if self.compliance_engine else 0)
+
+            # Plugins
+            if self.plugin_manager:
+                try:
+                    all_plugins = self.plugin_manager.list_plugins()
+                    qvm_plugins_registered.set(len(all_plugins))
+                    active_count = sum(1 for p in all_plugins if p.get('active', False))
+                    qvm_plugins_active.set(active_count)
+                except Exception:
+                    pass
+            subsystem_plugins_up.set(1 if self.plugin_manager else 0)
+
+            # QVM Extensions
+            if self.state_channel_manager:
+                try:
+                    sc_stats = self.state_channel_manager.get_stats()
+                    qvm_state_channels_open.set(sc_stats.get('open_channels', 0))
+                    qvm_state_channels_tvl.set(float(sc_stats.get('total_locked', 0)))
+                except Exception:
+                    pass
+            if self.transaction_batcher:
+                try:
+                    b_stats = self.transaction_batcher.get_stats()
+                    qvm_batch_pending_txs.set(b_stats.get('pending_transactions', 0))
+                except Exception:
+                    pass
+            if self.decoherence_manager:
+                try:
+                    d_stats = self.decoherence_manager.get_stats()
+                    qvm_decoherence_active.set(d_stats.get('active_states', 0))
+                except Exception:
+                    pass
+            if self.tlac_manager:
+                try:
+                    t_stats = self.tlac_manager.get_stats()
+                    tlac_pending.set(t_stats.get('pending', 0))
+                except Exception:
+                    pass
+
+            # Stablecoin
+            if self.stablecoin_engine:
+                try:
+                    sc_info = self.stablecoin_engine.get_system_health()
+                    qusd_total_supply.set(float(sc_info.get('total_qusd', 0)))
+                    qusd_reserve_backing_pct.set(float(sc_info.get('reserve_backing', 0)))
+                    qusd_active_vaults.set(sc_info.get('active_vaults', 0))
+                    qusd_total_debt.set(float(sc_info.get('cdp_debt', 0)))
+                except Exception:
+                    pass
+            subsystem_stablecoin_up.set(1 if self.stablecoin_engine else 0)
+
+            # Cognitive Architecture
+            if self.sephirot_manager:
+                try:
+                    s_status = self.sephirot_manager.get_status()
+                    sephirot_active_nodes.set(s_status.get('active_nodes', 10))
+                except Exception:
+                    pass
+            if self.csf_transport:
+                try:
+                    csf_stats = self.csf_transport.get_stats()
+                    csf_queue_depth.set(csf_stats.get('queue_depth', 0))
+                except Exception:
+                    pass
+            if self.pineal_orchestrator:
+                try:
+                    p_status = self.pineal_orchestrator.get_status()
+                    pineal_current_phase.set(p_status.get('phase_index', 0))
+                    pineal_metabolic_rate.set(float(p_status.get('metabolic_rate', 1.0)))
+                    pineal_is_conscious.set(1 if p_status.get('is_conscious', False) else 0)
+                except Exception:
+                    pass
+            subsystem_cognitive_up.set(1 if self.sephirot_manager else 0)
+
+            # Fee Collector
+            if self.fee_collector:
+                try:
+                    fc_stats = self.fee_collector.get_stats()
+                    fees_collected_total.inc(0)  # Keep counter alive
+                    fees_collected_qbc_total.inc(0)
+                except Exception:
+                    pass
+
+            # QUSD Oracle
+            if self.qusd_oracle:
+                try:
+                    o_status = self.qusd_oracle.get_status()
+                    qusd_price_qbc_usd.set(float(o_status.get('qbc_usd_price', 0)))
+                    qusd_oracle_stale.set(1 if o_status.get('is_stale', True) else 0)
+                except Exception:
+                    pass
+
+            # Capability
+            if self.capability_advertiser:
+                try:
+                    c_summary = self.capability_advertiser.get_network_summary()
+                    capability_active_peers.set(c_summary.get('total_peers', 0))
+                    capability_total_mining_power.set(float(c_summary.get('total_mining_power', 0)))
+                except Exception:
+                    pass
+
+            # IPFS Memory
+            if self.ipfs_memory:
+                try:
+                    m_stats = self.ipfs_memory.get_stats()
+                    ipfs_memory_cache_size.set(m_stats.get('cache_size', 0))
+                except Exception:
+                    pass
+
+            # Privacy — static classes, always up
+            subsystem_privacy_up.set(1)
+
         except Exception as e:
             logger.error(f"Error in _update_all_metrics: {e}", exc_info=True)
 
@@ -587,6 +1010,27 @@ class QubitcoinNode:
             self.knowledge_seeder.start()
             logger.info("Knowledge seeder started")
 
+        # Initialize bridges (async)
+        if self.bridge_manager:
+            try:
+                await self.bridge_manager.initialize_bridges()
+                logger.info("Bridge manager bridges initialized")
+            except Exception as e:
+                logger.warning(f"Bridge initialization failed (non-fatal): {e}")
+
+        # Seed capability advertiser with VQE capability
+        if self.capability_advertiser:
+            try:
+                from .mining.capability_detector import VQECapabilityDetector
+                detector = VQECapabilityDetector()
+                detector.detect(self.quantum)
+                ad = detector.get_p2p_advertisement()
+                if ad:
+                    self.capability_advertiser.set_local_capability(ad)
+                    logger.info("Capability advertiser seeded with VQE capability")
+            except Exception as e:
+                logger.debug(f"Capability seeding: {e}")
+
         # Start mining
         if Config.AUTO_MINE:
             self.mining.start()
@@ -616,6 +1060,24 @@ class QubitcoinNode:
             self.knowledge_seeder.stop()
 
         self.mining.stop()
+
+        # Shutdown bridges
+        if self.bridge_manager:
+            try:
+                await self.bridge_manager.shutdown()
+            except Exception as e:
+                logger.debug(f"Bridge shutdown: {e}")
+
+        # Stop all plugins
+        if self.plugin_manager:
+            try:
+                for plugin_info in self.plugin_manager.list_plugins():
+                    try:
+                        self.plugin_manager.stop(plugin_info['name'])
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.debug(f"Plugin shutdown: {e}")
 
         if self.rust_p2p:
             self.rust_p2p.disconnect()

@@ -22,7 +22,22 @@ logger = get_logger(__name__)
 def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    quantum_engine, ipfs_manager, contract_engine=None,
                    state_manager=None, aether_engine=None,
-                   llm_manager=None, pot_protocol=None) -> FastAPI:
+                   llm_manager=None, pot_protocol=None,
+                   # New subsystem instances (all optional, backward-compatible)
+                   fee_collector=None, qusd_oracle=None,
+                   compliance_engine=None, aml_monitor=None,
+                   compliance_proof_store=None, tlac_manager=None,
+                   risk_normalizer=None, plugin_manager=None,
+                   decoherence_manager=None, transaction_batcher=None,
+                   state_channel_manager=None, qvm_debugger=None,
+                   qsol_compiler=None, systemic_risk_model=None,
+                   tx_graph=None,
+                   stablecoin_engine=None, reserve_fee_router=None,
+                   reserve_verifier=None, bridge_manager=None,
+                   sephirot_manager=None, csf_transport=None,
+                   pineal_orchestrator=None, safety_manager=None,
+                   spv_verifier=None, ipfs_memory=None,
+                   capability_advertiser=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -37,6 +52,32 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         aether_engine: Aether Tree AGI engine instance (optional)
         llm_manager: LLMAdapterManager instance (optional)
         pot_protocol: ProofOfThoughtProtocol instance (optional)
+        fee_collector: FeeCollector instance (optional)
+        qusd_oracle: QUSDOracle instance (optional)
+        compliance_engine: ComplianceEngine instance (optional)
+        aml_monitor: AMLMonitor instance (optional)
+        compliance_proof_store: ComplianceProofStore instance (optional)
+        tlac_manager: TLACManager instance (optional)
+        risk_normalizer: RiskNormalizer instance (optional)
+        plugin_manager: PluginManager instance (optional)
+        decoherence_manager: DecoherenceManager instance (optional)
+        transaction_batcher: TransactionBatcher instance (optional)
+        state_channel_manager: StateChannelManager instance (optional)
+        qvm_debugger: QVMDebugger instance (optional)
+        qsol_compiler: QSolCompiler instance (optional)
+        systemic_risk_model: SystemicRiskModel instance (optional)
+        tx_graph: TransactionGraph instance (optional)
+        stablecoin_engine: StablecoinEngine instance (optional)
+        reserve_fee_router: ReserveFeeRouter instance (optional)
+        reserve_verifier: ReserveVerifier instance (optional)
+        bridge_manager: BridgeManager instance (optional)
+        sephirot_manager: SephirotManager instance (optional)
+        csf_transport: CSFTransport instance (optional)
+        pineal_orchestrator: PinealOrchestrator instance (optional)
+        safety_manager: SafetyManager instance (optional)
+        spv_verifier: SPVVerifier instance (optional)
+        ipfs_memory: IPFSMemoryStore instance (optional)
+        capability_advertiser: CapabilityAdvertiser instance (optional)
 
     Returns:
         Configured FastAPI app
@@ -162,7 +203,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 "post_quantum_crypto": "Dilithium2",
                 "consensus": "Proof-of-SUSY-Alignment + Proof-of-Thought",
                 "p2p_networking": True,
-                "chain_id": Config.CHAIN_ID
+                "chain_id": Config.CHAIN_ID,
+                "bridge": bridge_manager is not None,
+                "stablecoin": stablecoin_engine is not None,
+                "compliance": compliance_engine is not None or _compliance_engine is not None,
+                "plugins": plugin_manager is not None,
+                "cognitive_architecture": sephirot_manager is not None,
+                "privacy": True,
+                "fee_collector": fee_collector is not None,
+                "spv_verifier": spv_verifier is not None,
             }
         }
 
@@ -186,7 +235,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "contracts": contract_engine is not None,
             "qvm": state_manager is not None,
             "aether_tree": aether_engine is not None,
-            "p2p": p2p_status
+            "p2p": p2p_status,
+            "bridge": bridge_manager is not None,
+            "stablecoin": stablecoin_engine is not None,
+            "compliance": _compliance_engine is not None,
+            "plugins": plugin_manager is not None,
+            "cognitive": sephirot_manager is not None,
+            "privacy": True,
+            "fee_collector": fee_collector is not None,
+            "spv_verifier": spv_verifier is not None,
         }
 
     @app.get("/info")
@@ -1398,11 +1455,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if _chat_state['chat'] is None:
             from ..aether.chat import AetherChat
             from ..aether.fee_manager import AetherFeeManager
-            fee_mgr = AetherFeeManager()
+            fee_mgr = AetherFeeManager(oracle_provider=qusd_oracle)
             _chat_state['fee_mgr'] = fee_mgr
             _chat_state['chat'] = AetherChat(
                 aether_engine, db_manager, fee_mgr,
                 llm_manager=llm_manager,
+                fee_collector=fee_collector,
             )
         return _chat_state['chat'], _chat_state['fee_mgr']
 
@@ -2527,7 +2585,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
 
     from ..qvm.compliance_proofs import ComplianceProofStore
-    _proof_store = ComplianceProofStore()
+    _proof_store = compliance_proof_store if compliance_proof_store is not None else ComplianceProofStore()
     app.proof_store = _proof_store  # type: ignore[attr-defined]
 
     @app.get("/qvm/compliance/proofs/stats")
@@ -2646,7 +2704,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # COMPLIANCE POLICY ENDPOINTS (PCP — Programmable Compliance Policies)
     # ========================================================================
     from ..qvm.compliance import ComplianceEngine, KYCLevel
-    _compliance_engine = ComplianceEngine(db_manager)
+    _compliance_engine = compliance_engine if compliance_engine is not None else ComplianceEngine(db_manager)
 
     from ..qvm.regulatory_reports import RegulatoryReportGenerator
     _report_gen = RegulatoryReportGenerator(_compliance_engine, _proof_store)
@@ -2834,7 +2892,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     from .capability_advertisement import CapabilityAdvertiser
     _node_peer_id = getattr(Config, 'ADDRESS', 'unknown')[:16]
-    _cap_advertiser = CapabilityAdvertiser(node_peer_id=_node_peer_id)
+    _cap_advertiser = capability_advertiser if capability_advertiser is not None else CapabilityAdvertiser(node_peer_id=_node_peer_id)
     app.state.capability_advertiser = _cap_advertiser
 
     # Seed local capability from detector
@@ -2949,12 +3007,761 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return record.to_dict()
 
     # ========================================================================
+    # BRIDGE ENDPOINTS
+    # ========================================================================
+
+    @app.get("/bridge/stats")
+    async def bridge_stats():
+        """Get bridge statistics across all chains."""
+        if not bridge_manager:
+            return {"error": "Bridge not available", "chains": [], "totals": {}}
+        return await bridge_manager.get_all_stats()
+
+    @app.get("/bridge/chains")
+    async def bridge_chains():
+        """Get list of supported bridge chains."""
+        if not bridge_manager:
+            return {"chains": []}
+        return {"chains": await bridge_manager.get_supported_chains()}
+
+    class BridgeDepositRequest(BaseModel):
+        chain: str
+        qbc_txid: str
+        qbc_address: str
+        target_address: str
+        amount: str
+
+    @app.post("/bridge/deposit")
+    async def bridge_deposit(req: BridgeDepositRequest):
+        """Initiate a bridge deposit (QBC → target chain)."""
+        if not bridge_manager:
+            raise HTTPException(status_code=503, detail="Bridge not available")
+        from ..bridge.base import ChainType
+        try:
+            chain_type = ChainType(req.chain.lower())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Unsupported chain: {req.chain}")
+        tx_hash = await bridge_manager.process_deposit(
+            chain_type, req.qbc_txid, req.qbc_address,
+            req.target_address, Decimal(req.amount),
+        )
+        if not tx_hash:
+            raise HTTPException(status_code=500, detail="Deposit failed")
+        return {"tx_hash": tx_hash, "chain": req.chain, "amount": req.amount}
+
+    @app.get("/bridge/balance/{chain}/{address}")
+    async def bridge_balance(chain: str, address: str):
+        """Get wQBC balance on a target chain."""
+        if not bridge_manager:
+            raise HTTPException(status_code=503, detail="Bridge not available")
+        from ..bridge.base import ChainType
+        try:
+            chain_type = ChainType(chain.lower())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Unsupported chain: {chain}")
+        balance = await bridge_manager.get_balance(chain_type, address)
+        return {"chain": chain, "address": address, "balance": str(balance)}
+
+    @app.get("/bridge/fees/{chain}/{amount}")
+    async def bridge_fees(chain: str, amount: str):
+        """Estimate bridge fees for a transfer."""
+        if not bridge_manager:
+            raise HTTPException(status_code=503, detail="Bridge not available")
+        from ..bridge.base import ChainType
+        try:
+            chain_type = ChainType(chain.lower())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Unsupported chain: {chain}")
+        fees = await bridge_manager.estimate_fees(chain_type, Decimal(amount))
+        return fees
+
+    @app.post("/bridge/pause/{chain}")
+    async def bridge_pause(chain: str):
+        """Pause a specific bridge chain (admin)."""
+        if not bridge_manager:
+            raise HTTPException(status_code=503, detail="Bridge not available")
+        from ..bridge.base import ChainType
+        try:
+            chain_type = ChainType(chain.lower())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Unsupported chain: {chain}")
+        await bridge_manager.pause_bridge(chain_type)
+        return {"paused": True, "chain": chain}
+
+    @app.post("/bridge/resume/{chain}")
+    async def bridge_resume(chain: str):
+        """Resume a paused bridge chain (admin)."""
+        if not bridge_manager:
+            raise HTTPException(status_code=503, detail="Bridge not available")
+        from ..bridge.base import ChainType
+        try:
+            chain_type = ChainType(chain.lower())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Unsupported chain: {chain}")
+        await bridge_manager.resume_bridge(chain_type)
+        return {"resumed": True, "chain": chain}
+
+    # ========================================================================
+    # PRIVACY ENDPOINTS
+    # ========================================================================
+
+    @app.post("/privacy/commitment/create")
+    async def privacy_commitment_create(request: Request):
+        """Create a Pedersen commitment for a value."""
+        body = await request.json()
+        value = int(body.get('value', 0))
+        from ..privacy.commitments import PedersenCommitment
+        commitment = PedersenCommitment.commit(value)
+        return {"commitment": commitment.commitment.hex(), "blinding": commitment.blinding.hex()}
+
+    @app.post("/privacy/commitment/verify")
+    async def privacy_commitment_verify(request: Request):
+        """Verify a Pedersen commitment."""
+        body = await request.json()
+        from ..privacy.commitments import PedersenCommitment
+        valid = PedersenCommitment.verify(
+            bytes.fromhex(body['commitment']),
+            int(body['value']),
+            bytes.fromhex(body['blinding']),
+        )
+        return {"valid": valid}
+
+    @app.post("/privacy/range-proof/generate")
+    async def privacy_range_proof_generate(request: Request):
+        """Generate a Bulletproof range proof."""
+        body = await request.json()
+        value = int(body.get('value', 0))
+        from ..privacy.range_proofs import RangeProofGenerator
+        gen = RangeProofGenerator()
+        proof = gen.generate(value)
+        return {"proof": proof.to_dict() if hasattr(proof, 'to_dict') else str(proof)}
+
+    @app.post("/privacy/range-proof/verify")
+    async def privacy_range_proof_verify(request: Request):
+        """Verify a Bulletproof range proof."""
+        body = await request.json()
+        from ..privacy.range_proofs import RangeProofGenerator
+        gen = RangeProofGenerator()
+        valid = gen.verify(body['proof'])
+        return {"valid": valid}
+
+    @app.post("/privacy/stealth/generate-keypair")
+    async def privacy_stealth_keygen():
+        """Generate a stealth address keypair (spend + view)."""
+        from ..privacy.stealth import StealthAddressManager
+        mgr = StealthAddressManager()
+        keypair = mgr.generate_keypair()
+        return keypair
+
+    @app.post("/privacy/stealth/create-output")
+    async def privacy_stealth_output(request: Request):
+        """Create a stealth output for a recipient."""
+        body = await request.json()
+        from ..privacy.stealth import StealthAddressManager
+        mgr = StealthAddressManager()
+        output = mgr.create_output(
+            recipient_spend_pub=body['recipient_spend_pub'],
+            recipient_view_pub=body['recipient_view_pub'],
+        )
+        return output
+
+    @app.post("/privacy/tx/build")
+    async def privacy_tx_build(request: Request):
+        """Build a confidential (Susy Swap) transaction."""
+        body = await request.json()
+        from ..privacy.susy_swap import SusySwapBuilder
+        builder = SusySwapBuilder()
+        tx = builder.build(
+            inputs=body.get('inputs', []),
+            outputs=body.get('outputs', []),
+            sender_address=body.get('sender_address', ''),
+        )
+        return tx
+
+    # ========================================================================
+    # PLUGIN ENDPOINTS
+    # ========================================================================
+
+    @app.get("/qvm/plugins")
+    async def list_qvm_plugins():
+        """List all registered QVM plugins."""
+        if not plugin_manager:
+            return {"plugins": []}
+        return {"plugins": plugin_manager.list_plugins()}
+
+    @app.get("/qvm/plugins/{name}")
+    async def get_qvm_plugin(name: str):
+        """Get details of a specific QVM plugin."""
+        if not plugin_manager:
+            raise HTTPException(status_code=503, detail="Plugin manager not available")
+        plugins = plugin_manager.list_plugins()
+        match = [p for p in plugins if p.get('name') == name]
+        if not match:
+            raise HTTPException(status_code=404, detail=f"Plugin '{name}' not found")
+        return match[0]
+
+    @app.post("/qvm/plugins/{name}/start")
+    async def start_qvm_plugin(name: str):
+        """Start a registered QVM plugin."""
+        if not plugin_manager:
+            raise HTTPException(status_code=503, detail="Plugin manager not available")
+        success = plugin_manager.start(name)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to start plugin '{name}'")
+        return {"started": True, "name": name}
+
+    @app.post("/qvm/plugins/{name}/stop")
+    async def stop_qvm_plugin(name: str):
+        """Stop a running QVM plugin."""
+        if not plugin_manager:
+            raise HTTPException(status_code=503, detail="Plugin manager not available")
+        success = plugin_manager.stop(name)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to stop plugin '{name}'")
+        return {"stopped": True, "name": name}
+
+    @app.get("/qvm/plugins/defi/stats")
+    async def defi_plugin_stats():
+        """Get DeFi plugin statistics (lending, DEX, staking)."""
+        if not plugin_manager:
+            return {"error": "Plugin manager not available"}
+        plugins = plugin_manager.list_plugins()
+        defi = [p for p in plugins if p.get('name') == 'DeFiPlugin']
+        if not defi:
+            return {"error": "DeFi plugin not registered"}
+        return defi[0]
+
+    @app.get("/qvm/plugins/governance/proposals")
+    async def governance_proposals():
+        """Get governance plugin proposals."""
+        if not plugin_manager:
+            return {"proposals": []}
+        try:
+            meta = plugin_manager.registry.get('GovernancePlugin')
+            if meta and meta.instance:
+                return {"proposals": [p.to_dict() for p in meta.instance.list_proposals()]}
+        except Exception as e:
+            logger.debug(f"Governance proposals: {e}")
+        return {"proposals": []}
+
+    @app.post("/qvm/plugins/governance/propose")
+    async def governance_propose(request: Request):
+        """Submit a governance proposal."""
+        if not plugin_manager:
+            raise HTTPException(status_code=503, detail="Plugin manager not available")
+        body = await request.json()
+        try:
+            meta = plugin_manager.registry.get('GovernancePlugin')
+            if not meta or not meta.instance:
+                raise HTTPException(status_code=503, detail="Governance plugin not active")
+            proposal = meta.instance.create_proposal(
+                proposer=body.get('proposer', ''),
+                description=body.get('description', ''),
+                proposal_type=body.get('type', 'general'),
+            )
+            return proposal.to_dict() if hasattr(proposal, 'to_dict') else {"id": str(proposal)}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/qvm/plugins/governance/vote")
+    async def governance_vote(request: Request):
+        """Vote on a governance proposal."""
+        if not plugin_manager:
+            raise HTTPException(status_code=503, detail="Plugin manager not available")
+        body = await request.json()
+        try:
+            meta = plugin_manager.registry.get('GovernancePlugin')
+            if not meta or not meta.instance:
+                raise HTTPException(status_code=503, detail="Governance plugin not active")
+            result = meta.instance.vote(
+                proposal_id=body.get('proposal_id', ''),
+                voter=body.get('voter', ''),
+                approve=body.get('approve', True),
+                weight=body.get('weight', 1.0),
+            )
+            return {"voted": True, "result": result}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # ========================================================================
+    # COMPLIANCE EXTENDED ENDPOINTS
+    # ========================================================================
+
+    @app.get("/qvm/compliance/aml/alerts")
+    async def compliance_aml_alerts():
+        """Get recent AML alerts."""
+        if not aml_monitor:
+            return {"alerts": []}
+        try:
+            return {"alerts": aml_monitor.get_recent_alerts()}
+        except Exception:
+            return {"alerts": []}
+
+    @app.get("/qvm/compliance/risk/{address}")
+    async def compliance_risk_score(address: str):
+        """Get normalized risk score for an address."""
+        if not risk_normalizer:
+            return {"address": address, "risk_score": 0.0, "error": "Risk normalizer not available"}
+        try:
+            score = risk_normalizer.normalize(address)
+            return {"address": address, "risk_score": score}
+        except Exception as e:
+            return {"address": address, "risk_score": 0.0, "error": str(e)}
+
+    @app.get("/qvm/compliance/tlac/transactions")
+    async def compliance_tlac_transactions():
+        """Get pending TLAC (Time-Locked Atomic Compliance) transactions."""
+        if not tlac_manager:
+            return {"transactions": []}
+        try:
+            return {"transactions": tlac_manager.list_pending()}
+        except Exception:
+            return {"transactions": []}
+
+    @app.post("/qvm/compliance/tlac/create")
+    async def compliance_tlac_create(request: Request):
+        """Create a new TLAC transaction."""
+        if not tlac_manager:
+            raise HTTPException(status_code=503, detail="TLAC manager not available")
+        body = await request.json()
+        try:
+            tx = tlac_manager.create_transaction(
+                sender=body.get('sender', ''),
+                recipient=body.get('recipient', ''),
+                amount=body.get('amount', 0),
+                jurisdictions=body.get('jurisdictions', []),
+                timeout_blocks=body.get('timeout_blocks', 100),
+            )
+            return tx.to_dict() if hasattr(tx, 'to_dict') else {"id": str(tx)}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/qvm/compliance/graph/{address}")
+    async def compliance_tx_graph(address: str):
+        """Get transaction graph analysis for an address."""
+        if not tx_graph:
+            return {"address": address, "graph": {}, "error": "Transaction graph not available"}
+        try:
+            result = tx_graph.analyze(address)
+            return {"address": address, "graph": result}
+        except Exception as e:
+            return {"address": address, "graph": {}, "error": str(e)}
+
+    @app.get("/qvm/compliance/systemic-risk/{address}")
+    async def compliance_systemic_risk(address: str):
+        """Get systemic risk assessment for an address."""
+        if not systemic_risk_model:
+            return {"address": address, "risk": {}, "error": "Systemic risk model not available"}
+        try:
+            result = systemic_risk_model.assess(address)
+            return {"address": address, "risk": result}
+        except Exception as e:
+            return {"address": address, "risk": {}, "error": str(e)}
+
+    # ========================================================================
+    # QVM EXTENSION ENDPOINTS
+    # ========================================================================
+
+    @app.get("/qvm/decoherence/states")
+    async def qvm_decoherence_states():
+        """Get active decoherence-tracked quantum states."""
+        if not decoherence_manager:
+            return {"states": [], "error": "Decoherence manager not available"}
+        return decoherence_manager.get_stats()
+
+    @app.get("/qvm/tokens/list")
+    async def qvm_tokens_list_all():
+        """List all tracked tokens (from token indexer)."""
+        if hasattr(app, 'token_indexer'):
+            return {"tokens": app.token_indexer.get_all_tokens()}
+        return {"tokens": []}
+
+    @app.get("/qvm/tokens/balances/{address}")
+    async def qvm_token_balances(address: str):
+        """Get all token balances for an address."""
+        if hasattr(app, 'token_indexer'):
+            tokens = app.token_indexer.get_address_tokens(address)
+            return {"address": address, "tokens": tokens}
+        return {"address": address, "tokens": []}
+
+    @app.get("/qvm/batcher/stats")
+    async def qvm_batcher_stats():
+        """Get transaction batcher statistics."""
+        if not transaction_batcher:
+            return {"error": "Transaction batcher not available"}
+        return transaction_batcher.get_stats()
+
+    @app.get("/qvm/channels")
+    async def qvm_state_channels():
+        """Get all state channels."""
+        if not state_channel_manager:
+            return {"channels": [], "error": "State channel manager not available"}
+        return state_channel_manager.get_stats()
+
+    @app.get("/qvm/channels/{channel_id}")
+    async def qvm_state_channel_detail(channel_id: str):
+        """Get details of a specific state channel."""
+        if not state_channel_manager:
+            raise HTTPException(status_code=503, detail="State channel manager not available")
+        channel = state_channel_manager.get_channel(channel_id)
+        if not channel:
+            raise HTTPException(status_code=404, detail="Channel not found")
+        return channel.to_dict() if hasattr(channel, 'to_dict') else channel
+
+    @app.post("/qvm/debug/load")
+    async def qvm_debug_load(request: Request):
+        """Load bytecode into the QVM debugger."""
+        if not qvm_debugger:
+            raise HTTPException(status_code=503, detail="QVM debugger not available")
+        body = await request.json()
+        bytecode = bytes.fromhex(body.get('bytecode', ''))
+        qvm_debugger.load(bytecode)
+        return {"loaded": True, "bytecode_size": len(bytecode)}
+
+    @app.post("/qvm/debug/step")
+    async def qvm_debug_step():
+        """Step one instruction in the QVM debugger."""
+        if not qvm_debugger:
+            raise HTTPException(status_code=503, detail="QVM debugger not available")
+        result = qvm_debugger.step()
+        return result
+
+    @app.get("/qvm/debug/state")
+    async def qvm_debug_state():
+        """Get current QVM debugger state (stack, memory, PC)."""
+        if not qvm_debugger:
+            raise HTTPException(status_code=503, detail="QVM debugger not available")
+        return qvm_debugger.get_state()
+
+    @app.post("/qvm/compile")
+    async def qvm_compile(request: Request):
+        """Compile QSol (Quantum Solidity) source to bytecode."""
+        if not qsol_compiler:
+            raise HTTPException(status_code=503, detail="QSol compiler not available")
+        body = await request.json()
+        source = body.get('source', '')
+        try:
+            result = qsol_compiler.compile(source)
+            return result
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Compilation error: {e}")
+
+    # ========================================================================
+    # STABLECOIN ENDPOINTS
+    # ========================================================================
+
+    @app.get("/qusd/health")
+    async def qusd_health():
+        """Get QUSD stablecoin system health."""
+        if not stablecoin_engine:
+            return {"error": "Stablecoin engine not available", "total_qusd": 0}
+        return stablecoin_engine.get_system_health()
+
+    @app.get("/qusd/vaults/at-risk")
+    async def qusd_vaults_at_risk():
+        """Get vaults at risk of liquidation."""
+        if not stablecoin_engine:
+            return {"vaults": []}
+        return {"vaults": stablecoin_engine.check_vault_health()}
+
+    class QUSDMintRequest(BaseModel):
+        user_address: str
+        collateral_amount: str
+        collateral_type: str = "QBC"
+
+    @app.post("/qusd/mint")
+    async def qusd_mint(req: QUSDMintRequest):
+        """Mint QUSD by depositing collateral."""
+        if not stablecoin_engine:
+            raise HTTPException(status_code=503, detail="Stablecoin engine not available")
+        height = db_manager.get_current_height()
+        success, msg, vault_id = stablecoin_engine.mint_qusd(
+            req.user_address, Decimal(req.collateral_amount),
+            req.collateral_type, height,
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=msg)
+        return {"success": True, "message": msg, "vault_id": vault_id}
+
+    class QUSDBurnRequest(BaseModel):
+        user_address: str
+        amount: str
+        vault_id: str
+
+    @app.post("/qusd/burn")
+    async def qusd_burn(req: QUSDBurnRequest):
+        """Burn QUSD to redeem collateral."""
+        if not stablecoin_engine:
+            raise HTTPException(status_code=503, detail="Stablecoin engine not available")
+        height = db_manager.get_current_height()
+        success, msg = stablecoin_engine.burn_qusd(
+            req.user_address, Decimal(req.amount), req.vault_id, height,
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=msg)
+        return {"success": True, "message": msg}
+
+    @app.get("/qusd/reserves/inflows")
+    async def qusd_reserve_inflows():
+        """Get reserve fee inflows."""
+        if not reserve_fee_router:
+            return {"inflows": []}
+        try:
+            return reserve_fee_router.get_stats()
+        except Exception:
+            return {"inflows": []}
+
+    @app.get("/qusd/reserves/milestones")
+    async def qusd_reserve_milestones():
+        """Get reserve backing milestones."""
+        if not reserve_verifier:
+            return {"milestones": []}
+        try:
+            return reserve_verifier.get_stats()
+        except Exception:
+            return {"milestones": []}
+
+    @app.get("/qusd/reserves/verification")
+    async def qusd_reserve_verification():
+        """Get reserve verification status."""
+        if not reserve_verifier:
+            return {"verified": False, "error": "Reserve verifier not available"}
+        try:
+            return reserve_verifier.get_stats()
+        except Exception as e:
+            return {"verified": False, "error": str(e)}
+
+    @app.get("/qusd/cross-chain")
+    async def qusd_cross_chain():
+        """Get cross-chain QUSD (wQUSD) status."""
+        return {
+            "wrapped_token": "wQUSD",
+            "supported_chains": ["ETH", "SOL", "MATIC", "BNB", "AVAX", "ARB", "OP", "ATOM"],
+            "bridge_available": bridge_manager is not None,
+        }
+
+    # ========================================================================
+    # COGNITIVE ARCHITECTURE ENDPOINTS
+    # ========================================================================
+
+    @app.get("/aether/cognitive/sephirot/nodes")
+    async def cognitive_sephirot_nodes():
+        """Get all Sephirot node states from the cognitive architecture."""
+        if not sephirot_manager:
+            return {"nodes": {}, "error": "Sephirot manager not available"}
+        return sephirot_manager.get_status()
+
+    @app.get("/aether/cognitive/sephirot/{role}")
+    async def cognitive_sephirot_role(role: str):
+        """Get a specific Sephirot node by role name."""
+        if not sephirot_manager:
+            raise HTTPException(status_code=503, detail="Sephirot manager not available")
+        try:
+            status = sephirot_manager.get_status()
+            if role in status:
+                return status[role]
+            # Try matching by name
+            for key, val in status.items():
+                if isinstance(val, dict) and val.get('name', '').lower() == role.lower():
+                    return val
+            raise HTTPException(status_code=404, detail=f"Sephirot node '{role}' not found")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/aether/cognitive/csf/stats")
+    async def cognitive_csf_stats():
+        """Get CSF (Cerebrospinal Fluid) transport statistics."""
+        if not csf_transport:
+            return {"error": "CSF transport not available", "queue_size": 0}
+        return csf_transport.get_stats()
+
+    @app.get("/aether/cognitive/pineal/status")
+    async def cognitive_pineal_status():
+        """Get Pineal Orchestrator status (circadian phase, metabolic rate, consciousness)."""
+        if not pineal_orchestrator:
+            return {"phase": "waking", "metabolic_rate": 1.0, "is_conscious": False,
+                    "error": "Pineal orchestrator not available"}
+        return pineal_orchestrator.get_status()
+
+    @app.post("/aether/cognitive/pineal/tick")
+    async def cognitive_pineal_tick(request: Request):
+        """Manually advance the Pineal Orchestrator by one tick."""
+        if not pineal_orchestrator:
+            raise HTTPException(status_code=503, detail="Pineal orchestrator not available")
+        body = await request.json()
+        block_height = body.get('block_height', db_manager.get_current_height())
+        phi_value = body.get('phi_value', 0.0)
+        result = pineal_orchestrator.tick(block_height, phi_value)
+        return result
+
+    @app.get("/aether/cognitive/safety/stats")
+    async def cognitive_safety_stats():
+        """Get safety manager statistics (vetoes, evaluations, shutdown status)."""
+        if not safety_manager:
+            return {"error": "Safety manager not available"}
+        return safety_manager.get_stats()
+
+    @app.post("/aether/cognitive/safety/evaluate")
+    async def cognitive_safety_evaluate(request: Request):
+        """Evaluate an action through the safety pipeline."""
+        if not safety_manager:
+            raise HTTPException(status_code=503, detail="Safety manager not available")
+        body = await request.json()
+        allowed, veto = safety_manager.evaluate_and_decide(
+            action_description=body.get('action', ''),
+            source_node=body.get('source_node', ''),
+            target_node=body.get('target_node', ''),
+            block_height=body.get('block_height', 0),
+        )
+        result = {"allowed": allowed}
+        if veto:
+            result["veto"] = veto.to_dict() if hasattr(veto, 'to_dict') else str(veto)
+        return result
+
+    # ========================================================================
+    # LIGHT NODE / SPV ENDPOINTS
+    # ========================================================================
+
+    @app.post("/light/verify-tx")
+    async def light_verify_tx(request: Request):
+        """Verify a transaction via SPV (Merkle proof)."""
+        if not spv_verifier:
+            raise HTTPException(status_code=503, detail="SPV verifier not available")
+        body = await request.json()
+        from ..network.light_node import MerkleProof
+        proof = MerkleProof(
+            tx_hash=body.get('tx_hash', ''),
+            merkle_root=body.get('merkle_root', ''),
+            siblings=body.get('siblings', []),
+            index=body.get('index', 0),
+            block_height=body.get('block_height', 0),
+        )
+        result = spv_verifier.verify_merkle_proof(proof)
+        return {"valid": result, "tx_hash": body.get('tx_hash', '')}
+
+    @app.get("/light/headers/{start}/{end}")
+    async def light_headers(start: int, end: int):
+        """Get block headers for light node sync."""
+        if end - start > 1000:
+            raise HTTPException(status_code=400, detail="Range too large (max 1000)")
+        headers = []
+        for h in range(start, min(end, start + 1000)):
+            block = db_manager.get_block(h)
+            if block:
+                headers.append({
+                    "height": block.height,
+                    "hash": block.hash,
+                    "prev_hash": block.prev_hash,
+                    "merkle_root": getattr(block, 'merkle_root', ''),
+                    "timestamp": block.timestamp,
+                    "difficulty": getattr(block, 'difficulty_target', 0),
+                })
+        return {"headers": headers, "count": len(headers)}
+
+    # ========================================================================
+    # FEE ENDPOINTS
+    # ========================================================================
+
+    @app.get("/fees/audit")
+    async def fees_audit():
+        """Get fee collection audit trail."""
+        if not fee_collector:
+            return {"audit": [], "error": "Fee collector not available"}
+        try:
+            return fee_collector.get_stats()
+        except Exception:
+            return {"audit": []}
+
+    @app.get("/fees/total")
+    async def fees_total():
+        """Get total fees collected."""
+        if not fee_collector:
+            return {"total_qbc": "0", "error": "Fee collector not available"}
+        try:
+            stats = fee_collector.get_stats()
+            return {"total_qbc": str(stats.get('total_collected', 0))}
+        except Exception:
+            return {"total_qbc": "0"}
+
+    @app.get("/fees/stats")
+    async def fees_stats():
+        """Get fee collector statistics."""
+        if not fee_collector:
+            return {"error": "Fee collector not available"}
+        return fee_collector.get_stats()
+
+    # ========================================================================
+    # ORACLE ENDPOINTS
+    # ========================================================================
+
+    @app.get("/oracle/qbc-usd")
+    async def oracle_qbc_usd():
+        """Get current QBC/USD price from oracle."""
+        if not qusd_oracle:
+            from ..utils.qusd_oracle import QUSDOracle
+            fallback = QUSDOracle(state_manager)
+            return fallback.get_status()
+        return qusd_oracle.get_status()
+
+    @app.get("/oracle/status")
+    async def oracle_status():
+        """Get oracle health status."""
+        if not qusd_oracle:
+            return {"active": False, "error": "QUSD oracle not available"}
+        status = qusd_oracle.get_status()
+        status['active'] = True
+        return status
+
+    # ========================================================================
+    # IPFS MEMORY ENDPOINTS
+    # ========================================================================
+
+    @app.get("/aether/memory/stats")
+    async def aether_memory_stats():
+        """Get IPFS memory store statistics."""
+        if not ipfs_memory:
+            return {"error": "IPFS memory store not available"}
+        return ipfs_memory.get_stats()
+
+    @app.post("/aether/memory/store")
+    async def aether_memory_store(request: Request):
+        """Store a memory to IPFS."""
+        if not ipfs_memory:
+            raise HTTPException(status_code=503, detail="IPFS memory store not available")
+        body = await request.json()
+        cid = ipfs_memory.store_memory(
+            memory_id=body.get('memory_id', ''),
+            memory_type=body.get('memory_type', 'episodic'),
+            content=body.get('content', {}),
+            source_block=body.get('source_block', 0),
+            confidence=body.get('confidence', 1.0),
+            metadata=body.get('metadata'),
+        )
+        return {"cid": cid}
+
+    @app.get("/aether/memory/{cid}")
+    async def aether_memory_retrieve(cid: str):
+        """Retrieve a memory from IPFS by CID."""
+        if not ipfs_memory:
+            raise HTTPException(status_code=503, detail="IPFS memory store not available")
+        memory = ipfs_memory.retrieve_memory(cid)
+        if not memory:
+            raise HTTPException(status_code=404, detail="Memory not found")
+        return memory
+
+    # ========================================================================
     # ADMIN API (Economics hot-reload)
     # ========================================================================
 
     from .admin_api import router as admin_router
     app.include_router(admin_router)
 
-    logger.info("RPC endpoints configured (v2.0 with P2P + QVM + Aether + WebSocket + Admin)")
+    logger.info("RPC endpoints configured (v2.0 with P2P + QVM + Aether + WebSocket + Admin + 12 subsystems)")
 
     return app
