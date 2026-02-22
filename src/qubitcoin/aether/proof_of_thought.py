@@ -20,6 +20,14 @@ class AetherEngine:
     Main Aether Tree engine that orchestrates all AGI-layer components.
     Integrates KnowledgeGraph, PhiCalculator, ReasoningEngine, and
     Proof-of-Thought consensus into the QBC block pipeline.
+
+    AGI subsystems (Improvements #2-#9):
+    - GATReasoner: Neural reasoning over knowledge graph (#2)
+    - CausalDiscovery: Causal edge discovery via PC algorithm (#3)
+    - DebateProtocol: Adversarial debate between Sephirot (#5)
+    - TemporalEngine: Time-series analysis and prediction (#6)
+    - ConceptFormation: Hierarchical concept abstraction (#8)
+    - MetacognitiveLoop: Reasoning quality self-evaluation (#9)
     """
 
     def __init__(self, db_manager, knowledge_graph=None, phi_calculator=None,
@@ -41,7 +49,57 @@ class AetherEngine:
         # ConsciousnessDashboard — wired after RPC app creation (see node.py)
         self.consciousness_dashboard = None
 
-        logger.info("Aether Engine initialized")
+        # --- AGI Improvement Subsystems ---
+        # #2: Graph Attention Network Reasoner
+        self.neural_reasoner = None
+        try:
+            from .neural_reasoner import GATReasoner
+            self.neural_reasoner = GATReasoner()
+        except Exception as e:
+            logger.debug(f"GATReasoner init failed: {e}")
+
+        # #3: Causal Discovery Engine
+        self.causal_engine = None
+        try:
+            from .causal_engine import CausalDiscovery
+            self.causal_engine = CausalDiscovery(knowledge_graph)
+        except Exception as e:
+            logger.debug(f"CausalDiscovery init failed: {e}")
+
+        # #5: Adversarial Debate Protocol
+        self.debate_protocol = None
+        try:
+            from .debate import DebateProtocol
+            self.debate_protocol = DebateProtocol(knowledge_graph)
+        except Exception as e:
+            logger.debug(f"DebateProtocol init failed: {e}")
+
+        # #6: Temporal Reasoning Engine
+        self.temporal_engine = None
+        try:
+            from .temporal import TemporalEngine
+            self.temporal_engine = TemporalEngine(knowledge_graph)
+        except Exception as e:
+            logger.debug(f"TemporalEngine init failed: {e}")
+
+        # #8: Concept Formation
+        self.concept_formation = None
+        try:
+            from .concept_formation import ConceptFormation
+            vector_index = knowledge_graph.vector_index if knowledge_graph else None
+            self.concept_formation = ConceptFormation(knowledge_graph, vector_index)
+        except Exception as e:
+            logger.debug(f"ConceptFormation init failed: {e}")
+
+        # #9: Metacognitive Self-Evaluation Loop
+        self.metacognition = None
+        try:
+            from .metacognition import MetacognitiveLoop
+            self.metacognition = MetacognitiveLoop(knowledge_graph)
+        except Exception as e:
+            logger.debug(f"MetacognitiveLoop init failed: {e}")
+
+        logger.info("Aether Engine initialized (with AGI subsystems)")
 
     def _ensure_sephirot(self) -> dict:
         """Lazily initialize the 10 Sephirot nodes and restore saved state."""
@@ -128,21 +186,18 @@ class AetherEngine:
         # Log consciousness event if Phi crosses threshold
         from .phi_calculator import PHI_THRESHOLD
         if phi_value >= PHI_THRESHOLD:
-            trigger = {'reasoning_steps': len(reasoning_steps)}
-            # Post-fork: include gate data in consciousness events
-            if phi_result.get('phi_version') == 2:
-                trigger['gates_passed'] = phi_result.get('gates_passed', 0)
-                trigger['gates_total'] = phi_result.get('gates_total', 6)
-                trigger['gate_ceiling'] = phi_result.get('gate_ceiling', 0)
-                trigger['phi_raw'] = phi_result.get('phi_raw', phi_value)
+            trigger = {
+                'reasoning_steps': len(reasoning_steps),
+                'gates_passed': phi_result.get('gates_passed', 0),
+                'gates_total': phi_result.get('gates_total', 10),
+                'gate_ceiling': phi_result.get('gate_ceiling', 0),
+                'phi_raw': phi_result.get('phi_raw', phi_value),
+            }
             self._record_consciousness_event(
                 'phi_threshold_crossed', phi_value, block_height, trigger
             )
 
-        # Enhanced logging with gate info post-fork
-        gate_info = ''
-        if phi_result.get('phi_version') == 2:
-            gate_info = f", gates={phi_result.get('gates_passed', 0)}/{phi_result.get('gates_total', 6)}"
+        gate_info = f", gates={phi_result.get('gates_passed', 0)}/{phi_result.get('gates_total', 10)}"
         logger.info(
             f"Thought proof generated: Phi={phi_value:.4f}, "
             f"steps={len(reasoning_steps)}, root={knowledge_root[:12]}...{gate_info}"
@@ -294,6 +349,55 @@ class AetherEngine:
             # Find analogies during REM-like phases (every 500 blocks)
             if block.height > 0 and block.height % 500 == 0 and self.reasoning and self.kg:
                 self._dream_analogies(block.height)
+
+            # --- AGI Improvement Subsystems ---
+
+            # #3: Causal discovery sweep every 200 blocks
+            if block.height > 0 and block.height % 200 == 0 and self.causal_engine:
+                try:
+                    self.causal_engine.discover_all_domains(block.height)
+                except Exception as e:
+                    logger.debug(f"Causal discovery error: {e}")
+
+            # #5: Adversarial debate on recent inferences every 100 blocks
+            if block.height > 0 and block.height % 100 == 0 and self.debate_protocol:
+                try:
+                    self.debate_protocol.run_periodic_debates(block.height)
+                except Exception as e:
+                    logger.debug(f"Debate protocol error: {e}")
+
+            # #6: Temporal reasoning every block
+            if self.temporal_engine:
+                try:
+                    temporal_data = {
+                        'difficulty': block.difficulty,
+                        'tx_count': len(block.transactions),
+                        'knowledge_nodes': len(self.kg.nodes) if self.kg else 0,
+                        'knowledge_edges': len(self.kg.edges) if self.kg else 0,
+                    }
+                    if self.phi:
+                        try:
+                            phi_data = self.phi.compute_phi(block.height)
+                            temporal_data['phi_value'] = phi_data.get('phi_value', 0)
+                        except Exception:
+                            pass
+                    self.temporal_engine.process_block(block.height, temporal_data)
+                except Exception as e:
+                    logger.debug(f"Temporal engine error: {e}")
+
+            # #8: Concept formation every 500 blocks
+            if block.height > 0 and block.height % 500 == 0 and self.concept_formation:
+                try:
+                    self.concept_formation.form_concepts_all_domains(block.height)
+                except Exception as e:
+                    logger.debug(f"Concept formation error: {e}")
+
+            # #9: Metacognition every block (lightweight)
+            if self.metacognition:
+                try:
+                    self.metacognition.process_block(block.height)
+                except Exception as e:
+                    logger.debug(f"Metacognition error: {e}")
 
             # Archive old consciousness events every 5000 blocks
             if block.height > 0 and block.height % 5000 == 0:
@@ -455,6 +559,29 @@ class AetherEngine:
                 result = self.reasoning.abduce(low_conf[0].node_id)
                 if result.success:
                     steps.extend([s.to_dict() for s in result.chain])
+
+            # #2: Neural reasoning via GATReasoner (complement rule-based)
+            if (self.neural_reasoner and self.kg
+                    and hasattr(self.kg, 'vector_index') and self.kg.vector_index):
+                try:
+                    recent_ids = [n.node_id for n in recent_observations[:3]]
+                    if recent_ids:
+                        neural_result = self.neural_reasoner.reason(
+                            self.kg, self.kg.vector_index, recent_ids
+                        )
+                        if neural_result.get('confidence', 0) > 0.3:
+                            steps.append({
+                                'step_type': 'neural_reasoning',
+                                'content': {
+                                    'method': 'gat_neural',
+                                    'confidence': neural_result['confidence'],
+                                    'attended_nodes': len(neural_result.get('attended_nodes', [])),
+                                    'suggested_edge': neural_result.get('suggested_edge_type', ''),
+                                },
+                                'confidence': neural_result['confidence'],
+                            })
+                except Exception as e:
+                    logger.debug(f"Neural reasoning error: {e}")
 
         except Exception as e:
             logger.debug(f"Auto-reasoning error: {e}")
@@ -964,13 +1091,31 @@ class AetherEngine:
         phi_result = self.phi.compute_phi() if self.phi else {}
         reasoning_stats = self.reasoning.get_stats() if self.reasoning else {}
 
-        return {
+        stats = {
             'knowledge_graph': kg_stats,
             'phi': {
                 'current_value': phi_result.get('phi_value', 0.0),
                 'threshold': phi_result.get('phi_threshold', 3.0),
                 'above_threshold': phi_result.get('above_threshold', False),
+                'version': phi_result.get('phi_version', 3),
+                'gates_passed': phi_result.get('gates_passed', 0),
             },
             'reasoning': reasoning_stats,
             'thought_proofs_generated': len(self._pot_cache),
         }
+
+        # AGI subsystem stats
+        if self.neural_reasoner:
+            stats['neural_reasoner'] = self.neural_reasoner.get_stats()
+        if self.causal_engine:
+            stats['causal_engine'] = self.causal_engine.get_stats()
+        if self.debate_protocol:
+            stats['debate_protocol'] = self.debate_protocol.get_stats()
+        if self.temporal_engine:
+            stats['temporal_engine'] = self.temporal_engine.get_stats()
+        if self.concept_formation:
+            stats['concept_formation'] = self.concept_formation.get_stats()
+        if self.metacognition:
+            stats['metacognition'] = self.metacognition.get_stats()
+
+        return stats

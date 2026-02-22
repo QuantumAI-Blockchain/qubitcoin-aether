@@ -1182,8 +1182,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         gates = phi_data.get('gates', [])
         return {
             'block_height': height,
-            'phi_version': phi_data.get('phi_version', 1),
-            'fork_height': Config.PHI_FORK_HEIGHT,
+            'phi_version': phi_data.get('phi_version', 3),
             'gates_passed': phi_data.get('gates_passed', 0),
             'gates_total': phi_data.get('gates_total', len(gates)),
             'gate_ceiling': phi_data.get('gate_ceiling', 0.0),

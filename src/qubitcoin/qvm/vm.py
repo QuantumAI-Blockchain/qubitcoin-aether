@@ -945,6 +945,37 @@ class QVM:
                 # Non-zero proof_hash from a known chain → valid
                 ctx.push(1 if proof_hash != 0 and source_chain != 0 else 0)
 
+            elif op == Opcode.QREASON:
+                # Query Aether reasoning engine from smart contract
+                # Stack: query_node_id, max_depth → confidence (scaled 10^18)
+                query_node = ctx.pop()
+                max_depth = ctx.pop()
+                # Returns confidence * 10^18 for fixed-point representation
+                # Default: 0.5 confidence when no Aether engine is available
+                confidence_scaled = 500000000000000000  # 0.5 * 10^18
+                if hasattr(self, '_aether_engine') and self._aether_engine:
+                    try:
+                        result = self._aether_engine.reasoning.chain_of_thought(
+                            [query_node], max_depth=min(max_depth, 10)
+                        )
+                        if result.success:
+                            confidence_scaled = int(result.confidence * 10**18)
+                    except Exception:
+                        pass
+                ctx.push(confidence_scaled & MAX_UINT256)
+
+            elif op == Opcode.QPHI:
+                # Read current Phi consciousness metric
+                # Stack: → phi_value (scaled 10^18)
+                phi_scaled = 0
+                if hasattr(self, '_aether_engine') and self._aether_engine:
+                    try:
+                        phi_data = self._aether_engine.phi.compute_phi()
+                        phi_scaled = int(phi_data.get('phi_value', 0) * 10**18)
+                    except Exception:
+                        pass
+                ctx.push(phi_scaled & MAX_UINT256)
+
             # ================================================================
             # SYSTEM
             # ================================================================

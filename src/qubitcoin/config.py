@@ -122,7 +122,7 @@ class Config:
     # true) and further increases can't speed up mining — compute time is the
     # bottleneck.  The adjustment algorithm holds steady above this value.
     DIFFICULTY_MEANINGFUL_MAX: float = float(os.getenv('DIFFICULTY_MEANINGFUL_MAX', 10.0))
-    PHI_FORK_HEIGHT: int = int(os.getenv('PHI_FORK_HEIGHT', 3100))
+    # PHI_FORK_HEIGHT removed — v3 is the only formula (DB reset + new genesis)
     COINBASE_MATURITY: int = 100  # Coinbase outputs unspendable for 100 blocks
     MAX_FUTURE_BLOCK_TIME: int = 7200  # Max seconds a block timestamp can be in the future
     CONFIRMATION_DEPTH: int = 180  # Wait 180 blocks (~10 min) for finality
