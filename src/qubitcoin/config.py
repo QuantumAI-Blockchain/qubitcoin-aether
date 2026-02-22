@@ -132,7 +132,7 @@ class Config:
     # MINING SETTINGS (Production - Hardcoded)
     # ============================================================================
     MINING_INTERVAL: int = 1  # Attempt every 1 second (VQE + wait)
-    AUTO_MINE: bool = True  # Always enabled in production
+    AUTO_MINE: bool = os.getenv('AUTO_MINE', 'true').lower() == 'true'
 
     # ============================================================================
     # SMART CONTRACT SETTINGS

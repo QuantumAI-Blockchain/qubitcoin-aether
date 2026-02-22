@@ -1570,6 +1570,33 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             stats["seeder"] = node.knowledge_seeder.get_stats()
         return stats
 
+    @app.post("/aether/llm/seed")
+    async def trigger_seed(domain: Optional[str] = None):
+        """Trigger a manual knowledge seed. Optionally specify a domain."""
+        node = getattr(app, 'node', None)
+        if not node or not getattr(node, 'knowledge_seeder', None):
+            raise HTTPException(status_code=503, detail="Knowledge seeder not available")
+        result = node.knowledge_seeder.seed_once(domain)
+        if result:
+            return {"status": "ok", **result}
+        return {"status": "skipped", "reason": "rate limited or no prompt available"}
+
+    @app.post("/aether/llm/seed-batch")
+    async def trigger_seed_batch(count: int = 10):
+        """Trigger multiple seeds in sequence. Max 50."""
+        import asyncio
+        node = getattr(app, 'node', None)
+        if not node or not getattr(node, 'knowledge_seeder', None):
+            raise HTTPException(status_code=503, detail="Knowledge seeder not available")
+        count = min(count, 50)
+        results = []
+        for i in range(count):
+            result = node.knowledge_seeder.seed_once()
+            if result:
+                results.append(result)
+            await asyncio.sleep(0.1)  # yield to event loop
+        return {"seeded": len(results), "total_requested": count, "results": results}
+
     # ========================================================================
     # WALLET ENDPOINTS — UTXO-to-Account Bridge & Native Wallet
     # ========================================================================
