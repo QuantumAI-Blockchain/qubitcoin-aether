@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title UpgradeGovernor — Protocol Upgrade Governance
 /// @notice Propose, vote, and execute upgrades to Aether Tree contracts.
 ///         Voting period + timelock ensures community review before any change.
-contract UpgradeGovernor {
+contract UpgradeGovernor is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant VOTING_PERIOD   = 7 days;
     uint256 public constant TIMELOCK_PERIOD = 48 hours;
@@ -12,6 +14,7 @@ contract UpgradeGovernor {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     uint256 public proposalCount;
+    address public proxyAdmin;
 
     enum UpgradeStatus { Proposed, Voting, Approved, Rejected, Executed, Canceled }
 
@@ -45,9 +48,10 @@ contract UpgradeGovernor {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor() {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _proxyAdmin) external initializer {
         owner = msg.sender;
+        proxyAdmin = _proxyAdmin;
     }
 
     // ─── Proposals ───────────────────────────────────────────────────────
@@ -110,6 +114,15 @@ contract UpgradeGovernor {
         require(block.timestamp >= p.executeAfter, "Governor: timelock active");
 
         p.status = UpgradeStatus.Executed;
+
+        // Wire upgrade to ProxyAdmin
+        if (proxyAdmin != address(0)) {
+            (bool ok,) = proxyAdmin.call(
+                abi.encodeWithSignature("upgrade(address,address)", p.targetContract, p.newImplementation)
+            );
+            require(ok, "Governor: upgrade failed");
+        }
+
         emit UpgradeExecuted(proposalId, p.targetContract, p.newImplementation);
     }
 

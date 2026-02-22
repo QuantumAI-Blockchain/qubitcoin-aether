@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title QUSDGovernance — Reserve Management Governance
 /// @notice QUSD holders create and vote on proposals for reserve management.
 ///         48-hour timelock on execution. Emergency bypass via multi-sig.
-contract QUSDGovernance {
+contract QUSDGovernance is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant TIMELOCK_DURATION = 48 hours;
     uint256 public constant VOTING_PERIOD     = 7 days;
@@ -57,8 +59,8 @@ contract QUSDGovernance {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _qusdToken, uint256 _minBalance, uint256 _emergencyThreshold) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _qusdToken, uint256 _minBalance, uint256 _emergencyThreshold) external initializer {
         owner              = msg.sender;
         qusdToken          = _qusdToken;
         minProposalBalance = _minBalance;

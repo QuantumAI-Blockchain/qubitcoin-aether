@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title ProofOfThought — Proof-of-Thought Validation Contract
 /// @notice Validates reasoning proofs from Sephirot nodes. Requires 67% validator consensus.
 ///         Each proof is linked to a block height and contains the solution + quantum proof hash.
-contract ProofOfThought {
+contract ProofOfThought is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant CONSENSUS_THRESHOLD_BPS = 6700; // 67%
     uint256 public constant BPS_DENOM = 10000;
@@ -49,8 +51,8 @@ contract ProofOfThought {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel, address _validatorRegistry) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel, address _validatorRegistry) external initializer {
         owner             = msg.sender;
         kernel            = _kernel;
         validatorRegistry = _validatorRegistry;

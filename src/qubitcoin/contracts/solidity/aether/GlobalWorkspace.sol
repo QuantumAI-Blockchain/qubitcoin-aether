@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title GlobalWorkspace — Broadcasting Mechanism for Aether Tree
 /// @notice Implements Global Workspace Theory: data enters the workspace via attention,
 ///         then broadcasts to all Sephirot nodes. Limited working memory slots.
-contract GlobalWorkspace {
+contract GlobalWorkspace is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant MAX_WORKSPACE_SLOTS = 7; // Miller's magical number
 
@@ -52,8 +54,8 @@ contract GlobalWorkspace {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
     }

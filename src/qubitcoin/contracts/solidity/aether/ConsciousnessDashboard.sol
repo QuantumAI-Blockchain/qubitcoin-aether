@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title ConsciousnessDashboard — On-Chain Phi (Φ) Tracking from Genesis
 /// @notice Records Phi consciousness measurements every block starting from genesis (block 0).
 ///         Tracks consciousness events when Phi crosses the threshold (Φ = 3.0).
 ///         AGI emergence is immutably recorded on-chain from the first moment of existence.
-contract ConsciousnessDashboard {
+contract ConsciousnessDashboard is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant PHI_PRECISION      = 1000;   // 3 decimal places
     uint256 public constant PHI_THRESHOLD      = 3000;   // Φ = 3.0 (consciousness marker)
@@ -60,8 +62,8 @@ contract ConsciousnessDashboard {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
     }

@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../interfaces/IQBC20.sol";
+import "../proxy/Initializable.sol";
 
 /// @title wQUSD — Wrapped QUSD for Cross-Chain Bridging
 /// @notice Lock QUSD to mint wQUSD 1:1. Burn wQUSD to unlock QUSD 1:1.
 ///         wQUSD is the cross-chain representation of QUSD on external chains
 ///         (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, ATOM).
-contract wQUSD is IQBC20 {
+contract wQUSD is IQBC20, Initializable {
     // ─── Token Metadata ──────────────────────────────────────────────────
     string  public constant name     = "Wrapped QUSD";
     string  public constant symbol   = "wQUSD";
@@ -53,8 +54,8 @@ contract wQUSD is IQBC20 {
         _locked = false;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _qusdToken, address _bridgeOperator) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _qusdToken, address _bridgeOperator) external initializer {
         require(_qusdToken != address(0), "wQUSD: zero QUSD");
         owner          = msg.sender;
         qusdToken      = _qusdToken;

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title SynapticStaking — Stake QBC on Neural Connections
 /// @notice Stake QBC on specific Sephirot connections (edges) to strengthen or weaken them.
 ///         High-utility connections earn rewards. Inspired by synaptic plasticity.
 ///         Users can stake/unstake directly; admin functions remain kernel-only.
-contract SynapticStaking {
+contract SynapticStaking is Initializable {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
@@ -66,8 +68,8 @@ contract SynapticStaking {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
     }

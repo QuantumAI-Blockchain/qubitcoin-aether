@@ -2,11 +2,12 @@
 pragma solidity ^0.8.24;
 
 import "../interfaces/IQBC721.sol";
+import "../proxy/Initializable.sol";
 
 /// @title QBC721 — Reference Implementation of QBC-721 Non-Fungible Token Standard
 /// @notice ERC-721 compatible NFT standard for the Qubitcoin QVM.
 ///         Use this as a base for deploying NFTs on QBC chain.
-contract QBC721 is IQBC721 {
+contract QBC721 is IQBC721, Initializable {
     string public name;
     string public symbol;
     address public owner;
@@ -26,7 +27,7 @@ contract QBC721 is IQBC721 {
         _;
     }
 
-    constructor(string memory _name, string memory _symbol) {
+    function initialize(string memory _name, string memory _symbol) external initializer {
         name   = _name;
         symbol = _symbol;
         owner  = msg.sender;

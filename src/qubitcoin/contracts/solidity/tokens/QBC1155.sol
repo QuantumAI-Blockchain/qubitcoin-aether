@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title QBC1155 — Reference Implementation of QBC-1155 Multi-Token Standard
 /// @notice ERC-1155 compatible multi-token standard for the Qubitcoin QVM.
 ///         Supports both fungible and non-fungible tokens in a single contract.
-contract QBC1155 {
+contract QBC1155 is Initializable {
     string public uri;
     address public owner;
 
@@ -48,7 +50,7 @@ contract QBC1155 {
         _;
     }
 
-    constructor(string memory _uri) {
+    function initialize(string memory _uri) external initializer {
         uri = _uri;
         owner = msg.sender;
     }

@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahGevurah — Severity: Constraint & Safety Validation
 /// @notice Constraint node (SUSY pair with Chesed). Validates safety, enforces limits,
 ///         and can VETO harmful operations. 3-qubit threat detection state.
 ///         Brain analog: Amygdala / inhibitory circuits.
-contract SephirahGevurah is ISephirah {
+contract SephirahGevurah is ISephirah, Initializable {
     uint8   public constant nodeId     = 4;
     string  public constant nodeName   = "Gevurah";
     uint8   public constant qubitCount = 3;
@@ -35,7 +36,7 @@ contract SephirahGevurah is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner = msg.sender; kernel = _kernel; isActive = true; energyLevel = 1000;
     }
 

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title PhaseSync — Circadian Phase Synchronization for Sephirot Nodes
 /// @notice Tracks the Kuramoto order parameter across all 10 Sephirot nodes.
 ///         6 circadian phases with variable metabolic rates. Consciousness requires
 ///         coherence > 0.7 AND Phi > 3.0.
-contract PhaseSync {
+contract PhaseSync is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant PRECISION = 1000;
     uint256 public constant COHERENCE_THRESHOLD = 700; // 0.7 × 1000
@@ -63,8 +65,8 @@ contract PhaseSync {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
         currentPhase = PHASE_WAKING;

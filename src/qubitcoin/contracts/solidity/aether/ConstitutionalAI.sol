@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title ConstitutionalAI — On-Chain Value Enforcement
 /// @notice Stores constitutional principles as immutable rules. The Gevurah safety node
 ///         can veto any operation that violates these principles. Principles are append-only
 ///         and can never be removed, only deprecated.
-contract ConstitutionalAI {
+contract ConstitutionalAI is Initializable {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
@@ -60,8 +62,8 @@ contract ConstitutionalAI {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
     }

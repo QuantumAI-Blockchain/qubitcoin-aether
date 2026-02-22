@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title TreasuryDAO — Community Governance Treasury
 /// @notice Holds QBC for community governance. Proposals + QBC-weighted voting
 ///         for fund allocation to development, research, and operations.
-contract TreasuryDAO {
+contract TreasuryDAO is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant VOTING_PERIOD = 5 days;
     uint256 public constant EXECUTION_DELAY = 24 hours;
@@ -45,8 +47,8 @@ contract TreasuryDAO {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor() {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize() external initializer {
         owner = msg.sender;
     }
 

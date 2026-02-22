@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title TaskMarket — Reasoning Task Marketplace
 /// @notice Submit reasoning tasks with QBC bounties. Sephirot nodes claim and solve tasks.
 ///         Minimum bounty: 1 QBC. Solutions validated via ProofOfThought.
-contract TaskMarket {
+contract TaskMarket is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant MIN_BOUNTY = 1 * 10**8; // 1 QBC (8 decimals)
 
@@ -45,8 +47,8 @@ contract TaskMarket {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
     }

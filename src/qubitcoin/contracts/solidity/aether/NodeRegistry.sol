@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title NodeRegistry — Sephirot Node Registry for Aether Tree
 /// @notice Stores all 10 Sephirot node contract addresses, types, quantum state hashes,
 ///         and SUSY pair mappings. Central directory for the Tree of Life architecture.
-contract NodeRegistry {
+contract NodeRegistry is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint8 public constant MAX_NODES = 10;
     uint256 public constant PHI = 1618; // φ × 1000
@@ -58,8 +60,8 @@ contract NodeRegistry {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
     }

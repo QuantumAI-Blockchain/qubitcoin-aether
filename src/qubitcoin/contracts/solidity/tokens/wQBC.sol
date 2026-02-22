@@ -2,13 +2,14 @@
 pragma solidity ^0.8.24;
 
 import "../interfaces/IQBC20.sol";
+import "../proxy/Initializable.sol";
 
 /// @title wQBC — Wrapped QBC for Cross-Chain Bridging
 /// @notice Lock-and-mint on destination chains (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE).
 ///         Bridge operator mints wQBC 1:1 when QBC is locked on the QBC chain.
 ///         Bridge operator burns wQBC when user redeems back to native QBC.
 ///         0.1% bridge fee (10 bps) deducted on wrap/unwrap operations.
-contract wQBC is IQBC20 {
+contract wQBC is IQBC20, Initializable {
     // ─── Token Metadata ──────────────────────────────────────────────────
     string  public constant name     = "Wrapped Qubitcoin";
     string  public constant symbol   = "wQBC";
@@ -70,8 +71,8 @@ contract wQBC is IQBC20 {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _bridgeOperator, address _feeRecipient) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _bridgeOperator, address _feeRecipient) external initializer {
         require(_bridgeOperator != address(0), "wQBC: zero bridge");
         require(_feeRecipient != address(0), "wQBC: zero fee recipient");
         owner          = msg.sender;

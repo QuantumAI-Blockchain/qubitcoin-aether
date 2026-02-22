@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title ERC20QC — Compliance-Aware Fungible Token Standard for Qubitcoin QVM
 /// @notice Extends QBC-20 with VM-level compliance enforcement. Every transfer
 ///         is checked against the QCOMPLIANCE opcode (0xF5) before execution.
 ///         Supports KYC level requirements, address freezing, and compliance officer role.
-contract ERC20QC {
+contract ERC20QC is Initializable {
     string  public name;
     string  public symbol;
-    uint8   public immutable decimals;
+    uint8   public decimals;
     uint256 public totalSupply;
     address public owner;
     address public complianceOfficer;
@@ -60,20 +62,20 @@ contract ERC20QC {
         _;
     }
 
-    // ─── Constructor ────────────────────────────────────────────────────
+    // ─── Initializer ───────────────────────────────────────────────────
 
     /// @param _name Token name
     /// @param _symbol Token symbol
     /// @param _decimals Token decimals
     /// @param initialSupply Initial supply minted to deployer
     /// @param _requiredKYCLevel Minimum KYC level (0-3) for transfers
-    constructor(
+    function initialize(
         string memory _name,
         string memory _symbol,
         uint8  _decimals,
         uint256 initialSupply,
         uint8  _requiredKYCLevel
-    ) {
+    ) external initializer {
         require(_requiredKYCLevel <= 3, "ERC20QC: invalid KYC level");
 
         name              = _name;

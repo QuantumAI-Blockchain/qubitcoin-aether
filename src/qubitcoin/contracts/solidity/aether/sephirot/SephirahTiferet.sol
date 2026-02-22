@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahTiferet — Beauty: Integration & Conflict Resolution
 /// @notice The central integrator of the Tree of Life. Resolves conflicts between
 ///         expansion and constraint nodes, synthesizes knowledge. 12-qubit state (largest).
 ///         Brain analog: Thalamocortical loops.
-contract SephirahTiferet is ISephirah {
+contract SephirahTiferet is ISephirah, Initializable {
     uint8   public constant nodeId     = 5;
     string  public constant nodeName   = "Tiferet";
     uint8   public constant qubitCount = 12;
@@ -35,7 +36,7 @@ contract SephirahTiferet is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner = msg.sender; kernel = _kernel; isActive = true; energyLevel = 1618;
     }
 

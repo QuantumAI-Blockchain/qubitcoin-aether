@@ -2,14 +2,15 @@
 pragma solidity ^0.8.24;
 
 import "../interfaces/IQBC20.sol";
+import "../proxy/Initializable.sol";
 
 /// @title QBC20 — Reference Implementation of QBC-20 Fungible Token Standard
 /// @notice ERC-20 compatible token standard for the Qubitcoin QVM.
 ///         Use this as a base for deploying fungible tokens on QBC chain.
-contract QBC20 is IQBC20 {
+contract QBC20 is IQBC20, Initializable {
     string  public name;
     string  public symbol;
-    uint8   public immutable decimals;
+    uint8   public decimals;
     uint256 public totalSupply;
     address public owner;
 
@@ -23,12 +24,12 @@ contract QBC20 is IQBC20 {
         _;
     }
 
-    constructor(
+    function initialize(
         string memory _name,
         string memory _symbol,
         uint8  _decimals,
         uint256 initialSupply
-    ) {
+    ) external initializer {
         name     = _name;
         symbol   = _symbol;
         decimals = _decimals;

@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahNetzach — Eternity: Reinforcement Learning & Habits
 /// @notice Expansion node (SUSY pair with Hod). Learns from experience,
 ///         builds habits, and optimizes policy through reinforcement. 5-qubit state.
 ///         Brain analog: Basal ganglia.
-contract SephirahNetzach is ISephirah {
+contract SephirahNetzach is ISephirah, Initializable {
     uint8   public constant nodeId     = 6;
     string  public constant nodeName   = "Netzach";
     uint8   public constant qubitCount = 5;
@@ -35,7 +36,7 @@ contract SephirahNetzach is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner = msg.sender; kernel = _kernel; isActive = true; energyLevel = 1618;
     }
 

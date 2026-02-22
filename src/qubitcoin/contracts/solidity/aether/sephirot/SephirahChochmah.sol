@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahChochmah — Wisdom: Intuition & Pattern Discovery
 /// @notice Expansion node (SUSY pair with Binah). Discovers patterns and generates
 ///         novel ideas through quantum superposition. 6-qubit state.
 ///         Brain analog: Right hemisphere.
-contract SephirahChochmah is ISephirah {
+contract SephirahChochmah is ISephirah, Initializable {
     uint8   public constant nodeId     = 1;
     string  public constant nodeName   = "Chochmah";
     uint8   public constant qubitCount = 6;
@@ -33,7 +34,7 @@ contract SephirahChochmah is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner = msg.sender; kernel = _kernel; isActive = true; energyLevel = 1618; // expansion node: higher energy
     }
 

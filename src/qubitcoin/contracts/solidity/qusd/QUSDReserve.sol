@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title QUSDReserve — Multi-Asset Reserve Pool for QUSD Backing
 /// @notice Holds reserves (QBC, ETH, BTC, USDT, USDC, DAI) that back QUSD.
 ///         All deposits reduce QUSD outstanding debt. Governance-only withdrawal.
-contract QUSDReserve {
+contract QUSDReserve is Initializable {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public governance;
@@ -48,8 +50,8 @@ contract QUSDReserve {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _governance, address _oracle) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _governance, address _oracle) external initializer {
         owner      = msg.sender;
         governance = _governance;
         oracleAddress = _oracle;
