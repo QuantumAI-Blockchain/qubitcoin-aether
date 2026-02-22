@@ -18,6 +18,7 @@ import {
   loadSessionMessages,
   deleteSessionStorage,
 } from "@/components/aether/conversation-sidebar";
+import { KnowledgeSeeder } from "@/components/aether/knowledge-seeder";
 
 const KnowledgeGraph3D = dynamic(
   () => import("@/components/aether/knowledge-graph-3d").then((m) => m.KnowledgeGraph3D),
@@ -405,7 +406,7 @@ export default function AetherPage() {
             </div>
           </Card>
 
-          <Card>
+          <Card className="mb-4">
             <h3 className="mb-2 text-sm font-semibold text-text-secondary">Session</h3>
             <p className="font-[family-name:var(--font-mono)] text-xs text-text-secondary">
               {sessionId ? `ID: ${sessionId.slice(0, 12)}...` : "No active session"}
@@ -414,6 +415,8 @@ export default function AetherPage() {
               {messages.filter((m) => m.role === "user").length} messages sent
             </p>
           </Card>
+
+          <KnowledgeSeeder />
         </aside>
       </div>
 

@@ -1597,6 +1597,80 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             await asyncio.sleep(0.1)  # yield to event loop
         return {"seeded": len(results), "total_requested": count, "results": results}
 
+    # ---- User-driven LLM knowledge seeding (user provides their own API key) ----
+
+    class UserSeedRequest(BaseModel):
+        wallet_address: str
+        api_key: str
+        prompt: str
+        model: str = "gpt-4"
+        max_tokens: int = 1024
+
+    @app.post("/aether/llm/seed-user")
+    async def seed_user_knowledge(req: UserSeedRequest):
+        """Seed knowledge graph using the caller's own OpenAI API key.
+
+        The API key is used for a single request and immediately discarded.
+        It is never logged or persisted server-side.
+        """
+        import time as _time
+
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether engine not available")
+
+        # Validate inputs
+        if not req.api_key.startswith("sk-"):
+            raise HTTPException(status_code=400, detail="Invalid API key format")
+        if len(req.prompt.strip()) < 10:
+            raise HTTPException(status_code=400, detail="Prompt must be at least 10 characters")
+        if req.max_tokens < 64 or req.max_tokens > 4096:
+            raise HTTPException(status_code=400, detail="max_tokens must be between 64 and 4096")
+
+        try:
+            from ..aether.llm_adapter import OpenAIAdapter, KnowledgeDistiller
+
+            # Create a temporary adapter — key lives only in this scope
+            adapter = OpenAIAdapter(
+                api_key=req.api_key,
+                model=req.model,
+                max_tokens=req.max_tokens,
+            )
+
+            t0 = _time.monotonic()
+            llm_response = adapter.generate(prompt=req.prompt)
+            latency_ms = (_time.monotonic() - t0) * 1000
+
+            if not llm_response.content:
+                raise HTTPException(status_code=502, detail="LLM returned empty response")
+
+            # Distill into knowledge graph
+            distiller = KnowledgeDistiller(knowledge_graph=aether_engine.kg)
+            current_height = db_manager.get_current_height()
+            node_ids = distiller.distill(
+                llm_response=llm_response,
+                query=req.prompt,
+                block_height=current_height,
+            )
+
+            # Recalculate Phi after new nodes
+            phi_after = aether_engine.phi
+
+            return {
+                "status": "ok",
+                "nodes_created": len(node_ids),
+                "node_ids": node_ids,
+                "tokens_used": llm_response.tokens_used,
+                "model": llm_response.model,
+                "latency_ms": round(latency_ms, 1),
+                "knowledge_nodes": len(aether_engine.kg.nodes),
+                "phi_after": phi_after,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("User seed failed: %s", str(e))
+            raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
+
     # ========================================================================
     # WALLET ENDPOINTS — UTXO-to-Account Bridge & Native Wallet
     # ========================================================================

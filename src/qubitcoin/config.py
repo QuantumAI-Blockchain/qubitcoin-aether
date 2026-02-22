@@ -169,7 +169,7 @@ class Config:
     AETHER_FEE_UPDATE_INTERVAL: int = int(os.getenv('AETHER_FEE_UPDATE_INTERVAL', '100'))
     AETHER_FEE_TREASURY_ADDRESS: str = os.getenv('AETHER_FEE_TREASURY_ADDRESS', '')
     AETHER_QUERY_FEE_MULTIPLIER: float = float(os.getenv('AETHER_QUERY_FEE_MULTIPLIER', '2.0'))
-    AETHER_FREE_TIER_MESSAGES: int = int(os.getenv('AETHER_FREE_TIER_MESSAGES', '5'))
+    AETHER_FREE_TIER_MESSAGES: int = int(os.getenv('AETHER_FREE_TIER_MESSAGES', '100'))
 
     # ============================================================================
     # CONTRACT DEPLOYMENT FEE ECONOMICS

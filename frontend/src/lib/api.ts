@@ -348,6 +348,25 @@ export const api = {
       message,
       is_deep_query: isDeep,
     }),
+  // Knowledge seeding (user-provided API key)
+  seedKnowledge: (body: {
+    wallet_address: string;
+    api_key: string;
+    prompt: string;
+    model?: string;
+    max_tokens?: number;
+  }) =>
+    post<{
+      status: string;
+      nodes_created: number;
+      node_ids: number[];
+      tokens_used: number;
+      model: string;
+      latency_ms: number;
+      knowledge_nodes: number;
+      phi_after: number;
+    }>("/aether/llm/seed-user", body),
+
   // Native wallet
   createWallet: () =>
     post<{ address: string; public_key_hex: string; private_key_hex: string }>(
