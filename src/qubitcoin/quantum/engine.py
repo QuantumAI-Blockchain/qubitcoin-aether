@@ -137,6 +137,30 @@ class QuantumEngine:
         return hamiltonian
 
     # ========================================================================
+    # EXACT GROUND STATE (consensus safety check)
+    # ========================================================================
+
+    def compute_exact_ground_state(self, hamiltonian: List[Tuple[str, float]],
+                                    num_qubits: int = NUM_QUBITS) -> float:
+        """Compute exact ground state energy by diagonalizing the Hamiltonian matrix.
+
+        For 4 qubits this is a 16x16 matrix — trivial to diagonalize.
+        Used by consensus to ensure difficulty is always above the ground state
+        so that mining is always physically possible.
+
+        Args:
+            hamiltonian: List of (pauli_string, coefficient) tuples
+            num_qubits: Number of qubits
+
+        Returns:
+            Exact minimum eigenvalue (ground state energy)
+        """
+        observable = SparsePauliOp.from_list(hamiltonian)
+        matrix = observable.to_matrix()
+        eigenvalues = np.linalg.eigvalsh(matrix.real)
+        return float(eigenvalues[0])
+
+    # ========================================================================
     # ANSATZ AND ENERGY COMPUTATION
     # ========================================================================
 

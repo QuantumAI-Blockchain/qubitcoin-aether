@@ -58,6 +58,11 @@ class ConsensusEngine:
     # INITIAL_DIFFICULTY at this height to recover.
     DIFFICULTY_CEILING_FIX_HEIGHT = 2750
 
+    # Height at which difficulty dropped below the Hamiltonian ground state
+    # (0.0798 < 0.182), making mining impossible.  Reset + ground state
+    # energy check added to prevent this permanently.
+    DIFFICULTY_GROUND_STATE_FIX_HEIGHT = 167
+
     def calculate_difficulty(self, height: int, db_manager) -> float:
         """Calculate difficulty using per-block adjustment with 144-block lookback window.
 
@@ -93,6 +98,12 @@ class ConsensusEngine:
         if height == self.DIFFICULTY_CEILING_FIX_HEIGHT:
             self.difficulty_cache[height] = Config.INITIAL_DIFFICULTY
             logger.info(f"Difficulty reset to {Config.INITIAL_DIFFICULTY} at ceiling-fix height {height}")
+            return Config.INITIAL_DIFFICULTY
+
+        # One-time reset — difficulty dropped below Hamiltonian ground state
+        if height == self.DIFFICULTY_GROUND_STATE_FIX_HEIGHT:
+            self.difficulty_cache[height] = Config.INITIAL_DIFFICULTY
+            logger.info(f"Difficulty reset to {Config.INITIAL_DIFFICULTY} at ground-state-fix height {height}")
             return Config.INITIAL_DIFFICULTY
 
         try:
@@ -134,6 +145,25 @@ class ConsensusEngine:
 
             new_difficulty = prev_difficulty * ratio
             new_difficulty = max(Config.DIFFICULTY_FLOOR, min(Config.DIFFICULTY_CEILING, new_difficulty))
+
+            # LAYER 2 SAFETY: Ensure difficulty > Hamiltonian ground state.
+            # The Hamiltonian is deterministic from (prev_hash, height) so
+            # every node computes the same result.  For 4 qubits this is a
+            # 16×16 matrix diagonalization — microseconds.
+            try:
+                prev_hash = head_block.block_hash
+                ham = self.quantum.generate_hamiltonian(prev_hash=prev_hash, height=height)
+                ground_state = self.quantum.compute_exact_ground_state(ham)
+                min_difficulty = ground_state + Config.ENERGY_MARGIN
+                if new_difficulty < min_difficulty:
+                    logger.info(
+                        f"Difficulty {new_difficulty:.6f} below ground state "
+                        f"{ground_state:.6f} + margin {Config.ENERGY_MARGIN}, "
+                        f"raising to {min_difficulty:.6f} at height {height}"
+                    )
+                    new_difficulty = min_difficulty
+            except Exception as e:
+                logger.warning(f"Ground state check failed at height {height}: {e}")
 
             # Cache to avoid re-computation
             self.difficulty_cache[height] = new_difficulty
