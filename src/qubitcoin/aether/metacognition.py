@@ -184,6 +184,36 @@ class MetacognitiveLoop:
                 }
         return calibration
 
+    def calibrate_confidence(self, stated_confidence: float) -> float:
+        """Apply calibration correction to a stated confidence value.
+
+        Uses the accumulated calibration data to map stated confidence
+        to actual observed accuracy.  If the system is overconfident
+        (stated > actual), this lowers the output; if underconfident, raises it.
+
+        If insufficient calibration data exists (<50 evaluations),
+        returns the stated confidence unchanged.
+
+        Args:
+            stated_confidence: The raw confidence value (0.0-1.0)
+
+        Returns:
+            Calibrated confidence value (0.0-1.0)
+        """
+        if self._total_evaluations < 50:
+            return stated_confidence
+
+        bin_idx = min(9, int(stated_confidence * 10))
+        data = self._confidence_bins.get(bin_idx, {'count': 0, 'correct': 0})
+
+        if data['count'] < 5:
+            return stated_confidence
+
+        actual_accuracy = data['correct'] / data['count']
+        # Blend: 70% stated + 30% historical actual accuracy for this bin
+        calibrated = stated_confidence * 0.7 + actual_accuracy * 0.3
+        return max(0.01, min(1.0, calibrated))
+
     def get_overall_calibration_error(self) -> float:
         """Compute Expected Calibration Error (ECE)."""
         total_samples = 0

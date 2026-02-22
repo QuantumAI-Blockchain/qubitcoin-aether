@@ -256,6 +256,14 @@ class AetherEngine:
             return
 
         try:
+            # Compute Phi once per block (avoids redundant recomputation)
+            block_phi_result = None
+            if self.phi:
+                try:
+                    block_phi_result = self.phi.compute_phi(block.height)
+                except Exception:
+                    pass
+
             # Add block as an observation node
             block_content = {
                 'type': 'block_observation',
@@ -375,13 +383,22 @@ class AetherEngine:
                         'knowledge_nodes': len(self.kg.nodes) if self.kg else 0,
                         'knowledge_edges': len(self.kg.edges) if self.kg else 0,
                     }
-                    if self.phi:
-                        try:
-                            phi_data = self.phi.compute_phi(block.height)
-                            temporal_data['phi_value'] = phi_data.get('phi_value', 0)
-                        except Exception:
-                            pass
-                    self.temporal_engine.process_block(block.height, temporal_data)
+                    if block_phi_result:
+                        temporal_data['phi_value'] = block_phi_result.get('phi_value', 0)
+                    temporal_result = self.temporal_engine.process_block(
+                        block.height, temporal_data
+                    )
+
+                    # Feed temporal validation outcomes back to metacognition
+                    if self.metacognition and temporal_result.get('predictions_validated', 0) > 0:
+                        accuracy = self.temporal_engine.get_accuracy()
+                        self.metacognition.evaluate_reasoning(
+                            strategy='temporal',
+                            confidence=accuracy,
+                            outcome_correct=accuracy > 0.5,
+                            domain='temporal_prediction',
+                            block_height=block.height,
+                        )
                 except Exception as e:
                     logger.debug(f"Temporal engine error: {e}")
 
@@ -416,13 +433,7 @@ class AetherEngine:
 
             # Tick pineal orchestrator for circadian phase management
             if self.pineal and block.height > 0:
-                phi_val = 0.0
-                if self.phi:
-                    try:
-                        phi_data = self.phi.compute_phi(block.height)
-                        phi_val = phi_data.get('phi_value', 0.0)
-                    except Exception:
-                        pass
+                phi_val = block_phi_result.get('phi_value', 0.0) if block_phi_result else 0.0
                 self.pineal.tick(block.height, phi_val)
 
                 # Phase-aware behavior (item 10.2)
@@ -519,13 +530,23 @@ class AetherEngine:
         """
         Perform automated reasoning operations on recent knowledge.
         Returns list of reasoning step dicts for the thought proof.
+
+        Uses metacognition strategy weights to prioritize which reasoning
+        type runs first and how many steps each type contributes.
         """
         steps = []
         if not self.reasoning or not self.kg or not self.kg.nodes:
             return steps
 
         try:
-            # Find recent observation nodes for inductive reasoning
+            # --- Metacognition-guided strategy selection ---
+            # Get strategy weights from metacognition (closed feedback loop)
+            strategy_weights = self._get_strategy_weights()
+
+            # Sort reasoning strategies by weight (highest priority first)
+            strategies = sorted(strategy_weights.items(), key=lambda x: x[1], reverse=True)
+
+            # Find recent observation nodes (shared across strategies)
             recent_observations = sorted(
                 [n for n in self.kg.nodes.values()
                  if n.node_type == 'observation' and n.source_block >= block_height - 10],
@@ -533,60 +554,155 @@ class AetherEngine:
                 reverse=True,
             )[:5]
 
-            if len(recent_observations) >= 2:
-                obs_ids = [n.node_id for n in recent_observations]
-                result = self.reasoning.induce(obs_ids)
-                if result.success:
-                    steps.extend([s.to_dict() for s in result.chain])
+            for strategy_name, weight in strategies:
+                # Skip strategies with very low weight (metacognition says they fail)
+                if weight < 0.3:
+                    continue
 
-            # Find inference nodes for deductive reasoning
-            inference_nodes = [
-                n for n in self.kg.nodes.values()
-                if n.node_type == 'inference' and n.confidence > 0.5
-            ]
-            if len(inference_nodes) >= 2:
-                inf_ids = [n.node_id for n in inference_nodes[:3]]
-                result = self.reasoning.deduce(inf_ids)
-                if result.success:
-                    steps.extend([s.to_dict() for s in result.chain])
-
-            # Abductive reasoning on low-confidence observations
-            low_conf = [
-                n for n in self.kg.nodes.values()
-                if n.confidence < 0.4 and n.node_type == 'observation'
-            ]
-            if low_conf:
-                result = self.reasoning.abduce(low_conf[0].node_id)
-                if result.success:
-                    steps.extend([s.to_dict() for s in result.chain])
-
-            # #2: Neural reasoning via GATReasoner (complement rule-based)
-            if (self.neural_reasoner and self.kg
-                    and hasattr(self.kg, 'vector_index') and self.kg.vector_index):
-                try:
-                    recent_ids = [n.node_id for n in recent_observations[:3]]
-                    if recent_ids:
-                        neural_result = self.neural_reasoner.reason(
-                            self.kg, self.kg.vector_index, recent_ids
+                if strategy_name == 'inductive' and len(recent_observations) >= 2:
+                    obs_ids = [n.node_id for n in recent_observations]
+                    result = self.reasoning.induce(obs_ids)
+                    if result.success:
+                        self._calibrate_conclusion(result)
+                        steps.extend([s.to_dict() for s in result.chain])
+                        self._record_reasoning_outcome(
+                            'inductive', result.confidence, True, block_height
                         )
-                        if neural_result.get('confidence', 0) > 0.3:
-                            steps.append({
-                                'step_type': 'neural_reasoning',
-                                'content': {
-                                    'method': 'gat_neural',
-                                    'confidence': neural_result['confidence'],
-                                    'attended_nodes': len(neural_result.get('attended_nodes', [])),
-                                    'suggested_edge': neural_result.get('suggested_edge_type', ''),
-                                },
-                                'confidence': neural_result['confidence'],
-                            })
-                except Exception as e:
-                    logger.debug(f"Neural reasoning error: {e}")
+                    else:
+                        self._record_reasoning_outcome(
+                            'inductive', 0.0, False, block_height
+                        )
+
+                elif strategy_name == 'deductive':
+                    inference_nodes = [
+                        n for n in self.kg.nodes.values()
+                        if n.node_type == 'inference' and n.confidence > 0.5
+                    ]
+                    if len(inference_nodes) >= 2:
+                        inf_ids = [n.node_id for n in inference_nodes[:3]]
+                        result = self.reasoning.deduce(inf_ids)
+                        if result.success:
+                            self._calibrate_conclusion(result)
+                            steps.extend([s.to_dict() for s in result.chain])
+                            self._record_reasoning_outcome(
+                                'deductive', result.confidence, True, block_height
+                            )
+                        else:
+                            self._record_reasoning_outcome(
+                                'deductive', 0.0, False, block_height
+                            )
+
+                elif strategy_name == 'abductive':
+                    low_conf = [
+                        n for n in self.kg.nodes.values()
+                        if n.confidence < 0.4 and n.node_type == 'observation'
+                    ]
+                    if low_conf:
+                        result = self.reasoning.abduce(low_conf[0].node_id)
+                        if result.success:
+                            self._calibrate_conclusion(result)
+                            steps.extend([s.to_dict() for s in result.chain])
+                            self._record_reasoning_outcome(
+                                'abductive', result.confidence, True, block_height
+                            )
+                        else:
+                            self._record_reasoning_outcome(
+                                'abductive', 0.0, False, block_height
+                            )
+
+                elif strategy_name == 'neural':
+                    if (self.neural_reasoner and self.kg
+                            and hasattr(self.kg, 'vector_index') and self.kg.vector_index):
+                        try:
+                            recent_ids = [n.node_id for n in recent_observations[:3]]
+                            if recent_ids:
+                                neural_result = self.neural_reasoner.reason(
+                                    self.kg, self.kg.vector_index, recent_ids
+                                )
+                                if neural_result.get('confidence', 0) > 0.3:
+                                    steps.append({
+                                        'step_type': 'neural_reasoning',
+                                        'content': {
+                                            'method': 'gat_neural',
+                                            'confidence': neural_result['confidence'],
+                                            'attended_nodes': len(
+                                                neural_result.get('attended_nodes', [])
+                                            ),
+                                            'suggested_edge': neural_result.get(
+                                                'suggested_edge_type', ''
+                                            ),
+                                        },
+                                        'confidence': neural_result['confidence'],
+                                    })
+                                    self._record_reasoning_outcome(
+                                        'neural', neural_result['confidence'],
+                                        True, block_height
+                                    )
+                                else:
+                                    self._record_reasoning_outcome(
+                                        'neural', neural_result.get('confidence', 0),
+                                        False, block_height
+                                    )
+                        except Exception as e:
+                            logger.debug(f"Neural reasoning error: {e}")
 
         except Exception as e:
             logger.debug(f"Auto-reasoning error: {e}")
 
         return steps
+
+    def _get_strategy_weights(self) -> Dict[str, float]:
+        """Get reasoning strategy weights from metacognition.
+
+        Falls back to equal weights if metacognition is not available.
+        """
+        default_weights = {
+            'inductive': 1.0,
+            'deductive': 1.0,
+            'abductive': 1.0,
+            'neural': 1.0,
+        }
+        if not self.metacognition:
+            return default_weights
+
+        mc_weights = self.metacognition._strategy_weights
+        return {
+            'inductive': mc_weights.get('inductive', 1.0),
+            'deductive': mc_weights.get('deductive', 1.0),
+            'abductive': mc_weights.get('abductive', 1.0),
+            'neural': mc_weights.get('neural', 1.0),
+        }
+
+    def _calibrate_conclusion(self, result) -> None:
+        """Apply metacognitive confidence calibration to a reasoning result.
+
+        If the metacognition module has enough data, it adjusts the
+        conclusion node's confidence based on historical accuracy for
+        that confidence range.  This prevents systematic over/under-confidence.
+        """
+        if not self.metacognition or not self.kg:
+            return
+        if not result.conclusion_node_id:
+            return
+
+        node = self.kg.nodes.get(result.conclusion_node_id)
+        if not node:
+            return
+
+        calibrated = self.metacognition.calibrate_confidence(node.confidence)
+        if calibrated != node.confidence:
+            node.confidence = calibrated
+
+    def _record_reasoning_outcome(self, strategy: str, confidence: float,
+                                   success: bool, block_height: int) -> None:
+        """Feed reasoning outcome back to metacognition for adaptation."""
+        if self.metacognition:
+            self.metacognition.evaluate_reasoning(
+                strategy=strategy,
+                confidence=confidence,
+                outcome_correct=success,
+                block_height=block_height,
+            )
 
     def _record_consciousness_event(self, event_type: str, phi_value: float,
                                      block_height: int, trigger_data: dict = None):
