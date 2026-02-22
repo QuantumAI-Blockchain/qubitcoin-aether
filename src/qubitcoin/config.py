@@ -187,6 +187,20 @@ class Config:
     CONTRACT_TEMPLATE_DISCOUNT: float = float(os.getenv('CONTRACT_TEMPLATE_DISCOUNT', '0.5'))
 
     # ============================================================================
+    # ON-CHAIN AGI CONTRACT ADDRESSES (set after deployment)
+    # ============================================================================
+    CONSCIOUSNESS_DASHBOARD_ADDRESS: str = os.getenv('CONSCIOUSNESS_DASHBOARD_ADDRESS', '')
+    PROOF_OF_THOUGHT_ADDRESS: str = os.getenv('PROOF_OF_THOUGHT_ADDRESS', '')
+    CONSTITUTIONAL_AI_ADDRESS: str = os.getenv('CONSTITUTIONAL_AI_ADDRESS', '')
+    TREASURY_DAO_ADDRESS: str = os.getenv('TREASURY_DAO_ADDRESS', '')
+    UPGRADE_GOVERNOR_ADDRESS: str = os.getenv('UPGRADE_GOVERNOR_ADDRESS', '')
+    VALIDATOR_REGISTRY_ADDRESS: str = os.getenv('VALIDATOR_REGISTRY_ADDRESS', '')
+    # Kernel address used as msg.sender for on-chain AGI calls
+    AETHER_KERNEL_ADDRESS: str = os.getenv('AETHER_KERNEL_ADDRESS', '')
+    # How often to write Phi to chain (every N blocks)
+    ONCHAIN_PHI_INTERVAL: int = int(os.getenv('ONCHAIN_PHI_INTERVAL', '10'))
+
+    # ============================================================================
     # LLM / EXTERNAL AI CONFIGURATION
     # ============================================================================
     LLM_ENABLED: bool = os.getenv('LLM_ENABLED', 'false').lower() == 'true'

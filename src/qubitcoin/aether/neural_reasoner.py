@@ -142,6 +142,8 @@ class GATReasoner:
         result = reasoner.reason(kg, vector_index, query_node_ids)
     """
 
+    TRAINING_BATCH_SIZE: int = 32
+
     def __init__(self, hidden_dim: int = 64, n_heads: int = 4) -> None:
         self.hidden_dim = hidden_dim
         self.n_heads = n_heads
@@ -152,6 +154,14 @@ class GATReasoner:
         self._prediction_history: List[dict] = []
         self._correct_predictions: int = 0
         self._total_predictions: int = 0
+        # Mini-batch gradient descent buffer (used when PyTorch is available)
+        self._training_buffer: List[dict] = []
+        # Cache features/adj from last reason() call for training data
+        self._last_embeddings: Optional[Dict[str, object]] = None
+        # PyTorch linear layers (lazy-initialized in train_step)
+        self._torch_layer1: Optional[object] = None
+        self._torch_layer2: Optional[object] = None
+        self._optimizer: Optional[object] = None
 
     def _ensure_layers(self, input_dim: int) -> None:
         """Initialize GAT layers on first use."""
@@ -205,12 +215,13 @@ class GATReasoner:
         if not features:
             return self._empty_result()
 
-        # Build adjacency from edges
+        # Build adjacency using O(degree) index lookups instead of O(|E|) scan
         adj: Dict[int, List[int]] = {nid: [] for nid in features}
-        for edge in kg.edges:
-            if edge.from_node_id in adj and edge.to_node_id in adj:
-                adj[edge.from_node_id].append(edge.to_node_id)
-                adj[edge.to_node_id].append(edge.from_node_id)
+        for nid in features:
+            for edge in kg.get_edges_from(nid):
+                if edge.to_node_id in adj:
+                    adj[nid].append(edge.to_node_id)
+                    adj[edge.to_node_id].append(nid)
 
         # Initialize layers
         input_dim = len(next(iter(features.values())))
@@ -256,6 +267,14 @@ class GATReasoner:
 
         self._total_predictions += 1
 
+        # Cache features for training data collection in record_outcome()
+        self._last_embeddings = {
+            'features': features,
+            'adj': adj,
+            'confidence': confidence,
+            'query_node_ids': list(query_node_ids),
+        }
+
         return {
             'confidence': round(confidence, 4),
             'attended_nodes': attended[:10],
@@ -267,10 +286,15 @@ class GATReasoner:
 
     def _predict_edge_type(self, kg, source_ids: List[int],
                            target_ids: List[int]) -> str:
-        """Predict most likely edge type based on existing patterns."""
+        """Predict most likely edge type based on existing patterns.
+
+        Uses O(degree) adjacency index lookups instead of scanning all edges.
+        """
         edge_type_counts: Dict[str, int] = {}
-        for edge in kg.edges:
-            if edge.from_node_id in source_ids or edge.to_node_id in source_ids:
+        for nid in source_ids:
+            for edge in kg.get_edges_from(nid):
+                edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
+            for edge in kg.get_edges_to(nid):
                 edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
 
         if edge_type_counts:
@@ -280,21 +304,147 @@ class GATReasoner:
     def record_outcome(self, prediction_correct: bool) -> None:
         """Record whether a prediction was correct and update weights.
 
-        Uses evolutionary strategy: reinforce weights on correct predictions,
-        perturb away on incorrect ones. This enables online learning without
-        backpropagation or PyTorch dependency.
+        When PyTorch is available, collects training samples into a buffer
+        and triggers mini-batch gradient descent when the buffer is full.
+        Falls back to evolutionary strategy (perturb_weights) when PyTorch
+        is not installed.
         """
         if prediction_correct:
             self._correct_predictions += 1
 
-        # Online weight update — the GAT learns from every outcome
-        if self._layer1 and self._layer2:
-            self._layer1.perturb_weights(
-                reinforce=prediction_correct, learning_rate=0.005
+        if not self._layer1 or not self._layer2:
+            return
+
+        # Collect training sample from cached embeddings
+        if self._last_embeddings is not None:
+            sample = {
+                'node_features': self._last_embeddings['features'],
+                'edge_index': self._last_embeddings['adj'],
+                'target_confidence': self._last_embeddings['confidence'],
+                'actual_outcome': 1.0 if prediction_correct else 0.0,
+            }
+            self._training_buffer.append(sample)
+
+        # Try gradient descent if PyTorch available and buffer full
+        if _HAS_TORCH and len(self._training_buffer) >= self.TRAINING_BATCH_SIZE:
+            loss = self.train_step(self.TRAINING_BATCH_SIZE)
+            if loss >= 0.0:
+                logger.debug("GAT train_step loss=%.6f buffer_remaining=%d",
+                             loss, len(self._training_buffer))
+                return
+
+        # Fallback: evolutionary strategy (always used when no PyTorch)
+        self._layer1.perturb_weights(
+            reinforce=prediction_correct, learning_rate=0.005
+        )
+        self._layer2.perturb_weights(
+            reinforce=prediction_correct, learning_rate=0.005
+        )
+
+    def train_step(self, batch_size: int = 32) -> float:
+        """Run one mini-batch gradient descent step using PyTorch.
+
+        Converts GATLayer weights to PyTorch tensors, performs a forward pass
+        over the training buffer, computes MSE loss between predicted
+        confidence and actual outcome, backpropagates, and copies updated
+        weights back to the GATLayer lists.
+
+        Args:
+            batch_size: Number of samples to use per training step.
+
+        Returns:
+            Loss value (float >= 0.0) on success, -1.0 if training could
+            not run (no PyTorch, not enough samples, or layers not initialized).
+        """
+        if not _HAS_TORCH:
+            return -1.0
+        if len(self._training_buffer) < batch_size:
+            return -1.0
+        if not self._layer1 or not self._layer2:
+            return -1.0
+
+        # Extract batch from front of buffer
+        batch = self._training_buffer[:batch_size]
+        self._training_buffer = self._training_buffer[batch_size:]
+
+        in_dim = self._layer1.in_dim
+        hidden_dim = self._layer1.out_dim
+
+        # Lazy-initialize PyTorch layers mirroring GATLayer dimensions
+        if self._torch_layer1 is None:
+            self._torch_layer1 = nn.Linear(in_dim, hidden_dim, bias=False)
+            self._torch_layer2 = nn.Linear(hidden_dim, 1, bias=True)
+            # Use a modest learning rate for stable CPU training
+            self._optimizer = torch.optim.Adam(
+                list(self._torch_layer1.parameters()) +
+                list(self._torch_layer2.parameters()),
+                lr=0.001,
             )
-            self._layer2.perturb_weights(
-                reinforce=prediction_correct, learning_rate=0.005
+
+        # Sync GATLayer weights into PyTorch tensors
+        with torch.no_grad():
+            w1_data = torch.tensor(self._layer1.W, dtype=torch.float32)
+            # GATLayer.W is [in_dim x out_dim], nn.Linear weight is [out_dim x in_dim]
+            self._torch_layer1.weight.copy_(w1_data.T)
+            # Layer2 projects hidden_dim -> 1 for confidence prediction
+            # Use first column of GATLayer2.W as the projection weights
+            w2_col = [self._layer2.W[i][0] if self._layer2.out_dim > 0 else 0.0
+                       for i in range(self._layer2.in_dim)]
+            self._torch_layer2.weight.copy_(
+                torch.tensor([w2_col], dtype=torch.float32)
             )
+
+        # Build batch tensors: mean-pool node features per sample
+        inputs = []
+        targets = []
+        for sample in batch:
+            node_features = sample['node_features']
+            if not node_features:
+                continue
+            # Mean-pool all node feature vectors into a single input vector
+            dim = in_dim
+            pooled = [0.0] * dim
+            count = 0
+            for feat in node_features.values():
+                for d in range(min(len(feat), dim)):
+                    pooled[d] += feat[d]
+                count += 1
+            if count > 0:
+                pooled = [v / count for v in pooled]
+            inputs.append(pooled)
+            targets.append(sample['actual_outcome'])
+
+        if not inputs:
+            return -1.0
+
+        x = torch.tensor(inputs, dtype=torch.float32)   # [B, in_dim]
+        y = torch.tensor(targets, dtype=torch.float32).unsqueeze(1)  # [B, 1]
+
+        # Forward pass: linear1 -> ReLU -> linear2 -> sigmoid
+        self._optimizer.zero_grad()
+        h = F.relu(self._torch_layer1(x))      # [B, hidden_dim]
+        logits = self._torch_layer2(h)          # [B, 1]
+        pred = torch.sigmoid(logits)            # [B, 1]
+
+        loss = F.mse_loss(pred, y)
+        loss.backward()
+        self._optimizer.step()
+
+        # Copy updated weights back to GATLayer lists
+        with torch.no_grad():
+            # Layer 1: nn.Linear weight is [out_dim, in_dim], GATLayer.W is [in_dim][out_dim]
+            updated_w1 = self._torch_layer1.weight.T.tolist()  # [in_dim, out_dim]
+            for i in range(self._layer1.in_dim):
+                for j in range(self._layer1.out_dim):
+                    self._layer1.W[i][j] = updated_w1[i][j]
+
+            # Layer 2: copy projection weights back into first column of GATLayer2.W
+            updated_w2 = self._torch_layer2.weight[0].tolist()  # [hidden_dim]
+            for i in range(min(len(updated_w2), self._layer2.in_dim)):
+                if self._layer2.out_dim > 0:
+                    self._layer2.W[i][0] = updated_w2[i]
+
+        return float(loss.item())
 
     def _empty_result(self) -> dict:
         return {
@@ -318,6 +468,9 @@ class GATReasoner:
             'correct_predictions': self._correct_predictions,
             'accuracy': round(self.get_accuracy(), 4),
             'has_torch': _HAS_TORCH,
+            'training_mode': 'gradient_descent' if _HAS_TORCH else 'evolutionary',
+            'training_buffer_size': len(self._training_buffer),
+            'training_batch_size': self.TRAINING_BATCH_SIZE,
             'hidden_dim': self.hidden_dim,
             'n_heads': self.n_heads,
         }

@@ -2,92 +2,54 @@ SET DATABASE = qubitcoin;
 
 -- ================================================================
 -- KNOWLEDGE NODES - Core knowledge representation
+-- Aligned with SQLAlchemy ORM (database/models.py KnowledgeNode)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS knowledge_nodes (
-    node_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+
     -- Node identity
-    node_type VARCHAR(50) NOT NULL,  -- 'concept', 'entity', 'relation', 'rule', 'pattern'
-    node_label VARCHAR(500) NOT NULL,
-    node_hash BYTES NOT NULL UNIQUE,
-    
-    -- Content
-    content_text TEXT,
-    content_embedding FLOAT8[],  -- Vector embedding (e.g., 768-dim)
-    content_metadata JSONB,
-    
+    node_type VARCHAR(50) NOT NULL,  -- 'assertion', 'observation', 'inference', 'axiom', 'prediction', 'meta_observation'
+    content_hash VARCHAR(64) NOT NULL,
+
+    -- Content (JSONB for flexible schema)
+    content JSONB NOT NULL,
+
     -- Confidence & validation
-    confidence_score DECIMAL(5, 4) NOT NULL DEFAULT 0.5,  -- 0.0 to 1.0
-    validation_count INT NOT NULL DEFAULT 0,
-    consensus_weight DECIMAL(10, 6) NOT NULL DEFAULT 1.0,
-    
+    confidence FLOAT NOT NULL DEFAULT 0.5,  -- 0.0 to 1.0
+
     -- Blockchain anchoring
-    anchored_to_block BIGINT,
-    anchor_tx_hash BYTES,
-    is_immutable BOOL NOT NULL DEFAULT false,
-    
-    -- Relationships
-    parent_nodes UUID[],
-    child_nodes UUID[],
-    related_nodes UUID[],
-    
-    -- Source tracking
-    source_type VARCHAR(50),  -- 'blockchain', 'oracle', 'user_input', 'ai_generated', 'consensus'
-    source_address BYTES,
-    
-    -- IPFS
-    ipfs_hash VARCHAR(100),
-    
+    source_block BIGINT,
+
     -- Timestamps
     created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP NOT NULL DEFAULT now(),
-    
+
     INDEX type_idx (node_type),
-    INDEX label_idx (node_label),
-    INDEX confidence_idx (confidence_score DESC),
-    INDEX anchor_idx (anchored_to_block),
-    INDEX source_idx (source_type)
+    INDEX confidence_idx (confidence DESC),
+    INDEX source_block_idx (source_block)
 );
 
 -- ================================================================
 -- KNOWLEDGE EDGES - Relationships between nodes
+-- Aligned with SQLAlchemy ORM (database/models.py KnowledgeEdge)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS knowledge_edges (
-    edge_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+
     -- Edge definition
-    source_node UUID NOT NULL,
-    target_node UUID NOT NULL,
-    edge_type VARCHAR(50) NOT NULL,  -- 'is_a', 'part_of', 'related_to', 'causes', 'implies'
-    edge_weight DECIMAL(5, 4) NOT NULL DEFAULT 1.0,
-    
-    -- Directionality
-    is_bidirectional BOOL NOT NULL DEFAULT false,
-    
-    -- Evidence
-    evidence_count INT NOT NULL DEFAULT 0,
-    confidence_score DECIMAL(5, 4) NOT NULL DEFAULT 0.5,
-    
-    -- Metadata
-    properties JSONB,
-    
-    -- Blockchain anchoring
-    anchored_to_block BIGINT,
-    
+    from_node_id BIGINT NOT NULL,
+    to_node_id BIGINT NOT NULL,
+    edge_type VARCHAR(50) NOT NULL,  -- 'supports', 'contradicts', 'derives', 'requires', 'refines', 'causes', 'abstracts', 'analogous_to'
+    weight FLOAT NOT NULL DEFAULT 1.0,
+
+    -- Timestamps
     created_at TIMESTAMP NOT NULL DEFAULT now(),
-    
-    UNIQUE INDEX edge_unique_idx (source_node, target_node, edge_type),
-    INDEX source_idx (source_node),
-    INDEX target_idx (target_node),
-    INDEX type_idx (edge_type),
-    INDEX weight_idx (edge_weight DESC),
-    
-    CONSTRAINT fk_source FOREIGN KEY (source_node) 
-        REFERENCES knowledge_nodes(node_id) ON DELETE CASCADE,
-    CONSTRAINT fk_target FOREIGN KEY (target_node) 
-        REFERENCES knowledge_nodes(node_id) ON DELETE CASCADE
+
+    UNIQUE INDEX edge_unique_idx (from_node_id, to_node_id, edge_type),
+    INDEX from_idx (from_node_id),
+    INDEX to_idx (to_node_id),
+    INDEX type_idx (edge_type)
 );
 
 INSERT INTO schema_version (version, component, description)
-VALUES ('1.0.0', 'agi_knowledge_graph', 'AetherTree knowledge graph structure')
+VALUES ('2.0.0', 'agi_knowledge_graph', 'AetherTree knowledge graph — aligned with ORM (BigInt IDs)')
 ON CONFLICT DO NOTHING;

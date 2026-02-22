@@ -6,7 +6,7 @@ participate in block production.
 """
 import json
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..database.models import ProofOfThought, Block
 from ..config import Config
@@ -98,6 +98,31 @@ class AetherEngine:
             self.metacognition = MetacognitiveLoop(knowledge_graph)
         except Exception as e:
             logger.debug(f"MetacognitiveLoop init failed: {e}")
+
+        # Phase 2.4: Three-Tier Memory Manager
+        self.memory_manager = None
+        try:
+            from .memory_manager import MemoryManager
+            self.memory_manager = MemoryManager(knowledge_graph, capacity=50)
+        except Exception as e:
+            logger.debug(f"MemoryManager init failed: {e}")
+
+        # Phase 5.1: Curiosity-driven goal formation
+        self._curiosity_goals: List[dict] = []
+        self._curiosity_stats = {
+            'goals_generated': 0, 'goals_completed': 0, 'goals_failed': 0,
+        }
+
+        # Phase 5.4: Emergent communication protocol
+        self._pending_digest: Optional[dict] = None
+        self._seen_digests: set = set()
+        self._digests_created: int = 0
+        self._digests_received: int = 0
+        self._nodes_from_peers: int = 0
+        self._peer_consensus_boosts: int = 0
+
+        # Phase 6: On-chain AGI integration
+        self.on_chain = None
 
         logger.info("Aether Engine initialized (with AGI subsystems)")
 
@@ -280,6 +305,8 @@ class AetherEngine:
                 confidence=0.95,  # High confidence for on-chain data
                 source_block=block.height,
             )
+            # Block metadata is ground truth from the chain itself
+            block_node.grounding_source = 'block_oracle'
 
             # Link to previous block's observation if exists
             if block.height > 0:
@@ -307,6 +334,8 @@ class AetherEngine:
                         confidence=0.9,
                         source_block=block.height,
                     )
+                    # Quantum proof data is verifiable ground truth
+                    q_node.grounding_source = 'block_oracle'
                     self.kg.add_edge(q_node.node_id, block_node.node_id, 'supports')
 
             # If there are contract transactions, record deployment/call patterns
@@ -371,6 +400,8 @@ class AetherEngine:
             if block.height > 0 and block.height % 100 == 0 and self.debate_protocol:
                 try:
                     self.debate_protocol.run_periodic_debates(block.height)
+                    # Reward Tiferet for successful debate facilitation
+                    self._reward_sephirah('debate', True, 0.05)
                 except Exception as e:
                     logger.debug(f"Debate protocol error: {e}")
 
@@ -390,22 +421,48 @@ class AetherEngine:
                     )
 
                     # Feed temporal validation outcomes back to metacognition
-                    if self.metacognition and temporal_result.get('predictions_validated', 0) > 0:
+                    if temporal_result.get('predictions_validated', 0) > 0:
                         accuracy = self.temporal_engine.get_accuracy()
-                        self.metacognition.evaluate_reasoning(
-                            strategy='temporal',
-                            confidence=accuracy,
-                            outcome_correct=accuracy > 0.5,
-                            domain='temporal_prediction',
-                            block_height=block.height,
-                        )
+                        if self.metacognition:
+                            self.metacognition.evaluate_reasoning(
+                                strategy='temporal',
+                                confidence=accuracy,
+                                outcome_correct=accuracy > 0.5,
+                                domain='temporal_prediction',
+                                block_height=block.height,
+                            )
+                        # Reward/penalize Yesod based on temporal prediction accuracy
+                        self._reward_sephirah('temporal', accuracy > 0.5, accuracy * 0.1)
+
+                    # Feed verified prediction outcomes to neural_reasoner
+                    if self.neural_reasoner:
+                        try:
+                            verified = self.temporal_engine.get_verified_outcomes(
+                                since_block=block.height - 200
+                            )
+                            for outcome in verified:
+                                self.neural_reasoner.record_outcome(
+                                    prediction_correct=outcome.get('correct', False)
+                                )
+                        except Exception as e:
+                            logger.debug(f"Neural reasoner outcome feedback error: {e}")
+
                 except Exception as e:
                     logger.debug(f"Temporal engine error: {e}")
 
-            # #8: Concept formation every 500 blocks
+            # #8: Concept formation + cross-domain transfer every 500 blocks
             if block.height > 0 and block.height % 500 == 0 and self.concept_formation:
                 try:
                     self.concept_formation.form_concepts_all_domains(block.height)
+                    # Cross-domain transfer learning (Phase 5.2)
+                    transfer_result = self.concept_formation.run_transfer_cycle(
+                        block_height=block.height
+                    )
+                    if transfer_result.get('transfers_attempted', 0) > 0:
+                        self._reward_sephirah('concept_formation', True, 0.08)
+                    else:
+                        # Reward concept formation even without transfer
+                        self._reward_sephirah('concept_formation', True, 0.05)
                 except Exception as e:
                     logger.debug(f"Concept formation error: {e}")
 
@@ -415,6 +472,63 @@ class AetherEngine:
                     self.metacognition.process_block(block.height)
                 except Exception as e:
                     logger.debug(f"Metacognition error: {e}")
+
+            # Phase 2.4: Memory management every block
+            if self.memory_manager:
+                try:
+                    # Attend to the current block's observation node
+                    self.memory_manager.attend(block_node.node_id, boost=0.3)
+                    # Decay working memory relevance every block
+                    self.memory_manager.decay()
+                    # Consolidate every 100 blocks
+                    if block.height > 0 and block.height % 100 == 0:
+                        self.memory_manager.consolidate(block.height)
+                    # Episodic replay every 200 blocks
+                    if block.height > 0 and block.height % 200 == 0:
+                        replay_result = self.memory_manager.replay_episodes(block.height)
+                        if replay_result['episodes_replayed'] > 0:
+                            logger.info(
+                                f"Episodic replay at block {block.height}: "
+                                f"replayed={replay_result['episodes_replayed']}, "
+                                f"reinforced={replay_result['reinforced']}, "
+                                f"suppressed={replay_result['suppressed']}, "
+                                f"promoted={replay_result['promoted_to_axiom']}"
+                            )
+                except Exception as e:
+                    logger.debug(f"MemoryManager error: {e}")
+
+            # Phase 5.1: Curiosity-driven exploration every 50 blocks
+            if block.height > 0 and block.height % 50 == 0:
+                try:
+                    self._curiosity_explore(block.height)
+                except Exception as e:
+                    logger.debug(f"Curiosity exploration error: {e}")
+
+            # Phase 5.4: Create knowledge digest every 100 blocks
+            if block.height > 0 and block.height % 100 == 0:
+                try:
+                    self._pending_digest = self.create_knowledge_digest(block.height)
+                    self._digests_created += 1
+                except Exception as e:
+                    logger.debug(f"Knowledge digest creation error: {e}")
+
+            # Phase 6: On-chain AGI integration
+            if self.on_chain and block_phi_result:
+                try:
+                    self.on_chain.process_block(
+                        block_height=block.height,
+                        phi_result=block_phi_result,
+                        thought_hash=(
+                            block.thought_proof.thought_hash
+                            if block.thought_proof else ''
+                        ),
+                        knowledge_root=(
+                            self.kg.compute_knowledge_root() if self.kg else ''
+                        ),
+                        validator_address=getattr(block, 'miner_address', ''),
+                    )
+                except Exception as e:
+                    logger.debug(f"On-chain integration error: {e}")
 
             # Archive old consciousness events every 5000 blocks
             if block.height > 0 and block.height % 5000 == 0:
@@ -461,11 +575,19 @@ class AetherEngine:
 
     def _route_sephirot_messages(self, block) -> int:
         """
-        Route messages between Sephirot cognitive nodes.
+        Route messages between Sephirot cognitive nodes along the Tree of
+        Life topology, wiring genuine AGI subsystem outputs as context.
 
-        Processes all 10 nodes in Tree of Life order, drains each node's
-        outbox and delivers messages to target nodes' inboxes.
-        Then runs each node's process() method with block context.
+        Phase 5.3 Deep Integration: each Sephirah node receives enriched
+        context from upstream AGI subsystems and passes its output to the
+        next node in the pipeline.
+
+        Pipeline:
+          Keter (metacognition strategy) -> Chochmah (neural hints) ->
+          Binah (causal verification) -> Chesed (exploration) ->
+          Gevurah (safety) -> Tiferet (conflict resolution) ->
+          Netzach (GAT training) -> Hod (trace formatting) ->
+          Yesod (memory stats) -> Malkuth (KG mutations -> feedback to Keter)
 
         Returns:
             Number of messages routed.
@@ -476,21 +598,7 @@ class AetherEngine:
         if not sephirot:
             return 0
 
-        # Tree of Life processing order (top-down)
-        processing_order = [
-            SephirahRole.KETER,     # Crown — meta-learning
-            SephirahRole.CHOCHMAH,  # Wisdom — intuition
-            SephirahRole.BINAH,     # Understanding — logic
-            SephirahRole.CHESED,    # Mercy — exploration
-            SephirahRole.GEVURAH,   # Severity — safety
-            SephirahRole.TIFERET,   # Beauty — integration
-            SephirahRole.NETZACH,   # Victory — persistence
-            SephirahRole.HOD,       # Splendor — communication
-            SephirahRole.YESOD,     # Foundation — memory
-            SephirahRole.MALKUTH,   # Kingdom — action
-        ]
-
-        # Build block context
+        # Build base block context shared by all nodes
         context = {
             'block_height': block.height,
             'timestamp': block.timestamp,
@@ -498,33 +606,263 @@ class AetherEngine:
             'tx_count': len(block.transactions),
             'kg_node_count': len(self.kg.nodes) if self.kg else 0,
             'kg_edge_count': len(self.kg.edges) if self.kg else 0,
+            # Feed previous cycle's Malkuth stats to Keter for meta-learning
+            'malkuth_stats': getattr(self, '_last_malkuth_stats', {}),
         }
 
         total_routed = 0
+        pipeline_trace: Dict[str, dict] = {}
 
-        # Process each node and collect outgoing messages
-        for role in processing_order:
-            node = sephirot.get(role)
-            if not node:
-                continue
-
-            try:
-                node.process(context)
-            except Exception as e:
-                logger.debug(f"Sephirot {role.value} process error: {e}")
-
-            # Drain outbox and deliver to targets
+        def _drain_and_route(node) -> int:
+            """Drain a node's outbox and deliver messages to targets."""
+            routed = 0
             outgoing = node.get_outbox()
             for msg in outgoing:
                 target = sephirot.get(msg.receiver)
                 if target:
                     target.receive_message(msg)
-                    total_routed += 1
+                    routed += 1
+            return routed
+
+        # --- 1. Keter: Meta-learning, pick strategy via metacognition ---
+        keter = sephirot.get(SephirahRole.KETER)
+        if keter:
+            try:
+                if self.metacognition:
+                    context['recommended_strategy'] = (
+                        self.metacognition.get_recommended_strategy()
+                    )
+                k_result = keter.process(context)
+                pipeline_trace['keter'] = k_result.output
+                total_routed += _drain_and_route(keter)
+            except Exception as e:
+                logger.debug(f"Sephirot keter process error: {e}")
+
+        # --- 2. Chochmah: Intuition, enriched with neural reasoner hints ---
+        chochmah = sephirot.get(SephirahRole.CHOCHMAH)
+        if chochmah:
+            try:
+                neural_hints = self._get_neural_hints(block.height)
+                if neural_hints:
+                    context['neural_hints'] = neural_hints
+                c_result = chochmah.process(context)
+                pipeline_trace['chochmah'] = c_result.output
+                total_routed += _drain_and_route(chochmah)
+            except Exception as e:
+                logger.debug(f"Sephirot chochmah process error: {e}")
+
+        # --- 3. Binah: Logic, cross-reference with causal engine ---
+        binah = sephirot.get(SephirahRole.BINAH)
+        if binah:
+            try:
+                # Pass Chochmah output as causal reference for cross-check
+                chochmah_output = pipeline_trace.get('chochmah', {})
+                context['causal_insights'] = {
+                    'output': chochmah_output,
+                    'confidence': chochmah_output.get('neural_confidence', 0.0),
+                }
+                b_result = binah.process(context)
+                pipeline_trace['binah'] = b_result.output
+                total_routed += _drain_and_route(binah)
+            except Exception as e:
+                logger.debug(f"Sephirot binah process error: {e}")
+
+        # --- 4. Chesed: Exploration (uses base context) ---
+        chesed = sephirot.get(SephirahRole.CHESED)
+        if chesed:
+            try:
+                ch_result = chesed.process(context)
+                pipeline_trace['chesed'] = ch_result.output
+                total_routed += _drain_and_route(chesed)
+            except Exception as e:
+                logger.debug(f"Sephirot chesed process error: {e}")
+
+        # --- 5. Gevurah: Safety, enriched with consistency check ---
+        gevurah = sephirot.get(SephirahRole.GEVURAH)
+        if gevurah:
+            try:
+                safety = self._get_safety_assessment(context)
+                if safety:
+                    context['safety_assessment'] = safety
+                g_result = gevurah.process(context)
+                pipeline_trace['gevurah'] = g_result.output
+                total_routed += _drain_and_route(gevurah)
+            except Exception as e:
+                logger.debug(f"Sephirot gevurah process error: {e}")
+
+        # --- 6. Tiferet: Integration, conflict resolution hub ---
+        tiferet = sephirot.get(SephirahRole.TIFERET)
+        if tiferet:
+            try:
+                t_result = tiferet.process(context)
+                pipeline_trace['tiferet'] = t_result.output
+                total_routed += _drain_and_route(tiferet)
+            except Exception as e:
+                logger.debug(f"Sephirot tiferet process error: {e}")
+
+        # --- 7. Netzach: Persistence/learning, track GAT training ---
+        netzach = sephirot.get(SephirahRole.NETZACH)
+        if netzach:
+            try:
+                gat_trained = self._try_gat_online_train(block.height)
+                context['gat_trained'] = gat_trained
+                n_result = netzach.process(context)
+                pipeline_trace['netzach'] = n_result.output
+                total_routed += _drain_and_route(netzach)
+            except Exception as e:
+                logger.debug(f"Sephirot netzach process error: {e}")
+
+        # --- 8. Hod: Communication, format reasoning trace ---
+        hod = sephirot.get(SephirahRole.HOD)
+        if hod:
+            try:
+                context['pipeline_trace'] = pipeline_trace
+                h_result = hod.process(context)
+                pipeline_trace['hod'] = h_result.output
+                total_routed += _drain_and_route(hod)
+            except Exception as e:
+                logger.debug(f"Sephirot hod process error: {e}")
+
+        # --- 9. Yesod: Memory, enriched with memory manager stats ---
+        yesod = sephirot.get(SephirahRole.YESOD)
+        if yesod:
+            try:
+                if self.memory_manager:
+                    context['memory_stats'] = {
+                        'hit_rate': self.memory_manager.get_hit_rate(),
+                        'working_memory_size': len(
+                            self.memory_manager._working_memory
+                        ),
+                        'episodes_total': len(
+                            self.memory_manager._episodes
+                        ),
+                    }
+                y_result = yesod.process(context)
+                pipeline_trace['yesod'] = y_result.output
+                total_routed += _drain_and_route(yesod)
+            except Exception as e:
+                logger.debug(f"Sephirot yesod process error: {e}")
+
+        # --- 10. Malkuth: Action, KG mutations -> feedback to Keter ---
+        malkuth = sephirot.get(SephirahRole.MALKUTH)
+        if malkuth:
+            try:
+                m_result = malkuth.process(context)
+                pipeline_trace['malkuth'] = m_result.output
+                total_routed += _drain_and_route(malkuth)
+
+                # Feed Malkuth stats back into context for next cycle's Keter
+                # (stored as instance attr so Keter sees it next iteration)
+                self._last_malkuth_stats = m_result.output
+            except Exception as e:
+                logger.debug(f"Sephirot malkuth process error: {e}")
 
         if total_routed > 0:
-            logger.debug(f"Routed {total_routed} Sephirot messages at block {block.height}")
+            logger.debug(
+                f"Routed {total_routed} Sephirot messages at block {block.height} "
+                f"(pipeline nodes: {len(pipeline_trace)})"
+            )
 
         return total_routed
+
+    def _get_neural_hints(self, block_height: int) -> Dict[str, Any]:
+        """Run neural reasoner on recent nodes and return hints dict.
+
+        Returns an empty dict if neural reasoner is unavailable or has
+        insufficient data to reason over.
+        """
+        if (not self.neural_reasoner or not self.kg
+                or not hasattr(self.kg, 'vector_index') or not self.kg.vector_index):
+            return {}
+
+        try:
+            # Pick a few recent observation nodes as query seeds
+            recent = sorted(
+                [n for n in self.kg.nodes.values()
+                 if n.node_type == 'observation'
+                 and n.source_block >= block_height - 10],
+                key=lambda n: n.source_block,
+                reverse=True,
+            )[:3]
+
+            if not recent:
+                return {}
+
+            query_ids = [n.node_id for n in recent]
+            result = self.neural_reasoner.reason(
+                self.kg, self.kg.vector_index, query_ids
+            )
+            return {
+                'confidence': result.get('confidence', 0.0),
+                'attended_nodes': result.get('attended_nodes', []),
+                'suggested_edge_type': result.get('suggested_edge_type', ''),
+            }
+        except Exception as e:
+            logger.debug(f"Neural hints error: {e}")
+            return {}
+
+    def _get_safety_assessment(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Run lightweight safety checks and return assessment dict.
+
+        Checks for recent contradictions and consistency violations in
+        the knowledge graph. Returns empty dict if KG is unavailable.
+        """
+        if not self.kg:
+            return {}
+
+        try:
+            contradictions_found = 0
+            consistency_violations = 0
+
+            # Count recent contradictions
+            block_height = context.get('block_height', 0)
+            for edge in self.kg.edges:
+                if edge.edge_type == 'contradicts':
+                    # Check if either node is from recent blocks
+                    node_a = self.kg.nodes.get(edge.from_node_id)
+                    node_b = self.kg.nodes.get(edge.to_node_id)
+                    if node_a and node_b:
+                        if (node_a.source_block >= block_height - 20
+                                or node_b.source_block >= block_height - 20):
+                            contradictions_found += 1
+
+            # Check for very low confidence nodes (potential inconsistency)
+            recent_nodes = [
+                n for n in self.kg.nodes.values()
+                if n.source_block >= block_height - 10 and n.confidence < 0.2
+            ]
+            consistency_violations = len(recent_nodes)
+
+            return {
+                'contradictions_found': contradictions_found,
+                'consistency_violations': consistency_violations,
+            }
+        except Exception as e:
+            logger.debug(f"Safety assessment error: {e}")
+            return {}
+
+    def _try_gat_online_train(self, block_height: int) -> bool:
+        """Attempt a single online GAT training step.
+
+        Returns True if training was performed, False otherwise.
+        Lightweight — only trains if neural_reasoner supports it
+        and enough data has accumulated.
+        """
+        if not self.neural_reasoner or not self.kg:
+            return False
+
+        try:
+            if not hasattr(self.neural_reasoner, 'train_online'):
+                return False
+            if not hasattr(self.kg, 'vector_index') or not self.kg.vector_index:
+                return False
+            result = self.neural_reasoner.train_online(
+                self.kg, self.kg.vector_index
+            )
+            return result.get('trained', False)
+        except Exception as e:
+            logger.debug(f"GAT online training error: {e}")
+            return False
 
     def _auto_reason(self, block_height: int) -> List[dict]:
         """
@@ -554,6 +892,25 @@ class AetherEngine:
                 reverse=True,
             )[:5]
 
+            # Retrieve relevant nodes from working memory for additional context.
+            # Pass the first recent observation as query_node_id so retrieval
+            # is context-dependent (biased towards what we're reasoning about).
+            if self.memory_manager:
+                query_nid: Optional[int] = (
+                    recent_observations[0].node_id if recent_observations else None
+                )
+                wm_node_ids = self.memory_manager.retrieve(
+                    top_k=10, query_node_id=query_nid
+                )
+                # Add working-memory nodes that are observations and not already present
+                existing_ids = {n.node_id for n in recent_observations}
+                for nid in wm_node_ids:
+                    if nid not in existing_ids:
+                        node = self.kg.nodes.get(nid)
+                        if node and node.node_type == 'observation':
+                            recent_observations.append(node)
+                            existing_ids.add(nid)
+
             for strategy_name, weight in strategies:
                 # Skip strategies with very low weight (metacognition says they fail)
                 if weight < 0.3:
@@ -568,6 +925,11 @@ class AetherEngine:
                         self._record_reasoning_outcome(
                             'inductive', result.confidence, True, block_height
                         )
+                        # Put conclusion into working memory
+                        if self.memory_manager and result.conclusion_node_id:
+                            self.memory_manager.attend(
+                                result.conclusion_node_id, boost=0.5
+                            )
                     else:
                         self._record_reasoning_outcome(
                             'inductive', 0.0, False, block_height
@@ -587,6 +949,11 @@ class AetherEngine:
                             self._record_reasoning_outcome(
                                 'deductive', result.confidence, True, block_height
                             )
+                            # Put conclusion into working memory
+                            if self.memory_manager and result.conclusion_node_id:
+                                self.memory_manager.attend(
+                                    result.conclusion_node_id, boost=0.5
+                                )
                         else:
                             self._record_reasoning_outcome(
                                 'deductive', 0.0, False, block_height
@@ -605,6 +972,11 @@ class AetherEngine:
                             self._record_reasoning_outcome(
                                 'abductive', result.confidence, True, block_height
                             )
+                            # Put conclusion into working memory
+                            if self.memory_manager and result.conclusion_node_id:
+                                self.memory_manager.attend(
+                                    result.conclusion_node_id, boost=0.5
+                                )
                         else:
                             self._record_reasoning_outcome(
                                 'abductive', 0.0, False, block_height
@@ -693,6 +1065,61 @@ class AetherEngine:
         if calibrated != node.confidence:
             node.confidence = calibrated
 
+    def _reward_sephirah(self, role_name: str, success: bool,
+                         magnitude: float = 0.1) -> None:
+        """Adjust a Sephirah's energy based on reasoning performance.
+
+        Maps reasoning strategy names to Sephirot roles and rewards/penalizes
+        the corresponding node. Successful reasoning increases energy;
+        failed reasoning decreases it (at half magnitude). Energy is clamped
+        to [0.1, 10.0] to prevent degenerate states.
+
+        Args:
+            role_name: Reasoning strategy name (e.g. 'inductive', 'deductive').
+            success: Whether the reasoning operation succeeded.
+            magnitude: Energy delta on success (failure uses magnitude * 0.5).
+        """
+        from .sephirot import SephirahRole
+
+        # Map reasoning strategy to responsible Sephirah
+        strategy_to_role = {
+            'inductive': SephirahRole.CHOCHMAH,       # intuition / pattern discovery
+            'deductive': SephirahRole.BINAH,           # logic / causal inference
+            'abductive': SephirahRole.CHESED,           # exploration / divergent thinking
+            'neural': SephirahRole.NETZACH,             # reinforcement learning
+            'causal': SephirahRole.BINAH,               # causal inference
+            'temporal': SephirahRole.YESOD,             # memory / prediction
+            'debate': SephirahRole.TIFERET,             # integration / conflict resolution
+            'concept_formation': SephirahRole.CHOCHMAH, # pattern discovery
+        }
+
+        role = strategy_to_role.get(role_name)
+        if role is None:
+            return
+
+        sephirot = self.sephirot
+        node = sephirot.get(role)
+        if node is None:
+            return
+
+        try:
+            if success:
+                node.state.energy += magnitude
+                node._tasks_solved += 1
+            else:
+                node.state.energy -= magnitude * 0.5
+                node._errors += 1
+
+            # Clamp energy to [0.1, 10.0]
+            node.state.energy = max(0.1, min(10.0, node.state.energy))
+
+            logger.debug(
+                f"Sephirah {role.value} {'rewarded' if success else 'penalized'}: "
+                f"energy={node.state.energy:.4f} (mag={magnitude:.4f})"
+            )
+        except Exception as e:
+            logger.debug(f"Sephirah reward error for {role_name}: {e}")
+
     def _record_reasoning_outcome(self, strategy: str, confidence: float,
                                    success: bool, block_height: int) -> None:
         """Feed reasoning outcome back to metacognition for adaptation."""
@@ -702,6 +1129,18 @@ class AetherEngine:
                 confidence=confidence,
                 outcome_correct=success,
                 block_height=block_height,
+            )
+        # Reward/penalize the responsible Sephirah based on outcome
+        self._reward_sephirah(strategy, success, confidence * 0.1)
+        # Record episode in memory manager
+        if self.memory_manager:
+            self.memory_manager.record_episode(
+                block_height=block_height,
+                input_ids=[],
+                strategy=strategy,
+                conclusion_id=None,
+                success=success,
+                confidence=confidence,
             )
 
     def _record_consciousness_event(self, event_type: str, phi_value: float,
@@ -1201,6 +1640,421 @@ class AetherEngine:
 
         return found
 
+    # ------------------------------------------------------------------ #
+    #  Phase 5.1 — Curiosity-Driven Goal Formation                        #
+    # ------------------------------------------------------------------ #
+
+    def _curiosity_explore(self, block_height: int) -> int:
+        """Generate and pursue curiosity-driven exploration goals.
+
+        Identifies under-explored areas of the knowledge graph and creates
+        self-directed goals to fill gaps.  Pursues the highest-priority
+        goal each cycle.
+
+        Args:
+            block_height: Current block height.
+
+        Returns:
+            Number of goals acted upon.
+        """
+        if not self.kg:
+            return 0
+
+        acted = 0
+
+        # --- Refresh goal queue ---
+        self._generate_curiosity_goals(block_height)
+
+        # --- Pursue top pending goal ---
+        pending = [g for g in self._curiosity_goals if g['status'] == 'pending']
+        if not pending:
+            return 0
+
+        goal = pending[0]
+        goal['status'] = 'active'
+
+        try:
+            if goal['type'] == 'explore_domain' and self.reasoning:
+                # Find nodes in the target domain and try induction
+                domain = goal.get('target', '')
+                domain_nodes = [
+                    n for n in self.kg.nodes.values()
+                    if n.domain == domain and n.node_type == 'observation'
+                ][:5]
+                if len(domain_nodes) >= 2:
+                    result = self.reasoning.induce(
+                        [n.node_id for n in domain_nodes]
+                    )
+                    if result.success:
+                        goal['status'] = 'completed'
+                        self._curiosity_stats['goals_completed'] += 1
+                        acted += 1
+                    else:
+                        goal['status'] = 'failed'
+                        self._curiosity_stats['goals_failed'] += 1
+                else:
+                    goal['status'] = 'failed'
+                    self._curiosity_stats['goals_failed'] += 1
+
+            elif goal['type'] == 'investigate_contradiction' and self.reasoning:
+                node_ids = goal.get('target_ids', [])
+                if len(node_ids) == 2:
+                    result = self.reasoning.resolve_contradiction(
+                        node_ids[0], node_ids[1]
+                    )
+                    if result.success:
+                        goal['status'] = 'completed'
+                        self._curiosity_stats['goals_completed'] += 1
+                        acted += 1
+                    else:
+                        goal['status'] = 'failed'
+                        self._curiosity_stats['goals_failed'] += 1
+                else:
+                    goal['status'] = 'failed'
+                    self._curiosity_stats['goals_failed'] += 1
+
+            elif goal['type'] == 'bridge_gap' and self.reasoning:
+                node_ids = goal.get('target_ids', [])
+                if node_ids:
+                    result = self.reasoning.find_analogies(
+                        node_ids[0], max_results=3
+                    )
+                    if result.success:
+                        goal['status'] = 'completed'
+                        self._curiosity_stats['goals_completed'] += 1
+                        acted += 1
+                    else:
+                        goal['status'] = 'failed'
+                        self._curiosity_stats['goals_failed'] += 1
+                else:
+                    goal['status'] = 'failed'
+                    self._curiosity_stats['goals_failed'] += 1
+
+            elif goal['type'] == 'verify_prediction' and self.temporal_engine:
+                self.temporal_engine.validate_predictions(block_height)
+                goal['status'] = 'completed'
+                self._curiosity_stats['goals_completed'] += 1
+                acted += 1
+
+            else:
+                goal['status'] = 'failed'
+                self._curiosity_stats['goals_failed'] += 1
+
+        except Exception as e:
+            goal['status'] = 'failed'
+            self._curiosity_stats['goals_failed'] += 1
+            logger.debug(f"Curiosity goal failed: {e}")
+
+        # Prune completed/failed goals older than 500 blocks
+        self._curiosity_goals = [
+            g for g in self._curiosity_goals
+            if g['status'] == 'pending'
+            or block_height - g.get('created_block', 0) < 500
+        ][:50]
+
+        if acted:
+            logger.debug(
+                f"Curiosity at block {block_height}: "
+                f"acted on {acted} goals, queue={len(self._curiosity_goals)}"
+            )
+
+        return acted
+
+    def _generate_curiosity_goals(self, block_height: int) -> int:
+        """Generate curiosity goals based on knowledge graph state.
+
+        Identifies: under-explored domains, orphaned nodes, unresolved
+        contradictions, and pending predictions.
+
+        Args:
+            block_height: Current block height.
+
+        Returns:
+            Number of new goals generated.
+        """
+        if not self.kg:
+            return 0
+
+        # Don't generate if queue is already full
+        pending = [g for g in self._curiosity_goals if g['status'] == 'pending']
+        if len(pending) >= 20:
+            return 0
+
+        generated = 0
+        existing_targets = {
+            g.get('target', '') for g in self._curiosity_goals
+            if g['status'] == 'pending'
+        }
+
+        # 1. Under-explored domains
+        domain_stats = self.kg.get_domain_stats()
+        if domain_stats:
+            sorted_domains = sorted(
+                domain_stats.items(), key=lambda x: x[1]['count']
+            )
+            for domain, info in sorted_domains[:3]:
+                if domain not in existing_targets and info['count'] < 100:
+                    self._curiosity_goals.append({
+                        'type': 'explore_domain',
+                        'priority': 1.0 / (1 + info['count'] / 50),
+                        'target': domain,
+                        'created_block': block_height,
+                        'status': 'pending',
+                    })
+                    generated += 1
+
+        # 2. Unresolved contradictions
+        contradiction_pairs: List[tuple] = []
+        for edge in self.kg.edges:
+            if edge.edge_type == 'contradicts':
+                if (edge.from_node_id in self.kg.nodes
+                        and edge.to_node_id in self.kg.nodes):
+                    contradiction_pairs.append(
+                        (edge.from_node_id, edge.to_node_id)
+                    )
+                    if len(contradiction_pairs) >= 3:
+                        break
+
+        for a_id, b_id in contradiction_pairs:
+            key = f"contra_{a_id}_{b_id}"
+            if key not in existing_targets:
+                self._curiosity_goals.append({
+                    'type': 'investigate_contradiction',
+                    'priority': 0.9,
+                    'target': key,
+                    'target_ids': [a_id, b_id],
+                    'created_block': block_height,
+                    'status': 'pending',
+                })
+                generated += 1
+
+        # 3. Orphaned high-confidence nodes (few edges)
+        orphans = [
+            n for n in self.kg.nodes.values()
+            if len(n.edges_out) + len(n.edges_in) <= 1
+            and n.confidence > 0.5
+            and n.node_type in ('inference', 'assertion')
+        ]
+        for orphan in orphans[:2]:
+            key = f"bridge_{orphan.node_id}"
+            if key not in existing_targets:
+                self._curiosity_goals.append({
+                    'type': 'bridge_gap',
+                    'priority': 0.7,
+                    'target': key,
+                    'target_ids': [orphan.node_id],
+                    'created_block': block_height,
+                    'status': 'pending',
+                })
+                generated += 1
+
+        # 4. Pending predictions to verify
+        if self.temporal_engine and 'verify_pred' not in existing_targets:
+            try:
+                if hasattr(self.temporal_engine, '_pending_predictions'):
+                    pending_preds = getattr(
+                        self.temporal_engine, '_pending_predictions', []
+                    )
+                    if pending_preds:
+                        self._curiosity_goals.append({
+                            'type': 'verify_prediction',
+                            'priority': 0.8,
+                            'target': 'verify_pred',
+                            'created_block': block_height,
+                            'status': 'pending',
+                        })
+                        generated += 1
+            except Exception:
+                pass
+
+        # Sort by priority descending
+        self._curiosity_goals.sort(
+            key=lambda g: g.get('priority', 0), reverse=True
+        )
+        # Cap at 50
+        self._curiosity_goals = self._curiosity_goals[:50]
+
+        self._curiosity_stats['goals_generated'] += generated
+        return generated
+
+    # ------------------------------------------------------------------ #
+    #  Phase 5.4 — Emergent Communication Protocol                        #
+    # ------------------------------------------------------------------ #
+
+    def create_knowledge_digest(self, block_height: int,
+                                since_block: int = None) -> dict:
+        """Create a compact digest of recent knowledge for P2P sharing.
+
+        Collects the top-k highest-confidence new nodes and recent edges
+        since ``since_block`` and packages them as a lightweight digest
+        suitable for gossip propagation.
+
+        Args:
+            block_height: Current block height.
+            since_block: Include changes since this block (default: -100).
+
+        Returns:
+            Dict with ``block_height``, ``new_nodes``, ``new_edges``,
+            ``digest_hash``, ``timestamp``.
+        """
+        if not self.kg:
+            return {}
+
+        import hashlib
+        since = since_block if since_block is not None else max(0, block_height - 100)
+
+        # Collect recent nodes (top-20 by confidence)
+        recent_nodes = sorted(
+            [n for n in self.kg.nodes.values() if n.source_block >= since],
+            key=lambda n: n.confidence,
+            reverse=True,
+        )[:20]
+
+        new_nodes = [
+            {
+                'node_id': n.node_id,
+                'node_type': n.node_type,
+                'content_hash': n.content_hash if hasattr(n, 'content_hash') and n.content_hash else '',
+                'confidence': round(n.confidence, 4),
+                'domain': n.domain or '',
+            }
+            for n in recent_nodes
+        ]
+
+        # Collect recent edges
+        recent_edges = [
+            e for e in self.kg.edges
+            if any(
+                self.kg.nodes.get(e.from_node_id)
+                and self.kg.nodes[e.from_node_id].source_block >= since
+                for _ in [None]
+            )
+        ][:50]
+
+        new_edges = [
+            {
+                'from_id': e.from_node_id,
+                'to_id': e.to_node_id,
+                'edge_type': e.edge_type,
+                'weight': round(e.weight, 4),
+            }
+            for e in recent_edges
+        ]
+
+        # Compute digest hash for dedup
+        raw = json.dumps({
+            'block': block_height,
+            'nodes': len(new_nodes),
+            'edges': len(new_edges),
+            'ts': time.time(),
+        }, sort_keys=True)
+        digest_hash = hashlib.sha256(raw.encode()).hexdigest()[:32]
+
+        return {
+            'block_height': block_height,
+            'timestamp': time.time(),
+            'new_nodes': new_nodes,
+            'new_edges': new_edges,
+            'digest_hash': digest_hash,
+        }
+
+    def merge_knowledge_digest(self, digest: dict) -> dict:
+        """Merge a knowledge digest received from a peer node.
+
+        For each node in the digest:
+        - If we have a node with the same content_hash, boost its confidence
+          by 0.02 (multi-node consensus).
+        - If we don't have it, create a placeholder observation with reduced
+          confidence (0.3) and ``grounding_source='peer_digest'``.
+
+        For each edge: create if both endpoint nodes exist and the edge
+        doesn't already exist.
+
+        Args:
+            digest: Knowledge digest dict from a peer.
+
+        Returns:
+            Stats dict with nodes_boosted, nodes_created, edges_created,
+            was_duplicate.
+        """
+        stats = {
+            'nodes_boosted': 0, 'nodes_created': 0,
+            'edges_created': 0, 'was_duplicate': False,
+        }
+
+        if not self.kg or not digest:
+            return stats
+
+        # Dedup check
+        digest_hash = digest.get('digest_hash', '')
+        if digest_hash in self._seen_digests:
+            stats['was_duplicate'] = True
+            return stats
+
+        self._seen_digests.add(digest_hash)
+        # Cap seen digests
+        if len(self._seen_digests) > 1000:
+            # Remove oldest (arbitrary, set doesn't preserve order)
+            self._seen_digests = set(list(self._seen_digests)[-500:])
+
+        self._digests_received += 1
+
+        # Build content_hash → node_id lookup
+        hash_to_node: Dict[str, int] = {}
+        for node in self.kg.nodes.values():
+            ch = getattr(node, 'content_hash', '')
+            if ch:
+                hash_to_node[ch] = node.node_id
+
+        # Process nodes
+        for n_info in digest.get('new_nodes', []):
+            content_hash = n_info.get('content_hash', '')
+            if content_hash and content_hash in hash_to_node:
+                # Boost existing node's confidence (peer consensus)
+                existing = self.kg.nodes.get(hash_to_node[content_hash])
+                if existing:
+                    existing.confidence = min(1.0, existing.confidence + 0.02)
+                    stats['nodes_boosted'] += 1
+                    self._peer_consensus_boosts += 1
+            else:
+                # Create placeholder node
+                placeholder = self.kg.add_node(
+                    node_type=n_info.get('node_type', 'observation'),
+                    content={
+                        'type': 'peer_knowledge',
+                        'original_content_hash': content_hash,
+                        'source': 'peer_digest',
+                    },
+                    confidence=0.3,
+                    source_block=digest.get('block_height', 0),
+                    domain=n_info.get('domain', ''),
+                )
+                if placeholder:
+                    placeholder.grounding_source = 'peer_digest'
+                    stats['nodes_created'] += 1
+                    self._nodes_from_peers += 1
+
+        # Process edges
+        for e_info in digest.get('new_edges', []):
+            from_id = e_info.get('from_id')
+            to_id = e_info.get('to_id')
+            if (from_id in self.kg.nodes and to_id in self.kg.nodes):
+                # Check if edge already exists
+                existing = False
+                for edge in self.kg.get_edges_from(from_id):
+                    if edge.to_node_id == to_id and edge.edge_type == e_info.get('edge_type', ''):
+                        existing = True
+                        break
+                if not existing:
+                    self.kg.add_edge(
+                        from_id, to_id,
+                        e_info.get('edge_type', 'supports'),
+                        weight=e_info.get('weight', 1.0),
+                    )
+                    stats['edges_created'] += 1
+
+        return stats
+
     def get_stats(self) -> dict:
         """Get comprehensive Aether engine statistics"""
         kg_stats = self.kg.get_stats() if self.kg else {}
@@ -1233,5 +2087,28 @@ class AetherEngine:
             stats['concept_formation'] = self.concept_formation.get_stats()
         if self.metacognition:
             stats['metacognition'] = self.metacognition.get_stats()
+        if self.memory_manager:
+            stats['memory_manager'] = self.memory_manager.get_stats()
+
+        # Phase 5.1: Curiosity stats
+        stats['curiosity'] = {
+            **self._curiosity_stats,
+            'current_queue_size': len(self._curiosity_goals),
+            'pending_goals': len(
+                [g for g in self._curiosity_goals if g['status'] == 'pending']
+            ),
+        }
+
+        # Phase 5.4: Knowledge sharing stats
+        stats['knowledge_sharing'] = {
+            'digests_created': self._digests_created,
+            'digests_received': self._digests_received,
+            'nodes_from_peers': self._nodes_from_peers,
+            'peer_consensus_boosts': self._peer_consensus_boosts,
+        }
+
+        # Phase 6: On-chain integration stats
+        if self.on_chain:
+            stats['on_chain'] = self.on_chain.get_stats()
 
         return stats

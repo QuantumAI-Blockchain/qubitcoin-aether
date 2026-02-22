@@ -134,16 +134,66 @@ class VectorIndex:
 
     Stores per-node embeddings and supports:
     - Incremental add/remove
-    - Cosine similarity search
+    - Cosine similarity search (ANN via hnswlib when available, brute-force fallback)
     - Batch embedding computation
     - Near-duplicate detection (for Phi redundancy penalty)
     """
+
+    # Threshold for rebuilding hnswlib index vs incremental add
+    _HNSW_REBUILD_THRESHOLD = 1000
 
     def __init__(self) -> None:
         # node_id -> embedding vector
         self.embeddings: Dict[int, List[float]] = {}
         # Embedding dimension (set on first add)
         self._dim: int = 0
+        # hnswlib ANN index (lazy-initialized)
+        self._hnsw = None
+        self._hnsw_available: bool = False
+        self._hnsw_id_to_label: Dict[int, int] = {}   # node_id -> hnsw internal label
+        self._hnsw_label_to_id: Dict[int, int] = {}   # hnsw label -> node_id
+        self._hnsw_next_label: int = 0
+        self._hnsw_dirty: bool = True
+        try:
+            import hnswlib as _hnsw_mod  # noqa: F401
+            self._hnsw_available = True
+        except ImportError:
+            pass
+
+    def _ensure_hnsw(self) -> bool:
+        """Rebuild hnswlib index if dirty and enough embeddings exist."""
+        if not self._hnsw_available or not self._dim or len(self.embeddings) < 20:
+            return False
+        if not self._hnsw_dirty and self._hnsw is not None:
+            return True
+        try:
+            import hnswlib
+            import numpy as np
+            n = len(self.embeddings)
+            index = hnswlib.Index(space='cosine', dim=self._dim)
+            index.init_index(max_elements=max(n * 2, 1000), ef_construction=200, M=16)
+            self._hnsw_id_to_label.clear()
+            self._hnsw_label_to_id.clear()
+            ids_list = []
+            vectors = []
+            for i, (node_id, emb) in enumerate(self.embeddings.items()):
+                ids_list.append(i)
+                vectors.append(emb)
+                self._hnsw_id_to_label[node_id] = i
+                self._hnsw_label_to_id[i] = node_id
+            index.add_items(
+                np.array(vectors, dtype=np.float32),
+                np.array(ids_list, dtype=np.int64),
+            )
+            index.set_ef(50)
+            self._hnsw = index
+            self._hnsw_next_label = len(ids_list)
+            self._hnsw_dirty = False
+            return True
+        except Exception as e:
+            logger.debug(f"hnswlib rebuild failed: {e}")
+            self._hnsw_available = False
+            return False
 
     def add_node(self, node_id: int, content: dict) -> None:
         """Compute and store embedding for a node."""
@@ -155,6 +205,7 @@ class VectorIndex:
             self.embeddings[node_id] = emb
             if not self._dim:
                 self._dim = len(emb)
+            self._hnsw_dirty = True
         except Exception as e:
             logger.debug(f"VectorIndex: failed to embed node {node_id}: {e}")
 
@@ -177,6 +228,7 @@ class VectorIndex:
                 self.embeddings[nid] = emb
             if not self._dim and embs:
                 self._dim = len(embs[0])
+            self._hnsw_dirty = True
             return len(embs)
         except Exception as e:
             logger.debug(f"VectorIndex: batch embed failed: {e}")
@@ -185,10 +237,12 @@ class VectorIndex:
     def remove_node(self, node_id: int) -> None:
         """Remove a node's embedding."""
         self.embeddings.pop(node_id, None)
+        self._hnsw_dirty = True
 
     def query(self, query_text: str, top_k: int = 10) -> List[Tuple[int, float]]:
         """
-        Search by semantic similarity.
+        Search by semantic similarity. Uses hnswlib O(log n) when available,
+        falls back to brute-force O(n).
 
         Returns:
             List of (node_id, cosine_similarity) tuples, highest first.
@@ -201,11 +255,58 @@ class VectorIndex:
         except Exception:
             return []
 
+        # Try hnswlib ANN search first
+        if self._ensure_hnsw():
+            try:
+                import numpy as np
+                k = min(top_k, len(self.embeddings))
+                labels, distances = self._hnsw.knn_query(
+                    np.array([query_emb], dtype=np.float32), k=k
+                )
+                results = []
+                for label, dist in zip(labels[0], distances[0]):
+                    nid = self._hnsw_label_to_id.get(int(label))
+                    if nid is not None:
+                        # hnswlib cosine distance = 1 - cosine_similarity
+                        results.append((nid, 1.0 - float(dist)))
+                return results
+            except Exception:
+                pass  # fall through to brute-force
+
+        # Brute-force fallback
         scores = []
         for nid, emb in self.embeddings.items():
             sim = cosine_similarity(query_emb, emb)
             scores.append((nid, sim))
 
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return scores[:top_k]
+
+    def query_by_embedding(self, query_emb: List[float], top_k: int = 10) -> List[Tuple[int, float]]:
+        """Search by pre-computed embedding vector."""
+        if not self.embeddings:
+            return []
+
+        if self._ensure_hnsw():
+            try:
+                import numpy as np
+                k = min(top_k, len(self.embeddings))
+                labels, distances = self._hnsw.knn_query(
+                    np.array([query_emb], dtype=np.float32), k=k
+                )
+                results = []
+                for label, dist in zip(labels[0], distances[0]):
+                    nid = self._hnsw_label_to_id.get(int(label))
+                    if nid is not None:
+                        results.append((nid, 1.0 - float(dist)))
+                return results
+            except Exception:
+                pass
+
+        scores = []
+        for nid, emb in self.embeddings.items():
+            sim = cosine_similarity(query_emb, emb)
+            scores.append((nid, sim))
         scores.sort(key=lambda x: x[1], reverse=True)
         return scores[:top_k]
 
@@ -216,15 +317,41 @@ class VectorIndex:
     def find_near_duplicates(self, threshold: float = 0.95) -> List[Tuple[int, int, float]]:
         """Find pairs of nodes with cosine similarity above threshold.
 
-        Used by Phi v3 redundancy penalty to detect copy-spam.
+        Uses hnswlib k-NN per node when available (O(n*k log n)),
+        falls back to brute-force O(n^2) with sampling for large graphs.
 
         Returns:
             List of (node_a, node_b, similarity) tuples.
         """
         ids = list(self.embeddings.keys())
         duplicates = []
-        # O(n^2) scan — for large graphs, sample or use approximate NN
-        # Cap at 5000 nodes for performance
+
+        # Use hnswlib for efficient duplicate detection
+        if self._ensure_hnsw() and len(ids) > 100:
+            try:
+                import numpy as np
+                seen_pairs: set = set()
+                for nid in ids:
+                    emb = self.embeddings[nid]
+                    k = min(10, len(ids))  # check top-10 neighbors
+                    labels, distances = self._hnsw.knn_query(
+                        np.array([emb], dtype=np.float32), k=k
+                    )
+                    for label, dist in zip(labels[0], distances[0]):
+                        other_nid = self._hnsw_label_to_id.get(int(label))
+                        if other_nid is None or other_nid == nid:
+                            continue
+                        sim = 1.0 - float(dist)
+                        if sim >= threshold:
+                            pair = (min(nid, other_nid), max(nid, other_nid))
+                            if pair not in seen_pairs:
+                                seen_pairs.add(pair)
+                                duplicates.append((pair[0], pair[1], sim))
+                return duplicates
+            except Exception:
+                pass  # fall through to brute-force
+
+        # Brute-force fallback with sampling
         if len(ids) > 5000:
             import random
             ids = random.sample(ids, 5000)
@@ -292,4 +419,5 @@ class VectorIndex:
             'total_embeddings': len(self.embeddings),
             'embedding_dim': self._dim,
             'uses_transformer': _USE_TRANSFORMER and _model is not None,
+            'uses_hnswlib': self._hnsw_available and self._hnsw is not None,
         }

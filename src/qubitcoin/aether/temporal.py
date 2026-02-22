@@ -38,6 +38,9 @@ class TemporalEngine:
         self._predictions: List[dict] = []
         self._predictions_validated: int = 0
         self._predictions_correct: int = 0
+        # Recently verified predictions (for feedback loop)
+        self._verified_outcomes: List[dict] = []
+        self._max_verified_outcomes: int = 500
 
     def record_metric(self, metric: str, block_height: int, value: float) -> None:
         """Record a time-series data point."""
@@ -249,6 +252,59 @@ class TemporalEngine:
                     node.content['error_pct'] = round(error_pct, 4)
                     node.content['prediction_correct'] = correct
 
+                    # Create a verification result node in the knowledge graph
+                    pred_confidence = pred.get('confidence', 0.5)
+                    if correct:
+                        verification_content = {
+                            'type': 'prediction_confirmed',
+                            'metric': metric,
+                            'predicted': round(predicted, 6),
+                            'actual': round(actual, 6),
+                            'error_pct': round(error_pct, 4),
+                        }
+                        verification_confidence = min(1.0, pred_confidence + 0.2)
+                    else:
+                        verification_content = {
+                            'type': 'prediction_falsified',
+                            'metric': metric,
+                            'predicted': round(predicted, 6),
+                            'actual': round(actual, 6),
+                            'error_pct': round(error_pct, 4),
+                        }
+                        verification_confidence = max(0.1, pred_confidence - 0.3)
+
+                    try:
+                        v_node = self.kg.add_node(
+                            node_type='assertion',
+                            content=verification_content,
+                            confidence=verification_confidence,
+                            source_block=block_height,
+                        )
+                        if v_node:
+                            # Verified predictions are grounded by comparison to actual data
+                            v_node.grounding_source = 'prediction_verified'
+                            self.kg.add_edge(node_id, v_node.node_id, edge_type='derives')
+                            pred['verification_node_id'] = v_node.node_id
+                    except Exception as e:
+                        logger.debug(f"Failed to create verification node: {e}")
+
+            # Record verified outcome for feedback loop consumption
+            self._verified_outcomes.append({
+                'metric': metric,
+                'predicted': round(predicted, 6),
+                'actual': round(actual, 6),
+                'error_pct': round(error_pct, 4),
+                'correct': correct,
+                'prediction_node_id': node_id,
+                'verification_node_id': pred.get('verification_node_id'),
+                'target_block': target_block,
+                'validated_at_block': block_height,
+            })
+
+        # Trim verified outcomes buffer
+        if len(self._verified_outcomes) > self._max_verified_outcomes:
+            self._verified_outcomes = self._verified_outcomes[-self._max_verified_outcomes:]
+
         self._predictions = remaining
 
         if validated > 0:
@@ -346,6 +402,27 @@ class TemporalEngine:
         if self._predictions_validated == 0:
             return 0.0
         return self._predictions_correct / self._predictions_validated
+
+    def get_verified_outcomes(self, since_block: int = 0) -> List[dict]:
+        """Return recently verified predictions with their outcomes.
+
+        Used by the proof_of_thought feedback loop to feed outcomes
+        to neural_reasoner and metacognition.
+
+        Args:
+            since_block: Only return outcomes validated at or after this block.
+
+        Returns:
+            List of dicts with keys: metric, predicted, actual, error_pct,
+            correct, prediction_node_id, verification_node_id,
+            target_block, validated_at_block.
+        """
+        if since_block <= 0:
+            return list(self._verified_outcomes)
+        return [
+            o for o in self._verified_outcomes
+            if o.get('validated_at_block', 0) >= since_block
+        ]
 
     def get_stats(self) -> dict:
         return {

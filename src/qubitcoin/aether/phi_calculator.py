@@ -18,8 +18,9 @@ Formula:
     phi = min(raw_phi * redundancy_factor, gate_ceiling)
 """
 import math
+import random
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set, Tuple
 
 from ..utils.logger import get_logger
 
@@ -29,100 +30,126 @@ logger = get_logger(__name__)
 PHI_THRESHOLD = 3.0
 
 # ============================================================================
-# MILESTONE GATES
-# Each passed gate unlocks +0.5 Phi ceiling.  Gates require genuine system
-# evolution: diverse node types, diverse edge types, self-correction, and
-# emergent scale.
+# MILESTONE GATES (Semantic Quality Hardened)
+# Each passed gate unlocks +0.5 Phi ceiling.  Gates require BOTH quantity AND
+# quality criteria to prevent gaming via junk node injection.
 # ============================================================================
 MILESTONE_GATES: List[dict] = [
     {
         'id': 1,
         'name': 'Knowledge Foundation',
-        'description': 'Build a substantial knowledge base',
-        'check': lambda stats: stats['n_nodes'] >= 1000 and stats['n_edges'] >= 500,
-        'requirement': '>=1000 nodes, >=500 edges',
+        'description': 'Substantial knowledge base with quality nodes',
+        'check': lambda stats: (
+            stats['n_nodes'] >= 100
+            and stats.get('avg_confidence', 0) >= 0.5
+        ),
+        'requirement': '>=100 nodes AND avg confidence >= 0.5',
     },
     {
         'id': 2,
-        'name': 'Reasoning Activity',
-        'description': 'Active inference and derivation in the graph',
+        'name': 'Diverse Reasoning',
+        'description': 'Multiple node types and active reasoning',
         'check': lambda stats: (
-            stats['node_type_counts'].get('inference', 0) >= 500
-            and stats['edge_type_counts'].get('derives', 0) >= 200
+            stats['n_nodes'] >= 500
+            and len([t for t, c in stats['node_type_counts'].items() if c >= 10]) >= 3
+            and stats.get('integration_score', 0) > 0.3
         ),
-        'requirement': '>=500 inference nodes, >=200 derives edges',
+        'requirement': '>=500 nodes, >=3 node types with 10+ each, integration > 0.3',
     },
     {
         'id': 3,
-        'name': 'Node Type Diversity',
-        'description': 'All 4+ node types with meaningful representation',
-        'check': lambda stats: all(
-            stats['node_type_counts'].get(t, 0) >= 50
-            for t in ('observation', 'inference', 'axiom', 'assertion')
+        'name': 'Predictive Power',
+        'description': 'Verified predictions demonstrate real understanding',
+        'check': lambda stats: (
+            stats['n_nodes'] >= 1000
+            and stats.get('verified_predictions', 0) >= 50
+            and (
+                stats['edge_type_counts'].get('causes', 0)
+                >= stats['n_edges'] * 0.05
+                if stats['n_edges'] > 0
+                else False
+            )
         ),
-        'requirement': 'All 4 base node types >=50 each',
+        'requirement': '>=1000 nodes, >=50 verified predictions, causal edges > 5% of total',
     },
     {
         'id': 4,
-        'name': 'Edge Type Diversity',
-        'description': 'Multiple relationship types in use',
-        'check': lambda stats: sum(
-            1 for v in stats['edge_type_counts'].values() if v >= 10
-        ) >= 3,
-        'requirement': '>=3 edge types with >=10 each',
+        'name': 'Self-Correction',
+        'description': 'Demonstrates ability to identify and resolve contradictions',
+        'check': lambda stats: (
+            stats['n_nodes'] >= 2000
+            and stats.get('debate_verdicts', 0) >= 10
+            and stats.get('contradiction_resolutions', 0) >= 5
+            and stats.get('mip_phi', 0) > 0.3
+        ),
+        'requirement': '>=2000 nodes, >=10 debate verdicts, >=5 contradictions resolved, MIP > 0.3',
     },
     {
         'id': 5,
-        'name': 'Self-Correction',
-        'description': 'System can identify and record contradictions',
-        'check': lambda stats: stats['edge_type_counts'].get('contradicts', 0) >= 10,
-        'requirement': '>=10 contradicts edges',
+        'name': 'Cross-Domain Transfer',
+        'description': 'Knowledge transfer between domains demonstrates generalization',
+        'check': lambda stats: (
+            stats['n_nodes'] >= 5000
+            and stats.get('domain_count', 0) >= 5
+            and stats['edge_type_counts'].get('analogous_to', 0) >= 50
+            and stats.get('working_memory_hit_rate', 0) > 0.3
+        ),
+        'requirement': '>=5000 nodes, >=5 domains, >=50 analogies, WM hit rate > 0.3',
     },
     {
         'id': 6,
-        'name': 'Emergent Complexity',
-        'description': 'Large-scale graph with full edge diversity',
+        'name': 'Emergent Goals',
+        'description': 'System generates and pursues its own goals',
         'check': lambda stats: (
-            stats['n_nodes'] >= 50_000
-            and sum(1 for v in stats['edge_type_counts'].values() if v >= 1) >= 5
+            stats['n_nodes'] >= 10000
+            and stats.get('auto_goals_generated', 0) >= 20
+            and stats.get('self_reflection_nodes', 0) >= 20
         ),
-        'requirement': '>=50K nodes + >=5 edge types present',
+        'requirement': '>=10K nodes, >=20 auto-goals, >=20 self-reflection nodes',
     },
     {
         'id': 7,
-        'name': 'Analogical Reasoning',
-        'description': 'Cross-domain analogies discovered',
+        'name': 'Metacognitive Calibration',
+        'description': 'System accurately predicts its own reasoning quality',
         'check': lambda stats: (
-            stats['edge_type_counts'].get('analogous_to', 0) >= 100
-            and stats.get('domain_count', 0) >= 5
+            stats['n_nodes'] >= 20000
+            and stats.get('calibration_error', 1.0) < 0.15
+            and stats.get('grounding_ratio', 0) > 0.1
         ),
-        'requirement': '>=100 analogous_to edges across >=5 domains',
+        'requirement': '>=20K nodes, calibration error < 0.15, >10% grounded nodes',
     },
     {
         'id': 8,
-        'name': 'Self-Model',
-        'description': 'System builds a model of its own cognitive state',
-        'check': lambda stats: stats.get('self_reflection_nodes', 0) >= 50,
-        'requirement': '>=50 nodes with source: self-reflection',
+        'name': 'Consolidated Knowledge',
+        'description': 'Episodic replay has produced durable semantic knowledge',
+        'check': lambda stats: (
+            stats['n_nodes'] >= 30000
+            and stats.get('axiom_from_consolidation', 0) >= 10
+            and stats.get('cross_domain_inferences', 0) >= 20
+        ),
+        'requirement': '>=30K nodes, >=10 consolidated axioms, >=20 cross-domain inferences',
     },
     {
         'id': 9,
-        'name': 'Predictive Accuracy',
-        'description': 'High-confidence inferences validated by subsequent evidence',
+        'name': 'Predictive Mastery',
+        'description': 'High prediction accuracy demonstrates genuine understanding',
         'check': lambda stats: (
-            stats['node_type_counts'].get('inference', 0) >= 1000
-            and stats['edge_type_counts'].get('supports', 0) >= 2000
+            stats['n_nodes'] >= 50000
+            and stats.get('prediction_accuracy', 0) > 0.6
+            and stats['node_type_counts'].get('inference', 0) >= 5000
         ),
-        'requirement': '>=1000 inference nodes with >=2000 support edges',
+        'requirement': '>=50K nodes, prediction accuracy > 60%, >=5K inferences',
     },
     {
         'id': 10,
         'name': 'Creative Synthesis',
-        'description': 'Novel hypotheses combining knowledge from multiple domains',
+        'description': 'Novel concepts combining multiple domains and modalities',
         'check': lambda stats: (
-            stats.get('cross_domain_inferences', 0) >= 20
+            stats['n_nodes'] >= 100000
+            and stats.get('cross_domain_inferences', 0) >= 100
+            and stats.get('novel_concept_count', 0) >= 50
         ),
-        'requirement': '>=20 cross-domain inference nodes',
+        'requirement': '>=100K nodes, >=100 cross-domain inferences, >=50 novel concepts',
     },
 ]
 
@@ -142,6 +169,7 @@ class PhiCalculator:
         self._cache: Dict[int, float] = {}  # block_height -> phi
         self._last_full_result: Optional[dict] = None
         self._last_computed_block: int = -1
+        self._last_mip_score: float = 0.0
         self._compute_interval: int = int(
             __import__('os').getenv('PHI_COMPUTE_INTERVAL', '1')
         )
@@ -198,7 +226,10 @@ class PhiCalculator:
         redundancy_factor = self._compute_redundancy_factor()
 
         # --- Milestone gates ---
-        gates = self._check_gates(nodes, edges)
+        gates = self._check_gates(nodes, edges, extra_stats={
+            'integration_score': integration,
+            'mip_phi': self._last_mip_score,
+        })
         gates_passed = sum(1 for g in gates if g['passed'])
         gate_ceiling = gates_passed * 0.5
 
@@ -212,6 +243,7 @@ class PhiCalculator:
             'above_threshold': phi >= PHI_THRESHOLD,
             'integration_score': round(integration, 6),
             'differentiation_score': round(differentiation, 6),
+            'mip_score': round(self._last_mip_score, 6),
             'connectivity': round(connectivity, 6),
             'maturity': round(maturity, 6),
             'redundancy_factor': round(redundancy_factor, 4),
@@ -312,7 +344,259 @@ class PhiCalculator:
         if edges:
             cross_flow /= len(edges)
 
-        return structural + mi_score + cross_flow
+        # Minimum Information Partition (spectral bisection)
+        # Only meaningful for graphs with >= 10 nodes
+        mip_score = 0.0
+        if n_nodes >= 10:
+            mip_score = self._compute_mip(nodes, edges)
+
+        # Store MIP on instance for result dict access
+        self._last_mip_score = mip_score
+
+        return structural + mi_score + cross_flow + mip_score
+
+    # ========================================================================
+    # Minimum Information Partition (MIP) via Spectral Bisection
+    # ========================================================================
+
+    def _compute_mip(self, nodes: dict, edges: list) -> float:
+        """
+        Compute Minimum Information Partition using spectral bisection.
+
+        Real IIT requires finding the partition that *minimizes* integrated
+        information — the cut where the system loses the least information
+        when split.  This is the MIP.
+
+        Algorithm:
+        1. Build weighted adjacency matrix (sparse, dict-of-dicts).
+        2. Compute graph Laplacian L = D - A.
+        3. Find the Fiedler vector (second-smallest eigenvector of L) via
+           power iteration on the shifted Laplacian.
+        4. Try 3 spectral cuts (n/3, n/2, 2n/3) on nodes sorted by Fiedler
+           value and pick the one that minimizes information loss.
+        5. Return normalized phi_partition = (I_whole - I_A - I_B) / I_whole.
+
+        Args:
+            nodes: Dict[int, KeterNode] — knowledge graph nodes
+            edges: List[KeterEdge] — knowledge graph edges
+
+        Returns:
+            MIP score (float >= 0).  Higher means more integrated.
+        """
+        n_nodes = len(nodes)
+        if n_nodes < 10:
+            return 0.0
+
+        # --- Cap computation: sample 5000 nodes for large graphs ---
+        node_ids = list(nodes.keys())
+        sampled = False
+        if n_nodes > 5000:
+            sampled = True
+            random.seed(42)  # deterministic sampling for reproducibility
+            sampled_ids: Set[int] = set(random.sample(node_ids, 5000))
+            node_ids = list(sampled_ids)
+            n_nodes = 5000
+        else:
+            sampled_ids = set(node_ids)
+
+        # Create index mapping: node_id -> matrix index
+        id_to_idx: Dict[int, int] = {nid: i for i, nid in enumerate(node_ids)}
+
+        # --- Step 1: Build weighted adjacency matrix (sparse dict-of-dicts) ---
+        adj: Dict[int, Dict[int, float]] = {i: {} for i in range(n_nodes)}
+
+        for edge in edges:
+            fid = edge.from_node_id
+            tid = edge.to_node_id
+            if fid not in id_to_idx or tid not in id_to_idx:
+                continue
+            if fid == tid:
+                continue
+
+            fi = id_to_idx[fid]
+            ti = id_to_idx[tid]
+
+            fn = nodes.get(fid)
+            tn = nodes.get(tid)
+            if fn is None or tn is None:
+                continue
+
+            w = fn.confidence * tn.confidence * edge.weight
+            if w <= 0.0:
+                continue
+
+            # Undirected: add both directions, accumulate if multiple edges
+            adj[fi][ti] = adj[fi].get(ti, 0.0) + w
+            adj[ti][fi] = adj[ti].get(fi, 0.0) + w
+
+        # --- Step 2: Compute total information flow (sum of all edge weights) ---
+        total_flow = 0.0
+        for i in range(n_nodes):
+            for j, w in adj[i].items():
+                if j > i:  # count each edge once
+                    total_flow += w
+
+        if total_flow <= 0.0:
+            return 0.0
+
+        # --- Step 3: Compute degree vector for graph Laplacian ---
+        # L = D - A.  We don't build L explicitly; we implement L*v as a function.
+        degree: List[float] = [0.0] * n_nodes
+        for i in range(n_nodes):
+            degree[i] = sum(adj[i].values())
+
+        # --- Step 4: Find Fiedler vector via power iteration ---
+        # We want the second-smallest eigenvector of L.
+        # Strategy: power iteration on (lambda_max * I - L) gives the largest
+        # eigenvector of the complement.  We project out the trivial (constant)
+        # eigenvector at each step to converge to the Fiedler vector.
+
+        # Estimate lambda_max (Gershgorin bound: max degree is an upper bound)
+        lambda_max = max(degree) if degree else 1.0
+        if lambda_max <= 0.0:
+            lambda_max = 1.0
+        # Add small margin to ensure positive definite shift
+        shift = lambda_max + 0.1
+
+        fiedler = self._power_iteration_fiedler(adj, degree, shift, n_nodes)
+
+        if fiedler is None:
+            return 0.0
+
+        # --- Step 5: Try top-3 spectral cuts for robustness ---
+        # Sort nodes by Fiedler value
+        sorted_indices: List[Tuple[float, int]] = sorted(
+            (fiedler[i], i) for i in range(n_nodes)
+        )
+        sorted_node_indices: List[int] = [idx for _, idx in sorted_indices]
+
+        # Try cuts at n/3, n/2, 2n/3
+        cut_positions = [n_nodes // 3, n_nodes // 2, (2 * n_nodes) // 3]
+        # Ensure valid and unique cut positions
+        cut_positions = [
+            c for c in cut_positions
+            if 0 < c < n_nodes
+        ]
+        if not cut_positions:
+            cut_positions = [n_nodes // 2]
+
+        min_phi_partition = float('inf')
+
+        for cut_pos in cut_positions:
+            part_a: Set[int] = set(sorted_node_indices[:cut_pos])
+            part_b: Set[int] = set(sorted_node_indices[cut_pos:])
+
+            if not part_a or not part_b:
+                continue
+
+            # Compute information within each partition
+            info_a = 0.0
+            info_b = 0.0
+            for i in range(n_nodes):
+                for j, w in adj[i].items():
+                    if j <= i:
+                        continue  # count each edge once
+                    if i in part_a and j in part_a:
+                        info_a += w
+                    elif i in part_b and j in part_b:
+                        info_b += w
+
+            # Information lost by partitioning
+            phi_partition = total_flow - info_a - info_b
+
+            if phi_partition < min_phi_partition:
+                min_phi_partition = phi_partition
+
+        if min_phi_partition == float('inf') or min_phi_partition < 0.0:
+            return 0.0
+
+        # Normalize by total flow so result is in [0, 1] range,
+        # then scale to make it a meaningful contribution to integration score
+        normalized = min_phi_partition / total_flow
+
+        if sampled:
+            logger.debug(
+                f"MIP computed on 5000-node sample: normalized={normalized:.4f}"
+            )
+
+        return normalized
+
+    def _power_iteration_fiedler(
+        self,
+        adj: Dict[int, Dict[int, float]],
+        degree: List[float],
+        shift: float,
+        n: int,
+        max_iter: int = 50,
+    ) -> Optional[List[float]]:
+        """
+        Find the Fiedler vector (second-smallest eigenvector of graph Laplacian)
+        using power iteration on the shifted matrix (shift*I - L).
+
+        The largest eigenvector of (shift*I - L) corresponds to the smallest
+        eigenvector of L.  By projecting out the trivial constant eigenvector
+        at each iteration, we converge to the Fiedler vector instead.
+
+        Args:
+            adj: Sparse adjacency matrix (dict-of-dicts)
+            degree: Degree vector
+            shift: Shift value (>= lambda_max of L)
+            n: Number of nodes
+            max_iter: Maximum iterations for convergence
+
+        Returns:
+            Fiedler vector as List[float], or None if computation fails.
+        """
+        if n < 2:
+            return None
+
+        # Initialize with a non-constant vector
+        # Use alternating +/- to break symmetry, with slight randomness
+        random.seed(123)  # deterministic for reproducibility
+        v: List[float] = [
+            (1.0 if i % 2 == 0 else -1.0) + random.uniform(-0.01, 0.01)
+            for i in range(n)
+        ]
+
+        # Project out the constant vector (all-ones direction)
+        mean_v = sum(v) / n
+        v = [v[i] - mean_v for i in range(n)]
+
+        # Normalize
+        norm = math.sqrt(sum(x * x for x in v))
+        if norm < 1e-15:
+            return None
+        v = [x / norm for x in v]
+
+        for iteration in range(max_iter):
+            # Compute w = (shift * I - L) * v
+            # (shift * I - L) * v = shift * v - L * v
+            # L * v = D * v - A * v
+            # So (shift * I - L) * v = (shift - degree[i]) * v[i] + sum(adj[i][j] * v[j])
+            w: List[float] = [0.0] * n
+            for i in range(n):
+                # (shift - degree[i]) * v[i]
+                w[i] = (shift - degree[i]) * v[i]
+                # + sum(adj[i][j] * v[j])  (this is A*v contribution)
+                for j, a_ij in adj[i].items():
+                    w[i] += a_ij * v[j]
+
+            # Project out the constant (trivial) eigenvector
+            mean_w = sum(w) / n
+            w = [w[i] - mean_w for i in range(n)]
+
+            # Normalize
+            norm = math.sqrt(sum(x * x for x in w))
+            if norm < 1e-15:
+                # Vector collapsed — graph may be disconnected or trivial
+                logger.debug(
+                    f"Fiedler iteration collapsed at step {iteration}"
+                )
+                return None
+
+            v = [x / norm for x in w]
+
+        return v
 
     # ========================================================================
     # Differentiation: Shannon Entropy
@@ -408,47 +692,145 @@ class PhiCalculator:
     # Milestone Gates
     # ========================================================================
 
-    def _check_gates(self, nodes: dict, edges: list) -> List[dict]:
+    def _check_gates(
+        self,
+        nodes: dict,
+        edges: list,
+        extra_stats: Optional[dict] = None,
+    ) -> List[dict]:
         """
-        Evaluate all milestone gates against current graph state.
-        Uses in-memory nodes/edges only — no DB queries.  O(n + e).
+        Evaluate all semantic quality gates against current graph state.
+
+        Gates require BOTH quantity AND quality criteria.  Extended stats are
+        computed from in-memory nodes/edges (O(n + e)) and optionally
+        supplemented by ``extra_stats`` for values that come from external
+        subsystems (MIP score, working memory hit rate, calibration error,
+        prediction accuracy, integration score).
+
+        Args:
+            nodes: Dict[int, KeterNode] — knowledge graph nodes
+            edges: List[KeterEdge] — knowledge graph edges
+            extra_stats: Optional dict with keys like ``mip_phi``,
+                ``working_memory_hit_rate``, ``calibration_error``,
+                ``prediction_accuracy``, ``integration_score``.
+
+        Returns:
+            List of gate result dicts with id, name, description,
+            requirement, and passed (bool).
         """
+        ext = extra_stats or {}
+
+        # --- Base counts ---
         node_type_counts: Dict[str, int] = {}
+        confidence_sum: float = 0.0
         for node in nodes.values():
-            node_type_counts[node.node_type] = node_type_counts.get(node.node_type, 0) + 1
+            node_type_counts[node.node_type] = (
+                node_type_counts.get(node.node_type, 0) + 1
+            )
+            confidence_sum += node.confidence
 
         edge_type_counts: Dict[str, int] = {}
         for edge in edges:
             etype = edge.edge_type
             edge_type_counts[etype] = edge_type_counts.get(etype, 0) + 1
 
-        # Extended stats for Gates 7-10
+        n_nodes = len(nodes)
+        n_edges = len(edges)
+
+        # Average confidence across all nodes
+        avg_confidence: float = (confidence_sum / n_nodes) if n_nodes > 0 else 0.0
+
+        # --- Extended semantic stats (single pass over nodes) ---
         domains: set = set()
-        self_reflection_nodes = 0
-        cross_domain_inferences = 0
+        self_reflection_nodes: int = 0
+        cross_domain_inferences: int = 0
+        verified_predictions: int = 0
+        debate_verdicts: int = 0
+        contradiction_resolutions: int = 0
+        auto_goals_generated: int = 0
+        grounded_nodes: int = 0
+        axiom_from_consolidation: int = 0
+        novel_concept_count: int = 0
+
         for node in nodes.values():
             if node.domain:
                 domains.add(node.domain)
+
+            # Check grounding_source for grounding ratio
+            if getattr(node, 'grounding_source', '') != '':
+                grounded_nodes += 1
+
             content = node.content if isinstance(node.content, dict) else {}
+            content_type = content.get('type', '')
+
+            # Self-reflection nodes (source field in content)
             if content.get('source') == 'self-reflection':
                 self_reflection_nodes += 1
+
+            # Cross-domain inferences
             if (node.node_type == 'inference'
                     and content.get('cross_domain', False)):
                 cross_domain_inferences += 1
 
-        stats = {
-            'n_nodes': len(nodes),
-            'n_edges': len(edges),
+            # Verified predictions (content type = 'prediction_confirmed')
+            if content_type == 'prediction_confirmed':
+                verified_predictions += 1
+
+            # Debate verdicts (content type = 'debate_synthesis')
+            if content_type == 'debate_synthesis':
+                debate_verdicts += 1
+
+            # Contradiction resolutions (content type = 'contradiction_resolution')
+            if content_type == 'contradiction_resolution':
+                contradiction_resolutions += 1
+
+            # Auto-generated goals (meta_observation node type)
+            if node.node_type == 'meta_observation':
+                auto_goals_generated += 1
+
+            # Consolidated axioms (axiom with content type = 'consolidated_pattern')
+            if node.node_type == 'axiom' and content_type == 'consolidated_pattern':
+                axiom_from_consolidation += 1
+
+            # Novel concepts (generalization or concept_cluster content types)
+            if content_type in ('generalization', 'concept_cluster'):
+                novel_concept_count += 1
+
+        # Grounding ratio: fraction of nodes with non-empty grounding_source
+        grounding_ratio: float = (
+            grounded_nodes / n_nodes if n_nodes > 0 else 0.0
+        )
+
+        stats: Dict = {
+            'n_nodes': n_nodes,
+            'n_edges': n_edges,
             'node_type_counts': node_type_counts,
             'edge_type_counts': edge_type_counts,
+            'avg_confidence': avg_confidence,
             'domain_count': len(domains),
             'self_reflection_nodes': self_reflection_nodes,
             'cross_domain_inferences': cross_domain_inferences,
+            'verified_predictions': verified_predictions,
+            'debate_verdicts': debate_verdicts,
+            'contradiction_resolutions': contradiction_resolutions,
+            'auto_goals_generated': auto_goals_generated,
+            'grounding_ratio': grounding_ratio,
+            'axiom_from_consolidation': axiom_from_consolidation,
+            'novel_concept_count': novel_concept_count,
+            # External stats with sensible defaults
+            'integration_score': ext.get('integration_score', 0.0),
+            'mip_phi': ext.get('mip_phi', 0.0),
+            'working_memory_hit_rate': ext.get('working_memory_hit_rate', 0.0),
+            'calibration_error': ext.get('calibration_error', 1.0),
+            'prediction_accuracy': ext.get('prediction_accuracy', 0.0),
         }
 
-        results = []
+        results: List[dict] = []
         for gate in MILESTONE_GATES:
-            passed = gate['check'](stats)
+            try:
+                passed = bool(gate['check'](stats))
+            except Exception:
+                passed = False
             results.append({
                 'id': gate['id'],
                 'name': gate['name'],
@@ -496,6 +878,7 @@ class PhiCalculator:
             'above_threshold': False,
             'integration_score': 0.0,
             'differentiation_score': 0.0,
+            'mip_score': 0.0,
             'connectivity': 0.0,
             'maturity': 0.0,
             'redundancy_factor': 1.0,

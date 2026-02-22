@@ -18,9 +18,13 @@ class TestContradictionDetection:
         kg.db = None
         kg.nodes = {}
         kg.edges = []
+        kg._adj_out = {}
+        kg._adj_in = {}
         kg._next_id = 1
         kg._next_edge_id = 1
         kg._index = None
+        kg._merkle_dirty = True
+        kg._merkle_cache = ''
         return kg
 
     def test_returns_zero_for_missing_node(self):

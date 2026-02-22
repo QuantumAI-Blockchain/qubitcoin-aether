@@ -31,6 +31,7 @@ class KeterNode:
     domain: str = ''  # Auto-assigned domain (quantum_physics, mathematics, etc.)
     last_referenced_block: int = 0  # Last block where this node was used in reasoning
     reference_count: int = 0  # How many times this node has been used in reasoning
+    grounding_source: str = ''  # '', 'block_oracle', 'prediction_verified', 'qusd_oracle'
     # In-memory graph links
     edges_out: List[int] = field(default_factory=list)
     edges_in: List[int] = field(default_factory=list)
@@ -134,7 +135,13 @@ class KnowledgeGraph:
         self.db = db_manager
         self.nodes: Dict[int, KeterNode] = {}
         self.edges: List[KeterEdge] = []
+        # O(1) edge adjacency index — avoids O(n) scans of self.edges
+        self._adj_out: Dict[int, List[KeterEdge]] = {}  # node_id -> outgoing edges
+        self._adj_in: Dict[int, List[KeterEdge]] = {}   # node_id -> incoming edges
         self._next_id = 1
+        # Merkle root cache — avoids O(n) recomputation per call
+        self._merkle_dirty: bool = True
+        self._merkle_cache: str = ''
         # TF-IDF semantic search index
         from .kg_index import TFIDFIndex
         self.search_index = TFIDFIndex()
@@ -172,6 +179,8 @@ class KnowledgeGraph:
                         edge_type=r[2], weight=float(r[3] or 1.0)
                     )
                     self.edges.append(edge)
+                    self._adj_out.setdefault(r[0], []).append(edge)
+                    self._adj_in.setdefault(r[1], []).append(edge)
                     if r[0] in self.nodes:
                         self.nodes[r[0]].edges_out.append(r[1])
                     if r[1] in self.nodes:
@@ -220,6 +229,7 @@ class KnowledgeGraph:
         node.content_hash = node.calculate_hash()
         self._next_id += 1
         self.nodes[node.node_id] = node
+        self._merkle_dirty = True
 
         # Update search indices
         self.search_index.add_node(node.node_id, content)
@@ -260,6 +270,9 @@ class KnowledgeGraph:
             timestamp=time.time()
         )
         self.edges.append(edge)
+        self._adj_out.setdefault(from_id, []).append(edge)
+        self._adj_in.setdefault(to_id, []).append(edge)
+        self._merkle_dirty = True
         self.nodes[from_id].edges_out.append(to_id)
         self.nodes[to_id].edges_in.append(from_id)
 
@@ -349,9 +362,7 @@ class KnowledgeGraph:
                 support_sum = 0.0
                 contradict_sum = 0.0
                 count = 0
-                for edge in self.edges:
-                    if edge.to_node_id != nid:
-                        continue
+                for edge in self._adj_in.get(nid, []):
                     parent = self.nodes.get(edge.from_node_id)
                     if not parent:
                         continue
@@ -374,9 +385,13 @@ class KnowledgeGraph:
         """
         Compute Merkle root hash of the entire knowledge graph.
         Used in Proof-of-Thought for chain binding.
+        Cached — only recomputes when graph is mutated.
         """
         if not self.nodes:
             return hashlib.sha256(b'empty_knowledge').hexdigest()
+
+        if not self._merkle_dirty and self._merkle_cache:
+            return self._merkle_cache
 
         leaves = []
         for nid in sorted(self.nodes.keys()):
@@ -398,7 +413,9 @@ class KnowledgeGraph:
                 new_leaves.append(combined)
             leaves = new_leaves
 
-        return leaves[0]
+        self._merkle_cache = leaves[0]
+        self._merkle_dirty = False
+        return self._merkle_cache
 
     def prune_low_confidence(self, threshold: float = 0.1, protect_types: Optional[Set[str]] = None) -> int:
         """
@@ -429,12 +446,22 @@ class KnowledgeGraph:
                 e for e in self.edges
                 if e.from_node_id != nid and e.to_node_id != nid
             ]
+            # Clean adjacency index
+            for edge in self._adj_out.get(nid, []):
+                adj_list = self._adj_in.get(edge.to_node_id, [])
+                self._adj_in[edge.to_node_id] = [e for e in adj_list if e.from_node_id != nid]
+            for edge in self._adj_in.get(nid, []):
+                adj_list = self._adj_out.get(edge.from_node_id, [])
+                self._adj_out[edge.from_node_id] = [e for e in adj_list if e.to_node_id != nid]
+            self._adj_out.pop(nid, None)
+            self._adj_in.pop(nid, None)
             for other_node in self.nodes.values():
                 if nid in other_node.edges_out:
                     other_node.edges_out.remove(nid)
                 if nid in other_node.edges_in:
                     other_node.edges_in.remove(nid)
             del self.nodes[nid]
+        self._merkle_dirty = True
 
         # Delete from database
         db_deleted_nodes = 0
@@ -564,14 +591,21 @@ class KnowledgeGraph:
         return nodes[:count]
 
     def get_edge_types_for_node(self, node_id: int) -> Dict[str, List[int]]:
-        """Get all edges grouped by type for a specific node."""
+        """Get all edges grouped by type for a specific node. O(degree) via adjacency index."""
         result: Dict[str, List[int]] = {}
-        for edge in self.edges:
-            if edge.from_node_id == node_id:
-                result.setdefault(f"out_{edge.edge_type}", []).append(edge.to_node_id)
-            if edge.to_node_id == node_id:
-                result.setdefault(f"in_{edge.edge_type}", []).append(edge.from_node_id)
+        for edge in self._adj_out.get(node_id, []):
+            result.setdefault(f"out_{edge.edge_type}", []).append(edge.to_node_id)
+        for edge in self._adj_in.get(node_id, []):
+            result.setdefault(f"in_{edge.edge_type}", []).append(edge.from_node_id)
         return result
+
+    def get_edges_from(self, node_id: int) -> List[KeterEdge]:
+        """Get all outgoing edges from a node. O(1) lookup."""
+        return self._adj_out.get(node_id, [])
+
+    def get_edges_to(self, node_id: int) -> List[KeterEdge]:
+        """Get all incoming edges to a node. O(1) lookup."""
+        return self._adj_in.get(node_id, [])
 
     def export_json_ld(self, limit: int = 0) -> dict:
         """Export the knowledge graph in JSON-LD format.
@@ -808,4 +842,26 @@ class KnowledgeGraph:
             'avg_confidence': round(avg_confidence, 4),
             'domains': domain_counts,
             'knowledge_root': self.compute_knowledge_root()[:16] + '...',
+        }
+
+    def get_grounding_stats(self) -> dict:
+        """Get statistics on grounded vs ungrounded knowledge nodes.
+
+        Returns:
+            Dict with total_nodes, grounded_nodes, grounding_ratio,
+            and by_source breakdown.
+        """
+        total = len(self.nodes)
+        by_source: Dict[str, int] = {}
+        grounded = 0
+        for node in self.nodes.values():
+            if node.grounding_source:
+                grounded += 1
+                by_source[node.grounding_source] = by_source.get(node.grounding_source, 0) + 1
+
+        return {
+            'total_nodes': total,
+            'grounded_nodes': grounded,
+            'grounding_ratio': round(grounded / total, 4) if total > 0 else 0.0,
+            'by_source': by_source,
         }

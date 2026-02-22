@@ -16,7 +16,11 @@ def _make_in_memory_kg():
     kg.db = MagicMock()
     kg.nodes = {}
     kg.edges = []
+    kg._adj_out = {}
+    kg._adj_in = {}
     kg._next_id = 1
+    kg._merkle_dirty = True
+    kg._merkle_cache = ''
 
     _original_add_node = KnowledgeGraph.add_node
 
@@ -32,6 +36,7 @@ def _make_in_memory_kg():
         node.content_hash = node.calculate_hash()
         self._next_id += 1
         self.nodes[node.node_id] = node
+        self._merkle_dirty = True
         return node
 
     def add_edge_no_db(self, from_id, to_id, edge_type='supports', weight=1.0):
@@ -43,6 +48,9 @@ def _make_in_memory_kg():
             timestamp=_time.time(),
         )
         self.edges.append(edge)
+        self._adj_out.setdefault(from_id, []).append(edge)
+        self._adj_in.setdefault(to_id, []).append(edge)
+        self._merkle_dirty = True
         self.nodes[from_id].edges_out.append(to_id)
         self.nodes[to_id].edges_in.append(from_id)
         return edge

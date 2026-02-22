@@ -205,13 +205,27 @@ class KeterNode(BaseSephirah):
         self._meta_patterns: List[Dict[str, Any]] = []
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
-        """Evaluate goals and form meta-level objectives."""
+        """Evaluate goals and form meta-level objectives.
+
+        Deep integration: reads metacognition strategy recommendation and
+        Malkuth feedback from context to steer goal priorities.
+        """
         self._processing_count += 1
         self.state.reasoning_ops += 1
         messages = self._consume_inbox()
 
-        # Aggregate reports from other nodes
+        # Aggregate reports from other nodes (especially Malkuth feedback)
         reports = [m.payload for m in messages if m.payload.get("type") == "report"]
+
+        # Track Malkuth KG mutation stats for self-assessment
+        malkuth_stats = context.get('malkuth_stats', {})
+        if malkuth_stats:
+            kg_mutations = malkuth_stats.get('kg_mutations', 0)
+            if kg_mutations == 0 and self._processing_count > 5:
+                # No KG mutations — system is stagnating, raise exploration priority
+                self._stagnation_counter = getattr(self, '_stagnation_counter', 0) + 1
+            else:
+                self._stagnation_counter = 0
 
         # Detect meta-patterns from aggregated reports
         if len(reports) >= 3:
@@ -224,26 +238,59 @@ class KeterNode(BaseSephirah):
             if len(self._meta_patterns) > 100:
                 self._meta_patterns = self._meta_patterns[-100:]
 
-        # Form goals based on context
+        # Read metacognition recommended strategy (injected by pipeline)
+        recommended_strategy = context.get('recommended_strategy', '')
+
+        # Form goals based on context + metacognition guidance
+        priority = context.get("priority", "normal")
+        if recommended_strategy:
+            # Use metacognition to set goal priority
+            strategy_priority_map = {
+                'inductive': 'explore',
+                'deductive': 'verify',
+                'abductive': 'hypothesize',
+                'neural': 'pattern_match',
+            }
+            priority = strategy_priority_map.get(recommended_strategy, priority)
+
+        # Boost exploration priority when stagnating
+        stagnation = getattr(self, '_stagnation_counter', 0)
+        if stagnation >= 3:
+            priority = 'explore'
+
         goal = {
             "type": "goal",
-            "priority": context.get("priority", "normal"),
+            "priority": priority,
             "block_height": context.get("block_height", 0),
+            "recommended_strategy": recommended_strategy,
         }
         self._goals.append(goal)
         if len(self._goals) > 50:
             self._goals = self._goals[-50:]
 
         # Broadcast goal to Tiferet (integration hub)
+        # Include strategy directive so downstream nodes know the focus
         self.send_message(SephirahRole.TIFERET, {
             "type": "goal_directive",
             "goal": goal,
         })
 
+        # Send strategy directive to Chochmah for intuition focus
+        self.send_message(SephirahRole.CHOCHMAH, {
+            "type": "strategy_directive",
+            "strategy": recommended_strategy,
+            "priority": priority,
+        })
+
         return ProcessingResult(
             role=self.role,
             action="goal_formation",
-            output={"goals": len(self._goals), "meta_patterns": len(self._meta_patterns)},
+            output={
+                "goals": len(self._goals),
+                "meta_patterns": len(self._meta_patterns),
+                "recommended_strategy": recommended_strategy,
+                "priority": priority,
+            },
             confidence=0.85,
             messages_out=self.get_outbox(),
         )
@@ -344,12 +391,30 @@ class ChochmahNode(BaseSephirah):
         self._insights: List[Dict[str, Any]] = []
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
-        """Discover patterns and generate intuitive insights."""
+        """Discover patterns and generate intuitive insights.
+
+        Deep integration: uses neural_hints from GATReasoner to strengthen
+        pattern detection and reads Keter strategy directives.
+        """
         self._processing_count += 1
         self.state.reasoning_ops += 1
-        self._consume_inbox()
+        messages = self._consume_inbox()
+
+        # Read strategy directive from Keter
+        strategy_focus = ''
+        for msg in messages:
+            if msg.payload.get("type") == "strategy_directive":
+                strategy_focus = msg.payload.get("strategy", '')
+
+        # Read neural hints injected by pipeline (from GATReasoner)
+        neural_hints = context.get('neural_hints', {})
+        neural_confidence = neural_hints.get('confidence', 0.0)
+        neural_attended = neural_hints.get('attended_nodes', [])
+        suggested_edge = neural_hints.get('suggested_edge_type', '')
 
         insight = None
+        insight_confidence = 0.6  # default
+
         if self.kg and hasattr(self.kg, 'nodes') and len(self.kg.nodes) >= 3:
             # Look for clusters of related nodes
             recent = sorted(
@@ -363,6 +428,19 @@ class ChochmahNode(BaseSephirah):
                     "node_count": len(recent),
                     "block_height": context.get("block_height", 0),
                 }
+
+                # Enrich insight with neural reasoner hints if available
+                if neural_confidence > 0.3:
+                    insight["neural_confidence"] = neural_confidence
+                    insight["neural_attended_count"] = len(neural_attended)
+                    insight["suggested_edge_type"] = suggested_edge
+                    # Neural agreement boosts confidence
+                    insight_confidence = min(0.9, 0.6 + neural_confidence * 0.3)
+
+                # If Keter directed a specific strategy, tag the insight
+                if strategy_focus:
+                    insight["strategy_focus"] = strategy_focus
+
                 self._insights.append(insight)
                 if len(self._insights) > 100:
                     self._insights = self._insights[-100:]
@@ -377,8 +455,13 @@ class ChochmahNode(BaseSephirah):
         return ProcessingResult(
             role=self.role,
             action="pattern_discovery",
-            output={"insights": len(self._insights), "new_insight": insight is not None},
-            confidence=0.6,
+            output={
+                "insights": len(self._insights),
+                "new_insight": insight is not None,
+                "neural_confidence": neural_confidence,
+                "strategy_focus": strategy_focus,
+            },
+            confidence=insight_confidence,
             messages_out=self.get_outbox(),
         )
 
@@ -411,20 +494,65 @@ class BinahNode(BaseSephirah):
         self._rejected: int = 0
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
-        """Verify insights and perform causal inference."""
+        """Verify insights and perform causal inference.
+
+        Deep integration: cross-references Chochmah insights against causal
+        engine data from context. Rejects insights that have no causal support
+        when causal data is available.
+        """
         self._processing_count += 1
         self.state.reasoning_ops += 1
         messages = self._consume_inbox()
 
+        # Read causal insights injected by pipeline
+        causal_insights = context.get('causal_insights', {})
+        causal_available = bool(causal_insights)
+
         verified_count = 0
+        rejected_count = 0
         for msg in messages:
             if msg.payload.get("type") == "insight_for_verification":
-                # Simple verification: check if insight has sufficient support
-                if msg.payload.get("insight", {}).get("node_count", 0) >= 2:
-                    self._verified += 1
-                    verified_count += 1
-                else:
+                insight = msg.payload.get("insight", {})
+                node_count = insight.get("node_count", 0)
+                neural_conf = insight.get("neural_confidence", 0.0)
+
+                # Base check: sufficient node support
+                if node_count < 2:
                     self._rejected += 1
+                    rejected_count += 1
+                    continue
+
+                # Enhanced check: if causal data available, require some
+                # alignment between the insight and causal structure
+                if causal_available:
+                    chochmah_output = causal_insights.get('output', {})
+                    chochmah_confidence = causal_insights.get('confidence', 0.0)
+                    # If Chochmah produced an insight AND causal engine has
+                    # data, cross-check: reject if causal confidence is very
+                    # low AND neural confidence is also low (no support at all)
+                    if chochmah_confidence < 0.2 and neural_conf < 0.2:
+                        self._rejected += 1
+                        rejected_count += 1
+                        # Send rejection notice to Tiferet for conflict tracking
+                        self.send_message(SephirahRole.TIFERET, {
+                            "type": "verification_result",
+                            "verdict": "rejected",
+                            "reason": "no_causal_support",
+                            "insight": insight,
+                        })
+                        continue
+
+                # Verified
+                self._verified += 1
+                verified_count += 1
+
+                # Send verification result to Tiferet
+                self.send_message(SephirahRole.TIFERET, {
+                    "type": "verification_result",
+                    "verdict": "verified",
+                    "insight": insight,
+                    "neural_confidence": neural_conf,
+                })
 
         return ProcessingResult(
             role=self.role,
@@ -433,6 +561,8 @@ class BinahNode(BaseSephirah):
                 "verified_total": self._verified,
                 "rejected_total": self._rejected,
                 "verified_this_cycle": verified_count,
+                "rejected_this_cycle": rejected_count,
+                "causal_data_available": causal_available,
             },
             confidence=0.9,
             messages_out=self.get_outbox(),
@@ -530,22 +660,43 @@ class GevurahNode(BaseSephirah):
         self._approvals: int = 0
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
-        """Evaluate safety and apply constraints."""
+        """Evaluate safety and apply constraints.
+
+        Deep integration: reads safety assessment from context (injected by
+        pipeline) and forwards veto decisions to Tiferet for conflict resolution.
+        """
         self._processing_count += 1
         self.state.reasoning_ops += 1
         messages = self._consume_inbox()
+
+        # Read pipeline-injected safety assessment
+        safety = context.get('safety_assessment', {})
+        consistency_violations = safety.get('consistency_violations', 0)
+        contradictions_found = safety.get('contradictions_found', 0)
 
         vetoed = 0
         approved = 0
         for msg in messages:
             if msg.payload.get("type") == "exploration_report":
                 connections = msg.payload.get("new_connections", 0)
-                if connections > 100:
+                # Veto if too many connections OR safety assessment found issues
+                if connections > 100 or (consistency_violations > 0 and connections > 50):
                     vetoed += 1
                     self._vetoes += 1
                 else:
                     approved += 1
                     self._approvals += 1
+
+        # If safety assessment flagged contradictions, send veto to Tiferet
+        if contradictions_found > 0:
+            vetoed += 1
+            self._vetoes += 1
+            self.send_message(SephirahRole.TIFERET, {
+                "type": "safety_assessment",
+                "vetoed": True,
+                "reason": "contradictions_detected",
+                "contradiction_count": contradictions_found,
+            })
 
         return ProcessingResult(
             role=self.role,
@@ -555,6 +706,7 @@ class GevurahNode(BaseSephirah):
                 "approvals_total": self._approvals,
                 "vetoed_this_cycle": vetoed,
                 "approved_this_cycle": approved,
+                "consistency_violations": consistency_violations,
             },
             confidence=0.95,
             messages_out=self.get_outbox(),
@@ -591,7 +743,12 @@ class TiferetNode(BaseSephirah):
         self._integrations: int = 0
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
-        """Integrate inputs from all connected nodes."""
+        """Integrate inputs from all connected nodes.
+
+        Deep integration: resolves conflicts between Chesed (explore) and
+        Gevurah (constrain) insights, and between verified/rejected results
+        from Binah. Prefers higher-confidence results when competing.
+        """
         self._processing_count += 1
         self.state.reasoning_ops += 1
         messages = self._consume_inbox()
@@ -604,12 +761,63 @@ class TiferetNode(BaseSephirah):
 
         self._integrations += 1
 
+        # --- Conflict resolution between competing insights ---
+        verified_insights: List[Dict[str, Any]] = []
+        rejected_insights: List[Dict[str, Any]] = []
+        exploration_reports: List[Dict[str, Any]] = []
+        safety_vetoes: int = 0
+
+        for msg in messages:
+            msg_type = msg.payload.get("type", "")
+            if msg_type == "verification_result":
+                if msg.payload.get("verdict") == "verified":
+                    verified_insights.append(msg.payload)
+                else:
+                    rejected_insights.append(msg.payload)
+            elif msg_type == "exploration_report":
+                exploration_reports.append(msg.payload)
+            elif msg_type == "safety_assessment":
+                if msg.payload.get("vetoed"):
+                    safety_vetoes += 1
+
+        # When we have both verified and rejected insights, perform resolution:
+        # prefer verified over rejected, but note the conflict
+        conflicts_resolved = 0
+        if verified_insights and rejected_insights:
+            # Resolve by keeping verified insights, recording the resolution
+            conflicts_resolved = min(len(verified_insights), len(rejected_insights))
+            if not hasattr(self, '_conflict_log'):
+                self._conflict_log: List[Dict[str, Any]] = []
+            self._conflict_log.append({
+                'block_height': context.get('block_height', 0),
+                'verified_count': len(verified_insights),
+                'rejected_count': len(rejected_insights),
+                'resolved': conflicts_resolved,
+            })
+            if len(self._conflict_log) > 100:
+                self._conflict_log = self._conflict_log[-100:]
+
+        # If Gevurah vetoed exploration, suppress exploration data
+        effective_explorations = len(exploration_reports) if safety_vetoes == 0 else 0
+
         # Broadcast integrated state to Malkuth for action
         self.send_message(SephirahRole.MALKUTH, {
             "type": "integrated_directive",
             "source_count": len(messages),
             "message_types": by_type,
+            "verified_count": len(verified_insights),
+            "rejected_count": len(rejected_insights),
+            "conflicts_resolved": conflicts_resolved,
+            "explorations_approved": effective_explorations,
         })
+
+        # Send learning signal to Netzach based on what succeeded
+        if verified_insights:
+            self.send_message(SephirahRole.NETZACH, {
+                "type": "reward_signal",
+                "policy": "verification_success",
+                "reward": 0.1 * len(verified_insights),
+            })
 
         return ProcessingResult(
             role=self.role,
@@ -618,6 +826,9 @@ class TiferetNode(BaseSephirah):
                 "integrations": self._integrations,
                 "messages_integrated": len(messages),
                 "message_types": by_type,
+                "conflicts_resolved": conflicts_resolved,
+                "verified_insights": len(verified_insights),
+                "rejected_insights": len(rejected_insights),
             },
             confidence=0.8,
             messages_out=self.get_outbox(),
@@ -653,7 +864,12 @@ class NetzachNode(BaseSephirah):
         self._total_rewards: float = 0.0
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
-        """Update learned policies based on reward signals."""
+        """Update learned policies based on reward signals.
+
+        Deep integration: reads neural_training_done flag from context to
+        track whether GAT was updated this cycle. Reward signals from
+        Tiferet's conflict resolution feed into policy learning.
+        """
         self._processing_count += 1
         self.state.reasoning_ops += 1
         messages = self._consume_inbox()
@@ -669,6 +885,15 @@ class NetzachNode(BaseSephirah):
                 self._total_rewards += reward
                 reward_count += 1
 
+        # Track whether GAT training happened this cycle
+        gat_trained = context.get('gat_trained', False)
+        if gat_trained:
+            # GAT training success is itself a reward signal for the
+            # neural reasoning policy
+            current = self._policies.get('neural_reasoning', 0.0)
+            self._policies['neural_reasoning'] = current * 0.9 + 0.1 * 0.1
+            self._total_rewards += 0.1
+
         return ProcessingResult(
             role=self.role,
             action="policy_learning",
@@ -676,6 +901,7 @@ class NetzachNode(BaseSephirah):
                 "active_policies": len(self._policies),
                 "total_rewards": round(self._total_rewards, 4),
                 "rewards_this_cycle": reward_count,
+                "gat_trained": gat_trained,
             },
             confidence=0.7,
             messages_out=self.get_outbox(),
@@ -712,7 +938,12 @@ class HodNode(BaseSephirah):
         self._encodings: int = 0
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
-        """Encode knowledge into semantic representations."""
+        """Encode knowledge into semantic representations.
+
+        Deep integration: formats reasoning traces from the pipeline for
+        Proof-of-Thought output. Collects pipeline_trace from context and
+        produces a structured reasoning summary.
+        """
         self._processing_count += 1
         self.state.reasoning_ops += 1
         self._consume_inbox()
@@ -729,10 +960,27 @@ class HodNode(BaseSephirah):
 
         self._encodings += encoded
 
+        # Format pipeline reasoning trace for Proof-of-Thought
+        pipeline_trace = context.get('pipeline_trace', {})
+        trace_summary = {}
+        if pipeline_trace:
+            trace_summary = {
+                'keter_strategy': pipeline_trace.get('keter', {}).get('recommended_strategy', ''),
+                'chochmah_insights': pipeline_trace.get('chochmah', {}).get('new_insight', False),
+                'binah_verified': pipeline_trace.get('binah', {}).get('verified_this_cycle', 0),
+                'binah_rejected': pipeline_trace.get('binah', {}).get('rejected_this_cycle', 0),
+                'tiferet_conflicts': pipeline_trace.get('tiferet', {}).get('conflicts_resolved', 0),
+                'gevurah_vetoes': pipeline_trace.get('gevurah', {}).get('vetoed_this_cycle', 0),
+            }
+
         return ProcessingResult(
             role=self.role,
             action="semantic_encoding",
-            output={"total_encodings": self._encodings, "encoded_this_cycle": encoded},
+            output={
+                "total_encodings": self._encodings,
+                "encoded_this_cycle": encoded,
+                "reasoning_trace": trace_summary,
+            },
             confidence=0.75,
             messages_out=self.get_outbox(),
         )
@@ -767,7 +1015,11 @@ class YesodNode(BaseSephirah):
         self._buffer_capacity: int = 7  # Miller's 7 +/- 2
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
-        """Manage memory fusion and consolidation."""
+        """Manage memory fusion and consolidation.
+
+        Deep integration: reads memory_stats from context (injected by
+        MemoryManager) and tracks episodic retrieval quality.
+        """
         self._processing_count += 1
         self.state.reasoning_ops += 1
         messages = self._consume_inbox()
@@ -780,6 +1032,12 @@ class YesodNode(BaseSephirah):
                 self._working_buffer = self._working_buffer[-self._buffer_capacity:]
                 self._consolidations += 1
 
+        # Read memory manager stats from pipeline context
+        memory_stats = context.get('memory_stats', {})
+        hit_rate = memory_stats.get('hit_rate', 0.0)
+        wm_size = memory_stats.get('working_memory_size', 0)
+        episodes_total = memory_stats.get('episodes_total', 0)
+
         return ProcessingResult(
             role=self.role,
             action="memory_fusion",
@@ -787,6 +1045,8 @@ class YesodNode(BaseSephirah):
                 "consolidations": self._consolidations,
                 "buffer_usage": len(self._working_buffer),
                 "buffer_capacity": self._buffer_capacity,
+                "memory_hit_rate": hit_rate,
+                "episodes_total": episodes_total,
             },
             confidence=0.8,
             messages_out=self.get_outbox(),
@@ -822,29 +1082,61 @@ class MalkuthNode(BaseSephirah):
         self._actions_executed: int = 0
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
-        """Execute actions and report outcomes."""
+        """Execute actions and report outcomes.
+
+        Deep integration: tracks actual KG mutations per cycle and sends
+        detailed feedback to Keter for meta-learning. Reports verified
+        insights, conflicts resolved, and exploration outcomes.
+        """
         self._processing_count += 1
         self.state.reasoning_ops += 1
         messages = self._consume_inbox()
 
         actions = 0
+        verified_count = 0
+        conflicts_resolved = 0
+        explorations_approved = 0
+
         for msg in messages:
             if msg.payload.get("type") == "integrated_directive":
                 actions += 1
                 self._actions_executed += 1
+                # Extract integrated stats from Tiferet
+                verified_count += msg.payload.get("verified_count", 0)
+                conflicts_resolved += msg.payload.get("conflicts_resolved", 0)
+                explorations_approved += msg.payload.get("explorations_approved", 0)
 
-        # Report back to Keter
-        if actions > 0:
-            self.send_message(SephirahRole.KETER, {
-                "type": "report",
-                "actions_executed": actions,
-                "block_height": context.get("block_height", 0),
-            })
+        # Track KG mutations (how many nodes/edges were added this cycle)
+        kg_mutations = 0
+        if self.kg and hasattr(self.kg, 'nodes'):
+            block_height = context.get("block_height", 0)
+            # Count nodes added in recent blocks
+            kg_mutations = sum(
+                1 for n in self.kg.nodes.values()
+                if n.source_block >= block_height - 5
+            )
+
+        # Report back to Keter with detailed stats
+        self.send_message(SephirahRole.KETER, {
+            "type": "report",
+            "actions_executed": actions,
+            "block_height": context.get("block_height", 0),
+            "kg_mutations": kg_mutations,
+            "verified_insights": verified_count,
+            "conflicts_resolved": conflicts_resolved,
+            "explorations_approved": explorations_approved,
+        })
 
         return ProcessingResult(
             role=self.role,
             action="world_interaction",
-            output={"total_actions": self._actions_executed, "actions_this_cycle": actions},
+            output={
+                "total_actions": self._actions_executed,
+                "actions_this_cycle": actions,
+                "kg_mutations": kg_mutations,
+                "verified_insights": verified_count,
+                "conflicts_resolved": conflicts_resolved,
+            },
             confidence=0.85,
             messages_out=self.get_outbox(),
         )

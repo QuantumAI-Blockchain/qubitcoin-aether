@@ -68,6 +68,27 @@ class ReasoningEngine:
         self._operations: List[ReasoningResult] = []
         self._max_operations = 10000  # Bound in-memory history to prevent unbounded growth
 
+    def _grounding_boost(self, premise_ids: List[int]) -> float:
+        """Compute a confidence boost factor based on how many premises are grounded.
+
+        Premises with a non-empty ``grounding_source`` (e.g. 'block_oracle',
+        'prediction_verified') contribute to a multiplicative boost, rewarding
+        reasoning chains that are anchored in verifiable ground truth.
+
+        Args:
+            premise_ids: Node IDs of the premises used in the reasoning step.
+
+        Returns:
+            A boost factor in [1.0, 1.25]. Each grounded premise adds +0.05,
+            capped at 1.25 (i.e. max 5 grounded premises contribute).
+        """
+        grounded_count = 0
+        for pid in premise_ids:
+            node = self.kg.get_node(pid)
+            if node and node.grounding_source:
+                grounded_count += 1
+        return min(1.25, 1.0 + 0.05 * grounded_count)
+
     def deduce(self, premise_ids: List[int], rule_content: dict = None) -> ReasoningResult:
         """
         Deductive reasoning: derive certain conclusions from premises.
@@ -129,6 +150,9 @@ class ReasoningEngine:
             conf = 1.0
             for p in premises:
                 conf *= p.confidence
+            # Boost confidence when premises are grounded in external truth
+            conf *= self._grounding_boost(premise_ids)
+            conf = min(1.0, conf)
 
             block_height = max(p.source_block for p in premises)
             conclusion = self.kg.add_node(
@@ -168,6 +192,8 @@ class ReasoningEngine:
             best_id = max(common, key=lambda nid: self.kg.get_node(nid).confidence if self.kg.get_node(nid) else 0)
             best_node = self.kg.get_node(best_id)
             conf = min(p.confidence for p in premises) * (best_node.confidence if best_node else 0.5)
+            # Boost confidence when premises are grounded in external truth
+            conf = min(1.0, conf * self._grounding_boost(premise_ids))
 
             chain.append(ReasoningStep(
                 step_type='conclusion',
@@ -235,6 +261,8 @@ class ReasoningEngine:
         avg_conf = sum(o.confidence for o in observations) / n
         # Inductive confidence: increases with more evidence but never reaches 1.0
         inductive_conf = avg_conf * (1.0 - 1.0 / (n + 1))
+        # Boost confidence when observations are grounded in external truth
+        inductive_conf = min(1.0, inductive_conf * self._grounding_boost(observation_ids))
 
         # Create generalization node
         generalization = {
@@ -304,6 +332,9 @@ class ReasoningEngine:
         # Find potential explanations: nodes that point TO this observation
         explanations = self.kg.get_neighbors(observation_id, 'in')
 
+        # Boost confidence when the observation is grounded in external truth
+        grounding_factor = self._grounding_boost([observation_id])
+
         if not explanations:
             # No existing explanations — generate hypothesis
             hypothesis = {
@@ -311,10 +342,11 @@ class ReasoningEngine:
                 'explains': observation.content,
                 'method': 'abductive_inference',
             }
+            hyp_conf = min(1.0, 0.3 * grounding_factor)
             hyp_node = self.kg.add_node(
                 node_type='inference',
                 content=hypothesis,
-                confidence=0.3,  # Low confidence for hypotheses
+                confidence=hyp_conf,
                 source_block=observation.source_block,
             )
             self.kg.add_edge(hyp_node.node_id, observation_id, 'derives')
@@ -323,14 +355,14 @@ class ReasoningEngine:
                 step_type='conclusion',
                 node_id=hyp_node.node_id,
                 content=hypothesis,
-                confidence=0.3,
+                confidence=hyp_conf,
             ))
 
             result = ReasoningResult(
                 operation_type='abductive',
                 premise_ids=[observation_id],
                 conclusion_node_id=hyp_node.node_id,
-                confidence=0.3,
+                confidence=hyp_conf,
                 chain=chain,
                 success=True,
                 explanation='Generated hypothesis to explain observation',
@@ -338,18 +370,19 @@ class ReasoningEngine:
         else:
             # Rank explanations by confidence
             best = max(explanations, key=lambda n: n.confidence)
+            abd_conf = min(1.0, best.confidence * observation.confidence * grounding_factor)
             chain.append(ReasoningStep(
                 step_type='conclusion',
                 node_id=best.node_id,
                 content=best.content,
-                confidence=best.confidence * observation.confidence,
+                confidence=abd_conf,
             ))
 
             result = ReasoningResult(
                 operation_type='abductive',
                 premise_ids=[observation_id],
                 conclusion_node_id=best.node_id,
-                confidence=best.confidence * observation.confidence,
+                confidence=abd_conf,
                 chain=chain,
                 success=True,
                 explanation=f"Best explanation: node {best.node_id} (conf: {best.confidence:.4f})",
@@ -811,6 +844,413 @@ class ReasoningEngine:
         except Exception as e:
             logger.debug(f"Reasoning archive failed: {e}")
         return archived
+
+    # ------------------------------------------------------------------ #
+    #  Chain-of-Thought with Backtracking (Phase 3.4)                     #
+    # ------------------------------------------------------------------ #
+
+    def _gather_context(self, frontier: List[int], visited: set) -> List[int]:
+        """Get neighbor node IDs reachable from *frontier* that are not yet visited.
+
+        Collects outgoing and incoming neighbor IDs from each frontier node,
+        filtering out any IDs already in *visited*.
+
+        Args:
+            frontier: Current frontier node IDs to expand from.
+            visited: Set of node IDs already processed.
+
+        Returns:
+            De-duplicated list of unvisited neighbor node IDs.
+        """
+        context_ids: List[int] = []
+        seen: set = set()
+        for nid in frontier:
+            node = self.kg.get_node(nid)
+            if not node:
+                continue
+            # Outgoing neighbors
+            for neighbor_id in node.edges_out:
+                if neighbor_id not in visited and neighbor_id not in seen:
+                    seen.add(neighbor_id)
+                    context_ids.append(neighbor_id)
+            # Incoming neighbors (so we can reason backwards too)
+            for neighbor_id in node.edges_in:
+                if neighbor_id not in visited and neighbor_id not in seen:
+                    seen.add(neighbor_id)
+                    context_ids.append(neighbor_id)
+        return context_ids
+
+    def _try_operation(self, op_type: str, context: List[int],
+                       visited: set) -> Optional[ReasoningResult]:
+        """Attempt a single reasoning operation of the given type.
+
+        Selects appropriate premise/observation IDs from *context* and
+        delegates to :meth:`deduce`, :meth:`induce`, or :meth:`abduce`.
+
+        Args:
+            op_type: One of ``'inductive'``, ``'deductive'``, ``'abductive'``.
+            context: Available node IDs for the operation.
+            visited: Already-visited node IDs (used to avoid repeats).
+
+        Returns:
+            A :class:`ReasoningResult` on success, or ``None`` if the
+            operation cannot be performed with the available context.
+        """
+        if not context:
+            return None
+
+        try:
+            if op_type == 'inductive':
+                # Need 2+ observation-like nodes
+                obs_ids = [
+                    nid for nid in context
+                    if self.kg.get_node(nid) and
+                    self.kg.get_node(nid).node_type in ('observation', 'assertion', 'meta_observation')
+                ]
+                if len(obs_ids) >= 2:
+                    return self.induce(obs_ids[:5])  # cap to avoid huge ops
+                return None
+
+            elif op_type == 'deductive':
+                # Need 2+ inference/assertion nodes
+                inf_ids = [
+                    nid for nid in context
+                    if self.kg.get_node(nid) and
+                    self.kg.get_node(nid).node_type in ('inference', 'assertion', 'axiom')
+                ]
+                if len(inf_ids) >= 2:
+                    return self.deduce(inf_ids[:5])
+                return None
+
+            elif op_type == 'abductive':
+                # Need at least 1 observation node
+                obs_ids = [
+                    nid for nid in context
+                    if self.kg.get_node(nid) and
+                    self.kg.get_node(nid).node_type in ('observation', 'meta_observation')
+                ]
+                if obs_ids:
+                    return self.abduce(obs_ids[0])
+                # Fall back to any node in context
+                return self.abduce(context[0])
+
+        except Exception as e:
+            logger.debug(f"_try_operation({op_type}) failed: {e}")
+            return None
+
+        return None
+
+    def _check_chain_consistency(self, chain: List[ReasoningStep],
+                                 new_node_id: int) -> Optional[dict]:
+        """Check whether a newly concluded node contradicts anything in *chain*.
+
+        Two checks are performed:
+
+        1. **Explicit contradicts edges** — if any edge of type ``'contradicts'``
+           links the new node to a node already in the chain (in either direction).
+        2. **Content conflict** — if the new node is an inference whose content
+           directly opposes an earlier chain step (same subject with opposing
+           numeric values or negation markers).
+
+        Args:
+            chain: The reasoning chain built so far.
+            new_node_id: The node ID of the conclusion to check.
+
+        Returns:
+            A dict describing the contradiction if found, or ``None`` if
+            the new node is consistent.
+        """
+        new_node = self.kg.get_node(new_node_id)
+        if not new_node:
+            return None
+
+        # Collect all node IDs currently in the chain
+        chain_node_ids: set = set()
+        for step in chain:
+            if step.node_id is not None:
+                chain_node_ids.add(step.node_id)
+
+        if not chain_node_ids:
+            return None
+
+        # Check 1: Explicit 'contradicts' edges from new_node → chain nodes
+        for edge in self.kg.get_edges_from(new_node_id):
+            if edge.edge_type == 'contradicts' and edge.to_node_id in chain_node_ids:
+                return {
+                    'type': 'explicit_contradiction',
+                    'new_node_id': new_node_id,
+                    'conflicting_node_id': edge.to_node_id,
+                    'edge_weight': edge.weight,
+                    'reason': f"Node {new_node_id} explicitly contradicts chain node {edge.to_node_id}",
+                }
+
+        # Check 2: Explicit 'contradicts' edges from chain nodes → new_node
+        for edge in self.kg.get_edges_to(new_node_id):
+            if edge.edge_type == 'contradicts' and edge.from_node_id in chain_node_ids:
+                return {
+                    'type': 'explicit_contradiction',
+                    'new_node_id': new_node_id,
+                    'conflicting_node_id': edge.from_node_id,
+                    'edge_weight': edge.weight,
+                    'reason': f"Chain node {edge.from_node_id} explicitly contradicts new node {new_node_id}",
+                }
+
+        # Check 3: Content-level conflict (same domain, opposing values)
+        new_content_text = str(new_node.content.get('text', '')).lower()
+        if new_content_text:
+            import re
+            new_numbers = set(re.findall(r'\b\d+\.?\d*\b', new_content_text))
+            new_words = set(new_content_text.split())
+
+            for step in chain:
+                if step.node_id is None or step.node_id == new_node_id:
+                    continue
+                chain_node = self.kg.get_node(step.node_id)
+                if not chain_node:
+                    continue
+                # Only compare same-domain nodes
+                if chain_node.domain and new_node.domain and chain_node.domain != new_node.domain:
+                    continue
+                chain_text = str(chain_node.content.get('text', '')).lower()
+                if not chain_text:
+                    continue
+                chain_words = set(chain_text.split())
+                overlap = len(new_words & chain_words)
+                total = len(new_words | chain_words)
+                word_sim = overlap / total if total > 0 else 0
+
+                if word_sim > 0.4:
+                    chain_numbers = set(re.findall(r'\b\d+\.?\d*\b', chain_text))
+                    if (new_numbers and chain_numbers
+                            and new_numbers != chain_numbers
+                            and len(new_numbers & chain_numbers) == 0):
+                        return {
+                            'type': 'content_conflict',
+                            'new_node_id': new_node_id,
+                            'conflicting_node_id': step.node_id,
+                            'word_similarity': round(word_sim, 3),
+                            'reason': (
+                                f"Content conflict: node {new_node_id} and chain node "
+                                f"{step.node_id} share {overlap}/{total} words but have "
+                                f"different numeric values ({new_numbers} vs {chain_numbers})"
+                            ),
+                        }
+
+        return None
+
+    def reason_chain(self, query_node_ids: List[int], max_depth: int = 5,
+                     max_backtrack: int = 3) -> ReasoningResult:
+        """Chain-of-thought reasoning with contradiction-driven backtracking.
+
+        Builds a reasoning chain step-by-step from the query nodes.  At each
+        depth level the method:
+
+        1. Gathers context nodes from the current frontier.
+        2. Selects the best reasoning operation for the context:
+           - 2+ observation nodes → try inductive first
+           - 2+ inference/assertion nodes → try deductive first
+           - isolated observation → try abductive
+        3. After each successful step, checks consistency with the existing
+           chain (explicit ``contradicts`` edges and content conflicts).
+        4. On contradiction: saves the abandoned path, restores the last
+           checkpoint, marks the contradicting conclusion as visited (so
+           the same dead end is not revisited), and retries.
+        5. Stops when ``max_depth`` is reached, no further context is
+           available, or ``max_backtrack`` backtracks have been exhausted.
+
+        Args:
+            query_node_ids: Starting node IDs for the reasoning chain.
+            max_depth: Maximum number of reasoning steps.
+            max_backtrack: Maximum number of backtrack attempts allowed.
+
+        Returns:
+            A :class:`ReasoningResult` containing:
+            - The successful chain of reasoning steps
+            - ``backtrack_count`` and ``abandoned_paths`` in the result's
+              ``content`` field (serialised in ``explanation`` and the
+              conclusion step's ``content``)
+        """
+        chain: List[ReasoningStep] = []
+        visited: set = set()
+        backtrack_count: int = 0
+        abandoned_paths: List[dict] = []
+
+        # Initialise chain with query nodes
+        frontier: List[int] = []
+        for nid in query_node_ids:
+            node = self.kg.get_node(nid)
+            if node:
+                chain.append(ReasoningStep(
+                    step_type='premise',
+                    node_id=nid,
+                    content=node.content,
+                    confidence=node.confidence,
+                ))
+                visited.add(nid)
+                frontier.append(nid)
+
+        if not chain:
+            return ReasoningResult(
+                operation_type='reason_chain',
+                premise_ids=query_node_ids,
+                success=False,
+                explanation='No valid starting nodes found',
+            )
+
+        # Save initial checkpoint for backtracking
+        checkpoints: List[tuple] = [
+            ([s for s in chain], list(frontier), set(visited))
+        ]
+
+        conclusion_id: Optional[int] = None
+        overall_confidence: float = 1.0
+
+        for depth in range(max_depth):
+            # ---- 1. Gather context from frontier ----
+            context = self._gather_context(frontier, visited)
+            if not context:
+                logger.debug(f"reason_chain depth {depth}: no new context from frontier")
+                break
+
+            # Categorise context nodes by type for operation selection
+            obs_count = 0
+            inf_count = 0
+            for cid in context:
+                cnode = self.kg.get_node(cid)
+                if not cnode:
+                    continue
+                if cnode.node_type in ('observation', 'meta_observation'):
+                    obs_count += 1
+                elif cnode.node_type in ('inference', 'assertion', 'axiom'):
+                    inf_count += 1
+
+            # ---- 2. Determine operation priority order ----
+            if obs_count >= 2:
+                op_order = ['inductive', 'deductive', 'abductive']
+            elif inf_count >= 2:
+                op_order = ['deductive', 'inductive', 'abductive']
+            else:
+                op_order = ['abductive', 'inductive', 'deductive']
+
+            # ---- 3. Try operations in priority order ----
+            result: Optional[ReasoningResult] = None
+            for op_type in op_order:
+                result = self._try_operation(op_type, context, visited)
+                if result and result.success:
+                    break
+            else:
+                result = None
+
+            if not result or not result.success:
+                logger.debug(f"reason_chain depth {depth}: no successful operation")
+                break
+
+            # ---- 4. Check for contradictions ----
+            if result.conclusion_node_id is not None:
+                contradiction = self._check_chain_consistency(
+                    chain, result.conclusion_node_id
+                )
+            else:
+                contradiction = None
+
+            if contradiction:
+                backtrack_count += 1
+                abandoned_paths.append({
+                    'depth': depth,
+                    'operation': result.operation_type,
+                    'contradiction': contradiction,
+                    'abandoned_conclusion': result.conclusion_node_id,
+                    'chain_length_at_abandon': len(chain),
+                })
+                logger.info(
+                    f"reason_chain: contradiction at depth {depth} "
+                    f"(backtrack {backtrack_count}/{max_backtrack}): "
+                    f"{contradiction.get('reason', 'unknown')}"
+                )
+
+                if backtrack_count >= max_backtrack or not checkpoints:
+                    logger.info(
+                        f"reason_chain: stopping — backtrack limit reached "
+                        f"({backtrack_count}/{max_backtrack})"
+                    )
+                    break
+
+                # Restore last checkpoint
+                prev_chain, prev_frontier, prev_visited = checkpoints.pop()
+                chain = [s for s in prev_chain]
+                frontier = list(prev_frontier)
+                visited = set(prev_visited)
+                # Mark the contradicting conclusion as visited so we skip it
+                if result.conclusion_node_id is not None:
+                    visited.add(result.conclusion_node_id)
+                continue
+
+            # ---- 5. Accept the step — extend chain ----
+            # Save checkpoint before advancing
+            checkpoints.append(
+                ([s for s in chain], list(frontier), set(visited))
+            )
+
+            # Add the new reasoning steps (skip premises we already have)
+            for step in result.chain:
+                if step.node_id is not None and step.node_id in visited:
+                    continue
+                chain.append(ReasoningStep(
+                    step_type=step.step_type,
+                    node_id=step.node_id,
+                    content=step.content,
+                    confidence=step.confidence,
+                ))
+                if step.node_id is not None:
+                    visited.add(step.node_id)
+
+            overall_confidence *= max(result.confidence, 0.01)
+            conclusion_id = result.conclusion_node_id
+
+            # Advance frontier to the conclusion
+            if conclusion_id is not None:
+                frontier = [conclusion_id]
+            else:
+                frontier = context[:3]  # fallback: use first context nodes
+
+        # ---- Build final result ----
+        final_confidence = max(0.0, min(1.0, overall_confidence))
+
+        # Attach backtracking metadata in explanation and content
+        meta = {
+            'backtrack_count': backtrack_count,
+            'abandoned_paths': abandoned_paths,
+            'total_steps': len(chain),
+            'depth_reached': min(max_depth, len(chain) - len(query_node_ids)),
+        }
+
+        explanation = (
+            f"reason_chain: {len(chain)} steps, "
+            f"{backtrack_count} backtracks, "
+            f"{len(abandoned_paths)} abandoned paths"
+        )
+
+        result = ReasoningResult(
+            operation_type='reason_chain',
+            premise_ids=query_node_ids,
+            conclusion_node_id=conclusion_id,
+            confidence=final_confidence,
+            chain=chain,
+            success=len(chain) > len(query_node_ids),
+            explanation=explanation,
+        )
+        # Store backtracking metadata in the chain's final step content
+        if chain:
+            chain[-1].content = {
+                **chain[-1].content,
+                'backtracking_meta': meta,
+            }
+
+        self._store_operation(result)
+        self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
+        return result
 
     def get_stats(self) -> dict:
         """Get reasoning engine statistics"""

@@ -37,7 +37,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    sephirot_manager=None, csf_transport=None,
                    pineal_orchestrator=None, safety_manager=None,
                    spv_verifier=None, ipfs_memory=None,
-                   capability_advertiser=None) -> FastAPI:
+                   capability_advertiser=None,
+                   on_chain_agi=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -1442,6 +1443,71 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         except Exception as e:
             logger.debug(f"Sephirot status error: {e}")
             raise HTTPException(status_code=500, detail="Failed to get Sephirot status")
+
+    # ========================================================================
+    # ON-CHAIN AGI ENDPOINTS (Phase 6)
+    # ========================================================================
+
+    @app.get("/aether/on-chain/phi")
+    async def onchain_phi():
+        """Read the current Phi value from the on-chain ConsciousnessDashboard."""
+        if not on_chain_agi:
+            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+        phi = on_chain_agi.get_onchain_phi()
+        return {"phi": phi, "source": "on-chain"}
+
+    @app.get("/aether/on-chain/consciousness")
+    async def onchain_consciousness():
+        """Read full consciousness status from the on-chain dashboard."""
+        if not on_chain_agi:
+            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+        status = on_chain_agi.get_onchain_consciousness_status()
+        if status is None:
+            return {"status": None, "reason": "Contract not deployed or no data"}
+        return status
+
+    @app.get("/aether/on-chain/proof/{block_height}")
+    async def onchain_proof(block_height: int):
+        """Check if a block has an on-chain Proof-of-Thought."""
+        if not on_chain_agi:
+            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+        proof_id = on_chain_agi.get_proof_by_block(block_height)
+        return {"block_height": block_height, "proof_id": proof_id, "exists": proof_id is not None}
+
+    @app.get("/aether/on-chain/constitution")
+    async def onchain_constitution():
+        """Get constitutional AI principle counts."""
+        if not on_chain_agi:
+            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+        total, active = on_chain_agi.get_principle_count()
+        return {"total_principles": total, "active_principles": active}
+
+    @app.get("/aether/on-chain/stats")
+    async def onchain_stats():
+        """Get on-chain AGI integration statistics."""
+        if not on_chain_agi:
+            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+        return on_chain_agi.get_stats()
+
+    @app.get("/governance/treasury/balance")
+    async def governance_treasury_balance():
+        """Get TreasuryDAO balance from on-chain contract."""
+        if not on_chain_agi:
+            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+        balance = on_chain_agi.get_treasury_balance()
+        return {"balance": balance, "source": "on-chain"}
+
+    @app.get("/governance/proposals/count")
+    async def governance_proposal_count():
+        """Get governance proposal counts from on-chain contracts."""
+        if not on_chain_agi:
+            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+        treasury_count = on_chain_agi.get_proposal_count()
+        upgrade_count = on_chain_agi.get_upgrade_proposal_count()
+        return {
+            "treasury_proposals": treasury_count,
+            "upgrade_proposals": upgrade_count,
+        }
 
     # ========================================================================
     # AETHER CHAT ENDPOINTS

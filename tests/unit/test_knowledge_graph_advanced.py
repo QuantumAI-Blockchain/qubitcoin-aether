@@ -12,7 +12,11 @@ def _make_test_kg():
     kg.db = db
     kg.nodes = {}
     kg.edges = []
+    kg._adj_out = {}
+    kg._adj_in = {}
     kg._next_id = 1
+    kg._merkle_dirty = True
+    kg._merkle_cache = ''
     return kg
 
 
@@ -166,10 +170,13 @@ class TestGetEdgeTypesForNode:
         n2 = kg.add_node('inference', {}, 0.7, 1)
         n3 = kg.add_node('observation', {}, 0.6, 2)
 
-        kg.edges = [
-            KeterEdge(from_node_id=n1.node_id, to_node_id=n2.node_id, edge_type='derives'),
-            KeterEdge(from_node_id=n3.node_id, to_node_id=n1.node_id, edge_type='supports'),
-        ]
+        e1 = KeterEdge(from_node_id=n1.node_id, to_node_id=n2.node_id, edge_type='derives')
+        e2 = KeterEdge(from_node_id=n3.node_id, to_node_id=n1.node_id, edge_type='supports')
+        kg.edges = [e1, e2]
+        kg._adj_out.setdefault(n1.node_id, []).append(e1)
+        kg._adj_in.setdefault(n2.node_id, []).append(e1)
+        kg._adj_out.setdefault(n3.node_id, []).append(e2)
+        kg._adj_in.setdefault(n1.node_id, []).append(e2)
 
         result = kg.get_edge_types_for_node(n1.node_id)
         assert 'out_derives' in result

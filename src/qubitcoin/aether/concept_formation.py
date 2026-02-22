@@ -5,17 +5,24 @@ Clusters semantically similar knowledge nodes and forms abstract 'concept'
 nodes that represent higher-level ideas.  Creates 'abstracts' edges linking
 concrete nodes to their abstract parent.
 
+Phase 5.2: Cross-Domain Transfer Learning — extracts structural patterns
+from concept clusters and transfers them across domains.
+
 Improvement #8: Without abstraction, the knowledge graph remains a flat
 collection of observations and inferences.  This module enables hierarchical
 organization — the system can reason about "quantum computing" as a concept
 rather than only individual observations about specific qubits.
 """
 import math
+import time
 from typing import Dict, List, Optional, Set, Tuple
 
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Transfer learning constants
+_MAX_PATTERN_LIBRARY_SIZE: int = 200
 
 
 class ConceptFormation:
@@ -30,6 +37,11 @@ class ConceptFormation:
     4. For each cluster of size >= min_cluster, create an abstract
        'concept' node linked to members via 'abstracts' edges
     5. Concept nodes can themselves be clustered for multi-level hierarchy
+
+    Transfer Learning (Phase 5.2):
+    6. Extract structural patterns from concept nodes
+    7. Search for analogous patterns in other domains
+    8. Attempt to create cross-domain edges based on matched patterns
     """
 
     def __init__(self, knowledge_graph=None, vector_index=None) -> None:
@@ -37,6 +49,15 @@ class ConceptFormation:
         self.vector_index = vector_index
         self._concepts_created: int = 0
         self._runs: int = 0
+        # Transfer learning state
+        self._pattern_library: List[dict] = []
+        self._transfer_attempts: int = 0
+        self._transfer_successes: int = 0
+        self._patterns_extracted: int = 0
+
+    # ------------------------------------------------------------------
+    # Original concept formation methods (unchanged)
+    # ------------------------------------------------------------------
 
     def form_concepts(self, domain: Optional[str] = None,
                       similarity_threshold: float = 0.7,
@@ -120,25 +141,37 @@ class ConceptFormation:
         return total
 
     def _compute_similarities(self, node_ids: List[int]) -> Dict[Tuple[int, int], float]:
-        """Compute pairwise similarities between nodes."""
-        sims: Dict[Tuple[int, int], float] = {}
+        """Compute candidate similarities between nodes.
 
-        # Try vector similarity first (better quality)
+        Uses ANN (k-nearest neighbor) retrieval to avoid O(n^2) pairwise
+        comparison. For each node, retrieves top-k neighbors from the
+        vector index and only computes exact similarity for those pairs.
+        Complexity: O(n*k) where k << n.
+        """
+        sims: Dict[Tuple[int, int], float] = {}
+        k_neighbors = min(20, max(5, len(node_ids) // 10))
+        node_id_set = set(node_ids)
+
+        # Try ANN-accelerated similarity via vector index
         if self.vector_index and self.vector_index.embeddings:
             from .vector_index import cosine_similarity
-            for i, nid_a in enumerate(node_ids):
+            for nid_a in node_ids:
                 emb_a = self.vector_index.get_embedding(nid_a)
                 if not emb_a:
                     continue
-                for nid_b in node_ids[i + 1:]:
-                    emb_b = self.vector_index.get_embedding(nid_b)
-                    if not emb_b:
+                # Use ANN to get top-k candidates instead of comparing all pairs
+                neighbors = self.vector_index.query_by_embedding(
+                    emb_a, top_k=k_neighbors + 1
+                )
+                for nid_b, sim in neighbors:
+                    if nid_b == nid_a or nid_b not in node_id_set:
                         continue
-                    sim = cosine_similarity(emb_a, emb_b)
-                    sims[(nid_a, nid_b)] = sim
+                    pair = (min(nid_a, nid_b), max(nid_a, nid_b))
+                    if pair not in sims:
+                        sims[pair] = sim
             return sims
 
-        # Fallback: edge-pattern similarity
+        # Fallback: Jaccard similarity (still O(n^2) but cheaper per comparison)
         for i, nid_a in enumerate(node_ids):
             pattern_a = self._get_content_tokens(nid_a)
             if not pattern_a:
@@ -147,7 +180,6 @@ class ConceptFormation:
                 pattern_b = self._get_content_tokens(nid_b)
                 if not pattern_b:
                     continue
-                # Jaccard similarity
                 intersection = len(pattern_a & pattern_b)
                 union = len(pattern_a | pattern_b)
                 if union > 0:
@@ -252,8 +284,446 @@ class ConceptFormation:
 
         return None
 
+    # ------------------------------------------------------------------
+    # Phase 5.2: Cross-Domain Transfer Learning
+    # ------------------------------------------------------------------
+
+    def extract_pattern(self, concept_node_id: int) -> Optional[dict]:
+        """Extract a structural pattern from a concept node.
+
+        Given a concept node (created by ``_create_concept_node``), inspects
+        its cluster members and their inter-relationships to build a
+        transferable structural pattern descriptor.
+
+        Args:
+            concept_node_id: ID of a concept node with 'abstracts' edges
+                pointing to cluster members.
+
+        Returns:
+            A pattern dict if extraction succeeds, or ``None`` if the node
+            is missing, has no members, or has no knowledge graph attached.
+        """
+        if not self.kg:
+            return None
+
+        concept = self.kg.nodes.get(concept_node_id)
+        if not concept:
+            return None
+
+        # Verify this is a concept node
+        content = concept.content or {}
+        if content.get('type') != 'abstract_concept':
+            return None
+
+        domain = concept.domain or content.get('domain', 'general')
+
+        # Collect member node IDs via outgoing 'abstracts' edges
+        member_ids: List[int] = []
+        for edge in self.kg._adj_out.get(concept_node_id, []):
+            if edge.edge_type == 'abstracts':
+                member_ids.append(edge.to_node_id)
+
+        if not member_ids:
+            return None
+
+        # Gather structural profile of the cluster
+        edge_types: Set[str] = set()
+        node_types: Set[str] = set()
+        confidences: List[float] = []
+        source_blocks: List[int] = []
+        member_set = set(member_ids)
+
+        for nid in member_ids:
+            node = self.kg.nodes.get(nid)
+            if not node:
+                continue
+            node_types.add(node.node_type)
+            confidences.append(node.confidence)
+            source_blocks.append(node.source_block)
+
+            # Inspect edges between cluster members (intra-cluster edges)
+            for edge in self.kg._adj_out.get(nid, []):
+                if edge.to_node_id in member_set:
+                    edge_types.add(edge.edge_type)
+            for edge in self.kg._adj_in.get(nid, []):
+                if edge.from_node_id in member_set and edge.from_node_id != concept_node_id:
+                    edge_types.add(edge.edge_type)
+
+        if not confidences:
+            return None
+
+        # Confidence profile: mean + stddev
+        mean_conf = sum(confidences) / len(confidences)
+        variance = sum((c - mean_conf) ** 2 for c in confidences) / len(confidences)
+        std_conf = math.sqrt(variance)
+
+        # Temporal profile: block spread
+        block_spread = (max(source_blocks) - min(source_blocks)) if len(source_blocks) > 1 else 0
+
+        pattern: dict = {
+            'pattern_id': self._patterns_extracted,
+            'domain': domain,
+            'edge_types': sorted(edge_types),
+            'node_types': sorted(node_types),
+            'confidence_profile': {
+                'mean': round(mean_conf, 4),
+                'std': round(std_conf, 4),
+            },
+            'member_count': len(member_ids),
+            'source_concept_id': concept_node_id,
+            'block_spread': block_spread,
+            'extracted_at': time.time(),
+        }
+
+        # Add to pattern library (FIFO eviction if full)
+        if len(self._pattern_library) >= _MAX_PATTERN_LIBRARY_SIZE:
+            self._pattern_library.pop(0)
+        self._pattern_library.append(pattern)
+        self._patterns_extracted += 1
+
+        return pattern
+
+    def find_analogous_patterns(self, source_pattern: dict,
+                                target_domain: str,
+                                min_similarity: float = 0.4) -> List[dict]:
+        """Search the pattern library for structurally similar patterns
+        in a different domain.
+
+        Similarity is a weighted combination of:
+          - Jaccard similarity of edge types (weight 0.5)
+          - Jaccard similarity of node types (weight 0.3)
+          - Closeness of confidence profiles (weight 0.2)
+
+        Args:
+            source_pattern: The pattern to find analogues for.
+            target_domain: Domain to search in.
+            min_similarity: Minimum similarity threshold.
+
+        Returns:
+            List of ``{pattern, similarity, domain}`` dicts, sorted by
+            similarity descending.
+        """
+        source_edges = set(source_pattern.get('edge_types', []))
+        source_nodes = set(source_pattern.get('node_types', []))
+        source_conf = source_pattern.get('confidence_profile', {})
+        source_mean = source_conf.get('mean', 0.5)
+        source_std = source_conf.get('std', 0.0)
+
+        results: List[dict] = []
+
+        for candidate in self._pattern_library:
+            # Only consider patterns in the target domain
+            if candidate.get('domain') != target_domain:
+                continue
+            # Skip self-match
+            if candidate.get('source_concept_id') == source_pattern.get('source_concept_id'):
+                continue
+
+            # Jaccard of edge types
+            cand_edges = set(candidate.get('edge_types', []))
+            edge_union = source_edges | cand_edges
+            edge_jaccard = (
+                len(source_edges & cand_edges) / len(edge_union)
+                if edge_union else 0.0
+            )
+
+            # Jaccard of node types
+            cand_nodes = set(candidate.get('node_types', []))
+            node_union = source_nodes | cand_nodes
+            node_jaccard = (
+                len(source_nodes & cand_nodes) / len(node_union)
+                if node_union else 0.0
+            )
+
+            # Closeness of confidence profiles (1 - normalized distance)
+            cand_conf = candidate.get('confidence_profile', {})
+            cand_mean = cand_conf.get('mean', 0.5)
+            cand_std = cand_conf.get('std', 0.0)
+            mean_dist = abs(source_mean - cand_mean)
+            std_dist = abs(source_std - cand_std)
+            # Max possible distance for both is 1.0, average of two distances
+            conf_closeness = 1.0 - (mean_dist + std_dist) / 2.0
+
+            # Weighted similarity
+            similarity = (
+                edge_jaccard * 0.5
+                + node_jaccard * 0.3
+                + conf_closeness * 0.2
+            )
+
+            if similarity >= min_similarity:
+                results.append({
+                    'pattern': candidate,
+                    'similarity': round(similarity, 4),
+                    'domain': target_domain,
+                })
+
+        results.sort(key=lambda r: r['similarity'], reverse=True)
+        return results
+
+    def attempt_transfer(self, source_pattern: dict,
+                         target_domain: str,
+                         block_height: int) -> dict:
+        """Attempt to transfer a structural pattern from one domain to another.
+
+        Steps:
+        1. Find nodes in target_domain matching the pattern's node type profile.
+        2. Try to create edges between those nodes matching the pattern's edge
+           type profile.
+        3. Create a ``transfer_hypothesis`` inference node recording the attempt.
+
+        Args:
+            source_pattern: The source structural pattern.
+            target_domain: The domain to transfer into.
+            block_height: Current block height for the new nodes.
+
+        Returns:
+            Dict with ``success``, ``edges_created``, ``hypothesis_node_id``,
+            ``source_domain``, ``target_domain``.
+        """
+        self._transfer_attempts += 1
+        result: dict = {
+            'success': False,
+            'edges_created': 0,
+            'hypothesis_node_id': None,
+            'source_domain': source_pattern.get('domain', 'unknown'),
+            'target_domain': target_domain,
+        }
+
+        if not self.kg:
+            return result
+
+        pattern_node_types = set(source_pattern.get('node_types', []))
+        pattern_edge_types = source_pattern.get('edge_types', [])
+
+        if not pattern_node_types:
+            return result
+
+        # Step 1: Find candidate nodes in target domain matching type profile
+        target_candidates: Dict[str, List[int]] = {}
+        for node in self.kg.nodes.values():
+            if node.domain == target_domain and node.node_type in pattern_node_types:
+                target_candidates.setdefault(node.node_type, []).append(node.node_id)
+
+        # Need at least 2 nodes to create edges
+        all_target_ids: List[int] = []
+        for ids in target_candidates.values():
+            all_target_ids.extend(ids)
+
+        if len(all_target_ids) < 2:
+            return result
+
+        # Limit to most recent nodes to keep transfer focused
+        target_nodes = [
+            self.kg.nodes[nid] for nid in all_target_ids
+            if nid in self.kg.nodes
+        ]
+        target_nodes.sort(key=lambda n: n.source_block, reverse=True)
+        target_nodes = target_nodes[:20]  # Cap at 20 to limit edge creation
+        target_id_set = {n.node_id for n in target_nodes}
+
+        # Step 2: Create edges matching the pattern's edge type profile
+        edges_created = 0
+        if pattern_edge_types:
+            # For each edge type in the source pattern, try to create it
+            # between pairs of target nodes that don't already have that edge
+            for edge_type in pattern_edge_types:
+                # Create edges between nodes of different types when possible
+                target_list = list(target_id_set)
+                for i in range(min(len(target_list) - 1, 5)):
+                    from_id = target_list[i]
+                    to_id = target_list[i + 1]
+
+                    # Check if edge already exists
+                    existing = False
+                    for edge in self.kg._adj_out.get(from_id, []):
+                        if edge.to_node_id == to_id and edge.edge_type == edge_type:
+                            existing = True
+                            break
+
+                    if not existing:
+                        new_edge = self.kg.add_edge(
+                            from_id, to_id, edge_type,
+                            weight=0.5  # Lower weight for transferred edges
+                        )
+                        if new_edge:
+                            edges_created += 1
+                    # Limit to a few edges per transfer attempt
+                    if edges_created >= 3:
+                        break
+                if edges_created >= 3:
+                    break
+
+        # Step 3: Create transfer_hypothesis node
+        hypothesis_content = {
+            'type': 'transfer_hypothesis',
+            'text': (
+                f"Cross-domain transfer: pattern from "
+                f"{source_pattern.get('domain', '?')} applied to {target_domain}"
+            ),
+            'source_pattern_id': source_pattern.get('pattern_id'),
+            'source_domain': source_pattern.get('domain', 'unknown'),
+            'target_domain': target_domain,
+            'edge_types_transferred': pattern_edge_types[:5],
+            'node_types_matched': sorted(pattern_node_types),
+            'edges_created': edges_created,
+            'source': 'transfer_learning',
+        }
+
+        # Confidence is proportional to source pattern confidence and edges created
+        source_conf = source_pattern.get('confidence_profile', {}).get('mean', 0.5)
+        transfer_conf = source_conf * 0.6  # Discount for cross-domain transfer
+        if edges_created > 0:
+            transfer_conf = min(transfer_conf + 0.1, 0.9)
+
+        hypothesis_node = self.kg.add_node(
+            node_type='inference',
+            content=hypothesis_content,
+            confidence=transfer_conf,
+            source_block=block_height,
+            domain=target_domain,
+        )
+
+        hypothesis_id: Optional[int] = None
+        if hypothesis_node:
+            hypothesis_id = hypothesis_node.node_id
+            # Link hypothesis to the target nodes it relates to
+            for target_node in target_nodes[:3]:
+                self.kg.add_edge(
+                    hypothesis_id, target_node.node_id,
+                    'derives', weight=0.5
+                )
+
+        success = edges_created > 0
+        if success:
+            self._transfer_successes += 1
+
+        result['success'] = success
+        result['edges_created'] = edges_created
+        result['hypothesis_node_id'] = hypothesis_id
+
+        if success:
+            logger.info(
+                f"Transfer learning: {source_pattern.get('domain')} -> "
+                f"{target_domain}, {edges_created} edges created, "
+                f"hypothesis node {hypothesis_id}"
+            )
+
+        return result
+
+    def run_transfer_cycle(self, block_height: int) -> dict:
+        """Run a full cross-domain transfer learning cycle.
+
+        Called periodically (every 500 blocks, alongside
+        ``form_concepts_all_domains``):
+
+        1. Extract patterns from recently-created concept nodes.
+        2. For each pattern, search for analogous patterns in other domains.
+        3. If analogues found, attempt transfer.
+        4. Track success rate.
+
+        Args:
+            block_height: Current block height.
+
+        Returns:
+            Summary stats dict.
+        """
+        if not self.kg:
+            return {
+                'patterns_extracted': 0,
+                'analogues_found': 0,
+                'transfers_attempted': 0,
+                'transfers_succeeded': 0,
+            }
+
+        # Step 1: Find recent concept nodes to extract patterns from
+        # Look for concept nodes not yet in the pattern library
+        existing_concept_ids = {
+            p['source_concept_id'] for p in self._pattern_library
+        }
+
+        new_concept_nodes: List[int] = []
+        for node in self.kg.nodes.values():
+            content = node.content or {}
+            if (content.get('type') == 'abstract_concept'
+                    and content.get('source') == 'concept_formation'
+                    and node.node_id not in existing_concept_ids):
+                new_concept_nodes.append(node.node_id)
+
+        # Sort by most recent first, limit extraction
+        new_concept_nodes.sort(reverse=True)
+        new_concept_nodes = new_concept_nodes[:20]
+
+        patterns_extracted = 0
+        for cid in new_concept_nodes:
+            pattern = self.extract_pattern(cid)
+            if pattern:
+                patterns_extracted += 1
+
+        # Step 2 & 3: For each pattern, find analogues and attempt transfer
+        # Get all domains present in the pattern library
+        all_domains: Set[str] = set()
+        for p in self._pattern_library:
+            d = p.get('domain')
+            if d:
+                all_domains.add(d)
+
+        analogues_found = 0
+        transfers_attempted = 0
+        transfers_succeeded = 0
+
+        # Only attempt transfers from recently extracted patterns
+        # to keep the cycle bounded
+        recent_patterns = self._pattern_library[-10:] if self._pattern_library else []
+
+        for source_pattern in recent_patterns:
+            source_domain = source_pattern.get('domain', '')
+            for target_domain in all_domains:
+                if target_domain == source_domain:
+                    continue
+
+                matches = self.find_analogous_patterns(
+                    source_pattern, target_domain, min_similarity=0.4
+                )
+                if matches:
+                    analogues_found += len(matches)
+                    # Attempt transfer using best match
+                    transfers_attempted += 1
+                    transfer_result = self.attempt_transfer(
+                        source_pattern, target_domain, block_height
+                    )
+                    if transfer_result.get('success'):
+                        transfers_succeeded += 1
+
+        stats = {
+            'patterns_extracted': patterns_extracted,
+            'analogues_found': analogues_found,
+            'transfers_attempted': transfers_attempted,
+            'transfers_succeeded': transfers_succeeded,
+        }
+
+        if transfers_attempted > 0:
+            logger.info(
+                f"Transfer cycle at block {block_height}: "
+                f"{patterns_extracted} patterns extracted, "
+                f"{analogues_found} analogues found, "
+                f"{transfers_attempted} attempted, "
+                f"{transfers_succeeded} succeeded"
+            )
+
+        return stats
+
+    # ------------------------------------------------------------------
+    # Stats
+    # ------------------------------------------------------------------
+
     def get_stats(self) -> dict:
+        """Return concept formation and transfer learning statistics."""
         return {
             'total_concepts_created': self._concepts_created,
             'total_runs': self._runs,
+            'transfer_attempts': self._transfer_attempts,
+            'transfer_successes': self._transfer_successes,
+            'patterns_extracted': self._patterns_extracted,
+            'pattern_library_size': len(self._pattern_library),
         }

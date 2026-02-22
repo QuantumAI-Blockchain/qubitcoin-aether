@@ -199,6 +199,16 @@ class QubitcoinNode:
                 except Exception as e:
                     logger.debug(f"Aether genesis init skipped (DB not ready): {e}")
 
+            # Phase 6: On-chain AGI integration
+            try:
+                from .aether.on_chain import OnChainAGI
+                self.on_chain = OnChainAGI(self.state_manager)
+                self.aether.on_chain = self.on_chain
+                logger.info("OnChainAGI bridge wired to Aether Engine")
+            except Exception as e:
+                self.on_chain = None
+                logger.debug(f"OnChainAGI init skipped: {e}")
+
             logger.info("[7/22] Aether Engine initialized (KnowledgeGraph + Phi + Reasoning + PoT)")
         except Exception as e:
             logger.error(f"[7/22] Aether Engine failed: {e}", exc_info=True)
@@ -530,6 +540,7 @@ class QubitcoinNode:
                 spv_verifier=self.spv_verifier,
                 ipfs_memory=self.ipfs_memory,
                 capability_advertiser=self.capability_advertiser,
+                on_chain_agi=getattr(self, 'on_chain', None),
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)

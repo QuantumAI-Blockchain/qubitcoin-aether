@@ -10,81 +10,186 @@ from qubitcoin.aether.knowledge_graph import KeterNode, KnowledgeGraph, KeterEdg
 
 # ─── 5.2 Gates 7-10 ────────────────────────────────────────────────────────
 
-class TestGates7To10:
-    """Test higher consciousness milestone gates in phi_calculator."""
+class TestSemanticGates:
+    """Test semantically hardened milestone gates in phi_calculator."""
 
     def test_milestone_gates_has_10_entries(self):
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         assert len(MILESTONE_GATES) == 10
 
-    def test_gate_7_analogical_reasoning(self):
+    def test_gate_1_knowledge_foundation(self):
+        """Gate 1: quantity + quality (avg confidence >= 0.5)."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
-        gate = MILESTONE_GATES[6]  # 0-indexed
+        gate = MILESTONE_GATES[0]
+        assert gate['id'] == 1
+        assert gate['name'] == 'Knowledge Foundation'
+
+        # Fail: not enough nodes
+        stats = {
+            'n_nodes': 50, 'n_edges': 10,
+            'node_type_counts': {}, 'edge_type_counts': {},
+            'avg_confidence': 0.7,
+        }
+        assert gate['check'](stats) is False
+
+        # Fail: enough nodes but low confidence
+        stats['n_nodes'] = 100
+        stats['avg_confidence'] = 0.3
+        assert gate['check'](stats) is False
+
+        # Pass: both quantity and quality
+        stats['avg_confidence'] = 0.5
+        assert gate['check'](stats) is True
+
+    def test_gate_2_diverse_reasoning(self):
+        """Gate 2: node type diversity + integration score."""
+        from qubitcoin.aether.phi_calculator import MILESTONE_GATES
+        gate = MILESTONE_GATES[1]
+        assert gate['id'] == 2
+        assert gate['name'] == 'Diverse Reasoning'
+
+        # Fail: not enough node types
+        stats = {
+            'n_nodes': 500, 'n_edges': 100,
+            'node_type_counts': {'assertion': 400, 'observation': 100},
+            'edge_type_counts': {},
+            'integration_score': 0.5,
+        }
+        assert gate['check'](stats) is False
+
+        # Fail: enough types but low integration
+        stats['node_type_counts'] = {
+            'assertion': 200, 'observation': 200, 'inference': 100,
+        }
+        stats['integration_score'] = 0.1
+        assert gate['check'](stats) is False
+
+        # Pass: diverse types and good integration
+        stats['integration_score'] = 0.5
+        assert gate['check'](stats) is True
+
+    def test_gate_3_predictive_power(self):
+        """Gate 3: verified predictions + causal edge ratio."""
+        from qubitcoin.aether.phi_calculator import MILESTONE_GATES
+        gate = MILESTONE_GATES[2]
+        assert gate['id'] == 3
+        assert gate['name'] == 'Predictive Power'
+
+        # Fail: no verified predictions
+        stats = {
+            'n_nodes': 1000, 'n_edges': 500,
+            'node_type_counts': {}, 'edge_type_counts': {'causes': 30},
+            'verified_predictions': 0,
+        }
+        assert gate['check'](stats) is False
+
+        # Fail: predictions but not enough causal edges
+        stats['verified_predictions'] = 50
+        stats['edge_type_counts']['causes'] = 10  # 10/500 = 2% < 5%
+        assert gate['check'](stats) is False
+
+        # Pass: predictions + sufficient causal edges
+        stats['edge_type_counts']['causes'] = 30  # 30/500 = 6% > 5%
+        assert gate['check'](stats) is True
+
+    def test_gate_4_self_correction(self):
+        """Gate 4: debate verdicts + contradiction resolutions + MIP."""
+        from qubitcoin.aether.phi_calculator import MILESTONE_GATES
+        gate = MILESTONE_GATES[3]
+        assert gate['id'] == 4
+        assert gate['name'] == 'Self-Correction'
+
+        # Fail: no debate verdicts
+        stats = {
+            'n_nodes': 2000, 'n_edges': 500,
+            'node_type_counts': {}, 'edge_type_counts': {},
+            'debate_verdicts': 0, 'contradiction_resolutions': 5,
+            'mip_phi': 0.5,
+        }
+        assert gate['check'](stats) is False
+
+        # Fail: verdicts but low MIP
+        stats['debate_verdicts'] = 10
+        stats['mip_phi'] = 0.1
+        assert gate['check'](stats) is False
+
+        # Pass: all criteria met
+        stats['mip_phi'] = 0.5
+        assert gate['check'](stats) is True
+
+    def test_gate_7_metacognitive_calibration(self):
+        """Gate 7: calibration error + grounding ratio."""
+        from qubitcoin.aether.phi_calculator import MILESTONE_GATES
+        gate = MILESTONE_GATES[6]
         assert gate['id'] == 7
-        assert gate['name'] == 'Analogical Reasoning'
+        assert gate['name'] == 'Metacognitive Calibration'
 
-        # Should fail with no analogous_to edges
+        # Fail: high calibration error
         stats = {
-            'n_nodes': 100, 'n_edges': 50,
+            'n_nodes': 20000, 'n_edges': 5000,
             'node_type_counts': {}, 'edge_type_counts': {},
-            'domain_count': 3, 'self_reflection_nodes': 0,
-            'cross_domain_inferences': 0,
+            'calibration_error': 0.5, 'grounding_ratio': 0.2,
         }
         assert gate['check'](stats) is False
 
-        # Should pass with enough analogies and domains
-        stats['edge_type_counts']['analogous_to'] = 100
-        stats['domain_count'] = 5
-        assert gate['check'](stats) is True
-
-    def test_gate_8_self_model(self):
-        from qubitcoin.aether.phi_calculator import MILESTONE_GATES
-        gate = MILESTONE_GATES[7]
-        assert gate['id'] == 8
-
-        stats = {
-            'n_nodes': 100, 'n_edges': 50,
-            'node_type_counts': {}, 'edge_type_counts': {},
-            'domain_count': 0, 'self_reflection_nodes': 10,
-            'cross_domain_inferences': 0,
-        }
+        # Fail: good calibration but low grounding
+        stats['calibration_error'] = 0.1
+        stats['grounding_ratio'] = 0.05
         assert gate['check'](stats) is False
 
-        stats['self_reflection_nodes'] = 50
+        # Pass: calibrated and grounded
+        stats['grounding_ratio'] = 0.2
         assert gate['check'](stats) is True
 
-    def test_gate_9_predictive_accuracy(self):
+    def test_gate_9_predictive_mastery(self):
+        """Gate 9: prediction accuracy + inference count."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[8]
         assert gate['id'] == 9
+        assert gate['name'] == 'Predictive Mastery'
 
+        # Fail: low prediction accuracy
         stats = {
-            'n_nodes': 2000, 'n_edges': 3000,
-            'node_type_counts': {'inference': 1000},
-            'edge_type_counts': {'supports': 2000},
-            'domain_count': 0, 'self_reflection_nodes': 0,
-            'cross_domain_inferences': 0,
+            'n_nodes': 50000, 'n_edges': 10000,
+            'node_type_counts': {'inference': 5000},
+            'edge_type_counts': {},
+            'prediction_accuracy': 0.3,
         }
-        assert gate['check'](stats) is True
-
-        stats['node_type_counts']['inference'] = 500
         assert gate['check'](stats) is False
 
+        # Fail: good accuracy but too few inferences
+        stats['prediction_accuracy'] = 0.7
+        stats['node_type_counts']['inference'] = 1000
+        assert gate['check'](stats) is False
+
+        # Pass: accurate and enough inferences
+        stats['node_type_counts']['inference'] = 5000
+        assert gate['check'](stats) is True
+
     def test_gate_10_creative_synthesis(self):
+        """Gate 10: cross-domain inferences + novel concepts."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[9]
         assert gate['id'] == 10
+        assert gate['name'] == 'Creative Synthesis'
 
+        # Fail: not enough cross-domain inferences
         stats = {
-            'n_nodes': 100, 'n_edges': 50,
+            'n_nodes': 100000, 'n_edges': 50000,
             'node_type_counts': {}, 'edge_type_counts': {},
-            'domain_count': 0, 'self_reflection_nodes': 0,
-            'cross_domain_inferences': 20,
+            'cross_domain_inferences': 50,
+            'novel_concept_count': 60,
         }
-        assert gate['check'](stats) is True
-
-        stats['cross_domain_inferences'] = 5
         assert gate['check'](stats) is False
+
+        # Fail: enough inferences but not enough novel concepts
+        stats['cross_domain_inferences'] = 100
+        stats['novel_concept_count'] = 10
+        assert gate['check'](stats) is False
+
+        # Pass: both criteria met
+        stats['novel_concept_count'] = 50
+        assert gate['check'](stats) is True
 
     def test_max_ceiling_is_5(self):
         """With all 10 gates passed, ceiling should be 5.0."""
@@ -93,20 +198,22 @@ class TestGates7To10:
         assert max_ceiling == 5.0
 
     def test_check_gates_computes_extended_stats(self):
-        """Verify _check_gates builds the extended stats dict."""
+        """Verify _check_gates builds the extended stats dict correctly."""
         from qubitcoin.aether.phi_calculator import PhiCalculator
 
         calc = PhiCalculator.__new__(PhiCalculator)
         calc.kg = MagicMock()
 
-        # Create nodes with domains and self-reflection source
+        # Create nodes with domains, self-reflection, and various content types
         nodes = {
             1: KeterNode(node_id=1, node_type='assertion', domain='physics',
-                         content={'text': 'test'}),
+                         content={'text': 'test'}, confidence=0.8),
             2: KeterNode(node_id=2, node_type='inference', domain='math',
-                         content={'source': 'self-reflection', 'text': 'reflect'}),
+                         content={'source': 'self-reflection', 'text': 'reflect'},
+                         confidence=0.6),
             3: KeterNode(node_id=3, node_type='inference', domain='physics',
-                         content={'cross_domain': True, 'text': 'cross'}),
+                         content={'cross_domain': True, 'text': 'cross'},
+                         confidence=0.7),
         }
         edges = [
             KeterEdge(from_node_id=1, to_node_id=2,
@@ -115,9 +222,34 @@ class TestGates7To10:
 
         results = calc._check_gates(nodes, edges)
         assert len(results) == 10
-        # All gates should fail with only 3 nodes
+        # All gates should fail with only 3 nodes (gate 1 requires >= 100)
         for g in results:
             assert g['passed'] is False
+
+    def test_check_gates_accepts_extra_stats(self):
+        """Verify _check_gates merges external stats."""
+        from qubitcoin.aether.phi_calculator import PhiCalculator
+
+        calc = PhiCalculator.__new__(PhiCalculator)
+        calc.kg = MagicMock()
+
+        nodes = {
+            i: KeterNode(node_id=i, node_type='assertion',
+                         content={'text': f'node {i}'}, confidence=0.7)
+            for i in range(1, 101)
+        }
+        edges = []
+
+        # Without extra_stats, gate 1 should pass (100 nodes, avg conf 0.7)
+        results = calc._check_gates(nodes, edges)
+        assert results[0]['passed'] is True  # Gate 1: 100 nodes, conf 0.7
+
+        # With extra_stats, integration_score is injected
+        results_with_extra = calc._check_gates(nodes, edges, extra_stats={
+            'integration_score': 0.5,
+            'mip_phi': 0.4,
+        })
+        assert results_with_extra[0]['passed'] is True  # Gate 1 still passes
 
 
 # ─── 4.2 Analogy Detection ─────────────────────────────────────────────────
@@ -130,9 +262,13 @@ class TestAnalogyDetection:
         kg.db = None
         kg.nodes = {}
         kg.edges = []
+        kg._adj_out = {}
+        kg._adj_in = {}
         kg._next_id = 1
         kg._next_edge_id = 1
         kg._index = None
+        kg._merkle_dirty = True
+        kg._merkle_cache = ''
         return kg
 
     def test_find_analogies_source_not_found(self):
