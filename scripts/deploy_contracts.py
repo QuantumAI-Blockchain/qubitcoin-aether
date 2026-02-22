@@ -89,19 +89,27 @@ class RPCClient:
         self.nonce = 0  # Track deployer nonce locally
 
     def _post_jsonrpc(self, method: str, params: list) -> dict:
-        """Send a JSON-RPC request."""
+        """Send a JSON-RPC request with retry on 429."""
         payload = {
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
             "id": 1,
         }
-        r = requests.post(f"{self.base_url}/", json=payload, timeout=30)
-        r.raise_for_status()
-        result = r.json()
-        if "error" in result:
-            raise RuntimeError(f"RPC error: {result['error']}")
-        return result.get("result")
+        for attempt in range(10):
+            r = requests.post(f"{self.base_url}/", json=payload, timeout=30)
+            if r.status_code == 429:
+                wait = min(2 ** attempt, 30)
+                logger.warning(f"Rate limited (429), waiting {wait}s (attempt {attempt+1}/10)...")
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+            result = r.json()
+            if result.get("error"):
+                raise RuntimeError(f"RPC error: {result['error']}")
+            time.sleep(0.3)  # Base delay to avoid rate limits
+            return result.get("result")
+        raise RuntimeError(f"RPC rate limited after 10 retries: {method}")
 
     def _post_rest(self, path: str, data: dict) -> dict:
         """Send a REST POST request."""
