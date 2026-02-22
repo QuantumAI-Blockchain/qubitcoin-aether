@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { api } from "@/lib/api";
+import { api, type AetherInfo } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -224,7 +224,14 @@ function AetherTab({
   phi: ReturnType<typeof api.getPhi> extends Promise<infer T> ? T | undefined : never;
 }) {
   const pct = phi ? Math.min((phi.phi / phi.threshold) * 100, 100) : 0;
-  const isV2 = phi?.phi_version === 2;
+  const isV2 = (phi?.phi_version ?? 0) >= 2;
+
+  const { data: aetherInfo } = useQuery({
+    queryKey: ["aetherInfo"],
+    queryFn: api.getAetherInfo,
+    refetchInterval: 15_000,
+    retry: false,
+  });
 
   return (
     <div className="space-y-6">
@@ -243,6 +250,8 @@ function AetherTab({
         {isV2 && phi?.phi_raw != null && (
           <p className="mt-1 text-xs text-text-secondary">
             Raw: {phi.phi_raw.toFixed(4)} | Ceiling: {phi.gate_ceiling?.toFixed(1) ?? "---"}
+            {phi.connectivity != null && ` | Connectivity: ${phi.connectivity.toFixed(4)}`}
+            {phi.maturity != null && ` | Maturity: ${phi.maturity.toFixed(4)}`}
           </p>
         )}
         <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-void">
@@ -255,12 +264,12 @@ function AetherTab({
         </div>
       </Card>
 
-      {/* Milestone Gates (v2 only) */}
+      {/* Milestone Gates (v2+) */}
       {isV2 && phi?.gates && phi.gates.length > 0 && (
         <MilestoneGates
           gates={phi.gates}
           gatesPassed={phi.gates_passed ?? 0}
-          gatesTotal={phi.gates_total ?? 6}
+          gatesTotal={phi.gates_total ?? 10}
           gateCeiling={phi.gate_ceiling ?? 0}
           phiRaw={phi.phi_raw ?? phi.phi}
         />
@@ -293,6 +302,9 @@ function AetherTab({
         </Card>
       </div>
 
+      {/* AGI Reasoning Subsystems */}
+      {aetherInfo && <AGISubsystemsPanel info={aetherInfo} />}
+
       <ErrorBoundary>
         <SephirotExplorer />
       </ErrorBoundary>
@@ -301,6 +313,163 @@ function AetherTab({
         <PhiChart />
       </ErrorBoundary>
     </div>
+  );
+}
+
+function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
+  const hasAny =
+    info.neural_reasoner || info.causal_engine || info.debate_protocol ||
+    info.temporal_engine || info.concept_formation || info.metacognition;
+
+  if (!hasAny) return null;
+
+  return (
+    <Card>
+      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+        AGI Reasoning Subsystems
+      </h3>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {info.neural_reasoner && (
+          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+            <p className="text-xs font-semibold text-quantum-violet">Neural Reasoner</p>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Accuracy</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {(info.neural_reasoner.accuracy * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Predictions</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {info.neural_reasoner.total_predictions.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {info.causal_engine && (
+          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+            <p className="text-xs font-semibold text-quantum-violet">Causal Engine</p>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Causal Edges</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {info.causal_engine.total_causal_edges_found.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Runs</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {info.causal_engine.total_runs.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {info.debate_protocol && (
+          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+            <p className="text-xs font-semibold text-quantum-violet">Debate Protocol</p>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Debates</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {info.debate_protocol.total_debates.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Acceptance</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {(info.debate_protocol.acceptance_rate * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-text-secondary">
+                <span>{info.debate_protocol.accepted}A / {info.debate_protocol.rejected}R / {info.debate_protocol.modified}M</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {info.temporal_engine && (
+          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+            <p className="text-xs font-semibold text-quantum-violet">Temporal Engine</p>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Tracked</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {info.temporal_engine.tracked_metrics} metrics
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Predictions</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {info.temporal_engine.predictions_validated.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Accuracy</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {(info.temporal_engine.accuracy * 100).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {info.concept_formation && (
+          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+            <p className="text-xs font-semibold text-quantum-violet">Concept Formation</p>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Concepts</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {info.concept_formation.total_concepts_created.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Runs</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {info.concept_formation.total_runs.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {info.metacognition && (
+          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+            <p className="text-xs font-semibold text-quantum-violet">Metacognition</p>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Accuracy</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {(info.metacognition.overall_accuracy * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Calibration Err</span>
+                <span className="font-[family-name:var(--font-mono)]">
+                  {info.metacognition.calibration_error.toFixed(4)}
+                </span>
+              </div>
+              {Object.keys(info.metacognition.strategy_weights).length > 0 && (
+                <div className="mt-1 border-t border-surface-light/50 pt-1">
+                  <p className="text-xs text-text-secondary">Strategy Weights</p>
+                  {Object.entries(info.metacognition.strategy_weights).map(([k, v]) => (
+                    <div key={k} className="flex justify-between text-xs">
+                      <span className="text-text-secondary">{k}</span>
+                      <span className="font-[family-name:var(--font-mono)]">{v.toFixed(3)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 

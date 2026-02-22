@@ -1162,14 +1162,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             'knowledge_edges': kg_stats.get('total_edges', 0),
             'blocks_processed': kg_stats.get('blocks_processed', 0),
         }
-        # v2 gate data (post-fork)
-        if phi_data.get('phi_version') == 2:
+        # v2+ gate data (post-fork)
+        if phi_data.get('phi_version', 0) >= 2:
             result['phi_raw'] = phi_data.get('phi_raw', 0.0)
-            result['phi_version'] = 2
+            result['phi_version'] = phi_data.get('phi_version', 3)
             result['gates_passed'] = phi_data.get('gates_passed', 0)
-            result['gates_total'] = phi_data.get('gates_total', 6)
+            result['gates_total'] = phi_data.get('gates_total', 10)
             result['gate_ceiling'] = phi_data.get('gate_ceiling', 0.0)
             result['gates'] = phi_data.get('gates', [])
+            result['connectivity'] = phi_data.get('connectivity', 0.0)
+            result['maturity'] = phi_data.get('maturity', 0.0)
+            result['redundancy_factor'] = phi_data.get('redundancy_factor', 1.0)
         return result
 
     @app.get("/aether/consciousness/gates")

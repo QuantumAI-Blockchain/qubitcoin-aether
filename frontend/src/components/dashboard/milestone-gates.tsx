@@ -18,7 +18,8 @@ export function MilestoneGates({
   gateCeiling,
   phiRaw,
 }: MilestoneGatesProps) {
-  const ceilingPct = Math.min((gateCeiling / 3.0) * 100, 100);
+  const maxCeiling = gatesTotal * 0.5;
+  const ceilingPct = Math.min((gateCeiling / maxCeiling) * 100, 100);
   const gatesNeeded = gatesTotal - gatesPassed;
 
   return (
@@ -38,7 +39,7 @@ export function MilestoneGates({
         <div className="mb-1.5 flex items-center justify-between text-xs text-text-secondary">
           <span>Phi Ceiling</span>
           <span className="font-[family-name:var(--font-mono)]">
-            {gateCeiling.toFixed(1)} / 3.0
+            {gateCeiling.toFixed(1)} / {maxCeiling.toFixed(1)}
           </span>
         </div>
         <div className="h-2.5 w-full overflow-hidden rounded-full bg-void">
@@ -121,7 +122,7 @@ export function MilestoneGates({
                   <span className="rounded bg-void px-2 py-0.5 font-[family-name:var(--font-mono)] text-xs text-text-secondary">
                     {gate.requirement}
                   </span>
-                  <span className="text-xs text-golden-amber">+0.5 \u03A6</span>
+                  <span className="text-xs text-golden-amber">+{(maxCeiling / gatesTotal).toFixed(1)} \u03A6</span>
                 </div>
               </div>
             </div>

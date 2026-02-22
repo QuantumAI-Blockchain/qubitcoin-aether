@@ -68,13 +68,17 @@ export interface PhiData {
   knowledge_nodes: number;
   knowledge_edges: number;
   blocks_processed: number;
-  // v2 gate fields (post-fork, optional)
+  // v2/v3 gate fields (post-fork, optional)
   phi_raw?: number;
   phi_version?: number;
   gates_passed?: number;
   gates_total?: number;
   gate_ceiling?: number;
   gates?: PhiGate[];
+  // v3 fields
+  connectivity?: number;
+  maturity?: number;
+  redundancy_factor?: number;
 }
 
 export interface ChatResponse {
@@ -144,9 +148,65 @@ export interface KnowledgeGraphData {
   total_edges: number;
 }
 
+export interface NeuralReasonerStats {
+  total_predictions: number;
+  correct_predictions: number;
+  accuracy: number;
+  has_torch: boolean;
+  hidden_dim: number;
+  n_heads: number;
+}
+
+export interface CausalEngineStats {
+  total_causal_edges_found: number;
+  total_runs: number;
+  last_run_block: number;
+}
+
+export interface DebateProtocolStats {
+  total_debates: number;
+  accepted: number;
+  rejected: number;
+  modified: number;
+  acceptance_rate: number;
+}
+
+export interface TemporalEngineStats {
+  tracked_metrics: number;
+  total_data_points: number;
+  pending_predictions: number;
+  predictions_validated: number;
+  predictions_correct: number;
+  accuracy: number;
+  metrics: string[];
+}
+
+export interface ConceptFormationStats {
+  total_concepts_created: number;
+  total_runs: number;
+}
+
+export interface MetacognitionStats {
+  total_evaluations: number;
+  total_correct: number;
+  overall_accuracy: number;
+  calibration_error: number;
+  strategy_accuracies: Record<string, number>;
+  strategy_weights: Record<string, number>;
+  domain_accuracies: Record<string, number>;
+}
+
 export interface AetherInfo {
   knowledge_graph: { total_nodes: number; total_edges: number; [k: string]: unknown };
-  phi: { current_phi: number; [k: string]: unknown };
+  phi: { current_value: number; threshold: number; above_threshold: boolean; version: number; gates_passed: number; [k: string]: unknown };
+  reasoning: Record<string, unknown>;
+  thought_proofs_generated: number;
+  neural_reasoner?: NeuralReasonerStats;
+  causal_engine?: CausalEngineStats;
+  debate_protocol?: DebateProtocolStats;
+  temporal_engine?: TemporalEngineStats;
+  concept_formation?: ConceptFormationStats;
+  metacognition?: MetacognitionStats;
   [k: string]: unknown;
 }
 
@@ -243,6 +303,15 @@ export const api = {
   getPhi: () => get<PhiData>("/aether/consciousness"),
   getPhiHistory: () => get<{ history: Array<{ block: number; phi: number }> }>("/aether/phi/history"),
   getAetherInfo: () => get<AetherInfo>("/aether/info"),
+  getAetherSubsystems: () =>
+    get<AetherInfo>("/aether/info").then((info) => ({
+      neural_reasoner: info.neural_reasoner,
+      causal_engine: info.causal_engine,
+      debate_protocol: info.debate_protocol,
+      temporal_engine: info.temporal_engine,
+      concept_formation: info.concept_formation,
+      metacognition: info.metacognition,
+    })),
   getKnowledge: () => get<Record<string, unknown>>("/aether/knowledge"),
   getKnowledgeGraph: (limit = 3300) => get<KnowledgeGraphData>(`/aether/knowledge/graph?limit=${limit}`),
   getChatHistory: (sessionId: string) => get<Record<string, unknown>>(`/aether/chat/history/${sessionId}`),
