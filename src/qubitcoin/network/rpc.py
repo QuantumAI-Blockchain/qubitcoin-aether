@@ -2549,6 +2549,25 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     _pot_explorer = ProofOfThoughtExplorer(aether_engine)
     app.pot_explorer = _pot_explorer  # type: ignore[attr-defined]
 
+    # NOTE: Literal routes MUST be defined before parameterized routes
+    # to avoid FastAPI matching "stats" as a {block_height} parameter.
+
+    @app.get("/aether/pot/stats")
+    async def get_pot_stats():
+        """Get Proof-of-Thought explorer statistics."""
+        return _pot_explorer.get_stats()
+
+    @app.get("/aether/pot/phi-progression")
+    async def get_phi_progression(limit: int = 100):
+        """Get Phi value progression over recent blocks."""
+        limit = max(1, min(limit, 1000))
+        return {"progression": _pot_explorer.get_phi_progression(limit)}
+
+    @app.get("/aether/pot/consciousness-events")
+    async def get_pot_consciousness_events(limit: int = 50):
+        """Get blocks where consciousness events occurred."""
+        return {"events": _pot_explorer.get_consciousness_events(limit)}
+
     @app.get("/aether/pot/{block_height}")
     async def get_block_thought(block_height: int):
         """Get Proof-of-Thought data for a specific block."""
@@ -2564,26 +2583,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=400, detail="Range too large (max 1000)")
         return {"blocks": _pot_explorer.get_block_range(start, end)}
 
-    @app.get("/aether/pot/phi-progression")
-    async def get_phi_progression(limit: int = 100):
-        """Get Phi value progression over recent blocks."""
-        limit = max(1, min(limit, 1000))
-        return {"progression": _pot_explorer.get_phi_progression(limit)}
-
-    @app.get("/aether/pot/consciousness-events")
-    async def get_pot_consciousness_events(limit: int = 50):
-        """Get blocks where consciousness events occurred."""
-        return {"events": _pot_explorer.get_consciousness_events(limit)}
-
     @app.get("/aether/pot/summary/{block_height}")
     async def get_reasoning_summary(block_height: int):
         """Get human-readable reasoning summary for a block."""
         return _pot_explorer.get_reasoning_summary(block_height)
-
-    @app.get("/aether/pot/stats")
-    async def get_pot_stats():
-        """Get Proof-of-Thought explorer statistics."""
-        return _pot_explorer.get_stats()
 
     # ========================================================================
     # COMPLIANCE PROOFS
@@ -2644,6 +2647,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         limit = max(1, min(limit, 200))
         return {"reports": _report_gen.list_reports(report_type, limit)}
 
+    # NOTE: Literal route MUST be before parameterized route to avoid
+    # FastAPI matching "stats" as a {report_id} parameter.
+    @app.get("/qvm/compliance/reports/stats")
+    async def regulatory_report_stats():
+        """Get report generator statistics."""
+        return _report_gen.get_stats()
+
     @app.get("/qvm/compliance/reports/{report_id}")
     async def get_regulatory_report(report_id: str):
         """Get a specific regulatory report by ID."""
@@ -2651,11 +2661,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not report:
             raise HTTPException(status_code=404, detail="Report not found")
         return report
-
-    @app.get("/qvm/compliance/reports/stats")
-    async def regulatory_report_stats():
-        """Get report generator statistics."""
-        return _report_gen.get_stats()
 
     # ========================================================================
     # METRICS ENDPOINT
