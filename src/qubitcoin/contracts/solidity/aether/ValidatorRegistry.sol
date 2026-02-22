@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title ValidatorRegistry — Validator Staking for Proof-of-Thought
 /// @notice Stake QBC to become a PoT validator. Minimum 100 QBC. 7-day unstaking delay.
 ///         Tracks validator performance (correct/incorrect votes).
-contract ValidatorRegistry {
+contract ValidatorRegistry is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant MIN_STAKE        = 100 * 10**8;  // 100 QBC (8 decimals)
     uint256 public constant MAX_STAKE        = 1000000 * 10**8; // 1M QBC (8 decimals)
@@ -42,8 +44,8 @@ contract ValidatorRegistry {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
     }

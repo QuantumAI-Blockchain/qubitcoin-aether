@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title BridgeVault — QBC Lock/Unlock Vault for Cross-Chain Bridges
 /// @notice Deployed on QBC L1 chain. Locks QBC when bridging out,
 ///         unlocks QBC when bridging back. Bridge fee: 0.1% of transfer.
 /// @dev Supports 8 target chains: ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE
-contract BridgeVault {
+contract BridgeVault is Initializable {
     address public owner;
     bool    public paused;
 
@@ -96,8 +98,8 @@ contract BridgeVault {
         _;
     }
 
-    // ── Constructor ─────────────────────────────────────────────────
-    constructor(address _feeRecipient, uint256 _requiredConfirmations) {
+    // ── Initializer ────────────────────────────────────────────────
+    function initialize(address _feeRecipient, uint256 _requiredConfirmations) external initializer {
         owner = msg.sender;
         feeRecipient = _feeRecipient != address(0) ? _feeRecipient : msg.sender;
         requiredConfirmations = _requiredConfirmations > 0 ? _requiredConfirmations : 1;

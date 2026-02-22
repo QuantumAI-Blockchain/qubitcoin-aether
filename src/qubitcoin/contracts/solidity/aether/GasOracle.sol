@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title GasOracle — Dynamic Gas Pricing for QVM
 /// @notice Adjusts QVM gas price based on network utilization.
 ///         Provides gas price queries for contract execution cost estimation.
-contract GasOracle {
+contract GasOracle is Initializable {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
@@ -32,8 +34,8 @@ contract GasOracle {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel, uint256 _initialBaseFee) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _kernel, uint256 _initialBaseFee) external initializer {
         owner   = msg.sender;
         kernel  = _kernel;
         baseFee = _initialBaseFee;

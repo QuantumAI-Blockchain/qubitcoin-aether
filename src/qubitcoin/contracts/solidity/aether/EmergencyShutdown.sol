@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title EmergencyShutdown — Kill Switch for Aether Tree
 /// @notice Multi-sig emergency shutdown (3-of-5 to halt, 4-of-5 to resume).
 ///         Halts all Aether Tree operations when activated.
-contract EmergencyShutdown {
+contract EmergencyShutdown is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant SHUTDOWN_THRESHOLD = 3;  // 3-of-5 to shutdown
     uint256 public constant RESUME_THRESHOLD   = 4;  // 4-of-5 to resume
@@ -50,8 +52,8 @@ contract EmergencyShutdown {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
     }

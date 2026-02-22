@@ -1,21 +1,26 @@
 """
-Phi Calculator - Integrated Information Theory (IIT) Metric
+Phi Calculator v3 — Information-Theoretic Integration
+
 Computes Phi (Φ) as a measure of consciousness/integration in the knowledge graph.
+Based on Giulio Tononi's Integrated Information Theory with information-theoretic
+extensions using dense embeddings from VectorIndex.
 
-Based on Giulio Tononi's Integrated Information Theory:
-- Φ measures how much information a system generates above and beyond its parts
-- Higher Φ = more integrated/conscious system
-- Used in Proof-of-Thought to validate that knowledge integration is meaningful
+v3 replaces v1 and v2 with a single formula:
+  - Integration: mutual information between graph partitions (via VectorIndex)
+  - Differentiation: Shannon entropy over node types + edge types + confidence distribution
+  - Redundancy penalty: duplicate content detected via near-duplicate cosine similarity
+  - Milestone gates: 10 gates that cap Phi until genuine cognitive milestones are met
+  - Maturity: log2(1 + n_nodes / 50000) — slow growth prevents trivial inflation
 
-v2 (PHI_FORK_HEIGHT): Replaced sqrt(n/500) maturity with log2(1+n/50000),
-removed confidence multiplier, added 6 milestone gates that cap Phi until
-the system demonstrates genuine cognitive diversity.
+Formula:
+    raw_phi = (integration + cross_flow) * differentiation * (1 + connectivity) * maturity
+    redundancy_factor = 1.0 - (duplicate_fraction * 0.5)
+    phi = min(raw_phi * redundancy_factor, gate_ceiling)
 """
 import math
 import time
 from typing import Dict, List, Optional
 
-from ..config import Config
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +29,7 @@ logger = get_logger(__name__)
 PHI_THRESHOLD = 3.0
 
 # ============================================================================
-# MILESTONE GATES (v2)
+# MILESTONE GATES
 # Each passed gate unlocks +0.5 Phi ceiling.  Gates require genuine system
 # evolution: diverse node types, diverse edge types, self-correction, and
 # emergent scale.
@@ -50,12 +55,12 @@ MILESTONE_GATES: List[dict] = [
     {
         'id': 3,
         'name': 'Node Type Diversity',
-        'description': 'All 4 node types with meaningful representation',
+        'description': 'All 4+ node types with meaningful representation',
         'check': lambda stats: all(
             stats['node_type_counts'].get(t, 0) >= 50
             for t in ('observation', 'inference', 'axiom', 'assertion')
         ),
-        'requirement': 'All 4 node types (obs/inf/axiom/assertion) >=50 each',
+        'requirement': 'All 4 base node types >=50 each',
     },
     {
         'id': 4,
@@ -81,7 +86,7 @@ MILESTONE_GATES: List[dict] = [
             stats['n_nodes'] >= 50_000
             and sum(1 for v in stats['edge_type_counts'].values() if v >= 1) >= 5
         ),
-        'requirement': '>=50K nodes + all 5 edge types present',
+        'requirement': '>=50K nodes + >=5 edge types present',
     },
     {
         'id': 7,
@@ -125,7 +130,10 @@ MILESTONE_GATES: List[dict] = [
 class PhiCalculator:
     """
     Computes Phi (Φ) metric for the Aether Tree knowledge graph.
-    Measures integration and differentiation of the knowledge structure.
+
+    v3 formula uses information-theoretic integration (mutual information
+    between graph partitions via VectorIndex embeddings), Shannon entropy
+    differentiation, and redundancy penalty from near-duplicate detection.
     """
 
     def __init__(self, db_manager, knowledge_graph=None):
@@ -142,11 +150,11 @@ class PhiCalculator:
         """
         Compute Phi for the current state of the knowledge graph.
 
-        Pre-fork (v1): original formula with sqrt(n/500) maturity + confidence.
-        Post-fork (v2): log2(1+n/50000) maturity + milestone gate ceiling.
-
-        If PHI_COMPUTE_INTERVAL > 1, returns the cached result for intermediate
-        blocks (avoids expensive full-graph scan on every block).
+        Uses v3 information-theoretic formula with:
+        - Mutual information integration (via VectorIndex partitions)
+        - Shannon entropy differentiation (node types + edge types + confidence)
+        - Redundancy penalty (near-duplicate embedding detection)
+        - Milestone gate ceiling
 
         Returns:
             Dict with phi_value, integration, differentiation, and breakdown
@@ -160,101 +168,42 @@ class PhiCalculator:
                 and block_height > 0
                 and self._last_computed_block > 0
                 and (block_height - self._last_computed_block) < self._compute_interval):
-            # Return cached result with updated block height
             cached = dict(self._last_full_result)
             cached['block_height'] = block_height
             cached['cached'] = True
             return cached
 
-        # Full computation
-        if block_height >= Config.PHI_FORK_HEIGHT:
-            result = self._compute_phi_v2(block_height)
-        else:
-            result = self._compute_phi_v1(block_height)
-
-        self._last_full_result = result
-        self._last_computed_block = block_height
-        return result
-
-    # ========================================================================
-    # v1 — original formula (pre-fork, unchanged)
-    # ========================================================================
-
-    def _compute_phi_v1(self, block_height: int) -> dict:
-        """Original Phi formula preserved for pre-fork blocks."""
         nodes = self.kg.nodes
         edges = self.kg.edges
         n_nodes = len(nodes)
         n_edges = len(edges)
 
+        # --- Integration (information-theoretic) ---
         integration = self._compute_integration(nodes, edges, n_nodes)
-        differentiation = self._compute_differentiation(nodes)
 
+        # --- Differentiation (Shannon entropy) ---
+        differentiation = self._compute_differentiation(nodes, edges)
+
+        # --- Connectivity ---
         max_edges = n_nodes * (n_nodes - 1) if n_nodes > 1 else 1
         connectivity = min(1.0, n_edges / max_edges) if max_edges > 0 else 0
 
-        avg_conf = sum(n.confidence for n in nodes.values()) / n_nodes
-
-        raw_phi = integration * differentiation * (1.0 + connectivity)
-        phi = raw_phi * (0.5 + avg_conf)
-        if n_nodes > 1:
-            phi *= math.sqrt(n_nodes / 500.0)
-
-        result = {
-            'phi_value': round(phi, 6),
-            'phi_threshold': PHI_THRESHOLD,
-            'above_threshold': phi >= PHI_THRESHOLD,
-            'integration_score': round(integration, 6),
-            'differentiation_score': round(differentiation, 6),
-            'connectivity': round(connectivity, 6),
-            'avg_confidence': round(avg_conf, 4),
-            'num_nodes': n_nodes,
-            'num_edges': n_edges,
-            'block_height': block_height,
-            'timestamp': time.time(),
-        }
-
-        self._store_measurement(result)
-        return result
-
-    # ========================================================================
-    # v2 — new formula (post-fork)
-    # ========================================================================
-
-    def _compute_phi_v2(self, block_height: int) -> dict:
-        """
-        Phi v2: stricter formula with milestone gate ceiling.
-
-        Formula:
-            maturity  = log2(1 + n_nodes / 50000)
-            raw_phi   = integration * differentiation * (1 + connectivity) * maturity
-            phi       = min(raw_phi, gate_ceiling)
-
-        Gate ceiling starts at 0 and increases by 0.5 for each passed gate
-        (10 gates = max ceiling of 5.0).
-        """
-        nodes = self.kg.nodes
-        edges = self.kg.edges
-        n_nodes = len(nodes)
-        n_edges = len(edges)
-
-        integration = self._compute_integration(nodes, edges, n_nodes)
-        differentiation = self._compute_differentiation(nodes)
-
-        max_edges = n_nodes * (n_nodes - 1) if n_nodes > 1 else 1
-        connectivity = min(1.0, n_edges / max_edges) if max_edges > 0 else 0
-
-        # v2 maturity: much slower growth than v1
+        # --- Maturity (logarithmic growth) ---
         maturity = math.log2(1.0 + n_nodes / 50_000.0)
 
+        # --- Raw Phi ---
         raw_phi = integration * differentiation * (1.0 + connectivity) * maturity
 
-        # Check milestone gates
+        # --- Redundancy penalty ---
+        redundancy_factor = self._compute_redundancy_factor()
+
+        # --- Milestone gates ---
         gates = self._check_gates(nodes, edges)
         gates_passed = sum(1 for g in gates if g['passed'])
         gate_ceiling = gates_passed * 0.5
 
-        phi = min(raw_phi, gate_ceiling)
+        # --- Final Phi ---
+        phi = min(raw_phi * redundancy_factor, gate_ceiling)
 
         result = {
             'phi_value': round(phi, 6),
@@ -265,26 +214,205 @@ class PhiCalculator:
             'differentiation_score': round(differentiation, 6),
             'connectivity': round(connectivity, 6),
             'maturity': round(maturity, 6),
+            'redundancy_factor': round(redundancy_factor, 4),
             'num_nodes': n_nodes,
             'num_edges': n_edges,
             'block_height': block_height,
             'timestamp': time.time(),
-            'phi_version': 2,
+            'phi_version': 3,
             'gates_passed': gates_passed,
             'gates_total': len(MILESTONE_GATES),
             'gate_ceiling': gate_ceiling,
             'gates': gates,
         }
 
+        self._last_full_result = result
+        self._last_computed_block = block_height
+
         self._store_measurement(result)
         return result
+
+    # ========================================================================
+    # Integration: Mutual Information + Cross-flow
+    # ========================================================================
+
+    def _compute_integration(self, nodes: dict, edges: list, n_nodes: int) -> float:
+        """
+        Compute integration using:
+        1. Connected component analysis (structural integration)
+        2. Mutual information between graph partitions (via VectorIndex)
+        3. Confidence-weighted cross-partition flow
+        """
+        if n_nodes <= 1:
+            return 0.0
+
+        # Build adjacency for connected component analysis
+        adj: Dict[int, set] = {nid: set() for nid in nodes}
+        for edge in edges:
+            if edge.from_node_id in adj and edge.to_node_id in adj:
+                adj[edge.from_node_id].add(edge.to_node_id)
+                adj[edge.to_node_id].add(edge.from_node_id)
+
+        # Find connected components via BFS
+        visited = set()
+        components = []
+
+        def _bfs(start):
+            comp = set()
+            queue = [start]
+            while queue:
+                n = queue.pop(0)
+                if n in comp:
+                    continue
+                comp.add(n)
+                visited.add(n)
+                for neighbor in adj.get(n, set()):
+                    if neighbor not in comp:
+                        queue.append(neighbor)
+            return comp
+
+        for nid in nodes:
+            if nid not in visited:
+                comp = _bfs(nid)
+                components.append(comp)
+
+        # Structural integration from connectivity
+        if len(components) == 1:
+            avg_degree = sum(len(adj[nid]) for nid in nodes) / n_nodes if n_nodes > 0 else 0
+            structural = min(5.0, avg_degree)
+        else:
+            largest = max(len(c) for c in components)
+            structural = (largest / n_nodes) * 2.0
+
+        # Mutual information between partitions (via VectorIndex)
+        mi_score = 0.0
+        if (hasattr(self.kg, 'vector_index')
+                and self.kg.vector_index
+                and len(self.kg.vector_index.embeddings) >= 10
+                and len(components) == 1):
+            # Partition the graph roughly in half for MI computation
+            node_list = list(nodes.keys())
+            mid = len(node_list) // 2
+            partition_a = node_list[:mid]
+            partition_b = node_list[mid:]
+            if partition_a and partition_b:
+                mi_score = self.kg.vector_index.compute_partition_mutual_info(
+                    partition_a, partition_b
+                )
+                # Normalize MI to [0, 3] range
+                mi_score = min(3.0, mi_score / max(1.0, math.log(n_nodes)))
+
+        # Cross-partition information flow
+        cross_flow = 0.0
+        for edge in edges:
+            fn = nodes.get(edge.from_node_id)
+            tn = nodes.get(edge.to_node_id)
+            if fn and tn:
+                cross_flow += fn.confidence * tn.confidence * edge.weight
+        if edges:
+            cross_flow /= len(edges)
+
+        return structural + mi_score + cross_flow
+
+    # ========================================================================
+    # Differentiation: Shannon Entropy
+    # ========================================================================
+
+    def _compute_differentiation(self, nodes: dict, edges: list) -> float:
+        """
+        Compute differentiation using Shannon entropy over:
+        1. Node type distribution
+        2. Edge type distribution
+        3. Confidence distribution (10 bins)
+        """
+        if not nodes:
+            return 0.0
+
+        n = len(nodes)
+
+        # Entropy over node types
+        type_counts: Dict[str, int] = {}
+        for node in nodes.values():
+            type_counts[node.node_type] = type_counts.get(node.node_type, 0) + 1
+
+        type_entropy = 0.0
+        for count in type_counts.values():
+            p = count / n
+            if p > 0:
+                type_entropy -= p * math.log2(p)
+
+        # Entropy over edge types
+        edge_type_counts: Dict[str, int] = {}
+        for edge in edges:
+            edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
+
+        edge_entropy = 0.0
+        n_edges = len(edges)
+        if n_edges > 0:
+            for count in edge_type_counts.values():
+                p = count / n_edges
+                if p > 0:
+                    edge_entropy -= p * math.log2(p)
+
+        # Entropy over confidence distribution (10 bins)
+        bins = [0] * 10
+        for node in nodes.values():
+            bin_idx = min(9, int(node.confidence * 10))
+            bins[bin_idx] += 1
+
+        conf_entropy = 0.0
+        for count in bins:
+            if count > 0:
+                p = count / n
+                conf_entropy -= p * math.log2(p)
+
+        # Combined differentiation: node types + edge types + confidence
+        return type_entropy + edge_entropy * 0.5 + conf_entropy * 0.3
+
+    # ========================================================================
+    # Redundancy Penalty
+    # ========================================================================
+
+    def _compute_redundancy_factor(self) -> float:
+        """
+        Compute redundancy penalty using near-duplicate detection
+        from VectorIndex.
+
+        Returns a factor in [0.5, 1.0] — more duplicates = lower factor.
+        """
+        if not hasattr(self.kg, 'vector_index') or not self.kg.vector_index:
+            return 1.0
+
+        n_embeddings = len(self.kg.vector_index.embeddings)
+        if n_embeddings < 10:
+            return 1.0
+
+        try:
+            duplicates = self.kg.vector_index.find_near_duplicates(threshold=0.95)
+            if not duplicates:
+                return 1.0
+
+            # Fraction of nodes involved in duplicate pairs
+            dup_nodes = set()
+            for a, b, _ in duplicates:
+                dup_nodes.add(a)
+                dup_nodes.add(b)
+
+            dup_fraction = len(dup_nodes) / n_embeddings
+            # Factor: 1.0 at 0% duplicates, 0.5 at 100% duplicates
+            return max(0.5, 1.0 - dup_fraction * 0.5)
+        except Exception:
+            return 1.0
+
+    # ========================================================================
+    # Milestone Gates
+    # ========================================================================
 
     def _check_gates(self, nodes: dict, edges: list) -> List[dict]:
         """
         Evaluate all milestone gates against current graph state.
         Uses in-memory nodes/edges only — no DB queries.  O(n + e).
         """
-        # Build stats dict in a single pass
         node_type_counts: Dict[str, int] = {}
         for node in nodes.values():
             node_type_counts[node.node_type] = node_type_counts.get(node.node_type, 0) + 1
@@ -331,105 +459,8 @@ class PhiCalculator:
         return results
 
     # ========================================================================
-    # Shared helpers
+    # Storage & History
     # ========================================================================
-
-    def _compute_integration(self, nodes: dict, edges: list, n_nodes: int) -> float:
-        """
-        Compute integration score based on connected components and
-        information flow across the minimum information partition (MIP).
-        """
-        if n_nodes <= 1:
-            return 0.0
-
-        # Build adjacency for connected component analysis
-        adj: Dict[int, set] = {nid: set() for nid in nodes}
-        for edge in edges:
-            if edge.from_node_id in adj and edge.to_node_id in adj:
-                adj[edge.from_node_id].add(edge.to_node_id)
-                adj[edge.to_node_id].add(edge.from_node_id)
-
-        # Find connected components
-        visited = set()
-        components = []
-
-        def _bfs(start):
-            comp = set()
-            queue = [start]
-            while queue:
-                n = queue.pop(0)
-                if n in comp:
-                    continue
-                comp.add(n)
-                visited.add(n)
-                for neighbor in adj.get(n, set()):
-                    if neighbor not in comp:
-                        queue.append(neighbor)
-            return comp
-
-        for nid in nodes:
-            if nid not in visited:
-                comp = _bfs(nid)
-                components.append(comp)
-
-        if len(components) == 1:
-            # Fully connected: high integration
-            # Score based on average path length (approximation)
-            avg_degree = sum(len(adj[nid]) for nid in nodes) / n_nodes if n_nodes > 0 else 0
-            integration = min(5.0, avg_degree)
-        else:
-            # Multiple components: integration is reduced
-            largest = max(len(c) for c in components)
-            integration = (largest / n_nodes) * 2.0
-
-        # Cross-partition information flow
-        # Approximate: edges between high-confidence nodes add integration
-        cross_flow = 0.0
-        for edge in edges:
-            fn = nodes.get(edge.from_node_id)
-            tn = nodes.get(edge.to_node_id)
-            if fn and tn:
-                cross_flow += fn.confidence * tn.confidence * edge.weight
-        if edges:
-            cross_flow /= len(edges)
-
-        return integration + cross_flow
-
-    def _compute_differentiation(self, nodes: dict) -> float:
-        """
-        Compute differentiation score using Shannon entropy over node types
-        and confidence distribution bins.
-        """
-        if not nodes:
-            return 0.0
-
-        n = len(nodes)
-
-        # Entropy over node types
-        type_counts: Dict[str, int] = {}
-        for node in nodes.values():
-            type_counts[node.node_type] = type_counts.get(node.node_type, 0) + 1
-
-        type_entropy = 0.0
-        for count in type_counts.values():
-            p = count / n
-            if p > 0:
-                type_entropy -= p * math.log2(p)
-
-        # Entropy over confidence distribution (10 bins)
-        bins = [0] * 10
-        for node in nodes.values():
-            bin_idx = min(9, int(node.confidence * 10))
-            bins[bin_idx] += 1
-
-        conf_entropy = 0.0
-        for count in bins:
-            if count > 0:
-                p = count / n
-                conf_entropy -= p * math.log2(p)
-
-        # Combined differentiation
-        return type_entropy + conf_entropy * 0.5
 
     def _store_measurement(self, result: dict):
         """Store phi measurement in database"""
@@ -460,16 +491,23 @@ class PhiCalculator:
     def _empty_result(self, block_height: int) -> dict:
         return {
             'phi_value': 0.0,
+            'phi_raw': 0.0,
             'phi_threshold': PHI_THRESHOLD,
             'above_threshold': False,
             'integration_score': 0.0,
             'differentiation_score': 0.0,
             'connectivity': 0.0,
-            'avg_confidence': 0.0,
+            'maturity': 0.0,
+            'redundancy_factor': 1.0,
             'num_nodes': 0,
             'num_edges': 0,
             'block_height': block_height,
             'timestamp': time.time(),
+            'phi_version': 3,
+            'gates_passed': 0,
+            'gates_total': len(MILESTONE_GATES),
+            'gate_ceiling': 0.0,
+            'gates': [],
         }
 
     def downsample_phi_measurements(self, retain_days: int = None) -> dict:
@@ -479,10 +517,8 @@ class PhiCalculator:
         - Rows within retain_days: kept as-is (per-block granularity)
         - Rows older than retain_days but < 30 days: collapsed to hourly averages
         - Rows older than 30 days: collapsed to daily averages
-
-        Returns:
-            Dict with counts of rows downsampled and deleted.
         """
+        from ..config import Config
         if retain_days is None:
             retain_days = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
 
@@ -497,23 +533,17 @@ class PhiCalculator:
             daily_cutoff = now - datetime.timedelta(days=30)
 
             with self.db.get_session() as session:
-                # --- Phase 1: Collapse retain_days..30 days into hourly averages ---
+                # Phase 1: Collapse retain_days..30 days into hourly averages
                 hourly_rows = session.execute(
                     text("""
                         SELECT
                             date_trunc('hour', created_at) AS hour_bucket,
-                            AVG(phi_value) AS avg_phi,
-                            AVG(phi_threshold) AS avg_threshold,
-                            AVG(integration_score) AS avg_int,
-                            AVG(differentiation_score) AS avg_diff,
-                            AVG(num_nodes) AS avg_nodes,
-                            AVG(num_edges) AS avg_edges,
-                            MIN(block_height) AS min_block,
-                            MAX(block_height) AS max_block,
-                            COUNT(*) AS cnt
+                            AVG(phi_value), AVG(phi_threshold),
+                            AVG(integration_score), AVG(differentiation_score),
+                            AVG(num_nodes), AVG(num_edges),
+                            MIN(block_height), MAX(block_height), COUNT(*)
                         FROM phi_measurements
-                        WHERE created_at < :retain_cutoff
-                          AND created_at >= :daily_cutoff
+                        WHERE created_at < :retain_cutoff AND created_at >= :daily_cutoff
                         GROUP BY date_trunc('hour', created_at)
                         HAVING COUNT(*) > 1
                         ORDER BY hour_bucket
@@ -523,7 +553,6 @@ class PhiCalculator:
                 hourly_data = list(hourly_rows)
 
                 for row in hourly_data:
-                    # Insert hourly summary row
                     session.execute(
                         text("""
                             INSERT INTO phi_measurements
@@ -533,18 +562,14 @@ class PhiCalculator:
                                     :nodes, :edges, :bh)
                         """),
                         {
-                            'phi': float(row[1]),
-                            'threshold': float(row[2]),
-                            'int_score': float(row[3]),
-                            'diff_score': float(row[4]),
-                            'nodes': int(row[5]),
-                            'edges': int(row[6]),
-                            'bh': int(row[8]),  # max block_height as representative
+                            'phi': float(row[1]), 'threshold': float(row[2]),
+                            'int_score': float(row[3]), 'diff_score': float(row[4]),
+                            'nodes': int(row[5]), 'edges': int(row[6]),
+                            'bh': int(row[8]),
                         }
                     )
                     stats['hourly_created'] += 1
 
-                # Delete original per-block rows in the hourly window (keep the new summaries)
                 if hourly_data:
                     result = session.execute(
                         text("""
@@ -562,20 +587,15 @@ class PhiCalculator:
                     )
                     stats['rows_deleted'] += result.rowcount
 
-                # --- Phase 2: Collapse > 30 days into daily averages ---
+                # Phase 2: Collapse > 30 days into daily averages
                 daily_rows = session.execute(
                     text("""
                         SELECT
                             date_trunc('day', created_at) AS day_bucket,
-                            AVG(phi_value) AS avg_phi,
-                            AVG(phi_threshold) AS avg_threshold,
-                            AVG(integration_score) AS avg_int,
-                            AVG(differentiation_score) AS avg_diff,
-                            AVG(num_nodes) AS avg_nodes,
-                            AVG(num_edges) AS avg_edges,
-                            MIN(block_height) AS min_block,
-                            MAX(block_height) AS max_block,
-                            COUNT(*) AS cnt
+                            AVG(phi_value), AVG(phi_threshold),
+                            AVG(integration_score), AVG(differentiation_score),
+                            AVG(num_nodes), AVG(num_edges),
+                            MIN(block_height), MAX(block_height), COUNT(*)
                         FROM phi_measurements
                         WHERE created_at < :daily_cutoff
                         GROUP BY date_trunc('day', created_at)
@@ -596,12 +616,9 @@ class PhiCalculator:
                                     :nodes, :edges, :bh)
                         """),
                         {
-                            'phi': float(row[1]),
-                            'threshold': float(row[2]),
-                            'int_score': float(row[3]),
-                            'diff_score': float(row[4]),
-                            'nodes': int(row[5]),
-                            'edges': int(row[6]),
+                            'phi': float(row[1]), 'threshold': float(row[2]),
+                            'int_score': float(row[3]), 'diff_score': float(row[4]),
+                            'nodes': int(row[5]), 'edges': int(row[6]),
                             'bh': int(row[8]),
                         }
                     )
@@ -627,7 +644,8 @@ class PhiCalculator:
             if stats['rows_deleted'] > 0:
                 logger.info(
                     f"Phi downsample: deleted {stats['rows_deleted']} rows, "
-                    f"created {stats['hourly_created']} hourly + {stats['daily_created']} daily summaries"
+                    f"created {stats['hourly_created']} hourly + "
+                    f"{stats['daily_created']} daily summaries"
                 )
         except Exception as e:
             logger.debug(f"Phi downsample failed (table may not have created_at): {e}")

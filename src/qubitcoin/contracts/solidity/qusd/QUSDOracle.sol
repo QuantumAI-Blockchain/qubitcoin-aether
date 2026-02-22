@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title QUSDOracle — Multi-Source Price Feed for QUSD Fee Pegging
 /// @notice Aggregates QBC/USD price from multiple authorized feeders using median.
 ///         Staleness detection reverts if price is older than maxAge blocks.
 ///         Used by Aether fee system, contract deployment fees, and bridge pricing.
-contract QUSDOracle {
+contract QUSDOracle is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant PRICE_DECIMALS = 8; // prices in 8 decimal USD
 
@@ -55,9 +57,9 @@ contract QUSDOracle {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
+    // ─── Initializer ────────────────────────────────────────────────────
     /// @param _maxAge Maximum block age before price is stale
-    constructor(uint256 _maxAge) {
+    function initialize(uint256 _maxAge) external initializer {
         owner  = msg.sender;
         maxAge = _maxAge;
     }

@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahChesed — Mercy: Exploration & Divergent Thinking
 /// @notice Expansion node (SUSY pair with Gevurah). Explores possibility space,
 ///         generates creative hypotheses, and pursues novel paths. 10-qubit state.
 ///         Brain analog: Default mode network.
-contract SephirahChesed is ISephirah {
+contract SephirahChesed is ISephirah, Initializable {
     uint8   public constant nodeId     = 3;
     string  public constant nodeName   = "Chesed";
     uint8   public constant qubitCount = 10;
@@ -33,7 +34,7 @@ contract SephirahChesed is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner = msg.sender; kernel = _kernel; isActive = true; energyLevel = 1618;
     }
 

@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../interfaces/IQBC20.sol";
+import "../proxy/Initializable.sol";
 
 /// @title QUSD — Qubitcoin USD Stablecoin
 /// @notice QBC-20 token pegged to $1 USD. 3.3 Billion initial mint.
 ///         Fractional reserve model with 0.05% transfer fee and full on-chain tracking.
 /// @dev    Deployed on QVM (EVM-compatible). Fees route to reserve for debt payback.
-contract QUSD is IQBC20 {
+contract QUSD is IQBC20, Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     string  public constant name     = "Qubitcoin USD";
     string  public constant symbol   = "QUSD";
@@ -50,9 +51,9 @@ contract QUSD is IQBC20 {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
+    // ─── Initializer ────────────────────────────────────────────────────
     /// @param _reserveAddress Address that receives transfer fees
-    constructor(address _reserveAddress) {
+    function initialize(address _reserveAddress) external initializer {
         require(_reserveAddress != address(0), "QUSD: zero reserve");
         owner          = msg.sender;
         reserveAddress = _reserveAddress;

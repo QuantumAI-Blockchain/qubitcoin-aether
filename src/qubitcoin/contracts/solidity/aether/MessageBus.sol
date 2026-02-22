@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title MessageBus — CSF Transport Layer for Inter-Node Messaging
 /// @notice Routes messages between Sephirot nodes following Tree of Life topology.
 ///         Messages carry QBC fees for priority. Inspired by cerebrospinal fluid circulation.
-contract MessageBus {
+contract MessageBus is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     bytes32 public constant MSG_REASONING  = keccak256("REASONING");
     bytes32 public constant MSG_DATA       = keccak256("DATA");
@@ -56,8 +58,8 @@ contract MessageBus {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel, uint256 _baseFee) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel, uint256 _baseFee) external initializer {
         owner   = msg.sender;
         kernel  = _kernel;
         baseFee = _baseFee;

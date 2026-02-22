@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahYesod — Foundation: Memory & Multimodal Fusion
 /// @notice Central memory hub. Fuses inputs from all other nodes, manages episodic
 ///         and semantic memory. Largest quantum state: 16-qubit buffer.
 ///         Brain analog: Hippocampus.
-contract SephirahYesod is ISephirah {
+contract SephirahYesod is ISephirah, Initializable {
     uint8   public constant nodeId     = 8;
     string  public constant nodeName   = "Yesod";
     uint8   public constant qubitCount = 16;
@@ -45,7 +46,7 @@ contract SephirahYesod is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner = msg.sender; kernel = _kernel; isActive = true; energyLevel = 1000;
     }
 

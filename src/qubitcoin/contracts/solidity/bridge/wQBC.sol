@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title wQBC — Wrapped Qubitcoin Token (ERC-20)
 /// @notice Deployed on external chains (Ethereum, Polygon, BSC, etc.)
 ///         Minted 1:1 when QBC is locked on the QBC L1 chain.
 ///         Burned to unlock QBC back to the native chain.
 /// @dev Only the authorized bridge contract can mint/burn.
-contract wQBC {
+contract wQBC is Initializable {
     string  public constant name     = "Wrapped Qubitcoin";
     string  public constant symbol   = "wQBC";
     uint8   public constant decimals = 8;  // Match QBC L1 precision
@@ -44,8 +46,8 @@ contract wQBC {
         _;
     }
 
-    // ── Constructor ─────────────────────────────────────────────────
-    constructor(address _bridge) {
+    // ── Initializer ────────────────────────────────────────────────
+    function initialize(address _bridge) external initializer {
         require(_bridge != address(0), "wQBC: zero bridge");
         owner  = msg.sender;
         bridge = _bridge;

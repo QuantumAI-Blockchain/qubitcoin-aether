@@ -327,6 +327,30 @@ export default function AetherPage() {
             </div>
           </Card>
 
+          {/* Gate Progress (v2+) */}
+          {(consciousness?.phi_version ?? 0) >= 2 && (
+            <Card className="mb-4">
+              <h3 className="mb-2 text-sm font-semibold text-text-secondary">Milestone Gates</h3>
+              <div className="flex items-center justify-between">
+                <span className="font-[family-name:var(--font-mono)] text-lg font-bold text-quantum-violet">
+                  {consciousness?.gates_passed ?? 0}/{consciousness?.gates_total ?? 10}
+                </span>
+                <span className="text-xs text-text-secondary">gates passed</span>
+              </div>
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-void">
+                <div
+                  className="h-full rounded-full bg-quantum-violet transition-all duration-700"
+                  style={{ width: `${((consciousness?.gates_passed ?? 0) / (consciousness?.gates_total ?? 10)) * 100}%` }}
+                />
+              </div>
+              {consciousness?.gate_ceiling != null && (
+                <p className="mt-1.5 text-xs text-text-secondary">
+                  Ceiling: <span className="font-[family-name:var(--font-mono)]">{consciousness.gate_ceiling.toFixed(1)}</span>
+                </p>
+              )}
+            </Card>
+          )}
+
           <Card className="mb-4">
             <h3 className="mb-2 text-sm font-semibold text-text-secondary">Knowledge</h3>
             <div className="space-y-2 text-sm">
@@ -354,6 +378,30 @@ export default function AetherPage() {
                   {consciousness?.differentiation?.toFixed(4) ?? "---"}
                 </span>
               </div>
+              {consciousness?.connectivity != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Connectivity</span>
+                  <span className="font-[family-name:var(--font-mono)]">
+                    {consciousness.connectivity.toFixed(4)}
+                  </span>
+                </div>
+              )}
+              {consciousness?.maturity != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Maturity</span>
+                  <span className="font-[family-name:var(--font-mono)]">
+                    {consciousness.maturity.toFixed(4)}
+                  </span>
+                </div>
+              )}
+              {consciousness?.redundancy_factor != null && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Redundancy</span>
+                  <span className="font-[family-name:var(--font-mono)]">
+                    {consciousness.redundancy_factor.toFixed(4)}
+                  </span>
+                </div>
+              )}
             </div>
           </Card>
 

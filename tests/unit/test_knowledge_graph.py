@@ -113,10 +113,11 @@ class TestPhiCalculator:
         calc = PhiCalculator(db, kg)
         result = calc.compute_phi()
         expected_keys = {
-            'phi_value', 'phi_threshold', 'above_threshold',
+            'phi_value', 'phi_raw', 'phi_threshold', 'above_threshold',
             'integration_score', 'differentiation_score',
-            'connectivity', 'avg_confidence', 'num_nodes', 'num_edges',
-            'block_height', 'timestamp',
+            'connectivity', 'maturity', 'redundancy_factor',
+            'num_nodes', 'num_edges',
+            'block_height', 'timestamp', 'phi_version',
         }
         assert expected_keys.issubset(set(result.keys()))
 

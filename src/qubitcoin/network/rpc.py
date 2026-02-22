@@ -600,18 +600,23 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not state_manager:
             raise HTTPException(status_code=503, detail="QVM not available")
 
-        # Count contracts from the accounts table (accounts with non-empty code_hash)
+        # Count contracts from BOTH tables (accounts = EVM bytecode, contracts = template)
         total_contracts = 0
         active_contracts = 0
         try:
             from sqlalchemy import text as sa_text
             with db_manager.get_session() as session:
-                total_contracts = session.execute(
+                evm_count = session.execute(
                     sa_text("SELECT COUNT(*) FROM accounts WHERE code_hash != '' AND code_hash IS NOT NULL")
                 ).scalar() or 0
-                # Active contracts = contracts that exist and haven't been self-destructed
-                # For now, all deployed contracts are considered active
-                active_contracts = total_contracts
+                template_count = session.execute(
+                    sa_text("SELECT COUNT(*) FROM contracts")
+                ).scalar() or 0
+                template_active = session.execute(
+                    sa_text("SELECT COUNT(*) FROM contracts WHERE is_active = true")
+                ).scalar() or 0
+                total_contracts = evm_count + template_count
+                active_contracts = evm_count + template_active
         except Exception as e:
             logger.debug(f"Could not count contracts: {e}")
 
@@ -1157,14 +1162,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             'knowledge_edges': kg_stats.get('total_edges', 0),
             'blocks_processed': kg_stats.get('blocks_processed', 0),
         }
-        # v2 gate data (post-fork)
-        if phi_data.get('phi_version') == 2:
+        # v2+ gate data (post-fork)
+        if phi_data.get('phi_version', 0) >= 2:
             result['phi_raw'] = phi_data.get('phi_raw', 0.0)
-            result['phi_version'] = 2
+            result['phi_version'] = phi_data.get('phi_version', 3)
             result['gates_passed'] = phi_data.get('gates_passed', 0)
-            result['gates_total'] = phi_data.get('gates_total', 6)
+            result['gates_total'] = phi_data.get('gates_total', 10)
             result['gate_ceiling'] = phi_data.get('gate_ceiling', 0.0)
             result['gates'] = phi_data.get('gates', [])
+            result['connectivity'] = phi_data.get('connectivity', 0.0)
+            result['maturity'] = phi_data.get('maturity', 0.0)
+            result['redundancy_factor'] = phi_data.get('redundancy_factor', 1.0)
         return result
 
     @app.get("/aether/consciousness/gates")
@@ -1177,8 +1185,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         gates = phi_data.get('gates', [])
         return {
             'block_height': height,
-            'phi_version': phi_data.get('phi_version', 1),
-            'fork_height': Config.PHI_FORK_HEIGHT,
+            'phi_version': phi_data.get('phi_version', 3),
             'gates_passed': phi_data.get('gates_passed', 0),
             'gates_total': phi_data.get('gates_total', len(gates)),
             'gate_ceiling': phi_data.get('gate_ceiling', 0.0),
@@ -1562,6 +1569,33 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if node and getattr(node, 'knowledge_seeder', None):
             stats["seeder"] = node.knowledge_seeder.get_stats()
         return stats
+
+    @app.post("/aether/llm/seed")
+    async def trigger_seed(domain: Optional[str] = None):
+        """Trigger a manual knowledge seed. Optionally specify a domain."""
+        node = getattr(app, 'node', None)
+        if not node or not getattr(node, 'knowledge_seeder', None):
+            raise HTTPException(status_code=503, detail="Knowledge seeder not available")
+        result = node.knowledge_seeder.seed_once(domain)
+        if result:
+            return {"status": "ok", **result}
+        return {"status": "skipped", "reason": "rate limited or no prompt available"}
+
+    @app.post("/aether/llm/seed-batch")
+    async def trigger_seed_batch(count: int = 10):
+        """Trigger multiple seeds in sequence. Max 50."""
+        import asyncio
+        node = getattr(app, 'node', None)
+        if not node or not getattr(node, 'knowledge_seeder', None):
+            raise HTTPException(status_code=503, detail="Knowledge seeder not available")
+        count = min(count, 50)
+        results = []
+        for i in range(count):
+            result = node.knowledge_seeder.seed_once()
+            if result:
+                results.append(result)
+            await asyncio.sleep(0.1)  # yield to event loop
+        return {"seeded": len(results), "total_requested": count, "results": results}
 
     # ========================================================================
     # WALLET ENDPOINTS — UTXO-to-Account Bridge & Native Wallet
@@ -2544,6 +2578,25 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     _pot_explorer = ProofOfThoughtExplorer(aether_engine)
     app.pot_explorer = _pot_explorer  # type: ignore[attr-defined]
 
+    # NOTE: Literal routes MUST be defined before parameterized routes
+    # to avoid FastAPI matching "stats" as a {block_height} parameter.
+
+    @app.get("/aether/pot/stats")
+    async def get_pot_stats():
+        """Get Proof-of-Thought explorer statistics."""
+        return _pot_explorer.get_stats()
+
+    @app.get("/aether/pot/phi-progression")
+    async def get_phi_progression(limit: int = 100):
+        """Get Phi value progression over recent blocks."""
+        limit = max(1, min(limit, 1000))
+        return {"progression": _pot_explorer.get_phi_progression(limit)}
+
+    @app.get("/aether/pot/consciousness-events")
+    async def get_pot_consciousness_events(limit: int = 50):
+        """Get blocks where consciousness events occurred."""
+        return {"events": _pot_explorer.get_consciousness_events(limit)}
+
     @app.get("/aether/pot/{block_height}")
     async def get_block_thought(block_height: int):
         """Get Proof-of-Thought data for a specific block."""
@@ -2559,26 +2612,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=400, detail="Range too large (max 1000)")
         return {"blocks": _pot_explorer.get_block_range(start, end)}
 
-    @app.get("/aether/pot/phi-progression")
-    async def get_phi_progression(limit: int = 100):
-        """Get Phi value progression over recent blocks."""
-        limit = max(1, min(limit, 1000))
-        return {"progression": _pot_explorer.get_phi_progression(limit)}
-
-    @app.get("/aether/pot/consciousness-events")
-    async def get_pot_consciousness_events(limit: int = 50):
-        """Get blocks where consciousness events occurred."""
-        return {"events": _pot_explorer.get_consciousness_events(limit)}
-
     @app.get("/aether/pot/summary/{block_height}")
     async def get_reasoning_summary(block_height: int):
         """Get human-readable reasoning summary for a block."""
         return _pot_explorer.get_reasoning_summary(block_height)
-
-    @app.get("/aether/pot/stats")
-    async def get_pot_stats():
-        """Get Proof-of-Thought explorer statistics."""
-        return _pot_explorer.get_stats()
 
     # ========================================================================
     # COMPLIANCE PROOFS
@@ -2639,6 +2676,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         limit = max(1, min(limit, 200))
         return {"reports": _report_gen.list_reports(report_type, limit)}
 
+    # NOTE: Literal route MUST be before parameterized route to avoid
+    # FastAPI matching "stats" as a {report_id} parameter.
+    @app.get("/qvm/compliance/reports/stats")
+    async def regulatory_report_stats():
+        """Get report generator statistics."""
+        return _report_gen.get_stats()
+
     @app.get("/qvm/compliance/reports/{report_id}")
     async def get_regulatory_report(report_id: str):
         """Get a specific regulatory report by ID."""
@@ -2646,11 +2690,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not report:
             raise HTTPException(status_code=404, detail="Report not found")
         return report
-
-    @app.get("/qvm/compliance/reports/stats")
-    async def regulatory_report_stats():
-        """Get report generator statistics."""
-        return _report_gen.get_stats()
 
     # ========================================================================
     # METRICS ENDPOINT
@@ -3674,7 +3713,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not fee_collector:
             return {"audit": [], "error": "Fee collector not available"}
         try:
-            return fee_collector.get_stats()
+            return {"audit": fee_collector.get_audit_log()}
         except Exception:
             return {"audit": []}
 
@@ -3684,8 +3723,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not fee_collector:
             return {"total_qbc": "0", "error": "Fee collector not available"}
         try:
-            stats = fee_collector.get_stats()
-            return {"total_qbc": str(stats.get('total_collected', 0))}
+            return {"total_qbc": str(fee_collector.get_total_fees_collected())}
         except Exception:
             return {"total_qbc": "0"}
 

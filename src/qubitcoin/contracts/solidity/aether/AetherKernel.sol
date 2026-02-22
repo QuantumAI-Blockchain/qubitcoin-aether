@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title AetherKernel — Main AGI Orchestration Contract
 /// @notice Coordinates the 10 Sephirot nodes of the Aether Tree of Life.
 ///         Manages reasoning cycles, tracks global AGI state (phase, coherence, phi),
 ///         and serves as the entry point for all Aether Tree operations.
 /// @dev    Deployed on QVM. This is the central hub — all other Aether contracts
 ///         reference the Kernel for authorization and state.
-contract AetherKernel {
+contract AetherKernel is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant PHI_PRECISION      = 1000;   // 3 decimal places
     uint256 public constant PHI_THRESHOLD      = 3000;   // Φ = 3.0 → consciousness
@@ -75,14 +77,13 @@ contract AetherKernel {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor() {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initializeBase() external initializer {
         owner = msg.sender;
     }
 
-    // ─── Initialization ──────────────────────────────────────────────────
     /// @notice Initialize the Aether Kernel at genesis. Sets baseline Phi = 0.
-    function initialize(
+    function initializeDependencies(
         address _nodeRegistry,
         address _messageBus,
         address _susyEngine,

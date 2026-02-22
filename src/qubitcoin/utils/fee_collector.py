@@ -227,6 +227,19 @@ class FeeCollector:
         if len(self._audit_log) > self._max_audit_entries:
             self._audit_log = self._audit_log[-self._max_audit_entries:]
 
+    def get_stats(self) -> dict:
+        """Aggregate fee collection statistics."""
+        total = self.get_total_fees_collected()
+        by_type = {}
+        for fee_type in ('aether_chat', 'aether_query', 'contract_deploy', 'contract_execute'):
+            by_type[fee_type] = str(self.get_total_fees_collected(fee_type))
+        return {
+            'total_collected': str(total),
+            'total_events': len(self._audit_log),
+            'by_type': by_type,
+            'recent': self.get_audit_log(limit=10),
+        }
+
     def get_audit_log(self, limit: int = 100, fee_type: Optional[str] = None) -> List[dict]:
         """Get recent fee audit records.
 

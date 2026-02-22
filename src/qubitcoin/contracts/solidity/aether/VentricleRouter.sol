@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title VentricleRouter — On-Chain CSF Routing with Backpressure and Entanglement
 /// @notice Extends MessageBus with ventricle-style load balancing, backpressure detection,
 ///         and quantum-entangled shortcuts between SUSY-paired Sephirot nodes.
 ///         Biological model: CSF circulation through brain ventricles with pressure regulation.
-contract VentricleRouter {
+contract VentricleRouter is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint8  public constant NUM_NODES = 10;
     uint256 public constant MAX_PRESSURE = 50;
@@ -61,8 +63,8 @@ contract VentricleRouter {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _messageBus) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _messageBus) external initializer {
         owner = msg.sender;
         messageBus = _messageBus;
     }

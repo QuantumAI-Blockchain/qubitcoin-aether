@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahHod — Splendor: Language & Semantic Encoding
 /// @notice Constraint node (SUSY pair with Netzach). Handles language processing,
 ///         semantic encoding, and communication. 7-qubit state.
 ///         Brain analog: Broca's and Wernicke's areas.
-contract SephirahHod is ISephirah {
+contract SephirahHod is ISephirah, Initializable {
     uint8   public constant nodeId     = 7;
     string  public constant nodeName   = "Hod";
     uint8   public constant qubitCount = 7;
@@ -35,7 +36,7 @@ contract SephirahHod is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner = msg.sender; kernel = _kernel; isActive = true; energyLevel = 1000;
     }
 

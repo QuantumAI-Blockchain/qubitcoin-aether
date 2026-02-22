@@ -134,20 +134,18 @@ class TestPhiCaching:
         calc._last_computed_block = 100
 
         # Request for block 110 (at interval boundary)
-        # This should trigger a full recompute
-        with patch.object(calc, '_compute_phi_v1', return_value={'phi_value': 2.0, 'block_height': 110}) as mock:
-            with patch.object(calc, '_compute_phi_v2', return_value={'phi_value': 2.0, 'block_height': 110}):
-                result = calc.compute_phi(110)
-                # Should have called the full compute
-                assert calc._last_computed_block == 110
+        # This should trigger a full recompute (v3 computes inline)
+        result = calc.compute_phi(110)
+        # Should have recomputed and updated the cached block
+        assert calc._last_computed_block == 110
 
     def test_no_cache_on_first_call(self):
         calc = self._make_calculator(interval=10)
         assert calc._last_full_result is None
-        # First call should do full computation
-        with patch.object(calc, '_compute_phi_v1', return_value={'phi_value': 1.0, 'block_height': 50}):
-            result = calc.compute_phi(50)
-            assert result['phi_value'] == 1.0
+        # First call should do full computation (v3 computes inline)
+        result = calc.compute_phi(50)
+        assert 'phi_value' in result
+        assert calc._last_computed_block == 50
 
 
 class TestAutoGoalGeneration:

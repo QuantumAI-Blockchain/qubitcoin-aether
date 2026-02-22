@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahKeter — Crown: Meta-Learning & Goal Formation
 /// @notice The highest Sephirah. Oversees the entire Tree of Life, sets goals,
 ///         and directs meta-learning across all nodes. 8-qubit quantum state.
 ///         Brain analog: Prefrontal cortex.
-contract SephirahKeter is ISephirah {
+contract SephirahKeter is ISephirah, Initializable {
     uint8   public constant nodeId     = 0;
     string  public constant nodeName   = "Keter";
     uint8   public constant qubitCount = 8;
@@ -45,7 +46,7 @@ contract SephirahKeter is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner    = msg.sender;
         kernel   = _kernel;
         isActive = true;

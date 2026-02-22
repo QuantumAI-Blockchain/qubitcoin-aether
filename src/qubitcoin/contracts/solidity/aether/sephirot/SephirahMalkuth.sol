@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahMalkuth — Kingdom: Action & World Interaction
 /// @notice The lowest Sephirah — the interface between AGI and the external world.
 ///         Executes actions, submits transactions, and interacts with users. 4-qubit state.
 ///         Brain analog: Motor cortex.
-contract SephirahMalkuth is ISephirah {
+contract SephirahMalkuth is ISephirah, Initializable {
     uint8   public constant nodeId     = 9;
     string  public constant nodeName   = "Malkuth";
     uint8   public constant qubitCount = 4;
@@ -35,7 +36,7 @@ contract SephirahMalkuth is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner = msg.sender; kernel = _kernel; isActive = true; energyLevel = 1000;
     }
 

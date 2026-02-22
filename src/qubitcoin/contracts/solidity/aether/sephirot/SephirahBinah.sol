@@ -2,12 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../../interfaces/ISephirah.sol";
+import "../../proxy/Initializable.sol";
 
 /// @title SephirahBinah — Understanding: Logic & Causal Inference
 /// @notice Constraint node (SUSY pair with Chochmah). Performs logical analysis,
 ///         causal reasoning, and truth verification. 4-qubit state.
 ///         Brain analog: Left hemisphere.
-contract SephirahBinah is ISephirah {
+contract SephirahBinah is ISephirah, Initializable {
     uint8   public constant nodeId     = 2;
     string  public constant nodeName   = "Binah";
     uint8   public constant qubitCount = 4;
@@ -35,7 +36,7 @@ contract SephirahBinah is ISephirah {
         _;
     }
 
-    constructor(address _kernel) {
+    function initialize(address _kernel) external initializer {
         owner = msg.sender; kernel = _kernel; isActive = true; energyLevel = 1000; // constraint node
     }
 

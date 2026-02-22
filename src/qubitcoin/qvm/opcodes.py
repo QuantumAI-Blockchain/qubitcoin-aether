@@ -220,6 +220,12 @@ class Opcode(IntEnum):
     QBRIDGE_VERIFY = 0xc1    # Cross-chain bridge proof verification (WP: 0xF9)
 
     # ========================================================================
+    # AETHER AGI OPCODES (0xc2-0xc3) - Smart contract ↔ AGI bridge
+    # ========================================================================
+    QREASON = 0xc2   # Query Aether reasoning engine from smart contract
+    QPHI = 0xc3      # Read current Phi consciousness metric on-chain
+
+    # ========================================================================
     # SYSTEM (0xf0-0xff)
     # ========================================================================
     CREATE = 0xf0
@@ -272,6 +278,7 @@ GAS_COSTS = {
     Opcode.QCREATE: 5000, Opcode.QVERIFY: 8000,
     Opcode.QCOMPLIANCE: 15000, Opcode.QRISK: 5000, Opcode.QRISK_SYSTEMIC: 10000,
     Opcode.QBRIDGE_ENTANGLE: 20000, Opcode.QBRIDGE_VERIFY: 15000,
+    Opcode.QREASON: 25000, Opcode.QPHI: 5000,
     # System
     Opcode.CREATE: 32000, Opcode.CALL: 700, Opcode.CALLCODE: 700,
     Opcode.RETURN: 0, Opcode.DELEGATECALL: 700, Opcode.CREATE2: 32000,

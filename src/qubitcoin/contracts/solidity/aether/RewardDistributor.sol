@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title RewardDistributor — QBC Reward Distribution for Proof-of-Thought
 /// @notice Distributes QBC rewards for correct reasoning solutions.
 ///         Slashes 50% of stake for incorrect proposals.
-contract RewardDistributor {
+contract RewardDistributor is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant SLASH_BPS = 5000; // 50% slash
     uint256 public constant BPS_DENOM = 10000;
@@ -40,8 +42,8 @@ contract RewardDistributor {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
     }

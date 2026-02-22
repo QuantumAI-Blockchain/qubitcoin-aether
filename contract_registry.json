@@ -1,0 +1,178 @@
+{
+  "ProxyAdmin": {
+    "address": "0x5abded0e566f9f927b0980ee72dc81410d90ce65",
+    "type": "direct"
+  },
+  "AetherKernel": {
+    "proxy": "0x87e70f3981d6d4035530150c6fb633dc0ea0ff0d",
+    "implementation": "0xad986a398a37336e3f0f8964f96cc5547727eb29"
+  },
+  "NodeRegistry": {
+    "proxy": "0xfd2db8830f5f4170d2abcbed90fa65e98ece4496",
+    "implementation": "0x5eeca8a9f3834a0f44065c59970a8130ac663f5a"
+  },
+  "MessageBus": {
+    "proxy": "0x59d8bf03b28abeaed42bd440b6e09030a4d947cd",
+    "implementation": "0x65b64238edc3260866bd0c002cef842c49f3b974"
+  },
+  "SUSYEngine": {
+    "proxy": "0x108836c6fd7a25aacf26e2aac5dfc17132d43ba7",
+    "implementation": "0x0269f0ca8de4f990786e40fdf3af1176c8fd4bfa"
+  },
+  "ConsciousnessDashboard": {
+    "proxy": "0x114b9f42a965d2c533276949e7375f0d578c90b2",
+    "implementation": "0x6d45d62451a0a000f357a0b4e53aa02d41233d08"
+  },
+  "ValidatorRegistry": {
+    "proxy": "0x974dd2780aba66e93b42808a5dc5cf503e278f5b",
+    "implementation": "0x64470d3fa0d0092e702f6a99c0e34b49b1b07504"
+  },
+  "ProofOfThought": {
+    "proxy": "0x1bcf504558b19fe134825500cad2c68c95265c55",
+    "implementation": "0xb7cca8923e67d94367945824b60b4a0290411e40"
+  },
+  "TaskMarket": {
+    "proxy": "0x5186da88cc092068f5be31d65d0b24c40872e043",
+    "implementation": "0x8d53685b4fde5646608531342a10a5263d004a2b"
+  },
+  "RewardDistributor": {
+    "proxy": "0x12f7ded801aace832360719e02363350c0b3a71a",
+    "implementation": "0xfc5540c2adafae27f902317f31e1aecc8a5604e8"
+  },
+  "PhaseSync": {
+    "proxy": "0x0b3ff8a5fe4e5d1c1a64a36d20769be24e1ab912",
+    "implementation": "0x1724f7251a7902d9954a0d2c740a47e02b41c244"
+  },
+  "GlobalWorkspace": {
+    "proxy": "0xedadc14eb0baefd2e5ac763f2709f3c6b961e60f",
+    "implementation": "0xbc1aa70ec3da1ff6dbf624933d6c2bdf6a5f4d58"
+  },
+  "SynapticStaking": {
+    "proxy": "0xb7f2ef593a06b9c453221e7d2fad65c2e67d1c4f",
+    "implementation": "0x1c80d7522e1535c3d77cbe97f30b2a5ba62e5d5f"
+  },
+  "VentricleRouter": {
+    "proxy": "0x11af35bd1e70fb114d1d2974a3fa73fe511f2346",
+    "implementation": "0x52d80feb0aa9976fd5aa242d7f98061f21637e14"
+  },
+  "GasOracle": {
+    "proxy": "0x435acf42a820e186db3e4be3c35a4d8b08abeca7",
+    "implementation": "0x96d9ec1f5af29daed9a1600cadd6ad97d8fd41e8"
+  },
+  "TreasuryDAO": {
+    "proxy": "0x11203996d208cc51faecc5d2df9708ed71784eb0",
+    "implementation": "0x01cdeed53469e801738ea4f3735e461059060d49"
+  },
+  "ConstitutionalAI": {
+    "proxy": "0x78fcc5b88d3d4b13137d98da9da3ae0ab855eb34",
+    "implementation": "0xfeb637547d7545f8bef21d0dff9125dfb514a64e"
+  },
+  "EmergencyShutdown": {
+    "proxy": "0xb65663c48399116507d96f107a90caaf178fe0b7",
+    "implementation": "0xca10b82d5a27a2bb30f227867379f3bb697af9a3"
+  },
+  "SephirahKeter": {
+    "proxy": "0x232ff462158e5ce9f3e26c128c0b220b7a44bfa0",
+    "implementation": "0x8ef2c3e5eac81d11d818daccc836a78c5231fc3f"
+  },
+  "SephirahChochmah": {
+    "proxy": "0x17a338ed690e4b3d573b9e91fcb3342b7a1d24af",
+    "implementation": "0x9db2c5f171e64a65add073af704d585244f2905d"
+  },
+  "SephirahBinah": {
+    "proxy": "0x1181dcdecee191a8b92c82b1fda4e09cfde8fa83",
+    "implementation": "0x5b0fbbdd89d15faa3f01d72ec112af432d196e62"
+  },
+  "SephirahChesed": {
+    "proxy": "0x880dd488f7565de256833d36abf959f472c51c5e",
+    "implementation": "0xce86639f0b81bb291b88c4bb16e3d74cd96b5783"
+  },
+  "SephirahGevurah": {
+    "proxy": "0xa102af1a6b8a6945d302822a983792db2953bbef",
+    "implementation": "0x0de4cebd6d36b38aa8504d63b41f88c62fe0b7d1"
+  },
+  "SephirahTiferet": {
+    "proxy": "0xa1574defe236d269a95a625fc7ee9d0f24866cba",
+    "implementation": "0x155c86c763507ba1700a1e30fada7ebd06a1e23e"
+  },
+  "SephirahNetzach": {
+    "proxy": "0x749166f5600d69c634da5090e1ebc7bd7e580a2d",
+    "implementation": "0x266ada6703d4b66b2eae418ad72776c11311d282"
+  },
+  "SephirahHod": {
+    "proxy": "0xaf1adacae4c9a6e701bc1ec58a042b96bf6c22a9",
+    "implementation": "0x3e81a2b6a9507750c5ae0285e6657726fc8e6481"
+  },
+  "SephirahYesod": {
+    "proxy": "0xfbcbe9f0ccac09ed31f9e8c25a9c8d4f7caed0bf",
+    "implementation": "0xcc09126d14d13c9f219d57e112a8cfd030c58254"
+  },
+  "SephirahMalkuth": {
+    "proxy": "0x9e33eb8b6c0cf94268efd96b3306f9fe35695ae7",
+    "implementation": "0x92059f351147a1c2af0445c732b88f887ae95f03"
+  },
+  "UpgradeGovernor": {
+    "proxy": "0x650efb96917170838c6a8b098bb492cc848f16ee",
+    "implementation": "0xf45982f844d1dfa313ed95f53ec8a44023724d71"
+  },
+  "QBC20": {
+    "proxy": "0x9d9140c1d974cf49fe1efaffa98daa9c4d47a66f",
+    "implementation": "0x05ca51ef5d7dd4cebe8bd0557fb6390e0cc73665"
+  },
+  "QBC721": {
+    "proxy": "0x16fec7146c77a0b99ceaba31eb12c53844367426",
+    "implementation": "0x25d4caecff1952eb405433a3f01df983ce3b1e07"
+  },
+  "QBC1155": {
+    "proxy": "0xc703c1fb5f962106e62861c7d69c0da2dff916b2",
+    "implementation": "0xe997deac6963d65d0604306e69b99094fcf549fa"
+  },
+  "ERC20QC": {
+    "proxy": "0xb8477de61040ef7daf180be5d4ad9bc670630135",
+    "implementation": "0x56f97b00077e4ee22f6fa9e9a4cce440ca2ee43a"
+  },
+  "QUSDOracle": {
+    "proxy": "0x825e13dd3f4d6f468b444dace058a20cf3b88ddd",
+    "implementation": "0x190982f888109487055fb8c9823fdf153c6b6ba8"
+  },
+  "QUSDGovernance": {
+    "proxy": "0xcae923fe7bb3aa8a05c3198ade09c1ee2a80fc80",
+    "implementation": "0x8132957baeb4432c0908466e6ba0416d0dc3c179"
+  },
+  "QUSDReserve": {
+    "proxy": "0x54e8c5f344565e1798a6bd05e76517cd1085bd88",
+    "implementation": "0x409e0cbcbd266152f3360f78caa281d4d5d7309f"
+  },
+  "QUSD": {
+    "proxy": "0xd3cb46bd2ae48db971b87b1378d2448fea7652cb",
+    "implementation": "0xb997886e077bc6d987844f81d20ab572b6387066"
+  },
+  "QUSDDebtLedger": {
+    "proxy": "0x0ac481d49ca38566f46ad132bc22e943f9e98784",
+    "implementation": "0xf74fbd7c2e0fa339603772dee9c1b523834941e8"
+  },
+  "QUSDStabilizer": {
+    "proxy": "0xe13ee10cb8b0b5177b4d94ec23225c0b3f2ab8e5",
+    "implementation": "0x141282dca59029c56bc107ca92605f515e1d1b92"
+  },
+  "QUSDAllocation": {
+    "proxy": "0x58b244754e16ed74d360119e9f4e5bf3acd7fd1a",
+    "implementation": "0x8effec9c5cb714ce37731eaf538631721d4a4b7e"
+  },
+  "wQUSD": {
+    "proxy": "0x47dbca68911196e1fd4439938e64e32f6a65b8f5",
+    "implementation": "0xc2555c31618249e5b3398766c23c636907de7d94"
+  },
+  "BridgeVault": {
+    "proxy": "0x86bfc2243d2f395e06816c13085a499ede6f1002",
+    "implementation": "0x3d5e34ba8a4af40c53edda3e0744a5289f7e0180"
+  },
+  "bridge_wQBC": {
+    "proxy": "0x9e4175426a34e46df090253dcd89524259fc3b6d",
+    "implementation": "0x402f44a97baeaa1a56672a979bc8436d342a9e0a"
+  },
+  "tokens_wQBC": {
+    "proxy": "0xc8f90358e2ac135072114595c52904b0a16ef1e8",
+    "implementation": "0xc9369163efea800fd1745abe82727a46d400bc89"
+  }
+}

@@ -22,7 +22,7 @@ class KeterNode:
     Named after Keter (Crown) in Kabbalistic Tree of Life — the highest sephira.
     """
     node_id: int = 0
-    node_type: str = 'assertion'  # assertion, observation, inference, axiom
+    node_type: str = 'assertion'  # assertion, observation, inference, axiom, prediction, meta_observation
     content_hash: str = ''
     content: dict = field(default_factory=dict)
     confidence: float = 0.5  # [0.0, 1.0]
@@ -72,7 +72,7 @@ class KeterEdge:
     """Directed edge between two KeterNodes"""
     from_node_id: int
     to_node_id: int
-    edge_type: str = 'supports'  # supports, contradicts, derives, requires, refines
+    edge_type: str = 'supports'  # supports, contradicts, derives, requires, refines, causes, abstracts, analogous_to
     weight: float = 1.0
     timestamp: float = 0.0
 
@@ -138,6 +138,9 @@ class KnowledgeGraph:
         # TF-IDF semantic search index
         from .kg_index import TFIDFIndex
         self.search_index = TFIDFIndex()
+        # Dense embedding vector index (semantic similarity)
+        from .vector_index import VectorIndex
+        self.vector_index = VectorIndex()
         self._load_from_db()
 
     def _load_from_db(self):
@@ -182,6 +185,13 @@ class KnowledgeGraph:
                     node.domain = classify_domain(node.content)
                     unclassified += 1
 
+            # Batch-build vector embeddings for loaded nodes
+            if self.nodes:
+                batch = {nid: node.content for nid, node in self.nodes.items()}
+                embedded = self.vector_index.add_nodes_batch(batch)
+                if embedded:
+                    logger.info(f"Vector index: embedded {embedded} nodes")
+
             domain_counts = {}
             for node in self.nodes.values():
                 d = node.domain or 'general'
@@ -211,8 +221,9 @@ class KnowledgeGraph:
         self._next_id += 1
         self.nodes[node.node_id] = node
 
-        # Update search index
+        # Update search indices
         self.search_index.add_node(node.node_id, content)
+        self.vector_index.add_node(node.node_id, content)
 
         # Persist
         try:
@@ -496,7 +507,7 @@ class KnowledgeGraph:
 
     def search(self, query: str, top_k: int = 10) -> List[Tuple[KeterNode, float]]:
         """
-        Semantic search over the knowledge graph using TF-IDF cosine similarity.
+        Semantic search blending TF-IDF keyword match + dense vector similarity.
 
         Args:
             query: Natural language search query
@@ -505,10 +516,23 @@ class KnowledgeGraph:
         Returns:
             List of (KeterNode, similarity_score) tuples, best match first.
         """
-        results = self.search_index.query(query, top_k=top_k)
+        # TF-IDF results (keyword match)
+        tfidf_results = self.search_index.query(query, top_k=top_k * 2)
+        # Vector results (semantic similarity)
+        vector_results = self.vector_index.query(query, top_k=top_k * 2)
+
+        # Blend scores: 0.4 * tfidf + 0.6 * vector (semantic weighs more)
+        scores: Dict[int, float] = {}
+        for nid, score in tfidf_results:
+            scores[nid] = scores.get(nid, 0.0) + 0.4 * score
+        for nid, score in vector_results:
+            scores[nid] = scores.get(nid, 0.0) + 0.6 * score
+
+        # Sort by blended score, return top_k
+        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
         return [
             (self.nodes[nid], score)
-            for nid, score in results
+            for nid, score in ranked
             if nid in self.nodes
         ]
 

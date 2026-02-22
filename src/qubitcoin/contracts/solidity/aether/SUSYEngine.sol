@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title SUSYEngine — Supersymmetric Balance Enforcement
 /// @notice Enforces the golden ratio (φ = 1.618) between SUSY expansion/constraint pairs.
 ///         Detects violations (>5% deviation) and auto-redistributes QBC to restore balance.
 ///         All violations are logged immutably on-chain.
-contract SUSYEngine {
+contract SUSYEngine is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant PHI         = 1618;   // φ × 1000 = 1.618
     uint256 public constant PRECISION   = 1000;
@@ -62,8 +64,8 @@ contract SUSYEngine {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _kernel, address _nodeRegistry) {
+    // ─── Initialization ─────────────────────────────────────────────────
+    function initialize(address _kernel, address _nodeRegistry) external initializer {
         owner        = msg.sender;
         kernel       = _kernel;
         nodeRegistry = _nodeRegistry;

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title QUSDStabilizer — Peg Maintenance for QUSD
 /// @notice Maintains the $1 USD peg by buying QUSD below $0.99 and selling above $1.01.
 ///         Stability fund is funded by governance and depleted by market operations.
-contract QUSDStabilizer {
+contract QUSDStabilizer is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant PRICE_DECIMALS = 8;
     uint256 public constant PEG_TARGET     = 1_00000000;  // $1.00 (8 decimals)
@@ -43,8 +45,8 @@ contract QUSDStabilizer {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _governance, address _oracle, address _qusdToken) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _governance, address _oracle, address _qusdToken) external initializer {
         owner         = msg.sender;
         governance    = _governance;
         oracleAddress = _oracle;

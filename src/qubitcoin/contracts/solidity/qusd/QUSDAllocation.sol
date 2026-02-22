@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title QUSDAllocation — Vesting & Distribution for 3.3B QUSD
 /// @notice Manages the initial QUSD allocation across 4 tiers:
 ///         50% Liquidity Providers (immediate), 30% Treasury (DAO),
 ///         15% Dev Fund (4yr vesting, 6mo cliff), 5% Team (4yr vesting, 1yr cliff).
 ///         All vesting is enforced on-chain and immutable once set.
-contract QUSDAllocation {
+contract QUSDAllocation is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant TOTAL_ALLOCATION = 3_300_000_000 * 10**8; // 3.3B (8 decimals)
 
@@ -57,8 +59,8 @@ contract QUSDAllocation {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _qusdToken) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initializeBase(address _qusdToken) external initializer {
         owner     = msg.sender;
         qusdToken = _qusdToken;
     }

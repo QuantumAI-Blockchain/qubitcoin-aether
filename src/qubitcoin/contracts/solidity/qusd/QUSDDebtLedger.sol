@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../proxy/Initializable.sol";
+
 /// @title QUSDDebtLedger — On-Chain Fractional Payback Tracking
 /// @notice Immutably tracks every QUSD mint as debt and every reserve deposit as payback.
 ///         Emits milestone events at 5%, 15%, 30%, 50%, and 100% backing.
 ///         The entire debt lifecycle is transparent and auditable on-chain.
-contract QUSDDebtLedger {
+contract QUSDDebtLedger is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant BPS_DENOM = 10000; // basis points denominator
 
@@ -55,8 +57,8 @@ contract QUSDDebtLedger {
         _;
     }
 
-    // ─── Constructor ─────────────────────────────────────────────────────
-    constructor(address _qusdToken, address _reservePool) {
+    // ─── Initializer ────────────────────────────────────────────────────
+    function initialize(address _qusdToken, address _reservePool) external initializer {
         owner       = msg.sender;
         qusdToken   = _qusdToken;
         reservePool = _reservePool;
