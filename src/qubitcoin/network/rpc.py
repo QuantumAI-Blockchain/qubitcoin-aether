@@ -95,12 +95,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     # CORS middleware (restrict in production via QBC_CORS_ORIGINS env)
     import os
-    cors_origins = os.getenv('QBC_CORS_ORIGINS', '').split(',')
+    _default_origins = 'http://localhost:3000,https://qbc.network,https://www.qbc.network'
+    cors_origins = os.getenv('QBC_CORS_ORIGINS', _default_origins).split(',')
     cors_origins = [o.strip() for o in cors_origins if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_origins or ["*"],
-        allow_credentials=bool(cors_origins),
+        allow_origins=cors_origins,
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -1253,8 +1254,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
         if limit < 1:
             limit = 1
-        if limit > 5000:
-            limit = 5000
+        if limit > Config.RPC_GRAPH_MAX_NODES:
+            limit = Config.RPC_GRAPH_MAX_NODES
         kg = aether_engine.kg
         stats = kg.get_stats()
         # Get most recent nodes up to limit
@@ -1316,8 +1317,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Search knowledge graph nodes by type or content."""
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
-        if limit > 200:
-            limit = 200
+        if limit > Config.RPC_SEARCH_MAX_RESULTS:
+            limit = Config.RPC_SEARCH_MAX_RESULTS
         if type:
             nodes = aether_engine.kg.find_by_type(type, limit)
         elif key and value:
@@ -1363,8 +1364,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
         if limit < 0:
             limit = 0
-        if limit > 10000:
-            limit = 10000
+        if limit > Config.RPC_JSONLD_MAX_NODES:
+            limit = Config.RPC_JSONLD_MAX_NODES
         return aether_engine.kg.export_json_ld(limit=limit)
 
     @app.get("/aether/phi/timeseries")
@@ -1375,8 +1376,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         dashboard = _get_dashboard()
         if limit < 1:
             limit = 1
-        if limit > 1000:
-            limit = 1000
+        if limit > Config.RPC_PHI_HISTORY_MAX:
+            limit = Config.RPC_PHI_HISTORY_MAX
         history = dashboard.get_phi_history(limit=limit)
         # Extract arrays for easy chart consumption
         blocks = [h.get("block_height", 0) for h in history]
@@ -2766,8 +2767,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/aether/pot/range/{start}/{end}")
     async def get_pot_range(start: int, end: int):
         """Get PoT data for a range of blocks."""
-        if end - start > 1000:
-            raise HTTPException(status_code=400, detail="Range too large (max 1000)")
+        if end - start > Config.RPC_BLOCK_RANGE_MAX:
+            raise HTTPException(status_code=400, detail=f"Range too large (max {Config.RPC_BLOCK_RANGE_MAX})")
         return {"blocks": _pot_explorer.get_block_range(start, end)}
 
     @app.get("/aether/pot/summary/{block_height}")
@@ -3866,8 +3867,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/light/headers/{start}/{end}")
     async def light_headers(start: int, end: int):
         """Get block headers for light node sync."""
-        if end - start > 1000:
-            raise HTTPException(status_code=400, detail="Range too large (max 1000)")
+        if end - start > Config.RPC_BLOCK_RANGE_MAX:
+            raise HTTPException(status_code=400, detail=f"Range too large (max {Config.RPC_BLOCK_RANGE_MAX})")
         headers = []
         for h in range(start, min(end, start + 1000)):
             block = db_manager.get_block(h)

@@ -45,7 +45,7 @@ class MiningEngine:
         }
         logger.info("Mining engine initialized (SUSY Economics + QVM)")
 
-    def start(self):
+    def start(self) -> None:
         """Start mining"""
         if self.is_mining:
             logger.warning("Mining already running")
@@ -60,7 +60,7 @@ class MiningEngine:
         self.mining_thread.start()
         logger.info("Mining started")
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop mining"""
         if not self.is_mining:
             return

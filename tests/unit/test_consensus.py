@@ -64,6 +64,34 @@ class TestRewardCalculation:
         for i in range(1, len(rewards)):
             assert rewards[i] < rewards[i - 1]
 
+    def test_era_boundary_exact_halving_height(self):
+        """Reward correctly transitions at exact halving interval boundary."""
+        eng = self._make_engine()
+        from qubitcoin.config import Config
+        H = Config.HALVING_INTERVAL
+        r_before = eng.calculate_reward(H - 1, Decimal(0))
+        r_at = eng.calculate_reward(H, Decimal(0))
+        r_after = eng.calculate_reward(H + 1, Decimal(0))
+        # Era 0 → Era 1 transition: reward drops
+        assert r_before == Config.INITIAL_REWARD  # Still era 0
+        assert r_at < r_before  # Era 1 starts
+        assert r_at == r_after  # Same era 1
+        # Verify exact phi-halving ratio
+        expected = Config.INITIAL_REWARD / Decimal(str(Config.PHI))
+        assert abs(r_at - expected) < Decimal('0.00000001')
+
+    def test_era_boundary_second_halving(self):
+        """Reward transitions correctly at second halving (era 1 → 2)."""
+        eng = self._make_engine()
+        from qubitcoin.config import Config
+        H = Config.HALVING_INTERVAL
+        PHI = Decimal(str(Config.PHI))
+        r_era1 = eng.calculate_reward(H, Decimal(0))
+        r_era2 = eng.calculate_reward(2 * H, Decimal(0))
+        expected_era2 = Config.INITIAL_REWARD / (PHI ** 2)
+        assert abs(r_era2 - expected_era2) < Decimal('0.00000001')
+        assert r_era2 < r_era1
+
 
 class TestDifficultyAdjustment:
     """Test difficulty calculation with 144-block window."""

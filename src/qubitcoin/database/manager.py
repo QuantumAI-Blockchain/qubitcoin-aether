@@ -5,7 +5,7 @@ Handles all database operations with proper compatibility
 import json
 from contextlib import contextmanager
 from decimal import Decimal
-from typing import List, Optional
+from typing import Generator, List, Optional
 import psycopg2
 import psycopg2.extras
 from sqlalchemy import (
@@ -586,7 +586,7 @@ class DatabaseManager:
             raise
 
     @contextmanager
-    def get_session(self):
+    def get_session(self) -> Generator:
         """Get database session with proper cleanup"""
         session = self.SessionLocal()
         try:
@@ -648,7 +648,7 @@ class DatabaseManager:
                 spent_by=result[7]
             )
 
-    def mark_utxos_spent(self, inputs: List[dict], txid: str, session: DBSession):
+    def mark_utxos_spent(self, inputs: List[dict], txid: str, session: DBSession) -> None:
         """Mark UTXOs as spent"""
         for inp in inputs:
             session.execute(
@@ -753,7 +753,7 @@ class DatabaseManager:
                 receipts_root=result[7] or '',
                 thought_proof=json.loads(result[8]) if isinstance(result[8], str) else result[8],
             )
-    def store_block(self, block: Block, session: DBSession = None):
+    def store_block(self, block: Block, session: DBSession = None) -> None:
         """Store block and update UTXOs atomically.
 
         When session is provided, uses it without committing (caller commits).
@@ -882,7 +882,7 @@ class DatabaseManager:
                 text("SELECT total_minted FROM supply WHERE id = 1")
             )
             return Decimal(result.scalar() or 0)
-    def update_supply(self, amount: Decimal, session: DBSession):
+    def update_supply(self, amount: Decimal, session: DBSession) -> None:
         """Update total supply"""
         session.execute(
             text("UPDATE supply SET total_minted = total_minted + :amt WHERE id = 1"),
@@ -1009,7 +1009,7 @@ class DatabaseManager:
             session.commit()
         return self.get_account(address) or Account(address=address)
 
-    def update_account(self, account: Account, session: DBSession = None):
+    def update_account(self, account: Account, session: DBSession = None) -> None:
         """Update account state"""
         def _do(s):
             s.execute(
@@ -1058,7 +1058,7 @@ class DatabaseManager:
             ).scalar()
             return result or '0' * 64
 
-    def set_storage(self, contract_address: str, key: str, value: str, block_height: int, session: DBSession = None):
+    def set_storage(self, contract_address: str, key: str, value: str, block_height: int, session: DBSession = None) -> None:
         """Set contract storage value"""
         def _do(s):
             s.execute(
@@ -1089,7 +1089,7 @@ class DatabaseManager:
     # ========================================================================
     # TRANSACTION RECEIPTS
     # ========================================================================
-    def store_receipt(self, receipt: TransactionReceipt, session: DBSession = None):
+    def store_receipt(self, receipt: TransactionReceipt, session: DBSession = None) -> None:
         """Store transaction receipt"""
         def _do(s):
             s.execute(

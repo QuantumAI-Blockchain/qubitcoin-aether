@@ -199,6 +199,14 @@ class ConsensusEngine:
                 if block.block_hash != computed_hash:
                     return False, f"Block hash mismatch: {block.block_hash[:16]} != {computed_hash[:16]}"
 
+            # Reject blocks with timestamps too far in the future
+            if block.timestamp > time.time() + Config.MAX_FUTURE_BLOCK_TIME:
+                return False, f"Block timestamp too far in future: {block.timestamp}"
+
+            # Reject blocks with timestamps before parent (non-genesis)
+            if prev_block and block.timestamp < prev_block.timestamp:
+                return False, f"Block timestamp before parent: {block.timestamp} < {prev_block.timestamp}"
+
             expected_difficulty = self.calculate_difficulty(block.height, db_manager)
             if abs(block.difficulty - expected_difficulty) > 0.001:
                 return False, f"Invalid difficulty: {block.difficulty} != {expected_difficulty}"

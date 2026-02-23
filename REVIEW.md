@@ -1,15 +1,16 @@
 # QUBITCOIN PROJECT REVIEW
 # Government-Grade Peer Review
-# Date: February 23, 2026 | Run #5
+# Date: February 23, 2026 | Run #6
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-- **Overall Readiness Score: 93/100** *(up from 91 in Run #4, 88 in Run #3, 82 in Run #2, 78 in Run #1)*
+- **Overall Readiness Score: 95/100** *(up from 93 in Run #5, 91 in Run #4, 88 in Run #3, 82 in Run #2, 78 in Run #1)*
 - **Total Codebase: ~81,500+ LOC across 250+ files (Python, Go, Rust, TypeScript, Solidity)**
-- **Test Suite: 2,650 tests passing (100% pass rate)**
+- **Test Suite: 2,652 tests passing (100% pass rate)**
 - **AGI Readiness: 93% — all exception handlers proper severity, all intervals configurable**
+- **L1 Hardening: 95% — CORS restricted, timestamp validation, emission verified, type hints complete**
 - **QUSD Readiness: 90% — contracts real, oracle integration needs verification**
 
 ### Top 5 Critical Findings (Blocking Launch)
@@ -35,16 +36,17 @@
 | S4 | 49 real Solidity contracts (QUSD, Aether, tokens, bridge) | L2 QVM | Complete contract suite at launch |
 | S5 | 70 Prometheus metrics instrumented across all subsystems | Infrastructure | Better observability than most L1s |
 
-### Progress Since Last Run (Run #4 → Run #5)
-- **2 items completed** (M8: exception handler upgrades, M9: Config interval extraction)
-- **16 exception handlers upgraded** from `logger.debug()` to `logger.warning()`/`logger.error()` — operators now see subsystem failures
-- **18 new Config constants** added for all Aether Tree block intervals
-- **23 hardcoded block intervals replaced** with `Config.AETHER_*_INTERVAL` references
-- **2 redundant inline imports removed** (Config was already imported at module level)
-- **1 hardcoded `50000` replaced** with existing `Config.REASONING_ARCHIVE_RETAIN_BLOCKS`
-- **Test patch fix**: Updated 2 test cases to patch `qubitcoin.aether.proof_of_thought.Config` instead of `qubitcoin.config.Config` (needed after removing inline import)
-- **Readiness score: 91 → 93** (+2 points)
-- **Test suite: 2,650 passed, 0 failed** — zero regressions
+### Progress Since Last Run (Run #5 → Run #6)
+- **6 items completed** (B08, B10, E05, E08, NEW#1 RPC limits, NEW#3 type hints)
+- **Security**: CORS now restricted to `qbc.network` + `localhost:3000` (was `*`); timestamp drift validation in consensus
+- **Consensus**: Blocks with timestamps >2h in future or before parent now rejected
+- **Economics**: Emission schedule verified at startup (monotonic decrease, bounded by MAX_SUPPLY)
+- **Code quality**: 9 missing return type hints added to mining/database public methods
+- **Config extraction**: 5 new `RPC_*` limit constants + 1 P2P cache size now configurable
+- **Testing**: +2 new era boundary halving tests (exact transition at HALVING_INTERVAL)
+- **3 new findings cataloged** (RPC limit hardcoding, P2P cache, missing type hints) — all fixed same run
+- **Readiness score: 93 → 95** (+2 points)
+- **Test suite: 2,652 passed, 0 failed** — zero regressions
 
 ---
 
@@ -458,3 +460,44 @@
 3. Q1: BN128 precompiles (ecAdd/ecMul/ecPairing return zeros)
 4. L6: Database exception path tests
 5. E3: Admin API endpoints not implemented
+
+### Run #6 — February 23, 2026
+
+**Scope:** Security hardening, consensus validation, code quality, configuration extraction
+
+**Items completed this run: 6**
+- **B08** — CORS restricted: default origins now `localhost:3000`, `qbc.network`, `www.qbc.network` (was `*`). Configurable via `QBC_CORS_ORIGINS` env var.
+- **B10** — Timestamp drift validation: `validate_block()` now rejects blocks with timestamps >7200s in future or before parent block.
+- **E05** — Added 2 era boundary tests: exact halving transition at `HALVING_INTERVAL` and second halving at `2*HALVING_INTERVAL`. Verifies phi ratio precision to 8 decimal places.
+- **E08** — Emission schedule startup verification: `verify_emission_schedule()` confirms rewards are monotonically decreasing and total emission bounded by MAX_SUPPLY. Called during `Config.validate()`.
+- **NEW#1** — Extracted 6 hardcoded RPC API limit caps to 5 Config constants (`RPC_GRAPH_MAX_NODES`, `RPC_SEARCH_MAX_RESULTS`, `RPC_JSONLD_MAX_NODES`, `RPC_PHI_HISTORY_MAX`, `RPC_BLOCK_RANGE_MAX`). Also used existing `Config.MESSAGE_CACHE_SIZE` for P2P deduplication cache.
+- **NEW#3** — Added return type hints to 9 public methods in `mining/engine.py` (2) and `database/manager.py` (7) per CLAUDE.md type hint requirement.
+
+**New findings discovered: 3 (all fixed same run)**
+- 6 hardcoded RPC limit caps in rpc.py → extracted to Config
+- 1 hardcoded P2P message cache size → used existing Config constant
+- 9 missing return type hints on public methods → added
+
+**Files changed: 6**
+- `src/qubitcoin/config.py` — `verify_emission_schedule()` + 5 RPC_* constants + emission check in `validate()`
+- `src/qubitcoin/consensus/engine.py` — Timestamp drift + parent ordering checks in `validate_block()`
+- `src/qubitcoin/network/rpc.py` — CORS default origins + 6 hardcoded limits → Config references
+- `src/qubitcoin/network/p2p_network.py` — `message_cache_size` → `Config.MESSAGE_CACHE_SIZE`
+- `src/qubitcoin/mining/engine.py` — 2 return type hints
+- `src/qubitcoin/database/manager.py` — 7 return type hints + `Generator` import
+- `tests/unit/test_consensus.py` — 2 new era boundary halving tests
+
+**Regressions found:** None
+
+**Test result:** 2,652 passed, 0 failed — +2 new tests, zero regressions
+
+**Score change:** 93 → 95 (+2 points)
+
+**Cumulative progress:** 29/122 completed (23.8%).
+
+**Remaining high-priority items:**
+1. AG7: Cross-Sephirot consensus (architectural, post-launch)
+2. F01: Frontend E2E tests with Playwright
+3. Q1/V03: BN128 precompiles (ecAdd/ecMul/ecPairing)
+4. L6: Database exception path tests
+5. E3: Admin API endpoints

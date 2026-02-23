@@ -86,7 +86,7 @@ class P2PNetwork:
         # Message handling
         self.handlers: Dict[str, Callable] = {}
         self.seen_messages: Set[str] = set() # Message deduplication
-        self.message_cache_size = 10000
+        self.message_cache_size = Config.MESSAGE_CACHE_SIZE
         # Statistics
         self.stats = {
             'messages_sent': 0,

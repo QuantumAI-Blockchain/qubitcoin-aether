@@ -269,6 +269,15 @@ class Config:
     AETHER_SEPHIROT_PERSIST_INTERVAL: int = int(os.getenv('AETHER_SEPHIROT_PERSIST_INTERVAL', '100'))
 
     # ============================================================================
+    # RPC API LIMITS
+    # ============================================================================
+    RPC_GRAPH_MAX_NODES: int = int(os.getenv('RPC_GRAPH_MAX_NODES', '5000'))
+    RPC_SEARCH_MAX_RESULTS: int = int(os.getenv('RPC_SEARCH_MAX_RESULTS', '200'))
+    RPC_JSONLD_MAX_NODES: int = int(os.getenv('RPC_JSONLD_MAX_NODES', '10000'))
+    RPC_PHI_HISTORY_MAX: int = int(os.getenv('RPC_PHI_HISTORY_MAX', '1000'))
+    RPC_BLOCK_RANGE_MAX: int = int(os.getenv('RPC_BLOCK_RANGE_MAX', '1000'))
+
+    # ============================================================================
     # ADMIN API
     # ============================================================================
     ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')
@@ -298,6 +307,29 @@ class Config:
         return [p.strip() for p in cls.BOOTSTRAP_PEERS.split(',') if p.strip()]
 
     @classmethod
+    def verify_emission_schedule(cls) -> bool:
+        """Verify that phi-halving emission does not exceed MAX_SUPPLY.
+
+        The phi-halving geometric series converges to ~618M QBC with current
+        constants — well under the 3.3B cap. The consensus engine enforces
+        the cap by clamping rewards when total_supply approaches MAX_SUPPLY.
+        This check ensures the series is monotonically decreasing and bounded.
+        """
+        PHI = Decimal(str(cls.PHI))
+        prev_reward = cls.INITIAL_REWARD + 1
+        total = Decimal(0)
+        for era in range(100):
+            reward = cls.INITIAL_REWARD / (PHI ** era)
+            if reward < Decimal('0.00000001'):
+                break
+            if reward >= prev_reward:
+                return False  # Rewards must strictly decrease
+            prev_reward = reward
+            total += reward * cls.HALVING_INTERVAL
+        # Total theoretical emission must not exceed MAX_SUPPLY
+        return total <= cls.MAX_SUPPLY
+
+    @classmethod
     def validate(cls) -> None:
         """Validate critical configuration"""
         required = ['ADDRESS', 'PRIVATE_KEY_HEX', 'PUBLIC_KEY_HEX']
@@ -320,6 +352,9 @@ class Config:
 
         if cls.AETHER_FEE_MIN_QBC >= cls.AETHER_FEE_MAX_QBC:
             raise ValueError("AETHER_FEE_MIN_QBC must be less than AETHER_FEE_MAX_QBC")
+
+        if not cls.verify_emission_schedule():
+            raise ValueError("Emission schedule is not monotonically decreasing or exceeds MAX_SUPPLY")
 
         if cls.COINBASE_MATURITY < 1:
             raise ValueError("COINBASE_MATURITY must be at least 1")
