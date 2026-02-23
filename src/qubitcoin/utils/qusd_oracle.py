@@ -101,10 +101,10 @@ class QUSDOracle:
             return None
 
         try:
-            # Call getQBCPrice() view function on oracle contract
-            # ABI: function getQBCPrice() external view returns (uint256)
-            # Selector: keccak256("getQBCPrice()")[:4]
-            selector = bytes.fromhex("4a3c2f12")  # placeholder selector
+            # Call getPrice() view function on QUSDOracle.sol
+            # ABI: function getPrice() external view returns (uint256 price, uint256 timestamp, uint256 feedCount)
+            # Selector: keccak256("getPrice()")[:4] = d61a3b92
+            selector = bytes.fromhex("d61a3b92")
             result = self._state.call_view(
                 self._oracle_contract, selector.hex()
             )

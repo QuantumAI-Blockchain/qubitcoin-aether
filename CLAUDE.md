@@ -61,7 +61,7 @@ The immediate launch sequence is:
 
 | Issue | Severity | Details |
 |-------|----------|---------|
-| `ENABLE_RUST_P2P` | Medium | Default is `true` in config.py but Rust daemon not auto-launched in Docker. Set `ENABLE_RUST_P2P=false` in `.env` to use Python P2P fallback. |
+| `ENABLE_RUST_P2P` | Resolved | Default changed to `false` in config.py. Python P2P fallback is now active by default. Set `ENABLE_RUST_P2P=true` in `.env` only when Rust P2P daemon is production-ready. |
 | Frontend backend gaps | Low | Most backend API endpoints now wired. A few frontend pages may still show "---" for real-time data when node is not running. |
 | Schema-model sync | Low | Both db-init SQL and SQLAlchemy create tables. SQLAlchemy `create_all()` skips existing tables, so no conflict if SQL runs first. |
 | Smart contracts | Info | 49 Solidity contracts exist but are NOT auto-deployed at genesis. Must deploy via RPC after node is running. |
@@ -1173,7 +1173,7 @@ IBM_TOKEN=                   # IBM Quantum API token (optional)
 # Network
 RPC_PORT=5000
 P2P_PORT=4001
-ENABLE_RUST_P2P=true
+ENABLE_RUST_P2P=false
 RUST_P2P_PORT=4001
 RUST_P2P_GRPC=50051
 PEER_SEEDS=                  # Comma-separated peer addresses

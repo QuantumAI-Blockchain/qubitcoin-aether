@@ -58,7 +58,7 @@ class Config:
     # ============================================================================
     # RUST P2P SETTINGS (NEW - libp2p 0.56)
     # ============================================================================
-    ENABLE_RUST_P2P: bool = os.getenv('ENABLE_RUST_P2P', 'true').lower() == 'true'
+    ENABLE_RUST_P2P: bool = os.getenv('ENABLE_RUST_P2P', 'false').lower() == 'true'
     RUST_P2P_PORT: int = int(os.getenv('RUST_P2P_PORT', 4001))
     RUST_P2P_GRPC: int = int(os.getenv('RUST_P2P_GRPC', 50051))
     BOOTSTRAP_PEERS: str = os.getenv('BOOTSTRAP_PEERS', '')

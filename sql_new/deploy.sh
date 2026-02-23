@@ -49,12 +49,22 @@ run_sql "agi/02_training_data.sql"
 run_sql "agi/03_phi_metrics.sql"
 
 echo ""
-echo "Step 5: Shared Components"
+echo "Step 5: Multi-Chain Bridge"
+run_sql "bridge/00_supported_chains.sql"
+run_sql "bridge/01_bridge_transfers.sql"
+
+echo ""
+echo "Step 6: QUSD Stablecoin"
+run_sql "stablecoin/00_qusd_config.sql"
+run_sql "stablecoin/01_qusd_reserves.sql"
+
+echo ""
+echo "Step 7: Shared Components"
 run_sql "shared/00_ipfs_storage.sql"
 run_sql "shared/01_system_config.sql"
 
 echo ""
-echo "Step 6: Genesis Block"
+echo "Step 8: Genesis Block"
 run_sql "qbc/99_genesis_block.sql"
 
 echo ""

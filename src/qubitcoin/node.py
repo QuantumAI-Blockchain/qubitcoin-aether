@@ -295,7 +295,10 @@ class QubitcoinNode:
         try:
             from .qvm.compliance import ComplianceEngine
             self.compliance_engine = ComplianceEngine(self.db)
-            logger.info("[10/22] ComplianceEngine initialized")
+            # Wire compliance engine into QVM for QCOMPLIANCE opcode
+            if self.state_manager:
+                self.state_manager.qvm.compliance = self.compliance_engine
+            logger.info("[10/22] ComplianceEngine initialized (wired to QVM QCOMPLIANCE)")
         except Exception as e:
             logger.warning(f"[10/22] ComplianceEngine failed (non-fatal): {e}")
         try:

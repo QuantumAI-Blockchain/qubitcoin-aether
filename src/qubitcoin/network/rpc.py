@@ -955,6 +955,23 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not contract_engine:
             raise HTTPException(status_code=503, detail="Contract engine not available")
 
+        # Deduct deployment fee before deploying
+        fee_record = None
+        if fee_collector and req.deployer:
+            from ..contracts.fee_calculator import ContractFeeCalculator
+            import json as _json
+            calc = ContractFeeCalculator()
+            code_size = len(_json.dumps(req.contract_code).encode())
+            deploy_fee = calc.calculate_deploy_fee(code_size, is_template=False)
+            if deploy_fee > 0:
+                success, fee_msg, fee_record = fee_collector.collect_fee(
+                    payer_address=req.deployer,
+                    fee_amount=deploy_fee,
+                    fee_type='contract_deploy',
+                )
+                if not success:
+                    raise HTTPException(status_code=402, detail=f"Deployment fee failed: {fee_msg}")
+
         height = db_manager.get_current_height()
         success, message, contract_id = contract_engine.deploy_contract(
             contract_type=req.contract_type,
@@ -971,6 +988,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "deployer": req.deployer,
             "contract_type": req.contract_type,
             "block_height": height,
+            "fee_paid": str(fee_record.fee_amount) if fee_record else "0",
         }
 
     class ExecuteRequest(BaseModel):
@@ -3220,13 +3238,34 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             chain_type = ChainType(req.chain.lower())
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Unsupported chain: {req.chain}")
+
+        # Deduct bridge fee before processing deposit
+        fee_record = None
+        amount = Decimal(req.amount)
+        if fee_collector and req.qbc_address:
+            bridge_fee_rate = Decimal('0.001')  # 0.1% bridge fee
+            bridge_fee = amount * bridge_fee_rate
+            if bridge_fee > 0:
+                success, fee_msg, fee_record = fee_collector.collect_fee(
+                    payer_address=req.qbc_address,
+                    fee_amount=bridge_fee,
+                    fee_type='bridge_deposit',
+                )
+                if not success:
+                    raise HTTPException(status_code=402, detail=f"Bridge fee failed: {fee_msg}")
+
         tx_hash = await bridge_manager.process_deposit(
             chain_type, req.qbc_txid, req.qbc_address,
-            req.target_address, Decimal(req.amount),
+            req.target_address, amount,
         )
         if not tx_hash:
             raise HTTPException(status_code=500, detail="Deposit failed")
-        return {"tx_hash": tx_hash, "chain": req.chain, "amount": req.amount}
+        return {
+            "tx_hash": tx_hash,
+            "chain": req.chain,
+            "amount": req.amount,
+            "fee_paid": str(fee_record.fee_amount) if fee_record else "0",
+        }
 
     @app.get("/bridge/balance/{chain}/{address}")
     async def bridge_balance(chain: str, address: str):

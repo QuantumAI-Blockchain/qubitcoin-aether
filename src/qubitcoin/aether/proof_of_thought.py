@@ -871,23 +871,45 @@ class AetherEngine:
 
         Uses metacognition strategy weights to prioritize which reasoning
         type runs first and how many steps each type contributes.
+
+        Circadian metabolic rate (H3) modulates reasoning intensity:
+        - Active Learning (2.0x): lower skip threshold, wider observation window
+        - Deep Sleep (0.3x): higher skip threshold, narrow observation window
         """
         steps = []
         if not self.reasoning or not self.kg or not self.kg.nodes:
             return steps
 
         try:
+            # --- Circadian metabolic rate modulation (H3) ---
+            metabolic_rate = 1.0
+            if self.pineal:
+                metabolic_rate = self.pineal.metabolic_rate * self.pineal.melatonin.inhibition_factor
+
+            # Metabolic rate scales: observation window, weight threshold
+            # High rate (Active Learning, 2.0x) = broader search, lower cutoff
+            # Low rate (Deep Sleep, 0.3x) = narrow search, higher cutoff
+            obs_window = max(3, int(10 * metabolic_rate))   # 3-20 blocks back
+            weight_cutoff = max(0.1, 0.3 / metabolic_rate)  # 0.15-1.0 threshold
+
             # --- Metacognition-guided strategy selection ---
-            # Get strategy weights from metacognition (closed feedback loop)
+            # Get strategy weights from metacognition + Sephirot energy (H2)
             strategy_weights = self._get_strategy_weights()
+
+            # Layer 3: Circadian metabolic rate scales all weights (H3)
+            # During Active Learning, even low-weight strategies get a chance
+            # During Deep Sleep, only highest-weight strategies run
+            strategy_weights = {
+                k: v * metabolic_rate for k, v in strategy_weights.items()
+            }
 
             # Sort reasoning strategies by weight (highest priority first)
             strategies = sorted(strategy_weights.items(), key=lambda x: x[1], reverse=True)
 
-            # Find recent observation nodes (shared across strategies)
+            # Find recent observation nodes (window scaled by metabolic rate)
             recent_observations = sorted(
                 [n for n in self.kg.nodes.values()
-                 if n.node_type == 'observation' and n.source_block >= block_height - 10],
+                 if n.node_type == 'observation' and n.source_block >= block_height - obs_window],
                 key=lambda n: n.source_block,
                 reverse=True,
             )[:5]
@@ -912,8 +934,8 @@ class AetherEngine:
                             existing_ids.add(nid)
 
             for strategy_name, weight in strategies:
-                # Skip strategies with very low weight (metacognition says they fail)
-                if weight < 0.3:
+                # Skip strategies below circadian-adjusted threshold (H3)
+                if weight < weight_cutoff:
                     continue
 
                 if strategy_name == 'inductive' and len(recent_observations) >= 2:
@@ -1024,26 +1046,57 @@ class AetherEngine:
         return steps
 
     def _get_strategy_weights(self) -> Dict[str, float]:
-        """Get reasoning strategy weights from metacognition.
+        """Get reasoning strategy weights from metacognition + Sephirot energy.
+
+        Strategy selection is modulated by SUSY energy levels of relevant
+        Sephirot nodes (H2 behavioral integration):
+        - Chochmah (intuition/pattern discovery) → boosts inductive weight
+        - Binah (logic/causal inference) → boosts deductive weight
+        - Chesed (exploration/divergent) → boosts abductive weight
+        - Gevurah (safety/constraint) → dampens abductive, boosts deductive
 
         Falls back to equal weights if metacognition is not available.
         """
-        default_weights = {
+        weights = {
             'inductive': 1.0,
             'deductive': 1.0,
             'abductive': 1.0,
             'neural': 1.0,
         }
-        if not self.metacognition:
-            return default_weights
 
-        mc_weights = self.metacognition._strategy_weights
-        return {
-            'inductive': mc_weights.get('inductive', 1.0),
-            'deductive': mc_weights.get('deductive', 1.0),
-            'abductive': mc_weights.get('abductive', 1.0),
-            'neural': mc_weights.get('neural', 1.0),
-        }
+        # Layer 1: Metacognition strategy weights (learned from past outcomes)
+        if self.metacognition:
+            mc_weights = self.metacognition._strategy_weights
+            weights = {
+                'inductive': mc_weights.get('inductive', 1.0),
+                'deductive': mc_weights.get('deductive', 1.0),
+                'abductive': mc_weights.get('abductive', 1.0),
+                'neural': mc_weights.get('neural', 1.0),
+            }
+
+        # Layer 2: Sephirot SUSY energy modulation (H2)
+        if self.pineal and hasattr(self.pineal, 'sephirot'):
+            try:
+                from .sephirot import SephirahRole
+                seph = self.pineal.sephirot
+                # Normalize energy relative to baseline (1.0)
+                chochmah_e = seph.nodes[SephirahRole.CHOCHMAH].energy
+                binah_e = seph.nodes[SephirahRole.BINAH].energy
+                chesed_e = seph.nodes[SephirahRole.CHESED].energy
+                gevurah_e = seph.nodes[SephirahRole.GEVURAH].energy
+
+                # High Chochmah → more pattern discovery (inductive)
+                weights['inductive'] *= (0.5 + 0.5 * chochmah_e)
+                # High Binah → more logical deduction
+                weights['deductive'] *= (0.5 + 0.5 * binah_e)
+                # High Chesed → more exploration (abductive hypothesis)
+                weights['abductive'] *= (0.5 + 0.5 * chesed_e)
+                # High Gevurah → constrain risky abduction, favor deduction
+                if gevurah_e > 1.2:
+                    weights['abductive'] *= 0.7
+                    weights['deductive'] *= 1.2
+            except Exception as e:
+                logger.debug(f"Sephirot energy modulation skipped: {e}")
 
     def _calibrate_conclusion(self, result) -> None:
         """Apply metacognitive confidence calibration to a reasoning result.
@@ -1103,6 +1156,7 @@ class AetherEngine:
             return
 
         try:
+            delta = magnitude if success else -(magnitude * 0.5)
             if success:
                 node.state.energy += magnitude
                 node._tasks_solved += 1
@@ -1112,6 +1166,11 @@ class AetherEngine:
 
             # Clamp energy to [0.1, 10.0]
             node.state.energy = max(0.1, min(10.0, node.state.energy))
+
+            # Also update SephirotManager energy (H2: single source of truth
+            # for strategy weight modulation via PinealOrchestrator)
+            if self.pineal and hasattr(self.pineal, 'sephirot'):
+                self.pineal.sephirot.update_energy(role, delta, block_height=0)
 
             logger.debug(
                 f"Sephirah {role.value} {'rewarded' if success else 'penalized'}: "

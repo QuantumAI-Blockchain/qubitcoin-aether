@@ -45,7 +45,7 @@ services:
         echo '=== Qubitcoin DB Init: Creating database ===' &&
         cockroach sql --insecure --host=cockroachdb:26257 -e 'CREATE DATABASE IF NOT EXISTS qbc;' &&
         echo '=== Loading core schemas (sql_new/) ===' &&
-        for dir in qbc agi qvm research shared; do
+        for dir in qbc agi qvm research shared bridge stablecoin; do
           if [ -d /sql_new/$$dir ]; then
             for f in /sql_new/$$dir/*.sql; do
               echo \"  Loading $$f\" &&

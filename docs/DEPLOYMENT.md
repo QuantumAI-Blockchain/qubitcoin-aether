@@ -124,7 +124,7 @@ Key settings:
 # Network
 RPC_PORT=5000
 P2P_PORT=4001
-ENABLE_RUST_P2P=true
+ENABLE_RUST_P2P=false          # Rust P2P not production-ready; Python P2P fallback is active
 PEER_SEEDS=peer1.qbc.network:4001,peer2.qbc.network:4001
 
 # Database

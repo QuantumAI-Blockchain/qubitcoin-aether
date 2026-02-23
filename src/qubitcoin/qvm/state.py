@@ -22,10 +22,10 @@ class StateManager:
     Computes state root after block execution
     """
 
-    def __init__(self, db_manager, quantum_engine=None):
+    def __init__(self, db_manager, quantum_engine=None, compliance_engine=None):
         self.db = db_manager
         self.quantum = quantum_engine
-        self.qvm = QVM(db_manager, quantum_engine)
+        self.qvm = QVM(db_manager, quantum_engine, compliance_engine=compliance_engine)
 
     def set_block_context(self, block_height: int, timestamp: float, coinbase: str, difficulty: float):
         """Update QVM block context before executing transactions"""

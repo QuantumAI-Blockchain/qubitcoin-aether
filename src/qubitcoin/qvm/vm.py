@@ -195,16 +195,19 @@ class QVM:
         9,  # blake2f
     }
 
-    def __init__(self, db_manager=None, quantum_engine=None, block_context=None):
+    def __init__(self, db_manager=None, quantum_engine=None, block_context=None,
+                 compliance_engine=None):
         """
         Args:
             db_manager: Database for storage operations
             quantum_engine: Quantum engine for QVQE/QGATE opcodes
             block_context: Current block info (height, timestamp, coinbase, etc.)
+            compliance_engine: ComplianceEngine for QCOMPLIANCE opcode
         """
         self.db = db_manager
         self.quantum = quantum_engine
         self.block = block_context or {}
+        self.compliance = compliance_engine
         self._storage_cache: Dict[str, Dict[str, str]] = {}
 
     def _execute_precompile(self, address: int, data: bytes, gas: int) -> ExecutionResult:
@@ -906,7 +909,12 @@ class QVM:
                 # Pre-flight KYC/AML/sanctions compliance check
                 # Stack: address_hash → compliance_level (0=none, 1=basic, 2=enhanced, 3=full)
                 addr_hash = ctx.pop()
-                ctx.push(1)  # Default: basic compliance
+                if self.compliance:
+                    addr_hex = hex(addr_hash)[2:].zfill(40)
+                    level = self.compliance.check_compliance(addr_hex)
+                    ctx.push(level)
+                else:
+                    ctx.push(1)  # Fallback: basic compliance when engine unavailable
 
             elif op == Opcode.QRISK:
                 # SUSY risk score for individual address
