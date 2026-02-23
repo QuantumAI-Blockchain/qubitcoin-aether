@@ -1523,6 +1523,65 @@ class TestCirculationEmissionSchedule:
         assert isinstance(data['schedule'], list)
 
 
+class TestFeeEstimateEndpoint:
+    """GET /fee-estimate — transaction fee estimation."""
+
+    def test_fee_estimate_returns_tiers(self, app_and_client):
+        _, client, _ = app_and_client
+        resp = client.get("/fee-estimate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert 'low' in data
+        assert 'medium' in data
+        assert 'high' in data
+        assert 'mempool_size' in data
+        assert 'min_fee' in data
+        assert data['unit'] == 'QBC'
+
+    def test_fee_estimate_low_le_medium_le_high(self, app_and_client):
+        _, client, _ = app_and_client
+        resp = client.get("/fee-estimate")
+        data = resp.json()
+        assert data['low'] <= data['medium'] <= data['high']
+
+    def test_fee_estimate_above_min_fee(self, app_and_client):
+        _, client, _ = app_and_client
+        resp = client.get("/fee-estimate")
+        data = resp.json()
+        assert data['low'] >= data['min_fee']
+        assert data['medium'] >= data['min_fee']
+
+
+class TestInflationEndpoint:
+    """GET /inflation — current inflation rate and supply metrics."""
+
+    def test_inflation_returns_fields(self, app_and_client):
+        _, client, _ = app_and_client
+        resp = client.get("/inflation")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert 'current_height' in data
+        assert 'total_supply' in data
+        assert 'max_supply' in data
+        assert 'current_block_reward' in data
+        assert 'annual_emission_estimate' in data
+        assert 'inflation_rate_percent' in data
+        assert 'blocks_per_year' in data
+
+    def test_inflation_rate_non_negative(self, app_and_client):
+        _, client, _ = app_and_client
+        resp = client.get("/inflation")
+        data = resp.json()
+        assert data['inflation_rate_percent'] >= 0
+
+    def test_inflation_max_supply_matches_config(self, app_and_client):
+        _, client, _ = app_and_client
+        resp = client.get("/inflation")
+        data = resp.json()
+        from qubitcoin.config import Config
+        assert data['max_supply'] == float(Config.MAX_SUPPLY)
+
+
 class TestTokenHoldersTransfersBalance:
     """GET /tokens/{addr}/holders, /tokens/{addr}/transfers, /tokens/{addr}/balance/{holder}, /address/{addr}/tokens."""
 

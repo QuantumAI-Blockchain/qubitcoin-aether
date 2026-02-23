@@ -165,12 +165,30 @@ class TaskMarket:
         logger.info(f"Solution proposed for task {task_id}: {solution_str[:16]}...")
         return True
 
-    def get_open_tasks(self, limit: int = 20) -> List[ReasoningTask]:
-        """Get tasks available for claiming."""
-        return sorted(
-            [t for t in self._tasks.values() if t.status == TaskStatus.OPEN],
-            key=lambda t: -t.bounty_qbc,
-        )[:limit]
+    def get_open_tasks(self, limit: int = 20,
+                       current_block: int = 0) -> List[ReasoningTask]:
+        """Get tasks available for claiming, prioritized by bounty + urgency.
+
+        Priority score = bounty_qbc * urgency_factor
+        urgency_factor grows as deadline approaches (1.0 → 3.0 in last 10%).
+        """
+        open_tasks = [t for t in self._tasks.values() if t.status == TaskStatus.OPEN]
+        return sorted(open_tasks, key=lambda t: -self._priority_score(t, current_block))[:limit]
+
+    @staticmethod
+    def _priority_score(task: ReasoningTask, current_block: int) -> float:
+        """Compute priority score: bounty * urgency factor."""
+        urgency = 1.0
+        if current_block > 0 and task.timeout_blocks > 0:
+            elapsed = current_block - task.created_block
+            remaining_ratio = max(0.0, 1.0 - elapsed / task.timeout_blocks)
+            if remaining_ratio < 0.1:
+                urgency = 3.0  # Critical — about to expire
+            elif remaining_ratio < 0.3:
+                urgency = 2.0  # Urgent
+            elif remaining_ratio < 0.5:
+                urgency = 1.5  # Elevated
+        return task.bounty_qbc * urgency
 
     def get_task(self, task_id: str) -> Optional[ReasoningTask]:
         return self._tasks.get(task_id)

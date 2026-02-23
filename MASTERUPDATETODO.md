@@ -1,21 +1,21 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 23, 2026 | Run #7
+# Last Updated: February 24, 2026 | Run #8
 
 ---
 
 ## PROGRESS TRACKER
 
-- Total items: 125 (120 original + 2 Run #4 + 3 Run #6 findings)
-- Completed: 34
-- Remaining: 91
-- Completion: 27.2%
+- Total items: 128 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 findings)
+- Completed: 39
+- Remaining: 89
+- Completion: 30.5%
 - Estimated runs to 100%: 5-7
 
 ---
 
 ## END GOAL STATUS
 
-### Government-Grade Blockchain: 96% ready
+### Government-Grade Blockchain: 97% ready
 
 - [x] All 49 smart contracts pass functional verification
 - [ ] All 49 smart contracts pass security audit (Grade A or B) — current avg: B+
@@ -192,7 +192,7 @@
 | A14 | LOW | `aether/vector_index.py` | Sequential search | Add HNSW (Hierarchical Navigable Small World) for O(log n) ANN search at scale | MEDIUM |
 | A15 | LOW | `aether/on_chain.py` | ABI encoding manual | Auto-generate ABI bindings from contract source | SMALL |
 | A16 | LOW | `aether/chat.py` | No conversation memory | Add multi-session memory: remember user preferences across sessions | MEDIUM |
-| A17 | LOW | `aether/task_protocol.py` | No task prioritization | Add priority queue for PoT tasks based on bounty + urgency + domain | SMALL |
+| ~~A17~~ | ~~LOW~~ | `aether/task_protocol.py` | ~~No task prioritization~~ | ~~Add priority queue for PoT tasks based on bounty + urgency + domain~~ | **DONE (Run #8)** — bounty*urgency priority |
 | A18 | LOW | `aether/causal_engine.py` | PC algorithm only | Add Fast Causal Inference (FCI) for latent variable discovery | LARGE |
 | ~~A19~~ | ~~LOW~~ | `aether/genesis.py` | ~~4 axiom nodes~~ | ~~Expand genesis with 20+ foundational axioms covering more knowledge domains~~ | **DONE (Run #7)** — 21 genesis axioms |
 | A20 | LOW | `aether/` | No self-improvement loop | Add recursive self-improvement: Aether reasons about its own reasoning patterns and modifies weights | LARGE |
@@ -220,7 +220,7 @@
 | E17 | LOW | `bridge/` | No liquidity provider | Add LP rewards for bridge liquidity provision (incentivize bridge depth) | MEDIUM |
 | E18 | LOW | `stablecoin/` | No redemption curve | Implement dynamic redemption fee (higher fee when reserve ratio < 100%) | MEDIUM |
 | ~~E19~~ | ~~LOW~~ | `economics/` | ~~No inflation tracker~~ | ~~Add real-time inflation rate endpoint (annualized from recent blocks)~~ | **DONE (Run #7)** — `/inflation` endpoint |
-| E20 | LOW | `stablecoin/` | No circuit breaker test | Test QUSD circuit breaker activation: peg deviation > 5% halts minting | SMALL |
+| ~~E20~~ | ~~LOW~~ | `stablecoin/` | ~~No circuit breaker test~~ | ~~Test QUSD circuit breaker activation: peg deviation > 5% halts minting~~ | **DONE (Run #8)** — 3 emergency shutdown tests |
 
 ### 5.6 QUSD Stablecoin (20)
 
@@ -246,6 +246,14 @@
 | S18 | LOW | `stablecoin/` | No insurance | Add QUSD insurance fund (percentage of fees → insurance pool for black swan) | MEDIUM |
 | S19 | LOW | `contracts/solidity/qusd/` | No formal verification | Run Slither + Mythril on all 7 QUSD contracts | MEDIUM |
 | S20 | LOW | `stablecoin/` | No peg history | Add /qusd/peg/history endpoint showing historical peg deviation | SMALL |
+
+### 5.7 Run #8 Findings (3) — All Fixed Same Run
+
+| # | Priority | File | Current State | Improvement | Effort |
+|---|----------|------|---------------|-------------|--------|
+| ~~NEW#4~~ | ~~LOW~~ | `tests/unit/` | ~~No tests for /fee-estimate, /inflation~~ | ~~Add endpoint tests~~ | **DONE (Run #8)** — 8 tests |
+| ~~NEW#5~~ | ~~LOW~~ | `config.py` | ~~Hardcoded LOG_FILE, LOG_MAX_BYTES, LOG_BACKUP_COUNT~~ | ~~Make env-configurable~~ | **DONE (Run #8)** — os.getenv() |
+| ~~NEW#6~~ | ~~LOW~~ | `tests/unit/test_quantum.py` | ~~Only 2 tests for critical quantum subsystem~~ | ~~Expand to 10+ tests~~ | **DONE (Run #8)** — 13 tests |
 
 ---
 

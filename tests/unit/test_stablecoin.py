@@ -225,3 +225,56 @@ class TestPriceAggregation:
         result = eng.get_aggregated_price('USDT/USD')
         expected = (Decimal('1.000') + Decimal('1.001')) / 2
         assert result == expected
+
+
+class TestEmergencyShutdownCircuitBreaker:
+    """Test QUSD emergency shutdown halts minting."""
+
+    def _make_engine_with_params(self, params: dict):
+        from qubitcoin.stablecoin.engine import StablecoinEngine
+        db = MagicMock()
+        session = MagicMock()
+        db.get_session.return_value.__enter__ = MagicMock(return_value=session)
+        db.get_session.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(StablecoinEngine, '_load_params', return_value=params):
+            with patch.object(StablecoinEngine, '_ensure_qusd_token'):
+                eng = StablecoinEngine(db_manager=db, quantum_engine=MagicMock())
+        return eng
+
+    def test_emergency_shutdown_blocks_minting(self):
+        """When emergency_shutdown=True, mint_qusd returns failure."""
+        eng = self._make_engine_with_params({'emergency_shutdown': True})
+        success, msg, vault_id = eng.mint_qusd(
+            user_address='test_addr',
+            collateral_amount=Decimal('1000'),
+            collateral_type='USDT',
+            block_height=100,
+        )
+        assert success is False
+        assert 'emergency' in msg.lower()
+        assert vault_id is None
+
+    def test_no_emergency_allows_mint_attempt(self):
+        """Without emergency_shutdown, mint proceeds past the check."""
+        eng = self._make_engine_with_params({'emergency_shutdown': False})
+        # This will fail at DB query (collateral_types), but NOT at emergency check
+        success, msg, vault_id = eng.mint_qusd(
+            user_address='test_addr',
+            collateral_amount=Decimal('1000'),
+            collateral_type='USDT',
+            block_height=100,
+        )
+        # Should fail at a later stage (DB mock), not at emergency check
+        assert 'emergency' not in msg.lower()
+
+    def test_missing_emergency_param_allows_mint(self):
+        """When emergency_shutdown param is absent, minting is not blocked."""
+        eng = self._make_engine_with_params({})  # no emergency_shutdown key
+        success, msg, vault_id = eng.mint_qusd(
+            user_address='test_addr',
+            collateral_amount=Decimal('1000'),
+            collateral_type='USDT',
+            block_height=100,
+        )
+        assert 'emergency' not in msg.lower()

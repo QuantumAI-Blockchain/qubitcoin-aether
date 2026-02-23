@@ -287,9 +287,9 @@ class Config:
     # ============================================================================
     DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'
     LOG_LEVEL: str = 'DEBUG' if DEBUG else 'INFO'
-    LOG_FILE: str = 'logs/qbc_node.log'
-    LOG_MAX_BYTES: int = 10485760  # 10MB
-    LOG_BACKUP_COUNT: int = 5
+    LOG_FILE: str = os.getenv('LOG_FILE', 'logs/qbc_node.log')
+    LOG_MAX_BYTES: int = int(os.getenv('LOG_MAX_BYTES', '10485760'))  # 10MB
+    LOG_BACKUP_COUNT: int = int(os.getenv('LOG_BACKUP_COUNT', '5'))
 
     METRICS_PORT: int = int(os.getenv('METRICS_PORT', 9090))
     ENABLE_METRICS: bool = os.getenv('ENABLE_METRICS', 'true').lower() == 'true'
