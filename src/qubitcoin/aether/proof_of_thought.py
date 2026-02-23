@@ -916,7 +916,10 @@ class AetherEngine:
             # --- Circadian metabolic rate modulation (H3) ---
             metabolic_rate = 1.0
             if self.pineal:
-                metabolic_rate = self.pineal.metabolic_rate * self.pineal.melatonin.inhibition_factor
+                rate = getattr(self.pineal, 'metabolic_rate', 1.0)
+                melatonin = getattr(self.pineal, 'melatonin', None)
+                inhibition = getattr(melatonin, 'inhibition_factor', 1.0) if melatonin else 1.0
+                metabolic_rate = rate * inhibition
 
             # Metabolic rate scales: observation window, weight threshold
             # High rate (Active Learning, 2.0x) = broader search, lower cutoff
@@ -1168,6 +1171,8 @@ class AetherEngine:
                     weights['deductive'] *= 1.2
             except Exception as e:
                 logger.debug(f"Sephirot energy modulation skipped: {e}")
+
+        return weights
 
     def _calibrate_conclusion(self, result) -> None:
         """Apply metacognitive confidence calibration to a reasoning result.
@@ -1677,11 +1682,11 @@ class AetherEngine:
                 )
                 try:
                     response = self.llm_manager.generate(prompt, distill=False)
-                    if response and response.get('content'):
+                    if response and response.content:
                         node = self.kg.add_node(
                             node_type='inference',
                             content={
-                                'text': response['content'][:500],
+                                'text': response.content[:500],
                                 'source': 'self-reflection',
                                 'reflects_on': [c['a_id'], c['b_id']],
                             },
@@ -1701,7 +1706,7 @@ class AetherEngine:
                 )
                 try:
                     response = self.llm_manager.generate(prompt, distill=True)
-                    if response and response.get('content'):
+                    if response and response.content:
                         created += 1
                 except Exception:
                     pass
