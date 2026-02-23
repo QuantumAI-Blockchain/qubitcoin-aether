@@ -1,99 +1,83 @@
-# Python
+# ==================================
+# Qubitcoin .gitignore
+# ==================================
+
+# ---- Python ----
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-venv/
-env/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+venv/
+env/
 
-# IDE
+# ---- Rust ----
+rust-p2p/target/
+rust-p2p/Cargo.lock
+
+# ---- Node / Frontend ----
+frontend/node_modules/
+frontend/.next/
+frontend/.vercel/
+
+# ---- Environment & Secrets ----
+.env
+*.env
+!.env.example
+!secure_key.env.example
+secure_key.env
+
+# ---- Private Keys & Certificates ----
+*.pem
+*.key
+private_keys/
+certs/
+
+# ---- Data & Storage ----
+data/
+cockroach-data/
+docker/cockroach-data/
+.ipfs/
+
+# ---- Logs ----
+*.log
+logs/
+src/logs/
+src/qubitcoin/logs/
+frontend/logs/
+tests/validation/*.log
+
+# ---- Backup & Patch Files ----
+*.backup
+*.broken
+*.patch
+*.old
+
+# ---- Build Artifacts ----
+*.pid
+*.tmp
+
+# ---- Directories That Should Stay Deleted ----
+archive/
+backups/
+monitoring/
+migrations/
+my-safe-directory/
+contracts/
+
+# ---- IDE ----
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Environment
-.env
-*.env
-!.env.example
-
-# Database
-*.db
-*.sqlite
-
-# Logs
-*.log
-logs/
-
-# OS
+# ---- OS ----
 .DS_Store
 Thumbs.db
 
-# Private keys
-*.pem
-*.key
-private_keys/
-
-# IPFS
-.ipfs/
-
-# Backup files
-*.backup
-*.old
-.env.backup
-data/
-.env.bridge
-
-# Temporary files
-temp/
-archive/
-*.pid
-*.log
-
-# SSL Certificates (NEVER commit)
-certs/
-data/certs/
-
-# Environment files (NEVER commit keys)
-.env
-secure_key.env
-.env.bridge
-
-# Data directories
-data/
-cockroach-data/
-logs/
-
-# Python
-venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
-
-# Rust build artifacts
-rust-p2p/target/
-rust-p2p/Cargo.lock
-*.log
-
-# Python
-__pycache__/
-*.pyc
-venv/
-.env.backup*
-
-# Data
-data/
-logs/
-
-# Temporary
-*.tmp
-*.swp
+# ---- Claude Code ----
+.claude/worktrees/

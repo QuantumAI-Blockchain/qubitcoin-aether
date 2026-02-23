@@ -62,8 +62,7 @@ required_files = [
     'src/qubitcoin/utils/logger.py',
     'src/qubitcoin/utils/metrics.py',
     'src/run_node.py',
-    'scripts/multi_chain_bridge.sql',
-    '.env.bridge',
+    'scripts/deploy/deploy_contracts.py',
 ]
 
 for filepath in required_files:
