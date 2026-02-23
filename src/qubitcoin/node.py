@@ -450,6 +450,16 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"SafetyManager init: {e}")
 
+        # Wire cognitive + LLM components into AetherEngine
+        if hasattr(self, 'aether') and self.aether:
+            if self.pineal_orchestrator:
+                self.aether.pineal = self.pineal_orchestrator
+            if self.csf_transport:
+                self.aether.csf = self.csf_transport
+            if self.llm_manager:
+                self.aether.llm_manager = self.llm_manager
+            logger.info("[16/22] Cognitive + LLM components wired to Aether Engine")
+
         # Component 17: SPV Verifier
         self.spv_verifier = None
         try:

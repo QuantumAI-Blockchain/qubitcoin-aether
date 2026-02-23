@@ -32,7 +32,7 @@ class AetherEngine:
 
     def __init__(self, db_manager, knowledge_graph=None, phi_calculator=None,
                  reasoning_engine=None, llm_manager=None, pineal=None,
-                 pot_protocol=None):
+                 pot_protocol=None, csf_transport=None):
         self.db = db_manager
         self.kg = knowledge_graph
         self.phi = phi_calculator
@@ -40,6 +40,7 @@ class AetherEngine:
         self.llm_manager = llm_manager
         self.pineal = pineal  # PinealOrchestrator for circadian phases
         self.pot_protocol = pot_protocol  # ProofOfThoughtProtocol instance
+        self.csf = csf_transport  # CSFTransport for inter-Sephirot routing
         self._pot_cache: Dict[int, ProofOfThought] = {}
         self._pot_cache_max = 1000  # Bound cache to prevent unbounded memory growth
 
@@ -614,14 +615,26 @@ class AetherEngine:
         pipeline_trace: Dict[str, dict] = {}
 
         def _drain_and_route(node) -> int:
-            """Drain a node's outbox and deliver messages to targets."""
+            """Drain a node's outbox and route messages via CSF or direct."""
             routed = 0
             outgoing = node.get_outbox()
             for msg in outgoing:
-                target = sephirot.get(msg.receiver)
-                if target:
-                    target.receive_message(msg)
+                if self.csf:
+                    # Route through CSF transport (backpressure, entanglement, priority)
+                    self.csf.send(
+                        source=msg.sender,
+                        destination=msg.receiver,
+                        payload=msg.payload,
+                        msg_type='signal',
+                        priority_qbc=msg.priority,
+                    )
                     routed += 1
+                else:
+                    # Direct delivery fallback (no CSF transport available)
+                    target = sephirot.get(msg.receiver)
+                    if target:
+                        target.receive_message(msg)
+                        routed += 1
             return routed
 
         # --- 1. Keter: Meta-learning, pick strategy via metacognition ---
@@ -757,10 +770,29 @@ class AetherEngine:
             except Exception as e:
                 logger.debug(f"Sephirot malkuth process error: {e}")
 
+        # --- CSF Queue Processing: deliver routed messages to target inboxes ---
+        csf_delivered = 0
+        if self.csf:
+            try:
+                delivered_msgs = self.csf.process_queue(max_messages=100)
+                for csf_msg in delivered_msgs:
+                    target = sephirot.get(csf_msg.destination)
+                    if target:
+                        from .sephirot_nodes import NodeMessage
+                        target.receive_message(NodeMessage(
+                            sender=csf_msg.source,
+                            receiver=csf_msg.destination,
+                            payload=csf_msg.payload,
+                            priority=csf_msg.priority_qbc,
+                        ))
+                        csf_delivered += 1
+            except Exception as e:
+                logger.debug(f"CSF queue processing error: {e}")
+
         if total_routed > 0:
             logger.debug(
                 f"Routed {total_routed} Sephirot messages at block {block.height} "
-                f"(pipeline nodes: {len(pipeline_trace)})"
+                f"(pipeline nodes: {len(pipeline_trace)}, csf_delivered: {csf_delivered})"
             )
 
         return total_routed
@@ -1042,6 +1074,45 @@ class AetherEngine:
 
         except Exception as e:
             logger.debug(f"Auto-reasoning error: {e}")
+
+        # --- LLM augmentation fallback (M3): invoke when reasoning is weak ---
+        if (self.llm_manager and Config.LLM_ENABLED
+                and len(steps) == 0 and recent_observations):
+            try:
+                # Build a brief context from recent observations
+                obs_texts = []
+                for obs in recent_observations[:5]:
+                    content = obs.content if isinstance(obs.content, str) else str(obs.content)
+                    obs_texts.append(content[:200])
+                context_str = "; ".join(obs_texts)
+                prompt = (
+                    f"Given these recent blockchain observations: {context_str}\n"
+                    f"What patterns, trends, or insights can you identify? "
+                    f"Be specific and concise."
+                )
+                response = self.llm_manager.generate(
+                    prompt=prompt,
+                    context=f"Block height: {block_height}, "
+                            f"Knowledge nodes: {len(self.kg.nodes) if self.kg else 0}",
+                    distill=True,
+                    block_height=block_height,
+                )
+                if response and not response.metadata.get('error'):
+                    steps.append({
+                        'step_type': 'llm_augmentation',
+                        'content': {
+                            'method': f'llm:{response.adapter_type}',
+                            'summary': response.content[:300],
+                            'tokens_used': response.tokens_used,
+                        },
+                        'confidence': 0.5,
+                    })
+                    logger.info(
+                        f"LLM augmented reasoning at block {block_height} "
+                        f"({response.adapter_type}, {response.tokens_used} tokens)"
+                    )
+            except Exception as e:
+                logger.debug(f"LLM augmentation error: {e}")
 
         return steps
 
