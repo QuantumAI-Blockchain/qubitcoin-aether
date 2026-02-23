@@ -65,8 +65,9 @@ class AetherGenesis:
             )
             results['knowledge_nodes_created'] += 1
 
-            # Add foundational axiom nodes
+            # Add foundational axiom nodes — 20 axioms covering all subsystems
             axioms = [
+                # --- Core Economics ---
                 {
                     'type': 'axiom_economic',
                     'description': 'Golden ratio (phi) governs emission and balance',
@@ -74,16 +75,123 @@ class AetherGenesis:
                     'halving_interval': Config.HALVING_INTERVAL,
                 },
                 {
+                    'type': 'axiom_supply',
+                    'description': 'Total supply capped at MAX_SUPPLY QBC, enforced by consensus',
+                    'max_supply': str(Config.MAX_SUPPLY),
+                    'initial_reward': str(Config.INITIAL_REWARD),
+                },
+                # --- Consensus & Mining ---
+                {
                     'type': 'axiom_quantum',
                     'description': 'Proof-of-SUSY-Alignment: energy below difficulty = valid',
                     'initial_difficulty': Config.INITIAL_DIFFICULTY,
                     'block_time': Config.TARGET_BLOCK_TIME,
                 },
                 {
+                    'type': 'axiom_vqe',
+                    'description': 'VQE optimization finds ground state energy of SUSY Hamiltonians',
+                    'n_qubits': 4,
+                    'vqe_reps': Config.VQE_REPS,
+                },
+                {
+                    'type': 'axiom_difficulty',
+                    'description': 'Difficulty adjusts per block using 144-block window, +/-10% max change',
+                    'adjustment_window': 144,
+                    'max_change_ratio': 0.1,
+                },
+                # --- Cryptography ---
+                {
+                    'type': 'axiom_cryptographic',
+                    'description': 'CRYSTALS-Dilithium2 post-quantum signatures secure all transactions',
+                    'algorithm': 'Dilithium2',
+                    'signature_size_bytes': 3293,
+                },
+                {
+                    'type': 'axiom_hashing',
+                    'description': 'SHA3-256 for block hashes, Keccak-256 for QVM compatibility',
+                    'l1_hash': 'SHA3-256',
+                    'l2_hash': 'Keccak-256',
+                },
+                # --- Storage & State ---
+                {
+                    'type': 'axiom_utxo',
+                    'description': 'UTXO model: balance = sum of unspent outputs, prevents double-spend',
+                    'model': 'UTXO',
+                },
+                {
+                    'type': 'axiom_storage',
+                    'description': 'CockroachDB provides distributed SQL persistence with ACID guarantees',
+                    'database': 'CockroachDB',
+                },
+                # --- Consciousness & AGI ---
+                {
                     'type': 'axiom_consciousness',
                     'description': 'Phi (IIT) measures integrated information — consciousness metric',
                     'phi_threshold': 3.0,
                     'initial_phi': 0.0,
+                },
+                {
+                    'type': 'axiom_reasoning',
+                    'description': 'Deductive, inductive, and abductive reasoning form the reasoning triad',
+                    'modes': ['deductive', 'inductive', 'abductive'],
+                },
+                {
+                    'type': 'axiom_sephirot',
+                    'description': '10 Sephirot cognitive nodes form the Tree of Life architecture',
+                    'node_count': 10,
+                    'root': 'Keter',
+                    'ground': 'Malkuth',
+                },
+                {
+                    'type': 'axiom_safety',
+                    'description': 'Gevurah veto ensures safety — no single node acts without consensus',
+                    'veto_node': 'Gevurah',
+                    'bft_threshold': 0.67,
+                },
+                # --- Privacy ---
+                {
+                    'type': 'axiom_privacy',
+                    'description': 'Susy Swaps provide opt-in privacy via Pedersen commitments + Bulletproofs',
+                    'commitment_scheme': 'Pedersen',
+                    'range_proof': 'Bulletproofs',
+                },
+                # --- QVM / Smart Contracts ---
+                {
+                    'type': 'axiom_qvm',
+                    'description': 'QVM executes 167 opcodes: 155 EVM + 10 quantum + 2 AGI',
+                    'total_opcodes': 167,
+                    'stack_limit': 1024,
+                },
+                {
+                    'type': 'axiom_compliance',
+                    'description': 'QCOMPLIANCE opcode enforces KYC/AML/sanctions at VM level',
+                    'opcode': 'QCOMPLIANCE',
+                },
+                # --- Bridge & Cross-chain ---
+                {
+                    'type': 'axiom_bridge',
+                    'description': 'Multi-chain bridges connect QBC to 8 external chains',
+                    'chains': ['ETH', 'SOL', 'MATIC', 'BNB', 'AVAX', 'ARB', 'OP', 'BASE'],
+                },
+                # --- Stablecoin ---
+                {
+                    'type': 'axiom_qusd',
+                    'description': 'QUSD stablecoin with fractional reserve and transparent debt tracking',
+                    'peg_target': 1.0,
+                    'currency': 'USD',
+                },
+                # --- Temporal & Emergence ---
+                {
+                    'type': 'axiom_temporal',
+                    'description': 'Pineal orchestrator drives circadian phases for cognitive scheduling',
+                    'phases': 6,
+                    'metabolic_range': [0.3, 2.0],
+                },
+                {
+                    'type': 'axiom_emergence',
+                    'description': 'Consciousness emerges when Phi exceeds threshold and coherence > 0.7',
+                    'phi_threshold': 3.0,
+                    'coherence_threshold': 0.7,
                 },
             ]
             for axiom in axioms:

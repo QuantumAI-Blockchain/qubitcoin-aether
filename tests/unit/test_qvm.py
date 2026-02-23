@@ -140,6 +140,89 @@ class TestExecutionContext:
         assert 0 not in ctx.valid_jumpdests
 
 
+class TestStackLimitEnforcement:
+    """Test QVM stack limit (1024 items) is enforced at execution level."""
+
+    def _make_ctx(self, code: bytes = b'', gas: int = 100000):
+        from qubitcoin.qvm.vm import ExecutionContext
+        return ExecutionContext(
+            caller='0x' + 'a' * 40,
+            address='0x' + 'b' * 40,
+            origin='0x' + 'a' * 40,
+            gas=gas, value=0, data=b'', code=code,
+        )
+
+    def _make_qvm(self):
+        from qubitcoin.qvm.vm import QVM
+        return QVM(db_manager=None, quantum_engine=None)
+
+    def test_stack_limit_is_1024(self):
+        """Stack accepts exactly 1024 items."""
+        ctx = self._make_ctx()
+        for i in range(1024):
+            ctx.push(i)
+        assert len(ctx.stack) == 1024
+
+    def test_stack_overflow_at_1025(self):
+        """1025th push raises ExecutionError."""
+        from qubitcoin.qvm.vm import ExecutionError
+        ctx = self._make_ctx()
+        for i in range(1024):
+            ctx.push(i)
+        with pytest.raises(ExecutionError, match="Stack overflow"):
+            ctx.push(0)
+
+    def test_stack_fill_and_drain(self):
+        """Fill stack to 1024 then pop all — values are LIFO ordered."""
+        ctx = self._make_ctx()
+        for i in range(1024):
+            ctx.push(i)
+        for i in range(1023, -1, -1):
+            assert ctx.pop() == i
+        assert len(ctx.stack) == 0
+
+    def test_dup_at_stack_limit_overflows(self):
+        """DUP1 when stack is full (1024 items) must fail."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        # Build bytecode: 1024 x PUSH1 0x01, then DUP1
+        code = bytes([Opcode.PUSH1, 0x01] * 1024 + [Opcode.DUP1])
+        result = qvm.execute(caller='c', address='a', code=code, gas=10_000_000)
+        assert result.success is False
+
+    def test_swap_requires_minimum_depth(self):
+        """SWAP1 with only 1 item on stack must fail (needs 2)."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        code = bytes([Opcode.PUSH1, 0x01, Opcode.SWAP1])
+        result = qvm.execute(caller='c', address='a', code=code, gas=100000)
+        assert result.success is False
+
+    def test_peek_depth_out_of_range(self):
+        """Peek at depth beyond stack size raises StackUnderflowError."""
+        from qubitcoin.qvm.vm import StackUnderflowError
+        ctx = self._make_ctx()
+        ctx.push(1)
+        with pytest.raises(StackUnderflowError):
+            ctx.peek(1)  # only 1 item, depth 1 is out of range
+
+    def test_pop_empty_stack(self):
+        """Pop on empty stack raises StackUnderflowError."""
+        from qubitcoin.qvm.vm import StackUnderflowError
+        ctx = self._make_ctx()
+        with pytest.raises(StackUnderflowError):
+            ctx.pop()
+
+    def test_push_pop_boundary(self):
+        """Push 1024, pop 1, push 1 — should succeed (at limit again)."""
+        ctx = self._make_ctx()
+        for i in range(1024):
+            ctx.push(i)
+        ctx.pop()
+        ctx.push(9999)  # Should succeed — back to 1024
+        assert len(ctx.stack) == 1024
+
+
 class TestQVMExecution:
     """Test bytecode execution in the QVM."""
 

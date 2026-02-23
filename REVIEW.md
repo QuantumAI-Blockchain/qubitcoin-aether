@@ -1,16 +1,16 @@
 # QUBITCOIN PROJECT REVIEW
 # Government-Grade Peer Review
-# Date: February 23, 2026 | Run #6
+# Date: February 23, 2026 | Run #7
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-- **Overall Readiness Score: 95/100** *(up from 93 in Run #5, 91 in Run #4, 88 in Run #3, 82 in Run #2, 78 in Run #1)*
-- **Total Codebase: ~81,500+ LOC across 250+ files (Python, Go, Rust, TypeScript, Solidity)**
-- **Test Suite: 2,652 tests passing (100% pass rate)**
-- **AGI Readiness: 93% — all exception handlers proper severity, all intervals configurable**
-- **L1 Hardening: 95% — CORS restricted, timestamp validation, emission verified, type hints complete**
+- **Overall Readiness Score: 96/100** *(up from 95 in Run #6, 93 in Run #5, 91 in Run #4, 88 in Run #3, 82 in Run #2, 78 in Run #1)*
+- **Total Codebase: ~82,000+ LOC across 250+ files (Python, Go, Rust, TypeScript, Solidity)**
+- **Test Suite: 2,660 tests passing (100% pass rate)**
+- **AGI Readiness: 95% — 21 genesis axioms, all exception handlers proper, all intervals configurable**
+- **L1 Hardening: 96% — fee estimation, inflation API, SAST scanning in CI**
 - **QUSD Readiness: 90% — contracts real, oracle integration needs verification**
 
 ### Top 5 Critical Findings (Blocking Launch)
@@ -36,17 +36,14 @@
 | S4 | 49 real Solidity contracts (QUSD, Aether, tokens, bridge) | L2 QVM | Complete contract suite at launch |
 | S5 | 70 Prometheus metrics instrumented across all subsystems | Infrastructure | Better observability than most L1s |
 
-### Progress Since Last Run (Run #5 → Run #6)
-- **6 items completed** (B08, B10, E05, E08, NEW#1 RPC limits, NEW#3 type hints)
-- **Security**: CORS now restricted to `qbc.network` + `localhost:3000` (was `*`); timestamp drift validation in consensus
-- **Consensus**: Blocks with timestamps >2h in future or before parent now rejected
-- **Economics**: Emission schedule verified at startup (monotonic decrease, bounded by MAX_SUPPLY)
-- **Code quality**: 9 missing return type hints added to mining/database public methods
-- **Config extraction**: 5 new `RPC_*` limit constants + 1 P2P cache size now configurable
-- **Testing**: +2 new era boundary halving tests (exact transition at HALVING_INTERVAL)
-- **3 new findings cataloged** (RPC limit hardcoding, P2P cache, missing type hints) — all fixed same run
-- **Readiness score: 93 → 95** (+2 points)
-- **Test suite: 2,652 passed, 0 failed** — zero regressions
+### Progress Since Last Run (Run #6 → Run #7)
+- **5 items completed** (A19, E16, E19, B19, V17)
+- **AGI**: Genesis axioms expanded from 4 to 21 (genesis + 20 foundational axioms covering all subsystems)
+- **Economics**: New `/fee-estimate` endpoint (low/medium/high tiers from mempool) and `/inflation` endpoint (annual emission, inflation rate)
+- **Security**: SAST scanning added to CI — Bandit for Python code, pip-audit for dependency vulnerabilities
+- **Testing**: +8 new QVM stack limit enforcement tests (boundary, overflow, fill/drain, DUP at limit, SWAP depth)
+- **Readiness score: 95 → 96** (+1 point)
+- **Test suite: 2,660 passed, 0 failed** — zero regressions
 
 ---
 
@@ -494,6 +491,41 @@
 **Score change:** 93 → 95 (+2 points)
 
 **Cumulative progress:** 29/122 completed (23.8%).
+
+**Remaining high-priority items:**
+1. AG7: Cross-Sephirot consensus (architectural, post-launch)
+2. F01: Frontend E2E tests with Playwright
+3. Q1/V03: BN128 precompiles (ecAdd/ecMul/ecPairing)
+4. L6: Database exception path tests
+5. E3: Admin API endpoints
+
+### Run #7 — February 23, 2026
+
+**Scope:** Genesis knowledge expansion, economic API endpoints, CI security scanning, QVM stack tests
+
+**Items completed this run: 5**
+- **A19** — Expanded genesis axioms from 4 to 21 nodes: genesis node + 20 foundational axioms covering economics (supply, phi), consensus (VQE, difficulty), cryptography (Dilithium, hashing), storage (UTXO, CockroachDB), consciousness (IIT, reasoning, Sephirot, safety), privacy (Susy Swaps), QVM (opcodes, compliance), bridge (8 chains), stablecoin (QUSD), temporal (Pineal circadian), and emergence.
+- **E16** — Added `/fee-estimate` endpoint: returns low/medium/high fee tiers based on mempool pending transactions. Falls back to `Config.MIN_FEE` when mempool is empty.
+- **E19** — Added `/inflation` endpoint: returns current inflation rate, annual emission estimate, supply metrics, and percent emitted. Calculates blocks_per_year from TARGET_BLOCK_TIME.
+- **B19** — Added SAST security scanning job to CI pipeline (`.github/workflows/ci.yml`): Bandit for static analysis of Python code (medium+ severity/confidence, excludes Solidity), pip-audit for known dependency vulnerabilities. Reports uploaded as artifacts.
+- **V17** — Added 8 QVM stack limit enforcement tests: exact 1024 limit, overflow at 1025, fill-and-drain LIFO order, DUP1 at full stack, SWAP1 minimum depth, peek out of range, pop empty stack, push-pop boundary cycling.
+
+**New findings discovered: 0**
+
+**Files changed: 5**
+- `src/qubitcoin/aether/genesis.py` — 3 axioms → 20 axioms (all subsystems covered)
+- `src/qubitcoin/network/rpc.py` — +2 new endpoints (`/fee-estimate`, `/inflation`)
+- `.github/workflows/ci.yml` — +1 new `security-scan` job (Bandit + pip-audit)
+- `tests/unit/test_qvm.py` — +8 stack limit enforcement tests (`TestStackLimitEnforcement` class)
+- `tests/unit/test_genesis_validation.py` — Updated assertions for 21 nodes / 20 edges
+
+**Regressions found:** None
+
+**Test result:** 2,660 passed, 0 failed — +8 new tests, zero regressions
+
+**Score change:** 95 → 96 (+1 point)
+
+**Cumulative progress:** 34/125 completed (27.2%).
 
 **Remaining high-priority items:**
 1. AG7: Cross-Sephirot consensus (architectural, post-launch)

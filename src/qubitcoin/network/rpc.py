@@ -440,6 +440,61 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             logger.error(f"Error simulating emission: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+    @app.get("/fee-estimate")
+    async def fee_estimate():
+        """Estimate transaction fee based on recent mempool and block data."""
+        try:
+            pending = db_manager.get_pending_transactions(limit=100)
+            height = db_manager.get_current_height()
+
+            # Average fee from pending transactions (or minimum fee as fallback)
+            if pending:
+                avg_fee = sum(float(tx.fee) for tx in pending) / len(pending)
+                max_fee = max(float(tx.fee) for tx in pending)
+                min_fee = min(float(tx.fee) for tx in pending)
+            else:
+                avg_fee = float(Config.MIN_FEE)
+                max_fee = float(Config.MIN_FEE)
+                min_fee = float(Config.MIN_FEE)
+
+            return {
+                'low': max(float(Config.MIN_FEE), min_fee),
+                'medium': max(float(Config.MIN_FEE), avg_fee),
+                'high': max(float(Config.MIN_FEE), max_fee * 1.5),
+                'mempool_size': len(pending),
+                'block_height': height,
+                'min_fee': float(Config.MIN_FEE),
+                'unit': 'QBC',
+            }
+        except Exception as e:
+            logger.error(f"Error estimating fee: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/inflation")
+    async def inflation_stats():
+        """Get current inflation rate and supply metrics."""
+        try:
+            height = db_manager.get_current_height()
+            supply = db_manager.get_total_supply()
+            reward = consensus_engine.calculate_reward(max(0, height), supply)
+            blocks_per_year = int(365.25 * 24 * 3600 / Config.TARGET_BLOCK_TIME)
+            annual_emission = float(reward) * blocks_per_year
+            inflation_rate = (annual_emission / float(supply) * 100) if float(supply) > 0 else float('inf')
+
+            return {
+                'current_height': height,
+                'total_supply': float(supply),
+                'max_supply': float(Config.MAX_SUPPLY),
+                'current_block_reward': float(reward),
+                'annual_emission_estimate': annual_emission,
+                'inflation_rate_percent': round(inflation_rate, 4),
+                'percent_emitted': round(float(supply) / float(Config.MAX_SUPPLY) * 100, 4) if Config.MAX_SUPPLY > 0 else 0,
+                'blocks_per_year': blocks_per_year,
+            }
+        except Exception as e:
+            logger.error(f"Error getting inflation stats: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
     # ========================================================================
     # BALANCE & UTXO ENDPOINTS
     # ========================================================================

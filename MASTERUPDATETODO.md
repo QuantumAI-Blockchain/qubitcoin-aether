@@ -1,21 +1,21 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 23, 2026 | Run #6
+# Last Updated: February 23, 2026 | Run #7
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 125 (120 original + 2 Run #4 + 3 Run #6 findings)
-- Completed: 29
-- Remaining: 96
-- Completion: 23.2%
+- Completed: 34
+- Remaining: 91
+- Completion: 27.2%
 - Estimated runs to 100%: 5-7
 
 ---
 
 ## END GOAL STATUS
 
-### Government-Grade Blockchain: 95% ready
+### Government-Grade Blockchain: 96% ready
 
 - [x] All 49 smart contracts pass functional verification
 - [ ] All 49 smart contracts pass security audit (Grade A or B) — current avg: B+
@@ -144,7 +144,7 @@
 | B16 | LOW | `network/jsonrpc.py` | No eth_subscribe | Add WebSocket subscription for newHeads, logs, pendingTransactions | MEDIUM |
 | B17 | LOW | `privacy/` | Not integrated in consensus | Wire Susy Swap validation into block validation pipeline | MEDIUM |
 | B18 | LOW | `bridge/` | No validator rewards | Implement bridge validator reward distribution per verified proof | MEDIUM |
-| B19 | LOW | `.github/workflows/` | No security scanning | Add SAST (Semgrep/Bandit) and dependency scanning (Safety/Snyk) | SMALL |
+| ~~B19~~ | ~~LOW~~ | `.github/workflows/` | ~~No security scanning~~ | ~~Add SAST (Semgrep/Bandit) and dependency scanning (Safety/Snyk)~~ | **DONE (Run #7)** — Bandit + pip-audit CI job |
 | B20 | LOW | `tests/` | No performance tests | Add benchmark suite: block validation, VQE mining, query performance | MEDIUM |
 
 ### 5.3 QVM / L2 (20)
@@ -167,7 +167,7 @@
 | V14 | LOW | `contracts/solidity/` | No formal verification | Run Slither + Mythril static analysis on all 49 contracts | MEDIUM |
 | V15 | LOW | `qvm/` | No contract upgrades | Add transparent proxy upgrade pattern support (EIP-1967) | MEDIUM |
 | V16 | LOW | `qvm/` | No event indexing | Add event log indexing with topic-based filtering | MEDIUM |
-| V17 | LOW | `qvm/` | 1024 stack limit | Add stack limit enforcement tests for deeply nested calls | SMALL |
+| ~~V17~~ | ~~LOW~~ | `qvm/` | ~~1024 stack limit~~ | ~~Add stack limit enforcement tests for deeply nested calls~~ | **DONE (Run #7)** — 8 stack limit tests |
 | V18 | LOW | `qvm/` | No benchmark | Profile and benchmark Python QVM vs Go QVM throughput | MEDIUM |
 | V19 | LOW | `contracts/` | No deployment script CI | Add automated contract deployment to CI (testnet) | MEDIUM |
 | V20 | LOW | `qvm/` | No ABI registry | Add on-chain ABI registry for contract verification | MEDIUM |
@@ -194,7 +194,7 @@
 | A16 | LOW | `aether/chat.py` | No conversation memory | Add multi-session memory: remember user preferences across sessions | MEDIUM |
 | A17 | LOW | `aether/task_protocol.py` | No task prioritization | Add priority queue for PoT tasks based on bounty + urgency + domain | SMALL |
 | A18 | LOW | `aether/causal_engine.py` | PC algorithm only | Add Fast Causal Inference (FCI) for latent variable discovery | LARGE |
-| A19 | LOW | `aether/genesis.py` | 4 axiom nodes | Expand genesis with 20+ foundational axioms covering more knowledge domains | SMALL |
+| ~~A19~~ | ~~LOW~~ | `aether/genesis.py` | ~~4 axiom nodes~~ | ~~Expand genesis with 20+ foundational axioms covering more knowledge domains~~ | **DONE (Run #7)** — 21 genesis axioms |
 | A20 | LOW | `aether/` | No self-improvement loop | Add recursive self-improvement: Aether reasons about its own reasoning patterns and modifies weights | LARGE |
 
 ### 5.5 QBC Economics (20)
@@ -216,10 +216,10 @@
 | E13 | LOW | `bridge/` | No relayer incentive | Add relayer rewards for cross-chain message delivery (currently uncompensated) | MEDIUM |
 | E14 | LOW | `economics/` | No vesting schedule | Implement team/investor vesting with cliff + linear unlock (currently absent) | MEDIUM |
 | E15 | LOW | `consensus/` | No MEV protection | Add commit-reveal for transaction ordering (prevent front-running) | LARGE |
-| E16 | LOW | `utils/` | No fee estimator | Add /fee-estimate endpoint returning recommended fee rate based on mempool | SMALL |
+| ~~E16~~ | ~~LOW~~ | `utils/` | ~~No fee estimator~~ | ~~Add /fee-estimate endpoint returning recommended fee rate based on mempool~~ | **DONE (Run #7)** — `/fee-estimate` endpoint |
 | E17 | LOW | `bridge/` | No liquidity provider | Add LP rewards for bridge liquidity provision (incentivize bridge depth) | MEDIUM |
 | E18 | LOW | `stablecoin/` | No redemption curve | Implement dynamic redemption fee (higher fee when reserve ratio < 100%) | MEDIUM |
-| E19 | LOW | `economics/` | No inflation tracker | Add real-time inflation rate endpoint (annualized from recent blocks) | SMALL |
+| ~~E19~~ | ~~LOW~~ | `economics/` | ~~No inflation tracker~~ | ~~Add real-time inflation rate endpoint (annualized from recent blocks)~~ | **DONE (Run #7)** — `/inflation` endpoint |
 | E20 | LOW | `stablecoin/` | No circuit breaker test | Test QUSD circuit breaker activation: peg deviation > 5% halts minting | SMALL |
 
 ### 5.6 QUSD Stablecoin (20)
