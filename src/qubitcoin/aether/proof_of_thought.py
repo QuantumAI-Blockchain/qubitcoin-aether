@@ -137,7 +137,7 @@ class AetherEngine:
                 # Restore persisted state from DB
                 self._load_sephirot_state()
             except Exception as e:
-                logger.debug(f"Sephirot init failed: {e}")
+                logger.warning(f"Sephirot init failed (cognitive nodes unavailable): {e}")
                 self._sephirot = {}
         return self._sephirot
 
@@ -356,49 +356,49 @@ class AetherEngine:
                     self.kg.add_edge(c_node.node_id, block_node.node_id, 'supports')
 
             # Propagate confidence through the graph periodically
-            if block.height % 10 == 0:
+            if block.height % Config.AETHER_CONFIDENCE_PROPAGATION_INTERVAL == 0:
                 self.kg.propagate_confidence(block_node.node_id)
 
-            # Process Proof-of-Thought protocol every 5 blocks
-            if block.height % 5 == 0:
+            # Process Proof-of-Thought protocol
+            if block.height % Config.AETHER_POT_PROCESS_INTERVAL == 0:
                 self._process_pot_block(block.height)
 
             # Route messages between Sephirot cognitive nodes
-            if block.height % 5 == 0:
+            if block.height % Config.AETHER_SEPHIROT_ROUTE_INTERVAL == 0:
                 self._route_sephirot_messages(block)
 
-            # Auto-resolve contradictions every 1000 blocks
-            if block.height > 0 and block.height % 1000 == 0:
+            # Auto-resolve contradictions periodically
+            if block.height > 0 and block.height % Config.AETHER_CONTRADICTION_RESOLVE_INTERVAL == 0:
                 self.auto_resolve_contradictions(block.height)
 
-            # Auto-generate Keter goals every 500 blocks
-            if block.height > 0 and block.height % 500 == 0:
+            # Auto-generate Keter goals periodically
+            if block.height > 0 and block.height % Config.AETHER_KETER_GOALS_INTERVAL == 0:
                 self._auto_generate_keter_goals(block.height)
 
-            # Boost frequently-referenced knowledge nodes every 1000 blocks
-            if block.height > 0 and block.height % 1000 == 0 and self.kg:
+            # Boost frequently-referenced knowledge nodes periodically
+            if block.height > 0 and block.height % Config.AETHER_KG_BOOST_INTERVAL == 0 and self.kg:
                 self.kg.boost_referenced_nodes()
 
-            # Self-reflection via LLM every 200 blocks
-            if (block.height > 0 and block.height % 200 == 0
+            # Self-reflection via LLM periodically
+            if (block.height > 0 and block.height % Config.AETHER_SELF_REFLECT_INTERVAL == 0
                     and self.llm_manager):
                 self.self_reflect(block.height)
 
-            # Find analogies during REM-like phases (every 500 blocks)
-            if block.height > 0 and block.height % 500 == 0 and self.reasoning and self.kg:
+            # Find analogies during REM-like phases
+            if block.height > 0 and block.height % Config.AETHER_DREAM_ANALOGIES_INTERVAL == 0 and self.reasoning and self.kg:
                 self._dream_analogies(block.height)
 
             # --- AGI Improvement Subsystems ---
 
-            # #3: Causal discovery sweep every 200 blocks
-            if block.height > 0 and block.height % 200 == 0 and self.causal_engine:
+            # #3: Causal discovery sweep
+            if block.height > 0 and block.height % Config.AETHER_CAUSAL_DISCOVERY_INTERVAL == 0 and self.causal_engine:
                 try:
                     self.causal_engine.discover_all_domains(block.height)
                 except Exception as e:
                     logger.debug(f"Causal discovery error: {e}")
 
-            # #5: Adversarial debate on recent inferences every 100 blocks
-            if block.height > 0 and block.height % 100 == 0 and self.debate_protocol:
+            # #5: Adversarial debate on recent inferences
+            if block.height > 0 and block.height % Config.AETHER_DEBATE_INTERVAL == 0 and self.debate_protocol:
                 try:
                     self.debate_protocol.run_periodic_debates(block.height)
                     # Reward Tiferet for successful debate facilitation
@@ -451,8 +451,8 @@ class AetherEngine:
                 except Exception as e:
                     logger.debug(f"Temporal engine error: {e}")
 
-            # #8: Concept formation + cross-domain transfer every 500 blocks
-            if block.height > 0 and block.height % 500 == 0 and self.concept_formation:
+            # #8: Concept formation + cross-domain transfer
+            if block.height > 0 and block.height % Config.AETHER_CONCEPT_FORMATION_INTERVAL == 0 and self.concept_formation:
                 try:
                     self.concept_formation.form_concepts_all_domains(block.height)
                     # Cross-domain transfer learning (Phase 5.2)
@@ -481,11 +481,11 @@ class AetherEngine:
                     self.memory_manager.attend(block_node.node_id, boost=0.3)
                     # Decay working memory relevance every block
                     self.memory_manager.decay()
-                    # Consolidate every 100 blocks
-                    if block.height > 0 and block.height % 100 == 0:
+                    # Consolidate periodically
+                    if block.height > 0 and block.height % Config.AETHER_MEMORY_CONSOLIDATE_INTERVAL == 0:
                         self.memory_manager.consolidate(block.height)
-                    # Episodic replay every 200 blocks
-                    if block.height > 0 and block.height % 200 == 0:
+                    # Episodic replay periodically
+                    if block.height > 0 and block.height % Config.AETHER_EPISODIC_REPLAY_INTERVAL == 0:
                         replay_result = self.memory_manager.replay_episodes(block.height)
                         if replay_result['episodes_replayed'] > 0:
                             logger.info(
@@ -498,15 +498,15 @@ class AetherEngine:
                 except Exception as e:
                     logger.debug(f"MemoryManager error: {e}")
 
-            # Phase 5.1: Curiosity-driven exploration every 50 blocks
-            if block.height > 0 and block.height % 50 == 0:
+            # Phase 5.1: Curiosity-driven exploration
+            if block.height > 0 and block.height % Config.AETHER_CURIOSITY_INTERVAL == 0:
                 try:
                     self._curiosity_explore(block.height)
                 except Exception as e:
                     logger.debug(f"Curiosity exploration error: {e}")
 
-            # Phase 5.4: Create knowledge digest every 100 blocks
-            if block.height > 0 and block.height % 100 == 0:
+            # Phase 5.4: Create knowledge digest
+            if block.height > 0 and block.height % Config.AETHER_KNOWLEDGE_DIGEST_INTERVAL == 0:
                 try:
                     self._pending_digest = self.create_knowledge_digest(block.height)
                     self._digests_created += 1
@@ -529,21 +529,20 @@ class AetherEngine:
                         validator_address=getattr(block, 'miner_address', ''),
                     )
                 except Exception as e:
-                    logger.debug(f"On-chain integration error: {e}")
+                    logger.warning(f"On-chain AGI integration error: {e}")
 
-            # Archive old consciousness events every 5000 blocks
-            if block.height > 0 and block.height % 5000 == 0:
+            # Archive old consciousness events
+            if block.height > 0 and block.height % Config.AETHER_CONSCIOUSNESS_ARCHIVE_INTERVAL == 0:
                 self.archive_consciousness_events()
 
-            # Archive old reasoning operations every 10000 blocks
-            if block.height > 0 and block.height % 10000 == 0 and self.reasoning:
-                from ..config import Config
+            # Archive old reasoning operations
+            if block.height > 0 and block.height % Config.AETHER_REASONING_ARCHIVE_INTERVAL == 0 and self.reasoning:
                 self.reasoning.archive_old_reasoning(
                     block.height, Config.REASONING_ARCHIVE_RETAIN_BLOCKS
                 )
 
-            # Persist Sephirot state every 100 blocks
-            if block.height > 0 and block.height % 100 == 0:
+            # Persist Sephirot state
+            if block.height > 0 and block.height % Config.AETHER_SEPHIROT_PERSIST_INTERVAL == 0:
                 self.save_sephirot_state()
 
             # Tick pineal orchestrator for circadian phase management
@@ -555,7 +554,7 @@ class AetherEngine:
                 self._apply_circadian_behavior(block)
 
         except Exception as e:
-            logger.debug(f"Error processing block knowledge: {e}")
+            logger.warning(f"Error processing block knowledge: {e}", exc_info=True)
 
     def _process_pot_block(self, block_height: int) -> None:
         """Run the Proof-of-Thought protocol's per-block maintenance.
@@ -649,7 +648,7 @@ class AetherEngine:
                 pipeline_trace['keter'] = k_result.output
                 total_routed += _drain_and_route(keter)
             except Exception as e:
-                logger.debug(f"Sephirot keter process error: {e}")
+                logger.warning(f"Sephirot keter process error: {e}")
 
         # --- 2. Chochmah: Intuition, enriched with neural reasoner hints ---
         chochmah = sephirot.get(SephirahRole.CHOCHMAH)
@@ -662,7 +661,7 @@ class AetherEngine:
                 pipeline_trace['chochmah'] = c_result.output
                 total_routed += _drain_and_route(chochmah)
             except Exception as e:
-                logger.debug(f"Sephirot chochmah process error: {e}")
+                logger.warning(f"Sephirot chochmah process error: {e}")
 
         # --- 3. Binah: Logic, cross-reference with causal engine ---
         binah = sephirot.get(SephirahRole.BINAH)
@@ -678,7 +677,7 @@ class AetherEngine:
                 pipeline_trace['binah'] = b_result.output
                 total_routed += _drain_and_route(binah)
             except Exception as e:
-                logger.debug(f"Sephirot binah process error: {e}")
+                logger.warning(f"Sephirot binah process error: {e}")
 
         # --- 4. Chesed: Exploration (uses base context) ---
         chesed = sephirot.get(SephirahRole.CHESED)
@@ -688,7 +687,7 @@ class AetherEngine:
                 pipeline_trace['chesed'] = ch_result.output
                 total_routed += _drain_and_route(chesed)
             except Exception as e:
-                logger.debug(f"Sephirot chesed process error: {e}")
+                logger.warning(f"Sephirot chesed process error: {e}")
 
         # --- 5. Gevurah: Safety, enriched with consistency check ---
         gevurah = sephirot.get(SephirahRole.GEVURAH)
@@ -701,7 +700,7 @@ class AetherEngine:
                 pipeline_trace['gevurah'] = g_result.output
                 total_routed += _drain_and_route(gevurah)
             except Exception as e:
-                logger.debug(f"Sephirot gevurah process error: {e}")
+                logger.warning(f"Sephirot gevurah process error: {e}")
 
         # --- 6. Tiferet: Integration, conflict resolution hub ---
         tiferet = sephirot.get(SephirahRole.TIFERET)
@@ -711,7 +710,7 @@ class AetherEngine:
                 pipeline_trace['tiferet'] = t_result.output
                 total_routed += _drain_and_route(tiferet)
             except Exception as e:
-                logger.debug(f"Sephirot tiferet process error: {e}")
+                logger.warning(f"Sephirot tiferet process error: {e}")
 
         # --- 7. Netzach: Persistence/learning, track GAT training ---
         netzach = sephirot.get(SephirahRole.NETZACH)
@@ -723,7 +722,7 @@ class AetherEngine:
                 pipeline_trace['netzach'] = n_result.output
                 total_routed += _drain_and_route(netzach)
             except Exception as e:
-                logger.debug(f"Sephirot netzach process error: {e}")
+                logger.warning(f"Sephirot netzach process error: {e}")
 
         # --- 8. Hod: Communication, format reasoning trace ---
         hod = sephirot.get(SephirahRole.HOD)
@@ -734,7 +733,7 @@ class AetherEngine:
                 pipeline_trace['hod'] = h_result.output
                 total_routed += _drain_and_route(hod)
             except Exception as e:
-                logger.debug(f"Sephirot hod process error: {e}")
+                logger.warning(f"Sephirot hod process error: {e}")
 
         # --- 9. Yesod: Memory, enriched with memory manager stats ---
         yesod = sephirot.get(SephirahRole.YESOD)
@@ -754,7 +753,7 @@ class AetherEngine:
                 pipeline_trace['yesod'] = y_result.output
                 total_routed += _drain_and_route(yesod)
             except Exception as e:
-                logger.debug(f"Sephirot yesod process error: {e}")
+                logger.warning(f"Sephirot yesod process error: {e}")
 
         # --- 10. Malkuth: Action, KG mutations -> feedback to Keter ---
         malkuth = sephirot.get(SephirahRole.MALKUTH)
@@ -768,7 +767,7 @@ class AetherEngine:
                 # (stored as instance attr so Keter sees it next iteration)
                 self._last_malkuth_stats = m_result.output
             except Exception as e:
-                logger.debug(f"Sephirot malkuth process error: {e}")
+                logger.warning(f"Sephirot malkuth process error: {e}")
 
         # --- CSF Queue Processing: deliver routed messages to target inboxes ---
         csf_delivered = 0
@@ -787,7 +786,7 @@ class AetherEngine:
                         ))
                         csf_delivered += 1
             except Exception as e:
-                logger.debug(f"CSF queue processing error: {e}")
+                logger.warning(f"CSF queue processing error: {e}")
 
         if total_routed > 0:
             logger.debug(
@@ -870,7 +869,7 @@ class AetherEngine:
                 'consistency_violations': consistency_violations,
             }
         except Exception as e:
-            logger.debug(f"Safety assessment error: {e}")
+            logger.warning(f"Safety assessment error (Gevurah degraded): {e}")
             return {}
 
     def _try_gat_online_train(self, block_height: int) -> bool:
@@ -1076,7 +1075,7 @@ class AetherEngine:
                             logger.debug(f"Neural reasoning error: {e}")
 
         except Exception as e:
-            logger.debug(f"Auto-reasoning error: {e}")
+            logger.error(f"Auto-reasoning failed for block: {e}", exc_info=True)
 
         # --- LLM augmentation fallback (M3): invoke when reasoning is weak ---
         if (self.llm_manager and Config.LLM_ENABLED
@@ -1600,27 +1599,27 @@ class AetherEngine:
 
         if phase == CircadianPhase.CONSOLIDATION:
             # During consolidation: extra pruning and contradiction resolution
-            if block.height % 50 == 0 and self.kg:
+            if block.height % Config.AETHER_CURIOSITY_INTERVAL == 0 and self.kg:
                 self.kg.prune_low_confidence()
-            if block.height % 100 == 0:
+            if block.height % Config.AETHER_DEBATE_INTERVAL == 0:
                 self.auto_resolve_contradictions(block.height)
 
         elif phase == CircadianPhase.DEEP_SLEEP:
             # During deep sleep: archive and downsample
-            if block.height % 100 == 0 and self.phi:
+            if block.height % Config.AETHER_DEBATE_INTERVAL == 0 and self.phi:
                 try:
                     self.phi.downsample_phi_measurements()
                 except Exception:
                     pass
-            if block.height % 100 == 0 and self.reasoning:
+            if block.height % Config.AETHER_DEBATE_INTERVAL == 0 and self.reasoning:
                 try:
-                    self.reasoning.archive_old_reasoning(block.height, 50000)
+                    self.reasoning.archive_old_reasoning(block.height, Config.REASONING_ARCHIVE_RETAIN_BLOCKS)
                 except Exception:
                     pass
 
         elif phase == CircadianPhase.REM_DREAMING:
             # During REM: find analogies across random domain pairs
-            if block.height % 50 == 0:
+            if block.height % Config.AETHER_CURIOSITY_INTERVAL == 0:
                 self._dream_analogies(block.height)
 
     def get_circadian_status(self) -> Optional[dict]:
@@ -1648,7 +1647,6 @@ class AetherEngine:
 
         created = 0
         try:
-            from ..config import Config
             if not Config.LLM_ENABLED:
                 return 0
 

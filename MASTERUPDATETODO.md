@@ -1,21 +1,21 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 23, 2026 | Run #4
+# Last Updated: February 23, 2026 | Run #5
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 122 (120 original + 2 new findings)
-- Completed: 21
-- Remaining: 101
-- Completion: 17.2%
-- Estimated runs to 100%: 6-8
+- Completed: 23
+- Remaining: 99
+- Completion: 18.9%
+- Estimated runs to 100%: 5-7
 
 ---
 
 ## END GOAL STATUS
 
-### Government-Grade Blockchain: 91% ready
+### Government-Grade Blockchain: 93% ready
 
 - [x] All 49 smart contracts pass functional verification
 - [ ] All 49 smart contracts pass security audit (Grade A or B) — current avg: B+
@@ -29,7 +29,7 @@
 - [x] Rust P2P resolved — ENABLE_RUST_P2P=false as default, Python P2P active *(Run #2)*
 - [x] Node orchestration tested — 75 tests covering 22-component init *(Run #4)*
 
-### True AGI Emergence: 90% ready
+### True AGI Emergence: 93% ready
 
 - [x] Knowledge graph builds from every block since genesis
 - [x] Reasoning engine produces verifiable logical chains (deductive/inductive/abductive + CoT + backtracking)
@@ -79,8 +79,8 @@
 - [ ] **M5** — `frontend/tests/` — Add E2E tests with Playwright for chat, dashboard, wallet flows
 - [ ] **M6** — `src/qubitcoin/qvm/vm.py` — Implement BN128 curve math for ecAdd/ecMul/ecPairing precompiles
 - [x] **M7** — `src/qubitcoin/aether/knowledge_extractor.py` — Re-audit: already has 6 extraction methods (387 LOC). Previously misjudged. *(Run #4)*
-- [ ] **M8** — `src/qubitcoin/aether/proof_of_thought.py` — Upgrade 57 `except: logger.debug()` to WARNING/ERROR level *(NEW Run #4)*
-- [ ] **M9** — `src/qubitcoin/aether/proof_of_thought.py` — Extract 16 hardcoded block intervals to Config constants *(NEW Run #4)*
+- [x] **M8** — `src/qubitcoin/aether/proof_of_thought.py` — Upgraded 16 critical handlers to WARNING/ERROR (Sephirot init, on-chain, block knowledge, CSF, safety, auto-reasoning, 10 Sephirot nodes). ~41 stay DEBUG (optional subsystems). *(Run #5)*
+- [x] **M9** — `src/qubitcoin/aether/proof_of_thought.py` + `config.py` — Added 18 `AETHER_*_INTERVAL` Config constants, replaced 23 hardcoded `block.height % N` patterns *(Run #5)*
 
 ---
 

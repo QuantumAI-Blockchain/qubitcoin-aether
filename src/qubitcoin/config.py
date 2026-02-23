@@ -247,6 +247,28 @@ class Config:
     POT_VALIDATOR_MAX_VOTE_WEIGHT: float = float(os.getenv('POT_VALIDATOR_MAX_VOTE_WEIGHT', '0.33'))
 
     # ============================================================================
+    # AETHER TREE BLOCK INTERVALS (all configurable via .env)
+    # ============================================================================
+    AETHER_CONFIDENCE_PROPAGATION_INTERVAL: int = int(os.getenv('AETHER_CONFIDENCE_PROPAGATION_INTERVAL', '10'))
+    AETHER_POT_PROCESS_INTERVAL: int = int(os.getenv('AETHER_POT_PROCESS_INTERVAL', '5'))
+    AETHER_SEPHIROT_ROUTE_INTERVAL: int = int(os.getenv('AETHER_SEPHIROT_ROUTE_INTERVAL', '5'))
+    AETHER_CONTRADICTION_RESOLVE_INTERVAL: int = int(os.getenv('AETHER_CONTRADICTION_RESOLVE_INTERVAL', '1000'))
+    AETHER_KETER_GOALS_INTERVAL: int = int(os.getenv('AETHER_KETER_GOALS_INTERVAL', '500'))
+    AETHER_KG_BOOST_INTERVAL: int = int(os.getenv('AETHER_KG_BOOST_INTERVAL', '1000'))
+    AETHER_SELF_REFLECT_INTERVAL: int = int(os.getenv('AETHER_SELF_REFLECT_INTERVAL', '200'))
+    AETHER_DREAM_ANALOGIES_INTERVAL: int = int(os.getenv('AETHER_DREAM_ANALOGIES_INTERVAL', '500'))
+    AETHER_CAUSAL_DISCOVERY_INTERVAL: int = int(os.getenv('AETHER_CAUSAL_DISCOVERY_INTERVAL', '200'))
+    AETHER_DEBATE_INTERVAL: int = int(os.getenv('AETHER_DEBATE_INTERVAL', '100'))
+    AETHER_CONCEPT_FORMATION_INTERVAL: int = int(os.getenv('AETHER_CONCEPT_FORMATION_INTERVAL', '500'))
+    AETHER_MEMORY_CONSOLIDATE_INTERVAL: int = int(os.getenv('AETHER_MEMORY_CONSOLIDATE_INTERVAL', '100'))
+    AETHER_EPISODIC_REPLAY_INTERVAL: int = int(os.getenv('AETHER_EPISODIC_REPLAY_INTERVAL', '200'))
+    AETHER_CURIOSITY_INTERVAL: int = int(os.getenv('AETHER_CURIOSITY_INTERVAL', '50'))
+    AETHER_KNOWLEDGE_DIGEST_INTERVAL: int = int(os.getenv('AETHER_KNOWLEDGE_DIGEST_INTERVAL', '100'))
+    AETHER_CONSCIOUSNESS_ARCHIVE_INTERVAL: int = int(os.getenv('AETHER_CONSCIOUSNESS_ARCHIVE_INTERVAL', '5000'))
+    AETHER_REASONING_ARCHIVE_INTERVAL: int = int(os.getenv('AETHER_REASONING_ARCHIVE_INTERVAL', '10000'))
+    AETHER_SEPHIROT_PERSIST_INTERVAL: int = int(os.getenv('AETHER_SEPHIROT_PERSIST_INTERVAL', '100'))
+
+    # ============================================================================
     # ADMIN API
     # ============================================================================
     ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')

@@ -463,7 +463,7 @@ class TestSelfReflection:
         engine = AetherEngine(db)
         assert engine.self_reflect(100) == 0
 
-    @patch('qubitcoin.config.Config')
+    @patch('qubitcoin.aether.proof_of_thought.Config')
     def test_self_reflect_disabled(self, mock_config):
         from qubitcoin.aether.proof_of_thought import AetherEngine
         mock_config.LLM_ENABLED = False
@@ -473,7 +473,7 @@ class TestSelfReflection:
         result = engine.self_reflect(100)
         assert result == 0
 
-    @patch('qubitcoin.config.Config')
+    @patch('qubitcoin.aether.proof_of_thought.Config')
     def test_self_reflect_creates_nodes(self, mock_config):
         from qubitcoin.aether.proof_of_thought import AetherEngine
         mock_config.LLM_ENABLED = True
