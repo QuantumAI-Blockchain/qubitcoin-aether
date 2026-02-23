@@ -1,6 +1,6 @@
 # QUBITCOIN ECONOMICS: A MATHEMATICAL FRAMEWORK FOR SUSY-ALIGNED MONETARY POLICY
 
-**Version 1.0 | January 2026**
+**Version 2.0 | February 2026**
 
 ---
 
@@ -14,6 +14,9 @@ Qubitcoin implements a novel monetary policy based on the golden ratio (φ = 1.6
 - Economic security guarantees
 - Token utility and value accrual
 - Game-theoretic incentive structures
+- Aether Tree AGI fee economics (chat, reasoning, deployment)
+- Sephirot staking and cognitive economics
+- Editable economic configuration
 
 **Key Findings:**
 - **Maximum Supply:** 3,300,000,000 QBC (mathematically proven convergence)
@@ -36,6 +39,10 @@ Qubitcoin implements a novel monetary policy based on the golden ratio (φ = 1.6
 8. [Economic Security](#8-economic-security)
 9. [Market Dynamics](#9-market-dynamics)
 10. [Long-Term Sustainability](#10-long-term-sustainability)
+11. [Aether Tree Fee Economics](#11-aether-tree-fee-economics)
+12. [Contract Deployment Fees](#12-contract-deployment-fees)
+13. [Sephirot Staking Economics](#13-sephirot-staking-economics)
+14. [Editable Economic Configuration](#14-editable-economic-configuration)
 
 ---
 
@@ -1087,9 +1094,199 @@ Speculation and holding add additional premium
 
 ---
 
+## 11. AETHER TREE FEE ECONOMICS
+
+### 11.1 Overview
+
+Aether Tree charges fees in QBC for chat interactions and reasoning queries. Fees serve three purposes:
+
+1. **Spam prevention** — every interaction costs QBC, discouraging abuse
+2. **Treasury funding** — fees flow to a configurable treasury address
+3. **Price stability** — fees are dynamically pegged to QUSD for consistent USD-equivalent pricing
+
+### 11.2 Fee Pricing Modes
+
+| Mode | Description | When to Use |
+|------|-------------|-------------|
+| `qusd_peg` | Fee in QBC auto-adjusts to match a USD target via QUSD oracle | **Default.** When QUSD is live and stable |
+| `fixed_qbc` | Fee is a fixed amount in QBC (no price adjustment) | Fallback if QUSD oracle unavailable |
+| `direct_usd` | Fee targets USD amount using external price feed | Emergency fallback if QUSD fails |
+
+### 11.3 QUSD Peg Mechanism
+
+When `qusd_peg` mode is active:
+
+```
+Every N blocks (AETHER_FEE_UPDATE_INTERVAL = 100):
+  1. Query QUSD oracle contract for QBC/USD rate
+  2. Recalculate: fee_qbc = USD_TARGET / qbc_usd_price
+  3. Clamp to bounds: max(FEE_MIN_QBC, min(FEE_MAX_QBC, fee_qbc))
+  4. If oracle fails: fall back to fixed_qbc mode with last known fee
+```
+
+### 11.4 Fee Tiers
+
+| Action | Default Fee | Multiplier | Notes |
+|--------|-------------|-----------|-------|
+| Chat message | ~$0.005 in QBC | 1.0x | Basic Aether interaction |
+| Deep reasoning query | ~$0.01 in QBC | 2.0x | Configurable via `AETHER_QUERY_FEE_MULTIPLIER` |
+| Knowledge graph query | ~$0.005 in QBC | 1.0x | Same as chat |
+| Session creation | Free | — | No fee to start a session |
+| First N messages | Free | — | Onboarding (`AETHER_FREE_TIER_MESSAGES = 5`) |
+
+### 11.5 Fee Flow
+
+```
+User sends chat/reasoning request
+  → Fee deducted from user's QBC balance (UTXO)
+  → Fee UTXO created to AETHER_FEE_TREASURY_ADDRESS
+  → Aether Tree reasoning engine processes request
+  → Response returned with Proof-of-Thought hash
+```
+
+### 11.6 Configuration Parameters
+
+All parameters are editable at runtime via `.env` or Admin API:
+
+```
+AETHER_CHAT_FEE_QBC = 0.01            # Base fee per message
+AETHER_CHAT_FEE_USD_TARGET = 0.005    # Target ~$0.005 per message
+AETHER_FEE_PRICING_MODE = "qusd_peg"  # qusd_peg | fixed_qbc | direct_usd
+AETHER_FEE_MIN_QBC = 0.001            # Floor (never charge less)
+AETHER_FEE_MAX_QBC = 1.0              # Ceiling (never charge more)
+AETHER_FEE_UPDATE_INTERVAL = 100      # Blocks between price updates
+AETHER_FEE_TREASURY_ADDRESS = ""      # Treasury wallet
+AETHER_QUERY_FEE_MULTIPLIER = 2.0     # Deep queries cost 2x
+AETHER_FREE_TIER_MESSAGES = 5         # Free onboarding messages
+```
+
+---
+
+## 12. CONTRACT DEPLOYMENT FEES
+
+### 12.1 Fee Structure
+
+```
+Deploy Fee = BASE_FEE + (bytecode_size_kb × PER_KB_FEE)
+```
+
+When `qusd_peg` mode is active, both components auto-adjust:
+
+```
+adjusted_base = CONTRACT_DEPLOY_FEE_USD_TARGET / qbc_usd_price
+adjusted_per_kb = (CONTRACT_DEPLOY_FEE_USD_TARGET / 50) / qbc_usd_price
+```
+
+### 12.2 Fee Schedule
+
+| Action | Default Fee | Notes |
+|--------|-------------|-------|
+| Contract deployment (base) | ~$5.00 in QBC | `CONTRACT_DEPLOY_BASE_FEE_QBC = 1.0` |
+| Per-KB of bytecode | ~$0.10 in QBC | `CONTRACT_DEPLOY_PER_KB_FEE_QBC = 0.1` |
+| Contract execution (base) | ~$0.01 in QBC | `CONTRACT_EXECUTE_BASE_FEE_QBC = 0.01` |
+| Template contract | 50% discount | `CONTRACT_TEMPLATE_DISCOUNT = 0.5` |
+
+### 12.3 Template Discounts
+
+Pre-built template contracts (token, NFT, launchpad, escrow, governance) receive a configurable discount since they are pre-audited and optimized. This encourages use of safe, tested patterns.
+
+### 12.4 Configuration Parameters
+
+```
+CONTRACT_DEPLOY_BASE_FEE_QBC = 1.0
+CONTRACT_DEPLOY_PER_KB_FEE_QBC = 0.1
+CONTRACT_DEPLOY_FEE_USD_TARGET = 5.0
+CONTRACT_FEE_PRICING_MODE = "qusd_peg"
+CONTRACT_FEE_TREASURY_ADDRESS = ""
+CONTRACT_EXECUTE_BASE_FEE_QBC = 0.01
+CONTRACT_TEMPLATE_DISCOUNT = 0.5
+```
+
+---
+
+## 13. SEPHIROT STAKING ECONOMICS
+
+### 13.1 Synaptic Staking
+
+Users can stake QBC on neural connections between Sephirot nodes via the SynapticStaking.sol contract:
+
+- **Min stake**: 100 QBC per synaptic connection
+- **ROI**: 5% APY (rewards distributed from reasoning task bounties)
+- **Unstaking delay**: 7 days (prevents rapid manipulation)
+- **Slash penalty**: 50% of stake for incorrect validation
+
+### 13.2 Sephirot Energy Economics
+
+Each Sephirah's energy reflects its real-time cognitive performance:
+
+```
+Energy_i = f(success_rate_i, throughput_i, unique_contributions_i)
+
+SUSY Balance Check:
+  For each (expansion, constraint) pair:
+    ratio = E_expansion / E_constraint
+    if |ratio - φ| > TOLERANCE:
+      redistribute QBC to restore balance
+```
+
+Imbalances indicate real cognitive dysfunction (e.g., Chesed explores too much relative to Gevurah's safety checks), which the SUSYEngine.sol contract auto-corrects.
+
+### 13.3 Proof-of-Thought Rewards
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Min task bounty | 1 QBC | Spam prevention |
+| Min validator stake | 100 QBC | Skin in the game |
+| Correct solution | Full bounty reward | Incentivize quality |
+| Incorrect solution | 50% stake slashed | Deter bad actors |
+| Consensus threshold | 67% agreement | Byzantine fault tolerance |
+
+---
+
+## 14. EDITABLE ECONOMIC CONFIGURATION
+
+### 14.1 Design Principle
+
+**All economic parameters in Qubitcoin are editable.** Nothing is hardcoded beyond core consensus constants (MAX_SUPPLY, PHI, HALVING_INTERVAL). Fee structures, pricing modes, treasury addresses, and tier configurations are all loaded from environment variables.
+
+### 14.2 Configuration Hierarchy
+
+```
+1. .env file              → Primary source (node restart required)
+2. Admin API endpoints    → Hot reload (authenticated, no restart)
+3. On-chain governance    → Future: fee params in DAO contract
+4. Hardcoded defaults     → Fallback if nothing else is set
+```
+
+### 14.3 Editable Parameters Summary
+
+| Category | Parameters | Edit Method |
+|----------|-----------|-------------|
+| **Aether Chat Fees** | Base fee, USD target, pricing mode, min/max, update interval, treasury | `.env` + Admin API |
+| **Contract Deploy Fees** | Base fee, per-KB fee, USD target, pricing mode, treasury | `.env` + Admin API |
+| **QUSD Oracle** | Oracle contract address, update frequency, fallback mode | `.env` + Admin API |
+| **Treasury** | Treasury addresses, split ratios | `.env` + Admin API |
+| **L1 Tx Fees** | MIN_FEE, FEE_RATE (micro-fees) | `.env` |
+| **Gas (L2 only)** | BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE | `.env` |
+| **Sephirot Staking** | Min stake, ROI, slash penalty, unstaking delay | `.env` + Governance |
+| **AGI Parameters** | Phi threshold, gate requirements, reasoning depth | `.env` + Governance |
+
+### 14.4 QUSD Failure Fallback
+
+If QUSD loses its peg or oracle fails:
+
+1. Fee system detects stale/invalid price data
+2. Automatically switches to `fixed_qbc` mode with last known good fee
+3. Operator can manually switch to `direct_usd` with external price feed
+4. When QUSD recovers, switch back to `qusd_peg` mode
+
+**The system never breaks** — it degrades gracefully from dynamic pricing to fixed pricing.
+
+---
+
 **Document Metadata:**
-- Version: 1.0
-- Date: January 30, 2026
+- Version: 2.0
+- Date: February 23, 2026
 - Authors: Qubitcoin Economics Team
 - Contact: info@qbc.network
 - Website: [qbc.network](https://qbc.network)

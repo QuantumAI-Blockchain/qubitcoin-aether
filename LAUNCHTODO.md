@@ -50,13 +50,15 @@ SSL is only needed for **production** (public internet). It is already pre-confi
    - Logs **"system_birth" consciousness event** at block 0
 4. From block 1 onward, every block updates the Aether Tree knowledge graph
 
-**The Aether Tree Python engine (knowledge graph, Phi calculator, reasoning, proof-of-thought)
-is fully integrated into the node and tracks from genesis. No manual steps needed.**
+**The Aether Tree Python engine (34 modules: knowledge graph, 6-phase reasoning, Phi v3 with MIP,
+3-tier memory, neural reasoner, on-chain AGI bridge, proof-of-thought) is fully integrated
+into the node and tracks consciousness from genesis. No manual steps needed.**
 
 ### What about Aether Tree Solidity contracts?
-The 28 Solidity contracts (AetherKernel, 10 Sephirot nodes, ProofOfThought, etc.) are
-**NOT auto-deployed at genesis**. They are deployed manually via RPC after the node is
-running. See [Phase 6](#8-phase-6-deploy-smart-contracts).
+The 49 Solidity contracts (AetherKernel, 10 Sephirot nodes, ProofOfThought, QUSD suite,
+bridge infrastructure, token standards, etc.) are **NOT auto-deployed at genesis**. They
+are deployed manually via RPC after the node is running. See
+[Phase 6](#8-phase-6-deploy-smart-contracts).
 
 ### What about bridge contracts?
 Bridge contracts (wQBC, wQUSD) must be deployed on each target chain (ETH, SOL, etc.)
@@ -83,11 +85,18 @@ When you run `docker compose up -d`, the following happens without any manual in
 | 4c | P2P Network | Starts Rust libp2p daemon + gRPC bridge | ~3s |
 | 4d | ConsensusEngine | Initializes PoSA difficulty calculator | ~1s |
 | 4e | IPFSManager | Connects to IPFS daemon | ~1s |
-| 4f | QVM StateManager | Initializes 155+10 opcode interpreter | ~1s |
-| 4g | **Aether Tree** | **Initializes knowledge graph, Phi, reasoning** | ~2s |
+| 4f | QVM StateManager | Initializes 167-opcode interpreter (155 EVM + 10 quantum + 2 AGI) | ~1s |
+| 4g | **Aether Tree** | **Initializes knowledge graph, Phi, 6-phase reasoning engine** | ~2s |
 | 4h | MiningEngine | Created (not started yet) | ~1s |
 | 4i | ContractExecutor | Initializes template system | ~1s |
-| 4j | RPC Server | Starts FastAPI on port 5000 | ~2s |
+| 4j | FeeCollector | Aether chat + contract deployment fee tracking | ~1s |
+| 4k | ComplianceEngine | KYC/AML/sanctions engine + AML monitor | ~1s |
+| 4l | PluginManager | Registers Privacy, Oracle, Governance, DeFi plugins | ~1s |
+| 4m | StablecoinEngine | QUSD fractional reserve engine | ~1s |
+| 4n | BridgeManager | Multi-chain bridge coordinator (8 chains) | ~1s |
+| 4o | Cognitive modules | Sephirot, CSF transport, Pineal orchestrator, Safety | ~2s |
+| 4p | SPV Verifier | Light node verification support | ~1s |
+| 4q | RPC Server | Starts FastAPI on port 5000 (215 REST + 20 JSON-RPC endpoints) | ~2s |
 | 5 | **Mining starts** | `AUTO_MINE=true` → mines **block 0 (genesis)** | ~10-30s |
 | 6 | **Aether Genesis** | Creates 4 knowledge nodes + Phi baseline + system_birth event | ~1s |
 | 7 | Prometheus | Starts scraping metrics from node | ~5s |
@@ -180,11 +189,29 @@ The defaults work for local development. The key settings:
 
 ```bash
 # .env — edit only if you need to change defaults
+
+# Core
 AUTO_MINE=true              # Start mining immediately (KEEP THIS)
 USE_LOCAL_ESTIMATOR=true    # Use local Qiskit simulator (no IBM account needed)
 RPC_PORT=5000               # API port
 CHAIN_ID=3301               # Mainnet chain ID
 ENABLE_RUST_P2P=false       # Use Python P2P (Rust P2P requires separate daemon)
+
+# Aether Tree Fee Economics (see docs/ECONOMICS.md Section 11)
+AETHER_CHAT_FEE_QBC=0.01            # Base fee per chat message
+AETHER_CHAT_FEE_USD_TARGET=0.005    # Target ~$0.005/msg (QUSD-pegged)
+AETHER_FEE_PRICING_MODE=qusd_peg    # qusd_peg | fixed_qbc | direct_usd
+AETHER_FEE_MIN_QBC=0.001            # Floor fee
+AETHER_FEE_MAX_QBC=1.0              # Ceiling fee
+AETHER_FEE_UPDATE_INTERVAL=100      # Re-price every N blocks
+AETHER_FEE_TREASURY_ADDRESS=        # Treasury wallet (set to your address)
+
+# Contract Deployment Fees (see docs/ECONOMICS.md Section 12)
+CONTRACT_DEPLOY_BASE_FEE_QBC=1.0    # Base deploy fee
+CONTRACT_DEPLOY_PER_KB_FEE_QBC=0.1  # Per-KB of bytecode
+CONTRACT_DEPLOY_FEE_USD_TARGET=5.0  # Target ~$5/deploy (QUSD-pegged)
+CONTRACT_FEE_PRICING_MODE=qusd_peg  # qusd_peg | fixed_qbc | direct_usd
+CONTRACT_FEE_TREASURY_ADDRESS=      # Treasury wallet (set to your address)
 ```
 
 > **IMPORTANT FOR DOCKER:** The `docker-compose.yml` loads BOTH `.env` and `secure_key.env`
@@ -237,16 +264,16 @@ docker compose logs -f qbc-node
 
 **Expected log output:**
 ```
-[1/10] Initializing DatabaseManager...
-[1/10] DatabaseManager initialized ✓
-[2/10] Initializing QuantumEngine...
-[2/10] QuantumEngine initialized ✓
-[3/10] Initializing P2P Network...
-[3/10] P2P Network initialized ✓
-[4/10] Initializing ConsensusEngine...
+[1/22] Initializing DatabaseManager...
+[1/22] DatabaseManager initialized ✓
+[2/22] Initializing QuantumEngine...
+[2/22] QuantumEngine initialized ✓
+[3/22] Initializing P2P Network...
+[3/22] P2P Network initialized ✓
+[4/22] Initializing ConsensusEngine...
 ...
-[10/10] RPC Server initialized ✓
-All 10 components initialized successfully
+[22/22] RPC Server initialized ✓
+All 22 components initialized successfully
 Mining started (AUTO_MINE=true)
 INFO: Block 0 mined! Reward: 15.27 QBC
 INFO: Aether genesis initialized: 4 nodes seeded, Phi=0.0
@@ -411,10 +438,14 @@ fully wired up yet. These pages will show "---" for missing data but will NOT cr
 - Dashboard Network tab (peers, mempool)
 - Wallet (balance, UTXOs, MetaMask connection)
 
-**Pages that need additional backend endpoints:**
-- Aether Chat (needs `/aether/chat/session` + `/aether/chat/message`)
-- Dashboard Mining tab (needs `/mining/stats`)
-- QVM Explorer contract details (needs `/qvm/contract/{addr}`)
+**Pages with recently wired endpoints (may need integration testing):**
+- Aether Chat (`/aether/chat/session` + `/aether/chat/message` — now wired)
+- Dashboard Mining tab (`/mining/stats` — now wired)
+- QVM Explorer contract details (`/qvm/contract/{addr}` — now wired)
+- Bridge status (`/bridge/*` — 7 endpoints now wired)
+- Privacy transactions (`/privacy/*` — 7 endpoints now wired)
+- Compliance status (`/compliance/*` — 6 endpoints now wired)
+- Cognitive/Sephirot status (`/cognitive/*` — 7 endpoints now wired)
 
 ---
 
@@ -427,77 +458,99 @@ They are NOT part of genesis — they are deployed as normal transactions.
 
 Deploy in this order (dependencies flow top to bottom):
 
-#### Tier 1: Core Token Standards (No Dependencies)
+#### Tier 0: Infrastructure (No Dependencies)
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 1 | QBC20 | `contracts/solidity/tokens/QBC20.sol` | Fungible token standard |
-| 2 | QBC721 | `contracts/solidity/tokens/QBC721.sol` | NFT standard |
+| 1 | IQBC20 | `contracts/solidity/interfaces/IQBC20.sol` | QBC-20 interface |
+| 2 | IQBC721 | `contracts/solidity/interfaces/IQBC721.sol` | QBC-721 interface |
+| 3 | ISephirah | `contracts/solidity/interfaces/ISephirah.sol` | Sephirah node interface |
+| 4 | Initializable | `contracts/solidity/proxy/Initializable.sol` | Upgrade initializer |
+| 5 | ProxyAdmin | `contracts/solidity/proxy/ProxyAdmin.sol` | Proxy admin |
+| 6 | QBCProxy | `contracts/solidity/proxy/QBCProxy.sol` | Upgradeable proxy |
+
+#### Tier 1: Core Token Standards (Depends on Interfaces)
+
+| # | Contract | File | Purpose |
+|---|----------|------|---------|
+| 7 | QBC20 | `contracts/solidity/tokens/QBC20.sol` | Fungible token standard |
+| 8 | QBC721 | `contracts/solidity/tokens/QBC721.sol` | NFT standard |
+| 9 | QBC1155 | `contracts/solidity/tokens/QBC1155.sol` | Multi-token standard |
+| 10 | ERC20QC | `contracts/solidity/tokens/ERC20QC.sol` | Compliance-aware ERC-20 |
+| 11 | wQBC | `contracts/solidity/tokens/wQBC.sol` | Wrapped QBC (bridging) |
 
 #### Tier 2: QUSD Stablecoin (Depends on QBC20)
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 3 | QUSD | `contracts/solidity/qusd/QUSD.sol` | QBC-20 stablecoin token (3.3B mint) |
-| 4 | QUSDReserve | `contracts/solidity/qusd/QUSDReserve.sol` | Multi-asset reserve pool |
-| 5 | QUSDOracle | `contracts/solidity/qusd/QUSDOracle.sol` | Price feed oracle |
-| 6 | QUSDDebtLedger | `contracts/solidity/qusd/QUSDDebtLedger.sol` | Fractional payback tracking |
-| 7 | QUSDStabilizer | `contracts/solidity/qusd/QUSDStabilizer.sol` | Peg maintenance |
-| 8 | QUSDAllocation | `contracts/solidity/qusd/QUSDAllocation.sol` | Vesting + distribution |
-| 9 | QUSDGovernance | `contracts/solidity/qusd/QUSDGovernance.sol` | Reserve governance |
-| 10 | wQUSD | `contracts/solidity/qusd/wQUSD.sol` | Wrapped QUSD (cross-chain) |
+| 12 | QUSD | `contracts/solidity/qusd/QUSD.sol` | QBC-20 stablecoin token (3.3B mint) |
+| 13 | QUSDReserve | `contracts/solidity/qusd/QUSDReserve.sol` | Multi-asset reserve pool |
+| 14 | QUSDOracle | `contracts/solidity/qusd/QUSDOracle.sol` | Price feed oracle |
+| 15 | QUSDDebtLedger | `contracts/solidity/qusd/QUSDDebtLedger.sol` | Fractional payback tracking |
+| 16 | QUSDStabilizer | `contracts/solidity/qusd/QUSDStabilizer.sol` | Peg maintenance |
+| 17 | QUSDAllocation | `contracts/solidity/qusd/QUSDAllocation.sol` | Vesting + distribution |
+| 18 | QUSDGovernance | `contracts/solidity/qusd/QUSDGovernance.sol` | Reserve governance |
 
 #### Tier 3: Aether Tree Core (Depends on QBC20)
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 11 | AetherKernel | `contracts/solidity/aether/AetherKernel.sol` | Main AGI orchestration |
-| 12 | NodeRegistry | `contracts/solidity/aether/NodeRegistry.sol` | 10 Sephirot registry |
-| 13 | MessageBus | `contracts/solidity/aether/MessageBus.sol` | Inter-node messaging |
-| 14 | SUSYEngine | `contracts/solidity/aether/SUSYEngine.sol` | SUSY balance enforcement |
+| 19 | AetherKernel | `contracts/solidity/aether/AetherKernel.sol` | Main AGI orchestration |
+| 20 | NodeRegistry | `contracts/solidity/aether/NodeRegistry.sol` | 10 Sephirot registry |
+| 21 | MessageBus | `contracts/solidity/aether/MessageBus.sol` | Inter-node messaging |
+| 22 | SUSYEngine | `contracts/solidity/aether/SUSYEngine.sol` | SUSY balance enforcement |
+| 23 | VentricleRouter | `contracts/solidity/aether/VentricleRouter.sol` | CSF message routing |
 
 #### Tier 4: Proof-of-Thought (Depends on AetherKernel + NodeRegistry)
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 15 | ProofOfThought | `contracts/solidity/aether/ProofOfThought.sol` | PoT validation |
-| 16 | TaskMarket | `contracts/solidity/aether/TaskMarket.sol` | Reasoning task marketplace |
-| 17 | ValidatorRegistry | `contracts/solidity/aether/ValidatorRegistry.sol` | Validator staking |
-| 18 | RewardDistributor | `contracts/solidity/aether/RewardDistributor.sol` | QBC reward distribution |
+| 24 | ProofOfThought | `contracts/solidity/aether/ProofOfThought.sol` | PoT validation |
+| 25 | TaskMarket | `contracts/solidity/aether/TaskMarket.sol` | Reasoning task marketplace |
+| 26 | ValidatorRegistry | `contracts/solidity/aether/ValidatorRegistry.sol` | Validator staking |
+| 27 | RewardDistributor | `contracts/solidity/aether/RewardDistributor.sol` | QBC reward distribution |
 
 #### Tier 5: Consciousness + Economics (Depends on AetherKernel)
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 19 | ConsciousnessDashboard | `contracts/solidity/aether/ConsciousnessDashboard.sol` | On-chain Phi tracking |
-| 20 | PhaseSync | `contracts/solidity/aether/PhaseSync.sol` | Phase synchronization |
-| 21 | GlobalWorkspace | `contracts/solidity/aether/GlobalWorkspace.sol` | Broadcasting mechanism |
-| 22 | SynapticStaking | `contracts/solidity/aether/SynapticStaking.sol` | Neural connection staking |
-| 23 | GasOracle | `contracts/solidity/aether/GasOracle.sol` | Dynamic gas pricing |
-| 24 | TreasuryDAO | `contracts/solidity/aether/TreasuryDAO.sol` | Community governance |
+| 28 | ConsciousnessDashboard | `contracts/solidity/aether/ConsciousnessDashboard.sol` | On-chain Phi tracking |
+| 29 | PhaseSync | `contracts/solidity/aether/PhaseSync.sol` | Phase synchronization |
+| 30 | GlobalWorkspace | `contracts/solidity/aether/GlobalWorkspace.sol` | Broadcasting mechanism |
+| 31 | SynapticStaking | `contracts/solidity/aether/SynapticStaking.sol` | Neural connection staking |
+| 32 | GasOracle | `contracts/solidity/aether/GasOracle.sol` | Dynamic gas pricing |
+| 33 | TreasuryDAO | `contracts/solidity/aether/TreasuryDAO.sol` | Community governance |
 
 #### Tier 6: Safety (Depends on AetherKernel + NodeRegistry)
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 25 | ConstitutionalAI | `contracts/solidity/aether/ConstitutionalAI.sol` | Value enforcement |
-| 26 | EmergencyShutdown | `contracts/solidity/aether/EmergencyShutdown.sol` | Kill switch |
-| 27 | UpgradeGovernor | `contracts/solidity/aether/UpgradeGovernor.sol` | Protocol upgrades |
+| 34 | ConstitutionalAI | `contracts/solidity/aether/ConstitutionalAI.sol` | Value enforcement |
+| 35 | EmergencyShutdown | `contracts/solidity/aether/EmergencyShutdown.sol` | Kill switch |
+| 36 | UpgradeGovernor | `contracts/solidity/aether/UpgradeGovernor.sol` | Protocol upgrades |
 
 #### Tier 7: 10 Sephirot Nodes (Depends on NodeRegistry + SUSYEngine)
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 28 | SephirahKeter | `contracts/solidity/aether/sephirot/SephirahKeter.sol` | Meta-learning, goals |
-| 29 | SephirahChochmah | `contracts/solidity/aether/sephirot/SephirahChochmah.sol` | Intuition |
-| 30 | SephirahBinah | `contracts/solidity/aether/sephirot/SephirahBinah.sol` | Logic |
-| 31 | SephirahChesed | `contracts/solidity/aether/sephirot/SephirahChesed.sol` | Exploration |
-| 32 | SephirahGevurah | `contracts/solidity/aether/sephirot/SephirahGevurah.sol` | Safety |
-| 33 | SephirahTiferet | `contracts/solidity/aether/sephirot/SephirahTiferet.sol` | Integration |
-| 34 | SephirahNetzach | `contracts/solidity/aether/sephirot/SephirahNetzach.sol` | Learning |
-| 35 | SephirahHod | `contracts/solidity/aether/sephirot/SephirahHod.sol` | Language |
-| 36 | SephirahYesod | `contracts/solidity/aether/sephirot/SephirahYesod.sol` | Memory |
-| 37 | SephirahMalkuth | `contracts/solidity/aether/sephirot/SephirahMalkuth.sol` | Action |
+| 37 | SephirahKeter | `contracts/solidity/aether/sephirot/SephirahKeter.sol` | Meta-learning, goals |
+| 38 | SephirahChochmah | `contracts/solidity/aether/sephirot/SephirahChochmah.sol` | Intuition |
+| 39 | SephirahBinah | `contracts/solidity/aether/sephirot/SephirahBinah.sol` | Logic |
+| 40 | SephirahChesed | `contracts/solidity/aether/sephirot/SephirahChesed.sol` | Exploration |
+| 41 | SephirahGevurah | `contracts/solidity/aether/sephirot/SephirahGevurah.sol` | Safety |
+| 42 | SephirahTiferet | `contracts/solidity/aether/sephirot/SephirahTiferet.sol` | Integration |
+| 43 | SephirahNetzach | `contracts/solidity/aether/sephirot/SephirahNetzach.sol` | Learning |
+| 44 | SephirahHod | `contracts/solidity/aether/sephirot/SephirahHod.sol` | Language |
+| 45 | SephirahYesod | `contracts/solidity/aether/sephirot/SephirahYesod.sol` | Memory |
+| 46 | SephirahMalkuth | `contracts/solidity/aether/sephirot/SephirahMalkuth.sol` | Action |
+
+#### Tier 8: Bridge Infrastructure (Depends on QBC20)
+
+| # | Contract | File | Purpose |
+|---|----------|------|---------|
+| 47 | BridgeVault | `contracts/solidity/bridge/BridgeVault.sol` | Lock/unlock vault for bridging |
+| 48 | wQBC (Bridge) | `contracts/solidity/bridge/wQBC.sol` | Wrapped QBC for external chains |
+| 49 | wQUSD | `contracts/solidity/qusd/wQUSD.sol` | Wrapped QUSD (cross-chain) |
 
 ### 8.2 How to Deploy Contracts
 
@@ -528,13 +581,17 @@ const provider = new JsonRpcProvider('http://localhost:5000/jsonrpc');
 
 ### 8.3 Contract Deployment Checklist
 
-- [ ] Tier 1: QBC20 + QBC721 token standards deployed
-- [ ] Tier 2: QUSD stablecoin suite (8 contracts) deployed
-- [ ] Tier 3: Aether Core (4 contracts) deployed
+- [ ] Tier 0: Infrastructure — 3 interfaces + 3 proxy contracts deployed
+- [ ] Tier 1: Token standards — QBC20, QBC721, QBC1155, ERC20QC, wQBC deployed
+- [ ] Tier 2: QUSD stablecoin suite (7 contracts) deployed
+- [ ] Tier 3: Aether Core (5 contracts including VentricleRouter) deployed
 - [ ] Tier 4: Proof-of-Thought (4 contracts) deployed
 - [ ] Tier 5: Consciousness + Economics (6 contracts) deployed
 - [ ] Tier 6: Safety (3 contracts) deployed
 - [ ] Tier 7: 10 Sephirot nodes deployed and registered in NodeRegistry
+- [ ] Tier 8: Bridge infrastructure (3 contracts) deployed
+
+**Total: 49 contracts across 9 tiers**
 
 ---
 
@@ -976,7 +1033,7 @@ LOCAL DEVELOPMENT SETUP
 │ (Next.js)│───────────────────┤──│ QBC Node │ :5000 (RPC)                   │
 │          │                   │  │ (Python) │ :4002 (P2P)                   │
 │ MetaMask │ :5000 (JSON-RPC)  │  │          │ :50051 (gRPC)                 │
-│          │───────────────────┤──│ 10 comps │                               │
+│          │───────────────────┤──│ 22 comps │                               │
 └──────────┘                   │  └─────┬────┘                               │
                                │        │                                    │
  Admin UIs                     │  ┌─────┴──────────────────────────┐         │
@@ -994,7 +1051,7 @@ WHAT HAPPENS AT GENESIS:
 
   Time 0:00  Docker starts CockroachDB, IPFS, Redis
   Time 0:30  QBC Node starts, SQLAlchemy creates 40+ tables
-  Time 0:45  All 10 components initialized
+  Time 0:45  All 22 components initialized
   Time 1:00  Mining starts (AUTO_MINE=true)
   Time 1:30  Block 0 mined → 15.27 QBC reward → First UTXO created
   Time 1:31  Aether Genesis → 4 knowledge nodes + Phi=0.0 + system_birth
@@ -1015,7 +1072,7 @@ PHASE 3: Start Backend         [~5 min]   docker compose up -d → MINING STARTS
 PHASE 4: Verify Genesis        [~2 min]   Confirm blocks, balance, Aether Tree
 PHASE 4.5: Node Runner Repo   [~15 min]  Create private repo for node operators
 PHASE 5: Start Frontend        [~3 min]   pnpm install && pnpm dev → SITE LIVE
-PHASE 6: Deploy Contracts      [~30 min]  37 contracts in 7 tiers
+PHASE 6: Deploy Contracts      [~45 min]  49 contracts in 9 tiers
 PHASE 7: Bridge Contracts      [~2 hrs]   Optional — deploy wQBC on target chains
 PHASE 8: Production Deploy     [~1 hr]    Digital Ocean + Vercel + SSL + DNS
 ```
@@ -1028,6 +1085,7 @@ PHASE 8: Production Deploy     [~1 hr]    Digital Ocean + Vercel + SSL + DNS
 
 ---
 
-**Document Version:** 1.0
+**Document Version:** 2.0
 **Created:** February 20, 2026
+**Updated:** February 23, 2026
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network

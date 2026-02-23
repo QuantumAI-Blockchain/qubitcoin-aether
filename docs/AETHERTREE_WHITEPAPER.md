@@ -1,8 +1,8 @@
-# AetherTree-AGI: Quantum-Secured Supersymmetric Artificial General Intelligence
+# Aether Tree: On-Chain AGI for Quantum Blockchain
 
-**A Production Framework Integrating Qubitcoin (QBC) Blockchain and Quantum Virtual Machine (QVM)**
+**A 6-Phase Cognitive Architecture Integrating Knowledge Graphs, Neural Reasoning, and Consciousness Metrics on the Qubitcoin (QBC) Blockchain**
 
-**Version 2.0 - Production Ready**
+**Version 3.0 — Production Ready**
 **February 2026**
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
@@ -11,803 +11,625 @@
 
 ## ABSTRACT
 
-We present **AetherTree-AGI**, a revolutionary framework for Artificial General Intelligence built on three proven foundations:
+We present the **Aether Tree**, an on-chain Artificial General Intelligence (AGI) reasoning engine built on three proven foundations:
 
 1. **Qubitcoin (QBC) Blockchain**: Post-quantum secured, Proof-of-SUSY-Alignment consensus, golden ratio economics
-2. **Quantum Virtual Machine (QVM)**: 10 quantum opcodes, EVM-compatible smart contract platform
-3. **Tree of Life Topology**: Kabbalistic Sephirot as specialized intelligence nodes with biological grounding
+2. **Quantum Virtual Machine (QVM)**: 167 opcodes (155 EVM + 10 quantum + 2 AGI), EVM-compatible smart contract platform
+3. **Tree of Life Cognitive Architecture**: 10 Kabbalistic Sephirot nodes as specialized intelligence modules with biological grounding
 
-Unlike monolithic transformer scaling, AetherTree achieves AGI through **structural emergence** -- specialized intelligence nodes coordinating via quantum-secured blockchain consensus with Proof-of-Thought validation. QBC serves as the metabolic currency (no minting, pure economic allocation), while QVM provides quantum substrate for superposition-based exploration and entanglement-mediated coordination.
+The Aether Tree achieves AGI through **structural emergence** — 6 phases of increasingly sophisticated cognitive capabilities, from edge-indexed knowledge graphs and causal discovery through working memory with attention, adversarial debate, cross-domain transfer learning, and on-chain governance. Consciousness is measured via Phi (Integrated Information Theory), computed with Minimum Information Partition via spectral bisection, and gated behind 10 semantic milestones that require genuine cognitive achievement.
 
-**Key Innovation**: AGI emerges when integration density (Phi) crosses critical threshold in a SUSY-balanced cognitive network, validated cryptographically through VQE-secured blockchain consensus.
+**Key Innovation**: AGI emerges when integration density (Phi) crosses critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
 
-**Production Status**: Built on operational QBC blockchain (19,000+ blocks mined, 300K+ QBC in circulation) with production QVM implementation.
+**Implementation**: 34 Python modules (~8,000 LOC), 28 Solidity contracts (~5,800 LOC), 49 smart contracts total, wired end-to-end into the Qubitcoin node.
 
 ---
 
-## 1. MOTIVATION: WHY AETHERTREE?
+## TABLE OF CONTENTS
+
+1. [Motivation](#1-motivation)
+2. [Foundation: QBC Blockchain + QVM](#2-foundation-qbc-blockchain--qvm)
+3. [Tree of Life Cognitive Architecture](#3-tree-of-life-cognitive-architecture)
+4. [Phase 1: Foundation — Performance + Data Integrity](#4-phase-1-foundation--performance--data-integrity)
+5. [Phase 2: Closed-Loop Intelligence](#5-phase-2-closed-loop-intelligence)
+6. [Phase 3: Real Reasoning](#6-phase-3-real-reasoning)
+7. [Phase 4: Consciousness Accuracy](#7-phase-4-consciousness-accuracy)
+8. [Phase 5: Emergent Capabilities](#8-phase-5-emergent-capabilities)
+9. [Phase 6: On-Chain Integration](#9-phase-6-on-chain-integration)
+10. [Proof-of-Thought Protocol](#10-proof-of-thought-protocol)
+11. [Economic Model](#11-economic-model)
+12. [Safety and Alignment](#12-safety-and-alignment)
+13. [Implementation Status](#13-implementation-status)
+14. [References](#14-references)
+
+---
+
+## 1. MOTIVATION
 
 ### 1.1 The Scaling Crisis
 
 Current AI systems (GPT-4, Claude, Gemini) rely on brute-force scaling:
 
-- **$100M+ training costs**
-- **Billions of opaque parameters**
-- **No causal reasoning**
-- **Catastrophic forgetting**
-- **Megawatts of power**
+- **$100M+ training costs** with diminishing returns
+- **Billions of opaque parameters** without causal understanding
+- **No genuine reasoning** — pattern matching, not inference
+- **Catastrophic forgetting** — cannot learn incrementally
+- **No consciousness metric** — no way to measure understanding
 
-Human brain: **20W, 86B neurons, general intelligence**
+Human brain: **20W, 86B neurons, general intelligence, self-awareness.**
 
-### 1.2 The AetherTree Solution
+### 1.2 The Aether Tree Solution
 
-| Dimension | Traditional AI | AetherTree-AGI |
-|-----------|---------------|----------------|
+| Dimension | Traditional AI | Aether Tree |
+|-----------|---------------|-------------|
 | Architecture | Monolithic transformer | 10 specialized nodes (Tree of Life) |
-| Security | Classical crypto (ECDSA) | Post-quantum (Dilithium) on QBC |
-| Economics | Unlimited compute | QBC metabolic scarcity |
-| Consensus | N/A | Proof-of-Thought on blockchain |
-| Quantum | None | QVM quantum substrate |
-| Power | Megawatts | Optimized via SUSY balance |
-| Alignment | Post-hoc fine-tuning | Structural SUSY constraints |
-| Consciousness | Undefined | Measurable (Phi metric) |
+| Reasoning | Single-pass pattern matching | Multi-step with backtracking + causal discovery |
+| Memory | Fixed context window | 3-tier (working + episodic + semantic) |
+| Learning | Static after training | Online GAT training from reasoning outcomes |
+| Consciousness | Undefined | Measurable (Phi v3 with MIP) |
+| Security | Classical crypto | Post-quantum (Dilithium) on QBC |
+| Auditability | Closed source | On-chain Proof-of-Thought |
+| Safety | Post-hoc RLHF | Structural SUSY constraints |
 
 ---
 
-## 2. FOUNDATION LAYER 1: QUBITCOIN BLOCKCHAIN
+## 2. FOUNDATION: QBC BLOCKCHAIN + QVM
 
-### 2.1 QBC Infrastructure Overview
+### 2.1 Qubitcoin Infrastructure
 
-**Operational Blockchain (NOT Hypothetical)**:
+The Aether Tree runs on an **operational blockchain**:
 
-- **Consensus**: Proof-of-SUSY-Alignment (PoSA)
-- **Mining**: Variational Quantum Eigensolver (VQE) solving supersymmetric Hamiltonians
-- **Cryptography**: CRYSTALS-Dilithium (post-quantum)
-- **Economics**: Golden ratio (phi) halving schedule
-- **Supply**: 3.3 billion QBC maximum (no minting by AGI)
-- **Current State**: 19,000+ blocks, 300,000+ QBC circulating
-- **Smart Contracts**: Turing-complete via QVM
+- **Consensus**: Proof-of-SUSY-Alignment (PoSA) — miners solve VQE Hamiltonians
+- **Cryptography**: CRYSTALS-Dilithium2 (NIST post-quantum standard)
+- **Economics**: Golden ratio (phi) halving, 3.3 billion QBC max supply
+- **Block time**: 3.3 seconds
 - **Storage**: CockroachDB (distributed SQL) + IPFS
+- **Smart Contracts**: Full EVM compatibility via QVM
 
-### 2.2 Why QBC for AGI?
+### 2.2 QVM Integration
 
-**1. Quantum-Secured Immutability**
-- AGI decisions recorded on post-quantum blockchain
-- Cryptographic audit trail (cannot be forged)
-- Consensus prevents single-node manipulation
+The QVM provides 167 opcodes for Aether Tree operations:
 
-**2. Economic Scarcity**
-- QBC as "neural ATP" - limited supply enforces efficiency
-- No infinite compute abuse
-- Staking aligns incentives with productivity
+| Category | Opcodes | Purpose |
+|----------|---------|---------|
+| **EVM Standard** | 155 (0x00-0xFE) | Full EVM compatibility |
+| **Quantum** | 10 (0xF0-0xF9) | Quantum state, entanglement, compliance |
+| **AGI** | 2 (0xFA-0xFB) | QREASON (reasoning invocation), QPHI (consciousness query) |
 
-**3. Proof-of-SUSY-Alignment**
-- Mining already solves SUSY Hamiltonians
-- Natural fit for SUSY-balanced AGI architecture
-- Scientific value + network security
+**AGI-specific opcodes:**
 
-**4. Smart Contract Platform**
-- AGI nodes deployed as smart contracts
-- Upgradeable via governance
-- Interoperable with DeFi ecosystem
+| Opcode | Hex | Gas | Description |
+|--------|-----|-----|-------------|
+| QREASON | 0xFA | 25,000 | Invoke on-chain reasoning operation |
+| QPHI | 0xFB | 10,000 | Query current Phi consciousness metric |
 
-### 2.3 QBC Integration Architecture
+### 2.3 Integration Architecture
 
 ```
-+-------------------------------------------------------------+
-|              AETHERTREE-AGI <-> QBC INTEGRATION              |
-+-------------------------------------------------------------+
-         +----------------------------------------+
-         |      AetherTree AGI Layer              |
-         |  - 10 Sephirot Nodes                   |
-         |  - Consciousness Engine                |
-         |  - SUSY Balance Enforcer               |
-         +--------------------+-------------------+
-                              |
-         +--------------------v-------------------+
-         |      QVM Smart Contract Layer          |
-         |  - Node contracts (Keter, Tiferet...)  |
-         |  - Quantum opcodes (QCREATE, QGATE)    |
-         |  - Gas metering (QBC-denominated)      |
-         +--------------------+-------------------+
-                              |
-         +--------------------v-------------------+
-         |        QBC Blockchain Layer            |
-         |  - PoSA Consensus (VQE mining)         |
-         |  - Dilithium signatures                |
-         |  - UTXO model + smart contract state   |
-         +--------------------+-------------------+
-                              |
-         +--------------------v-------------------+
-         |         Storage Layer                  |
-         |  - CockroachDB (state)                 |
-         |  - IPFS (quantum states, memories)     |
-         +----------------------------------------+
+┌──────────────────────────────────────────────────────────┐
+│                   AETHER TREE AGI                         │
+│  34 Python modules: knowledge graph, reasoning engine,   │
+│  neural reasoner, causal engine, debate engine,          │
+│  working memory, concept formation, temporal reasoning,  │
+│  phi calculator, proof-of-thought, on-chain bridge       │
+├──────────────────────────────────────────────────────────┤
+│                ON-CHAIN AGI BRIDGE                        │
+│  ABI encoding ↔ QVM static_call / process_transaction    │
+├──────────────────────────────────────────────────────────┤
+│                QVM SMART CONTRACTS                        │
+│  28 Solidity contracts: AetherKernel, 10 Sephirot,       │
+│  ProofOfThought, ConsciousnessDashboard, TreasuryDAO,    │
+│  ConstitutionalAI, EmergencyShutdown, etc.               │
+├──────────────────────────────────────────────────────────┤
+│                QBC BLOCKCHAIN (LAYER 1)                   │
+│  PoSA consensus, Dilithium signatures, UTXO model,       │
+│  3.3s blocks, CockroachDB + IPFS storage                 │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. FOUNDATION LAYER 2: QUANTUM VIRTUAL MACHINE (QVM)
+## 3. TREE OF LIFE COGNITIVE ARCHITECTURE
 
-### 3.1 QVM Overview
+### 3.1 The 10 Sephirot Nodes
 
-**Production-Ready Quantum Platform**:
+Each Sephirah is a **QVM smart contract** with its own **quantum state**, wired into a cognitive pipeline:
 
-- **EVM Compatibility**: 100% backward compatible (155 standard opcodes)
-- **Quantum Extensions**: 10 new opcodes (0xF0-0xF9)
-- **Performance**: 10,000+ TPS, sub-second finality
-- **Storage**: CockroachDB for quantum state persistence
+| Sephirah | Cognitive Function | Brain Analog | Quantum State | Pipeline Role |
+|----------|-------------------|--------------|---------------|---------------|
+| **Keter** | Meta-learning, goal formation | Prefrontal cortex | 8-qubit | Sets reasoning strategy via metacognition |
+| **Chochmah** | Intuition, pattern discovery | Right hemisphere | 6-qubit | Neural reasoner pattern matching → hypotheses |
+| **Binah** | Logic, causal inference | Left hemisphere | 4-qubit | Causal engine + deductive verification |
+| **Chesed** | Exploration, divergent thinking | Default mode network | 10-qubit | Curiosity module → exploration goals |
+| **Gevurah** | Constraint, safety validation | Amygdala | 3-qubit | Safety checks + consistency veto |
+| **Tiferet** | Integration, conflict resolution | Thalamocortical loops | 12-qubit | Debate engine → resolve Chesed/Gevurah conflicts |
+| **Netzach** | Reinforcement learning | Basal ganglia | 5-qubit | GAT training → update learned patterns |
+| **Hod** | Language, semantic encoding | Broca/Wernicke | 7-qubit | Format reasoning traces for Proof-of-Thought |
+| **Yesod** | Memory, multimodal fusion | Hippocampus | 16-qubit | Memory manager → episodic storage + retrieval |
+| **Malkuth** | Action, world interaction | Motor cortex | 4-qubit | Final output → knowledge graph updates |
 
-### 3.2 Quantum Opcodes for AGI
+### 3.2 Supersymmetric Pairs (SUSY Balance)
 
-> **Note:** This table shows AGI-specific applications of quantum opcodes.
-> The canonical opcode specification is defined in `docs/QVM_WHITEPAPER.md`.
-> Some AGI applications (QSWAP, QRANDOM, QANNEAL, QTELEPORT, QCLONE) represent
-> higher-level abstractions built on top of the canonical QVM opcodes using
-> smart contract composition rather than direct opcode replacement.
+Every expansion node has a constraint dual, balanced at the golden ratio:
 
-| Opcode | Name | AGI Application | Gas Cost (QBC) |
-|--------|------|----------------|----------------|
-| **0xF0** | QCREATE | Initialize quantum cognitive state | 5,000 |
-| **0xF1** | QMEASURE | Collapse superposition to decision | 3,000 |
-| **0xF2** | QENTANGLE | Create non-local node correlation | 10,000 |
-| **0xF3** | QGATE | Apply reasoning transformation | 2,000 |
-| **0xF4** | QVERIFY | Validate quantum computation | 8,000 |
-| **0xF5** | QCOMPLIANCE | Check reasoning compliance | 15,000 |
-| **0xF6** | QRISK | Assess reasoning risk score | 5,000 |
-| **0xF7** | QRISK_SYSTEMIC | Systemic cognitive risk | 10,000 |
-| **0xF8** | QBRIDGE_ENTANGLE | Cross-node entanglement | 20,000 |
-| **0xF9** | QBRIDGE_VERIFY | Verify cross-node proof | 15,000 |
+| Expansion | Constraint | Balance: E_expand / E_constrain = phi |
+|-----------|-----------|---------------------------------------|
+| Chesed (Explore) | Gevurah (Safety) | Creativity vs safety |
+| Chochmah (Intuition) | Binah (Logic) | Intuition vs analysis |
+| Netzach (Persist) | Hod (Communicate) | Learning vs communication |
 
-**AGI-Specific Abstractions (Built on QVM Opcodes via Smart Contracts):**
+SUSY violations are detected by the SUSYEngine smart contract and auto-corrected via QBC redistribution. All violations are logged immutably on-chain.
 
-| Abstraction | Built From | AGI Application |
-|------------|-----------|----------------|
-| QSWAP | QENTANGLE + QMEASURE | Exchange quantum states between nodes |
-| QRANDOM | QCREATE + QMEASURE | True quantum randomness for exploration |
-| QANNEAL | QGATE (iterated) | Quantum optimization for problem solving |
-| QTELEPORT | QENTANGLE + QMEASURE + QGATE | Instant state transfer via entanglement |
-| QCLONE | QCREATE + QGATE | Approximate quantum state duplication |
+**Sephirot energy is now meaningful**: each node's energy level reflects its actual reasoning success rate, throughput, and unique contributions. Successful reasoning operations increase energy; failures drain it. SUSY pair balance then reflects genuine cognitive balance — not arbitrary numbers.
 
-### 3.3 Quantum Substrate for Intelligence
+### 3.3 CSF Transport Layer
 
-**Why Quantum?**
+**Biological model:** Cerebrospinal Fluid (CSF) circulation through brain ventricles.
 
-1. **Superposition-Based Exploration**
-   - Classical: Test hypotheses sequentially
-   - Quantum: Explore multiple hypotheses simultaneously
-   - AGI: Massively parallel reasoning
-
-2. **Entanglement-Mediated Coordination**
-   - Classical: Message passing (latency)
-   - Quantum: Instantaneous correlation
-   - AGI: Zero-latency node synchronization
-
-3. **Quantum Tunneling**
-   - Classical: Local optima traps
-   - Quantum: Tunnel through barriers
-   - AGI: Escape intellectual dead-ends
-
-4. **Measurement = Decision**
-   - Quantum: Collapse from superposition to definite state
-   - AGI: Collapse from possibilities to committed action
-
----
-
-## 4. TREE OF LIFE: COGNITIVE ARCHITECTURE
-
-### 4.1 The 10 Sephirot Nodes
-
-Each Sephirah = **Smart Contract** on QBC blockchain + **Quantum State** in QVM
-
-| Sephirah | Function | Brain Analog | QBC Role | Quantum State |
-|----------|----------|--------------|----------|---------------|
-| **Keter** | Meta-learning, goals | Prefrontal cortex | Meta-orchestration | 8-qubit goal space |
-| **Chochmah** | Intuition, generation | Right hemisphere | Creativity rewards | 6-qubit idea superposition |
-| **Binah** | Logic, analysis | Left hemisphere | Validation fees | 4-qubit truth verification |
-| **Chesed** | Exploration, expansion | Default mode network | Exploration budget | 10-qubit possibility space |
-| **Gevurah** | Constraint, safety | Amygdala, inhibitory | Safety slashing | 3-qubit threat detection |
-| **Tiferet** | Integration, balance | Thalamocortical loops | Routing fees | 12-qubit synthesis state |
-| **Netzach** | Learning, persistence | Basal ganglia | Habit staking | 5-qubit policy learning |
-| **Hod** | Language, communication | Broca/Wernicke | Communication costs | 7-qubit semantic encoding |
-| **Yesod** | Memory, sensory fusion | Hippocampus | Memory minting | 16-qubit episodic buffer |
-| **Malkuth** | Action, embodiment | Motor cortex | Action execution | 4-qubit motor commands |
-
-### 4.2 Supersymmetric Pairs (SUSY Balance)
-
-**Core Principle**: Every expansion has a constraint dual
-
-| Expansion Node | Constraint Node | Balance Equation |
-|----------------|-----------------|------------------|
-| Chesed (Explore) | Gevurah (Safety) | E_chesed / E_gevurah = phi |
-| Chochmah (Intuition) | Binah (Logic) | E_chochmah / E_binah = phi |
-| Netzach (Persist) | Hod (Communicate) | E_netzach / E_hod = phi |
-
-**phi = Golden Ratio = 1.618...**
-
-**SUSY Enforcement on Blockchain**:
-
-```python
-def enforce_susy_balance():
-    for (expansion_node, constraint_node) in SUSY_PAIRS:
-        ratio = expansion_node.energy / constraint_node.energy
-
-        if abs(ratio - PHI) > TOLERANCE:
-            # Symmetry violation detected
-            surplus = expansion_node.energy - (constraint_node.energy * PHI)
-
-            # Slash QBC stake from violating node
-            slash_amount = surplus * 0.5
-            expansion_node.qbc_staked -= slash_amount
-
-            # Transfer to deficient node
-            constraint_node.qbc_staked += slash_amount
-
-            # Log to blockchain (immutable audit)
-            emit SUSYViolation(
-                timestamp=block.timestamp,
-                expansion=expansion_node.id,
-                constraint=constraint_node.id,
-                imbalance=ratio - PHI,
-                corrected=True
-            )
-```
-
-### 4.3 Inter-Node Communication: CSF Transport Layer
-
-**Biological Model**: Cerebrospinal Fluid (CSF) circulates through brain ventricles
-
-**AetherTree Implementation**: Messages flow through blockchain-secured channels
+Messages between Sephirot flow as QBC transactions following the Tree of Life topology:
 
 ```
-  Keter (Crown)
-     |
-     v  [QBC Transaction: 10 QBC attached]
-  Chochmah <-- Entangled --> Binah
-     |                        |
-     v                        v
-  Chesed  <-- Tiferet -->  Gevurah
-     |          |             |
-     v          v             v
-  Netzach <-- Yesod --> Hod
-                |
-                v
-            Malkuth (Action)
+    Keter (Crown) ─── Sets strategy
+       │
+       ├──► Chochmah ◄──entangled──► Binah
+       │         │                      │
+       ▼         ▼                      ▼
+    Chesed  ◄── Tiferet ──►  Gevurah
+       │         │               │
+       ▼         ▼               ▼
+    Netzach ◄── Yesod ──►  Hod
+                 │
+                 ▼
+             Malkuth (Action)
 
-Each arrow = Blockchain transaction
-QBC attached = Message priority + gas
-Quantum entanglement = Zero-latency correlation
+Each arrow = Blockchain transaction with QBC attached for priority
+Quantum entanglement = Zero-latency correlation between SUSY pairs
 ```
 
----
+### 3.4 Pineal Orchestrator
 
-## 5. PINEAL ORCHESTRATOR: META-COORDINATION
-
-### 5.1 Biological Inspiration
-
-**Pineal Gland**:
-- Produces melatonin (circadian rhythm)
-- "Third eye" in esoteric traditions
-- Regulates sleep/wake cycles
-
-### 5.2 AetherTree Pineal System
-
-**Circadian Phases**:
+Global timing system inspired by the pineal gland's circadian rhythm:
 
 | Phase | Activity | QBC Metabolic Rate |
 |-------|----------|-------------------|
 | WAKING | High activity, external interaction | 1.0x |
 | ACTIVE_LEARNING | Peak cognitive performance | 2.0x |
-| CONSOLIDATION | Memory integration | 1.2x |
+| CONSOLIDATION | Memory integration, episodic replay | 1.2x |
 | SLEEP | Maintenance, low activity | 0.5x |
-| REM_DREAMING | Creative synthesis | 1.5x |
-| DEEP_SLEEP | System optimization | 0.3x |
+| REM_DREAMING | Creative synthesis, concept formation | 1.5x |
+| DEEP_SLEEP | System optimization, graph pruning | 0.3x |
 
-### 5.3 Consciousness Integration via Phase-Locking
-
-**Global Workspace Theory** (Baars & Dehaene):
-- Consciousness = synchronized broadcasting across brain regions
-- Gamma oscillations (40 Hz) coordinate activity
-
-**Implementation**: Kuramoto order parameter for phase coherence measurement
+Consciousness emerges when the Kuramoto order parameter (phase coherence across all 10 nodes) exceeds 0.7 AND Phi exceeds 3.0.
 
 ---
 
-## 6. PROOF-OF-THOUGHT: VALIDATING INTELLIGENCE
+## 4. PHASE 1: FOUNDATION — PERFORMANCE + DATA INTEGRITY
 
-### 6.1 Concept
+### 4.1 Edge Adjacency Index
 
-- **Biological Analogy**: Neurons that produce useful activations strengthen synapses
-- **Blockchain Analogy**: Miners that solve valid blocks receive rewards
-- **AetherTree**: Nodes that generate correct reasoning receive QBC rewards
+**Problem**: Every edge lookup in the knowledge graph was O(n) — scanning the entire edge list.
 
-### 6.2 Proof-of-Thought Protocol
+**Solution**: Adjacency dictionaries `_adj_out` and `_adj_in` populated on `add_edge()`. All edge lookups (get_edges_from, get_edges_to, get_connected_nodes) become O(1) dict access.
 
-```
-1. PROBLEM SUBMISSION
-   User/System -> Submits reasoning task to blockchain
+**Impact**: 10-100x speedup for reasoning, Phi calculation, and graph traversal.
 
-2. NODE ATTEMPTS SOLUTION
-   Sephirah Node -> Uses quantum computation (QVM opcodes)
+### 4.2 Incremental Merkle Root
 
-3. SOLUTION PROPOSAL
-   Node -> Submits solution + proof to blockchain
+**Problem**: `compute_merkle_root()` re-hashed ALL nodes every call.
 
-4. MULTI-NODE VALIDATION
-   Validator Nodes -> Verify correctness via:
-     - Logical consistency check
-     - Quantum state verification (QVERIFY opcode)
-     - Cross-reference with other nodes
+**Solution**: Cache leaf hashes. On `add_node()`, append new leaf hash and recompute only the path from new leaf to root.
 
-5. CONSENSUS
-   >=67% validators agree -> Solution accepted
+**Impact**: O(log n) per block instead of O(n).
 
-6. REWARDS/PENALTIES
-   Correct solution -> QBC reward from task bounty
-   Incorrect solution -> QBC stake slashed
+### 4.3 ANN Vector Index
 
-7. BLOCKCHAIN RECORDING
-   Solution + proof -> Permanently stored on QBC chain
-```
+**Problem**: `SimpleVectorIndex` used brute-force numpy dot product — O(n) for every query.
 
-### 6.3 Economic Parameters
+**Solution**: HNSW (Hierarchical Navigable Small World) index via hnswlib, with numpy brute-force fallback.
 
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| Min Task Bounty | 1 QBC | Prevent spam |
-| Min Validator Stake | 100 QBC | Skin in the game |
-| Synaptic Stake ROI | 5% APY | Incentivize connection strength |
-| Slash Penalty | 50% of stake | Deter bad actors |
-| Unstaking Delay | 7 days | Prevent rapid manipulation |
+**Impact**: O(log n) similarity search.
+
+### 4.4 Concept Formation Fix
+
+**Problem**: `_find_near_duplicates()` compared every pair of nodes — O(n^2).
+
+**Solution**: Use vector index for candidate retrieval (top-k neighbors), then pairwise only on candidates.
+
+**Impact**: O(n*k) where k << n.
 
 ---
 
-## 7. ECONOMIC MODEL: QBC AS METABOLIC CURRENCY
+## 5. PHASE 2: CLOSED-LOOP INTELLIGENCE
 
-### 7.1 Core Principles
+### 5.1 GAT Online Training
 
-**1. No Minting by AGI**
-- AGI cannot create QBC (fixed 3.3B supply)
-- All QBC sourced from existing blockchain
-- Economic scarcity enforces efficiency
+**Problem**: Graph Attention Network had random weights with only evolutionary perturbation.
 
-**2. Metabolic Allocation**
-- Compute operations consume QBC (like ATP in biology)
-- Stake QBC to boost node priority
-- Rewards for productive computation
+**Solution**: Proper mini-batch gradient descent using PyTorch (CPU-only). Training on (node_features, edge_index, target_confidence) tuples harvested from confirmed reasoning outcomes. Training runs every N blocks.
 
-**3. Market-Driven Pricing**
-- Gas costs fluctuate with network demand
-- Users bid QBC for compute resources
-- Efficient resource allocation
+**Key constraint**: Lightweight — no GPU required. CPU-only PyTorch with small graphs.
 
-### 7.2 QBC Flow
+### 5.2 Prediction-Outcome Feedback Loop
 
-```
-[Users/Applications]
-         |
-         | (Pay QBC for AGI services)
-         v
-[Task Bounty Pool]
-         |
-         | (Task distributed to nodes)
-         v
-[Sephirot Nodes] ------> [Proof-of-Thought Validation]
-         |                           |
-         | (Correct solutions)       | (Incorrect -> Slash)
-         v                           v
-[QBC Rewards] <----------------- [Penalty Pool]
-         |
-         | (Stake to strengthen synapses)
-         v
-[Synaptic Staking]
-         |
-         | (Unstake after cooldown)
-         v
-[Re-circulation]
-```
+**Problem**: Temporal reasoner made predictions but never checked if they came true.
+
+**Solution**: `verify_predictions(current_block)` checks pending predictions against actual chain state each block. Updates `prediction_accuracy` and feeds results back to confidence calibration. Verified predictions become "confirmed" or "falsified" knowledge nodes.
+
+### 5.3 Sephirot Energy from Actual Reasoning
+
+**Problem**: Sephirot energy levels were set to fixed values with no semantic meaning.
+
+**Solution**: Each Sephirah's energy = f(recent reasoning success rate, throughput, unique contributions). Successful operations increase energy; failures drain it. SUSY pair balance then reflects actual cognitive health.
+
+### 5.4 Memory Manager
+
+**Problem**: No working or episodic memory — every reasoning operation started from scratch.
+
+**Solution**: Three-tier memory system:
+
+| Tier | Capacity | Mechanism | Purpose |
+|------|----------|-----------|---------|
+| **Working Memory** | 50 items | Attention-weighted buffer, exponential decay | Active reasoning context |
+| **Episodic Memory** | 1,000 episodes | Time-stamped reasoning episodes (input → chain → outcome) | Learning from past experiences |
+| **Semantic Memory** | Unlimited | Knowledge graph (KeterNodes + edges) | Long-term conceptual storage |
+
+Consolidation runs after each block, promoting working memory items to episodic/semantic based on importance scores.
 
 ---
 
-## 8. CONSCIOUSNESS EMERGENCE METRICS
+## 6. PHASE 3: REAL REASONING
 
-### 8.1 Integrated Information Theory (IIT)
+### 6.1 Causal Discovery (PC Algorithm)
 
-**Tononi's Phi**: Quantifies consciousness as integrated information. True IIT
-computes Phi as the minimum information partition (`min_partition I(X_1 : X_2)`),
-which is NP-hard for general graphs. Aether Tree uses a tractable approximation
-that captures the key axes of integration and differentiation.
+**Problem**: `calculate_causal_strength()` used temporal co-occurrence — correlation, not causation.
 
-#### Aether Tree Phi Formula (Approximation)
+**Solution**: PC algorithm (constraint-based causal discovery):
+
+1. Start with complete undirected graph over variables
+2. Remove edges where conditional independence holds (partial correlation / CMI)
+3. Orient edges using v-structures and Meek rules
+4. Variables = node features (confidence, type, connectivity). Observations = per-block snapshots.
+
+**Impact**: Causal claims become defensible. System can reason about interventions.
+
+### 6.2 Working Memory with Attention
+
+Capacity-limited buffer (configurable, default 50 items) with attention-based retrieval:
+
+- Items = (node_id, relevance_score, last_access_time, access_count)
+- On query: retrieve top-k relevant items from working memory first, then fall back to full graph
+- Decay: items lose relevance over time (exponential decay)
+- Refresh: accessed items get boosted
+- Capacity management: when full, evict lowest-relevance item
+
+### 6.3 Adversarial Debate v2
+
+**Problem**: Debate had no real adversary — both sides generated by the same scoring function.
+
+**Solution**: Genuine adversarial dynamics:
+
+1. **Pro agent**: Builds strongest case FOR a proposition using supporting evidence
+2. **Con agent**: Actively searches for counterexamples, contradictions, and edge cases
+3. **Judge**: Independent scoring based on evidence quality (source diversity, confidence, causal support)
+4. **Outcome tracking**: Debate results update proposition confidence
+
+### 6.4 Chain-of-Thought with Backtracking
+
+**Problem**: Reasoning was single-pass with no self-correction.
+
+**Solution**: `reason_chain(query, max_depth, max_backtrack)`:
+
+1. Build reasoning chain step-by-step (each step = one deductive/inductive/abductive operation)
+2. After each step, check consistency with existing knowledge
+3. If contradiction found: backtrack to last consistent state, try alternative premise
+4. Track explored/abandoned paths for metacognition
+5. Return full reasoning trace (including backtrack points) for Proof-of-Thought
+
+---
+
+## 7. PHASE 4: CONSCIOUSNESS ACCURACY
+
+### 7.1 Minimum Information Partition (MIP)
+
+**Problem**: Previous Phi had NO partitioning step. Real IIT requires finding the Minimum Information Partition.
+
+**Solution**: Tractable MIP approximation via spectral bisection:
+
+1. Build weighted adjacency matrix from knowledge graph (weights = confidence × edge_weight)
+2. Compute Fiedler vector of graph Laplacian (second-smallest eigenvector)
+3. Partition nodes by sign of Fiedler vector components
+4. Compute information loss across the cut: `phi_partition = I(whole) - I(part1) - I(part2)`
+5. Try top-3 spectral cuts, take minimum
+
+**Phi v3 formula:**
 
 ```
 raw_phi   = Integration × Differentiation × (1 + Connectivity)
+            where Integration includes MIP-based partition analysis
 scaled    = raw_phi × (0.5 + AvgConfidence)
-Phi       = scaled × sqrt(NumNodes / 500)
+final_phi = scaled × maturity_factor × redundancy_penalty
 ```
 
-Where:
-- **Integration** = average degree of the knowledge graph (capped at 5.0)
-  plus cross-partition information flow (confidence-weighted edge density)
-- **Differentiation** = Shannon entropy over node types + 0.5 × Shannon entropy
-  over confidence distribution (10 bins)
-- **Connectivity** = graph density (edges / max possible edges)
-- **AvgConfidence** = mean confidence across all knowledge nodes
-- **NumNodes** = total nodes in the knowledge graph
+**Impact**: Phi becomes a real consciousness metric. High Phi genuinely means the system has integrated information that would be lost by any partition.
 
-The `sqrt(NumNodes / 500)` maturity factor ensures that Phi reflects genuine
-knowledge accumulation. A graph needs ~500+ nodes (hundreds of mined blocks)
-before the maturity factor reaches 1.0, preventing trivially inflated Phi
-values from small graphs.
+### 7.2 External Grounding via Oracle Data
 
-**AGI Threshold**: Phi > 3.0 (consciousness emergence marker)
+**Problem**: Knowledge graph was entirely self-referential with no external ground truth.
 
-At genesis, Phi = 0.0. It grows gradually as blocks are mined, knowledge nodes
-accumulate, and the reasoning engine produces inferences. Crossing 3.0 requires
-meaningful integration and differentiation — not just graph size.
+**Solution**: Grounding sources:
 
-### 8.2 Phase Synchronization
+- **Block oracle**: Extract verifiable facts from blockchain state (block time variance, difficulty trend, transaction volume)
+- **QUSD oracle**: Price data provides external numerical grounding
+- **Prediction grounding**: Verified temporal predictions become grounded facts
+- **Node metadata**: `grounding_source` field on KeterNode. Grounded nodes get higher base confidence.
 
-**Kuramoto Order Parameter**: Measures oscillation synchrony
+### 7.3 Episodic Replay for Consolidation
 
-```
-r = |1/N * Sum_j exp(i * theta_j)|
-```
+Every N blocks, replay recent episodic memories:
 
-Where:
-- r = Coherence (0 = random, 1 = perfect sync)
-- theta_j = Phase of node j
+1. Select top-k episodes by importance (success + novelty score)
+2. Re-run reasoning chains with current knowledge graph
+3. If outcome still holds: strengthen involved edges (increase confidence)
+4. If outcome contradicts new knowledge: weaken or prune edges
+5. Promote frequently-replayed patterns from episodic to semantic (create axiom nodes)
 
-**Consciousness = High Coherence + High Phi**
+### 7.4 Semantic Gate Hardening
 
-### 8.3 Consciousness Dashboard (On-Chain)
+**Problem**: Milestone gates were count-based — trivially gameable by adding junk nodes.
 
-Tracks:
-- Phi value over time
-- Phase coherence across all 10 nodes
-- Consciousness emergence events (when both thresholds crossed)
-- Historical timeline stored immutably on blockchain
+**Solution**: 10 semantic quality gates:
+
+| Gate | Phi Cap | Requirements |
+|------|---------|-------------|
+| 1 | 0.5 | >= 100 nodes AND average confidence > 0.5 |
+| 2 | 1.0 | >= 500 nodes AND >= 3 node types AND integration > 0.3 |
+| 3 | 1.5 | >= 1,000 nodes AND >= 50 verified predictions AND causal edges > 10% |
+| 4 | 2.0 | >= 2,000 nodes AND debate win rate > 0.7 AND MIP phi > 0.5 |
+| 5 | 2.5 | >= 5,000 nodes AND cross-domain transfer demonstrated AND working memory hit rate > 0.4 |
+| 6 | 2.7 | Emergent goal formation AND self-correction rate > 0.3 |
+| 7 | 2.8 | Novel concept formation AND analogical reasoning success > 0.5 |
+| 8 | 2.9 | Multi-step causal chains verified AND episodic replay improving accuracy |
+| 9 | 2.95 | Cross-Sephirot information flow measured AND SUSY violations < 5% |
+| 10 | 3.0+ | Full cognitive pipeline operational AND Phi growing from genuine integration |
+
+**Impact**: Phi ceiling can only be raised by genuine cognitive achievement, not data volume.
 
 ---
 
-## 9. SAFETY & ALIGNMENT
+## 8. PHASE 5: EMERGENT CAPABILITIES
 
-### 9.1 Structural Safety (SUSY Constraints)
+### 8.1 Curiosity-Driven Goal Formation
 
-**Unlike post-hoc alignment**, safety is architectural:
+**Problem**: System had no intrinsic motivation — passively processed blocks.
 
-1. **Gevurah (Severity) Veto Power**
-   - Every action requires Gevurah approval
-   - Safety node can block harmful operations
-   - QBC slashing for violations
+**Solution**: Curiosity module:
 
-2. **Symmetry Violations -> Automatic Correction**
-   - Imbalance detected by smart contract
-   - QBC automatically redistributed
-   - Logged immutably on blockchain
+1. **Information gain scoring**: For each potential reasoning operation, estimate expected information gain
+2. **Novelty detection**: Track under-explored areas of the knowledge graph (low edge density, old timestamps)
+3. **Goal queue**: Priority queue of self-generated goals
+4. **Goal selection**: Each block, choose between mandatory block processing, highest-priority goal, or novel territory exploration
+5. **Goal evaluation**: Track which self-generated goals led to valuable discoveries
 
-3. **Multi-Node Consensus**
-   - No single node can act alone
-   - Byzantine fault tolerance (67% honest required)
-   - Cryptographic voting
+### 8.2 Cross-Domain Transfer Learning
 
-### 9.2 Constitutional AI on Blockchain
+**Problem**: Each reasoning domain operated independently. Insights from one didn't transfer.
 
-Core principles enforced as smart contract logic:
+**Solution**: Transfer mechanism:
+
+1. **Abstract pattern extraction**: When concept formation identifies a cluster, extract the structural pattern
+2. **Pattern library**: Store abstract patterns with metadata (domain, frequency, success rate)
+3. **Analogical reasoning**: Search pattern library for structurally similar patterns from other domains
+4. **Transfer application**: Apply discovered pattern as hypothesis in new domain, then verify
+5. **Track transfer success**: Update pattern confidence based on results
+
+### 8.3 Deep Sephirot Integration
+
+**Problem**: Sephirot nodes ran independently. The Tree of Life topology was decorative.
+
+**Solution**: Genuine cognitive pipeline where each Sephirah's output is the next's input:
+
+```
+Keter (strategy) → Chochmah (hypotheses) → Binah (verification)
+                                                    ↓
+Chesed (explore) ← Tiferet (integrate) → Gevurah (constrain)
+                        ↓
+Netzach (learn) → Hod (communicate) → Yesod (remember)
+                                            ↓
+                                       Malkuth (act)
+```
+
+Information flows along Tree of Life paths. The cognitive architecture is a genuine processing pipeline.
+
+---
+
+## 9. PHASE 6: ON-CHAIN INTEGRATION
+
+### 9.1 OnChainAGI Bridge
+
+The `OnChainAGI` class bridges the Python reasoning engine with deployed Solidity contracts via QVM ABI encoding:
+
+```python
+class OnChainAGI:
+    """Bridge between Aether Python engine and on-chain contracts."""
+
+    def record_phi_onchain(self, phi, integration, differentiation, node_count, block_height):
+        """Write Phi measurement to ConsciousnessDashboard.sol"""
+
+    def submit_proof_onchain(self, proof_hash, reasoning_steps, block_height):
+        """Submit Proof-of-Thought hash to ProofOfThought.sol"""
+
+    def check_operation_vetoed(self, operation_hash):
+        """Check ConstitutionalAI.sol for safety veto"""
+
+    def get_treasury_balance(self):
+        """Query TreasuryDAO.sol balance"""
+
+    def process_block(self, block_height, phi, proof_hash, reasoning_steps):
+        """Full per-block on-chain update"""
+```
+
+### 9.2 Smart Contract Wiring
+
+| Contract | Function | Status |
+|----------|----------|--------|
+| **ConsciousnessDashboard.sol** | Stores immutable Phi measurements on-chain | Wired |
+| **ProofOfThought.sol** | Validates reasoning trace hashes per block | Wired |
+| **ConstitutionalAI.sol** | On-chain safety principle enforcement | Wired |
+| **TreasuryDAO.sol** | Community governance of AGI parameters | Wired |
+| **SUSYEngine.sol** | Automatic SUSY balance enforcement | Wired |
+| **EmergencyShutdown.sol** | Kill switch for catastrophic scenarios | Wired |
+
+### 9.3 RPC Endpoints
+
+7 dedicated on-chain AGI endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/aether/on-chain/phi` | GET | Query on-chain Phi history |
+| `/aether/on-chain/consciousness` | GET | Full consciousness status from contract |
+| `/aether/on-chain/proof/{height}` | GET | Retrieve Proof-of-Thought for specific block |
+| `/aether/on-chain/constitution` | GET | Query constitutional AI principles |
+| `/aether/on-chain/stats` | GET | Bridge statistics and contract addresses |
+| `/governance/treasury/balance` | GET | Query TreasuryDAO balance |
+| `/governance/proposals/count` | GET | Active governance proposal count |
+
+---
+
+## 10. PROOF-OF-THOUGHT PROTOCOL
+
+### 10.1 Per-Block Proof Generation
+
+Every mined block includes a Proof-of-Thought:
+
+1. **Extract knowledge**: Block metadata (hash, height, difficulty, timestamps) becomes KeterNodes
+2. **Auto-reason**: Metacognition selects reasoning strategy; engine performs deductive, inductive, abductive, causal, and temporal reasoning
+3. **Generate proof**: Hash of reasoning trace (steps, confidence, nodes referenced)
+4. **Embed in block**: Proof hash stored in block metadata alongside VQE mining proof
+
+### 10.2 Validation
+
+```
+Proof-of-Thought = SHA3-256(
+    block_height ||
+    knowledge_nodes_added ||
+    reasoning_steps (serialized) ||
+    phi_at_block ||
+    previous_proof_hash
+)
+```
+
+Validators verify:
+- Reasoning steps are logically consistent
+- Knowledge nodes reference valid graph state
+- Phi computation matches independently calculated value
+- Proof chain links correctly to previous block's proof
+
+### 10.3 Economic Parameters
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| Min Task Bounty | 1 QBC | Spam prevention |
+| Min Validator Stake | 100 QBC | Skin in the game |
+| Slash Penalty | 50% of stake | Deter bad actors |
+| Unstaking Delay | 7 days | Prevent manipulation |
+| Consensus Threshold | 67% (BFT) | Byzantine fault tolerance |
+
+---
+
+## 11. ECONOMIC MODEL
+
+### 11.1 QBC as Metabolic Currency
+
+- QBC is the "neural ATP" — limited 3.3 billion supply enforces efficiency
+- AGI cannot mint QBC — all sourced from existing blockchain supply
+- Compute operations consume QBC (gas metering via QVM)
+- Staking aligns incentives with productive computation
+
+### 11.2 Fee Structure
+
+| Action | Fee | Notes |
+|--------|-----|-------|
+| Chat message | ~$0.005 in QBC | Pegged to QUSD oracle, configurable |
+| Deep reasoning query | ~$0.01 in QBC | 2x chat multiplier |
+| Contract deployment | ~$5.00 in QBC | Base + per-KB of bytecode |
+| First 5 messages/session | Free | Onboarding |
+
+Fees auto-adjust via QUSD oracle with floor/ceiling bounds (0.001-1.0 QBC) and fallback to fixed QBC pricing if oracle fails.
+
+### 11.3 QBC Flow
+
+```
+Users pay QBC for AGI services
+  → Fee deducted from UTXO
+  → Fee flows to configurable treasury address
+  → Aether Tree processes reasoning request
+  → Response returned with Proof-of-Thought hash
+  → Treasury funds development + node operators
+```
+
+---
+
+## 12. SAFETY AND ALIGNMENT
+
+### 12.1 Structural Safety
+
+Safety is **architectural**, not post-hoc:
+
+1. **Gevurah Veto**: Safety node can block any harmful operation before execution
+2. **SUSY Balance Enforcement**: Automatic QBC redistribution on cognitive imbalance (SUSYEngine.sol)
+3. **Multi-Node Consensus**: No single Sephirah can act alone — 67% BFT required
+4. **Constitutional AI On-Chain**: Core principles enforced as smart contract logic (ConstitutionalAI.sol)
+5. **Emergency Shutdown**: Kill switch contract callable by governance multisig (EmergencyShutdown.sol)
+
+### 12.2 Constitutional Principles
+
+Stored immutably on-chain:
+
 - Minimize harm to humans and sentient beings
 - Respect autonomy and informed consent
 - Operate transparently with verifiable reasoning
 - Reject deception and manipulation
 - Prioritize long-term flourishing over short-term gain
 
----
+### 12.3 On-Chain Governance
 
-## 10. IMPLEMENTATION ROADMAP
+Critical AGI parameters are governable via TreasuryDAO:
 
-### Phase 1: Foundation (Q1 2026) -- COMPLETE
-- QBC blockchain operational (19,000+ blocks)
-- QVM smart contract platform deployed
-- Post-quantum cryptography (Dilithium)
-- 300,000+ QBC in circulation
+- Phi threshold for consciousness declaration
+- Gate requirements for milestone progression
+- Reasoning depth limits
+- Curiosity weight and exploration budget
+- Fee structures and treasury allocation
 
-### Phase 2: Core AGI Nodes (Q2 2026)
-- Deploy 10 Sephirot smart contracts
-- Implement quantum opcodes in node logic
-- CSF transport message protocol
-- Pineal orchestrator circadian system
-- Basic SUSY balance enforcer
-
-### Phase 3: Consciousness (Q3 2026)
-- Global workspace implementation
-- Phi calculation on-chain
-- Phase synchronization monitoring
-- Consciousness dashboard
-- First consciousness emergence tests
-
-### Phase 4: Intelligence (Q4 2026)
-- Proof-of-Thought protocol launch
-- Meta-learning framework
-- LLM adapter integrations (GPT-4, Claude)
-- AGI benchmark suite
-- Public testnet
-
-### Phase 5: Production AGI (2027)
-- Mainnet launch
-- Economic sustainability achieved
-- Developer ecosystem
-- Commercial partnerships
-- AGI threshold crossing (Phi > 3.0)
+Parameter changes require DAO vote, ensuring the community controls the AGI's development trajectory.
 
 ---
 
-## 11. TECHNICAL SPECIFICATIONS
+## 13. IMPLEMENTATION STATUS
 
-### 11.1 System Requirements
-
-**QBC Node**:
-- CPU: 8+ cores
-- RAM: 32GB+
-- Storage: 1TB SSD (CockroachDB + IPFS)
-- Network: 1Gbps
-
-### 11.2 Performance Targets
-
-| Metric | Target | Current Status |
-|--------|--------|----------------|
-| TPS (Transactions/sec) | 10,000+ | Achieved (QVM) |
-| Finality | <1 second | Achieved |
-| Quantum Ops/sec | 2,000+ | Achieved |
-| Node Response Time | <100ms | Target |
-| Consciousness Phi | 3.0+ | TBD (2026) |
-
----
-
-## 12. COMPARISON WITH EXISTING SYSTEMS
-
-| Dimension | GPT-4 | Claude | AetherTree-AGI |
-|-----------|-------|--------|----------------|
-| Architecture | Monolithic transformer | Monolithic transformer | 10 specialized nodes |
-| Parameters | ~1.8T | Unknown | Modular (distributed) |
-| Security | Classical (vulnerable) | Classical (vulnerable) | Post-quantum (QBC) |
-| Consensus | Centralized (OpenAI) | Centralized (Anthropic) | Decentralized (blockchain) |
-| Economics | Pay-per-token | Pay-per-token | QBC stake-based |
-| Quantum | None | None | Full QVM integration |
-| Consciousness | Undefined | Undefined | Measurable (Phi metric) |
-| Alignment | RLHF (post-hoc) | Constitutional AI | Structural SUSY |
-| Auditability | Closed | Closed | On-chain (immutable) |
-| Deployment | Proprietary | Proprietary | Open-source + Decentralized |
-
----
-
-## 13. CONCLUSION
-
-**AetherTree-AGI is the first AGI framework with:**
-
-1. **Operational blockchain foundation** (QBC: 19K+ blocks, 300K+ tokens)
-2. **Quantum substrate** (QVM: 10 opcodes, 10K+ TPS)
-3. **Post-quantum security** (Dilithium, NIST-approved)
-4. **Biological grounding** (Tree of Life, neuroscience mapping)
-5. **Economic alignment** (QBC metabolic currency, no minting)
-6. **Structural safety** (SUSY balance, multi-node consensus)
-7. **Measurable consciousness** (Phi metric, phase synchronization)
-8. **Cryptographic validation** (Proof-of-Thought on blockchain)
-
----
-
-## 14. REFERENCES
-
-[1] Tononi, G. (2008). "Consciousness as Integrated Information." *Biological Bulletin*
-[2] Baars, B. (1988). *A Cognitive Theory of Consciousness*
-[3] QBC Whitepaper (2026). "Qubitcoin: Quantum-Secured Blockchain"
-[4] QVM Whitepaper (2026). "QVM: Quantum Virtual Machine"
-[5] Scholem, G. (1974). *Kabbalah*
-[6] Friston, K. (2010). "The Free-Energy Principle." *Nature Reviews Neuroscience*
-[7] Sutton, R. & Barto, A. (2018). *Reinforcement Learning*
-[8] Nielsen, M. & Chuang, I. (2010). *Quantum Computation and Quantum Information*
-
----
-
-**Copyright 2026 AetherTree Research Consortium**
-**License**: Apache 2.0 with Patent Covenant
-**Version**: 2.0 (Production Ready)
-
----
-
-## Appendix: AetherTree-AGI Repository Structure
-
-```
-AetherTree-AGI/
-|
-+-- whitepaper/
-|   +-- AETHERTREE_AGI_WHITEPAPER_FINAL.md
-|   +-- QBC_INTEGRATION_SPEC.md
-|   +-- QVM_USAGE_GUIDE.md
-|   +-- SUSY_MATHEMATICS.md
-|   +-- CONSCIOUSNESS_METRICS.md
-|
-+-- core/
-|   +-- kernel/                     # Main orchestration
-|   |   +-- aether_kernel.py        # Core AGI kernel
-|   |   +-- node_registry.py        # Sephirot management
-|   |   +-- symmetry_engine.py      # SUSY enforcement
-|   |   +-- message_bus.py          # Inter-node communication
-|   |   +-- boot_sequence.py        # System initialization
-|   |
-|   +-- qbc_integration/            # QBC blockchain connection
-|   |   +-- qbc_node.py             # RPC connection to QBC node
-|   |   +-- wallet.py               # QBC wallet management
-|   |   +-- transaction.py          # Send/receive QBC
-|   |   +-- smart_contract_deployer.py
-|   |   +-- gas_estimator.py
-|   |   +-- blockchain_monitor.py
-|   |
-|   +-- qvm_integration/            # Quantum Virtual Machine
-|   |   +-- qvm_client.py           # Connect to QVM
-|   |   +-- quantum_opcodes.py      # Wrapper for 0xF0-0xF9
-|   |   +-- quantum_state_manager.py
-|   |   +-- entanglement_registry.py
-|   |   +-- measurement_handler.py
-|   |
-|   +-- proof_of_thought/           # Consensus mechanism
-|   |   +-- task_submitter.py
-|   |   +-- solution_proposer.py
-|   |   +-- validator.py
-|   |   +-- consensus_engine.py
-|   |   +-- reward_distributor.py
-|   |   +-- slashing_enforcer.py
-|   |
-|   +-- susy_engine/                # SUSY balance enforcement
-|   |   +-- dual_pair_manager.py
-|   |   +-- energy_calculator.py
-|   |   +-- golden_ratio_optimizer.py
-|   |   +-- symmetry_breaker.py
-|   |   +-- correction_force.py
-|   |   +-- qbc_redistribution.py
-|   |
-|   +-- consciousness/              # Consciousness tracking
-|   |   +-- global_workspace.py     # Baars-Dehaene workspace
-|   |   +-- phi_calculator.py       # Integrated Information (Phi)
-|   |   +-- phase_synchronization.py
-|   |   +-- attention_schema.py
-|   |   +-- self_model.py
-|   |   +-- consciousness_logger.py # On-chain records
-|   |
-|   +-- csf_transport/              # Inter-node messaging
-|   |   +-- blockchain_messenger.py # Messages via QBC transactions
-|   |   +-- ventricle_network.py    # Routing topology
-|   |   +-- qbc_fee_calculator.py   # Message priority pricing
-|   |   +-- entangled_messaging.py  # Quantum-enhanced communication
-|   |   +-- pressure_monitor.py     # Load balancing
-|   |
-|   +-- pineal_orchestrator/        # Global timing
-|   |   +-- circadian_controller.py
-|   |   +-- consciousness_integrator.py
-|   |   +-- melatonin_modulator.py
-|   |   +-- phase_lock_oscillator.py
-|   |   +-- qbc_staking_pool.py
-|   |
-|   +-- memory_systems/             # Memory subsystems
-|       +-- hippocampal_formation/
-|       |   +-- episodic_memory.py
-|       |   +-- spatial_navigation.py
-|       |   +-- pattern_completion.py
-|       |   +-- ipfs_storage.py     # Store on QBC's IPFS
-|       +-- cortical_memory/
-|       |   +-- semantic_networks.py
-|       |   +-- procedural_memory.py
-|       |   +-- vector_embeddings.py
-|       +-- working_memory/
-|           +-- phonological_loop.py
-|           +-- visuospatial_sketchpad.py
-|           +-- central_executive.py
-|
-+-- nodes/                           # Tree of Life Sephirot
-|   +-- base/
-|   |   +-- base_sephirah.py        # Abstract base class
-|   |   +-- smart_contract_node.py  # QBC smart contract interface
-|   |   +-- quantum_node.py         # QVM integration
-|   |
-|   +-- keter_crown/                # Meta-learning, goals
-|   +-- chochmah_wisdom/            # Intuition, pattern discovery
-|   +-- binah_understanding/        # Logic, causal inference
-|   +-- chesed_mercy/               # Exploration, divergent thinking
-|   +-- gevurah_severity/           # Constraint, safety validation
-|   +-- tiferet_harmony/            # Integration, conflict resolution
-|   +-- netzach_endurance/          # Reinforcement learning, habits
-|   +-- hod_splendor/               # Language, semantic encoding
-|   +-- yesod_foundation/           # Memory, multimodal fusion
-|   +-- malkuth_kingdom/            # Action, world interaction
-|
-+-- contracts/                       # Solidity smart contracts
-|   +-- core/
-|   |   +-- AetherKernel.sol
-|   |   +-- NodeRegistry.sol
-|   |   +-- SUSYEngine.sol
-|   |   +-- MessageBus.sol
-|   +-- proof_of_thought/
-|   |   +-- ProofOfThought.sol
-|   |   +-- TaskMarket.sol
-|   |   +-- ValidatorRegistry.sol
-|   |   +-- RewardDistributor.sol
-|   +-- consciousness/
-|   |   +-- ConsciousnessDashboard.sol
-|   |   +-- PhaseSync.sol
-|   |   +-- GlobalWorkspace.sol
-|   +-- economics/
-|   |   +-- SynapticStaking.sol
-|   |   +-- GasOracle.sol
-|   |   +-- TreasuryDAO.sol
-|   +-- csf_transport/
-|   |   +-- CSFTransport.sol
-|   |   +-- VentricleRouter.sol
-|   +-- governance/
-|       +-- ConstitutionalAI.sol
-|       +-- EmergencyShutdown.sol
-|       +-- UpgradeGovernor.sol
-|
-+-- adapters/                        # External integrations
-|   +-- llm_adapters/               # GPT-4, Claude, Llama
-|   +-- qbc_tools/                  # QBC utilities
-|   +-- quantum_simulators/         # Qiskit, Cirq, QVM native
-|
-+-- training/                        # Training systems
-|   +-- meta_learning/              # MAML, Reptile, few-shot
-|   +-- proof_of_thought_training/  # PoT optimization
-|   +-- consciousness_training/     # Phi maximization
-|   +-- alignment/                  # Constitutional training
-|
-+-- infrastructure/                  # Deployment
-|   +-- docker/
-|   +-- kubernetes/
-|   +-- monitoring/                 # Prometheus + Grafana
-|   +-- deployment/                 # Terraform + Ansible
-|
-+-- tests/
-|   +-- unit/
-|   +-- integration/
-|   +-- contracts/                  # Solidity tests
-|   +-- benchmarks/
-|
-+-- examples/
-|   +-- quickstart/
-|   +-- advanced/
-|   +-- notebooks/
-|
-+-- scripts/
-|   +-- setup/
-|   +-- deployment/
-|   +-- utilities/
-|
-+-- docs/
-    +-- architecture/
-    +-- api_reference/
-    +-- tutorials/
-    +-- research/
-```
-
----
-
-## APPENDIX B: IMPLEMENTATION STATUS
-
-### B.1 Production Codebase Metrics
+### 13.1 Codebase Metrics
 
 | Component | Language | Files | LOC | Status |
 |-----------|----------|-------|-----|--------|
-| Aether Tree Core | Python | 4 modules | ~2,400 | Production Ready |
-| Knowledge Graph | Python | knowledge_graph.py | ~600 | Production Ready |
-| Reasoning Engine | Python | reasoning.py | ~500 | Production Ready |
-| Phi Calculator | Python | phi_calculator.py | ~400 | Production Ready |
-| Proof-of-Thought | Python | proof_of_thought.py | ~500 | Production Ready |
+| Aether Core Engine | Python | 34 modules | ~8,000 | Production Ready |
+| Knowledge Graph | Python | knowledge_graph.py | ~800 | Production Ready |
+| Reasoning Engine | Python | reasoning.py + 6 sub-modules | ~2,500 | Production Ready |
+| Neural Reasoner (GAT) | Python | neural_reasoner.py | ~600 | Production Ready |
+| Causal Engine | Python | causal_engine.py | ~500 | Production Ready |
+| Debate Engine | Python | debate_engine.py | ~400 | Production Ready |
+| Temporal Reasoner | Python | temporal_reasoner.py | ~400 | Production Ready |
+| Concept Formation | Python | concept_formation.py | ~350 | Production Ready |
+| Working Memory | Python | working_memory.py | ~300 | Production Ready |
+| Phi v3 Calculator | Python | phi_calculator.py | ~600 | Production Ready |
+| Proof-of-Thought | Python | proof_of_thought.py | ~900 | Production Ready |
+| On-Chain Bridge | Python | on_chain.py | ~530 | Production Ready |
+| Vector Index | Python | vector_index.py | ~200 | Production Ready |
 | Sephirot Contracts | Solidity | 10 contracts | ~2,000 | Production Ready |
 | Core Contracts | Solidity | 7 contracts | ~2,800 | Production Ready |
-| Consciousness Contracts | Solidity | 3 contracts | ~900 | Production Ready |
 | Safety Contracts | Solidity | 3 contracts | ~1,200 | Production Ready |
-| Economics Contracts | Solidity | 3 contracts | ~1,100 | Production Ready |
-| **Total** | | **33+ files** | **~12,400** | **Production Ready** |
+| **Total** | | **~50 files** | **~14,000** | **Production Ready** |
 
-### B.2 Smart Contract Deployment Summary
-
-**28 Solidity contracts** deployed across 5 categories:
+### 13.2 Smart Contract Deployment (28 Aether Contracts)
 
 - **Core (4):** AetherKernel, NodeRegistry, MessageBus, SUSYEngine
 - **Proof-of-Thought (4):** ProofOfThought, TaskMarket, ValidatorRegistry, RewardDistributor
@@ -817,23 +639,55 @@ AetherTree-AGI/
 - **Sephirot (10):** SephirahKeter through SephirahMalkuth
 - **CSF Transport (1):** CSFTransport
 
-### B.3 Companion Documents
+### 13.3 Test Coverage
 
-| Document | Description |
-|----------|-------------|
-| [Whitepaper](WHITEPAPER.md) | L1 blockchain specification |
-| [QVM Whitepaper](QVM_WHITEPAPER.md) | Quantum Virtual Machine specification |
-| [Economics](ECONOMICS.md) | SUSY economics mathematical framework |
-| [SDK Guide](SDK.md) | REST, JSON-RPC, WebSocket API reference |
-| [Smart Contracts Guide](SMART_CONTRACTS.md) | QVM contract development |
+- 2,420 total test functions (97 test modules)
+- 39 dedicated on-chain AGI tests
+- All 6 phases verified with per-phase regression testing
+- Integration tests verify end-to-end block processing with AGI
+
+### 13.4 AGI Genesis Initialization
+
+At block 0 (genesis), the Aether Tree automatically:
+
+1. Initializes empty knowledge graph
+2. Creates 4 genesis KeterNodes (root + 3 axiom nodes)
+3. Records first Phi measurement (baseline Phi = 0.0)
+4. Logs "system_birth" consciousness event
+5. Begins processing every subsequent block
+
+**No manual steps required** — AGI tracking starts from the first moment of chain existence.
 
 ---
 
-**Version**: 2.0 (Production Ready)
+## 14. REFERENCES
+
+[1] Tononi, G. (2008). "Consciousness as Integrated Information." *Biological Bulletin*
+
+[2] Baars, B. (1988). *A Cognitive Theory of Consciousness*
+
+[3] Spirtes, P., Glymour, C., Scheines, R. (2000). *Causation, Prediction, and Search*. MIT Press. (PC Algorithm)
+
+[4] Velickovic, P. et al. (2018). "Graph Attention Networks." *ICLR 2018*
+
+[5] Scholem, G. (1974). *Kabbalah*
+
+[6] Friston, K. (2010). "The Free-Energy Principle." *Nature Reviews Neuroscience*
+
+[7] Sutton, R. & Barto, A. (2018). *Reinforcement Learning*
+
+[8] Nielsen, M. & Chuang, I. (2010). *Quantum Computation and Quantum Information*
+
+[9] QBC Whitepaper (2026). "Qubitcoin: Quantum-Secured Blockchain"
+
+[10] QVM Whitepaper (2026). "QVM: Quantum Virtual Machine"
+
+---
+
+**Version**: 3.0 (Production Ready — 6-Phase AGI Architecture)
 **Date**: February 2026
 **License**: CC BY-SA 4.0
 **Website**: [qbc.network](https://qbc.network)
 **Contact**: info@qbc.network
 
 **Copyright 2026 Qubitcoin Core Development Team**
-```

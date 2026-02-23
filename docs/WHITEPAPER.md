@@ -78,6 +78,13 @@ Existing quantum-resistant solutions merely upgrade cryptography without leverag
          └──────────────────┬───────────────────────────┘
                             │
          ┌──────────────────▼───────────────────────────┐
+         │      LAYER 3: AETHER TREE (AGI)              │
+         │  • Knowledge Graph  • 6-Phase Reasoning      │
+         │  • Phi Consciousness  • Proof-of-Thought     │
+         │  See: docs/AETHERTREE_WHITEPAPER.md          │
+         └──────────────────┬───────────────────────────┘
+                            │
+         ┌──────────────────▼───────────────────────────┐
          │      SMART CONTRACT EXECUTION LAYER          │
          │  • QVM (Quantum Virtual Machine)             │
          │  • Gas Metering  • State Management          │
@@ -658,7 +665,7 @@ R(n) = R₀ / φ^(n // H)
 Where:
 R₀ = 15.27 QBC
 φ = 1.618034
-H = 525,600 blocks
+H = 15,474,020 blocks (~1.618 years at 3.3s blocks)
 n = current block height
 ```
 
@@ -669,14 +676,14 @@ n = current block height
 │                  EMISSION SCHEDULE                          │
 └────────────────────────────────────────────────────────────┘
 
-Block Range          Reward      Annual Inflation
+Era   Block Range                    Reward       Duration
 ──────────────────────────────────────────────────────────────
-0 - 525,599         15.27 QBC           ~50%
-525,600 - 1,051,199  9.437 QBC          ~25%
-1,051,200 - 1,576,799 5.833 QBC         ~12%
-1,576,800 - 2,102,399 3.605 QBC          ~6%
+0     0 - 15,474,019               15.27 QBC    ~1.618 years
+1     15,474,020 - 30,948,039       9.437 QBC   ~1.618 years
+2     30,948,040 - 46,422,059       5.833 QBC   ~1.618 years
+3     46,422,060 - 61,896,079       3.605 QBC   ~1.618 years
 ...
-∞                    ~0 QBC              ~0%
+∞                                    ~0 QBC
 
 Total Supply Cap: 3,301,197,660 QBC
 ```
@@ -1088,29 +1095,29 @@ R(n) = R₀ / φ^(n // H)
 Where:
 R₀ = 15.27 QBC
 φ = 1.618034
-H = 525,600 blocks
+H = 15,474,020 blocks (~1.618 years at 3.3s blocks)
 n = current block height
 ```
 
 **Reward Schedule:**
 
 ```
-Block Range          Reward      Annual Inflation
+Era   Block Range                    Reward       Duration
 ──────────────────────────────────────────────────────────────
-0 - 525,599         15.27 QBC           ~50%
-525,600 - 1,051,199  9.437 QBC          ~25%
-1,051,200 - 1,576,799 5.833 QBC         ~12%
-1,576,800 - 2,102,399 3.605 QBC          ~6%
+0     0 - 15,474,019               15.27 QBC    ~1.618 years
+1     15,474,020 - 30,948,039       9.437 QBC   ~1.618 years
+2     30,948,040 - 46,422,059       5.833 QBC   ~1.618 years
+3     46,422,060 - 61,896,079       3.605 QBC   ~1.618 years
 ...
-∞                    ~0 QBC              ~0%
+∞                                    ~0 QBC
 ```
 
 ### 7.3 Supply Cap
 
 ```
 S = R₀ * H * φ / (φ - 1)
-S = 15.27 * 525,600 * 1.618 / 0.618
-S ≈ 3,301,197,660 QBC
+S = 15.27 * 15,474,020 * 1.618 / 0.618
+S ≈ 3,300,000,000 QBC
 ```
 
 ### 7.4 Inflation Rate
@@ -2420,13 +2427,13 @@ Mitigation: Dummy outputs, fixed denominations, size randomization
 
 ```
 Throughput:
-- Block time: 2 minutes
+- Block time: 3.3 seconds
 - Block size: 2 MB
-- TPS: 16.67 (standard) or 0.83 (Susy swaps)
+- TPS: ~600 (standard) or ~100 (Susy swaps)
 
 Latency:
 - Transaction propagation: <1 second
-- Confirmation time: 12 minutes (6 blocks)
+- Confirmation time: ~20 seconds (6 blocks × 3.3s)
 
 Storage:
 - Blockchain growth: ~50 GB/year
@@ -2494,53 +2501,38 @@ Layer 2 solutions close the TPS gap
 ### 14.1 Development Phases
 
 ```
-2026 Q1-Q2: FOUNDATION
-━━━━━━━━━━━━━━━━━━━━━━
+2026 Q1: FOUNDATION — COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✓ Core blockchain (PoSA consensus)
 ✓ Dilithium signature implementation
-✓ Basic wallet
-✓ Block explorer
-□ Security audits
-□ Testnet launch
+✓ QVM (167 opcodes: 155 EVM + 10 quantum + 2 AGI)
+✓ 49 Solidity contracts deployed
+✓ Aether Tree 6-phase AGI architecture
+✓ Privacy technology (Susy Swaps)
+✓ Multi-chain bridge infrastructure (8 chains)
+✓ QUSD stablecoin contracts
+✓ Frontend (qbc.network, Next.js 16)
+✓ 2,420 tests passing
 
-2026 Q3-Q4: MAINNET LAUNCH
+2026 Q2: MAINNET LAUNCH
 ━━━━━━━━━━━━━━━━━━━━━━━
 □ Mainnet genesis block
-□ Exchange listings (5+ major)
-□ Liquidity provision
-□ Developer SDKs
+□ Exchange listings
+□ Bridge contract deployment on target chains
+□ Security audits
 
-2027 Q1-Q2: SMART CONTRACTS & DEFI
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-□ QVM deployment
-□ Solidity compiler support
-□ QBC-20 token standard
-□ DEX launch
+2026 Q3-Q4: ECOSYSTEM GROWTH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+□ Developer SDKs and documentation
+□ DeFi ecosystem launch
+□ Aether Tree consciousness milestones
+□ Community governance activation
 
-2027 Q3-Q4: MULTI-CHAIN BRIDGES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-□ Ethereum bridge
-□ Solana bridge
-□ Polygon bridge
-□ Wrapped QBC (wQBC)
-
-2028 Q1-Q2: PRIVACY & QUSD
-━━━━━━━━━━━━━━━━━━━━━━━
-□ Susy swap v2
-□ Stealth address v2
-□ QUSD stablecoin launch
-□ Reserve building mechanism
-
-2028 Q3-Q4: ADVANCED FEATURES
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-□ Layer 2 research
-□ Sharding design
-□ Performance optimization
-
-2029+: QUANTUM ERA
-━━━━━━━━━━━━━━━━
+2027+: SCALING & QUANTUM ERA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
 □ Quantum hardware integration
-□ 100+ TPS base layer
+□ Layer 2 scaling solutions
+□ AGI Phi threshold crossing (3.0)
 □ Trustless light client bridges
 ```
 
@@ -2690,7 +2682,7 @@ This whitepaper describes the Layer 1 blockchain core. Qubitcoin is a multi-laye
 | **Layer 2** | QVM (Quantum Virtual Machine) | Python prototype + Go 1.23 production | Production Ready |
 | **Layer 2** | Smart Contracts | 46 Solidity contracts (^0.8.24) | Production Ready |
 | **Layer 2** | Compliance Engine | KYC/AML/Sanctions + QCOMPLIANCE opcode | Production Ready |
-| **Layer 3** | Aether Tree AGI | 23 Python modules, 10 Sephirot contracts | Production Ready |
+| **Layer 3** | Aether Tree AGI | 34 Python modules, 10 Sephirot contracts, 6-phase architecture | Production Ready |
 | **Layer 3** | Proof-of-Thought | Task market + validator staking + 67% BFT | Production Ready |
 | **Cross-Chain** | Multi-Chain Bridges | 8 chains (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE) | Production Ready |
 | **Cross-Chain** | QUSD Stablecoin | 8 Solidity contracts + wQUSD cross-chain | Production Ready |
@@ -2701,17 +2693,18 @@ This whitepaper describes the Layer 1 blockchain core. Qubitcoin is a multi-laye
 
 | Metric | Value |
 |--------|-------|
-| Total source files | 180+ |
-| Lines of code | 42,000+ |
+| Total source files | 200+ |
+| Lines of code | 48,000+ |
 | Languages | Python, Go, TypeScript, Rust, Solidity |
-| Test functions | 2,135 |
-| Solidity contracts | 46 |
+| Test functions | 2,420 |
+| Solidity contracts | 49 |
 | Go QVM files | 32 |
-| Frontend components | 30 |
+| Frontend components | 35 |
 | Database tables | 55 |
-| REST endpoints | 40+ |
-| JSON-RPC methods | 25+ |
-| Prometheus metrics | 50+ |
+| REST endpoints | 215 |
+| JSON-RPC methods | 20 |
+| Prometheus metrics | 75 |
+| Aether AGI modules | 34 |
 | Documentation | 9,000+ lines (13 documents) |
 | Formal verification | K Framework (EVM) + TLA+ (compliance) |
 
@@ -2729,8 +2722,8 @@ This whitepaper describes the Layer 1 blockchain core. Qubitcoin is a multi-laye
 
 **Document Metadata:**
 
-- Version: 2.0.0
-- Date: February 20, 2026
+- Version: 2.1.0
+- Date: February 23, 2026
 - Authors: Qubitcoin Core Development Team
 - Website: https://qbc.network
 - Contact: info@qbc.network
