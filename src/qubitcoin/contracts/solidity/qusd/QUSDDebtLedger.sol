@@ -22,6 +22,7 @@ contract QUSDDebtLedger is Initializable {
     uint256 public totalMinted;         // total QUSD ever minted (8 decimals)
     uint256 public totalReserveValue;   // total USD value of reserves (8 decimals)
     uint256 public totalPaybackEvents;  // number of payback transactions
+    bool public paused;
 
     /// @notice Tracks which milestones have been reached
     mapping(uint16 => bool) public milestoneReached;
@@ -40,6 +41,8 @@ contract QUSDDebtLedger is Initializable {
     event PaybackRecorded(uint256 usdValue, uint256 newReserveValue, uint16 backingBps, uint256 timestamp);
     event MilestoneReached(uint16 milestoneBps, uint256 totalMinted, uint256 totalReserveValue, uint256 blockNumber);
     event SnapshotTaken(uint256 indexed snapshotId, uint256 blockNumber, uint16 backingBps);
+    event Paused(address indexed by);
+    event Unpaused(address indexed by);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -57,6 +60,11 @@ contract QUSDDebtLedger is Initializable {
         _;
     }
 
+    modifier whenNotPaused() {
+        require(!paused, "DebtLedger: paused");
+        _;
+    }
+
     // ─── Initializer ────────────────────────────────────────────────────
     function initialize(address _qusdToken, address _reservePool) external initializer {
         owner       = msg.sender;
@@ -66,14 +74,14 @@ contract QUSDDebtLedger is Initializable {
 
     // ─── Debt Recording ──────────────────────────────────────────────────
     /// @notice Called when QUSD is minted. Every mint increases outstanding debt.
-    function recordDebt(uint256 amount) external onlyQUSD {
+    function recordDebt(uint256 amount) external onlyQUSD whenNotPaused {
         require(amount > 0, "DebtLedger: zero amount");
         totalMinted += amount;
         emit DebtRecorded(amount, totalMinted, block.timestamp);
     }
 
     /// @notice Called when reserves increase. Every deposit is a payback event.
-    function recordPayback(uint256 usdValue) external onlyReserve {
+    function recordPayback(uint256 usdValue) external onlyReserve whenNotPaused {
         require(usdValue > 0, "DebtLedger: zero value");
         totalReserveValue += usdValue;
         totalPaybackEvents++;
@@ -144,5 +152,15 @@ contract QUSDDebtLedger is Initializable {
 
     function setReservePool(address _reserve) external onlyOwner {
         reservePool = _reserve;
+    }
+
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 }

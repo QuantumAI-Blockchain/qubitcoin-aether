@@ -1,17 +1,18 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #12
+# Last Updated: February 24, 2026 | Run #14
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 72
-- Remaining: 76
-- Completion: 48.6%
+- Completed: 76
+- Remaining: 72
+- Completion: 51.4%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
-- Estimated runs to 100%: 5-6
+- **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
+- Estimated runs to 100%: ~15
 
 ---
 
@@ -134,7 +135,7 @@
 | F11 | LOW | `frontend/src/stores/` | No offline | Add offline-first capability with service worker + IndexedDB cache | LARGE |
 | F12 | LOW | `frontend/` | No i18n | Add internationalization framework (next-intl) for multi-language | LARGE |
 | F13 | LOW | `frontend/src/app/wallet/page.tsx` | No tx signing UI | Add transaction signing confirmation modal with fee breakdown | SMALL |
-| F14 | LOW | `frontend/src/components/dashboard/` | No export | Add CSV/JSON export for mining stats and transaction history | SMALL |
+| ~~F14~~ | ~~LOW~~ | `frontend/src/app/dashboard/page.tsx` + `frontend/src/lib/export.ts` | ~~No export~~ | ~~CSV/JSON export for mining stats + UTXO data. Reusable ExportButton + export utility~~ | **DONE (Run #14)** |
 | F15 | LOW | `frontend/` | No PWA | Add Progressive Web App manifest + service worker | SMALL |
 | F16 | LOW | `frontend/src/components/ui/` | No keyboard nav | Add keyboard shortcuts (/, Escape, Ctrl+K for search) | SMALL |
 | F17 | LOW | `frontend/package.json` | No bundle analysis | Add @next/bundle-analyzer for build optimization | SMALL |
@@ -249,13 +250,13 @@
 | S01 | MEDIUM | `contracts/solidity/qusd/` | Not deployed | Create deployment script for 7 QUSD contracts (ordered by dependency) | MEDIUM |
 | S02 | MEDIUM | `contracts/solidity/qusd/QUSDOracle.sol` | No feeders | Initialize 3+ oracle feeders with price feed configuration | MEDIUM |
 | S03 | MEDIUM | `stablecoin/engine.py` | Independent | Wire Python engine to read from deployed QUSDReserve.sol for reserve ratio | MEDIUM |
-| S04 | MEDIUM | `contracts/solidity/qusd/QUSD.sol` | 0.05% fee hardcoded | Make transfer fee configurable via governance proposal | SMALL |
+| ~~S04~~ | ~~MEDIUM~~ | `contracts/solidity/qusd/QUSD.sol` | ~~0.05% fee hardcoded~~ | ~~feeBps mutable + setFeeBps() with 10% cap + FeeBpsUpdated event~~ | **DONE (Run #14)** |
 | S05 | MEDIUM | `contracts/solidity/qusd/QUSDGovernance.sol` | Basic voting | Add delegation support (vote with staked QBC, not just held) | MEDIUM |
 | S06 | LOW | `contracts/solidity/qusd/QUSDReserve.sol` | No price for reserves | Add oracle price for each reserve asset (currently tracks quantity only) | MEDIUM |
-| S07 | LOW | `contracts/solidity/qusd/QUSDStabilizer.sol` | Hardcoded thresholds | Make peg bands ($0.99-$1.01) configurable via governance | SMALL |
+| ~~S07~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDStabilizer.sol` | ~~Hardcoded thresholds~~ | ~~pegTarget/floorPrice/ceilingPrice mutable + setPegBands() with min spread validation~~ | **DONE (Run #14)** |
 | S08 | LOW | `contracts/solidity/qusd/wQUSD.sol` | Lock-and-mint | Add bridge proof verification (currently trusts bridge relayer) | MEDIUM |
 | S09 | LOW | `contracts/solidity/qusd/QUSDDebtLedger.sol` | No partial payback | Add incremental debt reduction (currently all-or-nothing milestone) | MEDIUM |
-| S10 | LOW | `contracts/solidity/qusd/` | No emergency pause | Add emergency pause to all QUSD contracts (QUSD.sol has it, others don't) | SMALL |
+| ~~S10~~ | ~~LOW~~ | `contracts/solidity/qusd/` | ~~No emergency pause~~ | ~~Added paused + whenNotPaused + pause()/unpause() to QUSDStabilizer, QUSDReserve, QUSDDebtLedger, wQUSD~~ | **DONE (Run #14)** |
 | S11 | LOW | `stablecoin/` | No interest rate | Implement CDP interest rate model (borrow QUSD against QBC collateral) | LARGE |
 | S12 | LOW | `stablecoin/` | No liquidation engine | Add liquidation mechanism for under-collateralized CDPs | LARGE |
 | S13 | LOW | `stablecoin/` | No flash loans | Add flash loan support for QUSD (borrow + repay in single tx) | MEDIUM |
@@ -703,3 +704,21 @@ Focus on: Go QVM completion, formal verification, advanced features
 3. S04: QUSD configurable transfer fee
 4. S07: QUSD configurable peg bands
 5. S10: Emergency pause on all QUSD contracts
+
+### Run #14 — February 24, 2026
+
+**Scope:** QUSD contract hardening + frontend export
+
+**Items completed: 4** (S04, S07, S10, F14)
+- **S04** — QUSD configurable transfer fee: changed FEE_BPS from constant to mutable `feeBps`, added `setFeeBps()` with 10% (1000 bps) safety cap, added `FeeBpsUpdated` event.
+- **S07** — QUSD configurable peg bands: changed PEG_TARGET/FLOOR_PRICE/CEILING_PRICE from constants to mutable state vars, added `setPegBands()` with minimum 0.01 spread validation, added `PegBandsUpdated` event.
+- **S10** — Emergency pause on 4 QUSD contracts: added `paused` state, `whenNotPaused` modifier, `pause()`/`unpause()` admin functions to QUSDStabilizer, QUSDReserve, QUSDDebtLedger, and wQUSD. Applied to all mutating functions.
+- **F14** — CSV/JSON export: created reusable `ExportButton` component + `export.ts` utility. Added to Mining tab (stats export) and Wallet tab (UTXO export). Supports both CSV and JSON formats.
+
+**Files changed: 6** (QUSD.sol, QUSDStabilizer.sol, QUSDReserve.sol, QUSDDebtLedger.sol, wQUSD.sol, dashboard/page.tsx + new export.ts)
+
+**Test result:** 2,757 passed, 0 failed
+
+**Score change:** 97 → 97 (maintained)
+
+**Cumulative progress:** 76/148 completed (51.4%).

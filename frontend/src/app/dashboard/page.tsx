@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { api, type AetherInfo } from "@/lib/api";
+import { exportData, type ExportFormat } from "@/lib/export";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -110,6 +111,52 @@ export default function DashboardPage() {
   );
 }
 
+/* --- Export Button --- */
+
+function ExportButton({
+  getData,
+  filenameBase,
+  columns,
+}: {
+  getData: () => Record<string, unknown>[];
+  filenameBase: string;
+  columns?: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const handleExport = (format: ExportFormat) => {
+    const data = getData();
+    if (data.length === 0) return;
+    exportData(data, filenameBase, format, columns);
+    setOpen(false);
+  };
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={() => setOpen(!open)}
+        className="rounded-lg border border-surface-light px-3 py-1.5 text-xs text-text-secondary transition hover:border-quantum-green hover:text-quantum-green"
+      >
+        Export
+      </button>
+      {open && (
+        <div className="absolute right-0 z-10 mt-1 rounded-lg border border-surface-light bg-surface p-1 shadow-lg">
+          <button
+            onClick={() => handleExport("csv")}
+            className="block w-full rounded px-4 py-1.5 text-left text-xs text-text-secondary hover:bg-quantum-green/10 hover:text-quantum-green"
+          >
+            CSV
+          </button>
+          <button
+            onClick={() => handleExport("json")}
+            className="block w-full rounded px-4 py-1.5 text-left text-xs text-text-secondary hover:bg-quantum-green/10 hover:text-quantum-green"
+          >
+            JSON
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* --- Tab Components --- */
 
 function OverviewTab({
@@ -175,9 +222,31 @@ function MiningTab({
 }) {
   return (
     <div className="space-y-4">
-      <ErrorBoundary>
-        <MiningControls isActive={mining?.is_mining ?? false} />
-      </ErrorBoundary>
+      <div className="flex items-center justify-between">
+        <ErrorBoundary>
+          <MiningControls isActive={mining?.is_mining ?? false} />
+        </ErrorBoundary>
+        <ExportButton
+          filenameBase="mining_stats"
+          getData={() =>
+            mining
+              ? [
+                  {
+                    is_mining: mining.is_mining,
+                    blocks_found: mining.blocks_found,
+                    total_attempts: mining.total_attempts,
+                    success_rate: mining.success_rate,
+                    best_energy: mining.best_energy,
+                    alignment_score: mining.alignment_score,
+                    difficulty: chain?.difficulty,
+                    block_height: chain?.height,
+                    exported_at: new Date().toISOString(),
+                  },
+                ]
+              : []
+          }
+        />
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">Mining Status</h3>
@@ -596,9 +665,25 @@ function WalletTab({
 
       {/* UTXO list */}
       <Card>
-        <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
-          UTXO Breakdown
-        </h3>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+            UTXO Breakdown
+          </h3>
+          {utxoList.length > 0 && (
+            <ExportButton
+              filenameBase="utxo_export"
+              getData={() =>
+                utxoList.map((u) => ({
+                  txid: u.txid,
+                  vout: u.vout,
+                  amount: u.amount,
+                  confirmations: u.confirmations,
+                }))
+              }
+              columns={["txid", "vout", "amount", "confirmations"]}
+            />
+          )}
+        </div>
         {utxoList.length === 0 ? (
           <p className="text-sm text-text-secondary">No UTXOs found.</p>
         ) : (

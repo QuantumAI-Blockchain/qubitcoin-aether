@@ -29,6 +29,7 @@ contract QUSDReserve is Initializable {
 
     /// @notice Total reserve value in USD (8 decimals, updated via oracle)
     uint256 public totalReserveValueUSD;
+    bool public paused;
 
     // ─── Events ──────────────────────────────────────────────────────────
     event ReserveDeposit(address indexed asset, address indexed depositor, uint256 amount, uint256 usdValue);
@@ -38,6 +39,8 @@ contract QUSDReserve is Initializable {
     event AssetDeactivated(address indexed asset);
     event GovernanceUpdated(address indexed prev, address indexed next);
     event OracleUpdated(address indexed prev, address indexed next);
+    event Paused(address indexed by);
+    event Unpaused(address indexed by);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -47,6 +50,11 @@ contract QUSDReserve is Initializable {
 
     modifier onlyGovernance() {
         require(msg.sender == governance, "QUSDReserve: not governance");
+        _;
+    }
+
+    modifier whenNotPaused() {
+        require(!paused, "QUSDReserve: paused");
         _;
     }
 
@@ -84,7 +92,7 @@ contract QUSDReserve is Initializable {
     /// @param asset Token address (address(0) for native QBC)
     /// @param amount Amount deposited
     /// @param usdValue USD value of this deposit (8 decimals, provided by caller or oracle)
-    function deposit(address asset, uint256 amount, uint256 usdValue) external {
+    function deposit(address asset, uint256 amount, uint256 usdValue) external whenNotPaused {
         require(assets[asset].active, "QUSDReserve: asset not registered");
         require(amount > 0, "QUSDReserve: zero amount");
 
@@ -97,7 +105,7 @@ contract QUSDReserve is Initializable {
 
     // ─── Withdrawals (Governance Only) ───────────────────────────────────
     /// @notice Withdraw from reserves. Governance-only.
-    function withdraw(address asset, address recipient, uint256 amount) external onlyGovernance {
+    function withdraw(address asset, address recipient, uint256 amount) external onlyGovernance whenNotPaused {
         require(assets[asset].currentBalance >= amount, "QUSDReserve: insufficient");
         require(recipient != address(0), "QUSDReserve: zero recipient");
 
@@ -145,5 +153,15 @@ contract QUSDReserve is Initializable {
 
     function setDebtLedger(address _debtLedger) external onlyOwner {
         debtLedger = _debtLedger;
+    }
+
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 }

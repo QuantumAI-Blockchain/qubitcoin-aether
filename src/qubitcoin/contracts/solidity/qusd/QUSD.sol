@@ -15,8 +15,10 @@ contract QUSD is IQBC20, Initializable {
     uint8   public constant decimals = 8;
 
     uint256 public constant INITIAL_SUPPLY = 3_300_000_000 * 10**8; // 3.3B
-    uint256 public constant FEE_BPS        = 5;     // 0.05% = 5 basis points
     uint256 public constant BPS_DENOM      = 10000;
+
+    // ─── Configurable Fee ─────────────────────────────────────────────
+    uint256 public feeBps;  // transfer fee in basis points (initialized to 5 = 0.05%)
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
@@ -39,6 +41,7 @@ contract QUSD is IQBC20, Initializable {
     event Unpaused(address indexed by);
     event OwnershipTransferred(address indexed prev, address indexed next);
     event ReserveAddressUpdated(address indexed prev, address indexed next);
+    event FeeBpsUpdated(uint256 prev, uint256 next);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -57,6 +60,8 @@ contract QUSD is IQBC20, Initializable {
         require(_reserveAddress != address(0), "QUSD: zero reserve");
         owner          = msg.sender;
         reserveAddress = _reserveAddress;
+
+        feeBps = 5; // 0.05% default
 
         // 3.3B initial mint to deployer
         _balances[msg.sender] = INITIAL_SUPPLY;
@@ -138,13 +143,20 @@ contract QUSD is IQBC20, Initializable {
         reserveAddress = newReserve;
     }
 
+    /// @notice Update transfer fee (governance). Max 10% (1000 bps) safety cap.
+    function setFeeBps(uint256 newFeeBps) external onlyOwner {
+        require(newFeeBps <= 1000, "QUSD: fee too high");
+        emit FeeBpsUpdated(feeBps, newFeeBps);
+        feeBps = newFeeBps;
+    }
+
     // ─── Internal ────────────────────────────────────────────────────────
     function _transferWithFee(address from, address to, uint256 amount) internal returns (bool) {
         require(from != address(0), "QUSD: from zero");
         require(to   != address(0), "QUSD: to zero");
         require(_balances[from] >= amount, "QUSD: insufficient balance");
 
-        uint256 fee       = (amount * FEE_BPS) / BPS_DENOM;
+        uint256 fee       = (amount * feeBps) / BPS_DENOM;
         uint256 netAmount = amount - fee;
 
         _balances[from]           -= amount;

@@ -9,9 +9,11 @@ import "../proxy/Initializable.sol";
 contract QUSDStabilizer is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant PRICE_DECIMALS = 8;
-    uint256 public constant PEG_TARGET     = 1_00000000;  // $1.00 (8 decimals)
-    uint256 public constant FLOOR_PRICE    = 99000000;    // $0.99
-    uint256 public constant CEILING_PRICE  = 101000000;   // $1.01
+
+    // ─── Configurable Peg Bands ──────────────────────────────────────
+    uint256 public pegTarget;     // $1.00 (8 decimals)
+    uint256 public floorPrice;    // $0.99
+    uint256 public ceilingPrice;  // $1.01
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
@@ -25,6 +27,7 @@ contract QUSDStabilizer is Initializable {
     uint256 public totalSellInterventions;
 
     bool public autoRebalanceEnabled;
+    bool public paused;
 
     // ─── Events ──────────────────────────────────────────────────────────
     event StabilityBuy(uint256 qusdAmount, uint256 qbcSpent, uint256 price, uint256 timestamp);
@@ -33,6 +36,9 @@ contract QUSDStabilizer is Initializable {
     event FundWithdrawal(address indexed recipient, uint256 amount, bool isQBC);
     event AutoRebalanceTriggered(uint256 price, bool isBuy, uint256 amount);
     event AutoRebalanceToggled(bool enabled);
+    event PegBandsUpdated(uint256 newFloor, uint256 newCeiling);
+    event Paused(address indexed by);
+    event Unpaused(address indexed by);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -45,12 +51,20 @@ contract QUSDStabilizer is Initializable {
         _;
     }
 
+    modifier whenNotPaused() {
+        require(!paused, "Stabilizer: paused");
+        _;
+    }
+
     // ─── Initializer ────────────────────────────────────────────────────
     function initialize(address _governance, address _oracle, address _qusdToken) external initializer {
         owner         = msg.sender;
         governance    = _governance;
         oracleAddress = _oracle;
         qusdToken     = _qusdToken;
+        pegTarget    = 1_00000000;  // $1.00
+        floorPrice   = 99000000;    // $0.99
+        ceilingPrice = 101000000;   // $1.01
         autoRebalanceEnabled = true;
     }
 
@@ -58,12 +72,12 @@ contract QUSDStabilizer is Initializable {
     /// @notice Buy QUSD when price is below floor ($0.99) — floor defense
     /// @param qusdAmount Amount of QUSD to buy
     /// @param currentPrice Current QUSD price from oracle (8 decimals)
-    function buyQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner {
-        require(currentPrice < FLOOR_PRICE, "Stabilizer: price above floor");
+    function buyQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner whenNotPaused {
+        require(currentPrice < floorPrice, "Stabilizer: price above floor");
         require(qusdAmount > 0, "Stabilizer: zero amount");
 
         // Calculate QBC cost at current price
-        uint256 qbcCost = (qusdAmount * PEG_TARGET) / currentPrice;
+        uint256 qbcCost = (qusdAmount * pegTarget) / currentPrice;
         require(stabilityFundBalance >= qbcCost, "Stabilizer: insufficient QBC fund");
 
         stabilityFundBalance -= qbcCost;
@@ -76,11 +90,11 @@ contract QUSDStabilizer is Initializable {
     /// @notice Sell QUSD when price is above ceiling ($1.01) — ceiling defense
     /// @param qusdAmount Amount of QUSD to sell
     /// @param currentPrice Current QUSD price from oracle (8 decimals)
-    function sellQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner {
-        require(currentPrice > CEILING_PRICE, "Stabilizer: price below ceiling");
+    function sellQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner whenNotPaused {
+        require(currentPrice > ceilingPrice, "Stabilizer: price below ceiling");
         require(qusdHeld >= qusdAmount, "Stabilizer: insufficient QUSD");
 
-        uint256 qbcReceived = (qusdAmount * currentPrice) / PEG_TARGET;
+        uint256 qbcReceived = (qusdAmount * currentPrice) / pegTarget;
 
         qusdHeld              -= qusdAmount;
         stabilityFundBalance  += qbcReceived;
@@ -92,21 +106,21 @@ contract QUSDStabilizer is Initializable {
     /// @notice Auto-rebalance check — can be called by anyone (e.g., keeper bot)
     /// @param currentPrice Current QUSD price from oracle
     /// @param amount Amount to buy or sell
-    function triggerRebalance(uint256 currentPrice, uint256 amount) external {
+    function triggerRebalance(uint256 currentPrice, uint256 amount) external whenNotPaused {
         require(autoRebalanceEnabled, "Stabilizer: auto-rebalance disabled");
         require(amount > 0, "Stabilizer: zero amount");
 
-        if (currentPrice < FLOOR_PRICE && stabilityFundBalance > 0) {
-            uint256 qbcCost = (amount * PEG_TARGET) / currentPrice;
+        if (currentPrice < floorPrice && stabilityFundBalance > 0) {
+            uint256 qbcCost = (amount * pegTarget) / currentPrice;
             uint256 actual = qbcCost > stabilityFundBalance ? stabilityFundBalance : qbcCost;
-            uint256 actualQUSD = (actual * currentPrice) / PEG_TARGET;
+            uint256 actualQUSD = (actual * currentPrice) / pegTarget;
             stabilityFundBalance -= actual;
             qusdHeld             += actualQUSD;
             totalBuyInterventions++;
             emit AutoRebalanceTriggered(currentPrice, true, actualQUSD);
-        } else if (currentPrice > CEILING_PRICE && qusdHeld > 0) {
+        } else if (currentPrice > ceilingPrice && qusdHeld > 0) {
             uint256 sellAmount = amount > qusdHeld ? qusdHeld : amount;
-            uint256 qbcReceived = (sellAmount * currentPrice) / PEG_TARGET;
+            uint256 qbcReceived = (sellAmount * currentPrice) / pegTarget;
             qusdHeld              -= sellAmount;
             stabilityFundBalance  += qbcReceived;
             totalSellInterventions++;
@@ -159,5 +173,25 @@ contract QUSDStabilizer is Initializable {
 
     function setOracle(address newOracle) external onlyOwner {
         oracleAddress = newOracle;
+    }
+
+    /// @notice Update peg bands (governance). Min 0.01 spread.
+    function setPegBands(uint256 _floor, uint256 _ceiling) external onlyOwner {
+        require(_floor < pegTarget, "Stabilizer: floor >= target");
+        require(_ceiling > pegTarget, "Stabilizer: ceiling <= target");
+        require(_ceiling - _floor >= 1000000, "Stabilizer: bands too narrow");
+        floorPrice   = _floor;
+        ceilingPrice = _ceiling;
+        emit PegBandsUpdated(_floor, _ceiling);
+    }
+
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 }

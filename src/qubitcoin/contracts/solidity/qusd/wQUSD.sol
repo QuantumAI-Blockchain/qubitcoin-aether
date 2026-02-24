@@ -28,6 +28,7 @@ contract wQUSD is IQBC20, Initializable {
     mapping(address => mapping(address => uint256)) private _allowances;
 
     bool private _locked; // reentrancy guard
+    bool public paused;
 
     // ─── Events ──────────────────────────────────────────────────────────
     event Wrapped(address indexed account, uint256 qusdAmount, uint256 wqusdMinted);
@@ -35,6 +36,8 @@ contract wQUSD is IQBC20, Initializable {
     event BridgeMint(address indexed recipient, uint256 amount, bytes32 indexed sourceChainTxHash);
     event BridgeBurn(address indexed sender, uint256 amount, uint256 indexed destChainId);
     event BridgeOperatorUpdated(address indexed prev, address indexed next);
+    event Paused(address indexed by);
+    event Unpaused(address indexed by);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -54,6 +57,11 @@ contract wQUSD is IQBC20, Initializable {
         _locked = false;
     }
 
+    modifier whenNotPaused() {
+        require(!paused, "wQUSD: paused");
+        _;
+    }
+
     // ─── Initializer ────────────────────────────────────────────────────
     function initialize(address _qusdToken, address _bridgeOperator) external initializer {
         require(_qusdToken != address(0), "wQUSD: zero QUSD");
@@ -64,7 +72,7 @@ contract wQUSD is IQBC20, Initializable {
 
     // ─── Wrap / Unwrap (on QBC chain) ────────────────────────────────────
     /// @notice Lock QUSD and receive wQUSD 1:1
-    function wrap(uint256 amount) external nonReentrant {
+    function wrap(uint256 amount) external nonReentrant whenNotPaused {
         require(amount > 0, "wQUSD: zero amount");
         // In production, would call QUSD.transferFrom(msg.sender, address(this), amount)
         totalLocked        += amount;
@@ -77,7 +85,7 @@ contract wQUSD is IQBC20, Initializable {
     }
 
     /// @notice Burn wQUSD and receive QUSD 1:1
-    function unwrap(uint256 amount) external nonReentrant {
+    function unwrap(uint256 amount) external nonReentrant whenNotPaused {
         require(amount > 0, "wQUSD: zero amount");
         require(_balances[msg.sender] >= amount, "wQUSD: insufficient balance");
         require(totalLocked >= amount, "wQUSD: insufficient locked QUSD");
@@ -93,7 +101,7 @@ contract wQUSD is IQBC20, Initializable {
 
     // ─── Bridge Operations ───────────────────────────────────────────────
     /// @notice Bridge operator mints wQUSD on destination chain
-    function bridgeMint(address recipient, uint256 amount, bytes32 sourceTxHash) external onlyBridge {
+    function bridgeMint(address recipient, uint256 amount, bytes32 sourceTxHash) external onlyBridge whenNotPaused {
         require(recipient != address(0), "wQUSD: zero recipient");
         totalSupply           += amount;
         _balances[recipient]  += amount;
@@ -127,7 +135,7 @@ contract wQUSD is IQBC20, Initializable {
         return true;
     }
 
-    function transfer(address to, uint256 amount) external returns (bool) {
+    function transfer(address to, uint256 amount) external whenNotPaused returns (bool) {
         require(_balances[msg.sender] >= amount, "wQUSD: insufficient");
         require(to != address(0), "wQUSD: zero address");
         _balances[msg.sender] -= amount;
@@ -136,7 +144,7 @@ contract wQUSD is IQBC20, Initializable {
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) external whenNotPaused returns (bool) {
         require(_balances[from] >= amount, "wQUSD: insufficient");
         require(_allowances[from][msg.sender] >= amount, "wQUSD: allowance exceeded");
         require(to != address(0), "wQUSD: zero address");
@@ -161,5 +169,15 @@ contract wQUSD is IQBC20, Initializable {
     function setBridgeOperator(address newBridge) external onlyOwner {
         emit BridgeOperatorUpdated(bridgeOperator, newBridge);
         bridgeOperator = newBridge;
+    }
+
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 }
