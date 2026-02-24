@@ -162,6 +162,65 @@ def decode_function_call(data: bytes, types: List[str]) -> Tuple[bytes, List[Any
     return selector, args
 
 
+def abi_selector(func_sig: str) -> str:
+    """Compute the 4-byte keccak256 selector as a hex string.
+
+    This is a convenience wrapper around :func:`function_selector` that
+    returns the selector as a lowercase hex string (no ``0x`` prefix),
+    matching the common Solidity tooling output format.
+
+    Args:
+        func_sig: Solidity function signature, e.g. ``"getPrice()"``.
+
+    Returns:
+        8-character hex string, e.g. ``"d61a3b92"``.
+    """
+    return function_selector(func_sig).hex()
+
+
+def encode_call(func_sig: str, *args: Any) -> bytes:
+    """Encode a function call with auto-detected argument types.
+
+    Inspects the Solidity function signature to extract parameter types
+    and encodes the provided positional arguments accordingly.  Supports
+    ``uint256``, ``address``, ``bool``, and ``bytes32`` parameter types.
+
+    Args:
+        func_sig: Solidity function signature with parenthesised types,
+            e.g. ``"transfer(address,uint256)"``.
+        *args: Positional argument values matching the signature types.
+
+    Returns:
+        Encoded calldata bytes (4-byte selector + 32-byte encoded args).
+
+    Raises:
+        ValueError: If the number of arguments does not match the
+            signature or an unsupported type is encountered.
+
+    Examples:
+        >>> encode_call("totalSupply()")
+        b'\\x18\\x16...'
+        >>> encode_call("transfer(address,uint256)", "0xabc...def", 100)
+        b'\\xa9\\x05...'
+    """
+    # Parse types from the signature: "foo(uint256,address)" → ["uint256", "address"]
+    paren_start = func_sig.index('(')
+    paren_end = func_sig.rindex(')')
+    params_str = func_sig[paren_start + 1:paren_end].strip()
+    types: List[str] = [t.strip() for t in params_str.split(',') if t.strip()] if params_str else []
+
+    if len(types) != len(args):
+        raise ValueError(
+            f"Argument count mismatch: signature '{func_sig}' expects "
+            f"{len(types)} args, got {len(args)}"
+        )
+
+    if not types:
+        return function_selector(func_sig)
+
+    return encode_function_call(func_sig, list(args), types)
+
+
 def encode_return_value(value: Any, typ: str) -> bytes:
     """Encode a single return value."""
     if typ == 'uint256':

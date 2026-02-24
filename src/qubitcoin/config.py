@@ -162,6 +162,11 @@ class Config:
     BLOCK_GAS_LIMIT: int = int(os.getenv('BLOCK_GAS_LIMIT', 30_000_000))
     DEFAULT_GAS_PRICE: Decimal = Decimal('0.000000001')  # 1 Gwei equivalent in QBC
 
+    # EIP-1559 Base Fee Parameters
+    EIP1559_INITIAL_BASE_FEE: int = int(os.getenv('EIP1559_INITIAL_BASE_FEE', 1_000_000_000))  # 1 gwei
+    EIP1559_ELASTICITY_MULTIPLIER: int = int(os.getenv('EIP1559_ELASTICITY_MULTIPLIER', 2))
+    EIP1559_BASE_FEE_CHANGE_DENOMINATOR: int = int(os.getenv('EIP1559_BASE_FEE_CHANGE_DENOMINATOR', 8))
+
     # ============================================================================
     # BRIDGE SETTINGS
     # ============================================================================

@@ -1,18 +1,18 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #18
+# Last Updated: February 25, 2026 | Run #19
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 97
-- Remaining: 51
-- Completion: 65.5%
+- Completed: 102
+- Remaining: 46
+- Completion: 68.9%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
 - **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
-- Estimated runs to 100%: ~13
+- Estimated runs to 100%: ~11
 
 ---
 
@@ -182,7 +182,7 @@
 | V08 | LOW | `qubitcoin-qvm/` | No quantum opcodes | Implement 0xF0-0xF9 canonical quantum opcodes in Go | LARGE |
 | V09 | LOW | `qubitcoin-qvm/` | No AGI opcodes | Implement QREASON (0xFA) and QPHI (0xFB) in Go QVM | MEDIUM |
 | ~~V10~~ | ~~LOW~~ | `qvm/plugins.py` | ~~Manual registration~~ | ~~discover_plugins(directory) scans for QVMPlugin subclasses + reload_plugin(name) for hot-reload~~ | **DONE (Run #18)** |
-| V11 | LOW | `qvm/` | No EIP-1559 | Add base fee + priority fee (EIP-1559 type 2 transactions) | MEDIUM |
+| ~~V11~~ | ~~LOW~~ | `qvm/state.py` + `config.py` | ~~No EIP-1559~~ | ~~calculate_base_fee() implements EIP-1559 algorithm. StateManager tracks current_base_fee, updates per block. 12 unit tests~~ | **DONE (Run #19)** |
 | V12 | LOW | `qvm/` | No access lists | Implement EIP-2930 access list transactions for gas optimization | MEDIUM |
 | ~~V13~~ | ~~LOW~~ | `qvm/vm.py` + `rpc.py` + `jsonrpc.py` | ~~No debug_traceTransaction~~ | ~~execute_with_trace() + /qvm/trace/{tx_hash} REST + debug_traceTransaction JSON-RPC (Geth-compatible structLogs)~~ | **DONE (Run #17)** |
 | V14 | LOW | `contracts/solidity/` | No formal verification | Run Slither + Mythril static analysis on all 49 contracts | MEDIUM |
@@ -211,8 +211,8 @@
 | A12 | LOW | `aether/concept_formation.py` | Hierarchical clustering | Add incremental concept refinement as new evidence arrives | MEDIUM |
 | A13 | LOW | `aether/neural_reasoner.py` | Evolutionary training | Add proper backpropagation when PyTorch available (fallback to evolutionary) | MEDIUM |
 | A14 | LOW | `aether/vector_index.py` | Sequential search | Add HNSW (Hierarchical Navigable Small World) for O(log n) ANN search at scale | MEDIUM |
-| A15 | LOW | `aether/on_chain.py` | ABI encoding manual | Auto-generate ABI bindings from contract source | SMALL |
-| A16 | LOW | `aether/chat.py` | No conversation memory | Add multi-session memory: remember user preferences across sessions | MEDIUM |
+| ~~A15~~ | ~~LOW~~ | `qvm/abi.py` + `stablecoin/engine.py` | ~~ABI encoding manual~~ | ~~abi_selector() + encode_call() utilities in qvm/abi.py. Refactored stablecoin engine to use central selectors. 12 tests~~ | **DONE (Run #19)** |
+| ~~A16~~ | ~~LOW~~ | `aether/chat.py` | ~~No conversation memory~~ | ~~ChatMemory class: remember/recall/forget/extract_memories with JSON persistence. Integrated into process_message(). 27 tests~~ | **DONE (Run #19)** |
 | ~~A17~~ | ~~LOW~~ | `aether/task_protocol.py` | ~~No task prioritization~~ | ~~Add priority queue for PoT tasks based on bounty + urgency + domain~~ | **DONE (Run #8)** — bounty*urgency priority |
 | A18 | LOW | `aether/causal_engine.py` | PC algorithm only | Add Fast Causal Inference (FCI) for latent variable discovery | LARGE |
 | ~~A19~~ | ~~LOW~~ | `aether/genesis.py` | ~~4 axiom nodes~~ | ~~Expand genesis with 20+ foundational axioms covering more knowledge domains~~ | **DONE (Run #7)** — 21 genesis axioms |
@@ -249,9 +249,9 @@
 |---|----------|------|---------------|-------------|--------|
 | ~~S01~~ | ~~MEDIUM~~ | `scripts/deploy/deploy_qusd.py` | ~~Not deployed~~ | ~~8-contract deployment script: dependency-ordered, idempotent, dry-run mode, ERC-1967 proxy, contract_registry.json~~ | **DONE (Run #17)** |
 | ~~S02~~ | ~~MEDIUM~~ | `scripts/deploy/init_oracle_feeders.py` + `deploy_qusd.py` | ~~No feeders~~ | ~~init_oracle_feeders.py: register 3 feeders + submit initial price. Integrated into deploy_qusd.py post-deploy~~ | **DONE (Run #18)** |
-| S03 | MEDIUM | `stablecoin/engine.py` | Independent | Wire Python engine to read from deployed QUSDReserve.sol for reserve ratio | MEDIUM |
+| ~~S03~~ | ~~MEDIUM~~ | `stablecoin/engine.py` | ~~Independent~~ | ~~get_system_health() reads on-chain reserve ratio via QVM static_call with in-memory fallback. sync_from_chain() reads totalSupply+reserves. Refactored to use central abi_selector~~ | **DONE (Run #19)** |
 | ~~S04~~ | ~~MEDIUM~~ | `contracts/solidity/qusd/QUSD.sol` | ~~0.05% fee hardcoded~~ | ~~feeBps mutable + setFeeBps() with 10% cap + FeeBpsUpdated event~~ | **DONE (Run #14)** |
-| S05 | MEDIUM | `contracts/solidity/qusd/QUSDGovernance.sol` | Basic voting | Add delegation support (vote with staked QBC, not just held) | MEDIUM |
+| ~~S05~~ | ~~MEDIUM~~ | `contracts/solidity/qusd/QUSDGovernance.sol` | ~~Basic voting~~ | ~~delegate()/undelegate()/getVotingPower() with chain prevention, DelegateChanged event. vote() uses delegated power~~ | **DONE (Run #19)** |
 | S06 | LOW | `contracts/solidity/qusd/QUSDReserve.sol` | No price for reserves | Add oracle price for each reserve asset (currently tracks quantity only) | MEDIUM |
 | ~~S07~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDStabilizer.sol` | ~~Hardcoded thresholds~~ | ~~pegTarget/floorPrice/ceilingPrice mutable + setPegBands() with min spread validation~~ | **DONE (Run #14)** |
 | S08 | LOW | `contracts/solidity/qusd/wQUSD.sol` | Lock-and-mint | Add bridge proof verification (currently trusts bridge relayer) | MEDIUM |
@@ -792,3 +792,20 @@ Focus on: Go QVM completion, formal verification, advanced features
 **Test result:** 2,786 passed, 0 failed
 
 **Cumulative progress:** 97/148 completed (65.5%).
+
+### Run #19 — February 25, 2026
+
+**Scope:** Stablecoin wiring, EIP-1559, ABI utils, governance delegation, chat memory
+
+**Items completed: 5** (S03, V11, A15, S05, A16)
+- **S03** — StablecoinEngine wired to on-chain contracts: `get_system_health()` reads reserve ratio via QVM static_call with in-memory fallback. `sync_from_chain()` reads totalSupply + reserves. Refactored to use central `abi_selector` from `qvm/abi.py`. 7 tests.
+- **V11** — EIP-1559 base fee: `calculate_base_fee()` implements full EIP-1559 algorithm (gas target = limit/2, max change 1/8 per block, floor of 1). StateManager tracks `current_base_fee`, updates per block via `update_base_fee()`. 3 config constants. 12 tests.
+- **A15** — ABI utilities: `abi_selector()` and `encode_call()` in `qvm/abi.py` for auto-computing keccak256 selectors and encoding arguments. Supports uint256, address, bool, bytes32. Stablecoin engine refactored to use central selectors. 12 tests.
+- **S05** — QUSDGovernance delegation: `delegate()`/`undelegate()`/`getVotingPower()` with self-delegation and chain prevention. `vote()` uses delegated power. `DelegateChanged` event.
+- **A16** — Chat memory: `ChatMemory` class with `remember()`/`recall()`/`forget()`/`extract_memories()` and JSON persistence. Regex-based fact extraction (interests, roles, names, topics). Integrated into `process_message()` for personalized responses. 27 tests.
+
+**Files changed: 10** (engine.py, state.py, config.py, new abi.py, QUSDGovernance.sol, chat.py, new test_stablecoin.py additions, new test_qvm.py additions, new test_abi_encoding.py, new test_chat_memory.py)
+
+**Test result:** 2,844 passed, 0 failed (+58 new tests)
+
+**Cumulative progress:** 102/148 completed (68.9%).

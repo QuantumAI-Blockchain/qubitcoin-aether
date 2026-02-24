@@ -43,6 +43,12 @@ contract QUSDGovernance is Initializable {
     mapping(uint256 => mapping(address => bool))    public hasVoted;
     mapping(uint256 => mapping(address => bool))    public emergencySigned;
 
+    // ─── Delegation State ───────────────────────────────────────────────
+    /// @notice Who each address has delegated their voting power to (zero = no delegation)
+    mapping(address => address) public delegates;
+    /// @notice Total votes delegated TO each address (sum of delegators' balances)
+    mapping(address => uint256) public delegatedVotes;
+
     // ─── Events ──────────────────────────────────────────────────────────
     event ProposalCreated(uint256 indexed id, address indexed proposer, string description);
     event VoteCast(uint256 indexed id, address indexed voter, bool support, uint256 weight);
@@ -52,6 +58,7 @@ contract QUSDGovernance is Initializable {
     event EmergencyExecuted(uint256 indexed id, uint256 signerCount);
     event EmergencySignerAdded(address indexed signer);
     event EmergencySignerRemoved(address indexed signer);
+    event DelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -93,7 +100,9 @@ contract QUSDGovernance is Initializable {
         emit ProposalCreated(proposalId, msg.sender, description);
     }
 
-    /// @notice Vote on an active proposal
+    /// @notice Vote on an active proposal using the caller's full voting power
+    /// @dev Voting power = own balance (weight) + delegated votes from others.
+    ///      Users who have delegated their power elsewhere cannot vote directly.
     /// @param proposalId The proposal to vote on
     /// @param support True = for, false = against
     /// @param weight Voting weight (QUSD balance, verified off-chain or via token)
@@ -102,15 +111,60 @@ contract QUSDGovernance is Initializable {
         require(prop.state == ProposalState.Active, "Governance: not active");
         require(block.timestamp <= prop.endTimestamp, "Governance: voting ended");
         require(!hasVoted[proposalId][msg.sender], "Governance: already voted");
+        require(delegates[msg.sender] == address(0), "Governance: must undelegate before voting");
 
         hasVoted[proposalId][msg.sender] = true;
+        uint256 totalPower = getVotingPower(weight);
         if (support) {
-            prop.votesFor += weight;
+            prop.votesFor += totalPower;
         } else {
-            prop.votesAgainst += weight;
+            prop.votesAgainst += totalPower;
         }
 
-        emit VoteCast(proposalId, msg.sender, support, weight);
+        emit VoteCast(proposalId, msg.sender, support, totalPower);
+    }
+
+    // ─── Delegation ─────────────────────────────────────────────────────
+
+    /// @notice Delegate voting power to another address
+    /// @dev Prevents self-delegation and delegation chains (if `to` has already delegated, revert).
+    /// @param to The address to delegate voting power to
+    /// @param weight The delegator's QUSD balance (verified off-chain or via token)
+    function delegate(address to, uint256 weight) external {
+        require(to != msg.sender, "Governance: cannot self-delegate");
+        require(to != address(0), "Governance: cannot delegate to zero address");
+        require(delegates[to] == address(0), "Governance: delegate has delegated (no chains)");
+
+        address previousDelegate = delegates[msg.sender];
+
+        // Remove voting power from previous delegate if re-delegating
+        if (previousDelegate != address(0)) {
+            delegatedVotes[previousDelegate] -= weight;
+        }
+
+        delegates[msg.sender] = to;
+        delegatedVotes[to] += weight;
+
+        emit DelegateChanged(msg.sender, previousDelegate, to);
+    }
+
+    /// @notice Remove delegation and reclaim voting power
+    /// @param weight The delegator's QUSD balance (verified off-chain or via token)
+    function undelegate(uint256 weight) external {
+        address currentDelegate = delegates[msg.sender];
+        require(currentDelegate != address(0), "Governance: not delegated");
+
+        delegatedVotes[currentDelegate] -= weight;
+        delegates[msg.sender] = address(0);
+
+        emit DelegateChanged(msg.sender, currentDelegate, address(0));
+    }
+
+    /// @notice Get total voting power for an account (own balance + delegated votes)
+    /// @param ownBalance The account's own QUSD balance
+    /// @return Total voting power (own balance + votes delegated to this account)
+    function getVotingPower(uint256 ownBalance) public view returns (uint256) {
+        return ownBalance + delegatedVotes[msg.sender];
     }
 
     /// @notice Finalize voting and queue for execution if succeeded

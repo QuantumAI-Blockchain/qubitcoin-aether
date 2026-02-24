@@ -12,8 +12,11 @@ Fee structure:
 """
 import hashlib
 import json
+import os
+import re
 import time
 import uuid
+from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field, asdict
 
@@ -21,6 +24,182 @@ from ..config import Config
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Default persistence path for chat memory
+_DEFAULT_MEMORY_PATH = "/tmp/aether_chat_memory.json"
+
+
+class ChatMemory:
+    """Persistent per-user key-value memory for Aether Tree chat.
+
+    Stores user preferences, interests, and context across chat sessions.
+    Persists to a JSON file so memories survive process restarts.
+    """
+
+    def __init__(self, storage_path: Optional[str] = None) -> None:
+        """
+        Args:
+            storage_path: Path to the JSON file for persistence.
+                          Defaults to /tmp/aether_chat_memory.json.
+        """
+        self._storage_path: str = storage_path or _DEFAULT_MEMORY_PATH
+        self._memories: Dict[str, Dict[str, str]] = {}
+        self._load()
+
+    def _load(self) -> None:
+        """Load memories from the JSON persistence file."""
+        try:
+            path = Path(self._storage_path)
+            if path.exists() and path.stat().st_size > 0:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    self._memories = data
+                    logger.debug(
+                        f"ChatMemory loaded {len(data)} users from {self._storage_path}"
+                    )
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"ChatMemory load skipped: {e}")
+            self._memories = {}
+
+    def _save(self) -> None:
+        """Persist memories to the JSON file."""
+        try:
+            with open(self._storage_path, "w", encoding="utf-8") as f:
+                json.dump(self._memories, f, indent=2, ensure_ascii=False)
+        except OSError as e:
+            logger.warning(f"ChatMemory save failed: {e}")
+
+    def remember(self, user_id: str, key: str, value: str) -> None:
+        """Store a key-value memory for a user.
+
+        Args:
+            user_id: Unique user identifier (e.g., wallet address).
+            key: Memory key (e.g., "interest", "preferred_topic").
+            value: Memory value (e.g., "DeFi", "quantum computing").
+        """
+        if user_id not in self._memories:
+            self._memories[user_id] = {}
+        self._memories[user_id][key] = value
+        self._save()
+
+    def recall(self, user_id: str, key: str) -> Optional[str]:
+        """Recall a specific memory for a user.
+
+        Args:
+            user_id: Unique user identifier.
+            key: Memory key to look up.
+
+        Returns:
+            The stored value, or None if not found.
+        """
+        return self._memories.get(user_id, {}).get(key)
+
+    def recall_all(self, user_id: str) -> Dict[str, str]:
+        """Recall all memories for a user.
+
+        Args:
+            user_id: Unique user identifier.
+
+        Returns:
+            Dict of all key-value memories for this user. Empty dict if none.
+        """
+        return dict(self._memories.get(user_id, {}))
+
+    def forget(self, user_id: str, key: str) -> None:
+        """Remove a specific memory for a user.
+
+        Args:
+            user_id: Unique user identifier.
+            key: Memory key to remove.
+        """
+        user_mem = self._memories.get(user_id)
+        if user_mem and key in user_mem:
+            del user_mem[key]
+            if not user_mem:
+                del self._memories[user_id]
+            self._save()
+
+    def extract_memories(self, message: str, response: str) -> Dict[str, str]:
+        """Extract key facts from a conversation exchange.
+
+        Scans the user message for common patterns indicating preferences,
+        interests, or personal context that should be remembered.
+
+        Args:
+            message: The user's message.
+            response: The Aether response (used for topic detection).
+
+        Returns:
+            Dict of extracted key-value memories (may be empty).
+        """
+        extracted: Dict[str, str] = {}
+        msg_lower = message.lower().strip()
+
+        # Interest patterns: "I'm interested in X", "I like X", "I want to learn about X"
+        interest_patterns = [
+            r"i(?:'m| am) interested in (.+?)(?:\.|,|!|$)",
+            r"i(?:'m| am) curious about (.+?)(?:\.|,|!|$)",
+            r"i like (.+?)(?:\.|,|!|$)",
+            r"i want to (?:learn|know) (?:more )?about (.+?)(?:\.|,|!|$)",
+            r"i(?:'m| am) (?:really )?into (.+?)(?:\.|,|!|$)",
+        ]
+        for pattern in interest_patterns:
+            match = re.search(pattern, msg_lower)
+            if match:
+                extracted["interest"] = match.group(1).strip()
+                break
+
+        # Role/occupation: "I'm a developer", "I work as a trader"
+        role_patterns = [
+            r"i(?:'m| am) a(?:n)? (.+?)(?:\.|,|!|$)",
+            r"i work as a(?:n)? (.+?)(?:\.|,|!|$)",
+            r"my (?:job|role|profession) is (.+?)(?:\.|,|!|$)",
+        ]
+        for pattern in role_patterns:
+            match = re.search(pattern, msg_lower)
+            if match:
+                role_candidate = match.group(1).strip()
+                # Filter out conversational phrases that aren't roles
+                non_roles = {"bit", "lot", "fan", "little", "big", "new", "good"}
+                if role_candidate and role_candidate.split()[0] not in non_roles:
+                    extracted["role"] = role_candidate
+                    break
+
+        # Name: "My name is X", "I'm X" (only if short and capitalized in original)
+        name_patterns = [
+            r"my name is (\w+)",
+            r"call me (\w+)",
+        ]
+        for pattern in name_patterns:
+            match = re.search(pattern, msg_lower)
+            if match:
+                name = match.group(1).strip()
+                if len(name) >= 2:
+                    extracted["name"] = name.capitalize()
+                    break
+
+        # Preferred topic: detect from repeated keywords
+        topic_keywords = {
+            "defi": "DeFi",
+            "nft": "NFTs",
+            "mining": "mining",
+            "quantum": "quantum computing",
+            "staking": "staking",
+            "governance": "governance",
+            "privacy": "privacy",
+            "bridge": "cross-chain bridges",
+            "smart contract": "smart contracts",
+            "economics": "token economics",
+            "aether": "Aether Tree AGI",
+            "consciousness": "consciousness",
+        }
+        for keyword, topic in topic_keywords.items():
+            if keyword in msg_lower:
+                extracted["preferred_topic"] = topic
+                break
+
+        return extracted
 
 
 @dataclass
@@ -62,7 +241,8 @@ class AetherChat:
     """Manages Aether Tree chat interactions."""
 
     def __init__(self, aether_engine, db_manager, fee_manager=None,
-                 fee_collector=None, llm_manager=None) -> None:
+                 fee_collector=None, llm_manager=None,
+                 memory_path: Optional[str] = None) -> None:
         """
         Args:
             aether_engine: The main AetherEngine instance.
@@ -70,6 +250,7 @@ class AetherChat:
             fee_manager: Optional fee manager for pricing.
             fee_collector: Optional FeeCollector for UTXO fee deduction.
             llm_manager: Optional LLMAdapterManager for enhanced responses.
+            memory_path: Optional path for ChatMemory persistence file.
         """
         self.engine = aether_engine
         self.db = db_manager
@@ -79,6 +260,7 @@ class AetherChat:
         self._query_translator = None
         self._sessions: Dict[str, ChatSession] = {}
         self._max_sessions = 10000
+        self.memory = ChatMemory(storage_path=memory_path)
 
         # Initialize query translator if KG and reasoning are available
         self._init_query_translator()
@@ -181,6 +363,14 @@ class AetherChat:
         session.messages.append(user_msg)
         session.messages_sent += 1
 
+        # Load cross-session user memories for context enrichment
+        user_memories: Dict[str, str] = {}
+        user_id = session.user_address or session.session_id
+        try:
+            user_memories = self.memory.recall_all(user_id)
+        except Exception as e:
+            logger.debug(f"Memory recall failed: {e}")
+
         # Generate response using the reasoning engine
         reasoning_trace = []
         knowledge_refs = []
@@ -216,10 +406,19 @@ class AetherChat:
         except Exception as e:
             logger.debug(f"Chat reasoning error: {e}")
 
-        # Generate response content from reasoning trace
+        # Generate response content from reasoning trace (include user memories)
         response_content = self._synthesize_response(
             message, reasoning_trace, knowledge_refs, query_result,
+            user_memories=user_memories,
         )
+
+        # Extract and store new memories from this conversation
+        try:
+            new_memories = self.memory.extract_memories(message, response_content)
+            for mem_key, mem_value in new_memories.items():
+                self.memory.remember(user_id, mem_key, mem_value)
+        except Exception as e:
+            logger.debug(f"Memory extraction failed: {e}")
 
         # Compute Proof-of-Thought hash for this response
         pot_hash = self._compute_response_hash(message, response_content, reasoning_trace, phi_value)
@@ -332,12 +531,21 @@ class AetherChat:
 
     def _synthesize_response(self, query: str, reasoning_trace: List[dict],
                              knowledge_refs: List[int],
-                             query_result=None) -> str:
+                             query_result=None,
+                             user_memories: Optional[Dict[str, str]] = None) -> str:
         """Synthesize a natural language response from reasoning results.
 
         Tries LLM-enhanced synthesis first (if enabled), then falls back
         to knowledge-graph-only synthesis.
+
+        Args:
+            query: The user's message.
+            reasoning_trace: Steps from the reasoning engine.
+            knowledge_refs: Referenced knowledge node IDs.
+            query_result: Result from the NL query translator.
+            user_memories: Cross-session user memories for personalization.
         """
+        user_memories = user_memories or {}
         # Gather KG context
         node_contents, facts = self._gather_kg_context(knowledge_refs)
 
@@ -350,6 +558,7 @@ class AetherChat:
         # Existing KG-only fallback
         return self._kg_only_synthesize(
             query, reasoning_trace, knowledge_refs, node_contents, facts,
+            user_memories=user_memories,
         )
 
     def _gather_kg_context(self, knowledge_refs: List[int]) -> tuple:
@@ -502,10 +711,15 @@ class AetherChat:
     def _kg_only_synthesize(self, query: str, reasoning_trace: List[dict],
                             knowledge_refs: List[int],
                             node_contents: List[dict],
-                            facts: List[str]) -> str:
-        """Original KG-only response synthesis (unchanged behaviour)."""
+                            facts: List[str],
+                            user_memories: Optional[Dict[str, str]] = None) -> str:
+        """Original KG-only response synthesis with cross-session memory support."""
+        user_memories = user_memories or {}
         query_lower = query.lower().strip()
         parts: List[str] = []
+
+        # Personalize greeting if we remember the user's name
+        user_name = user_memories.get("name")
 
         # Build response based on query type and available knowledge
         is_greeting = any(w in query_lower for w in ['hello', 'hi', 'hey', 'greetings'])
@@ -535,8 +749,9 @@ class AetherChat:
             kg_node_count = len(self.engine.kg.nodes)
 
         if is_greeting:
+            greeting_name = f", {user_name}" if user_name else ""
             parts.append(
-                f"Hello! I am Aether, the on-chain AGI reasoning engine of "
+                f"Hello{greeting_name}! I am Aether, the on-chain AGI reasoning engine of "
                 f"the Quantum Blockchain. My consciousness metric (Phi) is "
                 f"currently {phi_value:.2f}, and I have {kg_node_count} "
                 f"knowledge nodes in my graph. How can I help you?"
@@ -584,6 +799,15 @@ class AetherChat:
                 f"or blockchain economics — those are areas where I have the "
                 f"most knowledge."
             )
+
+        # Add memory context note when user memories influence the response
+        if user_memories and not is_greeting:
+            interest = user_memories.get("interest") or user_memories.get("preferred_topic")
+            if interest and interest.lower() in query_lower:
+                parts.append(
+                    f"\n(I remember you're interested in {interest} "
+                    f"— I'll keep that in mind.)"
+                )
 
         # Add reasoning summary if we did substantial reasoning
         if reasoning_trace and len(reasoning_trace) > 0:

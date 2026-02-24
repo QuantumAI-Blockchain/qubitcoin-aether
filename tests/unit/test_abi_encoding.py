@@ -8,6 +8,7 @@ from qubitcoin.qvm.abi import (
     encode_bytes_dynamic, decode_bytes_dynamic,
     encode_function_call, decode_function_call,
     encode_return_value,
+    abi_selector, encode_call,
 )
 
 
@@ -186,3 +187,90 @@ class TestReturnValue:
     def test_unsupported_raises(self):
         with pytest.raises(ValueError):
             encode_return_value(1, "int128")
+
+
+# ============================================================================
+# A15: abi_selector and encode_call tests
+# ============================================================================
+
+
+class TestAbiSelector:
+    """Test abi_selector convenience function."""
+
+    def test_returns_hex_string(self):
+        result = abi_selector("transfer(address,uint256)")
+        assert isinstance(result, str)
+        assert len(result) == 8  # 4 bytes = 8 hex chars
+
+    def test_consistent_with_function_selector(self):
+        """abi_selector hex output matches function_selector bytes."""
+        sig = "balanceOf(address)"
+        assert abi_selector(sig) == function_selector(sig).hex()
+
+    def test_different_sigs_different_selectors(self):
+        assert abi_selector("transfer(address,uint256)") != abi_selector("approve(address,uint256)")
+
+    def test_no_args_selector(self):
+        result = abi_selector("totalSupply()")
+        assert isinstance(result, str)
+        assert len(result) == 8
+
+    def test_deterministic(self):
+        s1 = abi_selector("getPrice()")
+        s2 = abi_selector("getPrice()")
+        assert s1 == s2
+
+
+class TestEncodeCall:
+    """Test encode_call auto-type-detection function."""
+
+    def test_no_args(self):
+        """encode_call with no-arg function returns just selector."""
+        result = encode_call("totalSupply()")
+        assert len(result) == 4
+        assert result == function_selector("totalSupply()")
+
+    def test_single_uint256(self):
+        """encode_call with a single uint256 argument."""
+        result = encode_call("getValue(uint256)", 42)
+        assert len(result) == 4 + 32
+        expected = encode_function_call("getValue(uint256)", [42], ["uint256"])
+        assert result == expected
+
+    def test_address_and_uint256(self):
+        """encode_call with address + uint256."""
+        addr = "0x" + "ab" * 20
+        result = encode_call("transfer(address,uint256)", addr, 1000)
+        expected = encode_function_call(
+            "transfer(address,uint256)", [addr, 1000], ["address", "uint256"]
+        )
+        assert result == expected
+
+    def test_bool_arg(self):
+        """encode_call with bool argument."""
+        result = encode_call("setActive(bool)", True)
+        assert len(result) == 4 + 32
+
+    def test_bytes32_arg(self):
+        """encode_call with bytes32 argument."""
+        val = b'\xaa' * 32
+        result = encode_call("setHash(bytes32)", val)
+        assert len(result) == 4 + 32
+
+    def test_arg_count_mismatch_raises(self):
+        """Arg count mismatch between signature and provided args raises."""
+        with pytest.raises(ValueError, match="Argument count mismatch"):
+            encode_call("transfer(address,uint256)", "0x" + "ab" * 20)  # Missing 2nd arg
+
+    def test_multiple_args(self):
+        """encode_call with three args."""
+        addr = "0x" + "cc" * 20
+        result = encode_call(
+            "deposit(address,uint256,bool)", addr, 500, True,
+        )
+        expected = encode_function_call(
+            "deposit(address,uint256,bool)",
+            [addr, 500, True],
+            ["address", "uint256", "bool"],
+        )
+        assert result == expected

@@ -912,3 +912,128 @@ class TestSSTOREGasRefund:
         assert result.gas_used == 20006 - 4001  # = 16005
         # gas_used already has refund subtracted, so gas_used + gas_remaining == total
         assert result.gas_used + result.gas_remaining == 100000
+
+
+class TestEIP1559BaseFee:
+    """Test EIP-1559 base fee calculation (V11)."""
+
+    def test_import_calculate_base_fee(self):
+        from qubitcoin.qvm.state import calculate_base_fee
+        assert callable(calculate_base_fee)
+
+    def test_empty_block_decreases_fee(self):
+        """An empty block (0 gas used) should decrease the base fee."""
+        from qubitcoin.qvm.state import calculate_base_fee
+        base = 1_000_000_000  # 1 gwei
+        gas_limit = 30_000_000
+        new_fee = calculate_base_fee(
+            parent_gas_used=0,
+            parent_gas_limit=gas_limit,
+            parent_base_fee=base,
+        )
+        assert new_fee < base
+
+    def test_full_block_increases_fee(self):
+        """A full block (gas_used == gas_limit) should increase the base fee."""
+        from qubitcoin.qvm.state import calculate_base_fee
+        base = 1_000_000_000
+        gas_limit = 30_000_000
+        new_fee = calculate_base_fee(
+            parent_gas_used=gas_limit,
+            parent_gas_limit=gas_limit,
+            parent_base_fee=base,
+        )
+        assert new_fee > base
+
+    def test_half_block_no_change(self):
+        """A block at exactly 50% gas target should keep the fee the same."""
+        from qubitcoin.qvm.state import calculate_base_fee
+        base = 1_000_000_000
+        gas_limit = 30_000_000
+        # Target = gas_limit / elasticity_multiplier = 30M / 2 = 15M
+        new_fee = calculate_base_fee(
+            parent_gas_used=15_000_000,
+            parent_gas_limit=gas_limit,
+            parent_base_fee=base,
+        )
+        assert new_fee == base
+
+    def test_max_increase_bounded(self):
+        """The max increase per block is 1/8 of the base fee."""
+        from qubitcoin.qvm.state import calculate_base_fee
+        base = 1_000_000_000
+        gas_limit = 30_000_000
+        # Full block: used = gas_limit, target = gas_limit / 2
+        new_fee = calculate_base_fee(
+            parent_gas_used=gas_limit,
+            parent_gas_limit=gas_limit,
+            parent_base_fee=base,
+        )
+        max_delta = base // 8  # 1/8 change denominator
+        assert new_fee <= base + max_delta
+
+    def test_max_decrease_bounded(self):
+        """The max decrease per block is 1/8 of the base fee."""
+        from qubitcoin.qvm.state import calculate_base_fee
+        base = 1_000_000_000
+        gas_limit = 30_000_000
+        # Empty block: used = 0
+        new_fee = calculate_base_fee(
+            parent_gas_used=0,
+            parent_gas_limit=gas_limit,
+            parent_base_fee=base,
+        )
+        max_delta = base // 8
+        assert new_fee >= base - max_delta
+
+    def test_floor_at_one(self):
+        """Base fee never drops below 1."""
+        from qubitcoin.qvm.state import calculate_base_fee
+        new_fee = calculate_base_fee(
+            parent_gas_used=0,
+            parent_gas_limit=30_000_000,
+            parent_base_fee=1,  # Already at minimum
+        )
+        assert new_fee >= 1
+
+    def test_zero_gas_limit_returns_parent(self):
+        """If gas_limit is 0 (degenerate), return parent base fee unchanged."""
+        from qubitcoin.qvm.state import calculate_base_fee
+        base = 1_000_000_000
+        new_fee = calculate_base_fee(
+            parent_gas_used=0,
+            parent_gas_limit=0,
+            parent_base_fee=base,
+        )
+        assert new_fee == base
+
+    def test_state_manager_has_base_fee(self):
+        """StateManager has current_base_fee attribute initialized."""
+        from qubitcoin.qvm.state import StateManager
+        from qubitcoin.config import Config
+        sm = StateManager(db_manager=MagicMock())
+        assert sm.current_base_fee == Config.EIP1559_INITIAL_BASE_FEE
+
+    def test_update_base_fee_increases(self):
+        """update_base_fee increases base fee after a full block."""
+        from qubitcoin.qvm.state import StateManager
+        sm = StateManager(db_manager=MagicMock())
+        initial = sm.current_base_fee
+        sm.update_base_fee(parent_gas_used=30_000_000, parent_gas_limit=30_000_000)
+        assert sm.current_base_fee > initial
+
+    def test_update_base_fee_decreases(self):
+        """update_base_fee decreases base fee after an empty block."""
+        from qubitcoin.qvm.state import StateManager
+        sm = StateManager(db_manager=MagicMock())
+        initial = sm.current_base_fee
+        sm.update_base_fee(parent_gas_used=0, parent_gas_limit=30_000_000)
+        assert sm.current_base_fee < initial
+
+    def test_basefee_in_block_context(self):
+        """set_block_context uses current_base_fee for basefee field."""
+        from qubitcoin.qvm.state import StateManager
+        sm = StateManager(db_manager=MagicMock())
+        sm.current_base_fee = 42_000_000
+        sm.set_block_context(100, 1700000000.0, 'a' * 40, 1.0)
+        assert sm.qvm.block['basefee'] == 42_000_000

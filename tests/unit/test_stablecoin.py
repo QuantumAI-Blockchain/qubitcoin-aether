@@ -278,3 +278,134 @@ class TestEmergencyShutdownCircuitBreaker:
             block_height=100,
         )
         assert 'emergency' not in msg.lower()
+
+
+# ============================================================================
+# S03: get_system_health on-chain wiring tests
+# ============================================================================
+
+
+class TestSystemHealthOnChainWiring:
+    """Test get_system_health integration with on-chain reserve ratio."""
+
+    def _make_engine(self, qvm=None):
+        from qubitcoin.stablecoin.engine import StablecoinEngine
+        db = MagicMock()
+        session = MagicMock()
+        db.get_session.return_value.__enter__ = MagicMock(return_value=session)
+        db.get_session.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(StablecoinEngine, '_load_params', return_value={}):
+            with patch.object(StablecoinEngine, '_ensure_qusd_token'):
+                eng = StablecoinEngine(
+                    db_manager=db, quantum_engine=MagicMock(), qvm=qvm
+                )
+        return eng, session
+
+    def test_health_falls_back_to_in_memory_without_qvm(self):
+        """Without QVM, get_system_health uses in-memory data."""
+        eng, session = self._make_engine(qvm=None)
+        # qusd_health view returns a row
+        session.execute.return_value.fetchone.return_value = (
+            '1000000', '0.85', '500000', 10, 2
+        )
+        health = eng.get_system_health()
+        assert health['reserve_source'] == 'in_memory'
+        assert health['reserve_backing'] == Decimal('0.85')
+        assert 'on_chain_reserve_ratio' not in health
+
+    def test_health_uses_on_chain_when_available(self):
+        """With QVM + deployed contracts, on-chain ratio overrides in-memory."""
+        mock_qvm = MagicMock()
+        eng, session = self._make_engine(qvm=mock_qvm)
+
+        # Set contract addresses
+        eng._qusd_reserve_addr = 'r' * 40
+        eng._qusd_token_addr = 't' * 40
+
+        # qusd_health view
+        session.execute.return_value.fetchone.return_value = (
+            '1000000', '0.50', '500000', 10, 2
+        )
+
+        # Mock QVM static_call: reserve=900000, supply=1000000 → ratio=0.9
+        reserve_bytes = (900000).to_bytes(32, 'big')
+        supply_bytes = (1000000).to_bytes(32, 'big')
+        mock_qvm.static_call.side_effect = [reserve_bytes, supply_bytes]
+
+        health = eng.get_system_health()
+        assert health['reserve_source'] == 'on_chain'
+        assert health['on_chain_reserve_ratio'] == Decimal('900000') / Decimal('1000000')
+        assert health['reserve_backing'] == health['on_chain_reserve_ratio']
+
+    def test_health_falls_back_on_qvm_error(self):
+        """When QVM static_call raises, falls back to in-memory gracefully."""
+        mock_qvm = MagicMock()
+        eng, session = self._make_engine(qvm=mock_qvm)
+        eng._qusd_reserve_addr = 'r' * 40
+        eng._qusd_token_addr = 't' * 40
+
+        session.execute.return_value.fetchone.return_value = (
+            '1000000', '0.75', '500000', 10, 2
+        )
+        mock_qvm.static_call.side_effect = RuntimeError("QVM offline")
+
+        health = eng.get_system_health()
+        assert health['reserve_source'] == 'in_memory'
+        assert health['reserve_backing'] == Decimal('0.75')
+
+    def test_health_returns_defaults_when_no_db_view(self):
+        """When qusd_health view returns None, returns zero defaults."""
+        eng, session = self._make_engine(qvm=None)
+        session.execute.return_value.fetchone.return_value = None
+        health = eng.get_system_health()
+        assert health['total_qusd'] == Decimal(0)
+        assert health['reserve_backing'] == Decimal(0)
+        assert health['reserve_source'] == 'in_memory'
+
+
+class TestSyncFromChain:
+    """Test sync_from_chain method."""
+
+    def _make_engine(self, qvm=None):
+        from qubitcoin.stablecoin.engine import StablecoinEngine
+        db = MagicMock()
+        session = MagicMock()
+        db.get_session.return_value.__enter__ = MagicMock(return_value=session)
+        db.get_session.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch.object(StablecoinEngine, '_load_params', return_value={}):
+            with patch.object(StablecoinEngine, '_ensure_qusd_token'):
+                eng = StablecoinEngine(
+                    db_manager=db, quantum_engine=MagicMock(), qvm=qvm
+                )
+        return eng
+
+    def test_sync_without_qvm_returns_false(self):
+        """sync_from_chain returns False when no QVM is available."""
+        eng = self._make_engine(qvm=None)
+        assert eng.sync_from_chain() is False
+
+    def test_sync_with_qvm_success(self):
+        """sync_from_chain succeeds with valid QVM responses."""
+        mock_qvm = MagicMock()
+        eng = self._make_engine(qvm=mock_qvm)
+        eng._qusd_reserve_addr = 'r' * 40
+        eng._qusd_token_addr = 't' * 40
+
+        supply_bytes = (2000000).to_bytes(32, 'big')
+        reserve_bytes = (1800000).to_bytes(32, 'big')
+        mock_qvm.static_call.side_effect = [supply_bytes, reserve_bytes]
+
+        assert eng.sync_from_chain() is True
+
+    def test_sync_handles_empty_response(self):
+        """sync_from_chain returns False when contracts return empty data."""
+        mock_qvm = MagicMock()
+        eng = self._make_engine(qvm=mock_qvm)
+        eng._qusd_reserve_addr = 'r' * 40
+        eng._qusd_token_addr = 't' * 40
+
+        mock_qvm.static_call.return_value = None  # Empty response
+
+        assert eng.sync_from_chain() is False

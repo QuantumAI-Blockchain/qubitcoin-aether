@@ -16,6 +16,51 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def calculate_base_fee(parent_gas_used: int, parent_gas_limit: int,
+                       parent_base_fee: int) -> int:
+    """Calculate the EIP-1559 base fee for the next block.
+
+    The gas target is ``parent_gas_limit // EIP1559_ELASTICITY_MULTIPLIER``.
+    If the parent block used more gas than the target, the base fee increases;
+    if less, it decreases.  The maximum change per block is bounded by
+    ``1 / EIP1559_BASE_FEE_CHANGE_DENOMINATOR`` of the parent base fee.
+
+    The base fee has a floor of 1 (never reaches zero).
+
+    Args:
+        parent_gas_used: Gas consumed by the parent block.
+        parent_gas_limit: Gas limit of the parent block.
+        parent_base_fee: Base fee of the parent block (wei).
+
+    Returns:
+        The base fee for the next block (wei).
+    """
+    elasticity = Config.EIP1559_ELASTICITY_MULTIPLIER
+    denominator = Config.EIP1559_BASE_FEE_CHANGE_DENOMINATOR
+    gas_target = parent_gas_limit // elasticity
+
+    if gas_target == 0:
+        return parent_base_fee
+
+    if parent_gas_used == gas_target:
+        # Exactly at target -- no change
+        return parent_base_fee
+
+    if parent_gas_used > gas_target:
+        # Above target -- increase base fee
+        gas_used_delta = parent_gas_used - gas_target
+        fee_delta = max(
+            parent_base_fee * gas_used_delta // gas_target // denominator,
+            1,  # Ensure at least +1 when rounding would give 0
+        )
+        return parent_base_fee + fee_delta
+
+    # Below target -- decrease base fee
+    gas_used_delta = gas_target - parent_gas_used
+    fee_delta = parent_base_fee * gas_used_delta // gas_target // denominator
+    return max(parent_base_fee - fee_delta, 1)  # Floor at 1
+
+
 class StateManager:
     """
     Manages world state and routes transactions between UTXO and QVM
@@ -28,6 +73,7 @@ class StateManager:
         self.compliance = compliance_engine
         self.qvm = QVM(db_manager, quantum_engine, compliance_engine=compliance_engine)
         self.event_index = None  # Injected by node after EventIndex init
+        self.current_base_fee: int = Config.EIP1559_INITIAL_BASE_FEE
 
     def set_block_context(self, block_height: int, timestamp: float, coinbase: str, difficulty: float) -> None:
         """Update QVM block context before executing transactions"""
@@ -36,8 +82,31 @@ class StateManager:
             'timestamp': int(timestamp),
             'coinbase': coinbase,
             'prevrandao': int(hashlib.sha256(str(block_height).encode()).hexdigest()[:16], 16),
-            'basefee': 1,
+            'basefee': self.current_base_fee,
         }
+
+    def update_base_fee(self, parent_gas_used: int, parent_gas_limit: int) -> int:
+        """Recalculate the base fee after a parent block and update internal state.
+
+        This should be called once per block, passing the parent block's gas
+        usage and limit.  The new base fee is stored in ``self.current_base_fee``
+        and will be used by subsequent ``set_block_context`` calls.
+
+        Args:
+            parent_gas_used: Total gas consumed by the parent block.
+            parent_gas_limit: Gas limit of the parent block.
+
+        Returns:
+            The updated base fee for the current block.
+        """
+        self.current_base_fee = calculate_base_fee(
+            parent_gas_used, parent_gas_limit, self.current_base_fee
+        )
+        logger.debug(
+            f"EIP-1559 base fee updated: {self.current_base_fee} "
+            f"(parent used {parent_gas_used}/{parent_gas_limit})"
+        )
+        return self.current_base_fee
 
     def process_transaction(self, tx: Transaction, block_height: int, block_hash: str, tx_index: int) -> Optional[TransactionReceipt]:
         """
