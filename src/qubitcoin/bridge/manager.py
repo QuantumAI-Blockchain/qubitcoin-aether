@@ -11,6 +11,7 @@ from enum import Enum
 from .base import BaseBridge, ChainType, BridgeStatus
 from .ethereum import EVMBridge
 from .solana import SolanaBridge
+from .validator_rewards import ValidatorRewardTracker
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -22,20 +23,25 @@ class BridgeManager:
     Routes operations to appropriate bridge
     """
 
-    def __init__(self, db_manager):
+    def __init__(self, db_manager, validator_reward_tracker: Optional[ValidatorRewardTracker] = None):
         """
         Initialize bridge manager
-        
+
         Args:
             db_manager: Database manager instance
+            validator_reward_tracker: Optional reward tracker for bridge validators.
+                Created automatically if not provided.
         """
         self.db = db_manager
         self.bridges: Dict[ChainType, BaseBridge] = {}
-        
+        self.validator_rewards: ValidatorRewardTracker = (
+            validator_reward_tracker or ValidatorRewardTracker()
+        )
+
         # QBC bridge address (where coins are locked)
         self.qbc_bridge_address = None
-        
-        logger.info("🌉 Bridge Manager initialized")
+
+        logger.info("Bridge Manager initialized")
 
     async def initialize_bridges(self, chains: List[ChainType] = None):
         """

@@ -40,7 +40,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    spv_verifier=None, ipfs_memory=None,
                    capability_advertiser=None,
                    on_chain_agi=None,
-                   event_index=None) -> FastAPI:
+                   event_index=None,
+                   abi_registry=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -3494,6 +3495,37 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         await bridge_manager.resume_bridge(chain_type)
         return {"resumed": True, "chain": chain}
 
+    @app.get("/bridge/validators/stats")
+    async def bridge_validator_stats():
+        """Get overall bridge validator reward statistics."""
+        if not bridge_manager or not bridge_manager.validator_rewards:
+            return {"total_validators": 0, "total_verifications": 0, "total_rewards_qbc": 0}
+        return bridge_manager.validator_rewards.get_stats()
+
+    @app.get("/bridge/validators/top")
+    async def bridge_top_validators(limit: int = 10):
+        """Get top bridge validators by verification count."""
+        if not bridge_manager or not bridge_manager.validator_rewards:
+            return {"validators": [], "total": 0}
+        top = bridge_manager.validator_rewards.get_top_validators(limit=limit)
+        return {"validators": top, "total": len(top)}
+
+    @app.get("/bridge/validators/{validator}")
+    async def bridge_validator_detail(validator: str):
+        """Get verification stats for a specific bridge validator."""
+        if not bridge_manager or not bridge_manager.validator_rewards:
+            raise HTTPException(status_code=503, detail="Validator rewards not available")
+        stats = bridge_manager.validator_rewards.get_validator_stats(validator)
+        return stats
+
+    @app.get("/bridge/validators/rewards/{bridge_name}")
+    async def bridge_validator_rewards(bridge_name: str):
+        """Get reward distribution for a specific bridge chain."""
+        if not bridge_manager or not bridge_manager.validator_rewards:
+            raise HTTPException(status_code=503, detail="Validator rewards not available")
+        rewards = bridge_manager.validator_rewards.calculate_rewards(bridge_name=bridge_name)
+        return {"bridge": bridge_name, "rewards": rewards, "total_validators": len(rewards)}
+
     # ========================================================================
     # PRIVACY ENDPOINTS
     # ========================================================================
@@ -3842,6 +3874,62 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             return result
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Compilation error: {e}")
+
+    # ========================================================================
+    # ABI REGISTRY ENDPOINTS
+    # ========================================================================
+
+    @app.get("/qvm/abi/{address}")
+    async def get_contract_abi(address: str):
+        """Get the ABI for a deployed contract."""
+        if not abi_registry:
+            raise HTTPException(status_code=503, detail="ABI registry not available")
+        record = abi_registry.get_record(address)
+        if not record:
+            raise HTTPException(status_code=404, detail="No ABI registered for this contract")
+        return record.to_dict()
+
+    @app.post("/qvm/abi/{address}")
+    async def register_contract_abi(address: str, request: Request):
+        """Register an ABI for a deployed contract."""
+        if not abi_registry:
+            raise HTTPException(status_code=503, detail="ABI registry not available")
+        body = await request.json()
+        abi = body.get("abi")
+        if not abi or not isinstance(abi, list):
+            raise HTTPException(status_code=400, detail="Missing or invalid 'abi' field (must be a list)")
+        abi_registry.register_abi(address, abi)
+
+        # Optionally verify if source_code and compiler_version are provided
+        source_code = body.get("source_code")
+        compiler_version = body.get("compiler_version")
+        verified = False
+        if source_code and compiler_version:
+            verified = abi_registry.verify_contract(address, source_code, compiler_version)
+
+        return {
+            "address": address.lower().strip(),
+            "abi_entries": len(abi),
+            "verified": verified,
+        }
+
+    @app.get("/qvm/verified")
+    async def list_verified_contracts():
+        """List all verified contracts."""
+        if not abi_registry:
+            raise HTTPException(status_code=503, detail="ABI registry not available")
+        contracts = abi_registry.get_verified_contracts()
+        return {
+            "verified_contracts": contracts,
+            "total": len(contracts),
+        }
+
+    @app.get("/qvm/abi-registry/stats")
+    async def abi_registry_stats():
+        """Get ABI registry statistics."""
+        if not abi_registry:
+            return {"total_registered": 0, "total_verified": 0, "total_unverified": 0}
+        return abi_registry.get_stats()
 
     # ========================================================================
     # STABLECOIN ENDPOINTS

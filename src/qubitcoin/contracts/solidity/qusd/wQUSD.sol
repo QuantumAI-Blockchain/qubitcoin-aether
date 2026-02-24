@@ -18,6 +18,7 @@ contract wQUSD is IQBC20, Initializable {
     address public owner;
     address public qusdToken;       // underlying QUSD contract
     address public bridgeOperator;  // authorized to mint/burn for bridge operations
+    address public proofVerifier;   // contract that verifies bridge proofs (address(0) = legacy mode)
 
     uint256 public totalSupply;
     uint256 public totalLocked;     // QUSD locked in this contract
@@ -26,6 +27,7 @@ contract wQUSD is IQBC20, Initializable {
 
     mapping(address => uint256)                     private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
+    mapping(bytes32 => bool)                        public  processedProofs; // prevent replay of bridge proofs
 
     bool private _locked; // reentrancy guard
     bool public paused;
@@ -36,6 +38,8 @@ contract wQUSD is IQBC20, Initializable {
     event BridgeMint(address indexed recipient, uint256 amount, bytes32 indexed sourceChainTxHash);
     event BridgeBurn(address indexed sender, uint256 amount, uint256 indexed destChainId);
     event BridgeOperatorUpdated(address indexed prev, address indexed next);
+    event ProofVerifierUpdated(address indexed prev, address indexed next);
+    event ProofVerified(bytes32 indexed proofHash, address indexed recipient, uint256 amount);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
 
@@ -100,12 +104,32 @@ contract wQUSD is IQBC20, Initializable {
     }
 
     // ─── Bridge Operations ───────────────────────────────────────────────
-    /// @notice Bridge operator mints wQUSD on destination chain
-    function bridgeMint(address recipient, uint256 amount, bytes32 sourceTxHash) external onlyBridge whenNotPaused {
+    /// @notice Bridge operator mints wQUSD on destination chain with proof verification
+    /// @param recipient Address to receive minted wQUSD
+    /// @param amount Amount of wQUSD to mint
+    /// @param sourceTxHash Transaction hash on the source chain
+    /// @param proofHash Unique bridge proof hash to prevent replay attacks
+    function bridgeMint(address recipient, uint256 amount, bytes32 sourceTxHash, bytes32 proofHash) external onlyBridge whenNotPaused {
         require(recipient != address(0), "wQUSD: zero recipient");
+        require(amount > 0, "wQUSD: zero amount");
+        require(!processedProofs[proofHash], "wQUSD: proof already processed");
+
+        // If a proof verifier contract is configured, call it for verification.
+        // When proofVerifier is address(0) (legacy mode), skip external verification.
+        if (proofVerifier != address(0)) {
+            (bool success, bytes memory result) = proofVerifier.staticcall(
+                abi.encodeWithSignature("verifyBridgeProof(bytes32,address,uint256,bytes32)", proofHash, recipient, amount, sourceTxHash)
+            );
+            require(success && abi.decode(result, (bool)), "wQUSD: proof verification failed");
+        }
+
+        // Mark proof as processed to prevent replay
+        processedProofs[proofHash] = true;
+
         totalSupply           += amount;
         _balances[recipient]  += amount;
 
+        emit ProofVerified(proofHash, recipient, amount);
         emit Transfer(address(0), recipient, amount);
         emit BridgeMint(recipient, amount, sourceTxHash);
     }
@@ -169,6 +193,13 @@ contract wQUSD is IQBC20, Initializable {
     function setBridgeOperator(address newBridge) external onlyOwner {
         emit BridgeOperatorUpdated(bridgeOperator, newBridge);
         bridgeOperator = newBridge;
+    }
+
+    /// @notice Set the proof verifier contract address
+    /// @dev Set to address(0) to disable external verification (legacy mode)
+    function setProofVerifier(address verifier) external onlyOwner {
+        emit ProofVerifierUpdated(proofVerifier, verifier);
+        proofVerifier = verifier;
     }
 
     function pause() external onlyOwner {

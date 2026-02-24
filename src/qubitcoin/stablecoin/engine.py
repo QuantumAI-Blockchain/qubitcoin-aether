@@ -47,6 +47,11 @@ class StablecoinEngine:
         # Initialize QUSD token if not exists
         self._ensure_qusd_token()
 
+        # Insurance fund state
+        self.insurance_fund_balance: float = 0.0
+        self._insurance_collection_history: List[Dict] = []
+        self._insurance_payout_history: List[Dict] = []
+
         logger.info("Stablecoin engine initialized")
 
     def _load_params(self) -> Dict:
@@ -729,4 +734,154 @@ class StablecoinEngine:
         except Exception as e:
             logger.warning(f"get_reserve_ratio_from_contract failed: {e}")
             return None
+
+    # ========================================================================
+    # INSURANCE FUND
+    # ========================================================================
+
+    def collect_insurance(self, fee_amount: float) -> float:
+        """Take insurance percentage from a fee and add to the insurance fund.
+
+        Called whenever a QUSD-related fee is collected. The insurance
+        percentage is defined by ``Config.QUSD_INSURANCE_FUND_PERCENTAGE``.
+
+        Args:
+            fee_amount: The total fee amount (in QBC or QUSD) from which
+                the insurance slice is taken.
+
+        Returns:
+            The amount actually collected into the insurance fund.
+        """
+        if fee_amount <= 0:
+            return 0.0
+
+        percentage = Config.QUSD_INSURANCE_FUND_PERCENTAGE
+        if percentage <= 0 or percentage > 1.0:
+            return 0.0
+
+        collected = fee_amount * percentage
+        self.insurance_fund_balance += collected
+
+        record: Dict = {
+            'amount': collected,
+            'source_fee': fee_amount,
+            'percentage': percentage,
+            'balance_after': self.insurance_fund_balance,
+            'timestamp': time.time(),
+        }
+        self._insurance_collection_history.append(record)
+
+        # Cap history length to prevent unbounded growth
+        if len(self._insurance_collection_history) > 10000:
+            self._insurance_collection_history = self._insurance_collection_history[-10000:]
+
+        logger.debug(
+            f"Insurance collected: {collected:.6f} from fee {fee_amount:.6f} "
+            f"(fund balance: {self.insurance_fund_balance:.6f})"
+        )
+        return collected
+
+    def check_insurance_payout(self) -> bool:
+        """Check if the reserve ratio is below the payout threshold and
+        trigger an automatic payout if so.
+
+        Reads the current reserve ratio from ``get_system_health()`` and
+        compares it against ``Config.QUSD_INSURANCE_PAYOUT_THRESHOLD``.
+        If the ratio is below threshold and the insurance fund has a
+        positive balance, the entire fund balance is paid out to the
+        reserve.
+
+        Returns:
+            True if a payout was triggered, False otherwise.
+        """
+        threshold = Config.QUSD_INSURANCE_PAYOUT_THRESHOLD
+
+        health = self.get_system_health()
+        reserve_backing = float(health.get('reserve_backing', 0))
+
+        if reserve_backing >= threshold:
+            return False
+
+        if self.insurance_fund_balance <= 0:
+            logger.warning(
+                f"Insurance payout needed (reserve={reserve_backing:.4f} < "
+                f"threshold={threshold}) but fund is empty"
+            )
+            return False
+
+        payout_amount = self.insurance_fund_balance
+        success = self.payout_insurance(payout_amount)
+        if success:
+            logger.info(
+                f"Insurance payout triggered: {payout_amount:.6f} "
+                f"(reserve ratio {reserve_backing:.4f} < threshold {threshold})"
+            )
+        return success
+
+    def payout_insurance(self, amount: float) -> bool:
+        """Move funds from the insurance fund to bolster the reserve.
+
+        Deducts ``amount`` from the insurance fund balance and records the
+        payout.  In a production environment this would also execute an
+        on-chain transfer; here it updates the in-memory accounting.
+
+        Args:
+            amount: The amount to pay out from the insurance fund.
+
+        Returns:
+            True if the payout succeeded, False if insufficient funds.
+        """
+        if amount <= 0:
+            return False
+
+        if amount > self.insurance_fund_balance:
+            logger.warning(
+                f"Insurance payout of {amount:.6f} exceeds fund balance "
+                f"{self.insurance_fund_balance:.6f}"
+            )
+            return False
+
+        self.insurance_fund_balance -= amount
+
+        record: Dict = {
+            'amount': amount,
+            'balance_after': self.insurance_fund_balance,
+            'timestamp': time.time(),
+        }
+        self._insurance_payout_history.append(record)
+
+        if len(self._insurance_payout_history) > 10000:
+            self._insurance_payout_history = self._insurance_payout_history[-10000:]
+
+        logger.info(
+            f"Insurance payout: {amount:.6f} "
+            f"(remaining balance: {self.insurance_fund_balance:.6f})"
+        )
+        return True
+
+    def get_insurance_stats(self) -> Dict:
+        """Return current insurance fund statistics.
+
+        Returns:
+            Dict with balance, total collected, total paid out, and
+            recent collection/payout history.
+        """
+        total_collected = sum(
+            r['amount'] for r in self._insurance_collection_history
+        )
+        total_paid_out = sum(
+            r['amount'] for r in self._insurance_payout_history
+        )
+        return {
+            'balance': self.insurance_fund_balance,
+            'total_collected': total_collected,
+            'total_paid_out': total_paid_out,
+            'payout_threshold': Config.QUSD_INSURANCE_PAYOUT_THRESHOLD,
+            'collection_percentage': Config.QUSD_INSURANCE_FUND_PERCENTAGE,
+            'fund_address': Config.QUSD_INSURANCE_FUND_ADDRESS,
+            'collection_events': len(self._insurance_collection_history),
+            'payout_events': len(self._insurance_payout_history),
+            'recent_collections': self._insurance_collection_history[-10:],
+            'recent_payouts': self._insurance_payout_history[-10:],
+        }
 

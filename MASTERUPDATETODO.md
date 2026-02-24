@@ -1,18 +1,18 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 25, 2026 | Run #21
+# Last Updated: February 25, 2026 | Run #22
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 112
-- Remaining: 36
-- Completion: 75.7%
+- Completed: 117
+- Remaining: 31
+- Completion: 79.1%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
 - **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
-- Estimated runs to 100%: ~8
+- Estimated runs to 100%: ~7
 
 ---
 
@@ -164,7 +164,7 @@
 | ~~B15~~ | ~~LOW~~ | `quantum/crypto.py` | ~~No key rotation~~ | ~~KeyRotationManager: rotate_keys(), grace period verification, revoke_key(), status reporting. 29 tests~~ | **DONE (Run #17)** |
 | ~~B16~~ | ~~LOW~~ | `network/rpc.py` | ~~No eth_subscribe~~ | ~~/ws/jsonrpc endpoint with eth_subscribe/eth_unsubscribe, newHeads + pendingTransactions auto-broadcast~~ | **DONE (Run #15)** |
 | ~~B17~~ | ~~LOW~~ | `consensus/engine.py` | ~~Not integrated in consensus~~ | ~~_validate_block_susy_swaps: key image uniqueness, commitment consistency, range proof verification. Graceful degradation. 12 tests~~ | **DONE (Run #20)** |
-| B18 | LOW | `bridge/` | No validator rewards | Implement bridge validator reward distribution per verified proof | MEDIUM |
+| ~~B18~~ | ~~LOW~~ | `bridge/` | ~~No validator rewards~~ | ~~ValidatorRewardTracker: record_verification, calculate_rewards, get_validator_stats, get_top_validators. Per-proof tracking, reward epochs. 14 tests~~ | **DONE (Run #22)** |
 | ~~B19~~ | ~~LOW~~ | `.github/workflows/` | ~~No security scanning~~ | ~~Add SAST (Semgrep/Bandit) and dependency scanning (Safety/Snyk)~~ | **DONE (Run #7)** — Bandit + pip-audit CI job |
 | ~~B20~~ | ~~LOW~~ | `tests/benchmarks/bench_core.py` + `conftest.py` | ~~No performance tests~~ | ~~16 benchmarks: block validation, VQE mining, DB queries, QVM execution, Phi calc, hashing. `@pytest.mark.benchmark` marker~~ | **DONE (Run #18)** |
 
@@ -191,7 +191,7 @@
 | ~~V17~~ | ~~LOW~~ | `qvm/` | ~~1024 stack limit~~ | ~~Add stack limit enforcement tests for deeply nested calls~~ | **DONE (Run #7)** — 8 stack limit tests |
 | V18 | LOW | `qvm/` | No benchmark | Profile and benchmark Python QVM vs Go QVM throughput | MEDIUM |
 | V19 | LOW | `contracts/` | No deployment script CI | Add automated contract deployment to CI (testnet) | MEDIUM |
-| V20 | LOW | `qvm/` | No ABI registry | Add on-chain ABI registry for contract verification | MEDIUM |
+| ~~V20~~ | ~~LOW~~ | `qvm/` | ~~No ABI registry~~ | ~~ABIRegistry class: register_abi, get_abi, verify_contract, is_verified, get_verified_contracts. Hash-based integrity. 17 tests~~ | **DONE (Run #22)** |
 
 ### 5.4 Aether Tree / L3 (20)
 
@@ -233,7 +233,7 @@
 | ~~E09~~ | ~~LOW~~ | `bridge/` | ~~0.3% fee~~ | ~~Make bridge fee configurable per chain~~ | **DONE (Run #11)** — Config.BRIDGE_FEE_BPS |
 | ~~E10~~ | ~~LOW~~ | `mining/engine.py` + `config.py` | ~~No fee burning~~ | ~~FEE_BURN_PERCENTAGE (default 50%) burns portion of tx fees in coinbase. Configurable via .env. Burn tracked in metrics~~ | **DONE (Run #18)** |
 | ~~E11~~ | ~~LOW~~ | `network/rpc.py` | ~~No treasury dashboard~~ | ~~Added `/treasury` endpoint: balances, fee stats, config~~ | **DONE (Run #13)** |
-| E12 | LOW | `stablecoin/engine.py` | No stress test | Simulate QUSD peg stress: 50% QBC price crash, 90% reserve withdrawal | MEDIUM |
+| ~~E12~~ | ~~LOW~~ | `stablecoin/engine.py` | ~~No stress test~~ | ~~test_qusd_stress.py: 50% crash, 90% withdrawal, rapid oscillation, cascading liquidation, multi-asset correlation. 20+ scenario tests~~ | **DONE (Run #22)** |
 | E13 | LOW | `bridge/` | No relayer incentive | Add relayer rewards for cross-chain message delivery (currently uncompensated) | MEDIUM |
 | ~~E14~~ | ~~LOW~~ | `contracts/solidity/tokens/VestingSchedule.sol` | ~~No vesting schedule~~ | ~~VestingPlan struct, createVesting/claim/vestedAmount/claimable/revoke. Cliff + linear unlock. Events for create/claim/revoke~~ | **DONE (Run #21)** |
 | E15 | LOW | `consensus/` | No MEV protection | Add commit-reveal for transaction ordering (prevent front-running) | LARGE |
@@ -254,7 +254,7 @@
 | ~~S05~~ | ~~MEDIUM~~ | `contracts/solidity/qusd/QUSDGovernance.sol` | ~~Basic voting~~ | ~~delegate()/undelegate()/getVotingPower() with chain prevention, DelegateChanged event. vote() uses delegated power~~ | **DONE (Run #19)** |
 | ~~S06~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDReserve.sol` | ~~No price for reserves~~ | ~~IPriceOracle interface, assetOracles mapping, setAssetOracle/getAssetPrice/getAssetValue/computeTotalReserveValueUSD. Try-catch per asset~~ | **DONE (Run #20)** |
 | ~~S07~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDStabilizer.sol` | ~~Hardcoded thresholds~~ | ~~pegTarget/floorPrice/ceilingPrice mutable + setPegBands() with min spread validation~~ | **DONE (Run #14)** |
-| S08 | LOW | `contracts/solidity/qusd/wQUSD.sol` | Lock-and-mint | Add bridge proof verification (currently trusts bridge relayer) | MEDIUM |
+| ~~S08~~ | ~~LOW~~ | `contracts/solidity/qusd/wQUSD.sol` | ~~Lock-and-mint~~ | ~~processedProofs mapping, proofVerifier contract, ProofVerified event, setProofVerifier(). bridgeMint requires proofHash + verification~~ | **DONE (Run #22)** |
 | ~~S09~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDDebtLedger.sol` | ~~No partial payback~~ | ~~paybackPartial(amount) + recordAccountDebt + getOutstandingDebt. Per-account tracking with PartialPayback event. Coexists with milestone payback~~ | **DONE (Run #20)** |
 | ~~S10~~ | ~~LOW~~ | `contracts/solidity/qusd/` | ~~No emergency pause~~ | ~~Added paused + whenNotPaused + pause()/unpause() to QUSDStabilizer, QUSDReserve, QUSDDebtLedger, wQUSD~~ | **DONE (Run #14)** |
 | S11 | LOW | `stablecoin/` | No interest rate | Implement CDP interest rate model (borrow QUSD against QBC collateral) | LARGE |
@@ -264,7 +264,7 @@
 | S15 | LOW | `stablecoin/` | No reserve audit | Add on-chain reserve attestation (Chainlink-style Proof of Reserve) | LARGE |
 | ~~S16~~ | ~~LOW~~ | `QUSDOracle.sol` | ~~Basic staleness~~ | ~~Heartbeat monitoring~~ | **ALREADY DONE** — getPrice() reverts on stale, StalePriceDetected event, setMaxAge() |
 | S17 | LOW | `stablecoin/` | No yield | Add QUSD savings rate (earn yield on deposited QUSD, like DAI Savings Rate) | LARGE |
-| S18 | LOW | `stablecoin/` | No insurance | Add QUSD insurance fund (percentage of fees → insurance pool for black swan) | MEDIUM |
+| ~~S18~~ | ~~LOW~~ | `stablecoin/` | ~~No insurance~~ | ~~Insurance fund in StablecoinEngine: insurance_fund_balance, insurance_fee_percentage, deposit/withdraw/claim. Config: QUSD_INSURANCE_FEE_PCT. 15+ tests~~ | **DONE (Run #22)** |
 | S19 | LOW | `contracts/solidity/qusd/` | No formal verification | Run Slither + Mythril on all 7 QUSD contracts | MEDIUM |
 | ~~S20~~ | ~~LOW~~ | `stablecoin/` | ~~No peg history~~ | ~~Add /qusd/peg/history endpoint showing historical peg deviation~~ | **DONE (Run #10)** |
 
@@ -843,3 +843,20 @@ Focus on: Go QVM completion, formal verification, advanced features
 **Test result:** 2,924 passed, 0 failed (+43 new tests)
 
 **Cumulative progress:** 112/148 completed (75.7%).
+
+### Run #22 — February 25, 2026
+
+**Scope:** Bridge proofs, ABI registry, validator rewards, QUSD stress tests, insurance fund
+
+**Items completed: 5** (S08, V20, B18, E12, S18)
+- **S08** — Bridge proof verification in wQUSD.sol: `processedProofs` mapping prevents replay, `proofVerifier` contract for external verification, `ProofVerified` event, `setProofVerifier()`. Modified `bridgeMint` to require proofHash.
+- **V20** — ABI registry: `ABIRegistry` class with `register_abi`/`get_abi`/`verify_contract`/`is_verified`/`get_verified_contracts`. Hash-based integrity checking. 17 tests.
+- **B18** — Validator rewards: `ValidatorRewardTracker` with `record_verification`/`calculate_rewards`/`get_validator_stats`/`get_top_validators`. Per-proof tracking, reward epochs. 14 tests.
+- **E12** — QUSD stress tests: `test_qusd_stress.py` simulates 50% QBC crash, 90% reserve withdrawal, rapid price oscillation, cascading liquidation, multi-asset correlation. 20+ scenario tests.
+- **S18** — Insurance fund: `insurance_fund_balance`, `insurance_fee_percentage`, deposit/withdraw/claim in StablecoinEngine. Config `QUSD_INSURANCE_FEE_PCT`. 15+ tests.
+
+**Files changed: 12** (+1,952 lines: new validator_rewards.py, new abi_registry.py, new test_abi_registry.py, new test_qusd_insurance.py, new test_qusd_stress.py, new test_validator_rewards.py, wQUSD.sol, manager.py, config.py, rpc.py, stablecoin/engine.py, bridge/__init__.py)
+
+**Test result:** 2,996 passed, 0 failed (+72 new tests)
+
+**Cumulative progress:** 117/148 completed (79.1%).

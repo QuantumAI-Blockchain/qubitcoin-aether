@@ -7,6 +7,7 @@ from .base import BaseBridge, ChainType, BridgeStatus
 from .ethereum import EVMBridge
 from .solana import SolanaBridge
 from .manager import BridgeManager
+from .validator_rewards import ValidatorRewardTracker
 
 __all__ = [
     'BaseBridge',
@@ -14,5 +15,6 @@ __all__ = [
     'BridgeStatus',
     'EVMBridge',
     'SolanaBridge',
-    'BridgeManager'
+    'BridgeManager',
+    'ValidatorRewardTracker',
 ]

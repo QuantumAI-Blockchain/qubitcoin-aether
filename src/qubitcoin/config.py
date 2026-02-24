@@ -203,9 +203,17 @@ class Config:
     CONTRACT_TEMPLATE_DISCOUNT: float = float(os.getenv('CONTRACT_TEMPLATE_DISCOUNT', '0.5'))
 
     # ============================================================================
+    # QUSD INSURANCE FUND
+    # ============================================================================
+    QUSD_INSURANCE_FUND_PERCENTAGE: float = float(os.getenv('QUSD_INSURANCE_FUND_PERCENTAGE', '0.05'))
+    QUSD_INSURANCE_FUND_ADDRESS: str = os.getenv('QUSD_INSURANCE_FUND_ADDRESS', '')
+    QUSD_INSURANCE_PAYOUT_THRESHOLD: float = float(os.getenv('QUSD_INSURANCE_PAYOUT_THRESHOLD', '0.90'))
+
+    # ============================================================================
     # BRIDGE FEES (editable)
     # ============================================================================
     BRIDGE_FEE_BPS: int = int(os.getenv('BRIDGE_FEE_BPS', '30'))  # Basis points (30 = 0.3%)
+    BRIDGE_VALIDATOR_REWARD_QBC: float = float(os.getenv('BRIDGE_VALIDATOR_REWARD_QBC', '0.01'))
 
     # ============================================================================
     # ON-CHAIN AGI CONTRACT ADDRESSES (set after deployment)
