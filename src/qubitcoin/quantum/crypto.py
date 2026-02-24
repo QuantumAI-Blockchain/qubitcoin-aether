@@ -20,12 +20,19 @@ except ImportError:
             "FATAL: dilithium-py not installed in production mode. "
             "Post-quantum cryptography is required. Install: pip install dilithium-py"
         )
-    print("WARNING: dilithium-py not installed. Using INSECURE fallback (dev only).")
-    print("   For production, install: pip install dilithium-py")
+    # Logger not yet initialized at module import — use lazy import guard.
+    # The get_logger call below will pick this up when the module is first used.
+    _DILITHIUM_FALLBACK_MSG = (
+        "dilithium-py not installed. Using INSECURE fallback (dev only). "
+        "For production, install: pip install dilithium-py"
+    )
 
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+if not DILITHIUM_AVAILABLE:
+    logger.warning(_DILITHIUM_FALLBACK_MSG)
 
 
 # ── Signature verification cache ────────────────────────────────────────

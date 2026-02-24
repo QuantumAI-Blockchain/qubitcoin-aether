@@ -64,6 +64,7 @@ class ExecutionResult:
         self.return_data: bytes = b''
         self.gas_used: int = 0
         self.gas_remaining: int = 0
+        self.gas_refund: int = 0  # EIP-3529 gas refund applied
         self.logs: List[Dict[str, Any]] = []
         self.revert_reason: str = ''
         self.storage_changes: Dict[str, Dict[str, str]] = {}  # addr -> {key: value}
@@ -104,6 +105,7 @@ class ExecutionContext:
         self.logs: List[Dict[str, Any]] = []
         self.stopped = False
         self.reverted = False
+        self.gas_refund = 0  # EIP-3529 gas refund counter
 
         # Pre-analyze JUMPDEST positions
         self.valid_jumpdests = self._analyze_jumpdests()
@@ -358,8 +360,11 @@ class QVM:
             self._run(ctx)
             result.success = not ctx.reverted
             result.return_data = ctx.return_data
-            result.gas_used = ctx.gas_used
-            result.gas_remaining = max(0, ctx.gas - ctx.gas_used)
+            # EIP-3529: refund capped at gas_used // 5
+            refund = min(ctx.gas_refund, ctx.gas_used // 5) if not ctx.reverted else 0
+            result.gas_used = ctx.gas_used - refund
+            result.gas_remaining = max(0, ctx.gas - result.gas_used)
+            result.gas_refund = refund
             result.logs = ctx.logs
             result.storage_changes = self._storage_cache.copy()
             if ctx.reverted:
@@ -676,6 +681,13 @@ class QVM:
                 key, value = ctx.pop(), ctx.pop()
                 key_hex = format(key, '064x')
                 val_hex = format(value, '064x')
+                # EIP-3529 gas refund: clearing a storage slot (non-zero → zero)
+                old_val_hex = (self._storage_cache.get(ctx.address, {}).get(key_hex)
+                               or (self.db.get_storage(ctx.address, key_hex) if self.db else '0' * 64))
+                old_is_nonzero = old_val_hex and int(old_val_hex, 16) != 0
+                new_is_zero = (value == 0)
+                if old_is_nonzero and new_is_zero:
+                    ctx.gas_refund += 4800  # EIP-3529 SSTORE_CLEARS_SCHEDULE
                 if ctx.address not in self._storage_cache:
                     self._storage_cache[ctx.address] = {}
                 self._storage_cache[ctx.address][key_hex] = val_hex

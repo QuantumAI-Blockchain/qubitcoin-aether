@@ -420,6 +420,6 @@ class MiningEngine:
             table.add_row("Reward", f"{reward:.8f} QBC")
             table.add_row("Hash", block.block_hash[:16] + "...")
             self.console.print(Panel(table))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Rich console display failed: {e}")
         logger.info(f"Block {block.height} mined: {block.block_hash[:16]}...")

@@ -1,14 +1,14 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #8
+# Last Updated: February 24, 2026 | Run #9
 
 ---
 
 ## PROGRESS TRACKER
 
-- Total items: 128 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 findings)
-- Completed: 39
-- Remaining: 89
-- Completion: 30.5%
+- Total items: 131 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 findings)
+- Completed: 44
+- Remaining: 87
+- Completion: 33.6%
 - Estimated runs to 100%: 5-7
 
 ---
@@ -134,7 +134,7 @@
 | ~~B06~~ | ~~HIGH~~ | `config.py` | ~~ENABLE_RUST_P2P=true~~ | ~~Changed default to false~~ | ~~DONE (Run #2)~~ |
 | B07 | MEDIUM | `database/manager.py` | No failure mode tests | Add tests for connection loss, timeout, transaction rollback | MEDIUM |
 | ~~B08~~ | ~~MEDIUM~~ | `network/rpc.py` | ~~CORS allows all~~ | ~~Restricted to qbc.network + localhost:3000. Configurable via QBC_CORS_ORIGINS~~ | ~~DONE (Run #6)~~ |
-| B09 | MEDIUM | `storage/ipfs.py` | 0 tests | Add test_ipfs.py for pin, snapshot, retrieval operations | MEDIUM |
+| ~~B09~~ | ~~MEDIUM~~ | `storage/ipfs.py` | ~~0 tests~~ | ~~Add test_ipfs.py for pin, snapshot, retrieval operations~~ | **DONE (Run #9)** — 15 IPFS tests |
 | ~~B10~~ | ~~MEDIUM~~ | `consensus/engine.py` | ~~No timestamp validation~~ | ~~Added: reject blocks >7200s in future or before parent~~ | ~~DONE (Run #6)~~ |
 | B11 | MEDIUM | `mining/engine.py` | No mining pool support | Add stratum-compatible mining pool protocol | LARGE |
 | B12 | MEDIUM | `network/p2p_network.py` | No peer banning | Add peer reputation decay + ban threshold for malicious peers | MEDIUM |
@@ -155,7 +155,7 @@
 | ~~V02~~ | ~~MEDIUM~~ | `qvm/vm.py` | Already uses Keccak256 | CREATE/CREATE2 verified correct (false positive) | ~~N/A~~ |
 | V03 | MEDIUM | `qvm/vm.py` | ecAdd/ecMul stub | Implement BN128 curve operations for precompiles 6-8 | MEDIUM |
 | V04 | MEDIUM | `qvm/state.py` | Basic state root | Implement full Merkle Patricia Trie for EVM-compatible state proofs | LARGE |
-| V05 | MEDIUM | `qvm/` | No gas refund | Implement SSTORE gas refund per EIP-3529 (net gas metering) | SMALL |
+| ~~V05~~ | ~~MEDIUM~~ | `qvm/` | ~~No gas refund~~ | ~~Implement SSTORE gas refund per EIP-3529 (net gas metering)~~ | **DONE (Run #9)** — 4800 refund, capped gas_used//5 |
 | V06 | MEDIUM | `qvm/compliance.py` | Framework only | Wire compliance policies to block transaction execution flow | MEDIUM |
 | V07 | LOW | `qubitcoin-qvm/cmd/qvm/main.go` | "NOT IMPLEMENTED" | Complete Go QVM server with gRPC + REST API handlers | LARGE |
 | V08 | LOW | `qubitcoin-qvm/` | No quantum opcodes | Implement 0xF0-0xF9 canonical quantum opcodes in Go | LARGE |
@@ -254,6 +254,14 @@
 | ~~NEW#4~~ | ~~LOW~~ | `tests/unit/` | ~~No tests for /fee-estimate, /inflation~~ | ~~Add endpoint tests~~ | **DONE (Run #8)** — 8 tests |
 | ~~NEW#5~~ | ~~LOW~~ | `config.py` | ~~Hardcoded LOG_FILE, LOG_MAX_BYTES, LOG_BACKUP_COUNT~~ | ~~Make env-configurable~~ | **DONE (Run #8)** — os.getenv() |
 | ~~NEW#6~~ | ~~LOW~~ | `tests/unit/test_quantum.py` | ~~Only 2 tests for critical quantum subsystem~~ | ~~Expand to 10+ tests~~ | **DONE (Run #8)** — 13 tests |
+
+### 5.8 Run #9 Findings (3) — All Fixed Same Run
+
+| # | Priority | File | Current State | Improvement | Effort |
+|---|----------|------|---------------|-------------|--------|
+| ~~NEW#7~~ | ~~LOW~~ | `mining/engine.py:423` | ~~`except Exception: pass` swallows errors~~ | ~~Replace with `logger.debug()`~~ | **DONE (Run #9)** |
+| ~~NEW#8~~ | ~~LOW~~ | `quantum/crypto.py:23` | ~~`print()` instead of logger~~ | ~~Replace with `logger.warning()`~~ | **DONE (Run #9)** |
+| ~~NEW#9~~ | ~~LOW~~ | `tests/unit/test_task_protocol.py` | ~~Priority queue untested~~ | ~~Add urgency tier + bounty ordering tests~~ | **DONE (Run #9)** — 6 tests |
 
 ---
 

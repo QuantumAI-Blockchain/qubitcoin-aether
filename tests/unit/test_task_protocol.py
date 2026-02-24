@@ -112,6 +112,89 @@ class TestTaskMarket:
         assert stats["total_open_bounty"] == 5.0
 
 
+class TestPriorityQueue:
+    """Test priority queue ordering (bounty * urgency)."""
+
+    def test_bounty_ordering(self):
+        """Higher bounty tasks appear first when urgency is equal."""
+        from qubitcoin.aether.task_protocol import TaskMarket
+        tm = TaskMarket()
+        tm.submit_task("a", "low", bounty_qbc=1.0, block_height=0)
+        tm.submit_task("b", "high", bounty_qbc=10.0, block_height=0)
+        tm.submit_task("c", "mid", bounty_qbc=5.0, block_height=0)
+        tasks = tm.get_open_tasks(current_block=0)
+        assert tasks[0].bounty_qbc == 10.0
+        assert tasks[1].bounty_qbc == 5.0
+        assert tasks[2].bounty_qbc == 1.0
+
+    def test_urgency_boosts_low_bounty(self):
+        """Urgency factor can elevate a low-bounty task above a high-bounty one."""
+        from qubitcoin.aether.task_protocol import TaskMarket
+        tm = TaskMarket()
+        # High bounty, plenty of time left
+        tm.submit_task("a", "rich", bounty_qbc=5.0, block_height=0, timeout_blocks=1000)
+        # Low bounty, about to expire (90% elapsed → remaining < 0.1 → urgency=3.0)
+        tm.submit_task("b", "urgent", bounty_qbc=2.0, block_height=0, timeout_blocks=100)
+        tasks = tm.get_open_tasks(current_block=95)
+        # urgent: 2.0 * 3.0 = 6.0 > rich: 5.0 * 1.0 = 5.0
+        assert tasks[0].description == "urgent"
+
+    def test_urgency_tiers(self):
+        """Verify all 4 urgency tiers: normal (1.0), elevated (1.5), urgent (2.0), critical (3.0)."""
+        from qubitcoin.aether.task_protocol import TaskMarket
+        tm = TaskMarket()
+        tm._priority_score  # static method exists
+        # Same bounty, different elapsed fractions
+        from qubitcoin.aether.task_protocol import ReasoningTask
+        # remaining_ratio > 0.5 → urgency 1.0
+        normal = ReasoningTask(submitter="a", description="normal",
+                               bounty_qbc=10.0, created_block=0, timeout_blocks=1000)
+        assert tm._priority_score(normal, 100) == 10.0  # 90% remaining → 1.0
+
+        # remaining_ratio < 0.5 → urgency 1.5
+        elevated = ReasoningTask(submitter="a", description="elevated",
+                                 bounty_qbc=10.0, created_block=0, timeout_blocks=1000)
+        assert tm._priority_score(elevated, 600) == 15.0  # 40% remaining → 1.5
+
+        # remaining_ratio < 0.3 → urgency 2.0
+        urgent = ReasoningTask(submitter="a", description="urgent",
+                               bounty_qbc=10.0, created_block=0, timeout_blocks=1000)
+        assert tm._priority_score(urgent, 800) == 20.0  # 20% remaining → 2.0
+
+        # remaining_ratio < 0.1 → urgency 3.0
+        critical = ReasoningTask(submitter="a", description="critical",
+                                 bounty_qbc=10.0, created_block=0, timeout_blocks=1000)
+        assert tm._priority_score(critical, 950) == 30.0  # 5% remaining → 3.0
+
+    def test_no_urgency_at_block_zero(self):
+        """At current_block=0, urgency is always 1.0 (no deadline pressure)."""
+        from qubitcoin.aether.task_protocol import TaskMarket, ReasoningTask
+        tm = TaskMarket()
+        task = ReasoningTask(submitter="a", description="test",
+                             bounty_qbc=5.0, created_block=0, timeout_blocks=100)
+        assert tm._priority_score(task, 0) == 5.0
+
+    def test_expired_task_max_urgency(self):
+        """Task past its deadline gets max urgency (remaining_ratio < 0.1)."""
+        from qubitcoin.aether.task_protocol import TaskMarket, ReasoningTask
+        tm = TaskMarket()
+        task = ReasoningTask(submitter="a", description="overdue",
+                             bounty_qbc=4.0, created_block=0, timeout_blocks=100)
+        # Block 200 = 100% elapsed → remaining_ratio clamped to 0.0 < 0.1 → urgency 3.0
+        assert tm._priority_score(task, 200) == 12.0  # 4.0 * 3.0
+
+    def test_limit_respected(self):
+        """get_open_tasks limit parameter caps results."""
+        from qubitcoin.aether.task_protocol import TaskMarket
+        tm = TaskMarket()
+        for i in range(10):
+            tm.submit_task(f"addr_{i}", f"task_{i}", bounty_qbc=float(i + 1))
+        tasks = tm.get_open_tasks(limit=3)
+        assert len(tasks) == 3
+        # Top 3 by bounty
+        assert tasks[0].bounty_qbc == 10.0
+
+
 class TestValidatorRegistry:
     """Test validator registry."""
 
