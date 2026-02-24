@@ -1,14 +1,14 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #15
+# Last Updated: February 24, 2026 | Run #16
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 82
-- Remaining: 66
-- Completion: 55.4%
+- Completed: 87
+- Remaining: 61
+- Completion: 58.8%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
 - **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
@@ -109,7 +109,7 @@
 
 - [ ] **L1** — `qubitcoin-qvm/cmd/qvm/main.go` — Complete Go QVM server binary entry point
 - [ ] **L2** — `frontend/src/app/docs/` — Create /docs/whitepaper, /docs/qvm, /docs/aether pages
-- [ ] **L3** — `frontend/src/lib/websocket.ts` — Wire WebSocket for real-time Phi/block updates
+- [x] **L3** — `frontend/src/lib/websocket.ts` — WebSocket wired with auto-reconnect + React hooks *(Run #16 / F02)*
 - [ ] **L4** — Add admin UI for /admin/fees, /admin/economics, /admin/treasury
 - [ ] **L5** — Frontend accessibility audit + WCAG 2.1 AA compliance
 - [ ] **L6** — Component Storybook documentation
@@ -123,7 +123,7 @@
 | # | Priority | File | Current State | Improvement | Effort |
 |---|----------|------|---------------|-------------|--------|
 | F01 | MEDIUM | `frontend/tests/` | 55 LOC, 2 unit tests | Add 50+ E2E tests with Playwright for all 7 pages | LARGE |
-| F02 | MEDIUM | `frontend/src/lib/websocket.ts` | 47 LOC skeleton | Wire real WebSocket for Phi, block, tx streaming | MEDIUM |
+| ~~F02~~ | ~~MEDIUM~~ | `frontend/src/lib/websocket.ts` + hooks + store | ~~47 LOC skeleton~~ | ~~Full WebSocket: auto-reconnect, exponential backoff, React hooks, Zustand store integration, ChainSocketProvider~~ | **DONE (Run #16)** |
 | F03 | LOW | `frontend/src/app/docs/` | Pages don't exist | Create /docs/whitepaper, /docs/qvm, /docs/aether, /docs/economics | MEDIUM |
 | F04 | LOW | `frontend/src/components/ui/` | No admin UI | Create admin dashboard for fee management and treasury | MEDIUM |
 | F05 | LOW | `frontend/` | Basic a11y | WCAG 2.1 AA audit: ARIA labels, skip-nav, focus management | MEDIUM |
@@ -137,9 +137,9 @@
 | ~~F13~~ | ~~LOW~~ | `frontend/src/components/wallet/native-wallet.tsx` | ~~No tx signing UI~~ | ~~Confirmation modal with from/to/amount/fee/total breakdown before signing~~ | **DONE (Run #15)** |
 | ~~F14~~ | ~~LOW~~ | `frontend/src/app/dashboard/page.tsx` + `frontend/src/lib/export.ts` | ~~No export~~ | ~~CSV/JSON export for mining stats + UTXO data. Reusable ExportButton + export utility~~ | **DONE (Run #14)** |
 | ~~F15~~ | ~~LOW~~ | `frontend/public/manifest.json` | ~~No PWA~~ | ~~PWA manifest with QBC branding (theme #00ff88, bg #0a0a0f, standalone mode)~~ | **DONE (Run #15)** |
-| F16 | LOW | `frontend/src/components/ui/` | No keyboard nav | Add keyboard shortcuts (/, Escape, Ctrl+K for search) | SMALL |
+| ~~F16~~ | ~~LOW~~ | `frontend/src/hooks/use-keyboard-shortcuts.ts` | ~~No keyboard nav~~ | ~~/ → focus search, Escape → blur/close, Ctrl+K → dashboard. Wired via Providers~~ | **DONE (Run #16)** |
 | ~~F17~~ | ~~LOW~~ | `frontend/next.config.ts` | ~~No bundle analysis~~ | ~~@next/bundle-analyzer wired (ANALYZE=true pnpm build)~~ | **DONE (Run #15)** |
-| F18 | LOW | `frontend/` | No error tracking | Add Sentry or similar error tracking for production | SMALL |
+| ~~F18~~ | ~~LOW~~ | `frontend/src/lib/error-reporter.ts` | ~~No error tracking~~ | ~~Lightweight error reporter: dedup, global handlers (error + unhandledrejection), configurable POST endpoint~~ | **DONE (Run #16)** |
 | F19 | LOW | `frontend/src/app/aether/page.tsx` | Chat only | Add reasoning trace visualization (tree/DAG view) | MEDIUM |
 | F20 | LOW | `frontend/src/components/dashboard/phi-chart.tsx` | Line chart | Add Phi heatmap + prediction bands from temporal engine | MEDIUM |
 
@@ -177,7 +177,7 @@
 | ~~V03~~ | ~~MEDIUM~~ | `qvm/vm.py` | ~~ecAdd/ecMul stub~~ | ~~Full BN128 alt_bn128 curve: G1 add/mul, G2 twist, F_p^12 tower, ate pairing. Precompiles 6/7/8 fully functional~~ | **DONE (Run #15)** |
 | V04 | MEDIUM | `qvm/state.py` | Basic state root | Implement full Merkle Patricia Trie for EVM-compatible state proofs | LARGE |
 | ~~V05~~ | ~~MEDIUM~~ | `qvm/` | ~~No gas refund~~ | ~~Implement SSTORE gas refund per EIP-3529 (net gas metering)~~ | **DONE (Run #9)** — 4800 refund, capped gas_used//5 |
-| V06 | MEDIUM | `qvm/compliance.py` | Framework only | Wire compliance policies to block transaction execution flow | MEDIUM |
+| ~~V06~~ | ~~MEDIUM~~ | `qvm/state.py` | ~~Framework only~~ | ~~Pre-execution compliance check in _deploy_contract() and _call_contract(). Blocked addresses get status=0 receipt~~ | **DONE (Run #16)** |
 | V07 | LOW | `qubitcoin-qvm/cmd/qvm/main.go` | "NOT IMPLEMENTED" | Complete Go QVM server with gRPC + REST API handlers | LARGE |
 | V08 | LOW | `qubitcoin-qvm/` | No quantum opcodes | Implement 0xF0-0xF9 canonical quantum opcodes in Go | LARGE |
 | V09 | LOW | `qubitcoin-qvm/` | No AGI opcodes | Implement QREASON (0xFA) and QPHI (0xFB) in Go QVM | MEDIUM |
@@ -228,7 +228,7 @@
 | ~~E04~~ | ~~MEDIUM~~ | `utils/qusd_oracle.py:107` | ~~Selector "4a3c2f12"~~ | ~~Fixed: getPrice() → d61a3b92~~ | ~~DONE (Run #2)~~ |
 | ~~E05~~ | ~~MEDIUM~~ | `consensus/engine.py` | ~~No era boundary test~~ | ~~Added 2 tests: exact halving + second halving boundary. Phi ratio verified to 8 decimals~~ | ~~DONE (Run #6)~~ |
 | ~~E06~~ | ~~MEDIUM~~ | `utils/fee_collector.py` | ~~Largest-first UTXO~~ | ~~Added smallest_first + exact_match strategies (default: largest_first)~~ | **DONE (Run #13)** |
-| E07 | MEDIUM | `stablecoin/engine.py` | Python only | Wire Python StablecoinEngine to QUSD.sol via QVM static_call for reserve verification | MEDIUM |
+| ~~E07~~ | ~~MEDIUM~~ | `stablecoin/engine.py` + `config.py` | ~~Python only~~ | ~~get_reserve_ratio_from_contract() calls QUSDReserve.totalReserveValueUSD() + QUSD.totalSupply() via QVM static_call~~ | **DONE (Run #16)** |
 | ~~E08~~ | ~~LOW~~ | `config.py` | ~~No emission verification~~ | ~~Added verify_emission_schedule(): monotonic decrease + bounded by MAX_SUPPLY~~ | ~~DONE (Run #6)~~ |
 | ~~E09~~ | ~~LOW~~ | `bridge/` | ~~0.3% fee~~ | ~~Make bridge fee configurable per chain~~ | **DONE (Run #11)** — Config.BRIDGE_FEE_BPS |
 | E10 | LOW | `consensus/engine.py` | No fee burning | Consider EIP-1559-style base fee burn for deflationary pressure | MEDIUM |
@@ -741,3 +741,20 @@ Focus on: Go QVM completion, formal verification, advanced features
 **Score change:** 97 → 97 (maintained)
 
 **Cumulative progress:** 82/148 completed (55.4%).
+
+### Run #16 — February 24, 2026
+
+**Scope:** WebSocket streaming, compliance wiring, stablecoin integration, frontend UX
+
+**Items completed: 5** (F02/L3, F16, F18, V06, E07)
+- **F02/L3** — Full WebSocket implementation: `ChainSocket` class with exponential backoff reconnect (1s→30s), SSR-safe, typed event handlers, wildcard support. React hooks: `useChainSocket`, `useChainEvent`, `useConnectionState`. Zustand store integration: `latestBlock`, `latestTransaction`, `latestPhi` auto-update from WS. `ChainSocketProvider` wired into Providers.
+- **F16** — Keyboard shortcuts: `/` focuses search input, `Escape` blurs/dispatches close event, `Ctrl+K` navigates to dashboard. Input-aware (skips when typing). Wired via Providers.
+- **F18** — Error reporter: lightweight `reportError()` with deduplication (Set-based, 100 cap). Global `error` + `unhandledrejection` handlers. Configurable POST endpoint via `NEXT_PUBLIC_ERROR_REPORT_URL`. Console-only in dev.
+- **V06** — Compliance wired into QVM execution: `_check_compliance()` runs before `_deploy_contract()` and `_call_contract()`. Blocked addresses get `status=0` receipt with 21000 base gas charged. Graceful degradation if no compliance engine.
+- **E07** — StablecoinEngine reads on-chain reserve ratio: `get_reserve_ratio_from_contract()` calls `QUSDReserve.totalReserveValueUSD()` and `QUSD.totalSupply()` via `QVM.static_call()`. Config: `QUSD_TOKEN_ADDRESS`, `QUSD_RESERVE_ADDRESS`.
+
+**Files changed: 12** (websocket.ts rewrite, new use-chain-socket.ts, chain-store.ts expanded, new chain-socket-provider.tsx, providers.tsx, new use-keyboard-shortcuts.ts, new error-reporter.ts, state.py, engine.py, config.py)
+
+**Test result:** 2,757 passed, 0 failed
+
+**Cumulative progress:** 87/148 completed (58.8%).

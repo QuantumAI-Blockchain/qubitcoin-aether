@@ -204,6 +204,12 @@ class Config:
     VALIDATOR_REGISTRY_ADDRESS: str = os.getenv('VALIDATOR_REGISTRY_ADDRESS', '')
     # Kernel address used as msg.sender for on-chain AGI calls
     AETHER_KERNEL_ADDRESS: str = os.getenv('AETHER_KERNEL_ADDRESS', '')
+
+    # ============================================================================
+    # QUSD CONTRACT ADDRESSES (set after deployment)
+    # ============================================================================
+    QUSD_TOKEN_ADDRESS: str = os.getenv('QUSD_TOKEN_ADDRESS', '')
+    QUSD_RESERVE_ADDRESS: str = os.getenv('QUSD_RESERVE_ADDRESS', '')
     # How often to write Phi to chain (every N blocks)
     ONCHAIN_PHI_INTERVAL: int = int(os.getenv('ONCHAIN_PHI_INTERVAL', '10'))
 

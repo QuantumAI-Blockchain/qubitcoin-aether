@@ -1,8 +1,23 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { ToastProvider } from "@/components/ui/toast";
+import { ChainSocketProvider } from "@/components/chain-socket-provider";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { installGlobalErrorHandlers } from "@/lib/error-reporter";
+
+function KeyboardShortcuts() {
+  useKeyboardShortcuts();
+  return null;
+}
+
+function ErrorHandlerInit() {
+  useEffect(() => {
+    installGlobalErrorHandlers();
+  }, []);
+  return null;
+}
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -16,7 +31,11 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>{children}</ToastProvider>
+      <ToastProvider>
+        <KeyboardShortcuts />
+        <ErrorHandlerInit />
+        <ChainSocketProvider>{children}</ChainSocketProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

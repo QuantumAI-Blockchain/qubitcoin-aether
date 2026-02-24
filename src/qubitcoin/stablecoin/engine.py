@@ -21,18 +21,32 @@ logger = get_logger(__name__)
 class StablecoinEngine:
     """Manages QUSD stablecoin operations"""
 
-    def __init__(self, db_manager: DatabaseManager, quantum_engine: QuantumEngine):
-        """Initialize stablecoin engine"""
+    def __init__(self, db_manager: DatabaseManager, quantum_engine: QuantumEngine,
+                 qvm: Optional[object] = None):
+        """Initialize stablecoin engine
+
+        Args:
+            db_manager: Database manager for SQL queries.
+            quantum_engine: Quantum engine for proof generation.
+            qvm: Optional QVM instance (vm.QVM) for static_call to on-chain
+                 QUSD contracts.  When provided, enables
+                 ``get_reserve_ratio_from_contract()``.
+        """
         self.db = db_manager
         self.quantum = quantum_engine
-        
+        self._qvm = qvm
+
+        # Contract addresses (set after deployment via .env)
+        self._qusd_token_addr: str = Config.QUSD_TOKEN_ADDRESS
+        self._qusd_reserve_addr: str = Config.QUSD_RESERVE_ADDRESS
+
         # Load system parameters
         self.params = self._load_params()
-        
+
         # Initialize QUSD token if not exists
         self._ensure_qusd_token()
-        
-        logger.info("✅ Stablecoin engine initialized")
+
+        logger.info("Stablecoin engine initialized")
 
     def _load_params(self) -> Dict:
         """Load system parameters from database"""
@@ -549,7 +563,7 @@ class StablecoinEngine:
             health = session.execute(
                 text("SELECT * FROM qusd_health")
             ).fetchone()
-            
+
             if health:
                 return {
                     'total_qusd': Decimal(health[0] or 0),
@@ -558,6 +572,83 @@ class StablecoinEngine:
                     'active_vaults': int(health[3] or 0),
                     'at_risk_vaults': int(health[4] or 0)
                 }
-            
+
             return {}
+
+    # ========================================================================
+    # ON-CHAIN RESERVE QUERIES (via QVM static_call)
+    # ========================================================================
+
+    @staticmethod
+    def _solidity_selector(signature: str) -> bytes:
+        """Compute the 4-byte Solidity function selector for a given signature.
+
+        Uses keccak256 when available, falls back to SHA-256 (matches QVM
+        fallback behaviour when pysha3/pycryptodome are not installed).
+        """
+        import hashlib as _hl
+        try:
+            import sha3
+            return sha3.keccak_256(signature.encode()).digest()[:4]
+        except ImportError:
+            try:
+                from Crypto.Hash import keccak as _keccak
+                return _keccak.new(digest_bits=256, data=signature.encode()).digest()[:4]
+            except ImportError:
+                return _hl.sha256(signature.encode()).digest()[:4]
+
+    def get_reserve_ratio_from_contract(self) -> Optional[Decimal]:
+        """Query the on-chain QUSDReserve and QUSD contracts for the live
+        reserve ratio (totalReserveValueUSD / totalSupply).
+
+        Both values are stored on-chain as uint256 with 8 decimals.  The
+        method performs two read-only ``static_call`` invocations via the
+        QVM and computes the ratio.
+
+        Returns:
+            Reserve ratio as a Decimal (e.g. ``Decimal('0.85')`` means 85%
+            backed), or ``None`` if the contracts are not deployed or the
+            QVM is unavailable.
+        """
+        if not self._qvm:
+            logger.debug("get_reserve_ratio_from_contract: no QVM instance")
+            return None
+        if not self._qusd_reserve_addr or not self._qusd_token_addr:
+            logger.debug("get_reserve_ratio_from_contract: contract addresses not configured")
+            return None
+
+        caller = '0' * 40  # read-only call, caller irrelevant
+
+        try:
+            # 1. Query totalReserveValueUSD() on QUSDReserve
+            reserve_selector = self._solidity_selector("totalReserveValueUSD()")
+            reserve_raw = self._qvm.static_call(caller, self._qusd_reserve_addr, reserve_selector)
+            if not reserve_raw or len(reserve_raw) < 32:
+                logger.debug("get_reserve_ratio_from_contract: empty reserve response")
+                return None
+            total_reserve_usd = int.from_bytes(reserve_raw[:32], 'big')
+
+            # 2. Query totalSupply() on QUSD token
+            supply_selector = self._solidity_selector("totalSupply()")
+            supply_raw = self._qvm.static_call(caller, self._qusd_token_addr, supply_selector)
+            if not supply_raw or len(supply_raw) < 32:
+                logger.debug("get_reserve_ratio_from_contract: empty supply response")
+                return None
+            total_supply = int.from_bytes(supply_raw[:32], 'big')
+
+            if total_supply == 0:
+                logger.debug("get_reserve_ratio_from_contract: totalSupply is zero")
+                return Decimal('0')
+
+            # Both values use 8 decimals, so they cancel in the ratio
+            ratio = Decimal(total_reserve_usd) / Decimal(total_supply)
+            logger.info(
+                f"On-chain reserve ratio: {ratio:.6f} "
+                f"(reserve={total_reserve_usd}, supply={total_supply})"
+            )
+            return ratio
+
+        except Exception as e:
+            logger.warning(f"get_reserve_ratio_from_contract failed: {e}")
+            return None
 

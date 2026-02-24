@@ -25,6 +25,7 @@ class StateManager:
     def __init__(self, db_manager, quantum_engine=None, compliance_engine=None):
         self.db = db_manager
         self.quantum = quantum_engine
+        self.compliance = compliance_engine
         self.qvm = QVM(db_manager, quantum_engine, compliance_engine=compliance_engine)
 
     def set_block_context(self, block_height: int, timestamp: float, coinbase: str, difficulty: float) -> None:
@@ -62,9 +63,62 @@ class StateManager:
 
         return None
 
+    def _check_compliance(self, from_addr: str, tx: Transaction,
+                          block_height: int, block_hash: str,
+                          tx_index: int) -> Optional[TransactionReceipt]:
+        """Pre-execution compliance check.
+
+        If the sender is blocked (sanctions, AML, or policy), returns a
+        failed receipt immediately so the caller can short-circuit before
+        executing any QVM code.  Returns None if the address passes.
+        """
+        if not self.compliance:
+            return None
+
+        try:
+            if not self.compliance.is_address_blocked(from_addr):
+                return None
+
+            # Also check circuit breaker — if tripped, block all executions
+            reason = f"Compliance: address {from_addr[:12]}... is blocked"
+
+            # Check sanctions for a more specific reason
+            screening = self.compliance.screen_sanctions(from_addr)
+            if screening.get('sanctioned'):
+                sources = ', '.join(screening.get('sources', []))
+                reason = f"Compliance: address sanctioned ({sources})"
+
+            logger.warning(reason)
+
+            receipt = TransactionReceipt(
+                txid=tx.txid,
+                block_height=block_height,
+                block_hash=block_hash,
+                tx_index=tx_index,
+                from_address=from_addr,
+                to_address=tx.to_address or None,
+                contract_address=None,
+                gas_used=21000,  # Base gas charged even on compliance rejection
+                gas_limit=tx.gas_limit or Config.BLOCK_GAS_LIMIT,
+                status=0,
+                revert_reason=reason,
+            )
+            self.db.store_receipt(receipt)
+            return receipt
+
+        except Exception as e:
+            logger.debug(f"Compliance check error (allowing tx): {e}")
+            return None
+
     def _deploy_contract(self, tx: Transaction, block_height: int, block_hash: str, tx_index: int) -> TransactionReceipt:
         """Deploy a new contract via QVM"""
         from_addr = self._get_sender_address(tx)
+
+        # Pre-execution compliance gate
+        blocked_receipt = self._check_compliance(from_addr, tx, block_height, block_hash, tx_index)
+        if blocked_receipt is not None:
+            return blocked_receipt
+
         hex_data = tx.data.removeprefix('0x') if tx.data else ''
         bytecode = bytes.fromhex(hex_data) if hex_data else b''
 
@@ -141,6 +195,12 @@ class StateManager:
     def _call_contract(self, tx: Transaction, block_height: int, block_hash: str, tx_index: int) -> TransactionReceipt:
         """Call an existing contract via QVM"""
         from_addr = self._get_sender_address(tx)
+
+        # Pre-execution compliance gate
+        blocked_receipt = self._check_compliance(from_addr, tx, block_height, block_hash, tx_index)
+        if blocked_receipt is not None:
+            return blocked_receipt
+
         to_addr = tx.to_address or ''
         hex_data = tx.data.removeprefix('0x') if tx.data else ''
         calldata = bytes.fromhex(hex_data) if hex_data else b''
