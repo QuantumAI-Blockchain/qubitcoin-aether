@@ -4,7 +4,8 @@ FastAPI-based HTTP interface with smart contract support
 NOW WITH P2P ENDPOINTS!
 """
 
-from typing import Optional
+import json
+from typing import Dict, Optional
 from decimal import Decimal
 
 from fastapi import FastAPI, Request, HTTPException
@@ -2638,9 +2639,103 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         for ws in disconnected:
             if ws in _ws_clients:
                 _ws_clients.remove(ws)
+        # Also notify eth_subscribe subscribers
+        sub_type_map = {"new_block": "newHeads", "new_transaction": "pendingTransactions"}
+        if event_type in sub_type_map:
+            try:
+                await notify_subscribers(sub_type_map[event_type], data)
+            except Exception:
+                pass
 
     # Attach broadcast helper to the app so node.py can call it
     app.broadcast_ws = broadcast_ws  # type: ignore[attr-defined]
+
+    # ========================================================================
+    # ETH SUBSCRIBE — JSON-RPC WebSocket subscriptions (newHeads, logs, pendingTransactions)
+    # ========================================================================
+
+    import uuid as _ws_uuid
+    _eth_subscribers: Dict[str, Dict] = {}  # sub_id -> {ws, type, params}
+
+    @app.websocket("/ws/jsonrpc")
+    async def jsonrpc_ws_endpoint(websocket: WebSocket) -> None:
+        """JSON-RPC over WebSocket with eth_subscribe/eth_unsubscribe support."""
+        await websocket.accept()
+        client_subs: list[str] = []
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                try:
+                    msg = json.loads(raw)
+                except Exception:
+                    await websocket.send_text(json.dumps({
+                        "jsonrpc": "2.0", "id": None,
+                        "error": {"code": -32700, "message": "Parse error"}
+                    }))
+                    continue
+
+                method = msg.get("method", "")
+                params = msg.get("params", [])
+                req_id = msg.get("id", 1)
+
+                if method == "eth_subscribe":
+                    sub_type = params[0] if params else "newHeads"
+                    sub_params = params[1] if len(params) > 1 else {}
+                    sub_id = _ws_uuid.uuid4().hex[:16]
+                    _eth_subscribers[sub_id] = {
+                        "ws": websocket, "type": sub_type, "params": sub_params,
+                    }
+                    client_subs.append(sub_id)
+                    await websocket.send_text(json.dumps({
+                        "jsonrpc": "2.0", "id": req_id, "result": "0x" + sub_id,
+                    }))
+                elif method == "eth_unsubscribe":
+                    sub_id = params[0].replace("0x", "") if params else ""
+                    removed = sub_id in _eth_subscribers
+                    if removed:
+                        del _eth_subscribers[sub_id]
+                        if sub_id in client_subs:
+                            client_subs.remove(sub_id)
+                    await websocket.send_text(json.dumps({
+                        "jsonrpc": "2.0", "id": req_id, "result": removed,
+                    }))
+                else:
+                    # Forward to regular JSON-RPC handler
+                    from .jsonrpc import JsonRpcRequest
+                    rpc_req = JsonRpcRequest(
+                        jsonrpc="2.0", method=method, params=params, id=req_id,
+                    )
+                    rpc_resp = await jsonrpc_handler.handle(rpc_req)
+                    await websocket.send_text(json.dumps({
+                        "jsonrpc": "2.0", "id": req_id,
+                        "result": rpc_resp.result, "error": rpc_resp.error,
+                    }))
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            logger.debug("jsonrpc WS client disconnected")
+        finally:
+            for sid in client_subs:
+                _eth_subscribers.pop(sid, None)
+
+    async def notify_subscribers(event_type: str, data: dict) -> None:
+        """Send subscription notifications to matching subscribers."""
+        dead: list[str] = []
+        for sub_id, sub in _eth_subscribers.items():
+            if sub["type"] != event_type:
+                continue
+            notification = json.dumps({
+                "jsonrpc": "2.0", "method": "eth_subscription",
+                "params": {"subscription": "0x" + sub_id, "result": data},
+            })
+            try:
+                await sub["ws"].send_text(notification)
+            except Exception:
+                dead.append(sub_id)
+        for sid in dead:
+            _eth_subscribers.pop(sid, None)
+
+    app.notify_subscribers = notify_subscribers  # type: ignore[attr-defined]
 
     # ========================================================================
     # AETHER WEBSOCKET STREAMING (/ws/aether)

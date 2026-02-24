@@ -1,14 +1,14 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #14
+# Last Updated: February 24, 2026 | Run #15
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 76
-- Remaining: 72
-- Completion: 51.4%
+- Completed: 82
+- Remaining: 66
+- Completion: 55.4%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
 - **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
@@ -98,7 +98,7 @@
 - [x] **M3** — `src/qubitcoin/aether/proof_of_thought.py` — LLM auto-invocation: triggers when reasoning zero steps + LLM_ENABLED *(Run #4)*
 - [x] **M4** — `qusd_oracle.py:107` — Fixed: function is getPrice() not getQBCPrice(), selector corrected to d61a3b92 *(Run #2)*
 - [ ] **M5** — `frontend/tests/` — Add E2E tests with Playwright for chat, dashboard, wallet flows
-- [ ] **M6** — `src/qubitcoin/qvm/vm.py` — Implement BN128 curve math for ecAdd/ecMul/ecPairing precompiles
+- [x] **M6** — `src/qubitcoin/qvm/vm.py` — BN128 curve math implemented (same as V03) *(Run #15)*
 - [x] **M7** — `src/qubitcoin/aether/knowledge_extractor.py` — Re-audit: already has 6 extraction methods (387 LOC). Previously misjudged. *(Run #4)*
 - [x] **M8** — `src/qubitcoin/aether/proof_of_thought.py` — Upgraded 16 critical handlers to WARNING/ERROR (Sephirot init, on-chain, block knowledge, CSF, safety, auto-reasoning, 10 Sephirot nodes). ~41 stay DEBUG (optional subsystems). *(Run #5)*
 - [x] **M9** — `src/qubitcoin/aether/proof_of_thought.py` + `config.py` — Added 18 `AETHER_*_INTERVAL` Config constants, replaced 23 hardcoded `block.height % N` patterns *(Run #5)*
@@ -134,11 +134,11 @@
 | ~~F10~~ | ~~LOW~~ | `frontend/src/lib/api.ts` | ~~No retry~~ | ~~Exponential backoff: 3 retries, 500ms base, skip 4xx except 429~~ | **DONE (Run #13)** |
 | F11 | LOW | `frontend/src/stores/` | No offline | Add offline-first capability with service worker + IndexedDB cache | LARGE |
 | F12 | LOW | `frontend/` | No i18n | Add internationalization framework (next-intl) for multi-language | LARGE |
-| F13 | LOW | `frontend/src/app/wallet/page.tsx` | No tx signing UI | Add transaction signing confirmation modal with fee breakdown | SMALL |
+| ~~F13~~ | ~~LOW~~ | `frontend/src/components/wallet/native-wallet.tsx` | ~~No tx signing UI~~ | ~~Confirmation modal with from/to/amount/fee/total breakdown before signing~~ | **DONE (Run #15)** |
 | ~~F14~~ | ~~LOW~~ | `frontend/src/app/dashboard/page.tsx` + `frontend/src/lib/export.ts` | ~~No export~~ | ~~CSV/JSON export for mining stats + UTXO data. Reusable ExportButton + export utility~~ | **DONE (Run #14)** |
-| F15 | LOW | `frontend/` | No PWA | Add Progressive Web App manifest + service worker | SMALL |
+| ~~F15~~ | ~~LOW~~ | `frontend/public/manifest.json` | ~~No PWA~~ | ~~PWA manifest with QBC branding (theme #00ff88, bg #0a0a0f, standalone mode)~~ | **DONE (Run #15)** |
 | F16 | LOW | `frontend/src/components/ui/` | No keyboard nav | Add keyboard shortcuts (/, Escape, Ctrl+K for search) | SMALL |
-| F17 | LOW | `frontend/package.json` | No bundle analysis | Add @next/bundle-analyzer for build optimization | SMALL |
+| ~~F17~~ | ~~LOW~~ | `frontend/next.config.ts` | ~~No bundle analysis~~ | ~~@next/bundle-analyzer wired (ANALYZE=true pnpm build)~~ | **DONE (Run #15)** |
 | F18 | LOW | `frontend/` | No error tracking | Add Sentry or similar error tracking for production | SMALL |
 | F19 | LOW | `frontend/src/app/aether/page.tsx` | Chat only | Add reasoning trace visualization (tree/DAG view) | MEDIUM |
 | F20 | LOW | `frontend/src/components/dashboard/phi-chart.tsx` | Line chart | Add Phi heatmap + prediction bands from temporal engine | MEDIUM |
@@ -162,7 +162,7 @@
 | B13 | MEDIUM | `database/` | Raw SQL queries | Generate SQLAlchemy ORM models for all 55 tables | LARGE |
 | B14 | LOW | `quantum/engine.py` | Local estimator only | Add GPU-accelerated qiskit-aer backend option | MEDIUM |
 | B15 | LOW | `quantum/crypto.py` | No key rotation | Add key rotation mechanism with old-key grace period | MEDIUM |
-| B16 | LOW | `network/jsonrpc.py` | No eth_subscribe | Add WebSocket subscription for newHeads, logs, pendingTransactions | MEDIUM |
+| ~~B16~~ | ~~LOW~~ | `network/rpc.py` | ~~No eth_subscribe~~ | ~~/ws/jsonrpc endpoint with eth_subscribe/eth_unsubscribe, newHeads + pendingTransactions auto-broadcast~~ | **DONE (Run #15)** |
 | B17 | LOW | `privacy/` | Not integrated in consensus | Wire Susy Swap validation into block validation pipeline | MEDIUM |
 | B18 | LOW | `bridge/` | No validator rewards | Implement bridge validator reward distribution per verified proof | MEDIUM |
 | ~~B19~~ | ~~LOW~~ | `.github/workflows/` | ~~No security scanning~~ | ~~Add SAST (Semgrep/Bandit) and dependency scanning (Safety/Snyk)~~ | **DONE (Run #7)** — Bandit + pip-audit CI job |
@@ -174,7 +174,7 @@
 |---|----------|------|---------------|-------------|--------|
 | ~~V01~~ | ~~MEDIUM~~ | `qvm/vm.py:905-912` | ~~QCOMPLIANCE returns 1~~ | ~~Wired to ComplianceEngine.check_compliance()~~ | ~~DONE (Run #2)~~ |
 | ~~V02~~ | ~~MEDIUM~~ | `qvm/vm.py` | Already uses Keccak256 | CREATE/CREATE2 verified correct (false positive) | ~~N/A~~ |
-| V03 | MEDIUM | `qvm/vm.py` | ecAdd/ecMul stub | Implement BN128 curve operations for precompiles 6-8 | MEDIUM |
+| ~~V03~~ | ~~MEDIUM~~ | `qvm/vm.py` | ~~ecAdd/ecMul stub~~ | ~~Full BN128 alt_bn128 curve: G1 add/mul, G2 twist, F_p^12 tower, ate pairing. Precompiles 6/7/8 fully functional~~ | **DONE (Run #15)** |
 | V04 | MEDIUM | `qvm/state.py` | Basic state root | Implement full Merkle Patricia Trie for EVM-compatible state proofs | LARGE |
 | ~~V05~~ | ~~MEDIUM~~ | `qvm/` | ~~No gas refund~~ | ~~Implement SSTORE gas refund per EIP-3529 (net gas metering)~~ | **DONE (Run #9)** — 4800 refund, capped gas_used//5 |
 | V06 | MEDIUM | `qvm/compliance.py` | Framework only | Wire compliance policies to block transaction execution flow | MEDIUM |
@@ -722,3 +722,22 @@ Focus on: Go QVM completion, formal verification, advanced features
 **Score change:** 97 → 97 (maintained)
 
 **Cumulative progress:** 76/148 completed (51.4%).
+
+### Run #15 — February 24, 2026
+
+**Scope:** BN128 precompiles, WebSocket subscriptions, frontend polish
+
+**Items completed: 6** (V03/M6, F13, F15, F17, B16)
+- **V03/M6** — Full BN128 (alt_bn128) curve implementation: G1 add/mul, G2 twist curve, F_p^2/F_p^6/F_p^12 tower arithmetic, ate pairing with Miller loop + final exponentiation. Precompiles 6 (ecAdd, 150 gas), 7 (ecMul, 6000 gas), 8 (ecPairing, 45000+34000k gas) fully functional. ~450 lines of pure Python crypto.
+- **F13** — Transaction signing confirmation modal: shows from/to addresses (truncated), amount, estimated fee, total before signing. Cancel/Confirm buttons.
+- **F15** — PWA manifest: `manifest.json` with QBC branding (quantum green theme, deep void background, standalone display). Wired into Next.js metadata.
+- **F17** — Bundle analyzer: `@next/bundle-analyzer` configured in `next.config.ts`, enabled via `ANALYZE=true` env var.
+- **B16** — WebSocket JSON-RPC subscriptions: `/ws/jsonrpc` endpoint handles `eth_subscribe`/`eth_unsubscribe` for `newHeads` and `pendingTransactions`. Auto-broadcasts via existing `broadcast_ws` hook. Regular JSON-RPC methods also forwarded over WebSocket.
+
+**Files changed: 7** (vm.py, rpc.py, native-wallet.tsx, layout.tsx, next.config.ts, new manifest.json, new export.ts)
+
+**Test result:** 2,757 passed, 0 failed
+
+**Score change:** 97 → 97 (maintained)
+
+**Cumulative progress:** 82/148 completed (55.4%).

@@ -32,6 +32,7 @@ export const metadata: Metadata = {
     "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree on-chain AGI engine.",
   keywords: ["qubitcoin", "qbc", "quantum", "blockchain", "AGI", "aether tree", "proof of thought", "SUSY"],
   metadataBase: new URL("https://qbc.network"),
+  manifest: "/manifest.json",
   openGraph: {
     type: "website",
     siteName: "Qubitcoin",

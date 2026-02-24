@@ -438,21 +438,23 @@ class TestQVMPrecompiles:
         assert result.success is True
         assert len(result.return_data) == 64
 
-    def test_ecadd_stub_precompile(self):
-        """Precompile 0x06: ecAdd stub returns 64 zero bytes."""
+    def test_ecadd_precompile_infinity(self):
+        """Precompile 0x06: ecAdd with two infinity points returns infinity (64 zero bytes)."""
         qvm = self._make_qvm()
         result = qvm._execute_precompile(6, b'\x00' * 128, gas=10000)
         assert result.success is True
         assert result.return_data == b'\x00' * 64
         assert result.gas_used == 150
 
-    def test_ecpairing_stub_precompile(self):
-        """Precompile 0x08: ecPairing stub returns 32 zero bytes."""
+    def test_ecpairing_precompile_empty_pairs(self):
+        """Precompile 0x08: ecPairing with all-zero input (inf points) returns 1 (success)."""
         qvm = self._make_qvm()
+        # One pair of (G1_inf, G2_inf) — all zeros. Infinity pairs are skipped,
+        # so the empty product equals identity → returns 0x01.
         result = qvm._execute_precompile(8, b'\x00' * 192, gas=100000)
         assert result.success is True
-        assert result.return_data == b'\x00' * 32
-        assert result.gas_used == 45000
+        assert result.return_data == b'\x00' * 31 + b'\x01'
+        assert result.gas_used == 45000 + 34000  # base + 1 pair
 
     def test_unknown_precompile_reverts(self):
         """Unknown precompile address reverts with error."""

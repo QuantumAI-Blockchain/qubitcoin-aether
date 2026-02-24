@@ -275,11 +275,17 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
   const [privateKey, setPrivateKey] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const handleSend = useCallback(async () => {
+  const estimatedFee = 0.0001; // L1 micro-fee estimate
+  const parsedAmount = parseFloat(amount) || 0;
+  const total = parsedAmount + estimatedFee;
+
+  const handleConfirmSend = useCallback(async () => {
     if (!to || !amount || !privateKey) return;
     setSending(true);
     setResult(null);
+    setShowConfirm(false);
     try {
       const txData = {
         from: wallet.address,
@@ -348,7 +354,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
           />
         </div>
         <button
-          onClick={handleSend}
+          onClick={() => setShowConfirm(true)}
           disabled={sending || !to || !amount || !privateKey}
           className="rounded-lg bg-quantum-green px-6 py-2.5 text-sm font-semibold text-void transition hover:bg-quantum-green/80 disabled:opacity-50"
         >
@@ -362,6 +368,67 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
           </p>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-2xl border border-surface-light bg-surface p-6 shadow-2xl">
+            <h4 className="font-[family-name:var(--font-heading)] text-lg font-bold">
+              Confirm Transaction
+            </h4>
+            <div className="mt-4 space-y-3 rounded-lg bg-void p-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">From</span>
+                <span className="font-[family-name:var(--font-mono)] text-xs text-quantum-violet">
+                  {wallet.address.slice(0, 12)}...{wallet.address.slice(-8)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">To</span>
+                <span className="font-[family-name:var(--font-mono)] text-xs text-quantum-violet">
+                  {to.slice(0, 12)}...{to.slice(-8)}
+                </span>
+              </div>
+              <div className="border-t border-surface-light pt-2">
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Amount</span>
+                  <span className="font-[family-name:var(--font-mono)] text-quantum-green">
+                    {parsedAmount.toLocaleString()} QBC
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Est. Fee</span>
+                  <span className="font-[family-name:var(--font-mono)] text-text-secondary">
+                    {estimatedFee} QBC
+                  </span>
+                </div>
+              </div>
+              <div className="border-t border-surface-light pt-2">
+                <div className="flex justify-between font-semibold">
+                  <span>Total</span>
+                  <span className="font-[family-name:var(--font-mono)] text-quantum-green">
+                    {total.toLocaleString()} QBC
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 rounded-lg border border-surface-light px-4 py-2.5 text-sm text-text-secondary transition hover:text-text-primary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSend}
+                className="flex-1 rounded-lg bg-quantum-green px-4 py-2.5 text-sm font-semibold text-void transition hover:bg-quantum-green/80"
+              >
+                Confirm & Sign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
