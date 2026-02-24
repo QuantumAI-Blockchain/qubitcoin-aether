@@ -98,6 +98,71 @@ class StablecoinEngine:
                 logger.warning("⚠️  QUSD token not found - needs deployment")
 
     # ========================================================================
+    # DYNAMIC REDEMPTION FEE
+    # ========================================================================
+
+    def calculate_redemption_fee(self, amount: Decimal, reserve_ratio: float) -> Decimal:
+        """Calculate the dynamic redemption fee for a given amount.
+
+        When reserve_ratio >= 1.0 (100%), the fee is the base fee.
+        When reserve_ratio < 1.0, the fee increases proportionally:
+            fee_bps = base_fee_bps * (1 + (1 - reserve_ratio) * multiplier)
+
+        This incentivizes users not to redeem when the reserve is under
+        pressure, protecting the peg during stress events.
+
+        Args:
+            amount: QUSD amount being redeemed.
+            reserve_ratio: Current reserve ratio (1.0 = 100% backed).
+
+        Returns:
+            Fee amount in QUSD.
+        """
+        if amount <= 0:
+            return Decimal(0)
+
+        fee_bps = self.get_current_redemption_fee_bps(reserve_ratio)
+        fee = (amount * Decimal(fee_bps)) / Decimal(10000)
+        return fee
+
+    def get_current_redemption_fee_bps(self, reserve_ratio: Optional[float] = None) -> int:
+        """Get the current redemption fee in basis points.
+
+        If no reserve_ratio is provided, attempts to read it from
+        ``get_system_health()``.
+
+        Args:
+            reserve_ratio: Current reserve ratio (1.0 = 100%).
+                If None, fetched from system health.
+
+        Returns:
+            Fee in basis points (e.g. 10 = 0.1%).
+        """
+        base_bps = Config.QUSD_REDEMPTION_BASE_FEE_BPS
+        multiplier = Config.QUSD_REDEMPTION_FEE_MULTIPLIER
+
+        if reserve_ratio is None:
+            health = self.get_system_health()
+            reserve_backing = float(health.get('reserve_backing', 0))
+            # reserve_backing from get_system_health is a ratio (e.g. 0.85)
+            reserve_ratio = reserve_backing
+
+        # If ratio >= 1.0 (fully backed), charge base fee only
+        if reserve_ratio >= 1.0:
+            return base_bps
+
+        # Clamp ratio to [0, 1) range
+        clamped_ratio = max(0.0, min(reserve_ratio, 1.0))
+
+        # fee_bps = base * (1 + (1 - ratio) * multiplier)
+        deficit = 1.0 - clamped_ratio
+        adjusted_bps = base_bps * (1.0 + deficit * multiplier)
+
+        # Round up to nearest integer bps, cap at 10000 (100%)
+        result = min(int(adjusted_bps + 0.5), 10000)
+        return result
+
+    # ========================================================================
     # ORACLE OPERATIONS
     # ========================================================================
 

@@ -10,11 +10,16 @@ This complements the TF-IDF index by capturing *meaning*, not just
 keyword overlap.  "quantum entanglement enables secure communication"
 and "Bell pairs provide cryptographic guarantees" will score high
 similarity here even though they share zero keywords.
+
+Includes a pure-Python HNSW (Hierarchical Navigable Small World) index
+for O(log n) approximate nearest neighbor search at scale, used as the
+default backend when vectors > 1000.
 """
 import math
+import random
 import re
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from ..utils.logger import get_logger
 
@@ -128,6 +133,308 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+# ============================================================================
+# HNSW (Hierarchical Navigable Small World) Index
+# ============================================================================
+
+class HNSWIndex:
+    """
+    Pure-Python HNSW graph for O(log n) approximate nearest neighbor search.
+
+    Implements the core HNSW algorithm from Malkov & Yashunin (2016/2018):
+    - Multi-layer navigable small world graph
+    - Greedy search with beam width (ef)
+    - Layer assignment via exponential decay: floor(-ln(uniform) * mL)
+    - Cosine similarity as distance metric
+
+    Parameters:
+        max_connections: Max connections per node per layer (M).
+        max_connections_layer0: Max connections on layer 0 (2 * M).
+        ef_construction: Beam width during index construction.
+        max_layers: Maximum number of layers in the hierarchy.
+    """
+
+    def __init__(self, max_connections: int = 16,
+                 ef_construction: int = 200,
+                 max_layers: int = 4) -> None:
+        self.M: int = max_connections
+        self.M0: int = 2 * max_connections  # layer 0 gets 2x connections
+        self.ef_construction: int = ef_construction
+        self.max_layers: int = max_layers
+        self.mL: float = 1.0 / math.log(max_connections) if max_connections > 1 else 1.0
+
+        # node_id -> embedding vector
+        self._vectors: Dict[int, List[float]] = {}
+        # node_id -> layer (the highest layer this node appears in)
+        self._node_layers: Dict[int, int] = {}
+        # layer -> {node_id -> set of connected node_ids}
+        self._graph: Dict[int, Dict[int, Set[int]]] = defaultdict(lambda: defaultdict(set))
+        # Entry point for search (node at the highest layer)
+        self._entry_point: Optional[int] = None
+        self._max_level: int = -1
+        self._dim: int = 0
+
+    def _cosine_distance(self, a: List[float], b: List[float]) -> float:
+        """Compute cosine distance: 1 - cosine_similarity."""
+        dot = 0.0
+        norm_a = 0.0
+        norm_b = 0.0
+        for x, y in zip(a, b):
+            dot += x * y
+            norm_a += x * x
+            norm_b += y * y
+        if norm_a == 0.0 or norm_b == 0.0:
+            return 1.0
+        return 1.0 - dot / (math.sqrt(norm_a) * math.sqrt(norm_b))
+
+    def _random_level(self) -> int:
+        """Assign a random layer level using exponential decay."""
+        r = random.random()
+        if r == 0.0:
+            r = 1e-12
+        level = int(-math.log(r) * self.mL)
+        return min(level, self.max_layers - 1)
+
+    def _search_layer(self, query: List[float], entry_point: int,
+                      ef: int, layer: int) -> List[Tuple[float, int]]:
+        """
+        Greedy beam search on a single layer.
+
+        Returns list of (distance, node_id) sorted by distance ascending,
+        up to ef candidates.
+        """
+        visited: Set[int] = {entry_point}
+        dist = self._cosine_distance(query, self._vectors[entry_point])
+        candidates: List[Tuple[float, int]] = [(dist, entry_point)]
+        results: List[Tuple[float, int]] = [(dist, entry_point)]
+
+        while candidates:
+            # Pop the closest candidate
+            candidates.sort(key=lambda x: x[0])
+            current_dist, current = candidates.pop(0)
+
+            # If the closest candidate is farther than the farthest result, stop
+            results.sort(key=lambda x: x[0])
+            if len(results) >= ef and current_dist > results[-1][0]:
+                break
+
+            # Explore neighbors
+            neighbors = self._graph[layer].get(current, set())
+            for neighbor in neighbors:
+                if neighbor in visited:
+                    continue
+                visited.add(neighbor)
+
+                if neighbor not in self._vectors:
+                    continue
+
+                n_dist = self._cosine_distance(query, self._vectors[neighbor])
+
+                results.sort(key=lambda x: x[0])
+                if len(results) < ef or n_dist < results[-1][0]:
+                    candidates.append((n_dist, neighbor))
+                    results.append((n_dist, neighbor))
+                    if len(results) > ef:
+                        results.sort(key=lambda x: x[0])
+                        results = results[:ef]
+
+        results.sort(key=lambda x: x[0])
+        return results[:ef]
+
+    def _select_neighbors(self, candidates: List[Tuple[float, int]],
+                          max_neighbors: int) -> List[Tuple[float, int]]:
+        """Select the best neighbors from candidates (simple selection)."""
+        candidates.sort(key=lambda x: x[0])
+        return candidates[:max_neighbors]
+
+    def add_vector(self, node_id: int, embedding: List[float]) -> None:
+        """
+        Insert a vector into the HNSW graph.
+
+        Args:
+            node_id: Unique identifier for the vector.
+            embedding: Dense embedding vector.
+        """
+        if not embedding:
+            return
+
+        if not self._dim:
+            self._dim = len(embedding)
+
+        self._vectors[node_id] = embedding
+        level = self._random_level()
+        self._node_layers[node_id] = level
+
+        # First node — make it the entry point
+        if self._entry_point is None:
+            self._entry_point = node_id
+            self._max_level = level
+            # Initialize empty adjacency at all layers
+            for lc in range(level + 1):
+                self._graph[lc][node_id] = set()
+            return
+
+        # Traverse from top layer down to level+1, greedy search with ef=1
+        current_entry = self._entry_point
+        for lc in range(self._max_level, level, -1):
+            if lc in self._graph and current_entry in self._graph[lc]:
+                result = self._search_layer(embedding, current_entry, ef=1, layer=lc)
+                if result:
+                    current_entry = result[0][1]
+
+        # For layers min(level, max_level) down to 0, find & connect neighbors
+        for lc in range(min(level, self._max_level), -1, -1):
+            max_conn = self.M0 if lc == 0 else self.M
+
+            # Ensure node has adjacency list at this layer
+            if node_id not in self._graph[lc]:
+                self._graph[lc][node_id] = set()
+
+            # Search for nearest neighbors at this layer
+            if current_entry in self._vectors:
+                candidates = self._search_layer(
+                    embedding, current_entry, self.ef_construction, lc
+                )
+            else:
+                candidates = []
+
+            # Select the best neighbors
+            neighbors = self._select_neighbors(candidates, max_conn)
+
+            # Add bidirectional connections
+            for dist, neighbor_id in neighbors:
+                if neighbor_id == node_id:
+                    continue
+                self._graph[lc][node_id].add(neighbor_id)
+                if neighbor_id not in self._graph[lc]:
+                    self._graph[lc][neighbor_id] = set()
+                self._graph[lc][neighbor_id].add(node_id)
+
+                # Prune neighbor's connections if over limit
+                if len(self._graph[lc][neighbor_id]) > max_conn:
+                    # Keep only the closest max_conn neighbors
+                    n_emb = self._vectors[neighbor_id]
+                    scored = []
+                    for conn in self._graph[lc][neighbor_id]:
+                        if conn in self._vectors:
+                            d = self._cosine_distance(n_emb, self._vectors[conn])
+                            scored.append((d, conn))
+                    scored.sort(key=lambda x: x[0])
+                    keep = {s[1] for s in scored[:max_conn]}
+                    self._graph[lc][neighbor_id] = keep
+
+            if candidates:
+                current_entry = candidates[0][1]
+
+        # Update entry point if new node is at a higher level
+        if level > self._max_level:
+            self._entry_point = node_id
+            self._max_level = level
+
+    def search(self, query_embedding: List[float], k: int = 5,
+               ef_search: int = 0) -> List[Tuple[int, float]]:
+        """
+        Find k approximate nearest neighbors.
+
+        Args:
+            query_embedding: Query vector.
+            k: Number of neighbors to return.
+            ef_search: Search beam width (default: max(k, 50)).
+
+        Returns:
+            List of (node_id, cosine_similarity) tuples, highest similarity first.
+        """
+        if not self._vectors or self._entry_point is None:
+            return []
+
+        if ef_search <= 0:
+            ef_search = max(k, 50)
+
+        # Traverse from top layer to layer 1 with ef=1
+        current_entry = self._entry_point
+        for lc in range(self._max_level, 0, -1):
+            if lc in self._graph and current_entry in self._graph[lc]:
+                result = self._search_layer(query_embedding, current_entry, ef=1, layer=lc)
+                if result:
+                    current_entry = result[0][1]
+
+        # Search layer 0 with full ef
+        candidates = self._search_layer(query_embedding, current_entry, ef_search, layer=0)
+
+        # Convert distance to similarity and return top k
+        results = []
+        for dist, node_id in candidates[:k]:
+            similarity = 1.0 - dist
+            results.append((node_id, similarity))
+
+        return results
+
+    def remove(self, node_id: int) -> None:
+        """
+        Remove a vector from the HNSW graph.
+
+        Removes the node and all its connections. If the removed node
+        was the entry point, selects a new entry point.
+
+        Args:
+            node_id: ID of the node to remove.
+        """
+        if node_id not in self._vectors:
+            return
+
+        level = self._node_layers.get(node_id, 0)
+
+        # Remove from all layers
+        for lc in range(level + 1):
+            if lc in self._graph and node_id in self._graph[lc]:
+                # Remove node from all neighbors' adjacency lists
+                for neighbor in list(self._graph[lc][node_id]):
+                    if neighbor in self._graph[lc]:
+                        self._graph[lc][neighbor].discard(node_id)
+                del self._graph[lc][node_id]
+
+        del self._vectors[node_id]
+        del self._node_layers[node_id]
+
+        # Update entry point if needed
+        if self._entry_point == node_id:
+            if not self._vectors:
+                self._entry_point = None
+                self._max_level = -1
+            else:
+                # Find the node at the highest layer
+                best_id = None
+                best_level = -1
+                for nid, nlevel in self._node_layers.items():
+                    if nlevel > best_level:
+                        best_level = nlevel
+                        best_id = nid
+                self._entry_point = best_id
+                self._max_level = best_level
+
+    def __len__(self) -> int:
+        return len(self._vectors)
+
+    def __contains__(self, node_id: int) -> bool:
+        return node_id in self._vectors
+
+    def get_stats(self) -> dict:
+        """Return HNSW index statistics."""
+        total_edges = sum(
+            sum(len(adj) for adj in layer_graph.values())
+            for layer_graph in self._graph.values()
+        )
+        return {
+            'total_vectors': len(self._vectors),
+            'max_level': self._max_level,
+            'entry_point': self._entry_point,
+            'total_edges': total_edges,
+            'dim': self._dim,
+            'M': self.M,
+            'ef_construction': self.ef_construction,
+        }
+
+
 class VectorIndex:
     """
     Dense embedding index over knowledge graph nodes.
@@ -142,7 +449,10 @@ class VectorIndex:
     # Threshold for rebuilding hnswlib index vs incremental add
     _HNSW_REBUILD_THRESHOLD = 1000
 
-    def __init__(self) -> None:
+    # Threshold for switching from sequential to HNSW search
+    _HNSW_AUTO_THRESHOLD = 1000
+
+    def __init__(self, use_hnsw: Optional[bool] = None) -> None:
         # node_id -> embedding vector
         self.embeddings: Dict[int, List[float]] = {}
         # Embedding dimension (set on first add)
@@ -159,6 +469,12 @@ class VectorIndex:
             self._hnsw_available = True
         except ImportError:
             pass
+        # Pure-Python HNSW index (always available, no external deps)
+        self._py_hnsw: Optional[HNSWIndex] = None
+        self._py_hnsw_dirty: bool = True
+        # use_hnsw: None = auto (switch at > _HNSW_AUTO_THRESHOLD vectors),
+        #           True = always use HNSW, False = never use HNSW
+        self._use_hnsw: Optional[bool] = use_hnsw
 
     def _ensure_hnsw(self) -> bool:
         """Rebuild hnswlib index if dirty and enough embeddings exist."""
@@ -195,6 +511,32 @@ class VectorIndex:
             self._hnsw_available = False
             return False
 
+    def _should_use_hnsw(self) -> bool:
+        """Determine if HNSW should be used for search."""
+        if self._use_hnsw is True:
+            return True
+        if self._use_hnsw is False:
+            return False
+        # Auto mode: use HNSW when vector count exceeds threshold
+        return len(self.embeddings) > self._HNSW_AUTO_THRESHOLD
+
+    def _ensure_py_hnsw(self) -> Optional[HNSWIndex]:
+        """Ensure the pure-Python HNSW index is built and up-to-date."""
+        if not self._should_use_hnsw() or not self.embeddings:
+            return None
+
+        if self._py_hnsw is not None and not self._py_hnsw_dirty:
+            return self._py_hnsw
+
+        # Build from scratch
+        hnsw = HNSWIndex(max_connections=16, ef_construction=200, max_layers=4)
+        for nid, emb in self.embeddings.items():
+            hnsw.add_vector(nid, emb)
+        self._py_hnsw = hnsw
+        self._py_hnsw_dirty = False
+        logger.debug(f"VectorIndex: rebuilt pure-Python HNSW with {len(self.embeddings)} vectors")
+        return self._py_hnsw
+
     def add_node(self, node_id: int, content: dict) -> None:
         """Compute and store embedding for a node."""
         text = _extract_text(content)
@@ -206,6 +548,7 @@ class VectorIndex:
             if not self._dim:
                 self._dim = len(emb)
             self._hnsw_dirty = True
+            self._py_hnsw_dirty = True
         except Exception as e:
             logger.debug(f"VectorIndex: failed to embed node {node_id}: {e}")
 
@@ -229,6 +572,7 @@ class VectorIndex:
             if not self._dim and embs:
                 self._dim = len(embs[0])
             self._hnsw_dirty = True
+            self._py_hnsw_dirty = True
             return len(embs)
         except Exception as e:
             logger.debug(f"VectorIndex: batch embed failed: {e}")
@@ -238,6 +582,7 @@ class VectorIndex:
         """Remove a node's embedding."""
         self.embeddings.pop(node_id, None)
         self._hnsw_dirty = True
+        self._py_hnsw_dirty = True
 
     def query(self, query_text: str, top_k: int = 10) -> List[Tuple[int, float]]:
         """
@@ -255,7 +600,7 @@ class VectorIndex:
         except Exception:
             return []
 
-        # Try hnswlib ANN search first
+        # Try hnswlib ANN search first (external C++ library)
         if self._ensure_hnsw():
             try:
                 import numpy as np
@@ -270,6 +615,14 @@ class VectorIndex:
                         # hnswlib cosine distance = 1 - cosine_similarity
                         results.append((nid, 1.0 - float(dist)))
                 return results
+            except Exception:
+                pass  # fall through to pure-Python HNSW
+
+        # Try pure-Python HNSW (no external deps)
+        py_hnsw = self._ensure_py_hnsw()
+        if py_hnsw is not None:
+            try:
+                return py_hnsw.search(query_emb, k=top_k)
             except Exception:
                 pass  # fall through to brute-force
 
@@ -300,6 +653,14 @@ class VectorIndex:
                     if nid is not None:
                         results.append((nid, 1.0 - float(dist)))
                 return results
+            except Exception:
+                pass
+
+        # Try pure-Python HNSW
+        py_hnsw = self._ensure_py_hnsw()
+        if py_hnsw is not None:
+            try:
+                return py_hnsw.search(query_emb, k=top_k)
             except Exception:
                 pass
 
@@ -415,9 +776,15 @@ class VectorIndex:
 
     def get_stats(self) -> dict:
         """Return index statistics."""
-        return {
+        stats = {
             'total_embeddings': len(self.embeddings),
             'embedding_dim': self._dim,
             'uses_transformer': _USE_TRANSFORMER and _model is not None,
             'uses_hnswlib': self._hnsw_available and self._hnsw is not None,
+            'uses_py_hnsw': self._py_hnsw is not None and not self._py_hnsw_dirty,
+            'hnsw_mode': 'auto' if self._use_hnsw is None else str(self._use_hnsw),
+            'hnsw_auto_threshold': self._HNSW_AUTO_THRESHOLD,
         }
+        if self._py_hnsw is not None and not self._py_hnsw_dirty:
+            stats['py_hnsw_stats'] = self._py_hnsw.get_stats()
+        return stats

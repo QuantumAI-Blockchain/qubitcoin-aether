@@ -8,6 +8,7 @@ from .ethereum import EVMBridge
 from .solana import SolanaBridge
 from .manager import BridgeManager
 from .validator_rewards import ValidatorRewardTracker
+from .relayer_incentive import RelayerIncentive
 
 __all__ = [
     'BaseBridge',
@@ -17,4 +18,5 @@ __all__ = [
     'SolanaBridge',
     'BridgeManager',
     'ValidatorRewardTracker',
+    'RelayerIncentive',
 ]

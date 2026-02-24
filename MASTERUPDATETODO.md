@@ -1,18 +1,18 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 25, 2026 | Run #22
+# Last Updated: February 25, 2026 | Run #23
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 117
-- Remaining: 31
-- Completion: 79.1%
+- Completed: 122
+- Remaining: 26
+- Completion: 82.4%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
 - **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
-- Estimated runs to 100%: ~7
+- Estimated runs to 100%: ~6
 
 ---
 
@@ -160,7 +160,7 @@
 | B11 | MEDIUM | `mining/engine.py` | No mining pool support | Add stratum-compatible mining pool protocol | LARGE |
 | ~~B12~~ | ~~MEDIUM~~ | `network/p2p_network.py` | ~~No peer banning~~ | ~~Peer scoring wired: +5 valid block, -25 invalid block, -50 oversized msg, -1/min idle decay, evict at score <10~~ | **DONE (Run #13)** |
 | B13 | MEDIUM | `database/` | Raw SQL queries | Generate SQLAlchemy ORM models for all 55 tables | LARGE |
-| B14 | LOW | `quantum/engine.py` | Local estimator only | Add GPU-accelerated qiskit-aer backend option | MEDIUM |
+| ~~B14~~ | ~~LOW~~ | `quantum/engine.py` | ~~Local estimator only~~ | ~~_select_backend() with GPU Aer > CPU Aer > StatevectorEstimator fallback chain. USE_GPU_AER config. backend_name tracking. 10 tests~~ | **DONE (Run #23)** |
 | ~~B15~~ | ~~LOW~~ | `quantum/crypto.py` | ~~No key rotation~~ | ~~KeyRotationManager: rotate_keys(), grace period verification, revoke_key(), status reporting. 29 tests~~ | **DONE (Run #17)** |
 | ~~B16~~ | ~~LOW~~ | `network/rpc.py` | ~~No eth_subscribe~~ | ~~/ws/jsonrpc endpoint with eth_subscribe/eth_unsubscribe, newHeads + pendingTransactions auto-broadcast~~ | **DONE (Run #15)** |
 | ~~B17~~ | ~~LOW~~ | `consensus/engine.py` | ~~Not integrated in consensus~~ | ~~_validate_block_susy_swaps: key image uniqueness, commitment consistency, range proof verification. Graceful degradation. 12 tests~~ | **DONE (Run #20)** |
@@ -206,11 +206,11 @@
 | A07 | MEDIUM | `aether/sephirot_nodes.py` | Managers, not agents | Add per-Sephirah specialized reasoning (Binah: formal logic, Chesed: brainstorming, Gevurah: safety analysis) | LARGE |
 | A08 | LOW | `aether/` | No cross-Sephirot consensus | Implement BFT consensus across Sephirot for high-stakes reasoning decisions | LARGE |
 | ~~A09~~ | ~~LOW~~ | `aether/proof_of_thought.py` | ~~Events logged, no action~~ | ~~Phi milestones (1.0/2.0/3.0) trigger obs window + exploration boost + consciousness announcement~~ | **DONE (Run #12)** |
-| A10 | LOW | `aether/temporal.py` | Basic trend detection | Add ARIMA/Prophet-style forecasting for multi-step metric prediction | MEDIUM |
+| ~~A10~~ | ~~LOW~~ | `aether/temporal.py` | ~~Basic trend detection~~ | ~~forecast_metric() with ARIMA(1,1,1): _fit_arima, OLS, inverse_difference, confidence intervals. Linear extrapolation fallback for <10 points. ARIMAResult/ForecastPoint/ForecastResult dataclasses. 21 tests~~ | **DONE (Run #23)** |
 | ~~A11~~ | ~~LOW~~ | `aether/debate.py` | ~~2-party debate~~ | ~~MultiPartyDebate class: add_party/run_debate/form_coalitions. Coalition dataclass. N-party with similarity-based coalition formation. 12 tests~~ | **DONE (Run #21)** |
 | ~~A12~~ | ~~LOW~~ | `aether/concept_formation.py` | ~~Hierarchical clustering~~ | ~~refine_concept() with similarity threshold + auto-split on high variance. merge_similar_concepts() with centroid comparison. 11 tests~~ | **DONE (Run #20)** |
 | A13 | LOW | `aether/neural_reasoner.py` | Evolutionary training | Add proper backpropagation when PyTorch available (fallback to evolutionary) | MEDIUM |
-| A14 | LOW | `aether/vector_index.py` | Sequential search | Add HNSW (Hierarchical Navigable Small World) for O(log n) ANN search at scale | MEDIUM |
+| ~~A14~~ | ~~LOW~~ | `aether/vector_index.py` | ~~Sequential search~~ | ~~HNSWIndex class: multi-layer graph, beam search, M=16, ef_construction=200. Auto-switch at >1000 vectors. Integrated into VectorIndex.query(). 27 tests~~ | **DONE (Run #23)** |
 | ~~A15~~ | ~~LOW~~ | `qvm/abi.py` + `stablecoin/engine.py` | ~~ABI encoding manual~~ | ~~abi_selector() + encode_call() utilities in qvm/abi.py. Refactored stablecoin engine to use central selectors. 12 tests~~ | **DONE (Run #19)** |
 | ~~A16~~ | ~~LOW~~ | `aether/chat.py` | ~~No conversation memory~~ | ~~ChatMemory class: remember/recall/forget/extract_memories with JSON persistence. Integrated into process_message(). 27 tests~~ | **DONE (Run #19)** |
 | ~~A17~~ | ~~LOW~~ | `aether/task_protocol.py` | ~~No task prioritization~~ | ~~Add priority queue for PoT tasks based on bounty + urgency + domain~~ | **DONE (Run #8)** — bounty*urgency priority |
@@ -234,12 +234,12 @@
 | ~~E10~~ | ~~LOW~~ | `mining/engine.py` + `config.py` | ~~No fee burning~~ | ~~FEE_BURN_PERCENTAGE (default 50%) burns portion of tx fees in coinbase. Configurable via .env. Burn tracked in metrics~~ | **DONE (Run #18)** |
 | ~~E11~~ | ~~LOW~~ | `network/rpc.py` | ~~No treasury dashboard~~ | ~~Added `/treasury` endpoint: balances, fee stats, config~~ | **DONE (Run #13)** |
 | ~~E12~~ | ~~LOW~~ | `stablecoin/engine.py` | ~~No stress test~~ | ~~test_qusd_stress.py: 50% crash, 90% withdrawal, rapid oscillation, cascading liquidation, multi-asset correlation. 20+ scenario tests~~ | **DONE (Run #22)** |
-| E13 | LOW | `bridge/` | No relayer incentive | Add relayer rewards for cross-chain message delivery (currently uncompensated) | MEDIUM |
+| ~~E13~~ | ~~LOW~~ | `bridge/` | ~~No relayer incentive~~ | ~~RelayerIncentive class: register_stake, record_relay, calculate_reward (base+value bonus), claim_rewards, get_relayer_stats. Dedup via message_hash. 28 tests~~ | **DONE (Run #23)** |
 | ~~E14~~ | ~~LOW~~ | `contracts/solidity/tokens/VestingSchedule.sol` | ~~No vesting schedule~~ | ~~VestingPlan struct, createVesting/claim/vestedAmount/claimable/revoke. Cliff + linear unlock. Events for create/claim/revoke~~ | **DONE (Run #21)** |
 | E15 | LOW | `consensus/` | No MEV protection | Add commit-reveal for transaction ordering (prevent front-running) | LARGE |
 | ~~E16~~ | ~~LOW~~ | `utils/` | ~~No fee estimator~~ | ~~Add /fee-estimate endpoint returning recommended fee rate based on mempool~~ | **DONE (Run #7)** — `/fee-estimate` endpoint |
 | E17 | LOW | `bridge/` | No liquidity provider | Add LP rewards for bridge liquidity provision (incentivize bridge depth) | MEDIUM |
-| E18 | LOW | `stablecoin/` | No redemption curve | Implement dynamic redemption fee (higher fee when reserve ratio < 100%) | MEDIUM |
+| ~~E18~~ | ~~LOW~~ | `stablecoin/` | ~~No redemption curve~~ | ~~calculate_redemption_fee(amount, reserve_ratio): fee_bps = base * (1 + (1-ratio) * multiplier). get_current_redemption_fee_bps(). Config: BASE_FEE_BPS=10, MULTIPLIER=5.0. 14 tests~~ | **DONE (Run #23)** |
 | ~~E19~~ | ~~LOW~~ | `economics/` | ~~No inflation tracker~~ | ~~Add real-time inflation rate endpoint (annualized from recent blocks)~~ | **DONE (Run #7)** — `/inflation` endpoint |
 | ~~E20~~ | ~~LOW~~ | `stablecoin/` | ~~No circuit breaker test~~ | ~~Test QUSD circuit breaker activation: peg deviation > 5% halts minting~~ | **DONE (Run #8)** — 3 emergency shutdown tests |
 
@@ -860,3 +860,20 @@ Focus on: Go QVM completion, formal verification, advanced features
 **Test result:** 2,996 passed, 0 failed (+72 new tests)
 
 **Cumulative progress:** 117/148 completed (79.1%).
+
+### Run #23 — February 25, 2026
+
+**Scope:** Relayer incentives, redemption fees, GPU backend, ARIMA forecasting, HNSW vector index
+
+**Items completed: 5** (E13, E18, B14, A10, A14)
+- **E13** — Relayer incentive: `RelayerIncentive` class with stake management, relay recording, reward calculation (base + value-proportional bonus), claim flow, deduplication. Config: `BRIDGE_RELAYER_REWARD_QBC=0.05`, `BRIDGE_RELAYER_MIN_STAKE=100.0`. 28 tests.
+- **E18** — Dynamic redemption fee: `calculate_redemption_fee(amount, reserve_ratio)` with formula `fee_bps = base * (1 + (1-ratio) * multiplier)`. Auto-reads reserve ratio from system health. Config: `QUSD_REDEMPTION_BASE_FEE_BPS=10`, `QUSD_REDEMPTION_FEE_MULTIPLIER=5.0`. 14 tests.
+- **B14** — GPU qiskit-aer: `_select_backend()` with priority GPU Aer > CPU Aer > StatevectorEstimator. Graceful fallback chain. `USE_GPU_AER` config. `backend_name` tracking. 10 tests.
+- **A10** — ARIMA forecasting: `forecast_metric()` with ARIMA(1,1,1) via numpy OLS. `_fit_arima`, `_inverse_difference`, confidence intervals. Linear extrapolation fallback for <10 points. `ARIMAResult`/`ForecastPoint`/`ForecastResult` dataclasses. 21 tests.
+- **A14** — HNSW vector index: `HNSWIndex` class with multi-layer graph, beam search, M=16, ef_construction=200, max_layers=4. Auto-switch at >1000 vectors. Integrated into `VectorIndex.query()`. 27 tests.
+
+**Files changed: 12** (new relayer_incentive.py, temporal.py, vector_index.py, bridge/__init__.py, config.py, quantum/engine.py, stablecoin/engine.py, new test_arima_forecast.py, test_gpu_backend.py, test_hnsw_index.py, test_redemption_fee.py, test_relayer_incentive.py)
+
+**Test result:** 3,096 passed, 0 failed (+100 new tests)
+
+**Cumulative progress:** 122/148 completed (82.4%).

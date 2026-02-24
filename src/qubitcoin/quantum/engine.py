@@ -33,15 +33,78 @@ class QuantumEngine:
         self.estimator = None
         self.backend = None
         self.service = None
+        self.backend_name: str = "unknown"
 
         self._initialize_backend()
 
-    def _initialize_backend(self):
-        """Initialize appropriate quantum backend"""
+    def _select_backend(self) -> str:
+        """Select the best available quantum backend.
+
+        Priority order:
+          1. GPU Aer (if USE_GPU_AER=true and GPU available)
+          2. CPU Aer (if USE_SIMULATOR=true)
+          3. StatevectorEstimator (default, exact simulation)
+          4. IBM Quantum (if configured)
+
+        Returns:
+            String identifying the selected backend: 'gpu_aer', 'cpu_aer',
+            'statevector', or 'ibm_quantum'.
+        """
+        if Config.USE_GPU_AER:
+            try:
+                from qiskit_aer import AerSimulator
+                # Try to create a GPU-accelerated simulator
+                gpu_sim = AerSimulator(method='statevector', device='GPU')
+                # Validate GPU is actually available by checking config
+                gpu_config = gpu_sim.configuration()
+                if gpu_config is not None:
+                    logger.info("GPU Aer backend available")
+                    return 'gpu_aer'
+            except Exception as e:
+                logger.warning(f"GPU Aer not available, falling back: {e}")
+                # Fall through to next option
+
         if Config.USE_LOCAL_ESTIMATOR:
+            return 'statevector'
+
+        if Config.USE_SIMULATOR:
+            try:
+                from qiskit_aer import AerSimulator  # noqa: F811
+                return 'cpu_aer'
+            except ImportError:
+                logger.warning("Aer not installed, falling back to StatevectorEstimator")
+                return 'statevector'
+
+        # IBM Quantum
+        if Config.IBM_TOKEN:
+            return 'ibm_quantum'
+
+        return 'statevector'
+
+    def _initialize_backend(self) -> None:
+        """Initialize appropriate quantum backend"""
+        selected = self._select_backend()
+        self.backend_name = selected
+
+        if selected == 'gpu_aer':
+            try:
+                from qiskit_aer import AerSimulator
+                from qiskit_aer.primitives import EstimatorV2 as AerEstimator
+
+                self.backend = AerSimulator(method='statevector', device='GPU')
+                self.estimator = AerEstimator.from_backend(self.backend)
+                logger.info("Quantum Engine: AerSimulator GPU-accelerated")
+                return
+            except Exception as e:
+                logger.warning(f"GPU Aer init failed, falling back to CPU: {e}")
+                # Fall through to CPU Aer or Statevector
+                selected = 'cpu_aer' if Config.USE_SIMULATOR else 'statevector'
+                self.backend_name = selected
+
+        if selected == 'statevector':
             self.estimator = StatevectorEstimator()
             logger.info("Quantum Engine: StatevectorEstimator (exact)")
-        elif Config.USE_SIMULATOR:
+        elif selected == 'cpu_aer':
             try:
                 from qiskit_aer import AerSimulator
                 from qiskit_aer.primitives import EstimatorV2 as AerEstimator
@@ -52,7 +115,8 @@ class QuantumEngine:
             except ImportError:
                 logger.warning("Aer not available, using StatevectorEstimator")
                 self.estimator = StatevectorEstimator()
-        else:
+                self.backend_name = 'statevector'
+        elif selected == 'ibm_quantum':
             try:
                 from qiskit_ibm_runtime import QiskitRuntimeService, EstimatorV2 as RuntimeEstimator
 
@@ -72,6 +136,7 @@ class QuantumEngine:
                 logger.error(f"Failed to connect to IBM Quantum: {e}")
                 logger.info("Falling back to StatevectorEstimator")
                 self.estimator = StatevectorEstimator()
+                self.backend_name = 'statevector'
 
     # ========================================================================
     # DETERMINISTIC HAMILTONIAN GENERATION

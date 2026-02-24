@@ -34,6 +34,7 @@ class Config:
     # ============================================================================
     USE_LOCAL_ESTIMATOR: bool = os.getenv('USE_LOCAL_ESTIMATOR', 'true').lower() == 'true'
     USE_SIMULATOR: bool = os.getenv('USE_SIMULATOR', 'false').lower() == 'true'
+    USE_GPU_AER: bool = os.getenv('USE_GPU_AER', 'false').lower() == 'true'
     IBM_TOKEN: Optional[str] = os.getenv('IBM_TOKEN')
     IBM_INSTANCE: Optional[str] = os.getenv('IBM_INSTANCE')
 
@@ -210,10 +211,18 @@ class Config:
     QUSD_INSURANCE_PAYOUT_THRESHOLD: float = float(os.getenv('QUSD_INSURANCE_PAYOUT_THRESHOLD', '0.90'))
 
     # ============================================================================
+    # QUSD REDEMPTION FEE (dynamic, increases when reserve ratio < 100%)
+    # ============================================================================
+    QUSD_REDEMPTION_BASE_FEE_BPS: int = int(os.getenv('QUSD_REDEMPTION_BASE_FEE_BPS', '10'))  # 10 bps = 0.1%
+    QUSD_REDEMPTION_FEE_MULTIPLIER: float = float(os.getenv('QUSD_REDEMPTION_FEE_MULTIPLIER', '5.0'))
+
+    # ============================================================================
     # BRIDGE FEES (editable)
     # ============================================================================
     BRIDGE_FEE_BPS: int = int(os.getenv('BRIDGE_FEE_BPS', '30'))  # Basis points (30 = 0.3%)
     BRIDGE_VALIDATOR_REWARD_QBC: float = float(os.getenv('BRIDGE_VALIDATOR_REWARD_QBC', '0.01'))
+    BRIDGE_RELAYER_REWARD_QBC: float = float(os.getenv('BRIDGE_RELAYER_REWARD_QBC', '0.05'))
+    BRIDGE_RELAYER_MIN_STAKE: float = float(os.getenv('BRIDGE_RELAYER_MIN_STAKE', '100.0'))
 
     # ============================================================================
     # ON-CHAIN AGI CONTRACT ADDRESSES (set after deployment)
