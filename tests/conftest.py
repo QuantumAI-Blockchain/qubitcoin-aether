@@ -75,3 +75,12 @@ _STUBS = [
 for _name in _STUBS:
     if _name not in sys.modules:
         sys.modules[_name] = _make_stub(_name)
+
+
+# ── Custom pytest markers ──
+def pytest_configure(config):
+    """Register custom markers to avoid PytestUnknownMarkWarning."""
+    config.addinivalue_line(
+        "markers",
+        "benchmark: performance benchmark tests (deselect with -m 'not benchmark')"
+    )

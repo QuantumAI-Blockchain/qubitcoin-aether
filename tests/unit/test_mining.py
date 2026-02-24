@@ -90,7 +90,7 @@ class TestCoinbaseCreation:
         assert cb.outputs[0]['amount'] == reward
 
     def test_coinbase_includes_fees(self):
-        """Coinbase amount includes fees from pending transactions."""
+        """Coinbase amount includes miner's share of fees (after burn)."""
         eng = self._make_engine()
         reward = Decimal('15.27')
         tx1 = MagicMock()
@@ -98,7 +98,11 @@ class TestCoinbaseCreation:
         tx2 = MagicMock()
         tx2.fee = Decimal('0.002')
         cb = eng._create_coinbase(height=5, reward=reward, pending_txs=[tx1, tx2])
-        expected_total = reward + Decimal('0.003')
+        total_fees = Decimal('0.003')
+        from qubitcoin.config import Config
+        burn_pct = Decimal(str(Config.FEE_BURN_PERCENTAGE))
+        burned = (total_fees * burn_pct).quantize(Decimal('0.00000001'))
+        expected_total = reward + total_fees - burned
         assert cb.outputs[0]['amount'] == expected_total
 
     def test_coinbase_txid_is_sha256_hex(self):

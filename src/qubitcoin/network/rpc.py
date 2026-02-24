@@ -39,7 +39,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    pineal_orchestrator=None, safety_manager=None,
                    spv_verifier=None, ipfs_memory=None,
                    capability_advertiser=None,
-                   on_chain_agi=None) -> FastAPI:
+                   on_chain_agi=None,
+                   event_index=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -149,7 +150,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     from .jsonrpc import create_jsonrpc_router
     jsonrpc_router = create_jsonrpc_router(
         db_manager, consensus_engine, mining_engine, quantum_engine,
-        qvm=state_manager
+        qvm=state_manager, event_index=event_index
     )
     app.include_router(jsonrpc_router, tags=["JSON-RPC"])
 
@@ -547,6 +548,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "success_rate": mining_engine.stats['blocks_found'] / max(1, mining_engine.stats['total_attempts']),
             "best_energy": mining_engine.stats.get('best_energy', None),
             "alignment_score": mining_engine.stats.get('alignment_score', None),
+            "total_fees_burned": mining_engine.stats.get('total_burned', 0.0),
+            "fee_burn_percentage": Config.FEE_BURN_PERCENTAGE,
         }
 
     @app.post("/mining/start")

@@ -12,7 +12,7 @@ from ..quantum.engine import QuantumEngine
 from ..quantum.crypto import Dilithium2
 from ..consensus.engine import ConsensusEngine
 from ..utils.logger import get_logger
-from ..utils.metrics import blocks_mined, mining_attempts, current_height_metric, vqe_optimization_time
+from ..utils.metrics import blocks_mined, mining_attempts, current_height_metric, vqe_optimization_time, total_fees_burned_metric
 
 logger = get_logger(__name__)
 
@@ -42,6 +42,7 @@ class MiningEngine:
             'uptime': 0,
             'best_energy': None,
             'alignment_score': None,
+            'total_burned': 0.0,
         }
         logger.info("Mining engine initialized (SUSY Economics + QVM)")
 
@@ -385,9 +386,31 @@ class MiningEngine:
 
     def _create_coinbase(self, height: int, reward: Decimal,
                         pending_txs: list) -> Transaction:
-        """Create coinbase transaction"""
+        """Create coinbase transaction with base fee burning.
+
+        A configurable percentage of transaction fees (FEE_BURN_PERCENTAGE)
+        is permanently destroyed rather than paid to the miner, creating
+        deflationary pressure on QBC supply.  The burned amount is tracked
+        in both the ``total_burned`` stat and the Prometheus metric.
+        """
         total_fees = sum(tx.fee for tx in pending_txs)
-        total_reward = reward + total_fees
+
+        # Apply fee burn — a percentage of fees are destroyed
+        burn_pct = Decimal(str(Config.FEE_BURN_PERCENTAGE))
+        burned = (total_fees * burn_pct).quantize(Decimal('0.00000001'))
+        miner_fees = total_fees - burned
+
+        if burned > 0:
+            self.stats['total_burned'] = float(
+                Decimal(str(self.stats.get('total_burned', 0))) + burned
+            )
+            total_fees_burned_metric.set(self.stats['total_burned'])
+            logger.debug(
+                f"Block {height}: burning {burned:.8f} QBC of {total_fees:.8f} fees "
+                f"({Config.FEE_BURN_PERCENTAGE * 100:.0f}%)"
+            )
+
+        total_reward = reward + miner_fees
         coinbase_txid = hashlib.sha256(
             f"coinbase-{height}-{time.time()}".encode()
         ).hexdigest()

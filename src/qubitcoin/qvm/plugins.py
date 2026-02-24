@@ -11,6 +11,10 @@ Architecture:
     PluginManager   — lifecycle management (load, start, stop, unload)
 """
 import importlib
+import importlib.util
+import inspect
+import os
+import sys
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -273,3 +277,136 @@ class PluginManager:
         except Exception as e:
             logger.error(f"Failed to load plugin from {module_path}: {e}")
             return None
+
+    def discover_plugins(self, directory: str) -> List[PluginMeta]:
+        """Scan a directory for Python files containing QVMPlugin subclasses.
+
+        Each ``.py`` file in *directory* is inspected.  If it defines a
+        ``create_plugin()`` factory, that is used.  Otherwise, the module
+        is scanned for concrete ``QVMPlugin`` subclasses and each is
+        instantiated (zero-arg constructor) and registered.
+
+        Args:
+            directory: Absolute or relative path to a directory of plugin files.
+
+        Returns:
+            List of PluginMeta for all successfully registered plugins.
+        """
+        discovered: List[PluginMeta] = []
+        directory = os.path.abspath(directory)
+
+        if not os.path.isdir(directory):
+            logger.warning(f"Plugin directory does not exist: {directory}")
+            return discovered
+
+        for filename in sorted(os.listdir(directory)):
+            if not filename.endswith('.py') or filename.startswith('_'):
+                continue
+
+            filepath = os.path.join(directory, filename)
+            module_name = f"qvm_plugin_{filename[:-3]}"
+
+            try:
+                spec = importlib.util.spec_from_file_location(module_name, filepath)
+                if spec is None or spec.loader is None:
+                    continue
+                mod = importlib.util.module_from_spec(spec)
+                sys.modules[module_name] = mod
+                spec.loader.exec_module(mod)
+
+                # Prefer create_plugin() factory if available
+                factory = getattr(mod, 'create_plugin', None)
+                if callable(factory):
+                    plugin = factory()
+                    if plugin.name() not in self.registry:
+                        meta = self.register(plugin)
+                        self.load(plugin.name())
+                        discovered.append(meta)
+                    continue
+
+                # Fallback: find all concrete QVMPlugin subclasses in module
+                for attr_name in dir(mod):
+                    obj = getattr(mod, attr_name)
+                    if (inspect.isclass(obj)
+                            and issubclass(obj, QVMPlugin)
+                            and obj is not QVMPlugin
+                            and not inspect.isabstract(obj)):
+                        try:
+                            plugin = obj()
+                            if plugin.name() not in self.registry:
+                                meta = self.register(plugin)
+                                self.load(plugin.name())
+                                discovered.append(meta)
+                        except Exception as inst_err:
+                            logger.warning(
+                                f"Cannot instantiate {attr_name} from {filename}: {inst_err}"
+                            )
+
+            except Exception as e:
+                logger.error(f"Failed to discover plugin from {filename}: {e}")
+
+        logger.info(f"Discovered {len(discovered)} plugin(s) from {directory}")
+        return discovered
+
+    def reload_plugin(self, name: str) -> bool:
+        """Hot-reload a plugin that was loaded from a Python module.
+
+        This stops the running plugin, reimports the source module,
+        re-creates the plugin instance via its ``create_plugin()``
+        factory (or by re-instantiating the class), and restarts it.
+
+        The plugin must already be registered.  Its module must be
+        importable (present in ``sys.modules``).
+
+        Args:
+            name: The name of the plugin to reload.
+
+        Returns:
+            True if the plugin was successfully reloaded, False otherwise.
+        """
+        plugin = self.registry.get(name)
+        meta = self.registry.get_meta(name)
+        if not plugin or not meta:
+            logger.error(f"Cannot reload unknown plugin: {name}")
+            return False
+
+        # Find the module that defines this plugin class
+        plugin_class = type(plugin)
+        module_name = plugin_class.__module__
+
+        if module_name not in sys.modules:
+            logger.error(f"Cannot reload {name}: module {module_name} not in sys.modules")
+            return False
+
+        # Stop and unregister the old instance
+        self.stop(name)
+        self.registry.unregister(name)
+
+        # Reload the module
+        try:
+            old_module = sys.modules[module_name]
+            reloaded_module = importlib.reload(old_module)
+
+            # Prefer create_plugin() factory
+            factory = getattr(reloaded_module, 'create_plugin', None)
+            if callable(factory):
+                new_plugin = factory()
+            else:
+                # Find the same class name in the reloaded module
+                new_class = getattr(reloaded_module, plugin_class.__name__, None)
+                if new_class is None or not issubclass(new_class, QVMPlugin):
+                    logger.error(
+                        f"Reloaded module {module_name} no longer defines {plugin_class.__name__}"
+                    )
+                    return False
+                new_plugin = new_class()
+
+            new_meta = self.register(new_plugin)
+            self.load(new_plugin.name())
+            self.start(new_plugin.name())
+            logger.info(f"Plugin reloaded: {name} v{new_meta.version}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to reload plugin {name}: {e}")
+            return False

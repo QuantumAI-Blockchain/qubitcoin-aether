@@ -140,12 +140,14 @@ def _receipt_to_rpc(receipt) -> Optional[dict]:
 class JsonRpcHandler:
     """Handles eth_* JSON-RPC method dispatch"""
 
-    def __init__(self, db, consensus=None, mining=None, quantum=None, qvm=None):
+    def __init__(self, db, consensus=None, mining=None, quantum=None, qvm=None,
+                 event_index=None):
         self.db = db
         self.consensus = consensus
         self.mining = mining
         self.quantum = quantum
         self.qvm = qvm
+        self.event_index = event_index  # Optional EventIndex for fast in-memory log queries
 
         self.methods = {
             # Chain
@@ -550,8 +552,27 @@ class JsonRpcHandler:
             to_block = parse_hex_int(to_block_str)
 
         address = filter_obj.get('address', '').replace('0x', '')
-        topics = filter_obj.get('topics', [])
+        raw_topics = filter_obj.get('topics', [])
 
+        # Normalise topics: strip 0x prefix, keep None as wildcard
+        normalised_topics: list = []
+        for t in raw_topics:
+            if isinstance(t, str) and t:
+                normalised_topics.append(t.replace('0x', ''))
+            else:
+                normalised_topics.append(None)
+
+        # Fast path: use EventIndex if available
+        if self.event_index:
+            return self.event_index.get_logs(
+                from_block=from_block,
+                to_block=to_block,
+                address=address or None,
+                topics=normalised_topics or None,
+                limit=1000,
+            )
+
+        # Fallback: direct DB query (original implementation)
         with self.db.get_session() as session:
             from sqlalchemy import text as sql_text
             query = "SELECT txid, log_index, contract_address, topic0, topic1, topic2, topic3, data, block_height FROM event_logs WHERE block_height >= :from_b AND block_height <= :to_b"
@@ -560,11 +581,13 @@ class JsonRpcHandler:
             if address:
                 query += " AND contract_address = :addr"
                 query_params['addr'] = address
-            if topics and topics[0]:
-                t0 = topics[0].replace('0x', '') if isinstance(topics[0], str) else ''
-                if t0:
-                    query += " AND topic0 = :t0"
-                    query_params['t0'] = t0
+            if normalised_topics:
+                for i, t in enumerate(normalised_topics):
+                    if t:
+                        col = f'topic{i}'
+                        key = f't{i}'
+                        query += f" AND {col} = :{key}"
+                        query_params[key] = t
 
             query += " ORDER BY block_height, log_index LIMIT 1000"
             rows = session.execute(sql_text(query), query_params)
@@ -669,9 +692,11 @@ def _serialize(model):
     return model.dict()
 
 
-def create_jsonrpc_router(db, consensus=None, mining=None, quantum=None, qvm=None) -> APIRouter:
+def create_jsonrpc_router(db, consensus=None, mining=None, quantum=None, qvm=None,
+                          event_index=None) -> APIRouter:
     """Create JSON-RPC router and attach to FastAPI"""
-    handler = JsonRpcHandler(db, consensus, mining, quantum, qvm)
+    handler = JsonRpcHandler(db, consensus, mining, quantum, qvm,
+                             event_index=event_index)
 
     @router.post("/")
     @router.post("/jsonrpc")

@@ -14,6 +14,7 @@ current_height_metric = Gauge('qbc_blockchain_height', 'Current blockchain heigh
 total_supply_metric = Gauge('qbc_total_supply', 'Total QBC in circulation')
 current_difficulty_metric = Gauge('qbc_difficulty', 'Current mining difficulty')
 avg_block_time_metric = Gauge('qbc_avg_block_time_seconds', 'Average block time (last 100 blocks)')
+total_fees_burned_metric = Gauge('qbc_total_fees_burned', 'Total QBC burned from transaction fees')
 
 # ============================================================================
 # MINING METRICS
@@ -175,6 +176,7 @@ __all__ = [
     # Blockchain
     'blocks_mined', 'blocks_received', 'current_height_metric',
     'total_supply_metric', 'current_difficulty_metric', 'avg_block_time_metric',
+    'total_fees_burned_metric',
     # Mining
     'mining_attempts', 'vqe_optimization_time', 'block_validation_time',
     'alignment_score_metric',

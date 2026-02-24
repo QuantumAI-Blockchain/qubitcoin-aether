@@ -165,7 +165,12 @@ class QubitcoinNode:
         try:
             self.state_manager = StateManager(self.db, self.quantum)
             self.consensus.state_manager = self.state_manager
-            logger.info("[6/22] QVM StateManager initialized (155 opcodes, 10 quantum)")
+
+            # Wire EventIndex into StateManager for in-memory event log indexing
+            from .qvm.event_index import EventIndex
+            self.event_index = EventIndex(db_manager=self.db)
+            self.state_manager.event_index = self.event_index
+            logger.info("[6/22] QVM StateManager initialized (155 opcodes, 10 quantum, EventIndex)")
         except Exception as e:
             logger.error(f"[6/22] QVM StateManager failed: {e}", exc_info=True)
             raise
@@ -560,6 +565,7 @@ class QubitcoinNode:
                 ipfs_memory=self.ipfs_memory,
                 capability_advertiser=self.capability_advertiser,
                 on_chain_agi=getattr(self, 'on_chain', None),
+                event_index=getattr(self, 'event_index', None),
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)

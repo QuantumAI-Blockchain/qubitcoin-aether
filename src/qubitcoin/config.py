@@ -110,6 +110,11 @@ class Config:
     MIN_FEE: Decimal = Decimal('0.0001')
     FEE_RATE: Decimal = Decimal('0.0001')
 
+    # Fee burning — percentage of L1 transaction fees permanently destroyed
+    # to create deflationary pressure (EIP-1559 inspired).
+    # 0.0 = no burn (all fees to miner), 1.0 = burn everything.
+    FEE_BURN_PERCENTAGE: float = float(os.getenv('FEE_BURN_PERCENTAGE', '0.5'))
+
     # ============================================================================
     # CONSENSUS PARAMETERS
     # ============================================================================

@@ -27,6 +27,7 @@ class StateManager:
         self.quantum = quantum_engine
         self.compliance = compliance_engine
         self.qvm = QVM(db_manager, quantum_engine, compliance_engine=compliance_engine)
+        self.event_index = None  # Injected by node after EventIndex init
 
     def set_block_context(self, block_height: int, timestamp: float, coinbase: str, difficulty: float) -> None:
         """Update QVM block context before executing transactions"""
@@ -189,6 +190,7 @@ class StateManager:
         )
 
         self.db.store_receipt(receipt)
+        self._index_receipt_events(receipt, block_hash)
         logger.info(f"Contract deployed: {addr_hash} (gas: {result.gas_used})")
         return receipt
 
@@ -260,6 +262,7 @@ class StateManager:
         )
 
         self.db.store_receipt(receipt)
+        self._index_receipt_events(receipt, block_hash)
         return receipt
 
     def _flush_storage(self, result: ExecutionResult, block_height: int):
@@ -267,6 +270,25 @@ class StateManager:
         for addr, changes in result.storage_changes.items():
             for key, value in changes.items():
                 self.db.set_storage(addr, key, value, block_height)
+
+    def _index_receipt_events(
+        self, receipt: TransactionReceipt, block_hash: str
+    ) -> None:
+        """Feed receipt logs into the EventIndex if available."""
+        if not self.event_index or not receipt.logs:
+            return
+        try:
+            for i, log in enumerate(receipt.logs):
+                self.event_index.add_from_log_dict(
+                    log,
+                    block_height=receipt.block_height,
+                    block_hash=block_hash,
+                    tx_hash=receipt.txid,
+                    tx_index=receipt.tx_index,
+                    log_index=i,
+                )
+        except Exception as e:
+            logger.debug(f"Event indexing skipped: {e}")
 
     def _get_sender_address(self, tx: Transaction) -> str:
         """Derive sender address from transaction (consistent with crypto.derive_address)"""

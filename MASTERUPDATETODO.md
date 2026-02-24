@@ -1,18 +1,18 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #17
+# Last Updated: February 24, 2026 | Run #18
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 92
-- Remaining: 56
-- Completion: 62.2%
+- Completed: 97
+- Remaining: 51
+- Completion: 65.5%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
 - **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
-- Estimated runs to 100%: ~15
+- Estimated runs to 100%: ~13
 
 ---
 
@@ -166,7 +166,7 @@
 | B17 | LOW | `privacy/` | Not integrated in consensus | Wire Susy Swap validation into block validation pipeline | MEDIUM |
 | B18 | LOW | `bridge/` | No validator rewards | Implement bridge validator reward distribution per verified proof | MEDIUM |
 | ~~B19~~ | ~~LOW~~ | `.github/workflows/` | ~~No security scanning~~ | ~~Add SAST (Semgrep/Bandit) and dependency scanning (Safety/Snyk)~~ | **DONE (Run #7)** — Bandit + pip-audit CI job |
-| B20 | LOW | `tests/` | No performance tests | Add benchmark suite: block validation, VQE mining, query performance | MEDIUM |
+| ~~B20~~ | ~~LOW~~ | `tests/benchmarks/bench_core.py` + `conftest.py` | ~~No performance tests~~ | ~~16 benchmarks: block validation, VQE mining, DB queries, QVM execution, Phi calc, hashing. `@pytest.mark.benchmark` marker~~ | **DONE (Run #18)** |
 
 ### 5.3 QVM / L2 (20)
 
@@ -181,13 +181,13 @@
 | V07 | LOW | `qubitcoin-qvm/cmd/qvm/main.go` | "NOT IMPLEMENTED" | Complete Go QVM server with gRPC + REST API handlers | LARGE |
 | V08 | LOW | `qubitcoin-qvm/` | No quantum opcodes | Implement 0xF0-0xF9 canonical quantum opcodes in Go | LARGE |
 | V09 | LOW | `qubitcoin-qvm/` | No AGI opcodes | Implement QREASON (0xFA) and QPHI (0xFB) in Go QVM | MEDIUM |
-| V10 | LOW | `qvm/plugins.py` | Manual registration | Add dynamic plugin discovery and hot-reload mechanism | MEDIUM |
+| ~~V10~~ | ~~LOW~~ | `qvm/plugins.py` | ~~Manual registration~~ | ~~discover_plugins(directory) scans for QVMPlugin subclasses + reload_plugin(name) for hot-reload~~ | **DONE (Run #18)** |
 | V11 | LOW | `qvm/` | No EIP-1559 | Add base fee + priority fee (EIP-1559 type 2 transactions) | MEDIUM |
 | V12 | LOW | `qvm/` | No access lists | Implement EIP-2930 access list transactions for gas optimization | MEDIUM |
 | ~~V13~~ | ~~LOW~~ | `qvm/vm.py` + `rpc.py` + `jsonrpc.py` | ~~No debug_traceTransaction~~ | ~~execute_with_trace() + /qvm/trace/{tx_hash} REST + debug_traceTransaction JSON-RPC (Geth-compatible structLogs)~~ | **DONE (Run #17)** |
 | V14 | LOW | `contracts/solidity/` | No formal verification | Run Slither + Mythril static analysis on all 49 contracts | MEDIUM |
 | V15 | LOW | `qvm/` | No contract upgrades | Add transparent proxy upgrade pattern support (EIP-1967) | MEDIUM |
-| V16 | LOW | `qvm/` | No event indexing | Add event log indexing with topic-based filtering | MEDIUM |
+| ~~V16~~ | ~~LOW~~ | `qvm/event_index.py` + `state.py` + `jsonrpc.py` | ~~No event indexing~~ | ~~EventIndex class with topic-based filtering, caching, persistence. Wired into state.py, jsonrpc.py eth_getLogs, node.py~~ | **DONE (Run #18)** |
 | ~~V17~~ | ~~LOW~~ | `qvm/` | ~~1024 stack limit~~ | ~~Add stack limit enforcement tests for deeply nested calls~~ | **DONE (Run #7)** — 8 stack limit tests |
 | V18 | LOW | `qvm/` | No benchmark | Profile and benchmark Python QVM vs Go QVM throughput | MEDIUM |
 | V19 | LOW | `contracts/` | No deployment script CI | Add automated contract deployment to CI (testnet) | MEDIUM |
@@ -231,7 +231,7 @@
 | ~~E07~~ | ~~MEDIUM~~ | `stablecoin/engine.py` + `config.py` | ~~Python only~~ | ~~get_reserve_ratio_from_contract() calls QUSDReserve.totalReserveValueUSD() + QUSD.totalSupply() via QVM static_call~~ | **DONE (Run #16)** |
 | ~~E08~~ | ~~LOW~~ | `config.py` | ~~No emission verification~~ | ~~Added verify_emission_schedule(): monotonic decrease + bounded by MAX_SUPPLY~~ | ~~DONE (Run #6)~~ |
 | ~~E09~~ | ~~LOW~~ | `bridge/` | ~~0.3% fee~~ | ~~Make bridge fee configurable per chain~~ | **DONE (Run #11)** — Config.BRIDGE_FEE_BPS |
-| E10 | LOW | `consensus/engine.py` | No fee burning | Consider EIP-1559-style base fee burn for deflationary pressure | MEDIUM |
+| ~~E10~~ | ~~LOW~~ | `mining/engine.py` + `config.py` | ~~No fee burning~~ | ~~FEE_BURN_PERCENTAGE (default 50%) burns portion of tx fees in coinbase. Configurable via .env. Burn tracked in metrics~~ | **DONE (Run #18)** |
 | ~~E11~~ | ~~LOW~~ | `network/rpc.py` | ~~No treasury dashboard~~ | ~~Added `/treasury` endpoint: balances, fee stats, config~~ | **DONE (Run #13)** |
 | E12 | LOW | `stablecoin/engine.py` | No stress test | Simulate QUSD peg stress: 50% QBC price crash, 90% reserve withdrawal | MEDIUM |
 | E13 | LOW | `bridge/` | No relayer incentive | Add relayer rewards for cross-chain message delivery (currently uncompensated) | MEDIUM |
@@ -248,7 +248,7 @@
 | # | Priority | File | Current State | Improvement | Effort |
 |---|----------|------|---------------|-------------|--------|
 | ~~S01~~ | ~~MEDIUM~~ | `scripts/deploy/deploy_qusd.py` | ~~Not deployed~~ | ~~8-contract deployment script: dependency-ordered, idempotent, dry-run mode, ERC-1967 proxy, contract_registry.json~~ | **DONE (Run #17)** |
-| S02 | MEDIUM | `contracts/solidity/qusd/QUSDOracle.sol` | No feeders | Initialize 3+ oracle feeders with price feed configuration | MEDIUM |
+| ~~S02~~ | ~~MEDIUM~~ | `scripts/deploy/init_oracle_feeders.py` + `deploy_qusd.py` | ~~No feeders~~ | ~~init_oracle_feeders.py: register 3 feeders + submit initial price. Integrated into deploy_qusd.py post-deploy~~ | **DONE (Run #18)** |
 | S03 | MEDIUM | `stablecoin/engine.py` | Independent | Wire Python engine to read from deployed QUSDReserve.sol for reserve ratio | MEDIUM |
 | ~~S04~~ | ~~MEDIUM~~ | `contracts/solidity/qusd/QUSD.sol` | ~~0.05% fee hardcoded~~ | ~~feeBps mutable + setFeeBps() with 10% cap + FeeBpsUpdated event~~ | **DONE (Run #14)** |
 | S05 | MEDIUM | `contracts/solidity/qusd/QUSDGovernance.sol` | Basic voting | Add delegation support (vote with staked QBC, not just held) | MEDIUM |
@@ -775,3 +775,20 @@ Focus on: Go QVM completion, formal verification, advanced features
 **Test result:** 2,786 passed, 0 failed (+29 key rotation tests)
 
 **Cumulative progress:** 92/148 completed (62.2%).
+
+### Run #18 — February 24, 2026
+
+**Scope:** Plugin discovery, event indexing, fee burning, oracle feeders, benchmarks
+
+**Items completed: 5** (V10, V16, E10, S02, B20)
+- **V10** — Dynamic plugin discovery: `discover_plugins(directory)` scans Python files for QVMPlugin subclasses, auto-instantiates and registers. `reload_plugin(name)` unloads and re-discovers for hot-reload.
+- **V16** — Event log indexing: `EventIndex` class (~290 lines) with EventLog dataclass, topic-based filtering, block range queries, LRU caching, persistence. Wired into `state.py` (_index_receipt_events), `jsonrpc.py` (eth_getLogs enhanced), `node.py` (EventIndex init).
+- **E10** — Fee burning: `FEE_BURN_PERCENTAGE` (default 50%) configurable via `.env`. Modified `_create_coinbase()` in mining engine to burn portion of collected fees. `total_fees_burned_metric` Gauge added. Tests updated in test_mining.py and test_load.py.
+- **S02** — Oracle feeders: `scripts/deploy/init_oracle_feeders.py` registers 3 oracle feeders and submits initial price. Integrated into `deploy_qusd.py` post-deploy step. `.env.example` updated with ORACLE_FEEDER_2/3, ORACLE_INITIAL_PRICE, ORACLE_MAX_AGE.
+- **B20** — Benchmark suite: 16 benchmarks in `tests/benchmarks/bench_core.py` covering block validation, VQE mining, DB queries, QVM execution, Phi calculation, SHA3 hashing, Dilithium signing. `@pytest.mark.benchmark` marker registered in conftest.py.
+
+**Files changed: 15** (plugins.py, new event_index.py, state.py, jsonrpc.py, node.py, mining/engine.py, config.py, metrics.py, deploy_qusd.py, .env.example, new init_oracle_feeders.py, conftest.py, test_mining.py, test_load.py, new benchmarks/)
+
+**Test result:** 2,786 passed, 0 failed
+
+**Cumulative progress:** 97/148 completed (65.5%).

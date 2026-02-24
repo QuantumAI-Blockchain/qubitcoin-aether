@@ -62,7 +62,7 @@ class TestConcurrentMining:
         assert len(errors) == 0, f"Concurrent read errors: {errors}"
 
     def test_coinbase_with_many_pending_txs(self):
-        """Coinbase creation with 1000 pending transactions."""
+        """Coinbase creation with 1000 pending transactions (fees partially burned)."""
         eng = self._make_engine()
         reward = Decimal('15.27')
         pending = []
@@ -71,7 +71,11 @@ class TestConcurrentMining:
             tx.fee = Decimal('0.001')
             pending.append(tx)
         cb = eng._create_coinbase(height=1, reward=reward, pending_txs=pending)
-        expected = reward + Decimal('1.0')  # 1000 * 0.001
+        total_fees = Decimal('1.0')  # 1000 * 0.001
+        from qubitcoin.config import Config
+        burn_pct = Decimal(str(Config.FEE_BURN_PERCENTAGE))
+        burned = (total_fees * burn_pct).quantize(Decimal('0.00000001'))
+        expected = reward + total_fees - burned
         assert cb.outputs[0]['amount'] == expected
 
 

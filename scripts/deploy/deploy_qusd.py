@@ -433,6 +433,54 @@ class QUSDDeployer:
         tx_hash = self.rpc.send_tx(to, data_hex)
         logger.info(f"  Config tx sent: {name} -> {tx_hash}")
 
+    def _init_oracle_feeders(self, oracle_addr: str) -> None:
+        """Register default oracle feeders and submit initial price.
+
+        Called automatically after QUSDOracle deployment.
+        Registers up to 3 feeders (node operator + 2 from .env) and submits
+        an initial QBC/USD price so the oracle is immediately usable.
+        """
+        logger.info("")
+        logger.info("[Post-deploy] Initializing oracle feeders...")
+
+        # Resolve feeders: deployer (always) + optional ORACLE_FEEDER_2/3
+        feeders: List[str] = [self.rpc.deployer]
+        feeder2 = os.getenv("ORACLE_FEEDER_2", "").strip()
+        if feeder2:
+            feeders.append(feeder2)
+        feeder3 = os.getenv("ORACLE_FEEDER_3", "").strip()
+        if feeder3:
+            feeders.append(feeder3)
+
+        # Step 1: Register each feeder via addFeeder(address)
+        for i, feeder in enumerate(feeders, 1):
+            data_hex = (
+                function_selector("addFeeder(address)")
+                + encode_address(feeder)
+            ).hex()
+            self.send_config_tx(f"QUSDOracle.addFeeder[{i}]", oracle_addr, data_hex)
+
+        # Step 2: Submit initial price from deployer (who is feeder #1)
+        initial_price = int(os.getenv("ORACLE_INITIAL_PRICE", "10000000"))  # $0.10 @ 8 dec
+        data_hex = (
+            function_selector("submitPrice(uint256)")
+            + encode_uint256(initial_price)
+        ).hex()
+        self.send_config_tx(
+            f"QUSDOracle.submitPrice({initial_price})",
+            oracle_addr,
+            data_hex,
+        )
+
+        # Step 3: Submit initial peg deviation (0 = at peg)
+        data_hex = (
+            function_selector("submitPegDeviation(int256)")
+            + encode_uint256(0)  # 0 bps, positive int, same encoding
+        ).hex()
+        self.send_config_tx("QUSDOracle.submitPegDeviation(0)", oracle_addr, data_hex)
+
+        logger.info(f"  Oracle initialized: {len(feeders)} feeders, price={initial_price}")
+
     def deploy_all(self) -> None:
         """Deploy all 8 QUSD contracts in dependency order."""
         logger.info("=" * 60)
@@ -536,6 +584,10 @@ class QUSDDeployer:
                 + encode_address(debt_addr)
             ).hex()
             self.send_config_tx("QUSDReserve.setDebtLedger", reserve_addr, config_data)
+
+        # Initialize oracle feeders (if oracle was deployed this run)
+        if "QUSDOracle" in self.deployed_this_run:
+            self._init_oracle_feeders(oracle_addr)
 
         # ── Summary ───────────────────────────────────────────────────
         logger.info("")
