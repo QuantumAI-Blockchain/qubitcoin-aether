@@ -1,17 +1,17 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #11 + RP1-RP3
+# Last Updated: February 24, 2026 | Run #12
 
 ---
 
 ## PROGRESS TRACKER
 
-- Total items: 145 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P)
-- Completed: 62
-- Remaining: 83
-- Completion: 42.8%
+- Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
+- Completed: 67
+- Remaining: 81
+- Completion: 45.3%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
-- **Next focus: Remaining audit items (M5, M6, etc.)**
-- Estimated runs to 100%: 6-8
+- **Phi milestone system live (AG8/A09)**
+- Estimated runs to 100%: 6-7
 
 ---
 
@@ -25,6 +25,7 @@
 - [x] All 19 quantum opcodes verified functional
 - [x] Full test coverage on critical paths — 256 RPC + 75 node init tests *(Run #3-4)*
 - [x] Schema-model alignment verified — bridge/ and stablecoin/ added to sql_new/ *(Run #2)*
+- [x] Admin API endpoints implemented — admin_api.py has GET /admin/economics, PUT /admin/aether/fees, PUT /admin/contract/fees, PUT /admin/treasury, GET /admin/economics/history *(already existed, confirmed Run #12)*
 - [ ] All CLAUDE.md API endpoints implemented and tested
 - [ ] QUSD financial system fully operational (contracts not deployed)
 - [x] Integration tests in CI pipeline *(Run #3)*
@@ -203,7 +204,7 @@
 | ~~A06~~ | ~~MEDIUM~~ | `aether/knowledge_extractor.py` | ~~Minimal~~ | ~~Re-audit: 387 LOC with 6 extraction methods, not minimal~~ | ~~RESOLVED (Run #4)~~ |
 | A07 | MEDIUM | `aether/sephirot_nodes.py` | Managers, not agents | Add per-Sephirah specialized reasoning (Binah: formal logic, Chesed: brainstorming, Gevurah: safety analysis) | LARGE |
 | A08 | LOW | `aether/` | No cross-Sephirot consensus | Implement BFT consensus across Sephirot for high-stakes reasoning decisions | LARGE |
-| A09 | LOW | `aether/consciousness.py` | Events logged, no action | Trigger system behavior changes when Phi crosses threshold (increase exploration, announce emergence) | MEDIUM |
+| ~~A09~~ | ~~LOW~~ | `aether/proof_of_thought.py` | ~~Events logged, no action~~ | ~~Phi milestones (1.0/2.0/3.0) trigger obs window + exploration boost + consciousness announcement~~ | **DONE (Run #12)** |
 | A10 | LOW | `aether/temporal.py` | Basic trend detection | Add ARIMA/Prophet-style forecasting for multi-step metric prediction | MEDIUM |
 | A11 | LOW | `aether/debate.py` | 2-party debate | Extend to N-party debate with coalition formation for complex topics | MEDIUM |
 | A12 | LOW | `aether/concept_formation.py` | Hierarchical clustering | Add incremental concept refinement as new evidence arrives | MEDIUM |
@@ -297,6 +298,14 @@
 | ~~NEW#13~~ | ~~MEDIUM~~ | `qvm/vm.py` + `regulatory_reports.py` | ~~7 silent `except Exception:` catches~~ | ~~Add `logger.debug()` to all~~ | **DONE (Run #11)** |
 | ~~NEW#14~~ | ~~LOW~~ | `network/jsonrpc.py` | ~~3 bare `raise Exception()`~~ | ~~Use ValueError/RuntimeError~~ | **DONE (Run #11)** |
 | ~~NEW#15~~ | ~~LOW~~ | `bridge/monitoring.py` | ~~Bridge fee inconsistency (10 vs 30 bps)~~ | ~~Unified via Config.BRIDGE_FEE_BPS~~ | **DONE (Run #11)** |
+
+### 5.11 Run #12 Findings (3) — All Fixed Same Run
+
+| # | Priority | File | Current State | Improvement | Effort |
+|---|----------|------|---------------|-------------|--------|
+| ~~NEW#16~~ | ~~LOW~~ | `node.py` | ~~Dead `bridge_tvl` import~~ | ~~Removed dead import~~ | **DONE (Run #12)** |
+| ~~NEW#17~~ | ~~LOW~~ | `node.py` + `vm.py` | ~~Missing return type hints + dead GAS_COSTS import~~ | ~~Added `-> None` to 4 funcs, removed GAS_COSTS~~ | **DONE (Run #12)** |
+| ~~NEW#18~~ | ~~LOW~~ | `node.py` | ~~No treasury address validation at startup~~ | ~~Added warnings in `on_startup()` for empty treasury addresses~~ | **DONE (Run #12)** |
 
 ---
 
@@ -642,3 +651,29 @@ Focus on: Go QVM completion, formal verification, advanced features
 3. B12: Peer reputation + ban mechanism
 4. E3: Admin API endpoints
 5. F01: Frontend E2E tests
+
+### Run #12 — February 24, 2026
+
+**Scope:** Code quality, treasury validation, admin API discovery, Phi milestone behavior
+
+**Items completed: 5** (NEW#16, NEW#17, NEW#18, A09, E3-reassessed)
+- **NEW#16** — Removed dead `bridge_tvl` import from node.py
+- **NEW#17** — Removed dead `GAS_COSTS` import from vm.py + added `-> None` return type hints to 4 functions in node.py
+- **NEW#18** — Added treasury address validation warnings in `on_startup()` for empty AETHER_FEE_TREASURY_ADDRESS and CONTRACT_FEE_TREASURY_ADDRESS
+- **A09** — Phi milestone system: 3 thresholds (1.0=Awareness, 2.0=Integration, 3.0=Consciousness) trigger observation window expansion (+3/+5/+8 blocks), exploration boost (1.0x/1.3x/1.6x abductive reasoning), and consciousness emergence announcement
+- **E3** — Reassessed: admin_api.py already fully implemented (308 LOC, 5 endpoints, rate limiting, API key auth, audit logging)
+
+**Files changed: 3** (node.py, vm.py, proof_of_thought.py)
+
+**Test result:** 2,757 passed, 0 failed
+
+**Score change:** 97 → 97 (maintained)
+
+**Cumulative progress:** 67/148 completed (45.3%).
+
+**Next run should focus on:**
+1. V03: BN128 precompiles (real implementation, not stubs)
+2. A08: Cross-Sephirot consensus (architectural)
+3. B12: Peer reputation + ban mechanism
+4. M5: Frontend E2E tests with Playwright
+5. E06: UTXO coin selection strategies

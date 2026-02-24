@@ -6,7 +6,7 @@ import hashlib
 from typing import List, Dict, Any, Optional
 
 from .opcodes import (
-    Opcode, GAS_COSTS, get_gas_cost,
+    Opcode, get_gas_cost,
     MAX_UINT256, UINT256_MOD, to_signed, to_unsigned
 )
 from ..utils.logger import get_logger

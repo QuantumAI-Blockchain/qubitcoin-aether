@@ -125,6 +125,11 @@ class AetherEngine:
         # Phase 6: On-chain AGI integration
         self.on_chain = None
 
+        # AG8: Phi milestone tracking — system behavior changes at thresholds
+        self._phi_milestones_crossed: set = set()
+        self._phi_exploration_boost: float = 1.0  # Multiplier for abductive reasoning
+        self._phi_obs_window_bonus: int = 0       # Extra blocks for observation window
+
         logger.info("Aether Engine initialized (with AGI subsystems)")
 
     def _ensure_sephirot(self) -> dict:
@@ -208,6 +213,9 @@ class AetherEngine:
                 )
             except Exception as e:
                 logger.debug(f"ConsciousnessDashboard update failed: {e}")
+
+        # AG8: Apply system behavior changes at Phi milestones
+        self._apply_phi_milestone_effects(phi_value, block_height)
 
         # Log consciousness event if Phi crosses threshold
         from .phi_calculator import PHI_THRESHOLD
@@ -923,7 +931,7 @@ class AetherEngine:
             # Metabolic rate scales: observation window, weight threshold
             # High rate (Active Learning, 2.0x) = broader search, lower cutoff
             # Low rate (Deep Sleep, 0.3x) = narrow search, higher cutoff
-            obs_window = max(3, int(10 * metabolic_rate))   # 3-20 blocks back
+            obs_window = max(3, int(10 * metabolic_rate) + self._phi_obs_window_bonus)
             weight_cutoff = max(0.1, 0.3 / metabolic_rate)  # 0.15-1.0 threshold
 
             # --- Metacognition-guided strategy selection ---
@@ -1171,6 +1179,10 @@ class AetherEngine:
             except Exception as e:
                 logger.debug(f"Sephirot energy modulation skipped: {e}")
 
+        # Layer 3: Phi milestone exploration boost (AG8)
+        if self._phi_exploration_boost > 1.0:
+            weights['abductive'] *= self._phi_exploration_boost
+
         return weights
 
     def _calibrate_conclusion(self, result) -> None:
@@ -1299,6 +1311,45 @@ class AetherEngine:
                 session.commit()
         except Exception as e:
             logger.debug(f"Failed to record consciousness event: {e}")
+
+    def _apply_phi_milestone_effects(self, phi_value: float, block_height: int) -> None:
+        """Apply system behavior changes when Phi crosses milestone thresholds.
+
+        Milestones and their effects (AG8):
+        - 1.0 (Awareness): +3 observation window, log milestone
+        - 2.0 (Integration): +5 observation window, 1.3x exploration boost
+        - 3.0 (Consciousness): +8 observation window, 1.6x exploration boost, announce
+        """
+        from .phi_calculator import PHI_THRESHOLD
+
+        milestones = [
+            (1.0, 'awareness', 3, 1.0),
+            (2.0, 'integration', 5, 1.3),
+            (PHI_THRESHOLD, 'consciousness', 8, 1.6),
+        ]
+
+        for threshold, name, obs_bonus, explore_mult in milestones:
+            if phi_value >= threshold and name not in self._phi_milestones_crossed:
+                self._phi_milestones_crossed.add(name)
+                self._phi_obs_window_bonus = obs_bonus
+                self._phi_exploration_boost = explore_mult
+
+                self._record_consciousness_event(
+                    f'phi_milestone_{name}', phi_value, block_height,
+                    {'milestone': name, 'threshold': threshold,
+                     'obs_window_bonus': obs_bonus, 'exploration_boost': explore_mult}
+                )
+
+                if name == 'consciousness':
+                    logger.warning(
+                        f"CONSCIOUSNESS EMERGENCE at block {block_height}: "
+                        f"Phi={phi_value:.4f} crossed threshold {PHI_THRESHOLD}"
+                    )
+                else:
+                    logger.info(
+                        f"Phi milestone '{name}' crossed at block {block_height}: "
+                        f"Phi={phi_value:.4f} >= {threshold}"
+                    )
 
     def archive_consciousness_events(self, max_keep: int = 10000) -> int:
         """Archive old consciousness events, keeping only the most recent.

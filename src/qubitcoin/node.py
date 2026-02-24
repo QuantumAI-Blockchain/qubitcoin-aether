@@ -49,7 +49,7 @@ from .utils.metrics import (
     # IPFS
     blockchain_snapshots_total,
     # Bridge
-    bridge_active_chains, bridge_tvl,
+    bridge_active_chains,
     # Compliance
     compliance_policies_total, compliance_blocked_addresses, compliance_circuit_breaker,
     sanctions_entries_total,
@@ -1076,6 +1076,14 @@ class QubitcoinNode:
         logger.info(f"Total Supply: {supply} QBC")
         logger.info("=" * 60)
 
+        # Validate critical config before launch
+        if not Config.AETHER_FEE_TREASURY_ADDRESS:
+            logger.warning("AETHER_FEE_TREASURY_ADDRESS not set — Aether chat fees will not be collected")
+        if not Config.CONTRACT_FEE_TREASURY_ADDRESS:
+            logger.warning("CONTRACT_FEE_TREASURY_ADDRESS not set — contract deployment fees will not be collected")
+        if not Config.ADDRESS:
+            logger.error("NODE ADDRESS not set — run scripts/setup/generate_keys.py first")
+
         # Initial metrics
         current_height_metric.set(height)
         total_supply_metric.set(float(supply))
@@ -1252,7 +1260,7 @@ class QubitcoinNode:
         except Exception as e:
             logger.error(f"Error processing P2P tx: {e}")
 
-    def on_block_mined(self, block_data: dict):
+    def on_block_mined(self, block_data: dict) -> None:
         """Called when mining engine successfully mines a block"""
         try:
             block_height = block_data.get('height', 'unknown')
@@ -1288,11 +1296,11 @@ class QubitcoinNode:
         except Exception as e:
             logger.error(f"Error broadcasting mined block: {e}")
 
-    def run(self):
+    def run(self) -> None:
         """Run the node"""
         import uvicorn
 
-        def signal_handler(signum, frame):
+        def signal_handler(signum: int, frame: object) -> None:
             logger.info(f"Received signal {signum}, shutting down...")
             sys.exit(0)
 
@@ -1307,7 +1315,7 @@ class QubitcoinNode:
             access_log=Config.DEBUG
         )
 
-def main():
+def main() -> None:
     """Main entry point"""
     try:
         node = QubitcoinNode()
