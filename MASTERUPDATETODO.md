@@ -1,14 +1,14 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #10
+# Last Updated: February 24, 2026 | Run #11
 
 ---
 
 ## PROGRESS TRACKER
 
-- Total items: 134 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 findings)
-- Completed: 49
-- Remaining: 85
-- Completion: 36.6%
+- Total items: 137 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 findings)
+- Completed: 54
+- Remaining: 83
+- Completion: 39.4%
 - Estimated runs to 100%: 5-7
 
 ---
@@ -209,7 +209,7 @@
 | E06 | MEDIUM | `utils/fee_collector.py` | Largest-first UTXO | Add coin selection strategies: smallest-first, random, privacy-preserving | MEDIUM |
 | E07 | MEDIUM | `stablecoin/engine.py` | Python only | Wire Python StablecoinEngine to QUSD.sol via QVM static_call for reserve verification | MEDIUM |
 | ~~E08~~ | ~~LOW~~ | `config.py` | ~~No emission verification~~ | ~~Added verify_emission_schedule(): monotonic decrease + bounded by MAX_SUPPLY~~ | ~~DONE (Run #6)~~ |
-| E09 | LOW | `bridge/` | 0.3% fee | Make bridge fee configurable per chain (some chains have higher gas) | SMALL |
+| ~~E09~~ | ~~LOW~~ | `bridge/` | ~~0.3% fee~~ | ~~Make bridge fee configurable per chain~~ | **DONE (Run #11)** — Config.BRIDGE_FEE_BPS |
 | E10 | LOW | `consensus/engine.py` | No fee burning | Consider EIP-1559-style base fee burn for deflationary pressure | MEDIUM |
 | E11 | LOW | `utils/` | No treasury dashboard | Add /treasury endpoint showing all collected fees, distributions, balances | MEDIUM |
 | E12 | LOW | `stablecoin/engine.py` | No stress test | Simulate QUSD peg stress: 50% QBC price crash, 90% reserve withdrawal | MEDIUM |
@@ -241,7 +241,7 @@
 | S13 | LOW | `stablecoin/` | No flash loans | Add flash loan support for QUSD (borrow + repay in single tx) | MEDIUM |
 | S14 | LOW | `contracts/solidity/qusd/` | No multi-sig | Add multi-sig requirement for admin functions (mint, parameter changes) | MEDIUM |
 | S15 | LOW | `stablecoin/` | No reserve audit | Add on-chain reserve attestation (Chainlink-style Proof of Reserve) | LARGE |
-| S16 | LOW | `contracts/solidity/qusd/QUSDOracle.sol` | Basic staleness | Add heartbeat monitoring: alert if no price update in 1 hour | SMALL |
+| ~~S16~~ | ~~LOW~~ | `QUSDOracle.sol` | ~~Basic staleness~~ | ~~Heartbeat monitoring~~ | **ALREADY DONE** — getPrice() reverts on stale, StalePriceDetected event, setMaxAge() |
 | S17 | LOW | `stablecoin/` | No yield | Add QUSD savings rate (earn yield on deposited QUSD, like DAI Savings Rate) | LARGE |
 | S18 | LOW | `stablecoin/` | No insurance | Add QUSD insurance fund (percentage of fees → insurance pool for black swan) | MEDIUM |
 | S19 | LOW | `contracts/solidity/qusd/` | No formal verification | Run Slither + Mythril on all 7 QUSD contracts | MEDIUM |
@@ -270,6 +270,14 @@
 | ~~NEW#10~~ | ~~LOW~~ | `tests/unit/test_qvm.py` | ~~EIP-3529 SSTORE gas refund untested~~ | ~~Add 6 gas refund tests~~ | **DONE (Run #10)** — 6 tests |
 | ~~NEW#11~~ | ~~LOW~~ | `6 source files` | ~~9 public methods missing return type hints~~ | ~~Add `-> None` hints~~ | **DONE (Run #10)** |
 | ~~NEW#12~~ | ~~LOW~~ | `qvm/debugger.py` | ~~Unused `Callable` import~~ | ~~Remove dead import~~ | **DONE (Run #10)** |
+
+### 5.10 Run #11 Findings (3) — All Fixed Same Run
+
+| # | Priority | File | Current State | Improvement | Effort |
+|---|----------|------|---------------|-------------|--------|
+| ~~NEW#13~~ | ~~MEDIUM~~ | `qvm/vm.py` + `regulatory_reports.py` | ~~7 silent `except Exception:` catches~~ | ~~Add `logger.debug()` to all~~ | **DONE (Run #11)** |
+| ~~NEW#14~~ | ~~LOW~~ | `network/jsonrpc.py` | ~~3 bare `raise Exception()`~~ | ~~Use ValueError/RuntimeError~~ | **DONE (Run #11)** |
+| ~~NEW#15~~ | ~~LOW~~ | `bridge/monitoring.py` | ~~Bridge fee inconsistency (10 vs 30 bps)~~ | ~~Unified via Config.BRIDGE_FEE_BPS~~ | **DONE (Run #11)** |
 
 ---
 
@@ -585,6 +593,32 @@ Focus on: Go QVM completion, formal verification, advanced features
 
 **Next run should focus on:**
 1. Q1/V03: BN128 precompiles (ecAdd/ecMul/ecPairing — returns zeros)
+2. AG7: Cross-Sephirot consensus (architectural)
+3. B12: Peer reputation + ban mechanism
+4. E3: Admin API endpoints
+5. F01: Frontend E2E tests
+
+### Run #11 — February 24, 2026
+
+**Scope:** Code quality hardening, exception hygiene, bridge fee configurability, precompile test coverage
+
+**Items completed: 5** (NEW#13, NEW#14, E09, V08, S16-reassessed)
+- **NEW#13** — 7 silent `except Exception:` catches → `logger.debug()` (5 in vm.py + 2 in regulatory_reports.py)
+- **NEW#14** — 3 bare `raise Exception()` in jsonrpc.py → `ValueError`/`RuntimeError`
+- **E09** — Bridge fee → `Config.BRIDGE_FEE_BPS` env-configurable. monitoring.py unified.
+- **V08** — 4 new precompile tests (blake2f, ecAdd stub, ecPairing stub, unknown revert)
+- **S16** — Reassessed: QUSDOracle already has staleness detection. Marked done.
+
+**Files changed: 9** (vm.py, regulatory_reports.py, jsonrpc.py, config.py, bridge/base.py, bridge/monitoring.py, .env.example, test_qvm.py, test_batch43.py)
+
+**Test result:** 2,724 passed, 0 failed
+
+**Score change:** 97 → 97 (maintained)
+
+**Cumulative progress:** 54/137 completed (39.4%).
+
+**Next run should focus on:**
+1. Q1/V03: BN128 precompiles (real implementation, not stubs)
 2. AG7: Cross-Sephirot consensus (architectural)
 3. B12: Peer reputation + ban mechanism
 4. E3: Admin API endpoints

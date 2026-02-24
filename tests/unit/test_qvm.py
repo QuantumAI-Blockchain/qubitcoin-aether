@@ -431,6 +431,36 @@ class TestQVMPrecompiles:
         assert len(result.return_data) == 32
         assert result.return_data[:12] == b'\x00' * 12  # left-padded
 
+    def test_blake2f_precompile(self):
+        """Precompile 0x09: blake2f returns 64 bytes."""
+        qvm = self._make_qvm()
+        result = qvm._execute_precompile(9, b'\x00' * 213, gas=10000)
+        assert result.success is True
+        assert len(result.return_data) == 64
+
+    def test_ecadd_stub_precompile(self):
+        """Precompile 0x06: ecAdd stub returns 64 zero bytes."""
+        qvm = self._make_qvm()
+        result = qvm._execute_precompile(6, b'\x00' * 128, gas=10000)
+        assert result.success is True
+        assert result.return_data == b'\x00' * 64
+        assert result.gas_used == 150
+
+    def test_ecpairing_stub_precompile(self):
+        """Precompile 0x08: ecPairing stub returns 32 zero bytes."""
+        qvm = self._make_qvm()
+        result = qvm._execute_precompile(8, b'\x00' * 192, gas=100000)
+        assert result.success is True
+        assert result.return_data == b'\x00' * 32
+        assert result.gas_used == 45000
+
+    def test_unknown_precompile_reverts(self):
+        """Unknown precompile address reverts with error."""
+        qvm = self._make_qvm()
+        result = qvm._execute_precompile(99, b'', gas=10000)
+        assert result.success is False
+        assert 'Unknown precompile' in result.revert_reason
+
 
 class TestQVMClasses:
     """Test ExecutionResult and error classes."""

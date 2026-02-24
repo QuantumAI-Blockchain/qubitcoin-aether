@@ -40,7 +40,10 @@ CONFIRMATION_DEPTHS: Dict[str, int] = {
 # ── Default Daily Limits (QBC) ─────────────────────────────────────────
 DEFAULT_DAILY_LIMIT: float = 1_000_000.0  # 1M QBC per chain per day
 DEFAULT_SINGLE_TX_LIMIT: float = 100_000.0  # 100K QBC per single transfer
-BRIDGE_FEE_BPS: int = 10  # 0.1% fee (10 basis points)
+# Bridge fee loaded from Config.BRIDGE_FEE_BPS (default 30 bps = 0.3%)
+# This module-level constant is kept for backward compatibility as a fallback.
+from ..config import Config as _Config
+BRIDGE_FEE_BPS: int = _Config.BRIDGE_FEE_BPS
 
 
 class TransferStatus(Enum):

@@ -389,8 +389,8 @@ class TestTransferTracker:
             amount=1000.0,
         )
         assert result["success"] is True
-        assert result["fee"] == 1.0  # 0.1% of 1000
-        assert result["net_amount"] == 999.0
+        assert result["fee"] == 3.0  # 0.3% of 1000 (Config.BRIDGE_FEE_BPS=30)
+        assert result["net_amount"] == 997.0
 
     def test_initiate_exceeds_single_limit(self):
         from qubitcoin.bridge.monitoring import TransferDirection
@@ -519,5 +519,5 @@ class TestTransferTracker:
         t.initiate_transfer("e1", "eth", TransferDirection.DEPOSIT, "a", "b", 100.0)
         stats = t.get_stats()
         assert stats["total_transfers"] == 1
-        assert stats["fee_bps"] == 10
+        assert stats["fee_bps"] == 30  # Config.BRIDGE_FEE_BPS default
         assert stats["paused"] is False

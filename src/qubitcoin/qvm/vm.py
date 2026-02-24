@@ -686,7 +686,8 @@ class QVM:
                 if old_val_hex is None and self.db:
                     try:
                         old_val_hex = self.db.get_storage(ctx.address, key_hex)
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"SSTORE old value fetch failed: {e}")
                         old_val_hex = '0' * 64
                 old_val_hex = old_val_hex or ('0' * 64)
                 try:
@@ -800,7 +801,8 @@ class QVM:
                     from ..quantum.crypto import Dilithium2
                     valid = Dilithium2.verify(pk, msg, sig)
                     ctx.push(1 if valid else 0)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"QDILITHIUM verify failed: {e}")
                     ctx.push(0)
             elif op == Opcode.QGATE:
                 # Apply quantum gate to qubit register
@@ -821,7 +823,8 @@ class QVM:
                             param = 0.0
                         # Push success (1) — gate application recorded in quantum state
                         ctx.push(1)
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"QGATE apply failed: {e}")
                         ctx.push(0)
                 else:
                     ctx.push(0)
@@ -988,8 +991,8 @@ class QVM:
                         )
                         if result.success:
                             confidence_scaled = int(result.confidence * 10**18)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"QREASON chain_of_thought failed: {e}")
                 ctx.push(confidence_scaled & MAX_UINT256)
 
             elif op == Opcode.QPHI:
@@ -1000,8 +1003,8 @@ class QVM:
                     try:
                         phi_data = self._aether_engine.phi.compute_phi()
                         phi_scaled = int(phi_data.get('phi_value', 0) * 10**18)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"QPHI compute failed: {e}")
                 ctx.push(phi_scaled & MAX_UINT256)
 
             # ================================================================

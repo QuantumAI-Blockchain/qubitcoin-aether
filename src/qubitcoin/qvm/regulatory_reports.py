@@ -352,7 +352,8 @@ class RegulatoryReportGenerator:
                 'tiers': tier_counts,
                 'kyc_levels': kyc_counts,
             }
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Policy summary failed: {e}")
             return {'total_policies': 0, 'active': False}
 
     def _get_proof_summary(self, block_start: int,
@@ -370,7 +371,8 @@ class RegulatoryReportGenerator:
                 'active': True,
                 'block_range': [block_start, block_end],
             }
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Proof summary failed: {e}")
             return {'total_proofs': 0, 'active': False}
 
     @staticmethod

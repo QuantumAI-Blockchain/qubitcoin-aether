@@ -303,7 +303,7 @@ class JsonRpcHandler:
         """
         raw_tx = params[0] if params else ''
         if not raw_tx or raw_tx == '0x':
-            raise Exception("Empty transaction data")
+            raise ValueError("Empty transaction data")
 
         raw_hex = raw_tx.replace('0x', '')
         raw_bytes = bytes.fromhex(raw_hex)
@@ -332,7 +332,7 @@ class JsonRpcHandler:
             # Validate sender balance
             sender_bal = self.db.get_account_balance(sender)
             if sender_bal < value_qbc:
-                raise Exception(f"Insufficient balance: have {sender_bal}, need {value_qbc}")
+                raise ValueError(f"Insufficient balance: have {sender_bal}, need {value_qbc}")
 
             # Execute the transaction
             if to_addr and data_hex and self.qvm:
@@ -413,7 +413,7 @@ class JsonRpcHandler:
                 session.commit()
             return '0x' + tx_hash
         except Exception as e:
-            raise Exception(f"Failed to process transaction: {e}")
+            raise RuntimeError(f"Failed to process transaction: {e}") from e
 
     async def eth_sendTransaction(self, params: list) -> str:
         """Accept a transaction object and route deploys/calls through StateManager.

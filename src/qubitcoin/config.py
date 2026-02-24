@@ -187,6 +187,11 @@ class Config:
     CONTRACT_TEMPLATE_DISCOUNT: float = float(os.getenv('CONTRACT_TEMPLATE_DISCOUNT', '0.5'))
 
     # ============================================================================
+    # BRIDGE FEES (editable)
+    # ============================================================================
+    BRIDGE_FEE_BPS: int = int(os.getenv('BRIDGE_FEE_BPS', '30'))  # Basis points (30 = 0.3%)
+
+    # ============================================================================
     # ON-CHAIN AGI CONTRACT ADDRESSES (set after deployment)
     # ============================================================================
     CONSCIOUSNESS_DASHBOARD_ADDRESS: str = os.getenv('CONSCIOUSNESS_DASHBOARD_ADDRESS', '')

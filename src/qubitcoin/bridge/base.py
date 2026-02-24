@@ -146,17 +146,20 @@ class BaseBridge(ABC):
     # HELPER METHODS (Implemented for all bridges)
     # ========================================================================
 
-    def _calculate_bridge_fee(self, amount: Decimal, fee_bps: int = 30) -> Decimal:
+    def _calculate_bridge_fee(self, amount: Decimal, fee_bps: Optional[int] = None) -> Decimal:
         """
         Calculate bridge fee
-        
+
         Args:
             amount: Amount to bridge
-            fee_bps: Fee in basis points (30 = 0.3%)
-            
+            fee_bps: Fee in basis points (default: Config.BRIDGE_FEE_BPS)
+
         Returns:
             Fee amount
         """
+        if fee_bps is None:
+            from ..config import Config
+            fee_bps = Config.BRIDGE_FEE_BPS
         return (amount * Decimal(fee_bps)) / Decimal(10000)
 
     async def _create_deposit_record(
