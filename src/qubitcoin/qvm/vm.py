@@ -491,6 +491,24 @@ def _bn128_pairing_check(pairs: list) -> bool:
     return _fp12_eq(result, _fp12_one())
 
 
+def _opcode_name(op: int, pc: int = 0, code: bytes = b'') -> str:
+    """Return a human-readable name for an opcode byte."""
+    try:
+        return Opcode(op).name
+    except ValueError:
+        pass
+    # PUSH1-PUSH32 range handled by enum, but in case:
+    if 0x60 <= op <= 0x7f:
+        return f"PUSH{op - 0x5f}"
+    if 0x80 <= op <= 0x8f:
+        return f"DUP{op - 0x7f}"
+    if 0x90 <= op <= 0x9f:
+        return f"SWAP{op - 0x8f}"
+    if 0xa0 <= op <= 0xa4:
+        return f"LOG{op - 0xa0}"
+    return f"UNKNOWN(0x{op:02x})"
+
+
 class OutOfGasError(ExecutionError):
     """Raised when gas is exhausted"""
     pass
@@ -927,8 +945,129 @@ class QVM:
         result = self.execute(caller, address, code, data, is_static=True)
         return result.return_data if result.success else b''
 
-    def _run(self, ctx: ExecutionContext):
-        """Main execution loop"""
+    def execute_with_trace(
+        self,
+        caller: str,
+        address: str,
+        code: bytes,
+        data: bytes = b'',
+        value: int = 0,
+        gas: int = 30_000_000,
+        origin: str = '',
+        is_static: bool = False,
+    ) -> Dict[str, Any]:
+        """Re-execute bytecode and return an opcode-by-opcode execution trace.
+
+        Returns a dict compatible with the Geth ``debug_traceTransaction``
+        format::
+
+            {
+                "gas": <total gas used>,
+                "failed": <bool>,
+                "returnValue": "<hex>",
+                "structLogs": [
+                    {
+                        "pc": <int>,
+                        "op": "<OPCODE_NAME>",
+                        "opNum": <int>,
+                        "gas": <remaining gas>,
+                        "gasCost": <cost of this op>,
+                        "depth": <call depth>,
+                        "stack": ["0x..."],
+                        "memory": "<hex>" | null,
+                        "error": "<msg>" | null
+                    },
+                    ...
+                ]
+            }
+
+        Memory is included only for the first 256 bytes to keep responses
+        manageable.  The trace limit is 10 000 steps to prevent runaway
+        responses on large contracts.
+        """
+        MAX_TRACE_STEPS = 10_000
+
+        if not origin:
+            origin = caller
+
+        # Clear storage cache for a clean top-level trace
+        self._storage_cache = {}
+
+        ctx = ExecutionContext(
+            caller=caller,
+            address=address,
+            origin=origin,
+            gas=gas,
+            value=value,
+            data=data,
+            code=code,
+            is_static=is_static,
+            depth=0,
+        )
+
+        struct_logs: List[Dict[str, Any]] = []
+        error_msg: Optional[str] = None
+
+        try:
+            while ctx.pc < len(ctx.code) and not ctx.stopped:
+                op = ctx.code[ctx.pc]
+                op_name = _opcode_name(op, ctx.pc, ctx.code)
+                gas_before = ctx.gas - ctx.gas_used
+                gas_cost = get_gas_cost(op)
+
+                # Capture pre-execution state
+                entry: Dict[str, Any] = {
+                    "pc": ctx.pc,
+                    "op": op_name,
+                    "opNum": op,
+                    "gas": gas_before,
+                    "gasCost": gas_cost,
+                    "depth": ctx.depth,
+                    "stack": [hex(v) for v in ctx.stack],
+                    "error": None,
+                }
+                # Include first 256 bytes of memory (hex)
+                if ctx.memory:
+                    entry["memory"] = bytes(ctx.memory[:256]).hex()
+                else:
+                    entry["memory"] = None
+
+                struct_logs.append(entry)
+                if len(struct_logs) >= MAX_TRACE_STEPS:
+                    error_msg = f"Trace truncated at {MAX_TRACE_STEPS} steps"
+                    break
+
+                # Execute exactly one opcode via _run(single_step=True).
+                try:
+                    self._run(ctx, single_step=True)
+                except (OutOfGasError, ExecutionError) as step_err:
+                    entry["error"] = str(step_err)
+                    error_msg = str(step_err)
+                    break
+
+        except Exception as e:
+            error_msg = f"Internal error: {str(e)}"
+
+        # Build result
+        gas_used = ctx.gas_used
+        refund = 0
+        if not ctx.reverted:
+            refund = min(ctx.gas_refund, gas_used // 5)
+        gas_used -= refund
+
+        return {
+            "gas": gas_used,
+            "failed": ctx.reverted or (error_msg is not None),
+            "returnValue": ctx.return_data.hex() if ctx.return_data else "",
+            "structLogs": struct_logs,
+        }
+
+    def _run(self, ctx: ExecutionContext, single_step: bool = False):
+        """Main execution loop.
+
+        Args:
+            single_step: If True, execute exactly one opcode and return.
+        """
         while ctx.pc < len(ctx.code) and not ctx.stopped:
             op = ctx.code[ctx.pc]
 
@@ -1737,3 +1876,6 @@ class QVM:
                 raise ExecutionError(f"Unknown opcode: 0x{op:02x}")
 
             ctx.pc += 1
+
+            if single_step:
+                return

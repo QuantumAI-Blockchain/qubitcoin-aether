@@ -1937,6 +1937,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         amount: str
         signature_hex: str
         public_key_hex: str
+        utxo_strategy: str = 'largest_first'  # largest_first | smallest_first | exact_match
 
     @app.post("/wallet/send")
     async def wallet_send(req: WalletSendRequest):
@@ -1948,6 +1949,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         amount = Decimal(req.amount)
         if amount <= 0:
             raise HTTPException(status_code=400, detail="Amount must be positive")
+
+        strategy = req.utxo_strategy
+        if strategy not in ('largest_first', 'smallest_first', 'exact_match'):
+            raise HTTPException(status_code=400, detail="Invalid utxo_strategy. Must be: largest_first, smallest_first, exact_match")
 
         # Verify Dilithium signature
         pk = bytes.fromhex(req.public_key_hex)
@@ -1962,16 +1967,32 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not Dilithium2.verify(pk, msg, sig):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
-        # Select UTXOs
+        # Select UTXOs using requested strategy
         utxos = db_manager.get_utxos(req.from_address)
-        utxos.sort(key=lambda u: u.amount, reverse=True)
-        selected = []
-        total = Decimal(0)
-        for u in utxos:
-            selected.append(u)
-            total += u.amount
-            if total >= amount:
-                break
+
+        if strategy == 'exact_match':
+            # Try to find a single UTXO that exactly covers the amount
+            exact = [u for u in utxos if u.amount == amount]
+            if exact:
+                selected = [exact[0]]
+                total = exact[0].amount
+            else:
+                # Fall back to smallest_first
+                strategy = 'smallest_first'
+
+        if strategy == 'smallest_first':
+            utxos.sort(key=lambda u: u.amount)
+        elif strategy == 'largest_first':
+            utxos.sort(key=lambda u: u.amount, reverse=True)
+
+        if strategy != 'exact_match':
+            selected = []
+            total = Decimal(0)
+            for u in utxos:
+                selected.append(u)
+                total += u.amount
+                if total >= amount:
+                    break
         if total < amount:
             raise HTTPException(status_code=400, detail=f"Insufficient balance: have {total}, need {amount}")
 
@@ -4184,6 +4205,80 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not memory:
             raise HTTPException(status_code=404, detail="Memory not found")
         return memory
+
+    # ========================================================================
+    # QVM TRACE / DEBUG
+    # ========================================================================
+
+    @app.get("/qvm/trace/{tx_hash}")
+    async def trace_transaction(tx_hash: str):
+        """Re-execute a transaction and return an opcode-by-opcode execution trace.
+
+        Returns a Geth-compatible ``debug_traceTransaction`` response with
+        ``structLogs`` containing pc, op, gas, gasCost, stack, and memory
+        for each executed opcode.
+        """
+        if not state_manager:
+            raise HTTPException(status_code=503, detail="QVM not available")
+
+        tx_hash_clean = tx_hash.replace("0x", "")
+
+        # Look up the transaction to get its parameters
+        from sqlalchemy import text as sa_text
+        with db_manager.get_session() as session:
+            row = session.execute(
+                sa_text("""
+                    SELECT txid, to_address, data, gas_limit, nonce, block_height
+                    FROM transactions WHERE txid = :txid
+                """),
+                {"txid": tx_hash_clean},
+            ).fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+
+        to_address = row[1] or ""
+        data_hex = row[2] or ""
+        gas_limit = row[3] or 30_000_000
+        block_height = row[5] or 0
+
+        # Get the sender from the receipt
+        receipt = db_manager.get_receipt(tx_hash_clean)
+        from_address = receipt.from_address if receipt else "0" * 40
+
+        # Get contract bytecode for re-execution
+        bytecode_hex = ""
+        if to_address:
+            bytecode_hex = db_manager.get_contract_bytecode(to_address) or ""
+
+        if not bytecode_hex and not to_address:
+            # Contract deploy: the data IS the init code
+            bytecode_hex = data_hex
+
+        if not bytecode_hex:
+            raise HTTPException(
+                status_code=400,
+                detail="No bytecode found for transaction target"
+            )
+
+        # Re-execute with tracing
+        try:
+            code = bytes.fromhex(bytecode_hex)
+            calldata = bytes.fromhex(data_hex) if data_hex else b""
+
+            trace = state_manager.qvm.execute_with_trace(
+                caller=from_address,
+                address=to_address or "0" * 40,
+                code=code,
+                data=calldata,
+                gas=gas_limit,
+                origin=from_address,
+                is_static=True,  # read-only re-execution
+            )
+            return trace
+        except Exception as e:
+            logger.error(f"Trace execution error: {e}")
+            raise HTTPException(status_code=500, detail=f"Trace failed: {str(e)}")
 
     # ========================================================================
     # ADMIN API (Economics hot-reload)

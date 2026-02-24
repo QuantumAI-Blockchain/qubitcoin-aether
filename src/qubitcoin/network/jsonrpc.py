@@ -181,6 +181,9 @@ class JsonRpcHandler:
             # Mining
             'eth_mining': self.eth_mining,
             'eth_hashrate': self.eth_hashrate,
+
+            # Debug
+            'debug_traceTransaction': self.debug_traceTransaction,
         }
 
     async def handle(self, request: JsonRpcRequest) -> JsonRpcResponse:
@@ -590,6 +593,73 @@ class JsonRpcHandler:
 
     async def eth_hashrate(self, params):
         return hex_int(0)
+
+    # ========================================================================
+    # DEBUG METHODS
+    # ========================================================================
+    async def debug_traceTransaction(self, params):
+        """Re-execute a transaction and return an opcode-by-opcode trace.
+
+        Params:
+            [tx_hash, {optional trace options}]
+
+        Returns a Geth-compatible trace with structLogs.
+        """
+        if not params:
+            raise ValueError("Missing transaction hash parameter")
+
+        tx_hash = params[0].replace("0x", "")
+
+        # Look up the transaction
+        from sqlalchemy import text as sql_text
+        with self.db.get_session() as session:
+            row = session.execute(
+                sql_text("""
+                    SELECT txid, to_address, data, gas_limit, nonce, block_height
+                    FROM transactions WHERE txid = :txid
+                """),
+                {"txid": tx_hash},
+            ).fetchone()
+
+        if not row:
+            raise ValueError(f"Transaction not found: {tx_hash}")
+
+        to_address = row[1] or ""
+        data_hex = row[2] or ""
+        gas_limit = row[3] or 30_000_000
+        block_height = row[5] or 0
+
+        # Get sender from receipt
+        receipt = self.db.get_receipt(tx_hash)
+        from_address = receipt.from_address if receipt else "0" * 40
+
+        # Get contract bytecode
+        bytecode_hex = ""
+        if to_address:
+            bytecode_hex = self.db.get_contract_bytecode(to_address) or ""
+
+        if not bytecode_hex and not to_address:
+            bytecode_hex = data_hex
+
+        if not bytecode_hex:
+            raise ValueError("No bytecode found for transaction target")
+
+        if not self.qvm:
+            raise ValueError("QVM not available")
+
+        code = bytes.fromhex(bytecode_hex)
+        calldata = bytes.fromhex(data_hex) if data_hex else b""
+
+        trace = self.qvm.qvm.execute_with_trace(
+            caller=from_address,
+            address=to_address or "0" * 40,
+            code=code,
+            data=calldata,
+            gas=gas_limit,
+            origin=from_address,
+            is_static=True,
+        )
+        return trace
 
 
 def _serialize(model):

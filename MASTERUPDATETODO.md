@@ -1,14 +1,14 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #16
+# Last Updated: February 24, 2026 | Run #17
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 87
-- Remaining: 61
-- Completion: 58.8%
+- Completed: 92
+- Remaining: 56
+- Completion: 62.2%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
 - **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
@@ -130,7 +130,7 @@
 | F06 | LOW | `frontend/` | No Storybook | Add Storybook for component documentation and visual testing | MEDIUM |
 | ~~F07~~ | ~~LOW~~ | `frontend/src/app/` | ~~No SEO meta~~ | ~~OpenGraph + Twitter Card on root layout + per-page metadata (aether, dashboard, wallet, qvm)~~ | **DONE (Run #13)** |
 | F08 | LOW | `frontend/src/components/aether/knowledge-graph-3d.tsx` | O(n^2) force | Add Barnes-Hut approximation for >1000 nodes (O(n log n)) | MEDIUM |
-| F09 | LOW | `frontend/src/components/wallet/native-wallet.tsx` | Basic tx builder | Add UTXO coin selection strategy (smallest-first, privacy-preserving) | MEDIUM |
+| ~~F09~~ | ~~LOW~~ | `frontend/src/components/wallet/native-wallet.tsx` + `rpc.py` | ~~Basic tx builder~~ | ~~UTXO strategy dropdown (largest_first/smallest_first/exact_match) in SendPanel + backend support~~ | **DONE (Run #17)** |
 | ~~F10~~ | ~~LOW~~ | `frontend/src/lib/api.ts` | ~~No retry~~ | ~~Exponential backoff: 3 retries, 500ms base, skip 4xx except 429~~ | **DONE (Run #13)** |
 | F11 | LOW | `frontend/src/stores/` | No offline | Add offline-first capability with service worker + IndexedDB cache | LARGE |
 | F12 | LOW | `frontend/` | No i18n | Add internationalization framework (next-intl) for multi-language | LARGE |
@@ -148,7 +148,7 @@
 | # | Priority | File | Current State | Improvement | Effort |
 |---|----------|------|---------------|-------------|--------|
 | ~~B01~~ | ~~CRITICAL~~ | `tests/` | ~~~10 RPC tests~~ | ~~Added 100 new tests in test_rpc_endpoints_extended.py~~ | ~~DONE (Run #3)~~ |
-| B02 | CRITICAL | `sql_new/` | Missing bridge + stablecoin | Create sql_new/bridge/ and sql_new/stablecoin/ from legacy sql/ | MEDIUM |
+| ~~B02~~ | ~~CRITICAL~~ | `sql_new/bridge/` + `sql_new/stablecoin/` | ~~Missing bridge + stablecoin~~ | ~~Verified complete: 2 bridge schemas + 2 stablecoin schemas, improved over legacy with indexes and FKs~~ | **DONE (Run #2, verified Run #17)** |
 | B03 | CRITICAL | `rust-p2p/` | Dead event loop | Decision: remove Rust P2P OR implement run() with real P2P logic | LARGE |
 | ~~B04~~ | ~~HIGH~~ | `.github/workflows/ci.yml` | ~~Unit tests only~~ | ~~Added integration-test job with CockroachDB service~~ | ~~DONE (Run #3)~~ |
 | ~~B05~~ | ~~HIGH~~ | `tests/unit/test_node_init.py` | ~~0 tests~~ | ~~Added 75 tests: 22-component init, degradation, shutdown, metrics~~ | ~~DONE (Run #4)~~ |
@@ -161,7 +161,7 @@
 | ~~B12~~ | ~~MEDIUM~~ | `network/p2p_network.py` | ~~No peer banning~~ | ~~Peer scoring wired: +5 valid block, -25 invalid block, -50 oversized msg, -1/min idle decay, evict at score <10~~ | **DONE (Run #13)** |
 | B13 | MEDIUM | `database/` | Raw SQL queries | Generate SQLAlchemy ORM models for all 55 tables | LARGE |
 | B14 | LOW | `quantum/engine.py` | Local estimator only | Add GPU-accelerated qiskit-aer backend option | MEDIUM |
-| B15 | LOW | `quantum/crypto.py` | No key rotation | Add key rotation mechanism with old-key grace period | MEDIUM |
+| ~~B15~~ | ~~LOW~~ | `quantum/crypto.py` | ~~No key rotation~~ | ~~KeyRotationManager: rotate_keys(), grace period verification, revoke_key(), status reporting. 29 tests~~ | **DONE (Run #17)** |
 | ~~B16~~ | ~~LOW~~ | `network/rpc.py` | ~~No eth_subscribe~~ | ~~/ws/jsonrpc endpoint with eth_subscribe/eth_unsubscribe, newHeads + pendingTransactions auto-broadcast~~ | **DONE (Run #15)** |
 | B17 | LOW | `privacy/` | Not integrated in consensus | Wire Susy Swap validation into block validation pipeline | MEDIUM |
 | B18 | LOW | `bridge/` | No validator rewards | Implement bridge validator reward distribution per verified proof | MEDIUM |
@@ -184,7 +184,7 @@
 | V10 | LOW | `qvm/plugins.py` | Manual registration | Add dynamic plugin discovery and hot-reload mechanism | MEDIUM |
 | V11 | LOW | `qvm/` | No EIP-1559 | Add base fee + priority fee (EIP-1559 type 2 transactions) | MEDIUM |
 | V12 | LOW | `qvm/` | No access lists | Implement EIP-2930 access list transactions for gas optimization | MEDIUM |
-| V13 | LOW | `qvm/` | No debug_traceTransaction | Add execution trace endpoint for Remix/Hardhat debugging | MEDIUM |
+| ~~V13~~ | ~~LOW~~ | `qvm/vm.py` + `rpc.py` + `jsonrpc.py` | ~~No debug_traceTransaction~~ | ~~execute_with_trace() + /qvm/trace/{tx_hash} REST + debug_traceTransaction JSON-RPC (Geth-compatible structLogs)~~ | **DONE (Run #17)** |
 | V14 | LOW | `contracts/solidity/` | No formal verification | Run Slither + Mythril static analysis on all 49 contracts | MEDIUM |
 | V15 | LOW | `qvm/` | No contract upgrades | Add transparent proxy upgrade pattern support (EIP-1967) | MEDIUM |
 | V16 | LOW | `qvm/` | No event indexing | Add event log indexing with topic-based filtering | MEDIUM |
@@ -247,7 +247,7 @@
 
 | # | Priority | File | Current State | Improvement | Effort |
 |---|----------|------|---------------|-------------|--------|
-| S01 | MEDIUM | `contracts/solidity/qusd/` | Not deployed | Create deployment script for 7 QUSD contracts (ordered by dependency) | MEDIUM |
+| ~~S01~~ | ~~MEDIUM~~ | `scripts/deploy/deploy_qusd.py` | ~~Not deployed~~ | ~~8-contract deployment script: dependency-ordered, idempotent, dry-run mode, ERC-1967 proxy, contract_registry.json~~ | **DONE (Run #17)** |
 | S02 | MEDIUM | `contracts/solidity/qusd/QUSDOracle.sol` | No feeders | Initialize 3+ oracle feeders with price feed configuration | MEDIUM |
 | S03 | MEDIUM | `stablecoin/engine.py` | Independent | Wire Python engine to read from deployed QUSDReserve.sol for reserve ratio | MEDIUM |
 | ~~S04~~ | ~~MEDIUM~~ | `contracts/solidity/qusd/QUSD.sol` | ~~0.05% fee hardcoded~~ | ~~feeBps mutable + setFeeBps() with 10% cap + FeeBpsUpdated event~~ | **DONE (Run #14)** |
@@ -758,3 +758,20 @@ Focus on: Go QVM completion, formal verification, advanced features
 **Test result:** 2,757 passed, 0 failed
 
 **Cumulative progress:** 87/148 completed (58.8%).
+
+### Run #17 — February 24, 2026
+
+**Scope:** QUSD deployment, key rotation, execution tracing, UTXO strategy UI
+
+**Items completed: 5** (B02, B15, V13, S01, F09)
+- **B02** — Verified: sql_new/bridge/ (2 files) and sql_new/stablecoin/ (2 files) complete with improvements over legacy schemas. Originally done Run #2, verified this run.
+- **B15** — KeyRotationManager: `rotate_keys()` generates new Dilithium keypair, retires old with configurable grace period (default 7 days). Accepts both keys during grace. `revoke_key()`, `is_key_accepted()`, `get_status()`. 29 unit tests.
+- **V13** — debug_traceTransaction: `execute_with_trace()` in QVM with single-step mode. `/qvm/trace/{tx_hash}` REST endpoint. `debug_traceTransaction` JSON-RPC with Geth-compatible structLogs format.
+- **S01** — QUSD deployment script: `scripts/deploy/deploy_qusd.py` deploys 8 contracts in dependency order (Oracle→Governance→Reserve→QUSD→DebtLedger→Stabilizer→Allocation→wQUSD). Idempotent, dry-run mode, ERC-1967 proxy, updates contract_registry.json.
+- **F09** — UTXO coin selection UI: strategy dropdown in SendPanel (largest_first/smallest_first/exact_match). Backend `WalletSendRequest` accepts `utxo_strategy`. Shown in confirmation modal.
+
+**Files changed: 8** (crypto.py, config.py, vm.py, rpc.py, jsonrpc.py, native-wallet.tsx, api.ts, new deploy_qusd.py, new test_key_rotation.py)
+
+**Test result:** 2,786 passed, 0 failed (+29 key rotation tests)
+
+**Cumulative progress:** 92/148 completed (62.2%).

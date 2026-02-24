@@ -296,6 +296,11 @@ class Config:
     ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')
 
     # ============================================================================
+    # KEY ROTATION SETTINGS
+    # ============================================================================
+    KEY_ROTATION_GRACE_PERIOD_DAYS: int = int(os.getenv('KEY_ROTATION_GRACE_PERIOD_DAYS', '7'))
+
+    # ============================================================================
     # LOGGING & MONITORING
     # ============================================================================
     DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'

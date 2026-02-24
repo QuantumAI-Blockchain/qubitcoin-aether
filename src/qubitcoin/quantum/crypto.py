@@ -4,8 +4,10 @@ Implementation using dilithium-py library
 """
 
 import hashlib
+import time
+from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Tuple
+from typing import Dict, List, Optional, Tuple
 
 import os
 
@@ -299,3 +301,255 @@ class CryptoManager:
             "implementation": "dilithium-py" if DILITHIUM_AVAILABLE else "fallback (INSECURE)",
             "production_ready": DILITHIUM_AVAILABLE
         }
+
+
+# ── Key Rotation ─────────────────────────────────────────────────────────
+
+
+@dataclass
+class RotationRecord:
+    """Immutable record of a single key rotation event."""
+
+    old_public_key_hex: str
+    new_public_key_hex: str
+    new_address: str
+    rotated_at: float  # Unix timestamp
+    grace_expires_at: float  # Unix timestamp when old key becomes invalid
+    revoked: bool = False
+
+
+@dataclass
+class RetiredKey:
+    """A public key that has been rotated out but is still within its grace period."""
+
+    public_key_hex: str
+    address: str
+    retired_at: float
+    grace_expires_at: float
+
+
+class KeyRotationManager:
+    """Manage Dilithium key rotation with configurable grace periods.
+
+    During a grace period both the current key and the retired key are
+    accepted for signature verification.  After the grace period the old
+    key is revoked and only the current key is valid.
+
+    Usage::
+
+        mgr = KeyRotationManager(
+            current_public_key=pk,
+            current_private_key=sk,
+            grace_period_days=7,
+        )
+        # Later, rotate:
+        new_pk, new_sk, record = mgr.rotate_keys()
+        # Verify with either old or new key during grace:
+        assert mgr.verify(old_pk, message, signature)
+        assert mgr.verify(new_pk, message, signature)
+    """
+
+    def __init__(
+        self,
+        current_public_key: bytes,
+        current_private_key: bytes,
+        grace_period_days: int = 7,
+    ) -> None:
+        self._current_pk: bytes = current_public_key
+        self._current_sk: bytes = current_private_key
+        self._current_address: str = Dilithium2.derive_address(current_public_key)
+        self._grace_period_seconds: float = grace_period_days * 86_400.0
+
+        # Retired keys still within their grace window
+        self._retired_keys: List[RetiredKey] = []
+
+        # Full rotation history (append-only)
+        self._history: List[RotationRecord] = []
+
+    # ── Properties ────────────────────────────────────────────────────
+
+    @property
+    def current_public_key(self) -> bytes:
+        return self._current_pk
+
+    @property
+    def current_private_key(self) -> bytes:
+        return self._current_sk
+
+    @property
+    def current_address(self) -> str:
+        return self._current_address
+
+    @property
+    def grace_period_days(self) -> float:
+        return self._grace_period_seconds / 86_400.0
+
+    @property
+    def history(self) -> List[RotationRecord]:
+        """Return a copy of the full rotation history."""
+        return list(self._history)
+
+    @property
+    def active_retired_keys(self) -> List[RetiredKey]:
+        """Return retired keys that are still within their grace period."""
+        self._purge_expired()
+        return list(self._retired_keys)
+
+    # ── Core operations ───────────────────────────────────────────────
+
+    def rotate_keys(self) -> Tuple[bytes, bytes, RotationRecord]:
+        """Generate a new Dilithium keypair and retire the current one.
+
+        The old public key remains valid for ``grace_period_days`` after
+        rotation.
+
+        Returns:
+            (new_public_key, new_private_key, rotation_record)
+        """
+        old_pk_hex = self._current_pk.hex()
+        old_address = self._current_address
+
+        # Generate new keypair
+        new_pk, new_sk = Dilithium2.keygen()
+        new_address = Dilithium2.derive_address(new_pk)
+
+        now = time.time()
+        grace_expires = now + self._grace_period_seconds
+
+        # Retire current key
+        self._retired_keys.append(RetiredKey(
+            public_key_hex=old_pk_hex,
+            address=old_address,
+            retired_at=now,
+            grace_expires_at=grace_expires,
+        ))
+
+        # Record in history
+        record = RotationRecord(
+            old_public_key_hex=old_pk_hex,
+            new_public_key_hex=new_pk.hex(),
+            new_address=new_address,
+            rotated_at=now,
+            grace_expires_at=grace_expires,
+        )
+        self._history.append(record)
+
+        # Swap to new key
+        self._current_pk = new_pk
+        self._current_sk = new_sk
+        self._current_address = new_address
+
+        logger.info(
+            f"Key rotated: {old_address[:16]}... -> {new_address[:16]}..., "
+            f"grace until {grace_expires:.0f}"
+        )
+        return new_pk, new_sk, record
+
+    def verify(self, public_key: bytes, message: bytes, signature: bytes) -> bool:
+        """Verify a signature, accepting both the current key and any
+        retired keys still within their grace period.
+
+        Args:
+            public_key: The public key that allegedly signed ``message``.
+            message: The original message bytes.
+            signature: The signature to verify.
+
+        Returns:
+            ``True`` if the signature is valid AND the public key is either
+            the current key or a non-expired retired key.
+        """
+        if not self.is_key_accepted(public_key):
+            logger.warning(
+                f"Key {public_key.hex()[:32]}... is not accepted "
+                "(not current and not in grace period)"
+            )
+            return False
+        return Dilithium2.verify(public_key, message, signature)
+
+    def is_key_accepted(self, public_key: bytes) -> bool:
+        """Check whether a public key is currently accepted.
+
+        A key is accepted if it is the current active key, or if it is a
+        retired key whose grace period has not yet expired.
+        """
+        # Current key is always accepted
+        if public_key == self._current_pk:
+            return True
+
+        pk_hex = public_key.hex()
+        self._purge_expired()
+        for rk in self._retired_keys:
+            if rk.public_key_hex == pk_hex:
+                return True
+        return False
+
+    def revoke_key(self, public_key_hex: str) -> bool:
+        """Immediately revoke a retired key before its grace period expires.
+
+        Args:
+            public_key_hex: Hex-encoded public key to revoke.
+
+        Returns:
+            ``True`` if the key was found and revoked.
+        """
+        for i, rk in enumerate(self._retired_keys):
+            if rk.public_key_hex == public_key_hex:
+                self._retired_keys.pop(i)
+                # Mark in history
+                for rec in self._history:
+                    if rec.old_public_key_hex == public_key_hex and not rec.revoked:
+                        rec.revoked = True
+                        break
+                logger.info(f"Key {public_key_hex[:32]}... revoked early")
+                return True
+        logger.warning(f"Key {public_key_hex[:32]}... not found in retired keys")
+        return False
+
+    def get_status(self) -> dict:
+        """Return a JSON-serialisable status summary."""
+        self._purge_expired()
+        return {
+            'current_address': self._current_address,
+            'current_public_key_hex': self._current_pk.hex(),
+            'grace_period_days': self.grace_period_days,
+            'retired_keys_in_grace': len(self._retired_keys),
+            'total_rotations': len(self._history),
+            'retired_keys': [
+                {
+                    'address': rk.address,
+                    'public_key_hex_short': rk.public_key_hex[:32] + '...',
+                    'retired_at': rk.retired_at,
+                    'grace_expires_at': rk.grace_expires_at,
+                    'seconds_remaining': max(0, rk.grace_expires_at - time.time()),
+                }
+                for rk in self._retired_keys
+            ],
+            'history': [
+                {
+                    'old_address': Dilithium2.derive_address(
+                        bytes.fromhex(rec.old_public_key_hex)
+                    ),
+                    'new_address': rec.new_address,
+                    'rotated_at': rec.rotated_at,
+                    'grace_expires_at': rec.grace_expires_at,
+                    'revoked': rec.revoked,
+                }
+                for rec in self._history
+            ],
+        }
+
+    # ── Internal helpers ──────────────────────────────────────────────
+
+    def _purge_expired(self) -> None:
+        """Remove retired keys whose grace period has expired."""
+        now = time.time()
+        expired = [rk for rk in self._retired_keys if rk.grace_expires_at <= now]
+        if expired:
+            for rk in expired:
+                logger.info(
+                    f"Grace period expired for key {rk.public_key_hex[:32]}... "
+                    f"(address {rk.address[:16]}...)"
+                )
+            self._retired_keys = [
+                rk for rk in self._retired_keys if rk.grace_expires_at > now
+            ]

@@ -269,6 +269,14 @@ function WalletBalance({ wallet }: { wallet: NativeWallet }) {
 
 /* ---- Send ---- */
 
+type UtxoStrategy = "largest_first" | "smallest_first" | "exact_match";
+
+const UTXO_STRATEGIES: { value: UtxoStrategy; label: string; description: string }[] = [
+  { value: "largest_first", label: "Largest First", description: "Fewest inputs, reduces UTXO count" },
+  { value: "smallest_first", label: "Smallest First", description: "Consolidates small UTXOs" },
+  { value: "exact_match", label: "Exact Match", description: "Find a UTXO matching the amount" },
+];
+
 function SendPanel({ wallet }: { wallet: NativeWallet }) {
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
@@ -276,6 +284,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [utxoStrategy, setUtxoStrategy] = useState<UtxoStrategy>("largest_first");
 
   const estimatedFee = 0.0001; // L1 micro-fee estimate
   const parsedAmount = parseFloat(amount) || 0;
@@ -299,6 +308,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
         amount,
         signature_hex: sigHex,
         public_key_hex: wallet.publicKeyHex,
+        utxo_strategy: utxoStrategy,
       });
       setResult(`Sent! TX: ${res.tx_hash.slice(0, 16)}...`);
       setTo("");
@@ -309,7 +319,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
     } finally {
       setSending(false);
     }
-  }, [to, amount, privateKey, wallet]);
+  }, [to, amount, privateKey, wallet, utxoStrategy]);
 
   return (
     <Card>
@@ -352,6 +362,22 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
             placeholder="Enter private key to sign..."
             className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-text-secondary">
+            Coin Selection Strategy
+          </label>
+          <select
+            value={utxoStrategy}
+            onChange={(e) => setUtxoStrategy(e.target.value as UtxoStrategy)}
+            className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+          >
+            {UTXO_STRATEGIES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label} — {s.description}
+              </option>
+            ))}
+          </select>
         </div>
         <button
           onClick={() => setShowConfirm(true)}
@@ -408,6 +434,12 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
                   <span>Total</span>
                   <span className="font-[family-name:var(--font-mono)] text-quantum-green">
                     {total.toLocaleString()} QBC
+                  </span>
+                </div>
+                <div className="mt-1 flex justify-between">
+                  <span className="text-text-secondary">UTXO Strategy</span>
+                  <span className="text-xs text-text-secondary">
+                    {UTXO_STRATEGIES.find((s) => s.value === utxoStrategy)?.label}
                   </span>
                 </div>
               </div>

@@ -403,6 +403,7 @@ export const api = {
     amount: string;
     signature_hex: string;
     public_key_hex: string;
+    utxo_strategy?: "largest_first" | "smallest_first" | "exact_match";
   }) => post<{ tx_hash: string; status: string }>("/wallet/send", body),
   signMessage: (body: { message_hash: string; private_key_hex: string }) =>
     post<{ signature_hex: string }>("/wallet/sign", body),
