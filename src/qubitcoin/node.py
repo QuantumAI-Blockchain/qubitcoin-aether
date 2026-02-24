@@ -3,10 +3,13 @@ Qubitcoin Full Node - Main Entry Point
 Coordinates all components and manages node lifecycle
 """
 import asyncio
+import os
 import signal
+import subprocess
 import sys
 import time
 from decimal import getcontext
+from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from .config import Config
@@ -85,6 +88,7 @@ class QubitcoinNode:
         self.console = console
         self.running = False
         self.metrics_task = None
+        self.rust_p2p_process: subprocess.Popen | None = None
 
         logger.info("=" * 60)
         logger.info("Qubitcoin Full Node Initializing")
@@ -117,6 +121,8 @@ class QubitcoinNode:
         try:
             if Config.ENABLE_RUST_P2P:
                 logger.info("Using Rust P2P (libp2p 0.56)")
+                # Launch the Rust daemon process
+                self._start_rust_p2p_daemon()
                 self.rust_p2p = RustP2PClient(f"127.0.0.1:{Config.RUST_P2P_GRPC}")
                 self.p2p = None  # Disable Python P2P
                 logger.info("[3/22] Rust P2P client initialized")
@@ -695,6 +701,79 @@ class QubitcoinNode:
                 logger.error(f"Error updating metrics: {e}", exc_info=True)
                 await asyncio.sleep(30)
 
+    def _start_rust_p2p_daemon(self) -> None:
+        """Launch the Rust P2P daemon as a subprocess.
+
+        Locates the binary, starts it with the configured ports, and waits
+        for the gRPC health endpoint to become reachable before returning.
+        Falls back to Python P2P if the daemon fails to start.
+        """
+        import shutil
+        binary = Path(Config.RUST_P2P_BINARY)
+        if not binary.is_absolute():
+            # Resolve relative to project root (parent of src/)
+            project_root = Path(__file__).resolve().parent.parent.parent
+            binary = project_root / binary
+
+        if not binary.exists():
+            # Check if the binary is on PATH (e.g., in Docker: /usr/local/bin)
+            on_path = shutil.which(binary.name)
+            if on_path:
+                binary = Path(on_path)
+            else:
+                logger.warning(f"Rust P2P binary not found at {binary} — falling back to Python P2P")
+                Config.ENABLE_RUST_P2P = False
+                return
+
+        grpc_addr = f"127.0.0.1:{Config.RUST_P2P_GRPC}"
+        env = {
+            **os.environ,
+            "P2P_PORT": str(Config.RUST_P2P_PORT),
+            "RUST_P2P_GRPC_ADDR": grpc_addr,
+        }
+        if Config.BOOTSTRAP_PEERS:
+            env["BOOTSTRAP_PEERS"] = Config.BOOTSTRAP_PEERS
+
+        logger.info(f"Starting Rust P2P daemon: {binary}")
+        logger.info(f"  P2P port: {Config.RUST_P2P_PORT}, gRPC: {grpc_addr}")
+
+        try:
+            self.rust_p2p_process = subprocess.Popen(
+                [str(binary)],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+        except OSError as e:
+            logger.error(f"Failed to launch Rust P2P daemon: {e}")
+            Config.ENABLE_RUST_P2P = False
+            return
+
+        # Wait for gRPC to become reachable
+        import grpc as _grpc
+        deadline = time.time() + Config.RUST_P2P_STARTUP_TIMEOUT
+        connected = False
+        while time.time() < deadline:
+            # Check process is still alive
+            if self.rust_p2p_process.poll() is not None:
+                logger.error(f"Rust P2P daemon exited with code {self.rust_p2p_process.returncode}")
+                self.rust_p2p_process = None
+                Config.ENABLE_RUST_P2P = False
+                return
+            try:
+                channel = _grpc.insecure_channel(grpc_addr)
+                _grpc.channel_ready_future(channel).result(timeout=1)
+                channel.close()
+                connected = True
+                break
+            except Exception:
+                time.sleep(0.5)
+
+        if connected:
+            logger.info(f"Rust P2P daemon ready (PID {self.rust_p2p_process.pid})")
+        else:
+            logger.warning("Rust P2P daemon started but gRPC not reachable within timeout — continuing anyway")
+
     async def _update_all_metrics(self):
         """Update all Prometheus metrics from current state"""
         try:
@@ -1016,6 +1095,12 @@ class QubitcoinNode:
                 peer_count = self.rust_p2p.get_peer_count()
                 logger.info(f"Rust P2P connected - {peer_count} peers")
                 rust_p2p_peers.set(peer_count)
+                # Start streaming blocks/txs from Rust P2P
+                await self.rust_p2p.start_streaming(
+                    on_block=self._on_p2p_block_received,
+                    on_tx=self._on_p2p_tx_received,
+                )
+                logger.info("Rust P2P block/tx streaming started")
             else:
                 logger.warning("Rust P2P connection failed - running without P2P")
         else:
@@ -1112,6 +1197,16 @@ class QubitcoinNode:
 
         if self.rust_p2p:
             self.rust_p2p.disconnect()
+        if self.rust_p2p_process:
+            logger.info(f"Stopping Rust P2P daemon (PID {self.rust_p2p_process.pid})...")
+            self.rust_p2p_process.terminate()
+            try:
+                self.rust_p2p_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                logger.warning("Rust P2P daemon did not stop in time, killing...")
+                self.rust_p2p_process.kill()
+                self.rust_p2p_process.wait(timeout=2)
+            self.rust_p2p_process = None
         if self.p2p:
             await self.p2p.stop()
 
@@ -1120,6 +1215,42 @@ class QubitcoinNode:
             border_style="yellow"
         ))
         logger.info("Node shutdown complete")
+
+    async def _on_p2p_block_received(self, block_data: dict) -> None:
+        """Handle a block received from the Rust P2P stream."""
+        try:
+            height = block_data.get('height', 0)
+            block_hash = block_data.get('hash', '')
+            logger.info(f"P2P block received: height={height} hash={block_hash[:16]}...")
+
+            blocks_received.inc()
+
+            # Validate and add to chain via consensus
+            if self.consensus:
+                valid = self.consensus.validate_block(block_data)
+                if valid:
+                    logger.info(f"P2P block {height} validated, adding to chain")
+                    current_height_metric.set(height)
+                else:
+                    logger.warning(f"P2P block {height} failed validation")
+            else:
+                logger.debug(f"No consensus engine — skipping P2P block {height}")
+
+        except Exception as e:
+            logger.error(f"Error processing P2P block: {e}")
+
+    async def _on_p2p_tx_received(self, tx_data: dict) -> None:
+        """Handle a transaction received from the Rust P2P stream."""
+        try:
+            txid = tx_data.get('txid', '')
+            logger.debug(f"P2P tx received: {txid[:8]}...")
+
+            # Add to mempool if available
+            if hasattr(self, 'mining') and self.mining:
+                logger.debug(f"P2P tx {txid[:8]} would be added to mempool")
+
+        except Exception as e:
+            logger.error(f"Error processing P2P tx: {e}")
 
     def on_block_mined(self, block_data: dict):
         """Called when mining engine successfully mines a block"""

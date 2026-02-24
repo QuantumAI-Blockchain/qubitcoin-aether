@@ -24,21 +24,43 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11p2p_service.proto\x12\x0bp2p_service\"0\n\x10\x42roadcastRequest\x12\x0e\n\x06height\x18\x01 \x01(\x04\x12\x0c\n\x04hash\x18\x02 \x01(\t\"$\n\x11\x42roadcastResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\x12\n\x10PeerStatsRequest\"\'\n\x11PeerStatsResponse\x12\x12\n\npeer_count\x18\x01 \x01(\r2\xa5\x01\n\x03P2P\x12O\n\x0e\x42roadcastBlock\x12\x1d.p2p_service.BroadcastRequest\x1a\x1e.p2p_service.BroadcastResponse\x12M\n\x0cGetPeerStats\x12\x1d.p2p_service.PeerStatsRequest\x1a\x1e.p2p_service.PeerStatsResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x11p2p_service.proto\x12\x0bp2p_service\"5\n\x15\x42roadcastBlockRequest\x12\x0e\n\x06height\x18\x01 \x01(\x04\x12\x0c\n\x04hash\x18\x02 \x01(\t\"F\n\x1b\x42roadcastTransactionRequest\x12\x0c\n\x04txid\x18\x01 \x01(\t\x12\x0c\n\x04size\x18\x02 \x01(\r\x12\x0b\n\x03\x66\x65\x65\x18\x03 \x01(\t\"5\n\x11\x42roadcastResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"\x0f\n\rStreamRequest\"\x81\x01\n\tBlockData\x12\x0e\n\x06height\x18\x01 \x01(\x04\x12\x0c\n\x04hash\x18\x02 \x01(\t\x12\x11\n\tprev_hash\x18\x03 \x01(\t\x12\x11\n\ttimestamp\x18\x04 \x01(\x04\x12\x12\n\ndifficulty\x18\x05 \x01(\x01\x12\r\n\x05nonce\x18\x06 \x01(\x04\x12\r\n\x05miner\x18\x07 \x01(\t\":\n\x0fTransactionData\x12\x0c\n\x04txid\x18\x01 \x01(\t\x12\x0c\n\x04size\x18\x02 \x01(\r\x12\x0b\n\x03\x66\x65\x65\x18\x03 \x01(\t\"\xbf\x02\n\x0cNetworkEvent\x12\x37\n\nevent_type\x18\x01 \x01(\x0e\x32#.p2p_service.NetworkEvent.EventType\x12\x11\n\ttimestamp\x18\x02 \x01(\x04\x12%\n\x05\x62lock\x18\x03 \x01(\x0b\x32\x16.p2p_service.BlockData\x12\x31\n\x0btransaction\x18\x04 \x01(\x0b\x32\x1c.p2p_service.TransactionData\x12#\n\x04peer\x18\x05 \x01(\x0b\x32\x15.p2p_service.PeerInfo\"d\n\tEventType\x12\x12\n\x0e\x42LOCK_RECEIVED\x10\x00\x12\x18\n\x14TRANSACTION_RECEIVED\x10\x01\x12\x12\n\x0ePEER_CONNECTED\x10\x02\x12\x15\n\x11PEER_DISCONNECTED\x10\x03\"\x12\n\x10PeerStatsRequest\"\xae\x01\n\x11PeerStatsResponse\x12\x12\n\npeer_count\x18\x01 \x01(\r\x12\x17\n\x0fgossipsub_peers\x18\x02 \x01(\r\x12\x17\n\x0f\x62locks_received\x18\x03 \x01(\x04\x12\x13\n\x0b\x62locks_sent\x18\x04 \x01(\x04\x12\x14\n\x0ctxs_received\x18\x05 \x01(\x04\x12\x10\n\x08txs_sent\x18\x06 \x01(\x04\x12\x16\n\x0euptime_seconds\x18\x07 \x01(\x04\"\x11\n\x0fPeerListRequest\"8\n\x10PeerListResponse\x12$\n\x05peers\x18\x01 \x03(\x0b\x32\x15.p2p_service.PeerInfo\"\x84\x01\n\x08PeerInfo\x12\x0f\n\x07peer_id\x18\x01 \x01(\t\x12\x0f\n\x07\x61\x64\x64ress\x18\x02 \x01(\t\x12\x11\n\tlast_seen\x18\x03 \x01(\x04\x12\x15\n\ragent_version\x18\x04 \x01(\t\x12\x18\n\x10protocol_version\x18\x05 \x01(\t\x12\x12\n\nlatency_ms\x18\x06 \x01(\x04\"\x0f\n\rHealthRequest\"^\n\x0eHealthResponse\x12\x0f\n\x07healthy\x18\x01 \x01(\x08\x12\x0f\n\x07version\x18\x02 \x01(\t\x12\x12\n\npeer_count\x18\x03 \x01(\r\x12\x16\n\x0euptime_seconds\x18\x04 \x01(\x04\x32\xc8\x05\n\x03P2P\x12T\n\x0e\x42roadcastBlock\x12\".p2p_service.BroadcastBlockRequest\x1a\x1e.p2p_service.BroadcastResponse\x12`\n\x14\x42roadcastTransaction\x12(.p2p_service.BroadcastTransactionRequest\x1a\x1e.p2p_service.BroadcastResponse\x12\x45\n\x0bSubmitBlock\x12\x16.p2p_service.BlockData\x1a\x1e.p2p_service.BroadcastResponse\x12\x44\n\x0cStreamBlocks\x12\x1a.p2p_service.StreamRequest\x1a\x16.p2p_service.BlockData0\x01\x12P\n\x12StreamTransactions\x12\x1a.p2p_service.StreamRequest\x1a\x1c.p2p_service.TransactionData0\x01\x12G\n\x0cStreamEvents\x12\x1a.p2p_service.StreamRequest\x1a\x19.p2p_service.NetworkEvent0\x01\x12M\n\x0cGetPeerStats\x12\x1d.p2p_service.PeerStatsRequest\x1a\x1e.p2p_service.PeerStatsResponse\x12J\n\x0bGetPeerList\x12\x1c.p2p_service.PeerListRequest\x1a\x1d.p2p_service.PeerListResponse\x12\x46\n\x0bHealthCheck\x12\x1a.p2p_service.HealthRequest\x1a\x1b.p2p_service.HealthResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'p2p_service_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_BROADCASTREQUEST']._serialized_start=34
-  _globals['_BROADCASTREQUEST']._serialized_end=82
-  _globals['_BROADCASTRESPONSE']._serialized_start=84
-  _globals['_BROADCASTRESPONSE']._serialized_end=120
-  _globals['_PEERSTATSREQUEST']._serialized_start=122
-  _globals['_PEERSTATSREQUEST']._serialized_end=140
-  _globals['_PEERSTATSRESPONSE']._serialized_start=142
-  _globals['_PEERSTATSRESPONSE']._serialized_end=181
-  _globals['_P2P']._serialized_start=184
-  _globals['_P2P']._serialized_end=349
+  _globals['_BROADCASTBLOCKREQUEST']._serialized_start=34
+  _globals['_BROADCASTBLOCKREQUEST']._serialized_end=87
+  _globals['_BROADCASTTRANSACTIONREQUEST']._serialized_start=89
+  _globals['_BROADCASTTRANSACTIONREQUEST']._serialized_end=159
+  _globals['_BROADCASTRESPONSE']._serialized_start=161
+  _globals['_BROADCASTRESPONSE']._serialized_end=214
+  _globals['_STREAMREQUEST']._serialized_start=216
+  _globals['_STREAMREQUEST']._serialized_end=231
+  _globals['_BLOCKDATA']._serialized_start=234
+  _globals['_BLOCKDATA']._serialized_end=363
+  _globals['_TRANSACTIONDATA']._serialized_start=365
+  _globals['_TRANSACTIONDATA']._serialized_end=423
+  _globals['_NETWORKEVENT']._serialized_start=426
+  _globals['_NETWORKEVENT']._serialized_end=745
+  _globals['_NETWORKEVENT_EVENTTYPE']._serialized_start=645
+  _globals['_NETWORKEVENT_EVENTTYPE']._serialized_end=745
+  _globals['_PEERSTATSREQUEST']._serialized_start=747
+  _globals['_PEERSTATSREQUEST']._serialized_end=765
+  _globals['_PEERSTATSRESPONSE']._serialized_start=768
+  _globals['_PEERSTATSRESPONSE']._serialized_end=942
+  _globals['_PEERLISTREQUEST']._serialized_start=944
+  _globals['_PEERLISTREQUEST']._serialized_end=961
+  _globals['_PEERLISTRESPONSE']._serialized_start=963
+  _globals['_PEERLISTRESPONSE']._serialized_end=1019
+  _globals['_PEERINFO']._serialized_start=1022
+  _globals['_PEERINFO']._serialized_end=1154
+  _globals['_HEALTHREQUEST']._serialized_start=1156
+  _globals['_HEALTHREQUEST']._serialized_end=1171
+  _globals['_HEALTHRESPONSE']._serialized_start=1173
+  _globals['_HEALTHRESPONSE']._serialized_end=1267
+  _globals['_P2P']._serialized_start=1270
+  _globals['_P2P']._serialized_end=1982
 # @@protoc_insertion_point(module_scope)

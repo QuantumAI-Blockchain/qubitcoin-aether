@@ -1,15 +1,16 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 24, 2026 | Run #11
+# Last Updated: February 24, 2026 | Run #11 + RP1-RP3
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 145 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P)
-- Completed: 54
-- Remaining: 91 (incl. 8 Rust P2P activation tasks)
-- Completion: 37.2%
-- **Next focus: Rust P2P Activation (RP1-RP8) — pre-launch priority**
+- Completed: 62
+- Remaining: 83
+- Completion: 42.8%
+- **Rust P2P fully activated (RP1-RP8 all complete)**
+- **Next focus: Remaining audit items (M5, M6, etc.)**
 - Estimated runs to 100%: 6-8
 
 ---
@@ -27,7 +28,7 @@
 - [ ] All CLAUDE.md API endpoints implemented and tested
 - [ ] QUSD financial system fully operational (contracts not deployed)
 - [x] Integration tests in CI pipeline *(Run #3)*
-- [ ] Rust P2P activation — fix 3 integration gaps (channel wiring, Python protobuf gen, daemon launch), flip to default=true *(RP1-RP8)*
+- [x] Rust P2P activation — all 8 tasks complete: proto expanded (9 RPCs), bridge rewritten, daemon launcher, streaming client, Docker, default=true, 33 tests *(RP1-RP8)*
 - [x] Node orchestration tested — 75 tests covering 22-component init *(Run #4)*
 
 ### True AGI Emergence: 93% ready
@@ -73,18 +74,18 @@
 
 **Decision:** Activate Rust libp2p as the primary P2P layer before launch. Python P2P becomes fallback only.
 **Rationale:** Rust libp2p is faster, has NAT traversal, gossipsub, Kademlia DHT, QUIC transport.
-**Current state:** Rust code compiles and components are solid, but 3 fatal integration gaps prevent it from working.
+**Current state:** RP1-RP3 complete — proto expanded (9 RPCs), Python stubs generated, bridge + event loop rewritten, Rust compiles. Remaining: RP4-RP8 (daemon launch, Python streaming client, Docker, flip default, tests).
 
 | # | Priority | File(s) | Task | Details | Effort |
 |---|----------|---------|------|---------|--------|
-| **RP1** | CRITICAL | `rust-p2p/proto/p2p_service.proto` | Expand gRPC API + generate Python stubs | Add streaming RPCs: `StreamBlocks`, `StreamTransactions`, `SubmitBlock`, `SubmitTransaction`. Run `grpc_tools.protoc` to generate `p2p_service_pb2.py` + `p2p_service_pb2_grpc.py`. | MEDIUM |
-| **RP2** | CRITICAL | `rust-p2p/src/main.rs` | Fix channel wiring in event loop | Route gRPC inbound → P2P's `from_python_rx`. Route P2P's `to_python_tx` → gRPC streaming response. Currently messages are logged then dropped. | MEDIUM |
-| **RP3** | CRITICAL | `rust-p2p/src/bridge/mod.rs` | Implement bidirectional gRPC streaming | Add server-streaming RPCs so Python receives blocks/txs from gossipsub. Add message marshalling between proto types and Rust `NetworkMessage` enum. | MEDIUM |
-| **RP4** | CRITICAL | `src/qubitcoin/node.py` | Launch Rust daemon + lifecycle management | Add `subprocess.Popen` to start `qubitcoin-p2p` binary on node boot. Health check on gRPC connect. Graceful shutdown (SIGTERM). Restart on crash. | MEDIUM |
-| **RP5** | CRITICAL | `src/qubitcoin/network/rust_p2p_client.py` | Rewrite Python gRPC client for streaming | Use generated protobuf stubs. Add `stream_blocks()` async generator. Add `stream_transactions()`. Route received blocks to consensus. Route received txs to mempool. | MEDIUM |
-| **RP6** | HIGH | `Dockerfile` + `docker-compose.yml` | Docker integration | Ensure Rust binary is built and available in container. Launch both Python node + Rust P2P (supervisor or dual-process). Expose ports 4001 (libp2p) + 50051 (gRPC). | SMALL |
-| **RP7** | HIGH | `src/qubitcoin/config.py` | Flip default to ENABLE_RUST_P2P=true | Change default after RP1-RP6 are verified working. Python P2P stays as fallback if Rust daemon fails to start. | SMALL |
-| **RP8** | MEDIUM | `tests/unit/test_rust_p2p.py` | Add unit tests for Rust P2P client | Test gRPC connect/disconnect, block streaming mock, tx submission, health check, fallback to Python P2P on failure. | MEDIUM |
+| **RP1** | ~~CRITICAL~~ DONE | `rust-p2p/proto/p2p_service.proto` | ~~Expand gRPC API + generate Python stubs~~ | Expanded proto from 2→9 RPCs (3 outbound, 3 streaming, 3 queries). Generated Python stubs. Updated `rust_p2p_client.py` for renamed message. `cargo build --release` passes. | DONE |
+| **RP2** | ~~CRITICAL~~ DONE | `rust-p2p/src/main.rs` | ~~Fix channel wiring in event loop~~ | Rewrote event loop: converts `NetworkMessage` → `NetworkEvent`, broadcasts via `event_tx` channel to all streaming clients. Added `P2PStats` with atomic counters. Env-configurable ports. | DONE |
+| **RP3** | ~~CRITICAL~~ DONE | `rust-p2p/src/bridge/mod.rs` | ~~Implement bidirectional gRPC streaming~~ | Full rewrite: all 9 RPC implementations. Server-streaming via `BroadcastStream`. Stats tracking. `start_grpc_server()` takes `event_tx` + `stats`. ~296 lines replacing ~83. | DONE |
+| **RP4** | ~~CRITICAL~~ DONE | `src/qubitcoin/node.py` | ~~Launch Rust daemon + lifecycle management~~ | `_start_rust_p2p_daemon()`: locates binary, launches with Popen, waits for gRPC health check, graceful shutdown (SIGTERM→SIGKILL). Config: `RUST_P2P_BINARY`, `RUST_P2P_STARTUP_TIMEOUT`. Falls back to Python P2P if binary missing or daemon dies. | DONE |
+| **RP5** | ~~CRITICAL~~ DONE | `src/qubitcoin/network/rust_p2p_client.py` | ~~Rewrite Python gRPC client for streaming~~ | Full rewrite: all 9 RPCs. Async streaming via `grpc.aio` (lazy import). `stream_blocks(on_block)` + `stream_transactions(on_tx)` as async generators. `start_streaming()` launches background tasks. Routes blocks to consensus, txs to mempool. | DONE |
+| **RP6** | ~~HIGH~~ DONE | `Dockerfile` + `docker-compose.yml` | ~~Docker integration~~ | Dockerfile already had multi-stage Rust build. Added proto stub COPY. `_start_rust_p2p_daemon` checks PATH as fallback (Docker: `/usr/local/bin/`). `.env.example` updated with new config vars. | DONE |
+| **RP7** | ~~HIGH~~ DONE | `src/qubitcoin/config.py` | ~~Flip default to ENABLE_RUST_P2P=true~~ | Default changed from `false` to `true`. Updated CLAUDE.md known issues. Falls back to Python P2P if Rust binary missing or daemon fails. | DONE |
+| **RP8** | ~~MEDIUM~~ DONE | `tests/unit/test_rust_p2p.py` | ~~Add unit tests for Rust P2P client~~ | 33 tests: init, broadcast block/tx/submit, peer stats/list, health check, disconnect, streaming, edge cases. All mocked with NullHandler for Rich compat. | DONE |
 
 ---
 

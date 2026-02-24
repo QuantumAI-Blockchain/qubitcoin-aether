@@ -2,22 +2,140 @@ syntax = "proto3";
 
 package p2p_service;
 
+// ─── P2P Service ─────────────────────────────────────────────────────
+// gRPC bridge between Python blockchain node and Rust libp2p network.
+// Unary RPCs for commands, server-streaming for receiving network events.
+
 service P2P {
-  rpc BroadcastBlock(BroadcastRequest) returns (BroadcastResponse);
+  // ── Outbound (Python → Rust → gossipsub) ──────────────────────────
+
+  // Broadcast a new block announcement to the P2P network
+  rpc BroadcastBlock(BroadcastBlockRequest) returns (BroadcastResponse);
+
+  // Broadcast a new transaction to the P2P network
+  rpc BroadcastTransaction(BroadcastTransactionRequest) returns (BroadcastResponse);
+
+  // Submit full block data for propagation (used for mined blocks)
+  rpc SubmitBlock(BlockData) returns (BroadcastResponse);
+
+  // ── Inbound (gossipsub → Rust → Python) ───────────────────────────
+
+  // Stream blocks received from the P2P network to Python
+  rpc StreamBlocks(StreamRequest) returns (stream BlockData);
+
+  // Stream transactions received from the P2P network to Python
+  rpc StreamTransactions(StreamRequest) returns (stream TransactionData);
+
+  // Stream all network events (blocks, txs, peer changes)
+  rpc StreamEvents(StreamRequest) returns (stream NetworkEvent);
+
+  // ── Queries ────────────────────────────────────────────────────────
+
+  // Get P2P network statistics
   rpc GetPeerStats(PeerStatsRequest) returns (PeerStatsResponse);
+
+  // Get detailed peer list
+  rpc GetPeerList(PeerListRequest) returns (PeerListResponse);
+
+  // Health check
+  rpc HealthCheck(HealthRequest) returns (HealthResponse);
 }
 
-message BroadcastRequest {
+// ─── Request/Response Messages ───────────────────────────────────────
+
+message BroadcastBlockRequest {
   uint64 height = 1;
   string hash = 2;
 }
 
+message BroadcastTransactionRequest {
+  string txid = 1;
+  uint32 size = 2;
+  string fee = 3;
+}
+
 message BroadcastResponse {
   bool success = 1;
+  string message = 2;   // Error detail on failure
 }
+
+message StreamRequest {
+  // Empty — initiates a persistent stream from the Rust daemon
+}
+
+// ─── Data Messages ───────────────────────────────────────────────────
+
+message BlockData {
+  uint64 height = 1;
+  string hash = 2;
+  string prev_hash = 3;
+  uint64 timestamp = 4;
+  double difficulty = 5;
+  uint64 nonce = 6;
+  string miner = 7;
+}
+
+message TransactionData {
+  string txid = 1;
+  uint32 size = 2;
+  string fee = 3;
+}
+
+// ─── Network Events ─────────────────────────────────────────────────
+
+message NetworkEvent {
+  enum EventType {
+    BLOCK_RECEIVED = 0;
+    TRANSACTION_RECEIVED = 1;
+    PEER_CONNECTED = 2;
+    PEER_DISCONNECTED = 3;
+  }
+
+  EventType event_type = 1;
+  uint64 timestamp = 2;
+
+  // Only one of these is set, depending on event_type
+  BlockData block = 3;
+  TransactionData transaction = 4;
+  PeerInfo peer = 5;
+}
+
+// ─── Peer Messages ──────────────────────────────────────────────────
 
 message PeerStatsRequest {}
 
 message PeerStatsResponse {
   uint32 peer_count = 1;
+  uint32 gossipsub_peers = 2;
+  uint64 blocks_received = 3;
+  uint64 blocks_sent = 4;
+  uint64 txs_received = 5;
+  uint64 txs_sent = 6;
+  uint64 uptime_seconds = 7;
+}
+
+message PeerListRequest {}
+
+message PeerListResponse {
+  repeated PeerInfo peers = 1;
+}
+
+message PeerInfo {
+  string peer_id = 1;
+  string address = 2;
+  uint64 last_seen = 3;
+  string agent_version = 4;
+  string protocol_version = 5;
+  uint64 latency_ms = 6;
+}
+
+// ─── Health ─────────────────────────────────────────────────────────
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool healthy = 1;
+  string version = 2;
+  uint32 peer_count = 3;
+  uint64 uptime_seconds = 4;
 }

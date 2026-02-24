@@ -26,7 +26,12 @@ if _version_not_supported:
 
 
 class P2PStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """─── P2P Service ─────────────────────────────────────────────────────
+    gRPC bridge between Python blockchain node and Rust libp2p network.
+    Unary RPCs for commands, server-streaming for receiving network events.
+
+    ── Outbound (Python → Rust → gossipsub) ──────────────────────────
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -36,27 +41,122 @@ class P2PStub(object):
         """
         self.BroadcastBlock = channel.unary_unary(
                 '/p2p_service.P2P/BroadcastBlock',
-                request_serializer=p2p__service__pb2.BroadcastRequest.SerializeToString,
+                request_serializer=p2p__service__pb2.BroadcastBlockRequest.SerializeToString,
                 response_deserializer=p2p__service__pb2.BroadcastResponse.FromString,
+                _registered_method=True)
+        self.BroadcastTransaction = channel.unary_unary(
+                '/p2p_service.P2P/BroadcastTransaction',
+                request_serializer=p2p__service__pb2.BroadcastTransactionRequest.SerializeToString,
+                response_deserializer=p2p__service__pb2.BroadcastResponse.FromString,
+                _registered_method=True)
+        self.SubmitBlock = channel.unary_unary(
+                '/p2p_service.P2P/SubmitBlock',
+                request_serializer=p2p__service__pb2.BlockData.SerializeToString,
+                response_deserializer=p2p__service__pb2.BroadcastResponse.FromString,
+                _registered_method=True)
+        self.StreamBlocks = channel.unary_stream(
+                '/p2p_service.P2P/StreamBlocks',
+                request_serializer=p2p__service__pb2.StreamRequest.SerializeToString,
+                response_deserializer=p2p__service__pb2.BlockData.FromString,
+                _registered_method=True)
+        self.StreamTransactions = channel.unary_stream(
+                '/p2p_service.P2P/StreamTransactions',
+                request_serializer=p2p__service__pb2.StreamRequest.SerializeToString,
+                response_deserializer=p2p__service__pb2.TransactionData.FromString,
+                _registered_method=True)
+        self.StreamEvents = channel.unary_stream(
+                '/p2p_service.P2P/StreamEvents',
+                request_serializer=p2p__service__pb2.StreamRequest.SerializeToString,
+                response_deserializer=p2p__service__pb2.NetworkEvent.FromString,
                 _registered_method=True)
         self.GetPeerStats = channel.unary_unary(
                 '/p2p_service.P2P/GetPeerStats',
                 request_serializer=p2p__service__pb2.PeerStatsRequest.SerializeToString,
                 response_deserializer=p2p__service__pb2.PeerStatsResponse.FromString,
                 _registered_method=True)
+        self.GetPeerList = channel.unary_unary(
+                '/p2p_service.P2P/GetPeerList',
+                request_serializer=p2p__service__pb2.PeerListRequest.SerializeToString,
+                response_deserializer=p2p__service__pb2.PeerListResponse.FromString,
+                _registered_method=True)
+        self.HealthCheck = channel.unary_unary(
+                '/p2p_service.P2P/HealthCheck',
+                request_serializer=p2p__service__pb2.HealthRequest.SerializeToString,
+                response_deserializer=p2p__service__pb2.HealthResponse.FromString,
+                _registered_method=True)
 
 
 class P2PServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """─── P2P Service ─────────────────────────────────────────────────────
+    gRPC bridge between Python blockchain node and Rust libp2p network.
+    Unary RPCs for commands, server-streaming for receiving network events.
+
+    ── Outbound (Python → Rust → gossipsub) ──────────────────────────
+    """
 
     def BroadcastBlock(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Broadcast a new block announcement to the P2P network
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def BroadcastTransaction(self, request, context):
+        """Broadcast a new transaction to the P2P network
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SubmitBlock(self, request, context):
+        """Submit full block data for propagation (used for mined blocks)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StreamBlocks(self, request, context):
+        """── Inbound (gossipsub → Rust → Python) ───────────────────────────
+
+        Stream blocks received from the P2P network to Python
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StreamTransactions(self, request, context):
+        """Stream transactions received from the P2P network to Python
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StreamEvents(self, request, context):
+        """Stream all network events (blocks, txs, peer changes)
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetPeerStats(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """── Queries ────────────────────────────────────────────────────────
+
+        Get P2P network statistics
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetPeerList(self, request, context):
+        """Get detailed peer list
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def HealthCheck(self, request, context):
+        """Health check
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -66,13 +166,48 @@ def add_P2PServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'BroadcastBlock': grpc.unary_unary_rpc_method_handler(
                     servicer.BroadcastBlock,
-                    request_deserializer=p2p__service__pb2.BroadcastRequest.FromString,
+                    request_deserializer=p2p__service__pb2.BroadcastBlockRequest.FromString,
                     response_serializer=p2p__service__pb2.BroadcastResponse.SerializeToString,
+            ),
+            'BroadcastTransaction': grpc.unary_unary_rpc_method_handler(
+                    servicer.BroadcastTransaction,
+                    request_deserializer=p2p__service__pb2.BroadcastTransactionRequest.FromString,
+                    response_serializer=p2p__service__pb2.BroadcastResponse.SerializeToString,
+            ),
+            'SubmitBlock': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitBlock,
+                    request_deserializer=p2p__service__pb2.BlockData.FromString,
+                    response_serializer=p2p__service__pb2.BroadcastResponse.SerializeToString,
+            ),
+            'StreamBlocks': grpc.unary_stream_rpc_method_handler(
+                    servicer.StreamBlocks,
+                    request_deserializer=p2p__service__pb2.StreamRequest.FromString,
+                    response_serializer=p2p__service__pb2.BlockData.SerializeToString,
+            ),
+            'StreamTransactions': grpc.unary_stream_rpc_method_handler(
+                    servicer.StreamTransactions,
+                    request_deserializer=p2p__service__pb2.StreamRequest.FromString,
+                    response_serializer=p2p__service__pb2.TransactionData.SerializeToString,
+            ),
+            'StreamEvents': grpc.unary_stream_rpc_method_handler(
+                    servicer.StreamEvents,
+                    request_deserializer=p2p__service__pb2.StreamRequest.FromString,
+                    response_serializer=p2p__service__pb2.NetworkEvent.SerializeToString,
             ),
             'GetPeerStats': grpc.unary_unary_rpc_method_handler(
                     servicer.GetPeerStats,
                     request_deserializer=p2p__service__pb2.PeerStatsRequest.FromString,
                     response_serializer=p2p__service__pb2.PeerStatsResponse.SerializeToString,
+            ),
+            'GetPeerList': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetPeerList,
+                    request_deserializer=p2p__service__pb2.PeerListRequest.FromString,
+                    response_serializer=p2p__service__pb2.PeerListResponse.SerializeToString,
+            ),
+            'HealthCheck': grpc.unary_unary_rpc_method_handler(
+                    servicer.HealthCheck,
+                    request_deserializer=p2p__service__pb2.HealthRequest.FromString,
+                    response_serializer=p2p__service__pb2.HealthResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -83,7 +218,12 @@ def add_P2PServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class P2P(object):
-    """Missing associated documentation comment in .proto file."""
+    """─── P2P Service ─────────────────────────────────────────────────────
+    gRPC bridge between Python blockchain node and Rust libp2p network.
+    Unary RPCs for commands, server-streaming for receiving network events.
+
+    ── Outbound (Python → Rust → gossipsub) ──────────────────────────
+    """
 
     @staticmethod
     def BroadcastBlock(request,
@@ -100,8 +240,143 @@ class P2P(object):
             request,
             target,
             '/p2p_service.P2P/BroadcastBlock',
-            p2p__service__pb2.BroadcastRequest.SerializeToString,
+            p2p__service__pb2.BroadcastBlockRequest.SerializeToString,
             p2p__service__pb2.BroadcastResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def BroadcastTransaction(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/p2p_service.P2P/BroadcastTransaction',
+            p2p__service__pb2.BroadcastTransactionRequest.SerializeToString,
+            p2p__service__pb2.BroadcastResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubmitBlock(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/p2p_service.P2P/SubmitBlock',
+            p2p__service__pb2.BlockData.SerializeToString,
+            p2p__service__pb2.BroadcastResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StreamBlocks(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/p2p_service.P2P/StreamBlocks',
+            p2p__service__pb2.StreamRequest.SerializeToString,
+            p2p__service__pb2.BlockData.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StreamTransactions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/p2p_service.P2P/StreamTransactions',
+            p2p__service__pb2.StreamRequest.SerializeToString,
+            p2p__service__pb2.TransactionData.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StreamEvents(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/p2p_service.P2P/StreamEvents',
+            p2p__service__pb2.StreamRequest.SerializeToString,
+            p2p__service__pb2.NetworkEvent.FromString,
             options,
             channel_credentials,
             insecure,
@@ -129,6 +404,60 @@ class P2P(object):
             '/p2p_service.P2P/GetPeerStats',
             p2p__service__pb2.PeerStatsRequest.SerializeToString,
             p2p__service__pb2.PeerStatsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetPeerList(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/p2p_service.P2P/GetPeerList',
+            p2p__service__pb2.PeerListRequest.SerializeToString,
+            p2p__service__pb2.PeerListResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def HealthCheck(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/p2p_service.P2P/HealthCheck',
+            p2p__service__pb2.HealthRequest.SerializeToString,
+            p2p__service__pb2.HealthResponse.FromString,
             options,
             channel_credentials,
             insecure,
