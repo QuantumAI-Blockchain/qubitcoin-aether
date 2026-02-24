@@ -792,3 +792,91 @@ class TestQuantumOpcodes:
         assert result.success is True
         val = int.from_bytes(result.return_data, 'big')
         assert val == 3  # Mock returns 3 terms
+
+
+class TestSSTOREGasRefund:
+    """Test EIP-3529 SSTORE gas refund (clearing storage slot refunds gas)."""
+
+    def _make_qvm(self):
+        from qubitcoin.qvm.vm import QVM
+        mock_db = MagicMock()
+        mock_db.get_storage.return_value = '0' * 64  # Default: slot is zero
+        return QVM(db_manager=mock_db)
+
+    def test_clearing_slot_gives_refund(self):
+        """Setting a non-zero slot to zero triggers gas refund."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        # DB returns non-zero for slot 0 (simulates existing storage)
+        qvm.db.get_storage.return_value = '0' * 63 + '1'
+        # PUSH1 0 (value=0), PUSH1 0 (key=0), SSTORE, STOP
+        code = bytes([Opcode.PUSH1, 0, Opcode.PUSH1, 0, Opcode.SSTORE, Opcode.STOP])
+        result = qvm.execute(caller='c', address='a', code=code, gas=100000)
+        assert result.success is True
+        assert result.gas_refund > 0  # Should have refund
+
+    def test_no_refund_for_nonzero_to_nonzero(self):
+        """Changing a non-zero value to another non-zero gives no refund."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        # DB returns non-zero for slot 0
+        qvm.db.get_storage.return_value = '0' * 63 + '1'
+        # PUSH1 2 (value=2), PUSH1 0 (key=0), SSTORE, STOP
+        code = bytes([Opcode.PUSH1, 2, Opcode.PUSH1, 0, Opcode.SSTORE, Opcode.STOP])
+        result = qvm.execute(caller='c', address='a', code=code, gas=100000)
+        assert result.success is True
+        assert result.gas_refund == 0  # No refund for non-zero → non-zero
+
+    def test_no_refund_for_zero_to_nonzero(self):
+        """Setting a zero slot to non-zero gives no refund."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        # DB returns zero for unknown slots
+        qvm.db.get_storage.return_value = '0' * 64
+        # PUSH1 5 (value=5), PUSH1 0 (key=0), SSTORE, STOP
+        code = bytes([Opcode.PUSH1, 5, Opcode.PUSH1, 0, Opcode.SSTORE, Opcode.STOP])
+        result = qvm.execute(caller='c', address='a', code=code, gas=100000)
+        assert result.success is True
+        assert result.gas_refund == 0
+
+    def test_refund_capped_at_one_fifth_gas_used(self):
+        """Refund is capped at gas_used // 5 per EIP-3529."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        # DB returns non-zero for all slots
+        qvm.db.get_storage.return_value = '0' * 63 + '1'
+        # Clear all 3 slots: 3 * 4800 = 14400 raw refund
+        code = bytes([
+            Opcode.PUSH1, 0, Opcode.PUSH1, 0, Opcode.SSTORE,      # clear slot 0
+            Opcode.PUSH1, 0, Opcode.PUSH1, 1, Opcode.SSTORE,      # clear slot 1
+            Opcode.PUSH1, 0, Opcode.PUSH1, 2, Opcode.SSTORE,      # clear slot 2
+            Opcode.STOP,
+        ])
+        result = qvm.execute(caller='c', address='a', code=code, gas=100000)
+        assert result.success is True
+        # Raw refund = 14400 but capped at gas_used_before_refund // 5
+        assert result.gas_refund > 0
+
+    def test_refund_field_on_result(self):
+        """ExecutionResult has gas_refund field."""
+        from qubitcoin.qvm.vm import ExecutionResult
+        r = ExecutionResult()
+        assert hasattr(r, 'gas_refund')
+        assert r.gas_refund == 0
+
+    def test_refund_reduces_effective_gas_used(self):
+        """Gas refund reduces effective gas_used in result."""
+        from qubitcoin.qvm.opcodes import Opcode
+        qvm = self._make_qvm()
+        # DB returns non-zero for slot 0
+        qvm.db.get_storage.return_value = '0' * 63 + '1'
+        code = bytes([Opcode.PUSH1, 0, Opcode.PUSH1, 0, Opcode.SSTORE, Opcode.STOP])
+        result = qvm.execute(caller='c', address='a', code=code, gas=100000)
+        assert result.success is True
+        # With refund, effective gas_used should be less than base cost
+        # Base: SSTORE(20000) + 2*PUSH(3) + STOP(0) = 20006
+        # Refund = min(4800, 20006//5=4001) = 4001
+        assert result.gas_refund == 4001  # capped at 20006 // 5
+        assert result.gas_used == 20006 - 4001  # = 16005
+        # gas_used already has refund subtracted, so gas_used + gas_remaining == total
+        assert result.gas_used + result.gas_remaining == 100000

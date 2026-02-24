@@ -27,7 +27,7 @@ class StateManager:
         self.quantum = quantum_engine
         self.qvm = QVM(db_manager, quantum_engine, compliance_engine=compliance_engine)
 
-    def set_block_context(self, block_height: int, timestamp: float, coinbase: str, difficulty: float):
+    def set_block_context(self, block_height: int, timestamp: float, coinbase: str, difficulty: float) -> None:
         """Update QVM block context before executing transactions"""
         self.qvm.block = {
             'number': block_height,

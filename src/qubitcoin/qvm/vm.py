@@ -123,13 +123,13 @@ class ExecutionContext:
             i += 1
         return dests
 
-    def use_gas(self, amount: int):
+    def use_gas(self, amount: int) -> None:
         """Consume gas, raise OutOfGasError if insufficient"""
         self.gas_used += amount
         if self.gas_used > self.gas:
             raise OutOfGasError(f"Out of gas: used {self.gas_used}, limit {self.gas}")
 
-    def push(self, value: int):
+    def push(self, value: int) -> None:
         """Push value onto stack"""
         if len(self.stack) >= 1024:
             raise ExecutionError("Stack overflow (max 1024)")
@@ -147,7 +147,7 @@ class ExecutionContext:
             raise StackUnderflowError(f"Stack underflow at depth {depth}")
         return self.stack[-(depth + 1)]
 
-    def memory_extend(self, offset: int, size: int):
+    def memory_extend(self, offset: int, size: int) -> None:
         """Extend memory if needed, charge gas for expansion (word-aligned per EVM spec)"""
         if size == 0:
             return
@@ -170,7 +170,7 @@ class ExecutionContext:
         self.memory_extend(offset, size)
         return bytes(self.memory[offset:offset + size])
 
-    def memory_write(self, offset: int, data: bytes):
+    def memory_write(self, offset: int, data: bytes) -> None:
         """Write to memory"""
         if not data:
             return
@@ -682,9 +682,17 @@ class QVM:
                 key_hex = format(key, '064x')
                 val_hex = format(value, '064x')
                 # EIP-3529 gas refund: clearing a storage slot (non-zero → zero)
-                old_val_hex = (self._storage_cache.get(ctx.address, {}).get(key_hex)
-                               or (self.db.get_storage(ctx.address, key_hex) if self.db else '0' * 64))
-                old_is_nonzero = old_val_hex and int(old_val_hex, 16) != 0
+                old_val_hex = self._storage_cache.get(ctx.address, {}).get(key_hex)
+                if old_val_hex is None and self.db:
+                    try:
+                        old_val_hex = self.db.get_storage(ctx.address, key_hex)
+                    except Exception:
+                        old_val_hex = '0' * 64
+                old_val_hex = old_val_hex or ('0' * 64)
+                try:
+                    old_is_nonzero = isinstance(old_val_hex, str) and int(old_val_hex, 16) != 0
+                except (ValueError, TypeError):
+                    old_is_nonzero = False
                 new_is_zero = (value == 0)
                 if old_is_nonzero and new_is_zero:
                     ctx.gas_refund += 4800  # EIP-3529 SSTORE_CLEARS_SCHEDULE

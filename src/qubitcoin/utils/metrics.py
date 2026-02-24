@@ -165,7 +165,7 @@ subsystem_plugins_up = Gauge('qbc_subsystem_plugins_up', 'Plugin subsystem up (0
 subsystem_cognitive_up = Gauge('qbc_subsystem_cognitive_up', 'Cognitive architecture up (0/1)')
 subsystem_privacy_up = Gauge('qbc_subsystem_privacy_up', 'Privacy subsystem up (0/1)')
 
-def setup_metrics(app):
+def setup_metrics(app) -> None:
     """Setup Prometheus metrics for FastAPI app"""
     instrumentator = Instrumentator().instrument(app).expose(app)
     return instrumentator

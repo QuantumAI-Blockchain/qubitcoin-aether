@@ -296,7 +296,7 @@ class BridgeManager:
     # ADMINISTRATION
     # ========================================================================
 
-    def set_qbc_bridge_address(self, address: str):
+    def set_qbc_bridge_address(self, address: str) -> None:
         """Set QBC bridge address where coins are locked"""
         self.qbc_bridge_address = address
         logger.info(f"✅ QBC bridge address: {address}")

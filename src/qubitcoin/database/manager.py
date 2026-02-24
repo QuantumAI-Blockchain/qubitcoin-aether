@@ -660,7 +660,7 @@ class DatabaseManager:
                 {'txid': inp['txid'], 'vout': inp['vout'], 'spent_by': txid}
             )
     def create_utxos(self, txid: str, outputs: List[dict], block_height: int,
-                     proof: dict, session: DBSession):
+                     proof: dict, session: DBSession) -> None:
         """Create new UTXOs"""
         for vout, output in enumerate(outputs):
             session.execute(
@@ -940,7 +940,7 @@ class DatabaseManager:
     # RESEARCH DATA
     # ========================================================================
     def store_hamiltonian(self, hamiltonian: list, params: list, energy: float,
-                         miner_address: str, block_height: int, session: DBSession):
+                         miner_address: str, block_height: int, session: DBSession) -> None:
         """Store solved Hamiltonian for research"""
         session.execute(
             text("""

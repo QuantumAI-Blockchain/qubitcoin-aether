@@ -149,7 +149,7 @@ class RustP2PClient:
         stats = self.get_peer_stats()
         return stats.get('peer_count', 0) if stats else 0
     
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Close gRPC connection"""
         if self.channel:
             self.channel.close()

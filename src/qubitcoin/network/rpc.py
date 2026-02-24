@@ -3809,6 +3809,43 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         except Exception as e:
             return {"verified": False, "error": str(e)}
 
+    @app.get("/qusd/peg/history")
+    async def qusd_peg_history():
+        """Get historical QUSD peg deviation from price feeds."""
+        try:
+            from sqlalchemy import text as sql_text
+            limit = min(int(request.query_params.get('limit', '100')), 500)
+            with db_manager.get_session() as session:
+                rows = session.execute(sql_text(
+                    "SELECT price, block_height, timestamp, source "
+                    "FROM price_feeds WHERE asset_pair = 'QUSD/USD' "
+                    "ORDER BY block_height DESC LIMIT :lim"
+                ), {'lim': limit}).fetchall()
+                history = []
+                for row in rows:
+                    price = float(row[0])
+                    history.append({
+                        'price': price,
+                        'deviation': round(price - 1.0, 6),
+                        'block_height': row[1],
+                        'timestamp': float(row[2]) if row[2] else 0,
+                        'source': row[3],
+                    })
+                return {
+                    'asset_pair': 'QUSD/USD',
+                    'target_peg': 1.0,
+                    'entries': len(history),
+                    'history': history,
+                }
+        except Exception:
+            return {
+                'asset_pair': 'QUSD/USD',
+                'target_peg': 1.0,
+                'entries': 0,
+                'history': [],
+                'note': 'No price feed data available yet',
+            }
+
     @app.get("/qusd/cross-chain")
     async def qusd_cross_chain():
         """Get cross-chain QUSD (wQUSD) status."""
