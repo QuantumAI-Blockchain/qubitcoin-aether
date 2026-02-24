@@ -36,11 +36,18 @@ contract QUSDDebtLedger is Initializable {
     }
     Snapshot[] public snapshots;
 
+    /// @notice Per-account outstanding debt (8 decimals)
+    mapping(address => uint256) public accountDebt;
+
+    /// @notice Total system-wide outstanding debt from individual accounts (8 decimals)
+    uint256 public totalAccountDebt;
+
     // ─── Events ──────────────────────────────────────────────────────────
     event DebtRecorded(uint256 amount, uint256 newTotalMinted, uint256 timestamp);
     event PaybackRecorded(uint256 usdValue, uint256 newReserveValue, uint16 backingBps, uint256 timestamp);
     event MilestoneReached(uint16 milestoneBps, uint256 totalMinted, uint256 totalReserveValue, uint256 blockNumber);
     event SnapshotTaken(uint256 indexed snapshotId, uint256 blockNumber, uint16 backingBps);
+    event PartialPayback(address indexed account, uint256 amount, uint256 remaining);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
 
@@ -96,6 +103,49 @@ contract QUSDDebtLedger is Initializable {
                 emit MilestoneReached(MILESTONES[i], totalMinted, totalReserveValue, block.number);
             }
         }
+    }
+
+    // ─── Per-Account Debt Recording ───────────────────────────────────────
+    /// @notice Record debt against a specific account (called by QUSD token on mint)
+    function recordAccountDebt(address account, uint256 amount) external onlyQUSD whenNotPaused {
+        require(account != address(0), "DebtLedger: zero address");
+        require(amount > 0, "DebtLedger: zero amount");
+        accountDebt[account] += amount;
+        totalAccountDebt += amount;
+    }
+
+    /// @notice Pay back any portion of the caller's outstanding debt
+    /// @param amount The amount to pay back (must be > 0 and <= outstanding debt)
+    function paybackPartial(uint256 amount) external whenNotPaused {
+        require(amount > 0, "DebtLedger: zero amount");
+        uint256 outstanding = accountDebt[msg.sender];
+        require(outstanding > 0, "DebtLedger: no debt");
+        require(amount <= outstanding, "DebtLedger: exceeds debt");
+
+        accountDebt[msg.sender] -= amount;
+        totalAccountDebt -= amount;
+        totalReserveValue += amount;
+        totalPaybackEvents++;
+
+        uint256 remaining = accountDebt[msg.sender];
+        emit PartialPayback(msg.sender, amount, remaining);
+
+        // Check milestones after partial payback
+        uint16 bps = _backingBps();
+        emit PaybackRecorded(amount, totalReserveValue, bps, block.timestamp);
+        for (uint256 i = 0; i < MILESTONES.length; i++) {
+            if (!milestoneReached[MILESTONES[i]] && bps >= MILESTONES[i]) {
+                milestoneReached[MILESTONES[i]] = true;
+                emit MilestoneReached(MILESTONES[i], totalMinted, totalReserveValue, block.number);
+            }
+        }
+    }
+
+    /// @notice Returns the outstanding debt for a given account
+    /// @param account The address to query
+    /// @return The amount of outstanding debt (8 decimals)
+    function getOutstandingDebt(address account) public view returns (uint256) {
+        return accountDebt[account];
     }
 
     // ─── Snapshots ───────────────────────────────────────────────────────

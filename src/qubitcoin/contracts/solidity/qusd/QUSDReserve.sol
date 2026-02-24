@@ -3,6 +3,11 @@ pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
 
+/// @notice Minimal oracle interface — returns price in USD with 8 decimals
+interface IPriceOracle {
+    function getPrice() external view returns (uint256);
+}
+
 /// @title QUSDReserve — Multi-Asset Reserve Pool for QUSD Backing
 /// @notice Holds reserves (QBC, ETH, BTC, USDT, USDC, DAI) that back QUSD.
 ///         All deposits reduce QUSD outstanding debt. Governance-only withdrawal.
@@ -27,6 +32,9 @@ contract QUSDReserve is Initializable {
     mapping(address => AssetInfo) public assets;
     address[] public assetList;
 
+    /// @notice Per-asset price oracle addresses (asset → oracle)
+    mapping(address => address) public assetOracles;
+
     /// @notice Total reserve value in USD (8 decimals, updated via oracle)
     uint256 public totalReserveValueUSD;
     bool public paused;
@@ -39,6 +47,7 @@ contract QUSDReserve is Initializable {
     event AssetDeactivated(address indexed asset);
     event GovernanceUpdated(address indexed prev, address indexed next);
     event OracleUpdated(address indexed prev, address indexed next);
+    event AssetOracleSet(address indexed asset, address indexed oracle);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
 
@@ -138,6 +147,64 @@ contract QUSDReserve is Initializable {
     function revalue(uint256 newTotalUSD) external onlyOwner {
         totalReserveValueUSD = newTotalUSD;
         emit ReserveRebalance(newTotalUSD);
+    }
+
+    // ─── Per-Asset Oracle Integration ───────────────────────────────────
+    /// @notice Set the price oracle for a reserve asset (owner only)
+    /// @param asset Token address of the reserve asset
+    /// @param oracle Address of the IPriceOracle contract for this asset
+    function setAssetOracle(address asset, address oracle) external onlyOwner {
+        require(assets[asset].active, "QUSDReserve: asset not registered");
+        require(oracle != address(0), "QUSDReserve: zero oracle address");
+        assetOracles[asset] = oracle;
+        emit AssetOracleSet(asset, oracle);
+    }
+
+    /// @notice Get the current USD price for a reserve asset (8 decimals)
+    /// @param asset Token address of the reserve asset
+    /// @return price USD price with 8 decimals from the asset's oracle
+    function getAssetPrice(address asset) public view returns (uint256 price) {
+        address oracle = assetOracles[asset];
+        require(oracle != address(0), "QUSDReserve: no oracle for asset");
+        price = IPriceOracle(oracle).getPrice();
+        require(price > 0, "QUSDReserve: oracle returned zero price");
+    }
+
+    /// @notice Compute the USD value of a single reserve asset
+    /// @dev    value = (currentBalance * price) / 10^decimals
+    ///         Both price and result use 8 decimal places.
+    /// @param asset Token address of the reserve asset
+    /// @return value USD value of the reserve holdings of this asset (8 decimals)
+    function getAssetValue(address asset) public view returns (uint256 value) {
+        AssetInfo storage info = assets[asset];
+        require(info.active, "QUSDReserve: asset not active");
+        uint256 price = getAssetPrice(asset);
+        // balance is in asset-native decimals; price is USD with 8 decimals.
+        // value = balance * price / 10^decimals  (result in 8-decimal USD)
+        value = (info.currentBalance * price) / (10 ** info.decimals);
+    }
+
+    /// @notice Recompute totalReserveValueUSD by summing all active assets with oracles
+    /// @dev    Assets without an oracle are skipped (their value is treated as 0).
+    ///         Call this periodically or after price changes for an accurate total.
+    /// @return total The newly computed total reserve value in USD (8 decimals)
+    function computeTotalReserveValueUSD() external returns (uint256 total) {
+        total = 0;
+        for (uint256 i = 0; i < assetList.length; i++) {
+            address asset = assetList[i];
+            if (!assets[asset].active) continue;
+            if (assetOracles[asset] == address(0)) continue;
+            // Use try-catch so a single failing oracle doesn't revert the whole sum
+            try IPriceOracle(assetOracles[asset]).getPrice() returns (uint256 price) {
+                if (price > 0) {
+                    total += (assets[asset].currentBalance * price) / (10 ** assets[asset].decimals);
+                }
+            } catch {
+                // Skip assets whose oracle reverts
+            }
+        }
+        totalReserveValueUSD = total;
+        emit ReserveRebalance(total);
     }
 
     // ─── Admin ───────────────────────────────────────────────────────────

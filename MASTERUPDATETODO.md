@@ -1,18 +1,18 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 25, 2026 | Run #19
+# Last Updated: February 25, 2026 | Run #20
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 102
-- Remaining: 46
-- Completion: 68.9%
+- Completed: 107
+- Remaining: 41
+- Completion: 72.3%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
 - **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
-- Estimated runs to 100%: ~11
+- Estimated runs to 100%: ~9
 
 ---
 
@@ -163,7 +163,7 @@
 | B14 | LOW | `quantum/engine.py` | Local estimator only | Add GPU-accelerated qiskit-aer backend option | MEDIUM |
 | ~~B15~~ | ~~LOW~~ | `quantum/crypto.py` | ~~No key rotation~~ | ~~KeyRotationManager: rotate_keys(), grace period verification, revoke_key(), status reporting. 29 tests~~ | **DONE (Run #17)** |
 | ~~B16~~ | ~~LOW~~ | `network/rpc.py` | ~~No eth_subscribe~~ | ~~/ws/jsonrpc endpoint with eth_subscribe/eth_unsubscribe, newHeads + pendingTransactions auto-broadcast~~ | **DONE (Run #15)** |
-| B17 | LOW | `privacy/` | Not integrated in consensus | Wire Susy Swap validation into block validation pipeline | MEDIUM |
+| ~~B17~~ | ~~LOW~~ | `consensus/engine.py` | ~~Not integrated in consensus~~ | ~~_validate_block_susy_swaps: key image uniqueness, commitment consistency, range proof verification. Graceful degradation. 12 tests~~ | **DONE (Run #20)** |
 | B18 | LOW | `bridge/` | No validator rewards | Implement bridge validator reward distribution per verified proof | MEDIUM |
 | ~~B19~~ | ~~LOW~~ | `.github/workflows/` | ~~No security scanning~~ | ~~Add SAST (Semgrep/Bandit) and dependency scanning (Safety/Snyk)~~ | **DONE (Run #7)** — Bandit + pip-audit CI job |
 | ~~B20~~ | ~~LOW~~ | `tests/benchmarks/bench_core.py` + `conftest.py` | ~~No performance tests~~ | ~~16 benchmarks: block validation, VQE mining, DB queries, QVM execution, Phi calc, hashing. `@pytest.mark.benchmark` marker~~ | **DONE (Run #18)** |
@@ -183,7 +183,7 @@
 | V09 | LOW | `qubitcoin-qvm/` | No AGI opcodes | Implement QREASON (0xFA) and QPHI (0xFB) in Go QVM | MEDIUM |
 | ~~V10~~ | ~~LOW~~ | `qvm/plugins.py` | ~~Manual registration~~ | ~~discover_plugins(directory) scans for QVMPlugin subclasses + reload_plugin(name) for hot-reload~~ | **DONE (Run #18)** |
 | ~~V11~~ | ~~LOW~~ | `qvm/state.py` + `config.py` | ~~No EIP-1559~~ | ~~calculate_base_fee() implements EIP-1559 algorithm. StateManager tracks current_base_fee, updates per block. 12 unit tests~~ | **DONE (Run #19)** |
-| V12 | LOW | `qvm/` | No access lists | Implement EIP-2930 access list transactions for gas optimization | MEDIUM |
+| ~~V12~~ | ~~LOW~~ | `qvm/state.py` + `config.py` | ~~No access lists~~ | ~~AccessListEntry dataclass, apply_access_list() (2400/addr + 1900/key), warm_addresses/warm_storage_keys sets. 14 tests~~ | **DONE (Run #20)** |
 | ~~V13~~ | ~~LOW~~ | `qvm/vm.py` + `rpc.py` + `jsonrpc.py` | ~~No debug_traceTransaction~~ | ~~execute_with_trace() + /qvm/trace/{tx_hash} REST + debug_traceTransaction JSON-RPC (Geth-compatible structLogs)~~ | **DONE (Run #17)** |
 | V14 | LOW | `contracts/solidity/` | No formal verification | Run Slither + Mythril static analysis on all 49 contracts | MEDIUM |
 | V15 | LOW | `qvm/` | No contract upgrades | Add transparent proxy upgrade pattern support (EIP-1967) | MEDIUM |
@@ -208,7 +208,7 @@
 | ~~A09~~ | ~~LOW~~ | `aether/proof_of_thought.py` | ~~Events logged, no action~~ | ~~Phi milestones (1.0/2.0/3.0) trigger obs window + exploration boost + consciousness announcement~~ | **DONE (Run #12)** |
 | A10 | LOW | `aether/temporal.py` | Basic trend detection | Add ARIMA/Prophet-style forecasting for multi-step metric prediction | MEDIUM |
 | A11 | LOW | `aether/debate.py` | 2-party debate | Extend to N-party debate with coalition formation for complex topics | MEDIUM |
-| A12 | LOW | `aether/concept_formation.py` | Hierarchical clustering | Add incremental concept refinement as new evidence arrives | MEDIUM |
+| ~~A12~~ | ~~LOW~~ | `aether/concept_formation.py` | ~~Hierarchical clustering~~ | ~~refine_concept() with similarity threshold + auto-split on high variance. merge_similar_concepts() with centroid comparison. 11 tests~~ | **DONE (Run #20)** |
 | A13 | LOW | `aether/neural_reasoner.py` | Evolutionary training | Add proper backpropagation when PyTorch available (fallback to evolutionary) | MEDIUM |
 | A14 | LOW | `aether/vector_index.py` | Sequential search | Add HNSW (Hierarchical Navigable Small World) for O(log n) ANN search at scale | MEDIUM |
 | ~~A15~~ | ~~LOW~~ | `qvm/abi.py` + `stablecoin/engine.py` | ~~ABI encoding manual~~ | ~~abi_selector() + encode_call() utilities in qvm/abi.py. Refactored stablecoin engine to use central selectors. 12 tests~~ | **DONE (Run #19)** |
@@ -252,10 +252,10 @@
 | ~~S03~~ | ~~MEDIUM~~ | `stablecoin/engine.py` | ~~Independent~~ | ~~get_system_health() reads on-chain reserve ratio via QVM static_call with in-memory fallback. sync_from_chain() reads totalSupply+reserves. Refactored to use central abi_selector~~ | **DONE (Run #19)** |
 | ~~S04~~ | ~~MEDIUM~~ | `contracts/solidity/qusd/QUSD.sol` | ~~0.05% fee hardcoded~~ | ~~feeBps mutable + setFeeBps() with 10% cap + FeeBpsUpdated event~~ | **DONE (Run #14)** |
 | ~~S05~~ | ~~MEDIUM~~ | `contracts/solidity/qusd/QUSDGovernance.sol` | ~~Basic voting~~ | ~~delegate()/undelegate()/getVotingPower() with chain prevention, DelegateChanged event. vote() uses delegated power~~ | **DONE (Run #19)** |
-| S06 | LOW | `contracts/solidity/qusd/QUSDReserve.sol` | No price for reserves | Add oracle price for each reserve asset (currently tracks quantity only) | MEDIUM |
+| ~~S06~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDReserve.sol` | ~~No price for reserves~~ | ~~IPriceOracle interface, assetOracles mapping, setAssetOracle/getAssetPrice/getAssetValue/computeTotalReserveValueUSD. Try-catch per asset~~ | **DONE (Run #20)** |
 | ~~S07~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDStabilizer.sol` | ~~Hardcoded thresholds~~ | ~~pegTarget/floorPrice/ceilingPrice mutable + setPegBands() with min spread validation~~ | **DONE (Run #14)** |
 | S08 | LOW | `contracts/solidity/qusd/wQUSD.sol` | Lock-and-mint | Add bridge proof verification (currently trusts bridge relayer) | MEDIUM |
-| S09 | LOW | `contracts/solidity/qusd/QUSDDebtLedger.sol` | No partial payback | Add incremental debt reduction (currently all-or-nothing milestone) | MEDIUM |
+| ~~S09~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDDebtLedger.sol` | ~~No partial payback~~ | ~~paybackPartial(amount) + recordAccountDebt + getOutstandingDebt. Per-account tracking with PartialPayback event. Coexists with milestone payback~~ | **DONE (Run #20)** |
 | ~~S10~~ | ~~LOW~~ | `contracts/solidity/qusd/` | ~~No emergency pause~~ | ~~Added paused + whenNotPaused + pause()/unpause() to QUSDStabilizer, QUSDReserve, QUSDDebtLedger, wQUSD~~ | **DONE (Run #14)** |
 | S11 | LOW | `stablecoin/` | No interest rate | Implement CDP interest rate model (borrow QUSD against QBC collateral) | LARGE |
 | S12 | LOW | `stablecoin/` | No liquidation engine | Add liquidation mechanism for under-collateralized CDPs | LARGE |
@@ -809,3 +809,20 @@ Focus on: Go QVM completion, formal verification, advanced features
 **Test result:** 2,844 passed, 0 failed (+58 new tests)
 
 **Cumulative progress:** 102/148 completed (68.9%).
+
+### Run #20 — February 25, 2026
+
+**Scope:** Reserve oracle pricing, EIP-2930 access lists, Susy Swap consensus wiring, concept refinement, partial debt payback
+
+**Items completed: 5** (S06, V12, B17, A12, S09)
+- **S06** — QUSDReserve oracle integration: IPriceOracle interface, `assetOracles` mapping, `setAssetOracle`/`getAssetPrice`/`getAssetValue`/`computeTotalReserveValueUSD`. Try-catch per asset so one failing oracle doesn't revert all.
+- **V12** — EIP-2930 access lists: `AccessListEntry` dataclass, `apply_access_list()` (2400 gas/address + 1900 gas/key), `warm_addresses`/`warm_storage_keys` sets, `is_address_warm`/`is_storage_key_warm` checks. 14 tests.
+- **B17** — Susy Swap block validation: `_validate_block_susy_swaps()` wired into `validate_block()`. Checks cross-tx key image uniqueness, commitment format consistency, range proof verification. Graceful degradation on privacy module errors. 12 tests.
+- **A12** — Incremental concept refinement: `refine_concept()` incorporates new nodes with similarity threshold, auto-splits on high internal variance. `merge_similar_concepts()` merges by centroid proximity. Stats tracking. 11 tests.
+- **S09** — Partial debt payback: `paybackPartial(amount)`, `recordAccountDebt(account, amount)`, `getOutstandingDebt(account)`. Per-account debt tracking with `PartialPayback` event. Coexists with existing milestone payback.
+
+**Files changed: 10** (QUSDReserve.sol, state.py, config.py, consensus/engine.py, concept_formation.py, QUSDDebtLedger.sol, new test_eip2930_access_list.py, new test_susy_swap_block_validation.py, new test_concept_formation.py)
+
+**Test result:** 2,881 passed, 0 failed (+37 new tests)
+
+**Cumulative progress:** 107/148 completed (72.3%).

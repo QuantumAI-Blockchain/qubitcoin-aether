@@ -54,6 +54,12 @@ class ConceptFormation:
         self._transfer_attempts: int = 0
         self._transfer_successes: int = 0
         self._patterns_extracted: int = 0
+        # Incremental refinement state
+        self._concepts_refined: int = 0
+        self._concepts_split: int = 0
+        self._concepts_merged: int = 0
+        # Variance threshold for splitting a concept
+        self._split_variance_threshold: float = 0.6
 
     # ------------------------------------------------------------------
     # Original concept formation methods (unchanged)
@@ -714,6 +720,366 @@ class ConceptFormation:
         return stats
 
     # ------------------------------------------------------------------
+    # Phase A12: Incremental Concept Refinement
+    # ------------------------------------------------------------------
+
+    def refine_concept(self, concept_id: int, new_nodes: List,
+                       similarity_threshold: float = 0.5) -> Optional[int]:
+        """Refine an existing concept by incorporating new knowledge nodes.
+
+        Given an existing concept node and a list of new KeterNodes:
+        1. Checks if each new node fits the concept (similarity threshold).
+        2. Incorporates fitting nodes by adding 'abstracts' edges.
+        3. Updates the concept's content (member_count, theme words, confidence).
+        4. If internal variance exceeds threshold, splits the concept.
+
+        Args:
+            concept_id: Node ID of an existing concept node.
+            new_nodes: New KeterNode objects to evaluate for incorporation.
+            similarity_threshold: Min similarity for a node to be incorporated.
+
+        Returns:
+            The concept_id if updated, or None if no change was made.
+            If a split occurs, returns the original concept_id (the new
+            split concept is created as a separate node).
+        """
+        if not self.kg:
+            return None
+
+        concept = self.kg.nodes.get(concept_id)
+        if not concept:
+            return None
+
+        content = concept.content or {}
+        if content.get('type') != 'abstract_concept':
+            return None
+
+        # Collect current member IDs
+        member_ids: List[int] = []
+        for edge in self.kg._adj_out.get(concept_id, []):
+            if edge.edge_type == 'abstracts':
+                member_ids.append(edge.to_node_id)
+
+        if not member_ids:
+            return None
+
+        # Compute centroid embedding from existing members
+        centroid = self._compute_centroid(member_ids)
+
+        # Evaluate each new node for incorporation
+        incorporated: List[int] = []
+        for node in new_nodes:
+            if not hasattr(node, 'node_id') or node.node_id not in self.kg.nodes:
+                continue
+            # Skip nodes already in this concept
+            if node.node_id in member_ids:
+                continue
+            # Skip concept nodes themselves
+            node_content = node.content or {}
+            if node_content.get('type') == 'abstract_concept':
+                continue
+
+            sim = self._node_similarity_to_centroid(node.node_id, centroid)
+            if sim >= similarity_threshold:
+                # Add 'abstracts' edge from concept to this node
+                edge = self.kg.add_edge(
+                    concept_id, node.node_id,
+                    'abstracts', weight=0.8
+                )
+                if edge:
+                    incorporated.append(node.node_id)
+                    member_ids.append(node.node_id)
+
+        if not incorporated:
+            return None
+
+        # Update concept content metadata
+        all_members = [self.kg.nodes.get(nid) for nid in member_ids]
+        all_members = [m for m in all_members if m is not None]
+
+        if all_members:
+            avg_confidence = sum(m.confidence for m in all_members) / len(all_members)
+            max_block = max(m.source_block for m in all_members)
+
+            # Recompute theme words
+            all_text = ' '.join(
+                str(m.content.get('text', m.content.get('type', '')))
+                for m in all_members
+            ).lower()
+            words = all_text.split()
+            word_counts: Dict[str, int] = {}
+            for w in words:
+                if len(w) > 3:
+                    word_counts[w] = word_counts.get(w, 0) + 1
+            top_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            theme = ' '.join(w for w, _ in top_words) if top_words else content.get('domain', 'general')
+
+            concept.content['text'] = f"Concept: {theme}"
+            concept.content['theme_words'] = [w for w, _ in top_words]
+            concept.content['member_count'] = len(all_members)
+            concept.confidence = avg_confidence * 0.9
+            concept.source_block = max_block
+
+        self._concepts_refined += 1
+
+        logger.info(
+            f"Concept {concept_id} refined: incorporated {len(incorporated)} new nodes "
+            f"(total members: {len(member_ids)})"
+        )
+
+        # Check if concept should split due to high internal variance
+        if len(member_ids) >= 4:
+            variance = self._compute_internal_variance(member_ids)
+            if variance > self._split_variance_threshold:
+                self._split_concept(concept_id, member_ids)
+
+        return concept_id
+
+    def merge_similar_concepts(self, threshold: float = 0.85) -> int:
+        """Merge concept nodes whose centroids are similar enough.
+
+        Compares all pairs of concept nodes.  When centroid similarity
+        exceeds ``threshold``, the smaller concept is merged into the
+        larger one (its member edges are re-pointed and the smaller
+        concept node is demoted to a regular inference).
+
+        Args:
+            threshold: Minimum centroid similarity to trigger a merge.
+
+        Returns:
+            Number of merges performed.
+        """
+        if not self.kg:
+            return 0
+
+        # Collect all concept nodes
+        concept_ids: List[int] = []
+        for node in self.kg.nodes.values():
+            content = node.content or {}
+            if content.get('type') == 'abstract_concept':
+                concept_ids.append(node.node_id)
+
+        if len(concept_ids) < 2:
+            return 0
+
+        # Build centroid map
+        centroids: Dict[int, List[float]] = {}
+        members_map: Dict[int, List[int]] = {}
+        for cid in concept_ids:
+            member_ids: List[int] = []
+            for edge in self.kg._adj_out.get(cid, []):
+                if edge.edge_type == 'abstracts':
+                    member_ids.append(edge.to_node_id)
+            members_map[cid] = member_ids
+            centroids[cid] = self._compute_centroid(member_ids)
+
+        # Find mergeable pairs (greedy — highest similarity first)
+        merge_pairs: List[Tuple[float, int, int]] = []
+        concept_list = list(concept_ids)
+        for i in range(len(concept_list)):
+            for j in range(i + 1, len(concept_list)):
+                cid_a, cid_b = concept_list[i], concept_list[j]
+                sim = self._centroid_similarity(centroids[cid_a], centroids[cid_b])
+                if sim >= threshold:
+                    merge_pairs.append((sim, cid_a, cid_b))
+
+        merge_pairs.sort(reverse=True)
+
+        merged_away: Set[int] = set()
+        merges = 0
+
+        for sim, cid_a, cid_b in merge_pairs:
+            if cid_a in merged_away or cid_b in merged_away:
+                continue
+
+            # Merge smaller into larger
+            size_a = len(members_map.get(cid_a, []))
+            size_b = len(members_map.get(cid_b, []))
+            if size_a >= size_b:
+                keep, discard = cid_a, cid_b
+            else:
+                keep, discard = cid_b, cid_a
+
+            # Move member edges from discard to keep
+            discard_members = members_map.get(discard, [])
+            keep_members = set(members_map.get(keep, []))
+            for mid in discard_members:
+                if mid not in keep_members:
+                    self.kg.add_edge(keep, mid, 'abstracts', weight=0.8)
+                    keep_members.add(mid)
+
+            # Update keep concept's member list
+            members_map[keep] = list(keep_members)
+
+            # Demote discarded concept — change its type so it's no longer a concept
+            discard_node = self.kg.nodes.get(discard)
+            if discard_node and discard_node.content:
+                discard_node.content['type'] = 'merged_concept'
+                discard_node.content['merged_into'] = keep
+
+            # Update keep concept metadata
+            all_members = [self.kg.nodes.get(nid) for nid in keep_members if nid in self.kg.nodes]
+            if all_members:
+                keep_node = self.kg.nodes.get(keep)
+                if keep_node:
+                    avg_conf = sum(m.confidence for m in all_members) / len(all_members)
+                    keep_node.confidence = avg_conf * 0.9
+                    keep_node.content['member_count'] = len(all_members)
+
+            merged_away.add(discard)
+            merges += 1
+            self._concepts_merged += 1
+
+            logger.info(
+                f"Merged concept {discard} into {keep} "
+                f"(similarity={sim:.3f}, new size={len(keep_members)})"
+            )
+
+        return merges
+
+    def _compute_centroid(self, member_ids: List[int]) -> List[float]:
+        """Compute the average embedding vector for a set of member nodes.
+
+        Falls back to an empty vector if the vector index is not available
+        or no members have embeddings.
+        """
+        if not self.vector_index or not member_ids:
+            return []
+
+        embeddings: List[List[float]] = []
+        for nid in member_ids:
+            emb = self.vector_index.get_embedding(nid)
+            if emb:
+                embeddings.append(emb)
+
+        if not embeddings:
+            return []
+
+        dim = len(embeddings[0])
+        centroid = [0.0] * dim
+        for emb in embeddings:
+            for i in range(dim):
+                centroid[i] += emb[i]
+        for i in range(dim):
+            centroid[i] /= len(embeddings)
+        return centroid
+
+    def _node_similarity_to_centroid(self, node_id: int,
+                                     centroid: List[float]) -> float:
+        """Compute similarity between a node's embedding and a centroid.
+
+        Uses cosine similarity when embeddings are available, otherwise
+        falls back to Jaccard token overlap with concept members.
+        """
+        if self.vector_index and centroid:
+            emb = self.vector_index.get_embedding(node_id)
+            if emb:
+                from .vector_index import cosine_similarity
+                return cosine_similarity(emb, centroid)
+
+        # Fallback: always consider the node a partial match when no embeddings
+        return 0.4
+
+    def _centroid_similarity(self, centroid_a: List[float],
+                             centroid_b: List[float]) -> float:
+        """Compute cosine similarity between two centroid vectors."""
+        if not centroid_a or not centroid_b:
+            return 0.0
+        from .vector_index import cosine_similarity
+        return cosine_similarity(centroid_a, centroid_b)
+
+    def _compute_internal_variance(self, member_ids: List[int]) -> float:
+        """Compute the average pairwise dissimilarity within a concept.
+
+        Returns a value between 0.0 (perfectly similar) and 1.0 (maximally
+        dissimilar).  Uses embeddings if available; otherwise returns 0.0
+        (assume low variance without data).
+        """
+        if not self.vector_index or len(member_ids) < 2:
+            return 0.0
+
+        embeddings: List[List[float]] = []
+        for nid in member_ids:
+            emb = self.vector_index.get_embedding(nid)
+            if emb:
+                embeddings.append(emb)
+
+        if len(embeddings) < 2:
+            return 0.0
+
+        centroid = self._compute_centroid(member_ids)
+        if not centroid:
+            return 0.0
+
+        from .vector_index import cosine_similarity
+        total_dist = 0.0
+        for emb in embeddings:
+            sim = cosine_similarity(emb, centroid)
+            total_dist += (1.0 - sim)
+
+        return total_dist / len(embeddings)
+
+    def _split_concept(self, concept_id: int, member_ids: List[int]) -> Optional[int]:
+        """Split a concept into two if internal variance is too high.
+
+        Uses a simple bisection: partitions members into two groups based
+        on similarity to the centroid.  The original concept keeps the
+        closer half; a new concept is created for the farther half.
+
+        Args:
+            concept_id: The concept to split.
+            member_ids: Current member node IDs.
+
+        Returns:
+            Node ID of the newly created split concept, or None.
+        """
+        if not self.kg or len(member_ids) < 4:
+            return None
+
+        centroid = self._compute_centroid(member_ids)
+        if not centroid:
+            return None
+
+        # Score each member by similarity to centroid
+        scored: List[Tuple[float, int]] = []
+        for nid in member_ids:
+            sim = self._node_similarity_to_centroid(nid, centroid)
+            scored.append((sim, nid))
+        scored.sort(reverse=True)
+
+        # Split at midpoint
+        midpoint = len(scored) // 2
+        keep_ids = [nid for _, nid in scored[:midpoint]]
+        split_ids = [nid for _, nid in scored[midpoint:]]
+
+        if len(split_ids) < 2:
+            return None
+
+        # Determine domain from the original concept
+        concept_node = self.kg.nodes.get(concept_id)
+        domain = concept_node.domain if concept_node else 'general'
+
+        # Create new concept for the split-off members
+        new_concept_id = self._create_concept_node(split_ids, domain)
+        if new_concept_id is None:
+            return None
+
+        # Remove split-off members from original concept's edges
+        # (edges remain in the global edge list but we won't double-link)
+        # The new concept node already has 'abstracts' edges to split_ids
+        # via _create_concept_node, so we just update the original's metadata
+        if concept_node:
+            concept_node.content['member_count'] = len(keep_ids)
+
+        self._concepts_split += 1
+        logger.info(
+            f"Split concept {concept_id}: kept {len(keep_ids)} members, "
+            f"new concept {new_concept_id} with {len(split_ids)} members"
+        )
+
+        return new_concept_id
+
+    # ------------------------------------------------------------------
     # Stats
     # ------------------------------------------------------------------
 
@@ -726,4 +1092,7 @@ class ConceptFormation:
             'transfer_successes': self._transfer_successes,
             'patterns_extracted': self._patterns_extracted,
             'pattern_library_size': len(self._pattern_library),
+            'concepts_refined': self._concepts_refined,
+            'concepts_split': self._concepts_split,
+            'concepts_merged': self._concepts_merged,
         }

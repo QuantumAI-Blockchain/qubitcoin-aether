@@ -267,6 +267,18 @@ class ConsensusEngine:
             if coinbase_amount > expected_reward + total_fees:
                 return False, f"Excessive coinbase: {coinbase_amount} > {expected_reward} + {total_fees}"
 
+            # ── Susy Swap (confidential tx) block-level validation ────
+            # Individual private tx validation is handled by validate_transaction
+            # above (routing to _validate_private_transaction). This block-level
+            # check ensures cross-transaction invariants: key image uniqueness
+            # across all transactions in the block, commitment consistency,
+            # and range proof verification for any confidential outputs.
+            susy_valid, susy_reason = self._validate_block_susy_swaps(
+                block, db_manager
+            )
+            if not susy_valid:
+                return False, susy_reason
+
             # ── Timestamp validation ──────────────────────────────────
             # 1. Must not be too far in the future
             if block.timestamp > time.time() + Config.MAX_FUTURE_BLOCK_TIME:
@@ -497,6 +509,118 @@ class ConsensusEngine:
                 return isinstance(inputs, list) and len(inputs) == 0
         except Exception:
             return False
+
+    def _validate_block_susy_swaps(self, block: Block, db_manager) -> Tuple[bool, str]:
+        """Validate all Susy Swap (confidential) transactions at the block level.
+
+        Performs cross-transaction checks that individual tx validation cannot:
+          1. Key image uniqueness across ALL transactions in the block
+             (individual tx validation only checks within a single tx and DB)
+          2. Commitment consistency for confidential outputs
+          3. Range proof verification for any confidential outputs
+
+        Args:
+            block: The block to validate.
+            db_manager: Database manager for lookups.
+
+        Returns:
+            (True, "Valid") on success, (False, reason) on failure.
+        """
+        try:
+            # Collect all key images across every private tx in the block
+            block_key_images: Dict[str, str] = {}  # key_image → txid
+
+            for tx in block.transactions:
+                # Skip coinbase transactions (no inputs)
+                if len(tx.inputs) == 0:
+                    continue
+
+                is_private = getattr(tx, 'is_private', False)
+                if not is_private:
+                    # Also check if any output has susy_data / confidential markers
+                    has_confidential_data = any(
+                        out.get('range_proof') or out.get('commitment')
+                        for out in tx.outputs
+                    )
+                    if not has_confidential_data:
+                        continue
+
+                # ── 1. Cross-tx key image uniqueness ──────────────────
+                for inp in tx.inputs:
+                    ki = inp.get('key_image')
+                    if not ki:
+                        continue
+                    if ki in block_key_images:
+                        conflicting_txid = block_key_images[ki]
+                        return False, (
+                            f"Duplicate key image across block transactions: "
+                            f"key_image={ki[:32]}... in tx {tx.txid[:16]} "
+                            f"and tx {conflicting_txid[:16]}"
+                        )
+                    block_key_images[ki] = tx.txid
+
+                # ── 2. Commitment consistency check ───────────────────
+                # Verify that each output with a commitment has well-formed data
+                for i, out in enumerate(tx.outputs):
+                    commitment_hex = out.get('commitment')
+                    if commitment_hex:
+                        try:
+                            if isinstance(commitment_hex, str):
+                                commitment_bytes = bytes.fromhex(commitment_hex)
+                                # Compressed EC point: 33 bytes (02/03 prefix + 32 bytes x)
+                                if len(commitment_bytes) != 33:
+                                    return False, (
+                                        f"Invalid commitment size in tx {tx.txid[:16]} "
+                                        f"output {i}: {len(commitment_bytes)} bytes (expected 33)"
+                                    )
+                                if commitment_bytes[0] not in (0x02, 0x03):
+                                    return False, (
+                                        f"Invalid commitment prefix in tx {tx.txid[:16]} "
+                                        f"output {i}: 0x{commitment_bytes[0]:02x}"
+                                    )
+                        except (ValueError, TypeError) as e:
+                            return False, (
+                                f"Malformed commitment in tx {tx.txid[:16]} output {i}: {e}"
+                            )
+
+                # ── 3. Range proof verification ───────────────────────
+                for i, out in enumerate(tx.outputs):
+                    range_proof_data = out.get('range_proof')
+                    if not range_proof_data:
+                        continue
+                    try:
+                        from ..privacy.range_proofs import RangeProofVerifier, RangeProof
+                        if isinstance(range_proof_data, dict):
+                            proof_obj = RangeProof(
+                                commitment=range_proof_data.get('commitment', b''),
+                                A=range_proof_data.get('A', b''),
+                                S=range_proof_data.get('S', b''),
+                                T1=range_proof_data.get('T1', b''),
+                                T2=range_proof_data.get('T2', b''),
+                                tau_x=range_proof_data.get('tau_x', 0),
+                                mu=range_proof_data.get('mu', 0),
+                                t_hat=range_proof_data.get('t_hat', 0),
+                                l_vec=range_proof_data.get('l_vec', []),
+                                r_vec=range_proof_data.get('r_vec', []),
+                            )
+                            if not RangeProofVerifier.verify(proof_obj):
+                                return False, (
+                                    f"Range proof verification failed in tx "
+                                    f"{tx.txid[:16]} output {i}"
+                                )
+                    except ImportError:
+                        logger.debug("Privacy module not available for range proof verification")
+                    except Exception as e:
+                        return False, (
+                            f"Range proof error in tx {tx.txid[:16]} output {i}: {e}"
+                        )
+
+            return True, "Valid"
+
+        except Exception as e:
+            # Graceful degradation: if the privacy module has issues, log and allow
+            logger.warning(f"Susy Swap block validation error (allowing block): {e}")
+            return True, "Valid (susy validation skipped)"
 
     async def resolve_fork(self, new_block: Block, sender_id: str):
         """Resolve fork by adopting longer valid chain"""

@@ -5,8 +5,9 @@ Handles transaction routing, state root computation, and QVM integration with QB
 import hashlib
 import json
 import time
+from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from .vm import QVM, ExecutionResult
 from ..database.models import Transaction, TransactionReceipt, Account, Block
@@ -14,6 +15,27 @@ from ..config import Config
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# ── EIP-2930 Access List Support ─────────────────────────────────────────
+# Gas costs per EIP-2930 specification
+ACCESS_LIST_ADDRESS_COST: int = 2400   # Gas per address in access list
+ACCESS_LIST_STORAGE_KEY_COST: int = 1900  # Gas per storage key in access list
+
+
+@dataclass
+class AccessListEntry:
+    """A single entry in an EIP-2930 access list.
+
+    Each entry pre-declares an account address and a set of storage keys
+    that the transaction intends to access, allowing them to be loaded into
+    the "warm" cache before execution begins.
+
+    Attributes:
+        address: The hex account address (40 chars, no 0x prefix).
+        storage_keys: List of storage slot keys (hex strings) to pre-warm.
+    """
+    address: str
+    storage_keys: List[str] = field(default_factory=list)
 
 
 def calculate_base_fee(parent_gas_used: int, parent_gas_limit: int,
@@ -75,6 +97,10 @@ class StateManager:
         self.event_index = None  # Injected by node after EventIndex init
         self.current_base_fee: int = Config.EIP1559_INITIAL_BASE_FEE
 
+        # EIP-2930 warm caches — reset per transaction via clear_access_list()
+        self.warm_addresses: Set[str] = set()
+        self.warm_storage_keys: Set[Tuple[str, str]] = set()
+
     def set_block_context(self, block_height: int, timestamp: float, coinbase: str, difficulty: float) -> None:
         """Update QVM block context before executing transactions"""
         self.qvm.block = {
@@ -107,6 +133,71 @@ class StateManager:
             f"(parent used {parent_gas_used}/{parent_gas_limit})"
         )
         return self.current_base_fee
+
+    # ── EIP-2930 Access List Methods ────────────────────────────────────
+
+    def apply_access_list(self, access_list: List[AccessListEntry]) -> int:
+        """Pre-warm addresses and storage keys from an EIP-2930 access list.
+
+        Marks each address and storage key as "warm" so that subsequent
+        SLOAD / SSTORE / BALANCE / EXTCODE* opcodes use the cheaper warm
+        gas cost instead of the cold cost.
+
+        Gas charges per EIP-2930:
+          - 2400 gas per address entry
+          - 1900 gas per storage key entry
+
+        Args:
+            access_list: List of AccessListEntry items declaring addresses
+                         and storage keys to pre-warm.
+
+        Returns:
+            Total gas cost for the access list pre-warming.
+        """
+        total_gas: int = 0
+        for entry in access_list:
+            addr = entry.address.lower()
+            self.warm_addresses.add(addr)
+            total_gas += ACCESS_LIST_ADDRESS_COST
+
+            for key in entry.storage_keys:
+                self.warm_storage_keys.add((addr, key.lower()))
+                total_gas += ACCESS_LIST_STORAGE_KEY_COST
+
+        logger.debug(
+            f"EIP-2930 access list applied: {len(access_list)} addresses, "
+            f"{sum(len(e.storage_keys) for e in access_list)} storage keys, "
+            f"{total_gas} gas"
+        )
+        return total_gas
+
+    def clear_access_list(self) -> None:
+        """Reset warm caches between transactions."""
+        self.warm_addresses.clear()
+        self.warm_storage_keys.clear()
+
+    def is_address_warm(self, address: str) -> bool:
+        """Check if an address has been pre-warmed by an access list.
+
+        Args:
+            address: The hex account address to check.
+
+        Returns:
+            True if the address is in the warm cache.
+        """
+        return address.lower() in self.warm_addresses
+
+    def is_storage_key_warm(self, address: str, key: str) -> bool:
+        """Check if a specific storage slot has been pre-warmed.
+
+        Args:
+            address: The hex account address.
+            key: The storage slot key.
+
+        Returns:
+            True if the (address, key) pair is in the warm cache.
+        """
+        return (address.lower(), key.lower()) in self.warm_storage_keys
 
     def process_transaction(self, tx: Transaction, block_height: int, block_hash: str, tx_index: int) -> Optional[TransactionReceipt]:
         """

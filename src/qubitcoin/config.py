@@ -167,6 +167,10 @@ class Config:
     EIP1559_ELASTICITY_MULTIPLIER: int = int(os.getenv('EIP1559_ELASTICITY_MULTIPLIER', 2))
     EIP1559_BASE_FEE_CHANGE_DENOMINATOR: int = int(os.getenv('EIP1559_BASE_FEE_CHANGE_DENOMINATOR', 8))
 
+    # EIP-2930 Access List Gas Costs
+    EIP2930_ACCESS_LIST_ADDRESS_COST: int = int(os.getenv('EIP2930_ACCESS_LIST_ADDRESS_COST', 2400))
+    EIP2930_ACCESS_LIST_STORAGE_KEY_COST: int = int(os.getenv('EIP2930_ACCESS_LIST_STORAGE_KEY_COST', 1900))
+
     # ============================================================================
     # BRIDGE SETTINGS
     # ============================================================================
