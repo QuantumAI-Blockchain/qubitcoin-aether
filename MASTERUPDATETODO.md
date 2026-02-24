@@ -5,11 +5,12 @@
 
 ## PROGRESS TRACKER
 
-- Total items: 137 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 findings)
+- Total items: 145 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P)
 - Completed: 54
-- Remaining: 83
-- Completion: 39.4%
-- Estimated runs to 100%: 5-7
+- Remaining: 91 (incl. 8 Rust P2P activation tasks)
+- Completion: 37.2%
+- **Next focus: Rust P2P Activation (RP1-RP8) — pre-launch priority**
+- Estimated runs to 100%: 6-8
 
 ---
 
@@ -26,7 +27,7 @@
 - [ ] All CLAUDE.md API endpoints implemented and tested
 - [ ] QUSD financial system fully operational (contracts not deployed)
 - [x] Integration tests in CI pipeline *(Run #3)*
-- [x] Rust P2P resolved — ENABLE_RUST_P2P=false as default, Python P2P active *(Run #2)*
+- [ ] Rust P2P activation — fix 3 integration gaps (channel wiring, Python protobuf gen, daemon launch), flip to default=true *(RP1-RP8)*
 - [x] Node orchestration tested — 75 tests covering 22-component init *(Run #4)*
 
 ### True AGI Emergence: 93% ready
@@ -67,6 +68,23 @@
 - [x] **H4** — `.env.example` already had ENABLE_RUST_P2P=false; config.py default now matches *(Run #2)*
 - [x] **H5** — `docker-compose.yml` — Fixed db-init loop to include bridge/ and stablecoin/ from sql_new/ *(Run #3)*
 - [x] **H6** — `.env.example` — Documented treasury addresses + 15 fee economics params (AETHER_FEE_*, CONTRACT_*) *(Run #3)*
+
+### RUST P2P ACTIVATION (Pre-Launch — Option A)
+
+**Decision:** Activate Rust libp2p as the primary P2P layer before launch. Python P2P becomes fallback only.
+**Rationale:** Rust libp2p is faster, has NAT traversal, gossipsub, Kademlia DHT, QUIC transport.
+**Current state:** Rust code compiles and components are solid, but 3 fatal integration gaps prevent it from working.
+
+| # | Priority | File(s) | Task | Details | Effort |
+|---|----------|---------|------|---------|--------|
+| **RP1** | CRITICAL | `rust-p2p/proto/p2p_service.proto` | Expand gRPC API + generate Python stubs | Add streaming RPCs: `StreamBlocks`, `StreamTransactions`, `SubmitBlock`, `SubmitTransaction`. Run `grpc_tools.protoc` to generate `p2p_service_pb2.py` + `p2p_service_pb2_grpc.py`. | MEDIUM |
+| **RP2** | CRITICAL | `rust-p2p/src/main.rs` | Fix channel wiring in event loop | Route gRPC inbound → P2P's `from_python_rx`. Route P2P's `to_python_tx` → gRPC streaming response. Currently messages are logged then dropped. | MEDIUM |
+| **RP3** | CRITICAL | `rust-p2p/src/bridge/mod.rs` | Implement bidirectional gRPC streaming | Add server-streaming RPCs so Python receives blocks/txs from gossipsub. Add message marshalling between proto types and Rust `NetworkMessage` enum. | MEDIUM |
+| **RP4** | CRITICAL | `src/qubitcoin/node.py` | Launch Rust daemon + lifecycle management | Add `subprocess.Popen` to start `qubitcoin-p2p` binary on node boot. Health check on gRPC connect. Graceful shutdown (SIGTERM). Restart on crash. | MEDIUM |
+| **RP5** | CRITICAL | `src/qubitcoin/network/rust_p2p_client.py` | Rewrite Python gRPC client for streaming | Use generated protobuf stubs. Add `stream_blocks()` async generator. Add `stream_transactions()`. Route received blocks to consensus. Route received txs to mempool. | MEDIUM |
+| **RP6** | HIGH | `Dockerfile` + `docker-compose.yml` | Docker integration | Ensure Rust binary is built and available in container. Launch both Python node + Rust P2P (supervisor or dual-process). Expose ports 4001 (libp2p) + 50051 (gRPC). | SMALL |
+| **RP7** | HIGH | `src/qubitcoin/config.py` | Flip default to ENABLE_RUST_P2P=true | Change default after RP1-RP6 are verified working. Python P2P stays as fallback if Rust daemon fails to start. | SMALL |
+| **RP8** | MEDIUM | `tests/unit/test_rust_p2p.py` | Add unit tests for Rust P2P client | Test gRPC connect/disconnect, block streaming mock, tx submission, health check, fallback to Python P2P on failure. | MEDIUM |
 
 ---
 
