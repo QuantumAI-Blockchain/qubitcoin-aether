@@ -4006,6 +4006,31 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             return {"error": "Fee collector not available"}
         return fee_collector.get_stats()
 
+    @app.get("/treasury")
+    async def treasury_dashboard():
+        """Treasury overview: balances, collected fees, and configuration."""
+        aether_addr = Config.AETHER_FEE_TREASURY_ADDRESS
+        contract_addr = Config.CONTRACT_FEE_TREASURY_ADDRESS
+        aether_balance = str(db_manager.get_balance(aether_addr)) if aether_addr else "0"
+        contract_balance = str(db_manager.get_balance(contract_addr)) if contract_addr else "0"
+        fee_stats = fee_collector.get_stats() if fee_collector else {}
+        return {
+            "aether_treasury": {
+                "address": aether_addr or "(not configured)",
+                "balance_qbc": aether_balance,
+            },
+            "contract_treasury": {
+                "address": contract_addr or "(not configured)",
+                "balance_qbc": contract_balance,
+            },
+            "fee_stats": fee_stats,
+            "config": {
+                "aether_chat_fee_qbc": str(Config.AETHER_CHAT_FEE_QBC),
+                "contract_deploy_base_fee_qbc": str(Config.CONTRACT_DEPLOY_BASE_FEE_QBC),
+                "pricing_mode": Config.AETHER_FEE_PRICING_MODE,
+            },
+        }
+
     # ========================================================================
     # ORACLE ENDPOINTS
     # ========================================================================

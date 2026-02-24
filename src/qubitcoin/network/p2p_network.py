@@ -236,6 +236,7 @@ class P2PNetwork:
                 message_length = int.from_bytes(length_bytes, 'big')
                 if message_length > MAX_MESSAGE_SIZE:
                     logger.warning(f"Message too large from {peer_id}: {message_length} bytes")
+                    self.penalize_peer(peer_id, 50, 'oversized_message')
                     break
                 if message_length == 0:
                     continue
@@ -291,12 +292,14 @@ class P2PNetwork:
                             break
                     session.commit()
                 logger.info(f"Stored block {block.height} from {sender_id}")
+                self.reward_peer(sender_id, 5, 'valid_block')
                 await self._gossip_message(message, exclude=sender_id)
                 # Trigger reorg if this block extends beyond our previous tip
                 if block.height > height_before:
                     await self.consensus.resolve_fork(block, sender_id)
             else:
                 logger.warning(f"Invalid block from {sender_id}: {reason}")
+                self.penalize_peer(sender_id, 25, f'invalid_block: {reason}')
         elif message.type == 'transaction':
             self.stats['txs_propagated'] += 1
             # Validate/add to mempool (add if needed)
@@ -424,21 +427,26 @@ class P2PNetwork:
                     self.seen_messages.discard(msg_id)
                 logger.debug(f"Cleaned {len(to_remove)} old messages from cache")
     async def _peer_maintenance_loop(self):
-        """Maintain peer connections and scores"""
+        """Maintain peer connections, score decay, and eviction"""
         while self.running:
-            await asyncio.sleep(60) # Every minute
+            await asyncio.sleep(60)  # Every minute
             now = datetime.now()
-            # Check for stale peers
             stale_peers = []
-            for peer_id, peer in self.connections.items():
+            for peer_id, peer in list(self.connections.items()):
                 time_since_seen = (now - peer.last_seen).total_seconds()
                 # Disconnect if no activity for 5 minutes
                 if time_since_seen > 300:
                     stale_peers.append(peer_id)
                     logger.warning(f"Peer {peer_id} stale (no activity for {time_since_seen:.0f}s)")
+                else:
+                    # Score decay: -1 per minute of inactivity (min 0)
+                    if time_since_seen > 60:
+                        self.adjust_peer_score(peer_id, -1, 'idle_decay')
             # Disconnect stale peers
             for peer_id in stale_peers:
                 await self._disconnect_peer(peer_id)
+            # Evict peers below ban threshold
+            await self.evict_low_score_peers(min_score=10)
     def _generate_msg_id(self, msg_type: str, data: Any) -> str:
         """Generate unique message ID"""
         content = f"{msg_type}:{json.dumps(data, sort_keys=True)}:{time.time()}"

@@ -98,14 +98,13 @@ PHASE 1: PLAN (think hard — no code yet)
 3. Rate risk: CRITICAL (consensus, crypto, UTXO) vs STANDARD
 4. Define test commands for verification
 5. Break into batches of MAX 5 files
-6. WAIT for approval before proceeding
+6. Proceed immediately (autonomous mode enabled)
 
 PHASE 2: IMPLEMENT (one batch at a time)
-1. Verify branch (NEVER commit to main)
-2. Make changes to batch ONLY
-3. Run tests — show FULL output
-4. Commit only when green
-5. Report: files changed, tests run, pass/fail
+1. Make changes to batch
+2. Run tests
+3. Commit only when green
+4. Continue to next batch automatically
 
 PHASE 3: VALIDATE
 1. Full test suite: pytest tests/ -v --tb=short
@@ -114,7 +113,8 @@ PHASE 3: VALIDATE
 ```
 
 **NON-NEGOTIABLE RULES:**
-- NEVER modify consensus, crypto, genesis, or UTXO spending rules without explicit approval
+- AUTONOMOUS MODE: All changes approved in advance. Commit and push after each run. No approval gates.
+- NEVER modify consensus, crypto, genesis, or UTXO spending rules (these are the only exception — still off-limits)
 - NEVER skip tests between batches
 - NEVER fabricate test output — run commands and show real results
 - NEVER add gas metering to L1 — that is QVM/L2

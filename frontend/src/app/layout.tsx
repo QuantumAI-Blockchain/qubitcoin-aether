@@ -24,10 +24,31 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "QBC | Physics-Secured Digital Assets with On-Chain AGI",
+  title: {
+    default: "QBC | Physics-Secured Digital Assets with On-Chain AGI",
+    template: "%s | Qubitcoin",
+  },
   description:
     "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree on-chain AGI engine.",
-  keywords: ["qubitcoin", "qbc", "quantum", "blockchain", "AGI", "aether tree"],
+  keywords: ["qubitcoin", "qbc", "quantum", "blockchain", "AGI", "aether tree", "proof of thought", "SUSY"],
+  metadataBase: new URL("https://qbc.network"),
+  openGraph: {
+    type: "website",
+    siteName: "Qubitcoin",
+    title: "Qubitcoin — Physics-Secured Digital Assets with On-Chain AGI",
+    description: "Layer 1 blockchain with quantum computing, post-quantum cryptography, and the Aether Tree AGI engine.",
+    url: "https://qbc.network",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Qubitcoin (QBC)",
+    description: "Physics-secured blockchain with on-chain AGI.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({

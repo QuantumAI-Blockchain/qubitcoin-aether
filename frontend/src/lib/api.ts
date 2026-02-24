@@ -1,17 +1,41 @@
 import { RPC_URL } from "./constants";
 
-/** Generic fetch wrapper for the QBC node REST API. */
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 500;
+
+/** Generic fetch wrapper for the QBC node REST API with exponential backoff retry. */
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${RPC_URL}${path}`;
-  const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
-    ...init,
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${body || res.statusText}`);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "Content-Type": "application/json", ...init?.headers },
+        ...init,
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        // Don't retry 4xx client errors (except 429 rate limit)
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          throw new Error(`API ${res.status}: ${body || res.statusText}`);
+        }
+        throw new Error(`API ${res.status}: ${body || res.statusText}`);
+      }
+      return res.json() as Promise<T>;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Don't retry non-retryable errors
+      if (lastError.message.startsWith("API 4") && !lastError.message.startsWith("API 429")) {
+        throw lastError;
+      }
+      if (attempt < MAX_RETRIES) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
   }
-  return res.json() as Promise<T>;
+  throw lastError ?? new Error("Request failed after retries");
 }
 
 export function get<T>(path: string): Promise<T> {

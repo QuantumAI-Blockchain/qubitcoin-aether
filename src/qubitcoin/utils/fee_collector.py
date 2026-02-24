@@ -182,22 +182,40 @@ class FeeCollector:
         return True, "Fee collected", record
 
     def _select_utxos(
-        self, utxos: list, target: Decimal
+        self, utxos: list, target: Decimal,
+        strategy: str = 'largest_first',
     ) -> Tuple[list, Decimal]:
-        """Select UTXOs to cover the target amount using largest-first strategy.
+        """Select UTXOs to cover the target amount.
+
+        Strategies:
+        - ``largest_first``: Fewest inputs (default prior behavior).
+        - ``smallest_first``: Consolidates dust UTXOs.
+        - ``exact_match``: Tries to find a single UTXO that exactly covers
+          the target (no change output needed). Falls back to smallest_first.
 
         Args:
-            utxos: Available unspent outputs (sorted by block_height desc).
+            utxos: Available unspent outputs.
             target: Amount needed.
+            strategy: Selection strategy name.
 
         Returns:
             (selected_utxos, total_input_amount)
         """
-        # Sort by amount descending for fewer inputs
-        sorted_utxos = sorted(utxos, key=lambda u: u.amount, reverse=True)
+        if strategy == 'exact_match':
+            # Try to find a UTXO that exactly matches the target
+            for utxo in utxos:
+                if utxo.amount == target:
+                    return [utxo], utxo.amount
+            # Fall back to smallest_first
+            strategy = 'smallest_first'
+
+        if strategy == 'smallest_first':
+            sorted_utxos = sorted(utxos, key=lambda u: u.amount)
+        else:  # largest_first
+            sorted_utxos = sorted(utxos, key=lambda u: u.amount, reverse=True)
+
         selected = []
         total = Decimal(0)
-
         for utxo in sorted_utxos:
             if total >= target:
                 break

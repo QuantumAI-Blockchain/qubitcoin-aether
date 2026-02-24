@@ -6,12 +6,12 @@
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 67
-- Remaining: 81
-- Completion: 45.3%
+- Completed: 72
+- Remaining: 76
+- Completion: 48.6%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
-- Estimated runs to 100%: 6-7
+- Estimated runs to 100%: 5-6
 
 ---
 
@@ -127,10 +127,10 @@
 | F04 | LOW | `frontend/src/components/ui/` | No admin UI | Create admin dashboard for fee management and treasury | MEDIUM |
 | F05 | LOW | `frontend/` | Basic a11y | WCAG 2.1 AA audit: ARIA labels, skip-nav, focus management | MEDIUM |
 | F06 | LOW | `frontend/` | No Storybook | Add Storybook for component documentation and visual testing | MEDIUM |
-| F07 | LOW | `frontend/src/app/` | No SEO meta | Add OpenGraph, Twitter Card, structured data to all pages | SMALL |
+| ~~F07~~ | ~~LOW~~ | `frontend/src/app/` | ~~No SEO meta~~ | ~~OpenGraph + Twitter Card on root layout + per-page metadata (aether, dashboard, wallet, qvm)~~ | **DONE (Run #13)** |
 | F08 | LOW | `frontend/src/components/aether/knowledge-graph-3d.tsx` | O(n^2) force | Add Barnes-Hut approximation for >1000 nodes (O(n log n)) | MEDIUM |
 | F09 | LOW | `frontend/src/components/wallet/native-wallet.tsx` | Basic tx builder | Add UTXO coin selection strategy (smallest-first, privacy-preserving) | MEDIUM |
-| F10 | LOW | `frontend/src/lib/api.ts` | No retry | Add exponential backoff retry for failed API calls | SMALL |
+| ~~F10~~ | ~~LOW~~ | `frontend/src/lib/api.ts` | ~~No retry~~ | ~~Exponential backoff: 3 retries, 500ms base, skip 4xx except 429~~ | **DONE (Run #13)** |
 | F11 | LOW | `frontend/src/stores/` | No offline | Add offline-first capability with service worker + IndexedDB cache | LARGE |
 | F12 | LOW | `frontend/` | No i18n | Add internationalization framework (next-intl) for multi-language | LARGE |
 | F13 | LOW | `frontend/src/app/wallet/page.tsx` | No tx signing UI | Add transaction signing confirmation modal with fee breakdown | SMALL |
@@ -157,7 +157,7 @@
 | ~~B09~~ | ~~MEDIUM~~ | `storage/ipfs.py` | ~~0 tests~~ | ~~Add test_ipfs.py for pin, snapshot, retrieval operations~~ | **DONE (Run #9)** — 15 IPFS tests |
 | ~~B10~~ | ~~MEDIUM~~ | `consensus/engine.py` | ~~No timestamp validation~~ | ~~Added: reject blocks >7200s in future or before parent~~ | ~~DONE (Run #6)~~ |
 | B11 | MEDIUM | `mining/engine.py` | No mining pool support | Add stratum-compatible mining pool protocol | LARGE |
-| B12 | MEDIUM | `network/p2p_network.py` | No peer banning | Add peer reputation decay + ban threshold for malicious peers | MEDIUM |
+| ~~B12~~ | ~~MEDIUM~~ | `network/p2p_network.py` | ~~No peer banning~~ | ~~Peer scoring wired: +5 valid block, -25 invalid block, -50 oversized msg, -1/min idle decay, evict at score <10~~ | **DONE (Run #13)** |
 | B13 | MEDIUM | `database/` | Raw SQL queries | Generate SQLAlchemy ORM models for all 55 tables | LARGE |
 | B14 | LOW | `quantum/engine.py` | Local estimator only | Add GPU-accelerated qiskit-aer backend option | MEDIUM |
 | B15 | LOW | `quantum/crypto.py` | No key rotation | Add key rotation mechanism with old-key grace period | MEDIUM |
@@ -226,12 +226,12 @@
 | ~~E03~~ | ~~HIGH~~ | `.env.example` | ~~Treasury empty~~ | ~~Documented treasury addresses + 15 fee economics params~~ | ~~DONE (Run #3)~~ |
 | ~~E04~~ | ~~MEDIUM~~ | `utils/qusd_oracle.py:107` | ~~Selector "4a3c2f12"~~ | ~~Fixed: getPrice() → d61a3b92~~ | ~~DONE (Run #2)~~ |
 | ~~E05~~ | ~~MEDIUM~~ | `consensus/engine.py` | ~~No era boundary test~~ | ~~Added 2 tests: exact halving + second halving boundary. Phi ratio verified to 8 decimals~~ | ~~DONE (Run #6)~~ |
-| E06 | MEDIUM | `utils/fee_collector.py` | Largest-first UTXO | Add coin selection strategies: smallest-first, random, privacy-preserving | MEDIUM |
+| ~~E06~~ | ~~MEDIUM~~ | `utils/fee_collector.py` | ~~Largest-first UTXO~~ | ~~Added smallest_first + exact_match strategies (default: largest_first)~~ | **DONE (Run #13)** |
 | E07 | MEDIUM | `stablecoin/engine.py` | Python only | Wire Python StablecoinEngine to QUSD.sol via QVM static_call for reserve verification | MEDIUM |
 | ~~E08~~ | ~~LOW~~ | `config.py` | ~~No emission verification~~ | ~~Added verify_emission_schedule(): monotonic decrease + bounded by MAX_SUPPLY~~ | ~~DONE (Run #6)~~ |
 | ~~E09~~ | ~~LOW~~ | `bridge/` | ~~0.3% fee~~ | ~~Make bridge fee configurable per chain~~ | **DONE (Run #11)** — Config.BRIDGE_FEE_BPS |
 | E10 | LOW | `consensus/engine.py` | No fee burning | Consider EIP-1559-style base fee burn for deflationary pressure | MEDIUM |
-| E11 | LOW | `utils/` | No treasury dashboard | Add /treasury endpoint showing all collected fees, distributions, balances | MEDIUM |
+| ~~E11~~ | ~~LOW~~ | `network/rpc.py` | ~~No treasury dashboard~~ | ~~Added `/treasury` endpoint: balances, fee stats, config~~ | **DONE (Run #13)** |
 | E12 | LOW | `stablecoin/engine.py` | No stress test | Simulate QUSD peg stress: 50% QBC price crash, 90% reserve withdrawal | MEDIUM |
 | E13 | LOW | `bridge/` | No relayer incentive | Add relayer rewards for cross-chain message delivery (currently uncompensated) | MEDIUM |
 | E14 | LOW | `economics/` | No vesting schedule | Implement team/investor vesting with cliff + linear unlock (currently absent) | MEDIUM |
@@ -677,3 +677,29 @@ Focus on: Go QVM completion, formal verification, advanced features
 3. B12: Peer reputation + ban mechanism
 4. M5: Frontend E2E tests with Playwright
 5. E06: UTXO coin selection strategies
+
+### Run #13 — February 24, 2026
+
+**Scope:** Peer reputation, coin selection, treasury dashboard, frontend SEO + API retry
+
+**Items completed: 5** (B12, E06, E11, F07, F10)
+- **B12** — Peer scoring wired into message handling: +5 for valid blocks, -25 for invalid blocks, -50 for oversized messages, -1/min idle decay. Eviction at score <10 in maintenance loop.
+- **E06** — UTXO coin selection: added `smallest_first` and `exact_match` strategies alongside default `largest_first`.
+- **E11** — `/treasury` endpoint: shows aether/contract treasury balances, fee stats, and config.
+- **F07** — SEO: OpenGraph + Twitter Card on root layout, per-page metadata layouts for /aether, /dashboard, /wallet, /qvm.
+- **F10** — API retry: exponential backoff (3 retries, 500ms base, 2x growth), skips 4xx client errors except 429.
+
+**Files changed: 8** (p2p_network.py, fee_collector.py, rpc.py, api.ts, layout.tsx, 4 new route layout.tsx files)
+
+**Test result:** 2,757 passed, 0 failed
+
+**Score change:** 97 → 97 (maintained)
+
+**Cumulative progress:** 72/148 completed (48.6%).
+
+**Next run should focus on:**
+1. V03: BN128 precompiles
+2. B02: Reassess sql_new/bridge + stablecoin (may be done)
+3. S04: QUSD configurable transfer fee
+4. S07: QUSD configurable peg bands
+5. S10: Emergency pause on all QUSD contracts
