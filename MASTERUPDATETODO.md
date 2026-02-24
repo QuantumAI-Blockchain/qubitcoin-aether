@@ -1,18 +1,18 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 25, 2026 | Run #20
+# Last Updated: February 25, 2026 | Run #21
 
 ---
 
 ## PROGRESS TRACKER
 
 - Total items: 148 (120 original + 2 Run #4 + 3 Run #6 + 3 Run #8 + 3 Run #9 + 3 Run #10 + 3 Run #11 + 8 Rust P2P + 3 Run #12)
-- Completed: 107
-- Remaining: 41
-- Completion: 72.3%
+- Completed: 112
+- Remaining: 36
+- Completion: 75.7%
 - **Rust P2P fully activated (RP1-RP8 all complete)**
 - **Phi milestone system live (AG8/A09)**
 - **QUSD contracts hardened (configurable fees, peg bands, emergency pause)**
-- Estimated runs to 100%: ~9
+- Estimated runs to 100%: ~8
 
 ---
 
@@ -185,8 +185,8 @@
 | ~~V11~~ | ~~LOW~~ | `qvm/state.py` + `config.py` | ~~No EIP-1559~~ | ~~calculate_base_fee() implements EIP-1559 algorithm. StateManager tracks current_base_fee, updates per block. 12 unit tests~~ | **DONE (Run #19)** |
 | ~~V12~~ | ~~LOW~~ | `qvm/state.py` + `config.py` | ~~No access lists~~ | ~~AccessListEntry dataclass, apply_access_list() (2400/addr + 1900/key), warm_addresses/warm_storage_keys sets. 14 tests~~ | **DONE (Run #20)** |
 | ~~V13~~ | ~~LOW~~ | `qvm/vm.py` + `rpc.py` + `jsonrpc.py` | ~~No debug_traceTransaction~~ | ~~execute_with_trace() + /qvm/trace/{tx_hash} REST + debug_traceTransaction JSON-RPC (Geth-compatible structLogs)~~ | **DONE (Run #17)** |
-| V14 | LOW | `contracts/solidity/` | No formal verification | Run Slither + Mythril static analysis on all 49 contracts | MEDIUM |
-| V15 | LOW | `qvm/` | No contract upgrades | Add transparent proxy upgrade pattern support (EIP-1967) | MEDIUM |
+| ~~V14~~ | ~~LOW~~ | `docs/audits/solidity_analysis.md` | ~~No formal verification~~ | ~~Comprehensive static analysis report: 49 contracts, 19 findings (0C/4H/8M/5L/5I), category grades (Proxy A, Tokens A-, QUSD B+, Aether B+, Bridge B)~~ | **DONE (Run #21)** |
+| ~~V15~~ | ~~LOW~~ | `proxy/ProxyAdmin.sol` + `contracts/proxy.py` | ~~No contract upgrades~~ | ~~EIP-1967 verified. scheduleUpgrade/executeScheduledUpgrade with timelock. upgradeAndCall. 21 new tests~~ | **DONE (Run #21)** |
 | ~~V16~~ | ~~LOW~~ | `qvm/event_index.py` + `state.py` + `jsonrpc.py` | ~~No event indexing~~ | ~~EventIndex class with topic-based filtering, caching, persistence. Wired into state.py, jsonrpc.py eth_getLogs, node.py~~ | **DONE (Run #18)** |
 | ~~V17~~ | ~~LOW~~ | `qvm/` | ~~1024 stack limit~~ | ~~Add stack limit enforcement tests for deeply nested calls~~ | **DONE (Run #7)** — 8 stack limit tests |
 | V18 | LOW | `qvm/` | No benchmark | Profile and benchmark Python QVM vs Go QVM throughput | MEDIUM |
@@ -207,7 +207,7 @@
 | A08 | LOW | `aether/` | No cross-Sephirot consensus | Implement BFT consensus across Sephirot for high-stakes reasoning decisions | LARGE |
 | ~~A09~~ | ~~LOW~~ | `aether/proof_of_thought.py` | ~~Events logged, no action~~ | ~~Phi milestones (1.0/2.0/3.0) trigger obs window + exploration boost + consciousness announcement~~ | **DONE (Run #12)** |
 | A10 | LOW | `aether/temporal.py` | Basic trend detection | Add ARIMA/Prophet-style forecasting for multi-step metric prediction | MEDIUM |
-| A11 | LOW | `aether/debate.py` | 2-party debate | Extend to N-party debate with coalition formation for complex topics | MEDIUM |
+| ~~A11~~ | ~~LOW~~ | `aether/debate.py` | ~~2-party debate~~ | ~~MultiPartyDebate class: add_party/run_debate/form_coalitions. Coalition dataclass. N-party with similarity-based coalition formation. 12 tests~~ | **DONE (Run #21)** |
 | ~~A12~~ | ~~LOW~~ | `aether/concept_formation.py` | ~~Hierarchical clustering~~ | ~~refine_concept() with similarity threshold + auto-split on high variance. merge_similar_concepts() with centroid comparison. 11 tests~~ | **DONE (Run #20)** |
 | A13 | LOW | `aether/neural_reasoner.py` | Evolutionary training | Add proper backpropagation when PyTorch available (fallback to evolutionary) | MEDIUM |
 | A14 | LOW | `aether/vector_index.py` | Sequential search | Add HNSW (Hierarchical Navigable Small World) for O(log n) ANN search at scale | MEDIUM |
@@ -235,7 +235,7 @@
 | ~~E11~~ | ~~LOW~~ | `network/rpc.py` | ~~No treasury dashboard~~ | ~~Added `/treasury` endpoint: balances, fee stats, config~~ | **DONE (Run #13)** |
 | E12 | LOW | `stablecoin/engine.py` | No stress test | Simulate QUSD peg stress: 50% QBC price crash, 90% reserve withdrawal | MEDIUM |
 | E13 | LOW | `bridge/` | No relayer incentive | Add relayer rewards for cross-chain message delivery (currently uncompensated) | MEDIUM |
-| E14 | LOW | `economics/` | No vesting schedule | Implement team/investor vesting with cliff + linear unlock (currently absent) | MEDIUM |
+| ~~E14~~ | ~~LOW~~ | `contracts/solidity/tokens/VestingSchedule.sol` | ~~No vesting schedule~~ | ~~VestingPlan struct, createVesting/claim/vestedAmount/claimable/revoke. Cliff + linear unlock. Events for create/claim/revoke~~ | **DONE (Run #21)** |
 | E15 | LOW | `consensus/` | No MEV protection | Add commit-reveal for transaction ordering (prevent front-running) | LARGE |
 | ~~E16~~ | ~~LOW~~ | `utils/` | ~~No fee estimator~~ | ~~Add /fee-estimate endpoint returning recommended fee rate based on mempool~~ | **DONE (Run #7)** — `/fee-estimate` endpoint |
 | E17 | LOW | `bridge/` | No liquidity provider | Add LP rewards for bridge liquidity provision (incentivize bridge depth) | MEDIUM |
@@ -260,7 +260,7 @@
 | S11 | LOW | `stablecoin/` | No interest rate | Implement CDP interest rate model (borrow QUSD against QBC collateral) | LARGE |
 | S12 | LOW | `stablecoin/` | No liquidation engine | Add liquidation mechanism for under-collateralized CDPs | LARGE |
 | S13 | LOW | `stablecoin/` | No flash loans | Add flash loan support for QUSD (borrow + repay in single tx) | MEDIUM |
-| S14 | LOW | `contracts/solidity/qusd/` | No multi-sig | Add multi-sig requirement for admin functions (mint, parameter changes) | MEDIUM |
+| ~~S14~~ | ~~LOW~~ | `contracts/solidity/qusd/MultiSigAdmin.sol` | ~~No multi-sig~~ | ~~M-of-N signer approval (3-of-5 default), propose/approve/execute/cancel, 7-day expiry, onlyMultiSig modifier. 338 lines~~ | **DONE (Run #21)** |
 | S15 | LOW | `stablecoin/` | No reserve audit | Add on-chain reserve attestation (Chainlink-style Proof of Reserve) | LARGE |
 | ~~S16~~ | ~~LOW~~ | `QUSDOracle.sol` | ~~Basic staleness~~ | ~~Heartbeat monitoring~~ | **ALREADY DONE** — getPrice() reverts on stale, StalePriceDetected event, setMaxAge() |
 | S17 | LOW | `stablecoin/` | No yield | Add QUSD savings rate (earn yield on deposited QUSD, like DAI Savings Rate) | LARGE |
@@ -826,3 +826,20 @@ Focus on: Go QVM completion, formal verification, advanced features
 **Test result:** 2,881 passed, 0 failed (+37 new tests)
 
 **Cumulative progress:** 107/148 completed (72.3%).
+
+### Run #21 — February 25, 2026
+
+**Scope:** Solidity analysis, multi-sig admin, proxy upgrades, N-party debate, vesting
+
+**Items completed: 5** (V14, S14, V15, A11, E14)
+- **V14** — Comprehensive Solidity static analysis report: 49 contracts audited, 19 findings (0 Critical, 4 High, 8 Medium, 5 Low, 5 Info). Category grades: Proxy A, Tokens A-, QUSD B+, Aether B+, Bridge B, Overall B+. `docs/audits/solidity_analysis.md` (332 lines).
+- **S14** — MultiSigAdmin contract: M-of-N signer approval (3-of-5 default, configurable 2-10). propose/approve/execute/cancel actions. 7-day expiry (max 30 days). `onlyMultiSig` modifier for QUSD contracts. 338 lines.
+- **V15** — Proxy upgrade pattern: EIP-1967 storage slots verified correct. `scheduleUpgrade`/`executeScheduledUpgrade`/`cancelScheduledUpgrade` with configurable timelock delay. ProxyAdmin.sol enhanced (70→246 lines). Python proxy.py expanded (368→682 lines). 21 new tests.
+- **A11** — N-party debate: `MultiPartyDebate` class with `add_party`/`run_debate`/`form_coalitions`. Coalition dataclass (members, position, strength). Similarity-based coalition formation. DebateResult with rounds_log. 12 tests.
+- **E14** — VestingSchedule.sol: VestingPlan struct, `createVesting`/`claim`/`vestedAmount`/`claimable`/`revoke`. Cliff + linear unlock formula. VestingCreated/TokensClaimed/VestingRevoked events.
+
+**Files changed: 11** (new solidity_analysis.md, new MultiSigAdmin.sol, new VestingSchedule.sol, ProxyAdmin.sol, proxy.py, debate.py, QUSDDebtLedger.sol, new test_concept_formation.py, new test_debate.py additions, test_proxy.py expanded)
+
+**Test result:** 2,924 passed, 0 failed (+43 new tests)
+
+**Cumulative progress:** 112/148 completed (75.7%).

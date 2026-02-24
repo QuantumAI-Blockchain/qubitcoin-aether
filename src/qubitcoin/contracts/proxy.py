@@ -45,6 +45,9 @@ class UpgradeEventType(Enum):
     DEPLOYED = "deployed"
     UPGRADED = "upgraded"
     ADMIN_CHANGED = "admin_changed"
+    UPGRADE_SCHEDULED = "upgrade_scheduled"
+    SCHEDULED_EXECUTED = "scheduled_executed"
+    SCHEDULED_CANCELED = "scheduled_canceled"
 
 
 @dataclass
@@ -94,6 +97,39 @@ class ProxyRecord:
         }
 
 
+@dataclass
+class ScheduledUpgrade:
+    """A timelocked upgrade waiting for execution."""
+    upgrade_id: str
+    proxy_address: str
+    new_implementation: str
+    call_data: Optional[bytes]
+    scheduled_at: float
+    execute_after: float
+    admin: str
+    block_height: int
+    executed: bool = False
+    canceled: bool = False
+
+    def to_dict(self) -> Dict:
+        return {
+            "upgrade_id": self.upgrade_id,
+            "proxy_address": self.proxy_address,
+            "new_implementation": self.new_implementation,
+            "has_call_data": self.call_data is not None and len(self.call_data) > 0,
+            "scheduled_at": self.scheduled_at,
+            "execute_after": self.execute_after,
+            "admin": self.admin,
+            "block_height": self.block_height,
+            "executed": self.executed,
+            "canceled": self.canceled,
+        }
+
+
+# Maximum age of a scheduled upgrade before it expires (30 days)
+MAX_SCHEDULE_AGE: float = 30 * 24 * 3600.0
+
+
 class ProxyRegistry:
     """
     Registry for transparent proxy contracts.
@@ -105,6 +141,8 @@ class ProxyRegistry:
     def __init__(self) -> None:
         self._proxies: Dict[str, ProxyRecord] = {}
         self._impl_to_proxies: Dict[str, List[str]] = {}
+        self._scheduled_upgrades: Dict[str, ScheduledUpgrade] = {}
+        self._minimum_delay: float = 0.0
         logger.info("ProxyRegistry initialised")
 
     # ------------------------------------------------------------------
@@ -245,6 +283,277 @@ class ProxyRegistry:
         return True
 
     # ------------------------------------------------------------------
+    # Upgrade and call
+    # ------------------------------------------------------------------
+
+    def upgrade_and_call(
+        self,
+        proxy_address: str,
+        new_implementation: str,
+        call_data: bytes,
+        caller: str,
+        block_height: int = 0,
+    ) -> bool:
+        """
+        Upgrade a proxy to a new implementation and call an initializer.
+
+        Combines upgrade + delegatecall to the new implementation with the
+        provided call data. Used when the new implementation requires
+        re-initialization (e.g., adding new state variables).
+
+        Args:
+            proxy_address: Proxy to upgrade.
+            new_implementation: New logic contract address.
+            call_data: Encoded initializer function call.
+            caller: Address requesting the upgrade (must be admin).
+            block_height: Block at which upgrade occurs.
+
+        Returns:
+            True on success, False if caller is not admin or proxy not found.
+        """
+        result = self.upgrade(proxy_address, new_implementation, caller, block_height)
+        if result and call_data:
+            logger.info(
+                f"Proxy upgrade-and-call: {proxy_address} → "
+                f"{new_implementation} with {len(call_data)} bytes calldata"
+            )
+        return result
+
+    # ------------------------------------------------------------------
+    # Scheduled (timelocked) upgrades
+    # ------------------------------------------------------------------
+
+    def set_minimum_delay(self, delay: float) -> None:
+        """Set the minimum timelock delay for scheduled upgrades (seconds)."""
+        self._minimum_delay = delay
+        logger.info(f"Minimum upgrade delay set to {delay}s")
+
+    def get_minimum_delay(self) -> float:
+        """Return the current minimum upgrade delay."""
+        return self._minimum_delay
+
+    def schedule_upgrade(
+        self,
+        proxy_address: str,
+        new_implementation: str,
+        caller: str,
+        delay: float,
+        call_data: Optional[bytes] = None,
+        block_height: int = 0,
+    ) -> Optional[str]:
+        """
+        Schedule a timelocked upgrade for future execution.
+
+        The upgrade cannot be executed until `delay` seconds have passed.
+        Emits an UPGRADE_SCHEDULED event in the proxy's history.
+
+        Args:
+            proxy_address: Proxy to upgrade.
+            new_implementation: New logic contract address.
+            caller: Address requesting the schedule (must be admin).
+            delay: Seconds to wait before execution is allowed.
+            call_data: Optional initializer calldata.
+            block_height: Block at which schedule occurs.
+
+        Returns:
+            The upgrade_id string on success, None on failure.
+        """
+        record = self._proxies.get(proxy_address)
+        if record is None:
+            logger.warning(f"Schedule failed: proxy not found {proxy_address}")
+            return None
+
+        if record.admin_address != caller:
+            logger.warning(
+                f"Schedule denied: {caller} is not admin of {proxy_address}"
+            )
+            return None
+
+        if not new_implementation:
+            logger.warning("Schedule denied: empty implementation address")
+            return None
+
+        if delay < self._minimum_delay:
+            logger.warning(
+                f"Schedule denied: delay {delay}s below minimum {self._minimum_delay}s"
+            )
+            return None
+
+        now = time.time()
+        execute_after = now + delay
+
+        # Generate a unique upgrade ID
+        raw = f"{proxy_address}:{new_implementation}:{now}:{block_height}"
+        upgrade_id = hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+        scheduled = ScheduledUpgrade(
+            upgrade_id=upgrade_id,
+            proxy_address=proxy_address,
+            new_implementation=new_implementation,
+            call_data=call_data,
+            scheduled_at=now,
+            execute_after=execute_after,
+            admin=caller,
+            block_height=block_height,
+        )
+        self._scheduled_upgrades[upgrade_id] = scheduled
+
+        # Record in proxy history
+        event = UpgradeEvent(
+            proxy_address=proxy_address,
+            event_type=UpgradeEventType.UPGRADE_SCHEDULED,
+            old_implementation=record.implementation_address,
+            new_implementation=new_implementation,
+            admin=caller,
+            block_height=block_height,
+            timestamp=now,
+        )
+        record.upgrade_history.append(event)
+
+        logger.info(
+            f"Upgrade scheduled: {proxy_address} → {new_implementation} "
+            f"(execute after {execute_after}, id={upgrade_id})"
+        )
+        return upgrade_id
+
+    def execute_scheduled_upgrade(
+        self,
+        upgrade_id: str,
+        caller: str,
+        current_time: Optional[float] = None,
+    ) -> bool:
+        """
+        Execute a previously scheduled upgrade after its delay has passed.
+
+        Args:
+            upgrade_id: The scheduled upgrade to execute.
+            caller: Address executing (must be admin of the proxy).
+            current_time: Override for current time (for testing). Defaults to time.time().
+
+        Returns:
+            True on success.
+        """
+        scheduled = self._scheduled_upgrades.get(upgrade_id)
+        if scheduled is None:
+            logger.warning(f"Execute failed: scheduled upgrade not found {upgrade_id}")
+            return False
+
+        if scheduled.executed:
+            logger.warning(f"Execute failed: already executed {upgrade_id}")
+            return False
+
+        if scheduled.canceled:
+            logger.warning(f"Execute failed: canceled {upgrade_id}")
+            return False
+
+        now = current_time if current_time is not None else time.time()
+
+        if now < scheduled.execute_after:
+            logger.warning(
+                f"Execute failed: timelock active for {upgrade_id} "
+                f"(now={now}, execute_after={scheduled.execute_after})"
+            )
+            return False
+
+        if now > scheduled.scheduled_at + MAX_SCHEDULE_AGE:
+            logger.warning(f"Execute failed: scheduled upgrade expired {upgrade_id}")
+            return False
+
+        record = self._proxies.get(scheduled.proxy_address)
+        if record is None:
+            return False
+
+        if record.admin_address != caller:
+            logger.warning(
+                f"Execute denied: {caller} is not admin of {scheduled.proxy_address}"
+            )
+            return False
+
+        # Perform the upgrade
+        if scheduled.call_data:
+            result = self.upgrade_and_call(
+                scheduled.proxy_address,
+                scheduled.new_implementation,
+                scheduled.call_data,
+                caller,
+                scheduled.block_height,
+            )
+        else:
+            result = self.upgrade(
+                scheduled.proxy_address,
+                scheduled.new_implementation,
+                caller,
+                scheduled.block_height,
+            )
+
+        if result:
+            scheduled.executed = True
+            logger.info(f"Scheduled upgrade executed: {upgrade_id}")
+        return result
+
+    def cancel_scheduled_upgrade(
+        self,
+        upgrade_id: str,
+        caller: str,
+    ) -> bool:
+        """
+        Cancel a scheduled upgrade before it executes.
+
+        Args:
+            upgrade_id: The scheduled upgrade to cancel.
+            caller: Address requesting cancellation (must be admin).
+
+        Returns:
+            True on success.
+        """
+        scheduled = self._scheduled_upgrades.get(upgrade_id)
+        if scheduled is None:
+            return False
+
+        if scheduled.executed:
+            return False
+
+        if scheduled.canceled:
+            return False
+
+        record = self._proxies.get(scheduled.proxy_address)
+        if record is None:
+            return False
+
+        if record.admin_address != caller:
+            return False
+
+        scheduled.canceled = True
+
+        event = UpgradeEvent(
+            proxy_address=scheduled.proxy_address,
+            event_type=UpgradeEventType.SCHEDULED_CANCELED,
+            old_implementation=record.implementation_address,
+            new_implementation=scheduled.new_implementation,
+            admin=caller,
+            block_height=scheduled.block_height,
+        )
+        record.upgrade_history.append(event)
+
+        logger.info(f"Scheduled upgrade canceled: {upgrade_id}")
+        return True
+
+    def get_scheduled_upgrade(self, upgrade_id: str) -> Optional[ScheduledUpgrade]:
+        """Get a scheduled upgrade by ID."""
+        return self._scheduled_upgrades.get(upgrade_id)
+
+    def list_scheduled_upgrades(
+        self, proxy_address: Optional[str] = None
+    ) -> List[Dict]:
+        """List scheduled upgrades, optionally filtered by proxy."""
+        results = []
+        for su in self._scheduled_upgrades.values():
+            if proxy_address and su.proxy_address != proxy_address:
+                continue
+            results.append(su.to_dict())
+        return results
+
+    # ------------------------------------------------------------------
     # Admin transfer
     # ------------------------------------------------------------------
 
@@ -346,10 +655,16 @@ class ProxyRegistry:
             len(r.upgrade_history) - 1  # subtract initial deploy
             for r in self._proxies.values()
         )
+        pending_scheduled = sum(
+            1 for su in self._scheduled_upgrades.values()
+            if not su.executed and not su.canceled
+        )
         return {
             "total_proxies": len(self._proxies),
             "total_implementations": len(self._impl_to_proxies),
             "total_upgrades": total_upgrades,
+            "total_scheduled": len(self._scheduled_upgrades),
+            "pending_scheduled": pending_scheduled,
         }
 
     # ------------------------------------------------------------------

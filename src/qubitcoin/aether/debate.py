@@ -16,11 +16,18 @@ v2 enhancements:
 - Post-debate confidence updates on topic nodes
 - Adjacency index usage (O(degree) instead of O(|E|))
 - Vector index semantic search for supporting evidence
+
+v3 enhancements:
+- N-party debate with coalition formation (MultiPartyDebate)
+- Parties with similar positions automatically form coalitions
+- Coalition strength = sum of member confidences
+- Strongest coalition's position wins after all rounds
 """
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from difflib import SequenceMatcher
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..utils.logger import get_logger
 
@@ -36,6 +43,38 @@ class DebatePosition:
     evidence_node_ids: List[int] = field(default_factory=list)
     evidence_quality: float = 0.0
     round_num: int = 0
+
+
+@dataclass
+class Coalition:
+    """A group of debate parties with similar positions."""
+    members: List[str]
+    position: str
+    strength: float
+
+
+@dataclass
+class MultiPartyDebateResult:
+    """Outcome of a completed multi-party debate."""
+    topic: str
+    rounds: int
+    winner: str
+    coalitions: List[Coalition]
+    rounds_log: List[Dict[str, Any]]
+    timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> dict:
+        return {
+            'topic': self.topic,
+            'rounds': self.rounds,
+            'winner': self.winner,
+            'coalitions': [
+                {'members': c.members, 'position': c.position,
+                 'strength': round(c.strength, 4)}
+                for c in self.coalitions
+            ],
+            'rounds_log': self.rounds_log,
+        }
 
 
 @dataclass
@@ -828,4 +867,314 @@ class DebateProtocol:
             'acceptance_rate': round(
                 self._accepted / max(1, self._debates_run), 4
             ),
+        }
+
+
+# ======================================================================
+# N-Party Debate with Coalition Formation
+# ======================================================================
+
+
+@dataclass
+class _DebateParty:
+    """Internal representation of a party in a multi-party debate."""
+    name: str
+    position: str
+    confidence: float
+
+
+class MultiPartyDebate:
+    """N-party debate protocol with coalition formation.
+
+    Extends the 2-party adversarial model to support an arbitrary number
+    of participants.  Each party holds a position string and a confidence
+    float.  During debate rounds every party evaluates all other arguments,
+    adjusting confidence based on argument strength.  After evaluation,
+    parties whose positions are textually similar (above a configurable
+    threshold) form coalitions.  The coalition with the highest aggregate
+    strength (sum of member confidences) wins after all rounds complete.
+
+    Usage::
+
+        debate = MultiPartyDebate()
+        debate.add_party("Alice", "Quantum supremacy is near", 0.8)
+        debate.add_party("Bob", "Quantum supremacy is near term", 0.6)
+        debate.add_party("Eve", "Classical computers will suffice", 0.7)
+        result = debate.run_debate("Quantum computing future", rounds=3)
+        # result.winner == "Quantum supremacy is near" (Alice+Bob coalition)
+    """
+
+    # How much a party's confidence shifts per evaluation round
+    _EVAL_SHIFT: float = 0.05
+    # Default similarity threshold for coalition formation
+    _DEFAULT_COALITION_THRESHOLD: float = 0.7
+
+    def __init__(self) -> None:
+        self._parties: List[_DebateParty] = []
+        self._debates_run: int = 0
+
+    # ------------------------------------------------------------------
+    # Party management
+    # ------------------------------------------------------------------
+
+    def add_party(self, name: str, position: str,
+                  initial_confidence: float) -> None:
+        """Register a new debate participant.
+
+        Args:
+            name: Unique identifier for the party.
+            position: The party's stance (free-text).
+            initial_confidence: Starting confidence in [0.0, 1.0].
+
+        Raises:
+            ValueError: If *name* is empty, *position* is empty, or a
+                party with the same *name* already exists.
+        """
+        if not name:
+            raise ValueError("Party name must not be empty")
+        if not position:
+            raise ValueError("Party position must not be empty")
+        if any(p.name == name for p in self._parties):
+            raise ValueError(f"Party '{name}' already exists")
+        clamped = max(0.0, min(1.0, initial_confidence))
+        self._parties.append(_DebateParty(
+            name=name, position=position, confidence=clamped,
+        ))
+        logger.debug(
+            "MultiPartyDebate: added party '%s' (confidence=%.3f)",
+            name, clamped,
+        )
+
+    # ------------------------------------------------------------------
+    # Core debate loop
+    # ------------------------------------------------------------------
+
+    def run_debate(self, topic: str,
+                   rounds: int = 3) -> MultiPartyDebateResult:
+        """Execute an N-party debate and return the result.
+
+        Protocol per round:
+        1. Each party *presents* an argument derived from its position.
+        2. Every other party *evaluates* each argument — if the argument
+           is similar to the evaluator's own position the evaluator's
+           confidence increases slightly; otherwise it decreases.
+        3. After all evaluations, coalitions are formed from parties
+           whose positions exceed the similarity threshold.
+
+        After the final round the strongest coalition wins.
+
+        Args:
+            topic: Free-text topic of the debate.
+            rounds: Number of debate rounds (min 1).
+
+        Returns:
+            MultiPartyDebateResult with winner, coalitions, and per-round
+            log entries.
+        """
+        if len(self._parties) < 2:
+            logger.warning(
+                "MultiPartyDebate: need >= 2 parties, got %d",
+                len(self._parties),
+            )
+            winner = self._parties[0].position if self._parties else ""
+            return MultiPartyDebateResult(
+                topic=topic, rounds=0, winner=winner,
+                coalitions=[], rounds_log=[],
+            )
+
+        rounds = max(1, rounds)
+        self._debates_run += 1
+        rounds_log: List[Dict[str, Any]] = []
+
+        for round_num in range(rounds):
+            round_entry: Dict[str, Any] = {
+                'round': round_num + 1,
+                'arguments': [],
+                'evaluations': [],
+            }
+
+            # --- 1. Each party presents an argument ---
+            arguments: Dict[str, str] = {}
+            for party in self._parties:
+                arg = self._generate_argument(party, topic, round_num)
+                arguments[party.name] = arg
+                round_entry['arguments'].append({
+                    'party': party.name,
+                    'argument': arg,
+                    'confidence': round(party.confidence, 4),
+                })
+
+            # --- 2. Each party evaluates every other party's argument ---
+            for evaluator in self._parties:
+                for presenter in self._parties:
+                    if evaluator.name == presenter.name:
+                        continue
+                    similarity = self._position_similarity(
+                        evaluator.position, presenter.position,
+                    )
+                    old_conf = evaluator.confidence
+                    if similarity > 0.5:
+                        # Similar position reinforces confidence
+                        evaluator.confidence = min(
+                            1.0,
+                            evaluator.confidence
+                            + self._EVAL_SHIFT * similarity,
+                        )
+                    else:
+                        # Opposing position erodes confidence slightly
+                        evaluator.confidence = max(
+                            0.0,
+                            evaluator.confidence
+                            - self._EVAL_SHIFT * (1.0 - similarity),
+                        )
+                    round_entry['evaluations'].append({
+                        'evaluator': evaluator.name,
+                        'presenter': presenter.name,
+                        'similarity': round(similarity, 4),
+                        'confidence_delta': round(
+                            evaluator.confidence - old_conf, 4,
+                        ),
+                    })
+
+            # --- 3. Form coalitions at end of round ---
+            coalitions = self.form_coalitions()
+            round_entry['coalitions'] = [
+                {'members': c.members, 'position': c.position,
+                 'strength': round(c.strength, 4)}
+                for c in coalitions
+            ]
+            rounds_log.append(round_entry)
+
+        # --- Final verdict: strongest coalition wins ---
+        final_coalitions = self.form_coalitions()
+        if final_coalitions:
+            best = max(final_coalitions, key=lambda c: c.strength)
+            winner = best.position
+        else:
+            # Fallback: party with highest confidence
+            best_party = max(self._parties, key=lambda p: p.confidence)
+            winner = best_party.position
+
+        result = MultiPartyDebateResult(
+            topic=topic,
+            rounds=rounds,
+            winner=winner,
+            coalitions=final_coalitions,
+            rounds_log=rounds_log,
+        )
+
+        logger.info(
+            "MultiPartyDebate on '%s': %d parties, %d rounds, "
+            "winner='%s', %d coalitions",
+            topic[:60], len(self._parties), rounds,
+            winner[:60], len(final_coalitions),
+        )
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Coalition formation
+    # ------------------------------------------------------------------
+
+    def form_coalitions(self,
+                        threshold: float = 0.7) -> List[Coalition]:
+        """Group parties into coalitions by position similarity.
+
+        Uses a simple greedy clustering: iterate through parties and
+        assign each to the first existing coalition whose representative
+        position has similarity >= *threshold*.  If no match, start a
+        new coalition.
+
+        Args:
+            threshold: Minimum similarity (0.0-1.0) for two positions
+                to be considered "same coalition".  Defaults to 0.7.
+
+        Returns:
+            List of Coalition objects sorted by strength (descending).
+        """
+        coalitions: List[Coalition] = []
+
+        for party in self._parties:
+            placed = False
+            for coalition in coalitions:
+                sim = self._position_similarity(
+                    party.position, coalition.position,
+                )
+                if sim >= threshold:
+                    coalition.members.append(party.name)
+                    coalition.strength += party.confidence
+                    placed = True
+                    break
+            if not placed:
+                coalitions.append(Coalition(
+                    members=[party.name],
+                    position=party.position,
+                    strength=party.confidence,
+                ))
+
+        # Sort strongest first
+        coalitions.sort(key=lambda c: c.strength, reverse=True)
+        return coalitions
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _position_similarity(pos_a: str, pos_b: str) -> float:
+        """Compute textual similarity between two positions.
+
+        Uses :class:`difflib.SequenceMatcher` ratio which returns a
+        float in [0.0, 1.0].
+
+        Args:
+            pos_a: First position string.
+            pos_b: Second position string.
+
+        Returns:
+            Similarity score in [0.0, 1.0].
+        """
+        if not pos_a or not pos_b:
+            return 0.0
+        return SequenceMatcher(
+            None, pos_a.lower(), pos_b.lower(),
+        ).ratio()
+
+    @staticmethod
+    def _generate_argument(party: '_DebateParty', topic: str,
+                           round_num: int) -> str:
+        """Generate a textual argument for a party in a given round.
+
+        In a production system this would call into the reasoning engine
+        or an LLM.  Here we produce a deterministic summary suitable for
+        logging and testing.
+
+        Args:
+            party: The presenting party.
+            topic: Debate topic.
+            round_num: Zero-based round number.
+
+        Returns:
+            Argument string.
+        """
+        return (
+            f"[{party.name}] Round {round_num + 1} on '{topic[:40]}': "
+            f"position='{party.position[:60]}' "
+            f"(confidence={party.confidence:.3f})"
+        )
+
+    # ------------------------------------------------------------------
+    # Stats
+    # ------------------------------------------------------------------
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Return summary statistics for this debate instance."""
+        return {
+            'total_debates': self._debates_run,
+            'num_parties': len(self._parties),
+            'parties': [
+                {'name': p.name, 'position': p.position,
+                 'confidence': round(p.confidence, 4)}
+                for p in self._parties
+            ],
         }
