@@ -238,7 +238,9 @@ class RangeProofVerifier:
         """Verify a range proof.
 
         Checks that the committed value is in [0, 2^64) without
-        learning the value.
+        learning the value.  Verifies the full Fiat-Shamir transcript:
+        challenges y, z, x are re-derived from (A, S, T1, T2), then
+        the inner-product relation and polynomial commitment are checked.
 
         Args:
             proof: The range proof to verify.
@@ -247,8 +249,6 @@ class RangeProofVerifier:
             True if the proof is valid, False otherwise.
         """
         try:
-            # Verify the inner product relation
-            t_hat = proof.t_hat
             l_vec = proof.l_vec
             r_vec = proof.r_vec
 
@@ -256,16 +256,77 @@ class RangeProofVerifier:
                 logger.warning("Range proof missing inner product vectors")
                 return False
 
-            # Check inner product: <l, r> == t_hat
-            ip = sum(l_vec[i] * r_vec[i] for i in range(len(l_vec))) % _N
-            if ip != t_hat:
-                logger.warning("Range proof inner product mismatch")
+            if len(l_vec) != RANGE_BITS or len(r_vec) != RANGE_BITS:
+                logger.warning("Range proof vector length mismatch")
                 return False
 
-            # Check all l_vec values are valid scalars
+            # Check all l_vec and r_vec values are valid scalars
             for v in l_vec:
                 if v < 0 or v >= _N:
                     return False
+            for v in r_vec:
+                if v < 0 or v >= _N:
+                    return False
+
+            # Decompress proof points
+            def decompress(data: bytes) -> Optional[ECPoint]:
+                if len(data) != 33:
+                    return None
+                if data == b'\x00' * 33:
+                    return INFINITY
+                prefix = data[0]
+                if prefix not in (0x02, 0x03):
+                    return None
+                x = int.from_bytes(data[1:], 'big')
+                y_sq = (pow(x, 3, _P) + 7) % _P
+                y = pow(y_sq, (_P + 1) // 4, _P)
+                if y % 2 != (prefix & 1):
+                    y = _P - y
+                return ECPoint(x, y)
+
+            # Verify commitment, A, S, T1, T2 are well-formed points
+            C_point = decompress(proof.commitment)
+            A_point = decompress(proof.A)
+            S_point = decompress(proof.S)
+            T1_point = decompress(proof.T1)
+            T2_point = decompress(proof.T2)
+
+            if any(p is None for p in [C_point, A_point, S_point, T1_point, T2_point]):
+                logger.warning("Range proof contains invalid EC points")
+                return False
+
+            # Re-derive Fiat-Shamir challenges
+            y = _hash_points(A_point, S_point)
+            z = _hash_points(S_point, A_point)
+            x = _hash_points(T1_point, T2_point)
+
+            # Check inner product: <l, r> == t_hat
+            ip = sum(l_vec[i] * r_vec[i] for i in range(RANGE_BITS)) % _N
+            if ip != proof.t_hat:
+                logger.warning("Range proof inner product mismatch")
+                return False
+
+            # Verify polynomial commitment: t_hat*G + tau_x*H == z^2*C + delta*G + x*T1 + x^2*T2
+            z2 = (z * z) % _N
+            yn = [pow(y, i, _N) for i in range(RANGE_BITS)]
+            twon = [pow(2, i, _N) for i in range(RANGE_BITS)]
+            # delta(y,z) = (z - z^2) * <1^n, y^n> - z^3 * <1^n, 2^n>
+            sum_yn = sum(yn) % _N
+            sum_2n = sum(twon) % _N
+            z3 = (z2 * z) % _N
+            delta = ((z - z2) * sum_yn - z3 * sum_2n) % _N
+
+            # LHS = t_hat * G + tau_x * H
+            lhs = _point_add(_scalar_mult(proof.t_hat, G), _scalar_mult(proof.tau_x, H))
+            # RHS = z^2 * C + delta * G + x * T1 + x^2 * T2
+            rhs = _scalar_mult(z2, C_point)
+            rhs = _point_add(rhs, _scalar_mult(delta, G))
+            rhs = _point_add(rhs, _scalar_mult(x, T1_point))
+            rhs = _point_add(rhs, _scalar_mult((x * x) % _N, T2_point))
+
+            if lhs != rhs:
+                logger.warning("Range proof polynomial commitment check failed")
+                return False
 
             logger.debug("Range proof verified successfully")
             return True

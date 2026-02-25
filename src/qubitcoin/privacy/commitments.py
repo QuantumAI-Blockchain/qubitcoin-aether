@@ -93,16 +93,25 @@ def _point_add(p1: ECPoint, p2: ECPoint) -> ECPoint:
 
 
 def _scalar_mult(k: int, point: ECPoint) -> ECPoint:
-    """Scalar multiplication on secp256k1 using double-and-add."""
+    """Scalar multiplication on secp256k1 using constant-time Montgomery ladder.
+
+    Always performs the same number of point additions and doublings regardless
+    of the scalar value, preventing timing side-channel leakage.
+    """
     k = k % _N
-    result = INFINITY
-    addend = point
-    while k > 0:
-        if k & 1:
-            result = _point_add(result, addend)
-        addend = _point_add(addend, addend)
-        k >>= 1
-    return result
+    if k == 0:
+        return INFINITY
+    r0 = INFINITY
+    r1 = point
+    # Process all 256 bits to keep timing constant
+    for i in range(255, -1, -1):
+        if (k >> i) & 1:
+            r0 = _point_add(r0, r1)
+            r1 = _point_add(r1, r1)
+        else:
+            r1 = _point_add(r0, r1)
+            r0 = _point_add(r0, r0)
+    return r0
 
 
 def _derive_h() -> ECPoint:

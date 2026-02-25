@@ -144,12 +144,16 @@ class BridgeManager:
         Returns:
             Transaction hash on target chain
         """
+        if amount <= 0:
+            logger.error(f"Bridge deposit rejected: amount must be positive, got {amount}")
+            return None
+
         bridge = self.bridges.get(chain)
-        
+
         if not bridge:
             logger.error(f"Bridge not available: {chain.value}")
             return None
-        
+
         return await bridge.process_deposit(
             qbc_txid, qbc_address, target_address, amount
         )

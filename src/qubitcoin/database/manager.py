@@ -587,10 +587,17 @@ class DatabaseManager:
 
     @contextmanager
     def get_session(self) -> Generator:
-        """Get database session with proper cleanup"""
+        """Get database session with proper cleanup.
+
+        Auto-commits pending ORM changes on clean exit.  On exception
+        the transaction is rolled back.  The session is always closed.
+        """
         session = self.SessionLocal()
         try:
             yield session
+            # Auto-commit pending ORM changes on clean exit
+            if session.new or session.dirty or session.deleted:
+                session.commit()
         except Exception:
             session.rollback()
             raise

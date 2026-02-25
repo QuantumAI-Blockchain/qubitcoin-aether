@@ -597,9 +597,17 @@ class ContractEngine:
                 """),
                 {'sid': sale[0], 'amt': str(amount)}
             )
-            
+
             session.commit()
-        
+
+        # Deduct QBC from contributor's account balance
+        if not self.db.transfer_between_accounts(executor, contract_id, amount):
+            logger.error(
+                f"Launchpad contribution: failed to deduct {amount} QBC "
+                f"from {executor} to {contract_id}"
+            )
+            return False, "Failed to deduct QBC from contributor", None, None
+
         return True, "Contribution recorded", {'amount': str(amount)}, None
 
     def _launchpad_claim(self, contract_id: str, executor: str) -> Tuple[bool, str, Any, None]:

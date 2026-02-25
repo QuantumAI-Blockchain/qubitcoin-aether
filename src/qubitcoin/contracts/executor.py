@@ -20,12 +20,14 @@ logger = get_logger(__name__)
 class ContractExecutor:
     """Executes smart contracts"""
 
-    def __init__(self, db_manager: DatabaseManager, quantum_engine: QuantumEngine):
+    def __init__(self, db_manager: DatabaseManager, quantum_engine: QuantumEngine,
+                 stablecoin_engine: object = None):
         """Initialize contract executor"""
         self.db = db_manager
         self.quantum = quantum_engine
+        self._stablecoin_engine = stablecoin_engine
 
-        logger.info("✅ Contract executor initialized")
+        logger.info("Contract executor initialized")
 
     # ========================================================================
     # CONTRACT DEPLOYMENT
@@ -197,11 +199,12 @@ class ContractExecutor:
                            caller: str, block_height: int) -> Tuple[bool, str, Any]:
         """Execute stablecoin contract function"""
         
-        # Import stablecoin engine
-        from ..stablecoin.engine import StablecoinEngine
-        
-        # Create engine instance
-        engine = StablecoinEngine(self.db, self.quantum)
+        # Re-use shared stablecoin engine; fall back to a new instance
+        if self._stablecoin_engine is not None:
+            engine = self._stablecoin_engine
+        else:
+            from ..stablecoin.engine import StablecoinEngine
+            engine = StablecoinEngine(self.db, self.quantum)
         
         # Route function calls
         if function == 'mint':
