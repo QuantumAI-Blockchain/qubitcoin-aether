@@ -32,6 +32,7 @@ from .llm_adapter import (
 )
 from .knowledge_seeder import KnowledgeSeeder, MASTER_PROMPTS
 from .ipfs_memory import IPFSMemoryStore
+from .neural_reasoner import GATReasoner, GATLayer
 from .sephirot_nodes import (
     BaseSephirah, NodeMessage, ProcessingResult,
     KeterNode, ChochmahNode, BinahNode, ChesedNode, GevurahNode,
@@ -82,6 +83,8 @@ __all__ = [
     'KnowledgeSeeder',
     'MASTER_PROMPTS',
     'IPFSMemoryStore',
+    'GATReasoner',
+    'GATLayer',
     'BaseSephirah',
     'NodeMessage',
     'ProcessingResult',

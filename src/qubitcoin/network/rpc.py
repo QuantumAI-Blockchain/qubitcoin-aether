@@ -41,7 +41,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    capability_advertiser=None,
                    on_chain_agi=None,
                    event_index=None,
-                   abi_registry=None) -> FastAPI:
+                   abi_registry=None,
+                   bridge_lp=None,
+                   neural_reasoner=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -4372,12 +4374,220 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=500, detail=f"Trace failed: {str(e)}")
 
     # ========================================================================
+    # BRIDGE LIQUIDITY POOL ENDPOINTS
+    # ========================================================================
+
+    @app.get("/bridge/lp/stats")
+    async def bridge_lp_stats():
+        """Get bridge liquidity pool statistics."""
+        if not bridge_lp:
+            raise HTTPException(status_code=503, detail="Bridge LP not available")
+        return bridge_lp.get_pool_stats()
+
+    @app.post("/bridge/lp/add")
+    async def bridge_lp_add(request: Request):
+        """Add liquidity to a chain pool."""
+        if not bridge_lp:
+            raise HTTPException(status_code=503, detail="Bridge LP not available")
+        body = await request.json()
+        provider = body.get('provider', '')
+        chain = body.get('chain', '')
+        amount = float(body.get('amount', 0))
+        if not provider or not chain:
+            raise HTTPException(status_code=400, detail="provider and chain required")
+        try:
+            position = bridge_lp.add_liquidity(provider, chain, amount)
+            return {
+                "status": "ok",
+                "provider": position.provider,
+                "chain": position.chain,
+                "amount": position.amount,
+                "accumulated_rewards": position.accumulated_rewards,
+            }
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/bridge/lp/remove")
+    async def bridge_lp_remove(request: Request):
+        """Remove liquidity from a chain pool."""
+        if not bridge_lp:
+            raise HTTPException(status_code=503, detail="Bridge LP not available")
+        body = await request.json()
+        provider = body.get('provider', '')
+        chain = body.get('chain', '')
+        amount = float(body.get('amount', 0))
+        if not provider or not chain:
+            raise HTTPException(status_code=400, detail="provider and chain required")
+        try:
+            withdrawn, rewards = bridge_lp.remove_liquidity(provider, chain, amount)
+            return {
+                "status": "ok",
+                "withdrawn": withdrawn,
+                "rewards_collected": rewards,
+            }
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/bridge/lp/rewards/{provider}")
+    async def bridge_lp_rewards(provider: str):
+        """Get pending + accumulated rewards for a provider."""
+        if not bridge_lp:
+            raise HTTPException(status_code=503, detail="Bridge LP not available")
+        rewards = bridge_lp.calculate_rewards(provider)
+        return {"provider": provider, "rewards_by_chain": rewards}
+
+    @app.get("/bridge/lp/positions/{provider}")
+    async def bridge_lp_positions(provider: str):
+        """Get all LP positions for a provider."""
+        if not bridge_lp:
+            raise HTTPException(status_code=503, detail="Bridge LP not available")
+        positions = bridge_lp.get_provider_positions(provider)
+        return {"provider": provider, "positions": positions}
+
+    @app.post("/bridge/lp/distribute")
+    async def bridge_lp_distribute():
+        """Trigger reward distribution for all LP positions."""
+        if not bridge_lp:
+            raise HTTPException(status_code=503, detail="Bridge LP not available")
+        count = bridge_lp.distribute_rewards()
+        return {"distributed_to": count}
+
+    # ========================================================================
+    # FLASH LOAN ENDPOINTS
+    # ========================================================================
+
+    @app.post("/qusd/flash-loan/initiate")
+    async def flash_loan_initiate(request: Request):
+        """Initiate a QUSD flash loan."""
+        if not stablecoin_engine:
+            raise HTTPException(status_code=503, detail="Stablecoin engine not available")
+        body = await request.json()
+        borrower = body.get('borrower', '')
+        amount_str = body.get('amount', '0')
+        if not borrower:
+            raise HTTPException(status_code=400, detail="borrower address required")
+        try:
+            from decimal import Decimal
+            loan = stablecoin_engine.initiate_flash_loan(borrower, Decimal(amount_str))
+            return {
+                "status": "ok",
+                "loan_id": loan.id,
+                "borrower": loan.borrower,
+                "amount": str(loan.amount),
+                "fee": str(loan.fee),
+                "required_repayment": str(loan.amount + loan.fee),
+            }
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/qusd/flash-loan/repay")
+    async def flash_loan_repay(request: Request):
+        """Repay a flash loan."""
+        if not stablecoin_engine:
+            raise HTTPException(status_code=503, detail="Stablecoin engine not available")
+        body = await request.json()
+        loan_id = body.get('loan_id', '')
+        repay_amount_str = body.get('repay_amount', '0')
+        if not loan_id:
+            raise HTTPException(status_code=400, detail="loan_id required")
+        try:
+            from decimal import Decimal
+            success = stablecoin_engine.complete_flash_loan(loan_id, Decimal(repay_amount_str))
+            return {"status": "ok" if success else "insufficient", "repaid": success}
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/qusd/flash-loan/stats")
+    async def flash_loan_stats():
+        """Get flash loan statistics."""
+        if not stablecoin_engine:
+            raise HTTPException(status_code=503, detail="Stablecoin engine not available")
+        return stablecoin_engine.get_flash_loan_stats()
+
+    @app.get("/qusd/flash-loan/{loan_id}")
+    async def flash_loan_get(loan_id: str):
+        """Get an active flash loan by ID."""
+        if not stablecoin_engine:
+            raise HTTPException(status_code=503, detail="Stablecoin engine not available")
+        loan = stablecoin_engine.get_active_flash_loan(loan_id)
+        if not loan:
+            raise HTTPException(status_code=404, detail="Flash loan not found or already repaid")
+        return {
+            "loan_id": loan.id,
+            "borrower": loan.borrower,
+            "amount": str(loan.amount),
+            "fee": str(loan.fee),
+            "repaid": loan.repaid,
+            "timestamp": loan.timestamp,
+        }
+
+    # ========================================================================
+    # NEURAL REASONER ENDPOINTS
+    # ========================================================================
+
+    @app.get("/aether/neural/stats")
+    async def neural_reasoner_stats():
+        """Get neural reasoning engine statistics."""
+        if not neural_reasoner:
+            raise HTTPException(status_code=503, detail="Neural reasoner not available")
+        return neural_reasoner.get_stats()
+
+    @app.get("/aether/neural/accuracy")
+    async def neural_reasoner_accuracy():
+        """Get neural reasoner prediction accuracy."""
+        if not neural_reasoner:
+            raise HTTPException(status_code=503, detail="Neural reasoner not available")
+        return {
+            "accuracy": neural_reasoner.get_accuracy(),
+            "training_mode": neural_reasoner.training_mode,
+            "has_pytorch": neural_reasoner.has_pytorch,
+        }
+
+    # ========================================================================
+    # CONTRACT VALIDATION ENDPOINT
+    # ========================================================================
+
+    @app.get("/contracts/validate")
+    async def contracts_validate():
+        """Validate all Solidity contracts in the suite."""
+        try:
+            from pathlib import Path
+            contracts_root = Path(__file__).parent.parent / "contracts" / "solidity"
+            if not contracts_root.exists():
+                return {"error": "Contracts directory not found", "path": str(contracts_root)}
+            from ..contracts.solidity_validator import validate_all, compute_deploy_order
+            results, summary = validate_all(contracts_root)
+            deploy_order = compute_deploy_order(results)
+            return {
+                "summary": summary,
+                "deploy_order": deploy_order,
+                "results": [r.to_dict() for r in results],
+            }
+        except ImportError:
+            # Fallback: use the standalone script
+            try:
+                import sys
+                scripts_dir = Path(__file__).parent.parent.parent.parent / "scripts" / "deploy"
+                sys.path.insert(0, str(scripts_dir))
+                from validate_contracts import validate_all, compute_deploy_order
+                contracts_root = Path(__file__).parent.parent / "contracts" / "solidity"
+                results, summary = validate_all(contracts_root)
+                deploy_order = compute_deploy_order(results)
+                return {
+                    "summary": summary,
+                    "deploy_order": deploy_order,
+                    "results": [r.to_dict() for r in results],
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Validation failed: {e}")
+
+    # ========================================================================
     # ADMIN API (Economics hot-reload)
     # ========================================================================
 
     from .admin_api import router as admin_router
     app.include_router(admin_router)
 
-    logger.info("RPC endpoints configured (v2.0 with P2P + QVM + Aether + WebSocket + Admin + 12 subsystems)")
+    logger.info("RPC endpoints configured (v2.1 with P2P + QVM + Aether + WebSocket + Admin + Bridge LP + Flash Loans + Neural)")
 
     return app

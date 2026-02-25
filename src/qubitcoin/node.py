@@ -419,14 +419,21 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"ReserveVerifier init: {e}")
 
-        # Component 15: Bridge Manager
+        # Component 15: Bridge Manager + Liquidity Pool
         self.bridge_manager = None
+        self.bridge_lp = None
         try:
             from .bridge.manager import BridgeManager
             self.bridge_manager = BridgeManager(self.db)
             logger.info("[15/22] BridgeManager initialized")
         except Exception as e:
             logger.warning(f"[15/22] BridgeManager failed (non-fatal): {e}")
+        try:
+            from .bridge.liquidity_pool import BridgeLiquidityPool
+            self.bridge_lp = BridgeLiquidityPool()
+            logger.info("[15/22] BridgeLiquidityPool initialized")
+        except Exception as e:
+            logger.debug(f"BridgeLiquidityPool init: {e}")
 
         # Component 16: Cognitive Architecture
         self.sephirot_manager = None
@@ -461,6 +468,15 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"SafetyManager init: {e}")
 
+        # Component 16b: Neural Reasoner (GATReasoner)
+        self.neural_reasoner = None
+        try:
+            from .aether.neural_reasoner import GATReasoner
+            self.neural_reasoner = GATReasoner(hidden_dim=64, n_heads=4)
+            logger.info("[16/22] GATReasoner (neural reasoner) initialized")
+        except Exception as e:
+            logger.debug(f"GATReasoner init: {e}")
+
         # Wire cognitive + LLM components into AetherEngine
         if hasattr(self, 'aether') and self.aether:
             if self.pineal_orchestrator:
@@ -469,7 +485,9 @@ class QubitcoinNode:
                 self.aether.csf = self.csf_transport
             if self.llm_manager:
                 self.aether.llm_manager = self.llm_manager
-            logger.info("[16/22] Cognitive + LLM components wired to Aether Engine")
+            if self.neural_reasoner:
+                self.aether.neural_reasoner = self.neural_reasoner
+            logger.info("[16/22] Cognitive + LLM + Neural components wired to Aether Engine")
 
         # Component 17: SPV Verifier
         self.spv_verifier = None
@@ -566,6 +584,8 @@ class QubitcoinNode:
                 capability_advertiser=self.capability_advertiser,
                 on_chain_agi=getattr(self, 'on_chain', None),
                 event_index=getattr(self, 'event_index', None),
+                bridge_lp=self.bridge_lp,
+                neural_reasoner=self.neural_reasoner,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)

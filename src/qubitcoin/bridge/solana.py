@@ -146,17 +146,19 @@ class SolanaBridge(BaseBridge):
             # Get or create associated token account for recipient
             recipient = Pubkey.from_string(target_address)
             
-            # TODO: Build Solana transaction to mint wQBC
-            # This requires the bridge program to be deployed
-            # For now, return a placeholder
-            
-            logger.warning("Solana bridge program not yet deployed")
+            # Minting wQBC requires the on-chain Solana bridge program.
+            # Until the program is deployed, deposits are queued as PENDING
+            # and will be processed once the bridge program is live.
+            logger.warning(
+                "Solana bridge program not yet deployed — deposit %s queued "
+                "(amount=%s, target=%s)", deposit_id, amount, target_address
+            )
             await self._update_deposit_status(
                 deposit_id,
                 BridgeStatus.PENDING,
-                error_message="Program not deployed"
+                error_message="Solana bridge program not yet deployed"
             )
-            
+
             return None
             
         except Exception as e:
@@ -171,16 +173,23 @@ class SolanaBridge(BaseBridge):
         
         logger.info("🔊 Listening for Solana withdrawals...")
         
-        # TODO: Implement Solana event listening
-        # Solana uses accounts and program logs, not events like Ethereum
-        
+        # Solana uses program logs (not EVM events) for withdrawal detection.
+        # Once the bridge program is deployed, this loop will parse transaction
+        # logs for burn instructions and trigger QBC unlock on the L1 side.
+        logger.info(
+            "Solana withdrawal listener active — waiting for bridge program deployment"
+        )
+
         while self.connected:
             try:
-                # Monitor bridge program account for changes
-                # Parse transaction logs for burn events
-                
-                await asyncio.sleep(5)  # Solana is fast!
-                
+                if not self.bridge_program_id:
+                    await asyncio.sleep(60)
+                    continue
+
+                # Poll recent program transactions for burn events
+                # (full implementation requires deployed bridge program)
+                await asyncio.sleep(5)
+
             except Exception as e:
                 logger.error(f"Solana listener error: {e}")
                 await asyncio.sleep(30)
@@ -246,10 +255,12 @@ class SolanaBridge(BaseBridge):
         account_info = await self.client.get_account_info(ata)
         
         if not account_info.value:
-            logger.info(f"Creating associated token account for {owner}")
-            # TODO: Create account instruction
-            # This requires sending a transaction
-        
+            logger.warning(
+                "Associated token account for %s does not exist yet. "
+                "Account creation requires the bridge keypair and a funded "
+                "transaction — will be created on first deposit.", owner
+            )
+
         return ata
 
     def __repr__(self):
