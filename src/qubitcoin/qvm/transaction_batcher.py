@@ -161,10 +161,13 @@ class TransactionBatcher:
             return True
         if self._current_gas >= self._max_gas:
             return True
-        if (self._start_block is not None and
-                block_height - self._start_block >= BATCH_TIMEOUT_BLOCKS and
-                len(self._pending) > 0):
-            return True
+        if self._start_block is not None and len(self._pending) > 0:
+            # Lazily set _start_block to current height on first check
+            if self._start_block == 0:
+                self._start_block = block_height
+                return False
+            if block_height - self._start_block >= BATCH_TIMEOUT_BLOCKS:
+                return True
         return False
 
     def execute_batch(self, block_height: int,

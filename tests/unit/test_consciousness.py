@@ -96,7 +96,8 @@ class TestConsciousnessDashboard:
 
         status = cd.get_consciousness_status()
         assert status["total_measurements"] == 5
-        assert status["total_conscious_blocks"] >= 2
+        # Consciousness emerged at block 3, latest is block 4: span = 4-3 = 1
+        assert status["total_conscious_blocks"] == 1
 
     def test_get_phi_history(self):
         from qubitcoin.aether.consciousness import ConsciousnessDashboard

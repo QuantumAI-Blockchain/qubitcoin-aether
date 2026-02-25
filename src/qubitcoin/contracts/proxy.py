@@ -24,6 +24,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 from ..config import Config
+from ..qvm.vm import keccak256
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -33,10 +34,10 @@ _IMPL_PREIMAGE = b"eip1967.proxy.implementation"
 _ADMIN_PREIMAGE = b"eip1967.proxy.admin"
 
 IMPLEMENTATION_SLOT: int = (
-    int.from_bytes(hashlib.sha3_256(_IMPL_PREIMAGE).digest(), "big") - 1
+    int.from_bytes(keccak256(_IMPL_PREIMAGE), "big") - 1
 )
 ADMIN_SLOT: int = (
-    int.from_bytes(hashlib.sha3_256(_ADMIN_PREIMAGE).digest(), "big") - 1
+    int.from_bytes(keccak256(_ADMIN_PREIMAGE), "big") - 1
 )
 
 

@@ -9,17 +9,12 @@ This is used by:
   - Contract interaction tools
   - QBC-20 / QBC-721 standard interfaces
 """
-import hashlib
 from typing import Any, List, Optional, Tuple
 
+from .vm import keccak256 as _keccak256
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def _keccak256(data: bytes) -> bytes:
-    """Keccak-256 hash (or SHA-256 fallback if no keccak library installed)."""
-    return hashlib.sha256(data).digest()
 
 
 def function_selector(signature: str) -> bytes:

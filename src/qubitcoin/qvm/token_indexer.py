@@ -10,26 +10,26 @@ Tracks:
   - Token metadata (name, symbol, decimals, total supply)
   - Transfer history per address
 """
-import hashlib
 import time
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Dict, List, Optional
 
+from .vm import keccak256
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 # EVM event topic signatures (keccak256 of event signature string)
 # Transfer(address,address,uint256) — shared by QBC-20 and QBC-721
-TRANSFER_TOPIC = hashlib.sha3_256(
+TRANSFER_TOPIC = keccak256(
     b'Transfer(address,address,uint256)'
-).hexdigest()
+).hex()
 
 # Approval(address,address,uint256)
-APPROVAL_TOPIC = hashlib.sha3_256(
+APPROVAL_TOPIC = keccak256(
     b'Approval(address,address,uint256)'
-).hexdigest()
+).hex()
 
 ZERO_ADDRESS = '0x' + '0' * 40
 

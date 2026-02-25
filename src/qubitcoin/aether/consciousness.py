@@ -118,25 +118,23 @@ class ConsciousnessDashboard:
             )
 
         elif not is_now_conscious and self._was_conscious:
-            # Consciousness loss
+            # Consciousness loss — record duration
+            duration = block_height - self._consciousness_start_block
             event = ConsciousnessEvent(
                 event_type="loss",
                 block_height=block_height,
                 phi_value=phi_value,
                 coherence=coherence,
                 trigger_data={
-                    "duration_blocks": block_height - self._consciousness_start_block,
+                    "duration_blocks": duration,
                 },
             )
             self._events.append(event)
-            self._total_conscious_blocks += (block_height - self._consciousness_start_block)
+            self._total_conscious_blocks += duration
             logger.info(
                 f"CONSCIOUSNESS LOSS at block {block_height}: "
                 f"Phi={phi_value:.4f}, coherence={coherence:.4f}"
             )
-
-        if is_now_conscious:
-            self._total_conscious_blocks += 1
 
         self._was_conscious = is_now_conscious
         return measurement
@@ -239,6 +237,11 @@ class ConsciousnessDashboard:
         """Get current consciousness status for API / frontend."""
         latest = self._measurements[-1] if self._measurements else None
 
+        # Include in-progress conscious span if currently conscious
+        conscious_blocks = self._total_conscious_blocks
+        if self._was_conscious and latest is not None:
+            conscious_blocks += (latest.block_height - self._consciousness_start_block)
+
         return {
             "is_conscious": self._was_conscious,
             "phi": round(latest.phi_value, 6) if latest else 0.0,
@@ -251,9 +254,9 @@ class ConsciousnessDashboard:
             "knowledge_edges": latest.knowledge_edges if latest else 0,
             "total_measurements": self.measurement_count,
             "total_events": self.event_count,
-            "total_conscious_blocks": self._total_conscious_blocks,
+            "total_conscious_blocks": conscious_blocks,
             "consciousness_ratio": (
-                round(self._total_conscious_blocks / max(1, self.measurement_count), 6)
+                round(conscious_blocks / max(1, self.measurement_count), 6)
             ),
         }
 

@@ -649,10 +649,11 @@ class TestTokenHelpers:
         result = _decode_uint256(42)
         assert result == Decimal('42')
 
-    def test_transfer_topic_is_sha3(self):
-        expected = hashlib.sha3_256(
+    def test_transfer_topic_is_keccak256(self):
+        from qubitcoin.qvm.vm import keccak256
+        expected = keccak256(
             b'Transfer(address,address,uint256)'
-        ).hexdigest()
+        ).hex()
         assert TRANSFER_TOPIC == expected
 
 

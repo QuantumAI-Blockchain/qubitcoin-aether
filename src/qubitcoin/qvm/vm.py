@@ -16,9 +16,12 @@ logger = get_logger(__name__)
 # Keccak256: EVM-compatible (NOT SHA3-256, which is different)
 try:
     import sha3
+    # Validate sha3 is real (not a test stub)
+    _test = sha3.keccak_256(b"").digest()
+    assert isinstance(_test, bytes) and len(_test) == 32
     def keccak256(data: bytes) -> bytes:
         return sha3.keccak_256(data).digest()
-except ImportError:
+except (ImportError, AttributeError, TypeError, AssertionError):
     try:
         from Crypto.Hash import keccak as _keccak
         def keccak256(data: bytes) -> bytes:

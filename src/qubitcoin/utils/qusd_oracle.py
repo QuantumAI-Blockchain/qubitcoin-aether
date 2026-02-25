@@ -67,24 +67,24 @@ class QUSDOracle:
         now = time.time()
 
         # Return cache if fresh
-        if self._cached_price and (now - self._cache_ts) < self._cache_ttl:
+        if self._cached_price is not None and (now - self._cache_ts) < self._cache_ttl:
             return self._cached_price
 
         # Try on-chain oracle
         price = self._read_onchain_price()
-        if price and price > 0:
+        if price is not None and price > 0:
             self._cached_price = price
             self._cache_ts = now
             return price
 
         # Try external price
-        if self._external_price and self._external_price > 0:
+        if self._external_price is not None and self._external_price > 0:
             self._cached_price = self._external_price
             self._cache_ts = now
             return self._external_price
 
         # Stale check — return cached if exists but flag it
-        if self._cached_price:
+        if self._cached_price is not None:
             age = now - self._cache_ts
             if age < self._stale_threshold:
                 logger.debug(f"Using stale cached price (age={age:.0f}s)")
@@ -118,7 +118,7 @@ class QUSDOracle:
 
     def is_price_stale(self) -> bool:
         """Check if the cached price is stale."""
-        if not self._cached_price:
+        if self._cached_price is None:
             return True
         return (time.time() - self._cache_ts) > self._stale_threshold
 

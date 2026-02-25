@@ -136,10 +136,6 @@ class BridgeLiquidityPool:
         now = time.time()
 
         if existing is not None:
-            # Additional deposit on top of existing position
-            if amount < 0:
-                raise ValueError("Deposit amount must be positive")
-
             # Settle pending rewards before updating position
             self._accrue_rewards_for_position(existing, now)
 
