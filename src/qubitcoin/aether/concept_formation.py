@@ -382,9 +382,9 @@ class ConceptFormation:
         }
 
         # Add to pattern library (FIFO eviction if full)
-        if len(self._pattern_library) >= _MAX_PATTERN_LIBRARY_SIZE:
-            self._pattern_library.pop(0)
         self._pattern_library.append(pattern)
+        if len(self._pattern_library) > _MAX_PATTERN_LIBRARY_SIZE:
+            self._pattern_library = self._pattern_library[-_MAX_PATTERN_LIBRARY_SIZE:]
         self._patterns_extracted += 1
 
         return pattern

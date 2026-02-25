@@ -18,6 +18,7 @@ default backend when vectors > 1000.
 import math
 import random
 import re
+import heapq
 from collections import defaultdict
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -208,10 +209,10 @@ class HNSWIndex:
         candidates: List[Tuple[float, int]] = [(dist, entry_point)]
         results: List[Tuple[float, int]] = [(dist, entry_point)]
 
+        heapq.heapify(candidates)
         while candidates:
             # Pop the closest candidate
-            candidates.sort(key=lambda x: x[0])
-            current_dist, current = candidates.pop(0)
+            current_dist, current = heapq.heappop(candidates)
 
             # If the closest candidate is farther than the farthest result, stop
             results.sort(key=lambda x: x[0])
@@ -232,7 +233,7 @@ class HNSWIndex:
 
                 results.sort(key=lambda x: x[0])
                 if len(results) < ef or n_dist < results[-1][0]:
-                    candidates.append((n_dist, neighbor))
+                    heapq.heappush(candidates, (n_dist, neighbor))
                     results.append((n_dist, neighbor))
                     if len(results) > ef:
                         results.sort(key=lambda x: x[0])

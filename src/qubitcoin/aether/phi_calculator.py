@@ -20,6 +20,7 @@ Formula:
 import math
 import random
 import time
+from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
 
 from ..utils.logger import get_logger
@@ -291,9 +292,9 @@ class PhiCalculator:
 
         def _bfs(start):
             comp = set()
-            queue = [start]
+            queue = deque([start])
             while queue:
-                n = queue.pop(0)
+                n = queue.popleft()
                 if n in comp:
                     continue
                 comp.add(n)

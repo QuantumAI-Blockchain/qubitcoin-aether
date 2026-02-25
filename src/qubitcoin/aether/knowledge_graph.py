@@ -8,6 +8,7 @@ import json
 import math
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -312,10 +313,10 @@ class KnowledgeGraph:
     def get_subgraph(self, root_id: int, depth: int = 3) -> Dict[int, KeterNode]:
         """BFS to get subgraph up to given depth"""
         visited: Dict[int, KeterNode] = {}
-        queue = [(root_id, 0)]
+        queue = deque([(root_id, 0)])
 
         while queue:
-            nid, d = queue.pop(0)
+            nid, d = queue.popleft()
             if nid in visited or d > depth:
                 continue
             node = self.nodes.get(nid)

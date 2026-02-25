@@ -203,13 +203,21 @@ class AetherEngine:
         # Feed the ConsciousnessDashboard if wired
         if self.consciousness_dashboard is not None:
             try:
+                # Get Sephirot coherence (Kuramoto order parameter)
+                coherence = 0.0
+                if self.pineal is not None:
+                    try:
+                        coherence = self.pineal.sephirot.get_coherence()
+                    except Exception:
+                        pass
                 self.consciousness_dashboard.record_measurement(
                     block_height=block_height,
                     phi_value=phi_value,
-                    integration=phi_result.get('integration', 0.0),
-                    differentiation=phi_result.get('differentiation', 0.0),
+                    integration=phi_result.get('integration_score', 0.0),
+                    differentiation=phi_result.get('differentiation_score', 0.0),
                     knowledge_nodes=phi_result.get('num_nodes', 0),
                     knowledge_edges=phi_result.get('num_edges', 0),
+                    coherence=coherence,
                 )
             except Exception as e:
                 logger.debug(f"ConsciousnessDashboard update failed: {e}")

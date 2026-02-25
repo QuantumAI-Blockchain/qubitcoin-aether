@@ -257,9 +257,9 @@ class MemoryManager:
         self._next_episode_id += 1
         self._episodes.append(episode)
 
-        # FIFO eviction
-        while len(self._episodes) > self._max_episodes:
-            self._episodes.pop(0)
+        # FIFO eviction (slice instead of repeated pop(0) which is O(n) per call)
+        if len(self._episodes) > self._max_episodes:
+            self._episodes = self._episodes[-self._max_episodes:]
 
         return episode
 

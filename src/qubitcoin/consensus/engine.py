@@ -165,8 +165,11 @@ class ConsensusEngine:
             except Exception as e:
                 logger.warning(f"Ground state check failed at height {height}: {e}")
 
-            # Cache to avoid re-computation
+            # Cache to avoid re-computation (evict old entries to bound memory)
             self.difficulty_cache[height] = new_difficulty
+            if len(self.difficulty_cache) > Config.DIFFICULTY_WINDOW * 2:
+                oldest = min(self.difficulty_cache)
+                del self.difficulty_cache[oldest]
 
             if abs(ratio - 1.0) > 0.001:
                 logger.info(
@@ -199,13 +202,14 @@ class ConsensusEngine:
                 if block.block_hash != computed_hash:
                     return False, f"Block hash mismatch: {block.block_hash[:16]} != {computed_hash[:16]}"
 
-            # Reject blocks with timestamps too far in the future
-            if block.timestamp > time.time() + Config.MAX_FUTURE_BLOCK_TIME:
+            # Timestamp validation (using validation_start to avoid TOCTOU)
+            if block.timestamp > validation_start + Config.MAX_FUTURE_BLOCK_TIME:
                 return False, f"Block timestamp too far in future: {block.timestamp}"
-
-            # Reject blocks with timestamps before parent (non-genesis)
-            if prev_block and block.timestamp < prev_block.timestamp:
-                return False, f"Block timestamp before parent: {block.timestamp} < {prev_block.timestamp}"
+            if prev_block and block.timestamp <= prev_block.timestamp:
+                return False, (
+                    f"Block timestamp not increasing: {block.timestamp:.6f} "
+                    f"<= prev {prev_block.timestamp:.6f}"
+                )
 
             expected_difficulty = self.calculate_difficulty(block.height, db_manager)
             if abs(block.difficulty - expected_difficulty) > 0.001:
@@ -261,11 +265,15 @@ class ConsensusEngine:
                 return False, "No coinbase transaction"
 
             # Validate coinbase amount AFTER accumulating all fees
+            # Apply fee burn — miners only receive (1 - burn_pct) of fees
             total_supply = db_manager.get_total_supply()
             expected_reward = self.calculate_reward(block.height, total_supply)
+            burn_pct = Decimal(str(Config.FEE_BURN_PERCENTAGE))
+            burned_fees = (total_fees * burn_pct).quantize(Decimal('0.00000001'))
+            miner_fees = total_fees - burned_fees
             coinbase_amount = sum(Decimal(str(o['amount'])) for o in coinbase_tx.outputs)
-            if coinbase_amount > expected_reward + total_fees:
-                return False, f"Excessive coinbase: {coinbase_amount} > {expected_reward} + {total_fees}"
+            if coinbase_amount > expected_reward + miner_fees:
+                return False, f"Excessive coinbase: {coinbase_amount} > {expected_reward} + {miner_fees}"
 
             # ── Susy Swap (confidential tx) block-level validation ────
             # Individual private tx validation is handled by validate_transaction
@@ -279,15 +287,7 @@ class ConsensusEngine:
             if not susy_valid:
                 return False, susy_reason
 
-            # ── Timestamp validation ──────────────────────────────────
-            # 1. Must not be too far in the future
-            if block.timestamp > time.time() + Config.MAX_FUTURE_BLOCK_TIME:
-                return False, f"Block timestamp too far in future ({block.timestamp:.0f} > now+{Config.MAX_FUTURE_BLOCK_TIME})"
-            # 2. Must be strictly after the previous block (monotonically increasing)
-            if prev_block and block.timestamp <= prev_block.timestamp:
-                return False, (
-                    f"Block timestamp not increasing: {block.timestamp:.6f} <= prev {prev_block.timestamp:.6f}"
-                )
+            # (Timestamp validation already done above — single check, no duplicate)
 
             # Validate state root (if QVM is active and block has state root)
             if self.state_manager and block.state_root:
@@ -412,6 +412,11 @@ class ConsensusEngine:
         4. Fee is explicitly visible and non-negative
         """
         try:
+            # 0. Reject private tx with no inputs (invalid state)
+            if not tx.inputs:
+                logger.warning(f"Private tx {tx.txid}: no inputs")
+                return False
+
             # 1. Verify signature
             pk = bytes.fromhex(tx.public_key)
             msg = str({
@@ -458,6 +463,8 @@ class ConsensusEngine:
                             tau_x=range_proof.get('tau_x', 0),
                             mu=range_proof.get('mu', 0),
                             t_hat=range_proof.get('t_hat', 0),
+                            l_vec=range_proof.get('l_vec', []),
+                            r_vec=range_proof.get('r_vec', []),
                         )
                         if not RangeProofVerifier.verify(proof_obj):
                             logger.warning(f"Private tx {tx.txid}: range proof failed for output {i}")
