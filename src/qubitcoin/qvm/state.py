@@ -281,7 +281,10 @@ class StateManager:
             return blocked_receipt
 
         hex_data = tx.data.removeprefix('0x') if tx.data else ''
-        bytecode = bytes.fromhex(hex_data) if hex_data else b''
+        try:
+            bytecode = bytes.fromhex(hex_data) if hex_data else b''
+        except ValueError:
+            bytecode = b''
 
         # Derive contract address
         account = self.db.get_or_create_account(from_addr)
@@ -365,7 +368,10 @@ class StateManager:
 
         to_addr = tx.to_address or ''
         hex_data = tx.data.removeprefix('0x') if tx.data else ''
-        calldata = bytes.fromhex(hex_data) if hex_data else b''
+        try:
+            calldata = bytes.fromhex(hex_data) if hex_data else b''
+        except ValueError:
+            calldata = b''
 
         # Load contract bytecode
         code = b''

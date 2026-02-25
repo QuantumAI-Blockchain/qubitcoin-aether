@@ -418,8 +418,9 @@ class MemoryManager:
             # Step 2a: Reinforce successful episodes with confident conclusions
             if episode.success and conclusion_exists and conclusion_confident:
                 # Boost conclusion node confidence by 0.03
-                c_node = self._kg.nodes[episode.conclusion_node_id]
-                c_node.confidence = min(1.0, c_node.confidence + 0.03)
+                c_node = self._kg.nodes.get(episode.conclusion_node_id)
+                if c_node is not None:
+                    c_node.confidence = min(1.0, c_node.confidence + 0.03)
 
                 # Boost input nodes' confidence by 0.01 each
                 for input_id in episode.input_node_ids:
@@ -439,7 +440,7 @@ class MemoryManager:
             # Step 2b: Suppress unsuccessful or degraded episodes
             elif not episode.success or not conclusion_exists or (
                 conclusion_exists
-                and self._kg.nodes[episode.conclusion_node_id].confidence < 0.1
+                and getattr(self._kg.nodes.get(episode.conclusion_node_id), 'confidence', 1.0) < 0.1
             ):
                 # Reduce input nodes' confidence by 0.02 (floored at 0.05)
                 for input_id in episode.input_node_ids:

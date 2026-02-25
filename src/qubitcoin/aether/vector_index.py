@@ -89,7 +89,7 @@ class _BoWEmbedder:
             vec = [0.0] * self.dim
             for token in tokens:
                 # Deterministic hash to dimension
-                h = hash(token) % self.dim
+                h = abs(hash(token)) % self.dim
                 vec[h] += 1.0
             # L2 normalize
             norm = math.sqrt(sum(v * v for v in vec))

@@ -330,7 +330,7 @@ class EVMBridge(BaseBridge):
                 qbc_address,
                 amount,
                 {
-                    'withdrawal_id': withdrawal_id.hex(),
+                    'withdrawal_id': withdrawal_id.hex() if isinstance(withdrawal_id, bytes) else hex(withdrawal_id),
                     'chain_id': self.config['chain_id'],
                     'block_number': event['blockNumber']
                 }

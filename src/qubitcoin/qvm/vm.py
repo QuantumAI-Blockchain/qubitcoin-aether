@@ -1695,10 +1695,13 @@ class QVM:
                     ctx.address.encode() + nonce.to_bytes(8, 'big')
                 )[:20]
                 new_addr = addr_bytes.hex()
-                # Execute init code
+                # EIP-150 63/64 gas cap + storage snapshot for rollback
+                available = ctx.gas - ctx.gas_used
+                sub_gas = (available * 63) // 64
+                cache_snap = {k: dict(v) for k, v in self._storage_cache.items()}
                 sub_result = self.execute(
                     ctx.address, new_addr, init_code, b'', value,
-                    ctx.gas - ctx.gas_used, ctx.origin, depth=ctx.depth + 1
+                    sub_gas, ctx.origin, depth=ctx.depth + 1
                 )
                 ctx.gas_used += sub_result.gas_used
                 if sub_result.success:
@@ -1706,6 +1709,7 @@ class QVM:
                     sub_result.created_address = new_addr
                 else:
                     ctx.push(0)
+                    self._storage_cache = cache_snap
                 ctx.return_data = sub_result.return_data
 
             elif op == Opcode.CALL:
@@ -1863,15 +1867,20 @@ class QVM:
                     + salt.to_bytes(32, 'big') + code_hash
                 )[:20]
                 new_addr = addr_bytes.hex()
+                # EIP-150 63/64 gas cap + storage snapshot for rollback
+                available = ctx.gas - ctx.gas_used
+                sub_gas = (available * 63) // 64
+                cache_snap = {k: dict(v) for k, v in self._storage_cache.items()}
                 sub_result = self.execute(
                     ctx.address, new_addr, init_code, b'', value,
-                    ctx.gas - ctx.gas_used, ctx.origin, depth=ctx.depth + 1
+                    sub_gas, ctx.origin, depth=ctx.depth + 1
                 )
                 ctx.gas_used += sub_result.gas_used
                 if sub_result.success:
                     ctx.push(int(new_addr, 16))
                 else:
                     ctx.push(0)
+                    self._storage_cache = cache_snap
                 ctx.return_data = sub_result.return_data
 
             elif op == Opcode.RETURN:
