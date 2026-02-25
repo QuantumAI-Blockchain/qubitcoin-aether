@@ -144,12 +144,12 @@ def app_and_client():
 
     # --- TLAC manager ---
     tlac_mgr = MagicMock()
-    tlac_mgr.list_pending.return_value = []
-    mock_tlac_tx = MagicMock()
-    mock_tlac_tx.to_dict.return_value = {
-        'id': 'tlac_001', 'sender': 'test', 'recipient': 'test2', 'amount': 100,
+    tlac_mgr._transactions = {}  # Iterated directly for pending list
+    tlac_mgr.create.return_value = {
+        'success': True,
+        'tlac_id': 'tlac_001',
+        'transaction': {'tlac_id': 'tlac_001', 'initiator': 'test'},
     }
-    tlac_mgr.create_transaction = MagicMock(return_value=mock_tlac_tx)
 
     # --- QVM debugger ---
     qvm_debugger = MagicMock()
@@ -484,7 +484,7 @@ def app_and_client():
         fee_collector=fc,
         qusd_oracle=MagicMock(),
         compliance_engine=comp,
-        aml_monitor=MagicMock(get_recent_alerts=MagicMock(return_value=[])),
+        aml_monitor=MagicMock(get_alerts=MagicMock(return_value=[])),
         compliance_proof_store=proof_inst,
         tlac_manager=tlac_mgr,
         risk_normalizer=MagicMock(normalize=MagicMock(return_value=0.1)),
@@ -494,8 +494,8 @@ def app_and_client():
         state_channel_manager=state_channel_mgr,
         qvm_debugger=qvm_debugger,
         qsol_compiler=qsol_compiler,
-        systemic_risk_model=MagicMock(assess=MagicMock(return_value={'score': 0.1})),
-        tx_graph=MagicMock(analyze=MagicMock(return_value={'nodes': [], 'edges': []})),
+        systemic_risk_model=MagicMock(detect_high_risk_connections=MagicMock(return_value=[])),
+        tx_graph=MagicMock(build_subgraph=MagicMock(return_value={})),
         stablecoin_engine=se,
         reserve_fee_router=MagicMock(get_stats=MagicMock(return_value={'inflows': []})),
         reserve_verifier=reserve_verifier,
@@ -1109,7 +1109,8 @@ class TestComplianceCRUDEndpoints:
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert 'id' in data
+        assert data.get('success') is True
+        assert 'tlac_id' in data
 
 
 class TestSUSYVerificationEndpoints:

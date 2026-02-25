@@ -751,9 +751,9 @@ def app_and_client():
         fee_collector=fc,
         qusd_oracle=MagicMock(),
         compliance_engine=comp,
-        aml_monitor=MagicMock(get_recent_alerts=MagicMock(return_value=[])),
+        aml_monitor=MagicMock(get_alerts=MagicMock(return_value=[])),
         compliance_proof_store=proof_inst,
-        tlac_manager=MagicMock(list_pending=MagicMock(return_value=[])),
+        tlac_manager=MagicMock(_transactions={}),
         risk_normalizer=MagicMock(normalize=MagicMock(return_value=0.1)),
         plugin_manager=pm,
         decoherence_manager=MagicMock(get_stats=MagicMock(return_value={'states': []})),
@@ -761,8 +761,8 @@ def app_and_client():
         state_channel_manager=MagicMock(get_stats=MagicMock(return_value={'channels': []})),
         qvm_debugger=MagicMock(),
         qsol_compiler=MagicMock(),
-        systemic_risk_model=MagicMock(assess=MagicMock(return_value={'score': 0.1})),
-        tx_graph=MagicMock(analyze=MagicMock(return_value={'nodes': [], 'edges': []})),
+        systemic_risk_model=MagicMock(detect_high_risk_connections=MagicMock(return_value=[])),
+        tx_graph=MagicMock(build_subgraph=MagicMock(return_value={})),
         stablecoin_engine=se,
         reserve_fee_router=MagicMock(get_stats=MagicMock(return_value={'inflows': []})),
         reserve_verifier=MagicMock(get_stats=MagicMock(return_value={'milestones': []})),
@@ -1465,7 +1465,7 @@ class TestComplianceEndpoints:
         resp = client.get("/qvm/compliance/systemic-risk/test_addr")
         assert resp.status_code == 200
         data = resp.json()
-        assert 'risk' in data
+        assert 'high_risk_connections' in data
 
 
 class TestBridgeEndpoints:

@@ -294,9 +294,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             },
             "mining": {
                 "is_mining": mining_engine.is_mining,
-                "blocks_found": mining_engine.stats['blocks_found'],
-                "total_attempts": mining_engine.stats['total_attempts'],
-                "success_rate": mining_engine.stats['blocks_found'] / max(1, mining_engine.stats['total_attempts'])
+                "blocks_found": mining_engine.stats.get('blocks_found', 0),
+                "total_attempts": mining_engine.stats.get('total_attempts', 0),
+                "success_rate": mining_engine.stats.get('blocks_found', 0) / max(1, mining_engine.stats.get('total_attempts', 1))
             },
             "quantum": {
                 "mode": "local" if Config.USE_LOCAL_ESTIMATOR else "ibm",
@@ -545,10 +545,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Get mining statistics"""
         return {
             "is_mining": mining_engine.is_mining,
-            "blocks_found": mining_engine.stats['blocks_found'],
-            "total_attempts": mining_engine.stats['total_attempts'],
+            "blocks_found": mining_engine.stats.get('blocks_found', 0),
+            "total_attempts": mining_engine.stats.get('total_attempts', 0),
             "current_difficulty": mining_engine.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY),
-            "success_rate": mining_engine.stats['blocks_found'] / max(1, mining_engine.stats['total_attempts']),
+            "success_rate": mining_engine.stats.get('blocks_found', 0) / max(1, mining_engine.stats.get('total_attempts', 1)),
             "best_energy": mining_engine.stats.get('best_energy', None),
             "alignment_score": mining_engine.stats.get('alignment_score', None),
             "total_fees_burned": mining_engine.stats.get('total_burned', 0.0),
@@ -3699,16 +3699,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=503, detail="Plugin manager not available")
         body = await request.json()
         try:
-            meta = plugin_manager.registry.get('GovernancePlugin')
-            if not meta or not meta.instance:
+            gov_plugin = plugin_manager.registry.get('governance')
+            if not gov_plugin:
                 raise HTTPException(status_code=503, detail="Governance plugin not active")
-            result = meta.instance.vote(
+            # choice: 0=AGAINST, 1=FOR, 2=ABSTAIN
+            approve = body.get('approve', True)
+            choice = 1 if approve else 0
+            vote_obj = gov_plugin.cast_vote(
                 proposal_id=body.get('proposal_id', ''),
                 voter=body.get('voter', ''),
-                approve=body.get('approve', True),
+                choice=choice,
                 weight=body.get('weight', 1.0),
             )
-            return {"voted": True, "result": result}
+            return {
+                "voted": vote_obj is not None,
+                "result": vote_obj.to_dict() if vote_obj else None,
+            }
         except HTTPException:
             raise
         except Exception as e:
@@ -3724,7 +3730,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not aml_monitor:
             return {"alerts": []}
         try:
-            return {"alerts": aml_monitor.get_recent_alerts()}
+            alerts = aml_monitor.get_alerts()
+            return {"alerts": [a.to_dict() if hasattr(a, 'to_dict') else a for a in alerts]}
         except Exception:
             return {"alerts": []}
 
@@ -3745,7 +3752,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not tlac_manager:
             return {"transactions": []}
         try:
-            return {"transactions": tlac_manager.list_pending()}
+            pending = [
+                t.to_dict() for t in tlac_manager._transactions.values()
+                if not t.expired and not t.executed
+            ]
+            return {"transactions": pending}
         except Exception:
             return {"transactions": []}
 
@@ -3756,14 +3767,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=503, detail="TLAC manager not available")
         body = await request.json()
         try:
-            tx = tlac_manager.create_transaction(
-                sender=body.get('sender', ''),
-                recipient=body.get('recipient', ''),
-                amount=body.get('amount', 0),
+            result = tlac_manager.create(
+                initiator=body.get('sender', ''),
+                tx_data={
+                    "recipient": body.get('recipient', ''),
+                    "amount": body.get('amount', 0),
+                },
                 jurisdictions=body.get('jurisdictions', []),
-                timeout_blocks=body.get('timeout_blocks', 100),
+                time_lock_blocks=body.get('timeout_blocks', 100),
+                block_height=body.get('block_height', 0),
             )
-            return tx.to_dict() if hasattr(tx, 'to_dict') else {"id": str(tx)}
+            return result
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -3773,7 +3787,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not tx_graph:
             return {"address": address, "graph": {}, "error": "Transaction graph not available"}
         try:
-            result = tx_graph.analyze(address)
+            subgraph = tx_graph.build_subgraph(address)
+            result = {k: v.to_dict() for k, v in subgraph.items()} if subgraph else {}
             return {"address": address, "graph": result}
         except Exception as e:
             return {"address": address, "graph": {}, "error": str(e)}
@@ -3784,8 +3799,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not systemic_risk_model:
             return {"address": address, "risk": {}, "error": "Systemic risk model not available"}
         try:
-            result = systemic_risk_model.assess(address)
-            return {"address": address, "risk": result}
+            connections = systemic_risk_model.detect_high_risk_connections(address)
+            return {
+                "address": address,
+                "high_risk_connections": connections,
+                "count": len(connections),
+            }
         except Exception as e:
             return {"address": address, "risk": {}, "error": str(e)}
 
