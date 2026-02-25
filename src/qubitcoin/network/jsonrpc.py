@@ -50,7 +50,15 @@ def parse_wei_to_qbc(wei: int) -> Decimal:
 def parse_hex_int(value: str) -> int:
     if isinstance(value, int):
         return value
-    return int(value, 16)
+    if not value or not isinstance(value, str):
+        return 0
+    cleaned = value.strip()
+    if not cleaned:
+        return 0
+    try:
+        return int(cleaned, 16)
+    except ValueError:
+        return 0
 
 
 def _block_to_rpc(block, include_txs: bool = False) -> Optional[dict]:
@@ -92,7 +100,7 @@ def _tx_to_rpc(tx, block=None) -> dict:
         'to': '0x' + (tx.to_address or '0' * 40),
         'value': hex_balance(tx.outputs[0]['amount'] if tx.outputs else Decimal(0)),
         'gas': hex_int(tx.gas_limit or 21000),
-        'gasPrice': hex_balance(tx.gas_price or Config.DEFAULT_GAS_PRICE),
+        'gasPrice': hex_balance(tx.gas_price if tx.gas_price is not None else Config.DEFAULT_GAS_PRICE),
         'input': '0x' + (tx.data or ''),
         'nonce': hex_int(tx.nonce),
         'type': '0x0',
@@ -544,10 +552,18 @@ class JsonRpcHandler:
     # ========================================================================
     async def eth_getLogs(self, params):
         filter_obj = params[0] if params else {}
-        from_block = parse_hex_int(filter_obj.get('fromBlock', '0x0'))
+        from_block_str = filter_obj.get('fromBlock', '0x0')
+        if from_block_str == 'latest':
+            from_block = self.db.get_current_height()
+        elif from_block_str in ('earliest', 'pending'):
+            from_block = 0
+        else:
+            from_block = parse_hex_int(from_block_str)
         to_block_str = filter_obj.get('toBlock', 'latest')
         if to_block_str == 'latest':
             to_block = self.db.get_current_height()
+        elif to_block_str in ('earliest', 'pending'):
+            to_block = 0 if to_block_str == 'earliest' else self.db.get_current_height()
         else:
             to_block = parse_hex_int(to_block_str)
 

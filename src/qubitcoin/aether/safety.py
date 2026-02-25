@@ -60,10 +60,21 @@ class SafetyPrinciple:
     created_block: int = 0
 
     def matches(self, action_description: str) -> bool:
-        """Check if an action description might violate this principle."""
+        """Check if an action description might violate this principle.
+
+        Uses whole-word matching to avoid false positives (e.g. 'harm' should
+        not match 'pharmacy', 'bias' should not match 'biased-sampling').
+        """
+        import re
         keywords = self.description.lower().split()
         action_lower = action_description.lower()
-        return any(kw in action_lower for kw in keywords if len(kw) > 3)
+        for kw in keywords:
+            if len(kw) <= 3:
+                continue
+            # Whole-word boundary match
+            if re.search(r'\b' + re.escape(kw) + r'\b', action_lower):
+                return True
+        return False
 
 
 @dataclass

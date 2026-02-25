@@ -1736,14 +1736,22 @@ class QVM:
                         if bc:
                             code = bytes.fromhex(bc)
                     if code:
-                        sub_gas = min(gas_limit, ctx.gas - ctx.gas_used)
+                        available = ctx.gas - ctx.gas_used
+                        capped = (available * 63) // 64  # EIP-150
+                        sub_gas = min(gas_limit, capped)
+                        # Snapshot storage cache for rollback on revert
+                        cache_snap = {k: dict(v) for k, v in self._storage_cache.items()}
                         sub_result = self.execute(
                             ctx.address, to_addr, code, call_data, value,
                             sub_gas, ctx.origin, depth=ctx.depth + 1
                         )
                         ctx.gas_used += sub_result.gas_used
                         ctx.return_data = sub_result.return_data
-                        ctx.logs.extend(sub_result.logs)
+                        if sub_result.success:
+                            ctx.logs.extend(sub_result.logs)
+                        else:
+                            # Rollback storage mutations from reverted sub-call
+                            self._storage_cache = cache_snap
                         ret = sub_result.return_data[:ret_size]
                         if ret:
                             ctx.memory_write(ret_offset, ret)
@@ -1778,13 +1786,18 @@ class QVM:
                         if bc:
                             code = bytes.fromhex(bc)
                     if code:
-                        sub_gas = min(gas_limit, ctx.gas - ctx.gas_used)
+                        available = ctx.gas - ctx.gas_used
+                        capped = (available * 63) // 64  # EIP-150
+                        sub_gas = min(gas_limit, capped)
+                        cache_snap = {k: dict(v) for k, v in self._storage_cache.items()}
                         sub_result = self.execute(
                             ctx.address, to_addr, code, call_data, 0,
                             sub_gas, ctx.origin, is_static=True, depth=ctx.depth + 1
                         )
                         ctx.gas_used += sub_result.gas_used
                         ctx.return_data = sub_result.return_data
+                        if not sub_result.success:
+                            self._storage_cache = cache_snap
                         ret = sub_result.return_data[:ret_size]
                         if ret:
                             ctx.memory_write(ret_offset, ret)
@@ -1806,7 +1819,10 @@ class QVM:
                     if bc:
                         code = bytes.fromhex(bc)
                 if code:
-                    sub_gas = min(gas_limit, ctx.gas - ctx.gas_used)
+                    available = ctx.gas - ctx.gas_used
+                    capped = (available * 63) // 64  # EIP-150
+                    sub_gas = min(gas_limit, capped)
+                    cache_snap = {k: dict(v) for k, v in self._storage_cache.items()}
                     # Delegatecall: execute target code in caller's context
                     sub_result = self.execute(
                         ctx.caller, ctx.address, code, call_data, ctx.value,
@@ -1814,7 +1830,10 @@ class QVM:
                     )
                     ctx.gas_used += sub_result.gas_used
                     ctx.return_data = sub_result.return_data
-                    ctx.logs.extend(sub_result.logs)
+                    if sub_result.success:
+                        ctx.logs.extend(sub_result.logs)
+                    else:
+                        self._storage_cache = cache_snap
                     ret = sub_result.return_data[:ret_size]
                     if ret:
                         ctx.memory_write(ret_offset, ret)
@@ -1873,9 +1892,13 @@ class QVM:
                 ctx.stopped = True
 
             elif op == Opcode.INVALID:
+                # EVM spec: INVALID consumes all remaining gas
+                ctx.gas_used = ctx.gas
                 raise ExecutionError("INVALID opcode")
 
             else:
+                # Unknown opcodes also consume all remaining gas
+                ctx.gas_used = ctx.gas
                 raise ExecutionError(f"Unknown opcode: 0x{op:02x}")
 
             ctx.pc += 1

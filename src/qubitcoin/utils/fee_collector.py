@@ -226,13 +226,20 @@ class FeeCollector:
 
     def _compute_fee_txid(self, payer: str, treasury: str,
                           amount: Decimal, fee_type: str) -> str:
-        """Compute a deterministic transaction ID for a fee transaction."""
+        """Compute a deterministic transaction ID for a fee transaction.
+
+        Uses block_height + audit log length as a monotonic counter instead of
+        wall-clock time so that the same inputs at the same chain state always
+        produce the same txid.
+        """
+        block_height = self._db.get_current_height()
         data = {
             'payer': payer,
             'treasury': treasury,
             'amount': str(amount),
             'fee_type': fee_type,
-            'timestamp': time.time(),
+            'block_height': block_height,
+            'seq': len(self._audit_log),
         }
         return hashlib.sha256(
             json.dumps(data, sort_keys=True).encode()
