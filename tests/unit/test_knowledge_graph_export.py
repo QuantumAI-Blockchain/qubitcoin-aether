@@ -10,8 +10,10 @@ class TestExportJsonLD:
         from qubitcoin.aether.knowledge_graph import KnowledgeGraph, KeterNode, KeterEdge
         import types
 
+        import threading
         kg = object.__new__(KnowledgeGraph)
         kg.db = None
+        kg._lock = threading.Lock()
         kg.nodes = {}
         kg.edges = []
         kg._next_id = 1

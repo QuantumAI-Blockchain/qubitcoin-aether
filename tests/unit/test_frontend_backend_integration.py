@@ -191,7 +191,9 @@ def _make_mining_engine():
         'best_energy': -0.5,
         'alignment_score': 0.95,
         'uptime': 3600,
+        'total_burned': 0.0,
     }
+    me.get_stats_snapshot.return_value = dict(me.stats)
     return me
 
 

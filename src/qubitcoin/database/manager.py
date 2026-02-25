@@ -510,7 +510,7 @@ class DatabaseManager:
                     logger.debug(f"Detected: {version}")
                     return (13, 0)
                 return original_get_version(self, connection)
-            except:
+            except Exception:
                 return (13, 0)
         base.PGDialect._get_server_version_info = patched_get_version
 

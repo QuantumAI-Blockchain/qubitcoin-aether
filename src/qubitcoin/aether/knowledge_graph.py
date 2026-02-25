@@ -6,6 +6,7 @@ Each node (KeterNode) represents a piece of verified knowledge; edges represent 
 import hashlib
 import json
 import math
+import threading
 import time
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Set, Tuple
@@ -133,6 +134,7 @@ class KnowledgeGraph:
 
     def __init__(self, db_manager):
         self.db = db_manager
+        self._lock = threading.Lock()
         self.nodes: Dict[int, KeterNode] = {}
         self.edges: List[KeterEdge] = []
         # O(1) edge adjacency index — avoids O(n) scans of self.edges
@@ -216,22 +218,23 @@ class KnowledgeGraph:
     def add_node(self, node_type: str, content: dict, confidence: float,
                  source_block: int, domain: str = '') -> KeterNode:
         """Add a new knowledge node"""
-        node = KeterNode(
-            node_id=self._next_id,
-            node_type=node_type,
-            content=content,
-            confidence=max(0.0, min(1.0, confidence)),
-            source_block=source_block,
-            timestamp=time.time(),
-            domain=domain or classify_domain(content),
-            last_referenced_block=source_block,
-        )
-        node.content_hash = node.calculate_hash()
-        self._next_id += 1
-        self.nodes[node.node_id] = node
-        self._merkle_dirty = True
+        with self._lock:
+            node = KeterNode(
+                node_id=self._next_id,
+                node_type=node_type,
+                content=content,
+                confidence=max(0.0, min(1.0, confidence)),
+                source_block=source_block,
+                timestamp=time.time(),
+                domain=domain or classify_domain(content),
+                last_referenced_block=source_block,
+            )
+            node.content_hash = node.calculate_hash()
+            self._next_id += 1
+            self.nodes[node.node_id] = node
+            self._merkle_dirty = True
 
-        # Update search indices
+        # Update search indices (outside lock — no shared state mutation)
         self.search_index.add_node(node.node_id, content)
         self.vector_index.add_node(node.node_id, content)
 
@@ -260,21 +263,22 @@ class KnowledgeGraph:
     def add_edge(self, from_id: int, to_id: int, edge_type: str = 'supports',
                  weight: float = 1.0) -> Optional[KeterEdge]:
         """Add a directed edge between two nodes"""
-        if from_id not in self.nodes or to_id not in self.nodes:
-            logger.warning(f"Cannot add edge: node {from_id} or {to_id} not found")
-            return None
+        with self._lock:
+            if from_id not in self.nodes or to_id not in self.nodes:
+                logger.warning(f"Cannot add edge: node {from_id} or {to_id} not found")
+                return None
 
-        edge = KeterEdge(
-            from_node_id=from_id, to_node_id=to_id,
-            edge_type=edge_type, weight=weight,
-            timestamp=time.time()
-        )
-        self.edges.append(edge)
-        self._adj_out.setdefault(from_id, []).append(edge)
-        self._adj_in.setdefault(to_id, []).append(edge)
-        self._merkle_dirty = True
-        self.nodes[from_id].edges_out.append(to_id)
-        self.nodes[to_id].edges_in.append(from_id)
+            edge = KeterEdge(
+                from_node_id=from_id, to_node_id=to_id,
+                edge_type=edge_type, weight=weight,
+                timestamp=time.time()
+            )
+            self.edges.append(edge)
+            self._adj_out.setdefault(from_id, []).append(edge)
+            self._adj_in.setdefault(to_id, []).append(edge)
+            self._merkle_dirty = True
+            self.nodes[from_id].edges_out.append(to_id)
+            self.nodes[to_id].edges_in.append(from_id)
 
         # Persist
         try:

@@ -8,8 +8,10 @@ def _make_test_kg():
     from qubitcoin.aether.knowledge_graph import KnowledgeGraph
     db = MagicMock()
     db.get_session.side_effect = Exception("No DB in test")
+    import threading
     kg = KnowledgeGraph.__new__(KnowledgeGraph)
     kg.db = db
+    kg._lock = threading.Lock()
     kg.nodes = {}
     kg.edges = []
     kg._adj_out = {}

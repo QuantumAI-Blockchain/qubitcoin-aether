@@ -253,6 +253,91 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "spv_verifier": spv_verifier is not None,
         }
 
+    @app.get("/health/subsystems")
+    async def health_subsystems():
+        """Detailed subsystem health with version and diagnostics."""
+        subsystems = {}
+        # Mining
+        if mining_engine:
+            stats = mining_engine.get_stats_snapshot()
+            subsystems['mining'] = {
+                'active': mining_engine.is_mining,
+                'blocks_found': stats.get('blocks_found', 0),
+                'uptime': stats.get('uptime', 0),
+            }
+        # Database
+        try:
+            height = db_manager.get_current_height()
+            subsystems['database'] = {'active': True, 'height': height}
+        except Exception:
+            subsystems['database'] = {'active': False}
+        # Quantum
+        subsystems['quantum'] = {
+            'active': quantum_engine.estimator is not None,
+            'backend': getattr(quantum_engine, 'backend_type', 'unknown'),
+        }
+        # Aether Tree
+        if aether_engine:
+            subsystems['aether_tree'] = {
+                'active': True,
+                'phi': getattr(aether_engine, 'phi', 0.0),
+                'knowledge_nodes': len(aether_engine.kg.nodes) if hasattr(aether_engine, 'kg') and aether_engine.kg else 0,
+            }
+        else:
+            subsystems['aether_tree'] = {'active': False}
+        # Bridge
+        if bridge_manager:
+            try:
+                bridge_stats = await bridge_manager.get_all_stats()
+                subsystems['bridge'] = {'active': True, 'chains': len(bridge_stats.get('chains', {}))}
+            except Exception:
+                subsystems['bridge'] = {'active': True, 'chains': 0}
+        else:
+            subsystems['bridge'] = {'active': False}
+        # Stablecoin
+        if stablecoin_engine:
+            try:
+                shealth = stablecoin_engine.get_system_health()
+                subsystems['stablecoin'] = {
+                    'active': True,
+                    'total_qusd': float(shealth.get('total_qusd', 0)),
+                }
+            except Exception:
+                subsystems['stablecoin'] = {'active': True}
+        else:
+            subsystems['stablecoin'] = {'active': False}
+        # Compliance
+        subsystems['compliance'] = {'active': _compliance_engine is not None}
+        # Plugins
+        if plugin_manager:
+            subsystems['plugins'] = {
+                'active': True,
+                'count': len(plugin_manager.list_plugins()),
+            }
+        else:
+            subsystems['plugins'] = {'active': False}
+        # Cognitive
+        subsystems['cognitive'] = {'active': sephirot_manager is not None}
+        # QVM
+        subsystems['qvm'] = {'active': state_manager is not None}
+        # P2P
+        p2p_active = False
+        if hasattr(app, 'node'):
+            node = app.node
+            if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
+                p2p_active = True
+            elif hasattr(node, 'p2p') and node.p2p:
+                p2p_active = getattr(node.p2p, 'running', False)
+        subsystems['p2p'] = {'active': p2p_active}
+
+        active_count = sum(1 for s in subsystems.values() if s.get('active'))
+        return {
+            'subsystems': subsystems,
+            'total': len(subsystems),
+            'active': active_count,
+            'healthy': active_count >= 3,  # mining + database + quantum = minimum viable
+        }
+
     @app.get("/info")
     async def node_info():
         """Detailed node information"""
@@ -543,15 +628,16 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/mining/stats")
     async def mining_stats():
         """Get mining statistics"""
+        s = mining_engine.get_stats_snapshot()
         return {
             "is_mining": mining_engine.is_mining,
-            "blocks_found": mining_engine.stats.get('blocks_found', 0),
-            "total_attempts": mining_engine.stats.get('total_attempts', 0),
-            "current_difficulty": mining_engine.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY),
-            "success_rate": mining_engine.stats.get('blocks_found', 0) / max(1, mining_engine.stats.get('total_attempts', 1)),
-            "best_energy": mining_engine.stats.get('best_energy', None),
-            "alignment_score": mining_engine.stats.get('alignment_score', None),
-            "total_fees_burned": mining_engine.stats.get('total_burned', 0.0),
+            "blocks_found": s.get('blocks_found', 0),
+            "total_attempts": s.get('total_attempts', 0),
+            "current_difficulty": s.get('current_difficulty', Config.INITIAL_DIFFICULTY),
+            "success_rate": s.get('blocks_found', 0) / max(1, s.get('total_attempts', 1)),
+            "best_energy": s.get('best_energy', None),
+            "alignment_score": s.get('alignment_score', None),
+            "total_fees_burned": s.get('total_burned', 0.0),
             "fee_burn_percentage": Config.FEE_BURN_PERCENTAGE,
         }
 

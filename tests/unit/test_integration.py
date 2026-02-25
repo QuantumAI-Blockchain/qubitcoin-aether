@@ -12,8 +12,10 @@ def _make_in_memory_kg():
     import time as _time
     from qubitcoin.aether.knowledge_graph import KnowledgeGraph, KeterNode, KeterEdge
 
+    import threading
     kg = KnowledgeGraph.__new__(KnowledgeGraph)
     kg.db = MagicMock()
+    kg._lock = threading.Lock()
     kg.nodes = {}
     kg.edges = []
     kg._adj_out = {}

@@ -141,7 +141,7 @@ class P2PNetwork:
             try:
                 writer.close()
                 await writer.wait_closed()
-            except:
+            except Exception:
                 pass
         # Close server
         if self.server:
@@ -409,7 +409,7 @@ class P2PNetwork:
             try:
                 self.writers[peer_id].close()
                 await self.writers[peer_id].wait_closed()
-            except:
+            except Exception:
                 pass
             del self.writers[peer_id]
         if peer_id in self.connections:

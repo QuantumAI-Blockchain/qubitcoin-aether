@@ -70,12 +70,18 @@ class MiningEngine:
             self.mining_thread.join(timeout=5)
         logger.info("Mining stopped")
 
+    def get_stats_snapshot(self) -> dict:
+        """Return a thread-safe copy of mining stats."""
+        with self._lock:
+            return dict(self.stats)
+
     def _mine_loop(self):
         """Main mining loop"""
         while self.is_mining:
             try:
                 if self._mining_start_time is not None:
-                    self.stats['uptime'] = int(time.time() - self._mining_start_time)
+                    with self._lock:
+                        self.stats['uptime'] = int(time.time() - self._mining_start_time)
                 self._mine_block()
             except Exception as e:
                 logger.error(f"Mining error: {e}", exc_info=True)
@@ -86,7 +92,8 @@ class MiningEngine:
         current_height = self.db.get_current_height()
         next_height = current_height + 1
         difficulty = self.consensus.calculate_difficulty(next_height, self.db)
-        self.stats['current_difficulty'] = difficulty
+        with self._lock:
+            self.stats['current_difficulty'] = difficulty
 
         # Pre-check if height exists (from P2P sync)
         if self.db.get_block(next_height):
@@ -126,16 +133,16 @@ class MiningEngine:
                 logger.error(f"VQE optimization failed (attempt {attempt+1}): {e}")
                 continue
 
-            self.stats['total_attempts'] += 1
+            with self._lock:
+                self.stats['total_attempts'] += 1
+                # Track best energy and alignment score across all attempts
+                if self.stats['best_energy'] is None or energy < self.stats['best_energy']:
+                    self.stats['best_energy'] = float(energy)
+                if difficulty != 0:
+                    score = float(energy / difficulty)
+                    if self.stats['alignment_score'] is None or score < self.stats['alignment_score']:
+                        self.stats['alignment_score'] = score
             mining_attempts.inc()
-
-            # Track best energy and alignment score across all attempts
-            if self.stats['best_energy'] is None or energy < self.stats['best_energy']:
-                self.stats['best_energy'] = float(energy)
-            if difficulty != 0:
-                score = float(energy / difficulty)
-                if self.stats['alignment_score'] is None or score < self.stats['alignment_score']:
-                    self.stats['alignment_score'] = score
 
             if energy < difficulty:
                 logger.info(f"Solution found! energy={energy:.6f} < difficulty={difficulty:.6f} (attempt {attempt+1})")
@@ -216,7 +223,8 @@ class MiningEngine:
                     )
                     session.commit()
 
-            self.stats['blocks_found'] += 1
+            with self._lock:
+                self.stats['blocks_found'] += 1
             blocks_mined.inc()
             current_height_metric.set(next_height)
             self._display_success(block, energy, reward)

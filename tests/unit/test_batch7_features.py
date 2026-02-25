@@ -258,8 +258,10 @@ class TestAnalogyDetection:
     """Test ReasoningEngine.find_analogies()."""
 
     def _make_kg(self):
+        import threading
         kg = KnowledgeGraph.__new__(KnowledgeGraph)
         kg.db = None
+        kg._lock = threading.Lock()
         kg.nodes = {}
         kg.edges = []
         kg._adj_out = {}

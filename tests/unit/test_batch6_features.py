@@ -14,8 +14,10 @@ class TestContradictionDetection:
     """Test KnowledgeGraph.detect_contradictions()."""
 
     def _make_kg(self) -> KnowledgeGraph:
+        import threading
         kg = KnowledgeGraph.__new__(KnowledgeGraph)
         kg.db = None
+        kg._lock = threading.Lock()
         kg.nodes = {}
         kg.edges = []
         kg._adj_out = {}
