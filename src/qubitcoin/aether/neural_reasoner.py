@@ -137,9 +137,14 @@ class GATReasoner:
     Provides neural reasoning as a complement to rule-based reasoning.
     Operates on node embeddings from the VectorIndex and graph adjacency.
 
+    When PyTorch is available, uses proper backpropagation for training
+    (gradient-based optimization with Adam). Falls back to evolutionary
+    strategy (gradient-free perturbation) when PyTorch is not installed.
+
     Usage:
         reasoner = GATReasoner()
         result = reasoner.reason(kg, vector_index, query_node_ids)
+        print(reasoner.training_mode)  # 'backprop' or 'evolutionary'
     """
 
     TRAINING_BATCH_SIZE: int = 32
@@ -147,6 +152,7 @@ class GATReasoner:
     def __init__(self, hidden_dim: int = 64, n_heads: int = 4) -> None:
         self.hidden_dim = hidden_dim
         self.n_heads = n_heads
+        self.has_pytorch: bool = _HAS_TORCH
         self._layer1: Optional[GATLayer] = None
         self._layer2: Optional[GATLayer] = None
         self._initialized = False
@@ -162,6 +168,16 @@ class GATReasoner:
         self._torch_layer1: Optional[object] = None
         self._torch_layer2: Optional[object] = None
         self._optimizer: Optional[object] = None
+        # Backprop training statistics
+        self._backprop_steps: int = 0
+        self._backprop_total_loss: float = 0.0
+        self._evolutionary_steps: int = 0
+
+    @property
+    def training_mode(self) -> str:
+        """Return current training mode: 'backprop' if PyTorch is available,
+        'evolutionary' otherwise."""
+        return 'backprop' if self.has_pytorch else 'evolutionary'
 
     def _ensure_layers(self, input_dim: int) -> None:
         """Initialize GAT layers on first use."""
@@ -325,11 +341,13 @@ class GATReasoner:
             }
             self._training_buffer.append(sample)
 
-        # Try gradient descent if PyTorch available and buffer full
-        if _HAS_TORCH and len(self._training_buffer) >= self.TRAINING_BATCH_SIZE:
-            loss = self.train_step(self.TRAINING_BATCH_SIZE)
+        # Try backpropagation if PyTorch available and buffer full
+        if self.has_pytorch and len(self._training_buffer) >= self.TRAINING_BATCH_SIZE:
+            batch = self._training_buffer[:self.TRAINING_BATCH_SIZE]
+            self._training_buffer = self._training_buffer[self.TRAINING_BATCH_SIZE:]
+            loss = self._train_backprop(batch)
             if loss >= 0.0:
-                logger.debug("GAT train_step loss=%.6f buffer_remaining=%d",
+                logger.debug("GAT backprop loss=%.6f buffer_remaining=%d",
                              loss, len(self._training_buffer))
                 return
 
@@ -340,6 +358,117 @@ class GATReasoner:
         self._layer2.perturb_weights(
             reinforce=prediction_correct, learning_rate=0.005
         )
+        self._evolutionary_steps += 1
+
+    def _train_backprop(self, train_data: List[dict]) -> float:
+        """Train the neural reasoner using backpropagation (requires PyTorch).
+
+        Converts the training samples into tensors, performs a forward pass
+        through a 2-layer network (linear -> ReLU -> linear -> sigmoid),
+        computes binary cross-entropy loss between predicted confidence and
+        actual outcome, backpropagates gradients, and updates weights.
+
+        The updated PyTorch weights are copied back to the fallback GATLayer
+        weight lists so that the plain-Python forward pass in ``reason()``
+        also benefits from backprop training.
+
+        Args:
+            train_data: List of training sample dicts, each containing
+                ``node_features`` (Dict[int, List[float]]) and
+                ``actual_outcome`` (float, 0.0 or 1.0).
+
+        Returns:
+            Loss value (float >= 0.0) on success, -1.0 if training could
+            not run (no PyTorch, empty data, or layers not initialized).
+        """
+        if not _HAS_TORCH:
+            return -1.0
+        if not train_data:
+            return -1.0
+        if not self._layer1 or not self._layer2:
+            return -1.0
+
+        in_dim = self._layer1.in_dim
+        hidden_dim = self._layer1.out_dim
+
+        # Lazy-initialize PyTorch layers mirroring GATLayer dimensions
+        if self._torch_layer1 is None:
+            self._torch_layer1 = nn.Linear(in_dim, hidden_dim, bias=False)
+            self._torch_layer2 = nn.Linear(hidden_dim, 1, bias=True)
+            self._optimizer = torch.optim.Adam(
+                list(self._torch_layer1.parameters()) +
+                list(self._torch_layer2.parameters()),
+                lr=0.001,
+            )
+
+        # Sync GATLayer weights into PyTorch tensors
+        with torch.no_grad():
+            w1_data = torch.tensor(self._layer1.W, dtype=torch.float32)
+            self._torch_layer1.weight.copy_(w1_data.T)
+            w2_col = [self._layer2.W[i][0] if self._layer2.out_dim > 0 else 0.0
+                       for i in range(self._layer2.in_dim)]
+            self._torch_layer2.weight.copy_(
+                torch.tensor([w2_col], dtype=torch.float32)
+            )
+
+        # Build batch tensors: mean-pool node features per sample
+        inputs = []
+        targets = []
+        for sample in train_data:
+            node_features = sample.get('node_features', {})
+            if not node_features:
+                continue
+            dim = in_dim
+            pooled = [0.0] * dim
+            count = 0
+            for feat in node_features.values():
+                for d in range(min(len(feat), dim)):
+                    pooled[d] += feat[d]
+                count += 1
+            if count > 0:
+                pooled = [v / count for v in pooled]
+            inputs.append(pooled)
+            targets.append(sample.get('actual_outcome', 0.0))
+
+        if not inputs:
+            return -1.0
+
+        x = torch.tensor(inputs, dtype=torch.float32)
+        y = torch.tensor(targets, dtype=torch.float32).unsqueeze(1)
+
+        # Forward pass: linear1 -> ReLU -> linear2 -> sigmoid
+        self._optimizer.zero_grad()
+        h = F.relu(self._torch_layer1(x))
+        logits = self._torch_layer2(h)
+        pred = torch.sigmoid(logits)
+
+        # Use BCE loss for better gradient signal on binary classification
+        loss = F.binary_cross_entropy(pred, y)
+        loss.backward()
+        self._optimizer.step()
+
+        # Copy updated weights back to GATLayer lists
+        with torch.no_grad():
+            updated_w1 = self._torch_layer1.weight.T.tolist()
+            for i in range(self._layer1.in_dim):
+                for j in range(self._layer1.out_dim):
+                    self._layer1.W[i][j] = updated_w1[i][j]
+
+            updated_w2 = self._torch_layer2.weight[0].tolist()
+            for i in range(min(len(updated_w2), self._layer2.in_dim)):
+                if self._layer2.out_dim > 0:
+                    self._layer2.W[i][0] = updated_w2[i]
+
+        loss_val = float(loss.item())
+        self._backprop_steps += 1
+        self._backprop_total_loss += loss_val
+
+        logger.debug(
+            "Backprop training step %d: loss=%.6f, samples=%d",
+            self._backprop_steps, loss_val, len(inputs)
+        )
+
+        return loss_val
 
     def train_step(self, batch_size: int = 32) -> float:
         """Run one mini-batch gradient descent step using PyTorch.
@@ -463,14 +592,22 @@ class GATReasoner:
         return self._correct_predictions / self._total_predictions
 
     def get_stats(self) -> dict:
+        avg_backprop_loss = (
+            self._backprop_total_loss / self._backprop_steps
+            if self._backprop_steps > 0 else 0.0
+        )
         return {
             'total_predictions': self._total_predictions,
             'correct_predictions': self._correct_predictions,
             'accuracy': round(self.get_accuracy(), 4),
-            'has_torch': _HAS_TORCH,
-            'training_mode': 'gradient_descent' if _HAS_TORCH else 'evolutionary',
+            'has_torch': self.has_pytorch,
+            'has_pytorch': self.has_pytorch,
+            'training_mode': self.training_mode,
             'training_buffer_size': len(self._training_buffer),
             'training_batch_size': self.TRAINING_BATCH_SIZE,
             'hidden_dim': self.hidden_dim,
             'n_heads': self.n_heads,
+            'backprop_steps': self._backprop_steps,
+            'backprop_avg_loss': round(avg_backprop_loss, 6),
+            'evolutionary_steps': self._evolutionary_steps,
         }

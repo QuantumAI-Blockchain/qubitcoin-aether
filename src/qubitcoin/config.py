@@ -217,6 +217,19 @@ class Config:
     QUSD_REDEMPTION_FEE_MULTIPLIER: float = float(os.getenv('QUSD_REDEMPTION_FEE_MULTIPLIER', '5.0'))
 
     # ============================================================================
+    # QUSD FLASH LOANS
+    # ============================================================================
+    QUSD_FLASH_LOAN_FEE_BPS: int = int(os.getenv('QUSD_FLASH_LOAN_FEE_BPS', '9'))  # 9 bps = 0.09% (Aave-style)
+    QUSD_FLASH_LOAN_MAX_AMOUNT: Decimal = Decimal(os.getenv('QUSD_FLASH_LOAN_MAX_AMOUNT', '1000000'))  # 1M QUSD max
+    QUSD_FLASH_LOAN_ENABLED: bool = os.getenv('QUSD_FLASH_LOAN_ENABLED', 'true').lower() == 'true'
+
+    # ============================================================================
+    # BRIDGE LP REWARDS
+    # ============================================================================
+    BRIDGE_LP_REWARD_RATE_BPS: int = int(os.getenv('BRIDGE_LP_REWARD_RATE_BPS', '500'))  # 500 bps = 5% APY
+    BRIDGE_LP_MIN_DEPOSIT: Decimal = Decimal(os.getenv('BRIDGE_LP_MIN_DEPOSIT', '10.0'))
+
+    # ============================================================================
     # BRIDGE FEES (editable)
     # ============================================================================
     BRIDGE_FEE_BPS: int = int(os.getenv('BRIDGE_FEE_BPS', '30'))  # Basis points (30 = 0.3%)

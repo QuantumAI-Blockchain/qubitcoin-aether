@@ -9,6 +9,7 @@ from .solana import SolanaBridge
 from .manager import BridgeManager
 from .validator_rewards import ValidatorRewardTracker
 from .relayer_incentive import RelayerIncentive
+from .liquidity_pool import BridgeLiquidityPool
 
 __all__ = [
     'BaseBridge',
@@ -19,4 +20,5 @@ __all__ = [
     'BridgeManager',
     'ValidatorRewardTracker',
     'RelayerIncentive',
+    'BridgeLiquidityPool',
 ]

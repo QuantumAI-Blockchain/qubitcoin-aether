@@ -1,10 +1,12 @@
 """
 QUSD Stablecoin Engine
-Multi-collateral, multi-oracle stable USD token
+Multi-collateral, multi-oracle stable USD token with flash loan support
 """
 
 import time
 import json
+import uuid
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Tuple, Optional, List, Dict
 import numpy as np
@@ -17,6 +19,24 @@ from ..quantum.engine import QuantumEngine
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class FlashLoan:
+    """Represents a flash loan — borrow and repay within a single transaction.
+
+    Flash loans allow borrowing QUSD with zero collateral, provided the
+    full amount plus fee is repaid atomically.  If the borrower fails to
+    repay, the entire operation reverts.
+    """
+    id: str
+    borrower: str
+    amount: Decimal
+    fee: Decimal
+    timestamp: float
+    repaid: bool = False
+    repay_amount: Decimal = Decimal('0')
+    repay_timestamp: Optional[float] = None
 
 
 class StablecoinEngine:
@@ -51,6 +71,15 @@ class StablecoinEngine:
         self.insurance_fund_balance: float = 0.0
         self._insurance_collection_history: List[Dict] = []
         self._insurance_payout_history: List[Dict] = []
+
+        # Flash loan state
+        self.flash_loan_fee_bps: int = Config.QUSD_FLASH_LOAN_FEE_BPS
+        self._flash_loan_max_amount: Decimal = Config.QUSD_FLASH_LOAN_MAX_AMOUNT
+        self._flash_loan_enabled: bool = Config.QUSD_FLASH_LOAN_ENABLED
+        self._active_flash_loans: Dict[str, FlashLoan] = {}
+        self._completed_flash_loans: List[FlashLoan] = []
+        self._flash_loan_total_borrowed: Decimal = Decimal('0')
+        self._flash_loan_total_fees: Decimal = Decimal('0')
 
         logger.info("Stablecoin engine initialized")
 
@@ -949,4 +978,167 @@ class StablecoinEngine:
             'recent_collections': self._insurance_collection_history[-10:],
             'recent_payouts': self._insurance_payout_history[-10:],
         }
+
+    # ========================================================================
+    # FLASH LOANS
+    # ========================================================================
+
+    def initiate_flash_loan(self, borrower: str, amount: Decimal) -> FlashLoan:
+        """Initiate a flash loan — borrow QUSD with zero collateral.
+
+        Flash loans must be repaid (amount + fee) atomically within the
+        same transaction context. If not repaid, the loan is reverted.
+
+        Args:
+            borrower: Address of the borrower.
+            amount: Amount of QUSD to borrow.
+
+        Returns:
+            FlashLoan instance representing the active loan.
+
+        Raises:
+            ValueError: If flash loans are disabled, amount is invalid,
+                exceeds maximum, or borrower already has an active loan.
+        """
+        if not self._flash_loan_enabled:
+            raise ValueError("Flash loans are currently disabled")
+
+        if amount <= 0:
+            raise ValueError("Flash loan amount must be positive")
+
+        if amount > self._flash_loan_max_amount:
+            raise ValueError(
+                f"Amount {amount} exceeds maximum flash loan of "
+                f"{self._flash_loan_max_amount} QUSD"
+            )
+
+        # Check if borrower already has an active flash loan
+        for loan in self._active_flash_loans.values():
+            if loan.borrower == borrower and not loan.repaid:
+                raise ValueError(
+                    f"Borrower {borrower} already has an active flash loan "
+                    f"(id={loan.id})"
+                )
+
+        # Calculate fee: amount * fee_bps / 10000
+        fee = (amount * Decimal(self.flash_loan_fee_bps)) / Decimal(10000)
+
+        loan_id = str(uuid.uuid4())
+        loan = FlashLoan(
+            id=loan_id,
+            borrower=borrower,
+            amount=amount,
+            fee=fee,
+            timestamp=time.time(),
+        )
+
+        self._active_flash_loans[loan_id] = loan
+        self._flash_loan_total_borrowed += amount
+
+        logger.info(
+            f"Flash loan initiated: id={loan_id}, borrower={borrower}, "
+            f"amount={amount}, fee={fee}"
+        )
+
+        return loan
+
+    def complete_flash_loan(self, loan_id: str, repay_amount: Decimal) -> bool:
+        """Complete a flash loan by repaying the borrowed amount plus fee.
+
+        The repay_amount must be >= (loan.amount + loan.fee). If the
+        repayment is insufficient, the method returns False and the loan
+        remains active (in a real atomic execution context, this would
+        revert the entire transaction).
+
+        Args:
+            loan_id: The flash loan identifier.
+            repay_amount: Amount being repaid (must cover principal + fee).
+
+        Returns:
+            True if the loan was successfully repaid, False otherwise.
+
+        Raises:
+            ValueError: If loan_id is not found or already repaid.
+        """
+        loan = self._active_flash_loans.get(loan_id)
+        if loan is None:
+            # Check if already completed
+            for completed in self._completed_flash_loans:
+                if completed.id == loan_id:
+                    raise ValueError(f"Flash loan already repaid: {loan_id}")
+            raise ValueError(f"Flash loan not found: {loan_id}")
+
+        if loan.repaid:
+            raise ValueError(f"Flash loan already repaid: {loan_id}")
+
+        required = loan.amount + loan.fee
+        if repay_amount < required:
+            logger.warning(
+                f"Flash loan repayment insufficient: "
+                f"required={required}, got={repay_amount} (loan={loan_id})"
+            )
+            return False
+
+        loan.repaid = True
+        loan.repay_amount = repay_amount
+        loan.repay_timestamp = time.time()
+
+        # Move from active to completed
+        del self._active_flash_loans[loan_id]
+        self._completed_flash_loans.append(loan)
+
+        # Cap completed history to prevent unbounded growth
+        if len(self._completed_flash_loans) > 10000:
+            self._completed_flash_loans = self._completed_flash_loans[-10000:]
+
+        self._flash_loan_total_fees += loan.fee
+
+        logger.info(
+            f"Flash loan repaid: id={loan_id}, amount={loan.amount}, "
+            f"fee={loan.fee}, repaid={repay_amount}"
+        )
+
+        return True
+
+    def get_flash_loan_stats(self) -> Dict:
+        """Return flash loan statistics.
+
+        Returns:
+            Dict with total loans, active count, completed count,
+            total borrowed, total fees, fee rate, and recent history.
+        """
+        total_loans = len(self._active_flash_loans) + len(self._completed_flash_loans)
+        recent = [
+            {
+                'id': loan.id,
+                'borrower': loan.borrower,
+                'amount': str(loan.amount),
+                'fee': str(loan.fee),
+                'timestamp': loan.timestamp,
+                'repaid': loan.repaid,
+            }
+            for loan in self._completed_flash_loans[-10:]
+        ]
+        return {
+            'enabled': self._flash_loan_enabled,
+            'fee_bps': self.flash_loan_fee_bps,
+            'max_amount': str(self._flash_loan_max_amount),
+            'total_loans': total_loans,
+            'active_loans': len(self._active_flash_loans),
+            'completed_loans': len(self._completed_flash_loans),
+            'total_borrowed': str(self._flash_loan_total_borrowed),
+            'total_fees_collected': str(self._flash_loan_total_fees),
+            'recent_loans': recent,
+        }
+
+    def get_active_flash_loan(self, loan_id: str) -> Optional[FlashLoan]:
+        """Get an active flash loan by ID.
+
+        Args:
+            loan_id: The flash loan identifier.
+
+        Returns:
+            FlashLoan if found and active, None otherwise.
+        """
+        return self._active_flash_loans.get(loan_id)
 
