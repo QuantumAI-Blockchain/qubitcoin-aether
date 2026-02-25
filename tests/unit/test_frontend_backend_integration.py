@@ -1591,17 +1591,14 @@ class TestPrivacyEndpoints:
 
     def test_privacy_stealth_keygen(self, app_and_client):
         _, client, _ = app_and_client
-        with patch('qubitcoin.privacy.stealth.StealthAddressManager') as mock_sa:
-            inst = MagicMock()
-            inst.generate_keypair.return_value = {
-                'spend_pub': 'abc', 'view_pub': 'def',
-                'spend_priv': '123', 'view_priv': '456',
-            }
-            mock_sa.return_value = inst
-            resp = client.post("/privacy/stealth/generate-keypair")
-            assert resp.status_code == 200
-            data = resp.json()
-            assert 'spend_pub' in data
+        resp = client.post("/privacy/stealth/generate-keypair")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert 'spend_pubkey' in data
+        assert 'view_pubkey' in data
+        assert 'spend_privkey' in data
+        assert 'view_privkey' in data
+        assert 'public_address' in data
 
 
 class TestPluginEndpoints:

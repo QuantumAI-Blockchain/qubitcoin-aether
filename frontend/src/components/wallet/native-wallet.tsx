@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, type StealthKeyPair, type ConfidentialTxResult } from "@/lib/api";
 import { signTransaction } from "@/lib/dilithium";
 import { useWalletStore, type NativeWallet } from "@/stores/wallet-store";
 import { Card } from "@/components/ui/card";
@@ -36,6 +36,7 @@ export function NativeWalletPanel() {
         <>
           <WalletBalance wallet={activeWallet} />
           <SendPanel wallet={activeWallet} />
+          <PrivacyPanel />
           <ReceivePanel wallet={activeWallet} />
         </>
       ) : (
@@ -285,41 +286,88 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
   const [result, setResult] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [utxoStrategy, setUtxoStrategy] = useState<UtxoStrategy>("largest_first");
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [recipientSpendPub, setRecipientSpendPub] = useState("");
+  const [recipientViewPub, setRecipientViewPub] = useState("");
 
   const estimatedFee = 0.0001; // L1 micro-fee estimate
   const parsedAmount = parseFloat(amount) || 0;
   const total = parsedAmount + estimatedFee;
 
   const handleConfirmSend = useCallback(async () => {
-    if (!to || !amount || !privateKey) return;
+    if (!amount || !privateKey) return;
+    if (!isPrivate && !to) return;
+    if (isPrivate && (!recipientSpendPub || !recipientViewPub)) return;
     setSending(true);
     setResult(null);
     setShowConfirm(false);
     try {
-      const txData = {
-        from: wallet.address,
-        to,
-        amount,
-      };
-      const sigHex = await signTransaction(privateKey, txData);
-      const res = await api.sendNative({
-        from_address: wallet.address,
-        to_address: to,
-        amount,
-        signature_hex: sigHex,
-        public_key_hex: wallet.publicKeyHex,
-        utxo_strategy: utxoStrategy,
-      });
-      setResult(`Sent! TX: ${res.tx_hash.slice(0, 16)}...`);
+      if (isPrivate) {
+        // Private (Susy Swap) flow
+        const amountAtoms = Math.round(parseFloat(amount) * 1e8);
+        const feeAtoms = Math.round(estimatedFee * 1e8);
+
+        // Fetch UTXOs and pick one that covers the amount + fee
+        const utxoRes = await api.getUTXOs(wallet.address);
+        const utxos = utxoRes.utxos || [];
+        const needed = amountAtoms + feeAtoms;
+        const picked = utxos.find(
+          (u) => Math.round(u.amount * 1e8) >= needed,
+        );
+        if (!picked) {
+          setResult("Error: No single UTXO large enough for private transfer");
+          return;
+        }
+
+        // Build confidential transaction
+        const buildRes = await api.buildPrivateTx({
+          inputs: [
+            {
+              txid: picked.txid,
+              vout: picked.vout,
+              value: Math.round(picked.amount * 1e8),
+              blinding: 0, // fresh UTXO, no existing blinding
+              spending_key: parseInt(privateKey.slice(0, 16), 16) || 1,
+            },
+          ],
+          outputs: [
+            {
+              value: amountAtoms,
+              recipient_spend_pub: recipientSpendPub,
+              recipient_view_pub: recipientViewPub,
+            },
+          ],
+          fee_atoms: feeAtoms,
+        });
+
+        // Submit to mempool
+        const submitRes = await api.submitPrivateTx(buildRes);
+        setResult(`Private TX sent! ${submitRes.txid.slice(0, 16)}...`);
+      } else {
+        // Standard (public) flow
+        const txData = { from: wallet.address, to, amount };
+        const sigHex = await signTransaction(privateKey, txData);
+        const res = await api.sendNative({
+          from_address: wallet.address,
+          to_address: to,
+          amount,
+          signature_hex: sigHex,
+          public_key_hex: wallet.publicKeyHex,
+          utxo_strategy: utxoStrategy,
+        });
+        setResult(`Sent! TX: ${res.tx_hash.slice(0, 16)}...`);
+      }
       setTo("");
       setAmount("");
       setPrivateKey("");
+      setRecipientSpendPub("");
+      setRecipientViewPub("");
     } catch (e) {
       setResult(`Error: ${e}`);
     } finally {
       setSending(false);
     }
-  }, [to, amount, privateKey, wallet, utxoStrategy]);
+  }, [to, amount, privateKey, wallet, utxoStrategy, isPrivate, recipientSpendPub, recipientViewPub, estimatedFee]);
 
   return (
     <Card>
@@ -327,17 +375,68 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
         Send QBC
       </h3>
       <div className="space-y-3">
-        <div>
-          <label className="mb-1 block text-xs text-text-secondary">
-            Recipient Address
-          </label>
-          <input
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="qbc1... or 0x..."
-            className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
-          />
+        {/* Privacy Toggle */}
+        <div className="flex items-center justify-between rounded-lg border border-surface-light px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-text-primary">
+              Private Transfer (Susy Swap)
+            </p>
+            <p className="text-[11px] text-text-secondary">
+              Hide amounts and addresses using Pedersen commitments
+            </p>
+          </div>
+          <button
+            onClick={() => setIsPrivate(!isPrivate)}
+            className={`relative h-6 w-11 rounded-full transition-colors ${
+              isPrivate ? "bg-quantum-violet" : "bg-surface-light"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                isPrivate ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
         </div>
+
+        {isPrivate ? (
+          <>
+            <div>
+              <label className="mb-1 block text-xs text-text-secondary">
+                Recipient Stealth Spend Key (compressed hex)
+              </label>
+              <input
+                value={recipientSpendPub}
+                onChange={(e) => setRecipientSpendPub(e.target.value)}
+                placeholder="02abc..."
+                className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-text-secondary">
+                Recipient Stealth View Key (compressed hex)
+              </label>
+              <input
+                value={recipientViewPub}
+                onChange={(e) => setRecipientViewPub(e.target.value)}
+                placeholder="03def..."
+                className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              />
+            </div>
+          </>
+        ) : (
+          <div>
+            <label className="mb-1 block text-xs text-text-secondary">
+              Recipient Address
+            </label>
+            <input
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="qbc1... or 0x..."
+              className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            />
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-xs text-text-secondary">
             Amount (QBC)
@@ -363,28 +462,43 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
             className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
         </div>
-        <div>
-          <label className="mb-1 block text-xs text-text-secondary">
-            Coin Selection Strategy
-          </label>
-          <select
-            value={utxoStrategy}
-            onChange={(e) => setUtxoStrategy(e.target.value as UtxoStrategy)}
-            className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
-          >
-            {UTXO_STRATEGIES.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label} — {s.description}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!isPrivate && (
+          <div>
+            <label className="mb-1 block text-xs text-text-secondary">
+              Coin Selection Strategy
+            </label>
+            <select
+              value={utxoStrategy}
+              onChange={(e) => setUtxoStrategy(e.target.value as UtxoStrategy)}
+              className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            >
+              {UTXO_STRATEGIES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label} — {s.description}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <button
           onClick={() => setShowConfirm(true)}
-          disabled={sending || !to || !amount || !privateKey}
-          className="rounded-lg bg-quantum-green px-6 py-2.5 text-sm font-semibold text-void transition hover:bg-quantum-green/80 disabled:opacity-50"
+          disabled={
+            sending ||
+            !amount ||
+            !privateKey ||
+            (isPrivate ? !recipientSpendPub || !recipientViewPub : !to)
+          }
+          className={`rounded-lg px-6 py-2.5 text-sm font-semibold text-void transition disabled:opacity-50 ${
+            isPrivate
+              ? "bg-quantum-violet hover:bg-quantum-violet/80"
+              : "bg-quantum-green hover:bg-quantum-green/80"
+          }`}
         >
-          {sending ? "Signing & Sending..." : "Send Transaction"}
+          {sending
+            ? "Signing & Sending..."
+            : isPrivate
+              ? "Send Private Transaction"
+              : "Send Transaction"}
         </button>
         {result && (
           <p
@@ -400,8 +514,13 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="mx-4 w-full max-w-md rounded-2xl border border-surface-light bg-surface p-6 shadow-2xl">
             <h4 className="font-[family-name:var(--font-heading)] text-lg font-bold">
-              Confirm Transaction
+              Confirm {isPrivate ? "Private " : ""}Transaction
             </h4>
+            {isPrivate && (
+              <span className="mt-1 inline-block rounded bg-quantum-violet/20 px-2 py-0.5 text-[10px] font-semibold text-quantum-violet">
+                Susy Swap — Confidential
+              </span>
+            )}
             <div className="mt-4 space-y-3 rounded-lg bg-void p-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-secondary">From</span>
@@ -412,14 +531,16 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
               <div className="flex justify-between">
                 <span className="text-text-secondary">To</span>
                 <span className="font-[family-name:var(--font-mono)] text-xs text-quantum-violet">
-                  {to.slice(0, 12)}...{to.slice(-8)}
+                  {isPrivate
+                    ? `Stealth: ${recipientSpendPub.slice(0, 12)}...`
+                    : `${to.slice(0, 12)}...${to.slice(-8)}`}
                 </span>
               </div>
               <div className="border-t border-surface-light pt-2">
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Amount</span>
                   <span className="font-[family-name:var(--font-mono)] text-quantum-green">
-                    {parsedAmount.toLocaleString()} QBC
+                    {isPrivate ? "Hidden" : `${parsedAmount.toLocaleString()} QBC`}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -433,15 +554,17 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
                 <div className="flex justify-between font-semibold">
                   <span>Total</span>
                   <span className="font-[family-name:var(--font-mono)] text-quantum-green">
-                    {total.toLocaleString()} QBC
+                    {isPrivate ? "Hidden + fee" : `${total.toLocaleString()} QBC`}
                   </span>
                 </div>
-                <div className="mt-1 flex justify-between">
-                  <span className="text-text-secondary">UTXO Strategy</span>
-                  <span className="text-xs text-text-secondary">
-                    {UTXO_STRATEGIES.find((s) => s.value === utxoStrategy)?.label}
-                  </span>
-                </div>
+                {!isPrivate && (
+                  <div className="mt-1 flex justify-between">
+                    <span className="text-text-secondary">UTXO Strategy</span>
+                    <span className="text-xs text-text-secondary">
+                      {UTXO_STRATEGIES.find((s) => s.value === utxoStrategy)?.label}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-5 flex gap-3">
@@ -453,11 +576,166 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
               </button>
               <button
                 onClick={handleConfirmSend}
-                className="flex-1 rounded-lg bg-quantum-green px-4 py-2.5 text-sm font-semibold text-void transition hover:bg-quantum-green/80"
+                className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold text-void transition ${
+                  isPrivate
+                    ? "bg-quantum-violet hover:bg-quantum-violet/80"
+                    : "bg-quantum-green hover:bg-quantum-green/80"
+                }`}
               >
                 Confirm & Sign
               </button>
             </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ---- Privacy (Stealth Keys) ---- */
+
+function PrivacyPanel() {
+  const [stealthKeys, setStealthKeys] = useState<StealthKeyPair | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handleGenerate = useCallback(async () => {
+    setGenerating(true);
+    setError(null);
+    try {
+      const keys = await api.generateStealthKeypair();
+      setStealthKeys(keys);
+    } catch (e) {
+      setError(`Failed to generate: ${e}`);
+    } finally {
+      setGenerating(false);
+    }
+  }, []);
+
+  const copyToClipboard = useCallback((text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  }, []);
+
+  return (
+    <Card>
+      <div className="flex items-center gap-2">
+        <span className="text-quantum-violet">&#x1f576;</span>
+        <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+          Privacy (Susy Swap)
+        </h3>
+        <span className="rounded bg-quantum-violet/20 px-2 py-0.5 text-[10px] font-semibold text-quantum-violet">
+          Stealth
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-text-secondary">
+        Generate stealth keys to receive private transactions. Share your public
+        keys with senders — they cannot see your balance or link transactions.
+      </p>
+
+      <button
+        onClick={handleGenerate}
+        disabled={generating}
+        className="mt-3 rounded-lg bg-quantum-violet px-4 py-2 text-sm font-semibold text-white transition hover:bg-quantum-violet/80 disabled:opacity-50"
+      >
+        {generating ? "Generating..." : "Generate Stealth Keypair"}
+      </button>
+
+      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+
+      {stealthKeys && (
+        <div className="mt-4 space-y-3">
+          <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
+            <p className="text-xs font-semibold text-amber-400">
+              Save your private keys now. They will NOT be shown again.
+            </p>
+          </div>
+
+          {/* Public keys (shareable) */}
+          <div className="rounded-lg bg-void p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-quantum-violet">
+              Share with senders
+            </p>
+            <div className="mt-2 space-y-2">
+              <div>
+                <p className="text-[10px] text-text-secondary">Spend Public Key</p>
+                <div className="flex items-center gap-1">
+                  <code className="flex-1 break-all font-[family-name:var(--font-mono)] text-[10px] text-text-primary">
+                    {stealthKeys.spend_pubkey}
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(stealthKeys.spend_pubkey, "spend_pub")}
+                    className="shrink-0 text-[10px] text-text-secondary hover:text-quantum-violet"
+                  >
+                    {copiedField === "spend_pub" ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-text-secondary">View Public Key</p>
+                <div className="flex items-center gap-1">
+                  <code className="flex-1 break-all font-[family-name:var(--font-mono)] text-[10px] text-text-primary">
+                    {stealthKeys.view_pubkey}
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(stealthKeys.view_pubkey, "view_pub")}
+                    className="shrink-0 text-[10px] text-text-secondary hover:text-quantum-violet"
+                  >
+                    {copiedField === "view_pub" ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Private keys (secret) */}
+          <div className="rounded-lg bg-void p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+              Secret — do not share
+            </p>
+            <div className="mt-2 space-y-2">
+              <div>
+                <p className="text-[10px] text-text-secondary">Spend Private Key</p>
+                <div className="flex items-center gap-1">
+                  <code className="flex-1 break-all font-[family-name:var(--font-mono)] text-[10px] text-amber-300">
+                    {stealthKeys.spend_privkey}
+                  </code>
+                  <button
+                    onClick={() =>
+                      copyToClipboard(String(stealthKeys.spend_privkey), "spend_priv")
+                    }
+                    className="shrink-0 text-[10px] text-text-secondary hover:text-amber-400"
+                  >
+                    {copiedField === "spend_priv" ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-text-secondary">View Private Key</p>
+                <div className="flex items-center gap-1">
+                  <code className="flex-1 break-all font-[family-name:var(--font-mono)] text-[10px] text-amber-300">
+                    {stealthKeys.view_privkey}
+                  </code>
+                  <button
+                    onClick={() =>
+                      copyToClipboard(String(stealthKeys.view_privkey), "view_priv")
+                    }
+                    className="shrink-0 text-[10px] text-text-secondary hover:text-amber-400"
+                  >
+                    {copiedField === "view_priv" ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-void p-3">
+            <p className="text-[10px] text-text-secondary">Stealth Address</p>
+            <code className="break-all font-[family-name:var(--font-mono)] text-[10px] text-quantum-green">
+              {stealthKeys.public_address}
+            </code>
           </div>
         </div>
       )}

@@ -305,6 +305,27 @@ export interface SephirotRewards {
   stakes: SephirotStake[];
 }
 
+export interface StealthKeyPair {
+  spend_privkey: number;
+  spend_pubkey: string;
+  view_privkey: number;
+  view_pubkey: string;
+  public_address: string;
+}
+
+export interface ConfidentialTxResult {
+  txid: string;
+  inputs: Array<Record<string, unknown>>;
+  outputs: Array<Record<string, unknown>>;
+  fee: number;
+  key_images: string[];
+  excess_commitment: string;
+  signature: string;
+  timestamp: number;
+  is_private: boolean;
+  tx_type: string;
+}
+
 /* ---- Typed helpers ---- */
 
 export const api = {
@@ -452,6 +473,52 @@ export const api = {
   }) =>
     post<{ claimed_amount: string; tx_hash: string | null }>(
       "/sephirot/claim-rewards",
+      body,
+    ),
+
+  // Privacy (Susy Swaps)
+  generateStealthKeypair: () =>
+    post<StealthKeyPair>("/privacy/stealth/generate-keypair", {}),
+  createStealthOutput: (body: {
+    recipient_spend_pub: string;
+    recipient_view_pub: string;
+  }) =>
+    post<{ one_time_address: string; ephemeral_pubkey: string }>(
+      "/privacy/stealth/create-output",
+      body,
+    ),
+  scanStealthOutput: (body: {
+    ephemeral_pubkey: string;
+    output_address: string;
+    view_privkey: number;
+    spend_pubkey: string;
+    view_pubkey?: string;
+  }) => post<{ is_mine: boolean }>("/privacy/stealth/scan", body),
+  buildPrivateTx: (body: {
+    inputs: Array<{
+      txid: string;
+      vout: number;
+      value: number;
+      blinding: number;
+      spending_key: number;
+    }>;
+    outputs: Array<{
+      value: number;
+      recipient_spend_pub?: string;
+      recipient_view_pub?: string;
+    }>;
+    fee_atoms: number;
+  }) => post<ConfidentialTxResult>("/privacy/tx/build", body),
+  submitPrivateTx: (body: ConfidentialTxResult) =>
+    post<{ status: string; txid: string }>("/privacy/tx/submit", body),
+  createCommitment: (value: number) =>
+    post<{ commitment: string; blinding: string }>(
+      "/privacy/commitment/create",
+      { value },
+    ),
+  generateRangeProof: (body: { value: number; blinding?: string }) =>
+    post<{ proof: string; commitment: string; blinding: string }>(
+      "/privacy/range-proof/generate",
       body,
     ),
 } as const;

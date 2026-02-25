@@ -3697,21 +3697,69 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def privacy_stealth_keygen():
         """Generate a stealth address keypair (spend + view)."""
         from ..privacy.stealth import StealthAddressManager
-        mgr = StealthAddressManager()
-        keypair = mgr.generate_keypair()
-        return keypair
+        keypair = StealthAddressManager.generate_keypair()
+
+        def _compress(p: 'ECPoint') -> str:
+            prefix = b'\x02' if p.y % 2 == 0 else b'\x03'
+            return (prefix + p.x.to_bytes(32, 'big')).hex()
+
+        return {
+            'spend_privkey': keypair.spend_privkey,
+            'spend_pubkey': _compress(keypair.spend_pubkey),
+            'view_privkey': keypair.view_privkey,
+            'view_pubkey': _compress(keypair.view_pubkey),
+            'public_address': keypair.public_address(),
+        }
+
+    def _hex_to_ecpoint(hex_str: str) -> 'ECPoint':
+        """Decompress a 33-byte compressed EC point (02/03 prefix) from hex."""
+        from ..privacy.commitments import ECPoint, _P, _modinv
+        raw = bytes.fromhex(hex_str)
+        if len(raw) != 33 or raw[0] not in (0x02, 0x03):
+            raise HTTPException(status_code=400, detail=f"Invalid compressed EC point: {hex_str[:16]}...")
+        x = int.from_bytes(raw[1:], 'big')
+        # y^2 = x^3 + 7 (mod p)  — secp256k1 curve equation
+        y_sq = (pow(x, 3, _P) + 7) % _P
+        y = pow(y_sq, (_P + 1) // 4, _P)
+        if (y % 2) != (raw[0] - 2):
+            y = _P - y
+        return ECPoint(x, y)
 
     @app.post("/privacy/stealth/create-output")
     async def privacy_stealth_output(request: Request):
         """Create a stealth output for a recipient."""
         body = await request.json()
         from ..privacy.stealth import StealthAddressManager
+        spend_pub = _hex_to_ecpoint(body['recipient_spend_pub'])
+        view_pub = _hex_to_ecpoint(body['recipient_view_pub'])
         mgr = StealthAddressManager()
         output = mgr.create_output(
-            recipient_spend_pub=body['recipient_spend_pub'],
-            recipient_view_pub=body['recipient_view_pub'],
+            recipient_spend_pub=spend_pub,
+            recipient_view_pub=view_pub,
         )
-        return output
+        return {
+            'one_time_address': output.address_hex(),
+            'ephemeral_pubkey': output.ephemeral_hex(),
+        }
+
+    @app.post("/privacy/stealth/scan")
+    async def privacy_stealth_scan(request: Request):
+        """Scan a transaction output to check if it belongs to a recipient."""
+        body = await request.json()
+        from ..privacy.stealth import StealthAddressManager, StealthKeyPair
+        ephemeral_pub = _hex_to_ecpoint(body['ephemeral_pubkey'])
+        output_addr = _hex_to_ecpoint(body['output_address'])
+        view_priv = int(body['view_privkey'])
+        spend_pub = _hex_to_ecpoint(body['spend_pubkey'])
+        # Build a minimal keypair for scanning
+        keypair = StealthKeyPair(
+            spend_privkey=0,  # not needed for scan
+            spend_pubkey=spend_pub,
+            view_privkey=view_priv,
+            view_pubkey=_hex_to_ecpoint(body['view_pubkey']) if body.get('view_pubkey') else spend_pub,
+        )
+        is_mine = StealthAddressManager.scan_output(keypair, ephemeral_pub, output_addr)
+        return {"is_mine": is_mine}
 
     @app.post("/privacy/tx/build")
     async def privacy_tx_build(request: Request):
@@ -3719,12 +3767,55 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         body = await request.json()
         from ..privacy.susy_swap import SusySwapBuilder
         builder = SusySwapBuilder()
-        tx = builder.build(
-            inputs=body.get('inputs', []),
-            outputs=body.get('outputs', []),
-            sender_address=body.get('sender_address', ''),
-        )
-        return tx
+        for inp in body.get('inputs', []):
+            builder.add_input(
+                txid=inp['txid'],
+                vout=int(inp['vout']),
+                value=int(inp['value']),
+                blinding=int(inp['blinding']),
+                spending_key=int(inp['spending_key']),
+            )
+        for out in body.get('outputs', []):
+            spend_pub = _hex_to_ecpoint(out['recipient_spend_pub']) if out.get('recipient_spend_pub') else None
+            view_pub = _hex_to_ecpoint(out['recipient_view_pub']) if out.get('recipient_view_pub') else None
+            builder.add_output(
+                value=int(out['value']),
+                recipient_spend_pub=spend_pub,
+                recipient_view_pub=view_pub,
+            )
+        builder.set_fee(int(body.get('fee_atoms', 10000)))
+        tx = builder.build()
+        return tx.to_dict()
+
+    @app.post("/privacy/tx/submit")
+    async def privacy_tx_submit(request: Request):
+        """Submit a built confidential transaction to the mempool."""
+        body = await request.json()
+        required = ['txid', 'inputs', 'outputs', 'fee', 'key_images', 'excess_commitment', 'signature']
+        for f in required:
+            if f not in body:
+                raise HTTPException(status_code=400, detail=f"Missing field: {f}")
+        if not db_manager:
+            raise HTTPException(status_code=503, detail="Database not available")
+        import time as _time
+        from sqlalchemy import text as sa_text
+        with db_manager.get_session() as session:
+            session.execute(
+                sa_text("""
+                    INSERT INTO transactions (txid, fee, signature, public_key, timestamp, tx_type)
+                    VALUES (:txid, :fee, :sig, :pk, :ts, 'susy_swap')
+                    ON CONFLICT (txid) DO NOTHING
+                """),
+                {
+                    'txid': body['txid'],
+                    'fee': str(Decimal(str(body['fee'])) / Decimal('100000000')),
+                    'sig': body['signature'],
+                    'pk': body.get('public_key', ''),
+                    'ts': body.get('timestamp', _time.time()),
+                },
+            )
+            session.commit()
+        return {"status": "accepted", "txid": body['txid']}
 
     # ========================================================================
     # PLUGIN ENDPOINTS

@@ -955,40 +955,33 @@ class TestPrivacyExtendedEndpoints:
 
     def test_stealth_create_output(self, app_and_client):
         _, client, _ = app_and_client
-        with patch('qubitcoin.privacy.stealth.StealthAddressManager') as mock_sa:
-            inst = MagicMock()
-            inst.create_output.return_value = {
-                'one_time_address': 'ota_abc',
-                'ephemeral_pub': 'eph_def',
-            }
-            mock_sa.return_value = inst
-            resp = client.post("/privacy/stealth/create-output", json={
-                'recipient_spend_pub': 'spend_pub_hex',
-                'recipient_view_pub': 'view_pub_hex',
-            })
-            assert resp.status_code == 200
-            data = resp.json()
-            assert 'one_time_address' in data
+        # Generate real keypair to get valid compressed EC points
+        from qubitcoin.privacy.stealth import StealthAddressManager
+        kp = StealthAddressManager.generate_keypair()
+        def compress(p):
+            prefix = b'\x02' if p.y % 2 == 0 else b'\x03'
+            return (prefix + p.x.to_bytes(32, 'big')).hex()
+        resp = client.post("/privacy/stealth/create-output", json={
+            'recipient_spend_pub': compress(kp.spend_pubkey),
+            'recipient_view_pub': compress(kp.view_pubkey),
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert 'one_time_address' in data
+        assert 'ephemeral_pubkey' in data
 
     def test_privacy_tx_build(self, app_and_client):
         _, client, _ = app_and_client
-        with patch('qubitcoin.privacy.susy_swap.SusySwapBuilder') as mock_ss:
-            inst = MagicMock()
-            inst.build.return_value = {
-                'tx_type': 'confidential',
-                'inputs': [],
-                'outputs': [],
-                'proofs': [],
-            }
-            mock_ss.return_value = inst
-            resp = client.post("/privacy/tx/build", json={
-                'inputs': [],
-                'outputs': [{'address': 'addr', 'amount': 100}],
-                'sender_address': 'sender_addr',
-            })
-            assert resp.status_code == 200
-            data = resp.json()
-            assert 'tx_type' in data
+        resp = client.post("/privacy/tx/build", json={
+            'inputs': [{'txid': 'a' * 64, 'vout': 0, 'value': 100000, 'blinding': 12345, 'spending_key': 67890}],
+            'outputs': [{'value': 90000}],
+            'fee_atoms': 10000,
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert 'tx_type' in data
+        assert data['tx_type'] == 'susy_swap'
+        assert data['is_private'] is True
 
 
 class TestPluginExtendedEndpoints:
