@@ -1540,8 +1540,8 @@ class TestPrivacyEndpoints:
         _, client, _ = app_and_client
         with patch('qubitcoin.privacy.commitments.PedersenCommitment') as mock_pc:
             result = MagicMock()
-            result.commitment = b'\x01' * 32
-            result.blinding = b'\x02' * 32
+            result.to_hex.return_value = '01' * 33
+            result.blinding = 42
             mock_pc.commit.return_value = result
             resp = client.post("/privacy/commitment/create",
                                json={'value': 100})
@@ -1553,11 +1553,13 @@ class TestPrivacyEndpoints:
     def test_privacy_commitment_verify(self, app_and_client):
         _, client, _ = app_and_client
         with patch('qubitcoin.privacy.commitments.PedersenCommitment') as mock_pc:
-            mock_pc.verify.return_value = True
+            recomputed = MagicMock()
+            recomputed.to_hex.return_value = '01' * 32
+            mock_pc.commit.return_value = recomputed
             resp = client.post("/privacy/commitment/verify", json={
                 'commitment': '01' * 32,
                 'value': 100,
-                'blinding': '02' * 32,
+                'blinding': '0x2a',
             })
             assert resp.status_code == 200
             data = resp.json()
@@ -1565,10 +1567,15 @@ class TestPrivacyEndpoints:
 
     def test_privacy_range_proof_generate(self, app_and_client):
         _, client, _ = app_and_client
-        with patch('qubitcoin.privacy.range_proofs.RangeProofGenerator') as mock_rp:
+        with patch('qubitcoin.privacy.commitments.PedersenCommitment') as mock_pc, \
+             patch('qubitcoin.privacy.range_proofs.RangeProofGenerator') as mock_rp:
+            commitment = MagicMock()
+            commitment.blinding = 42
+            commitment.to_hex.return_value = 'aa' * 33
+            mock_pc.commit.return_value = commitment
             inst = MagicMock()
             proof = MagicMock()
-            proof.to_dict.return_value = {'proof': 'data'}
+            proof.to_hex.return_value = 'bb' * 64
             inst.generate.return_value = proof
             mock_rp.return_value = inst
             resp = client.post("/privacy/range-proof/generate",

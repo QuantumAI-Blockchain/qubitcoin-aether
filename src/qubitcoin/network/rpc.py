@@ -923,6 +923,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         try:
             to_padded = req.to_address.replace('0x', '').lower().zfill(64)
             amount_int = int(req.amount)
+            if amount_int <= 0 or amount_int >= 2**256:
+                raise HTTPException(status_code=400, detail="amount must be in range (0, 2^256)")
             amount_padded = hex(amount_int)[2:].zfill(64)
             calldata_hex = "a9059cbb" + to_padded + amount_padded
             calldata = bytes.fromhex(calldata_hex)
@@ -1010,6 +1012,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def get_contract_events(address: str, limit: int = 50, offset: int = 0):
         """Return event logs emitted by a contract."""
         limit = max(1, min(limit, 200))
+        offset = max(0, offset)
         events: list = []
         total = 0
         try:
@@ -1173,6 +1176,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """List deployed contracts."""
         from sqlalchemy import text as sa_text
         limit = max(1, min(limit, 200))
+        offset = max(0, offset)
         with db_manager.get_session() as session:
             rows = session.execute(
                 sa_text("""
@@ -1714,8 +1718,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         try:
             body = await request.json()
             user_address = body.get('user_address', '')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Chat session: no JSON body or missing user_address: {e}")
         chat, _ = _get_chat()
         session = chat.create_session(user_address)
         return {
@@ -1818,6 +1822,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def trigger_seed_batch(count: int = 10):
         """Trigger multiple seeds in sequence. Max 50."""
         import asyncio
+        if count < 1:
+            raise HTTPException(status_code=400, detail="count must be >= 1")
         node = getattr(app, 'node', None)
         if not node or not getattr(node, 'knowledge_seeder', None):
             raise HTTPException(status_code=503, detail="Knowledge seeder not available")
@@ -2747,7 +2753,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         for ws in _ws_clients:
             try:
                 await ws.send_text(message)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"WebSocket send failed, removing client: {e}")
                 disconnected.append(ws)
         for ws in disconnected:
             if ws in _ws_clients:
@@ -2757,8 +2764,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if event_type in sub_type_map:
             try:
                 await notify_subscribers(sub_type_map[event_type], data)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"eth_subscribe notification failed: {e}")
 
     # Attach broadcast helper to the app so node.py can call it
     app.broadcast_ws = broadcast_ws  # type: ignore[attr-defined]
@@ -3152,9 +3159,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                         'total_backed': str(result[1]),
                         'backing_percentage': float(result[2]),
                     }
-        except Exception:
-            pass
-        return {'total_minted': '3300000000', 'total_backed': '0', 'backing_percentage': 0.0}
+        except Exception as e:
+            logger.warning(f"Failed to fetch QUSD reserves from DB: {e}")
+        return {'total_minted': '3300000000', 'total_backed': '0', 'backing_percentage': 0.0, '_fallback': True}
 
     @app.get("/qusd/debt")
     async def qusd_debt():
@@ -3623,20 +3630,23 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Create a Pedersen commitment for a value."""
         body = await request.json()
         value = int(body.get('value', 0))
+        if value < 0 or value >= 2**64:
+            raise HTTPException(status_code=400, detail="value must be in range [0, 2^64)")
         from ..privacy.commitments import PedersenCommitment
         commitment = PedersenCommitment.commit(value)
-        return {"commitment": commitment.commitment.hex(), "blinding": commitment.blinding.hex()}
+        return {"commitment": commitment.to_hex(), "blinding": hex(commitment.blinding)}
 
     @app.post("/privacy/commitment/verify")
     async def privacy_commitment_verify(request: Request):
-        """Verify a Pedersen commitment."""
+        """Verify a Pedersen commitment by re-committing with given value+blinding."""
         body = await request.json()
+        value = int(body.get('value', 0))
+        blinding_str = body.get('blinding', '0')
+        blinding = int(blinding_str, 16) if isinstance(blinding_str, str) else int(blinding_str)
+        original_hex = body.get('commitment', '')
         from ..privacy.commitments import PedersenCommitment
-        valid = PedersenCommitment.verify(
-            bytes.fromhex(body['commitment']),
-            int(body['value']),
-            bytes.fromhex(body['blinding']),
-        )
+        recomputed = PedersenCommitment.commit(value, blinding=blinding)
+        valid = recomputed.to_hex() == original_hex
         return {"valid": valid}
 
     @app.post("/privacy/range-proof/generate")
@@ -3644,18 +3654,38 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Generate a Bulletproof range proof."""
         body = await request.json()
         value = int(body.get('value', 0))
+        if value < 0 or value >= 2**64:
+            raise HTTPException(status_code=400, detail="value must be in range [0, 2^64)")
         from ..privacy.range_proofs import RangeProofGenerator
+        from ..privacy.commitments import PedersenCommitment
+        blinding_hex = body.get('blinding', None)
+        if blinding_hex:
+            blinding = int(blinding_hex, 16) if isinstance(blinding_hex, str) else int(blinding_hex)
+            commitment = PedersenCommitment.commit(value, blinding=blinding)
+        else:
+            commitment = PedersenCommitment.commit(value)
+            blinding = commitment.blinding
         gen = RangeProofGenerator()
-        proof = gen.generate(value)
-        return {"proof": proof.to_dict() if hasattr(proof, 'to_dict') else str(proof)}
+        proof = gen.generate(value, blinding, commitment)
+        return {
+            "proof": proof.to_hex(),
+            "commitment": commitment.to_hex(),
+            "blinding": hex(blinding),
+        }
 
     @app.post("/privacy/range-proof/verify")
     async def privacy_range_proof_verify(request: Request):
         """Verify a Bulletproof range proof."""
         body = await request.json()
-        from ..privacy.range_proofs import RangeProofGenerator
-        gen = RangeProofGenerator()
-        valid = gen.verify(body['proof'])
+        from ..privacy.range_proofs import RangeProofVerifier, RangeProof
+        # Reconstruct proof from hex
+        proof_hex = body.get('proof', '')
+        if not proof_hex:
+            raise HTTPException(status_code=400, detail="proof (hex) is required")
+        proof = RangeProof.from_hex(proof_hex) if hasattr(RangeProof, 'from_hex') else None
+        if proof is None:
+            return {"valid": False, "error": "Proof deserialization not yet supported"}
+        valid = RangeProofVerifier.verify(proof)
         return {"valid": valid}
 
     @app.post("/privacy/stealth/generate-keypair")
