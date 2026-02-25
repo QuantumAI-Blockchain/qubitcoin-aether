@@ -148,3 +148,16 @@ class DecoherenceManager:
     def remove(self, state_id: int) -> bool:
         """Remove a state from tracking."""
         return self._records.pop(state_id, None) is not None
+
+    def get_stats(self) -> dict:
+        """Return summary statistics for all tracked quantum states."""
+        active = self.list_active()
+        decohered = self.list_decohered()
+        return {
+            'total_states': len(self._records),
+            'active': len(active),
+            'decohered': len(decohered),
+            'frozen': sum(1 for r in active if r.is_frozen),
+            'current_block': self._current_block,
+            'states': [r.to_dict() for r in self._records.values()],
+        }

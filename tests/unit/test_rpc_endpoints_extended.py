@@ -153,11 +153,11 @@ def app_and_client():
 
     # --- QVM debugger ---
     qvm_debugger = MagicMock()
-    qvm_debugger.load = MagicMock()
+    qvm_debugger.load_bytecode = MagicMock()
     qvm_debugger.step = MagicMock(return_value={
         'pc': 1, 'opcode': 'PUSH1', 'stack': [0], 'gas_used': 3,
     })
-    qvm_debugger.get_state = MagicMock(return_value={
+    qvm_debugger.get_stats = MagicMock(return_value={
         'pc': 0, 'stack': [], 'memory': '', 'gas_remaining': 30000000,
     })
 
@@ -487,7 +487,9 @@ def app_and_client():
         aml_monitor=MagicMock(get_alerts=MagicMock(return_value=[])),
         compliance_proof_store=proof_inst,
         tlac_manager=tlac_mgr,
-        risk_normalizer=MagicMock(normalize=MagicMock(return_value=0.1)),
+        risk_normalizer=MagicMock(normalize=MagicMock(return_value=MagicMock(
+            to_dict=MagicMock(return_value={'address': 'test', 'total_score': 0.1, 'risk_level': 'low'})
+        ))),
         plugin_manager=pm,
         decoherence_manager=MagicMock(get_stats=MagicMock(return_value={'states': []})),
         transaction_batcher=MagicMock(get_stats=MagicMock(return_value={'pending': 0})),

@@ -756,7 +756,13 @@ def app_and_client():
         aml_monitor=MagicMock(get_alerts=MagicMock(return_value=[])),
         compliance_proof_store=proof_inst,
         tlac_manager=MagicMock(_transactions={}),
-        risk_normalizer=MagicMock(normalize=MagicMock(return_value=0.1)),
+        risk_normalizer=MagicMock(normalize=MagicMock(return_value=MagicMock(
+            to_dict=MagicMock(return_value={
+                'address': 'test', 'total_score': 0.1, 'aml_score': 0.0,
+                'graph_score': 0.0, 'compliance_score': 0.0, 'raw_qrisk': 0.0,
+                'risk_level': 'low',
+            })
+        ))),
         plugin_manager=pm,
         decoherence_manager=MagicMock(get_stats=MagicMock(return_value={'states': []})),
         transaction_batcher=MagicMock(get_stats=MagicMock(return_value={'pending': 0})),
@@ -1446,7 +1452,8 @@ class TestComplianceEndpoints:
         resp = client.get("/qvm/compliance/risk/test_addr")
         assert resp.status_code == 200
         data = resp.json()
-        assert 'risk_score' in data
+        assert 'total_score' in data
+        assert 'risk_level' in data
 
     def test_compliance_tlac(self, app_and_client):
         _, client, _ = app_and_client

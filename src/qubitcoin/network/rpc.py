@@ -3858,7 +3858,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             return {"address": address, "risk_score": 0.0, "error": "Risk normalizer not available"}
         try:
             score = risk_normalizer.normalize(address)
-            return {"address": address, "risk_score": score}
+            return score.to_dict()
         except Exception as e:
             return {"address": address, "risk_score": 0.0, "error": str(e)}
 
@@ -3981,7 +3981,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=503, detail="QVM debugger not available")
         body = await request.json()
         bytecode = bytes.fromhex(body.get('bytecode', ''))
-        qvm_debugger.load(bytecode)
+        qvm_debugger.load_bytecode(bytecode)
         return {"loaded": True, "bytecode_size": len(bytecode)}
 
     @app.post("/qvm/debug/step")
@@ -3997,7 +3997,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Get current QVM debugger state (stack, memory, PC)."""
         if not qvm_debugger:
             raise HTTPException(status_code=503, detail="QVM debugger not available")
-        return qvm_debugger.get_state()
+        return qvm_debugger.get_stats()
 
     @app.post("/qvm/compile")
     async def qvm_compile(request: Request):
