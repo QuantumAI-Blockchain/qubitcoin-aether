@@ -80,6 +80,12 @@ class AetherGenesis:
                     'max_supply': str(Config.MAX_SUPPLY),
                     'initial_reward': str(Config.INITIAL_REWARD),
                 },
+                {
+                    'type': 'axiom_premine',
+                    'description': 'Genesis block includes 33M QBC premine to founding address',
+                    'premine_amount': str(Config.GENESIS_PREMINE),
+                    'premine_percentage': f'{float(Config.GENESIS_PREMINE / Config.MAX_SUPPLY * 100):.4f}%',
+                },
                 # --- Consensus & Mining ---
                 {
                     'type': 'axiom_quantum',

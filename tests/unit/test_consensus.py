@@ -253,3 +253,65 @@ class TestBlockValidation:
         valid, reason = eng.validate_block(block, prev, db)
         assert valid is False
         assert 'coinbase' in reason.lower()
+
+    def test_genesis_coinbase_with_premine_accepted(self):
+        """Genesis block coinbase with 2 outputs (reward + premine) passes validation."""
+        eng = self._make_engine()
+        db = MagicMock()
+        db.get_total_supply.return_value = Decimal(0)
+        eng.calculate_difficulty = MagicMock(return_value=1.0)
+
+        from qubitcoin.config import Config
+        from qubitcoin.database.models import Block, Transaction
+
+        # Genesis coinbase with 2 outputs: reward + premine
+        coinbase = Transaction(
+            txid='coinbase0', inputs=[],
+            outputs=[
+                {'address': 'miner', 'amount': Config.INITIAL_REWARD},
+                {'address': 'miner', 'amount': Config.GENESIS_PREMINE},
+            ],
+            fee=Decimal(0), signature='', public_key='bb' * 64,
+            timestamp=1000,
+        )
+        block = Block(
+            height=0, block_hash=None, prev_hash='0' * 64,
+            timestamp=1000, difficulty=1.0,
+            proof_data={'params': [], 'challenge': [], 'energy': 0.5},
+            transactions=[coinbase],
+        )
+        valid, reason = eng.validate_block(block, None, db)
+        assert valid is True, f"Genesis with premine should be valid: {reason}"
+
+    def test_non_genesis_with_premine_rejected(self):
+        """Non-genesis block with premine-sized coinbase is rejected."""
+        eng = self._make_engine()
+        db = MagicMock()
+        db.get_total_supply.return_value = Decimal(0)
+        eng.calculate_difficulty = MagicMock(return_value=1.0)
+
+        from qubitcoin.config import Config
+        from qubitcoin.database.models import Block, Transaction
+
+        prev = Block(height=0, block_hash='a' * 64, prev_hash='0' * 64,
+                     timestamp=1000, difficulty=1.0, proof_data={}, transactions=[])
+
+        # Non-genesis coinbase tries to include premine
+        coinbase = Transaction(
+            txid='coinbase1', inputs=[],
+            outputs=[
+                {'address': 'miner', 'amount': Config.INITIAL_REWARD},
+                {'address': 'miner', 'amount': Config.GENESIS_PREMINE},
+            ],
+            fee=Decimal(0), signature='', public_key='bb' * 64,
+            timestamp=1001,
+        )
+        block = Block(
+            height=1, block_hash=None, prev_hash='a' * 64,
+            timestamp=1001, difficulty=1.0,
+            proof_data={'params': [], 'challenge': [], 'energy': 0.5},
+            transactions=[coinbase],
+        )
+        valid, reason = eng.validate_block(block, prev, db)
+        assert valid is False
+        assert 'coinbase' in reason.lower()

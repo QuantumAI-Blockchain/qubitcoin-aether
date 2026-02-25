@@ -108,6 +108,10 @@ class CirculationTracker:
             reward = Config.INITIAL_REWARD / (phi ** era)
             total += reward * blocks_in_era
 
+        # Genesis premine is a one-time allocation at block 0
+        if block_height >= 0 and Config.GENESIS_PREMINE > 0:
+            total += Config.GENESIS_PREMINE
+
         # Cap at MAX_SUPPLY
         return min(total, Config.MAX_SUPPLY)
 

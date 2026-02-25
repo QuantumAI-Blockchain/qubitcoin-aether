@@ -107,6 +107,9 @@ class Config:
     INITIAL_REWARD: Decimal = Decimal('15.27')  # QBC per block (Era 0)
     HALVING_INTERVAL: int = 15_474_020  # φ years in blocks (~1.618 years)
 
+    # Genesis premine — ~1% of max supply allocated at block 0
+    GENESIS_PREMINE: Decimal = Decimal(os.getenv('GENESIS_PREMINE', '33000000'))
+
     # Fee structure (micro-fees for high frequency)
     MIN_FEE: Decimal = Decimal('0.0001')
     FEE_RATE: Decimal = Decimal('0.0001')
@@ -379,7 +382,7 @@ class Config:
         """
         PHI = Decimal(str(cls.PHI))
         prev_reward = cls.INITIAL_REWARD + 1
-        total = Decimal(0)
+        total = cls.GENESIS_PREMINE
         for era in range(100):
             reward = cls.INITIAL_REWARD / (PHI ** era)
             if reward < Decimal('0.00000001'):
@@ -412,6 +415,12 @@ class Config:
         if cls.HALVING_INTERVAL <= 0:
             raise ValueError("HALVING_INTERVAL must be positive")
 
+        if cls.GENESIS_PREMINE < 0:
+            raise ValueError("GENESIS_PREMINE must be non-negative")
+
+        if cls.GENESIS_PREMINE >= cls.MAX_SUPPLY:
+            raise ValueError("GENESIS_PREMINE must be less than MAX_SUPPLY")
+
         if cls.AETHER_FEE_MIN_QBC >= cls.AETHER_FEE_MAX_QBC:
             raise ValueError("AETHER_FEE_MIN_QBC must be less than AETHER_FEE_MAX_QBC")
 
@@ -438,6 +447,7 @@ Supersymmetric Economics:
   Max Supply:           {cls.MAX_SUPPLY:,} QBC (3.3 billion)
   Block Time:           {cls.TARGET_BLOCK_TIME} seconds
   Initial Reward:       {cls.INITIAL_REWARD} QBC/block
+  Genesis Premine:      {cls.GENESIS_PREMINE:,} QBC (~{float(cls.GENESIS_PREMINE / cls.MAX_SUPPLY * 100):.2f}%)
   Halving Interval:     {cls.HALVING_INTERVAL:,} blocks (φ years)
   Emission Period:      {cls.EMISSION_PERIOD} years
   Golden Ratio (φ):     {cls.PHI}

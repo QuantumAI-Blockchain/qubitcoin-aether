@@ -15,6 +15,9 @@ export const PHI_THRESHOLD = 3.0;
 /** Max QBC supply */
 export const MAX_SUPPLY = 3_300_000_000;
 
+/** Genesis premine (~1% of supply) */
+export const GENESIS_PREMINE = 33_000_000;
+
 /** Block time target (seconds) */
 export const TARGET_BLOCK_TIME = 3.3;
 

@@ -52,14 +52,14 @@ class TestAetherGenesis:
         assert AetherGenesis is not None
 
     def test_genesis_creates_knowledge_nodes(self):
-        """Genesis should seed 21 axiom nodes: genesis + 20 foundational axioms."""
+        """Genesis should seed 22 nodes: 1 genesis + 21 axioms (incl. premine)."""
         from qubitcoin.aether.genesis import AetherGenesis
         db = MagicMock()
         kg = _make_mock_kg()
         genesis = AetherGenesis(db, knowledge_graph=kg)
         result = genesis.initialize_genesis(genesis_block_hash='a' * 64)
-        assert result['knowledge_nodes_created'] == 21
-        assert kg.add_node.call_count == 21
+        assert result['knowledge_nodes_created'] == 22  # 1 genesis + 21 axioms (incl. premine)
+        assert kg.add_node.call_count == 22
 
     def test_genesis_nodes_are_axioms(self):
         """All genesis nodes should be of type 'axiom'."""
@@ -92,13 +92,13 @@ class TestAetherGenesis:
             assert node.source_block == 0
 
     def test_genesis_has_edges(self):
-        """Genesis node should derive into 20 axiom nodes."""
+        """Genesis node should derive into 21 axiom nodes (incl. premine)."""
         from qubitcoin.aether.genesis import AetherGenesis
         db = MagicMock()
         kg = _make_mock_kg()
         genesis = AetherGenesis(db, knowledge_graph=kg)
         genesis.initialize_genesis()
-        assert kg.add_edge.call_count == 20
+        assert kg.add_edge.call_count == 21
         for from_id, to_id, edge_type in kg._added_edges:
             assert edge_type == 'derives'
 

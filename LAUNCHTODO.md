@@ -322,7 +322,7 @@ After the node has been running for ~1-2 minutes, verify the complete genesis st
 curl http://localhost:5000/block/0 | python3 -m json.tool
 ```
 
-**Expected:** Block with height=0, reward=15.27, miner_address=your address.
+**Expected:** Block with height=0, coinbase tx with 2 outputs (15.27 reward + 33,000,000 premine), miner_address=your address.
 
 ### 6.2 Verify Your Balance
 
@@ -331,7 +331,7 @@ curl http://localhost:5000/block/0 | python3 -m json.tool
 curl http://localhost:5000/balance/YOUR_ADDRESS_HERE
 ```
 
-**Expected:** Balance > 0 (15.27 × number of blocks mined).
+**Expected:** Balance ≥ 33,000,015.27 QBC (33M premine + 15.27 × number of blocks mined).
 
 ### 6.3 Verify Aether Tree
 
@@ -356,8 +356,12 @@ curl http://localhost:5000/mining/stats
 
 ### 6.5 Checklist
 
-- [ ] Genesis block (height 0) exists with 15.27 QBC reward
-- [ ] Your address has a positive balance
+- [ ] Genesis block (height 0) exists with coinbase containing 2 outputs
+- [ ] Coinbase vout=0 is 15.27 QBC (mining reward)
+- [ ] Coinbase vout=1 is 33,000,000 QBC (genesis premine)
+- [ ] total_supply = 33,000,015.27 QBC after genesis
+- [ ] Your address has balance ≥ 33,000,015.27 QBC
+- [ ] Premine UTXO exists and is unspent
 - [ ] Aether Tree shows knowledge nodes and Phi measurement
 - [ ] Mining is producing new blocks every ~3-10 seconds (depends on difficulty)
 - [ ] Chain height is increasing

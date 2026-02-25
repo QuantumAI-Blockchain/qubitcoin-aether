@@ -363,6 +363,7 @@ Qubitcoin/
 ```python
 PHI = 1.618033988749895          # Golden ratio
 MAX_SUPPLY = 3,300,000,000 QBC   # 3.3 billion
+GENESIS_PREMINE = 33,000,000 QBC # ~1% of supply, minted at block 0
 TARGET_BLOCK_TIME = 3.3          # seconds
 INITIAL_REWARD = 15.27 QBC       # per block (Era 0)
 HALVING_INTERVAL = 15,474,020    # blocks (~1.618 years)
@@ -1247,6 +1248,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | Topic | Rule |
 |-------|------|
 | **UTXO** | Balance = sum(unspent outputs). NOT account balance. |
+| **Genesis premine** | 33M QBC (~1%) minted at block 0 as 2nd coinbase output (vout=1). Genesis total_supply = 33,000,015.27 QBC. Configurable via `GENESIS_PREMINE` env var. |
 | **Dilithium** | ~3KB signatures. Affects tx size, block capacity (~333 tx/MB), bandwidth. |
 | **VQE mining** | Energy threshold (E < D), not hash difficulty. 4-qubit SUSY Hamiltonian. **Higher difficulty = easier mining** (inverse of PoW). |
 | **phi-halving** | Golden ratio halving. NOT Bitcoin's fixed 210K blocks. |

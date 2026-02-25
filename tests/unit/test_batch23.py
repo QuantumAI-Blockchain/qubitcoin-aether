@@ -203,15 +203,15 @@ class TestCirculationTracker:
         assert abs(r1 - expected) < Decimal('0.01')
 
     def test_total_emitted_genesis(self):
-        # Block 0 should emit exactly 1 block reward
+        # Block 0 emits 1 block reward + genesis premine
         from qubitcoin.config import Config
         total = CirculationTracker.compute_total_emitted(0)
-        assert total == Config.INITIAL_REWARD
+        assert total == Config.INITIAL_REWARD + Config.GENESIS_PREMINE
 
     def test_total_emitted_10_blocks(self):
         from qubitcoin.config import Config
         total = CirculationTracker.compute_total_emitted(9)
-        expected = Config.INITIAL_REWARD * 10
+        expected = Config.INITIAL_REWARD * 10 + Config.GENESIS_PREMINE
         assert total == expected
 
     def test_total_emitted_negative(self):
@@ -310,7 +310,7 @@ class TestCirculationTracker:
         tracker = CirculationTracker()
         snap = tracker.record_block(0)
         assert snap.percent_emitted > 0
-        assert snap.percent_emitted < 1  # 1 block is a tiny fraction
+        assert snap.percent_emitted < 2  # Genesis premine is ~1% of supply
 
 
 # ---------------------------------------------------------------------------
@@ -671,7 +671,7 @@ class TestCirculationIntegration:
         current = tracker.get_current()
         assert current.block_height == 99
         from qubitcoin.config import Config
-        expected = Config.INITIAL_REWARD * 100
+        expected = Config.INITIAL_REWARD * 100 + Config.GENESIS_PREMINE
         assert current.total_circulating == expected
 
     def test_circulation_never_exceeds_supply(self):

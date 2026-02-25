@@ -497,7 +497,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             PHI = Decimal('1.618033988749895')
             blocks_per_year = int(365.25 * 24 * 3600 / Config.TARGET_BLOCK_TIME)
             schedule = []
-            total_supply = Decimal(0)
+            total_supply = Config.GENESIS_PREMINE
 
             for year in range(1, years + 1):
                 year_emission = Decimal(0)

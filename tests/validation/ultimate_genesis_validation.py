@@ -132,7 +132,25 @@ try:
         Config.INITIAL_REWARD == Decimal('15.27'),
         f"Value: {Config.INITIAL_REWARD} QBC"
     )
-    
+
+    test_result(
+        "GENESIS_PREMINE = 33,000,000 QBC (~1% of supply)",
+        Config.GENESIS_PREMINE == Decimal('33000000'),
+        f"Value: {Config.GENESIS_PREMINE:,} QBC ({float(Config.GENESIS_PREMINE / Config.MAX_SUPPLY * 100):.4f}%)"
+    )
+
+    test_result(
+        "GENESIS_PREMINE < MAX_SUPPLY",
+        Config.GENESIS_PREMINE < Config.MAX_SUPPLY,
+        f"{Config.GENESIS_PREMINE:,} < {Config.MAX_SUPPLY:,}"
+    )
+
+    test_result(
+        "Emission schedule valid with premine",
+        Config.verify_emission_schedule(),
+        "Mining emission + premine does not exceed MAX_SUPPLY"
+    )
+
     test_result(
         "TARGET_BLOCK_TIME = 3.3 seconds",
         Config.TARGET_BLOCK_TIME == 3.3,

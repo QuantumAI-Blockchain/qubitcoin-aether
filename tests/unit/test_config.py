@@ -61,6 +61,14 @@ def test_config_contract_fee_params():
     assert 0 <= Config.CONTRACT_TEMPLATE_DISCOUNT <= 1
 
 
+def test_config_genesis_premine():
+    """Genesis premine constant is valid."""
+    from qubitcoin.config import Config
+    assert Config.GENESIS_PREMINE == Decimal('33000000')
+    assert Config.GENESIS_PREMINE >= 0
+    assert Config.GENESIS_PREMINE < Config.MAX_SUPPLY
+
+
 def test_config_display():
     """Display method returns formatted string."""
     from qubitcoin.config import Config
@@ -68,3 +76,4 @@ def test_config_display():
     assert 'QUBITCOIN NODE' in output
     assert '3,300,000,000' in output
     assert '3.3 seconds' in output
+    assert 'Genesis Premine' in output

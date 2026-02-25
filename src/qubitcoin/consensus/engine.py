@@ -272,8 +272,12 @@ class ConsensusEngine:
             burned_fees = (total_fees * burn_pct).quantize(Decimal('0.00000001'))
             miner_fees = total_fees - burned_fees
             coinbase_amount = sum(Decimal(str(o['amount'])) for o in coinbase_tx.outputs)
-            if coinbase_amount > expected_reward + miner_fees:
-                return False, f"Excessive coinbase: {coinbase_amount} > {expected_reward} + {miner_fees}"
+            expected_coinbase = expected_reward + miner_fees
+            # Genesis block includes the premine allocation
+            if block.height == 0 and Config.GENESIS_PREMINE > 0:
+                expected_coinbase += Config.GENESIS_PREMINE
+            if coinbase_amount > expected_coinbase:
+                return False, f"Excessive coinbase: {coinbase_amount} > {expected_coinbase}"
 
             # ── Susy Swap (confidential tx) block-level validation ────
             # Individual private tx validation is handled by validate_transaction

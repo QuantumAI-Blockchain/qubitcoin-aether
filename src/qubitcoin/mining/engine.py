@@ -212,7 +212,8 @@ class MiningEngine:
                         return
 
                     self.db.store_block(block, session=session)
-                    self.db.update_supply(reward, session)
+                    supply_amount = reward + (Config.GENESIS_PREMINE if next_height == 0 else Decimal(0))
+                    self.db.update_supply(supply_amount, session)
                     self.db.store_hamiltonian(
                         hamiltonian=hamiltonian,
                         params=params.tolist(),
@@ -420,6 +421,20 @@ class MiningEngine:
             )
 
         total_reward = reward + miner_fees
+
+        # Build outputs: vout=0 is always the mining reward
+        outputs = [{
+            'address': Config.ADDRESS,
+            'amount': total_reward
+        }]
+
+        # Genesis premine: add a second output (vout=1) at block 0
+        if height == 0 and Config.GENESIS_PREMINE > 0:
+            outputs.append({
+                'address': Config.ADDRESS,
+                'amount': Config.GENESIS_PREMINE
+            })
+
         # Deterministic coinbase txid — same inputs always produce same txid
         coinbase_txid = hashlib.sha256(
             f"coinbase-{height}-{prev_hash}".encode()
@@ -427,10 +442,7 @@ class MiningEngine:
         return Transaction(
             txid=coinbase_txid,
             inputs=[],
-            outputs=[{
-                'address': Config.ADDRESS,
-                'amount': total_reward
-            }],
+            outputs=outputs,
             fee=Decimal(0),
             signature='',
             public_key=Config.PUBLIC_KEY_HEX,
@@ -451,8 +463,16 @@ class MiningEngine:
             table.add_row("Difficulty", f"{block.difficulty:.6f}")
             table.add_row("Transactions", str(len(block.transactions)))
             table.add_row("Reward", f"{reward:.8f} QBC")
+            if block.height == 0 and Config.GENESIS_PREMINE > 0:
+                table.add_row("Genesis Premine", f"{Config.GENESIS_PREMINE:,.0f} QBC")
             table.add_row("Hash", block.block_hash[:16] + "...")
             self.console.print(Panel(table))
         except Exception as e:
             logger.debug(f"Rich console display failed: {e}")
-        logger.info(f"Block {block.height} mined: {block.block_hash[:16]}...")
+        if block.height == 0 and Config.GENESIS_PREMINE > 0:
+            logger.info(
+                f"GENESIS BLOCK mined: {block.block_hash[:16]}... "
+                f"(reward={reward} + premine={Config.GENESIS_PREMINE:,} QBC)"
+            )
+        else:
+            logger.info(f"Block {block.height} mined: {block.block_hash[:16]}...")

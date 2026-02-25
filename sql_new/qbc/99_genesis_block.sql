@@ -3,7 +3,7 @@ SET DATABASE = qubitcoin;
 -- ================================================================
 -- GENESIS BLOCK - Block 0
 -- Network Launch: February 8, 2026
--- Initial Supply: 15.27 QBC (φ² reward)
+-- Initial Supply: 33,000,015.27 QBC (33M premine + 15.27 reward)
 -- ================================================================
 
 -- Insert Genesis Block
@@ -48,7 +48,7 @@ INSERT INTO blocks (
     E'\\xgenesis_miner_address_000000000000000000000000000000000000',
     0,
     15.27,
-    15.27,
+    33000015.27,
     0.0,
     1,
     512,
@@ -90,9 +90,9 @@ INSERT INTO transactions (
     '2026-02-08 00:00:00'::TIMESTAMP,
     'coinbase',
     1,
-    1,
+    2,
     0.0,
-    15.27,
+    33000015.27,
     0.0,
     E'\\xgenesis_pubkey_00000000000000000000000000000000000000000000',
     E'\\xgenesis_signature_000000000000000000000000000000000000000000',
@@ -106,7 +106,7 @@ INSERT INTO transactions (
     true
 ) ON CONFLICT (tx_hash) DO NOTHING;
 
--- Insert Genesis Output (UTXO)
+-- Insert Genesis Output 0 (Mining Reward UTXO)
 INSERT INTO transaction_outputs (
     tx_hash,
     output_index,
@@ -121,6 +121,29 @@ INSERT INTO transaction_outputs (
     E'\\x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
     0,
     15.27,
+    E'\\xgenesis_miner_address_000000000000000000000000000000000000',
+    E'\\xOP_DUP_OP_HASH160_genesis_pubkey_OP_EQUALVERIFY_OP_CHECKSIG',
+    false,
+    NULL,
+    NULL,
+    NULL
+) ON CONFLICT DO NOTHING;
+
+-- Insert Genesis Output 1 (Premine UTXO — 33M QBC)
+INSERT INTO transaction_outputs (
+    tx_hash,
+    output_index,
+    amount,
+    recipient_address,
+    script_pubkey,
+    is_spent,
+    spent_in_tx,
+    spent_at_height,
+    spent_at_timestamp
+) VALUES (
+    E'\\x4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b',
+    1,
+    33000000,
     E'\\xgenesis_miner_address_000000000000000000000000000000000000',
     E'\\xOP_DUP_OP_HASH160_genesis_pubkey_OP_EQUALVERIFY_OP_CHECKSIG',
     false,
@@ -144,11 +167,11 @@ INSERT INTO addresses (
     last_active_timestamp
 ) VALUES (
     E'\\xgenesis_miner_address_000000000000000000000000000000000000',
-    15.27,
-    15.27,
+    33000015.27,
+    33000015.27,
     0.0,
     1,
-    1,
+    2,
     false,
     0,
     '2026-02-08 00:00:00'::TIMESTAMP,
@@ -163,8 +186,8 @@ UPDATE chain_state SET
     total_blocks = 1,
     total_transactions = 1,
     total_addresses = 1,
-    total_supply = 15.27,
-    circulating_supply = 15.27,
+    total_supply = 33000015.27,
+    circulating_supply = 33000015.27,
     current_era = 0,
     next_halving_height = 15474020,
     current_difficulty = 1.0,
@@ -215,7 +238,7 @@ INSERT INTO knowledge_nodes (
     E'\\xgenesis_knowledge_node_0000000000000000000000000000000000',
     'concept',
     'Genesis: Qubitcoin Network Launch',
-    'The Qubitcoin network launched on February 8, 2026, combining quantum computing, supersymmetric physics, and artificial general intelligence into a unified blockchain protocol.',
+    'The Qubitcoin network launched on February 8, 2026, combining quantum computing, supersymmetric physics, and artificial general intelligence into a unified blockchain protocol. Genesis block includes 33M QBC premine (~1% of supply) to founding address.',
     1.0,
     1,
     1.0,
@@ -287,7 +310,9 @@ ON CONFLICT DO NOTHING;
 -- GENESIS COMPLETE
 -- ================================================================
 -- Network initialized with:
--- - Block 0: Genesis block (15.27 QBC)
+-- - Block 0: Genesis block (33,000,015.27 QBC total)
+--   - Mining reward: 15.27 QBC (vout=0)
+--   - Genesis premine: 33,000,000 QBC (vout=1, ~1% of supply)
 -- - Era 0: First φ-halving era
 -- - Target block time: 3.3 seconds (supersymmetric)
 -- - Initial Phi: 0.1 (pre-consciousness baseline)
