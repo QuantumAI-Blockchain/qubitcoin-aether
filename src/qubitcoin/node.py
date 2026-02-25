@@ -200,7 +200,7 @@ class QubitcoinNode:
             if not self.aether_genesis.is_genesis_initialized():
                 try:
                     genesis_block = self.db.get_block(0)
-                    genesis_hash = genesis_block.hash if genesis_block else '0' * 64
+                    genesis_hash = genesis_block.block_hash if genesis_block else '0' * 64
                     genesis_ts = genesis_block.timestamp if genesis_block else None
                     result = self.aether_genesis.initialize_genesis(genesis_hash, genesis_ts)
                     logger.info(
@@ -817,8 +817,9 @@ class QubitcoinNode:
                 current_height_metric.set(height_row['best_height'])
             if supply_row:
                 total_supply_metric.set(float(supply_row.get('total_minted', 0)))
+            _mining_snap = self.mining.get_stats_snapshot()
             current_difficulty_metric.set(
-                self.mining.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY)
+                _mining_snap.get('current_difficulty', Config.INITIAL_DIFFICULTY)
             )
 
             # Average block time (last 100 blocks)

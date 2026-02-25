@@ -152,9 +152,18 @@ class TestKeyImageDBLookup:
         db.get_session.return_value = mock_session
         assert engine._is_key_image_spent("ki_test", db) is True
 
-    def test_key_image_db_error_returns_false(self):
+    def test_key_image_db_error_rejects_tx(self):
+        """Unknown DB errors should reject tx for safety (return True)."""
         engine, db = _make_consensus()
         db.get_session.side_effect = Exception("DB down")
+        assert engine._is_key_image_spent("ki_test", db) is True
+
+    def test_key_image_table_missing_allows_tx(self):
+        """If key_images table doesn't exist, allow tx (return False)."""
+        engine, db = _make_consensus()
+        db.get_session.side_effect = Exception(
+            'relation "key_images" does not exist'
+        )
         assert engine._is_key_image_spent("ki_test", db) is False
 
 

@@ -116,7 +116,7 @@ class AetherEngine:
 
         # Phase 5.4: Emergent communication protocol
         self._pending_digest: Optional[dict] = None
-        self._seen_digests: set = set()
+        self._seen_digests: dict = {}  # OrderedDict-like (dict preserves insertion order in 3.7+)
         self._digests_created: int = 0
         self._digests_received: int = 0
         self._nodes_from_peers: int = 0
@@ -2183,11 +2183,12 @@ class AetherEngine:
             stats['was_duplicate'] = True
             return stats
 
-        self._seen_digests.add(digest_hash)
-        # Cap seen digests
+        self._seen_digests[digest_hash] = True
+        # Cap seen digests — dict preserves insertion order, so we keep newest
         if len(self._seen_digests) > 1000:
-            # Remove oldest (arbitrary, set doesn't preserve order)
-            self._seen_digests = set(list(self._seen_digests)[-500:])
+            keys = list(self._seen_digests.keys())
+            for k in keys[:500]:  # Remove oldest 500
+                del self._seen_digests[k]
 
         self._digests_received += 1
 

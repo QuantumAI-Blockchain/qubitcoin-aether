@@ -286,15 +286,15 @@ class StablecoinEngine:
             
             # Store aggregated price
             mean = sum(prices) / len(prices)
-            std_dev = Decimal(np.std([float(p) for p in prices]))
-            
-            current_height = self.db.get_current_height()
-            
+            std_dev = Decimal(np.std([float(p) for p in prices], ddof=1))
+
+            # Inline height subquery to avoid nested session / extra round-trip
             session.execute(
                 text("""
-                    INSERT INTO aggregated_prices 
+                    INSERT INTO aggregated_prices
                     (asset_pair, median_price, mean_price, std_deviation, num_sources, block_height, valid)
-                    VALUES (:pair, :median, :mean, :std, :n, :height, :valid)
+                    VALUES (:pair, :median, :mean, :std, :n,
+                            COALESCE((SELECT MAX(height) FROM blocks), 0), :valid)
                 """),
                 {
                     'pair': asset_pair,
@@ -302,7 +302,6 @@ class StablecoinEngine:
                     'mean': str(mean),
                     'std': str(std_dev),
                     'n': len(prices),
-                    'height': current_height,
                     'valid': std_dev < Decimal('0.01')  # <1% deviation
                 }
             )

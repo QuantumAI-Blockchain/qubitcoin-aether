@@ -159,7 +159,7 @@ class MiningEngine:
         proof_data = self._create_proof(hamiltonian, params, energy, prev_hash, next_height)
         total_supply = self.db.get_total_supply()
         reward = self.consensus.calculate_reward(next_height, total_supply)
-        coinbase = self._create_coinbase(next_height, reward, pending_txs)
+        coinbase = self._create_coinbase(next_height, reward, pending_txs, prev_hash)
 
         block = Block(
             height=next_height,
@@ -393,7 +393,8 @@ class MiningEngine:
         }
 
     def _create_coinbase(self, height: int, reward: Decimal,
-                        pending_txs: list) -> Transaction:
+                        pending_txs: list,
+                        prev_hash: str = '') -> Transaction:
         """Create coinbase transaction with base fee burning.
 
         A configurable percentage of transaction fees (FEE_BURN_PERCENTAGE)
@@ -419,8 +420,9 @@ class MiningEngine:
             )
 
         total_reward = reward + miner_fees
+        # Deterministic coinbase txid — same inputs always produce same txid
         coinbase_txid = hashlib.sha256(
-            f"coinbase-{height}-{time.time()}".encode()
+            f"coinbase-{height}-{prev_hash}".encode()
         ).hexdigest()
         return Transaction(
             txid=coinbase_txid,

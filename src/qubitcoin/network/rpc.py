@@ -130,13 +130,16 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         window = 60.0  # 1 minute window
         max_requests = _rate_limit_store['max_per_minute']
 
-        # Clean old entries
+        # Clean old entries for this IP
         timestamps = _rate_limit_store['requests'][client_ip]
-        _rate_limit_store['requests'][client_ip] = [
-            t for t in timestamps if now - t < window
-        ]
+        filtered = [t for t in timestamps if now - t < window]
+        if filtered:
+            _rate_limit_store['requests'][client_ip] = filtered
+        else:
+            # Evict key entirely to prevent unbounded dict growth
+            _rate_limit_store['requests'].pop(client_ip, None)
 
-        if len(_rate_limit_store['requests'][client_ip]) >= max_requests:
+        if len(_rate_limit_store['requests'].get(client_ip, [])) >= max_requests:
             from fastapi.responses import JSONResponse
             return JSONResponse(
                 status_code=429,
@@ -186,12 +189,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                     'port': node.p2p.port,
                 }
         
+        _ms = mining_engine.get_stats_snapshot()
         return {
             "node": "Qubitcoin Full Node v2.0",
             "version": "2.0.0",
             "network": "mainnet",
             "height": db_manager.get_current_height(),
-            "difficulty": mining_engine.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY),
+            "difficulty": _ms.get('current_difficulty', Config.INITIAL_DIFFICULTY),
             "address": Config.ADDRESS,
             "p2p": p2p_info,
             "economics": {
@@ -363,25 +367,26 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             elif hasattr(node, 'p2p') and node.p2p:
                 p2p_stats = node.p2p.get_stats()
 
+        _ms = mining_engine.get_stats_snapshot()
         return {
             "node": {
                 "version": "2.0.0",
                 "address": Config.ADDRESS,
-                "uptime": mining_engine.stats.get('uptime', 0)
+                "uptime": _ms.get('uptime', 0)
             },
             "blockchain": {
                 "height": height,
                 "total_supply": str(supply),
                 "max_supply": str(Config.MAX_SUPPLY),
-                "difficulty": mining_engine.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY),
+                "difficulty": _ms.get('current_difficulty', Config.INITIAL_DIFFICULTY),
                 "target_block_time": Config.TARGET_BLOCK_TIME,
                 "emission": emission_stats
             },
             "mining": {
                 "is_mining": mining_engine.is_mining,
-                "blocks_found": mining_engine.stats.get('blocks_found', 0),
-                "total_attempts": mining_engine.stats.get('total_attempts', 0),
-                "success_rate": mining_engine.stats.get('blocks_found', 0) / max(1, mining_engine.stats.get('total_attempts', 1))
+                "blocks_found": _ms.get('blocks_found', 0),
+                "total_attempts": _ms.get('total_attempts', 0),
+                "success_rate": _ms.get('blocks_found', 0) / max(1, _ms.get('total_attempts', 1))
             },
             "quantum": {
                 "mode": "local" if Config.USE_LOCAL_ESTIMATOR else "ibm",
@@ -454,7 +459,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "percent_emitted": f"{emission_stats['percent_emitted']:.4f}%",
             "current_era": emission_stats.get('current_era', 0),
             "current_reward": float(emission_stats.get('current_reward', 50.0)),
-            "difficulty": mining_engine.stats.get('current_difficulty', Config.INITIAL_DIFFICULTY),
+            "difficulty": mining_engine.get_stats_snapshot().get('current_difficulty', Config.INITIAL_DIFFICULTY),
             "target_block_time": Config.TARGET_BLOCK_TIME,
             "peers": peers,
             "mempool_size": mempool_size,

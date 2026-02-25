@@ -494,9 +494,15 @@ class ConsensusEngine:
                     {'ki': key_image}
                 ).fetchone()
                 return result is not None
-        except Exception:
-            # Table may not exist yet — allow the tx through
-            return False
+        except Exception as e:
+            err_msg = str(e).lower()
+            if 'does not exist' in err_msg or 'no such table' in err_msg:
+                # Table not created yet — allow through (pre-privacy-deploy)
+                logger.debug("key_images table not yet created, skipping check")
+                return False
+            # Any other DB error should reject the tx for safety
+            logger.error(f"Key image check failed (rejecting tx): {e}")
+            return True
 
     def _is_coinbase_utxo(self, utxo: UTXO, db_manager) -> bool:
         """Check if a UTXO came from a coinbase transaction (no inputs)."""
@@ -624,10 +630,14 @@ class ConsensusEngine:
 
             return True, "Valid"
 
+        except ImportError as e:
+            # Privacy module not installed — skip Susy Swap validation
+            logger.warning(f"Privacy module unavailable, skipping Susy validation: {e}")
+            return True, "Valid (susy validation skipped — privacy module missing)"
         except Exception as e:
-            # Graceful degradation: if the privacy module has issues, log and allow
-            logger.warning(f"Susy Swap block validation error (allowing block): {e}")
-            return True, "Valid (susy validation skipped)"
+            # Any other error is a validation failure — do NOT allow block through
+            logger.error(f"Susy Swap block validation error (rejecting block): {e}")
+            return False, f"Susy Swap validation error: {e}"
 
     async def resolve_fork(self, new_block: Block, sender_id: str):
         """Resolve fork by adopting longer valid chain"""
