@@ -117,8 +117,17 @@ export const ExchangeHeader = memo(function ExchangeHeader() {
           gap: 12,
         }}
       >
-        {/* Left: Logo + title */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        {/* Left: Back + Logo + title */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <a
+            href="/"
+            style={{ display: "flex", alignItems: "center", padding: "4px 2px", color: X.textSecondary, textDecoration: "none", opacity: 0.7, transition: "opacity 0.15s" }}
+            title="Back to QBC"
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </a>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path d="M12 2L14 8L20 8L15 12L17 18L12 14L7 18L9 12L4 8L10 8L12 2Z" fill={X.glowCyan} />
             <path d="M12 6L13 9H16L13.5 11L14.5 14L12 12L9.5 14L10.5 11L8 9H11L12 6Z" fill={X.bgPanel} />

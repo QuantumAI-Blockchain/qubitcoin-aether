@@ -158,6 +158,25 @@ const LaunchpadHeader = memo(function LaunchpadHeader() {
           background: L.bgPanel,
         }}
       >
+        {/* Back to site */}
+        <a
+          href="/"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 8px 10px 4px",
+            color: L.textSecondary,
+            textDecoration: "none",
+            opacity: 0.7,
+            transition: "opacity 0.15s",
+          }}
+          title="Back to QBC"
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.7")}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </a>
+
         {showBack && (
           <button
             onClick={() => setSelectedProject(null)}

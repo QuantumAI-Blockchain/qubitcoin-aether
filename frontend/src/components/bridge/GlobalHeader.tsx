@@ -92,7 +92,16 @@ export function GlobalHeader() {
         }}
       >
         <div className="flex items-center justify-between px-4 py-2">
-          {/* Logo */}
+          {/* Back to site + Logo */}
+          <div className="flex items-center gap-1">
+          <a
+            href="/"
+            className="flex items-center rounded-md px-1.5 py-1.5 text-xs transition-opacity hover:opacity-80"
+            style={{ color: B.textSecondary }}
+            title="Back to QBC"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </a>
           <button
             onClick={() => navigate("bridge")}
             className="flex items-center gap-2.5"
@@ -117,6 +126,7 @@ export function GlobalHeader() {
               QBC BRIDGE
             </span>
           </button>
+          </div>
 
           {/* Chain Status Pills */}
           <div className="hidden items-center gap-2 md:flex">
