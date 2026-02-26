@@ -1,18 +1,18 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 26, 2026 | Run #24
+# Last Updated: February 26, 2026 | Run #25
 
 ---
 
 ## PROGRESS TRACKER
 
-- Total items: 188 (148 from Run #23 + 40 new frontend items from Run #24)
+- Total items: 198 (188 from Run #24 + 10 new a11y/security items from Run #25)
 - Completed: 126
-- Remaining: 62
-- Completion: 67.0%
-- **Run #24: First 8-component audit (Explorer, Bridge, Exchange, Launchpad)**
-- **Backend: 3,340 tests, BN128 complete, Admin API confirmed**
-- **Frontend: All 4 new pages are mock-data-driven with zero backend calls**
-- **40 new items added for frontend wiring (10 per page)**
+- Remaining: 72
+- Completion: 63.6%
+- **Run #25: Deep frontend audit — 127 new findings across 82 files**
+- **Component scores: Explorer 74, Exchange 62, Bridge 52, Launchpad 38**
+- **3 CRITICAL Bridge findings, 2 HIGH XSS in Exchange, WCAG failures across all pages**
+- **51 hooks rated for wiring difficulty (5 trivial, 15 easy, 17 moderate, 8 hard, 6 rebuild)**
 - Estimated runs to 100%: ~12-15
 
 ---
@@ -923,6 +923,39 @@ Focus on: Go QVM completion, formal verification, advanced features
 
 **Cumulative progress:** 126/188 completed (67.0%) — 148→188 items (+40 new frontend items), 122→126 completed (+4).
 
+### Run #25 — February 26, 2026
+
+**Scope:** Deep re-audit of all 4 frontend pages (82 files read line-by-line) + backend verification. No code changes since Run #24. Focus on security, accessibility, performance, code quality, and wiring difficulty assessment.
+
+**Items completed this run: 0** (audit-only run, no code changes)
+
+**New items discovered: 10** (4 security + 6 accessibility)
+- **SEC01** — Fix innerHTML XSS in Exchange DepthChart tooltip (DX-NEW-1)
+- **SEC02** — Fix innerHTML XSS in Exchange LiquidationHeatmap tooltip (DX-NEW-2)
+- **SEC03** — Fix Bridge sign flow generating non-existent txId (BR-NEW-3)
+- **SEC04** — Propagate Bridge wallet state to all consumers (BR-NEW-2)
+- **A11Y01** — Add keyboard nav + ARIA to Explorer DataTable rows (EX-NEW-5)
+- **A11Y02** — Add aria-labels to all icon-only buttons in Explorer (EX-NEW-6)
+- **A11Y03** — Add ARIA dialog semantics + focus trap to Exchange modals (DX-NEW-6/7)
+- **A11Y04** — Add ARIA dialog semantics + focus trap to Bridge modals (BR-NEW-17/18)
+- **A11Y05** — Add htmlFor/id form associations in Launchpad DeployWizard (LP-NEW-11)
+- **A11Y06** — Add text alternatives to Explorer canvas/SVG visualizations (EX-NEW-9/10)
+
+**Key findings (127 total across 4 pages):**
+- **3 CRITICAL in Bridge**: fake pre-flight checks (Math.random), decorative wallet, broken sign flow
+- **2 HIGH XSS in Exchange**: innerHTML in DepthChart + LiquidationHeatmap tooltips
+- **WCAG failures**: No ARIA dialogs, no focus trapping, no keyboard navigation across all 4 pages
+- **Performance**: 60fps ticker re-renders (LP), triple OHLC sort (DX), full SVG rebuild every 500ms (DX)
+- **Code quality**: frozen countdown hook (DX), mutated cache objects (EX), Math.random in render (LP)
+- **Component scores**: Explorer 74, Exchange 62, Bridge 52, Launchpad 38
+- **51 hooks rated 1-5 for wiring difficulty**: 5 trivial, 15 easy, 17 moderate, 8 hard, 6 rebuild
+
+**Files changed: 2** (REVIEW.md, MASTERUPDATETODO.md)
+
+**Score change:** 97 → 97 (backend unchanged; frontend scores now quantified)
+
+**Cumulative progress:** 126/198 completed (63.6%) — 188→198 items (+10 new security/a11y items), 126→126 completed (+0).
+
 ---
 
 ## 8. FRONTEND PAGE WIRING ITEMS (Run #24 — NEW)
@@ -986,3 +1019,27 @@ Focus on: Go QVM completion, formal verification, advanced features
 | **LP08** | MEDIUM | Wire ecosystem health to real chain stats | Replace hardcoded `blockHeight: 19247` with `/chain/info` |
 | **LP09** | LOW | Fix LeaderboardView rank flicker | Line 174 uses `Math.random()` in render — use deterministic rank comparison |
 | **LP10** | LOW | Consolidate duplicate ILLP calculation logic | 3 separate implementations in shared.tsx, mock-engine.ts, config.ts |
+
+---
+
+## 9. SECURITY & ACCESSIBILITY ITEMS (Run #25 — NEW)
+
+### 9.1 Security Fixes (4 items)
+
+| # | Priority | Task | Component | Details |
+|---|----------|------|-----------|---------|
+| **SEC01** | HIGH | Fix innerHTML XSS in DepthChart tooltip | Exchange | DX-NEW-1: Replace `tooltip.innerHTML` with DOM API (`createElement`, `textContent`) |
+| **SEC02** | HIGH | Fix innerHTML XSS in LiquidationHeatmap tooltip | Exchange | DX-NEW-2: Same pattern as SEC01 |
+| **SEC03** | MEDIUM | Fix Bridge sign flow generating non-existent txId | Bridge | BR-NEW-3: Generated txId must exist in data source or redirect to pending view |
+| **SEC04** | MEDIUM | Propagate Bridge wallet state to all consumers | Bridge | BR-NEW-2: Move `ConnectionState` to Zustand store, read from BridgePanel/GlobalHeader |
+
+### 9.2 Accessibility Fixes (6 items)
+
+| # | Priority | Task | Component | Details |
+|---|----------|------|-----------|---------|
+| **A11Y01** | HIGH | Add keyboard nav + ARIA to DataTable rows | Explorer | EX-NEW-5: Add `tabIndex={0}`, `role="button"`, `onKeyDown` to clickable rows |
+| **A11Y02** | HIGH | Add `aria-label` to all icon-only buttons | Explorer | EX-NEW-6: Nav buttons, search toggle, close button lack labels on mobile |
+| **A11Y03** | HIGH | Add `role="dialog"`, `aria-modal`, focus trap to modals | Exchange | DX-NEW-6/7: DepositModal, WithdrawModal, ExchangeSettings need ARIA dialog semantics |
+| **A11Y04** | HIGH | Add `role="dialog"`, `aria-modal`, focus trap to Bridge modals | Bridge | BR-NEW-17/18/19: PreFlightModal, WalletModal, SettingsPanel need ARIA |
+| **A11Y05** | MEDIUM | Add `htmlFor`/`id` to all form labels in DeployWizard | Launchpad | LP-NEW-11: Labels are `<div>` not `<label>`, inputs lack `id` |
+| **A11Y06** | MEDIUM | Add text alternatives to canvas/SVG visualizations | Explorer | EX-NEW-9/10: HeartbeatMonitor canvas and ForceGraph SVG need `aria-label` |
