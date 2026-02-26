@@ -11,6 +11,7 @@ const links = [
   { href: "/", label: "Home" },
   { href: "/aether", label: "Aether" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/explorer", label: "Explorer" },
   { href: "/wallet", label: "Wallet" },
   { href: "/qvm", label: "QVM" },
 ];

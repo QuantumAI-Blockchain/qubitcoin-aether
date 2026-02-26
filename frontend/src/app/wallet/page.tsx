@@ -13,6 +13,7 @@ import { TokenManager } from "@/components/wallet/token-manager";
 import { NFTGallery } from "@/components/wallet/nft-gallery";
 import { NativeWalletPanel } from "@/components/wallet/native-wallet";
 import { SephirotLauncher } from "@/components/wallet/sephirot-launcher";
+import Link from "next/link";
 
 const TABS = [
   { key: "metamask" as const, label: "MetaMask" },
@@ -60,6 +61,22 @@ export default function WalletPage() {
           </ErrorBoundary>
         )}
       </div>
+
+      {/* Cross-Chain Bridge Banner */}
+      <Link
+        href="/bridge"
+        className="mt-8 flex items-center justify-between rounded-xl border border-quantum-violet/30 bg-quantum-violet/5 px-6 py-5 transition-colors hover:border-quantum-violet/50 hover:bg-quantum-violet/10"
+      >
+        <div>
+          <h3 className="font-[family-name:var(--font-heading)] text-lg font-bold text-quantum-violet">
+            Cross-Chain Bridge
+          </h3>
+          <p className="mt-1 text-sm text-text-secondary">
+            Wrap QBC and QUSD to Ethereum, BNB Smart Chain, and Solana — 100% vault-backed
+          </p>
+        </div>
+        <span className="text-2xl text-quantum-violet">&#8594;</span>
+      </Link>
     </div>
   );
 }

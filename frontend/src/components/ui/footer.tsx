@@ -3,7 +3,9 @@ import Link from "next/link";
 const navLinks = [
   { href: "/aether", label: "Aether Tree" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/explorer", label: "Block Explorer" },
   { href: "/wallet", label: "Wallet" },
+  { href: "/bridge", label: "Bridge" },
   { href: "/qvm", label: "QVM Explorer" },
 ];
 
