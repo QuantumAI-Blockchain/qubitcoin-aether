@@ -161,6 +161,16 @@ export function ExplorerHeader() {
         fontFamily: FONT.body,
       }}
     >
+      {/* Back to site */}
+      <a
+        href="/"
+        className="flex items-center gap-0.5 rounded-md px-1.5 py-1.5 text-xs transition-opacity hover:opacity-80"
+        style={{ color: C.textSecondary, fontFamily: FONT.body }}
+        title="Back to QBC"
+      >
+        <ChevronLeft size={14} />
+      </a>
+
       {/* Logo */}
       <button
         onClick={() => navigate("dashboard")}
