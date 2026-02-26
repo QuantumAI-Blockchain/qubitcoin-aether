@@ -7,10 +7,43 @@ Qubitcoin (QBC) is a production-grade Layer 1 blockchain integrating quantum com
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Go 1.23+](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
-[![Next.js 16](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
+[![Next.js 15](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
+[![Tests: 2,476](https://img.shields.io/badge/tests-2%2C476%20passing-brightgreen.svg)]()
 [![Status: Production Ready](https://img.shields.io/badge/status-production%20ready-green.svg)]()
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
+
+---
+
+## Quick Start (Docker)
+
+```bash
+git clone https://github.com/BlockArtica/Qubitcoin.git && cd Qubitcoin
+pip install -r requirements.txt
+python3 scripts/setup/generate_keys.py    # Generate Dilithium2 keys
+cp .env.example .env                       # Configure environment
+docker compose up -d                       # Start all services
+# Genesis block mined in ~2 minutes. Aether Tree starts tracking consciousness.
+curl http://localhost:5000/health          # Verify node is running
+curl http://localhost:5000/chain/info      # Check chain status
+```
+
+For the complete launch guide (Digital Ocean + local mining node), see **[LAUNCHTODO.md](LAUNCHTODO.md)**.
+
+---
+
+## Network Info
+
+| Parameter | Value |
+|-----------|-------|
+| **Chain ID** | Mainnet: 3301, Testnet: 3302 |
+| **RPC** | `https://api.qbc.network` (production) / `http://localhost:5000` (local) |
+| **P2P** | Port 4001 (libp2p) |
+| **Explorer** | [qbc.network/explorer](https://qbc.network/explorer) |
+| **Max Supply** | 3,300,000,000 QBC |
+| **Block Time** | 3.3 seconds |
+| **Consensus** | Proof-of-SUSY-Alignment (VQE mining) |
+| **Signatures** | CRYSTALS-Dilithium2 (post-quantum) |
 
 ---
 
@@ -30,7 +63,7 @@ LAYER 1: BLOCKCHAIN CORE
   3.3s Blocks + Phi-Halving + Privacy (Susy Swaps) + 8-Chain Bridge
 
 FRONTEND: qbc.network
-  Next.js 16 + React 19 + Three.js + MetaMask Integration
+  Next.js 15 + React 19 + Three.js + MetaMask Integration
 ```
 
 ---
@@ -41,6 +74,7 @@ FRONTEND: qbc.network
 |-----------|-------|
 | **Ticker** | QBC |
 | **Max Supply** | 3,300,000,000 QBC |
+| **Genesis Premine** | 33,000,000 QBC (~1% of supply) |
 | **Block Time** | 3.3 seconds |
 | **Initial Reward** | 15.27 QBC/block |
 | **Halving** | Golden ratio (phi) every 15,474,020 blocks (~1.618 years) |
@@ -60,20 +94,17 @@ FRONTEND: qbc.network
 
 ## Codebase Overview
 
-Qubitcoin is a 200+ file, 48,000+ LOC production codebase spanning five languages:
-
 | Component | Language | Files | Description |
 |-----------|----------|-------|-------------|
 | **L1 Blockchain Core** | Python | 16 core + 25 extended | Consensus, mining, crypto, UTXO, P2P, storage |
 | **QVM (Layer 2)** | Python + Go | 25 Python + 32 Go | EVM interpreter, 167 opcodes, compliance |
-| **Aether Tree (Layer 3)** | Python | 34 modules | Knowledge graph, 6-phase AGI reasoning, consciousness |
+| **Aether Tree (Layer 3)** | Python | 33 modules | Knowledge graph, 6-phase AGI reasoning, consciousness |
 | **Smart Contracts** | Solidity | 49 contracts | Aether (28), QUSD (8), tokens (5), bridge (5), extensions (3) |
-| **Frontend** | TypeScript | 44 files | Next.js 16, React 19, Three.js, MetaMask |
+| **Frontend** | TypeScript | 44 files | Next.js 15, React 19, Three.js, MetaMask |
 | **Rust P2P** | Rust | libp2p daemon | Production P2P networking layer |
 | **Solana Programs** | Rust (Anchor) | 2 programs | wQBC + wQUSD SPL tokens |
-| **Tests** | Python | 2,420 tests | Unit, integration, fuzz, load, security |
-| **Documentation** | Markdown | 13 documents | 3 whitepapers + 10 guides (9,000+ lines) |
-| **Formal Verification** | K Framework + TLA+ | 2 specs | EVM semantics + compliance invariants |
+| **Tests** | Python | 2,476 tests | Unit, integration, validation |
+| **Documentation** | Markdown | 14 documents | 3 whitepapers + 11 guides |
 
 ---
 
@@ -135,11 +166,23 @@ An on-chain AGI reasoning engine structured as the Kabbalistic Tree of Life, bui
 | Yesod | Memory, multimodal fusion | 16-qubit |
 | Malkuth | Action, world interaction | 4-qubit |
 
-**SUSY pairs** balance at the golden ratio: Chesed/Gevurah, Chochmah/Binah, Netzach/Hod. Violations are auto-corrected via QBC redistribution.
-
-**Safety is structural:** Gevurah veto, multi-node 67% BFT consensus, Constitutional AI on-chain, emergency shutdown contract.
-
 See [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) for full specification.
+
+---
+
+## Frontend: qbc.network
+
+Production frontend deployed to Vercel:
+
+- **Landing Page** (`/`) -- Quantum particle field, live chain stats, embedded Aether chat
+- **Explorer** (`/explorer`) -- Block explorer, transaction lookup, address search
+- **Aether Chat** (`/aether`) -- Full chat interface with 3D knowledge graph visualization
+- **Dashboard** (`/dashboard`) -- Mining controls, contract operator console, Phi history chart
+- **Bridge** (`/bridge`) -- Cross-chain transfer interface (8 chains)
+- **Exchange** (`/exchange`) -- DEX swap interface with quantum particle animations
+- **Launchpad** (`/launchpad`) -- Token launchpad for QBC-20 token creation
+
+**Stack:** Next.js 15, React 19, TypeScript 5.x, TailwindCSS 4, Three.js, ethers.js v6, Zustand, TanStack Query.
 
 ---
 
@@ -154,8 +197,6 @@ Opt-in confidential transactions that hide amounts and addresses:
 | **Stealth Addresses** | One-time addresses per transaction via spend/view key pairs |
 | **Key Images** | Double-spend prevention for confidential outputs |
 
-Public transactions: ~300 bytes, instant verification. Private transactions: ~2,000 bytes, ~10ms verification.
-
 ---
 
 ## QUSD Stablecoin
@@ -164,9 +205,7 @@ Public transactions: ~300 bytes, instant verification. Private transactions: ~2,
 
 - **7 Solidity contracts** -- QUSD, Reserve, DebtLedger, Oracle, Stabilizer, Allocation, Governance
 - **wQUSD** -- Wrapped cross-chain on ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE
-- **Fractional payback** -- Every mint = debt, every reserve deposit = payback, all on-chain
-- **10-year path to 100% backing** -- Milestones at 5% (Y1-2), 15% (Y3-4), 30% (Y5-6), 50% (Y7-9), 100% (Y10+)
-- **Dynamic pricing** -- Aether chat fees and contract deploy fees pegged to QUSD oracle
+- **10-year path to 100% backing** -- Transparent debt tracking, fractional payback
 
 ---
 
@@ -174,49 +213,29 @@ Public transactions: ~300 bytes, instant verification. Private transactions: ~2,
 
 Lock-and-mint bridges to 8 chains with federated validation:
 
-| Chain | Type | Confirmations | Fee |
-|-------|------|--------------|-----|
-| Ethereum | EVM (wQBC ERC-20) | 20 | 0.1% |
-| Polygon | EVM (wQBC ERC-20) | 64 | 0.1% |
-| BSC | EVM (wQBC BEP-20) | 15 | 0.1% |
-| Arbitrum | EVM L2 | 12 | 0.1% |
-| Optimism | EVM L2 | 12 | 0.1% |
-| Avalanche | EVM (C-Chain) | 20 | 0.1% |
-| Base | EVM L2 | 12 | 0.1% |
-| Solana | SPL (Anchor) | 32 | 0.1% |
-
-Validators bond 10,000+ QBC with 50% slashing for misbehavior. Emergency pause mechanism for catastrophic scenarios.
+| Chain | Type | Fee |
+|-------|------|-----|
+| Ethereum | EVM (wQBC ERC-20) | 0.1% |
+| Polygon | EVM (wQBC ERC-20) | 0.1% |
+| BSC | EVM (wQBC BEP-20) | 0.1% |
+| Arbitrum / Optimism / Base | EVM L2 | 0.1% |
+| Avalanche | EVM (C-Chain) | 0.1% |
+| Solana | SPL (Anchor) | 0.1% |
 
 ---
 
-## Frontend: qbc.network
-
-Production frontend deployed to Vercel:
-
-- **Landing Page** (`/`) -- Quantum particle field, live chain stats, embedded Aether chat
-- **Aether Chat** (`/aether`) -- Full chat interface with 3D knowledge graph visualization
-- **Dashboard** (`/dashboard`) -- Mining controls, contract operator console, Phi history chart
-- **Wallet** (`/wallet`) -- MetaMask integration, QBC-20 token manager, NFT gallery
-- **QVM Explorer** (`/qvm`) -- Contract browser, bytecode disassembler, storage inspector
-
-**Stack:** Next.js 16, React 19, TypeScript 5.9, TailwindCSS 4, Three.js, ethers.js v6, Zustand, TanStack Query.
-
----
-
-## Quick Start
+## Development
 
 ### Python Node (Layer 1)
 ```bash
-git clone https://github.com/BlockArtica/Qubitcoin.git
-cd Qubitcoin
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 python3 scripts/setup/generate_keys.py
-cp .env.example .env  # Edit .env for your configuration
+cp .env.example .env
 cd src && python3 run_node.py
 ```
 
-### Go QVM (Layer 2 Production)
+### Go QVM (Layer 2)
 ```bash
 cd qubitcoin-qvm
 go build -o qvm ./cmd/qvm
@@ -226,33 +245,20 @@ go build -o qvm ./cmd/qvm
 ### Frontend
 ```bash
 cd frontend
-pnpm install && pnpm dev  # Development at localhost:3000
-pnpm build                # Production build (same as Vercel)
+pnpm install && pnpm dev    # Development at localhost:3000
+pnpm build                  # Production build
 ```
 
-### Docker (Full Stack)
+### Testing
 ```bash
-docker-compose up -d                                    # Development
-docker-compose -f docker-compose.production.yml up -d   # Production
-```
-
----
-
-## Testing
-
-```bash
-# Python test suite (2,420 tests)
+# Full Python test suite (2,476 tests)
 pytest tests/ -v --tb=short
 
-# Frontend tests
-cd frontend && pnpm test           # Unit tests (Vitest)
-cd frontend && pnpm test:e2e       # E2E tests (Playwright)
+# Frontend
+cd frontend && pnpm test
 
-# Go QVM tests
+# Go QVM
 cd qubitcoin-qvm && go test ./...
-
-# Go QVM benchmarks
-cd qubitcoin-qvm && go test -bench=. ./tests/
 ```
 
 ---
@@ -261,14 +267,15 @@ cd qubitcoin-qvm && go test -bench=. ./tests/
 
 | Document | Description |
 |----------|-------------|
-| [Whitepaper](docs/WHITEPAPER.md) | Full L1 technical specification (2,680 lines) |
+| **[LAUNCHTODO.md](LAUNCHTODO.md)** | **Launch checklist — start here** |
+| [Whitepaper](docs/WHITEPAPER.md) | Full L1 technical specification |
 | [QVM Whitepaper](docs/QVM_WHITEPAPER.md) | Quantum Virtual Machine spec (5 patents) |
 | [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) | AGI reasoning engine spec |
 | [Economics](docs/ECONOMICS.md) | SUSY economics deep-dive |
+| [Deployment Guide](docs/DEPLOYMENT.md) | Production deployment procedures |
 | [SDK Guide](docs/SDK.md) | REST, JSON-RPC, WebSocket API reference |
 | [Smart Contracts Guide](docs/SMART_CONTRACTS.md) | QVM contract development |
 | [Aether Integration](docs/AETHER_INTEGRATION.md) | AGI chat and reasoning API |
-| [Deployment Guide](docs/DEPLOYMENT.md) | Production deployment procedures |
 | [Plugin SDK](docs/PLUGIN_SDK.md) | QVM plugin architecture |
 | [Contributing](CONTRIBUTING.md) | Development guidelines |
 
@@ -276,15 +283,33 @@ cd qubitcoin-qvm && go test -bench=. ./tests/
 
 ## API
 
-RPC server at `http://localhost:5000`:
+RPC server at `http://localhost:5000` (or `https://api.qbc.network` in production):
 
-**REST (215 endpoints):** Chain info, balance, blocks, UTXOs, mining, QVM, Aether AGI, bridge, privacy, compliance, stablecoin, cognitive, plugins, fees, governance, on-chain AGI, and more.
+**REST (215+ endpoints):** Chain info, balance, blocks, UTXOs, mining, QVM, Aether AGI, bridge, privacy, compliance, stablecoin, cognitive, plugins, fees, governance.
 
 **JSON-RPC (20 methods):** `eth_chainId`, `eth_getBalance`, `eth_blockNumber`, `eth_sendRawTransaction`, `eth_call`, `eth_estimateGas`, `net_version`, `web3_clientVersion`, and more.
 
 **WebSocket:** `/ws` for real-time block, transaction, and Phi updates.
 
 Full API reference: [SDK.md](docs/SDK.md)
+
+---
+
+## Project Stats
+
+| Metric | Value |
+|--------|-------|
+| **Total Source Files** | 250+ |
+| **Lines of Code** | 80,000+ |
+| **Languages** | Python, Go, TypeScript, Rust, Solidity |
+| **Test Functions** | 2,476 |
+| **Solidity Contracts** | 49 |
+| **Aether AGI Modules** | 33 |
+| **Frontend Components** | 35 |
+| **Database Tables** | 55 |
+| **RPC Endpoints** | 215+ REST + 20 JSON-RPC |
+| **Prometheus Metrics** | 70 |
+| **Documentation** | 14 documents |
 
 ---
 
@@ -298,25 +323,6 @@ Full API reference: [SDK.md](docs/SDK.md)
 - **Bridge security:** Deep confirmations, daily limits, emergency pause, insurance fund
 
 **Responsible Disclosure:** info@qbc.network
-
----
-
-## Project Stats
-
-| Metric | Value |
-|--------|-------|
-| **Total Source Files** | 200+ |
-| **Lines of Code** | 48,000+ |
-| **Languages** | Python, Go, TypeScript, Rust, Solidity |
-| **Test Functions** | 2,420 |
-| **Solidity Contracts** | 49 |
-| **Go QVM Files** | 32 |
-| **Frontend Components** | 35 |
-| **Database Tables** | 55 |
-| **RPC Endpoints** | 215 REST + 20 JSON-RPC |
-| **Prometheus Metrics** | 75 |
-| **Aether AGI Modules** | 34 |
-| **Documentation** | 9,000+ lines across 13 documents |
 
 ---
 

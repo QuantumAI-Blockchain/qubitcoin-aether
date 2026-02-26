@@ -1,16 +1,19 @@
 # Qubitcoin Deployment Guide
 
-This guide covers deploying Qubitcoin in development, staging, and production environments.
+Production deployment for Qubitcoin nodes, from single-node development to multi-node mainnet.
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
-- [Backend Deployment](#backend-deployment)
-- [Frontend Deployment](#frontend-deployment)
 - [Docker Deployment](#docker-deployment)
-- [Production Deployment](#production-deployment)
+- [Production Deployment (Digital Ocean)](#production-deployment-digital-ocean)
+- [2-Node Peer Setup](#2-node-peer-setup)
+- [Frontend Deployment (Vercel)](#frontend-deployment-vercel)
+- [Bare-Metal Deployment](#bare-metal-deployment)
 - [Monitoring](#monitoring)
+- [Backup & Restore](#backup--restore)
+- [Security Checklist](#security-checklist)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -19,33 +22,35 @@ This guide covers deploying Qubitcoin in development, staging, and production en
 
 ### Minimum Requirements
 
-| Component | Development | Production |
-|-----------|-------------|------------|
+| Component | Development | Production (Seed Node) |
+|-----------|-------------|------------------------|
 | CPU | 4 cores | 8+ cores |
 | RAM | 8 GB | 16+ GB |
-| Storage | 50 GB | 500+ GB |
-| Network | 10 Mbps | 100+ Mbps |
-| Python | 3.12+ | 3.12+ |
-| Node.js | 20+ | 20+ (build only) |
+| Storage | 20 GB | 320+ GB SSD |
+| Network | Any | 10 Gbps (DO included) |
+| Python | 3.12+ | 3.12+ (in Docker) |
+| Docker | 24+ | 24+ |
 
-### One-Command Dev Setup
+### One-Command Local Dev
 
 ```bash
-# Clone and setup
-git clone https://github.com/BlockArtica/Qubitcoin.git
-cd Qubitcoin
-
-# Backend
-python3 -m venv venv && source venv/bin/activate
+git clone https://github.com/BlockArtica/Qubitcoin.git && cd Qubitcoin
 pip install -r requirements.txt
 python3 scripts/setup/generate_keys.py
 cp .env.example .env
+docker compose up -d
+# Mining starts automatically — genesis block in ~2 minutes
+```
 
-# Frontend
-cd frontend && pnpm install && cd ..
+### One-Command Production
 
-# Start
-cd src && python3 run_node.py
+```bash
+git clone https://github.com/BlockArtica/Qubitcoin.git && cd Qubitcoin
+pip install -r requirements.txt
+python3 scripts/setup/generate_keys.py
+cp .env.production.example .env
+# Edit .env (set treasury addresses, Grafana password)
+docker compose -f docker-compose.production.yml up -d --build
 ```
 
 ---
@@ -53,249 +58,281 @@ cd src && python3 run_node.py
 ## Architecture
 
 ```
+PRODUCTION ARCHITECTURE
+═══════════════════════════════════════════════════════════════
+
                     ┌──────────────┐
                     │   Vercel     │  ← Frontend (qbc.network)
                     │   (CDN)      │
                     └──────┬───────┘
                            │ HTTPS
                     ┌──────▼───────┐
-                    │  Reverse     │  ← Nginx/Caddy
-                    │  Proxy       │
+                    │  Nginx       │  ← SSL termination + rate limiting
+                    │  :80 / :443  │
                     └──────┬───────┘
                            │
               ┌────────────┼────────────┐
               │            │            │
         ┌─────▼────┐ ┌────▼─────┐ ┌───▼────┐
-        │ RPC API  │ │ P2P Node │ │ IPFS   │
-        │ :5000    │ │ :4001    │ │ :5002  │
-        │ (FastAPI)│ │ (libp2p) │ │ (Kubo) │
+        │ RPC API  │ │ P2P Node │ │ gRPC   │
+        │ :5000    │ │ :4001    │ │ :50051 │
+        │ (FastAPI)│ │ (libp2p) │ │ (P2P)  │
         └─────┬────┘ └────┬─────┘ └───┬────┘
               │            │            │
-        ┌─────▼────────────▼────────────▼────┐
-        │         CockroachDB v24.2.0        │
-        │         :26257 (SQL)               │
-        │         :8080  (Admin UI)          │
-        └────────────────────────────────────┘
+        ┌─────▼──────┐ ┌──▼──┐ ┌──────▼──────┐
+        │ CockroachDB│ │IPFS │ │    Redis     │
+        │ :26257     │ │:5001│ │    :6379     │
+        │ (internal) │ │(int)│ │  (internal)  │
+        └────────────┘ └─────┘ └──────────────┘
+
+ Monitoring (internal):
+   Prometheus :9090 → Grafana :3001 (localhost)
+   Promtail → Loki :3100
 ```
 
-### Ports
+### Port Map
 
-| Service | Port | Protocol |
-|---------|------|----------|
-| RPC API | 5000 | HTTP (REST + JSON-RPC) |
-| P2P (Rust libp2p) | 4001 | TCP/QUIC |
-| P2P gRPC | 50051 | gRPC |
-| CockroachDB SQL | 26257 | PostgreSQL wire |
-| CockroachDB Admin | 8080 | HTTP |
-| IPFS API | 5002 | HTTP |
-| IPFS Gateway | 8080 | HTTP (conflict with CRDB) |
-| IPFS Swarm | 4001 | TCP (conflict with P2P) |
-
-**Port Conflicts:** IPFS gateway (8080) conflicts with CockroachDB admin UI. IPFS swarm (4001) conflicts with libp2p. Remap IPFS ports in production.
-
----
-
-## Backend Deployment
-
-### 1. Key Generation
-
-```bash
-python3 scripts/setup/generate_keys.py
-```
-
-This creates `secure_key.env` containing:
-- Dilithium2 private key
-- Dilithium2 public key
-- QBC address (SHA-256 derived)
-
-**IMPORTANT:** Never share or commit `secure_key.env`. Each node needs its own keys.
-
-### 2. Environment Configuration
-
-Copy and edit the config template:
-
-```bash
-cp .env.example .env
-```
-
-Key settings:
-
-```bash
-# Network
-RPC_PORT=5000
-P2P_PORT=4001
-ENABLE_RUST_P2P=false          # Rust P2P not production-ready; Python P2P fallback is active
-PEER_SEEDS=peer1.qbc.network:4001,peer2.qbc.network:4001
-
-# Database
-DATABASE_URL=postgresql://root@localhost:26257/qbc?sslmode=disable
-
-# Mining
-AUTO_MINE=true          # Set false for non-mining nodes
-
-# Chain
-CHAIN_ID=3301           # Mainnet (3302 for testnet)
-
-# Quantum
-USE_LOCAL_ESTIMATOR=true  # Local Qiskit simulator
-```
-
-### 3. Database Setup
-
-```bash
-# Start CockroachDB
-cockroach start-single-node --insecure --store=cockroach-data
-
-# Verify health
-curl --fail http://localhost:8080/health?ready=1
-
-# Initialize schema (run SQL files in order)
-cockroach sql --insecure < sql/00_init_database.sql
-cockroach sql --insecure < sql/01_core_blockchain.sql
-# ... through 09_genesis_block.sql
-```
-
-### 4. Run the Node
-
-```bash
-cd src
-python3 run_node.py
-```
-
-Verify:
-```bash
-curl http://localhost:5000/health
-curl http://localhost:5000/chain/info
-```
-
----
-
-## Frontend Deployment
-
-### Vercel (Recommended)
-
-The frontend deploys to Vercel automatically:
-
-1. Connect the repository to Vercel
-2. Set the root directory to `frontend/`
-3. Set environment variables:
-
-```bash
-NEXT_PUBLIC_RPC_URL=https://api.qbc.network
-NEXT_PUBLIC_WS_URL=wss://api.qbc.network/ws
-NEXT_PUBLIC_CHAIN_ID=3301
-```
-
-4. Push to `main` for production deploy
-5. Push to any branch for preview deploys
-
-### Self-Hosted
-
-```bash
-cd frontend
-pnpm install
-pnpm build
-pnpm start    # Starts on port 3000
-```
-
-Use a reverse proxy (Nginx/Caddy) to serve on port 443 with TLS.
+| Port | Service | Dev Compose | Prod Compose | Protocol |
+|------|---------|-------------|--------------|----------|
+| 80 | Nginx | profile: production | Exposed | HTTP |
+| 443 | Nginx | profile: production | Exposed | HTTPS |
+| 3000 | Frontend | External (pnpm dev) | Vercel | HTTP |
+| 4001 | QBC P2P | Mapped to host 4001 | Exposed | TCP/QUIC |
+| 5000 | QBC RPC | Exposed | Exposed (proxied) | HTTP |
+| 5001 | IPFS API | Mapped to host 5002 | Internal only | HTTP |
+| 6379 | Redis | Exposed | Internal only | TCP |
+| 8080 | CRDB Admin | Exposed | Internal only | HTTP |
+| 9090 | Prometheus | profile: monitoring | Internal only | HTTP |
+| 3001 | Grafana | profile: monitoring | 127.0.0.1 only | HTTP |
+| 3100 | Loki | profile: monitoring | Internal only | HTTP |
+| 26257 | CRDB SQL | Exposed | Internal only | PostgreSQL |
+| 50051 | gRPC P2P | Exposed | Exposed | gRPC |
 
 ---
 
 ## Docker Deployment
 
-### Development
+### Development (all ports exposed, monitoring optional)
 
 ```bash
-docker-compose up -d
+# Core services only (CockroachDB, IPFS, Redis, QBC Node)
+docker compose up -d
+
+# With monitoring (adds Prometheus, Grafana, Loki, Promtail)
+docker compose --profile monitoring up -d
+
+# With SSL proxy (adds Nginx, Certbot)
+docker compose --profile production up -d
+
+# Everything
+docker compose --profile monitoring --profile production up -d
 ```
 
-Services started:
-- CockroachDB cluster (3 nodes)
-- Qubitcoin node
-- IPFS daemon
-
-### Production
+### Production (internal-only services, monitoring inline)
 
 ```bash
-# Fresh start (initializes database)
-bash fresh_start.sh
-
-# Start production stack
-docker-compose -f docker-compose.production.yml up -d
+# All services inline — no profiles needed
+docker compose -f docker-compose.production.yml up -d --build
 ```
 
-### Docker Build
+Production compose differences from dev:
+- CockroachDB, Redis, IPFS: **no exposed ports** (internal network only)
+- Grafana: bound to `127.0.0.1:3001` (SSH tunnel access only)
+- Prometheus retention: 90 days (vs 30 in dev)
+- Redis: 256MB memory limit with LRU eviction
+- Nginx + Certbot: inline (not behind profile)
+- `DEBUG=false` hardcoded in environment
+- No Portainer (security risk in production)
+
+### Build the Node Image Separately
 
 ```bash
 docker build -t qubitcoin-node .
-docker run -p 5000:5000 -p 4001:4001 \
-  --env-file .env \
-  --env-file secure_key.env \
+docker run -p 5000:5000 -p 4001:4001 -p 50051:50051 \
+  --env-file .env --env-file secure_key.env \
   qubitcoin-node
 ```
 
 ---
 
-## Production Deployment
+## Production Deployment (Digital Ocean)
 
-### Node Types
+### Recommended Droplet
 
-| Type | Description | Hardware |
-|------|-------------|----------|
-| **Full Node** | Validates all blocks, serves RPC | 16GB RAM, 500GB SSD, 100Mbps |
-| **Mining Node** | Full node + VQE mining | 16GB+ RAM, quantum access optional |
-| **Light Node** | SPV verification only | 2GB RAM, 1GB storage |
+| Setting | Value |
+|---------|-------|
+| **Plan** | General Purpose |
+| **Size** | g-4vcpu-16gb ($96/mo) or g-8vcpu-32gb ($192/mo) |
+| **Region** | NYC1, SFO3, or closest to your users |
+| **OS** | Ubuntu 24.04 LTS |
+| **Features** | Monitoring enabled, SSH key auth |
 
-### Security Checklist
+### Step-by-Step
 
-- [ ] TLS/SSL on all external-facing ports
-- [ ] Firewall: only expose ports 5000 (RPC) and 4001 (P2P)
-- [ ] CockroachDB: NOT exposed to public internet
-- [ ] IPFS: API port (5002) NOT exposed to public internet
-- [ ] `secure_key.env` permissions: `chmod 600 secure_key.env`
-- [ ] Rate limiting enabled (default: 120 req/min per IP)
-- [ ] CORS origins restricted to your domain
-- [ ] No debug mode in production
-- [ ] Automated backups of CockroachDB data
+```bash
+# 1. Create droplet
+doctl compute droplet create qbc-seed-1 \
+  --size g-4vcpu-16gb \
+  --image ubuntu-24-04-x64 \
+  --region nyc1 \
+  --ssh-keys $(doctl compute ssh-key list --format ID --no-header | head -1) \
+  --enable-monitoring
 
-### Reverse Proxy (Nginx)
+# 2. SSH in and set up
+ssh root@<droplet-ip>
+apt update && apt upgrade -y
+curl -fsSL https://get.docker.com | sh
+systemctl enable docker
+apt install -y python3-pip python3-venv git
 
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name api.qbc.network;
+# 3. Add swap
+fallocate -l 4G /swapfile && chmod 600 /swapfile
+mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
-    ssl_certificate     /etc/ssl/certs/qbc.network.pem;
-    ssl_certificate_key /etc/ssl/private/qbc.network.key;
+# 4. Firewall
+ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp
+ufw allow 4001/tcp && ufw allow 50051/tcp
+ufw enable
 
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+# 5. Clone and configure
+git clone https://github.com/BlockArtica/Qubitcoin.git && cd Qubitcoin
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+python3 scripts/setup/generate_keys.py
+deactivate
+cp .env.production.example .env
+# Edit .env: set treasury addresses, Grafana password
 
-    location /ws {
-        proxy_pass http://127.0.0.1:5000/ws;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
+# 6. Launch
+docker compose -f docker-compose.production.yml up -d --build
+
+# 7. Verify
+curl http://localhost:5000/health
+docker compose -f docker-compose.production.yml logs -f qbc-node
 ```
 
-### Systemd Service
+### DNS Setup
+
+| Record | Type | Value | Purpose |
+|--------|------|-------|---------|
+| `api.qbc.network` | A | `<droplet-ip>` | Backend RPC API |
+| `seed1.qbc.network` | A | `<droplet-ip>` | P2P seed address |
+| `qbc.network` | CNAME | `cname.vercel-dns.com` | Frontend |
+| `www.qbc.network` | CNAME | `cname.vercel-dns.com` | WWW redirect |
+
+### SSL Certificate
+
+After DNS propagates (check with `dig api.qbc.network`):
+
+```bash
+# Option A: Via Docker certbot
+docker compose -f docker-compose.production.yml exec certbot \
+  certbot certonly --webroot -w /var/www/certbot \
+  -d api.qbc.network --email info@qbc.network \
+  --agree-tos --no-eff-email
+
+docker compose -f docker-compose.production.yml restart nginx
+
+# Option B: Host-level certbot (simpler for initial setup)
+apt install -y certbot
+certbot certonly --standalone -d api.qbc.network --email info@qbc.network --agree-tos
+# Then mount cert paths into the nginx container
+```
+
+---
+
+## 2-Node Peer Setup
+
+### Configure the Mining Node to Connect to Seed
+
+On the second node (e.g., your local machine), set `PEER_SEEDS` in `.env`:
+
+```bash
+# .env on the mining node
+PEER_SEEDS=<seed-node-ip>:4001
+# Or use DNS:
+PEER_SEEDS=seed1.qbc.network:4001
+```
+
+### Verify Peer Connection
+
+```bash
+# On the connecting node
+curl http://localhost:5000/p2p/peers
+# Expected: [{"peer_id": "...", "address": "<seed-ip>:4001", ...}]
+
+curl http://localhost:5000/p2p/stats
+# Expected: {"connected_peers": 1, ...}
+```
+
+### Firewall Requirements
+
+The **seed node** must allow inbound connections:
+
+```bash
+# On the seed node (DO droplet)
+ufw allow 4001/tcp     # P2P
+ufw allow 50051/tcp    # gRPC bridge
+```
+
+The **mining node** (local) needs no special firewall rules — it initiates the outbound connection.
+
+### Multiple Peers
+
+For 3+ node networks, each node should know about multiple seeds:
+
+```bash
+PEER_SEEDS=seed1.qbc.network:4001,seed2.qbc.network:4001
+```
+
+Nodes discover additional peers via gossip after connecting to any seed.
+
+---
+
+## Frontend Deployment (Vercel)
+
+### Environment Variables (Vercel Dashboard)
+
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_RPC_URL` | `https://api.qbc.network` |
+| `NEXT_PUBLIC_WS_URL` | `wss://api.qbc.network/ws` |
+| `NEXT_PUBLIC_CHAIN_ID` | `3301` |
+| `NEXT_PUBLIC_CHAIN_NAME` | `Quantum Blockchain` |
+| `NEXT_PUBLIC_CHAIN_SYMBOL` | `QBC` |
+
+### Deploy
+
+1. Connect the GitHub repo to Vercel
+2. Set root directory to `frontend`
+3. Add environment variables above
+4. Push to `main` → auto-deploy
+
+Or via CLI:
+```bash
+cd frontend && pnpm install && npx vercel --prod
+```
+
+---
+
+## Bare-Metal Deployment
+
+For deployments without Docker.
+
+### systemd Service File
 
 ```ini
+# /etc/systemd/system/qubitcoin.service
 [Unit]
 Description=Qubitcoin Node
 After=network.target cockroachdb.service
+Wants=cockroachdb.service
 
 [Service]
 Type=simple
 User=qbc
+Group=qbc
 WorkingDirectory=/opt/qubitcoin/src
 ExecStart=/opt/qubitcoin/venv/bin/python3 run_node.py
 Restart=always
@@ -303,17 +340,51 @@ RestartSec=5
 EnvironmentFile=/opt/qubitcoin/.env
 EnvironmentFile=/opt/qubitcoin/secure_key.env
 
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/qubitcoin/data /opt/qubitcoin/logs
+PrivateTmp=true
+
 [Install]
 WantedBy=multi-user.target
 ```
 
-### Peer Discovery
+```bash
+# Install
+sudo cp qubitcoin.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable qubitcoin
+sudo systemctl start qubitcoin
 
-For mainnet, configure seed peers:
+# Check status
+sudo systemctl status qubitcoin
+sudo journalctl -u qubitcoin -f
+```
+
+### Bare-Metal Prerequisites
 
 ```bash
-# .env
-PEER_SEEDS=seed1.qbc.network:4001,seed2.qbc.network:4001,seed3.qbc.network:4001
+# CockroachDB
+curl https://binaries.cockroachdb.com/cockroach-v25.2.12.linux-amd64.tgz | tar xz
+sudo mv cockroach-v25.2.12.linux-amd64/cockroach /usr/local/bin/
+cockroach start-single-node --insecure --store=/var/lib/cockroach --background
+
+# IPFS
+wget https://dist.ipfs.tech/kubo/v0.30.0/kubo_v0.30.0_linux-amd64.tar.gz
+tar xzf kubo_v0.30.0_linux-amd64.tar.gz
+sudo mv kubo/ipfs /usr/local/bin/
+ipfs init && ipfs daemon &
+
+# Redis
+sudo apt install redis-server
+sudo systemctl enable redis-server
+
+# Python app
+cd /opt/qubitcoin
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
 ```
 
 ---
@@ -322,98 +393,168 @@ PEER_SEEDS=seed1.qbc.network:4001,seed2.qbc.network:4001,seed3.qbc.network:4001
 
 ### Prometheus Metrics
 
-The node exposes Prometheus metrics at `/metrics`:
+The node exposes 70 Prometheus metrics at `/metrics`:
 
 ```bash
 curl http://localhost:5000/metrics
 ```
 
 Key metrics:
-- `qbc_blocks_mined_total` -- blocks mined by this node
-- `qbc_current_height` -- current chain height
-- `qbc_active_peers` -- connected peer count
-- `qbc_mempool_size` -- pending transaction count
-- `qbc_phi_current` -- current Aether Tree Phi value
-- `qbc_total_contracts` -- deployed QVM contracts
+- `qbc_blocks_mined_total` — blocks mined by this node
+- `qbc_current_height` — current chain height
+- `qbc_active_peers` — connected peer count
+- `qbc_phi_current` — Aether Tree Phi value
+- `qbc_total_contracts` — deployed QVM contracts
+- `qbc_total_supply` — total QBC in circulation
 
-### Grafana Dashboard
+### Grafana Access
 
-Import the Prometheus config from `config/prometheus/prometheus.yml`.
+**Development:** http://localhost:3001 (admin / qbc_grafana_change_me)
+
+**Production:** SSH tunnel required (Grafana only listens on 127.0.0.1):
+```bash
+ssh -L 3001:localhost:3001 root@<droplet-ip>
+# Then open http://localhost:3001 in your browser
+```
 
 ### Health Checks
 
 ```bash
-# Node health
-curl http://localhost:5000/health
-
-# CockroachDB health
-curl --fail http://localhost:8080/health?ready=1
-
-# Chain status
-curl http://localhost:5000/chain/info
-
-# Mining status
-curl http://localhost:5000/mining/stats
-
-# P2P status
-curl http://localhost:5000/p2p/stats
+curl http://localhost:5000/health         # Node health
+curl http://localhost:5000/chain/info     # Chain status
+curl http://localhost:5000/mining/stats   # Mining status
+curl http://localhost:5000/p2p/stats      # P2P status
+curl http://localhost:5000/aether/phi     # AGI consciousness
 ```
+
+---
+
+## Backup & Restore
+
+### CockroachDB Backup
+
+```bash
+# Create backup (development — port exposed)
+docker exec qbc-cockroachdb ./cockroach dump qbc --insecure \
+  --host=localhost:26257 > backup_$(date +%Y%m%d).sql
+
+# Create backup (production — port not exposed)
+docker exec qbc-cockroachdb ./cockroach dump qbc --insecure > backup_$(date +%Y%m%d).sql
+
+# Automated daily backup via cron
+echo '0 3 * * * docker exec qbc-cockroachdb ./cockroach dump qbc --insecure > /backups/qbc_$(date +\%Y\%m\%d).sql' | crontab -
+```
+
+### Volume Backup
+
+```bash
+# Stop services
+docker compose -f docker-compose.production.yml stop
+
+# Backup all volumes
+for vol in cockroach-data ipfs-data redis-data node-data node-logs; do
+  docker run --rm -v qubitcoin_${vol}:/data -v /backups:/backup alpine \
+    tar czf /backup/${vol}_$(date +%Y%m%d).tar.gz -C /data .
+done
+
+# Restart services
+docker compose -f docker-compose.production.yml start
+```
+
+### Restore from Backup
+
+```bash
+# Stop and remove volumes
+docker compose -f docker-compose.production.yml down -v
+
+# Restore volumes
+for vol in cockroach-data ipfs-data redis-data node-data node-logs; do
+  docker volume create qubitcoin_${vol}
+  docker run --rm -v qubitcoin_${vol}:/data -v /backups:/backup alpine \
+    tar xzf /backup/${vol}_YYYYMMDD.tar.gz -C /data
+done
+
+# Restart
+docker compose -f docker-compose.production.yml up -d
+```
+
+---
+
+## Security Checklist
+
+### Production Hardening
+
+- [ ] `secure_key.env` permissions: `chmod 600 secure_key.env`
+- [ ] `.env` has `DEBUG=false`
+- [ ] Firewall allows ONLY: 22 (SSH), 80 (HTTP), 443 (HTTPS), 4001 (P2P), 50051 (gRPC)
+- [ ] CockroachDB NOT exposed to public internet
+- [ ] Redis NOT exposed to public internet
+- [ ] IPFS API NOT exposed to public internet
+- [ ] Grafana password changed from default
+- [ ] Grafana bound to 127.0.0.1 only (SSH tunnel access)
+- [ ] SSL certificate installed and auto-renewing
+- [ ] CORS restricted to `qbc.network` domain
+- [ ] Rate limiting active in Nginx (60 req/s API, 30 req/s RPC)
+- [ ] `/metrics` and `/admin/` restricted to internal IPs
+- [ ] SSH key-only auth (password auth disabled)
+- [ ] Automatic security updates enabled (`unattended-upgrades`)
+- [ ] Backup strategy configured and tested
+
+### Node Types
+
+| Type | Use Case | Hardware | Config |
+|------|----------|----------|--------|
+| **Seed Node** | Genesis miner, public RPC, peer hub | 16GB RAM, 320GB SSD | `AUTO_MINE=true` |
+| **Mining Node** | Block production, chain validation | 8-16GB RAM, 50GB+ SSD | `AUTO_MINE=true`, `PEER_SEEDS=seed:4001` |
+| **Full Node** | RPC only, no mining | 8GB RAM, 50GB+ SSD | `AUTO_MINE=false`, `PEER_SEEDS=seed:4001` |
+| **Light Node** | SPV verification, mobile/embedded | 2GB RAM, 1GB | SPV mode |
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
-**Node won't start: "Missing required configuration"**
-```
-Run: python3 scripts/setup/generate_keys.py
-Ensure secure_key.env exists in the project root.
-```
-
-**CockroachDB connection refused**
+### Node won't start
 ```bash
-# Check if CockroachDB is running
-curl --fail http://localhost:8080/health?ready=1
-
-# If using Docker
-docker-compose ps
-docker-compose logs cockroachdb
+docker compose logs qbc-node --tail 100
+# "secure_key.env not found" → Run: python3 scripts/setup/generate_keys.py
+# "Connection refused: cockroachdb" → DB not ready, wait 30s
+# "IPFS connection failed" → Check: docker compose logs ipfs
 ```
 
-**Port conflict on 8080**
-```
-CockroachDB admin UI and IPFS gateway both default to 8080.
-Remap IPFS gateway: ipfs config Addresses.Gateway /ip4/127.0.0.1/tcp/9090
-```
-
-**Mining not producing blocks**
+### No blocks being mined
 ```bash
-# Check mining status
 curl http://localhost:5000/mining/stats
-
-# Ensure AUTO_MINE=true in .env
-# Check quantum engine is initialized
-curl http://localhost:5000/info | jq .quantum
+grep AUTO_MINE .env  # Must be AUTO_MINE=true
+curl -X POST http://localhost:5000/mining/start  # Manual start
 ```
 
-**Frontend can't connect to backend**
-```
-Verify NEXT_PUBLIC_RPC_URL matches the node's RPC address.
-Check CORS settings: QBC_CORS_ORIGINS in .env
-```
-
-**Peer connection failures**
+### Peer connection failures
 ```bash
-# Check P2P status
 curl http://localhost:5000/p2p/stats
+nc -zv <seed-ip> 4001  # Test port connectivity
+# Check: ufw status on seed node
+# Check: PEER_SEEDS in .env on connecting node
+```
 
-# Ensure firewall allows port 4001 (TCP)
-# Verify PEER_SEEDS in .env
+### Port conflicts
+```
+CockroachDB admin (8080) and IPFS gateway (8080) — resolved in Docker compose (IPFS mapped to 8081).
+IPFS swarm (4001) and QBC P2P (4001) — in dev compose, QBC P2P mapped to host 4002.
+In production, IPFS ports are internal only, no conflict.
+```
+
+### SSL certificate issues
+```bash
+# Check cert status
+docker exec qbc-certbot certbot certificates
+
+# Force renewal
+docker exec qbc-certbot certbot renew --force-renewal
+docker compose -f docker-compose.production.yml restart nginx
 ```
 
 ---
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)
 
-*For more details, see `CLAUDE.md` (master development guide) and `docs/WHITEPAPER.md`.*
+*For the complete launch checklist, see `LAUNCHTODO.md`. For architecture details, see `CLAUDE.md`.*
