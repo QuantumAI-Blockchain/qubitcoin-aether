@@ -13,6 +13,7 @@ const links = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/explorer", label: "Explorer" },
   { href: "/exchange", label: "Exchange" },
+  { href: "/launchpad", label: "Launchpad" },
   { href: "/wallet", label: "Wallet" },
   { href: "/qvm", label: "QVM" },
   { href: "/bridge", label: "Bridge" },
