@@ -5,11 +5,12 @@
 
 ## PROGRESS TRACKER
 
-- Total items: 198 (188 from Run #24 + 10 new a11y/security items from Run #25)
+- Total items: 203 (198 + 5 new backend security items from Run #25 backend deep-dive)
 - Completed: 126
-- Remaining: 72
-- Completion: 63.6%
-- **Run #25: Deep frontend audit — 127 new findings across 82 files**
+- Remaining: 77
+- Completion: 62.1%
+- **Run #25: 134 total findings (127 frontend + 7 backend) across 82 frontend files + full backend audit**
+- **Backend score: 97 → 96** — 1 HIGH (`/wallet/sign` private key over HTTP), 2 MEDIUM, 3 LOW, 1 INFO
 - **Component scores: Explorer 74, Exchange 62, Bridge 52, Launchpad 38**
 - **3 CRITICAL Bridge findings, 2 HIGH XSS in Exchange, WCAG failures across all pages**
 - **51 hooks rated for wiring difficulty (5 trivial, 15 easy, 17 moderate, 8 hard, 6 rebuild)**
@@ -929,11 +930,16 @@ Focus on: Go QVM completion, formal verification, advanced features
 
 **Items completed this run: 0** (audit-only run, no code changes)
 
-**New items discovered: 10** (4 security + 6 accessibility)
+**New items discovered: 15** (9 security + 6 accessibility)
 - **SEC01** — Fix innerHTML XSS in Exchange DepthChart tooltip (DX-NEW-1)
 - **SEC02** — Fix innerHTML XSS in Exchange LiquidationHeatmap tooltip (DX-NEW-2)
 - **SEC03** — Fix Bridge sign flow generating non-existent txId (BR-NEW-3)
 - **SEC04** — Propagate Bridge wallet state to all consumers (BR-NEW-2)
+- **SEC05** — Remove/gate `/wallet/sign` endpoint (BE-NEW-4) — private key over HTTP
+- **SEC06** — Add auth to mining control endpoints (BE-NEW-3) — `/mining/start`, `/mining/stop`
+- **SEC07** — Use `hmac.compare_digest` for admin API key (BE-NEW-1) — timing attack
+- **SEC08** — Fix fork resolution supply revert query (BE-NEW-5)
+- **SEC09** — Fix admin rate limiter IP eviction (BE-NEW-2)
 - **A11Y01** — Add keyboard nav + ARIA to Explorer DataTable rows (EX-NEW-5)
 - **A11Y02** — Add aria-labels to all icon-only buttons in Explorer (EX-NEW-6)
 - **A11Y03** — Add ARIA dialog semantics + focus trap to Exchange modals (DX-NEW-6/7)
@@ -941,20 +947,21 @@ Focus on: Go QVM completion, formal verification, advanced features
 - **A11Y05** — Add htmlFor/id form associations in Launchpad DeployWizard (LP-NEW-11)
 - **A11Y06** — Add text alternatives to Explorer canvas/SVG visualizations (EX-NEW-9/10)
 
-**Key findings (127 total across 4 pages):**
+**Key findings (134 total — 127 frontend + 7 backend):**
 - **3 CRITICAL in Bridge**: fake pre-flight checks (Math.random), decorative wallet, broken sign flow
+- **1 HIGH in Backend**: `/wallet/sign` accepts private key over HTTP (BE-NEW-4)
 - **2 HIGH XSS in Exchange**: innerHTML in DepthChart + LiquidationHeatmap tooltips
+- **2 MEDIUM in Backend**: unauthenticated mining endpoints, timing attack on admin key comparison
 - **WCAG failures**: No ARIA dialogs, no focus trapping, no keyboard navigation across all 4 pages
-- **Performance**: 60fps ticker re-renders (LP), triple OHLC sort (DX), full SVG rebuild every 500ms (DX)
-- **Code quality**: frozen countdown hook (DX), mutated cache objects (EX), Math.random in render (LP)
+- **Backend verified correct**: consensus, crypto, UTXO, Phi calculator, knowledge graph Merkle root
 - **Component scores**: Explorer 74, Exchange 62, Bridge 52, Launchpad 38
 - **51 hooks rated 1-5 for wiring difficulty**: 5 trivial, 15 easy, 17 moderate, 8 hard, 6 rebuild
 
 **Files changed: 2** (REVIEW.md, MASTERUPDATETODO.md)
 
-**Score change:** 97 → 97 (backend unchanged; frontend scores now quantified)
+**Score change:** 97 → 96 (backend -1: `/wallet/sign` private key + unauthenticated mining endpoints)
 
-**Cumulative progress:** 126/198 completed (63.6%) — 188→198 items (+10 new security/a11y items), 126→126 completed (+0).
+**Cumulative progress:** 126/203 completed (62.1%) — 198→203 items (+5 new backend security items), 126→126 completed (+0).
 
 ---
 
@@ -1024,7 +1031,7 @@ Focus on: Go QVM completion, formal verification, advanced features
 
 ## 9. SECURITY & ACCESSIBILITY ITEMS (Run #25 — NEW)
 
-### 9.1 Security Fixes (4 items)
+### 9.1 Security Fixes (9 items)
 
 | # | Priority | Task | Component | Details |
 |---|----------|------|-----------|---------|
@@ -1032,6 +1039,11 @@ Focus on: Go QVM completion, formal verification, advanced features
 | **SEC02** | HIGH | Fix innerHTML XSS in LiquidationHeatmap tooltip | Exchange | DX-NEW-2: Same pattern as SEC01 |
 | **SEC03** | MEDIUM | Fix Bridge sign flow generating non-existent txId | Bridge | BR-NEW-3: Generated txId must exist in data source or redirect to pending view |
 | **SEC04** | MEDIUM | Propagate Bridge wallet state to all consumers | Bridge | BR-NEW-2: Move `ConnectionState` to Zustand store, read from BridgePanel/GlobalHeader |
+| **SEC05** | **HIGH** | Remove or gate `/wallet/sign` endpoint | Backend | BE-NEW-4: Accepts private key over HTTP — appears in logs, memory, never zeroized. Should be client-side only or gated to localhost. |
+| **SEC06** | MEDIUM | Add authentication to mining control endpoints | Backend | BE-NEW-3: `/mining/start`, `/mining/stop`, `/aether/knowledge/prune` lack auth — any client can start/stop mining |
+| **SEC07** | MEDIUM | Use `hmac.compare_digest` for admin API key comparison | Backend | BE-NEW-1: `admin_api.py:70,77` uses `==` operator — timing attack leaks key length and prefix |
+| **SEC08** | LOW | Fix fork resolution supply revert query | Backend | BE-NEW-5: `consensus/engine.py:720-727` uses `NOT spent` filter — undercounts `total_minted` after reorg |
+| **SEC09** | LOW | Fix admin rate limiter IP eviction | Backend | BE-NEW-2: `admin_api.py:46-48` — defaultdict never evicts empty IP keys (unbounded memory growth) |
 
 ### 9.2 Accessibility Fixes (6 items)
 

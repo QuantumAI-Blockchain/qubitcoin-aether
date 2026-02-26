@@ -6,7 +6,7 @@
 
 ## EXECUTIVE SUMMARY
 
-- **Overall Readiness Score: 97/100** *(backend stable at 97 since Run #8; frontend pages are high-quality UI prototypes backed by mock data)*
+- **Overall Readiness Score: 96/100** *(backend 97→96: `/wallet/sign` private key exposure + unauthenticated mining endpoints; frontend pages are high-quality UI prototypes backed by mock data)*
 - **Total Codebase: ~99,400+ LOC across 370+ files (Python, Go, Rust, TypeScript, Solidity)**
 - **Backend Test Suite: 3,391 tests passing (134 test files, +915 since Run #11)**
 - **Frontend Test Suite: 5 tests (2 test files — insufficient for production)**
@@ -32,11 +32,13 @@ Second 8-component audit. Deep dive into security, accessibility, performance, a
 
 | # | Finding | Component | Impact | Status |
 |---|---------|-----------|--------|--------|
-| FC1 | Exchange: 2 innerHTML XSS vectors in DepthChart + LiquidationHeatmap tooltips | Exchange | HIGH | **OPEN** — DX-NEW-1/2: `tooltip.innerHTML` with interpolated data |
-| FC2 | Bridge: Sign flow generates random txId that never matches mock data → broken view | Bridge | CRITICAL | **OPEN** — BR-NEW-3: user completes sign, sees "TX NOT FOUND" |
-| FC3 | Bridge: Pre-flight checks are `Math.random()` coin flips, no real validation | Bridge | CRITICAL | **OPEN** — BR-NEW-1: all 12 checks use 92% random pass |
-| FC4 | Bridge: Wallet connection is decorative — local useState never propagated | Bridge | CRITICAL | **OPEN** — BR-NEW-2: connecting wallet has zero effect |
-| FC5 | All 4 pages: WCAG accessibility failures — no ARIA dialogs, no focus trap, no keyboard nav | All Frontend | HIGH | **OPEN** — EX-NEW-5/6, DX-NEW-6/7, BR-NEW-17/18, LP-NEW-11 |
+| FC1 | Backend: `/wallet/sign` accepts private key over HTTP — appears in logs, never zeroized | Backend L1 | **HIGH** | **OPEN** — BE-NEW-4: `rpc.py:2174` |
+| FC2 | Exchange: 2 innerHTML XSS vectors in DepthChart + LiquidationHeatmap tooltips | Exchange | HIGH | **OPEN** — DX-NEW-1/2: `tooltip.innerHTML` with interpolated data |
+| FC3 | Bridge: Sign flow generates random txId that never matches mock data → broken view | Bridge | CRITICAL | **OPEN** — BR-NEW-3: user completes sign, sees "TX NOT FOUND" |
+| FC4 | Bridge: Pre-flight checks are `Math.random()` coin flips, no real validation | Bridge | CRITICAL | **OPEN** — BR-NEW-1: all 12 checks use 92% random pass |
+| FC5 | Bridge: Wallet connection is decorative — local useState never propagated | Bridge | CRITICAL | **OPEN** — BR-NEW-2: connecting wallet has zero effect |
+| FC6 | Backend: `/mining/start`, `/mining/stop`, `/aether/knowledge/prune` lack authentication | Backend L1 | MEDIUM | **OPEN** — BE-NEW-3 |
+| FC7 | All 4 pages: WCAG accessibility failures — no ARIA dialogs, no focus trap, no keyboard nav | All Frontend | HIGH | **OPEN** — EX-NEW-5/6, DX-NEW-6/7, BR-NEW-17/18, LP-NEW-11 |
 
 ### Top 5 Strengths (Competitive Advantages)
 
@@ -57,8 +59,9 @@ Second 8-component audit. Deep dive into security, accessibility, performance, a
 - **Component scores assigned**: Explorer 74, Exchange 62, Bridge 52, Launchpad 38
 - **Hook wiring difficulty rated**: 65 hooks across 4 pages, rated 1-5 for backend wiring effort
 - **Architecture recommendation**: Keep CLOB for Exchange (not AMM) — 10K LOC invested in order book UI
-- **Readiness score: 97 → 97** (backend unchanged; frontend scores now quantified per-page)
-- **Test suite: 3,391 backend + 5 frontend** — zero regressions
+- **Backend deep-dive completed**: 7 new findings (1 HIGH, 2 MEDIUM, 3 LOW, 1 INFO) — consensus/crypto/UTXO all verified correct
+- **Readiness score: 97 → 96** (backend -1: `/wallet/sign` private key exposure, unauthenticated mining endpoints)
+- **Test suite: 3,387 passed, 4 failed (integration), 4 skipped** — zero regressions
 
 ---
 
@@ -887,6 +890,27 @@ Second 8-component audit. Deep dive into security, accessibility, performance, a
 - **Launchpad**: Wire deploy wizard to `POST /contracts/deploy` as priority — highest user-facing impact.
 - **Explorer**: Most hooks are difficulty 1-2 — wiring is straightforward, backend endpoints already exist.
 
-**Readiness score: 97 → 97** (backend unchanged; frontend scores now quantified)
+**Backend deep-dive findings (7 new — agent completed post-session):**
 
-**Test suite: 3,391 backend + 5 frontend** — zero regressions
+| ID | Severity | File | Description |
+|----|----------|------|-------------|
+| BE-NEW-4 | **HIGH** | `network/rpc.py:2174` | `/wallet/sign` accepts private key over HTTP — key in logs, memory, never zeroized |
+| BE-NEW-3 | MEDIUM | `network/rpc.py:649-659,1507` | `/mining/start`, `/mining/stop`, `/aether/knowledge/prune` lack authentication |
+| BE-NEW-1 | MEDIUM | `network/admin_api.py:70,77` | Admin API key comparison uses `==` (timing attack) — should use `hmac.compare_digest` |
+| BE-NEW-5 | LOW | `consensus/engine.py:720-727` | Fork resolution supply revert uses `NOT spent` filter — undercounts total_minted |
+| BE-NEW-2 | LOW | `network/admin_api.py:46-48` | Admin rate limiter never evicts empty IP keys from defaultdict |
+| BE-NEW-7 | LOW | `quantum/crypto.py:47-49` | Signature verification cache has redundant hash computation (perf, not security) |
+| BE-NEW-6 | INFO | `sql_new/ vs database/manager.py` | SQL schemas vs ORM structural divergence (documented, non-blocking) |
+
+**Backend verification results:**
+- Consensus formulas: CORRECT (difficulty adjustment, phi-halving, VQE threshold all match spec)
+- Dilithium2 crypto: CORRECT (production gate enforced, constant-time Pedersen commitments)
+- UTXO double-spend prevention: CORRECT (3-layer protection, coinbase maturity 100 blocks)
+- SQL injection: ZERO vectors (all queries parameterized)
+- Dangerous patterns: ZERO (no eval/exec/pickle/shell)
+- CORS: Correctly restricted to specific origins (no wildcard)
+- Phi calculator: v3 formula (log2 maturity, 10 milestone gates) — differs from CLAUDE.md v2 description but internally consistent
+
+**Readiness score: 97 → 96** (backend -1 from `/wallet/sign` private key exposure + unauthenticated mining endpoints)
+
+**Test suite: 3,387 passed, 4 failed (integration tests needing running node), 4 skipped** — zero regressions
