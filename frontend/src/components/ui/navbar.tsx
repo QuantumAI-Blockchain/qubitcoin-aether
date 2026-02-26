@@ -12,6 +12,7 @@ const links = [
   { href: "/aether", label: "Aether" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/explorer", label: "Explorer" },
+  { href: "/exchange", label: "Exchange" },
   { href: "/wallet", label: "Wallet" },
   { href: "/qvm", label: "QVM" },
   { href: "/bridge", label: "Bridge" },
