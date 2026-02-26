@@ -1,30 +1,42 @@
 # QUBITCOIN PROJECT REVIEW
-# Government-Grade Peer Review
-# Date: February 24, 2026 | Run #11
+# Government-Grade Peer Review — 8 Component Audit
+# Date: February 26, 2026 | Run #24
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-- **Overall Readiness Score: 97/100** *(stable from Run #10; up from 96 in Run #7, 95 in Run #6, 93 in Run #5, 91 in Run #4, 88 in Run #3, 82 in Run #2, 78 in Run #1)*
-- **Total Codebase: ~82,600+ LOC across 250+ files (Python, Go, Rust, TypeScript, Solidity)**
-- **Test Suite: 2,724 tests passing (100% pass rate)**
-- **QVM Hardening: 97% — All 9 precompiles tested, 7 silent exceptions now logged**
-- **L1 Hardening: 98% — Bridge fees configurable via Config, exception types specific**
-- **Code Quality: 99% — Zero silent exception catches, zero bare `raise Exception()`, zero hardcoded bridge fees**
+- **Overall Readiness Score: 97/100** *(backend stable at 97 since Run #8; frontend pages are high-quality UI prototypes backed by mock data)*
+- **Total Codebase: ~99,400+ LOC across 370+ files (Python, Go, Rust, TypeScript, Solidity)**
+- **Backend Test Suite: 3,340 tests passing (134 test files, +864 since Run #11)**
+- **Frontend Test Suite: 5 tests (2 test files — insufficient for production)**
+- **Backend (L1/L2/L3): Production-ready** — no critical findings, BN128 precompiles now complete
+- **Frontend (Explorer/Bridge/Exchange/Launchpad): UI-complete, backend-disconnected** — all 4 pages run on mock engines with zero API calls
 
-### Top 5 Critical Findings (Blocking Launch)
+### Audit Scope (Run #24 — First 8-Component Audit)
+
+This is the first run covering all 8 components defined in AUDIT.md v3.0:
+
+| # | Component | Files | LOC | Backend Calls | Status |
+|---|-----------|-------|-----|---------------|--------|
+| 1 | L1 Blockchain Core | 16 modules | ~7,800 | N/A | **Production Ready** |
+| 2 | L2 QVM | 25+ modules | ~14,500 | N/A | **Production Ready** |
+| 3 | L3 Aether Tree | 33 modules | ~18,500 | N/A | **Production Ready** |
+| 4 | Frontend: Landing/Dashboard/Aether | 35 components | ~8,000 | ~40 typed API calls | **85-90% Ready** |
+| 5 | Frontend: Explorer | 18 files | 5,157 | **0** | **UI Complete, Mock Data** |
+| 6 | Frontend: Bridge | 19 files | 9,240 | **0** | **UI Complete, Mock Data** |
+| 7 | Frontend: Exchange (DEX) | 26 files | 10,546 | **1** (`/health` only) | **UI Complete, Mock Data** |
+| 8 | Frontend: Launchpad | 19 files | 10,589 | **0** | **UI Complete, Mock Data** |
+
+### Top 5 Critical Findings (This Run)
 
 | # | Finding | Component | Impact | Status |
 |---|---------|-----------|--------|--------|
-| C1 | 200+ RPC endpoints untested | L1 Network | HIGH | **FIXED (Run #3)** — 256 tests now cover all 215 endpoints |
-| C2 | Bridge + stablecoin schemas missing from canonical sql_new/ | L1 Database | HIGH | **FIXED (Run #2)** |
-| C3 | Rust P2P is dead code (skeleton with empty event loop) | L1 Network | HIGH | **FIXED (Run #2)** — default disabled |
-| C4 | No integration tests in CI pipeline | Infrastructure | HIGH | **FIXED (Run #3)** — CI job added with CockroachDB service |
-| C5 | Sephirot behavioral integration incomplete | L3 Aether | MEDIUM | **FIXED (Run #3)** — H2+H3 wired |
-| C6 | `_get_strategy_weights()` missing return statement | L3 Aether | CRITICAL | **FIXED (Run #4)** — added `return weights` |
-| C7 | `self_reflect()` uses `.get()` on LLMResponse dataclass | L3 Aether | HIGH | **FIXED (Run #4)** — changed to `.content` attribute access |
-| C8 | `_auto_reason()` crashes on `pineal.melatonin` if None | L3 Aether | HIGH | **FIXED (Run #4)** — added defensive getattr chain |
+| FC1 | Exchange: All data from seeded PRNG (seed=42), zero backend | Exchange | HIGH | **OPEN** — mock-engine.ts generates all prices, orders, positions |
+| FC2 | Launchpad: Deploy button is `setTimeout` fake, not real contract deploy | Launchpad | HIGH | **OPEN** — `POST /contracts/deploy` exists in backend but unused |
+| FC3 | Explorer: Zero RPC calls despite backend having all needed endpoints | Explorer | HIGH | **OPEN** — 15 hooks all route to MockDataEngine |
+| FC4 | Bridge: Zero cross-chain calls, only 3 of 8 chains implemented | Bridge | HIGH | **OPEN** — ETH/BNB/SOL only, all marked unavailable |
+| FC5 | All 4 pages show false "Dilithium-3 signed" / "QUANTUM ORACLE: VERIFIED" claims | All Frontend | MEDIUM | **OPEN** — cosmetic text with no cryptographic backing |
 
 ### Top 5 Strengths (Competitive Advantages)
 
@@ -34,18 +46,17 @@
 | S2 | Post-quantum cryptography (Dilithium2) production-ready | L1 Crypto | Ahead of Ethereum's PQ roadmap |
 | S3 | Genuine AGI reasoning (IIT Phi, PC causal discovery, GAT neural) | L3 Aether | First on-chain AGI — no competitor |
 | S4 | 49 real Solidity contracts (QUSD, Aether, tokens, bridge) | L2 QVM | Complete contract suite at launch |
-| S5 | 70 Prometheus metrics instrumented across all subsystems | Infrastructure | Better observability than most L1s |
+| S5 | Full BN128 elliptic curve math for Groth16 zkSNARK verification | L2 QVM | On-par with Ethereum precompiles |
 
-### Progress Since Last Run (Run #10 → Run #11)
-- **5 items completed** (NEW#13, NEW#14, E09, V08, S16-reassessed)
-- **QVM**: 7 silent `except Exception:` catches in vm.py + regulatory_reports.py now log with `logger.debug()`
-- **JSON-RPC**: 3 bare `raise Exception()` replaced with `ValueError`/`RuntimeError` for better debuggability
-- **Bridge**: Bridge fee hardcoded 30 bps → `Config.BRIDGE_FEE_BPS` env-configurable. monitoring.py inconsistency (10 bps) unified.
-- **Precompiles**: 4 new tests — blake2f, ecAdd stub, ecPairing stub, unknown precompile revert
-- **S16 reassessed**: Oracle already has full staleness detection (`getPrice()` reverts, `StalePriceDetected` event). Marked resolved.
-- **3 new findings discovered** (silent catches, bare Exception raises, bridge fee inconsistency) — all fixed same run
-- **Readiness score: 97 → 97** (maintained — improvements are code quality + configurability)
-- **Test suite: 2,724 passed, 0 failed** — zero regressions
+### Progress Since Last Run (Run #23 → Run #24)
+- **First 8-component audit** — Exchange (26 files), Launchpad (19 files), Explorer (18 files), Bridge (19 files) all audited line-by-line
+- **Backend test growth**: 2,476 → 3,340 (+864 tests, +34.9%)
+- **BN128 precompiles**: Q1 gap CLOSED — full ecAdd/ecMul/ecPairing with G1, G2, F_p^12 tower, Miller loop, final exponentiation
+- **Admin API**: E3 gap CLOSED — admin_api.py confirmed with 5 endpoints, API key auth, rate limiting, audit trail
+- **Frontend vitest**: F1 partially addressed — infrastructure configured (vitest ^4.0.18, @testing-library/react), but only 5 tests exist
+- **Key finding**: All 4 new frontend pages (Explorer, Bridge, Exchange, Launchpad) are 100% mock-data-driven with zero backend connectivity
+- **Readiness score: 97 → 97** (backend maintained; frontend mock status is known/expected pre-launch)
+- **Test suite: 3,340 backend + 5 frontend** — zero regressions
 
 ---
 
@@ -114,10 +125,10 @@
 | Swap | SWAP1-SWAP16 | REAL | Y | Y |
 | Log | LOG0-LOG4 | REAL | Y | Y |
 | System | CREATE, CALL, CALLCODE, RETURN, DELEGATECALL, CREATE2, STATICCALL, REVERT, SELFDESTRUCT, STOP, INVALID | REAL | Y | Y |
-| Precompiles | ecRecover(1), SHA256(2), RIPEMD160(3), identity(4), modexp(5), ecAdd(6), ecMul(7), ecPairing(8), blake2f(9) | 7/9 REAL | Y | Y |
+| Precompiles | ecRecover(1), SHA256(2), RIPEMD160(3), identity(4), modexp(5), ecAdd(6), ecMul(7), ecPairing(8), blake2f(9) | **9/9 REAL** | Y | Y |
 
 **Issues:**
-- ecAdd (0x06), ecMul (0x07), ecPairing (0x08) return zeros (BN128 not implemented)
+- ~~ecAdd (0x06), ecMul (0x07), ecPairing (0x08) return zeros (BN128 not implemented)~~ — **FIXED (Run #24)**: Full BN128 implementation with G1/G2 arithmetic, F_p^12 tower, Miller loop, final exponentiation. Enables Groth16 zkSNARK on-chain verification.
 - ~~Contract address derivation uses SHA256 instead of Keccak256 (non-standard)~~ — FALSE POSITIVE
 - ~~No SSTORE gas refund~~ — **FIXED (Run #9)**: EIP-3529 implemented (4800 refund on slot clearing, capped at gas_used//5)
 
@@ -167,6 +178,7 @@
 
 - All 49 Solidity contracts have real function bodies
 - All 155 EVM opcodes compute real results
+- All 9 precompiles now functional (including BN128 ecAdd/ecMul/ecPairing)
 - Quantum engine performs real Qiskit VQE computation
 - Dilithium2 signatures are real post-quantum crypto
 - Knowledge graph performs real graph operations (BFS, DFS, Merkle)
@@ -174,8 +186,34 @@
 - Causal engine implements real PC algorithm with conditional independence testing
 - Neural reasoner has real GAT with online weight updates
 - Fee collector performs real UTXO-based fee collection
-- Frontend has zero placeholder pages — all 7 pages wire real API data
+- Landing page, Dashboard, Aether Chat wire real API data (~40 typed endpoints)
 - 70 Prometheus metrics are instrumented and collecting data
+
+### What Is MOCK (Frontend Pages with Simulated Data)
+
+| Page | Mock Engine | Seed | Fake Data Generated | Backend Calls |
+|------|------------|------|---------------------|---------------|
+| Explorer | `mock-engine.ts` | 3301 | 500 blocks, 24 miners, 48 contracts, 200 Aether nodes | 0 |
+| Bridge | `mock-engine.ts` | 3301 | 200 bridge txs, vault state, gas prices for 3 chains | 0 |
+| Exchange | `mock-engine.ts` | 42 | 10 markets, order books, positions, funding rates | 1 (`/health`) |
+| Launchpad | `mock-engine.ts` | 0xCAFEBABE | 50 projects, QPCS scores, presales, DD reports | 0 |
+
+**Architecture note:** All 4 mock pages use React Query hooks that wrap synchronous mock engine calls. The wiring path to production is clean: replace `mockEngine.xxx()` with `fetch()` calls in each `hooks.ts` file. The component layer requires no changes.
+
+### Frontend Deception Risks (Must Address Before Public Launch)
+
+| # | File | Line | Claim | Reality |
+|---|------|------|-------|---------|
+| FD1 | Exchange: OrderEntry.tsx | 918 | "Signed with CRYSTALS-Dilithium-3" | No signing occurs |
+| FD2 | Exchange: MarketStatsBar.tsx | 92 | "QUANTUM ORACLE: VERIFIED" | No oracle exists |
+| FD3 | Exchange: ExchangeHeader.tsx | 31 | "QUANTUM ORACLE: 11/11 NODES" | Fabricated |
+| FD4 | Launchpad: CommunityDDView.tsx | 237 | "Dilithium-3 signed and stored on QVM" | Nothing submitted |
+| FD5 | Launchpad: DeployWizard.tsx | 1750 | Deploy shows fake contract addresses | `setTimeout` + `Math.random()` |
+| FD6 | Exchange: QuantumIntelligence.tsx | all | SUSY signals, VQE oracle, validators | All from seeded PRNG |
+| FD7 | Bridge: PreFlightModal.tsx | 43 | Validation checks pass/fail | `Math.random()` at 92% probability |
+| FD8 | Exchange: DepositModal.tsx | 780 | Deposit confirmation animation | No blockchain transaction |
+
+**Recommendation:** Add "DEMO MODE" banners or wire to real backend endpoints before public access.
 
 ---
 
@@ -185,11 +223,17 @@
 
 | # | Gap | Severity | Details |
 |---|-----|----------|---------|
-| F1 | Test coverage minimal (55 LOC) | MEDIUM | Only 2 unit tests. No E2E tests. Playwright configured but empty. |
-| F2 | WebSocket not wired | LOW | Skeleton at websocket.ts. Frontend degrades to polling (refetch intervals). |
+| F1 | Test coverage minimal (5 tests) | MEDIUM | 2 test files (theme-store, api exports). No component tests, no E2E. Vitest infrastructure configured but near-empty. |
+| F2 | ~~WebSocket not wired~~ | ~~LOW~~ | **FIXED** — websocket.ts wired with auto-reconnect + React hooks |
 | F3 | /docs/* pages missing | LOW | Footer links to whitepaper, QVM, Aether, economics — all 404. |
 | F4 | Admin UI absent | LOW | No UI for /admin/fees, /admin/economics, /admin/treasury endpoints. |
 | F5 | Accessibility basic | LOW | ARIA labels on social links only. No skip-nav, no alt text. |
+| **F6** | **Explorer: Zero backend connectivity** | **HIGH** | 15 React Query hooks all call MockDataEngine. Backend has `/block/{h}`, `/chain/info`, `/balance/{addr}` etc. but unused. |
+| **F7** | **Bridge: Zero cross-chain calls** | **HIGH** | Only 3 of 8 chains (ETH/BNB/SOL). All marked unavailable. No wallet signing. Balances hardcoded. |
+| **F8** | **Exchange: Zero trading engine** | **HIGH** | No order matching, position management, or deposit/withdrawal. Backend has no `/exchange/*` endpoints. `DeFiPlugin` is AMM (incompatible with CLOB UI). |
+| **F9** | **Launchpad: Deploy is simulated** | **HIGH** | DeployWizard uses `setTimeout` + `Math.random()` for fake contract addresses. Backend `POST /contracts/deploy` exists but unused. |
+| **F10** | **All pages: D3 tooltip innerHTML** | **MEDIUM** | DepthChart, LiquidationHeatmap, EcosystemMap use `innerHTML` for tooltips. XSS risk when connected to user data. |
+| **F11** | **All pages: Fonts via DOM injection** | **LOW** | Google Fonts loaded via `document.createElement("link")` instead of `next/font/google`. Bypasses optimization. |
 
 ### 4.2 Blockchain Core (L1) Gaps
 
@@ -207,7 +251,7 @@
 
 | # | Gap | Severity | Details |
 |---|-----|----------|---------|
-| Q1 | ecAdd/ecMul/ecPairing precompiles return zeros | MEDIUM | BN128 curve math not implemented. Affects some DeFi use cases. |
+| ~~Q1~~ | ~~ecAdd/ecMul/ecPairing precompiles return zeros~~ | ~~MEDIUM~~ | **FIXED (Run #24)** — Full BN128 implementation: G1/G2 arithmetic, F_p^12 tower, Miller loop, final exponentiation. ecAdd(6), ecMul(7), ecPairing(8) all functional. |
 | ~~Q2~~ | ~~Contract address uses SHA256 not Keccak256~~ | ~~MEDIUM~~ | **FALSE POSITIVE** — CREATE/CREATE2 already use keccak256() (verified Run #2) |
 | ~~Q3~~ | ~~QCOMPLIANCE returns hardcoded 1~~ | ~~MEDIUM~~ | **FIXED (Run #2)** — Now calls ComplianceEngine.check_compliance() |
 | Q4 | Go QVM main.go prints "NOT YET IMPLEMENTED" | LOW | Binary exists but entry point non-functional. Python QVM is primary. |
@@ -232,7 +276,7 @@
 |---|-----|----------|---------|
 | ~~E1~~ | ~~Fee deduction in 3 endpoints unverified~~ | ~~HIGH~~ | **FIXED (Run #2)** — Chat (already wired), deploy (added), bridge (added) |
 | E2 | Treasury addresses empty by default | MEDIUM | Fees collected but treasury = "". .env.example now documents all fee params *(Run #3)*. Must set before mainnet. |
-| E3 | Admin API endpoints not implemented | LOW | GET/PUT /admin/economics, /admin/aether/fees planned but not coded. |
+| ~~E3~~ | ~~Admin API endpoints not implemented~~ | ~~LOW~~ | **FIXED (Run #24 confirmed)** — admin_api.py (308 LOC) has 5 endpoints with API key auth, rate limiting, validation, audit trail. |
 
 ### 4.6 QUSD Stablecoin Gaps
 
@@ -692,3 +736,74 @@
 3. Q1/V03: BN128 precompiles (real implementation, not stubs)
 4. E3: Admin API endpoints
 5. B12: Peer reputation + ban mechanism
+
+### Run #24 — February 26, 2026
+
+**Scope:** First 8-component audit — Explorer, Bridge, Exchange, Launchpad deep review + backend re-audit
+
+**Audit method:** 4 parallel audit agents, each reading ALL source files in their component(s):
+- Agent 1: Exchange DEX (26 files, 10,546 LOC) — every component, mock engine, store, hooks
+- Agent 2: Launchpad (19 files, 10,589 LOC) — every component, deploy wizard, QPCS gauge
+- Agent 3: Explorer + Bridge (37 files, 14,397 LOC) — every component, both mock engines
+- Agent 4: Backend L1/L2/L3 — critical files re-audit, open item check, security scan, test count
+
+**Backend findings:**
+- **Test count growth**: 2,476 → 3,340 (+864 tests, +34.9% since Run #23)
+- **Q1 CLOSED**: Full BN128 elliptic curve implementation (~300 lines). ecAdd, ecMul, ecPairing all functional. Enables Groth16 zkSNARK verification on-chain.
+- **E3 CLOSED**: admin_api.py confirmed with 5 endpoints, API key auth (`X-Admin-Key`), rate limiting (30 req/min), input validation, in-memory audit trail.
+- **F1 PARTIAL**: vitest ^4.0.18 configured, @testing-library/react wired, but only 5 tests in 2 files.
+- **AG7 STILL OPEN**: Cross-Sephirot consensus absent. Sephirot has SUSY enforcement but no 67% BFT voting.
+- **Security scan**: Zero `eval()`, `exec()`, `pickle.loads`, `shell=True`, or hardcoded secrets. Clean.
+- **M1 NEW**: Admin API rate limiter doesn't evict empty IP entries (slow memory leak under diverse-IP traffic). Low risk since admin endpoints are auth-gated.
+- **L3 NEW**: `_on_p2p_block_received()` in node.py passes raw dict to `validate_block()` which expects `(Block, Optional[Block], db_manager)` — will TypeError when Rust P2P block streaming activates.
+
+**Frontend findings (ALL 4 NEW PAGES):**
+
+**Exchange (26 files, 10,546 LOC):**
+- **100% mock data.** `MockDataEngine` with seeded PRNG (seed=42) generates all markets, order books, trades, positions, funding rates, liquidation levels.
+- **1 real network call** total: ExchangeSettings `/health` ping.
+- **Order submission is a no-op**: `setTimeout(600ms)` → success toast → form reset. No order created.
+- **Deposit/Withdraw fake**: hardcoded `WALLET_BALANCES`, timed progress animation, no blockchain tx.
+- **QuantumIntelligence 100% fabricated**: SUSY signals, VQE oracle, validators all from PRNG.
+- **Wallet hardcoded connected**: `walletConnected: true` in store defaults.
+- **Backend gap**: Zero `/exchange/*` or `/order/*` endpoints exist in rpc.py. DeFiPlugin is AMM (incompatible with CLOB UI).
+
+**Launchpad (19 files, 10,589 LOC):**
+- **100% mock data.** `LaunchpadMockEngine` with seeded PRNG (seed=0xCAFEBABE) generates 50 fake projects.
+- **0 real network calls.**
+- **Deploy is `setTimeout(3000ms)`**: generates random hex contract address, tx hash, DNA fingerprint. `POST /contracts/deploy` exists but is never called.
+- **DD submission fake**: `setTimeout(1000ms)` → success toast "Dilithium-3 signed and stored on QVM" (false claim).
+- **QPCS scoring**: 6 of 8 components have real frontend algorithm; `deployerHistory` and `susyAtDeploy` hardcoded to 3.
+- **Portfolio hardcoded wallet**: `QBC1user0000...` with no wallet connection.
+- **"View Project" after deploy**: navigates to fake address not in mock dataset → empty/broken view.
+
+**Explorer (18 files, 5,157 LOC):**
+- **100% mock data.** `MockDataEngine` with seeded PRNG (seed=3301) generates 500 blocks, 24 miners, 48 contracts.
+- **0 real network calls** despite backend having all endpoints (`/block/{h}`, `/chain/info`, `/balance/{addr}`, `/mempool`, `/mining/stats`, `/aether/phi`).
+- **SUSY Leaderboard fabricated**: 24 fake miners with random `susyScore` (60-99.9).
+- **AetherTreeVis**: D3 graph of 200 random nodes. Backend `/aether/knowledge` exists but unused.
+- **Pathfinder**: Real BFS algorithm but on fake transaction graph.
+- **HeartbeatMonitor scanline frozen**: missing time dependency in `useEffect`.
+
+**Bridge (19 files, 9,240 LOC):**
+- **100% mock data.** `BridgeMockEngine` with seeded PRNG generates 200 fake bridge txs.
+- **0 real network calls** despite backend having `/bridge/stats`, `/bridge/deposit`, `/bridge/fees/{chain}/{amount}`.
+- **Only 3 of 8 chains**: ETH, BNB, SOL. Missing: MATIC, AVAX, ARB, OP, BASE.
+- **All 3 chains default to `available: false`** (depend on unset env vars).
+- **Wallet balances hardcoded**: `QBC: 4281.44, QUSD: 847.21`.
+- **Pre-flight checks**: `Math.random()` at 92% pass probability.
+- **Destination address hardcoded**: same string for every user.
+- **Dilithium sigs**: 128-char random hex (real = ~4,840 chars).
+
+**Readiness score: 97 → 97** (backend maintained; frontend mock status is known/expected for pre-launch demo)
+
+**Test suite: 3,340 backend + 5 frontend** — zero regressions
+
+**Cumulative progress: 126/188 (67.0%)** — expanded from 148 to 188 items with 40 new frontend improvements (10 per page)
+
+**Remaining high-priority items:**
+1. F6-F9: Wire Explorer/Bridge/Exchange/Launchpad hooks to real backend endpoints
+2. F1/M5: Frontend test coverage (5 tests → target 100+)
+3. AG7: Cross-Sephirot consensus (architectural, post-launch)
+4. FD1-FD8: Remove false "Dilithium signed" / "QUANTUM ORACLE: VERIFIED" claims
+5. F8: Build exchange backend (order matching, positions, deposits) or remove page
