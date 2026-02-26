@@ -19,7 +19,7 @@ export function WalletButton() {
     return (
       <button
         onClick={disconnect}
-        className="rounded-lg border border-quantum-green/30 bg-surface px-3 py-1.5 text-xs text-quantum-green transition hover:bg-quantum-green/10"
+        className="rounded-lg border border-glow-cyan/30 bg-bg-panel px-3 py-1.5 text-xs text-glow-cyan transition hover:bg-glow-cyan/10"
       >
         {address.slice(0, 6)}...{address.slice(-4)}
       </button>
@@ -29,7 +29,7 @@ export function WalletButton() {
   return (
     <button
       onClick={handleConnect}
-      className="rounded-lg bg-quantum-green/10 px-3 py-1.5 text-xs font-medium text-quantum-green transition hover:bg-quantum-green/20"
+      className="rounded-lg bg-glow-cyan/10 px-3 py-1.5 text-xs font-medium text-glow-cyan transition hover:bg-glow-cyan/20"
     >
       Connect Wallet
     </button>

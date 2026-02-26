@@ -45,10 +45,10 @@ function NFTCard({
   return (
     <button
       onClick={() => onSelect(nft)}
-      className="group w-full overflow-hidden rounded-xl border border-surface-light bg-surface transition hover:border-quantum-violet/50 hover:shadow-lg hover:shadow-quantum-violet/10 text-left"
+      className="group w-full overflow-hidden rounded-xl border border-border-subtle bg-bg-panel transition hover:border-quantum-violet/50 hover:shadow-lg hover:shadow-quantum-violet/10 text-left"
     >
       {/* Image */}
-      <div className="relative aspect-square w-full overflow-hidden bg-void">
+      <div className="relative aspect-square w-full overflow-hidden bg-bg-deep">
         {nft.image_url && !imgError ? (
           <img
             src={nft.image_url}
@@ -110,11 +110,11 @@ function NFTDetail({
   const [imgError, setImgError] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-surface-light bg-surface p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-deep/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-border-subtle bg-bg-panel p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h3 className="font-[family-name:var(--font-heading)] text-xl font-bold">
+            <h3 className="font-[family-name:var(--font-display)] text-xl font-bold">
               {nft.name || `Token #${nft.token_id}`}
             </h3>
             <p className="text-sm text-text-secondary">
@@ -123,7 +123,7 @@ function NFTDetail({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-text-secondary hover:bg-surface-light hover:text-text-primary"
+            className="rounded-lg p-1.5 text-text-secondary hover:bg-border-subtle hover:text-text-primary"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -132,7 +132,7 @@ function NFTDetail({
         </div>
 
         {/* Image */}
-        <div className="mb-4 aspect-square w-full overflow-hidden rounded-xl bg-void">
+        <div className="mb-4 aspect-square w-full overflow-hidden rounded-xl bg-bg-deep">
           {nft.image_url && !imgError ? (
             <img
               src={nft.image_url}
@@ -160,29 +160,29 @@ function NFTDetail({
           {nft.description && (
             <p className="text-sm text-text-secondary">{nft.description}</p>
           )}
-          <div className="space-y-1 rounded-lg bg-void p-3">
+          <div className="space-y-1 rounded-lg bg-bg-deep p-3">
             <div className="flex justify-between">
               <span className="text-xs text-text-secondary">Token ID</span>
-              <span className="font-[family-name:var(--font-mono)] text-xs text-quantum-green">
+              <span className="font-[family-name:var(--font-code)] text-xs text-quantum-green">
                 #{nft.token_id}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-xs text-text-secondary">Contract</span>
-              <span className="font-[family-name:var(--font-mono)] text-xs text-quantum-violet">
+              <span className="font-[family-name:var(--font-code)] text-xs text-quantum-violet">
                 {truncateAddr(nft.contract_address)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-xs text-text-secondary">Owner</span>
-              <span className="font-[family-name:var(--font-mono)] text-xs">
+              <span className="font-[family-name:var(--font-code)] text-xs">
                 {truncateAddr(nft.owner)}
               </span>
             </div>
             {nft.metadata_uri && (
               <div className="flex justify-between">
                 <span className="text-xs text-text-secondary">Metadata</span>
-                <span className="font-[family-name:var(--font-mono)] text-xs text-text-secondary truncate max-w-[200px]">
+                <span className="font-[family-name:var(--font-code)] text-xs text-text-secondary truncate max-w-[200px]">
                   {nft.metadata_uri}
                 </span>
               </div>
@@ -192,7 +192,7 @@ function NFTDetail({
 
         <button
           onClick={onClose}
-          className="mt-4 w-full rounded-lg bg-surface-light py-2.5 text-sm font-medium text-text-primary transition hover:bg-surface-light/80"
+          className="mt-4 w-full rounded-lg bg-border-subtle py-2.5 text-sm font-medium text-text-primary transition hover:bg-border-subtle/80"
         >
           Close
         </button>
@@ -220,7 +220,7 @@ export function NFTGallery() {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         QBC-721 NFT Gallery
       </h3>
 

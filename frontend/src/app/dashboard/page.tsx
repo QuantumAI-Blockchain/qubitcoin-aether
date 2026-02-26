@@ -72,25 +72,29 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 pt-20 pb-12">
-      <h1 className="font-[family-name:var(--font-heading)] text-3xl font-bold">
+      <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold glow-cyan">
         Dashboard
       </h1>
+      <p className="mt-1 font-[family-name:var(--font-display)] text-[10px] uppercase tracking-[0.3em] text-text-secondary">
+        Command Center
+      </p>
 
       {/* Tabs */}
-      <div className="mt-6 flex gap-1 border-b border-surface-light">
+      <div className="mt-6 flex gap-1 border-b border-border-subtle">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`relative px-4 py-2 text-sm transition-colors ${
-              tab === t ? "text-quantum-green" : "text-text-secondary hover:text-text-primary"
+            className={`relative px-4 py-2 font-[family-name:var(--font-display)] text-[11px] uppercase tracking-widest transition-colors ${
+              tab === t ? "glow-cyan" : "text-text-secondary hover:text-text-primary"
             }`}
           >
             {t}
             {tab === t && (
               <motion.span
                 layoutId="dashboard-tab"
-                className="absolute inset-x-0 -bottom-[1px] h-0.5 bg-quantum-green"
+                className="absolute inset-x-0 -bottom-[1px] h-0.5 bg-glow-cyan"
+                style={{ boxShadow: "0 0 8px rgba(0,212,255,0.5)" }}
               />
             )}
           </button>
@@ -133,12 +137,12 @@ function ExportButton({
     <div className="relative inline-block">
       <button
         onClick={() => setOpen(!open)}
-        className="rounded-lg border border-surface-light px-3 py-1.5 text-xs text-text-secondary transition hover:border-quantum-green hover:text-quantum-green"
+        className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs text-text-secondary transition hover:border-quantum-green hover:text-quantum-green"
       >
         Export
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-1 rounded-lg border border-surface-light bg-surface p-1 shadow-lg">
+        <div className="absolute right-0 z-10 mt-1 rounded-lg border border-border-subtle bg-bg-panel p-1 shadow-lg">
           <button
             onClick={() => handleExport("csv")}
             className="block w-full rounded px-4 py-1.5 text-left text-xs text-text-secondary hover:bg-quantum-green/10 hover:text-quantum-green"
@@ -184,7 +188,7 @@ function OverviewTab({
       {connected && (
         <Card glow="green">
           <p className="text-sm text-text-secondary">Your Balance</p>
-          <p className="mt-1 font-[family-name:var(--font-mono)] text-2xl font-bold text-quantum-green">
+          <p className="mt-1 font-[family-name:var(--font-code)] text-2xl font-bold text-quantum-green">
             {balance != null ? balance.toLocaleString() : "---"} QBC
           </p>
         </Card>
@@ -193,7 +197,7 @@ function OverviewTab({
         {stats.map(({ label, value }) => (
           <Card key={label}>
             <p className="text-xs text-text-secondary">{label}</p>
-            <p className="mt-1 font-[family-name:var(--font-mono)] text-xl font-semibold">
+            <p className="mt-1 font-[family-name:var(--font-code)] text-xl font-semibold">
               {value}
             </p>
           </Card>
@@ -263,7 +267,7 @@ function MiningTab({
         </Card>
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">Blocks Found</h3>
-          <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
+          <p className="font-[family-name:var(--font-code)] text-2xl font-bold">
             {mining?.blocks_found?.toLocaleString() ?? "---"}
           </p>
           <p className="mt-1 text-xs text-text-secondary">
@@ -272,13 +276,13 @@ function MiningTab({
         </Card>
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">Success Rate</h3>
-          <p className="font-[family-name:var(--font-mono)] text-lg">
+          <p className="font-[family-name:var(--font-code)] text-lg">
             {mining?.success_rate != null ? `${(mining.success_rate * 100).toFixed(2)}%` : "---"}
           </p>
         </Card>
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">VQE Energy</h3>
-          <p className="font-[family-name:var(--font-mono)] text-lg">
+          <p className="font-[family-name:var(--font-code)] text-lg">
             {mining?.best_energy != null ? mining.best_energy.toFixed(6) : "---"}
           </p>
         </Card>
@@ -305,11 +309,11 @@ function AetherTab({
   return (
     <div className="space-y-6">
       <Card glow="violet">
-        <h3 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="mb-3 font-[family-name:var(--font-display)] text-lg font-semibold">
           Consciousness Status
         </h3>
         <div className="flex items-end gap-4">
-          <p className="font-[family-name:var(--font-mono)] text-4xl font-bold text-quantum-green">
+          <p className="font-[family-name:var(--font-code)] text-4xl font-bold text-quantum-green">
             {phi?.phi?.toFixed(4) ?? "0.0000"}
           </p>
           <p className="mb-1 text-sm text-text-secondary">
@@ -323,7 +327,7 @@ function AetherTab({
             {phi.maturity != null && ` | Maturity: ${phi.maturity.toFixed(4)}`}
           </p>
         )}
-        <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-void">
+        <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-bg-deep">
           <motion.div
             className="h-full rounded-full bg-gradient-to-r from-quantum-violet to-quantum-green"
             initial={{ width: 0 }}
@@ -347,25 +351,25 @@ function AetherTab({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <p className="text-xs text-text-secondary">Knowledge Nodes</p>
-          <p className="mt-1 font-[family-name:var(--font-mono)] text-xl font-semibold">
+          <p className="mt-1 font-[family-name:var(--font-code)] text-xl font-semibold">
             {phi?.knowledge_nodes?.toLocaleString() ?? "---"}
           </p>
         </Card>
         <Card>
           <p className="text-xs text-text-secondary">Knowledge Edges</p>
-          <p className="mt-1 font-[family-name:var(--font-mono)] text-xl font-semibold">
+          <p className="mt-1 font-[family-name:var(--font-code)] text-xl font-semibold">
             {phi?.knowledge_edges?.toLocaleString() ?? "---"}
           </p>
         </Card>
         <Card>
           <p className="text-xs text-text-secondary">Integration</p>
-          <p className="mt-1 font-[family-name:var(--font-mono)] text-xl font-semibold">
+          <p className="mt-1 font-[family-name:var(--font-code)] text-xl font-semibold">
             {phi?.integration?.toFixed(4) ?? "---"}
           </p>
         </Card>
         <Card>
           <p className="text-xs text-text-secondary">Differentiation</p>
-          <p className="mt-1 font-[family-name:var(--font-mono)] text-xl font-semibold">
+          <p className="mt-1 font-[family-name:var(--font-code)] text-xl font-semibold">
             {phi?.differentiation?.toFixed(4) ?? "---"}
           </p>
         </Card>
@@ -394,23 +398,23 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         AGI Reasoning Subsystems
       </h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {info.neural_reasoner && (
-          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+          <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-4">
             <p className="text-xs font-semibold text-quantum-violet">Neural Reasoner</p>
             <div className="mt-2 space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Accuracy</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {(info.neural_reasoner.accuracy * 100).toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Predictions</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {info.neural_reasoner.total_predictions.toLocaleString()}
                 </span>
               </div>
@@ -419,18 +423,18 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
         )}
 
         {info.causal_engine && (
-          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+          <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-4">
             <p className="text-xs font-semibold text-quantum-violet">Causal Engine</p>
             <div className="mt-2 space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Causal Edges</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {info.causal_engine.total_causal_edges_found.toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Runs</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {info.causal_engine.total_runs.toLocaleString()}
                 </span>
               </div>
@@ -439,18 +443,18 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
         )}
 
         {info.debate_protocol && (
-          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+          <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-4">
             <p className="text-xs font-semibold text-quantum-violet">Debate Protocol</p>
             <div className="mt-2 space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Debates</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {info.debate_protocol.total_debates.toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Acceptance</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {(info.debate_protocol.acceptance_rate * 100).toFixed(1)}%
                 </span>
               </div>
@@ -462,24 +466,24 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
         )}
 
         {info.temporal_engine && (
-          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+          <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-4">
             <p className="text-xs font-semibold text-quantum-violet">Temporal Engine</p>
             <div className="mt-2 space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Tracked</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {info.temporal_engine.tracked_metrics} metrics
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Predictions</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {info.temporal_engine.predictions_validated.toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Accuracy</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {(info.temporal_engine.accuracy * 100).toFixed(1)}%
                 </span>
               </div>
@@ -488,18 +492,18 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
         )}
 
         {info.concept_formation && (
-          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+          <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-4">
             <p className="text-xs font-semibold text-quantum-violet">Concept Formation</p>
             <div className="mt-2 space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Concepts</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {info.concept_formation.total_concepts_created.toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Runs</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {info.concept_formation.total_runs.toLocaleString()}
                 </span>
               </div>
@@ -508,28 +512,28 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
         )}
 
         {info.metacognition && (
-          <div className="rounded-lg border border-surface-light bg-void/50 p-4">
+          <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-4">
             <p className="text-xs font-semibold text-quantum-violet">Metacognition</p>
             <div className="mt-2 space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Accuracy</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {(info.metacognition.overall_accuracy * 100).toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Calibration Err</span>
-                <span className="font-[family-name:var(--font-mono)]">
+                <span className="font-[family-name:var(--font-code)]">
                   {info.metacognition.calibration_error.toFixed(4)}
                 </span>
               </div>
               {Object.keys(info.metacognition.strategy_weights).length > 0 && (
-                <div className="mt-1 border-t border-surface-light/50 pt-1">
+                <div className="mt-1 border-t border-border-subtle/50 pt-1">
                   <p className="text-xs text-text-secondary">Strategy Weights</p>
                   {Object.entries(info.metacognition.strategy_weights).map(([k, v]) => (
                     <div key={k} className="flex justify-between text-xs">
                       <span className="text-text-secondary">{k}</span>
-                      <span className="font-[family-name:var(--font-mono)]">{v.toFixed(3)}</span>
+                      <span className="font-[family-name:var(--font-code)]">{v.toFixed(3)}</span>
                     </div>
                   ))}
                 </div>
@@ -551,7 +555,7 @@ function ContractsTab() {
     <div className="space-y-6">
       {/* Deploy */}
       <Card>
-        <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
           Deploy Contract
         </h3>
         <div className="space-y-4">
@@ -560,7 +564,7 @@ function ContractsTab() {
             <select
               value={deployType}
               onChange={(e) => setDeployType(e.target.value)}
-              className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              className="w-full rounded-lg bg-bg-deep px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
             >
               <option value="custom">Custom Bytecode</option>
               <option value="token">QBC-20 Token</option>
@@ -576,7 +580,7 @@ function ContractsTab() {
               value={bytecode}
               onChange={(e) => setBytecode(e.target.value)}
               placeholder="0x6080604052..."
-              className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
             />
           </div>
           <button className="rounded-lg bg-quantum-violet px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-quantum-violet/80">
@@ -587,7 +591,7 @@ function ContractsTab() {
 
       {/* Lookup */}
       <Card>
-        <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
           View Contract
         </h3>
         <div className="flex gap-3">
@@ -595,7 +599,7 @@ function ContractsTab() {
             value={deployAddr}
             onChange={(e) => setDeployAddr(e.target.value)}
             placeholder="Contract address (0x...)"
-            className="flex-1 rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="flex-1 rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
           <a
             href={`/qvm?contract=${deployAddr}`}
@@ -650,13 +654,13 @@ function WalletTab({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-text-secondary">Total Balance</p>
-            <p className="mt-1 font-[family-name:var(--font-mono)] text-3xl font-bold text-quantum-green">
+            <p className="mt-1 font-[family-name:var(--font-code)] text-3xl font-bold text-quantum-green">
               {totalBalance.toLocaleString()} QBC
             </p>
           </div>
           <div className="text-right">
             <p className="text-sm text-text-secondary">UTXOs</p>
-            <p className="mt-1 font-[family-name:var(--font-mono)] text-2xl font-bold">
+            <p className="mt-1 font-[family-name:var(--font-code)] text-2xl font-bold">
               {utxoList.length}
             </p>
           </div>
@@ -666,7 +670,7 @@ function WalletTab({
       {/* UTXO list */}
       <Card>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+          <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
             UTXO Breakdown
           </h3>
           {utxoList.length > 0 && (
@@ -689,19 +693,19 @@ function WalletTab({
         ) : (
           <div className="max-h-96 overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-surface">
-                <tr className="border-b border-surface-light text-left text-xs text-text-secondary">
+              <thead className="sticky top-0 bg-bg-panel">
+                <tr className="border-b border-border-subtle text-left text-xs text-text-secondary">
                   <th className="pb-2 pr-4">Tx ID</th>
                   <th className="pb-2 pr-4">Vout</th>
                   <th className="pb-2 pr-4 text-right">Amount</th>
                   <th className="pb-2 text-right">Confirmations</th>
                 </tr>
               </thead>
-              <tbody className="font-[family-name:var(--font-mono)]">
+              <tbody className="font-[family-name:var(--font-code)]">
                 {utxoList.map((utxo) => (
                   <tr
                     key={`${utxo.txid}-${utxo.vout}`}
-                    className="border-b border-surface-light/30"
+                    className="border-b border-border-subtle/30"
                   >
                     <td className="py-2 pr-4 text-xs text-quantum-violet">
                       {utxo.txid.slice(0, 12)}...{utxo.txid.slice(-8)}
@@ -726,7 +730,7 @@ function WalletTab({
       {/* Address */}
       <Card>
         <h3 className="mb-2 text-sm font-semibold text-text-secondary">Address</h3>
-        <p className="break-all font-[family-name:var(--font-mono)] text-xs text-quantum-green">
+        <p className="break-all font-[family-name:var(--font-code)] text-xs text-quantum-green">
           {address}
         </p>
       </Card>
@@ -751,7 +755,7 @@ function NetworkTab({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">Peers</h3>
-          <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
+          <p className="font-[family-name:var(--font-code)] text-2xl font-bold">
             {chain?.peers?.toString() ?? "---"}
           </p>
           <p className="mt-1 text-xs text-text-secondary">
@@ -760,19 +764,19 @@ function NetworkTab({
         </Card>
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">Mempool</h3>
-          <p className="font-[family-name:var(--font-mono)] text-2xl font-bold">
+          <p className="font-[family-name:var(--font-code)] text-2xl font-bold">
             {chain?.mempool_size?.toString() ?? "---"} tx
           </p>
         </Card>
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">Chain ID</h3>
-          <p className="font-[family-name:var(--font-mono)] text-xl">
+          <p className="font-[family-name:var(--font-code)] text-xl">
             {chain?.chain_id ?? "3301"}
           </p>
         </Card>
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">Block Height</h3>
-          <p className="font-[family-name:var(--font-mono)] text-xl">
+          <p className="font-[family-name:var(--font-code)] text-xl">
             {chain?.height?.toLocaleString() ?? "---"}
           </p>
         </Card>
@@ -786,7 +790,7 @@ function NetworkTab({
             {Object.entries(peerStats.messages).map(([key, val]) => (
               <div key={key} className="text-sm">
                 <span className="text-text-secondary">{key}: </span>
-                <span className="font-[family-name:var(--font-mono)] text-text-primary">
+                <span className="font-[family-name:var(--font-code)] text-text-primary">
                   {val?.toLocaleString() ?? "0"}
                 </span>
               </div>

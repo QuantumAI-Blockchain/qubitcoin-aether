@@ -30,7 +30,7 @@ export function ContractBrowser() {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         Contract Lookup
       </h3>
 
@@ -40,7 +40,7 @@ export function ContractBrowser() {
           value={searchAddr}
           onChange={(e) => setSearchAddr(e.target.value)}
           placeholder="Contract address (0x...)"
-          className="flex-1 rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+          className="flex-1 rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
         />
         <button
           type="submit"
@@ -72,33 +72,33 @@ export function ContractBrowser() {
 function ContractDetail({ contract }: { contract: { address: string; code_hash: string; nonce: number; bytecode_size: number } }) {
   return (
     <div className="mt-6 space-y-4">
-      <div className="rounded-lg border border-surface-light bg-void p-4">
+      <div className="rounded-lg border border-border-subtle bg-bg-deep p-4">
         <h4 className="mb-3 text-sm font-semibold text-text-primary">Contract Details</h4>
 
         <dl className="space-y-3 text-sm">
           <div>
             <dt className="text-xs text-text-secondary">Address</dt>
-            <dd className="mt-0.5 break-all font-[family-name:var(--font-mono)] text-quantum-green">
+            <dd className="mt-0.5 break-all font-[family-name:var(--font-code)] text-quantum-green">
               {contract.address}
             </dd>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <dt className="text-xs text-text-secondary">Code Hash</dt>
-              <dd className="mt-0.5 truncate font-[family-name:var(--font-mono)] text-xs text-text-secondary">
+              <dd className="mt-0.5 truncate font-[family-name:var(--font-code)] text-xs text-text-secondary">
                 {contract.code_hash}
               </dd>
             </div>
             <div>
               <dt className="text-xs text-text-secondary">Nonce</dt>
-              <dd className="mt-0.5 font-[family-name:var(--font-mono)] text-text-primary">
+              <dd className="mt-0.5 font-[family-name:var(--font-code)] text-text-primary">
                 {contract.nonce}
               </dd>
             </div>
           </div>
           <div>
             <dt className="text-xs text-text-secondary">Bytecode Size</dt>
-            <dd className="mt-0.5 font-[family-name:var(--font-mono)] text-text-primary">
+            <dd className="mt-0.5 font-[family-name:var(--font-code)] text-text-primary">
               {contract.bytecode_size.toLocaleString()} bytes
             </dd>
           </div>

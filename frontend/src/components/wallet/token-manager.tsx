@@ -96,7 +96,7 @@ export function TokenManager() {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         QBC-20 Tokens
       </h3>
 
@@ -120,18 +120,18 @@ export function TokenManager() {
           {tokens.map((t) => (
             <div
               key={t.token_address}
-              className="flex items-center justify-between rounded-lg bg-void px-4 py-3"
+              className="flex items-center justify-between rounded-lg bg-bg-deep px-4 py-3"
             >
               <div>
                 <p className="text-sm font-semibold text-text-primary">
                   {t.symbol}
                 </p>
-                <p className="font-[family-name:var(--font-mono)] text-xs text-text-secondary">
+                <p className="font-[family-name:var(--font-code)] text-xs text-text-secondary">
                   {truncateAddr(t.token_address)}
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-[family-name:var(--font-mono)] text-sm font-semibold text-quantum-green">
+                <p className="font-[family-name:var(--font-code)] text-sm font-semibold text-quantum-green">
                   {formatTokenAmount(t.balance, t.decimals)}
                 </p>
                 <button
@@ -152,7 +152,7 @@ export function TokenManager() {
 
       {/* Send panel */}
       {sendToken && (
-        <div className="mt-4 space-y-3 rounded-lg border border-surface-light bg-void/50 p-4">
+        <div className="mt-4 space-y-3 rounded-lg border border-border-subtle bg-bg-deep/50 p-4">
           <p className="text-xs font-medium text-quantum-violet">
             Sending: {truncateAddr(sendToken)}
           </p>
@@ -164,7 +164,7 @@ export function TokenManager() {
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="0x..."
-              className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
             />
           </div>
           <div>
@@ -176,7 +176,7 @@ export function TokenManager() {
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
               type="number"
-              className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
             />
           </div>
           <button
@@ -193,7 +193,7 @@ export function TokenManager() {
       )}
 
       {/* Token lookup */}
-      <div className="mt-6 border-t border-surface-light pt-4">
+      <div className="mt-6 border-t border-border-subtle pt-4">
         <h4 className="mb-3 text-sm font-semibold text-text-secondary">
           Token Lookup
         </h4>
@@ -202,7 +202,7 @@ export function TokenManager() {
             value={lookupAddr}
             onChange={(e) => setLookupAddr(e.target.value)}
             placeholder="Token contract address (0x...)"
-            className="flex-1 rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="flex-1 rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
           <button
             onClick={() => setLookupSearch(lookupAddr.trim())}
@@ -218,32 +218,32 @@ export function TokenManager() {
         )}
 
         {tokenInfo && (
-          <div className="mt-3 rounded-lg bg-void px-4 py-3 space-y-1">
+          <div className="mt-3 rounded-lg bg-bg-deep px-4 py-3 space-y-1">
             <div className="flex justify-between">
               <span className="text-xs text-text-secondary">Name</span>
               <span className="text-sm font-medium">{tokenInfo.name}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-xs text-text-secondary">Symbol</span>
-              <span className="font-[family-name:var(--font-mono)] text-sm text-quantum-green">
+              <span className="font-[family-name:var(--font-code)] text-sm text-quantum-green">
                 {tokenInfo.symbol}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-xs text-text-secondary">Decimals</span>
-              <span className="font-[family-name:var(--font-mono)] text-sm">
+              <span className="font-[family-name:var(--font-code)] text-sm">
                 {tokenInfo.decimals}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-xs text-text-secondary">Total Supply</span>
-              <span className="font-[family-name:var(--font-mono)] text-sm">
+              <span className="font-[family-name:var(--font-code)] text-sm">
                 {formatTokenAmount(tokenInfo.total_supply, tokenInfo.decimals)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-xs text-text-secondary">Address</span>
-              <span className="font-[family-name:var(--font-mono)] text-xs text-quantum-violet">
+              <span className="font-[family-name:var(--font-code)] text-xs text-quantum-violet">
                 {truncateAddr(tokenInfo.address)}
               </span>
             </div>

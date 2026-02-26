@@ -93,7 +93,7 @@ export function KnowledgeSeeder() {
           value={apiKey}
           onChange={(e) => handleKeyChange(e.target.value)}
           placeholder="sk-..."
-          className="w-full rounded-lg bg-void px-3 py-2 pr-14 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-1 focus:ring-quantum-violet/50"
+          className="w-full rounded-lg bg-bg-deep px-3 py-2 pr-14 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-1 focus:ring-quantum-violet/50"
         />
         <button
           type="button"
@@ -111,7 +111,7 @@ export function KnowledgeSeeder() {
         onChange={(e) => setPrompt(e.target.value)}
         placeholder="Explain quantum entanglement in blockchain consensus..."
         rows={3}
-        className="mb-3 w-full resize-none rounded-lg bg-void px-3 py-2 text-xs text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-1 focus:ring-quantum-violet/50"
+        className="mb-3 w-full resize-none rounded-lg bg-bg-deep px-3 py-2 text-xs text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-1 focus:ring-quantum-violet/50"
       />
 
       {/* Submit */}

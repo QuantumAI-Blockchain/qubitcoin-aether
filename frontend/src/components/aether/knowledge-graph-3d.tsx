@@ -453,8 +453,8 @@ function FilterBtn({
       onClick={onClick}
       className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
         active
-          ? "bg-surface-light text-text-primary ring-1 ring-quantum-green/40"
-          : "bg-surface text-text-secondary hover:text-text-primary hover:bg-surface-light"
+          ? "bg-border-subtle text-text-primary ring-1 ring-quantum-green/40"
+          : "bg-bg-panel text-text-secondary hover:text-text-primary hover:bg-border-subtle"
       }`}
     >
       {color && (
@@ -465,7 +465,7 @@ function FilterBtn({
       )}
       {label}
       {count !== undefined && (
-        <span className="ml-0.5 font-[family-name:var(--font-mono)] text-[10px] opacity-60">
+        <span className="ml-0.5 font-[family-name:var(--font-code)] text-[10px] opacity-60">
           {count}
         </span>
       )}
@@ -517,11 +517,11 @@ export function KnowledgeGraph3D() {
   return (
     <Card>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           Knowledge Graph
         </h3>
         {data && (
-          <div className="flex gap-4 text-xs text-text-secondary font-[family-name:var(--font-mono)]">
+          <div className="flex gap-4 text-xs text-text-secondary font-[family-name:var(--font-code)]">
             <span>
               Showing <span className="text-text-primary">{visibleNodes}</span> of{" "}
               <span className="text-quantum-green">{totalNodes}</span> nodes
@@ -560,7 +560,7 @@ export function KnowledgeGraph3D() {
         ))}
       </div>
 
-      <div className="relative h-[500px] w-full overflow-hidden rounded-lg bg-void">
+      <div className="relative h-[500px] w-full overflow-hidden rounded-lg bg-bg-deep">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-text-secondary">
             Loading knowledge graph...

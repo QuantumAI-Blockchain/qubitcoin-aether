@@ -49,15 +49,15 @@ function SocialIcon({ icon }: { icon: string }) {
 
 export function Footer() {
   return (
-    <footer className="border-t border-surface-light bg-surface/30">
+    <footer className="border-t border-border-subtle bg-bg-panel">
       <div className="mx-auto max-w-7xl px-4 py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div>
-            <span className="text-xl font-bold tracking-tight text-quantum-green font-[family-name:var(--font-heading)]">
+            <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight glow-cyan">
               QBC
             </span>
-            <p className="mt-3 text-sm leading-relaxed text-text-secondary">
+            <p className="mt-3 font-[family-name:var(--font-reading)] text-sm leading-relaxed text-text-secondary">
               Physics-secured digital assets with post-quantum cryptography and
               the Aether Tree on-chain AGI engine.
             </p>
@@ -69,7 +69,7 @@ export function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="rounded-lg p-2 text-text-secondary transition-colors hover:bg-surface-light hover:text-quantum-green"
+                  className="rounded-lg p-2 text-text-secondary transition-colors hover:bg-border-subtle hover:text-glow-cyan"
                 >
                   <SocialIcon icon={icon} />
                 </a>
@@ -79,13 +79,13 @@ export function Footer() {
 
           {/* Navigation */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-text-secondary">Navigate</h3>
+            <h3 className="mb-3 font-[family-name:var(--font-display)] text-[10px] font-semibold uppercase tracking-widest text-text-secondary">Navigate</h3>
             <ul className="space-y-2">
               {navLinks.map(({ href, label }) => (
                 <li key={href}>
                   <Link
                     href={href}
-                    className="text-sm text-text-secondary transition-colors hover:text-quantum-green"
+                    className="font-[family-name:var(--font-reading)] text-sm text-text-secondary transition-colors hover:text-glow-cyan"
                   >
                     {label}
                   </Link>
@@ -96,13 +96,13 @@ export function Footer() {
 
           {/* Resources */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-text-secondary">Resources</h3>
+            <h3 className="mb-3 font-[family-name:var(--font-display)] text-[10px] font-semibold uppercase tracking-widest text-text-secondary">Resources</h3>
             <ul className="space-y-2">
               {resourceLinks.map(({ href, label }) => (
                 <li key={href}>
                   <Link
                     href={href}
-                    className="text-sm text-text-secondary transition-colors hover:text-quantum-green"
+                    className="font-[family-name:var(--font-reading)] text-sm text-text-secondary transition-colors hover:text-glow-cyan"
                   >
                     {label}
                   </Link>
@@ -113,35 +113,35 @@ export function Footer() {
 
           {/* Chain Info */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-text-secondary">Chain</h3>
+            <h3 className="mb-3 font-[family-name:var(--font-display)] text-[10px] font-semibold uppercase tracking-widest text-text-secondary">Chain</h3>
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <dt className="text-text-secondary">Chain ID</dt>
-                <dd className="font-[family-name:var(--font-mono)] text-text-primary">3301</dd>
+                <dt className="font-[family-name:var(--font-reading)] text-text-secondary">Chain ID</dt>
+                <dd className="font-[family-name:var(--font-code)] text-text-primary">3301</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-text-secondary">Block Time</dt>
-                <dd className="font-[family-name:var(--font-mono)] text-text-primary">3.3s</dd>
+                <dt className="font-[family-name:var(--font-reading)] text-text-secondary">Block Time</dt>
+                <dd className="font-[family-name:var(--font-code)] text-text-primary">3.3s</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-text-secondary">Max Supply</dt>
-                <dd className="font-[family-name:var(--font-mono)] text-text-primary">3.3B</dd>
+                <dt className="font-[family-name:var(--font-reading)] text-text-secondary">Max Supply</dt>
+                <dd className="font-[family-name:var(--font-code)] text-text-primary">3.3B</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-text-secondary">Consensus</dt>
-                <dd className="text-text-primary">PoSA</dd>
+                <dt className="font-[family-name:var(--font-reading)] text-text-secondary">Consensus</dt>
+                <dd className="font-[family-name:var(--font-code)] text-text-primary">PoSA</dd>
               </div>
             </dl>
           </div>
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-surface-light pt-6 sm:flex-row">
-          <p className="text-xs text-text-secondary">
-            &copy; {new Date().getFullYear()} Qubitcoin. MIT License.
+        <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-border-subtle pt-6 sm:flex-row">
+          <p className="font-[family-name:var(--font-reading)] text-xs text-text-secondary">
+            &copy; 2026 Qubitcoin. MIT License.
           </p>
-          <p className="text-xs text-text-secondary">
-            Powered by Proof-of-SUSY-Alignment &middot; CRYSTALS-Dilithium2
+          <p className="font-[family-name:var(--font-code)] text-[10px] tracking-wide text-text-secondary">
+            Proof-of-SUSY-Alignment &middot; Dilithium2 &middot; QVM (167 Opcodes) &middot; Aether Tree AGI &middot; Multi-Chain Bridge
           </p>
         </div>
       </div>

@@ -33,12 +33,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-quantum-red/30 bg-surface p-8 text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-quantum-red/10">
+        <div className="panel-inset flex flex-col items-center justify-center p-8 text-center" style={{ borderColor: "rgba(220,38,38,0.3)" }}>
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-glow-crimson/10">
             <svg
               viewBox="0 0 20 20"
               fill="currentColor"
-              className="h-6 w-6 text-quantum-red"
+              className="h-6 w-6 text-glow-crimson"
             >
               <path
                 fillRule="evenodd"
@@ -47,15 +47,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               />
             </svg>
           </div>
-          <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold text-text-primary">
+          <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold text-text-primary">
             Something went wrong
           </h3>
-          <p className="mt-1 max-w-md text-sm text-text-secondary">
+          <p className="mt-1 max-w-md font-[family-name:var(--font-reading)] text-sm text-text-secondary">
             {this.state.error?.message || "An unexpected error occurred."}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="mt-4 rounded-lg bg-quantum-violet/20 px-4 py-2 text-sm font-medium text-quantum-violet transition hover:bg-quantum-violet/30"
+            className="mt-4 rounded-lg bg-quantum-violet/20 px-4 py-2 font-[family-name:var(--font-display)] text-sm font-medium text-quantum-violet transition hover:bg-quantum-violet/30"
           >
             Try Again
           </button>

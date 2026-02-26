@@ -97,10 +97,10 @@ export function SephirotExplorer() {
   );
 
   return (
-    <div className="rounded-xl border border-surface-light bg-surface p-6">
+    <div className="rounded-xl border border-border-subtle bg-bg-panel p-6">
       {/* Header */}
       <div className="mb-1">
-        <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           Tree of Life — Cognitive Architecture
         </h3>
         <p className="mt-1 text-xs text-text-secondary">
@@ -156,7 +156,7 @@ export function SephirotExplorer() {
                       : NODE_DOT_COLORS[idx] + " opacity-40"
                   }`}
                 />
-                <span className="font-[family-name:var(--font-mono)] text-[10px] text-text-secondary">
+                <span className="font-[family-name:var(--font-code)] text-[10px] text-text-secondary">
                   {meta.qubits}q
                 </span>
               </div>
@@ -166,14 +166,14 @@ export function SephirotExplorer() {
               <p className="text-[10px] text-text-secondary">{meta.title}</p>
 
               {/* Brain analog pill */}
-              <span className="mt-2 inline-block rounded-full bg-void/60 px-2 py-0.5 text-[9px] text-text-secondary">
+              <span className="mt-2 inline-block rounded-full bg-bg-deep/60 px-2 py-0.5 text-[9px] text-text-secondary">
                 {meta.brain}
               </span>
 
               {/* Energy bar */}
               {nodeStatus?.energy != null && (
                 <div className="mt-2">
-                  <div className="h-1 w-full overflow-hidden rounded-full bg-void">
+                  <div className="h-1 w-full overflow-hidden rounded-full bg-bg-deep">
                     <div
                       className="h-full rounded-full bg-quantum-green/60"
                       style={{
@@ -250,10 +250,10 @@ function MiniStat({
   warn?: boolean;
 }) {
   return (
-    <div className="rounded-lg bg-void/50 px-3 py-2">
+    <div className="rounded-lg bg-bg-deep/50 px-3 py-2">
       <p className="text-[10px] text-text-secondary">{label}</p>
       <p
-        className={`mt-0.5 font-[family-name:var(--font-mono)] text-sm font-semibold ${
+        className={`mt-0.5 font-[family-name:var(--font-code)] text-sm font-semibold ${
           warn ? "text-red-400" : "text-text-primary"
         }`}
       >
@@ -275,7 +275,7 @@ function NodeDetail({
   status?: SephirotStatusNode;
 }) {
   return (
-    <div className="mt-4 rounded-xl border border-surface-light/50 bg-void/30 p-5">
+    <div className="mt-4 rounded-xl border border-border-subtle/50 bg-bg-deep/30 p-5">
       <div className="flex items-start justify-between">
         <div>
           <h4 className="text-base font-semibold text-text-primary">
@@ -290,7 +290,7 @@ function NodeDetail({
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
             status?.active
               ? "bg-quantum-green/15 text-quantum-green"
-              : "bg-surface-light text-text-secondary"
+              : "bg-bg-panel-light text-text-secondary"
           }`}
         >
           {status?.active ? "Active" : "Inactive"}
@@ -329,7 +329,7 @@ function DetailStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-[10px] text-text-secondary">{label}</p>
-      <p className="font-[family-name:var(--font-mono)] text-xs text-text-primary">
+      <p className="font-[family-name:var(--font-code)] text-xs text-text-primary">
         {value}
       </p>
     </div>
@@ -362,13 +362,13 @@ function SUSYPairRow({ pair }: { pair: SUSYPair }) {
   const targetPct = 50; // target is always at center since we map [0, 2*target]
 
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-void/40 px-3 py-2">
+    <div className="flex items-center gap-3 rounded-lg bg-bg-deep/40 px-3 py-2">
       <span className="w-20 shrink-0 text-right text-xs font-medium text-text-primary">
         {pair.expansion}
       </span>
 
       {/* Ratio bar */}
-      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-void">
+      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-bg-deep">
         <div
           className={`h-full rounded-full ${color} transition-all`}
           style={{ width: `${barPct}%` }}
@@ -384,7 +384,7 @@ function SUSYPairRow({ pair }: { pair: SUSYPair }) {
         {pair.constraint}
       </span>
 
-      <span className={`w-14 shrink-0 text-right font-[family-name:var(--font-mono)] text-[10px] ${textColor}`}>
+      <span className={`w-14 shrink-0 text-right font-[family-name:var(--font-code)] text-[10px] ${textColor}`}>
         {ratio.toFixed(3)}
       </span>
     </div>

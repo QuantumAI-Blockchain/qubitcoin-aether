@@ -66,7 +66,7 @@ export function EventLog() {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         Event Log
       </h3>
 
@@ -77,7 +77,7 @@ export function EventLog() {
             value={contractAddress}
             onChange={(e) => setContractAddress(e.target.value)}
             placeholder="Contract address (0x...)"
-            className="flex-1 rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="flex-1 rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
           <button
             onClick={handleSearch}
@@ -96,7 +96,7 @@ export function EventLog() {
           <select
             value={topicFilter}
             onChange={(e) => setTopicFilter(e.target.value)}
-            className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="w-full rounded-lg bg-bg-deep px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           >
             <option value="">All events</option>
             {Object.entries(KNOWN_TOPICS).map(([hash, name]) => (
@@ -125,10 +125,10 @@ export function EventLog() {
       )}
 
       {data && data.events.length > 0 && (
-        <div className="mt-4 max-h-96 overflow-y-auto rounded-lg border border-surface-light bg-void">
+        <div className="mt-4 max-h-96 overflow-y-auto rounded-lg border border-border-subtle bg-bg-deep">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-void">
-              <tr className="border-b border-surface-light text-left text-text-secondary">
+            <thead className="sticky top-0 bg-bg-deep">
+              <tr className="border-b border-border-subtle text-left text-text-secondary">
                 <th className="px-3 py-2">Block</th>
                 <th className="px-3 py-2">Event</th>
                 <th className="px-3 py-2">Tx Hash</th>
@@ -136,14 +136,14 @@ export function EventLog() {
                 <th className="px-3 py-2">Time</th>
               </tr>
             </thead>
-            <tbody className="font-[family-name:var(--font-mono)]">
+            <tbody className="font-[family-name:var(--font-code)]">
               {data.events.map((ev) => {
                 const eventName =
                   KNOWN_TOPICS[ev.topic0] ?? truncateHash(ev.topic0, 6);
                 return (
                   <tr
                     key={`${ev.transaction_hash}-${ev.log_index}`}
-                    className="border-b border-surface-light/30"
+                    className="border-b border-border-subtle/30"
                   >
                     <td className="px-3 py-2 text-text-secondary">
                       {ev.block_number.toLocaleString()}
@@ -165,7 +165,7 @@ export function EventLog() {
               })}
             </tbody>
           </table>
-          <p className="border-t border-surface-light px-3 py-2 text-xs text-text-secondary">
+          <p className="border-t border-border-subtle px-3 py-2 text-xs text-text-secondary">
             {data.total} event{data.total !== 1 ? "s" : ""} total
           </p>
         </div>

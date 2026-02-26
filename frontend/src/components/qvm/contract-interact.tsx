@@ -86,7 +86,7 @@ export function ContractInteract() {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         Contract Interaction
       </h3>
 
@@ -100,7 +100,7 @@ export function ContractInteract() {
             value={contractAddress}
             onChange={(e) => setContractAddress(e.target.value)}
             placeholder="0x..."
-            className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
         </div>
 
@@ -114,7 +114,7 @@ export function ContractInteract() {
             value={abiText}
             onChange={(e) => setAbiText(e.target.value)}
             placeholder='[{"type":"function","name":"balanceOf","inputs":[{"name":"account","type":"address"}],"outputs":[{"name":"","type":"uint256"}],"stateMutability":"view"}]'
-            className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
           <button
             onClick={handleParseABI}
@@ -139,7 +139,7 @@ export function ContractInteract() {
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                     selectedFn?.name === fn.name
                       ? "bg-quantum-green text-void"
-                      : "bg-surface-light text-text-secondary hover:text-text-primary"
+                      : "bg-border-subtle text-text-secondary hover:text-text-primary"
                   }`}
                 >
                   {fn.name}
@@ -154,7 +154,7 @@ export function ContractInteract() {
 
         {/* Function inputs */}
         {selectedFn && (
-          <div className="space-y-3 rounded-lg border border-surface-light bg-void/50 p-4">
+          <div className="space-y-3 rounded-lg border border-border-subtle bg-bg-deep/50 p-4">
             <p className="text-sm font-medium text-quantum-green">
               {selectedFn.name}
               <span className="ml-2 text-xs text-text-secondary">
@@ -181,7 +181,7 @@ export function ContractInteract() {
                     }))
                   }
                   placeholder={inp.type}
-                  className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+                  className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
                 />
               </div>
             ))}
@@ -223,7 +223,7 @@ export function ContractInteract() {
               {result.success ? "Success" : "Failed"} | Gas used:{" "}
               {result.gas_used.toLocaleString()}
             </p>
-            <p className="mt-1 break-all font-[family-name:var(--font-mono)] text-sm text-text-primary">
+            <p className="mt-1 break-all font-[family-name:var(--font-code)] text-sm text-text-primary">
               {result.result}
             </p>
           </div>

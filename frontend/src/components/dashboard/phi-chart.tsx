@@ -109,7 +109,7 @@ export function PhiChart() {
               y1={t.y}
               x2={CHART_W - PAD.right}
               y2={t.y}
-              stroke="var(--color-surface-light)"
+              stroke="var(--color-border-subtle)"
               strokeWidth={0.5}
             />
             <text
@@ -157,7 +157,7 @@ export function PhiChart() {
         <path
           d={linePath}
           fill="none"
-          stroke="var(--color-quantum-green)"
+          stroke="var(--color-glow-cyan)"
           strokeWidth={2}
           strokeLinejoin="round"
         />
@@ -186,8 +186,8 @@ export function PhiChart() {
         {/* Gradient definition */}
         <defs>
           <linearGradient id="phiGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-quantum-green)" stopOpacity={0.6} />
-            <stop offset="100%" stopColor="var(--color-quantum-green)" stopOpacity={0} />
+            <stop offset="0%" stopColor="var(--color-glow-cyan)" stopOpacity={0.6} />
+            <stop offset="100%" stopColor="var(--color-glow-cyan)" stopOpacity={0} />
           </linearGradient>
         </defs>
       </svg>

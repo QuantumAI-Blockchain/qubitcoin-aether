@@ -40,7 +40,7 @@ export function QUSDReserveGauge() {
 
   const strokeColor =
     pct >= 100
-      ? "var(--color-quantum-green)"
+      ? "var(--color-glow-cyan)"
       : pct >= 50
         ? "var(--color-golden-amber)"
         : "var(--color-quantum-red)";
@@ -91,7 +91,7 @@ export function QUSDReserveGauge() {
             cy={CENTER}
             r={RADIUS}
             fill="none"
-            stroke="var(--color-surface-light)"
+            stroke="var(--color-border-subtle)"
             strokeWidth={STROKE}
           />
 
@@ -137,22 +137,22 @@ export function QUSDReserveGauge() {
       </div>
 
       {/* Stats grid */}
-      <div className="mt-4 grid grid-cols-2 gap-4 border-t border-surface-light pt-4">
+      <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border-subtle pt-4">
         <div>
           <p className="text-xs text-text-secondary">Total Minted</p>
-          <p className="mt-0.5 font-[family-name:var(--font-mono)] text-sm font-semibold">
+          <p className="mt-0.5 font-[family-name:var(--font-code)] text-sm font-semibold">
             {formatLargeNumber(minted)} QUSD
           </p>
         </div>
         <div>
           <p className="text-xs text-text-secondary">Total Backed</p>
-          <p className="mt-0.5 font-[family-name:var(--font-mono)] text-sm font-semibold text-quantum-green">
+          <p className="mt-0.5 font-[family-name:var(--font-code)] text-sm font-semibold text-quantum-green">
             {formatLargeNumber(backed)} QBC
           </p>
         </div>
         <div>
           <p className="text-xs text-text-secondary">Deficit</p>
-          <p className="mt-0.5 font-[family-name:var(--font-mono)] text-sm font-semibold">
+          <p className="mt-0.5 font-[family-name:var(--font-code)] text-sm font-semibold">
             {minted > backed
               ? `${formatLargeNumber(minted - backed)} QUSD`
               : "None"}
@@ -211,18 +211,18 @@ export function QUSDMilestoneTimeline() {
                     ? "border-quantum-green bg-quantum-green"
                     : active
                       ? "border-golden-amber"
-                      : "border-surface-light"
+                      : "border-border-subtle"
                 }`}
               />
 
               {/* Year label */}
-              <span className="w-12 flex-shrink-0 font-[family-name:var(--font-mono)] text-xs text-text-secondary">
+              <span className="w-12 flex-shrink-0 font-[family-name:var(--font-code)] text-xs text-text-secondary">
                 {m.year}
               </span>
 
               {/* Progress bar */}
               <div className="flex-1">
-                <div className="h-2 w-full overflow-hidden rounded-full bg-void">
+                <div className="h-2 w-full overflow-hidden rounded-full bg-bg-deep">
                   <motion.div
                     className={`h-full rounded-full ${
                       reached

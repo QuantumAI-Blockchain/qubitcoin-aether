@@ -14,20 +14,21 @@ const links = [
   { href: "/explorer", label: "Explorer" },
   { href: "/wallet", label: "Wallet" },
   { href: "/qvm", label: "QVM" },
+  { href: "/bridge", label: "Bridge" },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header className="fixed top-0 z-50 w-full border-b border-surface-light/50 bg-void/80 backdrop-blur-md">
+    <header className="fixed top-0 z-50 w-full border-b border-border-subtle/60 bg-bg-deep/90 backdrop-blur-md">
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-xl font-bold tracking-tight text-quantum-green font-[family-name:var(--font-heading)]">
+          <span className="font-[family-name:var(--font-display)] text-xl font-bold tracking-tight glow-cyan">
             QBC
           </span>
-          <span className="hidden text-sm text-text-secondary sm:inline">
+          <span className="hidden font-[family-name:var(--font-reading)] text-sm text-text-secondary sm:inline">
             Quantum Blockchain
           </span>
         </Link>
@@ -40,9 +41,9 @@ export function Navbar() {
               <li key={href}>
                 <Link
                   href={href}
-                  className={`relative rounded-md px-3 py-2 text-sm transition-colors ${
+                  className={`relative rounded-md px-3 py-2 font-[family-name:var(--font-display)] text-[11px] uppercase tracking-widest transition-colors ${
                     active
-                      ? "text-quantum-green"
+                      ? "glow-cyan"
                       : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
@@ -50,7 +51,8 @@ export function Navbar() {
                   {active && (
                     <motion.span
                       layoutId="nav-indicator"
-                      className="absolute inset-x-1 -bottom-[1px] h-0.5 bg-quantum-green"
+                      className="absolute inset-x-1 -bottom-[1px] h-0.5 bg-glow-cyan"
+                      style={{ boxShadow: "0 0 8px rgba(0,212,255,0.5)" }}
                       transition={{ type: "spring", stiffness: 350, damping: 30 }}
                     />
                   )}

@@ -26,12 +26,12 @@ export default function WalletPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-20 pb-12">
-      <h1 className="font-[family-name:var(--font-heading)] text-3xl font-bold">
+      <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">
         Wallet
       </h1>
 
       {/* Tab bar */}
-      <div className="mt-6 flex gap-1 rounded-xl border border-surface-light bg-surface p-1">
+      <div className="mt-6 flex gap-1 rounded-xl border border-border-subtle bg-bg-panel p-1">
         {TABS.map((tab) => (
           <button
             key={tab.key}
@@ -65,10 +65,10 @@ export default function WalletPage() {
       {/* Cross-Chain Bridge Banner */}
       <Link
         href="/bridge"
-        className="mt-8 flex items-center justify-between rounded-xl border border-quantum-violet/30 bg-quantum-violet/5 px-6 py-5 transition-colors hover:border-quantum-violet/50 hover:bg-quantum-violet/10"
+        className="pulse-glow mt-8 flex items-center justify-between rounded-xl border border-quantum-violet/30 bg-quantum-violet/5 px-6 py-5 transition-colors hover:border-quantum-violet/50 hover:bg-quantum-violet/10"
       >
         <div>
-          <h3 className="font-[family-name:var(--font-heading)] text-lg font-bold text-quantum-violet">
+          <h3 className="font-[family-name:var(--font-display)] text-lg font-bold text-quantum-violet">
             Cross-Chain Bridge
           </h3>
           <p className="mt-1 text-sm text-text-secondary">
@@ -116,10 +116,10 @@ function MetaMaskTab() {
       {/* Balance */}
       <Card glow="green">
         <p className="text-sm text-text-secondary">QBC Balance</p>
-        <p className="mt-2 font-[family-name:var(--font-mono)] text-4xl font-bold text-quantum-green">
+        <p className="mt-2 font-[family-name:var(--font-code)] text-4xl font-bold text-quantum-green">
           {balance != null ? balance.toLocaleString() : "---"} QBC
         </p>
-        <p className="mt-2 font-[family-name:var(--font-mono)] text-xs text-text-secondary">
+        <p className="mt-2 font-[family-name:var(--font-code)] text-xs text-text-secondary">
           {address}
         </p>
       </Card>
@@ -129,14 +129,14 @@ function MetaMaskTab() {
 
       {/* Receive */}
       <Card>
-        <h3 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="mb-3 font-[family-name:var(--font-display)] text-lg font-semibold">
           Receive QBC
         </h3>
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
           <QRCode value={address ?? ""} size={120} />
           <div className="flex-1">
             <p className="text-xs text-text-secondary">Your address:</p>
-            <p className="mt-1 break-all rounded-lg bg-void px-4 py-3 font-[family-name:var(--font-mono)] text-sm text-quantum-green">
+            <p className="mt-1 break-all rounded-lg bg-bg-deep px-4 py-3 font-[family-name:var(--font-code)] text-sm text-quantum-green">
               {address}
             </p>
           </div>
@@ -207,7 +207,7 @@ function MetaMaskSend() {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         Send QBC
       </h3>
       <form onSubmit={handleSend} className="space-y-4">
@@ -219,7 +219,7 @@ function MetaMaskSend() {
             value={to}
             onChange={(e) => setTo(e.target.value)}
             placeholder="0x..."
-            className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="w-full rounded-lg bg-bg-deep px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
         </div>
         <div>
@@ -232,7 +232,7 @@ function MetaMaskSend() {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.0000"
-            className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="w-full rounded-lg bg-bg-deep px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
         </div>
         <button

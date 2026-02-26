@@ -41,7 +41,7 @@ export function StorageInspector() {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         Storage Inspector
       </h3>
 
@@ -52,7 +52,7 @@ export function StorageInspector() {
             value={contractAddr}
             onChange={(e) => setContractAddr(e.target.value)}
             placeholder="0x..."
-            className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
         </div>
         <div>
@@ -62,7 +62,7 @@ export function StorageInspector() {
               value={slotKey}
               onChange={(e) => setSlotKey(e.target.value)}
               placeholder="0x0 (slot number or hash)"
-              className="flex-1 rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              className="flex-1 rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
             />
             <button
               type="submit"
@@ -81,7 +81,7 @@ export function StorageInspector() {
               key={p.label}
               type="button"
               onClick={() => setSlotKey(p.key)}
-              className="rounded-md bg-surface-light px-2.5 py-1 text-xs text-text-secondary transition hover:bg-quantum-violet/20 hover:text-quantum-violet"
+              className="rounded-md bg-border-subtle px-2.5 py-1 text-xs text-text-secondary transition hover:bg-quantum-violet/20 hover:text-quantum-violet"
             >
               {p.label}
             </button>
@@ -103,23 +103,23 @@ export function StorageInspector() {
       )}
 
       {slotValue && !isLoading && (
-        <div className="mt-4 rounded-lg border border-surface-light bg-void p-4">
+        <div className="mt-4 rounded-lg border border-border-subtle bg-bg-deep p-4">
           <div className="space-y-2 text-sm">
             <div>
               <span className="text-xs text-text-secondary">Contract:</span>
-              <p className="truncate font-[family-name:var(--font-mono)] text-xs text-text-primary">
+              <p className="truncate font-[family-name:var(--font-code)] text-xs text-text-primary">
                 {lookupKey?.addr}
               </p>
             </div>
             <div>
               <span className="text-xs text-text-secondary">Key:</span>
-              <p className="font-[family-name:var(--font-mono)] text-xs text-quantum-violet">
+              <p className="font-[family-name:var(--font-code)] text-xs text-quantum-violet">
                 {lookupKey?.key}
               </p>
             </div>
             <div>
               <span className="text-xs text-text-secondary">Value:</span>
-              <p className="break-all rounded-md bg-surface px-3 py-2 font-[family-name:var(--font-mono)] text-sm text-quantum-green">
+              <p className="break-all rounded-md bg-bg-panel px-3 py-2 font-[family-name:var(--font-code)] text-sm text-quantum-green">
                 {slotValue.value || "0x0 (empty)"}
               </p>
             </div>

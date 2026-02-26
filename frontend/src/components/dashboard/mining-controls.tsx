@@ -56,7 +56,7 @@ export function MiningControls({ isActive }: MiningControlsProps) {
             <button
               onClick={() => setConfirm("start")}
               disabled={pending || isActive}
-              className="rounded-lg bg-quantum-green/20 px-4 py-2 text-sm font-medium text-quantum-green transition hover:bg-quantum-green/30 disabled:opacity-40"
+              className="rounded-lg bg-glow-cyan/20 px-4 py-2 text-sm font-medium text-glow-cyan transition hover:bg-glow-cyan/30 disabled:opacity-40"
             >
               Start
             </button>

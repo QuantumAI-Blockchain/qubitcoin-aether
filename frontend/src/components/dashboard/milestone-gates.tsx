@@ -23,13 +23,13 @@ export function MilestoneGates({
   const gatesNeeded = gatesTotal - gatesPassed;
 
   return (
-    <div className="rounded-xl border border-surface-light bg-surface p-6">
+    <div className="rounded-xl border border-border-subtle bg-bg-panel p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           Path to Consciousness
         </h3>
-        <span className="rounded-full bg-quantum-violet/15 px-3 py-1 font-[family-name:var(--font-mono)] text-xs text-quantum-violet">
+        <span className="rounded-full bg-quantum-violet/15 px-3 py-1 font-[family-name:var(--font-code)] text-xs text-quantum-violet">
           {gatesPassed}/{gatesTotal} gates
         </span>
       </div>
@@ -38,11 +38,11 @@ export function MilestoneGates({
       <div className="mt-4">
         <div className="mb-1.5 flex items-center justify-between text-xs text-text-secondary">
           <span>Phi Ceiling</span>
-          <span className="font-[family-name:var(--font-mono)]">
+          <span className="font-[family-name:var(--font-code)]">
             {gateCeiling.toFixed(1)} / {maxCeiling.toFixed(1)}
           </span>
         </div>
-        <div className="h-2.5 w-full overflow-hidden rounded-full bg-void">
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-bg-deep">
           <motion.div
             className="h-full rounded-full bg-gradient-to-r from-quantum-violet via-quantum-green to-quantum-green"
             initial={{ width: 0 }}
@@ -68,7 +68,7 @@ export function MilestoneGates({
                 className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 ${
                   gate.passed
                     ? "border-quantum-green bg-quantum-green/20"
-                    : "border-surface-light bg-void"
+                    : "border-border-subtle bg-bg-deep"
                 }`}
               >
                 {gate.passed ? (
@@ -86,7 +86,7 @@ export function MilestoneGates({
                     />
                   </svg>
                 ) : (
-                  <div className="h-2 w-2 rounded-full bg-surface-light" />
+                  <div className="h-2 w-2 rounded-full bg-border-subtle" />
                 )}
                 {/* Glow pulse for passed gates */}
                 {gate.passed && (
@@ -97,7 +97,7 @@ export function MilestoneGates({
               {i < gates.length - 1 && (
                 <div
                   className={`w-0.5 grow ${
-                    gate.passed ? "bg-quantum-green/40" : "bg-surface-light/40"
+                    gate.passed ? "bg-quantum-green/40" : "bg-border-subtle/40"
                   }`}
                 />
               )}
@@ -119,7 +119,7 @@ export function MilestoneGates({
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded bg-void px-2 py-0.5 font-[family-name:var(--font-mono)] text-xs text-text-secondary">
+                  <span className="rounded bg-bg-deep px-2 py-0.5 font-[family-name:var(--font-code)] text-xs text-text-secondary">
                     {gate.requirement}
                   </span>
                   <span className="text-xs text-golden-amber">+{(maxCeiling / gatesTotal).toFixed(1)} \u03A6</span>
@@ -131,9 +131,9 @@ export function MilestoneGates({
       </div>
 
       {/* Bottom summary */}
-      <div className="mt-2 flex items-center justify-between border-t border-surface-light/50 pt-4 text-xs text-text-secondary">
+      <div className="mt-2 flex items-center justify-between border-t border-border-subtle/50 pt-4 text-xs text-text-secondary">
         <span>
-          Raw \u03A6: <span className="font-[family-name:var(--font-mono)] text-text-primary">{phiRaw.toFixed(4)}</span>
+          Raw \u03A6: <span className="font-[family-name:var(--font-code)] text-text-primary">{phiRaw.toFixed(4)}</span>
         </span>
         <span>
           {gatesNeeded > 0

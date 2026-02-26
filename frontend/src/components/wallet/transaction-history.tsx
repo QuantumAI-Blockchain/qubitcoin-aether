@@ -58,7 +58,7 @@ export function TransactionHistory({ address }: TransactionHistoryProps) {
   return (
     <Card>
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           Transaction History
         </h3>
         {isLoading && <PhiSpinner className="h-4 w-4" />}
@@ -74,14 +74,14 @@ export function TransactionHistory({ address }: TransactionHistoryProps) {
               return (
                 <div
                   key={tx.txid}
-                  className="flex items-center justify-between rounded-lg border border-surface-light bg-void px-4 py-3"
+                  className="flex items-center justify-between rounded-lg border border-border-subtle bg-bg-deep px-4 py-3"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className={`text-xs font-medium ${isSend ? "text-quantum-red" : "text-quantum-green"}`}>
                         {isSend ? "SEND" : "RECV"}
                       </span>
-                      <span className="truncate font-[family-name:var(--font-mono)] text-xs text-text-secondary">
+                      <span className="truncate font-[family-name:var(--font-code)] text-xs text-text-secondary">
                         {isSend ? truncateAddr(tx.recipient) : truncateAddr(tx.sender)}
                       </span>
                     </div>
@@ -90,7 +90,7 @@ export function TransactionHistory({ address }: TransactionHistoryProps) {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-[family-name:var(--font-mono)] text-sm font-medium">
+                    <span className="font-[family-name:var(--font-code)] text-sm font-medium">
                       {isSend ? "-" : "+"}{tx.amount.toLocaleString()} QBC
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE.pending}`}>
@@ -114,10 +114,10 @@ export function TransactionHistory({ address }: TransactionHistoryProps) {
             {confirmedUtxos.map((utxo, i) => (
               <div
                 key={`${utxo.txid}-${utxo.vout}`}
-                className="flex items-center justify-between rounded-lg border border-surface-light bg-void px-4 py-3"
+                className="flex items-center justify-between rounded-lg border border-border-subtle bg-bg-deep px-4 py-3"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-[family-name:var(--font-mono)] text-xs text-text-secondary">
+                  <p className="truncate font-[family-name:var(--font-code)] text-xs text-text-secondary">
                     {truncateAddr(utxo.txid)}:{utxo.vout}
                   </p>
                   <p className="mt-0.5 text-xs text-text-secondary">
@@ -125,7 +125,7 @@ export function TransactionHistory({ address }: TransactionHistoryProps) {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-[family-name:var(--font-mono)] text-sm font-medium text-quantum-green">
+                  <span className="font-[family-name:var(--font-code)] text-sm font-medium text-quantum-green">
                     {utxo.amount.toLocaleString()} QBC
                   </span>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE.confirmed}`}>

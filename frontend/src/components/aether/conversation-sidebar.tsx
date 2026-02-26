@@ -77,9 +77,9 @@ export function ConversationSidebar({
   const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
-    <aside className="flex w-64 flex-shrink-0 flex-col border-r border-surface-light bg-surface/50">
+    <aside className="flex w-64 flex-shrink-0 flex-col border-r border-border-subtle bg-bg-panel">
       {/* New chat button */}
-      <div className="border-b border-surface-light p-3">
+      <div className="border-b border-border-subtle p-3">
         <button
           onClick={onNew}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-quantum-violet/20 px-3 py-2.5 text-sm font-medium text-quantum-violet transition hover:bg-quantum-violet/30"
@@ -108,8 +108,8 @@ export function ConversationSidebar({
               onClick={() => onSelect(session)}
               className={`group mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition ${
                 active
-                  ? "bg-quantum-green/10 text-quantum-green"
-                  : "text-text-secondary hover:bg-surface-light hover:text-text-primary"
+                  ? "bg-glow-cyan/10 text-glow-cyan"
+                  : "text-text-secondary hover:bg-bg-elevated hover:text-text-primary"
               }`}
             >
               <div className="min-w-0 flex-1">
@@ -136,7 +136,7 @@ export function ConversationSidebar({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-surface-light px-3 py-2">
+      <div className="border-t border-border-subtle px-3 py-2">
         <p className="text-center text-xs text-text-secondary/50">
           Stored locally in your browser
         </p>

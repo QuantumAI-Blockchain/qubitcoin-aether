@@ -71,10 +71,10 @@ export function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed bottom-6 right-6 z-50 flex h-[420px] w-[360px] flex-col overflow-hidden rounded-2xl border border-surface-light bg-surface shadow-2xl"
+            className="fixed bottom-6 right-6 z-50 flex h-[420px] w-[360px] flex-col overflow-hidden rounded-2xl border border-border-subtle bg-bg-panel shadow-2xl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-surface-light px-4 py-3">
+            <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-quantum-green consciousness-pulse" />
                 <span className="text-sm font-semibold">Aether Tree</span>
@@ -94,14 +94,14 @@ export function ChatWidget() {
                   className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                     m.role === "user"
                       ? "ml-auto bg-quantum-violet/20 text-text-primary"
-                      : "bg-surface-light text-text-primary"
+                      : "bg-bg-elevated text-text-primary"
                   }`}
                 >
                   {m.text}
                 </div>
               ))}
               {loading && (
-                <div className="max-w-[85%] rounded-lg bg-surface-light px-3 py-2 text-sm text-text-secondary">
+                <div className="max-w-[85%] rounded-lg bg-bg-elevated px-3 py-2 text-sm text-text-secondary">
                   Reasoning...
                 </div>
               )}
@@ -110,14 +110,14 @@ export function ChatWidget() {
             {/* Input */}
             <form
               onSubmit={(e) => { e.preventDefault(); send(); }}
-              className="border-t border-surface-light px-4 py-3"
+              className="border-t border-border-subtle px-4 py-3"
             >
               <div className="flex gap-2">
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask Aether..."
-                  className="flex-1 rounded-lg bg-void px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-1 focus:ring-quantum-violet"
+                  className="flex-1 rounded-lg bg-bg-deep px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-1 focus:ring-quantum-violet"
                 />
                 <button
                   type="submit"

@@ -153,7 +153,7 @@ export function BytecodeDisassembler() {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         Bytecode Disassembler
       </h3>
 
@@ -162,7 +162,7 @@ export function BytecodeDisassembler() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Paste bytecode (0x6080604052...)"
-          className="flex-1 rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+          className="flex-1 rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
         />
         <button
           onClick={handleDisassemble}
@@ -174,21 +174,21 @@ export function BytecodeDisassembler() {
       </div>
 
       {ops.length > 0 && (
-        <div className="mt-4 max-h-80 overflow-y-auto rounded-lg border border-surface-light bg-void">
+        <div className="mt-4 max-h-80 overflow-y-auto rounded-lg border border-border-subtle bg-bg-deep">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-void">
-              <tr className="border-b border-surface-light text-left text-text-secondary">
+            <thead className="sticky top-0 bg-bg-deep">
+              <tr className="border-b border-border-subtle text-left text-text-secondary">
                 <th className="px-3 py-2">Offset</th>
                 <th className="px-3 py-2">Hex</th>
                 <th className="px-3 py-2">Opcode</th>
                 <th className="px-3 py-2">Operand</th>
               </tr>
             </thead>
-            <tbody className="font-[family-name:var(--font-mono)]">
+            <tbody className="font-[family-name:var(--font-code)]">
               {ops.map((op, i) => (
                 <tr
                   key={i}
-                  className={`border-b border-surface-light/30 ${
+                  className={`border-b border-border-subtle/30 ${
                     op.isQuantum ? "bg-quantum-violet/5" : ""
                   }`}
                 >
@@ -212,7 +212,7 @@ export function BytecodeDisassembler() {
               ))}
             </tbody>
           </table>
-          <p className="border-t border-surface-light px-3 py-2 text-xs text-text-secondary">
+          <p className="border-t border-border-subtle px-3 py-2 text-xs text-text-secondary">
             {ops.length} instruction{ops.length !== 1 ? "s" : ""} decoded
           </p>
         </div>

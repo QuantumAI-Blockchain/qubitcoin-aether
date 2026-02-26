@@ -69,7 +69,7 @@ export function SephirotLauncher() {
     <div className="space-y-6">
       {/* Header */}
       <Card glow="violet">
-        <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           Sephirot Nodes — Aether Tree Neural Network
         </h3>
         <p className="mt-1 text-xs text-text-secondary">
@@ -89,13 +89,13 @@ export function SephirotLauncher() {
       {/* My Stakes */}
       {stakes.length > 0 && (
         <Card>
-          <h4 className="mb-3 font-[family-name:var(--font-heading)] font-semibold">
+          <h4 className="mb-3 font-[family-name:var(--font-display)] font-semibold">
             My Active Stakes
           </h4>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-surface-light text-xs text-text-secondary">
+                <tr className="border-b border-border-subtle text-xs text-text-secondary">
                   <th className="pb-2">Node</th>
                   <th className="pb-2">Amount</th>
                   <th className="pb-2">Status</th>
@@ -124,7 +124,7 @@ export function SephirotLauncher() {
           <div className="flex gap-8">
             <div>
               <p className="text-xs text-text-secondary">Total Staked</p>
-              <p className="font-[family-name:var(--font-mono)] text-lg font-bold text-quantum-violet">
+              <p className="font-[family-name:var(--font-code)] text-lg font-bold text-quantum-violet">
                 {totalStaked.toLocaleString(undefined, {
                   maximumFractionDigits: 4,
                 })}{" "}
@@ -133,7 +133,7 @@ export function SephirotLauncher() {
             </div>
             <div>
               <p className="text-xs text-text-secondary">Total Earned</p>
-              <p className="font-[family-name:var(--font-mono)] text-lg font-bold text-quantum-green">
+              <p className="font-[family-name:var(--font-code)] text-lg font-bold text-quantum-green">
                 {totalEarned.toLocaleString(undefined, {
                   maximumFractionDigits: 4,
                 })}{" "}
@@ -150,7 +150,7 @@ export function SephirotLauncher() {
       </Card>
 
       {/* Reward Explainer */}
-      <div className="rounded-lg border border-surface-light bg-surface/50 p-4 text-xs text-text-secondary">
+      <div className="rounded-lg border border-border-subtle bg-bg-panel p-4 text-xs text-text-secondary">
         <p className="font-semibold text-text-primary">
           How Sephirot Rewards Work
         </p>
@@ -186,7 +186,7 @@ function NodeCard({
   return (
     <>
       <div
-        className={`rounded-xl border bg-gradient-to-b p-3 transition hover:scale-[1.02] ${NODE_COLORS[node.id] ?? "border-surface-light"}`}
+        className={`rounded-xl border bg-gradient-to-b p-3 transition hover:scale-[1.02] ${NODE_COLORS[node.id] ?? "border-border-subtle"}`}
       >
         <p className="text-xs font-bold text-text-primary">{node.name}</p>
         <p className="text-[10px] text-text-secondary">{node.title}</p>
@@ -194,14 +194,14 @@ function NodeCard({
           {node.function}
         </p>
         <div className="mt-2 flex items-baseline justify-between">
-          <span className="font-[family-name:var(--font-mono)] text-xs text-quantum-green">
+          <span className="font-[family-name:var(--font-code)] text-xs text-quantum-green">
             ~{node.apy_estimate}% APY
           </span>
           <span className="text-[10px] text-text-secondary">
             {node.current_stakers} stakers
           </span>
         </div>
-        <p className="font-[family-name:var(--font-mono)] text-[10px] text-text-secondary">
+        <p className="font-[family-name:var(--font-code)] text-[10px] text-text-secondary">
           {parseFloat(node.total_staked).toLocaleString()} QBC staked
         </p>
         <button
@@ -274,8 +274,8 @@ function StakeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-md rounded-xl border border-surface-light bg-surface p-6">
-        <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <div className="w-full max-w-md rounded-xl border border-border-subtle bg-bg-panelp-6">
+        <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           Stake on {node.name}
         </h3>
         <p className="mt-1 text-xs text-text-secondary">{node.function}</p>
@@ -290,7 +290,7 @@ function StakeModal({
               min={node.min_stake}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              className="w-full rounded-lg bg-bg-deep px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
             />
           </div>
           <div>
@@ -302,14 +302,14 @@ function StakeModal({
               value={privateKey}
               onChange={(e) => setPrivateKey(e.target.value)}
               placeholder="Enter private key..."
-              className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
             />
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex justify-end gap-3">
             <button
               onClick={onClose}
-              className="rounded-lg border border-surface-light px-4 py-2 text-sm text-text-secondary transition hover:border-text-secondary"
+              className="rounded-lg border border-border-subtle px-4 py-2 text-sm text-text-secondary transition hover:border-text-secondary"
             >
               Cancel
             </button>
@@ -385,9 +385,9 @@ function StakeRow({
 
   return (
     <>
-      <tr className="border-b border-surface-light/50">
+      <tr className="border-b border-border-subtle/50">
         <td className="py-2 text-text-primary">{stake.node_name ?? `Node ${stake.node_id}`}</td>
-        <td className="py-2 font-[family-name:var(--font-mono)] text-text-primary">
+        <td className="py-2 font-[family-name:var(--font-code)] text-text-primary">
           {parseFloat(stake.amount).toLocaleString()} QBC
         </td>
         <td className="py-2">
@@ -401,7 +401,7 @@ function StakeRow({
             {statusLabel}
           </span>
         </td>
-        <td className="py-2 font-[family-name:var(--font-mono)] text-quantum-green">
+        <td className="py-2 font-[family-name:var(--font-code)] text-quantum-green">
           +{pendingReward.toFixed(4)} QBC
         </td>
         <td className="py-2 text-right">
@@ -424,7 +424,7 @@ function StakeRow({
                 value={privateKey}
                 onChange={(e) => setPrivateKey(e.target.value)}
                 placeholder="Private key to sign unstake..."
-                className="flex-1 rounded-lg bg-void px-3 py-1.5 font-[family-name:var(--font-mono)] text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                className="flex-1 rounded-lg bg-bg-deep px-3 py-1.5 font-[family-name:var(--font-code)] text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-red-500/50"
               />
               <button
                 onClick={handleUnstake}
@@ -517,7 +517,7 @@ function ClaimButton({
             value={privateKey}
             onChange={(e) => setPrivateKey(e.target.value)}
             placeholder="Private key..."
-            className="w-48 rounded-lg bg-void px-3 py-1.5 font-[family-name:var(--font-mono)] text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-green/50"
+            className="w-48 rounded-lg bg-bg-deep px-3 py-1.5 font-[family-name:var(--font-code)] text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-green/50"
           />
           <button
             onClick={handleClaim}

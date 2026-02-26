@@ -31,10 +31,10 @@ export function StatsBar() {
       {items.map(({ label, value }) => (
         <div
           key={label}
-          className="rounded-lg border border-surface-light bg-surface/60 px-4 py-3 text-center backdrop-blur-sm"
+          className="panel-inset px-4 py-3 text-center"
         >
-          <p className="text-xs text-text-secondary">{label}</p>
-          <p className="mt-1 font-[family-name:var(--font-mono)] text-lg font-semibold text-quantum-green">
+          <p className="font-[family-name:var(--font-display)] text-[9px] uppercase tracking-widest text-text-secondary">{label}</p>
+          <p className="mt-1 font-[family-name:var(--font-code)] text-lg font-semibold glow-cyan">
             {value}
           </p>
         </div>

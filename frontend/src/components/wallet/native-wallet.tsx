@@ -125,7 +125,7 @@ function WalletSelector({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-quantum-green">&#x1f512;</span>
-          <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+          <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
             Native Quantum Wallets
           </h3>
           <span className="rounded bg-quantum-green/20 px-2 py-0.5 text-[10px] font-semibold text-quantum-green">
@@ -135,7 +135,7 @@ function WalletSelector({
         <div className="flex gap-2">
           <button
             onClick={() => setImporting(!importing)}
-            className="rounded-lg border border-surface-light px-3 py-1.5 text-xs text-text-secondary transition hover:border-quantum-violet hover:text-quantum-violet"
+            className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs text-text-secondary transition hover:border-quantum-violet hover:text-quantum-violet"
           >
             Import
           </button>
@@ -157,7 +157,7 @@ function WalletSelector({
             placeholder="Paste private key hex..."
             value={importKey}
             onChange={(e) => setImportKey(e.target.value)}
-            className="flex-1 rounded-lg bg-void px-3 py-2 font-[family-name:var(--font-mono)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="flex-1 rounded-lg bg-bg-deep px-3 py-2 font-[family-name:var(--font-code)] text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
           <button
             onClick={handleImport}
@@ -175,7 +175,7 @@ function WalletSelector({
             Save your private key now. It will NOT be shown again.
           </p>
           <div className="mt-2 flex items-center gap-2">
-            <code className="flex-1 break-all rounded bg-void p-2 font-[family-name:var(--font-mono)] text-[10px] text-amber-300">
+            <code className="flex-1 break-all rounded bg-bg-deep p-2 font-[family-name:var(--font-code)] text-[10px] text-amber-300">
               {newKey}
             </code>
             <button
@@ -207,7 +207,7 @@ function WalletSelector({
               className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 transition ${
                 active === w.address
                   ? "border-quantum-green bg-quantum-green/5"
-                  : "border-surface-light hover:border-quantum-violet/50"
+                  : "border-border-subtle hover:border-quantum-violet/50"
               }`}
               onClick={() => onSelect(w.address)}
             >
@@ -215,7 +215,7 @@ function WalletSelector({
                 <p className="text-xs font-semibold text-text-primary">
                   {w.label}
                 </p>
-                <p className="font-[family-name:var(--font-mono)] text-[10px] text-text-secondary">
+                <p className="font-[family-name:var(--font-code)] text-[10px] text-text-secondary">
                   {w.address}
                 </p>
               </div>
@@ -252,7 +252,7 @@ function WalletBalance({ wallet }: { wallet: NativeWallet }) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-text-secondary">QBC Balance</p>
-          <p className="mt-1 font-[family-name:var(--font-mono)] text-4xl font-bold text-quantum-green">
+          <p className="mt-1 font-[family-name:var(--font-code)] text-4xl font-bold text-quantum-green">
             {balance.toLocaleString(undefined, { maximumFractionDigits: 8 })}{" "}
             QBC
           </p>
@@ -261,7 +261,7 @@ function WalletBalance({ wallet }: { wallet: NativeWallet }) {
           Post-Quantum Secure
         </span>
       </div>
-      <p className="mt-2 font-[family-name:var(--font-mono)] text-xs text-text-secondary">
+      <p className="mt-2 font-[family-name:var(--font-code)] text-xs text-text-secondary">
         {wallet.address}
       </p>
     </Card>
@@ -371,12 +371,12 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
 
   return (
     <Card>
-      <h3 className="mb-4 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
         Send QBC
       </h3>
       <div className="space-y-3">
         {/* Privacy Toggle */}
-        <div className="flex items-center justify-between rounded-lg border border-surface-light px-4 py-3">
+        <div className="flex items-center justify-between rounded-lg border border-border-subtle px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-text-primary">
               Private Transfer (Susy Swap)
@@ -409,7 +409,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
                 value={recipientSpendPub}
                 onChange={(e) => setRecipientSpendPub(e.target.value)}
                 placeholder="02abc..."
-                className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+                className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
               />
             </div>
             <div>
@@ -420,7 +420,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
                 value={recipientViewPub}
                 onChange={(e) => setRecipientViewPub(e.target.value)}
                 placeholder="03def..."
-                className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+                className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
               />
             </div>
           </>
@@ -433,7 +433,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
               value={to}
               onChange={(e) => setTo(e.target.value)}
               placeholder="qbc1... or 0x..."
-              className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              className="w-full rounded-lg bg-bg-deep px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
             />
           </div>
         )}
@@ -447,7 +447,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.0000"
-            className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="w-full rounded-lg bg-bg-deep px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
         </div>
         <div>
@@ -459,7 +459,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
             value={privateKey}
             onChange={(e) => setPrivateKey(e.target.value)}
             placeholder="Enter private key to sign..."
-            className="w-full rounded-lg bg-void px-4 py-2.5 font-[family-name:var(--font-mono)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+            className="w-full rounded-lg bg-bg-deep px-4 py-2.5 font-[family-name:var(--font-code)] text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
           />
         </div>
         {!isPrivate && (
@@ -470,7 +470,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
             <select
               value={utxoStrategy}
               onChange={(e) => setUtxoStrategy(e.target.value as UtxoStrategy)}
-              className="w-full rounded-lg bg-void px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+              className="w-full rounded-lg bg-bg-deep px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
             >
               {UTXO_STRATEGIES.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -512,8 +512,8 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
       {/* Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-md rounded-2xl border border-surface-light bg-surface p-6 shadow-2xl">
-            <h4 className="font-[family-name:var(--font-heading)] text-lg font-bold">
+          <div className="mx-4 w-full max-w-md rounded-2xl border border-border-subtle bg-bg-panelp-6 shadow-2xl">
+            <h4 className="font-[family-name:var(--font-display)] text-lg font-bold">
               Confirm {isPrivate ? "Private " : ""}Transaction
             </h4>
             {isPrivate && (
@@ -521,39 +521,39 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
                 Susy Swap — Confidential
               </span>
             )}
-            <div className="mt-4 space-y-3 rounded-lg bg-void p-4 text-sm">
+            <div className="mt-4 space-y-3 rounded-lg bg-bg-deep p-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-secondary">From</span>
-                <span className="font-[family-name:var(--font-mono)] text-xs text-quantum-violet">
+                <span className="font-[family-name:var(--font-code)] text-xs text-quantum-violet">
                   {wallet.address.slice(0, 12)}...{wallet.address.slice(-8)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">To</span>
-                <span className="font-[family-name:var(--font-mono)] text-xs text-quantum-violet">
+                <span className="font-[family-name:var(--font-code)] text-xs text-quantum-violet">
                   {isPrivate
                     ? `Stealth: ${recipientSpendPub.slice(0, 12)}...`
                     : `${to.slice(0, 12)}...${to.slice(-8)}`}
                 </span>
               </div>
-              <div className="border-t border-surface-light pt-2">
+              <div className="border-t border-border-subtle pt-2">
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Amount</span>
-                  <span className="font-[family-name:var(--font-mono)] text-quantum-green">
+                  <span className="font-[family-name:var(--font-code)] text-quantum-green">
                     {isPrivate ? "Hidden" : `${parsedAmount.toLocaleString()} QBC`}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Est. Fee</span>
-                  <span className="font-[family-name:var(--font-mono)] text-text-secondary">
+                  <span className="font-[family-name:var(--font-code)] text-text-secondary">
                     {estimatedFee} QBC
                   </span>
                 </div>
               </div>
-              <div className="border-t border-surface-light pt-2">
+              <div className="border-t border-border-subtle pt-2">
                 <div className="flex justify-between font-semibold">
                   <span>Total</span>
-                  <span className="font-[family-name:var(--font-mono)] text-quantum-green">
+                  <span className="font-[family-name:var(--font-code)] text-quantum-green">
                     {isPrivate ? "Hidden + fee" : `${total.toLocaleString()} QBC`}
                   </span>
                 </div>
@@ -570,7 +570,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
             <div className="mt-5 flex gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
-                className="flex-1 rounded-lg border border-surface-light px-4 py-2.5 text-sm text-text-secondary transition hover:text-text-primary"
+                className="flex-1 rounded-lg border border-border-subtle px-4 py-2.5 text-sm text-text-secondary transition hover:text-text-primary"
               >
                 Cancel
               </button>
@@ -623,7 +623,7 @@ function PrivacyPanel() {
     <Card>
       <div className="flex items-center gap-2">
         <span className="text-quantum-violet">&#x1f576;</span>
-        <h3 className="font-[family-name:var(--font-heading)] text-lg font-semibold">
+        <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
           Privacy (Susy Swap)
         </h3>
         <span className="rounded bg-quantum-violet/20 px-2 py-0.5 text-[10px] font-semibold text-quantum-violet">
@@ -654,7 +654,7 @@ function PrivacyPanel() {
           </div>
 
           {/* Public keys (shareable) */}
-          <div className="rounded-lg bg-void p-3">
+          <div className="rounded-lg bg-bg-deep p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-quantum-violet">
               Share with senders
             </p>
@@ -662,7 +662,7 @@ function PrivacyPanel() {
               <div>
                 <p className="text-[10px] text-text-secondary">Spend Public Key</p>
                 <div className="flex items-center gap-1">
-                  <code className="flex-1 break-all font-[family-name:var(--font-mono)] text-[10px] text-text-primary">
+                  <code className="flex-1 break-all font-[family-name:var(--font-code)] text-[10px] text-text-primary">
                     {stealthKeys.spend_pubkey}
                   </code>
                   <button
@@ -676,7 +676,7 @@ function PrivacyPanel() {
               <div>
                 <p className="text-[10px] text-text-secondary">View Public Key</p>
                 <div className="flex items-center gap-1">
-                  <code className="flex-1 break-all font-[family-name:var(--font-mono)] text-[10px] text-text-primary">
+                  <code className="flex-1 break-all font-[family-name:var(--font-code)] text-[10px] text-text-primary">
                     {stealthKeys.view_pubkey}
                   </code>
                   <button
@@ -691,7 +691,7 @@ function PrivacyPanel() {
           </div>
 
           {/* Private keys (secret) */}
-          <div className="rounded-lg bg-void p-3">
+          <div className="rounded-lg bg-bg-deep p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
               Secret — do not share
             </p>
@@ -699,7 +699,7 @@ function PrivacyPanel() {
               <div>
                 <p className="text-[10px] text-text-secondary">Spend Private Key</p>
                 <div className="flex items-center gap-1">
-                  <code className="flex-1 break-all font-[family-name:var(--font-mono)] text-[10px] text-amber-300">
+                  <code className="flex-1 break-all font-[family-name:var(--font-code)] text-[10px] text-amber-300">
                     {stealthKeys.spend_privkey}
                   </code>
                   <button
@@ -715,7 +715,7 @@ function PrivacyPanel() {
               <div>
                 <p className="text-[10px] text-text-secondary">View Private Key</p>
                 <div className="flex items-center gap-1">
-                  <code className="flex-1 break-all font-[family-name:var(--font-mono)] text-[10px] text-amber-300">
+                  <code className="flex-1 break-all font-[family-name:var(--font-code)] text-[10px] text-amber-300">
                     {stealthKeys.view_privkey}
                   </code>
                   <button
@@ -731,9 +731,9 @@ function PrivacyPanel() {
             </div>
           </div>
 
-          <div className="rounded-lg bg-void p-3">
+          <div className="rounded-lg bg-bg-deep p-3">
             <p className="text-[10px] text-text-secondary">Stealth Address</p>
-            <code className="break-all font-[family-name:var(--font-mono)] text-[10px] text-quantum-green">
+            <code className="break-all font-[family-name:var(--font-code)] text-[10px] text-quantum-green">
               {stealthKeys.public_address}
             </code>
           </div>
@@ -750,14 +750,14 @@ function ReceivePanel({ wallet }: { wallet: NativeWallet }) {
 
   return (
     <Card>
-      <h3 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-semibold">
+      <h3 className="mb-3 font-[family-name:var(--font-display)] text-lg font-semibold">
         Receive QBC
       </h3>
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
         <QRCode value={wallet.address} size={120} />
         <div className="flex-1">
           <p className="text-xs text-text-secondary">Your address:</p>
-          <p className="mt-1 break-all rounded-lg bg-void px-4 py-3 font-[family-name:var(--font-mono)] text-sm text-quantum-green">
+          <p className="mt-1 break-all rounded-lg bg-bg-deep px-4 py-3 font-[family-name:var(--font-code)] text-sm text-quantum-green">
             {wallet.address}
           </p>
           <button
