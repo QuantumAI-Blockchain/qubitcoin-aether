@@ -1,44 +1,56 @@
 # QUBITCOIN PROJECT REVIEW
-# Government-Grade Peer Review — 8 Component Audit
-# Date: February 26, 2026 | Run #25
+# Government-Grade Peer Review — 8+ Component Audit (v2.1 Protocol)
+# Date: February 27, 2026 | Run #26
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-- **Overall Readiness Score: 96/100** *(backend 97→96: `/wallet/sign` private key exposure + unauthenticated mining endpoints; frontend pages are high-quality UI prototypes backed by mock data)*
+- **Overall Readiness Score: 72/100** *(down from 96 — Run #26 introduces component-weighted scoring across ALL layers; previous runs only scored backend)*
 - **Total Codebase: ~99,400+ LOC across 370+ files (Python, Go, Rust, TypeScript, Solidity)**
-- **Backend Test Suite: 3,391 tests passing (134 test files, +915 since Run #11)**
+- **Backend Test Suite: 3,391 tests passing (134 test files)**
 - **Frontend Test Suite: 5 tests (2 test files — insufficient for production)**
-- **Backend (L1/L2/L3): Production-ready** — no critical findings, BN128 precompiles now complete
-- **Frontend (Explorer/Bridge/Exchange/Launchpad): UI-complete, backend-disconnected** — all 4 pages run on mock engines with zero API calls
+- **L1 Core: 78/100** — 2 CRITICAL (unauthenticated /transfer + /mining), 6 HIGH (fork reorg, JSON-RPC gaps)
+- **L2 QVM: 87/100** — 3 CRITICAL (ecRecover placeholder, CALLCODE stub, trivial QVERIFY)
+- **L2 Contracts: 91/100** — 51 real contracts, all functional, unverified vote weight in 3 governance contracts
+- **L3 Aether Tree: 72/100** — PARTIALLY GENUINE, organic Phi growth, real graph reasoning
+- **Exchange: 64/100** — FACADE (beautiful UI, zero trading capability, 2 XSS vectors)
+- **Bridge: 54/100** — FACADE (mature backend architecture, frontend 100% mock)
+- **Launchpad: 39/100** — FACADE (deploy wizard is setTimeout + Math.random)
+- **Frontend Core: 62/100** — Explorer 100% mock, OpenAI key in localStorage
+- **Economics: 62/100** — CRITICAL: emission only reaches 19.75% of 3.3B max supply
+- **QUSD: 68/100** — Contracts individually real but not cross-wired
 
-### Audit Scope (Run #25 — Deep Frontend Audit)
+### Audit Scope (Run #26 — Full Stack Deep Audit, v2.1 Protocol)
 
-Second 8-component audit. Deep dive into security, accessibility, performance, and wiring difficulty:
+Third 8-component audit. Every component read at source level. New components: Exchange, Bridge, Launchpad as MAJOR:
 
-| # | Component | Files | LOC | Backend Calls | Status |
-|---|-----------|-------|-----|---------------|--------|
-| 1 | L1 Blockchain Core | 16 modules | ~7,800 | N/A | **Production Ready** |
-| 2 | L2 QVM | 25+ modules | ~14,500 | N/A | **Production Ready** |
-| 3 | L3 Aether Tree | 33 modules | ~18,500 | N/A | **Production Ready** |
-| 4 | Frontend: Landing/Dashboard/Aether | 35 components | ~8,000 | ~40 typed API calls | **85-90% Ready** |
-| 5 | Frontend: Explorer | 20 files | ~3,850 | **0** | **74/100** — a11y weak, responsive viz gaps |
-| 6 | Frontend: Bridge | 19 files | ~5,800 | **0** | **52/100** — 3 CRITICALs (wallet, pre-flight, sign) |
-| 7 | Frontend: Exchange (DEX) | 26 files | 10,546 | **1** (`/health` only) | **62/100** — 2 XSS vectors, no a11y, no CLOB backend |
-| 8 | Frontend: Launchpad | 19 files | 10,589 | **0** | **38/100** — deploy is fake, false claims, no validation |
+| # | Component | Files Audited | LOC | Score | Classification |
+|---|-----------|---------------|-----|-------|----------------|
+| 1 | L1 Blockchain Core | 12 key modules | ~7,800 | **78/100** | 2 CRITICAL, 6 HIGH |
+| 2 | L2 QVM (Python) | 4 files | ~3,458 | **87/100** | 3 CRITICAL, 5 HIGH |
+| 3 | L2 Smart Contracts | 51 contracts | ~12,000 | **91/100** | PRODUCTION READY |
+| 4 | L3 Aether Tree | 33 modules | ~18,500 | **72/100** | PARTIALLY GENUINE |
+| 5 | Exchange (DEX) | 26 files | ~9,800 | **64/100** | FACADE |
+| 6 | Bridge | 19 files | ~5,800 | **54/100** | FACADE |
+| 7 | Launchpad | 19 files | ~10,589 | **39/100** | FACADE |
+| 8 | Frontend Core | 35 components | ~8,000 | **62/100** | MOCK DATA |
+| 9 | Economics + QUSD | 14 files | ~3,500 | **65/100** | PARTIALLY REAL |
 
-### Top 5 Critical Findings (This Run)
+### Top 10 Critical Findings (Run #26)
 
 | # | Finding | Component | Impact | Status |
 |---|---------|-----------|--------|--------|
-| FC1 | Backend: `/wallet/sign` accepts private key over HTTP — appears in logs, never zeroized | Backend L1 | **HIGH** | **OPEN** — BE-NEW-4: `rpc.py:2174` |
-| FC2 | Exchange: 2 innerHTML XSS vectors in DepthChart + LiquidationHeatmap tooltips | Exchange | HIGH | **OPEN** — DX-NEW-1/2: `tooltip.innerHTML` with interpolated data |
-| FC3 | Bridge: Sign flow generates random txId that never matches mock data → broken view | Bridge | CRITICAL | **OPEN** — BR-NEW-3: user completes sign, sees "TX NOT FOUND" |
-| FC4 | Bridge: Pre-flight checks are `Math.random()` coin flips, no real validation | Bridge | CRITICAL | **OPEN** — BR-NEW-1: all 12 checks use 92% random pass |
-| FC5 | Bridge: Wallet connection is decorative — local useState never propagated | Bridge | CRITICAL | **OPEN** — BR-NEW-2: connecting wallet has zero effect |
-| FC6 | Backend: `/mining/start`, `/mining/stop`, `/aether/knowledge/prune` lack authentication | Backend L1 | MEDIUM | **OPEN** — BE-NEW-3 |
-| FC7 | All 4 pages: WCAG accessibility failures — no ARIA dialogs, no focus trap, no keyboard nav | All Frontend | HIGH | **OPEN** — EX-NEW-5/6, DX-NEW-6/7, BR-NEW-17/18, LP-NEW-11 |
+| FC1 | `/transfer` endpoint spends miner UTXOs without ANY signature verification | L1 Backend | **CRITICAL** — total fund theft | **OPEN** — `rpc.py:1926-2018` |
+| FC2 | `/mining/start`, `/mining/stop` are unauthenticated POST endpoints | L1 Backend | **CRITICAL** — consensus disruption | **OPEN** — `rpc.py:649-659` |
+| FC3 | ecRecover precompile is SHA-256 placeholder — accepts INVALID ECDSA signatures | L2 QVM | **CRITICAL** — breaks ecrecover() | **OPEN** — `vm.py` precompile 1 |
+| FC4 | QVERIFY trivially passes — any non-zero proof_hash returns valid | L2 QVM | **CRITICAL** — fake quantum proofs accepted | **OPEN** — `vm.py:1595-1600` |
+| FC5 | Emission schedule only reaches ~651M QBC (19.75% of 3.3B max supply) | Economics | **CRITICAL** — 80% supply never mined | **OPEN** — phi-halving converges too fast |
+| FC6 | Vote weight in 3 governance contracts is caller-provided, NOT verified on-chain | L2 Contracts | **HIGH** — governance manipulation | **OPEN** — QUSDGovernance, TreasuryDAO, UpgradeGovernor |
+| FC7 | Fork resolution supply recalculation is incorrect after reorg | L1 Consensus | **HIGH** — monetary policy violation | **OPEN** — `consensus/engine.py:646-730` |
+| FC8 | `eth_sendTransaction` has zero authentication — any caller can deploy as any address | L1 JSON-RPC | **HIGH** — malicious contracts | **OPEN** — `jsonrpc.py:431-498` |
+| FC9 | 2 innerHTML XSS vectors in Exchange tooltips | Exchange | **HIGH** — XSS | **OPEN** — `DepthChart.tsx:301`, `LiquidationHeatmap.tsx:301` |
+| FC10 | Config.display() shows fabricated emission projections (says 100% but math gives 19.75%) | Economics | **HIGH** — misleading output | **OPEN** — consensus/engine.py display |
 
 ### Top 5 Strengths (Competitive Advantages)
 
@@ -46,22 +58,19 @@ Second 8-component audit. Deep dive into security, accessibility, performance, a
 |---|----------|-----------|-----------|
 | S1 | Real quantum computation via Qiskit V2 (not simulated) | L1 Mining | No other chain has real VQE mining |
 | S2 | Post-quantum cryptography (Dilithium2) production-ready | L1 Crypto | Ahead of Ethereum's PQ roadmap |
-| S3 | Genuine AGI reasoning (IIT Phi, PC causal discovery, GAT neural) | L3 Aether | First on-chain AGI — no competitor |
-| S4 | 49 real Solidity contracts (QUSD, Aether, tokens, bridge) | L2 QVM | Complete contract suite at launch |
+| S3 | Genuine AGI reasoning (IIT Phi, PC causal discovery, GAT neural, 5 anti-gaming defenses) | L3 Aether | First on-chain AGI — no competitor |
+| S4 | 51 real Solidity contracts — 38 Grade A, 6 Grade B, all functional | L2 QVM | Complete contract suite at launch |
 | S5 | Full BN128 elliptic curve math for Groth16 zkSNARK verification | L2 QVM | On-par with Ethereum precompiles |
 
-### Progress Since Last Run (Run #24 → Run #25)
-- **Deep frontend audit** — every file in all 4 pages read line-by-line (82 files total)
-- **New finding categories**: Security (XSS), Accessibility (WCAG), Performance, Code Quality, Wiring Difficulty
-- **3 CRITICAL findings in Bridge**: broken sign flow, fake pre-flight checks, decorative wallet
-- **2 HIGH XSS vectors in Exchange**: innerHTML in DepthChart + LiquidationHeatmap tooltips
-- **WCAG failures across all 4 pages**: no ARIA dialogs, no focus trapping, no keyboard nav, color-only encoding
-- **Component scores assigned**: Explorer 74, Exchange 62, Bridge 52, Launchpad 38
-- **Hook wiring difficulty rated**: 65 hooks across 4 pages, rated 1-5 for backend wiring effort
-- **Architecture recommendation**: Keep CLOB for Exchange (not AMM) — 10K LOC invested in order book UI
-- **Backend deep-dive completed**: 7 new findings (1 HIGH, 2 MEDIUM, 3 LOW, 1 INFO) — consensus/crypto/UTXO all verified correct
-- **Readiness score: 97 → 96** (backend -1: `/wallet/sign` private key exposure, unauthenticated mining endpoints)
-- **Test suite: 3,387 passed, 4 failed (integration), 4 skipped** — zero regressions
+### Progress Since Last Run (Run #25 → Run #26)
+- **Full v2.1 protocol audit** — 8 parallel agents reading ALL source files
+- **New component scores**: L1 78, QVM 87, Contracts 91, Aether 72, Economics 62-68
+- **Contract count corrected**: 49 → 51 (wQBC exists in both tokens/ and bridge/)
+- **2 NEW CRITICAL in L1**: unauthenticated /transfer (fund theft), unauthenticated mining control
+- **3 CRITICAL in QVM**: ecRecover placeholder, CALLCODE stub, trivial QVERIFY
+- **CRITICAL Economics finding**: phi-halving emission only reaches 19.75% of max supply (651M of 3.3B)
+- **L1 score drops 96→78**: deeper audit reveals RPC authentication gaps, fork resolution race, JSON-RPC nonce issues
+- **Overall score recalculated**: 72/100 (weighted across all components, not just backend)
 
 ---
 

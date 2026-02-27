@@ -1,20 +1,21 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: February 26, 2026 | Run #25
+# Last Updated: February 27, 2026 | Run #26
 
 ---
 
 ## PROGRESS TRACKER
 
-- Total items: 203 (198 + 5 new backend security items from Run #25 backend deep-dive)
+- Total items: 243 (203 from Run #25 + 40 new items from Run #26 deep audit)
 - Completed: 126
-- Remaining: 77
-- Completion: 62.1%
-- **Run #25: 134 total findings (127 frontend + 7 backend) across 82 frontend files + full backend audit**
-- **Backend score: 97 → 96** — 1 HIGH (`/wallet/sign` private key over HTTP), 2 MEDIUM, 3 LOW, 1 INFO
-- **Component scores: Explorer 74, Exchange 62, Bridge 52, Launchpad 38**
-- **3 CRITICAL Bridge findings, 2 HIGH XSS in Exchange, WCAG failures across all pages**
-- **51 hooks rated for wiring difficulty (5 trivial, 15 easy, 17 moderate, 8 hard, 6 rebuild)**
-- Estimated runs to 100%: ~12-15
+- Remaining: 117
+- Completion: 51.9%
+- **Run #26: Full v2.1 protocol audit — 8 parallel agents, every source file read**
+- **Overall score: 72/100** (weighted across all components — first true full-stack score)
+- **L1: 78 | QVM: 87 | Contracts: 91 | Aether: 72 | Exchange: 64 | Bridge: 54 | Launchpad: 39 | Frontend: 62 | Economics: 65**
+- **5 NEW CRITICAL findings** (unauthenticated /transfer, unauthenticated mining, ecRecover placeholder, trivial QVERIFY, emission reaches only 19.75%)
+- **Contract count corrected: 49 → 51** (wQBC in both tokens/ and bridge/)
+- **3 governance contracts have unverified vote weight** (QUSDGovernance, TreasuryDAO, UpgradeGovernor)
+- Estimated runs to 100%: ~15-20
 
 ---
 
@@ -963,6 +964,79 @@ Focus on: Go QVM completion, formal verification, advanced features
 
 **Cumulative progress:** 126/203 completed (62.1%) — 198→203 items (+5 new backend security items), 126→126 completed (+0).
 
+### Run #26 — February 27, 2026
+
+**Scope:** Full v2.1 protocol audit — 8 parallel deep-dive agents reading ALL source files. Exchange, Bridge, Launchpad audited as MAJOR components. Every L1/L2/L3 file read at source level.
+
+**Items completed this run: 0** (audit-only run, no code changes)
+
+**New items discovered: 40** (20 L1/L2 backend + 20 improvements across all components)
+
+**Key findings by component:**
+
+**L1 Blockchain Core (78/100):**
+- **2 CRITICAL**: `/transfer` unauthenticated (F2), `/mining/start|stop` unauthenticated (F1)
+- **6 HIGH**: Fork resolution race (F3/F4), `eth_sendRawTransaction` balance model mismatch (F5), `eth_sendTransaction` no auth (F6), Dilithium dev fallback structurally insecure (F7), difficulty cache stale after reorg (F8)
+- **7 MEDIUM**: LRU cache waste (F9), P2P tx gossip without validation (F10), `/wallet/create` returns pk (F11), empty PRIVATE_KEY_HEX crash (F12), 2-hour future timestamp (F13), tx hash SHA-256 vs Keccak (F14), SSRF via /p2p/connect (F15)
+- **Consensus/crypto/UTXO verified CORRECT**: phi-halving, difficulty adjustment, Dilithium2 usage, double-spend prevention, coinbase maturity all sound
+- **20 specific improvements with file:line references**
+
+**L2 QVM Python (87/100):**
+- **3 CRITICAL**: ecRecover placeholder (SHA-256 instead of ECDSA), CALLCODE stub, QVERIFY trivially passes
+- **5 HIGH**: blake2f stub, QRISK hardcoded (returns 10), QRISK_SYSTEMIC hardcoded (returns 5), QBRIDGE_VERIFY trivially passes, keccak256 fallback to SHA-256
+- **3 MEDIUM**: No warm/cold SLOAD gas, StateManager address derivation inconsistency, compliance cache key concern
+- **152/155 EVM opcodes fully implemented, 3 partial/stub**
+- **15/19 quantum opcodes real logic, 4 simplified**
+
+**L2 Smart Contracts (91/100):**
+- **51 contracts found** (not 49 — wQBC exists in both tokens/ and bridge/)
+- **38 Grade A, 6 Grade B, 0 Grade C or below**
+- **KEY FIX NEEDED**: Vote weight caller-provided in QUSDGovernance.sol:88, TreasuryDAO.sol:88, UpgradeGovernor.sol:83
+- **SynapticStaking uses transfer() not call()** — 2300 gas limit risk
+- **QUSDAllocation dual initialization** — initializeBase() unguarded
+- **10 QVM-side + 10 contract-side improvements**
+
+**L3 Aether Tree (72/100) — PARTIALLY GENUINE:**
+- Phi growth is ORGANIC (5 anti-gaming defenses: maturity gating, milestone gates, redundancy detection, cosine similarity, node-type entropy)
+- Real graph-based reasoning with backtracking, deductive/inductive/abductive chains
+- Sephirot nodes are genuinely distinct (unique quantum states, SUSY pairs, energy levels)
+- 22 findings, 20 improvements
+
+**Exchange DEX (64/100) — FACADE:**
+- Beautiful UI, zero trading capability, all data from MockDataEngine(seed=42)
+- Order submission is `setTimeout(600ms)` with toast — no API call, no state change
+- 2 innerHTML XSS vectors UNFIXED since Run #25
+- Only 1 ARIA attribute in 26 files
+- Backend has ZERO exchange endpoints — minimum 18 endpoint groups needed (8-15K LOC)
+
+**Bridge (54/100) — FACADE:**
+- Backend has 10 files (~2,800 LOC) with real Web3/Solana SDK integration
+- Frontend makes zero API calls — 3 CRITICAL from Run #25 still unfixed
+- Architecturally mature backend (federated validators, proof store, relayer incentives)
+
+**Launchpad (39/100) — FACADE:**
+- Deploy wizard collects 7 steps of input then discards ALL of it
+- `generateDeployResult()` returns `Math.random()` contract addresses
+- Backend `POST /contracts/deploy` exists but is never called
+
+**Economics (62/100) + QUSD (68/100) — PARTIALLY REAL:**
+- **CRITICAL**: Emission schedule `15.27 / PHI^era` converges to ~651M QBC (19.75% of 3.3B max supply)
+- **CRITICAL**: Config.display() shows fabricated 100% projections
+- QUSD contracts individually real but NOT cross-wired (mint doesn't call DebtLedger)
+- QUSDGovernance vote() weight is caller-supplied, not verified on-chain
+
+**Frontend Core (62/100):**
+- Explorer 100% mock data, 4 CRITICAL, 8 HIGH, 9 MEDIUM
+- OpenAI API key stored in localStorage
+- MetaMask gas estimate hardcoded to 21000
+- QVM deploy button is dead (no onClick handler)
+
+**Files changed: 2** (REVIEW.md, MASTERUPDATETODO.md)
+
+**Score change:** 96 → 72 (full-stack weighted scoring replaces backend-only score)
+
+**Cumulative progress:** 126/243 completed (51.9%) — 203→243 items (+40 new items), 126→126 completed (+0).
+
 ---
 
 ## 8. FRONTEND PAGE WIRING ITEMS (Run #24 — NEW)
@@ -1055,3 +1129,77 @@ Focus on: Go QVM completion, formal verification, advanced features
 | **A11Y04** | HIGH | Add `role="dialog"`, `aria-modal`, focus trap to Bridge modals | Bridge | BR-NEW-17/18/19: PreFlightModal, WalletModal, SettingsPanel need ARIA |
 | **A11Y05** | MEDIUM | Add `htmlFor`/`id` to all form labels in DeployWizard | Launchpad | LP-NEW-11: Labels are `<div>` not `<label>`, inputs lack `id` |
 | **A11Y06** | MEDIUM | Add text alternatives to canvas/SVG visualizations | Explorer | EX-NEW-9/10: HeartbeatMonitor canvas and ForceGraph SVG need `aria-label` |
+
+---
+
+## 10. RUN #26 NEW ITEMS (40 items)
+
+### 10.1 L1 Backend — Critical/High Security (10 items)
+
+| # | Priority | File:Line | Task | Details |
+|---|----------|-----------|------|---------|
+| **R26-01** | **CRITICAL** | `rpc.py:1926-2018` | Add Dilithium signature verification to `/transfer` | Any client can drain miner wallet — require signed request |
+| **R26-02** | **CRITICAL** | `rpc.py:649-659` | Add admin auth to `/mining/start` and `/mining/stop` | Use `_require_admin` dependency — any client can control mining |
+| **R26-03** | HIGH | `consensus/engine.py:646-730` | Fix fork resolution supply recalculation | SQL `WHERE NOT spent` is incorrect post-UPDATE — use block reward sum instead |
+| **R26-04** | HIGH | `consensus/engine.py:82-83` | Invalidate difficulty cache above fork height during reorg | Stale cache causes incorrect difficulty after reorg |
+| **R26-05** | HIGH | `jsonrpc.py:431-498` | Add signature verification to `eth_sendTransaction` | Restrict to localhost or require ECDSA/Dilithium signature |
+| **R26-06** | HIGH | `jsonrpc.py:310-429` | Fix `eth_sendRawTransaction` dual balance model | Validate against BOTH account balance AND UTXO balance |
+| **R26-07** | HIGH | `jsonrpc.py:341` | Use Keccak-256 for tx hash (not SHA-256) | MetaMask/Web3 tools expect Keccak-256 hashes |
+| **R26-08** | MEDIUM | `consensus/engine.py:206` | Reduce MAX_FUTURE_BLOCK_TIME from 7200 to 120 seconds | 2 hours is excessive for 3.3s blocks |
+| **R26-09** | MEDIUM | `p2p_network.py:303-305` | Validate transactions before P2P gossip | Malformed txs propagate through network without validation |
+| **R26-10** | MEDIUM | `config.py:52` | Change RPC_HOST default to 127.0.0.1 | Combined with unauthenticated endpoints, 0.0.0.0 exposes node control |
+
+### 10.2 L2 QVM — Critical/High Fixes (10 items)
+
+| # | Priority | File | Task | Details |
+|---|----------|------|------|---------|
+| **R26-11** | **CRITICAL** | `qvm/vm.py` precompile 1 | Implement real ecRecover | Replace SHA-256 placeholder with actual ECDSA/secp256k1 recovery |
+| **R26-12** | **CRITICAL** | `qvm/vm.py:1849-1857` | Implement CALLCODE with real execution | Currently pops 7 values and pushes 1 without executing code |
+| **R26-13** | **CRITICAL** | `qvm/vm.py:1595-1600` | Implement real QVERIFY | Non-zero proof_hash trivially passes — must verify against registered proofs |
+| **R26-14** | HIGH | `qvm/vm.py` precompile 9 | Implement blake2f precompile | Returns 64 zero bytes instead of BLAKE2b compression |
+| **R26-15** | HIGH | `qvm/vm.py:1613-1617` | Wire QRISK to compliance engine | Hardcoded return value 10 — should call ComplianceEngine.get_risk_score() |
+| **R26-16** | HIGH | `qvm/vm.py:1619-1622` | Wire QRISK_SYSTEMIC to circuit breaker | Hardcoded return value 5 — should call CircuitBreaker systemic risk |
+| **R26-17** | HIGH | `qvm/vm.py:1642-1648` | Implement real QBRIDGE_VERIFY | Trivially passes — must verify against bridge manager proofs |
+| **R26-18** | HIGH | `QUSDGovernance.sol:88` | Verify vote weight on-chain | `require(weight <= IQBC20(qbcToken).balanceOf(msg.sender))` — same fix needed in TreasuryDAO.sol:88, UpgradeGovernor.sol:83 |
+| **R26-19** | MEDIUM | `qvm/state.py` | Fix StateManager address derivation | Uses sha256(sender+nonce) vs vm.py's keccak256(RLP) — inconsistent |
+| **R26-20** | MEDIUM | `SynapticStaking.sol:165,182` | Replace transfer() with call() | 2300 gas limit may fail with complex receive/fallback |
+
+### 10.3 Economics — Critical Fix (5 items)
+
+| # | Priority | File | Task | Details |
+|---|----------|------|------|---------|
+| **R26-21** | **CRITICAL** | `consensus/engine.py` | Fix emission schedule — phi-halving only reaches 19.75% of max supply | `15.27 / PHI^era` converges to ~651M QBC out of 3.3B — 80% never mined. Need tail emission or adjusted formula |
+| **R26-22** | HIGH | `config.py` display() | Fix fabricated emission projections | Config.display() claims 100% supply mined but math shows 19.75% |
+| **R26-23** | HIGH | QUSD contracts | Cross-wire QUSD contract suite | QUSD.mint() doesn't call DebtLedger, deposits don't record paybacks, governance execute is no-op |
+| **R26-24** | MEDIUM | `QUSDOracle.sol` | Add minimum feeder count check | Single feeder can control oracle price — add `require(activeFeeders >= minFeeders)` |
+| **R26-25** | MEDIUM | `QUSDStabilizer.sol` | Add maximum trade size | Unlimited buy/sell during rebalance — prevent market manipulation |
+
+### 10.4 Exchange Backend (5 items — architectural)
+
+| # | Priority | Task | Details |
+|---|----------|------|---------|
+| **R26-26** | HIGH | Build order matching engine | Price-time priority CLOB — minimum: limit/market orders, cancellation, partial fills |
+| **R26-27** | HIGH | Add WebSocket infrastructure for exchange | Real-time order book, trades, positions via WS push |
+| **R26-28** | HIGH | Build 18 exchange API endpoint groups | Markets, orderbook, trades, orders, positions, balances, OHLC, funding, liquidation, wallet, fees, settlement, risk, market-making, oracle, history, WebSocket, admin |
+| **R26-29** | MEDIUM | Remove false security claims from Exchange UI | "Signed with CRYSTALS-Dilithium-3" (OrderEntry:918), "QUANTUM ORACLE: VERIFIED" (MarketStatsBar:92) |
+| **R26-30** | MEDIUM | Create exchange API service layer | `/frontend/src/lib/exchange-api.ts` — typed fetch functions, conditional mock/real via env flag |
+
+### 10.5 Aether Tree + Contracts (5 items)
+
+| # | Priority | File | Task | Details |
+|---|----------|------|------|---------|
+| **R26-31** | MEDIUM | `QBC721.sol` | Add ERC-165 supportsInterface | NFT marketplaces use this for interface detection |
+| **R26-32** | MEDIUM | `QUSDAllocation.sol` | Merge dual initialization | initializeBase() unguarded — merge into single initialize() |
+| **R26-33** | MEDIUM | `QUSDReserve.sol` | Add reentrancy guard to withdraw() | Defense in depth — modifies state before external calls |
+| **R26-34** | LOW | `TreasuryDAO.sol` | Add quorum requirement | Proposal can pass with single vote if votesFor > 0 |
+| **R26-35** | LOW | Dual wQBC | Document tokens/wQBC vs bridge/wQBC distinction | Intentional (QBC chain vs external chains) but undocumented |
+
+### 10.6 Accessibility (5 items — from Exchange agent)
+
+| # | Priority | Component | Task | Details |
+|---|----------|-----------|------|---------|
+| **R26-36** | HIGH | Exchange | Add role="alert" to Toast component | Screen readers don't announce order confirmations |
+| **R26-37** | HIGH | Exchange | Add aria-label to all form inputs in OrderEntry | Price, size, trigger price, leverage slider lack labels |
+| **R26-38** | MEDIUM | Exchange | Make order book keyboard-navigable | Add tabIndex, onKeyDown, role="grid" to OrderBook |
+| **R26-39** | MEDIUM | Exchange | Split QuantumIntelligence.tsx (904 lines) | Break into 4 lazy-loaded panels for better maintainability |
+| **R26-40** | LOW | Exchange | Reduce order book polling from 500ms to 2000ms | 500ms refetch interval will be heavy in production |
