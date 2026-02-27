@@ -5,16 +5,26 @@ import (
 	"math/big"
 )
 
-// Handler executes quantum opcodes (0xF0-0xF9) within the QVM.
-// It bridges the EVM execution context with the quantum state manager.
-type Handler struct {
-	States *StateManager
+// MemoryAccessor abstracts the EVM memory for opcodes that read from memory.
+// This avoids a circular import between evm and quantum packages.
+type MemoryAccessor interface {
+	Get(offset, size uint64) []byte
+	Resize(size uint64) uint64
 }
 
-// NewHandler creates a quantum opcode handler.
+// Handler executes quantum opcodes (0xF0-0xF9) and AGI opcodes (0xFA-0xFB)
+// within the QVM. It bridges the EVM execution context with the quantum
+// state manager and the Aether Tree AGI engine.
+type Handler struct {
+	States *StateManager
+	AGI    *AGIHandler
+}
+
+// NewHandler creates a quantum opcode handler with AGI support.
 func NewHandler() *Handler {
 	return &Handler{
 		States: NewStateManager(),
+		AGI:    NewAGIHandler(),
 	}
 }
 
@@ -31,7 +41,7 @@ type GasConsumer interface {
 	UseGas(amount uint64) bool
 }
 
-// Execute dispatches a quantum opcode.
+// Execute dispatches a quantum or AGI opcode.
 // Returns an error if the opcode fails.
 func (h *Handler) Execute(
 	op QuantumOpcode,
@@ -39,6 +49,21 @@ func (h *Handler) Execute(
 	gas GasConsumer,
 	caller [20]byte,
 	blockSeed [32]byte,
+) error {
+	return h.ExecuteWithMemory(op, stack, gas, caller, blockSeed, nil)
+}
+
+// ExecuteWithMemory dispatches a quantum or AGI opcode with memory access.
+// The memory parameter is required for QREASON (reads query from memory)
+// and may be nil for opcodes that do not require memory access.
+// Returns an error if the opcode fails.
+func (h *Handler) ExecuteWithMemory(
+	op QuantumOpcode,
+	stack StackAccessor,
+	gas GasConsumer,
+	caller [20]byte,
+	blockSeed [32]byte,
+	memory MemoryAccessor,
 ) error {
 	// Charge base gas
 	baseCost, ok := QuantumGasCost[op]
@@ -70,6 +95,13 @@ func (h *Handler) Execute(
 		return h.opQBridgeEntangle(stack)
 	case QBRIDGE_VERIFY:
 		return h.opQBridgeVerify(stack)
+
+	// AGI opcodes
+	case QREASON:
+		return h.AGI.OpQReason(stack, gas, memory)
+	case QPHI:
+		return h.AGI.OpQPhi(stack)
+
 	default:
 		return fmt.Errorf("unimplemented quantum opcode: 0x%02x", byte(op))
 	}

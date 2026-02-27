@@ -213,6 +213,22 @@ class Config:
     CONTRACT_TEMPLATE_DISCOUNT: float = float(os.getenv('CONTRACT_TEMPLATE_DISCOUNT', '0.5'))
 
     # ============================================================================
+    # QUSD CDP (Collateralized Debt Positions)
+    # ============================================================================
+    CDP_BASE_INTEREST_RATE: float = float(os.getenv('CDP_BASE_INTEREST_RATE', '0.02'))
+    CDP_INTEREST_SLOPE: float = float(os.getenv('CDP_INTEREST_SLOPE', '0.1'))
+    CDP_MIN_COLLATERAL_RATIO: float = float(os.getenv('CDP_MIN_COLLATERAL_RATIO', '1.5'))
+    CDP_LIQUIDATION_RATIO: float = float(os.getenv('CDP_LIQUIDATION_RATIO', '1.2'))
+    CDP_LIQUIDATION_PENALTY: float = float(os.getenv('CDP_LIQUIDATION_PENALTY', '0.13'))
+    CDP_MAX_DEBT_CEILING: Decimal = Decimal(os.getenv('CDP_MAX_DEBT_CEILING', '1000000'))
+
+    # ============================================================================
+    # QUSD RESERVE ATTESTATION (Chainlink-style Proof of Reserve)
+    # ============================================================================
+    RESERVE_ATTESTATION_INTERVAL: int = int(os.getenv('RESERVE_ATTESTATION_INTERVAL', '1000'))
+    RESERVE_MIN_RATIO: float = float(os.getenv('RESERVE_MIN_RATIO', '1.0'))
+
+    # ============================================================================
     # QUSD INSURANCE FUND
     # ============================================================================
     QUSD_INSURANCE_FUND_PERCENTAGE: float = float(os.getenv('QUSD_INSURANCE_FUND_PERCENTAGE', '0.05'))
@@ -231,6 +247,13 @@ class Config:
     QUSD_FLASH_LOAN_FEE_BPS: int = int(os.getenv('QUSD_FLASH_LOAN_FEE_BPS', '9'))  # 9 bps = 0.09% (Aave-style)
     QUSD_FLASH_LOAN_MAX_AMOUNT: Decimal = Decimal(os.getenv('QUSD_FLASH_LOAN_MAX_AMOUNT', '1000000'))  # 1M QUSD max
     QUSD_FLASH_LOAN_ENABLED: bool = os.getenv('QUSD_FLASH_LOAN_ENABLED', 'true').lower() == 'true'
+
+    # ============================================================================
+    # QUSD SAVINGS RATE (DSR-style yield on deposited QUSD)
+    # ============================================================================
+    QUSD_SAVINGS_RATE: float = float(os.getenv('QUSD_SAVINGS_RATE', '0.033'))  # 3.3% APY
+    QUSD_SAVINGS_MIN_DEPOSIT: Decimal = Decimal(os.getenv('QUSD_SAVINGS_MIN_DEPOSIT', '1.0'))
+    QUSD_SAVINGS_MAX_RATE: float = float(os.getenv('QUSD_SAVINGS_MAX_RATE', '0.20'))  # 20% cap
 
     # ============================================================================
     # BRIDGE LP REWARDS

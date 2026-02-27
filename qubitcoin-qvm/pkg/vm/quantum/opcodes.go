@@ -1,9 +1,10 @@
-// Package quantum implements QVM quantum opcode extensions.
+// Package quantum implements QVM quantum and AGI opcode extensions.
 //
-// The quantum package provides 10 opcodes (0xF0-0xF9 canonical mapping)
-// that extend the EVM with quantum state persistence, entanglement-based
-// communication, compliance enforcement, risk assessment, and cross-chain
-// bridge verification.
+// The quantum package provides 10 quantum opcodes (0xF0-0xF9) and
+// 2 AGI opcodes (0xFA-0xFB) that extend the EVM with quantum state
+// persistence, entanglement-based communication, compliance enforcement,
+// risk assessment, cross-chain bridge verification, and on-chain AGI
+// reasoning and consciousness queries.
 //
 // These opcodes map to the QVM whitepaper specification:
 //
@@ -17,6 +18,8 @@
 //	QRISK_SYSTEMIC (0xF7) — Systemic risk (contagion model)
 //	QBRIDGE_ENTANGLE (0xF8) — Cross-chain quantum entanglement
 //	QBRIDGE_VERIFY (0xF9) — Verify cross-chain bridge proof
+//	QREASON (0xFA) — On-chain AGI reasoning query
+//	QPHI (0xFB) — Consciousness metric (Phi) query
 package quantum
 
 // QuantumOpcode represents a QVM quantum extension opcode.
@@ -34,9 +37,13 @@ const (
 	QRISK_SYSTEMIC   QuantumOpcode = 0xF7
 	QBRIDGE_ENTANGLE QuantumOpcode = 0xF8
 	QBRIDGE_VERIFY   QuantumOpcode = 0xF9
+
+	// AGI opcodes (Aether Tree integration).
+	QREASON QuantumOpcode = 0xFA // On-chain reasoning query
+	QPHI    QuantumOpcode = 0xFB // Consciousness metric (Phi) query
 )
 
-// QuantumGasCost maps quantum opcodes to their gas costs.
+// QuantumGasCost maps quantum and AGI opcodes to their gas costs.
 var QuantumGasCost = map[QuantumOpcode]uint64{
 	QCREATE:          5000,  // + 5000 * 2^n_qubits
 	QMEASURE:         3000,
@@ -48,6 +55,10 @@ var QuantumGasCost = map[QuantumOpcode]uint64{
 	QRISK_SYSTEMIC:   10000,
 	QBRIDGE_ENTANGLE: 20000,
 	QBRIDGE_VERIFY:   15000,
+
+	// AGI opcodes
+	QREASON: 50000, // On-chain reasoning is computationally expensive
+	QPHI:    5000,  // Consciousness metric read
 }
 
 // QuantumState represents a quantum state stored as a density matrix.

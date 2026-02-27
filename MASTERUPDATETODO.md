@@ -6,9 +6,10 @@
 ## PROGRESS TRACKER
 
 - Total items: 243 (203 from Run #25 + 40 new items from Run #26 deep audit)
-- Completed: 229 (212 after Batch 3 + 17 in Batch 4)
-- Remaining: 14
-- Completion: 94.2%
+- Completed: 235 (230 after Batch 4 + 5 in Batch 5)
+- Remaining: 8
+- Completion: 96.7%
+- **Run #28 Batch 5: CDP+liquidation, QUSD savings rate, reserve attestation, Go QVM AGI opcodes (QREASON/QPHI)**
 - **Run #28 Batch 4: Stratum pool, MEV protection, Sephirot reasoning, flash loans, admin UI, Bridge LP rewards**
 - **Run #28 Batch 3: Bridge/Exchange/Launchpad wiring, SUSY enforcement, docs, E2E tests, accessibility**
 - **Run #27: Batch 1+2 — 60 items resolved, score ~86/100**
@@ -164,7 +165,7 @@
 | ~~B08~~ | ~~MEDIUM~~ | `network/rpc.py` | ~~CORS allows all~~ | ~~Restricted to qbc.network + localhost:3000. Configurable via QBC_CORS_ORIGINS~~ | ~~DONE (Run #6)~~ |
 | ~~B09~~ | ~~MEDIUM~~ | `storage/ipfs.py` | ~~0 tests~~ | ~~Add test_ipfs.py for pin, snapshot, retrieval operations~~ | **DONE (Run #9)** — 15 IPFS tests |
 | ~~B10~~ | ~~MEDIUM~~ | `consensus/engine.py` | ~~No timestamp validation~~ | ~~Added: reject blocks >7200s in future or before parent~~ | ~~DONE (Run #6)~~ |
-| B11 | MEDIUM | `mining/engine.py` | No mining pool support | Add stratum-compatible mining pool protocol | LARGE |
+| ~~B11~~ | ~~MEDIUM~~ | `mining/stratum.py` | ~~No mining pool support~~ | ~~StratumPool: VQE-adapted stratum protocol, share-based rewards, async TCP, 28 tests~~ | **DONE (Batch 4)** |
 | ~~B12~~ | ~~MEDIUM~~ | `network/p2p_network.py` | ~~No peer banning~~ | ~~Peer scoring wired: +5 valid block, -25 invalid block, -50 oversized msg, -1/min idle decay, evict at score <10~~ | **DONE (Run #13)** |
 | B13 | MEDIUM | `database/` | Raw SQL queries | Generate SQLAlchemy ORM models for all 55 tables | LARGE |
 | ~~B14~~ | ~~LOW~~ | `quantum/engine.py` | ~~Local estimator only~~ | ~~_select_backend() with GPU Aer > CPU Aer > StatevectorEstimator fallback chain. USE_GPU_AER config. backend_name tracking. 10 tests~~ | **DONE (Run #23)** |
@@ -187,7 +188,7 @@
 | ~~V06~~ | ~~MEDIUM~~ | `qvm/state.py` | ~~Framework only~~ | ~~Pre-execution compliance check in _deploy_contract() and _call_contract(). Blocked addresses get status=0 receipt~~ | **DONE (Run #16)** |
 | V07 | LOW | `qubitcoin-qvm/cmd/qvm/main.go` | "NOT IMPLEMENTED" | Complete Go QVM server with gRPC + REST API handlers | LARGE |
 | V08 | LOW | `qubitcoin-qvm/` | No quantum opcodes | Implement 0xF0-0xF9 canonical quantum opcodes in Go | LARGE |
-| V09 | LOW | `qubitcoin-qvm/` | No AGI opcodes | Implement QREASON (0xFA) and QPHI (0xFB) in Go QVM | MEDIUM |
+| ~~V09~~ | ~~LOW~~ | ~~`qubitcoin-qvm/`~~ | ~~No AGI opcodes~~ | ~~Implement QREASON (0xFA) and QPHI (0xFB) in Go QVM~~ | **DONE (Batch 5)** — agi.go + agi_test.go (24 tests), MemoryAccessor interface, ExecuteWithMemory(), thread-safe Phi |
 | ~~V10~~ | ~~LOW~~ | `qvm/plugins.py` | ~~Manual registration~~ | ~~discover_plugins(directory) scans for QVMPlugin subclasses + reload_plugin(name) for hot-reload~~ | **DONE (Run #18)** |
 | ~~V11~~ | ~~LOW~~ | `qvm/state.py` + `config.py` | ~~No EIP-1559~~ | ~~calculate_base_fee() implements EIP-1559 algorithm. StateManager tracks current_base_fee, updates per block. 12 unit tests~~ | **DONE (Run #19)** |
 | ~~V12~~ | ~~LOW~~ | `qvm/state.py` + `config.py` | ~~No access lists~~ | ~~AccessListEntry dataclass, apply_access_list() (2400/addr + 1900/key), warm_addresses/warm_storage_keys sets. 14 tests~~ | **DONE (Run #20)** |
@@ -264,13 +265,13 @@
 | ~~S08~~ | ~~LOW~~ | `contracts/solidity/qusd/wQUSD.sol` | ~~Lock-and-mint~~ | ~~processedProofs mapping, proofVerifier contract, ProofVerified event, setProofVerifier(). bridgeMint requires proofHash + verification~~ | **DONE (Run #22)** |
 | ~~S09~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDDebtLedger.sol` | ~~No partial payback~~ | ~~paybackPartial(amount) + recordAccountDebt + getOutstandingDebt. Per-account tracking with PartialPayback event. Coexists with milestone payback~~ | **DONE (Run #20)** |
 | ~~S10~~ | ~~LOW~~ | `contracts/solidity/qusd/` | ~~No emergency pause~~ | ~~Added paused + whenNotPaused + pause()/unpause() to QUSDStabilizer, QUSDReserve, QUSDDebtLedger, wQUSD~~ | **DONE (Run #14)** |
-| S11 | LOW | `stablecoin/` | No interest rate | Implement CDP interest rate model (borrow QUSD against QBC collateral) | LARGE |
-| S12 | LOW | `stablecoin/` | No liquidation engine | Add liquidation mechanism for under-collateralized CDPs | LARGE |
+| ~~S11~~ | ~~LOW~~ | ~~`stablecoin/`~~ | ~~No interest rate~~ | ~~Implement CDP interest rate model (borrow QUSD against QBC collateral)~~ | **DONE (Batch 5)** — cdp.py CDPManager: base_rate + utilization*slope, per-block accrual, 51 tests |
+| ~~S12~~ | ~~LOW~~ | ~~`stablecoin/`~~ | ~~No liquidation engine~~ | ~~Add liquidation mechanism for under-collateralized CDPs~~ | **DONE (Batch 5)** — Integrated in cdp.py: check_liquidatable, liquidate(), 13% penalty, surplus return |
 | ~~S13~~ | ~~LOW~~ | `contracts/solidity/qusd/QUSDFlashLoan.sol` | ~~No flash loans~~ | ~~Pool-based flash loan: 9bps fee, IFlashBorrower callback, nonReentrant~~ | **DONE (Batch 4)** |
 | ~~S14~~ | ~~LOW~~ | `contracts/solidity/qusd/MultiSigAdmin.sol` | ~~No multi-sig~~ | ~~M-of-N signer approval (3-of-5 default), propose/approve/execute/cancel, 7-day expiry, onlyMultiSig modifier. 338 lines~~ | **DONE (Run #21)** |
-| S15 | LOW | `stablecoin/` | No reserve audit | Add on-chain reserve attestation (Chainlink-style Proof of Reserve) | LARGE |
+| ~~S15~~ | ~~LOW~~ | ~~`stablecoin/`~~ | ~~No reserve audit~~ | ~~Add on-chain reserve attestation (Chainlink-style Proof of Reserve)~~ | **DONE (Batch 5)** — reserve_attestation.py: ReserveAttestationEngine, SHA-256 hash, auto_attest, 35 tests |
 | ~~S16~~ | ~~LOW~~ | `QUSDOracle.sol` | ~~Basic staleness~~ | ~~Heartbeat monitoring~~ | **ALREADY DONE** — getPrice() reverts on stale, StalePriceDetected event, setMaxAge() |
-| S17 | LOW | `stablecoin/` | No yield | Add QUSD savings rate (earn yield on deposited QUSD, like DAI Savings Rate) | LARGE |
+| ~~S17~~ | ~~LOW~~ | ~~`stablecoin/`~~ | ~~No yield~~ | ~~Add QUSD savings rate (earn yield on deposited QUSD, like DAI Savings Rate)~~ | **DONE (Batch 5)** — savings.py QUSDSavingsRate: 3.3% APY, per-block accrual, proportional distribution, 37 tests |
 | ~~S18~~ | ~~LOW~~ | `stablecoin/` | ~~No insurance~~ | ~~Insurance fund in StablecoinEngine: insurance_fund_balance, insurance_fee_percentage, deposit/withdraw/claim. Config: QUSD_INSURANCE_FEE_PCT. 15+ tests~~ | **DONE (Run #22)** |
 | ~~S19~~ | ~~LOW~~ | `docs/audits/qusd_analysis.md` | ~~No formal verification~~ | ~~Manual static analysis: 9 contracts, B+ grade, 9 minor findings~~ | **DONE (Batch 4)** |
 | ~~S20~~ | ~~LOW~~ | `stablecoin/` | ~~No peg history~~ | ~~Add /qusd/peg/history endpoint showing historical peg deviation~~ | **DONE (Run #10)** |
