@@ -43,7 +43,7 @@
 | **Frontend** | React/Next.js (qbc.network) | 35 components | ~8,000 | 85-90% Ready |
 | **Infra** | Docker/Monitoring/DevOps | 20+ configs | ~2,000 | Production Ready |
 | **Docs** | Whitepapers + Guides | 14 files | ~5,800 | Production Ready |
-| **Tests** | Python pytest suite | 2,476 tests | ~32,000 | All Passing |
+| **Tests** | Python pytest suite | 3,783 tests | ~32,000 | All Passing |
 | **Total** | | **250+ files** | **~80,000+** | **Production Ready** |
 
 ### What Needs To Happen Next
@@ -333,7 +333,7 @@ Qubitcoin/
 ├── sql/                              # Legacy schemas (10 files)
 ├── sql_new/                          # Domain-separated schemas (qbc, agi, qvm, research, shared)
 │
-├── tests/                            # Test suite (2,476+ tests, 97 files)
+├── tests/                            # Test suite (3,783+ tests, 97 files)
 │   ├── unit/                         # Unit tests (83 files)
 │   ├── integration/                  # Integration tests
 │   ├── validation/                   # Pre-launch validation

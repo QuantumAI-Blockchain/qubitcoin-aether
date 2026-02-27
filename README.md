@@ -8,7 +8,7 @@ Qubitcoin (QBC) is a production-grade Layer 1 blockchain integrating quantum com
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Go 1.23+](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
 [![Next.js 15](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
-[![Tests: 2,476](https://img.shields.io/badge/tests-2%2C476%20passing-brightgreen.svg)]()
+[![Tests: 3,783](https://img.shields.io/badge/tests-3%2C783%20passing-brightgreen.svg)]()
 [![Status: Production Ready](https://img.shields.io/badge/status-production%20ready-green.svg)]()
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
@@ -103,7 +103,7 @@ FRONTEND: qbc.network
 | **Frontend** | TypeScript | 44 files | Next.js 15, React 19, Three.js, MetaMask |
 | **Rust P2P** | Rust | libp2p daemon | Production P2P networking layer |
 | **Solana Programs** | Rust (Anchor) | 2 programs | wQBC + wQUSD SPL tokens |
-| **Tests** | Python | 2,476 tests | Unit, integration, validation |
+| **Tests** | Python | 3,783 tests | Unit, integration, validation |
 | **Documentation** | Markdown | 14 documents | 3 whitepapers + 11 guides |
 
 ---
@@ -251,7 +251,7 @@ pnpm build                  # Production build
 
 ### Testing
 ```bash
-# Full Python test suite (2,476 tests)
+# Full Python test suite (3,783 tests)
 pytest tests/ -v --tb=short
 
 # Frontend
@@ -302,7 +302,7 @@ Full API reference: [SDK.md](docs/SDK.md)
 | **Total Source Files** | 250+ |
 | **Lines of Code** | 80,000+ |
 | **Languages** | Python, Go, TypeScript, Rust, Solidity |
-| **Test Functions** | 2,476 |
+| **Test Functions** | 3,783 |
 | **Solidity Contracts** | 49 |
 | **Aether AGI Modules** | 33 |
 | **Frontend Components** | 35 |

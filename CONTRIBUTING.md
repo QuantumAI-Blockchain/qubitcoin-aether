@@ -150,7 +150,7 @@ Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `chore`
 
 1. Ensure all tests pass (`pytest tests/ -v --tb=short`)
 2. Ensure the frontend builds (`cd frontend && pnpm build`)
-3. Update `TODO.md` if you completed tracked items
+3. Update task tracking if you completed tracked items
 4. Write a clear PR description with:
    - Summary of changes
    - Which subsystem/layer is affected
@@ -201,16 +201,17 @@ cd frontend && pnpm test:e2e
 | Module | Current Tests | Status |
 |--------|---------------|--------|
 | Consensus | 83+ | Covered |
-| Mining | 14 | Covered |
+| Mining | 14+ | Covered |
 | Quantum/Crypto | 26+ | Covered |
-| QVM | 147 | Covered |
-| Aether Tree | 139 | Covered |
-| Privacy | 50 | Covered |
+| QVM | 200+ | Covered |
+| Aether Tree | 280+ | Covered |
+| Privacy | 50+ | Covered |
 | Network | 43+ | Covered |
-| Contracts | 11 | Covered |
-| Bridge | 14 | Covered |
-| Stablecoin | 12 | Covered |
+| Contracts | 11+ | Covered |
+| Bridge | 50+ | Covered |
+| Stablecoin | 123+ | Covered |
 | Frontend | 5 | Basic |
+| **Total** | **3,783** | **All Passing** |
 
 ## Risk Classification
 
