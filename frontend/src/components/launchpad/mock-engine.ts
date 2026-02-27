@@ -20,10 +20,10 @@ import type {
   PresaleStatus,
   TrancheStatus,
   VouchStatus,
-  ILLPSignal,
   PortfolioInvestment,
 } from "./types";
 import { getQpcsGrade } from "./config";
+import { calculateILLP } from "./shared";
 
 /* ── Deterministic PRNG (mulberry32) ──────────────────────────────────────── */
 
@@ -466,7 +466,7 @@ function generateProject(index: number, tier: ProjectTier): Project {
   const susyAtDeploy = rand() * 0.4 + 0.6;
 
   // ILLP fee paid
-  const illpResult = calculateILLPFee(liquidityLockDays);
+  const illpResult = calculateILLP(liquidityLockDays);
 
   return {
     address,
@@ -526,16 +526,7 @@ function generateProject(index: number, tier: ProjectTier): Project {
   };
 }
 
-function calculateILLPFee(lockDays: number) {
-  if (lockDays >= 1460) return { feeQusd: 0, signal: "protocol_grade" as ILLPSignal, qpcsImpact: 25 };
-  if (lockDays >= 1095) return { feeQusd: 10, signal: "excellent" as ILLPSignal, qpcsImpact: 23 };
-  if (lockDays >= 730) return { feeQusd: 50, signal: "recommended" as ILLPSignal, qpcsImpact: 20 };
-  if (lockDays >= 365) return { feeQusd: 200, signal: "acceptable" as ILLPSignal, qpcsImpact: 15 };
-  if (lockDays >= 180) return { feeQusd: 500, signal: "minimum" as ILLPSignal, qpcsImpact: 10 };
-  if (lockDays >= 90) return { feeQusd: 2000, signal: "short_term" as ILLPSignal, qpcsImpact: 5 };
-  if (lockDays >= 30) return { feeQusd: 5000, signal: "irrational" as ILLPSignal, qpcsImpact: 2 };
-  return { feeQusd: 999999, signal: "prohibited" as ILLPSignal, qpcsImpact: 0 };
-}
+/* calculateILLP is imported from shared.tsx — single source of truth for ILLP fee tiers */
 
 /* ── Generate All 50 Projects ─────────────────────────────────────────────── */
 

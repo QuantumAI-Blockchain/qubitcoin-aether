@@ -440,3 +440,317 @@ class TestPinealOrchestrator:
         assert "is_conscious" in status
         assert "phases" in status
         assert len(status["phases"]) == 6
+
+
+class TestSUSYEnforcement:
+    """Test SUSY balance enforcement with energy redistribution."""
+
+    def _make_manager(self):
+        from qubitcoin.aether.sephirot import SephirotManager
+        return SephirotManager(db_manager=None)
+
+    def test_enforce_corrects_all_three_pairs(self):
+        """At init (all energies=1.0), all 3 pairs violate (ratio=1.0 vs phi=1.618)."""
+        mgr = self._make_manager()
+        corrections = mgr.enforce_susy_balance(block_height=5)
+        assert corrections == 3
+
+    def test_enforce_conserves_total_energy(self):
+        """Total energy in each pair is conserved after correction."""
+        from qubitcoin.aether.sephirot import SephirahRole, SUSY_PAIRS
+        mgr = self._make_manager()
+        # Record pre-enforcement totals for each pair
+        pre_totals = {}
+        for expansion, constraint in SUSY_PAIRS:
+            pre_totals[(expansion, constraint)] = (
+                mgr.nodes[expansion].energy + mgr.nodes[constraint].energy
+            )
+        mgr.enforce_susy_balance(block_height=10)
+        # Post-enforcement totals must match (within float precision)
+        for expansion, constraint in SUSY_PAIRS:
+            post_total = mgr.nodes[expansion].energy + mgr.nodes[constraint].energy
+            assert abs(post_total - pre_totals[(expansion, constraint)]) < 1e-10
+
+    def test_enforce_moves_ratio_toward_phi(self):
+        """After enforcement, the ratio is closer to PHI than before."""
+        from qubitcoin.aether.sephirot import SephirahRole, SUSY_PAIRS, PHI
+        mgr = self._make_manager()
+        # Pre-enforcement: ratio = 1.0 for all pairs
+        pre_deviation = abs(1.0 - PHI) / PHI
+        mgr.enforce_susy_balance(block_height=1)
+        for expansion, constraint in SUSY_PAIRS:
+            new_ratio = mgr.nodes[expansion].energy / mgr.nodes[constraint].energy
+            post_deviation = abs(new_ratio - PHI) / PHI
+            assert post_deviation < pre_deviation
+
+    def test_enforce_partial_correction_avoids_overshoot(self):
+        """50% correction factor means ratio moves halfway toward PHI, not all the way."""
+        from qubitcoin.aether.sephirot import SephirahRole, SUSY_PAIRS, PHI
+        mgr = self._make_manager()
+        mgr.enforce_susy_balance(block_height=1)
+        for expansion, constraint in SUSY_PAIRS:
+            ratio = mgr.nodes[expansion].energy / mgr.nodes[constraint].energy
+            # After 50% correction from ratio=1.0, should be roughly halfway to PHI
+            # Exact halfway: 1.0 + 0.5 * (PHI - 1.0) when starting at total=2.0
+            # The ratio should be between 1.0 and PHI (closer to the midpoint)
+            assert 1.0 < ratio < PHI
+
+    def test_enforce_no_correction_at_phi_ratio(self):
+        """No corrections when expansion/constraint ratio equals PHI."""
+        from qubitcoin.aether.sephirot import SephirahRole, SUSY_PAIRS, PHI
+        mgr = self._make_manager()
+        for expansion, constraint in SUSY_PAIRS:
+            mgr.nodes[constraint].energy = 1.0
+            mgr.nodes[expansion].energy = PHI
+        corrections = mgr.enforce_susy_balance(block_height=10)
+        assert corrections == 0
+
+    def test_enforce_repeated_convergence(self):
+        """Repeated enforcement converges toward PHI ratio (within tolerance).
+
+        The 50% partial correction halves the deviation each round.
+        With 20% tolerance, the algorithm stops correcting once the ratio
+        falls within the tolerance band. After multiple rounds from an
+        extreme imbalance (ratio=20), it stabilizes within 20% of PHI.
+        """
+        from qubitcoin.aether.sephirot import SephirahRole, SUSY_PAIRS, PHI
+        mgr = self._make_manager()
+        # Set extreme imbalance: expansion=10.0, constraint=0.5 (ratio=20)
+        for expansion, constraint in SUSY_PAIRS:
+            mgr.nodes[expansion].energy = 10.0
+            mgr.nodes[constraint].energy = 0.5
+        # Apply enforcement multiple times — convergence stops once
+        # the ratio falls within the 20% tolerance band
+        for i in range(20):
+            mgr.enforce_susy_balance(block_height=i + 1)
+        for expansion, constraint in SUSY_PAIRS:
+            ratio = mgr.nodes[expansion].energy / mgr.nodes[constraint].energy
+            # Must be within 20% tolerance (the enforcement threshold)
+            deviation = abs(ratio - PHI) / PHI
+            assert deviation < 0.20
+            # And ratio must be between 1.0 and the original extreme
+            assert 1.0 < ratio < 20.0
+
+    def test_enforce_updates_block_height(self):
+        """Enforcement updates last_update_block on corrected nodes."""
+        from qubitcoin.aether.sephirot import SephirahRole, SUSY_PAIRS
+        mgr = self._make_manager()
+        mgr.enforce_susy_balance(block_height=42)
+        for expansion, constraint in SUSY_PAIRS:
+            assert mgr.nodes[expansion].last_update_block == 42
+            assert mgr.nodes[constraint].last_update_block == 42
+
+    def test_enforce_records_violations(self):
+        """Violations are recorded in mgr.violations list."""
+        mgr = self._make_manager()
+        assert len(mgr.violations) == 0
+        mgr.enforce_susy_balance(block_height=1)
+        assert len(mgr.violations) == 3  # 3 pairs, all violating
+
+    def test_enforce_energy_floor(self):
+        """Energy never goes below 0.01 after correction."""
+        from qubitcoin.aether.sephirot import SephirahRole, SUSY_PAIRS
+        mgr = self._make_manager()
+        # Set near-zero energies
+        for expansion, constraint in SUSY_PAIRS:
+            mgr.nodes[expansion].energy = 0.001
+            mgr.nodes[constraint].energy = 0.001
+        mgr.enforce_susy_balance(block_height=1)
+        for expansion, constraint in SUSY_PAIRS:
+            assert mgr.nodes[expansion].energy >= 0.01
+            assert mgr.nodes[constraint].energy >= 0.01
+
+    def test_violation_within_tolerance_no_correction(self):
+        """Deviation within 20% tolerance does not trigger correction."""
+        from qubitcoin.aether.sephirot import SephirahRole, SUSY_PAIRS, PHI
+        mgr = self._make_manager()
+        # Set ratio to PHI * 1.15 (15% deviation, within 20% tolerance)
+        for expansion, constraint in SUSY_PAIRS:
+            mgr.nodes[constraint].energy = 1.0
+            mgr.nodes[expansion].energy = PHI * 1.15
+        corrections = mgr.enforce_susy_balance(block_height=1)
+        assert corrections == 0
+
+    def test_sync_stake_totals_triggers_enforcement(self):
+        """sync_stake_totals() calls enforce_susy_balance() internally."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        # Create a mock db_manager with get_node_total_stake
+        mock_db = MagicMock()
+        mock_db.get_node_total_stake.return_value = 1000.0
+        updated = mgr.sync_stake_totals(mock_db, block_height=100)
+        assert updated == 10  # All 10 nodes updated
+        # Violations should be recorded from the internal enforce call
+        assert len(mgr.violations) > 0
+
+
+class TestCrossSephirotConsensus:
+    """Test cross-Sephirot BFT-style consensus with energy-weighted voting."""
+
+    def _make_manager(self):
+        from qubitcoin.aether.sephirot import SephirotManager
+        return SephirotManager(db_manager=None)
+
+    def test_empty_proposals_no_consensus(self):
+        """Empty proposals should return no consensus."""
+        mgr = self._make_manager()
+        result = mgr.cross_sephirot_consensus("test?", {})
+        assert result["consensus_reached"] is False
+        assert result["winning_position"] is None
+        assert result["total_weight"] == 0.0
+        assert result["votes"] == []
+
+    def test_unanimous_consensus(self):
+        """All nodes agreeing should reach consensus easily."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        proposals = {
+            SephirahRole.KETER: {"position": "approve", "confidence": 0.9},
+            SephirahRole.CHOCHMAH: {"position": "approve", "confidence": 0.8},
+            SephirahRole.BINAH: {"position": "approve", "confidence": 0.85},
+            SephirahRole.TIFERET: {"position": "approve", "confidence": 0.95},
+        }
+        result = mgr.cross_sephirot_consensus("Should we act?", proposals)
+        assert result["consensus_reached"] is True
+        assert result["winning_position"] == "approve"
+        assert len(result["dissenting"]) == 0
+
+    def test_split_vote_no_consensus(self):
+        """Evenly split votes should not reach 67% consensus."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        # All nodes at equal energy (1.0), so equal weight
+        proposals = {
+            SephirahRole.KETER: {"position": "yes", "confidence": 1.0},
+            SephirahRole.CHOCHMAH: {"position": "no", "confidence": 1.0},
+            SephirahRole.BINAH: {"position": "yes", "confidence": 1.0},
+            SephirahRole.TIFERET: {"position": "no", "confidence": 1.0},
+            SephirahRole.CHESED: {"position": "no", "confidence": 1.0},
+        }
+        result = mgr.cross_sephirot_consensus("Contentious question", proposals)
+        # "no" has 3/5 = 60% < 67% threshold
+        assert result["consensus_reached"] is False
+
+    def test_energy_weighted_voting(self):
+        """Higher-energy nodes have more voting weight."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        # Give KETER very high energy
+        mgr.nodes[SephirahRole.KETER].energy = 10.0
+        # Other nodes at default 1.0
+        proposals = {
+            SephirahRole.KETER: {"position": "approve", "confidence": 1.0},
+            SephirahRole.CHOCHMAH: {"position": "reject", "confidence": 1.0},
+            SephirahRole.BINAH: {"position": "reject", "confidence": 1.0},
+        }
+        result = mgr.cross_sephirot_consensus("Energy test", proposals)
+        # KETER has 10/(10+1+1) = 83% weight → consensus reached
+        assert result["consensus_reached"] is True
+        assert result["winning_position"] == "approve"
+
+    def test_confidence_affects_weight(self):
+        """Low confidence reduces effective voting weight."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        # KETER has very low confidence, reducing its effective weight
+        # 4 nodes: KETER with low conf, 3 rejectors with high conf
+        proposals = {
+            SephirahRole.KETER: {"position": "approve", "confidence": 0.1},
+            SephirahRole.CHOCHMAH: {"position": "reject", "confidence": 1.0},
+            SephirahRole.BINAH: {"position": "reject", "confidence": 1.0},
+            SephirahRole.TIFERET: {"position": "reject", "confidence": 1.0},
+        }
+        result = mgr.cross_sephirot_consensus("Confidence test", proposals)
+        # KETER effective: (1/4) * 0.1 = 0.025
+        # Each rejector effective: (1/4) * 1.0 = 0.25
+        # "reject" total = 0.75 >= 0.67 threshold
+        assert result["consensus_reached"] is True
+        assert result["winning_position"] == "reject"
+
+    def test_inactive_node_excluded(self):
+        """Inactive nodes should not participate in voting."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        mgr.nodes[SephirahRole.KETER].active = False
+        proposals = {
+            SephirahRole.KETER: {"position": "approve", "confidence": 1.0},
+            SephirahRole.CHOCHMAH: {"position": "reject", "confidence": 1.0},
+        }
+        result = mgr.cross_sephirot_consensus("Inactive test", proposals)
+        # KETER is inactive, only CHOCHMAH votes → reject at 100%
+        assert result["consensus_reached"] is True
+        assert result["winning_position"] == "reject"
+        assert len(result["votes"]) == 1  # Only CHOCHMAH voted
+
+    def test_custom_threshold(self):
+        """Custom threshold changes consensus requirements."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        proposals = {
+            SephirahRole.KETER: {"position": "yes", "confidence": 1.0},
+            SephirahRole.CHOCHMAH: {"position": "no", "confidence": 1.0},
+        }
+        # At threshold=0.5, "yes" and "no" each have 0.5 → consensus at 0.5
+        result = mgr.cross_sephirot_consensus("Low threshold", proposals, threshold=0.5)
+        assert result["consensus_reached"] is True
+        assert result["threshold"] == 0.5
+
+    def test_dissenting_nodes_identified(self):
+        """Dissenting nodes are tracked in the result."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        # KETER has high energy to guarantee "approve" wins
+        mgr.nodes[SephirahRole.KETER].energy = 10.0
+        proposals = {
+            SephirahRole.KETER: {"position": "approve", "confidence": 1.0},
+            SephirahRole.CHOCHMAH: {"position": "reject", "confidence": 1.0},
+            SephirahRole.BINAH: {"position": "approve", "confidence": 1.0},
+        }
+        result = mgr.cross_sephirot_consensus("Dissent test", proposals)
+        assert result["consensus_reached"] is True
+        assert len(result["dissenting"]) == 1
+        assert result["dissenting"][0]["role"] == "chochmah"
+        assert result["dissenting"][0]["position"] == "reject"
+
+    def test_default_confidence_is_half(self):
+        """If no confidence provided, it defaults to 0.5."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        proposals = {
+            SephirahRole.KETER: {"position": "approve"},  # No confidence key
+        }
+        result = mgr.cross_sephirot_consensus("Default conf", proposals)
+        assert result["votes"][0]["confidence"] == 0.5
+
+    def test_result_contains_query(self):
+        """Result includes the original query."""
+        mgr = self._make_manager()
+        result = mgr.cross_sephirot_consensus("What is truth?", {})
+        assert result["query"] == "What is truth?"
+
+    def test_single_node_full_consensus(self):
+        """A single participating node always reaches consensus."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        proposals = {
+            SephirahRole.TIFERET: {"position": "integrate", "confidence": 0.9},
+        }
+        result = mgr.cross_sephirot_consensus("Solo decision", proposals)
+        assert result["consensus_reached"] is True
+        assert result["winning_position"] == "integrate"
+        assert len(result["votes"]) == 1
+
+    def test_abstain_position(self):
+        """Nodes that abstain count toward 'abstain' position."""
+        from qubitcoin.aether.sephirot import SephirahRole
+        mgr = self._make_manager()
+        proposals = {
+            SephirahRole.KETER: {"position": "approve", "confidence": 1.0},
+            SephirahRole.CHOCHMAH: {"confidence": 1.0},  # No position → "abstain"
+            SephirahRole.BINAH: {"confidence": 1.0},      # No position → "abstain"
+            SephirahRole.TIFERET: {"confidence": 1.0},    # No position → "abstain"
+        }
+        result = mgr.cross_sephirot_consensus("Abstain test", proposals)
+        # "abstain" has 3/4 weight = 0.75 >= 0.67
+        assert result["consensus_reached"] is True
+        assert result["winning_position"] == "abstain"

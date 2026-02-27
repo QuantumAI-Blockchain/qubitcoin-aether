@@ -14,17 +14,46 @@ import {
 } from "./shared";
 import type { Block, Transaction, WalletData, QVMContract } from "./types";
 
+type StructuredResults = {
+  blocks: Block[];
+  transactions: Transaction[];
+  addresses: WalletData[];
+  contracts: QVMContract[];
+};
+
+function normalizeResults(
+  raw: StructuredResults | Array<{ type: string; id: string; label: string }> | undefined
+): StructuredResults {
+  if (!raw) return { blocks: [], transactions: [], addresses: [], contracts: [] };
+  if (!Array.isArray(raw)) return raw;
+  // Convert flat array to structured format (from real API)
+  const blocks: Block[] = [];
+  const addresses: WalletData[] = [];
+  const contracts: QVMContract[] = [];
+  for (const r of raw) {
+    if (r.type === "block") {
+      blocks.push({ height: Number(r.id), hash: r.id, txCount: 0, miner: "", timestamp: 0, difficulty: 0, energy: 0, size: 0, reward: 0, prevHash: "", merkleRoot: "" } as Block);
+    } else if (r.type === "address") {
+      addresses.push({ address: r.id, balance: 0, txCount: 0, utxos: [], isContract: false } as unknown as WalletData);
+    } else if (r.type === "contract") {
+      contracts.push({ address: r.id, name: r.label, standard: "QBC-20", balance: 0, creator: "", deployHeight: 0, txCount: 0 } as QVMContract);
+    }
+  }
+  return { blocks, transactions: [], addresses, contracts };
+}
+
 export function SearchResults({ query }: { query: string }) {
   const navigate = useExplorerStore((s) => s.navigate);
-  const { data: results, isLoading } = useSearch(query);
+  const { data: rawResults, isLoading } = useSearch(query);
 
   if (isLoading) return <LoadingSpinner />;
 
+  const results = normalizeResults(rawResults);
   const totalResults =
-    (results?.blocks.length ?? 0) +
-    (results?.transactions.length ?? 0) +
-    (results?.addresses.length ?? 0) +
-    (results?.contracts.length ?? 0);
+    results.blocks.length +
+    results.transactions.length +
+    results.addresses.length +
+    results.contracts.length;
 
   return (
     <div className="space-y-4 p-4">
@@ -59,7 +88,7 @@ export function SearchResults({ query }: { query: string }) {
       )}
 
       {/* Blocks */}
-      {results && results.blocks.length > 0 && (
+      {results.blocks.length > 0 && (
         <Panel>
           <SectionHeader
             title={`BLOCKS (${results.blocks.length})`}
@@ -101,7 +130,7 @@ export function SearchResults({ query }: { query: string }) {
       )}
 
       {/* Transactions */}
-      {results && results.transactions.length > 0 && (
+      {results.transactions.length > 0 && (
         <Panel>
           <SectionHeader
             title={`TRANSACTIONS (${results.transactions.length})`}
@@ -140,7 +169,7 @@ export function SearchResults({ query }: { query: string }) {
       )}
 
       {/* Addresses */}
-      {results && results.addresses.length > 0 && (
+      {results.addresses.length > 0 && (
         <Panel>
           <SectionHeader
             title={`ADDRESSES (${results.addresses.length})`}
@@ -187,7 +216,7 @@ export function SearchResults({ query }: { query: string }) {
       )}
 
       {/* Contracts */}
-      {results && results.contracts.length > 0 && (
+      {results.contracts.length > 0 && (
         <Panel>
           <SectionHeader
             title={`CONTRACTS (${results.contracts.length})`}

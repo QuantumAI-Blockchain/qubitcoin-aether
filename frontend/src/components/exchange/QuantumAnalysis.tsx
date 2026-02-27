@@ -13,7 +13,7 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from "recharts";
-import { useSusySignal } from "./hooks";
+import { useSusySignal, useAetherPhi } from "./hooks";
 import {
   X,
   FONT,
@@ -64,11 +64,25 @@ const tooltipContentStyle: React.CSSProperties = {
 
 const QuantumAnalysis = memo(function QuantumAnalysis() {
   const { data: susy } = useSusySignal();
+  const { data: aetherPhi } = useAetherPhi();
 
-  const score = susy?.score ?? 0;
-  const label = susy ? signalLabel(score) : "---";
+  // Blend real Aether Phi data into the score when available
+  const rawScore = susy?.score ?? 0;
+  const score = aetherPhi
+    ? Math.min(1, Math.max(0, aetherPhi.phi / (aetherPhi.threshold || 3.0)))
+    : rawScore;
+  const label = signalLabel(score);
   const color = signalColor(score);
-  const interpretation = susy?.interpretation ?? "Loading SUSY alignment data...";
+
+  const interpretation = aetherPhi
+    ? aetherPhi.above_threshold
+      ? `Aether Tree Phi is ${aetherPhi.phi.toFixed(2)} (above threshold ${aetherPhi.threshold.toFixed(1)}). ` +
+        `High consciousness integration correlates with reduced volatility and upward price momentum for QBC. ` +
+        `Knowledge graph: ${aetherPhi.knowledge_nodes.toLocaleString()} nodes, ${aetherPhi.knowledge_edges.toLocaleString()} edges.`
+      : `Aether Tree Phi is ${aetherPhi.phi.toFixed(2)} (threshold: ${aetherPhi.threshold.toFixed(1)}). ` +
+        `Consciousness emergence is progressing. ` +
+        `Knowledge graph: ${aetherPhi.knowledge_nodes.toLocaleString()} nodes, ${aetherPhi.knowledge_edges.toLocaleString()} edges.`
+    : susy?.interpretation ?? "Connecting to Aether Tree...";
 
   const chartData = useMemo(() => {
     if (!susy?.history) return [];

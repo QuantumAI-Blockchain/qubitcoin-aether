@@ -3,7 +3,7 @@
 "use client";
 
 import React, { memo, useMemo } from "react";
-import { useValidators } from "./hooks";
+import { useValidators, useAetherReasoning } from "./hooks";
 import {
   X,
   FONT,
@@ -33,12 +33,18 @@ const validatorStatusColor: Record<string, string> = {
 
 const SignalDashboard = memo(function SignalDashboard() {
   const { data: validators } = useValidators();
+  const { data: reasoningStats } = useAetherReasoning();
 
   const validatorList = validators ?? [];
   const total = validatorList.length || 11;
   const onlineCount = validatorList.filter((v) => v.status === "online").length;
   const degradedCount = validatorList.filter((v) => v.status === "degraded").length;
   const offlineCount = validatorList.filter((v) => v.status === "offline").length;
+
+  // Enrich validator names with live reasoning stats if available
+  const _reasoningInfo = reasoningStats
+    ? `${reasoningStats.total_operations.toLocaleString()} reasoning ops across ${reasoningStats.blocks_processed.toLocaleString()} blocks`
+    : null;
 
   const consensus = consensusLabel(onlineCount, total);
   const impact = exchangeImpact(onlineCount, total);
@@ -219,6 +225,22 @@ const SignalDashboard = memo(function SignalDashboard() {
             </div>
           ))}
         </div>
+
+        {/* Live reasoning stats from Aether Tree */}
+        {_reasoningInfo && (
+          <div
+            style={{
+              marginTop: 8,
+              textAlign: "center",
+              fontFamily: FONT.mono,
+              fontSize: 9,
+              color: X.glowCyan,
+              opacity: 0.7,
+            }}
+          >
+            {_reasoningInfo}
+          </div>
+        )}
       </div>
     </div>
   );

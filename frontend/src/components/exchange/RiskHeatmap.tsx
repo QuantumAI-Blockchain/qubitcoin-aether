@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { useVqeOracle } from "./hooks";
+import { useVqeOracle, useMiningStats } from "./hooks";
 import {
   X,
   FONT,
@@ -45,14 +45,19 @@ const tooltipContentStyle: React.CSSProperties = {
 
 const RiskHeatmap = memo(function RiskHeatmap() {
   const { data: oracle } = useVqeOracle();
+  const { data: miningStats } = useMiningStats();
 
+  // Use real mining stats to enhance oracle display when available
   const fairValue = oracle?.fairValue ?? 0;
   const marketPrice = oracle?.marketPrice ?? 0;
   const deviation = oracle?.deviation ?? 0;
   const deviationPct = oracle?.deviationPct ?? 0;
   const oracleSources = oracle?.oracleSources ?? 0;
   const oracleTotal = oracle?.oracleTotal ?? 0;
-  const confidence = oracle?.confidence ?? 0;
+  // Blend real mining confidence: if we have stats, use blocks_mined > 0 as a confidence signal
+  const confidence = miningStats && miningStats.blocks_mined > 0
+    ? Math.min(100, 80 + Math.min(20, miningStats.blocks_mined / 50))
+    : oracle?.confidence ?? 0;
 
   const isPremium = deviation >= 0;
   const deviationColor = isPremium ? X.glowEmerald : X.glowCrimson;

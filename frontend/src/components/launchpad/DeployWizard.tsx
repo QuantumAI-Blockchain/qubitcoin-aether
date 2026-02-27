@@ -33,6 +33,8 @@ import type {
   QPCSComponents,
 } from "./types";
 import { useLaunchpadStore } from "./store";
+import { useWalletStore } from "@/stores/wallet-store";
+import { deployContract } from "@/lib/launchpad-api";
 
 /* ── Constants ─────────────────────────────────────────────────────────────── */
 
@@ -137,19 +139,21 @@ const hintText: React.CSSProperties = {
   marginTop: 2,
 };
 
-/* ── Helper: Generate Fake Deploy Result ───────────────────────────────────── */
+/* ── Helper: Generate DNA fingerprint from contract details ───────────────── */
 
-function generateDeployResult() {
-  const hex = () => {
-    let h = "";
-    for (let i = 0; i < 64; i++) h += "0123456789abcdef"[Math.floor(Math.random() * 16)];
-    return h;
-  };
-  return {
-    contractAddress: "QBC1" + hex().slice(0, 36),
-    txHash: "0x" + hex(),
-    dnaFingerprint: hex(),
-  };
+function generateDNAFingerprint(contractId: string, name: string, symbol: string): string {
+  // Simple deterministic hash from the contract details
+  let hash = 0;
+  const seed = contractId + name + symbol;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  // Convert to hex-like string
+  const abs = Math.abs(hash);
+  let hex = abs.toString(16);
+  while (hex.length < 64) hex = hex + abs.toString(16);
+  return hex.slice(0, 64);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -1767,34 +1771,114 @@ const StepDeploy = memo(function StepDeploy() {
   const setSelectedProject = useLaunchpadStore((s) => s.setSelectedProject);
   const name = useLaunchpadStore((s) => s.deployName);
   const symbol = useLaunchpadStore((s) => s.deploySymbol);
+  const description = useLaunchpadStore((s) => s.deployDescription);
+  const fullDescription = useLaunchpadStore((s) => s.deployFullDescription);
+  const category = useLaunchpadStore((s) => s.deployCategory);
   const contractType = useLaunchpadStore((s) => s.deployContractType);
   const liquidityLockDays = useLaunchpadStore((s) => s.deployLiquidityLockDays);
+  const liquidityPercent = useLaunchpadStore((s) => s.deployLiquidityPercent);
   const allocations = useLaunchpadStore((s) => s.deployAllocations);
+  const totalSupply = useLaunchpadStore((s) => s.deployTotalSupply);
+  const decimals = useLaunchpadStore((s) => s.deployDecimals);
+  const mgtEnabled = useLaunchpadStore((s) => s.deployMgtEnabled);
+  const mgtTranches = useLaunchpadStore((s) => s.deployMgtTranches);
+  const presaleEnabled = useLaunchpadStore((s) => s.deployPresaleEnabled);
+  const presaleType = useLaunchpadStore((s) => s.deployPresaleType);
+  const presaleTokenPercent = useLaunchpadStore((s) => s.deployPresaleTokenPercent);
+  const presalePrice = useLaunchpadStore((s) => s.deployPresalePrice);
+  const presaleHardCap = useLaunchpadStore((s) => s.deployPresaleHardCap);
+  const presaleSoftCap = useLaunchpadStore((s) => s.deployPresaleSoftCap);
+  const qaslEnabled = useLaunchpadStore((s) => s.deployQaslEnabled);
+  const qaslWindowSize = useLaunchpadStore((s) => s.deployQaslWindowSize);
+  const website = useLaunchpadStore((s) => s.deployWebsite);
+  const twitter = useLaunchpadStore((s) => s.deployTwitter);
+  const telegram = useLaunchpadStore((s) => s.deployTelegram);
+  const discord = useLaunchpadStore((s) => s.deployDiscord);
+  const github = useLaunchpadStore((s) => s.deployGithub);
+  const whitepaper = useLaunchpadStore((s) => s.deployWhitepaper);
+  const teamMembers = useLaunchpadStore((s) => s.deployTeamMembers);
+
+  // Get real wallet address instead of hardcoded MY_WALLET
+  const walletAddress = useWalletStore((s) => s.address);
+  const activeNativeWallet = useWalletStore((s) => s.activeNativeWallet);
+  const deployerAddress = walletAddress ?? activeNativeWallet ?? "";
 
   const [deployResult, setDeployResult] = useState<{
     contractAddress: string;
     txHash: string;
     dnaFingerprint: string;
     qpcs: number;
+    blockHeight: number;
   } | null>(null);
+  const [deployError, setDeployError] = useState<string | null>(null);
 
   const illp = useMemo(() => calculateILLP(liquidityLockDays), [liquidityLockDays]);
   const ctConfig = contractType ? getContractTypeConfig(contractType) : null;
 
-  const handleDeploy = useCallback(() => {
+  const handleDeploy = useCallback(async () => {
+    if (!contractType) return;
     setDeploying(true);
-    // Simulate a 3-second deployment
-    setTimeout(() => {
-      const result = generateDeployResult();
-      // Estimate a rough QPCS score
-      const est = illp.qpcsImpact + (ctConfig?.complexity ?? 0) * 2 + 3 + 3 + 3;
-      setDeployResult({
-        ...result,
-        qpcs: Math.min(100, est),
+    setDeployError(null);
+
+    try {
+      const result = await deployContract({
+        contractType,
+        name,
+        symbol,
+        description,
+        fullDescription,
+        category,
+        totalSupply,
+        decimals,
+        deployer: deployerAddress,
+        allocations,
+        mgtEnabled,
+        mgtTranches,
+        presaleEnabled,
+        presaleType,
+        presaleTokenPercent,
+        presalePrice,
+        presaleHardCap,
+        presaleSoftCap,
+        liquidityLockDays,
+        liquidityPercent,
+        qaslEnabled,
+        qaslWindowSize,
+        website,
+        twitter,
+        telegram,
+        discord,
+        github,
+        whitepaper,
+        teamMembers,
       });
+
+      if (result.success) {
+        const est = illp.qpcsImpact + (ctConfig?.complexity ?? 0) * 2 + 3 + 3 + 3;
+        setDeployResult({
+          contractAddress: result.contract_id,
+          txHash: "0x" + result.contract_id.replace(/^QBC1/, "").slice(0, 64).padEnd(64, "0"),
+          dnaFingerprint: generateDNAFingerprint(result.contract_id, name, symbol),
+          qpcs: Math.min(100, est),
+          blockHeight: result.block_height,
+        });
+      } else {
+        setDeployError(result.message || "Deployment failed");
+      }
+    } catch (err) {
+      setDeployError(err instanceof Error ? err.message : "Deployment failed");
+    } finally {
       setDeploying(false);
-    }, 3000);
-  }, [setDeploying, illp, ctConfig]);
+    }
+  }, [
+    contractType, name, symbol, description, fullDescription, category,
+    totalSupply, decimals, deployerAddress, allocations, mgtEnabled,
+    mgtTranches, presaleEnabled, presaleType, presaleTokenPercent,
+    presalePrice, presaleHardCap, presaleSoftCap, liquidityLockDays,
+    liquidityPercent, qaslEnabled, qaslWindowSize, website, twitter,
+    telegram, discord, github, whitepaper, teamMembers,
+    setDeploying, illp, ctConfig,
+  ]);
 
   const handleDeployAnother = useCallback(() => {
     setDeployResult(null);
@@ -1885,6 +1969,42 @@ const StepDeploy = memo(function StepDeploy() {
           {deploying ? "DEPLOYING..." : "DEPLOY TO QBC"}
         </button>
 
+        {deployError && (
+          <div
+            style={{
+              fontFamily: FONT.body,
+              fontSize: 12,
+              color: L.error,
+              padding: "10px 16px",
+              background: `${L.error}14`,
+              border: `1px solid ${L.error}40`,
+              borderRadius: 6,
+              maxWidth: 500,
+              textAlign: "center",
+            }}
+          >
+            {deployError}
+          </div>
+        )}
+
+        {!deployerAddress && !deploying && (
+          <div
+            style={{
+              fontFamily: FONT.body,
+              fontSize: 11,
+              color: L.warning,
+              padding: "8px 14px",
+              background: `${L.warning}14`,
+              border: `1px solid ${L.warning}40`,
+              borderRadius: 4,
+              maxWidth: 500,
+              textAlign: "center",
+            }}
+          >
+            Connect a wallet to deploy. Your deployment will be signed with your wallet address.
+          </div>
+        )}
+
         {deploying && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <div
@@ -1898,7 +2018,7 @@ const StepDeploy = memo(function StepDeploy() {
               }}
             />
             <span style={{ fontFamily: FONT.mono, fontSize: 10, color: L.textMuted }}>
-              Signing with Dilithium-3... Broadcasting to QBC network...
+              Signing with Dilithium2... Broadcasting to QBC network...
             </span>
           </div>
         )}

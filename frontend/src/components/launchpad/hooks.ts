@@ -2,10 +2,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { LaunchpadMockEngine } from "./mock-engine";
+import {
+  getProjects,
+  getProject as apiGetProject,
+  getProjectsByTier,
+  getProjectsWithPresale,
+  getProjectsVouched,
+  getProjectsVerified,
+  getProjectsWithDomain,
+  getEcosystemHealth,
+  getAllDDReports,
+  getAllVouches,
+  getLeaderboard,
+  getEcosystemEdges,
+  getMyDeployed,
+  getMyInvestments,
+} from "@/lib/launchpad-api";
 import type { ProjectTier, LeaderboardTab } from "./types";
-
-const engine = LaunchpadMockEngine.getInstance();
 
 /* ── Query Key Factory ────────────────────────────────────────────────────── */
 
@@ -31,7 +44,7 @@ const keys = {
 export function useProjects() {
   return useQuery({
     queryKey: keys.projects,
-    queryFn: () => engine.getProjects(),
+    queryFn: () => getProjects(),
     staleTime: 30_000,
   });
 }
@@ -39,7 +52,7 @@ export function useProjects() {
 export function useProject(address: string | null) {
   return useQuery({
     queryKey: keys.project(address ?? ""),
-    queryFn: () => engine.getProject(address ?? ""),
+    queryFn: () => apiGetProject(address ?? ""),
     enabled: !!address,
     staleTime: 10_000,
   });
@@ -48,7 +61,7 @@ export function useProject(address: string | null) {
 export function useProjectsByTier(tier: ProjectTier) {
   return useQuery({
     queryKey: keys.projectsByTier(tier),
-    queryFn: () => engine.getProjectsByTier(tier),
+    queryFn: () => getProjectsByTier(tier),
     staleTime: 30_000,
   });
 }
@@ -56,7 +69,7 @@ export function useProjectsByTier(tier: ProjectTier) {
 export function usePresaleProjects() {
   return useQuery({
     queryKey: keys.presaleProjects,
-    queryFn: () => engine.getProjectsWithPresale(),
+    queryFn: () => getProjectsWithPresale(),
     staleTime: 15_000,
   });
 }
@@ -64,7 +77,7 @@ export function usePresaleProjects() {
 export function useVouchedProjects() {
   return useQuery({
     queryKey: keys.vouchedProjects,
-    queryFn: () => engine.getProjectsVouched(),
+    queryFn: () => getProjectsVouched(),
     staleTime: 30_000,
   });
 }
@@ -72,7 +85,7 @@ export function useVouchedProjects() {
 export function useVerifiedProjects() {
   return useQuery({
     queryKey: keys.verifiedProjects,
-    queryFn: () => engine.getProjectsVerified(),
+    queryFn: () => getProjectsVerified(),
     staleTime: 30_000,
   });
 }
@@ -80,7 +93,7 @@ export function useVerifiedProjects() {
 export function useDomainProjects() {
   return useQuery({
     queryKey: keys.domainProjects,
-    queryFn: () => engine.getProjectsWithDomain(),
+    queryFn: () => getProjectsWithDomain(),
     staleTime: 30_000,
   });
 }
@@ -88,7 +101,7 @@ export function useDomainProjects() {
 export function useEcosystemHealth() {
   return useQuery({
     queryKey: keys.ecosystem,
-    queryFn: () => engine.getEcosystemHealth(),
+    queryFn: () => getEcosystemHealth(),
     staleTime: 10_000,
   });
 }
@@ -96,7 +109,7 @@ export function useEcosystemHealth() {
 export function useAllDDReports() {
   return useQuery({
     queryKey: keys.ddReports,
-    queryFn: () => engine.getAllDDReports(),
+    queryFn: () => getAllDDReports(),
     staleTime: 30_000,
   });
 }
@@ -104,7 +117,7 @@ export function useAllDDReports() {
 export function useAllVouches() {
   return useQuery({
     queryKey: keys.vouches,
-    queryFn: () => engine.getAllVouches(),
+    queryFn: () => getAllVouches(),
     staleTime: 30_000,
   });
 }
@@ -112,15 +125,7 @@ export function useAllVouches() {
 export function useLeaderboard(tab: LeaderboardTab) {
   return useQuery({
     queryKey: keys.leaderboard(tab),
-    queryFn: () => {
-      switch (tab) {
-        case "qpcs": return engine.getLeaderboardQPCS();
-        case "raises": return engine.getLeaderboardRaises();
-        case "locks": return engine.getLeaderboardLocks();
-        case "growth": return engine.getLeaderboardGrowth();
-        case "reputation": return engine.getLeaderboardReputation();
-      }
-    },
+    queryFn: () => getLeaderboard(tab),
     staleTime: 30_000,
   });
 }
@@ -128,7 +133,7 @@ export function useLeaderboard(tab: LeaderboardTab) {
 export function useEcosystemEdges() {
   return useQuery({
     queryKey: keys.ecosystemEdges,
-    queryFn: () => engine.getEcosystemEdges(),
+    queryFn: () => getEcosystemEdges(),
     staleTime: 60_000,
   });
 }
@@ -136,7 +141,7 @@ export function useEcosystemEdges() {
 export function useMyDeployed() {
   return useQuery({
     queryKey: keys.myDeployed,
-    queryFn: () => engine.getMyDeployed(),
+    queryFn: () => getMyDeployed(),
     staleTime: 30_000,
   });
 }
@@ -144,7 +149,7 @@ export function useMyDeployed() {
 export function useMyInvestments() {
   return useQuery({
     queryKey: keys.myInvestments,
-    queryFn: () => engine.getMyInvestments(),
+    queryFn: () => getMyInvestments(),
     staleTime: 30_000,
   });
 }

@@ -15,7 +15,7 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from "recharts";
-import { useQevi } from "./hooks";
+import { useQevi, useMiningStats } from "./hooks";
 import {
   X,
   FONT,
@@ -65,8 +65,12 @@ const tooltipContentStyle: React.CSSProperties = {
 
 const SentimentGauge = memo(function SentimentGauge() {
   const { data: qevi } = useQevi();
+  const { data: miningStats } = useMiningStats();
 
-  const entropy = qevi?.entropy ?? 0;
+  // Derive entropy from real mining difficulty when available
+  const entropy = miningStats && miningStats.difficulty > 0
+    ? miningStats.difficulty * 0.00001
+    : qevi?.entropy ?? 0;
   const score = qevi?.score ?? 0;
   const regime = regimeLabel(score);
   const color = regimeColor(score);

@@ -167,6 +167,7 @@ export function ExplorerHeader() {
         className="flex items-center gap-0.5 rounded-md px-1.5 py-1.5 text-xs transition-opacity hover:opacity-80"
         style={{ color: C.textSecondary, fontFamily: FONT.body }}
         title="Back to QBC"
+        aria-label="Back to QBC home page"
       >
         <ChevronLeft size={14} />
       </a>
@@ -176,6 +177,7 @@ export function ExplorerHeader() {
         onClick={() => navigate("dashboard")}
         className="mr-2 flex items-center gap-2"
         style={{ fontFamily: FONT.heading }}
+        aria-label="Go to Explorer dashboard"
       >
         <div
           className="flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold"
@@ -232,7 +234,7 @@ export function ExplorerHeader() {
               }}
               autoFocus
             />
-            <button type="button" onClick={() => setSearchOpen(false)}>
+            <button type="button" onClick={() => setSearchOpen(false)} aria-label="Close search">
               <X size={14} style={{ color: C.textSecondary }} />
             </button>
           </form>
@@ -241,6 +243,7 @@ export function ExplorerHeader() {
             onClick={() => setSearchOpen(true)}
             className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-opacity hover:opacity-80"
             style={{ color: C.textSecondary }}
+            aria-label="Open search"
           >
             <Search size={14} />
             <span className="hidden sm:inline" style={{ fontFamily: FONT.mono }}>
@@ -256,6 +259,7 @@ export function ExplorerHeader() {
         className="rounded-md p-1.5 transition-opacity hover:opacity-80"
         style={{ color: C.textSecondary }}
         title="DevTools (Ctrl+Shift+D)"
+        aria-label="Toggle DevTools"
       >
         <Settings size={14} />
       </button>
@@ -355,6 +359,7 @@ export function CopyButton({ text }: { text: string }) {
       onClick={handleCopy}
       className="rounded p-0.5 transition-opacity hover:opacity-80"
       title="Copy"
+      aria-label="Copy to clipboard"
     >
       {copied ? (
         <Check size={12} style={{ color: C.success }} />
@@ -406,6 +411,7 @@ export function BackButton() {
       onClick={goBack}
       className="flex items-center gap-1 text-xs transition-opacity hover:opacity-80"
       style={{ color: C.textSecondary, fontFamily: FONT.body }}
+      aria-label="Go back to previous view"
     >
       <ChevronLeft size={14} />
       Back
@@ -438,9 +444,9 @@ export function DataTable<T>({
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border" style={{ borderColor: C.border }}>
-      <table className="w-full text-xs" style={{ fontFamily: FONT.mono }}>
+      <table className="w-full text-xs" role="grid" style={{ fontFamily: FONT.mono }}>
         <thead>
-          <tr style={{ background: C.surface }}>
+          <tr role="row" style={{ background: C.surface }}>
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -461,7 +467,7 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {data.length === 0 ? (
-            <tr>
+            <tr role="row">
               <td
                 colSpan={columns.length}
                 className="px-3 py-8 text-center"
@@ -474,9 +480,17 @@ export function DataTable<T>({
             data.map((row) => (
               <tr
                 key={keyFn(row)}
-                onClick={() => onRowClick?.(row)}
-                className="border-t transition-colors"
+                role="row"
+                tabIndex={onRowClick ? 0 : undefined}
                 aria-label={rowAriaLabel?.(row)}
+                onClick={() => onRowClick?.(row)}
+                onKeyDown={(e) => {
+                  if (onRowClick && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    onRowClick(row);
+                  }
+                }}
+                className="border-t transition-colors"
                 style={{
                   borderColor: `${C.border}80`,
                   cursor: onRowClick ? "pointer" : "default",
@@ -487,6 +501,12 @@ export function DataTable<T>({
                 onMouseLeave={(e) =>
                   (e.currentTarget.style.background = "transparent")
                 }
+                onFocus={(e) => {
+                  if (onRowClick) e.currentTarget.style.background = `${C.primary}08`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                }}
               >
                 {columns.map((col) => (
                   <td
@@ -527,6 +547,7 @@ export function Pagination({
         disabled={page === 0}
         className="rounded-md p-1.5 transition-opacity disabled:opacity-30"
         style={{ color: C.textSecondary }}
+        aria-label="Previous page"
       >
         <ChevronLeft size={14} />
       </button>
@@ -538,6 +559,7 @@ export function Pagination({
         disabled={page >= totalPages - 1}
         className="rounded-md p-1.5 transition-opacity disabled:opacity-30"
         style={{ color: C.textSecondary }}
+        aria-label="Next page"
       >
         <ChevronRight size={14} />
       </button>

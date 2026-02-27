@@ -6,11 +6,13 @@
    and network validation.
    ───────────────────────────────────────────────────────────────────────── */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Wallet, AlertTriangle, Check, ExternalLink, Loader2, Shield, Copy } from "lucide-react";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { useBridgeStore } from "./store";
 import { CHAINS } from "./chain-config";
+import { useWalletStore } from "@/stores/wallet-store";
 import { B, FONT, Panel, truncAddr, CopyButton, GlowButton } from "./shared";
 
 /* ── Wallet definitions ──────────────────────────────────────────────── */
@@ -286,7 +288,8 @@ function NetworkWarning({ currentChainId }: { currentChainId: string | null }) {
   if (!currentChainId) return null;
 
   // Check if the connected EVM chain matches one of our supported chains
-  const supportedIds = ["0x1", "0x38"]; // ETH, BNB
+  // ETH=0x1, BNB=0x38, MATIC=0x89, AVAX=0xa86a, ARB=0xa4b1, OP=0xa, BASE=0x2105
+  const supportedIds = ["0x1", "0x38", "0x89", "0xa86a", "0xa4b1", "0xa", "0x2105"];
   const isSupported = supportedIds.includes(currentChainId);
 
   if (isSupported) return null;
@@ -309,20 +312,98 @@ function NetworkWarning({ currentChainId }: { currentChainId: string | null }) {
   );
 }
 
-/* ── Mock Addresses ──────────────────────────────────────────────────── */
-
-const MOCK_ADDRS = {
-  qbc: "qbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
-  evm: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
-  solana: "7S3P4HxJYt6Sp5BNm3kP8sFCWAebSsYN1pu3kTYYmbby",
-};
-
 /* ── Main Modal ──────────────────────────────────────────────────────── */
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/** Attempt to connect MetaMask or another EVM wallet via window.ethereum. */
+async function connectEvm(def: WalletDef): Promise<{
+  address: string;
+  chainId: string;
+}> {
+  const ethereum = typeof window !== "undefined" ? (window as any).ethereum : undefined;
+  if (!ethereum) {
+    throw new Error("No EVM provider found. Please install MetaMask.");
+  }
+
+  // For MetaMask specifically check isMetaMask
+  if (def.id === "metamask" && !ethereum.isMetaMask) {
+    throw new Error("MetaMask not detected. Please install MetaMask.");
+  }
+
+  const accounts: string[] = await ethereum.request({
+    method: "eth_requestAccounts",
+  });
+
+  if (!accounts || accounts.length === 0) {
+    throw new Error("No accounts returned from wallet.");
+  }
+
+  const chainId: string = await ethereum.request({
+    method: "eth_chainId",
+  });
+
+  return { address: accounts[0], chainId };
+}
+
+/** Attempt to connect a Solana wallet (Phantom, Backpack, Solflare). */
+async function connectSolana(def: WalletDef): Promise<{ address: string }> {
+  let provider: any;
+  if (def.id === "phantom") {
+    provider = typeof window !== "undefined" ? (window as any).solana : undefined;
+  } else if (def.id === "backpack") {
+    provider = typeof window !== "undefined" ? (window as any).backpack : undefined;
+  } else if (def.id === "solflare") {
+    provider = typeof window !== "undefined" ? (window as any).solflare : undefined;
+  }
+
+  if (!provider) {
+    throw new Error(`${def.name} not detected. Please install ${def.name}.`);
+  }
+
+  const resp = await provider.connect();
+  const address = resp?.publicKey?.toString?.() ?? "";
+  if (!address) {
+    throw new Error("No public key returned from Solana wallet.");
+  }
+  return { address };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function WalletModal() {
   const { walletModalOpen, setWalletModalOpen } = useBridgeStore();
+  const walletStore = useWalletStore();
   const [conn, setConn] = useState<ConnectionState>(INITIAL_STATE);
   const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  const closeWalletModal = useCallback(() => setWalletModalOpen(false), [setWalletModalOpen]);
+  useFocusTrap(dialogRef, walletModalOpen, closeWalletModal);
+
+  // Sync from global wallet store on mount
+  useEffect(() => {
+    if (walletStore.connected && walletStore.address) {
+      setConn((prev) => ({
+        ...prev,
+        evm: {
+          connected: true,
+          address: walletStore.address,
+          chainId: null,
+          provider: "MetaMask",
+        },
+      }));
+    }
+    if (walletStore.activeNativeWallet) {
+      setConn((prev) => ({
+        ...prev,
+        qbc: {
+          connected: true,
+          address: walletStore.activeNativeWallet,
+          balance: 0,
+        },
+      }));
+    }
+  }, [walletStore.connected, walletStore.address, walletStore.activeNativeWallet]);
 
   // Lock body scroll
   useEffect(() => {
@@ -334,29 +415,61 @@ export function WalletModal() {
 
   const handleConnect = useCallback(async (def: WalletDef) => {
     setConnectingId(def.id);
+    setConnectError(null);
 
-    // Simulated 1.5s connection delay
-    await new Promise<void>((r) => setTimeout(r, 1500));
-
-    if (def.category === "qbc") {
-      setConn((prev) => ({
-        ...prev,
-        qbc: { connected: true, address: MOCK_ADDRS.qbc, balance: 12847.331 },
-      }));
-    } else if (def.category === "evm") {
-      setConn((prev) => ({
-        ...prev,
-        evm: { connected: true, address: MOCK_ADDRS.evm, chainId: "0x1", provider: def.name },
-      }));
-    } else if (def.category === "solana") {
-      setConn((prev) => ({
-        ...prev,
-        solana: { connected: true, address: MOCK_ADDRS.solana },
-      }));
+    try {
+      if (def.category === "qbc") {
+        // QBC native wallet uses the native wallet store
+        // For now, check if there is an active native wallet
+        const activeNative = useWalletStore.getState().activeNativeWallet;
+        if (activeNative) {
+          setConn((prev) => ({
+            ...prev,
+            qbc: { connected: true, address: activeNative, balance: 0 },
+          }));
+        } else {
+          // Create a demo connection — in production, prompt user to create/import wallet
+          const demoAddr = "qbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
+          setConn((prev) => ({
+            ...prev,
+            qbc: { connected: true, address: demoAddr, balance: 0 },
+          }));
+          // Sync to global store so GlobalHeader and other components see it
+          walletStore.setActiveNativeWallet(demoAddr);
+        }
+      } else if (def.category === "evm") {
+        if (def.id === "walletconnect") {
+          // WalletConnect needs its own SDK — show placeholder for now
+          setConnectError("WalletConnect integration coming soon. Use MetaMask for now.");
+          setConnectingId(null);
+          return;
+        }
+        const result = await connectEvm(def);
+        setConn((prev) => ({
+          ...prev,
+          evm: {
+            connected: true,
+            address: result.address,
+            chainId: result.chainId,
+            provider: def.name,
+          },
+        }));
+        // Sync to global wallet store
+        walletStore.connect(result.address);
+      } else if (def.category === "solana") {
+        const result = await connectSolana(def);
+        setConn((prev) => ({
+          ...prev,
+          solana: { connected: true, address: result.address },
+        }));
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Connection failed";
+      setConnectError(message);
     }
 
     setConnectingId(null);
-  }, []);
+  }, [walletStore]);
 
   const handleDisconnect = useCallback((category: "qbc" | "evm" | "solana") => {
     setConn((prev) => ({
@@ -368,7 +481,13 @@ export function WalletModal() {
             ? { connected: false, address: null, chainId: null, provider: null }
             : { connected: false, address: null },
     }));
-  }, []);
+    // Also disconnect from global wallet store
+    if (category === "evm") {
+      walletStore.disconnect();
+    } else if (category === "qbc") {
+      walletStore.setActiveNativeWallet(null);
+    }
+  }, [walletStore]);
 
   const connectedCount =
     (conn.qbc.connected ? 1 : 0) +
@@ -392,6 +511,10 @@ export function WalletModal() {
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wallet-modal-title"
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -413,6 +536,7 @@ export function WalletModal() {
                 </div>
                 <div>
                   <h2
+                    id="wallet-modal-title"
                     className="text-sm font-bold tracking-widest"
                     style={{ color: B.textPrimary, fontFamily: FONT.display }}
                   >
@@ -429,6 +553,7 @@ export function WalletModal() {
                 onClick={() => setWalletModalOpen(false)}
                 className="rounded-md p-1.5 transition-opacity hover:opacity-70"
                 style={{ color: B.textSecondary }}
+                aria-label="Close wallet modal"
               >
                 <X size={18} />
               </button>
@@ -436,6 +561,24 @@ export function WalletModal() {
 
             {/* Scrollable Body */}
             <div className="max-h-[65vh] overflow-y-auto px-5 py-4" style={{ scrollbarWidth: "thin" }}>
+              {/* Connection error banner */}
+              {connectError && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  className="mb-3 flex items-center gap-2 rounded-lg border p-2.5"
+                  style={{
+                    borderColor: `${B.glowCrimson}40`,
+                    background: `${B.glowCrimson}08`,
+                  }}
+                >
+                  <AlertTriangle size={14} style={{ color: B.glowCrimson }} />
+                  <span className="text-[10px]" style={{ color: B.glowCrimson }}>
+                    {connectError}
+                  </span>
+                </motion.div>
+              )}
+
               <div className="space-y-6">
 
                 {/* QBC Native */}

@@ -8,6 +8,7 @@ import { Settings, Wallet, Link2 } from "lucide-react";
 import { CHAINS, EXTERNAL_CHAINS } from "./chain-config";
 import { useTickerItems } from "./hooks";
 import { useBridgeStore } from "./store";
+import { useWalletStore } from "@/stores/wallet-store";
 import {
   B, FONT, Panel, truncAddr, ChainBadge, GlowButton,
 } from "./shared";
@@ -76,10 +77,11 @@ function NetworkTicker() {
 
 export function GlobalHeader() {
   const { setWalletModalOpen, setSettingsOpen, navigate } = useBridgeStore();
+  const walletStore = useWalletStore();
 
-  // Mock wallet state for display
-  const qbcConnected = false;
-  const evmConnected = false;
+  // Read wallet connection state from the global Zustand store
+  const qbcConnected = !!walletStore.activeNativeWallet;
+  const evmConnected = walletStore.connected;
 
   return (
     <>

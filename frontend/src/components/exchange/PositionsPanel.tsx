@@ -2,7 +2,7 @@
 "use client";
 
 import React, { memo, useState, useMemo, useCallback } from "react";
-import { usePositions, useOpenOrders, useMyFills, useFunding } from "./hooks";
+import { usePositions, useOpenOrders, useMyFills, useFunding, useCancelOrder } from "./hooks";
 import { useExchangeStore } from "./store";
 import {
   X,
@@ -427,20 +427,22 @@ const OrderRow = memo(function OrderRow({
 
 const OrdersTable = memo(function OrdersTable() {
   const { data: orders } = useOpenOrders();
-  const addToast = useExchangeStore((s) => s.addToast);
+  const cancelOrderMutation = useCancelOrder();
 
   const handleCancel = useCallback(
     (id: string, marketId: MarketId) => {
-      addToast(`Order cancelled — ${displayName(marketId)}`, "success");
+      cancelOrderMutation.mutate({ orderId: id, pair: marketId });
     },
-    [addToast],
+    [cancelOrderMutation],
   );
 
   const handleCancelAll = useCallback(() => {
     if (orders && orders.length > 0) {
-      addToast(`All ${orders.length} orders cancelled`, "success");
+      for (const order of orders) {
+        cancelOrderMutation.mutate({ orderId: order.id, pair: order.marketId });
+      }
     }
-  }, [addToast, orders]);
+  }, [cancelOrderMutation, orders]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>

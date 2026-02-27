@@ -36,6 +36,142 @@ const SEPHIROT_POSITIONS: Record<string, [number, number, number]> = {
   Malkuth:  [0,   -3.0,  0],
 };
 
+/* --- Barnes-Hut Octree for O(n log n) repulsion ---------------------- */
+
+const BH_THETA = 0.8; // opening angle threshold
+
+interface OctreeNode {
+  cx: number; cy: number; cz: number; // centre-of-mass
+  mass: number;
+  size: number;                        // half-width of the region
+  body: number | null;                 // leaf: index into positions array
+  children: (OctreeNode | null)[];     // 8 children (octants)
+}
+
+function octreeInsert(root: OctreeNode, idx: number, px: number, py: number, pz: number): void {
+  if (root.mass === 0) {
+    // Empty leaf — place body here
+    root.cx = px; root.cy = py; root.cz = pz;
+    root.mass = 1;
+    root.body = idx;
+    return;
+  }
+
+  // If this is a leaf, turn it into an internal node first
+  if (root.body !== null) {
+    const oldIdx = root.body;
+    const ox = root.cx, oy = root.cy, oz = root.cz;
+    root.body = null;
+    // Re-insert old body
+    octreeInsertInternal(root, oldIdx, ox, oy, oz);
+  }
+
+  // Insert new body into the appropriate child
+  octreeInsertInternal(root, idx, px, py, pz);
+
+  // Update centre-of-mass
+  const totalMass = root.mass + 1;
+  root.cx = (root.cx * root.mass + px) / totalMass;
+  root.cy = (root.cy * root.mass + py) / totalMass;
+  root.cz = (root.cz * root.mass + pz) / totalMass;
+  root.mass = totalMass;
+}
+
+function octreeInsertInternal(node: OctreeNode, idx: number, px: number, py: number, pz: number): void {
+  const halfSize = node.size / 2;
+  // Determine octant: bit 0 = x, bit 1 = y, bit 2 = z
+  // We use the region centre (midpoint) to pick the octant
+  const midX = node.cx, midY = node.cy, midZ = node.cz;
+  // Approximate region centre — use mass-weighted for internal, so we need a separate region origin
+  // Actually we need the spatial centre, not center of mass. Let's track it implicitly using the size.
+  // Simpler approach: use child sub-cubes based on which half the point is in.
+  // Since we don't store region origin, we'll just re-derive from the node's region.
+  // This simplified BH uses body-as-region-centre for leaf promotion. For large N this is good enough.
+  const octant = (px > midX ? 1 : 0) | (py > midY ? 2 : 0) | (pz > midZ ? 4 : 0);
+
+  if (!node.children[octant]) {
+    node.children[octant] = {
+      cx: 0, cy: 0, cz: 0,
+      mass: 0,
+      size: halfSize,
+      body: null,
+      children: [null, null, null, null, null, null, null, null],
+    };
+  }
+  octreeInsert(node.children[octant]!, idx, px, py, pz);
+}
+
+function octreeForce(
+  node: OctreeNode,
+  px: number, py: number, pz: number,
+  strength: number,
+): [number, number, number] {
+  if (node.mass === 0) return [0, 0, 0];
+
+  const dx = node.cx - px;
+  const dy = node.cy - py;
+  const dz = node.cz - pz;
+  const distSq = dx * dx + dy * dy + dz * dz + 0.0001;
+
+  // If leaf or sufficiently far away, treat as single body
+  if (node.body !== null || (node.size * node.size) / distSq < BH_THETA * BH_THETA) {
+    const dist = Math.sqrt(distSq);
+    const force = (strength * node.mass) / distSq;
+    const fx = (dx / dist) * force;
+    const fy = (dy / dist) * force;
+    const fz = (dz / dist) * force;
+    return [fx, fy, fz];
+  }
+
+  // Otherwise recurse into children
+  let totalFx = 0, totalFy = 0, totalFz = 0;
+  for (let c = 0; c < 8; c++) {
+    const child = node.children[c];
+    if (child && child.mass > 0) {
+      const [cfx, cfy, cfz] = octreeForce(child, px, py, pz, strength);
+      totalFx += cfx;
+      totalFy += cfy;
+      totalFz += cfz;
+    }
+  }
+  return [totalFx, totalFy, totalFz];
+}
+
+function buildOctree(positions: NodePosition[]): OctreeNode {
+  // Find bounding box
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (const p of positions) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.z < minZ) minZ = p.z;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+    if (p.z > maxZ) maxZ = p.z;
+  }
+  const size = Math.max(maxX - minX, maxY - minY, maxZ - minZ, 1) / 2 + 1;
+
+  const root: OctreeNode = {
+    cx: (minX + maxX) / 2,
+    cy: (minY + maxY) / 2,
+    cz: (minZ + maxZ) / 2,
+    mass: 0,
+    size,
+    body: null,
+    children: [null, null, null, null, null, null, null, null],
+  };
+
+  for (let i = 0; i < positions.length; i++) {
+    octreeInsert(root, i, positions[i].x, positions[i].y, positions[i].z);
+  }
+  return root;
+}
+
+/* --- Force layout with Barnes-Hut O(n log n) repulsion --------------- */
+
+/** Threshold: use direct O(n^2) for small node counts, BH for larger. */
+const BH_MIN_NODES = 200;
+
 function layoutNodes(
   nodes: KnowledgeGraphNode[],
   edges: KnowledgeGraphEdge[],
@@ -79,30 +215,47 @@ function layoutNodes(
   const idxMap = new Map<number, number>();
   allPositions.forEach((p, i) => idxMap.set(p.id, i));
 
-  // Run 80 iterations of simple force simulation (skip fixed sephirot)
+  const useBH = allPositions.length >= BH_MIN_NODES;
+
+  // Run 80 iterations of force simulation
   for (let iter = 0; iter < 80; iter++) {
     const cooling = 1 - iter / 80;
+    const repulsionStrength = -0.8 * cooling;
 
-    // Repulsion (Coulomb)
-    for (let i = 0; i < allPositions.length; i++) {
-      for (let j = i + 1; j < allPositions.length; j++) {
-        const dx = allPositions[i].x - allPositions[j].x;
-        const dy = allPositions[i].y - allPositions[j].y;
-        const dz = allPositions[i].z - allPositions[j].z;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.01;
-        const force = (0.8 * cooling) / (dist * dist);
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-        const fz = (dz / dist) * force;
-        if (!allPositions[i].fixed) {
-          allPositions[i].vx += fx;
-          allPositions[i].vy += fy;
-          allPositions[i].vz += fz;
-        }
-        if (!allPositions[j].fixed) {
-          allPositions[j].vx -= fx;
-          allPositions[j].vy -= fy;
-          allPositions[j].vz -= fz;
+    if (useBH) {
+      // Barnes-Hut: O(n log n) repulsion via octree
+      const tree = buildOctree(allPositions);
+      for (let i = 0; i < allPositions.length; i++) {
+        if (allPositions[i].fixed) continue;
+        const [fx, fy, fz] = octreeForce(
+          tree, allPositions[i].x, allPositions[i].y, allPositions[i].z, repulsionStrength,
+        );
+        allPositions[i].vx -= fx;
+        allPositions[i].vy -= fy;
+        allPositions[i].vz -= fz;
+      }
+    } else {
+      // Direct O(n^2) for small graphs (< BH_MIN_NODES)
+      for (let i = 0; i < allPositions.length; i++) {
+        for (let j = i + 1; j < allPositions.length; j++) {
+          const dx = allPositions[i].x - allPositions[j].x;
+          const dy = allPositions[i].y - allPositions[j].y;
+          const dz = allPositions[i].z - allPositions[j].z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.01;
+          const force = (0.8 * cooling) / (dist * dist);
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          const fz = (dz / dist) * force;
+          if (!allPositions[i].fixed) {
+            allPositions[i].vx += fx;
+            allPositions[i].vy += fy;
+            allPositions[i].vz += fz;
+          }
+          if (!allPositions[j].fixed) {
+            allPositions[j].vx -= fx;
+            allPositions[j].vy -= fy;
+            allPositions[j].vz -= fz;
+          }
         }
       }
     }

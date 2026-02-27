@@ -40,6 +40,96 @@ function deriveTitle(messages: Message[]): string {
   return text.length < first.text.length ? `${text}...` : text;
 }
 
+/* --- Reasoning type detection and styling --- */
+
+type ReasoningType = "deductive" | "inductive" | "abductive" | "observation" | "conclusion";
+
+const REASONING_STYLES: Record<ReasoningType, { label: string; color: string; bg: string }> = {
+  deductive:   { label: "DED", color: "text-quantum-green",  bg: "bg-quantum-green/10" },
+  inductive:   { label: "IND", color: "text-quantum-violet", bg: "bg-quantum-violet/10" },
+  abductive:   { label: "ABD", color: "text-amber-400",      bg: "bg-amber-400/10" },
+  observation: { label: "OBS", color: "text-sky-400",         bg: "bg-sky-400/10" },
+  conclusion:  { label: "CON", color: "text-emerald-400",     bg: "bg-emerald-400/10" },
+};
+
+function detectReasoningType(step: string): ReasoningType {
+  const lower = step.toLowerCase();
+  if (lower.startsWith("[deductive]") || lower.includes("therefore") || lower.includes("follows that"))
+    return "deductive";
+  if (lower.startsWith("[inductive]") || lower.includes("pattern") || lower.includes("generalize"))
+    return "inductive";
+  if (lower.startsWith("[abductive]") || lower.includes("hypothesis") || lower.includes("best explanation"))
+    return "abductive";
+  if (lower.startsWith("[observation]") || lower.includes("observe") || lower.includes("given"))
+    return "observation";
+  if (lower.startsWith("[conclusion]") || lower.includes("conclude") || lower.includes("result"))
+    return "conclusion";
+  // Default: treat early steps as observations, middle as deductive, last as conclusion
+  return "deductive";
+}
+
+function stripTypePrefix(step: string): string {
+  return step.replace(/^\[(deductive|inductive|abductive|observation|conclusion)\]\s*/i, "");
+}
+
+/** Collapsible reasoning trace with type-tagged steps in a tree-like DAG view. */
+function ReasoningTraceView({ steps, potHash }: { steps: string[]; potHash?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      className="mt-2 border-t border-border-subtle pt-2"
+    >
+      <p className="mb-1.5 font-[family-name:var(--font-display)] text-[10px] uppercase tracking-wider text-text-secondary">
+        Reasoning Trace ({steps.length} steps)
+      </p>
+      <div className="relative ml-2">
+        {/* Vertical connector line */}
+        <div className="absolute left-[5px] top-1 bottom-1 w-px bg-border-subtle" />
+
+        {steps.map((step, si) => {
+          const rType = si === 0
+            ? detectReasoningType(step) === "deductive" ? "observation" : detectReasoningType(step)
+            : si === steps.length - 1
+              ? "conclusion"
+              : detectReasoningType(step);
+          const style = REASONING_STYLES[rType];
+          const cleanStep = stripTypePrefix(step);
+
+          return (
+            <div key={si} className="relative flex items-start gap-2 pb-1.5 pl-4">
+              {/* Node dot */}
+              <div
+                className={`absolute left-0 top-1.5 h-[11px] w-[11px] rounded-full border ${style.bg} border-current ${style.color}`}
+              />
+              {/* Type badge + text */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`inline-block rounded px-1 py-0.5 font-[family-name:var(--font-code)] text-[9px] font-bold ${style.color} ${style.bg}`}
+                  >
+                    {style.label}
+                  </span>
+                  <span className="text-xs text-text-secondary">
+                    {cleanStep}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {potHash && (
+        <p className="mt-1.5 font-[family-name:var(--font-code)] text-xs text-quantum-violet/70">
+          Proof-of-Thought: {potHash.slice(0, 24)}...
+        </p>
+      )}
+    </motion.div>
+  );
+}
+
 export default function AetherPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -252,18 +342,7 @@ export default function AetherPage() {
                       </button>
                     )}
                     {selectedMsg === i && m.reasoning && (
-                      <div className="mt-2 space-y-1 border-t border-border-subtle pt-2">
-                        {m.reasoning.map((step, si) => (
-                          <p key={si} className="text-xs text-text-secondary">
-                            {si + 1}. {step}
-                          </p>
-                        ))}
-                        {m.potHash && (
-                          <p className="mt-1 font-[family-name:var(--font-code)] text-xs text-quantum-violet/70">
-                            PoT: {m.potHash.slice(0, 24)}...
-                          </p>
-                        )}
-                      </div>
+                      <ReasoningTraceView steps={m.reasoning} potHash={m.potHash} />
                     )}
                   </div>
                 </motion.div>

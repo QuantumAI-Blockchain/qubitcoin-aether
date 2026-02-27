@@ -12,12 +12,13 @@ import {
   formatAddr,
   illpLabel,
   illpColor,
+  calculateILLP,
+  contractTypeLabel,
   L,
   FONT,
   panelStyle,
 } from "./shared";
 import type { Project, LeaderboardTab, ILLPSignal, PresaleStatus } from "./types";
-import { calculateILLP, contractTypeLabel } from "./shared";
 
 /* ── Tab Config ───────────────────────────────────────────────────────────── */
 
@@ -171,7 +172,10 @@ const QPCSTable = memo(function QPCSTable({
       </thead>
       <tbody>
         {projects.map((p, i) => {
-          const prevRank = i > 0 ? i + 1 + (Math.random() > 0.5 ? 1 : -1) * Math.floor(Math.random() * 3) : null;
+          // Deterministic "previous rank" derived from address hash to avoid
+          // render-flicker caused by Math.random() in the render path.
+          const addrHash = p.address.charCodeAt(4) + p.address.charCodeAt(5);
+          const prevRank = i > 0 ? i + 1 + ((addrHash % 2 === 0 ? 1 : -1) * (addrHash % 3)) : null;
           return (
             <tr
               key={p.address}

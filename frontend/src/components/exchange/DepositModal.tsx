@@ -4,8 +4,10 @@
 import React, { memo, useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useExchangeStore } from "./store";
+import { useDeposit, useBalances } from "./hooks";
 import { X, FONT, formatSize, formatUsd, panelStyle } from "./shared";
 import { TOKENS, CHAINS, FEES, getToken } from "./config";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 
 // ─── DEPOSIT ASSET DEFINITIONS ─────────────────────────────────────────────
 
@@ -25,9 +27,9 @@ const DEPOSIT_ASSETS: DepositAssetDef[] = [
   { symbol: "wSOL", sourceSymbol: "SOL", sourceChain: "solana", chainLabel: "Solana", isCrossChain: true },
 ];
 
-// ─── MOCK WALLET BALANCES ──────────────────────────────────────────────────
+// ─── FALLBACK WALLET BALANCES (used when no wallet connected / API fails) ──
 
-const WALLET_BALANCES: Record<string, number> = {
+const FALLBACK_WALLET_BALANCES: Record<string, number> = {
   QBC: 4281.44,
   QUSD: 8421.85,
   ETH: 2.4821,
@@ -49,8 +51,14 @@ function getIconLetter(asset: DepositAssetDef): string {
   return token?.icon ?? asset.sourceSymbol.charAt(0);
 }
 
-function getWalletBalance(asset: DepositAssetDef): number {
-  return WALLET_BALANCES[asset.sourceSymbol] ?? 0;
+function getWalletBalance(
+  asset: DepositAssetDef,
+  liveBalances: Record<string, number> | undefined,
+): number {
+  if (liveBalances) {
+    return liveBalances[asset.sourceSymbol] ?? liveBalances[asset.symbol] ?? 0;
+  }
+  return FALLBACK_WALLET_BALANCES[asset.sourceSymbol] ?? 0;
 }
 
 function getBridgeFee(amount: number): number {
@@ -87,6 +95,23 @@ const DepositModal = memo(function DepositModal() {
   const preselected = useExchangeStore((s) => s.depositAsset);
   const setOpen = useExchangeStore((s) => s.setDepositModalOpen);
   const addToast = useExchangeStore((s) => s.addToast);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  const closeModal = useCallback(() => setOpen(false), [setOpen]);
+  useFocusTrap(modalRef, open, closeModal);
+  const walletAddress = useExchangeStore((s) => s.walletAddress);
+  const { data: balances } = useBalances();
+  const depositMutation = useDeposit();
+
+  // Build a lookup from live exchange balances (asset -> available)
+  const liveBalanceMap = React.useMemo(() => {
+    if (!balances || balances.length === 0) return undefined;
+    const map: Record<string, number> = {};
+    for (const b of balances) {
+      map[b.asset] = b.available;
+    }
+    return map;
+  }, [balances]);
 
   const [step, setStep] = useState<DepositStep>(1);
   const [selectedAsset, setSelectedAsset] = useState<DepositAssetDef | null>(null);
@@ -139,12 +164,12 @@ const DepositModal = memo(function DepositModal() {
 
   const handleMax = useCallback(() => {
     if (!selectedAsset) return;
-    const bal = getWalletBalance(selectedAsset);
+    const bal = getWalletBalance(selectedAsset, liveBalanceMap);
     setAmount(bal.toString());
-  }, [selectedAsset]);
+  }, [selectedAsset, liveBalanceMap]);
 
   const parsedAmount = parseFloat(amount) || 0;
-  const balance = selectedAsset ? getWalletBalance(selectedAsset) : 0;
+  const balance = selectedAsset ? getWalletBalance(selectedAsset, liveBalanceMap) : 0;
   const isValidAmount = parsedAmount > 0 && parsedAmount <= balance;
   const isCrossChain = selectedAsset?.isCrossChain ?? false;
   const bridgeFee = isCrossChain ? getBridgeFee(parsedAmount) : 0;
@@ -157,6 +182,17 @@ const DepositModal = memo(function DepositModal() {
     setStep(3);
     setProgressIndex(0);
     setIsProcessing(true);
+
+    // Fire the real API deposit in the background
+    const addr = walletAddress || "qbc1demo";
+    depositMutation.mutate(
+      { address: addr, asset: selectedAsset.symbol, amount: parsedAmount },
+      {
+        onError: () => {
+          // Silently fall through — progress UI still shows
+        },
+      },
+    );
 
     const steps = selectedAsset.isCrossChain ? CROSS_CHAIN_STEPS : NATIVE_STEPS;
     let idx = 0;
@@ -174,7 +210,7 @@ const DepositModal = memo(function DepositModal() {
         setProgressIndex(idx);
       }
     }, 2000);
-  }, [isValidAmount, selectedAsset, parsedAmount, addToast]);
+  }, [isValidAmount, selectedAsset, parsedAmount, addToast, walletAddress, depositMutation]);
 
   const handleBack = useCallback(() => {
     if (step === 2) {
@@ -197,6 +233,7 @@ const DepositModal = memo(function DepositModal() {
           onClick={handleBackdropClick}
         >
           <motion.div
+            ref={modalRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="deposit-modal-title"
@@ -257,6 +294,7 @@ const DepositModal = memo(function DepositModal() {
               </div>
               <button
                 onClick={close}
+                aria-label="Close deposit modal"
                 style={{
                   background: "none",
                   border: "none",

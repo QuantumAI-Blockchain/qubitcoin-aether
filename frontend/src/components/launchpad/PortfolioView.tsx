@@ -4,6 +4,7 @@
 import React, { memo, useMemo, useState, useCallback } from "react";
 import { useMyDeployed, useMyInvestments, useProjects } from "./hooks";
 import { useLaunchpadStore } from "./store";
+import { useWalletStore } from "@/stores/wallet-store";
 import {
   TierBadge,
   QpcsGradeBadge,
@@ -40,7 +41,8 @@ const TABS: Array<{ key: PortfolioTab; label: string }> = [
   { key: "dd", label: "MY DD REPORTS" },
 ];
 
-const MY_WALLET = "QBC1user0000000000000000000000000000000000";
+/** Fallback address shown when no wallet is connected. */
+const FALLBACK_WALLET = "QBC1user0000000000000000000000000000000000";
 
 /* ── Vouch Status Badge ───────────────────────────────────────────────────── */
 
@@ -731,6 +733,11 @@ export const PortfolioView = memo(function PortfolioView() {
   const setSelectedProject = useLaunchpadStore((s) => s.setSelectedProject);
   const [activeTab, setActiveTab] = useState<PortfolioTab>("projects");
 
+  // Use real wallet address from wallet store
+  const walletAddress = useWalletStore((s) => s.address);
+  const activeNativeWallet = useWalletStore((s) => s.activeNativeWallet);
+  const myWallet = walletAddress ?? activeNativeWallet ?? FALLBACK_WALLET;
+
   const { data: deployedProjects, isLoading: loadingDeployed } = useMyDeployed();
   const { data: investments, isLoading: loadingInvestments } = useMyInvestments();
   const { data: allProjects } = useProjects();
@@ -742,33 +749,33 @@ export const PortfolioView = memo(function PortfolioView() {
     [setSelectedProject],
   );
 
-  // Derive vouches from all projects where the voucher is MY_WALLET
+  // Derive vouches from all projects where the voucher is myWallet
   const myVouches = useMemo(() => {
     if (!allProjects) return [];
     const results: Array<{ project: Project; vouch: Vouch }> = [];
     for (const p of allProjects) {
       for (const v of p.vouches) {
-        if (v.voucherAddress === MY_WALLET) {
+        if (v.voucherAddress === myWallet) {
           results.push({ project: p, vouch: v });
         }
       }
     }
     return results;
-  }, [allProjects]);
+  }, [allProjects, myWallet]);
 
-  // Derive DD reports from all projects where the author is MY_WALLET
+  // Derive DD reports from all projects where the author is myWallet
   const myDDReports = useMemo(() => {
     if (!allProjects) return [];
     const results: Array<{ project: Project; report: DDReport }> = [];
     for (const p of allProjects) {
       for (const r of p.ddReports) {
-        if (r.author === MY_WALLET) {
+        if (r.author === myWallet) {
           results.push({ project: p, report: r });
         }
       }
     }
     return results;
-  }, [allProjects]);
+  }, [allProjects, myWallet]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -786,7 +793,7 @@ export const PortfolioView = memo(function PortfolioView() {
           PORTFOLIO
         </h2>
         <span style={{ fontFamily: FONT.mono, fontSize: 11, color: L.textMuted }}>
-          {formatAddr(MY_WALLET, 8)}
+          {formatAddr(myWallet, 8)}
         </span>
       </div>
 

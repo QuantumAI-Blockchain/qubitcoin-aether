@@ -113,9 +113,93 @@ export const CHAINS: Record<ChainId, ChainInfo> = {
     "#9945ff",
     "solana"
   ),
+  polygon: buildChain(
+    "polygon",
+    "Polygon PoS",
+    "MATIC",
+    "0x89",
+    "POLYGON_RPC_URL",
+    "POLYGON_WQBC_ADDR",
+    "POLYGON_WQUSD_ADDR",
+    "https://polygonscan.com",
+    "/tx/",
+    "MATIC",
+    128,
+    "#8247e5",
+    "evm"
+  ),
+  avalanche: buildChain(
+    "avalanche",
+    "Avalanche C-Chain",
+    "AVAX",
+    "0xa86a",
+    "AVAX_RPC_URL",
+    "AVAX_WQBC_ADDR",
+    "AVAX_WQUSD_ADDR",
+    "https://snowtrace.io",
+    "/tx/",
+    "AVAX",
+    20,
+    "#e84142",
+    "evm"
+  ),
+  arbitrum: buildChain(
+    "arbitrum",
+    "Arbitrum One",
+    "ARB",
+    "0xa4b1",
+    "ARB_RPC_URL",
+    "ARB_WQBC_ADDR",
+    "ARB_WQUSD_ADDR",
+    "https://arbiscan.io",
+    "/tx/",
+    "ETH",
+    12,
+    "#28a0f0",
+    "evm"
+  ),
+  optimism: buildChain(
+    "optimism",
+    "OP Mainnet",
+    "OP",
+    "0xa",
+    "OP_RPC_URL",
+    "OP_WQBC_ADDR",
+    "OP_WQUSD_ADDR",
+    "https://optimistic.etherscan.io",
+    "/tx/",
+    "ETH",
+    12,
+    "#ff0420",
+    "evm"
+  ),
+  base: buildChain(
+    "base",
+    "Base",
+    "BASE",
+    "0x2105",
+    "BASE_RPC_URL",
+    "BASE_WQBC_ADDR",
+    "BASE_WQUSD_ADDR",
+    "https://basescan.org",
+    "/tx/",
+    "ETH",
+    12,
+    "#0052ff",
+    "evm"
+  ),
 };
 
-export const EXTERNAL_CHAINS: ExternalChainId[] = ["ethereum", "bnb", "solana"];
+export const EXTERNAL_CHAINS: ExternalChainId[] = [
+  "ethereum",
+  "bnb",
+  "solana",
+  "polygon",
+  "avalanche",
+  "arbitrum",
+  "optimism",
+  "base",
+];
 
 export const VAULT_ADDRS = {
   qbc: env("QBC_WQBC_VAULT_ADDR"),
@@ -127,6 +211,11 @@ export const CONFIRMATION_COUNTS: Record<ChainId, number> = {
   ethereum: 12,
   bnb: 15,
   solana: 32,
+  polygon: 128,
+  avalanche: 20,
+  arbitrum: 12,
+  optimism: 12,
+  base: 12,
 };
 
 export function getExplorerTxUrl(chain: ChainInfo, hash: string): string {
@@ -135,5 +224,13 @@ export function getExplorerTxUrl(chain: ChainInfo, hash: string): string {
 }
 
 export function isEvmChain(id: ChainId): boolean {
-  return id === "ethereum" || id === "bnb";
+  return (
+    id === "ethereum" ||
+    id === "bnb" ||
+    id === "polygon" ||
+    id === "avalanche" ||
+    id === "arbitrum" ||
+    id === "optimism" ||
+    id === "base"
+  );
 }

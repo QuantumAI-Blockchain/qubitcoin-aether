@@ -81,7 +81,16 @@ function rangeFloat(rng: () => number, min: number, max: number): number {
 
 /* ── Constants ────────────────────────────────────────────────────────── */
 
-const EXTERNAL_CHAINS: readonly ExternalChainId[] = ["ethereum", "bnb", "solana"];
+const EXTERNAL_CHAINS: readonly ExternalChainId[] = [
+  "ethereum",
+  "bnb",
+  "solana",
+  "polygon",
+  "avalanche",
+  "arbitrum",
+  "optimism",
+  "base",
+];
 const TOKENS: readonly TokenType[] = ["QBC", "QUSD"];
 const NOW = Math.floor(Date.now() / 1000);
 
@@ -90,18 +99,33 @@ const CHAIN_CONFIRMATIONS: Record<ChainId, number> = {
   ethereum: 12,
   bnb: 15,
   solana: 32,
+  polygon: 128,
+  avalanche: 20,
+  arbitrum: 12,
+  optimism: 12,
+  base: 12,
 };
 
 const CHAIN_GAS_COST: Record<ExternalChainId, { min: number; max: number }> = {
   ethereum: { min: 2.5, max: 8.0 },
   bnb: { min: 0.3, max: 1.2 },
   solana: { min: 0.005, max: 0.02 },
+  polygon: { min: 0.01, max: 0.05 },
+  avalanche: { min: 0.1, max: 0.5 },
+  arbitrum: { min: 0.05, max: 0.2 },
+  optimism: { min: 0.04, max: 0.15 },
+  base: { min: 0.03, max: 0.1 },
 };
 
 const CHAIN_EST_TIME: Record<ExternalChainId, { min: number; max: number }> = {
   ethereum: { min: 180, max: 600 },
   bnb: { min: 60, max: 180 },
   solana: { min: 15, max: 60 },
+  polygon: { min: 120, max: 420 },
+  avalanche: { min: 30, max: 120 },
+  arbitrum: { min: 30, max: 120 },
+  optimism: { min: 30, max: 120 },
+  base: { min: 30, max: 120 },
 };
 
 /* ── BridgeMockEngine ─────────────────────────────────────────────────── */
@@ -134,14 +158,24 @@ export class BridgeMockEngine {
     const qusdLocked = 284_921;
 
     // Distribute wQBC across chains — must sum to exactly qbcLocked
-    const wqbcEth = round6(qbcLocked * 0.52);
-    const wqbcBnb = round6(qbcLocked * 0.31);
-    const wqbcSol = round6(qbcLocked - wqbcEth - wqbcBnb);
+    const wqbcEth = round6(qbcLocked * 0.35);
+    const wqbcBnb = round6(qbcLocked * 0.18);
+    const wqbcSol = round6(qbcLocked * 0.14);
+    const wqbcPoly = round6(qbcLocked * 0.10);
+    const wqbcAvax = round6(qbcLocked * 0.08);
+    const wqbcArb = round6(qbcLocked * 0.07);
+    const wqbcOp = round6(qbcLocked * 0.05);
+    const wqbcBase = round6(qbcLocked - wqbcEth - wqbcBnb - wqbcSol - wqbcPoly - wqbcAvax - wqbcArb - wqbcOp);
 
     // Distribute wQUSD across chains — must sum to exactly qusdLocked
-    const wqusdEth = round6(qusdLocked * 0.48);
-    const wqusdBnb = round6(qusdLocked * 0.35);
-    const wqusdSol = round6(qusdLocked - wqusdEth - wqusdBnb);
+    const wqusdEth = round6(qusdLocked * 0.33);
+    const wqusdBnb = round6(qusdLocked * 0.20);
+    const wqusdSol = round6(qusdLocked * 0.15);
+    const wqusdPoly = round6(qusdLocked * 0.10);
+    const wqusdAvax = round6(qusdLocked * 0.07);
+    const wqusdArb = round6(qusdLocked * 0.06);
+    const wqusdOp = round6(qusdLocked * 0.05);
+    const wqusdBase = round6(qusdLocked - wqusdEth - wqusdBnb - wqusdSol - wqusdPoly - wqusdAvax - wqusdArb - wqusdOp);
 
     const dailyUsed = rangeInt(this.rng, 0, 50000);
     const dailyResetIn = rangeInt(this.rng, 3600, 86400);
@@ -155,7 +189,7 @@ export class BridgeMockEngine {
         date,
         qbcLocked: variation,
         wqbcCirculating: variation,
-        ratio: 1.0 as 1.0,
+        ratio: 1.0,
       });
     }
 
@@ -182,16 +216,26 @@ export class BridgeMockEngine {
         ethereum: wqbcEth,
         bnb: wqbcBnb,
         solana: wqbcSol,
+        polygon: wqbcPoly,
+        avalanche: wqbcAvax,
+        arbitrum: wqbcArb,
+        optimism: wqbcOp,
+        base: wqbcBase,
       },
       wqusdByChain: {
         ethereum: wqusdEth,
         bnb: wqusdBnb,
         solana: wqusdSol,
+        polygon: wqusdPoly,
+        avalanche: wqusdAvax,
+        arbitrum: wqusdArb,
+        optimism: wqusdOp,
+        base: wqusdBase,
       },
       totalWqbc: qbcLocked,
       totalWqusd: qusdLocked,
-      backingRatioQbc: 1.0 as 1.0,
-      backingRatioQusd: 1.0 as 1.0,
+      backingRatioQbc: 1.0,
+      backingRatioQusd: 1.0,
       vaultAddrQbc: qbcAddress(this.rng),
       vaultAddrQusd: qbcAddress(this.rng),
       dailyWrapVol: 84_291,
@@ -343,22 +387,21 @@ export class BridgeMockEngine {
     switch (chain) {
       case "qbc_mainnet":
         return qbcAddress(this.rng);
-      case "ethereum":
-      case "bnb":
-        return evmAddress(this.rng);
       case "solana":
         return solAddress(this.rng);
+      default:
+        // All EVM chains (ethereum, bnb, polygon, avalanche, arbitrum, optimism, base)
+        return evmAddress(this.rng);
     }
   }
 
   private _txHashForChain(chain: ChainId): string {
     switch (chain) {
-      case "qbc_mainnet":
-      case "ethereum":
-      case "bnb":
-        return evmTxHash(this.rng);
       case "solana":
         return solTxHash(this.rng);
+      default:
+        // QBC mainnet + all EVM chains
+        return evmTxHash(this.rng);
     }
   }
 
@@ -370,8 +413,17 @@ export class BridgeMockEngine {
     count: number
   ): string[] {
     const wrapped = token === "QBC" ? "wQBC" : "wQUSD";
-    const chainName =
-      externalChain === "ethereum" ? "Ethereum" : externalChain === "bnb" ? "BNB Chain" : "Solana";
+    const chainNames: Record<ExternalChainId, string> = {
+      ethereum: "Ethereum",
+      bnb: "BNB Chain",
+      solana: "Solana",
+      polygon: "Polygon",
+      avalanche: "Avalanche",
+      arbitrum: "Arbitrum",
+      optimism: "Optimism",
+      base: "Base",
+    };
+    const chainName = chainNames[externalChain] ?? externalChain;
 
     if (operation === "wrap") {
       const messages = [
@@ -464,6 +516,100 @@ export class BridgeMockEngine {
     return this._transactions.find((tx) => tx.id === id);
   }
 
+  /**
+   * Create a new pending bridge transaction and add it to the transaction list.
+   * Called by PreFlightModal after signing so the TxStatusView can look it up.
+   */
+  createPendingTransaction(params: {
+    operation: OperationType;
+    token: TokenType;
+    chain: ExternalChainId;
+    amount: number;
+    sourceAddress: string;
+    destinationAddress: string;
+  }): BridgeTx {
+    const now = Math.floor(Date.now() / 1000);
+    const protocolFee = round6(params.amount * 0.001);
+    const relayerFee = round6(params.amount * 0.0005);
+    const gasCost = CHAIN_GAS_COST[params.chain];
+    const destinationGasFee = round6((gasCost.min + gasCost.max) / 2);
+    const totalFee = round6(protocolFee + relayerFee + destinationGasFee);
+    const amountReceived = round6(params.amount - totalFee);
+    const totalFeePercent = round6((totalFee / params.amount) * 100);
+
+    const sourceChain: ChainId = params.operation === "wrap" ? "qbc_mainnet" : params.chain;
+    const destinationChain: ChainId = params.operation === "wrap" ? params.chain : "qbc_mainnet";
+
+    const rng = mulberry32(now);
+    const id = "btx-" + hexStr(rng, 16);
+    const sourceTxHash = sourceChain === "solana" ? solTxHash(rng) : evmTxHash(rng);
+    const dilithiumSig = hexStr(rng, 128);
+    const crossChainMsgHash = "0x" + hexStr(rng, 64);
+    const wrapped = params.token === "QBC" ? "wQBC" : "wQUSD";
+    const chainNames: Record<ExternalChainId, string> = {
+      ethereum: "Ethereum",
+      bnb: "BNB Chain",
+      solana: "Solana",
+      polygon: "Polygon",
+      avalanche: "Avalanche",
+      arbitrum: "Arbitrum",
+      optimism: "Optimism",
+      base: "Base",
+    };
+    const chainName = chainNames[params.chain];
+
+    const eventLog: BridgeTx["eventLog"] = params.operation === "wrap"
+      ? [
+          { timestamp: now, message: `Bridge request initiated: wrap ${params.token} to ${wrapped}` },
+          { timestamp: now + 1, message: `${params.token} deposit detected on QBC mainnet` },
+          { timestamp: now + 2, message: "Dilithium signature verified by Aether relay" },
+        ]
+      : [
+          { timestamp: now, message: `Bridge request initiated: unwrap ${wrapped} to ${params.token}` },
+          { timestamp: now + 1, message: `${wrapped} burn detected on ${chainName}` },
+          { timestamp: now + 2, message: `Cross-chain message received from ${chainName}` },
+        ];
+
+    const tx: BridgeTx = {
+      id,
+      operation: params.operation,
+      token: params.token,
+      sourceChain,
+      destinationChain,
+      amountSent: params.amount,
+      amountReceived,
+      protocolFee,
+      relayerFee,
+      destinationGasFee,
+      totalFee,
+      totalFeePercent,
+      sourceAddress: params.sourceAddress,
+      destinationAddress: params.destinationAddress,
+      sourceTxHash,
+      destinationTxHash: null,
+      status: "pending",
+      initiatedAt: now,
+      completedAt: null,
+      bridgeTimeSeconds: null,
+      dilithiumSig,
+      susyAlignmentAtOp: round6(0.95 + Math.random() * 0.05),
+      aetherRelayNodeId: "aether-relay-" + hexStr(rng, 8),
+      crossChainMsgHash,
+      bridgeProtocolVersion: "v2.1.0",
+      eventLog,
+      confirmations: {
+        source: 0,
+        sourceRequired: CHAIN_CONFIRMATIONS[sourceChain],
+        destination: null,
+        destinationRequired: CHAIN_CONFIRMATIONS[destinationChain],
+      },
+    };
+
+    // Insert at the front (newest first)
+    this._transactions.unshift(tx);
+    return tx;
+  }
+
   estimateFee(
     operation: OperationType,
     token: TokenType,
@@ -480,6 +626,11 @@ export class BridgeMockEngine {
       ethereum: { native: 0.005, usd: 14.0, qbcEquiv: 5.2 },
       bnb: { native: 0.001, usd: 0.65, qbcEquiv: 0.24 },
       solana: { native: 0.000005, usd: 0.01, qbcEquiv: 0.004 },
+      polygon: { native: 0.01, usd: 0.02, qbcEquiv: 0.007 },
+      avalanche: { native: 0.002, usd: 0.08, qbcEquiv: 0.03 },
+      arbitrum: { native: 0.0003, usd: 0.08, qbcEquiv: 0.03 },
+      optimism: { native: 0.0002, usd: 0.06, qbcEquiv: 0.022 },
+      base: { native: 0.0001, usd: 0.04, qbcEquiv: 0.015 },
     };
 
     const gas = gasMap[chain];
@@ -527,6 +678,11 @@ export class BridgeMockEngine {
       { label: "wQBC on ETH", value: v.wqbcByChain.ethereum.toLocaleString() + " wQBC" },
       { label: "wQBC on BNB", value: v.wqbcByChain.bnb.toLocaleString() + " wQBC" },
       { label: "wQBC on SOL", value: v.wqbcByChain.solana.toLocaleString() + " wQBC" },
+      { label: "wQBC on MATIC", value: v.wqbcByChain.polygon.toLocaleString() + " wQBC" },
+      { label: "wQBC on AVAX", value: v.wqbcByChain.avalanche.toLocaleString() + " wQBC" },
+      { label: "wQBC on ARB", value: v.wqbcByChain.arbitrum.toLocaleString() + " wQBC" },
+      { label: "wQBC on OP", value: v.wqbcByChain.optimism.toLocaleString() + " wQBC" },
+      { label: "wQBC on BASE", value: v.wqbcByChain.base.toLocaleString() + " wQBC" },
       { label: "Protocol Fee", value: "0.10%" },
       { label: "Relayer Fee", value: "0.05%" },
       { label: "Bridge Version", value: "v2.1.0", color: "#94a3b8" },

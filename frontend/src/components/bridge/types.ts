@@ -2,8 +2,8 @@
    QBC Bridge — Type Definitions (strict, zero any)
    ───────────────────────────────────────────────────────────────────────── */
 
-export type ChainId = "qbc_mainnet" | "ethereum" | "bnb" | "solana";
-export type ExternalChainId = "ethereum" | "bnb" | "solana";
+export type ChainId = "qbc_mainnet" | "ethereum" | "bnb" | "solana" | "polygon" | "avalanche" | "arbitrum" | "optimism" | "base";
+export type ExternalChainId = "ethereum" | "bnb" | "solana" | "polygon" | "avalanche" | "arbitrum" | "optimism" | "base";
 export type TokenType = "QBC" | "QUSD";
 export type WrappedToken = "wQBC" | "wQUSD";
 export type OperationType = "wrap" | "unwrap";
@@ -40,8 +40,8 @@ export interface VaultState {
   wqusdByChain: Record<ExternalChainId, number>;
   totalWqbc: number;
   totalWqusd: number;
-  backingRatioQbc: 1.0;
-  backingRatioQusd: 1.0;
+  backingRatioQbc: number;
+  backingRatioQusd: number;
   vaultAddrQbc: string;
   vaultAddrQusd: string;
   dailyWrapVol: number;
@@ -49,7 +49,7 @@ export interface VaultState {
   dailyLimit: number;
   dailyUsed: number;
   dailyResetIn: number;
-  backingHistory: Array<{ date: string; qbcLocked: number; wqbcCirculating: number; ratio: 1.0 }>;
+  backingHistory: Array<{ date: string; qbcLocked: number; wqbcCirculating: number; ratio: number }>;
   wrapUnwrapHistory: Array<{ date: string; wrapped: number; unwrapped: number; netBalance: number }>;
 }
 

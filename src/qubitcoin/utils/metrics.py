@@ -119,6 +119,7 @@ qusd_total_debt = Gauge('qbc_qusd_total_debt', 'Total QUSD debt outstanding')
 # ============================================================================
 sephirot_active_nodes = Gauge('qbc_sephirot_active_nodes', 'Active Sephirot nodes')
 sephirot_susy_violations_total = Counter('qbc_sephirot_susy_violations_total', 'Total SUSY balance violations')
+sephirot_susy_corrections_total = Counter('qbc_sephirot_susy_corrections_total', 'Total SUSY balance corrections applied')
 csf_messages_delivered_total = Counter('qbc_csf_messages_delivered_total', 'CSF messages delivered')
 csf_queue_depth = Gauge('qbc_csf_queue_depth', 'CSF message queue depth')
 pineal_current_phase = Gauge('qbc_pineal_current_phase', 'Current circadian phase (0-5)')
@@ -209,7 +210,7 @@ __all__ = [
     # Stablecoin
     'qusd_total_supply', 'qusd_reserve_backing_pct', 'qusd_active_vaults', 'qusd_total_debt',
     # Cognitive Architecture
-    'sephirot_active_nodes', 'sephirot_susy_violations_total',
+    'sephirot_active_nodes', 'sephirot_susy_violations_total', 'sephirot_susy_corrections_total',
     'csf_messages_delivered_total', 'csf_queue_depth',
     'pineal_current_phase', 'pineal_metabolic_rate', 'pineal_is_conscious',
     'safety_vetoes_total', 'safety_evaluations_total',

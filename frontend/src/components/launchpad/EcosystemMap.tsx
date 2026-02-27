@@ -135,7 +135,7 @@ export const EcosystemMap = memo(function EcosystemMap() {
         graphEdges.push({
           source: e.source,
           target: e.target,
-          type: e.type,
+          type: e.type as GraphEdge["type"],
           weight: e.weight,
         });
       }

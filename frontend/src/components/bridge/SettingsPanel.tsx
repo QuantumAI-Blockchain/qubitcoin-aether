@@ -5,7 +5,8 @@
    advanced options.
    ───────────────────────────────────────────────────────────────────────── */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Settings, Globe, Eye, Bell, Wrench, CheckCircle, XCircle,
@@ -219,6 +220,10 @@ function RpcRow({
 
 export function SettingsPanel() {
   const { settingsOpen, setSettingsOpen } = useBridgeStore();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const closeSettings = useCallback(() => setSettingsOpen(false), [setSettingsOpen]);
+  useFocusTrap(panelRef, settingsOpen, closeSettings);
 
   // Settings state
   const [settings, setSettings] = useState<BridgeSettings>({
@@ -314,6 +319,10 @@ export function SettingsPanel() {
           {/* Slide-out panel */}
           <motion.div
             initial={{ x: "100%" }}
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bridge-settings-title"
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -324,7 +333,7 @@ export function SettingsPanel() {
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: B.borderSubtle }}>
               <div className="flex items-center gap-2">
                 <Settings size={16} style={{ color: B.glowCyan }} />
-                <span className="text-sm font-bold tracking-widest" style={{ color: B.textPrimary, fontFamily: FONT.display }}>
+                <span id="bridge-settings-title" className="text-sm font-bold tracking-widest" style={{ color: B.textPrimary, fontFamily: FONT.display }}>
                   SETTINGS
                 </span>
               </div>
@@ -332,6 +341,7 @@ export function SettingsPanel() {
                 onClick={() => setSettingsOpen(false)}
                 className="rounded-md p-1.5 transition-opacity hover:opacity-70"
                 style={{ color: B.textSecondary }}
+                aria-label="Close settings panel"
               >
                 <X size={18} />
               </button>

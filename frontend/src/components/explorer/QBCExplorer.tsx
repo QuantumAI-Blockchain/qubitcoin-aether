@@ -34,20 +34,10 @@ const queryClient = new QueryClient({
   },
 });
 
-/* ── Google Fonts injection ───────────────────────────────────────────── */
-
-function FontLoader() {
-  useEffect(() => {
-    if (document.getElementById("qbc-explorer-fonts")) return;
-    const link = document.createElement("link");
-    link.id = "qbc-explorer-fonts";
-    link.rel = "stylesheet";
-    link.href =
-      "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Share+Tech+Mono&family=Exo+2:wght@300;400;500;600;700&display=swap";
-    document.head.appendChild(link);
-  }, []);
-  return null;
-}
+/* ── Fonts ────────────────────────────────────────────────────────────
+   Orbitron, Share Tech Mono, and Exo 2 are loaded via next/font/google
+   in the root layout (app/layout.tsx). No manual injection needed.
+   ───────────────────────────────────────────────────────────────────── */
 
 /* ── Hash Router ──────────────────────────────────────────────────────── */
 
@@ -118,7 +108,6 @@ function ExplorerRouter() {
 export default function QBCExplorer() {
   return (
     <QueryClientProvider client={queryClient}>
-      <FontLoader />
       <div
         className="flex min-h-screen flex-col"
         style={{

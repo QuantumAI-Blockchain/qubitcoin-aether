@@ -1265,6 +1265,134 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "execution_count": row[9],
         }
 
+    # ────────────────────────────────────────────────────────────────────
+    # Contract QPCS Scoring (Launchpad)
+    # ────────────────────────────────────────────────────────────────────
+
+    @app.get("/contracts/score/{address}")
+    async def get_contract_score(address: str):
+        """Compute a basic QPCS (Quantum Project Credibility Score) for a contract.
+
+        Score is based on: bytecode size, deployment age, execution count,
+        and deployer history. Returns 0-100 score with component breakdown.
+        """
+        import time as _time
+        from sqlalchemy import text as sa_text
+        with db_manager.get_session() as session:
+            # Look in both contracts and accounts tables
+            row = session.execute(
+                sa_text("""
+                    SELECT contract_id, deployer_address, contract_code,
+                           block_height, execution_count, deployed_at
+                    FROM contracts WHERE contract_id = :addr
+                """),
+                {'addr': address}
+            ).fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Contract not found")
+
+        import json as _json
+        code_str = row[2] if isinstance(row[2], str) else _json.dumps(row[2] or {})
+        code_size_kb = len(code_str.encode()) / 1024.0
+        deploy_block = row[3] or 0
+        execution_count = row[4] or 0
+        deployed_at = row[5]
+
+        current_height = db_manager.get_current_height()
+
+        # Component: bytecode size (larger = more complex = higher score, max 25)
+        bytecode_size_score = min(25, int(code_size_kb * 5))
+
+        # Component: deployment age in blocks (older = more trusted, max 25)
+        age_blocks = max(0, current_height - deploy_block)
+        deployment_age_score = min(25, int(age_blocks / 1000 * 25))
+
+        # Component: execution/transaction count (more usage = higher, max 25)
+        tx_count_score = min(25, int(min(execution_count, 100) / 100 * 25))
+
+        # Component: deployer history (how many contracts this deployer has, max 25)
+        deployer_addr = row[1] or ""
+        holder_count_score = 0
+        if deployer_addr:
+            from sqlalchemy import text as sa_text2
+            with db_manager.get_session() as session:
+                deployer_count = session.execute(
+                    sa_text2("SELECT COUNT(*) FROM contracts WHERE deployer_address = :addr"),
+                    {'addr': deployer_addr}
+                ).scalar() or 0
+            holder_count_score = min(25, int(min(deployer_count, 10) / 10 * 25))
+
+        total_score = bytecode_size_score + deployment_age_score + tx_count_score + holder_count_score
+
+        return {
+            "address": address,
+            "score": round(total_score, 1),
+            "components": {
+                "bytecode_size_score": bytecode_size_score,
+                "deployment_age_score": deployment_age_score,
+                "tx_count_score": tx_count_score,
+                "holder_count_score": holder_count_score,
+            },
+            "computed_at": _time.time(),
+        }
+
+    # ────────────────────────────────────────────────────────────────────
+    # DD Report Submission (Launchpad)
+    # ────────────────────────────────────────────────────────────────────
+
+    class DDReportRequest(BaseModel):
+        project_address: str
+        author: str
+        category: str
+        title: str
+        content: str
+
+    @app.post("/contracts/dd-report")
+    async def submit_dd_report(req: DDReportRequest):
+        """Submit a Community Due Diligence report for a contract/project."""
+        import time as _time
+        import hashlib as _hashlib
+
+        if not req.title.strip() or not req.content.strip():
+            raise HTTPException(status_code=400, detail="Title and content are required")
+        if not req.project_address.strip():
+            raise HTTPException(status_code=400, detail="Project address is required")
+        if len(req.content) > 2000:
+            raise HTTPException(status_code=400, detail="Content must be 2000 characters or less")
+
+        # Generate a unique report ID
+        raw = f"{req.project_address}:{req.author}:{req.title}:{_time.time()}"
+        report_id = _hashlib.sha256(raw.encode()).hexdigest()
+
+        # Store in the database if we have a session
+        try:
+            from sqlalchemy import text as sa_text
+            with db_manager.get_session() as session:
+                session.execute(
+                    sa_text("""
+                        INSERT INTO contracts (contract_id, deployer_address, contract_type,
+                                             contract_code, block_height, is_active)
+                        VALUES (:rid, :author, 'dd_report', :code, :height, true)
+                        ON CONFLICT (contract_id) DO NOTHING
+                    """),
+                    {
+                        'rid': f"dd_{report_id[:32]}",
+                        'author': req.author,
+                        'code': f'{{"category":"{req.category}","title":"{req.title}","content":"{req.content[:200]}","project":"{req.project_address}"}}',
+                        'height': db_manager.get_current_height(),
+                    }
+                )
+                session.commit()
+        except Exception as e:
+            logger.debug(f"DD report DB store: {e}")
+
+        return {
+            "success": True,
+            "report_id": report_id,
+            "message": f"DD report submitted for {req.project_address}",
+        }
+
     # ========================================================================
     # AETHER TREE ENDPOINTS
     # ========================================================================

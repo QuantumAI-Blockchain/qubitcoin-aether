@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Unlock, ArrowDown, ChevronDown, ChevronUp, Flame, Plus, Wallet } from "lucide-react";
 import { CHAINS, EXTERNAL_CHAINS } from "./chain-config";
 import { useBridgeStore } from "./store";
-import { useFeeEstimate } from "./hooks";
+import { useFeeEstimate, useQbcBalance, useVaultState } from "./hooks";
+import { useWalletStore } from "@/stores/wallet-store";
 import {
   B, FONT, Panel, SectionHeader, WTokenLabel, TokenBadge, ChainBadge,
   CopyButton, HashDisplay, GlowButton, VaultBackingBadge, AnimatedNumber,
@@ -131,12 +132,20 @@ function TokenToggle() {
 
 function AmountInput() {
   const { amount, setAmount, direction, token } = useBridgeStore();
+  const walletStore = useWalletStore();
   const isWrap = direction === "wrap";
   const color = isWrap ? tokenColor(token) : tokenColor(token === "QBC" ? "wQBC" : "wQUSD");
 
-  // Mock balances
-  const balance = token === "QBC" ? 4281.44 : 847.21;
-  const gasBalance = 0.8421;
+  // Fetch real QBC balance if wallet is connected
+  const qbcAddr = walletStore.activeNativeWallet ?? walletStore.address;
+  const { data: balanceData } = useQbcBalance(qbcAddr ?? null);
+
+  // Use real balance when available, otherwise show defaults
+  const qbcBalance = balanceData ? parseFloat(balanceData.balance) : 0;
+  const balance = isWrap
+    ? (token === "QBC" ? qbcBalance : 0)
+    : 0; // Unwrap balance would come from bridge balance query
+  const gasBalance = qbcBalance > 0 ? Math.min(qbcBalance * 0.001, 1) : 0;
   const parsedAmount = parseFloat(amount) || 0;
   const overBalance = parsedAmount > balance;
   const underMin = parsedAmount > 0 && parsedAmount < 1;
@@ -398,6 +407,7 @@ function OperationDetails() {
 
 function ReceivePanel() {
   const { direction, token, selectedChain, amount } = useBridgeStore();
+  const walletStore = useWalletStore();
   const parsedAmount = parseFloat(amount) || 0;
   const isWrap = direction === "wrap";
   const chain = isWrap
@@ -460,8 +470,19 @@ function ReceivePanel() {
             <div className="space-y-1 text-[10px]" style={{ fontFamily: FONT.mono }}>
               <div className="flex items-center gap-1">
                 <span style={{ color: B.textSecondary }}>To:</span>
-                <HashDisplay hash={isWrap ? "0x742d35Cc6634C0532925a3b844Bc9e7595f4f3a" : "QBC1a4f82e9c7b3d6f1234567890abcdef9e2c"} truncLen={6} />
-                <CopyButton text={isWrap ? "0x742d35Cc6634C0532925a3b844Bc9e7595f4f3a" : "QBC1a4f82e9c7b3d6f1234567890abcdef9e2c"} />
+                {(() => {
+                  const addr = isWrap
+                    ? (walletStore.address ?? "Connect wallet")
+                    : (walletStore.activeNativeWallet ?? walletStore.address ?? "Connect wallet");
+                  return addr.length > 10 ? (
+                    <>
+                      <HashDisplay hash={addr} truncLen={6} />
+                      <CopyButton text={addr} />
+                    </>
+                  ) : (
+                    <span style={{ color: B.textSecondary, fontStyle: "italic" }}>{addr}</span>
+                  );
+                })()}
               </div>
             </div>
 
@@ -490,13 +511,18 @@ function ReceivePanel() {
 
 function ActionButton() {
   const { direction, token, selectedChain, amount, setPreFlightOpen, setWalletModalOpen } = useBridgeStore();
+  const walletStore = useWalletStore();
   const parsedAmount = parseFloat(amount) || 0;
   const isWrap = direction === "wrap";
-  const balance = token === "QBC" ? 4281.44 : 847.21;
 
-  // Determine button state
-  const qbcConnected = false; // mock
-  const destConnected = false; // mock
+  // Fetch real balance
+  const qbcAddr = walletStore.activeNativeWallet ?? walletStore.address;
+  const { data: balanceData } = useQbcBalance(qbcAddr ?? null);
+  const balance = balanceData ? parseFloat(balanceData.balance) : 0;
+
+  // Use real wallet connection state
+  const qbcConnected = !!(walletStore.activeNativeWallet || walletStore.connected);
+  const destConnected = walletStore.connected;
 
   let label: string;
   let disabled = true;
@@ -543,6 +569,57 @@ function ActionButton() {
   );
 }
 
+/* ── Vault Backing Button (wired to real vault state) ────────────────── */
+
+function VaultBackingButton() {
+  const { navigate } = useBridgeStore();
+  const { data: vault } = useVaultState();
+
+  const ratio = vault?.backingRatioQbc ?? 1.0;
+
+  return (
+    <div className="text-center">
+      <VaultBackingBadge ratio={ratio} onClick={() => navigate("vault")} />
+    </div>
+  );
+}
+
+/* ── Source Wallet Card ───────────────────────────────────────────────── */
+
+function SourceWalletCard() {
+  const walletStore = useWalletStore();
+  const { setWalletModalOpen } = useBridgeStore();
+  const address = walletStore.activeNativeWallet ?? walletStore.address;
+  const isConnected = !!address;
+
+  return (
+    <div className="rounded-lg border p-3" style={{ borderColor: B.borderSubtle, background: B.bgBase }}>
+      <div className="mb-2 text-[9px] uppercase tracking-widest" style={{ color: B.textSecondary, fontFamily: FONT.display }}>
+        Connected Wallet
+      </div>
+      {isConnected ? (
+        <div className="flex items-center gap-2">
+          <Wallet size={12} style={{ color: B.glowCyan }} />
+          <span className="text-xs" style={{ color: B.glowCyan, fontFamily: FONT.mono }}>
+            {truncAddr(address)}
+          </span>
+          <CopyButton text={address} size={10} />
+        </div>
+      ) : (
+        <button
+          onClick={() => setWalletModalOpen(true)}
+          className="flex items-center gap-2 text-xs transition-opacity hover:opacity-80"
+        >
+          <Wallet size={12} style={{ color: B.textSecondary }} />
+          <span className="italic" style={{ color: B.textSecondary, fontFamily: FONT.mono }}>
+            Not connected
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ── Bridge Panel (Main Export) ───────────────────────────────────────── */
 
 export function BridgePanel() {
@@ -577,18 +654,8 @@ export function BridgePanel() {
             {/* Amount input */}
             <AmountInput />
 
-            {/* Source wallet card (mock) */}
-            <div className="rounded-lg border p-3" style={{ borderColor: B.borderSubtle, background: B.bgBase }}>
-              <div className="mb-2 text-[9px] uppercase tracking-widest" style={{ color: B.textSecondary, fontFamily: FONT.display }}>
-                Connected Wallet
-              </div>
-              <div className="flex items-center gap-2">
-                <Wallet size={12} style={{ color: B.textSecondary }} />
-                <span className="text-xs italic" style={{ color: B.textSecondary, fontFamily: FONT.mono }}>
-                  Not connected
-                </span>
-              </div>
-            </div>
+            {/* Source wallet card — reads from global wallet store */}
+            <SourceWalletCard />
           </div>
         </Panel>
 
@@ -651,10 +718,8 @@ export function BridgePanel() {
           {/* Receive panel */}
           <ReceivePanel />
 
-          {/* Vault backing */}
-          <div className="text-center">
-            <VaultBackingBadge onClick={() => navigate("vault")} />
-          </div>
+          {/* Vault backing — reads from real vault state */}
+          <VaultBackingButton />
         </div>
       </div>
     </div>

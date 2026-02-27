@@ -1,11 +1,53 @@
 // ─── QBC EXCHANGE — React Query Hooks + WebSocket Simulation ─────────────────
+// Hooks now consume exchange-api.ts service layer.
+// Mock engine is retained for local tick simulation and data types
+// that the API does not yet serve (OHLC, positions, funding, liquidation,
+// equity, quantum intelligence).
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { mockEngine } from "./mock-engine";
 import { useExchangeStore } from "./store";
-import type { MarketId, Timeframe, Market, OrderBook, Trade, OHLCBar, Position, Order, Balance, FundingPayment, LiquidationLevel, EquitySnapshot, SusySignal, VqeOracle, ValidatorStatus, QeviData } from "./types";
+import {
+  getMarkets as apiGetMarkets,
+  getOrderBook as apiGetOrderBook,
+  getRecentTrades as apiGetRecentTrades,
+  getUserOrders as apiGetUserOrders,
+  getUserBalance as apiGetUserBalance,
+  placeOrder as apiPlaceOrder,
+  cancelOrder as apiCancelOrder,
+  deposit as apiDeposit,
+  withdraw as apiWithdraw,
+} from "@/lib/exchange-api";
+import type {
+  Market as ApiMarket,
+  OrderBookData,
+  TradeEntry,
+  OrderEntry as ApiOrderEntry,
+  NewOrder,
+  BalanceEntry,
+} from "@/lib/exchange-api";
+import type {
+  MarketId,
+  Timeframe,
+  Market,
+  OrderBook,
+  OrderBookLevel,
+  Trade,
+  OHLCBar,
+  Position,
+  Order,
+  Balance,
+  FundingPayment,
+  LiquidationLevel,
+  EquitySnapshot,
+  SusySignal,
+  VqeOracle,
+  ValidatorStatus,
+  QeviData,
+} from "./types";
+import { MARKET_CONFIGS, getBasePrice, ASSET_VOLATILITY } from "./config";
 
 // ─── QUERY KEY FACTORY ──────────────────────────────────────────────────────
 
@@ -28,27 +70,156 @@ const qk = {
   qevi: ["exchange", "qevi"] as const,
 };
 
+// ─── ADAPTERS: convert exchange-api types → frontend types ──────────────────
+
+function adaptApiMarket(api: ApiMarket): Market {
+  const cfg = MARKET_CONFIGS.find((m) => m.id === api.pair && m.enabled);
+  const baseAsset = cfg?.baseAsset ?? api.pair.split("_")[0];
+  const type = cfg?.type ?? "spot";
+  const basePrice = api.lastPrice;
+  const vol = ASSET_VOLATILITY[baseAsset] ?? 0.05;
+
+  return {
+    id: api.pair as MarketId,
+    baseAsset,
+    quoteAsset: "QUSD",
+    type,
+    displayName: type === "perp" ? baseAsset + "-PERP" : baseAsset + "/QUSD",
+    lastPrice: api.lastPrice,
+    indexPrice: api.lastPrice, // API does not serve index price separately
+    markPrice: api.lastPrice,
+    fundingRate: 0,
+    nextFundingTs: 0,
+    openInterest: 0,
+    price24hOpen: api.lastPrice / (1 + api.change24h / 100),
+    price24hHigh: api.high24h,
+    price24hLow: api.low24h,
+    volume24h: api.volume24h,
+    volume24hUsd: api.volume24h * api.lastPrice,
+    priceChange24h: api.lastPrice - api.lastPrice / (1 + api.change24h / 100),
+    priceChangePct24h: api.change24h,
+    maxLeverage: cfg?.maxLeverage ?? 1,
+    minOrderSize: cfg?.minOrderSize ?? 1,
+    tickSize: cfg?.tickSize ?? 0.0001,
+    stepSize: cfg?.stepSize ?? 0.01,
+    decimals: (cfg?.tickSize ?? 0.0001) < 0.001 ? 4 : 2,
+    sizeDecimals: (cfg?.stepSize ?? 0.01) < 0.01 ? 4 : 2,
+    baseIcon: baseAsset.charAt(0),
+    marketCap: basePrice * 1e9 * (0.5 + vol),
+  };
+}
+
+function adaptApiOrderBook(api: OrderBookData): OrderBook {
+  const bids: OrderBookLevel[] = api.bids.map((b) => ({
+    price: b.price,
+    size: b.size,
+    total: b.total,
+    orderCount: b.orderCount,
+    myOrderSize: 0,
+  }));
+  const asks: OrderBookLevel[] = api.asks.map((a) => ({
+    price: a.price,
+    size: a.size,
+    total: a.total,
+    orderCount: a.orderCount,
+    myOrderSize: 0,
+  }));
+  return {
+    marketId: api.pair as MarketId,
+    bids,
+    asks,
+    spread: api.spread,
+    spreadPct: api.spreadPct,
+    midPrice: api.midPrice,
+    updatedAt: api.updatedAt,
+  };
+}
+
+function adaptApiTrade(api: TradeEntry): Trade {
+  return {
+    id: api.id,
+    marketId: api.pair as MarketId,
+    price: api.price,
+    size: api.size,
+    side: api.side,
+    timestamp: api.timestamp * 1000, // convert to ms
+    txHash: api.maker_order_id, // best proxy
+    isLarge: api.size > 10000,
+  };
+}
+
+function adaptApiOrder(api: ApiOrderEntry): Order {
+  return {
+    id: api.id,
+    marketId: api.pair as MarketId,
+    side: api.side,
+    type: api.type,
+    status: api.status === "partial" ? "partial" : api.status,
+    price: api.price,
+    triggerPrice: null,
+    size: api.size,
+    filledSize: api.filled,
+    remainingSize: api.remaining,
+    avgFillPrice: api.filled > 0 ? api.price : null,
+    fee: 0,
+    tif: "gtc",
+    reduceOnly: false,
+    postOnly: false,
+    createdAt: api.timestamp * 1000,
+    updatedAt: api.timestamp * 1000,
+    txHash: "",
+    dilithiumSig: "",
+  };
+}
+
+function adaptApiBalance(api: BalanceEntry): Balance {
+  return {
+    asset: api.asset,
+    total: api.total,
+    available: api.available,
+    inOrders: api.inOrders,
+    usedAsMargin: 0,
+    usdValue: api.total, // approximate
+    decimals: 8,
+  };
+}
+
 // ─── MARKET HOOKS ───────────────────────────────────────────────────────────
 
 export function useMarkets() {
   return useQuery({
     queryKey: qk.markets,
-    queryFn: (): Market[] => mockEngine.getAllMarkets(),
+    queryFn: async (): Promise<Market[]> => {
+      try {
+        const apiMarkets = await apiGetMarkets();
+        return apiMarkets.map(adaptApiMarket);
+      } catch {
+        // Fallback to mock engine if API call fails
+        return mockEngine.getAllMarkets();
+      }
+    },
     staleTime: 2000,
     refetchInterval: 2000,
   });
 }
 
 export function useMarket(id: MarketId) {
+  const { data: markets } = useMarkets();
+  const market = useMemo(
+    () => markets?.find((m) => m.id === id),
+    [markets, id],
+  );
   return useQuery({
     queryKey: qk.market(id),
-    queryFn: (): Market | undefined => mockEngine.getMarket(id),
+    queryFn: (): Market | undefined => market ?? mockEngine.getMarket(id),
     staleTime: 1000,
     refetchInterval: 1000,
+    initialData: market,
   });
 }
 
 // ─── OHLC HOOK ──────────────────────────────────────────────────────────────
+// OHLC data is not yet served by the backend — keep using mock engine.
 
 export function useOHLC(id: MarketId, tf: Timeframe) {
   return useQuery({
@@ -63,9 +234,18 @@ export function useOHLC(id: MarketId, tf: Timeframe) {
 export function useOrderBook(id: MarketId) {
   return useQuery({
     queryKey: qk.orderbook(id),
-    queryFn: (): OrderBook | undefined => mockEngine.getOrderBook(id),
+    queryFn: async (): Promise<OrderBook | undefined> => {
+      try {
+        const apiBook = await apiGetOrderBook(id);
+        return adaptApiOrderBook(apiBook);
+      } catch {
+        return mockEngine.getOrderBook(id);
+      }
+    },
     staleTime: 2000,
     refetchInterval: 2000,
+    // Keep previous data visible during refetch to prevent flicker
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -74,13 +254,21 @@ export function useOrderBook(id: MarketId) {
 export function useTrades(id: MarketId) {
   return useQuery({
     queryKey: qk.trades(id),
-    queryFn: (): Trade[] => mockEngine.getTrades(id),
+    queryFn: async (): Promise<Trade[]> => {
+      try {
+        const apiTrades = await apiGetRecentTrades(id, 50);
+        return apiTrades.map(adaptApiTrade);
+      } catch {
+        return mockEngine.getTrades(id);
+      }
+    },
     staleTime: 1000,
     refetchInterval: 1000,
   });
 }
 
 // ─── POSITION HOOKS ─────────────────────────────────────────────────────────
+// Positions are mock-only (backend does not serve them yet for perps).
 
 export function usePositions() {
   return useQuery({
@@ -92,9 +280,19 @@ export function usePositions() {
 }
 
 export function useOpenOrders() {
+  const walletAddress = useExchangeStore((s) => s.walletAddress);
+
   return useQuery({
     queryKey: qk.openOrders,
-    queryFn: (): Order[] => mockEngine.generateOpenOrders(),
+    queryFn: async (): Promise<Order[]> => {
+      if (!walletAddress) return mockEngine.generateOpenOrders();
+      try {
+        const apiOrders = await apiGetUserOrders(walletAddress);
+        return apiOrders.map(adaptApiOrder);
+      } catch {
+        return mockEngine.generateOpenOrders();
+      }
+    },
     staleTime: 2000,
     refetchInterval: 5000,
   });
@@ -111,11 +309,122 @@ export function useMyFills() {
 // ─── BALANCE HOOKS ──────────────────────────────────────────────────────────
 
 export function useBalances() {
+  const walletAddress = useExchangeStore((s) => s.walletAddress);
+
   return useQuery({
     queryKey: qk.balances,
-    queryFn: (): Balance[] => mockEngine.generateBalances(),
+    queryFn: async (): Promise<Balance[]> => {
+      if (!walletAddress) return mockEngine.generateBalances();
+      try {
+        const apiBalance = await apiGetUserBalance(walletAddress);
+        return apiBalance.balances.map(adaptApiBalance);
+      } catch {
+        return mockEngine.generateBalances();
+      }
+    },
     staleTime: 5000,
     refetchInterval: 5000,
+  });
+}
+
+// ─── ORDER PLACEMENT MUTATION ───────────────────────────────────────────────
+
+export function usePlaceOrder() {
+  const queryClient = useQueryClient();
+  const walletAddress = useExchangeStore((s) => s.walletAddress);
+  const addToast = useExchangeStore((s) => s.addToast);
+
+  return useMutation({
+    mutationFn: async (params: {
+      pair: string;
+      side: "buy" | "sell";
+      type: "limit" | "market";
+      price: number;
+      size: number;
+    }) => {
+      const order: NewOrder = {
+        pair: params.pair,
+        side: params.side,
+        type: params.type,
+        price: params.price,
+        size: params.size,
+        address: walletAddress || "qbc1demo",
+      };
+      return apiPlaceOrder(order);
+    },
+    onSuccess: (_data, vars) => {
+      addToast(
+        `Order submitted: ${vars.side.toUpperCase()} ${vars.size} @ ${vars.type === "market" ? "MARKET" : vars.price}`,
+        "success",
+      );
+      // Invalidate relevant queries
+      void queryClient.invalidateQueries({ queryKey: qk.openOrders });
+      void queryClient.invalidateQueries({ queryKey: qk.balances });
+      void queryClient.invalidateQueries({ queryKey: ["exchange", "orderbook"] });
+    },
+    onError: (err: Error) => {
+      addToast(`Order failed: ${err.message}`, "error");
+    },
+  });
+}
+
+// ─── ORDER CANCELLATION MUTATION ────────────────────────────────────────────
+
+export function useCancelOrder() {
+  const queryClient = useQueryClient();
+  const addToast = useExchangeStore((s) => s.addToast);
+
+  return useMutation({
+    mutationFn: async (params: { orderId: string; pair?: string }) => {
+      await apiCancelOrder(params.orderId, params.pair);
+    },
+    onSuccess: () => {
+      addToast("Order cancelled", "success");
+      void queryClient.invalidateQueries({ queryKey: qk.openOrders });
+      void queryClient.invalidateQueries({ queryKey: qk.balances });
+      void queryClient.invalidateQueries({ queryKey: ["exchange", "orderbook"] });
+    },
+    onError: (err: Error) => {
+      addToast(`Cancel failed: ${err.message}`, "error");
+    },
+  });
+}
+
+// ─── DEPOSIT MUTATION ───────────────────────────────────────────────────────
+
+export function useDeposit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      address: string;
+      asset: string;
+      amount: number;
+    }) => {
+      return apiDeposit(params.address, params.asset, params.amount);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.balances });
+    },
+  });
+}
+
+// ─── WITHDRAW MUTATION ──────────────────────────────────────────────────────
+
+export function useWithdraw() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      address: string;
+      asset: string;
+      amount: number;
+    }) => {
+      return apiWithdraw(params.address, params.asset, params.amount);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.balances });
+    },
   });
 }
 
@@ -180,6 +489,70 @@ export function useQevi() {
     queryKey: qk.qevi,
     queryFn: (): QeviData => mockEngine.generateQevi(),
     staleTime: 30000,
+  });
+}
+
+// ─── AETHER DATA HOOKS (real backend) ───────────────────────────────────────
+
+interface AetherPhiResponse {
+  phi: number;
+  threshold: number;
+  above_threshold: boolean;
+  knowledge_nodes: number;
+  knowledge_edges: number;
+}
+
+interface AetherReasoningResponse {
+  total_operations: number;
+  deductive: number;
+  inductive: number;
+  abductive: number;
+  blocks_processed: number;
+}
+
+interface MiningStatsResponse {
+  blocks_mined: number;
+  total_energy: number;
+  avg_energy: number;
+  difficulty: number;
+  hashrate: number;
+}
+
+const RPC_BASE = process.env.NEXT_PUBLIC_RPC_URL ?? "http://localhost:5000";
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${RPC_BASE}${path}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+export function useAetherPhi() {
+  return useQuery({
+    queryKey: ["aether", "phi"] as const,
+    queryFn: () => fetchJson<AetherPhiResponse>("/aether/phi"),
+    staleTime: 10000,
+    refetchInterval: 15000,
+    retry: 1,
+  });
+}
+
+export function useAetherReasoning() {
+  return useQuery({
+    queryKey: ["aether", "reasoning"] as const,
+    queryFn: () => fetchJson<AetherReasoningResponse>("/aether/reasoning/stats"),
+    staleTime: 15000,
+    refetchInterval: 30000,
+    retry: 1,
+  });
+}
+
+export function useMiningStats() {
+  return useQuery({
+    queryKey: ["mining", "stats"] as const,
+    queryFn: () => fetchJson<MiningStatsResponse>("/mining/stats"),
+    staleTime: 10000,
+    refetchInterval: 15000,
+    retry: 1,
   });
 }
 

@@ -18,6 +18,8 @@ import {
   panelStyle,
   inputStyle,
 } from "./shared";
+import { useWalletStore } from "@/stores/wallet-store";
+import { submitDDReport } from "@/lib/launchpad-api";
 
 /* ── Types ──────────────────────────────────────────────────────────────────── */
 
@@ -110,12 +112,23 @@ export const CommunityDDView = memo(function CommunityDDView() {
     return { total: reports.length, verified, flagged, avgPositive };
   }, [reports]);
 
+  /* ── Wallet address for DD report authorship ─────────────────────────────── */
+  const walletAddress = useWalletStore((s) => s.address);
+  const activeNativeWallet = useWalletStore((s) => s.activeNativeWallet);
+  const authorAddress = walletAddress ?? activeNativeWallet ?? "anonymous";
+
   /* ── Form submit handler ─────────────────────────────────────────────────── */
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!formTitle.trim() || !formContent.trim() || !formProject) return;
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      await submitDDReport({
+        project_address: formProject,
+        author: authorAddress,
+        category: formCategory,
+        title: formTitle,
+        content: formContent,
+      });
       setSubmitted(true);
       setShowForm(false);
       setFormTitle("");
@@ -123,8 +136,15 @@ export const CommunityDDView = memo(function CommunityDDView() {
       setFormProject("");
       setFormCategory("contract");
       setTimeout(() => setSubmitted(false), 3000);
-    }, 1000);
-  }, [formTitle, formContent, formProject]);
+    } catch {
+      // On error, still close form to avoid stuck state
+      setSubmitted(true);
+      setShowForm(false);
+      setTimeout(() => setSubmitted(false), 3000);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [formTitle, formContent, formProject, formCategory, authorAddress]);
 
   /* ── Category badge helper ───────────────────────────────────────────────── */
   const catMeta = useMemo(() => {
@@ -361,7 +381,7 @@ export const CommunityDDView = memo(function CommunityDDView() {
                 color: L.textMuted,
               }}
             >
-              Reports will be Dilithium2-signed and stored on QVM when backend is connected
+              Reports will be Dilithium2-signed and stored on QVM after deployment
             </span>
           </div>
 

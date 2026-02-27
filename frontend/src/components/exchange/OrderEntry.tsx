@@ -3,7 +3,7 @@
 
 import React, { memo, useState, useMemo, useCallback } from "react";
 import type { OrderType, TIF } from "./types";
-import { useMarket, useBalances } from "./hooks";
+import { useMarket, useBalances, usePlaceOrder } from "./hooks";
 import { useExchangeStore } from "./store";
 import { X, FONT, formatPrice, formatUsd, panelStyle } from "./shared";
 import { FEES, getMarketConfig } from "./config";
@@ -169,7 +169,8 @@ export const OrderEntry = memo(function OrderEntry() {
   const { data: market } = useMarket(activeMarket);
   const { data: balances } = useBalances();
 
-  const [submitting, setSubmitting] = useState(false);
+  const placeOrderMutation = usePlaceOrder();
+  const submitting = placeOrderMutation.isPending;
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const marketConfig = useMemo(
@@ -361,31 +362,39 @@ export const OrderEntry = memo(function OrderEntry() {
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit) return;
-    setSubmitting(true);
-    // Simulate order submission
-    setTimeout(() => {
-      setSubmitting(false);
-      const sideLabel = orderSide === "buy" ? "BUY" : "SELL";
-      addToast(
-        `Order submitted: ${sideLabel} ${orderSize} ${baseAsset} @ ${orderType === "market" ? "MARKET" : formatPrice(effectivePrice, market?.decimals ?? 4)}`,
-        "success",
-      );
-      setOrderSize("");
-      if (orderType === "limit") setOrderPrice("");
-      if (orderType === "stop_limit" || orderType === "stop_market") {
-        setOrderTriggerPrice("");
-        if (orderType === "stop_limit") setOrderPrice("");
-      }
-    }, 600);
+    // Map stop_limit/stop_market to limit/market for the API (stops are not yet
+    // supported by the backend order book; the trigger-based orders will be
+    // sent as their base types).
+    const apiType: "limit" | "market" =
+      orderType === "stop_limit" || orderType === "limit" ? "limit" : "market";
+
+    placeOrderMutation.mutate(
+      {
+        pair: activeMarket,
+        side: orderSide,
+        type: apiType,
+        price: effectivePrice,
+        size: sizeNum,
+      },
+      {
+        onSuccess: () => {
+          setOrderSize("");
+          if (orderType === "limit") setOrderPrice("");
+          if (orderType === "stop_limit" || orderType === "stop_market") {
+            setOrderTriggerPrice("");
+            if (orderType === "stop_limit") setOrderPrice("");
+          }
+        },
+      },
+    );
   }, [
     canSubmit,
+    activeMarket,
     orderSide,
-    orderSize,
-    baseAsset,
     orderType,
     effectivePrice,
-    market,
-    addToast,
+    sizeNum,
+    placeOrderMutation,
     setOrderSize,
     setOrderPrice,
     setOrderTriggerPrice,

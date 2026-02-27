@@ -84,19 +84,10 @@ function BridgeRouter() {
   }
 }
 
-/* ── Font Loader ─────────────────────────────────────────────────────── */
-
-function FontLoader() {
-  return (
-    <>
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Share+Tech+Mono&family=Exo+2:wght@300;400;500;600;700&display=swap"
-      />
-    </>
-  );
-}
+/* ── Fonts ────────────────────────────────────────────────────────────
+   Orbitron, Share Tech Mono, and Exo 2 are loaded via next/font/google
+   in the root layout (app/layout.tsx). No manual injection needed.
+   ───────────────────────────────────────────────────────────────────── */
 
 /* ── Main Bridge App ─────────────────────────────────────────────────── */
 
@@ -126,8 +117,7 @@ function BridgeApp() {
       {/* Inject global CSS animations */}
       <BridgeStyles />
 
-      {/* Fonts */}
-      <FontLoader />
+      {/* Fonts loaded via next/font/google in root layout */}
 
       {/* Header + Ticker */}
       <GlobalHeader />

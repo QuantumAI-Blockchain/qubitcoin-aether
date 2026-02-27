@@ -487,6 +487,8 @@ class QubitcoinNode:
                 self.aether.llm_manager = self.llm_manager
             if self.neural_reasoner:
                 self.aether.neural_reasoner = self.neural_reasoner
+            if self.sephirot_manager:
+                self.aether._sephirot_manager = self.sephirot_manager
             logger.info("[16/22] Cognitive + LLM + Neural components wired to Aether Engine")
 
         # Component 17: SPV Verifier

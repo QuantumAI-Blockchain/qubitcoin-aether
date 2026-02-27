@@ -383,6 +383,10 @@ class AetherEngine:
             if block.height % Config.AETHER_SEPHIROT_ROUTE_INTERVAL == 0:
                 self._route_sephirot_messages(block)
 
+            # Enforce SUSY balance after Sephirot energy updates
+            if block.height > 0 and block.height % Config.AETHER_SEPHIROT_ROUTE_INTERVAL == 0:
+                self._enforce_susy_balance(block.height)
+
             # Auto-resolve contradictions periodically
             if block.height > 0 and block.height % Config.AETHER_CONTRADICTION_RESOLVE_INTERVAL == 0:
                 self.auto_resolve_contradictions(block.height)
@@ -588,6 +592,36 @@ class AetherEngine:
                 )
         except Exception as e:
             logger.debug(f"PoT block processing error: {e}")
+
+    def _enforce_susy_balance(self, block_height: int) -> int:
+        """Enforce SUSY balance across all Sephirot expansion/constraint pairs.
+
+        Delegates to SephirotManager.enforce_susy_balance() which:
+        1. Checks all 3 SUSY pairs (Chesed/Gevurah, Chochmah/Binah, Netzach/Hod)
+        2. Calculates target ratio (PHI = 1.618)
+        3. Transfers energy from over-energized to under-energized nodes
+        4. Logs violations and corrections
+        5. Increments susy_corrections_total metric
+
+        Returns number of corrections applied.
+        """
+        sephirot_mgr = getattr(self, '_sephirot_manager', None)
+        if sephirot_mgr is None:
+            # Try to access via the node's cognitive subsystem
+            # The SephirotManager is typically on the node, not the engine
+            return 0
+
+        try:
+            corrections = sephirot_mgr.enforce_susy_balance(block_height)
+            if corrections > 0:
+                logger.info(
+                    f"SUSY balance enforcement at block {block_height}: "
+                    f"{corrections} correction(s) applied"
+                )
+            return corrections
+        except Exception as e:
+            logger.debug(f"SUSY enforcement error: {e}")
+            return 0
 
     def _route_sephirot_messages(self, block) -> int:
         """

@@ -7,6 +7,7 @@ import React, { memo, useCallback, useState, useRef, useEffect } from "react";
 import { useExchangeStore } from "./store";
 import { X, FONT, panelStyle, panelHeaderStyle } from "./shared";
 import type { ExchangeSettings as ExchangeSettingsType, OrderType, TIF } from "./types";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 
 // ─── STYLES ────────────────────────────────────────────────────────────────
 
@@ -263,16 +264,10 @@ const ExchangeSettings = memo(function ExchangeSettings() {
   const settings = useExchangeStore((s) => s.settings);
   const updateSettings = useExchangeStore((s) => s.updateSettings);
   const addToast = useExchangeStore((s) => s.addToast);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape key
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [isOpen, setOpen]);
+  const closePanel = useCallback(() => setOpen(false), [setOpen]);
+  useFocusTrap(panelRef, isOpen, closePanel);
 
   const handleReset = useCallback(() => {
     updateSettings({
@@ -302,7 +297,7 @@ const ExchangeSettings = memo(function ExchangeSettings() {
       <div style={overlayStyle} onClick={() => setOpen(false)} />
 
       {/* Panel */}
-      <div role="dialog" aria-modal="true" aria-labelledby="settings-panel-title" style={panelContainerStyle} className="exchange-scroll">
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="settings-panel-title" style={panelContainerStyle} className="exchange-scroll">
         {/* Header */}
         <div
           style={{
@@ -339,6 +334,7 @@ const ExchangeSettings = memo(function ExchangeSettings() {
               fontFamily: FONT.mono,
             }}
             title="Close"
+            aria-label="Close settings panel"
           >
             x
           </button>

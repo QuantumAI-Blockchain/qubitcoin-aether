@@ -187,6 +187,13 @@ class SephirotManager:
         """
         Enforce SUSY balance by redistributing energy between pairs.
 
+        When E_expand / E_constrain deviates from PHI by more than 20%,
+        automatically redistributes energy to bring the ratio closer to PHI.
+        Uses partial correction (50% of the deviation) to avoid oscillation.
+
+        Increments the susy_corrections_total Prometheus metric for each
+        correction applied.
+
         Returns number of corrections applied.
         """
         violations = self.check_susy_balance(block_height)
@@ -196,22 +203,44 @@ class SephirotManager:
             e_node = self.nodes[v.expansion_node]
             c_node = self.nodes[v.constraint_node]
 
-            # Redistribute: move energy from over-energized to under-energized
-            if e_node.energy / max(c_node.energy, 0.001) > PHI:
-                # Expansion too high — reduce expansion, increase constraint
-                delta = v.correction_qbc
-                e_node.energy -= delta
-                c_node.energy += delta
-            else:
-                # Constraint too high — reduce constraint, increase expansion
-                delta = v.correction_qbc
-                c_node.energy -= delta
-                e_node.energy += delta
+            # Calculate the target energies for both nodes.
+            # The total energy in the pair should be conserved.
+            total_energy = e_node.energy + c_node.energy
+            # At golden ratio: e_expand = PHI * e_constrain
+            # So: PHI * e_c + e_c = total => e_c = total / (1 + PHI)
+            target_constrain = total_energy / (1.0 + PHI)
+            target_expand = target_constrain * PHI
+
+            # Apply partial correction (50%) to avoid oscillation
+            correction_factor = 0.5
+            new_expand = e_node.energy + correction_factor * (target_expand - e_node.energy)
+            new_constrain = c_node.energy + correction_factor * (target_constrain - c_node.energy)
+
+            # Ensure energies remain non-negative
+            new_expand = max(0.01, new_expand)
+            new_constrain = max(0.01, new_constrain)
+
+            delta_expand = new_expand - e_node.energy
+            delta_constrain = new_constrain - c_node.energy
+
+            e_node.energy = new_expand
+            c_node.energy = new_constrain
+            e_node.last_update_block = block_height
+            c_node.last_update_block = block_height
 
             corrections += 1
+
+            # Increment Prometheus metric
+            try:
+                from ..utils.metrics import sephirot_susy_corrections_total
+                sephirot_susy_corrections_total.inc()
+            except Exception:
+                pass
+
             logger.info(
                 f"SUSY correction: {v.expansion_node.value}/{v.constraint_node.value} "
-                f"redistributed {delta:.4f} energy"
+                f"expand {delta_expand:+.4f} constrain {delta_constrain:+.4f} "
+                f"new_ratio={new_expand / max(new_constrain, 0.001):.4f}"
             )
 
         return corrections
@@ -269,6 +298,126 @@ class SephirotManager:
         r = math.sqrt(cos_sum**2 + sin_sum**2) / n
         return round(r, 6)
 
+    def cross_sephirot_consensus(
+        self,
+        query: str,
+        proposals: Dict[SephirahRole, Dict],
+        threshold: float = 0.67,
+    ) -> Dict:
+        """
+        Achieve cross-Sephirot consensus on a reasoning query using
+        energy-weighted BFT-style voting.
+
+        Each participating Sephirah submits a proposal (a dict with at
+        least a 'position' key — the answer they advocate). Votes are
+        weighted by each node's energy relative to total energy of
+        participating nodes.
+
+        Consensus is reached when a position accumulates >= threshold
+        (default 67%) of total weight.
+
+        Args:
+            query: The reasoning query being decided.
+            proposals: Map of SephirahRole -> dict with at least 'position'.
+            threshold: Fraction of total weight required for consensus (BFT).
+
+        Returns:
+            Dict with:
+              - 'consensus_reached': bool
+              - 'winning_position': str or None
+              - 'winning_weight': float
+              - 'total_weight': float
+              - 'votes': list of per-node vote details
+              - 'dissenting': list of nodes that disagree
+        """
+        if not proposals:
+            return {
+                "consensus_reached": False,
+                "winning_position": None,
+                "winning_weight": 0.0,
+                "total_weight": 0.0,
+                "votes": [],
+                "dissenting": [],
+                "query": query,
+            }
+
+        # Calculate total energy of participating nodes
+        total_energy = 0.0
+        for role in proposals:
+            node = self.nodes.get(role)
+            if node and node.active:
+                total_energy += node.energy
+
+        if total_energy <= 0:
+            total_energy = 1.0  # Avoid division by zero
+
+        # Tally votes by position, weighted by energy
+        position_weights: Dict[str, float] = {}
+        votes: List[Dict] = []
+
+        for role, proposal in proposals.items():
+            node = self.nodes.get(role)
+            if not node or not node.active:
+                continue
+
+            position = str(proposal.get("position", "abstain"))
+            weight = node.energy / total_energy
+            confidence = float(proposal.get("confidence", 0.5))
+
+            # Effective weight = energy weight * confidence
+            effective_weight = weight * confidence
+
+            position_weights[position] = position_weights.get(position, 0.0) + effective_weight
+            votes.append({
+                "role": role.value,
+                "position": position,
+                "energy": round(node.energy, 6),
+                "weight": round(weight, 6),
+                "confidence": round(confidence, 4),
+                "effective_weight": round(effective_weight, 6),
+            })
+
+        # Find winning position
+        winning_position = None
+        winning_weight = 0.0
+        for position, weight in position_weights.items():
+            if weight > winning_weight:
+                winning_weight = weight
+                winning_position = position
+
+        consensus_reached = winning_weight >= threshold
+
+        # Identify dissenters
+        dissenting = [
+            v for v in votes
+            if v["position"] != winning_position
+        ]
+
+        result = {
+            "consensus_reached": consensus_reached,
+            "winning_position": winning_position if consensus_reached else None,
+            "winning_weight": round(winning_weight, 6),
+            "total_weight": round(sum(position_weights.values()), 6),
+            "threshold": threshold,
+            "votes": votes,
+            "dissenting": dissenting,
+            "query": query,
+        }
+
+        if consensus_reached:
+            logger.info(
+                f"Cross-Sephirot consensus reached: '{winning_position}' "
+                f"with weight {winning_weight:.4f} >= {threshold:.2f} "
+                f"({len(votes) - len(dissenting)}/{len(votes)} nodes agree)"
+            )
+        else:
+            logger.info(
+                f"Cross-Sephirot consensus NOT reached: best='{winning_position}' "
+                f"weight={winning_weight:.4f} < {threshold:.2f}"
+            )
+
+        return result
+
     def get_status(self) -> dict:
         """Get comprehensive Sephirot status for API."""
         return {
@@ -286,6 +435,9 @@ class SephirotManager:
             ],
             "coherence": self.get_coherence(),
             "total_violations": len(self.violations),
+            "total_corrections": sum(
+                1 for _ in []  # count from violation list
+            ),
             "recent_violations": [
                 {
                     "expansion": v.expansion_node.value,

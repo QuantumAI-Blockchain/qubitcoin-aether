@@ -3,7 +3,7 @@
    QBC Explorer — Transaction Heartbeat Monitor (ECG-style SVG waveform)
    ───────────────────────────────────────────────────────────────────────── */
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useCallback } from "react";
 import { C, FONT, txTypeColor } from "./shared";
 import type { Transaction } from "./types";
 
@@ -19,6 +19,7 @@ export function HeartbeatMonitor({
   height = 120,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number>(0);
 
   // Take the last 60 transactions for the waveform
   const txSlice = useMemo(
@@ -26,7 +27,7 @@ export function HeartbeatMonitor({
     [transactions]
   );
 
-  useEffect(() => {
+  const drawFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -34,9 +35,13 @@ export function HeartbeatMonitor({
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
+    const cw = width * dpr;
+    const ch = height * dpr;
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width = cw;
+      canvas.height = ch;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Clear
     ctx.clearRect(0, 0, width, height);
@@ -146,7 +151,7 @@ export function HeartbeatMonitor({
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Scanline effect (animated glow)
+    // Scanline effect (animated glow) — continuous sweep
     const time = Date.now() % 4000;
     const scanX = (time / 4000) * width;
     const gradient = ctx.createLinearGradient(scanX - 60, 0, scanX, 0);
@@ -155,6 +160,16 @@ export function HeartbeatMonitor({
     ctx.fillStyle = gradient;
     ctx.fillRect(scanX - 60, 0, 60, height);
   }, [txSlice, width, height]);
+
+  // Continuous animation loop using requestAnimationFrame
+  useEffect(() => {
+    function loop() {
+      drawFrame();
+      rafRef.current = requestAnimationFrame(loop);
+    }
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [drawFrame]);
 
   return (
     <div className="relative overflow-hidden rounded-lg border" style={{ borderColor: C.border }}>
