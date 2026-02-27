@@ -1065,3 +1065,12 @@ class PhiCalculator:
         except Exception as e:
             logger.debug(f"Failed to get phi history: {e}")
             return []
+
+
+# --- Rust acceleration shim ---
+try:
+    from aether_core import PhiCalculator as _RustPhiCalculator  # noqa: F811
+    PhiCalculator = _RustPhiCalculator  # type: ignore[misc]
+    logger.info("PhiCalculator: using Rust-accelerated aether_core backend")
+except ImportError:
+    logger.debug("aether_core not installed — using pure-Python PhiCalculator")

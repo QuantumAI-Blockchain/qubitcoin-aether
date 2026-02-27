@@ -1,7 +1,8 @@
 # ============================================================================
 # Qubitcoin Multi-Stage Docker Build
 # Stage 1: Rust P2P daemon build
-# Stage 2: Python node with compiled Rust binary
+# Stage 2: Aether Core Rust/PyO3 module build
+# Stage 3: Python node with compiled Rust binaries + aether_core
 # ============================================================================
 
 # ── Stage 1: Build Rust P2P daemon ──────────────────────────────────────
@@ -19,7 +20,25 @@ COPY rust-p2p/ ./rust-p2p/
 WORKDIR /build/rust-p2p
 RUN cargo build --release
 
-# ── Stage 2: Python application ─────────────────────────────────────────
+# ── Stage 2: Build Aether Core Rust module (PyO3) ─────────────────────
+FROM rust:1.85-slim-bookworm AS aether-builder
+
+RUN apt-get update && apt-get install -y \
+    python3-dev \
+    python3-pip \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --break-system-packages maturin>=1.7
+
+WORKDIR /build
+COPY aether-core/ ./aether-core/
+
+WORKDIR /build/aether-core
+RUN maturin build --release --features extension-module --out /build/wheels
+
+# ── Stage 3: Python application ─────────────────────────────────────────
 FROM python:3.12-slim-bookworm AS production
 
 LABEL maintainer="Qubitcoin Team <dev@qbc.network>"
@@ -41,6 +60,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
+
+# Install Rust-accelerated aether_core module
+COPY --from=aether-builder /build/wheels/*.whl /tmp/wheels/
+RUN pip install --no-cache-dir /tmp/wheels/*.whl && rm -rf /tmp/wheels
 
 # Copy Rust P2P binary from builder
 COPY --from=rust-builder /build/rust-p2p/target/release/qubitcoin-p2p /usr/local/bin/qubitcoin-p2p

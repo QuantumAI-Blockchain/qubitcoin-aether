@@ -369,3 +369,14 @@ class CSFTransport:
                 for m in self._delivered[-20:]
             ],
         }
+
+
+# --- Rust acceleration shim ---
+try:
+    from aether_core import CSFMessage as _RustCSFMessage  # noqa: F811
+    from aether_core import CSFTransport as _RustCSFTransport  # noqa: F811
+    CSFMessage = _RustCSFMessage  # type: ignore[misc]
+    CSFTransport = _RustCSFTransport  # type: ignore[misc]
+    logger.info("CSFTransport: using Rust-accelerated aether_core backend")
+except ImportError:
+    logger.debug("aether_core not installed — using pure-Python CSFTransport")

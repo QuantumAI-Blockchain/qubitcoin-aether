@@ -505,3 +505,18 @@ class MemoryManager:
             'replay_total': self._replay_total,
             'strategy_replay_success': dict(self._strategy_replay_success),
         }
+
+
+# --- Rust acceleration shim ---
+try:
+    from aether_core import WorkingMemoryItem as _RustWMItem  # noqa: F811
+    from aether_core import WorkingMemory as _RustWM  # noqa: F811
+    from aether_core import Episode as _RustEpisode  # noqa: F811
+    from aether_core import MemoryManager as _RustMemoryManager  # noqa: F811
+    WorkingMemoryItem = _RustWMItem  # type: ignore[misc]
+    WorkingMemory = _RustWM  # type: ignore[misc]
+    Episode = _RustEpisode  # type: ignore[misc]
+    MemoryManager = _RustMemoryManager  # type: ignore[misc]
+    logger.info("MemoryManager: using Rust-accelerated aether_core backend")
+except ImportError:
+    logger.debug("aether_core not installed — using pure-Python MemoryManager")

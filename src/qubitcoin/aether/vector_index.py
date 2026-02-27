@@ -789,3 +789,14 @@ class VectorIndex:
         if self._py_hnsw is not None and not self._py_hnsw_dirty:
             stats['py_hnsw_stats'] = self._py_hnsw.get_stats()
         return stats
+
+
+# --- Rust acceleration shim ---
+try:
+    from aether_core import VectorIndex as _RustVectorIndex  # noqa: F811
+    from aether_core import HNSWIndex as _RustHNSWIndex  # noqa: F811
+    VectorIndex = _RustVectorIndex  # type: ignore[misc]
+    HNSWIndex = _RustHNSWIndex  # type: ignore[misc]
+    logger.info("VectorIndex: using Rust-accelerated aether_core backend")
+except ImportError:
+    logger.debug("aether_core not installed — using pure-Python VectorIndex")
