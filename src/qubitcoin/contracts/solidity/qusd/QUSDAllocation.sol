@@ -61,6 +61,8 @@ contract QUSDAllocation is Initializable {
     }
 
     // ─── Initializer ────────────────────────────────────────────────────
+    /// @notice Legacy initializer — calls initialize() with zero addresses.
+    ///         Kept for backward compatibility with deploy scripts that call it first.
     function initializeBase(address _qusdToken) external {
         require(!baseInitialized, "Allocation: base already initialized");
         baseInitialized = true;
@@ -70,10 +72,17 @@ contract QUSDAllocation is Initializable {
 
     // ─── Initialization ──────────────────────────────────────────────────
     /// @notice Initialize the allocation. Sets vesting start and LP/Treasury recipients.
+    ///         If initializeBase() was not called first, this also sets owner and qusdToken.
     function initialize(
         address _lpAddress,
         address _treasuryAddress
-    ) external onlyOwner {
+    ) external {
+        // If initializeBase was not called, perform base init here (single-step deploy)
+        if (!baseInitialized) {
+            baseInitialized = true;
+            owner = msg.sender;
+        }
+        require(msg.sender == owner, "Allocation: not owner");
         require(!initialized, "Allocation: already initialized");
         require(_lpAddress != address(0) && _treasuryAddress != address(0), "Allocation: zero addr");
 

@@ -6,16 +6,15 @@
 ## PROGRESS TRACKER
 
 - Total items: 243 (203 from Run #25 + 40 new items from Run #26 deep audit)
-- Completed: 126
-- Remaining: 117
-- Completion: 51.9%
+- Completed: 156 (+30 from Batch 1 fixes)
+- Remaining: 87
+- Completion: 64.2%
 - **Run #26: Full v2.1 protocol audit — 8 parallel agents, every source file read**
-- **Overall score: 72/100** (weighted across all components — first true full-stack score)
-- **L1: 78 | QVM: 87 | Contracts: 91 | Aether: 72 | Exchange: 64 | Bridge: 54 | Launchpad: 39 | Frontend: 62 | Economics: 65**
-- **5 NEW CRITICAL findings** (unauthenticated /transfer, unauthenticated mining, ecRecover placeholder, trivial QVERIFY, emission reaches only 19.75%)
-- **Contract count corrected: 49 → 51** (wQBC in both tokens/ and bridge/)
-- **3 governance contracts have unverified vote weight** (QUSDGovernance, TreasuryDAO, UpgradeGovernor)
-- Estimated runs to 100%: ~15-20
+- **Batch 1 DONE: 30 fixes across 36 files — 3,392 tests passing**
+- **4/5 CRITICALs fixed** (auth on /transfer + /mining, ecRecover, QVERIFY). Remaining: emission schedule.
+- **All 3 governance vote-weight bugs fixed** (QUSDGovernance, TreasuryDAO, UpgradeGovernor)
+- **Overall score: 72→~82/100** (estimated after Batch 1 fixes)
+- Estimated runs to 100%: ~8-12
 
 ---
 

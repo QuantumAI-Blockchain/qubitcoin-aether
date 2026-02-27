@@ -187,13 +187,20 @@ contract QUSDGovernance is Initializable {
         }
     }
 
-    /// @notice Execute a queued proposal after timelock expires
+    /// @notice Execute a queued proposal after timelock expires.
+    ///         Makes an external call to proposal.target with proposal.callData.
     function execute(uint256 proposalId) external {
         Proposal storage prop = proposals[proposalId];
         require(prop.state == ProposalState.Queued, "Governance: not queued");
         require(block.timestamp >= prop.executionTime, "Governance: timelock active");
+        require(prop.target != address(0), "Governance: zero target");
 
         prop.state = ProposalState.Executed;
+
+        // Execute the proposal's encoded function call on the target contract
+        (bool success, bytes memory returnData) = prop.target.call(prop.callData);
+        require(success, string(abi.encodePacked("Governance: execution failed: ", returnData)));
+
         emit ProposalExecuted(proposalId);
     }
 
@@ -228,7 +235,15 @@ contract QUSDGovernance is Initializable {
                 prop.state != ProposalState.Executed && prop.state != ProposalState.Canceled,
                 "Governance: invalid state"
             );
+
             prop.state = ProposalState.Executed;
+
+            // Execute the proposal's encoded function call on the target contract
+            if (prop.target != address(0) && prop.callData.length > 0) {
+                (bool success, ) = prop.target.call(prop.callData);
+                require(success, "Governance: emergency execution failed");
+            }
+
             emit EmergencyExecuted(proposalId, signCount);
         }
     }

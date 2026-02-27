@@ -38,8 +38,12 @@ class TestPremineConfig:
         from qubitcoin.config import Config
         assert Config.verify_emission_schedule() is True
 
-    def test_premine_plus_mining_under_cap(self):
-        """Total theoretical emission (premine + mining) must not exceed MAX_SUPPLY."""
+    def test_premine_plus_phi_halving_under_cap(self):
+        """Phi-halving emission (premine + mining) converges well under MAX_SUPPLY.
+
+        The phi-halving series alone converges to ~651M QBC.  Tail emission
+        fills the remaining ~2.65B up to MAX_SUPPLY over time.
+        """
         from qubitcoin.config import Config
         PHI = Decimal(str(Config.PHI))
         total = Config.GENESIS_PREMINE

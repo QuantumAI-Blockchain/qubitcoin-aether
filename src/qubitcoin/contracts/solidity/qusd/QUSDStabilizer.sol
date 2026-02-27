@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "../interfaces/IQUSD.sol";
 
 /// @title QUSDStabilizer — Peg Maintenance for QUSD
 /// @notice Maintains the $1 USD peg by buying QUSD below $0.99 and selling above $1.01.
@@ -72,7 +73,8 @@ contract QUSDStabilizer is Initializable {
     }
 
     // ─── Stability Operations ────────────────────────────────────────────
-    /// @notice Buy QUSD when price is below floor ($0.99) — floor defense
+    /// @notice Buy QUSD when price is below floor ($0.99) — floor defense.
+    ///         Mints QUSD to the stabilizer's holdings via the QUSD token contract.
     /// @param qusdAmount Amount of QUSD to buy
     /// @param currentPrice Current QUSD price from oracle (8 decimals)
     function buyQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner whenNotPaused {
@@ -88,10 +90,16 @@ contract QUSDStabilizer is Initializable {
         qusdHeld             += qusdAmount;
         totalBuyInterventions++;
 
+        // Cross-call: mint QUSD to stabilizer for floor defense
+        if (qusdToken != address(0)) {
+            IQUSD(qusdToken).mint(address(this), qusdAmount);
+        }
+
         emit StabilityBuy(qusdAmount, qbcCost, currentPrice, block.timestamp);
     }
 
-    /// @notice Sell QUSD when price is above ceiling ($1.01) — ceiling defense
+    /// @notice Sell QUSD when price is above ceiling ($1.01) — ceiling defense.
+    ///         Burns QUSD from the stabilizer's holdings via the QUSD token contract.
     /// @param qusdAmount Amount of QUSD to sell
     /// @param currentPrice Current QUSD price from oracle (8 decimals)
     function sellQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner whenNotPaused {
@@ -104,6 +112,11 @@ contract QUSDStabilizer is Initializable {
         qusdHeld              -= qusdAmount;
         stabilityFundBalance  += qbcReceived;
         totalSellInterventions++;
+
+        // Cross-call: burn QUSD from stabilizer for ceiling defense
+        if (qusdToken != address(0)) {
+            IQUSD(qusdToken).burn(qusdAmount);
+        }
 
         emit StabilitySell(qusdAmount, qbcReceived, currentPrice, block.timestamp);
     }

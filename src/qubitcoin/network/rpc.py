@@ -44,7 +44,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    event_index=None,
                    abi_registry=None,
                    bridge_lp=None,
-                   neural_reasoner=None) -> FastAPI:
+                   neural_reasoner=None,
+                   exchange_engine=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -506,9 +507,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.get("/economics/simulate")
     async def simulate_emission(years: int = 50):
-        """Simulate emission schedule for N years"""
-        if years < 1 or years > 100:
-            raise HTTPException(status_code=400, detail="Years must be between 1 and 100")
+        """Simulate emission schedule for N years (phi-halving + tail emission)"""
+        if years < 1 or years > 1000:
+            raise HTTPException(status_code=400, detail="Years must be between 1 and 1000")
 
         try:
             PHI = Decimal('1.618033988749895')
@@ -522,7 +523,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 end_height = blocks_per_year * year
                 for h in range(start_height, end_height, 1000):
                     era = h // Config.HALVING_INTERVAL
-                    reward = Config.INITIAL_REWARD / (PHI ** era)
+                    phi_reward = Config.INITIAL_REWARD / (PHI ** era)
+                    # Use tail emission when phi-halving drops below threshold
+                    reward = phi_reward if phi_reward >= Config.TAIL_EMISSION_REWARD else Config.TAIL_EMISSION_REWARD
                     remaining = Config.MAX_SUPPLY - total_supply - year_emission
                     block_reward = min(reward, remaining)
                     if block_reward <= 0:
@@ -531,12 +534,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                     year_emission += block_reward * chunk
 
                 total_supply += year_emission
+                in_tail = (Config.INITIAL_REWARD / (PHI ** (start_height // Config.HALVING_INTERVAL))
+                           < Config.TAIL_EMISSION_REWARD)
                 schedule.append({
                     'year': year,
                     'emission': float(year_emission),
                     'total_supply': float(total_supply),
                     'percent_emitted': float(total_supply / Config.MAX_SUPPLY * 100),
-                    'era': start_height // Config.HALVING_INTERVAL
+                    'era': start_height // Config.HALVING_INTERVAL,
+                    'tail_emission': in_tail,
                 })
                 if total_supply >= Config.MAX_SUPPLY:
                     break
@@ -546,7 +552,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 'max_supply': float(Config.MAX_SUPPLY),
                 'halving_interval': Config.HALVING_INTERVAL,
                 'blocks_per_year': blocks_per_year,
-                'phi': float(PHI)
+                'phi': float(PHI),
+                'tail_emission_reward': float(Config.TAIL_EMISSION_REWARD),
             }
         except Exception as e:
             logger.error(f"Error simulating emission: {e}")
@@ -4848,12 +4855,149 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 raise HTTPException(status_code=500, detail=f"Validation failed: {e}")
 
     # ========================================================================
+    # EXCHANGE (DEX) ENDPOINTS
+    # ========================================================================
+
+    @app.get("/exchange/markets")
+    async def exchange_markets():
+        """List all trading pairs with summary statistics."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        return {"markets": exchange_engine.get_markets()}
+
+    @app.get("/exchange/orderbook/{pair}")
+    async def exchange_orderbook(pair: str, depth: int = 20):
+        """Get order book for a trading pair."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        if depth < 1 or depth > 200:
+            raise HTTPException(status_code=400, detail="Depth must be between 1 and 200")
+        return exchange_engine.get_orderbook(pair, depth)
+
+    @app.get("/exchange/trades/{pair}")
+    async def exchange_trades(pair: str, limit: int = 50):
+        """Get recent trades for a trading pair."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        if limit < 1 or limit > 500:
+            raise HTTPException(status_code=400, detail="Limit must be between 1 and 500")
+        return {"trades": exchange_engine.get_recent_trades(pair, limit)}
+
+    @app.get("/exchange/orders/{address}")
+    async def exchange_user_orders(address: str):
+        """Get all open orders for a user across all pairs."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        return {"orders": exchange_engine.get_user_orders(address)}
+
+    @app.post("/exchange/order")
+    async def exchange_place_order(request: Request):
+        """Place a new order (limit or market).
+
+        Body: {pair, side, type, price, size, address}
+        """
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        body = await request.json()
+        pair = body.get("pair", "")
+        side = body.get("side", "")
+        order_type = body.get("type", "limit")
+        price = float(body.get("price", 0))
+        size = float(body.get("size", 0))
+        address = body.get("address", "")
+
+        if not pair:
+            raise HTTPException(status_code=400, detail="pair is required")
+        if side not in ("buy", "sell"):
+            raise HTTPException(status_code=400, detail="side must be 'buy' or 'sell'")
+        if order_type not in ("limit", "market"):
+            raise HTTPException(status_code=400, detail="type must be 'limit' or 'market'")
+        if size <= 0:
+            raise HTTPException(status_code=400, detail="size must be positive")
+        if order_type == "limit" and price <= 0:
+            raise HTTPException(status_code=400, detail="price must be positive for limit orders")
+
+        try:
+            result = exchange_engine.place_order(pair, side, order_type, price, size, address)
+            return result
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.delete("/exchange/order/{order_id}")
+    async def exchange_cancel_order(order_id: str, pair: str = ""):
+        """Cancel an open order.
+
+        If pair is provided, search only that book. Otherwise search all books.
+        """
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        if pair:
+            success = exchange_engine.cancel_order(pair, order_id)
+        else:
+            success = exchange_engine.cancel_order_any_pair(order_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Order not found or already cancelled")
+        return {"status": "cancelled", "order_id": order_id}
+
+    @app.get("/exchange/balance/{address}")
+    async def exchange_user_balance(address: str):
+        """Get a user's exchange balances (deposited funds)."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        return exchange_engine.get_user_balance(address)
+
+    @app.post("/exchange/deposit")
+    async def exchange_deposit(request: Request):
+        """Deposit funds into exchange.
+
+        Body: {address, asset, amount}
+        """
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        body = await request.json()
+        address = body.get("address", "")
+        asset = body.get("asset", "")
+        amount = float(body.get("amount", 0))
+        if not address or not asset:
+            raise HTTPException(status_code=400, detail="address and asset are required")
+        try:
+            return exchange_engine.deposit(address, asset, amount)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/exchange/withdraw")
+    async def exchange_withdraw(request: Request):
+        """Withdraw funds from exchange.
+
+        Body: {address, asset, amount}
+        """
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        body = await request.json()
+        address = body.get("address", "")
+        asset = body.get("asset", "")
+        amount = float(body.get("amount", 0))
+        if not address or not asset:
+            raise HTTPException(status_code=400, detail="address and asset are required")
+        try:
+            return exchange_engine.withdraw(address, asset, amount)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/exchange/stats")
+    async def exchange_stats():
+        """Get overall exchange engine statistics."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        return exchange_engine.get_engine_stats()
+
+    # ========================================================================
     # ADMIN API (Economics hot-reload)
     # ========================================================================
 
     from .admin_api import router as admin_router
     app.include_router(admin_router)
 
-    logger.info("RPC endpoints configured (v2.1 with P2P + QVM + Aether + WebSocket + Admin + Bridge LP + Flash Loans + Neural)")
+    logger.info("RPC endpoints configured (v2.1 with P2P + QVM + Aether + WebSocket + Admin + Bridge LP + Flash Loans + Neural + Exchange)")
 
     return app

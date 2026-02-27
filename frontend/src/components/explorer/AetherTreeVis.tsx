@@ -168,6 +168,8 @@ function ForceGraph({
         ref={svgRef}
         width={width}
         height={height}
+        role="img"
+        aria-label={`Aether Tree knowledge graph visualization with ${nodes.length} nodes and ${edges.length} edges`}
         style={{ background: C.bg, borderRadius: 8 }}
       />
 

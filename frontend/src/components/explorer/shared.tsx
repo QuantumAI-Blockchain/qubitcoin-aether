@@ -213,8 +213,12 @@ export function ExplorerHeader() {
       {/* Search */}
       <div className="relative ml-auto flex items-center">
         {searchOpen ? (
-          <form onSubmit={handleSearch} className="flex items-center gap-2">
+          <form onSubmit={handleSearch} className="flex items-center gap-2" role="search">
+            <label htmlFor="explorer-search" className="sr-only">
+              Search blocks, transactions, or addresses
+            </label>
             <input
+              id="explorer-search"
               ref={inputRef}
               value={localQuery}
               onChange={(e) => setLocalQuery(e.target.value)}
@@ -417,6 +421,7 @@ export function DataTable<T>({
   keyFn,
   onRowClick,
   emptyMessage = "No data",
+  rowAriaLabel,
 }: {
   columns: {
     key: string;
@@ -429,6 +434,7 @@ export function DataTable<T>({
   keyFn: (row: T) => string;
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
+  rowAriaLabel?: (row: T) => string;
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border" style={{ borderColor: C.border }}>
@@ -470,6 +476,7 @@ export function DataTable<T>({
                 key={keyFn(row)}
                 onClick={() => onRowClick?.(row)}
                 className="border-t transition-colors"
+                aria-label={rowAriaLabel?.(row)}
                 style={{
                   borderColor: `${C.border}80`,
                   cursor: onRowClick ? "pointer" : "default",

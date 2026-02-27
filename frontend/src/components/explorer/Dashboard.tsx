@@ -254,6 +254,7 @@ export function Dashboard() {
             data={blocks ?? []}
             keyFn={(b) => String(b.height)}
             onRowClick={(b) => navigate("block", { id: String(b.height) })}
+            rowAriaLabel={(b) => `Block ${b.height}, ${b.txCount} transactions, reward ${b.reward.toFixed(2)} QBC`}
           />
         </Panel>
 

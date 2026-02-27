@@ -64,8 +64,8 @@ export function useOrderBook(id: MarketId) {
   return useQuery({
     queryKey: qk.orderbook(id),
     queryFn: (): OrderBook | undefined => mockEngine.getOrderBook(id),
-    staleTime: 500,
-    refetchInterval: 500,
+    staleTime: 2000,
+    refetchInterval: 2000,
   });
 }
 

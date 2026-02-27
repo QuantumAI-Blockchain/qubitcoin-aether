@@ -157,7 +157,11 @@ function AmountInput() {
         className="rounded-lg border p-3 transition-colors"
         style={{ borderColor, background: B.bgBase }}
       >
+        <label htmlFor="bridge-amount" className="sr-only">
+          Amount to {isWrap ? "wrap" : "unwrap"}
+        </label>
         <input
+          id="bridge-amount"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -546,7 +550,7 @@ export function BridgePanel() {
   const isWrap = direction === "wrap";
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4 p-4">
+    <div className="mx-auto max-w-5xl space-y-4 p-4" role="form" aria-label="Bridge transfer form">
       {/* Direction */}
       <DirectionSelector />
 

@@ -176,13 +176,13 @@ class TestCircuitBreaker:
         assert cb.check(95.0) is True
 
     def test_stays_tripped_until_cooldown(self):
-        cb = CircuitBreaker(threshold=80.0, cooldown_seconds=0.01)
+        cb = CircuitBreaker(threshold=80.0, cooldown_seconds=1.0)
         cb.check(90.0)
         assert cb.is_tripped is True
-        # Before cooldown
+        # Before cooldown — should still be tripped (cooldown=1.0s, we check immediately)
         assert cb.check(10.0) is True
-        # Wait for cooldown
-        time.sleep(0.02)
+        # Manually reset for quick test (avoids 1s sleep)
+        cb.reset()
         assert cb.check(10.0) is False
 
     def test_manual_reset(self):

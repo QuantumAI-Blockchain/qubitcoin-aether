@@ -81,6 +81,7 @@ const PRESALE_TYPES: { value: PresaleType; label: string }[] = [
 /* ── Shared Styles ─────────────────────────────────────────────────────────── */
 
 const labelStyle: React.CSSProperties = {
+  display: "block",
   fontFamily: FONT.display,
   fontSize: 10,
   letterSpacing: "0.06em",
@@ -414,8 +415,9 @@ const StepIdentity = memo(function StepIdentity() {
       {/* Project Name & Symbol */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
         <div>
-          <div style={labelStyle}>Project Name *</div>
+          <label htmlFor="deploy-project-name" style={labelStyle}>Project Name *</label>
           <input
+            id="deploy-project-name"
             style={inputStyle}
             placeholder="e.g. Quantum Finance"
             value={name}
@@ -424,8 +426,9 @@ const StepIdentity = memo(function StepIdentity() {
           />
         </div>
         <div>
-          <div style={labelStyle}>Token Symbol *</div>
+          <label htmlFor="deploy-token-symbol" style={labelStyle}>Token Symbol *</label>
           <input
+            id="deploy-token-symbol"
             style={{ ...inputStyle, textTransform: "uppercase" }}
             placeholder="e.g. QFIN"
             value={symbol}
@@ -452,12 +455,13 @@ const StepIdentity = memo(function StepIdentity() {
       {/* Short Description */}
       <div>
         <div style={{ ...labelStyle, display: "flex", justifyContent: "space-between" }}>
-          <span>Short Description *</span>
+          <label htmlFor="deploy-short-desc">Short Description *</label>
           <span style={{ color: description.length > 140 ? L.error : L.textMuted }}>
             {description.length}/140
           </span>
         </div>
         <input
+          id="deploy-short-desc"
           style={inputStyle}
           placeholder="One-line description of your project"
           value={description}
@@ -469,12 +473,13 @@ const StepIdentity = memo(function StepIdentity() {
       {/* Full Description */}
       <div>
         <div style={{ ...labelStyle, display: "flex", justifyContent: "space-between" }}>
-          <span>Full Description</span>
+          <label htmlFor="deploy-full-desc">Full Description</label>
           <span style={{ color: fullDescription.length > 2000 ? L.error : L.textMuted }}>
             {fullDescription.length}/2000
           </span>
         </div>
         <textarea
+          id="deploy-full-desc"
           style={{ ...inputStyle, minHeight: 100, resize: "vertical" }}
           placeholder="Detailed description of your project, technology, and vision..."
           value={fullDescription}
@@ -485,8 +490,9 @@ const StepIdentity = memo(function StepIdentity() {
 
       {/* Category */}
       <div>
-        <div style={labelStyle}>Category</div>
+        <label htmlFor="deploy-category" style={labelStyle}>Category</label>
         <select
+          id="deploy-category"
           style={{ ...inputStyle, cursor: "pointer" }}
           value={category}
           onChange={(e) => setCategory(e.target.value)}
@@ -504,8 +510,9 @@ const StepIdentity = memo(function StepIdentity() {
         <div style={sectionTitle}>Links</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
-            <div style={labelStyle}>Website *</div>
+            <label htmlFor="deploy-website" style={labelStyle}>Website *</label>
             <input
+              id="deploy-website"
               style={inputStyle}
               placeholder="https://yourproject.com"
               value={website}
@@ -513,8 +520,9 @@ const StepIdentity = memo(function StepIdentity() {
             />
           </div>
           <div>
-            <div style={labelStyle}>Twitter</div>
+            <label htmlFor="deploy-twitter" style={labelStyle}>Twitter</label>
             <input
+              id="deploy-twitter"
               style={inputStyle}
               placeholder="https://twitter.com/handle"
               value={twitter}
@@ -522,8 +530,9 @@ const StepIdentity = memo(function StepIdentity() {
             />
           </div>
           <div>
-            <div style={labelStyle}>Telegram</div>
+            <label htmlFor="deploy-telegram" style={labelStyle}>Telegram</label>
             <input
+              id="deploy-telegram"
               style={inputStyle}
               placeholder="https://t.me/group"
               value={telegram}
@@ -531,8 +540,9 @@ const StepIdentity = memo(function StepIdentity() {
             />
           </div>
           <div>
-            <div style={labelStyle}>Discord</div>
+            <label htmlFor="deploy-discord" style={labelStyle}>Discord</label>
             <input
+              id="deploy-discord"
               style={inputStyle}
               placeholder="https://discord.gg/invite"
               value={discord}
@@ -540,8 +550,9 @@ const StepIdentity = memo(function StepIdentity() {
             />
           </div>
           <div>
-            <div style={labelStyle}>GitHub</div>
+            <label htmlFor="deploy-github" style={labelStyle}>GitHub</label>
             <input
+              id="deploy-github"
               style={inputStyle}
               placeholder="https://github.com/org/repo"
               value={github}
@@ -549,8 +560,9 @@ const StepIdentity = memo(function StepIdentity() {
             />
           </div>
           <div>
-            <div style={labelStyle}>Whitepaper</div>
+            <label htmlFor="deploy-whitepaper" style={labelStyle}>Whitepaper</label>
             <input
+              id="deploy-whitepaper"
               style={inputStyle}
               placeholder="https://yourproject.com/whitepaper.pdf"
               value={whitepaper}
@@ -597,8 +609,9 @@ const StepIdentity = memo(function StepIdentity() {
             }}
           >
             <div>
-              <div style={labelStyle}>Name</div>
+              <label htmlFor={`deploy-team-name-${i}`} style={labelStyle}>Name</label>
               <input
+                id={`deploy-team-name-${i}`}
                 style={inputStyle}
                 placeholder="Name"
                 value={m.name}
@@ -606,8 +619,9 @@ const StepIdentity = memo(function StepIdentity() {
               />
             </div>
             <div>
-              <div style={labelStyle}>Role</div>
+              <label htmlFor={`deploy-team-role-${i}`} style={labelStyle}>Role</label>
               <input
+                id={`deploy-team-role-${i}`}
                 style={inputStyle}
                 placeholder="Role"
                 value={m.role}
@@ -615,8 +629,9 @@ const StepIdentity = memo(function StepIdentity() {
               />
             </div>
             <div>
-              <div style={labelStyle}>Twitter</div>
+              <label htmlFor={`deploy-team-twitter-${i}`} style={labelStyle}>Twitter</label>
               <input
+                id={`deploy-team-twitter-${i}`}
                 style={inputStyle}
                 placeholder="@handle"
                 value={m.twitter}
@@ -624,8 +639,9 @@ const StepIdentity = memo(function StepIdentity() {
               />
             </div>
             <div>
-              <div style={labelStyle}>Wallet</div>
+              <label htmlFor={`deploy-team-wallet-${i}`} style={labelStyle}>Wallet</label>
               <input
+                id={`deploy-team-wallet-${i}`}
                 style={inputStyle}
                 placeholder="QBC1..."
                 value={m.wallet}
@@ -668,8 +684,9 @@ const StepTokenConfig = memo(function StepTokenConfig() {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Total Supply */}
       <div>
-        <div style={labelStyle}>Total Supply</div>
+        <label htmlFor="deploy-total-supply" style={labelStyle}>Total Supply</label>
         <input
+          id="deploy-total-supply"
           style={{ ...inputStyle, fontFamily: FONT.mono, fontSize: 16 }}
           type="number"
           value={totalSupply}
@@ -701,8 +718,9 @@ const StepTokenConfig = memo(function StepTokenConfig() {
 
       {/* Decimals */}
       <div>
-        <div style={labelStyle}>Decimals</div>
+        <label htmlFor="deploy-decimals" style={labelStyle}>Decimals</label>
         <input
+          id="deploy-decimals"
           style={{ ...inputStyle, width: 120 }}
           type="number"
           value={decimals}
@@ -884,8 +902,9 @@ const StepTokenomics = memo(function StepTokenomics() {
               style={{ width: 10, height: 30, border: "none", background: "none", cursor: "pointer", padding: 0 }}
             />
             <div>
-              <div style={labelStyle}>Label</div>
+              <label htmlFor={`deploy-alloc-label-${i}`} style={labelStyle}>Label</label>
               <input
+                id={`deploy-alloc-label-${i}`}
                 style={inputStyle}
                 placeholder="e.g. Team"
                 value={a.label}
@@ -893,9 +912,10 @@ const StepTokenomics = memo(function StepTokenomics() {
               />
             </div>
             <div>
-              <div style={labelStyle}>Percent</div>
+              <label htmlFor={`deploy-alloc-pct-${i}`} style={labelStyle}>Percent</label>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <input
+                  id={`deploy-alloc-pct-${i}`}
                   style={{ ...inputStyle, width: 50, textAlign: "right" }}
                   type="number"
                   value={a.percent}
@@ -910,8 +930,9 @@ const StepTokenomics = memo(function StepTokenomics() {
               </div>
             </div>
             <div>
-              <div style={labelStyle}>Address</div>
+              <label htmlFor={`deploy-alloc-addr-${i}`} style={labelStyle}>Address</label>
               <input
+                id={`deploy-alloc-addr-${i}`}
                 style={inputStyle}
                 placeholder="QBC1..."
                 value={a.address}
@@ -919,8 +940,9 @@ const StepTokenomics = memo(function StepTokenomics() {
               />
             </div>
             <div>
-              <div style={labelStyle}>Cliff (days)</div>
+              <label htmlFor={`deploy-alloc-cliff-${i}`} style={labelStyle}>Cliff (days)</label>
               <input
+                id={`deploy-alloc-cliff-${i}`}
                 style={inputStyle}
                 type="number"
                 value={a.vestingCliffDays}
@@ -929,8 +951,9 @@ const StepTokenomics = memo(function StepTokenomics() {
               />
             </div>
             <div>
-              <div style={labelStyle}>Vest (days)</div>
+              <label htmlFor={`deploy-alloc-vest-${i}`} style={labelStyle}>Vest (days)</label>
               <input
+                id={`deploy-alloc-vest-${i}`}
                 style={inputStyle}
                 type="number"
                 value={a.vestingDurationDays}
@@ -1017,9 +1040,10 @@ const StepTokenomics = memo(function StepTokenomics() {
                 }}
               >
                 <div>
-                  <div style={labelStyle}>Percent</div>
+                  <label htmlFor={`deploy-mgt-pct-${i}`} style={labelStyle}>Percent</label>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <input
+                      id={`deploy-mgt-pct-${i}`}
                       style={{ ...inputStyle, width: 50, textAlign: "right" }}
                       type="number"
                       value={t.percent}
@@ -1031,8 +1055,9 @@ const StepTokenomics = memo(function StepTokenomics() {
                   </div>
                 </div>
                 <div>
-                  <div style={labelStyle}>Milestone Type</div>
+                  <label htmlFor={`deploy-mgt-type-${i}`} style={labelStyle}>Milestone Type</label>
                   <select
+                    id={`deploy-mgt-type-${i}`}
                     style={{ ...inputStyle, cursor: "pointer" }}
                     value={t.milestoneType}
                     onChange={(e) => updateMgtTranche(i, "milestoneType", e.target.value)}
@@ -1045,8 +1070,9 @@ const StepTokenomics = memo(function StepTokenomics() {
                   </select>
                 </div>
                 <div>
-                  <div style={labelStyle}>Target Value</div>
+                  <label htmlFor={`deploy-mgt-target-${i}`} style={labelStyle}>Target Value</label>
                   <input
+                    id={`deploy-mgt-target-${i}`}
                     style={inputStyle}
                     type="number"
                     value={t.milestoneTarget}
@@ -1129,8 +1155,9 @@ const StepLaunch = memo(function StepLaunch() {
       <div style={{ ...panelStyle, padding: 16 }}>
         <div style={sectionTitle}>Liquidity Lock (ILLP)</div>
 
-        <div style={labelStyle}>Lock Duration: {liquidityLockDays} days ({(liquidityLockDays / 365).toFixed(1)} years)</div>
+        <label htmlFor="deploy-lock-duration" style={labelStyle}>Lock Duration: {liquidityLockDays} days ({(liquidityLockDays / 365).toFixed(1)} years)</label>
         <input
+          id="deploy-lock-duration"
           type="range"
           min={30}
           max={1460}
@@ -1242,8 +1269,9 @@ const StepLaunch = memo(function StepLaunch() {
 
       {/* Liquidity Percent */}
       <div>
-        <div style={labelStyle}>Liquidity Percent of Supply: {liquidityPercent}%</div>
+        <label htmlFor="deploy-liquidity-pct" style={labelStyle}>Liquidity Percent of Supply: {liquidityPercent}%</label>
         <input
+          id="deploy-liquidity-pct"
           type="range"
           min={10}
           max={50}
@@ -1292,8 +1320,9 @@ const StepLaunch = memo(function StepLaunch() {
         {presaleEnabled && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8 }}>
             <div>
-              <div style={labelStyle}>Presale Type</div>
+              <label htmlFor="deploy-presale-type" style={labelStyle}>Presale Type</label>
               <select
+                id="deploy-presale-type"
                 style={{ ...inputStyle, cursor: "pointer" }}
                 value={presaleType}
                 onChange={(e) => setPresaleType(e.target.value as PresaleType)}
@@ -1306,8 +1335,9 @@ const StepLaunch = memo(function StepLaunch() {
               </select>
             </div>
             <div>
-              <div style={labelStyle}>Token % for Presale</div>
+              <label htmlFor="deploy-presale-token-pct" style={labelStyle}>Token % for Presale</label>
               <input
+                id="deploy-presale-token-pct"
                 style={inputStyle}
                 type="number"
                 value={presaleTokenPercent}
@@ -1317,8 +1347,9 @@ const StepLaunch = memo(function StepLaunch() {
               />
             </div>
             <div>
-              <div style={labelStyle}>Token Price (QUSD)</div>
+              <label htmlFor="deploy-presale-price" style={labelStyle}>Token Price (QUSD)</label>
               <input
+                id="deploy-presale-price"
                 style={inputStyle}
                 type="number"
                 step="0.0001"
@@ -1328,8 +1359,9 @@ const StepLaunch = memo(function StepLaunch() {
               />
             </div>
             <div>
-              <div style={labelStyle}>Hard Cap (QUSD)</div>
+              <label htmlFor="deploy-presale-hard-cap" style={labelStyle}>Hard Cap (QUSD)</label>
               <input
+                id="deploy-presale-hard-cap"
                 style={inputStyle}
                 type="number"
                 value={presaleHardCap}
@@ -1338,8 +1370,9 @@ const StepLaunch = memo(function StepLaunch() {
               />
             </div>
             <div>
-              <div style={labelStyle}>Soft Cap (QUSD)</div>
+              <label htmlFor="deploy-presale-soft-cap" style={labelStyle}>Soft Cap (QUSD)</label>
               <input
+                id="deploy-presale-soft-cap"
                 style={inputStyle}
                 type="number"
                 value={presaleSoftCap}
@@ -1393,8 +1426,9 @@ const StepLaunch = memo(function StepLaunch() {
           <div style={{ marginTop: 8 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
               <div>
-                <div style={labelStyle}>QASL Window Size (blocks)</div>
+                <label htmlFor="deploy-qasl-window" style={labelStyle}>QASL Window Size (blocks)</label>
                 <input
+                  id="deploy-qasl-window"
                   style={{ ...inputStyle, width: 200 }}
                   type="number"
                   value={qaslWindowSize}
@@ -1789,7 +1823,7 @@ const StepDeploy = memo(function StepDeploy() {
           DEPLOY {symbol || "TOKEN"} TO QBC
         </div>
         <p style={{ fontFamily: FONT.body, fontSize: 12, color: L.textSecondary, textAlign: "center", maxWidth: 500 }}>
-          Your contract will be deployed to the QBC blockchain, signed with your Dilithium-3
+          Your contract will be deployed to the QBC blockchain, signed with your Dilithium2
           post-quantum signature. The transaction is irreversible and will be permanently recorded.
         </p>
 
@@ -1798,16 +1832,16 @@ const StepDeploy = memo(function StepDeploy() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 16 }}>{"\uD83D\uDD10"}</span>
             <span style={{ fontFamily: FONT.display, fontSize: 11, color: L.glowCyan, letterSpacing: "0.04em" }}>
-              DILITHIUM-3 SIGNATURE
+              DILITHIUM2 SIGNATURE
             </span>
           </div>
           <p style={{ fontFamily: FONT.body, fontSize: 11, color: L.textSecondary, lineHeight: 1.4 }}>
-            Your deployment transaction is signed with CRYSTALS-Dilithium3, a NIST-standardized
+            Your deployment transaction will be signed with CRYSTALS-Dilithium2, a NIST-standardized
             post-quantum digital signature scheme. This ensures your contract deployment is
             secure against both classical and quantum computing attacks.
           </p>
           <div style={{ fontFamily: FONT.mono, fontSize: 10, color: L.textMuted, marginTop: 8 }}>
-            Signature size: ~3,293 bytes | Security level: NIST Level 3
+            Signature size: ~2,420 bytes | Security level: NIST Level 2
           </div>
         </div>
 

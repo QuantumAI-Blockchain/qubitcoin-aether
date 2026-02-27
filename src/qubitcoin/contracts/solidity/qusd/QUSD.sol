@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../interfaces/IQBC20.sol";
+import "../interfaces/IDebtLedger.sol";
 import "../proxy/Initializable.sol";
 
 /// @title QUSD — Qubitcoin USD Stablecoin
@@ -23,6 +24,8 @@ contract QUSD is IQBC20, Initializable {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public reserveAddress;
+    address public debtLedger;
+    address public stabilizer;
     bool    public paused;
 
     uint256 public totalSupply;
@@ -51,6 +54,14 @@ contract QUSD is IQBC20, Initializable {
 
     modifier whenNotPaused() {
         require(!paused, "QUSD: paused");
+        _;
+    }
+
+    modifier onlyMinter() {
+        require(
+            msg.sender == owner || msg.sender == stabilizer,
+            "QUSD: caller is not authorized minter"
+        );
         _;
     }
 
@@ -100,14 +111,21 @@ contract QUSD is IQBC20, Initializable {
     }
 
     // ─── Mint / Burn ─────────────────────────────────────────────────────
-    /// @notice Owner mints new QUSD. Every mint increases outstanding debt.
-    function mint(address to, uint256 amount) external onlyOwner whenNotPaused {
+    /// @notice Mint new QUSD. Every mint increases outstanding debt.
+    ///         Callable by owner or stabilizer. Automatically records debt in DebtLedger.
+    function mint(address to, uint256 amount) external onlyMinter whenNotPaused {
         require(to != address(0), "QUSD: mint to zero");
         totalSupply   += amount;
         totalMinted   += amount;
         _balances[to] += amount;
         emit Transfer(address(0), to, amount);
         emit Mint(to, amount);
+
+        // Cross-call: record debt in DebtLedger
+        if (debtLedger != address(0)) {
+            IDebtLedger(debtLedger).recordDebt(amount);
+            IDebtLedger(debtLedger).recordAccountDebt(to, amount);
+        }
     }
 
     /// @notice Anyone can burn their own QUSD. Reduces supply and records burn.
@@ -141,6 +159,18 @@ contract QUSD is IQBC20, Initializable {
         require(newReserve != address(0), "QUSD: zero reserve");
         emit ReserveAddressUpdated(reserveAddress, newReserve);
         reserveAddress = newReserve;
+    }
+
+    /// @notice Set the DebtLedger contract address for cross-contract debt tracking
+    function setDebtLedger(address _debtLedger) external onlyOwner {
+        require(_debtLedger != address(0), "QUSD: zero debt ledger");
+        debtLedger = _debtLedger;
+    }
+
+    /// @notice Set the Stabilizer contract address (authorized to mint/burn for peg maintenance)
+    function setStabilizer(address _stabilizer) external onlyOwner {
+        require(_stabilizer != address(0), "QUSD: zero stabilizer");
+        stabilizer = _stabilizer;
     }
 
     /// @notice Update transfer fee (governance). Max 10% (1000 bps) safety cap.

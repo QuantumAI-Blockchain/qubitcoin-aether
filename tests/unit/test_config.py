@@ -69,6 +69,14 @@ def test_config_genesis_premine():
     assert Config.GENESIS_PREMINE < Config.MAX_SUPPLY
 
 
+def test_config_tail_emission_reward():
+    """Tail emission reward constant is valid."""
+    from qubitcoin.config import Config
+    assert Config.TAIL_EMISSION_REWARD == Decimal('0.1')
+    assert Config.TAIL_EMISSION_REWARD > 0
+    assert Config.TAIL_EMISSION_REWARD < Config.INITIAL_REWARD
+
+
 def test_config_display():
     """Display method returns formatted string."""
     from qubitcoin.config import Config
@@ -77,3 +85,52 @@ def test_config_display():
     assert '3,300,000,000' in output
     assert '3.3 seconds' in output
     assert 'Genesis Premine' in output
+    assert 'Tail Emission' in output
+
+
+def test_config_display_no_fabricated_projections():
+    """Display method shows accurate emission projections, not fabricated ones."""
+    from qubitcoin.config import Config
+    output = Config.display()
+    # Old fabricated values should NOT appear
+    assert 'Year 33:              ~3.27B' not in output
+    # Should contain "phi-halving + tail emission" label
+    assert 'phi-halving + tail emission' in output
+
+
+def test_config_compute_supply_at_height_zero():
+    """Supply at height 0 equals INITIAL_REWARD + GENESIS_PREMINE."""
+    from qubitcoin.config import Config
+    supply = Config._compute_supply_at_height(0)
+    assert supply == Config.INITIAL_REWARD + Config.GENESIS_PREMINE
+
+
+def test_config_compute_supply_at_height_negative():
+    """Supply at negative height is zero."""
+    from qubitcoin.config import Config
+    supply = Config._compute_supply_at_height(-1)
+    assert supply == Decimal('0')
+
+
+def test_config_compute_supply_never_exceeds_max():
+    """Supply at any height never exceeds MAX_SUPPLY."""
+    from qubitcoin.config import Config
+    # Very large height (well into tail emission territory)
+    supply = Config._compute_supply_at_height(999_999_999_999)
+    assert supply <= Config.MAX_SUPPLY
+
+
+def test_config_emission_projection_realistic():
+    """Emission projection at year 33 should be well under 100% with phi-halving alone.
+
+    The phi-halving series converges to ~651M QBC. With tail emission of 0.1 QBC/block,
+    year 33 supply should be meaningfully higher than the phi-halving convergence but
+    well under MAX_SUPPLY.
+    """
+    from qubitcoin.config import Config
+    proj = Config._compute_emission_projection()
+    yr33_supply, yr33_pct = proj[33]
+    # Must be more than the phi-halving convergence (~651M)
+    assert yr33_supply > 651_000_000
+    # Must be less than MAX_SUPPLY
+    assert yr33_pct < 100.0

@@ -185,6 +185,8 @@ export function HeartbeatMonitor({
       </div>
       <canvas
         ref={canvasRef}
+        role="img"
+        aria-label={`Transaction heartbeat monitor showing ECG-style waveform for the last ${txSlice.length} transactions`}
         style={{
           width,
           height,

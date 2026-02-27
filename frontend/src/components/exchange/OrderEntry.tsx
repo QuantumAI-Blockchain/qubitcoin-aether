@@ -914,7 +914,7 @@ export const OrderEntry = memo(function OrderEntry() {
           )}
         </div>
 
-        {/* ── Dilithium Signature Info ───────────────────────────── */}
+        {/* ── Signature Info ────────────────────────────────────── */}
         <div
           style={{
             fontFamily: FONT.body,
@@ -925,7 +925,7 @@ export const OrderEntry = memo(function OrderEntry() {
             letterSpacing: "0.02em",
           }}
         >
-          Orders signed with CRYSTALS-Dilithium-3 when connected
+          Orders signed with CRYSTALS-Dilithium2 post-quantum signatures when wallet is connected
         </div>
 
         {/* ── Submit Button ──────────────────────────────────────── */}

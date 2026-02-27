@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "../interfaces/IDebtLedger.sol";
 
 /// @notice Minimal oracle interface — returns price in USD with 8 decimals
 interface IPriceOracle {
@@ -107,6 +108,7 @@ contract QUSDReserve is Initializable {
 
     // ─── Deposits ────────────────────────────────────────────────────────
     /// @notice Deposit reserve assets. Every deposit is a debt payback event.
+    ///         Automatically records payback in DebtLedger when wired.
     /// @param asset Token address (address(0) for native QBC)
     /// @param amount Amount deposited
     /// @param usdValue USD value of this deposit (8 decimals, provided by caller or oracle)
@@ -119,6 +121,11 @@ contract QUSDReserve is Initializable {
         totalReserveValueUSD         += usdValue;
 
         emit ReserveDeposit(asset, msg.sender, amount, usdValue);
+
+        // Cross-call: record payback in DebtLedger
+        if (debtLedger != address(0) && usdValue > 0) {
+            IDebtLedger(debtLedger).recordPayback(usdValue);
+        }
     }
 
     // ─── Withdrawals (Governance Only) ───────────────────────────────────

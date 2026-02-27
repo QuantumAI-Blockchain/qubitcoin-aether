@@ -76,19 +76,22 @@ class CirculationTracker:
         """Compute the mining reward for a specific block height.
 
         Reward = INITIAL_REWARD / PHI^era (golden ratio halving).
+        When the phi-halving reward drops below TAIL_EMISSION_REWARD,
+        the tail emission rate is used instead (until MAX_SUPPLY is reached).
         """
         era = CirculationTracker.compute_era(block_height)
         phi = Decimal(str(Config.PHI))
-        reward = Config.INITIAL_REWARD / (phi ** era)
-        # Never go below 1 satoshi (0.00000001)
-        min_reward = Decimal('0.00000001')
-        return max(reward, min_reward)
+        phi_reward = Config.INITIAL_REWARD / (phi ** era)
+        if phi_reward >= Config.TAIL_EMISSION_REWARD:
+            return phi_reward
+        return Config.TAIL_EMISSION_REWARD
 
     @staticmethod
     def compute_total_emitted(block_height: int) -> Decimal:
         """Compute total QBC emitted from genesis to a given height.
 
-        Sums rewards across all eras up to block_height.
+        Sums rewards across all eras up to block_height, using tail
+        emission when the phi-halving reward drops below the threshold.
         """
         if block_height < 0:
             return Decimal('0')
@@ -105,7 +108,9 @@ class CirculationTracker:
             if era_start > block_height:
                 break
             blocks_in_era = era_end - era_start + 1
-            reward = Config.INITIAL_REWARD / (phi ** era)
+            phi_reward = Config.INITIAL_REWARD / (phi ** era)
+            # Use tail emission when phi-halving drops below threshold
+            reward = phi_reward if phi_reward >= Config.TAIL_EMISSION_REWARD else Config.TAIL_EMISSION_REWARD
             total += reward * blocks_in_era
 
         # Genesis premine is a one-time allocation at block 0
@@ -192,7 +197,9 @@ class CirculationTracker:
         schedule = []
 
         for era in range(num_eras):
-            reward = Config.INITIAL_REWARD / (phi ** era)
+            phi_reward = Config.INITIAL_REWARD / (phi ** era)
+            in_tail = phi_reward < Config.TAIL_EMISSION_REWARD
+            reward = Config.TAIL_EMISSION_REWARD if in_tail else phi_reward
             era_start = era * Config.HALVING_INTERVAL
             era_end = (era + 1) * Config.HALVING_INTERVAL - 1
             blocks = Config.HALVING_INTERVAL
@@ -212,6 +219,7 @@ class CirculationTracker:
                 'duration_years': round(
                     blocks * Config.TARGET_BLOCK_TIME / (365.25 * 86400), 2,
                 ),
+                'tail_emission': in_tail,
             })
 
         return schedule

@@ -956,12 +956,20 @@ export function TxStatusViewInner({ txId }: { txId: string }) {
           </Panel>
 
           {/* Active step detail */}
-          {!isComplete && !isRefunded && (
-            <ActiveStepDetail
-              step={steps[Math.min(currentStep, steps.length - 1)]}
-              status={isFailed ? "failed" : "active"}
-            />
-          )}
+          <div aria-live="polite" aria-atomic="true">
+            {!isComplete && !isRefunded && (
+              <ActiveStepDetail
+                step={steps[Math.min(currentStep, steps.length - 1)]}
+                status={isFailed ? "failed" : "active"}
+              />
+            )}
+
+            {/* Completion banner */}
+            {isComplete && <CompletionBanner tx={tx} />}
+
+            {/* Failed / refunded banner */}
+            {(isFailed || isRefunded) && <FailedBanner tx={tx} />}
+          </div>
 
           {/* Confirmation bars */}
           {tx.status === "pending" && (
@@ -985,12 +993,6 @@ export function TxStatusViewInner({ txId }: { txId: string }) {
               </div>
             </Panel>
           )}
-
-          {/* Completion banner */}
-          {isComplete && <CompletionBanner tx={tx} />}
-
-          {/* Failed / refunded banner */}
-          {(isFailed || isRefunded) && <FailedBanner tx={tx} />}
 
           {/* Transaction hashes */}
           <TxHashesPanel tx={tx} />

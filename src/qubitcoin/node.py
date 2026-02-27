@@ -517,6 +517,16 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"CapabilityAdvertiser init: {e}")
 
+        # Component 19b: Exchange Engine (DEX order book)
+        self.exchange_engine = None
+        try:
+            from .exchange.engine import ExchangeEngine
+            self.exchange_engine = ExchangeEngine()
+            logger.info("[19b/22] ExchangeEngine initialized (%d pairs)",
+                        len(self.exchange_engine.books))
+        except Exception as e:
+            logger.warning(f"[19b/22] ExchangeEngine failed (non-fatal): {e}")
+
         # Component 20: Mining Engine
         logger.info("[20/22] Initializing MiningEngine...")
         try:
@@ -586,6 +596,7 @@ class QubitcoinNode:
                 event_index=getattr(self, 'event_index', None),
                 bridge_lp=self.bridge_lp,
                 neural_reasoner=self.neural_reasoner,
+                exchange_engine=self.exchange_engine,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)

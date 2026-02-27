@@ -31,10 +31,25 @@ class ConsensusEngine:
         logger.info("Consensus engine initialized (SUSY Economics + QVM + Aether)")
 
     def calculate_reward(self, height: int, total_supply: Decimal) -> Decimal:
-        """Calculate block reward with golden ratio halvings"""
+        """Calculate block reward with golden ratio halvings + tail emission.
+
+        Reward schedule:
+        1. Phi-halving: reward = INITIAL_REWARD / PHI^era (decreasing each era)
+        2. When phi-halving reward drops below TAIL_EMISSION_REWARD, switch to
+           the fixed tail emission rate.
+        3. Tail emission continues until MAX_SUPPLY is reached.
+        4. Once MAX_SUPPLY is reached, reward = 0.
+        """
         PHI = Decimal('1.618033988749895')
         era = height // Config.HALVING_INTERVAL
-        base_reward = Config.INITIAL_REWARD / (PHI ** era)
+        phi_reward = Config.INITIAL_REWARD / (PHI ** era)
+
+        # Use tail emission when phi-halving drops below the threshold
+        if phi_reward >= Config.TAIL_EMISSION_REWARD:
+            base_reward = phi_reward
+        else:
+            base_reward = Config.TAIL_EMISSION_REWARD
+
         remaining = Config.MAX_SUPPLY - total_supply
         reward = min(base_reward, remaining)
 
@@ -42,7 +57,8 @@ class ConsensusEngine:
             logger.warning(f"Max supply reached at height {height}")
             return Decimal(0)
 
-        logger.debug(f"Block {height}: Era {era}, Reward {reward:.8f} QBC")
+        logger.debug(f"Block {height}: Era {era}, Reward {reward:.8f} QBC"
+                      f"{' (tail)' if phi_reward < Config.TAIL_EMISSION_REWARD else ''}")
         return reward
 
     # Height at which the difficulty ratio formula was corrected.
@@ -743,12 +759,17 @@ class ConsensusEngine:
         logger.info(f"Fork resolved: reverted to height {fork_height}")
 
     def get_emission_stats(self, db_manager) -> Dict:
-        """Get current emission statistics"""
+        """Get current emission statistics including tail emission info."""
         height = db_manager.get_current_height()
         supply = db_manager.get_total_supply()
         era = height // Config.HALVING_INTERVAL if height >= 0 else 0
         current_reward = self.calculate_reward(max(0, height), supply)
         blocks_until_halving = Config.HALVING_INTERVAL - (height % Config.HALVING_INTERVAL) if height >= 0 else Config.HALVING_INTERVAL
+
+        # Determine if we are in tail emission phase
+        PHI = Decimal('1.618033988749895')
+        phi_reward = Config.INITIAL_REWARD / (PHI ** era) if era >= 0 else Config.INITIAL_REWARD
+        in_tail_emission = phi_reward < Config.TAIL_EMISSION_REWARD
 
         return {
             'current_height': height,
@@ -761,5 +782,7 @@ class ConsensusEngine:
             'hours_until_halving': (blocks_until_halving * Config.TARGET_BLOCK_TIME) / 3600,
             'halving_interval': Config.HALVING_INTERVAL,
             'phi': Config.PHI,
-            'target_block_time': Config.TARGET_BLOCK_TIME
+            'target_block_time': Config.TARGET_BLOCK_TIME,
+            'tail_emission_reward': float(Config.TAIL_EMISSION_REWARD),
+            'in_tail_emission': in_tail_emission,
         }

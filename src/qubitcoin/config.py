@@ -107,6 +107,12 @@ class Config:
     INITIAL_REWARD: Decimal = Decimal('15.27')  # QBC per block (Era 0)
     HALVING_INTERVAL: int = 15_474_020  # φ years in blocks (~1.618 years)
 
+    # Tail emission — small fixed reward that continues after phi-halving
+    # reward drops below this threshold.  Ensures 100% of MAX_SUPPLY is
+    # eventually mineable (phi-halving alone converges to only ~651M QBC).
+    # Tail emission continues until total_supply reaches MAX_SUPPLY.
+    TAIL_EMISSION_REWARD: Decimal = Decimal(os.getenv('TAIL_EMISSION_REWARD', '0.1'))
+
     # Genesis premine — ~1% of max supply allocated at block 0
     GENESIS_PREMINE: Decimal = Decimal(os.getenv('GENESIS_PREMINE', '33000000'))
 
@@ -373,12 +379,18 @@ class Config:
 
     @classmethod
     def verify_emission_schedule(cls) -> bool:
-        """Verify that phi-halving emission does not exceed MAX_SUPPLY.
+        """Verify that phi-halving emission schedule is valid.
 
-        The phi-halving geometric series converges to ~618M QBC with current
-        constants — well under the 3.3B cap. The consensus engine enforces
-        the cap by clamping rewards when total_supply approaches MAX_SUPPLY.
-        This check ensures the series is monotonically decreasing and bounded.
+        Checks:
+        1. Phi-halving rewards are monotonically decreasing.
+        2. The phi-halving series converges (to ~618M QBC from mining).
+        3. TAIL_EMISSION_REWARD is positive and less than INITIAL_REWARD.
+        4. Total phi-halving emission (before tail kicks in) is under MAX_SUPPLY.
+
+        The tail emission is a fixed reward per block that bridges the gap
+        between the convergent phi-halving sum (~651M QBC) and MAX_SUPPLY
+        (3.3B QBC).  The consensus engine enforces the cap by clamping
+        rewards when total_supply reaches MAX_SUPPLY.
         """
         PHI = Decimal(str(cls.PHI))
         prev_reward = cls.INITIAL_REWARD + 1
@@ -391,8 +403,15 @@ class Config:
                 return False  # Rewards must strictly decrease
             prev_reward = reward
             total += reward * cls.HALVING_INTERVAL
-        # Total theoretical emission must not exceed MAX_SUPPLY
-        return total <= cls.MAX_SUPPLY
+        # Phi-halving total must be under MAX_SUPPLY (tail emission fills the rest)
+        if total > cls.MAX_SUPPLY:
+            return False
+        # Tail emission must be valid
+        if cls.TAIL_EMISSION_REWARD <= 0:
+            return False
+        if cls.TAIL_EMISSION_REWARD >= cls.INITIAL_REWARD:
+            return False
+        return True
 
     @classmethod
     def validate(cls) -> None:
@@ -431,10 +450,75 @@ class Config:
             raise ValueError("COINBASE_MATURITY must be at least 1")
 
     @classmethod
+    def _compute_supply_at_height(cls, target_height: int) -> Decimal:
+        """Compute total QBC emitted from genesis through target_height.
+
+        Uses era-level arithmetic (not block-by-block) for efficiency.
+        Accounts for phi-halving and tail emission.
+        """
+        if target_height < 0:
+            return Decimal('0')
+
+        PHI = Decimal(str(cls.PHI))
+        total = cls.GENESIS_PREMINE
+        h = 0
+
+        while h <= target_height:
+            era = h // cls.HALVING_INTERVAL
+            era_end_block = (era + 1) * cls.HALVING_INTERVAL - 1
+            segment_end = min(era_end_block, target_height)
+            blocks_in_segment = segment_end - h + 1
+
+            phi_reward = cls.INITIAL_REWARD / (PHI ** era)
+            reward = phi_reward if phi_reward >= cls.TAIL_EMISSION_REWARD else cls.TAIL_EMISSION_REWARD
+
+            remaining = cls.MAX_SUPPLY - total
+            max_blocks = int(remaining / reward) if reward > 0 else 0
+            if blocks_in_segment > max_blocks:
+                total += reward * max_blocks
+                break
+            total += reward * blocks_in_segment
+            h = segment_end + 1
+
+        return min(total, cls.MAX_SUPPLY)
+
+    @classmethod
+    def _compute_emission_projection(cls) -> dict:
+        """Compute accurate emission projection milestones.
+
+        Uses the actual phi-halving + tail emission formula to project
+        total supply at various time milestones.
+        """
+        blocks_per_year = int(365.25 * 86400 / cls.TARGET_BLOCK_TIME)
+        milestones = {}
+        for target_yr in [1.618, 10, 20, 33, 50, 100]:
+            target_height = int(target_yr * blocks_per_year)
+            supply = cls._compute_supply_at_height(target_height)
+            pct = float(supply / cls.MAX_SUPPLY * 100)
+            milestones[target_yr] = (float(supply), pct)
+        return milestones
+
+    @classmethod
     def display(cls) -> str:
         """Return formatted configuration summary"""
         rust_p2p_status = "Enabled" if cls.ENABLE_RUST_P2P else "Disabled (using Python P2P)"
-        
+
+        # Compute accurate emission projections
+        try:
+            proj = cls._compute_emission_projection()
+            yr1_6 = proj.get(1.618, (0, 0))
+            yr10 = proj.get(10, (0, 0))
+            yr20 = proj.get(20, (0, 0))
+            yr33 = proj.get(33, (0, 0))
+            emission_lines = (
+                f"  Year 1.618 (phi):     ~{yr1_6[0] / 1e6:.0f}M QBC ({yr1_6[1]:.1f}%)\n"
+                f"  Year 10:              ~{yr10[0] / 1e6:.0f}M QBC ({yr10[1]:.1f}%)\n"
+                f"  Year 20:              ~{yr20[0] / 1e6:.0f}M QBC ({yr20[1]:.1f}%)\n"
+                f"  Year 33:              ~{yr33[0] / 1e6:.0f}M QBC ({yr33[1]:.1f}%)"
+            )
+        except Exception:
+            emission_lines = "  (projection unavailable)"
+
         return f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║           QUBITCOIN NODE - SUSY ECONOMICS v1.0               ║
@@ -442,15 +526,16 @@ class Config:
 
 Node Identity:
   Address:              {cls.ADDRESS[:40] + '...' if cls.ADDRESS else '(not set)'}
-  
+
 Supersymmetric Economics:
   Max Supply:           {cls.MAX_SUPPLY:,} QBC (3.3 billion)
   Block Time:           {cls.TARGET_BLOCK_TIME} seconds
   Initial Reward:       {cls.INITIAL_REWARD} QBC/block
+  Tail Emission:        {cls.TAIL_EMISSION_REWARD} QBC/block (after phi-halving drops below)
   Genesis Premine:      {cls.GENESIS_PREMINE:,} QBC (~{float(cls.GENESIS_PREMINE / cls.MAX_SUPPLY * 100):.2f}%)
-  Halving Interval:     {cls.HALVING_INTERVAL:,} blocks (φ years)
-  Emission Period:      {cls.EMISSION_PERIOD} years
-  Golden Ratio (φ):     {cls.PHI}
+  Halving Interval:     {cls.HALVING_INTERVAL:,} blocks (phi years)
+  Emission Period:      {cls.EMISSION_PERIOD} years (phi-halving), then tail emission
+  Golden Ratio (phi):   {cls.PHI}
 
 Quantum Settings:
   Mode:                 {'Local Simulator' if cls.USE_LOCAL_ESTIMATOR else 'IBM Quantum'}
@@ -466,7 +551,7 @@ Consensus:
   Initial Difficulty:   {cls.INITIAL_DIFFICULTY}
   Target Block Time:    {cls.TARGET_BLOCK_TIME}s
   Difficulty Window:    {cls.DIFFICULTY_WINDOW} blocks (per-block adjustment)
-  Max Difficulty Change: ±{cls.MAX_DIFFICULTY_CHANGE * 100:.0f}%
+  Max Difficulty Change: +/-{cls.MAX_DIFFICULTY_CHANGE * 100:.0f}%
   Coinbase Maturity:    {cls.COINBASE_MATURITY} blocks
 
 Mining:
@@ -475,17 +560,14 @@ Mining:
 
 Database:
   URL:                  {cls.DATABASE_URL.split('@')[1].split('?')[0] if '@' in cls.DATABASE_URL else cls.DATABASE_URL.split('?')[0]}
-  
+
 Storage:
   IPFS API:             {cls.IPFS_API}
   IPFS Gateway Port:    {cls.IPFS_GATEWAY_PORT} (CockroachDB admin on 8080)
   Snapshot Interval:    {cls.SNAPSHOT_INTERVAL} blocks
 
-Expected Emission:
-  Year 1.618 (φ):       ~236M QBC (7.2%)
-  Year 10:              ~1.65B QBC (50%)
-  Year 20:              ~2.97B QBC (90%)
-  Year 33:              ~3.27B QBC (99%)
+Expected Emission (phi-halving + tail emission):
+{emission_lines}
 
 ╚══════════════════════════════════════════════════════════════╝
 """

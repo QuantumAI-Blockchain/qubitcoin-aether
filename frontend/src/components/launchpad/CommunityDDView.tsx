@@ -234,7 +234,7 @@ export const CommunityDDView = memo(function CommunityDDView() {
               borderRadius: 4,
             }}
           >
-            Report submitted successfully! Dilithium-3 signed and stored on QVM.
+            Report submitted successfully. Will be stored on QVM after backend integration.
           </span>
         )}
       </div>
@@ -361,7 +361,7 @@ export const CommunityDDView = memo(function CommunityDDView() {
                 color: L.textMuted,
               }}
             >
-              Reports are Dilithium-3 signed and permanently stored on QVM
+              Reports will be Dilithium2-signed and stored on QVM when backend is connected
             </span>
           </div>
 
