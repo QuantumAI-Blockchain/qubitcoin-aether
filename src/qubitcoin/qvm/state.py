@@ -286,12 +286,11 @@ class StateManager:
         except ValueError:
             bytecode = b''
 
-        # Derive contract address (keccak256 to match QVM CREATE opcode)
+        # Derive contract address: keccak256(RLP([sender, nonce]))[:20]
+        # Matches the EVM CREATE opcode specification in vm.py
         account = self.db.get_or_create_account(from_addr)
-        from .vm import keccak256 as _keccak256
-        addr_hash = _keccak256(
-            from_addr.encode() + account.nonce.to_bytes(8, 'big')
-        ).hex()[:40]
+        from .vm import rlp_encode_create_address
+        addr_hash = rlp_encode_create_address(from_addr, account.nonce).hex()
 
         # Execute init code
         result = self.qvm.execute(

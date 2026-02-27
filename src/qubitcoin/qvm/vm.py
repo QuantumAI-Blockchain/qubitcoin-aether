@@ -45,6 +45,61 @@ class ExecutionError(Exception):
     pass
 
 
+def _rlp_encode_length(data: bytes, offset: int) -> bytes:
+    """RLP length prefix for a single item or list.
+
+    Args:
+        data: The data bytes whose length to encode.
+        offset: 0x80 for a single string item, 0xc0 for a list.
+
+    Returns:
+        The RLP length prefix bytes.
+    """
+    length = len(data)
+    if length == 1 and offset == 0x80 and data[0] < 0x80:
+        return b''  # single byte < 0x80 is its own RLP encoding
+    if length <= 55:
+        return bytes([offset + length])
+    # Long form: length of length prefix
+    len_bytes = length.to_bytes((length.bit_length() + 7) // 8, 'big')
+    return bytes([offset + 55 + len(len_bytes)]) + len_bytes
+
+
+def _rlp_encode_bytes(data: bytes) -> bytes:
+    """RLP-encode a single byte string."""
+    if len(data) == 1 and data[0] < 0x80:
+        return data
+    return _rlp_encode_length(data, 0x80) + data
+
+
+def _rlp_encode_integer(value: int) -> bytes:
+    """RLP-encode a non-negative integer."""
+    if value == 0:
+        return _rlp_encode_bytes(b'')
+    int_bytes = value.to_bytes((value.bit_length() + 7) // 8, 'big')
+    return _rlp_encode_bytes(int_bytes)
+
+
+def rlp_encode_create_address(sender_hex: str, nonce: int) -> bytes:
+    """Compute CREATE address: keccak256(RLP([sender_address, nonce]))[:20].
+
+    Matches the EVM specification for contract address derivation.
+
+    Args:
+        sender_hex: 40-character hex address of the deployer (no 0x prefix).
+        nonce: The deployer's current nonce.
+
+    Returns:
+        20-byte contract address.
+    """
+    sender_bytes = bytes.fromhex(sender_hex.ljust(40, '0')[:40])
+    encoded_sender = _rlp_encode_bytes(sender_bytes)
+    encoded_nonce = _rlp_encode_integer(nonce)
+    payload = encoded_sender + encoded_nonce
+    list_prefix = _rlp_encode_length(payload, 0xc0)
+    return keccak256(list_prefix + payload)[:20]
+
+
 # ========================================================================
 # ecRecover: ECDSA public key recovery for precompile address 0x01
 # Uses eth_keys (transitive dep of eth-account) for secp256k1 recovery
@@ -1906,14 +1961,12 @@ class QVM:
                     raise ExecutionError("CREATE in static context")
                 value, offset, size = ctx.pop(), ctx.pop(), ctx.pop()
                 init_code = ctx.memory_read(offset, size)
-                # Derive address: keccak256(rlp([sender, nonce]))[:20]
+                # Derive address: keccak256(RLP([sender, nonce]))[:20]
                 nonce = 0
                 if self.db:
                     acc = self.db.get_account(ctx.address)
                     nonce = acc.nonce if acc else 0
-                addr_bytes = keccak256(
-                    ctx.address.encode() + nonce.to_bytes(8, 'big')
-                )[:20]
+                addr_bytes = rlp_encode_create_address(ctx.address, nonce)
                 new_addr = addr_bytes.hex()
                 # EIP-150 63/64 gas cap + storage snapshot for rollback
                 available = ctx.gas - ctx.gas_used

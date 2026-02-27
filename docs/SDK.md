@@ -458,7 +458,102 @@ ws.onmessage = (event) => {
 
 ---
 
-## 6. QUSD Stablecoin
+## 6. Wrapped QBC (wQBC) -- Dual Contract Pattern
+
+Qubitcoin has **two** separate wQBC contracts serving different purposes. Understanding the distinction is critical for integrators.
+
+### 6.1 tokens/wQBC.sol -- Wrapped QBC on the QBC Chain
+
+**Location:** `contracts/solidity/tokens/wQBC.sol`
+**Deployed on:** QBC L1 chain (Chain ID 3301)
+**Purpose:** DeFi protocol composability on the QBC chain itself.
+
+This is analogous to WETH on Ethereum. Native QBC cannot be used directly in QVM smart contracts that expect QBC-20 tokens (e.g., DEX liquidity pools, lending protocols, NFT marketplaces). `tokens/wQBC.sol` wraps native QBC into a QBC-20 token so it can interact with the QVM contract ecosystem.
+
+**Key features:**
+- 0.1% bridge fee (10 bps) on mint/burn operations
+- Replay protection via `processedTxHashes` mapping
+- Reentrancy guard on all bridge operations
+- Cumulative accounting: `totalLocked`, `totalMinted`, `totalBurned`, `totalFeesCollected`
+- Fee recipient configurable by owner
+- Bridge operator role for authorized mint/burn
+
+**When to use:** You are building a DeFi protocol on the QBC chain and need QBC in QBC-20 form. For example, a DEX pool pairing QBC with QUSD needs wrapped QBC since native QBC is not a QBC-20 token.
+
+```solidity
+// User wraps QBC for DeFi usage on QBC chain
+tokensWQBC.bridgeMint(recipient, amount, sourceTxHash, sourceChainId);
+```
+
+### 6.2 bridge/wQBC.sol -- Wrapped QBC on External Chains
+
+**Location:** `contracts/solidity/bridge/wQBC.sol`
+**Deployed on:** Ethereum, Polygon, BSC, Avalanche, Arbitrum, Optimism, Base, Solana
+**Purpose:** Cross-chain representation of QBC on external blockchains.
+
+This is the contract deployed on every external chain where QBC needs to exist. When a user bridges QBC from the QBC chain to Ethereum, the bridge operator locks QBC on L1 and mints `bridge/wQBC` tokens on Ethereum.
+
+**Key features:**
+- Simplified mint/burn interface (no fees or replay tracking in the contract itself -- the bridge operator handles those concerns on the external chain)
+- Standard ERC-20 implementation compatible with Uniswap, Aave, and other DeFi protocols
+- Bridge-only mint/burn access control
+- Pause mechanism for emergencies
+
+**When to use:** You are integrating QBC on an external chain. If you are building a DEX pool on Ethereum that includes QBC, you interact with this contract.
+
+```solidity
+// Bridge operator mints wQBC on Ethereum after QBC is locked on L1
+bridgeWQBC.mint(recipient, amount, qbcTxId);
+
+// User burns wQBC on Ethereum to unlock QBC on L1
+bridgeWQBC.burn(user, amount, qbcDestAddress);
+```
+
+### 6.3 Comparison
+
+| Feature | tokens/wQBC.sol | bridge/wQBC.sol |
+|---------|-----------------|-----------------|
+| **Deployed on** | QBC L1 chain | External chains (ETH, BNB, etc.) |
+| **Purpose** | DeFi composability on QBC | Cross-chain QBC representation |
+| **Bridge fee** | 0.1% (10 bps) | None (handled by bridge operator) |
+| **Replay protection** | processedTxHashes | None (bridge operator tracks) |
+| **Reentrancy guard** | Yes | No (simplified) |
+| **Cumulative accounting** | totalLocked/Minted/Burned/Fees | totalSupply only |
+| **Interface** | IQBC20 (full QBC-20) | ERC-20 standard |
+| **Admin** | Owner + bridge operator | Owner + bridge |
+
+### 6.4 Flow Diagram
+
+```
+QBC L1 Chain                              External Chain (e.g., Ethereum)
+-----------------                         ----------------------------
+
+User sends QBC
+  |
+  v
+tokens/wQBC.sol
+  (lock QBC, mint wQBC
+   on QBC chain for DeFi)
+
+        -- OR --
+
+User sends QBC to bridge
+  |
+  v
+Bridge locks QBC on L1
+  |
+  |  (bridge operator observes)
+  |
+  +-------------------------------------> bridge/wQBC.sol
+                                            (mint wQBC on Ethereum)
+                                            |
+                                            v
+                                          User trades wQBC on Uniswap
+```
+
+---
+
+## 7. QUSD Stablecoin
 
 ```bash
 # QBC/USD price from oracle
@@ -473,7 +568,7 @@ curl http://localhost:5000/qusd/debt
 
 ---
 
-## 7. SUSY Scientific Database
+## 8. SUSY Scientific Database
 
 Every mined block contributes a solved SUSY Hamiltonian to a public database.
 
@@ -494,7 +589,7 @@ curl http://localhost:5000/susy-database/verifications/top
 
 ---
 
-## 8. Admin API (Authenticated)
+## 9. Admin API (Authenticated)
 
 Admin endpoints require the `X-Admin-Key` header matching `ADMIN_API_KEY` in `.env`.
 
@@ -526,7 +621,7 @@ curl -H "X-Admin-Key: $KEY" http://localhost:5000/admin/economics/history
 
 ---
 
-## 9. Database & Monitoring
+## 10. Database & Monitoring
 
 ```bash
 # Connection pool health
@@ -541,7 +636,7 @@ curl http://localhost:5000/health
 
 ---
 
-## 10. Error Handling
+## 11. Error Handling
 
 All REST endpoints return standard HTTP status codes:
 
@@ -565,7 +660,7 @@ JSON-RPC errors follow the JSON-RPC 2.0 spec:
 
 ---
 
-## 11. Rate Limits
+## 12. Rate Limits
 
 | Endpoint Type | Default Limit | Config |
 |---------------|---------------|--------|

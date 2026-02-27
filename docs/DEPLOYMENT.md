@@ -511,6 +511,58 @@ docker compose -f docker-compose.production.yml up -d
 
 ---
 
+## Bridge Confirmation Thresholds
+
+### Why 20 Confirmations for Bridge Finality
+
+Standard QBC transactions are considered final after **6 confirmations** (~20 seconds at 3.3s/block). Bridge transfers, however, require **20 confirmations** (~66 seconds) on the QBC side before the bridge operator mints wQBC on the destination chain.
+
+The higher threshold exists because bridge operations involve cross-chain state: once wQBC is minted on an external chain, reversing the operation (e.g., due to a QBC reorg) would require burning already-distributed tokens on a chain outside QBC's control. The 20-confirmation requirement reduces reorg risk to near zero, protecting both the bridge operator and liquidity providers.
+
+### Per-Chain Confirmation Requirements
+
+Each external chain has its own confirmation requirement before the bridge operator considers a burn/lock event final on that chain. These are set based on each chain's block time, finality mechanism, and historical reorg depth:
+
+| Chain | Confirmations | Approximate Time | Finality Model |
+|-------|---------------|-------------------|----------------|
+| **QBC (source)** | 20 | ~66 seconds | PoSA (VQE mining) |
+| **Ethereum** | 12 | ~2.5 minutes | PoS (Casper FFG) |
+| **BNB Smart Chain** | 15 | ~45 seconds | PoSA (21 validators) |
+| **Polygon** | 128 | ~4.3 minutes | PoS + Heimdall checkpoints |
+| **Avalanche** | 1 | ~2 seconds | Snowman consensus (instant finality) |
+| **Arbitrum** | 1 | ~250ms | L2 sequencer (L1 finality via challenge) |
+| **Optimism** | 1 | ~2 seconds | L2 sequencer (L1 finality via challenge) |
+| **Base** | 1 | ~2 seconds | L2 sequencer (L1 finality via challenge) |
+| **Solana** | 32 slots | ~13 seconds | Tower BFT (slot-based) |
+
+**Notes:**
+- L2 chains (Arbitrum, Optimism, Base) have fast sequencer confirmations but full L1 finality takes ~7 days via the challenge period. The bridge uses sequencer confirmations for speed, accepting the small risk.
+- Avalanche achieves sub-second finality via its Snowman consensus protocol, so 1 confirmation is sufficient.
+- Polygon requires more confirmations because its PoS chain has experienced reorgs. Full security comes from Heimdall checkpoints to Ethereum L1.
+- Solana uses slot-based finality; 32 slots provides a strong guarantee under its Tower BFT model.
+
+### Configuration
+
+Bridge confirmation thresholds are set in the bridge operator configuration and are not user-adjustable. They are defined per-chain in the bridge manager:
+
+```python
+BRIDGE_CONFIRMATIONS = {
+    "qbc": 20,       # QBC source chain
+    "ethereum": 12,
+    "bsc": 15,
+    "polygon": 128,
+    "avalanche": 1,
+    "arbitrum": 1,
+    "optimism": 1,
+    "base": 1,
+    "solana": 32,
+}
+```
+
+The bridge operator monitors events on each chain and only processes bridge operations after the required number of confirmations have passed. If a reorg occurs before confirmation, the operation is requeued automatically.
+
+---
+
 ## Troubleshooting
 
 ### Node won't start

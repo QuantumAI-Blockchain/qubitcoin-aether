@@ -31,6 +31,123 @@ except ImportError:
     pass
 
 
+# ---------------------------------------------------------------------------
+# TorchReasonerNetwork — proper nn.Module for gradient-based training
+# ---------------------------------------------------------------------------
+
+if _HAS_TORCH:
+    class TorchReasonerNetwork(nn.Module):
+        """PyTorch neural reasoner with the same architecture as the numpy
+        GATLayer stack: input -> linear -> ReLU -> linear -> sigmoid.
+
+        This wraps the two-layer GAT projection into a proper nn.Module that
+        supports standard PyTorch backpropagation via Adam.
+
+        Architecture:
+            Layer1: Linear(in_dim, hidden_dim, bias=False)
+            ReLU activation
+            Layer2: Linear(hidden_dim, 1, bias=True)
+            Sigmoid output -> confidence prediction in [0, 1]
+
+        Usage:
+            net = TorchReasonerNetwork(in_dim=32, hidden_dim=64)
+            loss = net.train_batch(inputs_tensor, targets_tensor)
+            prediction = net.predict(single_input_tensor)
+        """
+
+        def __init__(self, in_dim: int, hidden_dim: int = 64,
+                     learning_rate: float = 0.001) -> None:
+            super().__init__()
+            self.layer1 = nn.Linear(in_dim, hidden_dim, bias=False)
+            self.layer2 = nn.Linear(hidden_dim, 1, bias=True)
+            self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
+            self._train_steps: int = 0
+            self._cumulative_loss: float = 0.0
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            """Forward pass: linear -> ReLU -> linear -> sigmoid."""
+            h = F.relu(self.layer1(x))
+            logits = self.layer2(h)
+            return torch.sigmoid(logits)
+
+        def train_batch(self, inputs: torch.Tensor,
+                        targets: torch.Tensor) -> float:
+            """Run one training step with Adam optimizer.
+
+            Args:
+                inputs: Tensor of shape [batch_size, in_dim].
+                targets: Tensor of shape [batch_size, 1] with values in {0, 1}.
+
+            Returns:
+                Loss value (float).
+            """
+            self.train()
+            self.optimizer.zero_grad()
+            pred = self.forward(inputs)
+            loss = F.binary_cross_entropy(pred, targets)
+            loss.backward()
+            self.optimizer.step()
+            loss_val = float(loss.item())
+            self._train_steps += 1
+            self._cumulative_loss += loss_val
+            return loss_val
+
+        def predict(self, x: torch.Tensor) -> torch.Tensor:
+            """Inference (no gradient tracking).
+
+            Args:
+                x: Tensor of shape [1, in_dim] or [batch, in_dim].
+
+            Returns:
+                Confidence predictions of shape [batch, 1].
+            """
+            self.eval()
+            with torch.no_grad():
+                return self.forward(x)
+
+        def get_stats(self) -> dict:
+            """Return training statistics."""
+            return {
+                'train_steps': self._train_steps,
+                'avg_loss': (self._cumulative_loss / self._train_steps
+                             if self._train_steps > 0 else 0.0),
+                'total_params': sum(p.numel() for p in self.parameters()),
+            }
+
+        def sync_from_gat_layers(self, layer1: 'GATLayer',
+                                  layer2: 'GATLayer') -> None:
+            """Copy weights from numpy GATLayer lists into this module."""
+            with torch.no_grad():
+                w1 = torch.tensor(layer1.W, dtype=torch.float32)
+                self.layer1.weight.copy_(w1.T)
+                w2_col = [layer2.W[i][0] if layer2.out_dim > 0 else 0.0
+                          for i in range(layer2.in_dim)]
+                self.layer2.weight.copy_(
+                    torch.tensor([w2_col], dtype=torch.float32)
+                )
+
+        def sync_to_gat_layers(self, layer1: 'GATLayer',
+                                layer2: 'GATLayer') -> None:
+            """Copy weights from this module back into numpy GATLayer lists."""
+            with torch.no_grad():
+                updated_w1 = self.layer1.weight.T.tolist()
+                for i in range(layer1.in_dim):
+                    for j in range(layer1.out_dim):
+                        layer1.W[i][j] = updated_w1[i][j]
+
+                updated_w2 = self.layer2.weight[0].tolist()
+                for i in range(min(len(updated_w2), layer2.in_dim)):
+                    if layer2.out_dim > 0:
+                        layer2.W[i][0] = updated_w2[i]
+
+else:
+    # Stub when PyTorch is not available
+    class TorchReasonerNetwork:  # type: ignore[no-redef]
+        """Stub when PyTorch is not installed."""
+        def __init__(self, *args, **kwargs) -> None:
+            raise ImportError("TorchReasonerNetwork requires PyTorch")
+
+
 class GATLayer:
     """Single Graph Attention layer (no-PyTorch fallback).
 
@@ -574,6 +691,84 @@ class GATReasoner:
                     self._layer2.W[i][0] = updated_w2[i]
 
         return float(loss.item())
+
+    # ------------------------------------------------------------------
+    # Public PyTorch API: train_batch_torch / predict_torch
+    # ------------------------------------------------------------------
+
+    def _ensure_torch_network(self) -> Optional[object]:
+        """Lazily create the TorchReasonerNetwork if PyTorch is available
+        and GATLayers are initialized. Returns the network or None."""
+        if not _HAS_TORCH or not self._layer1:
+            return None
+        if not hasattr(self, '_torch_network') or self._torch_network is None:
+            self._torch_network = TorchReasonerNetwork(
+                in_dim=self._layer1.in_dim,
+                hidden_dim=self.hidden_dim,
+            )
+            # Sync current GATLayer weights into the network
+            self._torch_network.sync_from_gat_layers(self._layer1, self._layer2)
+        return self._torch_network
+
+    def train_batch_torch(self, inputs: List[List[float]],
+                          targets: List[float]) -> float:
+        """Train the neural reasoner using PyTorch backpropagation.
+
+        This is the high-level API that wraps TorchReasonerNetwork.train_batch.
+
+        Args:
+            inputs: List of input feature vectors, each of length ``in_dim``.
+            targets: List of target values (0.0 or 1.0), one per input.
+
+        Returns:
+            Loss value (float >= 0.0) on success, -1.0 if PyTorch is unavailable
+            or inputs are empty.
+        """
+        if not _HAS_TORCH:
+            return -1.0
+        if not inputs or not targets:
+            return -1.0
+        if not self._layer1:
+            return -1.0
+
+        net = self._ensure_torch_network()
+        if net is None:
+            return -1.0
+
+        x = torch.tensor(inputs, dtype=torch.float32)
+        y = torch.tensor(targets, dtype=torch.float32).unsqueeze(1)
+
+        loss_val = net.train_batch(x, y)
+
+        # Sync weights back to GATLayer lists so reason() benefits
+        net.sync_to_gat_layers(self._layer1, self._layer2)
+
+        self._backprop_steps += 1
+        self._backprop_total_loss += loss_val
+        return loss_val
+
+    def predict_torch(self, input_features: List[float]) -> float:
+        """Predict confidence for a single input using PyTorch.
+
+        Args:
+            input_features: Feature vector of length ``in_dim``.
+
+        Returns:
+            Predicted confidence in [0.0, 1.0], or -1.0 if PyTorch
+            is unavailable.
+        """
+        if not _HAS_TORCH:
+            return -1.0
+        if not self._layer1:
+            return -1.0
+
+        net = self._ensure_torch_network()
+        if net is None:
+            return -1.0
+
+        x = torch.tensor([input_features], dtype=torch.float32)
+        pred = net.predict(x)
+        return float(pred[0][0])
 
     def _empty_result(self) -> dict:
         return {

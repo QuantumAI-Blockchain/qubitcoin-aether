@@ -6,13 +6,14 @@ NOW WITH P2P ENDPOINTS!
 
 import hmac
 import json
+import time
 from typing import Dict, Optional
 from decimal import Decimal
 
 from fastapi import FastAPI, Request, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -45,7 +46,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    abi_registry=None,
                    bridge_lp=None,
                    neural_reasoner=None,
-                   exchange_engine=None) -> FastAPI:
+                   exchange_engine=None,
+                   stratum_pool=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -142,7 +144,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             _rate_limit_store['requests'].pop(client_ip, None)
 
         if len(_rate_limit_store['requests'].get(client_ip, [])) >= max_requests:
-            from fastapi.responses import JSONResponse
             return JSONResponse(
                 status_code=429,
                 content={"error": "Rate limit exceeded", "retry_after": 60},
@@ -648,6 +649,181 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "size": len(pending),
             "total_fees": str(total_fees),
             "transactions": [tx.to_dict() for tx in pending[:20]]
+        }
+
+    # ========================================================================
+    # MEV PROTECTION: COMMIT-REVEAL ENDPOINTS
+    # ========================================================================
+
+    # In-memory commit store: commit_hash -> {timestamp, block_height}
+    _pending_commits: Dict[str, Dict] = {}
+
+    # Track which txids came through commit-reveal: txid -> commit_timestamp
+    _committed_txids: Dict[str, float] = {}
+
+    @app.post("/mempool/commit")
+    async def mempool_commit(request: Request):
+        """Submit a commit hash for commit-reveal MEV protection.
+
+        The commit_hash should be sha256(tx_data_hex + salt).
+        The commit is stored with the current timestamp and block height.
+        """
+        if not Config.MEV_COMMIT_REVEAL_ENABLED:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Commit-reveal MEV protection is disabled"},
+            )
+
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+        commit_hash = body.get("commit_hash", "")
+        if not commit_hash or not isinstance(commit_hash, str):
+            return JSONResponse(
+                status_code=400,
+                content={"error": "commit_hash is required (hex string)"},
+            )
+
+        try:
+            bytes.fromhex(commit_hash)
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "commit_hash must be a valid hex string"},
+            )
+
+        if len(commit_hash) != 64:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "commit_hash must be 64 hex chars (SHA-256)"},
+            )
+
+        current_height = db_manager.get_current_height()
+        now = time.time()
+
+        _pending_commits[commit_hash] = {
+            "timestamp": now,
+            "block_height": current_height,
+        }
+
+        logger.info(f"MEV commit received: {commit_hash[:16]}... at height {current_height}")
+
+        return {
+            "status": "committed",
+            "commit_hash": commit_hash,
+            "block_height": current_height,
+            "reveal_window_blocks": Config.MEV_REVEAL_WINDOW_BLOCKS,
+            "expires_at_block": current_height + Config.MEV_REVEAL_WINDOW_BLOCKS,
+        }
+
+    @app.post("/mempool/reveal")
+    async def mempool_reveal(request: Request):
+        """Reveal a previously committed transaction.
+
+        Verifies sha256(tx_data + salt) matches a pending commit
+        within the allowed block window.
+        """
+        if not Config.MEV_COMMIT_REVEAL_ENABLED:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Commit-reveal MEV protection is disabled"},
+            )
+
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+        tx_data = body.get("tx_data", "")
+        salt = body.get("salt", "")
+
+        if not tx_data or not salt:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "tx_data and salt are required"},
+            )
+
+        import hashlib as _hl
+        computed_hash = _hl.sha256((tx_data + salt).encode()).hexdigest()
+
+        commit_info = _pending_commits.get(computed_hash)
+        if not commit_info:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "No matching commit found",
+                    "computed_hash": computed_hash,
+                },
+            )
+
+        current_height = db_manager.get_current_height()
+        commit_height = commit_info["block_height"]
+        blocks_elapsed = current_height - commit_height
+
+        if blocks_elapsed > Config.MEV_REVEAL_WINDOW_BLOCKS:
+            _pending_commits.pop(computed_hash, None)
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": f"Reveal window expired: {blocks_elapsed} blocks "
+                             f"> {Config.MEV_REVEAL_WINDOW_BLOCKS} allowed",
+                    "commit_height": commit_height,
+                    "current_height": current_height,
+                },
+            )
+
+        _pending_commits.pop(computed_hash, None)
+
+        import json as _json
+        try:
+            tx_dict = _json.loads(tx_data)
+        except (ValueError, TypeError):
+            tx_dict = {"raw": tx_data}
+
+        txid = tx_dict.get("txid", computed_hash[:32])
+        _committed_txids[txid] = commit_info["timestamp"]
+
+        if len(_committed_txids) > 10000:
+            sorted_items = sorted(_committed_txids.items(), key=lambda x: x[1])
+            for k, _ in sorted_items[:5000]:
+                _committed_txids.pop(k, None)
+
+        logger.info(
+            f"MEV reveal accepted: {computed_hash[:16]}... "
+            f"(committed at height {commit_height}, revealed at {current_height})"
+        )
+
+        return {
+            "status": "revealed",
+            "commit_hash": computed_hash,
+            "txid": txid,
+            "commit_height": commit_height,
+            "reveal_height": current_height,
+            "blocks_elapsed": blocks_elapsed,
+            "priority": "commit_reveal",
+        }
+
+    @app.get("/mempool/commits")
+    async def get_pending_commits():
+        """Get pending (unrevealed) commits for debugging/monitoring."""
+        current_height = db_manager.get_current_height()
+        commits = []
+        for ch, info in list(_pending_commits.items()):
+            age = current_height - info["block_height"]
+            expired = age > Config.MEV_REVEAL_WINDOW_BLOCKS
+            commits.append({
+                "commit_hash": ch,
+                "block_height": info["block_height"],
+                "age_blocks": age,
+                "expired": expired,
+            })
+        return {
+            "pending_commits": len(commits),
+            "committed_txids": len(_committed_txids),
+            "reveal_window": Config.MEV_REVEAL_WINDOW_BLOCKS,
+            "commits": commits,
         }
 
     # ========================================================================
@@ -5120,12 +5296,43 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return exchange_engine.get_engine_stats()
 
     # ========================================================================
+    # STRATUM MINING POOL (B11)
+    # ========================================================================
+
+    @app.get("/stratum/stats")
+    async def stratum_stats():
+        if not stratum_pool:
+            raise HTTPException(status_code=503, detail="Stratum pool not available")
+        return stratum_pool.get_pool_stats()
+
+    @app.get("/stratum/worker/{worker_id}")
+    async def stratum_worker_stats(worker_id: str):
+        if not stratum_pool:
+            raise HTTPException(status_code=503, detail="Stratum pool not available")
+        stats = stratum_pool.get_worker_stats(worker_id)
+        if not stats:
+            raise HTTPException(status_code=404, detail="Worker not found")
+        return stats
+
+    @app.get("/stratum/workers")
+    async def stratum_list_workers():
+        if not stratum_pool:
+            raise HTTPException(status_code=503, detail="Stratum pool not available")
+        return {
+            "workers": [
+                stratum_pool.get_worker_stats(wid)
+                for wid in stratum_pool.workers
+                if stratum_pool.get_worker_stats(wid)
+            ]
+        }
+
+    # ========================================================================
     # ADMIN API (Economics hot-reload)
     # ========================================================================
 
     from .admin_api import router as admin_router
     app.include_router(admin_router)
 
-    logger.info("RPC endpoints configured (v2.1 with P2P + QVM + Aether + WebSocket + Admin + Bridge LP + Flash Loans + Neural + Exchange)")
+    logger.info("RPC endpoints configured (v2.1 with P2P + QVM + Aether + WebSocket + Admin + Bridge LP + Flash Loans + Neural + Exchange + Stratum)")
 
     return app

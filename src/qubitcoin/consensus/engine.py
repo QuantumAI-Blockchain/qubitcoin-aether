@@ -758,6 +758,55 @@ class ConsensusEngine:
 
         logger.info(f"Fork resolved: reverted to height {fork_height}")
 
+    # ------------------------------------------------------------------
+    # MEV Protection: Commit-Reveal Transaction Ordering
+    # ------------------------------------------------------------------
+
+    def order_transactions_with_commit_reveal(
+        self,
+        pending_txs: list,
+        committed_txids: Dict[str, float],
+    ) -> list:
+        """Order transactions giving priority to commit-revealed txs over direct ones.
+
+        Commit-revealed transactions are ordered by their commit timestamp (FIFO)
+        BEFORE direct submissions.  Within each group, transactions are ordered
+        by fee density (descending) as normal.
+
+        Args:
+            pending_txs: List of Transaction objects from the mempool.
+            committed_txids: Dict mapping txid -> commit_timestamp for transactions
+                that were revealed through the commit-reveal scheme.
+
+        Returns:
+            Ordered list of Transaction objects.
+        """
+        if not Config.MEV_COMMIT_REVEAL_ENABLED or not committed_txids:
+            # If commit-reveal disabled or no committed txs, just sort by fee
+            return sorted(pending_txs, key=lambda tx: float(tx.fee), reverse=True)
+
+        committed = []
+        direct = []
+
+        for tx in pending_txs:
+            if tx.txid in committed_txids:
+                committed.append(tx)
+            else:
+                direct.append(tx)
+
+        # Committed txs ordered by commit timestamp (FIFO — earliest first)
+        committed.sort(key=lambda tx: committed_txids.get(tx.txid, 0))
+
+        # Direct txs ordered by fee (highest first)
+        direct.sort(key=lambda tx: float(tx.fee), reverse=True)
+
+        ordered = committed + direct
+        logger.debug(
+            f"MEV ordering: {len(committed)} committed (FIFO) + "
+            f"{len(direct)} direct (by fee) = {len(ordered)} total"
+        )
+        return ordered
+
     def get_emission_stats(self, db_manager) -> Dict:
         """Get current emission statistics including tail emission info."""
         height = db_manager.get_current_height()

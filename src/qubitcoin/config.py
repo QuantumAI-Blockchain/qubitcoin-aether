@@ -235,8 +235,11 @@ class Config:
     # ============================================================================
     # BRIDGE LP REWARDS
     # ============================================================================
+    BRIDGE_LP_REWARD_RATE: Decimal = Decimal(os.getenv('BRIDGE_LP_REWARD_RATE', '0.5'))  # QBC per block to LP pool
     BRIDGE_LP_REWARD_RATE_BPS: int = int(os.getenv('BRIDGE_LP_REWARD_RATE_BPS', '500'))  # 500 bps = 5% APY
     BRIDGE_LP_MIN_DEPOSIT: Decimal = Decimal(os.getenv('BRIDGE_LP_MIN_DEPOSIT', '10.0'))
+    BRIDGE_LP_MIN_LIQUIDITY: Decimal = Decimal(os.getenv('BRIDGE_LP_MIN_LIQUIDITY', '10.0'))  # Alias for MIN_DEPOSIT
+    BRIDGE_LP_REWARD_COOLDOWN_BLOCKS: int = int(os.getenv('BRIDGE_LP_REWARD_COOLDOWN_BLOCKS', '100'))
 
     # ============================================================================
     # BRIDGE FEES (editable)
@@ -342,6 +345,12 @@ class Config:
     RPC_JSONLD_MAX_NODES: int = int(os.getenv('RPC_JSONLD_MAX_NODES', '10000'))
     RPC_PHI_HISTORY_MAX: int = int(os.getenv('RPC_PHI_HISTORY_MAX', '1000'))
     RPC_BLOCK_RANGE_MAX: int = int(os.getenv('RPC_BLOCK_RANGE_MAX', '1000'))
+
+    # ============================================================================
+    # MEV PROTECTION (Commit-Reveal Transaction Ordering)
+    # ============================================================================
+    MEV_COMMIT_REVEAL_ENABLED: bool = os.getenv('MEV_COMMIT_REVEAL_ENABLED', 'true').lower() == 'true'
+    MEV_REVEAL_WINDOW_BLOCKS: int = int(os.getenv('MEV_REVEAL_WINDOW_BLOCKS', '10'))
 
     # ============================================================================
     # ADMIN API

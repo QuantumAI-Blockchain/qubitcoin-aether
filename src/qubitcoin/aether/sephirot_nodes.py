@@ -13,10 +13,12 @@ The Solidity contracts (.sol) handle on-chain state;
 these classes handle off-chain reasoning and coordination.
 """
 import hashlib
+import math
+import random
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .sephirot import SephirahRole, SephirahState, QUBIT_ALLOCATION
 from ..utils.logger import get_logger
@@ -115,6 +117,17 @@ class BaseSephirah(ABC):
         self.state.messages_processed = state_data.get('messages_processed', 0)
         self.state.reasoning_ops = state_data.get('reasoning_ops', 0)
 
+    def _energy_quality_factor(self) -> float:
+        """Return a quality factor in [0.0, 1.0] based on node energy.
+
+        High energy (>= 1.0) -> factor 1.0 (full reasoning depth).
+        Low energy (approaching 0) -> factor approaches 0.1 (minimal reasoning).
+        Used by specialized_reason() to modulate output quality.
+        """
+        e = max(0.0, self.state.energy)
+        # Sigmoid-like ramp: factor = 0.1 + 0.9 * (1 - e^(-2*e))
+        return 0.1 + 0.9 * (1.0 - math.exp(-2.0 * e))
+
     @abstractmethod
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """
@@ -126,6 +139,33 @@ class BaseSephirah(ABC):
         Returns:
             ProcessingResult with outputs and outgoing messages
         """
+
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Domain-specific reasoning for this Sephirah.
+
+        Subclasses MUST override this method to provide specialized reasoning
+        appropriate to their cognitive function.
+
+        Args:
+            context: Dict with keys:
+                - query (str): The reasoning query
+                - knowledge_nodes (List[dict]): Relevant knowledge nodes
+                - recent_reasoning (List[dict]): Recent reasoning operations
+                - energy (float): Current energy level of this node
+
+        Returns:
+            Dict with keys:
+                - result (str): The reasoning output
+                - confidence (float): Confidence in the result [0.0, 1.0]
+                - reasoning_type (str): Type of reasoning performed
+                - steps (List[str]): Step-by-step reasoning trace
+        """
+        return {
+            'result': 'No specialized reasoning implemented',
+            'confidence': 0.0,
+            'reasoning_type': 'none',
+            'steps': [],
+        }
 
     def receive_message(self, msg: NodeMessage) -> None:
         """Receive a message from another Sephirah."""
@@ -295,6 +335,87 @@ class KeterNode(BaseSephirah):
             messages_out=self.get_outbox(),
         )
 
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Meta-reasoning: evaluate reasoning strategies and select the optimal approach.
+
+        Keter examines recent reasoning operations, scores each strategy on
+        success rate and relevance to the current query, then recommends the
+        best approach for the system to use.
+        """
+        query = context.get('query', '')
+        recent = context.get('recent_reasoning', [])
+        nodes = context.get('knowledge_nodes', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        # Enumerate candidate strategies
+        strategies = {
+            'deductive': 0.0,
+            'inductive': 0.0,
+            'abductive': 0.0,
+            'neural': 0.0,
+            'exploratory': 0.0,
+        }
+
+        steps.append(f"Energy quality factor: {qf:.2f}")
+
+        # Score strategies by analyzing recent reasoning success
+        if recent:
+            max_recent = max(3, int(len(recent) * qf))
+            for op in recent[-max_recent:]:
+                strategy = op.get('type', op.get('reasoning_type', ''))
+                success = op.get('success', op.get('confidence', 0.5))
+                if strategy in strategies:
+                    strategies[strategy] += float(success)
+            steps.append(f"Analyzed {min(max_recent, len(recent))} recent operations")
+        else:
+            steps.append("No recent reasoning history; defaulting to balanced scores")
+            for s in strategies:
+                strategies[s] = 0.5
+
+        # Boost by query content heuristics
+        query_lower = query.lower()
+        if any(kw in query_lower for kw in ['prove', 'verify', 'implies', 'therefore']):
+            strategies['deductive'] += 1.0 * qf
+            steps.append("Query contains deductive keywords -> boosting deductive")
+        if any(kw in query_lower for kw in ['pattern', 'trend', 'often', 'usually']):
+            strategies['inductive'] += 1.0 * qf
+            steps.append("Query contains inductive keywords -> boosting inductive")
+        if any(kw in query_lower for kw in ['why', 'explain', 'cause', 'because']):
+            strategies['abductive'] += 1.0 * qf
+            steps.append("Query contains abductive keywords -> boosting abductive")
+        if any(kw in query_lower for kw in ['predict', 'estimate', 'similar']):
+            strategies['neural'] += 1.0 * qf
+            steps.append("Query contains neural keywords -> boosting neural")
+        if any(kw in query_lower for kw in ['explore', 'novel', 'creative', 'new']):
+            strategies['exploratory'] += 1.0 * qf
+            steps.append("Query contains exploratory keywords -> boosting exploratory")
+
+        # Boost based on knowledge graph density
+        if len(nodes) > 50:
+            strategies['neural'] += 0.5 * qf
+            steps.append("Dense knowledge graph -> boosting neural strategy")
+        elif len(nodes) < 10:
+            strategies['exploratory'] += 0.5 * qf
+            steps.append("Sparse knowledge graph -> boosting exploration")
+
+        # Select the best strategy
+        best_strategy = max(strategies, key=strategies.get)
+        best_score = strategies[best_strategy]
+        total_score = sum(strategies.values()) or 1.0
+        confidence = min(1.0, (best_score / total_score) * qf)
+
+        steps.append(f"Selected strategy: {best_strategy} (score={best_score:.2f}, "
+                     f"total={total_score:.2f})")
+
+        return {
+            'result': f"Recommended strategy: {best_strategy}",
+            'confidence': round(confidence, 4),
+            'reasoning_type': 'meta_reasoning',
+            'steps': steps,
+            'strategy_scores': {k: round(v, 4) for k, v in strategies.items()},
+        }
+
     def auto_generate_goals(self, domain_stats: Dict[str, dict] = None,
                             contradiction_count: int = 0) -> List[Dict[str, Any]]:
         """Generate goals autonomously based on knowledge gaps and contradictions.
@@ -389,6 +510,76 @@ class ChochmahNode(BaseSephirah):
     def __init__(self, knowledge_graph: Optional[object] = None) -> None:
         super().__init__(SephirahRole.CHOCHMAH, knowledge_graph)
         self._insights: List[Dict[str, Any]] = []
+
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Intuitive reasoning: pattern matching, rapid association, hypothesis generation.
+
+        Chochmah looks for structural similarities between knowledge nodes, finds
+        clusters of related concepts, and generates hypotheses from sparse data.
+        """
+        query = context.get('query', '')
+        nodes = context.get('knowledge_nodes', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        steps.append(f"Intuition quality factor: {qf:.2f}")
+
+        # Extract key terms from query for association matching
+        query_terms = set(query.lower().split())
+        steps.append(f"Query terms: {len(query_terms)}")
+
+        # Find nodes that share terms with the query (rapid association)
+        associated: List[Tuple[dict, float]] = []
+        for node in nodes:
+            content = str(node.get('content', node.get('name', ''))).lower()
+            node_terms = set(content.split())
+            overlap = len(query_terms & node_terms)
+            if overlap > 0:
+                relevance = overlap / max(len(query_terms), 1)
+                associated.append((node, relevance))
+
+        associated.sort(key=lambda x: x[1], reverse=True)
+        # Limit by energy (low energy = fewer associations considered)
+        max_assoc = max(1, int(len(associated) * qf))
+        associated = associated[:max_assoc]
+
+        steps.append(f"Found {len(associated)} associated nodes")
+
+        # Look for common patterns across associated nodes
+        type_counts: Dict[str, int] = {}
+        for node, _ in associated:
+            ntype = node.get('node_type', node.get('type', 'unknown'))
+            type_counts[ntype] = type_counts.get(ntype, 0) + 1
+
+        # Generate hypotheses based on dominant patterns
+        hypotheses: List[str] = []
+        if type_counts:
+            dominant_type = max(type_counts, key=type_counts.get)
+            hypotheses.append(
+                f"Dominant pattern: {dominant_type} nodes ({type_counts[dominant_type]}) "
+                f"cluster around query concept"
+            )
+            steps.append(f"Dominant node type: {dominant_type}")
+
+        # Cross-association: find non-obvious links between distant nodes
+        if len(associated) >= 2 and qf > 0.5:
+            first = associated[0][0]
+            last = associated[-1][0]
+            hypotheses.append(
+                f"Potential hidden link between '{first.get('name', 'node_0')}' "
+                f"and '{last.get('name', 'node_N')}'"
+            )
+            steps.append("Generated cross-association hypothesis from distant nodes")
+
+        confidence = min(1.0, (len(associated) / max(len(nodes), 1)) * qf) if nodes else 0.1
+        result_text = "; ".join(hypotheses) if hypotheses else "Insufficient data for pattern detection"
+
+        return {
+            'result': result_text,
+            'confidence': round(confidence, 4),
+            'reasoning_type': 'intuitive_pattern_matching',
+            'steps': steps,
+        }
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """Discover patterns and generate intuitive insights.
@@ -492,6 +683,125 @@ class BinahNode(BaseSephirah):
         super().__init__(SephirahRole.BINAH, knowledge_graph)
         self._verified: int = 0
         self._rejected: int = 0
+
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Formal logic: syllogistic reasoning, proof verification, contradiction detection.
+
+        Binah examines knowledge nodes for logical structure, checks for
+        contradictions (A supports B and A contradicts B), and attempts to
+        build simple deductive chains.
+        """
+        query = context.get('query', '')
+        nodes = context.get('knowledge_nodes', [])
+        recent = context.get('recent_reasoning', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        steps.append(f"Logic quality factor: {qf:.2f}")
+
+        # Build a simple adjacency of supports/contradicts from node data
+        supports: List[Tuple[str, str]] = []
+        contradicts: List[Tuple[str, str]] = []
+        node_names: Dict[int, str] = {}
+
+        # First pass: register all node names
+        for node in nodes:
+            nid = node.get('node_id', node.get('id', 0))
+            name = node.get('name', node.get('content', f'node_{nid}'))
+            node_names[nid] = name
+
+        # Second pass: build edge lists now that all names are known
+        for node in nodes:
+            nid = node.get('node_id', node.get('id', 0))
+            name = node_names.get(nid, f'node_{nid}')
+            edges = node.get('edges_out', [])
+            if isinstance(edges, list):
+                for edge in edges:
+                    if isinstance(edge, dict):
+                        etype = edge.get('edge_type', 'supports')
+                        target = edge.get('to_node_id', 0)
+                        target_name = node_names.get(target, f'node_{target}')
+                        if etype == 'supports':
+                            supports.append((name, target_name))
+                        elif etype == 'contradicts':
+                            contradicts.append((name, target_name))
+
+        steps.append(f"Found {len(supports)} support relations, {len(contradicts)} contradictions")
+
+        # Check for direct contradictions: A supports B AND A contradicts B
+        support_set = set(supports)
+        contradiction_pairs: List[Tuple[str, str]] = []
+        for pair in contradicts:
+            if pair in support_set:
+                contradiction_pairs.append(pair)
+
+        if contradiction_pairs:
+            steps.append(f"Detected {len(contradiction_pairs)} logical contradiction(s)")
+
+        # Attempt simple deductive chains (A->B, B->C => A->C)
+        chains: List[List[str]] = []
+        if qf > 0.3 and supports:
+            forward: Dict[str, List[str]] = {}
+            for a, b in supports:
+                forward.setdefault(a, []).append(b)
+
+            max_chains = max(1, int(5 * qf))
+            visited_starts = 0
+            for start in forward:
+                if visited_starts >= max_chains:
+                    break
+                chain = [start]
+                current = start
+                seen = {start}
+                while current in forward:
+                    nexts = [n for n in forward[current] if n not in seen]
+                    if not nexts:
+                        break
+                    nxt = nexts[0]
+                    chain.append(nxt)
+                    seen.add(nxt)
+                    current = nxt
+                if len(chain) >= 3:
+                    chains.append(chain)
+                    visited_starts += 1
+
+            if chains:
+                steps.append(f"Built {len(chains)} deductive chain(s), "
+                             f"longest has {max(len(c) for c in chains)} nodes")
+
+        # Evaluate recent reasoning for logical consistency
+        inconsistent_ops = 0
+        for op in recent:
+            conf = op.get('confidence', 0.5)
+            if conf < 0.2:
+                inconsistent_ops += 1
+
+        if inconsistent_ops > 0:
+            steps.append(f"Found {inconsistent_ops} low-confidence recent reasoning ops")
+
+        # Compute result
+        has_contradiction = len(contradiction_pairs) > 0
+        has_chains = len(chains) > 0
+        confidence = qf * (0.9 if has_chains else 0.5) * (0.7 if has_contradiction else 1.0)
+
+        result_parts = []
+        if has_chains:
+            c = chains[0]
+            result_parts.append(f"Deductive chain: {' -> '.join(c)}")
+        if has_contradiction:
+            cp = contradiction_pairs[0]
+            result_parts.append(f"Contradiction detected: '{cp[0]}' both supports and contradicts '{cp[1]}'")
+        if not result_parts:
+            result_parts.append("No deductive chains or contradictions found in current knowledge")
+
+        return {
+            'result': "; ".join(result_parts),
+            'confidence': round(min(1.0, confidence), 4),
+            'reasoning_type': 'formal_logic',
+            'steps': steps,
+            'contradictions': len(contradiction_pairs),
+            'deductive_chains': len(chains),
+        }
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """Verify insights and perform causal inference.
@@ -598,6 +908,80 @@ class ChesedNode(BaseSephirah):
         super().__init__(SephirahRole.CHESED, knowledge_graph)
         self._explorations: int = 0
 
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Brainstorming/divergent thinking: generate multiple alternative solutions.
+
+        Chesed explores the possibility space by combining ideas from different
+        domains, generating creative alternatives, and pushing beyond conventional
+        reasoning boundaries.
+        """
+        query = context.get('query', '')
+        nodes = context.get('knowledge_nodes', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        steps.append(f"Creativity quality factor: {qf:.2f}")
+
+        # Group nodes by type/domain for cross-pollination
+        domains: Dict[str, List[dict]] = {}
+        for node in nodes:
+            domain = node.get('domain', node.get('node_type', 'general'))
+            domains.setdefault(domain, []).append(node)
+
+        steps.append(f"Found {len(domains)} knowledge domains")
+
+        # Generate alternatives by combining concepts across domains
+        alternatives: List[str] = []
+        domain_list = list(domains.items())
+        max_alternatives = max(1, int(7 * qf))
+
+        # Strategy 1: Cross-domain combination
+        for i in range(min(len(domain_list), max_alternatives)):
+            d1_name, d1_nodes = domain_list[i]
+            d2_name, d2_nodes = domain_list[(i + 1) % len(domain_list)]
+            if d1_name != d2_name and d1_nodes and d2_nodes:
+                n1_name = d1_nodes[0].get('name', d1_name)
+                n2_name = d2_nodes[0].get('name', d2_name)
+                alternatives.append(
+                    f"Cross-domain synthesis: combine '{n1_name}' ({d1_name}) "
+                    f"with '{n2_name}' ({d2_name})"
+                )
+
+        # Strategy 2: Inversion — what if the opposite were true?
+        if qf > 0.4 and query:
+            alternatives.append(f"Inversion approach: consider the negation of '{query[:50]}'")
+            steps.append("Generated inversion hypothesis")
+
+        # Strategy 3: Analogy from strongest domain
+        if domain_list and qf > 0.3:
+            largest_domain = max(domain_list, key=lambda x: len(x[1]))
+            alternatives.append(
+                f"Analogy from {largest_domain[0]} domain "
+                f"({len(largest_domain[1])} nodes) to query context"
+            )
+            steps.append(f"Generated analogy from {largest_domain[0]}")
+
+        # Strategy 4: Random recombination (seeded for reproducibility)
+        if len(nodes) >= 3 and qf > 0.6:
+            rng = random.Random(hash(query) & 0xFFFFFFFF)
+            sampled = rng.sample(nodes, min(3, len(nodes)))
+            names = [n.get('name', 'node') for n in sampled]
+            alternatives.append(f"Random recombination of: {', '.join(names)}")
+            steps.append("Generated random recombination")
+
+        alternatives = alternatives[:max_alternatives]
+        steps.append(f"Generated {len(alternatives)} alternative solutions")
+
+        confidence = min(1.0, (len(alternatives) / max(max_alternatives, 1)) * qf)
+
+        return {
+            'result': " | ".join(alternatives) if alternatives else "No creative alternatives generated",
+            'confidence': round(confidence, 4),
+            'reasoning_type': 'divergent_thinking',
+            'steps': steps,
+            'alternatives_count': len(alternatives),
+        }
+
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """Explore knowledge space for novel connections."""
         self._processing_count += 1
@@ -658,6 +1042,89 @@ class GevurahNode(BaseSephirah):
         super().__init__(SephirahRole.GEVURAH, knowledge_graph)
         self._vetoes: int = 0
         self._approvals: int = 0
+
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Safety analysis: threat assessment, risk evaluation, veto harmful proposals.
+
+        Gevurah evaluates the query and context for potential risks, checks
+        knowledge consistency, and issues safety verdicts.
+        """
+        query = context.get('query', '')
+        nodes = context.get('knowledge_nodes', [])
+        recent = context.get('recent_reasoning', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        steps.append(f"Safety analysis quality factor: {qf:.2f}")
+
+        threats: List[str] = []
+        risk_score = 0.0
+
+        # Check for dangerous keywords in query
+        danger_keywords = [
+            'delete', 'destroy', 'override', 'bypass', 'ignore safety',
+            'shutdown', 'disable', 'attack', 'exploit', 'hack',
+        ]
+        for kw in danger_keywords:
+            if kw in query.lower():
+                threats.append(f"Dangerous keyword detected: '{kw}'")
+                risk_score += 0.3
+
+        steps.append(f"Keyword scan: {len(threats)} threats detected")
+
+        # Check recent reasoning for failure patterns
+        failure_count = 0
+        low_conf_count = 0
+        for op in recent:
+            if op.get('success') is False or op.get('confidence', 1.0) < 0.2:
+                failure_count += 1
+            if op.get('confidence', 1.0) < 0.4:
+                low_conf_count += 1
+
+        if failure_count > len(recent) * 0.5 and len(recent) > 2:
+            threats.append(f"High failure rate in recent reasoning ({failure_count}/{len(recent)})")
+            risk_score += 0.2
+
+        if low_conf_count > len(recent) * 0.7 and len(recent) > 2:
+            threats.append("Systemic low confidence in recent reasoning")
+            risk_score += 0.15
+
+        steps.append(f"Recent ops: {failure_count} failures, {low_conf_count} low-confidence "
+                     f"out of {len(recent)}")
+
+        # Check knowledge graph for contradictions (simple scan)
+        contradiction_count = 0
+        for node in nodes:
+            edges = node.get('edges_out', [])
+            if isinstance(edges, list):
+                for edge in edges:
+                    if isinstance(edge, dict) and edge.get('edge_type') == 'contradicts':
+                        contradiction_count += 1
+
+        if contradiction_count > 5:
+            threats.append(f"High contradiction count in knowledge: {contradiction_count}")
+            risk_score += 0.15
+
+        steps.append(f"Knowledge contradictions: {contradiction_count}")
+
+        # Scale risk by quality factor (lower energy = less thorough check)
+        risk_score = min(1.0, risk_score) * qf
+        should_veto = risk_score > 0.5
+
+        if should_veto:
+            steps.append(f"VETO RECOMMENDED: risk_score={risk_score:.2f} > 0.5")
+        else:
+            steps.append(f"APPROVED: risk_score={risk_score:.2f} <= 0.5")
+
+        return {
+            'result': f"{'VETO' if should_veto else 'APPROVED'}: risk_score={risk_score:.2f}",
+            'confidence': round(qf * 0.95, 4),
+            'reasoning_type': 'safety_analysis',
+            'steps': steps,
+            'risk_score': round(risk_score, 4),
+            'threats': threats,
+            'should_veto': should_veto,
+        }
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """Evaluate safety and apply constraints.
@@ -741,6 +1208,81 @@ class TiferetNode(BaseSephirah):
     def __init__(self, knowledge_graph: Optional[object] = None) -> None:
         super().__init__(SephirahRole.TIFERET, knowledge_graph)
         self._integrations: int = 0
+
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Integration/synthesis: resolve conflicts between different reasoning outputs.
+
+        Tiferet acts as the central integrator. Given multiple reasoning results
+        (from other nodes), it finds the optimal compromise by weighting each
+        by confidence and looking for convergent conclusions.
+        """
+        query = context.get('query', '')
+        nodes = context.get('knowledge_nodes', [])
+        recent = context.get('recent_reasoning', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        steps.append(f"Integration quality factor: {qf:.2f}")
+
+        # Group recent reasoning by type and score each
+        type_scores: Dict[str, List[float]] = {}
+        type_results: Dict[str, List[str]] = {}
+        for op in recent:
+            rtype = op.get('reasoning_type', op.get('type', 'unknown'))
+            conf = float(op.get('confidence', 0.5))
+            result = str(op.get('result', ''))
+            type_scores.setdefault(rtype, []).append(conf)
+            type_results.setdefault(rtype, []).append(result)
+
+        steps.append(f"Found {len(type_scores)} reasoning types in recent history")
+
+        # Compute weighted consensus across reasoning types
+        weighted_conclusions: List[Tuple[str, float, str]] = []
+        for rtype, scores in type_scores.items():
+            avg_conf = sum(scores) / len(scores)
+            count = len(scores)
+            # Weight = avg_confidence * sqrt(count) (more data = more weight)
+            weight = avg_conf * math.sqrt(count)
+            best_result = type_results[rtype][-1] if type_results[rtype] else ''
+            weighted_conclusions.append((rtype, weight, best_result))
+
+        weighted_conclusions.sort(key=lambda x: x[1], reverse=True)
+
+        # Detect conflicts: types with similar weight but different conclusions
+        conflicts: List[str] = []
+        if len(weighted_conclusions) >= 2:
+            top = weighted_conclusions[0]
+            runner = weighted_conclusions[1]
+            if runner[1] > top[1] * 0.7:
+                conflicts.append(
+                    f"Conflict: {top[0]} (weight={top[1]:.2f}) vs "
+                    f"{runner[0]} (weight={runner[1]:.2f})"
+                )
+                steps.append(f"Conflict detected between {top[0]} and {runner[0]}")
+
+        # Synthesize: merge top conclusions scaled by quality factor
+        max_merge = max(1, int(3 * qf))
+        synthesis_parts = []
+        total_weight = 0.0
+        for rtype, weight, result in weighted_conclusions[:max_merge]:
+            synthesis_parts.append(f"[{rtype}: {result[:80]}]")
+            total_weight += weight
+
+        confidence = min(1.0, (total_weight / max(len(recent), 1)) * qf) if recent else 0.2
+        synthesis = " + ".join(synthesis_parts) if synthesis_parts else "No data to integrate"
+
+        steps.append(f"Synthesized {len(synthesis_parts)} top conclusions")
+        if conflicts:
+            steps.append(f"Conflicts: {len(conflicts)}")
+
+        return {
+            'result': synthesis,
+            'confidence': round(confidence, 4),
+            'reasoning_type': 'synthesis',
+            'steps': steps,
+            'conflicts': conflicts,
+            'types_integrated': len(weighted_conclusions),
+        }
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """Integrate inputs from all connected nodes.
@@ -863,6 +1405,93 @@ class NetzachNode(BaseSephirah):
         self._policies: Dict[str, float] = {}  # policy -> reward score
         self._total_rewards: float = 0.0
 
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Reinforcement learning: track reward signals, learn from outcomes.
+
+        Netzach evaluates which past reasoning strategies have been most
+        successful (highest confidence/reward) and recommends reinforcing
+        or abandoning policies accordingly.
+        """
+        query = context.get('query', '')
+        recent = context.get('recent_reasoning', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        steps.append(f"RL quality factor: {qf:.2f}")
+
+        # Build a policy evaluation table from recent reasoning
+        policy_rewards: Dict[str, List[float]] = {}
+        for op in recent:
+            policy = op.get('reasoning_type', op.get('type', 'default'))
+            reward = float(op.get('confidence', 0.5))
+            if op.get('success') is False:
+                reward *= 0.1
+            policy_rewards.setdefault(policy, []).append(reward)
+
+        # Merge with persistent policies
+        for policy, score in self._policies.items():
+            if policy not in policy_rewards:
+                policy_rewards[policy] = [score]
+
+        steps.append(f"Evaluating {len(policy_rewards)} policies")
+
+        # Compute average reward per policy and recommend adjustments
+        recommendations: List[Dict[str, Any]] = []
+        for policy, rewards in policy_rewards.items():
+            avg_reward = sum(rewards) / len(rewards)
+            n_samples = len(rewards)
+            # Temporal weighting: recent rewards matter more
+            if n_samples >= 2:
+                recent_avg = sum(rewards[-max(1, int(n_samples * 0.3)):]) / max(1, int(n_samples * 0.3))
+            else:
+                recent_avg = avg_reward
+
+            trend = "stable"
+            if recent_avg > avg_reward * 1.1:
+                trend = "improving"
+            elif recent_avg < avg_reward * 0.9:
+                trend = "declining"
+
+            action = "maintain"
+            if trend == "improving" and avg_reward > 0.6:
+                action = "reinforce"
+            elif trend == "declining" or avg_reward < 0.3:
+                action = "reduce"
+
+            recommendations.append({
+                'policy': policy,
+                'avg_reward': round(avg_reward, 4),
+                'trend': trend,
+                'action': action,
+                'samples': n_samples,
+            })
+
+        recommendations.sort(key=lambda x: x['avg_reward'], reverse=True)
+
+        # Limit analysis by energy
+        max_recs = max(1, int(len(recommendations) * qf))
+        recommendations = recommendations[:max_recs]
+
+        steps.append(f"Generated {len(recommendations)} policy recommendations")
+
+        # Pick top policy as result
+        if recommendations:
+            top = recommendations[0]
+            result_text = (f"Best policy: {top['policy']} "
+                          f"(avg_reward={top['avg_reward']:.2f}, trend={top['trend']})")
+        else:
+            result_text = "No policies to evaluate"
+
+        confidence = qf * (0.8 if recommendations else 0.2)
+
+        return {
+            'result': result_text,
+            'confidence': round(min(1.0, confidence), 4),
+            'reasoning_type': 'reinforcement_learning',
+            'steps': steps,
+            'policy_recommendations': recommendations,
+        }
+
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """Update learned policies based on reward signals.
 
@@ -936,6 +1565,82 @@ class HodNode(BaseSephirah):
     def __init__(self, knowledge_graph: Optional[object] = None) -> None:
         super().__init__(SephirahRole.HOD, knowledge_graph)
         self._encodings: int = 0
+
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Language/semantic: encode meaning, translate between representations.
+
+        Hod processes the query and knowledge nodes to extract semantic
+        structure, identify key concepts, and produce a structured natural
+        language summary of the reasoning state.
+        """
+        query = context.get('query', '')
+        nodes = context.get('knowledge_nodes', [])
+        recent = context.get('recent_reasoning', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        steps.append(f"Semantic quality factor: {qf:.2f}")
+
+        # Extract key concepts from query (simple term frequency)
+        words = query.lower().split()
+        stop_words = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'in', 'on',
+                      'at', 'to', 'for', 'of', 'and', 'or', 'not', 'it', 'this',
+                      'that', 'with', 'from', 'by', 'as', 'be', 'has', 'have'}
+        meaningful_terms = [w for w in words if w not in stop_words and len(w) > 2]
+        term_freq: Dict[str, int] = {}
+        for term in meaningful_terms:
+            term_freq[term] = term_freq.get(term, 0) + 1
+
+        key_concepts = sorted(term_freq.items(), key=lambda x: x[1], reverse=True)
+        max_concepts = max(1, int(10 * qf))
+        key_concepts = key_concepts[:max_concepts]
+
+        steps.append(f"Extracted {len(key_concepts)} key concepts from query")
+
+        # Map concepts to knowledge nodes (semantic grounding)
+        grounded: Dict[str, List[str]] = {}
+        for term, _ in key_concepts:
+            matching_nodes = []
+            for node in nodes:
+                content = str(node.get('content', node.get('name', ''))).lower()
+                if term in content:
+                    matching_nodes.append(node.get('name', f"node_{node.get('node_id', '?')}"))
+            if matching_nodes:
+                grounded[term] = matching_nodes[:3]
+
+        steps.append(f"Grounded {len(grounded)}/{len(key_concepts)} concepts to knowledge nodes")
+
+        # Generate structured summary
+        summary_parts = []
+        if key_concepts:
+            concept_str = ", ".join(f"'{c[0]}'" for c in key_concepts[:5])
+            summary_parts.append(f"Key concepts: {concept_str}")
+
+        if grounded:
+            for term, matched in list(grounded.items())[:3]:
+                summary_parts.append(f"'{term}' grounded to: {', '.join(matched)}")
+
+        # Summarize recent reasoning state
+        if recent and qf > 0.4:
+            types_used = set(op.get('reasoning_type', 'unknown') for op in recent)
+            avg_conf = sum(op.get('confidence', 0.5) for op in recent) / max(len(recent), 1)
+            summary_parts.append(
+                f"Recent reasoning: {len(recent)} ops, types={types_used}, "
+                f"avg_confidence={avg_conf:.2f}"
+            )
+            steps.append("Added reasoning state summary")
+
+        result_text = "; ".join(summary_parts) if summary_parts else "Insufficient data for semantic encoding"
+        confidence = min(1.0, (len(grounded) / max(len(key_concepts), 1)) * qf) if key_concepts else 0.1
+
+        return {
+            'result': result_text,
+            'confidence': round(confidence, 4),
+            'reasoning_type': 'semantic_encoding',
+            'steps': steps,
+            'key_concepts': [c[0] for c in key_concepts],
+            'grounded_count': len(grounded),
+        }
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """Encode knowledge into semantic representations.
@@ -1014,6 +1719,80 @@ class YesodNode(BaseSephirah):
         self._working_buffer: List[Dict[str, Any]] = []
         self._buffer_capacity: int = 7  # Miller's 7 +/- 2
 
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Memory: episodic recall, pattern matching against stored experiences.
+
+        Yesod searches the working buffer and knowledge nodes for experiences
+        similar to the current query, ranks them by relevance, and retrieves
+        the most applicable stored knowledge.
+        """
+        query = context.get('query', '')
+        nodes = context.get('knowledge_nodes', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        steps.append(f"Memory quality factor: {qf:.2f}")
+
+        # Compute simple term-overlap similarity between query and stored items
+        query_terms = set(query.lower().split())
+
+        # Search working buffer for matching episodes
+        buffer_matches: List[Tuple[Dict, float]] = []
+        for item in self._working_buffer:
+            item_text = str(item).lower()
+            item_terms = set(item_text.split())
+            overlap = len(query_terms & item_terms)
+            if overlap > 0:
+                sim = overlap / max(len(query_terms | item_terms), 1)
+                buffer_matches.append((item, sim))
+
+        buffer_matches.sort(key=lambda x: x[1], reverse=True)
+        steps.append(f"Working buffer: {len(buffer_matches)} matches "
+                     f"from {len(self._working_buffer)} items")
+
+        # Search knowledge nodes
+        node_matches: List[Tuple[dict, float]] = []
+        for node in nodes:
+            content = str(node.get('content', node.get('name', ''))).lower()
+            node_terms = set(content.split())
+            overlap = len(query_terms & node_terms)
+            if overlap > 0:
+                sim = overlap / max(len(query_terms | node_terms), 1)
+                node_matches.append((node, sim))
+
+        node_matches.sort(key=lambda x: x[1], reverse=True)
+        max_results = max(1, int(5 * qf))
+        node_matches = node_matches[:max_results]
+
+        steps.append(f"Knowledge nodes: {len(node_matches)} matches")
+
+        # Combine buffer and node matches
+        recalled_items: List[str] = []
+        for item, sim in buffer_matches[:2]:
+            recalled_items.append(f"[buffer, sim={sim:.2f}] {str(item)[:60]}")
+        for node, sim in node_matches[:3]:
+            name = node.get('name', f"node_{node.get('node_id', '?')}")
+            recalled_items.append(f"[knowledge, sim={sim:.2f}] {name}")
+
+        if recalled_items:
+            steps.append(f"Recalled {len(recalled_items)} relevant memories")
+            result_text = "Retrieved memories: " + " | ".join(recalled_items)
+        else:
+            result_text = "No matching memories found for query"
+            steps.append("No matching memories")
+
+        total_matches = len(buffer_matches) + len(node_matches)
+        confidence = min(1.0, (total_matches / max(len(nodes) + len(self._working_buffer), 1)) * qf * 2)
+
+        return {
+            'result': result_text,
+            'confidence': round(confidence, 4),
+            'reasoning_type': 'episodic_recall',
+            'steps': steps,
+            'buffer_matches': len(buffer_matches),
+            'node_matches': len(node_matches),
+        }
+
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """Manage memory fusion and consolidation.
 
@@ -1080,6 +1859,99 @@ class MalkuthNode(BaseSephirah):
     def __init__(self, knowledge_graph: Optional[object] = None) -> None:
         super().__init__(SephirahRole.MALKUTH, knowledge_graph)
         self._actions_executed: int = 0
+
+    def specialized_reason(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Action planning: generate concrete action plans and execution steps.
+
+        Malkuth translates abstract reasoning conclusions into concrete,
+        ordered action steps that can be executed on the blockchain or
+        knowledge graph.
+        """
+        query = context.get('query', '')
+        nodes = context.get('knowledge_nodes', [])
+        recent = context.get('recent_reasoning', [])
+        qf = self._energy_quality_factor()
+        steps: List[str] = []
+
+        steps.append(f"Action planning quality factor: {qf:.2f}")
+
+        # Analyze recent reasoning to determine what actions are needed
+        pending_actions: List[Dict[str, Any]] = []
+
+        # Action 1: If recent reasoning concluded something, create a "record" action
+        for op in recent[-max(1, int(5 * qf)):]:
+            conf = float(op.get('confidence', 0.0))
+            rtype = op.get('reasoning_type', 'unknown')
+            if conf > 0.6:
+                pending_actions.append({
+                    'action': 'record_conclusion',
+                    'source_type': rtype,
+                    'confidence': conf,
+                    'priority': 'high' if conf > 0.8 else 'medium',
+                })
+
+        # Action 2: If query asks for something specific, plan a response action
+        query_lower = query.lower()
+        if 'create' in query_lower or 'add' in query_lower:
+            pending_actions.append({
+                'action': 'create_knowledge_node',
+                'query_context': query[:100],
+                'priority': 'medium',
+            })
+            steps.append("Planned: create knowledge node")
+
+        if 'connect' in query_lower or 'link' in query_lower:
+            pending_actions.append({
+                'action': 'create_knowledge_edge',
+                'query_context': query[:100],
+                'priority': 'medium',
+            })
+            steps.append("Planned: create knowledge edge")
+
+        if 'analyze' in query_lower or 'evaluate' in query_lower:
+            pending_actions.append({
+                'action': 'trigger_analysis',
+                'query_context': query[:100],
+                'priority': 'high',
+            })
+            steps.append("Planned: trigger analysis")
+
+        # Action 3: Periodic maintenance actions based on knowledge graph state
+        if len(nodes) > 100 and qf > 0.5:
+            pending_actions.append({
+                'action': 'consolidate_knowledge',
+                'node_count': len(nodes),
+                'priority': 'low',
+            })
+            steps.append("Planned: consolidate knowledge (large graph)")
+
+        # Sort by priority and limit by energy
+        priority_order = {'high': 0, 'medium': 1, 'low': 2}
+        pending_actions.sort(key=lambda x: priority_order.get(x.get('priority', 'low'), 2))
+        max_actions = max(1, int(10 * qf))
+        pending_actions = pending_actions[:max_actions]
+
+        steps.append(f"Generated {len(pending_actions)} action steps")
+
+        # Format action plan
+        plan_steps = []
+        for i, action in enumerate(pending_actions, 1):
+            plan_steps.append(
+                f"Step {i}: {action['action']} "
+                f"(priority={action.get('priority', 'medium')})"
+            )
+
+        result_text = " -> ".join(plan_steps) if plan_steps else "No actions required"
+        confidence = min(1.0, (len(pending_actions) / 5.0) * qf)
+
+        return {
+            'result': result_text,
+            'confidence': round(confidence, 4),
+            'reasoning_type': 'action_planning',
+            'steps': steps,
+            'action_count': len(pending_actions),
+            'actions': pending_actions,
+        }
 
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
         """Execute actions and report outcomes.

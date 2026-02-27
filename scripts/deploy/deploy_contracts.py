@@ -803,6 +803,9 @@ class ContractDeployer:
         qusd_allocation = self.deploy_with_proxy("QUSDAllocation")
         wqusd = self.deploy_with_proxy("wQUSD")
 
+        # QUSDFlashLoan — flash loan provider for QUSD
+        qusd_flash_loan = self.deploy_with_proxy("QUSDFlashLoan")
+
         # ── Step 8: Deploy Bridge contracts ──────────────────────────────
         logger.info("\n[Step 8] Deploying bridge contracts...")
 
