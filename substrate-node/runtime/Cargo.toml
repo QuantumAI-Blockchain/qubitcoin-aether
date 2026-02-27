@@ -1,0 +1,113 @@
+[package]
+name = "qbc-runtime"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Qubitcoin Substrate runtime — 6 custom pallets for PoSA consensus"
+
+[build-dependencies]
+substrate-wasm-builder = "31.1"
+
+[dependencies]
+codec = { workspace = true }
+scale-info = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true, default-features = false, features = ["alloc"] }
+
+# Substrate primitives
+sp-api = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+sp-core = { workspace = true }
+sp-std = { workspace = true }
+sp-genesis-builder = { workspace = true }
+sp-consensus-aura = { workspace = true }
+sp-consensus-grandpa = { workspace = true }
+sp-block-builder = { workspace = true }
+sp-inherents = { workspace = true }
+sp-offchain = { workspace = true }
+sp-session = { workspace = true }
+sp-transaction-pool = { workspace = true }
+sp-version = { workspace = true }
+sp-storage = { workspace = true }
+
+# Frame
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+frame-executive = { workspace = true }
+frame-benchmarking = { workspace = true, optional = true }
+frame-system-rpc-runtime-api = { workspace = true }
+
+# Standard pallets
+pallet-aura = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-grandpa = { workspace = true }
+pallet-sudo = { workspace = true }
+pallet-timestamp = { workspace = true }
+pallet-transaction-payment = { workspace = true }
+pallet-transaction-payment-rpc-runtime-api = { workspace = true }
+
+# QBC custom pallets
+qbc-primitives = { workspace = true }
+pallet-qbc-utxo = { workspace = true }
+pallet-qbc-consensus = { workspace = true }
+pallet-qbc-dilithium = { workspace = true }
+pallet-qbc-economics = { workspace = true }
+pallet-qbc-qvm-anchor = { workspace = true }
+pallet-qbc-aether-anchor = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+    "codec/std",
+    "scale-info/std",
+    "serde/std",
+    "serde_json/std",
+    "sp-api/std",
+    "sp-io/std",
+    "sp-runtime/std",
+    "sp-core/std",
+    "sp-std/std",
+    "sp-genesis-builder/std",
+    "sp-consensus-aura/std",
+    "sp-consensus-grandpa/std",
+    "sp-block-builder/std",
+    "sp-inherents/std",
+    "sp-offchain/std",
+    "sp-session/std",
+    "sp-transaction-pool/std",
+    "sp-version/std",
+    "sp-storage/std",
+    "frame-support/std",
+    "frame-system/std",
+    "frame-executive/std",
+    "frame-system-rpc-runtime-api/std",
+    "pallet-aura/std",
+    "pallet-balances/std",
+    "pallet-grandpa/std",
+    "pallet-sudo/std",
+    "pallet-timestamp/std",
+    "pallet-transaction-payment/std",
+    "pallet-transaction-payment-rpc-runtime-api/std",
+    "qbc-primitives/std",
+    "pallet-qbc-utxo/std",
+    "pallet-qbc-consensus/std",
+    "pallet-qbc-dilithium/std",
+    "pallet-qbc-economics/std",
+    "pallet-qbc-qvm-anchor/std",
+    "pallet-qbc-aether-anchor/std",
+]
+runtime-benchmarks = [
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "pallet-qbc-utxo/runtime-benchmarks",
+    "pallet-qbc-consensus/runtime-benchmarks",
+    "pallet-qbc-dilithium/runtime-benchmarks",
+    "pallet-qbc-economics/runtime-benchmarks",
+]
+try-runtime = [
+    "frame-support/try-runtime",
+    "frame-system/try-runtime",
+]

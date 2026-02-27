@@ -1,0 +1,213 @@
+//! Qubitcoin Primitives — shared types used across all pallets and runtime.
+//!
+//! Contains: Address, TxId, UTXO types, DilithiumSignature, amount constants.
+
+#![cfg_attr(not(feature = "std"), no_std)]
+
+use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
+use sp_core::H256;
+use sp_runtime::RuntimeDebug;
+
+/// QBC amount in smallest unit (1 QBC = 10^8 units, like satoshis).
+pub type QbcBalance = u128;
+
+/// QBC decimals — 8 decimal places.
+pub const QBC_DECIMALS: u32 = 8;
+/// 1 QBC in smallest units.
+pub const QBC_UNIT: QbcBalance = 100_000_000;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Golden Ratio Economics Constants
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Golden ratio (φ) scaled to 18 decimal places for fixed-point arithmetic.
+/// PHI = 1.618033988749895 → 1_618_033_988_749_895_000
+pub const PHI_SCALED: u128 = 1_618_033_988_749_895_000;
+/// Denominator for PHI_SCALED (10^18).
+pub const PHI_DENOM: u128 = 1_000_000_000_000_000_000;
+
+/// Maximum supply: 3.3 billion QBC in smallest units.
+pub const MAX_SUPPLY: QbcBalance = 3_300_000_000 * QBC_UNIT;
+/// Initial block reward: 15.27 QBC in smallest units.
+pub const INITIAL_REWARD: QbcBalance = 15_27_000_000; // 15.27 * 10^8
+/// Halving interval: ~1.618 years in blocks (at 3.3s/block).
+pub const HALVING_INTERVAL: u64 = 15_474_020;
+/// Genesis premine: 33 million QBC.
+pub const GENESIS_PREMINE: QbcBalance = 33_000_000 * QBC_UNIT;
+/// Target block time in milliseconds: 3.3 seconds.
+pub const TARGET_BLOCK_TIME_MS: u64 = 3_300;
+/// Difficulty adjustment window in blocks.
+pub const DIFFICULTY_WINDOW: u32 = 144;
+/// Maximum difficulty adjustment factor (1.1 = +10%).
+pub const MAX_ADJUSTMENT_FACTOR: u32 = 110;
+/// Minimum difficulty adjustment factor (0.9 = -10%).
+pub const MIN_ADJUSTMENT_FACTOR: u32 = 90;
+/// Chain ID — Mainnet.
+pub const CHAIN_ID_MAINNET: u64 = 3301;
+/// Chain ID — Testnet.
+pub const CHAIN_ID_TESTNET: u64 = 3302;
+/// Block gas limit for QVM (L2 only).
+pub const BLOCK_GAS_LIMIT: u64 = 30_000_000;
+/// Coinbase maturity — blocks before coinbase is spendable.
+pub const COINBASE_MATURITY: u32 = 100;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Types
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Transaction ID — SHA3-256 hash of the serialized transaction.
+pub type TxId = H256;
+
+/// Qubitcoin address — derived from SHA3-256 of Dilithium public key.
+/// 32 bytes, displayed as hex with "qbc1" prefix in user-facing contexts.
+#[derive(
+    Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug, Default,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct Address(pub [u8; 32]);
+
+impl From<[u8; 32]> for Address {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl From<H256> for Address {
+    fn from(h: H256) -> Self {
+        Self(h.0)
+    }
+}
+
+impl AsRef<[u8]> for Address {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// A single unspent transaction output.
+#[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct Utxo {
+    /// Transaction that created this output.
+    pub txid: TxId,
+    /// Output index within that transaction.
+    pub vout: u32,
+    /// Recipient address.
+    pub address: Address,
+    /// Amount in smallest QBC units.
+    pub amount: QbcBalance,
+    /// Block height where this UTXO was created.
+    pub block_height: u64,
+    /// Whether this is a coinbase output (subject to maturity requirement).
+    pub is_coinbase: bool,
+}
+
+/// Transaction input — references a UTXO to spend.
+#[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct TransactionInput {
+    /// Transaction ID of the UTXO being spent.
+    pub prev_txid: TxId,
+    /// Output index of the UTXO being spent.
+    pub prev_vout: u32,
+}
+
+/// Transaction output — creates a new UTXO.
+#[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct TransactionOutput {
+    /// Recipient address.
+    pub address: Address,
+    /// Amount in smallest QBC units.
+    pub amount: QbcBalance,
+}
+
+/// Dilithium2 signature (variable length, ~2420 bytes).
+/// Stored as bounded vector for on-chain use.
+pub const MAX_DILITHIUM_SIG_SIZE: u32 = 2_560;
+/// Dilithium2 public key size (~1312 bytes).
+pub const MAX_DILITHIUM_PK_SIZE: u32 = 1_536;
+
+/// VQE mining parameters — the solution submitted by miners.
+#[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct VqeProof {
+    /// Optimized VQE circuit parameters (angles as fixed-point i64 * 10^12).
+    pub params: sp_runtime::BoundedVec<i64, sp_runtime::traits::ConstU32<32>>,
+    /// Achieved ground state energy (fixed-point: value * 10^12).
+    pub energy: i128,
+    /// Hamiltonian seed derived from previous block hash.
+    pub hamiltonian_seed: H256,
+    /// Number of qubits used (typically 4).
+    pub n_qubits: u8,
+}
+
+/// Difficulty value (fixed-point: value * 10^6).
+/// Higher difficulty = easier mining (energy threshold is more generous).
+pub type Difficulty = u64;
+
+/// Default initial difficulty: 1.0 (scaled by 10^6).
+pub const INITIAL_DIFFICULTY: Difficulty = 1_000_000;
+
+/// Phi measurement stored per block.
+#[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct PhiMeasurement {
+    /// Block height of this measurement.
+    pub block_height: u64,
+    /// Phi value (scaled by 1000 — e.g., 3000 = Phi of 3.0).
+    pub phi_scaled: u64,
+    /// Number of knowledge nodes at this block.
+    pub knowledge_nodes: u64,
+    /// Number of knowledge edges at this block.
+    pub knowledge_edges: u64,
+}
+
+/// Consciousness threshold — Phi must exceed this for emergence.
+/// 3.0 * 1000 = 3000 in scaled representation.
+pub const PHI_THRESHOLD_SCALED: u64 = 3_000;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_constants() {
+        // 3.3 billion * 10^8
+        assert_eq!(MAX_SUPPLY, 330_000_000_000_000_000);
+        // 15.27 * 10^8
+        assert_eq!(INITIAL_REWARD, 1_527_000_000);
+        // 33M * 10^8
+        assert_eq!(GENESIS_PREMINE, 3_300_000_000_000_000);
+    }
+
+    #[test]
+    fn test_phi_scaling() {
+        // PHI_SCALED / PHI_DENOM should approximate 1.618
+        let phi_f64 = PHI_SCALED as f64 / PHI_DENOM as f64;
+        assert!((phi_f64 - 1.618033988749895).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_address_from_bytes() {
+        let bytes = [42u8; 32];
+        let addr = Address::from(bytes);
+        assert_eq!(addr.0, bytes);
+    }
+
+    #[test]
+    fn test_utxo_encoding_roundtrip() {
+        let utxo = Utxo {
+            txid: H256::from([1u8; 32]),
+            vout: 0,
+            address: Address([2u8; 32]),
+            amount: 1_527_000_000,
+            block_height: 0,
+            is_coinbase: true,
+        };
+        let encoded = utxo.encode();
+        let decoded = Utxo::decode(&mut &encoded[..]).unwrap();
+        assert_eq!(utxo, decoded);
+    }
+}

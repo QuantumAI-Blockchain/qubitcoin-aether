@@ -1,0 +1,35 @@
+# Qubitcoin Substrate Node — Docker Compose
+# Usage: docker compose -f docker/docker-compose.yml up -d
+
+services:
+  qbc-substrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: qbc-substrate-node
+    ports:
+      - "9944:9944"     # WebSocket + RPC
+      - "9933:9933"     # HTTP RPC (legacy)
+      - "30333:30333"   # P2P
+      - "9615:9615"     # Prometheus metrics
+    volumes:
+      - qbc-substrate-data:/qubitcoin/data
+    command:
+      - "--dev"
+      - "--base-path"
+      - "/qubitcoin/data"
+      - "--name"
+      - "qubitcoin-dev"
+      - "--rpc-cors"
+      - "all"
+      - "--rpc-external"
+      - "--prometheus-external"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9944/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  qbc-substrate-data:

@@ -1,0 +1,116 @@
+[workspace]
+resolver = "2"
+members = [
+    "node",
+    "runtime",
+    "primitives",
+    "pallets/qbc-utxo",
+    "pallets/qbc-consensus",
+    "pallets/qbc-dilithium",
+    "pallets/qbc-economics",
+    "pallets/qbc-qvm-anchor",
+    "pallets/qbc-aether-anchor",
+]
+
+[workspace.package]
+authors = ["Qubitcoin Team <dev@qbc.network>"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/BlockArtica/Qubitcoin"
+
+[workspace.dependencies]
+# Node-side Substrate crates (std only, not in WASM runtime)
+sc-cli = "0.57"
+sc-service = "0.56"
+sc-executor = "0.47"
+sc-consensus = "0.54"
+sc-consensus-aura = "0.55"
+sc-consensus-grandpa = "0.40"
+sc-client-api = "44.0"
+sc-network = "0.55"
+sc-offchain = "50.0"
+sc-transaction-pool = "44.1"
+sc-transaction-pool-api = "43.0"
+sc-telemetry = "30.0"
+sc-basic-authorship = "0.53"
+sc-rpc-api = "0.54"
+
+# Substrate primitives (both std and no_std)
+sp-api = { version = "40.0", default-features = false }
+sp-io = { version = "44.0", default-features = false }
+sp-runtime = { version = "45.0", default-features = false }
+sp-core = { version = "39.0", default-features = false }
+sp-std = { version = "14.0", default-features = false }
+sp-genesis-builder = { version = "0.21", default-features = false }
+sp-consensus-aura = { version = "0.46", default-features = false }
+sp-consensus-grandpa = { version = "27.0", default-features = false }
+sp-block-builder = { version = "40.0", default-features = false }
+sp-inherents = { version = "40.0", default-features = false }
+sp-offchain = { version = "40.0", default-features = false }
+sp-session = { version = "42.0", default-features = false }
+sp-transaction-pool = { version = "40.0", default-features = false }
+sp-version = { version = "43.0", default-features = false }
+sp-storage = { version = "22.0", default-features = false }
+sp-keyring = "45.0"
+sp-timestamp = "40.0"
+
+# Frame support
+frame-support = { version = "45.1", default-features = false }
+frame-system = { version = "45.0", default-features = false }
+frame-executive = { version = "45.0", default-features = false }
+frame-benchmarking = { version = "45.0", default-features = false }
+frame-benchmarking-cli = "53.0"
+frame-system-rpc-runtime-api = { version = "40.0", default-features = false }
+
+# Standard pallets
+pallet-aura = { version = "44.0", default-features = false }
+pallet-balances = { version = "46.0", default-features = false }
+pallet-grandpa = { version = "45.0", default-features = false }
+pallet-sudo = { version = "45.0", default-features = false }
+pallet-timestamp = { version = "44.0", default-features = false }
+pallet-transaction-payment = { version = "45.0", default-features = false }
+pallet-transaction-payment-rpc = "48.0"
+pallet-transaction-payment-rpc-runtime-api = { version = "45.0", default-features = false }
+substrate-frame-rpc-system = "49.0"
+
+# Post-quantum crypto
+pqcrypto-dilithium = "0.5"
+pqcrypto-traits = "0.3"
+sha3 = "0.10"
+
+# Serialization
+codec = { version = "3.7", package = "parity-scale-codec", default-features = false, features = ["derive"] }
+scale-info = { version = "2.11", default-features = false, features = ["derive"] }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = "1.0"
+
+# Async
+jsonrpsee = { version = "0.24", features = ["server", "macros"] }
+tokio = { version = "1.43", features = ["full"] }
+futures = "0.3"
+
+# Logging
+log = "0.4"
+
+# Force rustix features — needs use-libc to fix linux_raw backend build issue,
+# plus fs/process/std for memfd and wasmtime transitive deps
+rustix = { version = "1.1", features = ["use-libc", "fs", "process", "std", "event", "pipe", "net", "mm"] }
+
+# Local pallets
+qbc-primitives = { path = "primitives", default-features = false }
+pallet-qbc-utxo = { path = "pallets/qbc-utxo", default-features = false }
+pallet-qbc-consensus = { path = "pallets/qbc-consensus", default-features = false }
+pallet-qbc-dilithium = { path = "pallets/qbc-dilithium", default-features = false }
+pallet-qbc-economics = { path = "pallets/qbc-economics", default-features = false }
+pallet-qbc-qvm-anchor = { path = "pallets/qbc-qvm-anchor", default-features = false }
+pallet-qbc-aether-anchor = { path = "pallets/qbc-aether-anchor", default-features = false }
+
+# Qubitcoin runtime
+qbc-runtime = { path = "runtime" }
+
+
+[profile.release]
+panic = "unwind"
+opt-level = 3
+lto = "thin"
+

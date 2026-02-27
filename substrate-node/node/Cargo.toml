@@ -1,0 +1,69 @@
+[package]
+name = "qbc-node"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Qubitcoin Substrate node — quantum-secured Layer 1 blockchain"
+build = "build.rs"
+
+[dependencies]
+# Substrate client
+sc-cli = { workspace = true }
+sc-service = { workspace = true }
+sc-executor = { workspace = true }
+sc-consensus = { workspace = true }
+sc-consensus-aura = { workspace = true }
+sc-consensus-grandpa = { workspace = true }
+sc-client-api = { workspace = true }
+sc-network = { workspace = true }
+sc-offchain = { workspace = true }
+sc-transaction-pool = { workspace = true }
+sc-transaction-pool-api = { workspace = true }
+sc-telemetry = { workspace = true }
+sc-basic-authorship = { workspace = true }
+sc-rpc-api = { workspace = true }
+
+# Substrate primitives
+sp-api = { workspace = true, features = ["std"] }
+sp-blockchain = "43.0"
+sp-io = { workspace = true, features = ["std"] }
+sp-runtime = { workspace = true, features = ["std"] }
+sp-core = { workspace = true, features = ["std"] }
+sp-consensus-aura = { workspace = true, features = ["std"] }
+sp-consensus-grandpa = { workspace = true, features = ["std"] }
+sp-inherents = { workspace = true, features = ["std"] }
+sp-timestamp = { workspace = true }
+sp-keyring = { workspace = true }
+sp-block-builder = { workspace = true, features = ["std"] }
+
+# Frame
+clap = { version = "4.5", features = ["derive"] }
+frame-system = { workspace = true, features = ["std"] }
+frame-benchmarking-cli = { workspace = true }
+pallet-transaction-payment-rpc = { workspace = true }
+substrate-frame-rpc-system = { workspace = true }
+
+# Serialization
+codec = { workspace = true, features = ["std"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+jsonrpsee = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+futures = { workspace = true }
+log = { workspace = true }
+
+# Local
+qbc-runtime = { workspace = true }
+qbc-primitives = { workspace = true, features = ["std"] }
+
+# Pin rustix 0.38 for transitive deps (wasmtime→memfd→rustix)
+rustix = { workspace = true }
+
+[build-dependencies]
+substrate-build-script-utils = "11.0"
+
+[[bin]]
+name = "qbc-node"
+path = "src/main.rs"
