@@ -6,9 +6,10 @@
 ## PROGRESS TRACKER
 
 - Total items: 243 (203 from Run #25 + 40 new items from Run #26 deep audit)
-- Completed: 235 (230 after Batch 4 + 5 in Batch 5)
-- Remaining: 8
-- Completion: 96.7%
+- Completed: 243 (235 after Batch 5 + 8 in Batch 6)
+- Remaining: 0
+- Completion: **100%**
+- **Run #28 Batch 6: Storybook, i18n, offline-first, ORM 55 tables, Merkle Patricia Trie, Go QVM server, FCI algorithm, self-improvement loop**
 - **Run #28 Batch 5: CDP+liquidation, QUSD savings rate, reserve attestation, Go QVM AGI opcodes (QREASON/QPHI)**
 - **Run #28 Batch 4: Stratum pool, MEV protection, Sephirot reasoning, flash loans, admin UI, Bridge LP rewards**
 - **Run #28 Batch 3: Bridge/Exchange/Launchpad wiring, SUSY enforcement, docs, E2E tests, accessibility**
@@ -135,13 +136,13 @@
 | ~~F03~~ | ~~LOW~~ | `frontend/src/app/docs/` | ~~Pages don't exist~~ | ~~Create /docs/whitepaper, /docs/qvm, /docs/aether, /docs/economics~~ | **DONE (Batch 3)** |
 | ~~F04~~ | ~~LOW~~ | `frontend/src/app/admin/page.tsx` | ~~No admin UI~~ | ~~Admin dashboard: Fees/Treasury/Economics tabs, auth gated~~ | **DONE (Batch 4)** |
 | ~~F05~~ | ~~LOW~~ | `frontend/` | ~~Basic a11y~~ | ~~WCAG 2.1 AA audit: ARIA labels, skip-nav, focus management~~ | **DONE (Batch 2+3)** |
-| F06 | LOW | `frontend/` | No Storybook | Add Storybook for component documentation and visual testing | MEDIUM |
+| ~~F06~~ | ~~LOW~~ | ~~`frontend/`~~ | ~~No Storybook~~ | ~~Add Storybook for component documentation and visual testing~~ | **DONE (Batch 6)** — Storybook 8.6.14, 6 story files (card, phi-indicator, phi-chart, chat-widget, stats-bar, loading) |
 | ~~F07~~ | ~~LOW~~ | `frontend/src/app/` | ~~No SEO meta~~ | ~~OpenGraph + Twitter Card on root layout + per-page metadata (aether, dashboard, wallet, qvm)~~ | **DONE (Run #13)** |
 | ~~F08~~ | ~~LOW~~ | `frontend/src/components/aether/knowledge-graph-3d.tsx` | ~~O(n^2) force~~ | ~~Add Barnes-Hut approximation for >1000 nodes (O(n log n))~~ | **DONE (Batch 3)** |
 | ~~F09~~ | ~~LOW~~ | `frontend/src/components/wallet/native-wallet.tsx` + `rpc.py` | ~~Basic tx builder~~ | ~~UTXO strategy dropdown (largest_first/smallest_first/exact_match) in SendPanel + backend support~~ | **DONE (Run #17)** |
 | ~~F10~~ | ~~LOW~~ | `frontend/src/lib/api.ts` | ~~No retry~~ | ~~Exponential backoff: 3 retries, 500ms base, skip 4xx except 429~~ | **DONE (Run #13)** |
-| F11 | LOW | `frontend/src/stores/` | No offline | Add offline-first capability with service worker + IndexedDB cache | LARGE |
-| F12 | LOW | `frontend/` | No i18n | Add internationalization framework (next-intl) for multi-language | LARGE |
+| ~~F11~~ | ~~LOW~~ | ~~`frontend/src/stores/`~~ | ~~No offline~~ | ~~Add offline-first capability with service worker + IndexedDB cache~~ | **DONE (Batch 6)** — sw.js (cache-first static, stale-while-revalidate API), IndexedDB wrapper, offline.html fallback |
+| ~~F12~~ | ~~LOW~~ | ~~`frontend/`~~ | ~~No i18n~~ | ~~Add internationalization framework (next-intl) for multi-language~~ | **DONE (Batch 6)** — next-intl, EN/ZH/ES messages, language switcher, landing page + navbar + chat fully translated |
 | ~~F13~~ | ~~LOW~~ | `frontend/src/components/wallet/native-wallet.tsx` | ~~No tx signing UI~~ | ~~Confirmation modal with from/to/amount/fee/total breakdown before signing~~ | **DONE (Run #15)** |
 | ~~F14~~ | ~~LOW~~ | `frontend/src/app/dashboard/page.tsx` + `frontend/src/lib/export.ts` | ~~No export~~ | ~~CSV/JSON export for mining stats + UTXO data. Reusable ExportButton + export utility~~ | **DONE (Run #14)** |
 | ~~F15~~ | ~~LOW~~ | `frontend/public/manifest.json` | ~~No PWA~~ | ~~PWA manifest with QBC branding (theme #00ff88, bg #0a0a0f, standalone mode)~~ | **DONE (Run #15)** |
@@ -167,7 +168,7 @@
 | ~~B10~~ | ~~MEDIUM~~ | `consensus/engine.py` | ~~No timestamp validation~~ | ~~Added: reject blocks >7200s in future or before parent~~ | ~~DONE (Run #6)~~ |
 | ~~B11~~ | ~~MEDIUM~~ | `mining/stratum.py` | ~~No mining pool support~~ | ~~StratumPool: VQE-adapted stratum protocol, share-based rewards, async TCP, 28 tests~~ | **DONE (Batch 4)** |
 | ~~B12~~ | ~~MEDIUM~~ | `network/p2p_network.py` | ~~No peer banning~~ | ~~Peer scoring wired: +5 valid block, -25 invalid block, -50 oversized msg, -1/min idle decay, evict at score <10~~ | **DONE (Run #13)** |
-| B13 | MEDIUM | `database/` | Raw SQL queries | Generate SQLAlchemy ORM models for all 55 tables | LARGE |
+| ~~B13~~ | ~~MEDIUM~~ | ~~`database/`~~ | ~~Raw SQL queries~~ | ~~Generate SQLAlchemy ORM models for all 55 tables~~ | **DONE (Batch 6)** — 29 new ORM models (64 total), ForeignKey relationships, CheckConstraints, Computed columns |
 | ~~B14~~ | ~~LOW~~ | `quantum/engine.py` | ~~Local estimator only~~ | ~~_select_backend() with GPU Aer > CPU Aer > StatevectorEstimator fallback chain. USE_GPU_AER config. backend_name tracking. 10 tests~~ | **DONE (Run #23)** |
 | ~~B15~~ | ~~LOW~~ | `quantum/crypto.py` | ~~No key rotation~~ | ~~KeyRotationManager: rotate_keys(), grace period verification, revoke_key(), status reporting. 29 tests~~ | **DONE (Run #17)** |
 | ~~B16~~ | ~~LOW~~ | `network/rpc.py` | ~~No eth_subscribe~~ | ~~/ws/jsonrpc endpoint with eth_subscribe/eth_unsubscribe, newHeads + pendingTransactions auto-broadcast~~ | **DONE (Run #15)** |
@@ -183,11 +184,11 @@
 | ~~V01~~ | ~~MEDIUM~~ | `qvm/vm.py:905-912` | ~~QCOMPLIANCE returns 1~~ | ~~Wired to ComplianceEngine.check_compliance()~~ | ~~DONE (Run #2)~~ |
 | ~~V02~~ | ~~MEDIUM~~ | `qvm/vm.py` | Already uses Keccak256 | CREATE/CREATE2 verified correct (false positive) | ~~N/A~~ |
 | ~~V03~~ | ~~MEDIUM~~ | `qvm/vm.py` | ~~ecAdd/ecMul stub~~ | ~~Full BN128 alt_bn128 curve: G1 add/mul, G2 twist, F_p^12 tower, ate pairing. Precompiles 6/7/8 fully functional~~ | **DONE (Run #15)** |
-| V04 | MEDIUM | `qvm/state.py` | Basic state root | Implement full Merkle Patricia Trie for EVM-compatible state proofs | LARGE |
+| ~~V04~~ | ~~MEDIUM~~ | ~~`qvm/state.py`~~ | ~~Basic state root~~ | ~~Implement full Merkle Patricia Trie for EVM-compatible state proofs~~ | **DONE (Batch 6)** — mpt.py: MerklePatriciaTrie + StateTrie + StorageTrie, RLP encoding, Keccak-256, 51 tests |
 | ~~V05~~ | ~~MEDIUM~~ | `qvm/` | ~~No gas refund~~ | ~~Implement SSTORE gas refund per EIP-3529 (net gas metering)~~ | **DONE (Run #9)** — 4800 refund, capped gas_used//5 |
 | ~~V06~~ | ~~MEDIUM~~ | `qvm/state.py` | ~~Framework only~~ | ~~Pre-execution compliance check in _deploy_contract() and _call_contract(). Blocked addresses get status=0 receipt~~ | **DONE (Run #16)** |
-| V07 | LOW | `qubitcoin-qvm/cmd/qvm/main.go` | "NOT IMPLEMENTED" | Complete Go QVM server with gRPC + REST API handlers | LARGE |
-| V08 | LOW | `qubitcoin-qvm/` | No quantum opcodes | Implement 0xF0-0xF9 canonical quantum opcodes in Go | LARGE |
+| ~~V07~~ | ~~LOW~~ | ~~`qubitcoin-qvm/cmd/qvm/main.go`~~ | ~~"NOT IMPLEMENTED"~~ | ~~Complete Go QVM server with gRPC + REST API handlers~~ | **DONE (Batch 6)** — main.go: serve cmd, signal handling, config from env/flags, graceful shutdown. server.go+handlers.go+jsonrpc.go already had full HTTP/gRPC/JSON-RPC |
+| ~~V08~~ | ~~LOW~~ | ~~`qubitcoin-qvm/`~~ | ~~No quantum opcodes~~ | ~~Implement 0xF0-0xF9 canonical quantum opcodes in Go~~ | **DONE (Batch 6)** — All 10 opcodes (QCREATE-QBRIDGE_VERIFY) implemented in interpreter.go with StateManager, gates, entanglement |
 | ~~V09~~ | ~~LOW~~ | ~~`qubitcoin-qvm/`~~ | ~~No AGI opcodes~~ | ~~Implement QREASON (0xFA) and QPHI (0xFB) in Go QVM~~ | **DONE (Batch 5)** — agi.go + agi_test.go (24 tests), MemoryAccessor interface, ExecuteWithMemory(), thread-safe Phi |
 | ~~V10~~ | ~~LOW~~ | `qvm/plugins.py` | ~~Manual registration~~ | ~~discover_plugins(directory) scans for QVMPlugin subclasses + reload_plugin(name) for hot-reload~~ | **DONE (Run #18)** |
 | ~~V11~~ | ~~LOW~~ | `qvm/state.py` + `config.py` | ~~No EIP-1559~~ | ~~calculate_base_fee() implements EIP-1559 algorithm. StateManager tracks current_base_fee, updates per block. 12 unit tests~~ | **DONE (Run #19)** |
@@ -222,9 +223,9 @@
 | ~~A15~~ | ~~LOW~~ | `qvm/abi.py` + `stablecoin/engine.py` | ~~ABI encoding manual~~ | ~~abi_selector() + encode_call() utilities in qvm/abi.py. Refactored stablecoin engine to use central selectors. 12 tests~~ | **DONE (Run #19)** |
 | ~~A16~~ | ~~LOW~~ | `aether/chat.py` | ~~No conversation memory~~ | ~~ChatMemory class: remember/recall/forget/extract_memories with JSON persistence. Integrated into process_message(). 27 tests~~ | **DONE (Run #19)** |
 | ~~A17~~ | ~~LOW~~ | `aether/task_protocol.py` | ~~No task prioritization~~ | ~~Add priority queue for PoT tasks based on bounty + urgency + domain~~ | **DONE (Run #8)** — bounty*urgency priority |
-| A18 | LOW | `aether/causal_engine.py` | PC algorithm only | Add Fast Causal Inference (FCI) for latent variable discovery | LARGE |
+| ~~A18~~ | ~~LOW~~ | ~~`aether/causal_engine.py`~~ | ~~PC algorithm only~~ | ~~Add Fast Causal Inference (FCI) for latent variable discovery~~ | **DONE (Batch 6)** — FCI with PAG, possible d-sep, rules R1-R4/R8-R10, bidirected edges for latent confounders, 46 tests |
 | ~~A19~~ | ~~LOW~~ | `aether/genesis.py` | ~~4 axiom nodes~~ | ~~Expand genesis with 20+ foundational axioms covering more knowledge domains~~ | **DONE (Run #7)** — 21 genesis axioms |
-| A20 | LOW | `aether/` | No self-improvement loop | Add recursive self-improvement: Aether reasons about its own reasoning patterns and modifies weights | LARGE |
+| ~~A20~~ | ~~LOW~~ | ~~`aether/`~~ | ~~No self-improvement loop~~ | ~~Add recursive self-improvement: Aether reasons about its own reasoning patterns and modifies weights~~ | **DONE (Batch 6)** — self_improvement.py: SelfImprovementEngine, per-domain strategy weight EMA, safety bounds [0.05-0.5], metacognition sync, 47 tests |
 
 ### 5.5 QBC Economics (20)
 

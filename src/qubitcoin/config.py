@@ -361,6 +361,13 @@ class Config:
     AETHER_SEPHIROT_PERSIST_INTERVAL: int = int(os.getenv('AETHER_SEPHIROT_PERSIST_INTERVAL', '100'))
 
     # ============================================================================
+    # SELF-IMPROVEMENT ENGINE (Recursive reasoning optimization)
+    # ============================================================================
+    SELF_IMPROVEMENT_INTERVAL: int = int(os.getenv('SELF_IMPROVEMENT_INTERVAL', '100'))
+    SELF_IMPROVEMENT_MIN_WEIGHT: float = float(os.getenv('SELF_IMPROVEMENT_MIN_WEIGHT', '0.05'))
+    SELF_IMPROVEMENT_MAX_WEIGHT: float = float(os.getenv('SELF_IMPROVEMENT_MAX_WEIGHT', '0.5'))
+
+    # ============================================================================
     # RPC API LIMITS
     # ============================================================================
     RPC_GRAPH_MAX_NODES: int = int(os.getenv('RPC_GRAPH_MAX_NODES', '5000'))

@@ -10,9 +10,11 @@ import psycopg2
 import psycopg2.extras
 from sqlalchemy import (
     create_engine, text, event, Column, String, BigInteger, Integer,
-    Float, Numeric, Boolean, JSON, DateTime, Text, UniqueConstraint
+    Float, Numeric, Boolean, JSON, DateTime, Text, UniqueConstraint,
+    ForeignKey, LargeBinary, Computed, CheckConstraint
 )
-from sqlalchemy.orm import sessionmaker, Session as DBSession, declarative_base
+from sqlalchemy.orm import sessionmaker, Session as DBSession, declarative_base, relationship
+from sqlalchemy.dialects.postgresql import UUID
 from .models import UTXO, Transaction, Block, Account, TransactionReceipt
 from ..config import Config
 from ..utils.logger import get_logger
@@ -471,6 +473,598 @@ class SephirotStakeModel(Base):
     unstake_requested_at = Column(DateTime, nullable=True)
     rewards_earned = Column(Numeric(20, 8), default=0)
     rewards_claimed = Column(Numeric(20, 8), default=0)
+
+# ===========================================================
+# SQL-Schema-Aligned ORM Models (sql_new/)
+# Every table defined in sql_new/ that was missing an ORM model
+# ===========================================================
+
+# -----------------------------------------------------------
+# Schema Version Tracking (qbc/00_init_database.sql)
+# -----------------------------------------------------------
+
+class SchemaVersionModel(Base):
+    """Tracks applied schema migrations"""
+    __tablename__ = 'schema_version'
+    id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    version = Column(String(20), nullable=False)
+    component = Column(String(50), nullable=False)
+    description = Column(Text, nullable=True)
+    applied_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    __table_args__ = (
+        UniqueConstraint('version', 'component', name='version_component_idx'),
+    )
+
+# -----------------------------------------------------------
+# UTXO Inputs & Outputs (qbc/02_utxo_model.sql)
+# -----------------------------------------------------------
+
+class TransactionInputModel(Base):
+    """UTXO spending — references a previous output"""
+    __tablename__ = 'transaction_inputs'
+    input_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    tx_hash = Column(LargeBinary, ForeignKey('transactions.tx_hash', ondelete='CASCADE'), nullable=False)
+    input_index = Column(Integer, nullable=False)
+    previous_tx_hash = Column(LargeBinary, nullable=False)
+    previous_output_index = Column(Integer, nullable=False)
+    script_sig = Column(LargeBinary, nullable=False)
+    sequence = Column(BigInteger, nullable=False, default=4294967295)
+    __table_args__ = (
+        UniqueConstraint('tx_hash', 'input_index', name='uq_tx_input'),
+    )
+
+class TransactionOutputModel(Base):
+    """UTXO creation — value locked to a recipient"""
+    __tablename__ = 'transaction_outputs'
+    output_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    tx_hash = Column(LargeBinary, ForeignKey('transactions.tx_hash', ondelete='CASCADE'), nullable=False)
+    output_index = Column(Integer, nullable=False)
+    amount = Column(Numeric(20, 8), nullable=False)
+    recipient_address = Column(LargeBinary, nullable=False)
+    script_pubkey = Column(LargeBinary, nullable=False)
+    is_spent = Column(Boolean, nullable=False, default=False)
+    spent_in_tx = Column(LargeBinary, nullable=True)
+    spent_at_height = Column(BigInteger, nullable=True)
+    spent_at_timestamp = Column(DateTime, nullable=True)
+    __table_args__ = (
+        UniqueConstraint('tx_hash', 'output_index', name='uq_tx_output'),
+    )
+
+# -----------------------------------------------------------
+# Addresses (qbc/03_addresses_balances.sql)
+# -----------------------------------------------------------
+
+class AddressModel(Base):
+    """Address balance tracking"""
+    __tablename__ = 'addresses'
+    address = Column(LargeBinary, primary_key=True)
+    balance = Column(Numeric(20, 8), nullable=False, default=0)
+    total_received = Column(Numeric(20, 8), nullable=False, default=0)
+    total_sent = Column(Numeric(20, 8), nullable=False, default=0)
+    tx_count = Column(BigInteger, nullable=False, default=0)
+    utxo_count = Column(BigInteger, nullable=False, default=0)
+    is_contract = Column(Boolean, nullable=False, default=False)
+    contract_bytecode_hash = Column(LargeBinary, nullable=True)
+    first_seen_height = Column(BigInteger, nullable=True)
+    first_seen_timestamp = Column(DateTime, nullable=True)
+    last_active_height = Column(BigInteger, nullable=True)
+    last_active_timestamp = Column(DateTime, nullable=True)
+
+# -----------------------------------------------------------
+# Chain State (qbc/04_chain_state.sql)
+# -----------------------------------------------------------
+
+class ChainStateModel(Base):
+    """Global blockchain state — singleton row (id=1)"""
+    __tablename__ = 'chain_state'
+    id = Column(Integer, primary_key=True, default=1)
+    best_block_hash = Column(LargeBinary, nullable=False)
+    best_block_height = Column(BigInteger, nullable=False, default=0)
+    total_blocks = Column(BigInteger, nullable=False, default=0)
+    total_transactions = Column(BigInteger, nullable=False, default=0)
+    total_addresses = Column(BigInteger, nullable=False, default=0)
+    total_supply = Column(Numeric(30, 8), nullable=False, default=0)
+    circulating_supply = Column(Numeric(30, 8), nullable=False, default=0)
+    current_era = Column(Integer, nullable=False, default=0)
+    next_halving_height = Column(BigInteger, nullable=False, default=15474020)
+    current_difficulty = Column(Numeric(20, 10), nullable=False, default=1.0)
+    network_hashrate = Column(Numeric(20, 10), nullable=False, default=0)
+    average_block_time = Column(Numeric(10, 2), nullable=False, default=3.3)
+    total_contracts = Column(BigInteger, nullable=False, default=0)
+    total_contract_calls = Column(BigInteger, nullable=False, default=0)
+    total_knowledge_nodes = Column(BigInteger, nullable=False, default=0)
+    total_reasoning_operations = Column(BigInteger, nullable=False, default=0)
+    current_phi_score = Column(Numeric(10, 6), nullable=False, default=0)
+    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    __table_args__ = (
+        CheckConstraint('id = 1', name='chain_state_singleton'),
+    )
+
+# -----------------------------------------------------------
+# Mempool (qbc/05_mempool.sql)
+# -----------------------------------------------------------
+
+class MempoolModel(Base):
+    """Unconfirmed transactions waiting for inclusion"""
+    __tablename__ = 'mempool'
+    tx_hash = Column(LargeBinary, primary_key=True)
+    raw_tx = Column(LargeBinary, nullable=False)
+    tx_size = Column(BigInteger, nullable=False)
+    fee = Column(Numeric(20, 8), nullable=False)
+    fee_per_byte = Column(Numeric(20, 8), nullable=False)
+    gas_price = Column(Numeric(20, 8), nullable=True)
+    priority_score = Column(Numeric(10, 2), nullable=False)
+    received_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    first_seen_peer = Column(String(255), nullable=True)
+    propagation_count = Column(Integer, nullable=False, default=0)
+    is_valid = Column(Boolean, nullable=False, default=True)
+    validation_errors = Column(Text, nullable=True)
+
+# -----------------------------------------------------------
+# Smart Contracts Registry (qvm/00_contracts_core.sql)
+# -----------------------------------------------------------
+
+class SmartContractModel(Base):
+    """QVM smart contract registry — production schema"""
+    __tablename__ = 'smart_contracts'
+    contract_address = Column(LargeBinary, primary_key=True)
+    creator_address = Column(LargeBinary, nullable=False)
+    deployer_tx_hash = Column(LargeBinary, nullable=False)
+    deployed_at_height = Column(BigInteger, nullable=False)
+    deployed_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    bytecode = Column(LargeBinary, nullable=False)
+    bytecode_hash = Column(LargeBinary, nullable=False)
+    bytecode_size = Column(BigInteger, nullable=False)
+    contract_name = Column(String(255), nullable=True)
+    contract_type = Column(String(50), nullable=False)  # standard, token, nft, defi, dao, oracle
+    contract_version = Column(String(20), nullable=True)
+    is_verified = Column(Boolean, nullable=False, default=False)
+    source_code = Column(Text, nullable=True)
+    compiler_version = Column(String(50), nullable=True)
+    optimization_enabled = Column(Boolean, default=True)
+    balance = Column(Numeric(20, 8), nullable=False, default=0)
+    total_gas_used = Column(BigInteger, nullable=False, default=0)
+    execution_count = Column(BigInteger, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True)
+    is_paused = Column(Boolean, nullable=False, default=False)
+    is_upgradeable = Column(Boolean, nullable=False, default=False)
+    proxy_implementation = Column(LargeBinary, nullable=True)
+    ipfs_bytecode_hash = Column(String(100), nullable=True)
+    ipfs_source_hash = Column(String(100), nullable=True)
+
+    # Relationships
+    token_contract = relationship('TokenContractModel', back_populates='smart_contract', uselist=False)
+    state_snapshots = relationship('ContractStateSnapshotModel', back_populates='smart_contract')
+
+class TokenContractModel(Base):
+    """QRC20/QRC721/QRC1155 token metadata"""
+    __tablename__ = 'token_contracts'
+    contract_address = Column(LargeBinary, ForeignKey('smart_contracts.contract_address', ondelete='CASCADE'), primary_key=True)
+    token_standard = Column(String(20), nullable=False)  # QRC20, QRC721, QRC1155
+    token_name = Column(String(255), nullable=False)
+    token_symbol = Column(String(50), nullable=False)
+    decimals = Column(Integer, nullable=False, default=18)
+    total_supply = Column(Numeric(30, 8), nullable=False)
+    max_supply = Column(Numeric(30, 8), nullable=True)
+    circulating_supply = Column(Numeric(30, 8), nullable=True)
+    total_holders = Column(BigInteger, nullable=False, default=0)
+    total_transfers = Column(BigInteger, nullable=False, default=0)
+    is_mintable = Column(Boolean, nullable=False, default=False)
+    is_burnable = Column(Boolean, nullable=False, default=False)
+    is_pausable = Column(Boolean, nullable=False, default=False)
+
+    # Relationships
+    smart_contract = relationship('SmartContractModel', back_populates='token_contract')
+
+# -----------------------------------------------------------
+# Contract Logs (qvm/01_execution_engine.sql)
+# -----------------------------------------------------------
+
+class ContractLogModel(Base):
+    """Event log emissions from contract executions"""
+    __tablename__ = 'contract_logs'
+    log_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    execution_id = Column(String(36), nullable=False)
+    tx_hash = Column(LargeBinary, nullable=False)
+    block_height = Column(BigInteger, nullable=False)
+    contract_address = Column(LargeBinary, nullable=False)
+    log_index = Column(Integer, nullable=False)
+    topic0 = Column(LargeBinary, nullable=False)
+    topic1 = Column(LargeBinary, nullable=True)
+    topic2 = Column(LargeBinary, nullable=True)
+    topic3 = Column(LargeBinary, nullable=True)
+    data = Column(LargeBinary, nullable=False)
+    event_name = Column(String(255), nullable=True)
+    decoded_data = Column(JSON, nullable=True)
+    timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+# -----------------------------------------------------------
+# Contract State Snapshots (qvm/02_state_storage.sql)
+# -----------------------------------------------------------
+
+class ContractStateSnapshotModel(Base):
+    """Periodic contract state checkpoints"""
+    __tablename__ = 'contract_state_snapshots'
+    snapshot_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    contract_address = Column(LargeBinary, ForeignKey('smart_contracts.contract_address', ondelete='CASCADE'), nullable=False)
+    block_height = Column(BigInteger, nullable=False)
+    block_hash = Column(LargeBinary, nullable=False)
+    storage_root = Column(LargeBinary, nullable=False)
+    state_data = Column(JSON, nullable=False)
+    storage_size = Column(BigInteger, nullable=False)
+    ipfs_hash = Column(String(100), nullable=True)
+    created_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+    # Relationships
+    smart_contract = relationship('SmartContractModel', back_populates='state_snapshots')
+
+# -----------------------------------------------------------
+# Gas Metering (qvm/03_gas_metering.sql)
+# -----------------------------------------------------------
+
+class GasPriceOracleModel(Base):
+    """Dynamic gas pricing data per block"""
+    __tablename__ = 'gas_price_oracle'
+    oracle_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    block_height = Column(BigInteger, nullable=False)
+    base_fee = Column(Numeric(20, 8), nullable=False)
+    priority_fee_percentile_50 = Column(Numeric(20, 8), nullable=False)
+    priority_fee_percentile_75 = Column(Numeric(20, 8), nullable=False)
+    priority_fee_percentile_90 = Column(Numeric(20, 8), nullable=False)
+    gas_used = Column(BigInteger, nullable=False)
+    gas_limit = Column(BigInteger, nullable=False)
+    utilization_percent = Column(Numeric(5, 2), nullable=False)
+    sample_size = Column(Integer, nullable=False)
+    timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+class OpcodeCostModel(Base):
+    """QVM instruction gas cost definitions"""
+    __tablename__ = 'opcode_costs'
+    opcode_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    opcode_name = Column(String(50), nullable=False, unique=True)
+    opcode_value = Column(Integer, nullable=False)
+    base_gas_cost = Column(BigInteger, nullable=False)
+    memory_gas_cost = Column(BigInteger, nullable=False, default=0)
+    storage_gas_cost = Column(BigInteger, nullable=False, default=0)
+    category = Column(String(50), nullable=False)  # arithmetic, storage, control, crypto
+    description = Column(Text, nullable=True)
+    is_quantum_enhanced = Column(Boolean, nullable=False, default=False)
+
+# -----------------------------------------------------------
+# Research: Hamiltonians (research/00_hamiltonians.sql)
+# -----------------------------------------------------------
+
+class HamiltonianModel(Base):
+    """Quantum Hamiltonians for VQE mining"""
+    __tablename__ = 'hamiltonians'
+    hamiltonian_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    hamiltonian_hash = Column(LargeBinary, nullable=False, unique=True)
+    system_type = Column(String(50), nullable=False)  # heisenberg, ising, hubbard, fermi_hubbard
+    dimension = Column(Integer, nullable=False)
+    qubit_count = Column(Integer, nullable=False)
+    hamiltonian_matrix = Column(JSON, nullable=False)
+    expected_ground_energy = Column(Numeric(20, 10), nullable=True)
+    difficulty_class = Column(String(20), nullable=False)  # easy, medium, hard, research
+    computational_complexity = Column(Integer, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    times_mined = Column(BigInteger, nullable=False, default=0)
+    best_solution_energy = Column(Numeric(20, 10), nullable=True)
+    best_solution_miner = Column(LargeBinary, nullable=True)
+    ipfs_hash = Column(String(100), nullable=True)
+    ipfs_metadata_hash = Column(String(100), nullable=True)
+    added_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    last_mined_timestamp = Column(DateTime, nullable=True)
+
+    # Relationships
+    vqe_circuits = relationship('VQECircuitModel', back_populates='hamiltonian')
+    susy_solutions = relationship('SUSYSolutionModel', back_populates='hamiltonian')
+
+# -----------------------------------------------------------
+# Research: VQE Circuits (research/01_vqe_circuits.sql)
+# -----------------------------------------------------------
+
+class VQECircuitModel(Base):
+    """Variational quantum circuit solutions"""
+    __tablename__ = 'vqe_circuits'
+    circuit_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    circuit_hash = Column(LargeBinary, nullable=False, unique=True)
+    hamiltonian_id = Column(String(36), ForeignKey('hamiltonians.hamiltonian_id', ondelete='CASCADE'), nullable=False)
+    qubit_count = Column(Integer, nullable=False)
+    circuit_depth = Column(Integer, nullable=False)
+    gate_count = Column(Integer, nullable=False)
+    ansatz_type = Column(String(50), nullable=False)  # hardware_efficient, uccsd, custom
+    circuit_definition = Column(JSON, nullable=False)
+    optimized_parameters = Column(JSON, nullable=True)
+    achieved_energy = Column(Numeric(20, 10), nullable=True)
+    convergence_iterations = Column(Integer, nullable=True)
+    execution_time_ms = Column(BigInteger, nullable=True)
+    block_hash = Column(LargeBinary, nullable=True)
+    block_height = Column(BigInteger, nullable=True)
+    miner_address = Column(LargeBinary, nullable=True)
+    ipfs_hash = Column(String(100), nullable=True)
+    created_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+    # Relationships
+    hamiltonian = relationship('HamiltonianModel', back_populates='vqe_circuits')
+    susy_solutions = relationship('SUSYSolutionModel', back_populates='circuit')
+
+# -----------------------------------------------------------
+# Research: SUSY Solutions (research/02_susy_solutions.sql)
+# -----------------------------------------------------------
+
+class SUSYSolutionModel(Base):
+    """Supersymmetric alignment solutions from mining"""
+    __tablename__ = 'susy_solutions'
+    solution_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    hamiltonian_id = Column(String(36), ForeignKey('hamiltonians.hamiltonian_id', ondelete='CASCADE'), nullable=False)
+    circuit_id = Column(String(36), ForeignKey('vqe_circuits.circuit_id', ondelete='CASCADE'), nullable=False)
+    block_hash = Column(LargeBinary, nullable=False)
+    block_height = Column(BigInteger, nullable=False)
+    miner_address = Column(LargeBinary, nullable=False)
+    ground_state_energy = Column(Numeric(20, 10), nullable=False)
+    alignment_score = Column(Numeric(10, 6), nullable=False)
+    energy_gap = Column(Numeric(20, 10), nullable=True)
+    fidelity = Column(Numeric(10, 6), nullable=True)
+    is_verified = Column(Boolean, nullable=False, default=False)
+    verification_method = Column(String(50), nullable=True)
+    verified_by_peers = Column(Integer, default=0)
+    novelty_score = Column(Numeric(10, 6), nullable=True)
+    scientific_value = Column(String(20), nullable=True)  # low, medium, high, breakthrough
+    ipfs_hash = Column(String(100), nullable=True)
+    ipfs_analysis_hash = Column(String(100), nullable=True)
+    discovered_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    verified_timestamp = Column(DateTime, nullable=True)
+
+    # Relationships
+    hamiltonian = relationship('HamiltonianModel', back_populates='susy_solutions')
+    circuit = relationship('VQECircuitModel', back_populates='susy_solutions')
+
+# -----------------------------------------------------------
+# IPFS Storage (shared/00_ipfs_storage.sql)
+# -----------------------------------------------------------
+
+class BlockchainSnapshotModel(Base):
+    """Full chain snapshots stored on IPFS"""
+    __tablename__ = 'blockchain_snapshots'
+    snapshot_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    block_height = Column(BigInteger, nullable=False)
+    block_hash = Column(LargeBinary, nullable=False)
+    snapshot_type = Column(String(50), nullable=False)  # full, pruned, archive, state_only
+    ipfs_hash = Column(String(100), nullable=False, unique=True)
+    ipfs_size_bytes = Column(BigInteger, nullable=False)
+    compression = Column(String(20), nullable=False, default='zstd')
+    merkle_root = Column(LargeBinary, nullable=False)
+    is_pinned = Column(Boolean, nullable=False, default=False)
+    pin_count = Column(Integer, nullable=False, default=0)
+    is_public = Column(Boolean, nullable=False, default=True)
+    download_count = Column(BigInteger, nullable=False, default=0)
+    created_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+class IPFSContentRegistryModel(Base):
+    """All IPFS content tracking"""
+    __tablename__ = 'ipfs_content_registry'
+    content_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    ipfs_hash = Column(String(100), nullable=False, unique=True)
+    content_type = Column(String(50), nullable=False)  # block, transaction, contract, model, dataset, snapshot
+    content_category = Column(String(50), nullable=True)
+    file_name = Column(String(255), nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    size_bytes = Column(BigInteger, nullable=False)
+    is_public = Column(Boolean, nullable=False, default=True)
+    owner_address = Column(LargeBinary, nullable=True)
+    access_cost = Column(Numeric(20, 8), nullable=False, default=0)
+    download_count = Column(BigInteger, nullable=False, default=0)
+    last_accessed = Column(DateTime, nullable=True)
+    created_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+class IPFSPinModel(Base):
+    """IPFS pinning service tracking"""
+    __tablename__ = 'ipfs_pins'
+    pin_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    ipfs_hash = Column(String(100), nullable=False)
+    content_type = Column(String(50), nullable=False)
+    pin_service = Column(String(50), nullable=False)  # local, pinata, web3storage, fleek
+    service_pin_id = Column(String(255), nullable=True)
+    pin_status = Column(String(20), nullable=False)  # pinning, pinned, failed, unpinned
+    priority = Column(Integer, nullable=False, default=5)  # 1-10
+    pin_requested_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    pinned_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+
+class IPFSGatewayModel(Base):
+    """IPFS gateway management"""
+    __tablename__ = 'ipfs_gateways'
+    gateway_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    gateway_name = Column(String(255), nullable=False)
+    gateway_url = Column(Text, nullable=False)
+    gateway_type = Column(String(50), nullable=False)  # public, private, dedicated
+    provider = Column(String(100), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    is_default = Column(Boolean, nullable=False, default=False)
+    health_status = Column(String(20), default='unknown')  # healthy, degraded, down, unknown
+    average_response_ms = Column(BigInteger, nullable=True)
+    uptime_percent = Column(Numeric(5, 2), nullable=True)
+    last_health_check = Column(DateTime, nullable=True)
+
+# -----------------------------------------------------------
+# System Config (shared/01_system_config.sql)
+# -----------------------------------------------------------
+
+class SystemConfigModel(Base):
+    """Global configuration parameters"""
+    __tablename__ = 'system_config'
+    config_key = Column(String(100), primary_key=True)
+    config_value = Column(Text, nullable=False)
+    config_type = Column(String(20), nullable=False)  # string, integer, decimal, boolean, json
+    category = Column(String(50), nullable=False)  # blockchain, qvm, agi, network, economics
+    description = Column(Text, nullable=True)
+    is_mutable = Column(Boolean, nullable=False, default=True)
+    requires_consensus = Column(Boolean, nullable=False, default=False)
+    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    updated_by = Column(LargeBinary, nullable=True)
+
+class NetworkPeerModel(Base):
+    """P2P network peer tracking"""
+    __tablename__ = 'network_peers'
+    peer_id = Column(String(255), primary_key=True)
+    ip_address = Column(String(45), nullable=False)
+    port = Column(Integer, nullable=False)
+    node_type = Column(String(20), nullable=False)  # full, light, mining, archive
+    is_connected = Column(Boolean, nullable=False, default=True)
+    connection_quality = Column(String(20), nullable=True)  # excellent, good, poor
+    blocks_shared = Column(BigInteger, nullable=False, default=0)
+    transactions_shared = Column(BigInteger, nullable=False, default=0)
+    average_latency_ms = Column(BigInteger, nullable=True)
+    client_version = Column(String(50), nullable=True)
+    protocol_version = Column(String(20), nullable=True)
+    first_seen = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    last_seen = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+# -----------------------------------------------------------
+# Sephirot State (agi/04_sephirot_state.sql)
+# -----------------------------------------------------------
+
+class SephirotStateModel(Base):
+    """Persistent cognitive node state across restarts"""
+    __tablename__ = 'sephirot_state'
+    id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    node_id = Column(String(50), nullable=False)
+    role = Column(String(50), nullable=False, unique=True)
+    state_json = Column(JSON, nullable=False)
+    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+# -----------------------------------------------------------
+# Bridge: Supported Chains & Validators (bridge/00_supported_chains.sql)
+# -----------------------------------------------------------
+
+class SupportedChainModel(Base):
+    """Multi-chain bridge — supported target chains"""
+    __tablename__ = 'supported_chains'
+    chain_id = Column(String(50), primary_key=True)
+    chain_name = Column(String(100), nullable=False, unique=True)
+    chain_type = Column(String(50), nullable=False)
+    rpc_endpoint = Column(Text, nullable=False)
+    bridge_contract_address = Column(String(255), nullable=True)
+    block_time_seconds = Column(Integer, nullable=False)
+    confirmation_blocks = Column(Integer, nullable=False)
+    base_fee = Column(Numeric(20, 8), nullable=False)
+    min_transfer_amount = Column(Numeric(20, 8), nullable=False)
+    max_transfer_amount = Column(Numeric(20, 8), nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    total_transfers = Column(BigInteger, nullable=False, default=0)
+
+    # Relationships
+    transfers_as_source = relationship(
+        'BridgeTransferModel',
+        foreign_keys='BridgeTransferModel.source_chain',
+        back_populates='source_chain_rel',
+    )
+    transfers_as_dest = relationship(
+        'BridgeTransferModel',
+        foreign_keys='BridgeTransferModel.destination_chain',
+        back_populates='destination_chain_rel',
+    )
+
+class BridgeValidatorModel(Base):
+    """Bridge validators who attest cross-chain transfers"""
+    __tablename__ = 'bridge_validators'
+    validator_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    validator_address = Column(LargeBinary, nullable=False, unique=True)
+    validator_name = Column(String(255), nullable=True)
+    bonded_amount = Column(Numeric(20, 8), nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    reputation_score = Column(Numeric(5, 2), nullable=False, default=100.0)
+    registered_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+# -----------------------------------------------------------
+# Bridge: Transfers (bridge/01_bridge_transfers.sql)
+# -----------------------------------------------------------
+
+class BridgeTransferModel(Base):
+    """Cross-chain bridge transfer records"""
+    __tablename__ = 'bridge_transfers'
+    transfer_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    source_chain = Column(String(50), ForeignKey('supported_chains.chain_id'), nullable=False)
+    destination_chain = Column(String(50), ForeignKey('supported_chains.chain_id'), nullable=False)
+    source_tx_hash = Column(String(255), nullable=False)
+    sender_address = Column(String(255), nullable=False)
+    recipient_address = Column(String(255), nullable=False)
+    amount = Column(Numeric(20, 8), nullable=False)
+    bridge_fee = Column(Numeric(20, 8), nullable=False)
+    status = Column(String(50), nullable=False)
+    initiated_timestamp = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    completed_timestamp = Column(DateTime, nullable=True)
+
+    # Relationships
+    source_chain_rel = relationship(
+        'SupportedChainModel',
+        foreign_keys=[source_chain],
+        back_populates='transfers_as_source',
+    )
+    destination_chain_rel = relationship(
+        'SupportedChainModel',
+        foreign_keys=[destination_chain],
+        back_populates='transfers_as_dest',
+    )
+
+# -----------------------------------------------------------
+# Stablecoin: QUSD Config & Balances (stablecoin/00_qusd_config.sql)
+# -----------------------------------------------------------
+
+class QUSDConfigModel(Base):
+    """QUSD stablecoin configuration — singleton row (id=1)"""
+    __tablename__ = 'qusd_config'
+    id = Column(Integer, primary_key=True, default=1)
+    initial_supply = Column(Numeric(30, 8), nullable=False, default=3300000000.0)
+    current_supply = Column(Numeric(30, 8), nullable=False, default=3300000000.0)
+    target_reserve_ratio = Column(Numeric(5, 4), nullable=False, default=1.0)
+    current_reserve_ratio = Column(Numeric(5, 4), nullable=False, default=0.0)
+    is_active = Column(Boolean, nullable=False, default=True)
+    last_updated = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    __table_args__ = (
+        CheckConstraint('id = 1', name='qusd_config_singleton'),
+    )
+
+class QUSDBalanceModel(Base):
+    """Per-address QUSD balance tracking"""
+    __tablename__ = 'qusd_balances'
+    address = Column(LargeBinary, primary_key=True)
+    balance = Column(Numeric(30, 8), nullable=False, default=0)
+    locked_balance = Column(Numeric(30, 8), nullable=False, default=0)
+    total_minted = Column(Numeric(30, 8), nullable=False, default=0)
+    total_burned = Column(Numeric(30, 8), nullable=False, default=0)
+
+# -----------------------------------------------------------
+# Stablecoin: Reserves & Debt (stablecoin/01_qusd_reserves.sql)
+# -----------------------------------------------------------
+
+class QUSDReserveModel(Base):
+    """QUSD backing reserve assets"""
+    __tablename__ = 'qusd_reserves'
+    reserve_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
+    asset_type = Column(String(50), nullable=False)
+    amount = Column(Numeric(30, 8), nullable=False, default=0)
+    usd_value = Column(Numeric(30, 8), nullable=False, default=0)
+    storage_type = Column(String(50), nullable=False)
+    is_verified = Column(Boolean, nullable=False, default=False)
+    last_updated = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+
+class QUSDDebtModel(Base):
+    """QUSD global debt tracking — singleton row (id=1)"""
+    __tablename__ = 'qusd_debt'
+    id = Column(Integer, primary_key=True, default=1)
+    total_debt = Column(Numeric(30, 8), nullable=False, default=3300000000.0)
+    total_reserves_usd = Column(Numeric(30, 8), nullable=False, default=0)
+    backing_percentage = Column(
+        Numeric(5, 2),
+        Computed("CASE WHEN total_debt > 0 THEN (total_reserves_usd / total_debt * 100) ELSE 100 END"),
+        nullable=True,
+    )
+    last_updated = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"), nullable=False)
+    __table_args__ = (
+        CheckConstraint('id = 1', name='qusd_debt_singleton'),
+    )
 
 # ===========================================================
 # Database Manager

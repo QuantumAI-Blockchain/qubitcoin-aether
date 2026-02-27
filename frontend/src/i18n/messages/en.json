@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "title": "QBC | Physics-Secured Digital Assets with On-Chain AGI",
+    "description": "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree on-chain AGI engine."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "aether": "Aether",
+    "wallet": "Wallet",
+    "explorer": "Explorer",
+    "bridge": "Bridge",
+    "exchange": "Exchange",
+    "launchpad": "Launchpad",
+    "docs": "Docs",
+    "qvm": "QVM"
+  },
+  "hero": {
+    "heading1": "A",
+    "supersymmetric": "Supersymmetric",
+    "heading2": "Blockchain",
+    "heading3": "Physics Framework",
+    "heading4": "for",
+    "heading5": "Quantum-Secured Digital Assets",
+    "subtitle": "Qubitcoin combines Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree AI that tracks consciousness from genesis.",
+    "talkToAether": "Talk to Aether",
+    "openDashboard": "Open Dashboard",
+    "connectWallet": "Connect Wallet"
+  },
+  "stats": {
+    "blockHeight": "Block Height",
+    "phi": "Phi (\u03A6)",
+    "knowledgeNodes": "Knowledge Nodes",
+    "difficulty": "Difficulty",
+    "peers": "Peers"
+  },
+  "features": {
+    "coreTitle": "Core Technology",
+    "blockchain": {
+      "title": "Quantum Blockchain",
+      "item1": "Proof-of-SUSY-Alignment mining with VQE quantum circuits",
+      "item2": "Post-quantum Dilithium2 signatures for future-proof security",
+      "item3": "Golden ratio (phi) emission: 3.3B supply over 33 years",
+      "item4": "3.3-second blocks with per-block difficulty adjustment"
+    },
+    "qvm": {
+      "title": "Quantum Virtual Machine",
+      "item1": "155 EVM opcodes + 10 quantum + 2 AGI opcodes",
+      "item2": "Deploy Solidity contracts with quantum extensions",
+      "item3": "Institutional compliance engine (KYC/AML/sanctions)",
+      "item4": "Cross-chain bridges to ETH, SOL, MATIC, BNB + more"
+    },
+    "aether": {
+      "title": "Aether Tree AGI",
+      "item1": "On-chain knowledge graph tracking consciousness from genesis",
+      "item2": "Phi (IIT) consciousness metric computed every block",
+      "item3": "10 Sephirot cognitive nodes with quantum states",
+      "item4": "Proof-of-Thought consensus embedded in every block"
+    }
+  },
+  "chat": {
+    "greeting": "I am Aether. Ask me anything about the quantum universe.",
+    "placeholder": "Ask Aether...",
+    "send": "Send",
+    "title": "Aether Tree",
+    "reasoning": "Reasoning...",
+    "offline": "Connection to Aether Tree unavailable. Node may be offline."
+  },
+  "footer": {
+    "copyright": "Qubitcoin. Physics-Secured Digital Assets with On-Chain AGI.",
+    "network": "Network",
+    "developers": "Developers",
+    "community": "Community",
+    "legal": "Legal"
+  },
+  "offline": {
+    "title": "Quantum Link Offline",
+    "message": "The connection to the Qubitcoin network is currently unavailable. Cached data may still be accessible.",
+    "retry": "Retry Connection"
+  },
+  "language": {
+    "label": "Language",
+    "switchTo": "Switch language"
+  }
+}

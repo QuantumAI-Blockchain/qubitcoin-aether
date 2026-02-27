@@ -3,24 +3,40 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { WalletButton } from "@/components/wallet/wallet-button";
 import { PhiIndicator } from "@/components/ui/phi-indicator";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 
-const links = [
-  { href: "/", label: "Home" },
-  { href: "/aether", label: "Aether" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/explorer", label: "Explorer" },
-  { href: "/exchange", label: "Exchange" },
-  { href: "/launchpad", label: "Launchpad" },
-  { href: "/wallet", label: "Wallet" },
-  { href: "/qvm", label: "QVM" },
-  { href: "/bridge", label: "Bridge" },
-];
+const navKeys = [
+  { href: "/", key: "home" },
+  { href: "/aether", key: "aether" },
+  { href: "/dashboard", key: "dashboard" },
+  { href: "/explorer", key: "explorer" },
+  { href: "/exchange", key: "exchange" },
+  { href: "/launchpad", key: "launchpad" },
+  { href: "/wallet", key: "wallet" },
+  { href: "/qvm", key: "qvm" },
+  { href: "/bridge", key: "bridge" },
+] as const;
+
+/** Static label lookup for nav items not in translation keys */
+const fallbackLabels: Record<string, string> = {
+  home: "Home",
+  aether: "Aether",
+  dashboard: "Dashboard",
+  explorer: "Explorer",
+  exchange: "Exchange",
+  launchpad: "Launchpad",
+  wallet: "Wallet",
+  qvm: "QVM",
+  bridge: "Bridge",
+};
 
 export function Navbar() {
   const pathname = usePathname();
+  const t = useTranslations("nav");
 
   return (
     <header className="fixed top-0 z-50 w-full border-b border-border-subtle/60 bg-bg-deep/90 backdrop-blur-md">
@@ -37,8 +53,9 @@ export function Navbar() {
 
         {/* Nav links */}
         <ul className="flex items-center gap-1">
-          {links.map(({ href, label }) => {
+          {navKeys.map(({ href, key }) => {
             const active = pathname === href;
+            const label = key === "home" ? (fallbackLabels[key]) : (t.has(key) ? t(key) : fallbackLabels[key]);
             return (
               <li key={href}>
                 <Link
@@ -67,6 +84,7 @@ export function Navbar() {
         {/* Right side */}
         <div className="flex items-center gap-3">
           <PhiIndicator />
+          <LanguageSwitcher />
           <ThemeToggle />
           <WalletButton />
         </div>

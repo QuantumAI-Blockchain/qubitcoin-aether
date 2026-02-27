@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline | Qubitcoin</title>
+  <style>
+    :root {
+      --bg-deep: #020408;
+      --bg-panel: #040c14;
+      --border-subtle: #0d2a44;
+      --glow-cyan: #00d4ff;
+      --quantum-violet: #7c3aed;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      font-family: "Inter", system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 480px;
+    }
+    .icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 1.5rem;
+      border-radius: 50%;
+      border: 2px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: pulse 3.3s ease-in-out infinite;
+    }
+    .icon svg {
+      width: 40px;
+      height: 40px;
+      color: var(--quantum-violet);
+    }
+    h1 {
+      font-family: "Orbitron", "Space Grotesk", system-ui, sans-serif;
+      font-size: 1.5rem;
+      margin-bottom: 0.75rem;
+      color: var(--glow-cyan);
+      text-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+    }
+    p {
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+    button {
+      background: var(--bg-panel);
+      color: var(--glow-cyan);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 0.75rem 1.5rem;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button:hover {
+      border-color: var(--glow-cyan);
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.03); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M18.364 5.636a9 9 0 11-12.728 0M12 9v4m0 4h.01" />
+      </svg>
+    </div>
+    <h1>Quantum Link Offline</h1>
+    <p>
+      The connection to the Qubitcoin network is currently unavailable.
+      Cached data may still be accessible. The page will automatically
+      reconnect when the network is restored.
+    </p>
+    <button onclick="window.location.reload()">
+      Retry Connection
+    </button>
+  </div>
+  <script>
+    // Auto-reload when connectivity returns
+    window.addEventListener("online", function() {
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

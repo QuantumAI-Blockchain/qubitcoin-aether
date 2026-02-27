@@ -60,6 +60,7 @@ tests/validation/*.log
 # ---- Build Artifacts ----
 *.pid
 *.tmp
+frontend/storybook-static/
 
 # ---- Directories That Should Stay Deleted ----
 archive/

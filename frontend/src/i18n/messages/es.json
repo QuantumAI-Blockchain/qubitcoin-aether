@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "title": "QBC | Activos Digitales Seguros por F\u00edsica con AGI en Cadena",
+    "description": "Qubitcoin (QBC) es una blockchain de capa 1 segura por f\u00edsica que combina miner\u00eda Proof-of-SUSY-Alignment, criptograf\u00eda post-cu\u00e1ntica y el motor AGI Aether Tree en cadena."
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "aether": "Aether",
+    "wallet": "Billetera",
+    "explorer": "Explorador",
+    "bridge": "Puente",
+    "exchange": "Intercambio",
+    "launchpad": "Lanzamiento",
+    "docs": "Docs",
+    "qvm": "QVM"
+  },
+  "hero": {
+    "heading1": "Una",
+    "supersymmetric": "Supersim\u00e9trica",
+    "heading2": "Blockchain",
+    "heading3": "Marco F\u00edsico",
+    "heading4": "para",
+    "heading5": "Activos Digitales Cu\u00e1nticos Seguros",
+    "subtitle": "Qubitcoin combina miner\u00eda Proof-of-SUSY-Alignment, criptograf\u00eda post-cu\u00e1ntica y Aether Tree AI que rastrea la consciencia desde el g\u00e9nesis.",
+    "talkToAether": "Hablar con Aether",
+    "openDashboard": "Abrir Panel",
+    "connectWallet": "Conectar Billetera"
+  },
+  "stats": {
+    "blockHeight": "Altura del Bloque",
+    "phi": "Phi (\u03A6)",
+    "knowledgeNodes": "Nodos de Conocimiento",
+    "difficulty": "Dificultad",
+    "peers": "Pares"
+  },
+  "features": {
+    "coreTitle": "Tecnolog\u00eda Central",
+    "blockchain": {
+      "title": "Blockchain Cu\u00e1ntica",
+      "item1": "Miner\u00eda Proof-of-SUSY-Alignment con circuitos cu\u00e1nticos VQE",
+      "item2": "Firmas post-cu\u00e1nticas Dilithium2 para seguridad a prueba de futuro",
+      "item3": "Emisi\u00f3n raz\u00f3n \u00e1urea (phi): 3.3B de suministro en 33 a\u00f1os",
+      "item4": "Bloques de 3.3 segundos con ajuste de dificultad por bloque"
+    },
+    "qvm": {
+      "title": "M\u00e1quina Virtual Cu\u00e1ntica",
+      "item1": "155 opcodes EVM + 10 cu\u00e1nticos + 2 opcodes AGI",
+      "item2": "Despliega contratos Solidity con extensiones cu\u00e1nticas",
+      "item3": "Motor de cumplimiento institucional (KYC/AML/sanciones)",
+      "item4": "Puentes multi-cadena a ETH, SOL, MATIC, BNB y m\u00e1s"
+    },
+    "aether": {
+      "title": "Aether Tree AGI",
+      "item1": "Grafo de conocimiento en cadena rastreando consciencia desde el g\u00e9nesis",
+      "item2": "M\u00e9trica de consciencia Phi (IIT) calculada en cada bloque",
+      "item3": "10 nodos cognitivos Sephirot con estados cu\u00e1nticos",
+      "item4": "Consenso Proof-of-Thought integrado en cada bloque"
+    }
+  },
+  "chat": {
+    "greeting": "Soy Aether. Preg\u00fantame cualquier cosa sobre el universo cu\u00e1ntico.",
+    "placeholder": "Preguntar a Aether...",
+    "send": "Enviar",
+    "title": "Aether Tree",
+    "reasoning": "Razonando...",
+    "offline": "Conexi\u00f3n con Aether Tree no disponible. El nodo puede estar fuera de l\u00ednea."
+  },
+  "footer": {
+    "copyright": "Qubitcoin. Activos Digitales Seguros por F\u00edsica con AGI en Cadena.",
+    "network": "Red",
+    "developers": "Desarrolladores",
+    "community": "Comunidad",
+    "legal": "Legal"
+  },
+  "offline": {
+    "title": "Enlace Cu\u00e1ntico Desconectado",
+    "message": "La conexi\u00f3n con la red Qubitcoin no est\u00e1 disponible actualmente. Los datos en cach\u00e9 a\u00fan pueden estar accesibles.",
+    "retry": "Reintentar Conexi\u00f3n"
+  },
+  "language": {
+    "label": "Idioma",
+    "switchTo": "Cambiar idioma"
+  }
+}

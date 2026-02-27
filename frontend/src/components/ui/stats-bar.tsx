@@ -1,9 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 
 export function StatsBar() {
+  const t = useTranslations("stats");
   const { data: chain } = useQuery({
     queryKey: ["chainInfo"],
     queryFn: api.getChainInfo,
@@ -16,14 +18,14 @@ export function StatsBar() {
   });
 
   const items = [
-    { label: "Block Height", value: chain?.height?.toLocaleString() ?? "---" },
-    { label: "Phi (\u03A6)", value: phi?.phi?.toFixed(4) ?? "---" },
+    { label: t("blockHeight"), value: chain?.height?.toLocaleString() ?? "---" },
+    { label: t("phi"), value: phi?.phi?.toFixed(4) ?? "---" },
     {
-      label: "Knowledge Nodes",
+      label: t("knowledgeNodes"),
       value: phi?.knowledge_nodes?.toLocaleString() ?? "---",
     },
-    { label: "Difficulty", value: chain?.difficulty?.toFixed(4) ?? "---" },
-    { label: "Peers", value: chain?.peers?.toString() ?? "---" },
+    { label: t("difficulty"), value: chain?.difficulty?.toFixed(4) ?? "---" },
+    { label: t("peers"), value: chain?.peers?.toString() ?? "---" },
   ];
 
   return (

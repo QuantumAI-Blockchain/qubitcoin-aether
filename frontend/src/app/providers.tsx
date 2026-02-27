@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { ChainSocketProvider } from "@/components/chain-socket-provider";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { installGlobalErrorHandlers } from "@/lib/error-reporter";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 function KeyboardShortcuts() {
   useKeyboardShortcuts();
@@ -34,6 +35,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <ToastProvider>
         <KeyboardShortcuts />
         <ErrorHandlerInit />
+        <ServiceWorkerRegister />
         <ChainSocketProvider>{children}</ChainSocketProvider>
       </ToastProvider>
     </QueryClientProvider>

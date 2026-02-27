@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
 
 interface Message {
@@ -10,9 +11,10 @@ interface Message {
 }
 
 export function ChatWidget() {
+  const t = useTranslations("chat");
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "aether", text: "I am Aether. Ask me anything about the quantum universe." },
+    { role: "aether", text: t("greeting") },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,7 +44,7 @@ export function ChatWidget() {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: "aether", text: "Connection to Aether Tree unavailable. Node may be offline." },
+        { role: "aether", text: t("offline") },
       ]);
     } finally {
       setLoading(false);
@@ -77,7 +79,7 @@ export function ChatWidget() {
             <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-quantum-green consciousness-pulse" />
-                <span className="text-sm font-semibold">Aether Tree</span>
+                <span className="text-sm font-semibold">{t("title")}</span>
               </div>
               <button onClick={() => setOpen(false)} className="text-text-secondary hover:text-text-primary">
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -102,7 +104,7 @@ export function ChatWidget() {
               ))}
               {loading && (
                 <div className="max-w-[85%] rounded-lg bg-bg-elevated px-3 py-2 text-sm text-text-secondary">
-                  Reasoning...
+                  {t("reasoning")}
                 </div>
               )}
             </div>
@@ -116,7 +118,7 @@ export function ChatWidget() {
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask Aether..."
+                  placeholder={t("placeholder")}
                   className="flex-1 rounded-lg bg-bg-deep px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-1 focus:ring-quantum-violet"
                 />
                 <button
@@ -124,7 +126,7 @@ export function ChatWidget() {
                   disabled={loading || !input.trim()}
                   className="rounded-lg bg-quantum-green px-3 py-2 text-sm font-medium text-void transition hover:bg-quantum-green/80 disabled:opacity-40"
                 >
-                  Send
+                  {t("send")}
                 </button>
               </div>
             </form>
