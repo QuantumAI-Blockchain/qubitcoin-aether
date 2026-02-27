@@ -3,11 +3,20 @@ pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
 
-/// @title wQBC — Wrapped Qubitcoin Token (ERC-20)
-/// @notice Deployed on external chains (Ethereum, Polygon, BSC, etc.)
-///         Minted 1:1 when QBC is locked on the QBC L1 chain.
+/// @title wQBC — Wrapped Qubitcoin Token (External Chain Deployment)
+/// @notice This contract is deployed on external chains (Ethereum, Polygon, BSC,
+///         Avalanche, Arbitrum, Optimism, Base, etc.). It is a simplified bridge-only
+///         mint/burn ERC-20 without bridge fees or replay protection — the bridge
+///         operator on the external chain handles fee collection and replay tracking.
+///
+///         A separate tokens/wQBC.sol exists for deployment on the QBC L1 chain.
+///         That version is the full-featured implementation with 0.1% bridge fee,
+///         replay protection (processedTxHashes), reentrancy guard, and cumulative
+///         accounting (totalLocked, totalMinted, totalBurned, totalFeesCollected).
+///
+/// @dev    Minted 1:1 when QBC is locked on the QBC L1 chain.
 ///         Burned to unlock QBC back to the native chain.
-/// @dev Only the authorized bridge contract can mint/burn.
+///         Only the authorized bridge contract can mint/burn.
 contract wQBC is Initializable {
     string  public constant name     = "Wrapped Qubitcoin";
     string  public constant symbol   = "wQBC";

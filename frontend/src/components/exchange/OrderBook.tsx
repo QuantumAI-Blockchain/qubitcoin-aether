@@ -104,9 +104,23 @@ const OrderBookRow = memo(function OrderBookRow({
     onClickPrice(level.price);
   }, [level.price, onClickPrice]);
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClickPrice(level.price);
+      }
+    },
+    [level.price, onClickPrice],
+  );
+
   return (
     <div
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="button"
+      aria-label={`${side === "bid" ? "Bid" : "Ask"} price ${formatPrice(level.price, decimals)}, size ${formatSize(level.size, sizeDecimals)}`}
       style={{
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr",
@@ -453,7 +467,7 @@ const OrderBook = memo(function OrderBook() {
   const spreadPct = book?.spreadPct ?? 0;
 
   return (
-    <div style={{ ...panelStyle, display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+    <div role="grid" aria-label="Order book" style={{ ...panelStyle, display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div
         style={{

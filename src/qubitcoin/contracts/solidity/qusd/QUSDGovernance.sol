@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "../interfaces/IQBC20.sol";
 
 /// @title QUSDGovernance — Reserve Management Governance
 /// @notice QUSD holders create and vote on proposals for reserve management.
@@ -16,6 +17,7 @@ contract QUSDGovernance is Initializable {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public qusdToken;
+    IQBC20  public qbcToken;           // QBC token for on-chain vote weight verification
     uint256 public proposalCount;
     uint256 public minProposalBalance; // minimum QUSD to create a proposal
 
@@ -67,9 +69,10 @@ contract QUSDGovernance is Initializable {
     }
 
     // ─── Initializer ────────────────────────────────────────────────────
-    function initialize(address _qusdToken, uint256 _minBalance, uint256 _emergencyThreshold) external initializer {
+    function initialize(address _qusdToken, address _qbcToken, uint256 _minBalance, uint256 _emergencyThreshold) external initializer {
         owner              = msg.sender;
         qusdToken          = _qusdToken;
+        qbcToken           = IQBC20(_qbcToken);
         minProposalBalance = _minBalance;
         emergencyThreshold = _emergencyThreshold;
     }
@@ -112,6 +115,7 @@ contract QUSDGovernance is Initializable {
         require(block.timestamp <= prop.endTimestamp, "Governance: voting ended");
         require(!hasVoted[proposalId][msg.sender], "Governance: already voted");
         require(delegates[msg.sender] == address(0), "Governance: must undelegate before voting");
+        require(weight <= qbcToken.balanceOf(msg.sender), "Governance: weight exceeds balance");
 
         hasVoted[proposalId][msg.sender] = true;
         uint256 totalPower = getVotingPower(weight);
@@ -134,6 +138,7 @@ contract QUSDGovernance is Initializable {
         require(to != msg.sender, "Governance: cannot self-delegate");
         require(to != address(0), "Governance: cannot delegate to zero address");
         require(delegates[to] == address(0), "Governance: delegate has delegated (no chains)");
+        require(weight <= qbcToken.balanceOf(msg.sender), "Governance: weight exceeds balance");
 
         address previousDelegate = delegates[msg.sender];
 

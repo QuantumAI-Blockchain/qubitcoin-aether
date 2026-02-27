@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from ..config import Config
 from ..utils.logger import get_logger
+from ..qvm.vm import keccak256
 
 logger = get_logger(__name__)
 
@@ -156,6 +157,7 @@ class JsonRpcHandler:
         self.quantum = quantum
         self.qvm = qvm
         self.event_index = event_index  # Optional EventIndex for fast in-memory log queries
+        self._http_request: Optional[Request] = None  # Set per-call for client IP checks
 
         self.methods = {
             # Chain
@@ -196,7 +198,16 @@ class JsonRpcHandler:
             'debug_traceTransaction': self.debug_traceTransaction,
         }
 
-    async def handle(self, request: JsonRpcRequest) -> JsonRpcResponse:
+    async def handle(self, request: JsonRpcRequest,
+                     http_request: Optional[Request] = None) -> JsonRpcResponse:
+        """Dispatch a JSON-RPC request to the appropriate handler.
+
+        Args:
+            request: Parsed JSON-RPC request body.
+            http_request: The underlying FastAPI/Starlette Request, used for
+                          client-IP gating on privileged methods.
+        """
+        self._http_request = http_request
         method = self.methods.get(request.method)
         if not method:
             return JsonRpcResponse(
@@ -212,6 +223,19 @@ class JsonRpcHandler:
                 id=request.id,
                 error={'code': -32000, 'message': str(e)}
             )
+        finally:
+            self._http_request = None
+
+    # ========================================================================
+    # AUTH HELPERS
+    # ========================================================================
+    def _is_localhost(self) -> bool:
+        """Return True if the current HTTP request originates from localhost."""
+        req = self._http_request
+        if req and hasattr(req, 'client') and req.client:
+            return req.client.host in ('127.0.0.1', '::1', 'localhost')
+        # If no request info available (e.g. unit tests), assume local
+        return True
 
     # ========================================================================
     # CHAIN METHODS
@@ -337,15 +361,17 @@ class JsonRpcHandler:
             nonce = int.from_bytes(tx_dict.get('nonce', b'\x00'), 'big') if isinstance(tx_dict.get('nonce'), bytes) else int(tx_dict.get('nonce', 0))
             gas_limit = int.from_bytes(tx_dict.get('gas', b'\x00'), 'big') if isinstance(tx_dict.get('gas'), bytes) else int(tx_dict.get('gas', 21000))
 
-            # Compute tx hash
-            tx_hash = hashlib.sha256(raw_bytes).hexdigest()
+            # Compute tx hash using Keccak-256 (EVM-compatible)
+            tx_hash = keccak256(raw_bytes).hex()
 
             value_qbc = parse_wei_to_qbc(value_wei)
 
-            # Validate sender balance
-            sender_bal = self.db.get_account_balance(sender)
-            if sender_bal < value_qbc:
-                raise ValueError(f"Insufficient balance: have {sender_bal}, need {value_qbc}")
+            # Validate sender balance (check both EVM account and UTXO models)
+            account_bal = self.db.get_account_balance(sender)
+            utxo_bal = self.db.get_balance(sender)
+            total_available = account_bal + utxo_bal
+            if total_available < value_qbc:
+                raise ValueError(f"Insufficient balance: have {total_available}, need {value_qbc}")
 
             # Execute the transaction
             if to_addr and data_hex and self.qvm:
@@ -410,7 +436,7 @@ class JsonRpcHandler:
         except ImportError:
             # eth-account not installed — fallback to simple store
             logger.warning("eth-account not installed, storing raw tx in mempool")
-            tx_hash = hashlib.sha256(raw_bytes).hexdigest()
+            tx_hash = keccak256(raw_bytes).hex()
             from sqlalchemy import text as sql_text
             with self.db.get_session() as session:
                 session.execute(
@@ -436,7 +462,15 @@ class JsonRpcHandler:
 
         When *to* is null or empty the transaction is treated as a contract deploy;
         otherwise it is a contract call.
+
+        Security: This endpoint is restricted to localhost-only access because it
+        does not require a signed transaction (the node signs on behalf of the
+        caller).  Remote callers must use eth_sendRawTransaction instead.
         """
+        # Only allow from localhost — this method has no cryptographic auth
+        if not self._is_localhost():
+            raise ValueError("eth_sendTransaction only allowed from localhost. Use eth_sendRawTransaction for remote access.")
+
         tx_obj = params[0] if params else {}
         from_addr = (tx_obj.get('from') or '').replace('0x', '') or '0' * 40
         to_addr = (tx_obj.get('to') or '').replace('0x', '')
@@ -446,9 +480,9 @@ class JsonRpcHandler:
         nonce = parse_hex_int(tx_obj['nonce']) if tx_obj.get('nonce') else 0
 
         tx_type = 'contract_call' if to_addr else 'contract_deploy'
-        tx_hash = hashlib.sha256(
+        tx_hash = keccak256(
             (from_addr + to_addr + data_hex + str(time.time())).encode()
-        ).hexdigest()
+        ).hex()
 
         from ..database.models import Transaction as TxModel
         tx = TxModel(
@@ -724,12 +758,12 @@ def create_jsonrpc_router(db, consensus=None, mining=None, quantum=None, qvm=Non
             responses = []
             for item in body:
                 req = JsonRpcRequest(**item)
-                resp = await handler.handle(req)
+                resp = await handler.handle(req, http_request=request)
                 responses.append(_serialize(resp))
             return responses
 
         req = JsonRpcRequest(**body)
-        resp = await handler.handle(req)
+        resp = await handler.handle(req, http_request=request)
         return _serialize(resp)
 
     return router

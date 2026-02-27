@@ -28,7 +28,7 @@ const TickerBar = memo(function TickerBar() {
     const totalOI = markets.filter((m) => m.type === "perp").reduce((s, m) => s + m.openInterest, 0);
     lines.push({ label: "EXCHANGE VOL 24H", value: formatUsd(totalVol), color: X.glowCyan });
     lines.push({ label: "OPEN INTEREST", value: formatUsd(totalOI), color: X.glowViolet });
-    lines.push({ label: "QUANTUM ORACLE", value: "11/11 NODES", color: X.glowEmerald });
+    lines.push({ label: "NODES", value: "DEMO MODE", color: X.glowAmber });
     return lines;
   }, [markets]);
 
@@ -100,7 +100,7 @@ export const ExchangeHeader = memo(function ExchangeHeader() {
   // Portfolio summary
   const equity = useMemo(() => {
     const unrealised = positions?.reduce((s, p) => s + p.unrealisedPnl, 0) ?? 0;
-    return { total: 12847.32, pnl24h: 284.21, pnlPct: 2.26, unrealised };
+    return { total: 0, pnl24h: 0, pnlPct: 0, unrealised };
   }, [positions]);
 
   return (

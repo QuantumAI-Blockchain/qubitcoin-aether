@@ -298,17 +298,30 @@ function renderHeatmap(
     const sideLabel = nearest.side === "long" ? "LONG" : "SHORT";
     const sideColor = nearest.side === "long" ? X.glowAmber : X.glowCrimson;
 
-    tooltip.innerHTML =
-      `<div style="font-family:${FONT.display};font-size:9px;letter-spacing:0.08em;color:${sideColor};margin-bottom:4px">${sideLabel} LIQUIDATIONS</div>` +
-      `<div style="display:flex;justify-content:space-between;gap:16px">` +
-      `<span style="color:${X.textSecondary}">Price</span>` +
-      `<span style="color:${X.textPrimary}">${formatPrice(nearest.price)}</span></div>` +
-      `<div style="display:flex;justify-content:space-between;gap:16px">` +
-      `<span style="color:${X.textSecondary}">Size</span>` +
-      `<span style="color:${X.textPrimary}">${formatSize(nearest.totalSize)}</span></div>` +
-      `<div style="display:flex;justify-content:space-between;gap:16px">` +
-      `<span style="color:${X.textSecondary}">Positions</span>` +
-      `<span style="color:${X.textPrimary}">${nearest.positionCount}</span></div>`;
+    tooltip.textContent = '';
+
+    const sideDiv = document.createElement('div');
+    sideDiv.style.cssText = `font-family:${FONT.display};font-size:9px;letter-spacing:0.08em;color:${sideColor};margin-bottom:4px`;
+    sideDiv.textContent = `${sideLabel} LIQUIDATIONS`;
+    tooltip.appendChild(sideDiv);
+
+    const makeRow = (label: string, value: string): HTMLDivElement => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;gap:16px';
+      const lbl = document.createElement('span');
+      lbl.style.color = X.textSecondary;
+      lbl.textContent = label;
+      const val = document.createElement('span');
+      val.style.color = X.textPrimary;
+      val.textContent = value;
+      row.appendChild(lbl);
+      row.appendChild(val);
+      return row;
+    };
+
+    tooltip.appendChild(makeRow('Price', formatPrice(nearest.price)));
+    tooltip.appendChild(makeRow('Size', formatSize(nearest.totalSize)));
+    tooltip.appendChild(makeRow('Positions', String(nearest.positionCount)));
 
     tooltip.style.opacity = "1";
 

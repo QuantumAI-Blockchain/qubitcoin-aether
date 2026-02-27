@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "../interfaces/IQBC20.sol";
 
 /// @title TreasuryDAO — Community Governance Treasury
 /// @notice Holds QBC for community governance. Proposals + QBC-weighted voting
@@ -13,6 +14,8 @@ contract TreasuryDAO is Initializable {
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
+    IQBC20  public qbcToken;          // QBC token for on-chain vote weight verification
+    uint256 public quorum = 100e18;   // minimum total votes to execute (default 100 QBC)
     uint256 public treasuryBalance;
     uint256 public proposalCount;
 
@@ -48,8 +51,9 @@ contract TreasuryDAO is Initializable {
     }
 
     // ─── Initializer ────────────────────────────────────────────────────
-    function initialize() external initializer {
-        owner = msg.sender;
+    function initialize(address _qbcToken) external initializer {
+        owner    = msg.sender;
+        qbcToken = IQBC20(_qbcToken);
     }
 
     // ─── Treasury Management ─────────────────────────────────────────────
@@ -90,6 +94,7 @@ contract TreasuryDAO is Initializable {
         require(p.status == ProposalStatus.Active, "Treasury: not active");
         require(block.timestamp <= p.endTime, "Treasury: voting ended");
         require(!hasVoted[proposalId][msg.sender], "Treasury: already voted");
+        require(weight <= qbcToken.balanceOf(msg.sender), "Treasury: weight exceeds balance");
 
         hasVoted[proposalId][msg.sender] = true;
         if (support) { p.votesFor += weight; }
@@ -115,6 +120,7 @@ contract TreasuryDAO is Initializable {
         Proposal storage p = proposals[proposalId];
         require(p.status == ProposalStatus.Passed, "Treasury: not passed");
         require(block.timestamp >= p.executeAfter, "Treasury: delay not met");
+        require(p.votesFor + p.votesAgainst >= quorum, "Treasury: quorum not reached");
         require(treasuryBalance >= p.amount, "Treasury: insufficient funds");
 
         treasuryBalance -= p.amount;
@@ -122,6 +128,12 @@ contract TreasuryDAO is Initializable {
 
         emit ProposalExecuted(proposalId, p.recipient, p.amount);
         emit FundsAllocated(proposalId, p.recipient, p.amount);
+    }
+
+    // ─── Admin ──────────────────────────────────────────────────────────
+    /// @notice Update the quorum threshold (owner only)
+    function setQuorum(uint256 newQuorum) external onlyOwner {
+        quorum = newQuorum;
     }
 
     // ─── Queries ─────────────────────────────────────────────────────────

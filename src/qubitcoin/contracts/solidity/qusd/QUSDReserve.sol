@@ -28,6 +28,8 @@ contract QUSDReserve is Initializable {
         uint256 currentBalance;
     }
 
+    bool private _locked; // reentrancy guard
+
     /// @notice All registered reserve assets (token address → info)
     mapping(address => AssetInfo) public assets;
     address[] public assetList;
@@ -60,6 +62,13 @@ contract QUSDReserve is Initializable {
     modifier onlyGovernance() {
         require(msg.sender == governance, "QUSDReserve: not governance");
         _;
+    }
+
+    modifier nonReentrant() {
+        require(!_locked, "QUSDReserve: reentrant call");
+        _locked = true;
+        _;
+        _locked = false;
     }
 
     modifier whenNotPaused() {
@@ -114,7 +123,7 @@ contract QUSDReserve is Initializable {
 
     // ─── Withdrawals (Governance Only) ───────────────────────────────────
     /// @notice Withdraw from reserves. Governance-only.
-    function withdraw(address asset, address recipient, uint256 amount) external onlyGovernance whenNotPaused {
+    function withdraw(address asset, address recipient, uint256 amount) external onlyGovernance nonReentrant whenNotPaused {
         require(assets[asset].currentBalance >= amount, "QUSDReserve: insufficient");
         require(recipient != address(0), "QUSDReserve: zero recipient");
 

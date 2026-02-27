@@ -717,15 +717,28 @@ class ConsensusEngine:
                 text("DELETE FROM blocks WHERE height > :fork"),
                 {'fork': fork_height}
             )
-            # Revert supply
+            # Revert supply: recalculate from coinbase rewards up to fork height
+            # (NOT from UTXOs, since we just reset spent flags above which
+            # would inflate the count)
             session.execute(
                 text("""UPDATE supply SET total_minted = (
-                            SELECT COALESCE(SUM(amount), 0) FROM utxos
-                            WHERE block_height <= :fork AND NOT spent
+                            SELECT COALESCE(SUM(t.amount), 0) FROM (
+                                SELECT SUM(
+                                    (jsonb_array_elements(outputs)->>'amount')::DECIMAL
+                                ) AS amount
+                                FROM transactions
+                                WHERE block_height <= :fork
+                                  AND (inputs IS NULL OR inputs = '[]'::jsonb)
+                            ) t
                         ) WHERE id = 1"""),
                 {'fork': fork_height}
             )
             session.commit()
+
+        # Invalidate difficulty cache entries above fork height
+        self.difficulty_cache = {
+            k: v for k, v in self.difficulty_cache.items() if k <= fork_height
+        }
 
         logger.info(f"Fork resolved: reverted to height {fork_height}")
 

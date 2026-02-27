@@ -21,6 +21,9 @@ contract QUSDStabilizer is Initializable {
     address public oracleAddress;
     address public qusdToken;
 
+    /// @notice Maximum trade size per stabilization operation
+    uint256 public maxTradeSize = 1_000_000e18;
+
     uint256 public stabilityFundBalance;   // QBC held for stability operations
     uint256 public qusdHeld;               // QUSD held for ceiling defense
     uint256 public totalBuyInterventions;
@@ -75,6 +78,7 @@ contract QUSDStabilizer is Initializable {
     function buyQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner whenNotPaused {
         require(currentPrice < floorPrice, "Stabilizer: price above floor");
         require(qusdAmount > 0, "Stabilizer: zero amount");
+        require(qusdAmount <= maxTradeSize, "Stabilizer: exceeds max trade size");
 
         // Calculate QBC cost at current price
         uint256 qbcCost = (qusdAmount * pegTarget) / currentPrice;
@@ -93,6 +97,7 @@ contract QUSDStabilizer is Initializable {
     function sellQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner whenNotPaused {
         require(currentPrice > ceilingPrice, "Stabilizer: price below ceiling");
         require(qusdHeld >= qusdAmount, "Stabilizer: insufficient QUSD");
+        require(qusdAmount <= maxTradeSize, "Stabilizer: exceeds max trade size");
 
         uint256 qbcReceived = (qusdAmount * currentPrice) / pegTarget;
 
@@ -109,6 +114,7 @@ contract QUSDStabilizer is Initializable {
     function triggerRebalance(uint256 currentPrice, uint256 amount) external whenNotPaused {
         require(autoRebalanceEnabled, "Stabilizer: auto-rebalance disabled");
         require(amount > 0, "Stabilizer: zero amount");
+        require(amount <= maxTradeSize, "Stabilizer: exceeds max trade size");
 
         if (currentPrice < floorPrice && stabilityFundBalance > 0) {
             uint256 qbcCost = (amount * pegTarget) / currentPrice;
@@ -173,6 +179,12 @@ contract QUSDStabilizer is Initializable {
 
     function setOracle(address newOracle) external onlyOwner {
         oracleAddress = newOracle;
+    }
+
+    /// @notice Update max trade size per stabilization operation
+    function setMaxTradeSize(uint256 _maxTradeSize) external onlyOwner {
+        require(_maxTradeSize > 0, "Stabilizer: zero max trade size");
+        maxTradeSize = _maxTradeSize;
     }
 
     /// @notice Update peg bands (governance). Min 0.01 spread.

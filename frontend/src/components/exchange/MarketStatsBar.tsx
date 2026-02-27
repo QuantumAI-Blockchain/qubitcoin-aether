@@ -88,9 +88,9 @@ export const MarketStatsBar = memo(function MarketStatsBar() {
 
       {/* Oracle badge */}
       <div style={{ marginLeft: "auto", flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
-        <div style={{ width: 6, height: 6, borderRadius: "50%", background: X.glowEmerald }} />
-        <span style={{ fontFamily: FONT.display, fontSize: 9, letterSpacing: "0.08em", color: X.glowEmerald }}>
-          QUANTUM ORACLE: VERIFIED
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: X.glowAmber }} />
+        <span style={{ fontFamily: FONT.display, fontSize: 9, letterSpacing: "0.08em", color: X.glowAmber }}>
+          ORACLE: AWAITING CONNECTION
         </span>
       </div>
     </div>

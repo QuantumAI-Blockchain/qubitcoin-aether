@@ -48,7 +48,7 @@ class Config:
     # ============================================================================
     P2P_PORT: int = int(os.getenv('P2P_PORT', 4001))
     RPC_PORT: int = int(os.getenv('RPC_PORT', 5000))
-    RPC_HOST: str = os.getenv('RPC_HOST', '0.0.0.0')
+    RPC_HOST: str = os.getenv('RPC_HOST', '127.0.0.1')
     
     PEER_SEEDS: list = [s.strip() for s in os.getenv('PEER_SEEDS', '').split(',') if s.strip()]
     MAX_PEERS: int = 50
@@ -139,7 +139,7 @@ class Config:
     ENERGY_MARGIN: float = float(os.getenv('ENERGY_MARGIN', 0.5))
     # PHI_FORK_HEIGHT removed — v3 is the only formula (DB reset + new genesis)
     COINBASE_MATURITY: int = 100  # Coinbase outputs unspendable for 100 blocks
-    MAX_FUTURE_BLOCK_TIME: int = 7200  # Max seconds a block timestamp can be in the future
+    MAX_FUTURE_BLOCK_TIME: int = 120  # Max seconds a block timestamp can be in the future (2 minutes)
     CONFIRMATION_DEPTH: int = 180  # Wait 180 blocks (~10 min) for finality
     MAX_REORG_DEPTH: int = 100
 

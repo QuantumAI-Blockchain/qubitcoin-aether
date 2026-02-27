@@ -286,11 +286,12 @@ class StateManager:
         except ValueError:
             bytecode = b''
 
-        # Derive contract address
+        # Derive contract address (keccak256 to match QVM CREATE opcode)
         account = self.db.get_or_create_account(from_addr)
-        addr_hash = hashlib.sha256(
+        from .vm import keccak256 as _keccak256
+        addr_hash = _keccak256(
             from_addr.encode() + account.nonce.to_bytes(8, 'big')
-        ).hexdigest()[:40]
+        ).hex()[:40]
 
         # Execute init code
         result = self.qvm.execute(

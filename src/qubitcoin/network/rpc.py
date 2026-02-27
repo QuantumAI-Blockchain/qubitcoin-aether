@@ -4,11 +4,12 @@ FastAPI-based HTTP interface with smart contract support
 NOW WITH P2P ENDPOINTS!
 """
 
+import hmac
 import json
 from typing import Dict, Optional
 from decimal import Decimal
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.responses import Response
@@ -149,6 +150,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         _rate_limit_store['requests'][client_ip].append(now)
         response = await call_next(request)
         return response
+
+    # ========================================================================
+    # ADMIN AUTH HELPER (used by /transfer, /mining/start, /mining/stop)
+    # ========================================================================
+
+    def _require_admin_key(x_admin_key: Optional[str] = None) -> None:
+        """Verify admin API key from X-Admin-Key header.
+
+        Uses hmac.compare_digest to prevent timing attacks.
+        Raises HTTPException(403) on failure.
+        """
+        admin_key = Config.ADMIN_API_KEY if hasattr(Config, "ADMIN_API_KEY") else ""
+        if not admin_key:
+            raise HTTPException(status_code=403, detail="Admin API key not configured")
+        if not x_admin_key or not hmac.compare_digest(x_admin_key, admin_key):
+            raise HTTPException(status_code=403, detail="Invalid admin API key")
 
     # ========================================================================
     # JSON-RPC (eth_* compatible) - Web3 / MetaMask / Hardhat support
@@ -647,14 +664,16 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         }
 
     @app.post("/mining/start")
-    async def start_mining():
-        """Start mining"""
+    async def start_mining(x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key")):
+        """Start mining (admin auth required)"""
+        _require_admin_key(x_admin_key)
         mining_engine.start()
         return {"status": "Mining started"}
 
     @app.post("/mining/stop")
-    async def stop_mining():
-        """Stop mining"""
+    async def stop_mining(x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key")):
+        """Stop mining (admin auth required)"""
+        _require_admin_key(x_admin_key)
         mining_engine.stop()
         return {"status": "Mining stopped"}
 
@@ -1924,12 +1943,14 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         amount: str
 
     @app.post("/transfer")
-    async def transfer_to_account(req: TransferRequest):
+    async def transfer_to_account(req: TransferRequest, x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key")):
         """Bridge UTXO funds to an account-model address (for MetaMask).
 
         Selects UTXOs from the mining wallet, marks them spent, and credits
-        the recipient in the accounts table.
+        the recipient in the accounts table.  Requires admin authentication
+        because it spends UTXOs from the node's mining wallet.
         """
+        _require_admin_key(x_admin_key)
         import hashlib
         import time as _time
 
@@ -2176,11 +2197,25 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         private_key_hex: str
 
     @app.post("/wallet/sign")
-    async def wallet_sign(req: WalletSignRequest):
+    async def wallet_sign(req: WalletSignRequest, request: Request):
         """Sign a message hash with a Dilithium2 private key.
+
+        SECURITY: This endpoint accepts a raw private key over the wire and is
+        restricted to localhost-only access.  Remote callers should sign
+        client-side instead.  This endpoint is DEPRECATED and will be removed
+        in a future release.
 
         The private key is used only for this signing operation and not stored.
         """
+        # Localhost-only gate — accepting private keys over the network is dangerous
+        client_host = request.client.host if request.client else None
+        if client_host and client_host not in ('127.0.0.1', '::1', 'localhost'):
+            raise HTTPException(
+                status_code=403,
+                detail="/wallet/sign is restricted to localhost only. Sign transactions client-side."
+            )
+        logger.warning("DEPRECATED: /wallet/sign called — sign client-side instead")
+
         from ..quantum.crypto import Dilithium2
         try:
             sk = bytes.fromhex(req.private_key_hex)

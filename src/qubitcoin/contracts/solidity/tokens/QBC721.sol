@@ -108,6 +108,14 @@ contract QBC721 is IQBC721, Initializable {
         return _tokenIdCounter;
     }
 
+    // ─── ERC-165 ─────────────────────────────────────────────────────────
+    /// @notice Query if this contract implements a given interface (ERC-165)
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0x80ac58cd  // ERC-721
+            || interfaceId == 0x01ffc9a7  // ERC-165
+            || interfaceId == 0x5b5e139f; // ERC-721Metadata
+    }
+
     // ─── Internal ────────────────────────────────────────────────────────
     function _transfer(address from, address to, uint256 tokenId) internal {
         require(_owners[tokenId] == from, "QBC721: wrong owner");

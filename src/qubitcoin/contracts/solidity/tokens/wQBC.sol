@@ -4,11 +4,19 @@ pragma solidity ^0.8.24;
 import "../interfaces/IQBC20.sol";
 import "../proxy/Initializable.sol";
 
-/// @title wQBC — Wrapped QBC for Cross-Chain Bridging
-/// @notice Lock-and-mint on destination chains (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE).
-///         Bridge operator mints wQBC 1:1 when QBC is locked on the QBC chain.
-///         Bridge operator burns wQBC when user redeems back to native QBC.
-///         0.1% bridge fee (10 bps) deducted on wrap/unwrap operations.
+/// @title wQBC — Wrapped QBC for Cross-Chain Bridging (QBC-Chain Deployment)
+/// @notice This contract is deployed on the QBC L1 chain. It is the full-featured
+///         wQBC implementation with 0.1% bridge fee (10 bps), replay protection via
+///         processedTxHashes, reentrancy guard, and cumulative accounting (totalLocked,
+///         totalMinted, totalBurned, totalFeesCollected).
+///
+///         A separate bridge/wQBC.sol exists for deployment on external chains
+///         (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE). That version is a simplified
+///         bridge-only mint/burn contract without fees or replay tracking — the bridge
+///         operator on the external chain handles those concerns.
+///
+/// @dev    Lock-and-mint on destination chains: QBC locked here -> wQBC minted on external.
+///         Burn-and-unlock on return: wQBC burned on external -> QBC unlocked here.
 contract wQBC is IQBC20, Initializable {
     // ─── Token Metadata ──────────────────────────────────────────────────
     string  public constant name     = "Wrapped Qubitcoin";

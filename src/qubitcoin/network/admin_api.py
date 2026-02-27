@@ -8,6 +8,7 @@ All changes are logged for audit trail. Auth via API key or Dilithium signature.
 Rate limited: max 30 requests/minute per IP for admin endpoints.
 """
 import collections
+import hmac
 import time
 import hashlib
 from decimal import Decimal, InvalidOperation
@@ -43,6 +44,14 @@ def _check_admin_rate_limit(request: Request) -> None:
     now = time.time()
     window = 60.0
 
+    # Evict stale entries from other IPs to prevent unbounded memory growth
+    stale_ips = [
+        ip for ip, ts_list in _admin_rate_limit['requests'].items()
+        if ip != client_ip and (not ts_list or now - max(ts_list) > window)
+    ]
+    for ip in stale_ips:
+        del _admin_rate_limit['requests'][ip]
+
     timestamps = _admin_rate_limit['requests'][client_ip]
     _admin_rate_limit['requests'][client_ip] = [
         t for t in timestamps if now - t < window
@@ -62,19 +71,22 @@ def _verify_admin(api_key: Optional[str] = None) -> bool:
     """Verify admin auth via API key.
 
     Production: replace with Dilithium signature verification.
+    Uses hmac.compare_digest to prevent timing attacks.
     """
     admin_key = Config.ADMIN_API_KEY if hasattr(Config, "ADMIN_API_KEY") else None
     if not admin_key:
         # No key configured — reject all admin calls
         return False
-    return api_key == admin_key
+    if not api_key:
+        return False
+    return hmac.compare_digest(api_key, admin_key)
 
 
 def _require_admin(x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key")) -> None:
     admin_key = Config.ADMIN_API_KEY if hasattr(Config, "ADMIN_API_KEY") else ""
     if not admin_key:
         raise HTTPException(status_code=403, detail="Admin API key not configured")
-    if not x_admin_key or x_admin_key != admin_key:
+    if not x_admin_key or not hmac.compare_digest(x_admin_key, admin_key):
         raise HTTPException(status_code=403, detail="Invalid admin API key")
 
 

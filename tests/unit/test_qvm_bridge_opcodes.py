@@ -98,9 +98,11 @@ class TestQBridgeVerifyExecution:
 
     def test_valid_proof_returns_1(self):
         vm = _make_vm()
+        # Register proof_hash=0xFF so QBRIDGE_VERIFY can find it
+        vm._verified_bridge_proofs = {0xFF}
         bc = bytes([
             Opcode.PUSH1, 0x01,  # source_chain_id (non-zero)
-            Opcode.PUSH1, 0xFF,  # proof_hash (non-zero)
+            Opcode.PUSH1, 0xFF,  # proof_hash (non-zero, registered)
             Opcode.QBRIDGE_VERIFY,
             Opcode.PUSH1, 0,
             Opcode.MSTORE,
@@ -109,6 +111,20 @@ class TestQBridgeVerifyExecution:
         result = _run(vm, bc)
         assert result.success is True
         assert int.from_bytes(result.return_data, 'big') == 1
+
+    def test_unregistered_proof_returns_0(self):
+        """Unregistered proof hashes should not be verified."""
+        vm = _make_vm()
+        bc = bytes([
+            Opcode.PUSH1, 0x01,  # source_chain_id (non-zero)
+            Opcode.PUSH1, 0xAB,  # proof_hash (non-zero but not registered)
+            Opcode.QBRIDGE_VERIFY,
+            Opcode.PUSH1, 0,
+            Opcode.MSTORE,
+            Opcode.PUSH1, 32, Opcode.PUSH1, 0, Opcode.RETURN,
+        ])
+        result = _run(vm, bc)
+        assert int.from_bytes(result.return_data, 'big') == 0
 
     def test_zero_proof_returns_0(self):
         vm = _make_vm()

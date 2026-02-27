@@ -302,6 +302,12 @@ class P2PNetwork:
                 self.penalize_peer(sender_id, 25, f'invalid_block: {reason}')
         elif message.type == 'transaction':
             self.stats['txs_propagated'] += 1
+            # Basic transaction validation before gossip
+            tx_data = message.data if isinstance(message.data, dict) else {}
+            if not self._validate_tx_for_gossip(tx_data):
+                logger.warning(f"Rejecting invalid transaction from {sender_id}")
+                self.penalize_peer(sender_id, 10, 'invalid_transaction')
+                return
             # Validate/add to mempool (add if needed)
         elif message.type == 'get_height':
             await self.send_message(sender_id, 'height', {'height': self.consensus.db.get_current_height()})
@@ -377,6 +383,52 @@ class P2PNetwork:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
             logger.info(f"📡 Broadcasted {msg_type} to {len(tasks)} peers")
+    def _validate_tx_for_gossip(self, tx_data: dict) -> bool:
+        """Basic validation of a transaction before forwarding via gossip.
+
+        Checks structural integrity only — full consensus validation happens
+        when the transaction is included in a block.
+
+        Args:
+            tx_data: Raw transaction dict from the P2P message.
+
+        Returns:
+            True if the transaction has valid structure for forwarding.
+        """
+        if not isinstance(tx_data, dict):
+            return False
+
+        # Must have inputs (list) and outputs (list)
+        inputs = tx_data.get('inputs')
+        outputs = tx_data.get('outputs')
+        if not isinstance(inputs, list) or not isinstance(outputs, list):
+            return False
+
+        # Must have at least one output
+        if len(outputs) == 0:
+            return False
+
+        # Fee must be non-negative if present
+        fee = tx_data.get('fee', 0)
+        try:
+            if float(fee) < 0:
+                return False
+        except (TypeError, ValueError):
+            return False
+
+        # Must have a txid (non-empty string)
+        txid = tx_data.get('txid', '')
+        if not isinstance(txid, str) or len(txid) == 0:
+            return False
+
+        # Signature must be present (non-empty) for non-coinbase txs
+        if len(inputs) > 0:
+            sig = tx_data.get('signature', '')
+            if not isinstance(sig, str) or len(sig) == 0:
+                return False
+
+        return True
+
     async def _gossip_message(self, message: Message, exclude: str):
         """
         Gossip message to other peers (except sender), preserving original msg_id

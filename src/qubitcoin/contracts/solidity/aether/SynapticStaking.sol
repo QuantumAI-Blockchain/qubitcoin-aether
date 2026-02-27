@@ -162,7 +162,8 @@ contract SynapticStaking is Initializable {
         uint256 connId = req.connectionId;
         req.amount = 0;
 
-        payable(msg.sender).transfer(amount);
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Synaptic: transfer failed");
         emit UnstakeCompleted(msg.sender, connId, amount);
     }
 
@@ -179,7 +180,8 @@ contract SynapticStaking is Initializable {
         require(reward > 0, "Synaptic: no rewards");
 
         pendingRewards[msg.sender] = 0;
-        payable(msg.sender).transfer(reward);
+        (bool success, ) = payable(msg.sender).call{value: reward}("");
+        require(success, "Synaptic: transfer failed");
         emit RewardClaimed(msg.sender, reward);
     }
 

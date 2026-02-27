@@ -26,6 +26,7 @@ contract QUSDAllocation is Initializable {
     address public qusdToken;
     uint256 public vestingStart;
     bool    public initialized;
+    bool    public baseInitialized;
 
     /// @notice Per-beneficiary vesting info
     struct VestingSchedule {
@@ -60,7 +61,9 @@ contract QUSDAllocation is Initializable {
     }
 
     // ─── Initializer ────────────────────────────────────────────────────
-    function initializeBase(address _qusdToken) external initializer {
+    function initializeBase(address _qusdToken) external {
+        require(!baseInitialized, "Allocation: base already initialized");
+        baseInitialized = true;
         owner     = msg.sender;
         qusdToken = _qusdToken;
     }

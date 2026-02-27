@@ -152,8 +152,8 @@ export const useExchangeStore = create<ExchangeState>()(
       positionsTab: "positions",
       setPositionsTab: (t) => set({ positionsTab: t }),
 
-      walletConnected: true,
-      walletAddress: "qbc1x7k4m9f2a8d3w...",
+      walletConnected: false,
+      walletAddress: '',
       setWallet: (connected, address) => set({ walletConnected: connected, walletAddress: address }),
 
       settings: defaultSettings,

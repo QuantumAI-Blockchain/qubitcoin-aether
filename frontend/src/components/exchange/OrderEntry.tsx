@@ -88,6 +88,7 @@ const OrderInput = memo(function OrderInput({
   placeholder,
   error,
   disabled,
+  "aria-label": ariaLabel,
 }: {
   label: string;
   value: string;
@@ -96,6 +97,7 @@ const OrderInput = memo(function OrderInput({
   placeholder?: string;
   error?: string;
   disabled?: boolean;
+  "aria-label"?: string;
 }) {
   const [focused, setFocused] = useState(false);
 
@@ -123,6 +125,7 @@ const OrderInput = memo(function OrderInput({
           onBlur={() => setFocused(false)}
           placeholder={placeholder ?? "0.00"}
           disabled={disabled}
+          aria-label={ariaLabel ?? label}
           style={{
             ...baseInputStyle,
             borderColor: error
@@ -523,6 +526,7 @@ export const OrderEntry = memo(function OrderEntry() {
             suffix={quoteAsset}
             placeholder="0.00"
             error={validation.triggerPrice}
+            aria-label="Trigger price"
           />
         )}
 
@@ -535,6 +539,7 @@ export const OrderEntry = memo(function OrderEntry() {
             suffix={quoteAsset}
             placeholder="0.00"
             error={validation.price}
+            aria-label="Order price"
           />
         )}
 
@@ -591,6 +596,7 @@ export const OrderEntry = memo(function OrderEntry() {
           suffix={baseAsset}
           placeholder="0.00"
           error={validation.size}
+          aria-label="Order size"
         />
 
         {/* ── Percentage Buttons ─────────────────────────────────── */}
@@ -680,6 +686,10 @@ export const OrderEntry = memo(function OrderEntry() {
               step={1}
               value={orderLeverage}
               onChange={(e) => setOrderLeverage(parseInt(e.target.value, 10))}
+              aria-label="Leverage"
+              aria-valuemin={1}
+              aria-valuemax={market.maxLeverage}
+              aria-valuenow={orderLeverage}
               style={{
                 width: "100%",
                 accentColor: X.glowCyan,
@@ -915,7 +925,7 @@ export const OrderEntry = memo(function OrderEntry() {
             letterSpacing: "0.02em",
           }}
         >
-          Signed with CRYSTALS-Dilithium-3
+          Orders signed with CRYSTALS-Dilithium-3 when connected
         </div>
 
         {/* ── Submit Button ──────────────────────────────────────── */}

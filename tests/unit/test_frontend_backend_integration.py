@@ -23,6 +23,10 @@ from contextlib import contextmanager
 # Set rate limit high before any import that might trigger app creation
 os.environ['RPC_RATE_LIMIT'] = '100000'
 
+# Set admin API key for auth-protected endpoints
+_TEST_ADMIN_KEY = 'test-admin-key-for-unit-tests'
+os.environ['ADMIN_API_KEY'] = _TEST_ADMIN_KEY
+
 
 # ---------------------------------------------------------------------------
 # SHAPE CONTRACTS — exact field names the frontend destructures
@@ -738,6 +742,10 @@ def app_and_client():
     fee_calc_inst.calculate_deploy_fee.return_value = Decimal('1.5')
     mocks['ContractFeeCalculator'].return_value = fee_calc_inst
 
+    # Ensure Config.ADMIN_API_KEY is set for auth-protected endpoints
+    from qubitcoin.config import Config
+    Config.ADMIN_API_KEY = _TEST_ADMIN_KEY
+
     # Now create the app
     from qubitcoin.network.rpc import create_rpc_app
     app = create_rpc_app(
@@ -941,16 +949,26 @@ class TestMiningEndpoints:
         data = resp.json()
         assert_shape(data, MINING_STATS_SHAPE)
 
-    def test_mining_start(self, app_and_client):
+    def test_mining_start_no_auth(self, app_and_client):
         _, client, _ = app_and_client
         resp = client.post("/mining/start")
+        assert resp.status_code == 403
+
+    def test_mining_start(self, app_and_client):
+        _, client, _ = app_and_client
+        resp = client.post("/mining/start", headers={'X-Admin-Key': _TEST_ADMIN_KEY})
         assert resp.status_code == 200
         data = resp.json()
         assert 'status' in data
 
-    def test_mining_stop(self, app_and_client):
+    def test_mining_stop_no_auth(self, app_and_client):
         _, client, _ = app_and_client
         resp = client.post("/mining/stop")
+        assert resp.status_code == 403
+
+    def test_mining_stop(self, app_and_client):
+        _, client, _ = app_and_client
+        resp = client.post("/mining/stop", headers={'X-Admin-Key': _TEST_ADMIN_KEY})
         assert resp.status_code == 200
         data = resp.json()
         assert 'status' in data

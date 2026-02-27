@@ -17,6 +17,9 @@ contract QUSDOracle is Initializable {
     /// @notice Maximum blocks before a price is considered stale
     uint256 public maxAge;
 
+    /// @notice Minimum number of active non-stale feeders required for aggregation
+    uint256 public minFeeders = 2;
+
     /// @notice Authorized price feeders
     mapping(address => bool) public isFeedAuthorized;
     address[] public feeders;
@@ -140,6 +143,7 @@ contract QUSDOracle is Initializable {
         }
 
         if (count == 0) return;
+        require(count >= minFeeders, "Oracle: insufficient feeders");
 
         // Sort for median (simple insertion sort — small array)
         for (uint256 i = 1; i < count; i++) {
@@ -174,6 +178,12 @@ contract QUSDOracle is Initializable {
     function setMaxAge(uint256 newMaxAge) external onlyOwner {
         emit MaxAgeUpdated(maxAge, newMaxAge);
         maxAge = newMaxAge;
+    }
+
+    /// @notice Update minimum number of feeders required for aggregation
+    function setMinFeeders(uint256 _minFeeders) external onlyOwner {
+        require(_minFeeders > 0, "Oracle: min feeders must be > 0");
+        minFeeders = _minFeeders;
     }
 
     function transferOwnership(address newOwner) external onlyOwner {

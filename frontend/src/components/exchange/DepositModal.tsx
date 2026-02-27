@@ -197,6 +197,9 @@ const DepositModal = memo(function DepositModal() {
           onClick={handleBackdropClick}
         >
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="deposit-modal-title"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -231,6 +234,7 @@ const DepositModal = memo(function DepositModal() {
                   </button>
                 )}
                 <span
+                  id="deposit-modal-title"
                   style={{
                     fontFamily: FONT.display,
                     fontSize: 14,

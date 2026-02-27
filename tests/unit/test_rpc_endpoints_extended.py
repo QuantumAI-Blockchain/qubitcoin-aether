@@ -20,6 +20,10 @@ from contextlib import contextmanager
 # Set rate limit high before any import that might trigger app creation
 os.environ['RPC_RATE_LIMIT'] = '100000'
 
+# Set admin API key for auth-protected endpoints
+_TEST_ADMIN_KEY = 'test-admin-key-for-unit-tests'
+os.environ['ADMIN_API_KEY'] = _TEST_ADMIN_KEY
+
 # Re-use mock factories and helpers from the existing test file
 from tests.unit.test_frontend_backend_integration import (
     _make_db_manager,
@@ -469,6 +473,10 @@ def app_and_client():
         'keter': {'name': 'Keter', 'energy': 1.5},
     })
 
+    # Ensure Config.ADMIN_API_KEY is set for auth-protected endpoints
+    from qubitcoin.config import Config
+    Config.ADMIN_API_KEY = _TEST_ADMIN_KEY
+
     # Now create the app
     from qubitcoin.network.rpc import create_rpc_app
     app = create_rpc_app(
@@ -555,10 +563,18 @@ def app_and_client():
 class TestTransferEndpoint:
     """POST /transfer — bridge UTXO funds to account model."""
 
+    _admin_headers = {'X-Admin-Key': _TEST_ADMIN_KEY}
+
+    def test_transfer_no_auth(self, app_and_client):
+        _, client, ctx = app_and_client
+        resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '10'})
+        assert resp.status_code == 403
+
     def test_transfer_no_utxos(self, app_and_client):
         _, client, ctx = app_and_client
         ctx['db'].get_utxos.return_value = []
-        resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '10'})
+        resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '10'},
+                           headers=self._admin_headers)
         assert resp.status_code == 400
         assert 'No UTXOs' in resp.json().get('detail', '')
 
@@ -569,7 +585,8 @@ class TestTransferEndpoint:
         utxo.txid = 'tx001'
         utxo.vout = 0
         ctx['db'].get_utxos.return_value = [utxo]
-        resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '10'})
+        resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '10'},
+                           headers=self._admin_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert 'tx_hash' in data
@@ -586,7 +603,8 @@ class TestTransferEndpoint:
         utxo.txid = 'tx001'
         utxo.vout = 0
         ctx['db'].get_utxos.return_value = [utxo]
-        resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '100'})
+        resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '100'},
+                           headers=self._admin_headers)
         assert resp.status_code == 400
         assert 'Insufficient' in resp.json().get('detail', '')
         ctx['db'].get_utxos.return_value = []  # restore

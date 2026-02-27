@@ -46,6 +46,154 @@ class ExecutionError(Exception):
 
 
 # ========================================================================
+# ecRecover: ECDSA public key recovery for precompile address 0x01
+# Uses eth_keys (transitive dep of eth-account) for secp256k1 recovery
+# ========================================================================
+
+# secp256k1 curve order — used for ecRecover input validation
+_SECP256K1_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+
+
+def _ecrecover(msg_hash: bytes, v: int, r: int, s: int) -> bytes:
+    """Recover an Ethereum address from an ECDSA signature.
+
+    Args:
+        msg_hash: 32-byte message hash.
+        v: Recovery id (27 or 28 in EVM convention).
+        r: Signature r component (big-endian uint256).
+        s: Signature s component (big-endian uint256).
+
+    Returns:
+        32 bytes: recovered address left-padded with 12 zero bytes,
+        or 32 zero bytes on failure.
+    """
+    # Validate v (EVM uses 27/28; eth_keys uses 0/1)
+    if v not in (27, 28):
+        return b'\x00' * 32
+    # Validate r, s are in valid range (0 < r,s < secp256k1 order)
+    if r <= 0 or r >= _SECP256K1_N or s <= 0 or s >= _SECP256K1_N:
+        return b'\x00' * 32
+
+    try:
+        from eth_keys import KeyAPI
+        sig = KeyAPI.Signature(vrs=(v - 27, r, s))
+        pub = KeyAPI.PublicKey.recover_from_msg_hash(msg_hash, sig)
+        # Ethereum address = last 20 bytes of keccak256(uncompressed_pubkey)
+        addr_bytes = pub.to_canonical_address()  # 20 bytes
+        return b'\x00' * 12 + addr_bytes
+    except Exception:
+        # Any failure (bad signature, point at infinity, etc.) → 32 zero bytes
+        try:
+            # Fallback: manual ECDSA recovery via keccak256 of pubkey bytes
+            from eth_keys.backends.native.ecdsa import ecdsa_raw_recover
+            from eth_keys.backends.native.jacobian import (
+                fast_multiply, inv, SECP256K1_G, SECP256K1_N, SECP256K1_P,
+            )
+            # If the native backend also fails, return zeros
+            vee = v - 27
+            z = int.from_bytes(msg_hash, 'big')
+            r_inv = pow(r, SECP256K1_N - 2, SECP256K1_N)
+            # Compute point R
+            x = r
+            y_sq = (pow(x, 3, SECP256K1_P) + 7) % SECP256K1_P
+            y = pow(y_sq, (SECP256K1_P + 1) // 4, SECP256K1_P)
+            if (y % 2) != (vee % 2):
+                y = SECP256K1_P - y
+            R = (x, y)
+            # Q = r_inv * (s*R - z*G)
+            sR = fast_multiply(R, s)
+            zG = fast_multiply(SECP256K1_G, z)
+            neg_zG = (zG[0], SECP256K1_P - zG[1])
+            from eth_keys.backends.native.jacobian import fast_add
+            sR_minus_zG = fast_add(sR, neg_zG)
+            Q = fast_multiply(sR_minus_zG, r_inv)
+            # Encode uncompressed public key (64 bytes: x || y)
+            pub_bytes = Q[0].to_bytes(32, 'big') + Q[1].to_bytes(32, 'big')
+            addr_bytes = keccak256(pub_bytes)[-20:]
+            return b'\x00' * 12 + addr_bytes
+        except Exception:
+            return b'\x00' * 32
+
+
+# ========================================================================
+# BLAKE2b F compression function for EIP-152 precompile (address 0x09)
+# Reference: RFC 7693, Section 3.2
+# ========================================================================
+
+# BLAKE2b sigma permutation table (10 rounds x 16 entries)
+_BLAKE2B_SIGMA = [
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    [14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3],
+    [11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4],
+    [7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8],
+    [9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13],
+    [2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9],
+    [12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11],
+    [13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10],
+    [6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5],
+    [10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0],
+]
+
+# BLAKE2b initialization vector
+_BLAKE2B_IV = [
+    0x6a09e667f3bcc908, 0xbb67ae8584caa73b,
+    0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
+    0x510e527fade682d1, 0x9b05688c2b3e6c1f,
+    0x1f83d9abfb41bd6b, 0x5be0cd19137e2179,
+]
+
+_MASK64 = 0xFFFFFFFFFFFFFFFF
+
+
+def _blake2b_G(v: list, a: int, b: int, c: int, d: int, x: int, y: int) -> None:
+    """BLAKE2b mixing function G (in-place on v)."""
+    v[a] = (v[a] + v[b] + x) & _MASK64
+    v[d] = ((v[d] ^ v[a]) >> 32 | (v[d] ^ v[a]) << 32) & _MASK64
+    v[c] = (v[c] + v[d]) & _MASK64
+    v[b] = ((v[b] ^ v[c]) >> 24 | (v[b] ^ v[c]) << 40) & _MASK64
+    v[a] = (v[a] + v[b] + y) & _MASK64
+    v[d] = ((v[d] ^ v[a]) >> 16 | (v[d] ^ v[a]) << 48) & _MASK64
+    v[c] = (v[c] + v[d]) & _MASK64
+    v[b] = ((v[b] ^ v[c]) >> 63 | (v[b] ^ v[c]) << 1) & _MASK64
+
+
+def _blake2b_compress(rounds: int, h: list, m: list,
+                      t_0: int, t_1: int, f: bool) -> list:
+    """BLAKE2b F compression function (EIP-152).
+
+    Args:
+        rounds: Number of rounds (typically 12 for BLAKE2b).
+        h: State vector (8 x uint64).
+        m: Message block (16 x uint64).
+        t_0: Counter low 64 bits.
+        t_1: Counter high 64 bits.
+        f: True if this is the final block.
+
+    Returns:
+        Updated state vector (8 x uint64).
+    """
+    # Initialize working vector v[0..15]
+    v = list(h) + list(_BLAKE2B_IV)
+    v[12] ^= t_0
+    v[13] ^= t_1
+    if f:
+        v[14] ^= _MASK64  # Invert all bits for final block
+
+    for i in range(rounds):
+        s = _BLAKE2B_SIGMA[i % 10]
+        _blake2b_G(v, 0, 4, 8, 12, m[s[0]], m[s[1]])
+        _blake2b_G(v, 1, 5, 9, 13, m[s[2]], m[s[3]])
+        _blake2b_G(v, 2, 6, 10, 14, m[s[4]], m[s[5]])
+        _blake2b_G(v, 3, 7, 11, 15, m[s[6]], m[s[7]])
+        _blake2b_G(v, 0, 5, 10, 15, m[s[8]], m[s[9]])
+        _blake2b_G(v, 1, 6, 11, 12, m[s[10]], m[s[11]])
+        _blake2b_G(v, 2, 7, 8, 13, m[s[12]], m[s[13]])
+        _blake2b_G(v, 3, 4, 9, 14, m[s[14]], m[s[15]])
+
+    return [(h[i] ^ v[i] ^ v[i + 8]) & _MASK64 for i in range(8)]
+
+
+# ========================================================================
 # BN128 (alt_bn128) elliptic curve arithmetic for EVM precompiles 6, 7, 8
 # Curve: y^2 = x^3 + 3  over F_p
 # ========================================================================
@@ -694,14 +842,11 @@ class QVM:
                 # Input: hash(32) + v(32) + r(32) + s(32) = 128 bytes
                 result.gas_used = 3000
                 if len(data) >= 128:
-                    # Return 32 bytes (20 byte address left-padded)
-                    h = data[:32]
+                    msg_hash = data[:32]
                     v = int.from_bytes(data[32:64], 'big')
                     r = int.from_bytes(data[64:96], 'big')
                     s = int.from_bytes(data[96:128], 'big')
-                    # Placeholder: return hash of inputs as address
-                    addr_hash = hashlib.sha256(h + data[32:128]).digest()
-                    result.return_data = b'\x00' * 12 + addr_hash[:20]
+                    result.return_data = _ecrecover(msg_hash, v, r, s)
                 else:
                     result.return_data = b'\x00' * 32
 
@@ -831,9 +976,32 @@ class QVM:
                     result.return_data = b'\x00' * 32
 
             elif address == 9:
-                # blake2f
-                result.gas_used = 1  # Simplified
-                result.return_data = b'\x00' * 64
+                # blake2f (EIP-152): BLAKE2b F compression function
+                # Input: 4 bytes rounds + 64 bytes h + 128 bytes m + 16 bytes t + 1 byte f
+                # Total: 213 bytes
+                if len(data) != 213:
+                    result.success = False
+                    result.revert_reason = "blake2f: invalid input length (expected 213)"
+                    return result
+                rounds = int.from_bytes(data[0:4], 'big')
+                result.gas_used = rounds  # Gas = number of rounds
+                flag_byte = data[212]
+                if flag_byte not in (0, 1):
+                    result.success = False
+                    result.revert_reason = "blake2f: invalid final block flag"
+                    return result
+                # Extract h (8 x uint64 LE), m (16 x uint64 LE), t (2 x uint64 LE)
+                h = [int.from_bytes(data[4 + i*8 : 4 + (i+1)*8], 'little') for i in range(8)]
+                m = [int.from_bytes(data[68 + i*8 : 68 + (i+1)*8], 'little') for i in range(16)]
+                t_0 = int.from_bytes(data[196:204], 'little')
+                t_1 = int.from_bytes(data[204:212], 'little')
+                f = bool(flag_byte)
+                # Run BLAKE2b F compression
+                h_out = _blake2b_compress(rounds, h, m, t_0, t_1, f)
+                # Output: 64 bytes (8 x uint64 LE)
+                result.return_data = b''.join(
+                    v.to_bytes(8, 'little') for v in h_out
+                )
 
             else:
                 result.success = False
@@ -1597,7 +1765,18 @@ class QVM:
                 # Stack: proof_hash, public_input → valid (1/0)
                 proof_hash = ctx.pop()
                 public_input = ctx.pop()
-                ctx.push(1 if proof_hash != 0 else 0)
+                if proof_hash == 0:
+                    ctx.push(0)
+                elif hasattr(self, '_quantum_state_store') and self._quantum_state_store:
+                    # Check if proof_hash corresponds to a registered quantum state
+                    state = self._quantum_state_store.get(proof_hash)
+                    ctx.push(1 if state is not None else 0)
+                elif hasattr(self, '_registered_proofs') and proof_hash in self._registered_proofs:
+                    # Check against locally registered proof hashes
+                    ctx.push(1)
+                else:
+                    # No verification backend available — reject unknown proofs
+                    ctx.push(0)
 
             elif op == Opcode.QCOMPLIANCE:
                 # Pre-flight KYC/AML/sanctions compliance check
@@ -1614,12 +1793,39 @@ class QVM:
                 # SUSY risk score for individual address
                 # Stack: address_hash → risk_score (0-100 scaled by 10^16)
                 addr_hash = ctx.pop()
-                ctx.push(10 * 10**16)  # Default low risk
+                if hasattr(self, 'compliance') and self.compliance:
+                    addr_hex = hex(addr_hash)[2:].zfill(40)
+                    # Try cached risk first, then AML monitor
+                    risk_score = self.compliance.get_cached_risk(addr_hex)
+                    if risk_score is None:
+                        # Check if compliance has an AML monitor with risk scoring
+                        if hasattr(self.compliance, '_aml_monitor') and self.compliance._aml_monitor:
+                            risk_score = self.compliance._aml_monitor.get_risk_score(addr_hex)
+                        else:
+                            risk_score = 10.0  # Default low risk when no AML data
+                        self.compliance.cache_risk(addr_hex, risk_score)
+                    ctx.push(int(risk_score * 10**16))
+                else:
+                    ctx.push(10 * 10**16)  # Default low risk fallback
 
             elif op == Opcode.QRISK_SYSTEMIC:
                 # Systemic risk / contagion model
                 # Stack: → systemic_risk_score (0-100 scaled by 10^16)
-                ctx.push(5 * 10**16)  # Default low systemic risk
+                if hasattr(self, 'compliance') and self.compliance:
+                    cb = self.compliance.circuit_breaker
+                    if cb.is_tripped:
+                        # Circuit breaker is tripped — report maximum systemic risk
+                        ctx.push(100 * 10**16)
+                    elif hasattr(self, '_systemic_risk_model') and self._systemic_risk_model:
+                        try:
+                            risk = self._systemic_risk_model.get_current_risk()
+                            ctx.push(int(risk * 10**16))
+                        except Exception:
+                            ctx.push(5 * 10**16)
+                    else:
+                        ctx.push(5 * 10**16)  # Default low systemic risk
+                else:
+                    ctx.push(5 * 10**16)  # Default low systemic risk fallback
 
             elif op == Opcode.QBRIDGE_ENTANGLE:
                 # Cross-chain quantum entanglement
@@ -1644,8 +1850,22 @@ class QVM:
                 # Stack: proof_hash, source_chain_id → valid (1/0)
                 proof_hash = ctx.pop()
                 source_chain = ctx.pop()
-                # Non-zero proof_hash from a known chain → valid
-                ctx.push(1 if proof_hash != 0 and source_chain != 0 else 0)
+                if proof_hash == 0 or source_chain == 0:
+                    ctx.push(0)
+                elif hasattr(self, '_bridge_manager') and self._bridge_manager:
+                    # Check if proof has been processed by bridge validator
+                    proof_hex = hex(proof_hash)[2:].zfill(64)
+                    tracker = self._bridge_manager.validator_rewards
+                    if proof_hex in tracker._processed_proofs:
+                        ctx.push(1)
+                    else:
+                        ctx.push(0)
+                elif hasattr(self, '_verified_bridge_proofs') and proof_hash in self._verified_bridge_proofs:
+                    # Fallback: check locally registered bridge proofs
+                    ctx.push(1)
+                else:
+                    # No bridge manager — cannot verify
+                    ctx.push(0)
 
             elif op == Opcode.QREASON:
                 # Query Aether reasoning engine from smart contract
@@ -1847,14 +2067,58 @@ class QVM:
                     ctx.push(1)
 
             elif op == Opcode.CALLCODE:
-                # Similar to DELEGATECALL but with value
+                # CALLCODE: execute target's code in caller's storage context
+                # Like DELEGATECALL but msg.value is set from the call (not inherited)
                 gas_limit = ctx.pop()
                 addr_int = ctx.pop()
                 value = ctx.pop()
                 args_offset, args_size = ctx.pop(), ctx.pop()
                 ret_offset, ret_size = ctx.pop(), ctx.pop()
-                ctx.return_data = b''
-                ctx.push(1)  # Simplified
+                if ctx.is_static and value != 0:
+                    raise ExecutionError("CALLCODE with value in static context")
+                to_addr = format(addr_int, '040x')
+                call_data = ctx.memory_read(args_offset, args_size)
+
+                # Check precompiled contracts
+                if addr_int in self.PRECOMPILES:
+                    sub_gas = min(gas_limit, ctx.gas - ctx.gas_used)
+                    sub_result = self._execute_precompile(addr_int, call_data, sub_gas)
+                    ctx.gas_used += sub_result.gas_used
+                    ctx.return_data = sub_result.return_data
+                    ret = sub_result.return_data[:ret_size]
+                    if ret:
+                        ctx.memory_write(ret_offset, ret)
+                    ctx.push(1 if sub_result.success else 0)
+                else:
+                    code = b''
+                    if self.db:
+                        bc = self.db.get_contract_bytecode(to_addr)
+                        if bc:
+                            code = bytes.fromhex(bc)
+                    if code:
+                        available = ctx.gas - ctx.gas_used
+                        capped = (available * 63) // 64  # EIP-150
+                        sub_gas = min(gas_limit, capped)
+                        cache_snap = {k: dict(v) for k, v in self._storage_cache.items()}
+                        # CALLCODE: run target code but use caller's address for storage
+                        # caller stays ctx.caller, address stays ctx.address (caller's storage)
+                        sub_result = self.execute(
+                            ctx.address, ctx.address, code, call_data, value,
+                            sub_gas, ctx.origin, depth=ctx.depth + 1
+                        )
+                        ctx.gas_used += sub_result.gas_used
+                        ctx.return_data = sub_result.return_data
+                        if sub_result.success:
+                            ctx.logs.extend(sub_result.logs)
+                        else:
+                            self._storage_cache = cache_snap
+                        ret = sub_result.return_data[:ret_size]
+                        if ret:
+                            ctx.memory_write(ret_offset, ret)
+                        ctx.push(1 if sub_result.success else 0)
+                    else:
+                        ctx.return_data = b''
+                        ctx.push(1)
 
             elif op == Opcode.CREATE2:
                 if ctx.is_static:

@@ -298,17 +298,30 @@ function renderChart(
     const sideLabel = pt.side === "bid" ? "BID" : "ASK";
     const sideColor = pt.side === "bid" ? X.bid : X.ask;
 
-    tooltip.innerHTML =
-      `<div style="font-family:${FONT.display};font-size:9px;letter-spacing:0.08em;color:${sideColor};margin-bottom:4px">${sideLabel}</div>` +
-      `<div style="display:flex;justify-content:space-between;gap:16px">` +
-      `<span style="color:${X.textSecondary}">Price</span>` +
-      `<span style="color:${X.textPrimary}">${formatPrice(pt.price)}</span></div>` +
-      `<div style="display:flex;justify-content:space-between;gap:16px">` +
-      `<span style="color:${X.textSecondary}">Depth</span>` +
-      `<span style="color:${X.textPrimary}">${formatSize(pt.cumSize)} ${baseAsset}</span></div>` +
-      `<div style="display:flex;justify-content:space-between;gap:16px">` +
-      `<span style="color:${X.textSecondary}">Value</span>` +
-      `<span style="color:${X.textPrimary}">${formatSize(pt.cumValue)} QUSD</span></div>`;
+    tooltip.textContent = '';
+
+    const sideDiv = document.createElement('div');
+    sideDiv.style.cssText = `font-family:${FONT.display};font-size:9px;letter-spacing:0.08em;color:${sideColor};margin-bottom:4px`;
+    sideDiv.textContent = sideLabel;
+    tooltip.appendChild(sideDiv);
+
+    const makeRow = (label: string, value: string): HTMLDivElement => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;justify-content:space-between;gap:16px';
+      const lbl = document.createElement('span');
+      lbl.style.color = X.textSecondary;
+      lbl.textContent = label;
+      const val = document.createElement('span');
+      val.style.color = X.textPrimary;
+      val.textContent = value;
+      row.appendChild(lbl);
+      row.appendChild(val);
+      return row;
+    };
+
+    tooltip.appendChild(makeRow('Price', formatPrice(pt.price)));
+    tooltip.appendChild(makeRow('Depth', `${formatSize(pt.cumSize)} ${baseAsset}`));
+    tooltip.appendChild(makeRow('Value', `${formatSize(pt.cumValue)} QUSD`));
 
     tooltip.style.opacity = "1";
 

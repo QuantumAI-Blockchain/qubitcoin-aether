@@ -157,7 +157,22 @@ class TestQCreateExecution:
 
 
 class TestQVerifyExecution:
-    def test_qverify_valid_proof(self):
+    def test_qverify_registered_proof(self):
+        """A proof registered in _registered_proofs should verify successfully."""
+        from qubitcoin.qvm.opcodes import Opcode
+        vm = _make_vm()
+        vm._registered_proofs = {99}  # Register proof_hash=99
+        bytecode = bytes([
+            Opcode.PUSH1, 42, Opcode.PUSH1, 99, Opcode.QVERIFY,
+            Opcode.PUSH1, 0, Opcode.MSTORE,
+            Opcode.PUSH1, 32, Opcode.PUSH1, 0, Opcode.RETURN,
+        ])
+        result = _run(vm, bytecode)
+        assert result.success is True
+        assert int.from_bytes(result.return_data, 'big') == 1
+
+    def test_qverify_unregistered_proof(self):
+        """An unregistered non-zero proof should fail verification."""
         from qubitcoin.qvm.opcodes import Opcode
         vm = _make_vm()
         bytecode = bytes([
@@ -167,7 +182,7 @@ class TestQVerifyExecution:
         ])
         result = _run(vm, bytecode)
         assert result.success is True
-        assert int.from_bytes(result.return_data, 'big') == 1
+        assert int.from_bytes(result.return_data, 'big') == 0
 
     def test_qverify_zero_proof_fails(self):
         from qubitcoin.qvm.opcodes import Opcode

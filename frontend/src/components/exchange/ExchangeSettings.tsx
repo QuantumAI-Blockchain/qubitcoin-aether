@@ -302,7 +302,7 @@ const ExchangeSettings = memo(function ExchangeSettings() {
       <div style={overlayStyle} onClick={() => setOpen(false)} />
 
       {/* Panel */}
-      <div style={panelContainerStyle} className="exchange-scroll">
+      <div role="dialog" aria-modal="true" aria-labelledby="settings-panel-title" style={panelContainerStyle} className="exchange-scroll">
         {/* Header */}
         <div
           style={{
@@ -314,6 +314,7 @@ const ExchangeSettings = memo(function ExchangeSettings() {
           }}
         >
           <span
+            id="settings-panel-title"
             style={{
               fontFamily: FONT.display,
               fontSize: 12,

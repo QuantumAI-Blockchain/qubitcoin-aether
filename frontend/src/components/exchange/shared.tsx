@@ -380,6 +380,8 @@ export const Toast = memo(function Toast({
   }, [onDismiss]);
   return (
     <motion.div
+      role="alert"
+      aria-live="polite"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}

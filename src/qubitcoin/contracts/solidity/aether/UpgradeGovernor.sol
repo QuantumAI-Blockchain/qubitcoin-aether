@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "../interfaces/IQBC20.sol";
 
 /// @title UpgradeGovernor — Protocol Upgrade Governance
 /// @notice Propose, vote, and execute upgrades to Aether Tree contracts.
@@ -13,6 +14,7 @@ contract UpgradeGovernor is Initializable {
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
+    IQBC20  public qbcToken;   // QBC token for on-chain vote weight verification
     uint256 public proposalCount;
     address public proxyAdmin;
 
@@ -49,9 +51,10 @@ contract UpgradeGovernor is Initializable {
     }
 
     // ─── Initializer ────────────────────────────────────────────────────
-    function initialize(address _proxyAdmin) external initializer {
-        owner = msg.sender;
+    function initialize(address _proxyAdmin, address _qbcToken) external initializer {
+        owner      = msg.sender;
         proxyAdmin = _proxyAdmin;
+        qbcToken   = IQBC20(_qbcToken);
     }
 
     // ─── Proposals ───────────────────────────────────────────────────────
@@ -85,6 +88,7 @@ contract UpgradeGovernor is Initializable {
         require(p.status == UpgradeStatus.Voting, "Governor: not voting");
         require(block.timestamp <= p.votingEndTime, "Governor: voting ended");
         require(!hasVoted[proposalId][msg.sender], "Governor: already voted");
+        require(weight <= qbcToken.balanceOf(msg.sender), "Governor: weight exceeds balance");
 
         hasVoted[proposalId][msg.sender] = true;
         if (support) { p.votesFor += weight; }

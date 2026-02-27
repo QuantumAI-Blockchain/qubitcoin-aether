@@ -195,6 +195,9 @@ const WithdrawModal = memo(function WithdrawModal() {
           onClick={handleBackdropClick}
         >
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="withdraw-modal-title"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -229,6 +232,7 @@ const WithdrawModal = memo(function WithdrawModal() {
                   </button>
                 )}
                 <span
+                  id="withdraw-modal-title"
                   style={{
                     fontFamily: FONT.display,
                     fontSize: 14,
