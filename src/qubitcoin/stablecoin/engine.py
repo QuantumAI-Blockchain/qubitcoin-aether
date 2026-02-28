@@ -3,6 +3,7 @@ QUSD Stablecoin Engine
 Multi-collateral, multi-oracle stable USD token with flash loan support
 """
 
+import hashlib
 import time
 import json
 import uuid
@@ -81,6 +82,13 @@ class StablecoinEngine:
         self._completed_flash_loans: List[FlashLoan] = []
         self._flash_loan_total_borrowed: Decimal = Decimal('0')
         self._flash_loan_total_fees: Decimal = Decimal('0')
+
+        # IFlashBorrower callback verification
+        # Must match Solidity: keccak256("IFlashBorrower.onFlashLoan")
+        import hashlib as _hl
+        self.CALLBACK_SUCCESS: bytes = _hl.sha3_256(
+            b"IFlashBorrower.onFlashLoan"
+        ).digest()
 
         # 10-year backing schedule: year → required reserve ratio
         # Year 0 = genesis, Year 10 = 100% backed
@@ -1155,6 +1163,72 @@ class StablecoinEngine:
         )
 
         return loan
+
+    def verify_flash_loan_callback(self, callback_result: bytes) -> bool:
+        """Verify that the IFlashBorrower callback returned the correct hash.
+
+        The borrower's ``onFlashLoan`` callback must return
+        ``keccak256("IFlashBorrower.onFlashLoan")`` (32 bytes) to prove
+        that the receiver deliberately processed the loan.  This mirrors the
+        Solidity-side check in ``QUSDFlashLoan.sol``.
+
+        Args:
+            callback_result: The 32-byte return value from the borrower callback.
+
+        Returns:
+            True if the callback hash matches CALLBACK_SUCCESS.
+        """
+        if not isinstance(callback_result, (bytes, bytearray)):
+            logger.warning("Flash loan callback result is not bytes")
+            return False
+        if len(callback_result) != 32:
+            logger.warning(
+                f"Flash loan callback result wrong length: "
+                f"expected 32, got {len(callback_result)}"
+            )
+            return False
+        if callback_result != self.CALLBACK_SUCCESS:
+            logger.warning(
+                f"Flash loan callback verification failed: "
+                f"expected {self.CALLBACK_SUCCESS.hex()}, "
+                f"got {callback_result.hex()}"
+            )
+            return False
+        return True
+
+    def execute_flash_loan(
+        self, borrower: str, amount: Decimal,
+        callback_result: Optional[bytes] = None,
+    ) -> FlashLoan:
+        """Initiate a flash loan with callback verification.
+
+        This is the preferred entry point for flash loans.  It wraps
+        ``initiate_flash_loan`` and enforces IFlashBorrower callback
+        verification when a ``callback_result`` is provided.
+
+        Args:
+            borrower: Address of the borrower.
+            amount: Amount of QUSD to borrow.
+            callback_result: 32-byte return value from the borrower's
+                ``onFlashLoan`` callback.  When provided, the hash is
+                verified against ``CALLBACK_SUCCESS`` before the loan
+                is recorded.  When ``None``, callback verification is
+                skipped (legacy compatibility).
+
+        Returns:
+            FlashLoan instance.
+
+        Raises:
+            ValueError: If callback verification fails or loan initiation fails.
+        """
+        if callback_result is not None:
+            if not self.verify_flash_loan_callback(callback_result):
+                raise ValueError(
+                    "Flash loan callback verification failed: "
+                    "receiver did not return IFlashBorrower.onFlashLoan hash"
+                )
+
+        return self.initiate_flash_loan(borrower, amount)
 
     def complete_flash_loan(self, loan_id: str, repay_amount: Decimal) -> bool:
         """Complete a flash loan by repaying the borrowed amount plus fee.

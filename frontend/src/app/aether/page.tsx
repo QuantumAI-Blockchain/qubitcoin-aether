@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, type ChatResponse } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useToast } from "@/components/ui/toast";
 import { StreamingText } from "@/components/aether/streaming-text";
 import {
@@ -131,6 +132,14 @@ function ReasoningTraceView({ steps, potHash }: { steps: string[]; potHash?: str
 }
 
 export default function AetherPage() {
+  return (
+    <ErrorBoundary>
+      <AetherPageContent />
+    </ErrorBoundary>
+  );
+}
+
+function AetherPageContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);

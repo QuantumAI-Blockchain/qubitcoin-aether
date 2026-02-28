@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ArrowLeft, FileText, Cpu, Brain, TrendingUp } from "lucide-react";
 
 const C = {
@@ -51,6 +52,7 @@ const docs = [
 
 export default function DocsPage() {
   return (
+    <ErrorBoundary>
     <main
       className="min-h-screen p-6 md:p-12"
       style={{ background: C.bg, color: C.text, fontFamily: "Inter, system-ui, sans-serif" }}
@@ -114,5 +116,6 @@ export default function DocsPage() {
         </div>
       </div>
     </main>
+    </ErrorBoundary>
   );
 }

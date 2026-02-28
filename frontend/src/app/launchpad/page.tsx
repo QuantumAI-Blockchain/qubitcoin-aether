@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LaunchpadClient } from "./client";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 export const metadata: Metadata = {
   title: "Launchpad | Qubitcoin",
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function LaunchpadPage() {
-  return <LaunchpadClient />;
+  return (
+    <ErrorBoundary>
+      <LaunchpadClient />
+    </ErrorBoundary>
+  );
 }

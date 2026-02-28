@@ -4,18 +4,17 @@
  * Typed fetch functions for the Qubitcoin DEX.
  * Switches between mock data and real backend API via NEXT_PUBLIC_EXCHANGE_MOCK.
  *
- * When NEXT_PUBLIC_EXCHANGE_MOCK is unset or not explicitly "false",
- * mock data is returned. Set NEXT_PUBLIC_EXCHANGE_MOCK=false to hit the
- * real backend at NEXT_PUBLIC_RPC_URL.
+ * Default: live mode (USE_MOCK = false). Set NEXT_PUBLIC_EXCHANGE_MOCK=true
+ * to use mock data during frontend-only development.
  */
 
 import { RPC_URL } from "./constants";
 
 // ---------------------------------------------------------------------------
-// Environment switch
+// Environment switch — defaults to live backend
 // ---------------------------------------------------------------------------
 
-const USE_MOCK = process.env.NEXT_PUBLIC_EXCHANGE_MOCK !== "false";
+const USE_MOCK = process.env.NEXT_PUBLIC_EXCHANGE_MOCK === "true";
 
 // ---------------------------------------------------------------------------
 // Types (backend-aligned, simpler than the full frontend exchange types)

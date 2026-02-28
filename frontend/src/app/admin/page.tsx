@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RPC_URL } from "@/lib/constants";
 
 // ─── Admin API helpers ──────────────────────────────────────────────
@@ -158,6 +159,14 @@ const TABS = ["Fees", "Treasury", "Economics"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AdminPage() {
+  return (
+    <ErrorBoundary>
+      <AdminPageContent />
+    </ErrorBoundary>
+  );
+}
+
+function AdminPageContent() {
   const [apiKey, setApiKey] = useState("");
   const [tab, setTab] = useState<Tab>("Fees");
 

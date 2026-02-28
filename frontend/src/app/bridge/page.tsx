@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BridgeClient } from "./client";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 export const metadata: Metadata = {
   title: "QBC Bridge",
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function BridgePage() {
-  return <BridgeClient />;
+  return (
+    <ErrorBoundary>
+      <BridgeClient />
+    </ErrorBoundary>
+  );
 }

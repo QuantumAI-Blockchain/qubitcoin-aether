@@ -12,7 +12,7 @@ from decimal import Decimal
 
 from fastapi import FastAPI, Request, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse, Response
 
 from ..config import Config
@@ -662,8 +662,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # Track which txids came through commit-reveal: txid -> commit_timestamp
     _committed_txids: Dict[str, float] = {}
 
+    class MempoolCommitRequest(BaseModel):
+        commit_hash: str = Field(..., min_length=64, max_length=64, pattern=r'^[0-9a-fA-F]{64}$')
+
     @app.post("/mempool/commit")
-    async def mempool_commit(request: Request):
+    async def mempool_commit(req: MempoolCommitRequest):
         """Submit a commit hash for commit-reveal MEV protection.
 
         The commit_hash should be sha256(tx_data_hex + salt).
@@ -675,31 +678,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 content={"error": "Commit-reveal MEV protection is disabled"},
             )
 
-        try:
-            body = await request.json()
-        except Exception:
-            return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
-
-        commit_hash = body.get("commit_hash", "")
-        if not commit_hash or not isinstance(commit_hash, str):
-            return JSONResponse(
-                status_code=400,
-                content={"error": "commit_hash is required (hex string)"},
-            )
-
-        try:
-            bytes.fromhex(commit_hash)
-        except ValueError:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "commit_hash must be a valid hex string"},
-            )
-
-        if len(commit_hash) != 64:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "commit_hash must be 64 hex chars (SHA-256)"},
-            )
+        commit_hash = req.commit_hash
 
         current_height = db_manager.get_current_height()
         now = time.time()
@@ -719,8 +698,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "expires_at_block": current_height + Config.MEV_REVEAL_WINDOW_BLOCKS,
         }
 
+    class MempoolRevealRequest(BaseModel):
+        tx_data: str = Field(..., min_length=1)
+        salt: str = Field(..., min_length=1)
+
     @app.post("/mempool/reveal")
-    async def mempool_reveal(request: Request):
+    async def mempool_reveal(req: MempoolRevealRequest):
         """Reveal a previously committed transaction.
 
         Verifies sha256(tx_data + salt) matches a pending commit
@@ -732,19 +715,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 content={"error": "Commit-reveal MEV protection is disabled"},
             )
 
-        try:
-            body = await request.json()
-        except Exception:
-            return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
-
-        tx_data = body.get("tx_data", "")
-        salt = body.get("salt", "")
-
-        if not tx_data or not salt:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "tx_data and salt are required"},
-            )
+        tx_data = req.tx_data
+        salt = req.salt
 
         import hashlib as _hl
         computed_hash = _hl.sha256((tx_data + salt).encode()).hexdigest()
@@ -2060,18 +2032,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             )
         return _chat_state['chat'], _chat_state['fee_mgr']
 
+    class ChatSessionRequest(BaseModel):
+        user_address: str = ''
+
     @app.post("/aether/chat/session")
-    async def create_chat_session(request: Request):
+    async def create_chat_session(req: ChatSessionRequest):
         """Create a new Aether chat session."""
         if not aether_engine:
             raise HTTPException(status_code=503, detail="Aether Tree not available")
-        # Accept user_address from JSON body or query param
-        user_address = ''
-        try:
-            body = await request.json()
-            user_address = body.get('user_address', '')
-        except Exception as e:
-            logger.debug(f"Chat session: no JSON body or missing user_address: {e}")
+        user_address = req.user_address
         chat, _ = _get_chat()
         session = chat.create_session(user_address)
         return {
@@ -4458,13 +4427,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=503, detail="QVM debugger not available")
         return qvm_debugger.get_stats()
 
+    class QSolCompileRequest(BaseModel):
+        source: str = Field(..., min_length=1)
+
     @app.post("/qvm/compile")
-    async def qvm_compile(request: Request):
+    async def qvm_compile(req: QSolCompileRequest):
         """Compile QSol (Quantum Solidity) source to bytecode."""
         if not qsol_compiler:
             raise HTTPException(status_code=503, detail="QSol compiler not available")
-        body = await request.json()
-        source = body.get('source', '')
+        source = req.source
         try:
             result = qsol_compiler.compile(source)
             return result
@@ -5113,19 +5084,29 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # FLASH LOAN ENDPOINTS
     # ========================================================================
 
+    class FlashLoanInitiateRequest(BaseModel):
+        borrower: str = Field(..., min_length=1)
+        amount: str = Field(..., min_length=1)
+        callback_result: Optional[str] = None  # hex-encoded 32-byte callback hash
+
     @app.post("/qusd/flash-loan/initiate")
-    async def flash_loan_initiate(request: Request):
-        """Initiate a QUSD flash loan."""
+    async def flash_loan_initiate(req: FlashLoanInitiateRequest):
+        """Initiate a QUSD flash loan with optional callback verification."""
         if not stablecoin_engine:
             raise HTTPException(status_code=503, detail="Stablecoin engine not available")
-        body = await request.json()
-        borrower = body.get('borrower', '')
-        amount_str = body.get('amount', '0')
-        if not borrower:
-            raise HTTPException(status_code=400, detail="borrower address required")
+        borrower = req.borrower
+        amount_str = req.amount
+        callback_bytes = None
+        if req.callback_result:
+            try:
+                callback_bytes = bytes.fromhex(req.callback_result)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="callback_result must be valid hex")
         try:
             from decimal import Decimal
-            loan = stablecoin_engine.initiate_flash_loan(borrower, Decimal(amount_str))
+            loan = stablecoin_engine.execute_flash_loan(
+                borrower, Decimal(amount_str), callback_result=callback_bytes
+            )
             return {
                 "status": "ok",
                 "loan_id": loan.id,
@@ -5137,16 +5118,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    class FlashLoanRepayRequest(BaseModel):
+        loan_id: str = Field(..., min_length=1)
+        repay_amount: str = Field(..., min_length=1)
+
     @app.post("/qusd/flash-loan/repay")
-    async def flash_loan_repay(request: Request):
+    async def flash_loan_repay(req: FlashLoanRepayRequest):
         """Repay a flash loan."""
         if not stablecoin_engine:
             raise HTTPException(status_code=503, detail="Stablecoin engine not available")
-        body = await request.json()
-        loan_id = body.get('loan_id', '')
-        repay_amount_str = body.get('repay_amount', '0')
-        if not loan_id:
-            raise HTTPException(status_code=400, detail="loan_id required")
+        loan_id = req.loan_id
+        repay_amount_str = req.repay_amount
         try:
             from decimal import Decimal
             success = stablecoin_engine.complete_flash_loan(loan_id, Decimal(repay_amount_str))
@@ -5274,30 +5256,29 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=503, detail="Exchange engine not available")
         return {"orders": exchange_engine.get_user_orders(address)}
 
+    class ExchangeOrderRequest(BaseModel):
+        pair: str = Field(..., min_length=1)
+        side: str = Field(..., pattern=r'^(buy|sell)$')
+        type: str = Field(default='limit', pattern=r'^(limit|market)$')
+        price: float = Field(default=0, ge=0)
+        size: float = Field(..., gt=0)
+        address: str = ''
+
     @app.post("/exchange/order")
-    async def exchange_place_order(request: Request):
+    async def exchange_place_order(req: ExchangeOrderRequest):
         """Place a new order (limit or market).
 
         Body: {pair, side, type, price, size, address}
         """
         if not exchange_engine:
             raise HTTPException(status_code=503, detail="Exchange engine not available")
-        body = await request.json()
-        pair = body.get("pair", "")
-        side = body.get("side", "")
-        order_type = body.get("type", "limit")
-        price = float(body.get("price", 0))
-        size = float(body.get("size", 0))
-        address = body.get("address", "")
+        pair = req.pair
+        side = req.side
+        order_type = req.type
+        price = req.price
+        size = req.size
+        address = req.address
 
-        if not pair:
-            raise HTTPException(status_code=400, detail="pair is required")
-        if side not in ("buy", "sell"):
-            raise HTTPException(status_code=400, detail="side must be 'buy' or 'sell'")
-        if order_type not in ("limit", "market"):
-            raise HTTPException(status_code=400, detail="type must be 'limit' or 'market'")
-        if size <= 0:
-            raise HTTPException(status_code=400, detail="size must be positive")
         if order_type == "limit" and price <= 0:
             raise HTTPException(status_code=400, detail="price must be positive for limit orders")
 

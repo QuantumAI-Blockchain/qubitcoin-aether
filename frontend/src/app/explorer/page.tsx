@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ExplorerClient } from "./client";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 export const metadata: Metadata = {
   title: "Block Explorer",
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function ExplorerPage() {
-  return <ExplorerClient />;
+  return (
+    <ErrorBoundary>
+      <ExplorerClient />
+    </ErrorBoundary>
+  );
 }

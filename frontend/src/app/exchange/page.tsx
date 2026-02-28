@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ExchangeClient } from "./client";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 export const metadata: Metadata = {
   title: "Exchange | Qubitcoin DEX",
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function ExchangePage() {
-  return <ExchangeClient />;
+  return (
+    <ErrorBoundary>
+      <ExchangeClient />
+    </ErrorBoundary>
+  );
 }
