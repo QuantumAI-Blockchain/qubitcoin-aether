@@ -1,31 +1,33 @@
 # QUBITCOIN PROJECT REVIEW
-# Government-Grade Peer Review — Production Launch Edition
-# Date: 2026-02-28 | Run #1
+# Government-Grade Peer Review — v5.0 Audit Protocol
+# Date: 2026-02-28 | Run #6
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-- **Overall Readiness Score: 85/100**
-- **Launch-Blocking Issues: 4**
+- **Overall Readiness Score: 78/100**
+- **Launch-Blocking Issues: 9**
 - **Total Files Audited: 250+**
-- **Total LOC Audited: 100,000+**
-- **Test Suite: 3,812 passed, 0 failed, 4 skipped**
+- **Total LOC Audited: ~175,000+**
+- **Test Suite: 3,847 passed, 4 skipped, 0 failures**
+- **Audit Protocol: v5.0 (13 sections, 10 components)**
 
 ### Top 5 Critical Findings (Launch-Blocking)
 
-1. **QVM Gas Cost Mismatches** — Python QVM underprices BALANCE (700 vs 2600), SLOAD (800 vs 2100), EXTCODE* (700 vs 2600) vs Go QVM/Ethereum spec. Enables DOS attacks via underpriced storage operations. *(qvm/opcodes.py)*
-2. **QVM Opcode Mapping Incompatibility** — Python uses 0xD0-0xDE for quantum opcodes; Go uses canonical 0xF0-0xF9. Bytecode compiled for one cannot execute on the other. *(qvm/opcodes.py, pkg/vm/quantum/opcodes.go)*
-3. **Go QVM ecRecover Precompile Broken** — Uses SHA256 placeholder instead of actual ECDSA recovery. Cannot verify signatures on-chain. *(pkg/vm/evm/precompiles.go:70-74)*
-4. **Exchange Uses Float for Money** — `Order.price` and `Order.size` are IEEE 754 float, not Decimal. Precision loss on large orders. *(exchange/engine.py)*
+1. **Frontend mock defaults inverted** — Bridge and Launchpad API libs default to mock mode (`!== "false"` polarity). Users see fabricated bridge balances and launchpad data in production. *(bridge-api.ts:18, launchpad-api.ts:23)*
+2. **Exchange always runs mock engine** — `useTickSimulation()` and `useTradeSimulation()` run unconditionally, generating fake price ticks/trades. 10+ hooks return only mock data with no API path. *(hooks.ts:10,561-582)*
+3. **Go QVM KECCAK256 uses SHA-256** — The KECCAK256 opcode computes `sha256.Sum256()` instead of Keccak-256. Every Solidity `keccak256()` call produces wrong hashes. *(pkg/vm/evm/interpreter.go:328)*
+4. **Go QVM ecRecover uses wrong curve** — Uses `elliptic.P256()` (NIST P-256) instead of secp256k1. Combined with SHA-256 keccak helper, ecRecover recovers wrong addresses. *(pkg/vm/evm/precompiles.go:108)*
+5. **IHiggsField.getFieldState() signature mismatch** — Interface returns 9 values with different semantics than HiggsField.sol implementation. Cross-contract calls decode garbage data. *(IHiggsField.sol, HiggsField.sol)*
 
 ### Top 5 Strengths (Competitive Advantages)
 
-1. **Genuine AGI Engine** — Aether Tree performs real logical reasoning (deductive, inductive, abductive), not LLM wrappers. 10 functionally distinct Sephirot nodes. No other blockchain has this.
-2. **Post-Quantum Cryptography** — CRYSTALS-Dilithium2 signatures + ML-KEM-768 P2P encryption + Poseidon2 ZK hashing. Future-proof against quantum attacks.
-3. **Higgs Cognitive Field** — Physics-grounded mass hierarchy (Standard Model accurate) for cognitive inertia in AGI. Unique innovation.
-4. **Comprehensive Smart Contracts** — 56 Solidity contracts, all functional, all Grade A security. QUSD stablecoin system comparable to MakerDAO/DAI.
-5. **Production Infrastructure** — 9 Docker services, 79 Prometheus metrics, 4 CI/CD pipelines, 3,812 passing tests. Enterprise-grade from day one.
+1. **Genuine AGI Engine** — 36 Python + 9 Rust modules. Zero stubs, zero TODO, zero todo!(). All reasoning (deductive, inductive, abductive, causal, neural, CoT) computes real results. 10 functionally distinct Sephirot. Phi uses real IIT spectral bisection.
+2. **Post-Quantum Cryptography** — CRYSTALS-Dilithium2 + ML-KEM-768 Kyber P2P + Poseidon2 ZK hashing. 25 Kyber tests, 25 Poseidon2 tests, all passing.
+3. **Perfect Cross-System Parity** — Python L1 and Substrate L1 match on all 9 consensus rules (genesis premine, reward, difficulty, UTXO validation, addresses, maturity, max supply, halving, block time).
+4. **Production Infrastructure** — 22-component node orchestrator, 83 Prometheus metrics, 286 REST/JSON-RPC endpoints, 3,847 passing tests, 4 CI workflows.
+5. **Higgs Cognitive Field** — All 7 physics formulas verified correct. Yukawa cascade matches Standard Model. SUSY pair mass ratios computed from Mexican Hat potential.
 
 ---
 
@@ -33,299 +35,275 @@
 
 | # | Component | Score | Launch Ready | Blocking Issues |
 |---|-----------|-------|-------------|-----------------|
-| 1 | Frontend (qbc.network) | 95/100 | YES | None — mock fallbacks are defensive, not fake |
-| 2 | Blockchain Core (Python L1) | 93/100 | YES | None |
-| 3 | Substrate Hybrid Node (Rust L1) | 92/100 | TESTNET ONLY | Address hash mismatch (SHA2 vs SHA3), weights not benchmarked |
-| 4 | QVM (Python + Go L2) | 62/100 | NO | Gas mismatches, opcode mapping, ecRecover broken |
-| 5 | Aether Tree (Python + Rust L3) | 89/100 | YES | None — genuine AGI engine confirmed |
-| 6 | QBC Economics & Bridges | 88/100 | YES | Bridge fee doc discrepancy (0.3% vs 0.1%) |
-| 7 | QUSD Stablecoin | 78/100 | PARTIAL | Python-Solidity sync gaps, no 10-year schedule |
-| 8 | Exchange | 52/100 | NO | Float precision, no on-chain settlement, missing order types |
-| 9 | Launchpad | 71/100 | PARTIAL | 5 of 6 templates are stubs, no ABI encoding |
-| 10 | Smart Contracts (56 .sol) | 96/100 | YES | Minor: unbounded loop in governance, wQBC duplicate check |
+| 1 | Frontend (qbc.network) | 68/100 | NO | Mock defaults inverted (bridge, launchpad), always-on mock engine (exchange), landing page no ErrorBoundary |
+| 2 | Blockchain Core (Python L1) | 91/100 | YES* | *crypto fallback should be removed; /qusd/peg/history endpoint crashes; 20 dead metrics |
+| 3 | Substrate Hybrid Node (Rust L1) | 88/100 | TESTNET | WASM Dilithium bypass (by design), consciousness detection race, weights not benchmarked, custom RPC TODO |
+| 4 | QVM Python + Go (L2) | 55/100 | NO | KECCAK256=SHA-256, ecRecover wrong curve, CREATE/CALL stubs, bn256 stubs, compliance stubs |
+| 5 | Aether Tree (Python + Rust L3) | 96/100 | YES | Zero stubs. 276 Rust tests. All physics correct. Minor: silent exception in llm_adapter edge linking |
+| 6 | QBC Economics & Bridges | 85/100 | YES | Bridge fee 0.3% documented, exchange persistence in-memory only |
+| 7 | QUSD Stablecoin | 72/100 | PARTIAL | reserve_manager uses float (not Decimal), CDP/savings in-memory, 3 stub contract executors |
+| 8 | Exchange | 70/100 | PARTIAL | Decimal math correct, MEV protection, settlement wired. In-memory persistence only. |
+| 9 | Launchpad | 60/100 | NO | 3 of 6 templates are stubs (NFT, escrow, governance). Mock default in frontend. |
+| 10 | Smart Contracts (57 .sol) | 82/100 | PARTIAL | ISephirah not implemented on 10 nodes, IHiggsField signature mismatch, SynapticStaking reentrancy, QBC721 missing safeTransfer callback |
 
 ---
 
-## 1. SMART CONTRACT AUDIT TABLE (56 Contracts)
+## 1. SMART CONTRACT AUDIT TABLE (57 Contracts)
 
-| # | Contract | Category | LOC | Functional | Unique | Grade | Issues |
-|---|----------|----------|-----|------------|--------|-------|--------|
-| 1 | AetherKernel.sol | Aether Core | 213 | Y | Y | A | None |
-| 2 | NodeRegistry.sol | Aether Core | 191 | Y | Y | A | None |
-| 3 | SUSYEngine.sol | Aether Physics | 232 | Y | Y | A | IHiggsField inline |
-| 4 | HiggsField.sol | Aether Physics | 471 | Y | Y | A | Physics verified ✓ |
-| 5 | MessageBus.sol | Aether Network | 166 | Y | Y | A | None |
-| 6 | ProofOfThought.sol | Aether Consensus | 145 | Y | Y | A | None |
-| 7 | TaskMarket.sol | Aether Economics | 143 | Y | Y | A | None |
-| 8 | ValidatorRegistry.sol | Aether Staking | 156 | Y | Y | A | None |
-| 9 | RewardDistributor.sol | Aether Rewards | 109 | Y | Y | A | None |
-| 10 | ConsciousnessDashboard.sol | Aether Metrics | 238 | Y | Y | A | Pagination needed for large arrays |
-| 11 | GasOracle.sol | Aether Economics | 99 | Y | Y | A | None |
-| 12 | SynapticStaking.sol | Aether Staking | 295 | Y | Y | A | Verify 1e18 precision |
-| 13 | GlobalWorkspace.sol | Aether Memory | 181 | Y | Y | A | None |
-| 14 | PhaseSync.sol | Aether Timing | 165 | Y | Y | A | None |
-| 15 | VentricleRouter.sol | Aether Network | 255 | Y | Y | A | None |
-| 16 | TreasuryDAO.sol | Governance | 144 | Y | Y | A | None |
-| 17 | UpgradeGovernor.sol | Governance | 151 | Y | Y | A | None |
-| 18 | ConstitutionalAI.sol | Safety | 154 | Y | Y | A | None |
-| 19 | EmergencyShutdown.sol | Safety | 160 | Y | Y | A | None |
-| 20 | SephirahKeter.sol | Cognition | 99 | Y | Y | A | Meta-learning + goals |
-| 21 | SephirahChochmah.sol | Cognition | 63 | Y | Y | A | Pattern discovery |
-| 22 | SephirahBinah.sol | Cognition | 71 | Y | Y | A | Logic + causal |
-| 23 | SephirahChesed.sol | Cognition | 64 | Y | Y | A | Exploration |
-| 24 | SephirahGevurah.sol | Cognition | 74 | Y | Y | A | Safety + veto |
-| 25 | SephirahTiferet.sol | Cognition | 71 | Y | Y | A | Integration |
-| 26 | SephirahNetzach.sol | Cognition | 71 | Y | Y | A | Reinforcement |
-| 27 | SephirahHod.sol | Cognition | 71 | Y | Y | A | Language |
-| 28 | SephirahYesod.sol | Cognition | 86 | Y | Y | A | Memory |
-| 29 | SephirahMalkuth.sol | Cognition | 71 | Y | Y | A | Action |
-| 30 | QUSD.sol | Stablecoin | 205 | Y | Y | A | 0.05% transfer fee |
-| 31 | QUSDReserve.sol | Stablecoin | 251 | Y | Y | A | Multi-asset reserve |
-| 32 | QUSDFlashLoan.sol | Stablecoin | 235 | Y | Y | A | Reentrancy guard ✓ |
-| 33 | QUSDDebtLedger.sol | Stablecoin | 217 | Y | Y | A | 5 milestone checkpoints |
-| 34 | QUSDStabilizer.sol | Stablecoin | 223 | Y | Y | A | Buy floor/sell ceiling |
-| 35 | QUSDGovernance.sol | Governance | 284 | Y | Y | A | Minor: unbounded signer loop |
-| 36 | QUSDOracle.sol | Price Feed | 194 | Y | Y | A | Staleness detection ✓ |
-| 37 | wQUSD.sol | Bridge | 215 | Y | Y | A | Bridge proof optional |
-| 38 | QUSDAllocation.sol | Governance | 208 | Y | Y | A | 4-tier vesting |
-| 39 | MultiSigAdmin.sol | Governance | 339 | Y | Y | A | 7-day expiry, replay protection |
-| 40 | QBC20.sol | Tokens | 99 | Y | Y | A | ERC-20 compliant |
-| 41 | QBC721.sol | Tokens | ~100 | Y | Y | A | ERC-721 compliant |
-| 42 | QBC1155.sol | Tokens | ~100 | Y | Y | A | ERC-1155 compliant |
-| 43 | VestingSchedule.sol | Tokens | ~100 | Y | Y | A | Cliff + linear |
-| 44 | ERC20QC.sol | Tokens | ~100 | Y | Y | A | Compliance-aware |
-| 45 | BridgeVault.sol | Bridge | ~150 | Y | Y | A | Lock/unlock atomicity |
-| 46 | wQBC.sol | Bridge | ~150 | Y | Y | A | Wrapped native QBC |
-| 47 | Initializable.sol | Proxy | ~50 | Y | Y | A | No double-init |
-| 48 | QBCProxy.sol | Proxy | ~80 | Y | Y | A | EIP-1967 delegatecall |
-| 49 | ProxyAdmin.sol | Proxy | ~60 | Y | Y | A | Upgrade auth |
-| 50 | ISephirah.sol | Interface | ~40 | N/A | Y | A | 10 methods + mass |
-| 51 | IQBC20.sol | Interface | ~20 | N/A | Y | A | ERC-20 interface |
-| 52 | IQBC721.sol | Interface | ~20 | N/A | Y | A | ERC-721 interface |
-| 53 | IQUSD.sol | Interface | ~20 | N/A | Y | A | Mint/burn/reserve |
-| 54 | IDebtLedger.sol | Interface | ~15 | N/A | Y | A | Debt tracking |
-| 55 | IFlashBorrower.sol | Interface | ~10 | N/A | Y | A | EIP-3156 |
-| 56 | IHiggsField | Interface | inline | N/A | Y | A | In SUSYEngine.sol |
-
-**All 10 Sephirot nodes verified FUNCTIONALLY DISTINCT** — unique state variables, unique events, unique cognitive logic per node.
-
----
-
-## 2. SUBSTRATE PALLET AUDIT TABLE (7 Pallets)
-
-| Pallet | LOC | Extrinsics | Storage | Weights | todo!() | Issues |
-|--------|-----|-----------|---------|---------|---------|--------|
-| qbc-utxo | 347 | 1 | 5 | Placeholder | 0 | Weight benchmarking needed |
-| qbc-consensus | 273 | 1 | 5 | Placeholder | 0 | Difficulty formula correct ✓ |
-| qbc-dilithium | 254 | 1 | 2 | Placeholder | 0 | WASM defers to native (by design) |
-| qbc-economics | 208 | 0 | 3 | N/A | 0 | Phi-halving verified ✓ |
-| qbc-qvm-anchor | 160 | 3 | 5 | Placeholder | 0 | Bridge interface (not full QVM) |
-| qbc-aether-anchor | 217 | 2 | 8 | Placeholder | 0 | Phi tracking from block 0 ✓ |
-| qbc-reversibility | 978 | 7 | 8+ | Placeholder | 0 | 24h window, N-of-M governance |
-
-**Cross-System Parity:** 15/16 constants match Python exactly. **One CRITICAL mismatch:** Address derivation uses SHA2-256 in Substrate vs SHA3-256 in Python.
+| # | Contract | Category | LOC | Functional | Unique | Grade | Key Issues |
+|---|----------|----------|-----|------------|--------|-------|------------|
+| 1 | AetherKernel.sol | Aether Core | 212 | Y | Y | B | Split init pattern |
+| 2 | NodeRegistry.sol | Aether Core | 190 | Y | Y | B+ | delete leaves gaps |
+| 3 | SUSYEngine.sol | Aether Core | 222 | Y | Y | B | Precision loss in ratio calc |
+| 4 | HiggsField.sol | Aether Core | 470 | Y | Y | B+ | getFieldState != IHiggsField sig |
+| 5 | MessageBus.sol | Aether Core | 165 | Y | Y | B | No emergency rate limit |
+| 6 | VentricleRouter.sol | Aether Core | 254 | Y | Y | B | O(n) path lookup |
+| 7 | GasOracle.sol | Aether Core | 98 | Y | Y | B+ | Clean EIP-1559 style |
+| 8 | ProofOfThought.sol | Aether PoT | 144 | Y | Y | B | No slashing mechanism |
+| 9 | TaskMarket.sol | Aether PoT | 142 | Y | Y | B- | No bounty escrow |
+| 10 | ValidatorRegistry.sol | Aether PoT | 155 | Y | Y | B | No delegation |
+| 11 | RewardDistributor.sol | Aether PoT | 108 | Y | Y | B- | No actual token transfer |
+| 12 | ConsciousnessDashboard.sol | Consciousness | 237 | Y | Y | B+ | HiggsData in recordPhi PASS |
+| 13 | PhaseSync.sol | Consciousness | 164 | Y | Y | B | Hardcoded metabolic rates |
+| 14 | GlobalWorkspace.sol | Consciousness | 180 | Y | Y | B | O(n) prune (bounded 100) |
+| 15 | SynapticStaking.sol | Aether Econ | 294 | Y | Y | C+ | **REENTRANCY: .call{value} no guard** |
+| 16 | TreasuryDAO.sol | Governance | 143 | Y | Y | C+ | execute() no fund transfer |
+| 17 | ConstitutionalAI.sol | Safety | 153 | Y | Y | B- | O(n) veto search |
+| 18 | EmergencyShutdown.sol | Safety | 159 | Y | Y | B | Fixed 5-signer set |
+| 19 | UpgradeGovernor.sol | Governance | 150 | Y | Y | C+ | **Anyone can propose** |
+| 20 | SephirahKeter.sol | Sephirot | 98 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 21 | SephirahChochmah.sol | Sephirot | 63 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 22 | SephirahBinah.sol | Sephirot | 70 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 23 | SephirahChesed.sol | Sephirot | 63 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 24 | SephirahGevurah.sol | Sephirot | 73 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 25 | SephirahTiferet.sol | Sephirot | 70 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 26 | SephirahNetzach.sol | Sephirot | 70 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 27 | SephirahHod.sol | Sephirot | 70 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 28 | SephirahYesod.sol | Sephirot | 85 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 29 | SephirahMalkuth.sol | Sephirot | 70 | Y | Y | B- | No cognitiveMass/ISephirah |
+| 30 | QUSD.sol | QUSD | 204 | Y | Y | B | No per-block mint limit |
+| 31 | QUSDReserve.sol | QUSD | 250 | Y | Y | B+ | Reentrancy guard present |
+| 32 | QUSDDebtLedger.sol | QUSD | 216 | Y | Y | B | No bad debt mechanism |
+| 33 | QUSDOracle.sol | QUSD | 193 | Y | Y | B | No TWAP |
+| 34 | QUSDStabilizer.sol | QUSD | 222 | Y | Y | B- | Frontrunnable rebalance |
+| 35 | QUSDAllocation.sol | QUSD | 207 | Y | Y | B | No clawback |
+| 36 | QUSDGovernance.sol | QUSD | 285 | Y | Y | B | No vote snapshot |
+| 37 | QUSDFlashLoan.sol | QUSD | 234 | Y | Y | B+ | Reentrancy guard PASS, CALLBACK_SUCCESS PASS |
+| 38 | wQUSD.sol | QUSD | 214 | Y | Y | B | No proof expiry |
+| 39 | MultiSigAdmin.sol | QUSD | 338 | Y | Y | B+ | 7-day expiry, replay protection |
+| 40 | QBC20.sol | Tokens | 98 | Y | Y | B+ | Clean ERC-20 |
+| 41 | QBC721.sol | Tokens | 140 | Y | Y | C+ | **safeTransferFrom missing onERC721Received** |
+| 42 | QBC1155.sol | Tokens | 233 | Y | Y | B | Missing receiver checks |
+| 43 | ERC20QC.sol | Tokens | 243 | Y | Y | B | Compliance per-transfer gas |
+| 44 | VestingSchedule.sol | Tokens | 251 | Y | Y | B | No partial revocation |
+| 45 | wQBC.sol (tokens) | Tokens | 236 | Y | Y | B | Reentrancy guard present |
+| 46 | BridgeVault.sol | Bridge | 300 | Y | Y | B- | **No reentrancy guard on withdrawal** |
+| 47 | wQBC.sol (bridge) | Bridge | 173 | Y | Y | B | Simplified, not duplicate |
+| 48 | ISephirah.sol | Interface | 44 | Y | Y | A- | cognitiveMass + MassChanged PASS |
+| 49 | IQBC20.sol | Interface | 36 | Y | Y | A- | Clean |
+| 50 | IQBC721.sol | Interface | 20 | Y | Y | A- | Clean |
+| 51 | IQUSD.sol | Interface | 37 | Y | Y | A- | Clean |
+| 52 | IDebtLedger.sol | Interface | 19 | Y | Y | A- | Clean |
+| 53 | IFlashBorrower.sol | Interface | 19 | Y | Y | A- | keccak256 hash PASS |
+| 54 | IHiggsField.sol | Interface | 42 | Y | Y | C | **getFieldState sig mismatch** |
+| 55 | Initializable.sol | Proxy | 32 | Y | Y | A- | Clean ERC-1967 |
+| 56 | QBCProxy.sol | Proxy | 167 | Y | Y | B+ | EIP-1967 delegatecall |
+| 57 | ProxyAdmin.sol | Proxy | 247 | Y | Y | A- | Timelock governance |
 
 ---
 
-## 3. ENDPOINT VERIFICATION (273 REST + 23 JSON-RPC = 296 Total)
+## 2. SUBSTRATE PALLET AUDIT TABLE
 
-| Category | Count | Real Logic | Stubs | Tests |
-|----------|-------|-----------|-------|-------|
-| Node Info | 5 | 5 | 0 | ✓ |
-| Blockchain | 15 | 15 | 0 | ✓ |
-| Mining | 5 | 5 | 0 | ✓ |
-| P2P Network | 5 | 5 | 0 | ✓ |
-| QVM | 12 | 12 | 0 | ✓ |
-| Contracts | 8 | 8 | 0 | ✓ |
-| Aether Tree | 20+ | 20+ | 0 | ✓ |
-| Higgs Field | 5 | 5 | 0 | ✓ |
-| Economics | 10+ | 10+ | 0 | ✓ |
-| Bridge | 6+ | 6+ | 0 | ✓ |
-| QUSD | 10+ | 10+ | 0 | ✓ |
-| Exchange | 8+ | 8+ | 0 | ✓ |
-| Launchpad | 7+ | 7+ | 0 | ✓ |
-| Admin | 15+ | 15+ | 0 | ✓ |
-| Privacy | 5+ | 5+ | 0 | ✓ |
-| Compliance | 8+ | 8+ | 0 | ✓ |
-| Cognitive | 7+ | 7+ | 0 | ✓ |
-| **REST Total** | **273** | **273** | **0** | ✓ |
-| **JSON-RPC** | **23** | **23** | **0** | ✓ |
-| **GRAND TOTAL** | **296** | **296** | **0** | ✓ |
+| # | Pallet | LOC | Real Logic | Weights | Bounded Storage | Errors | Grade |
+|---|--------|-----|-----------|---------|-----------------|--------|-------|
+| 1 | qbc-utxo | 350 | YES | Analytical | YES | 5 types | B+ |
+| 2 | qbc-consensus | 276 | YES | Analytical | YES | 4 types | B+ |
+| 3 | qbc-dilithium | 256 | PARTIAL* | Analytical | YES | 4 types | B |
+| 4 | qbc-economics | 208 | YES | Analytical | Minimal | 1 type | A- |
+| 5 | qbc-qvm-anchor | 163 | Anchor only | Analytical | YES | 3 types | B |
+| 6 | qbc-aether-anchor | 220 | PARTIAL** | Analytical | YES | 3 types | B- |
+| 7 | qbc-reversibility | 1039 | YES | Analytical | YES | 9 types | B+ |
 
-- eth_chainId returns 0xce5 (3301) ✓
-- All hex values properly 0x-prefixed ✓
-- MetaMask compatibility verified ✓
+*WASM Dilithium bypass returns true always (native validates first)
+**Consciousness detection read-after-write race (prev_phi == phi_scaled)
 
----
+### Cross-System Parity (Python L1 == Substrate L1): 9/9 MATCH
 
-## 4. RUST AETHER-CORE VERIFICATION (6 Modules)
-
-| Module | Source Files | todo!() | unimplemented!() | Thread Safety | PyO3 Parity |
-|--------|-------------|---------|-------------------|---------------|-------------|
-| knowledge_graph | 6 | 0 | 0 | Arc<RwLock<>> ✓ | ✓ |
-| phi_calculator | 6 | 0 | 0 | Arc<RwLock<>> ✓ | ✓ |
-| vector_index | 3 | 0 | 0 | Arc<RwLock<>> ✓ | ✓ |
-| csf_transport | 5 | 0 | 0 | Arc<RwLock<>> ✓ | ✓ |
-| working_memory | 1 | 0 | 0 | Arc<RwLock<>> ✓ | ✓ |
-| memory_manager | 3 | 0 | 0 | Arc<RwLock<>> ✓ | ✓ |
-| **TOTAL** | **24** | **0** | **0** | **ALL SAFE** | **ALL MATCH** |
+| Rule | Value | Match |
+|------|-------|-------|
+| Genesis premine | 33,000,000 QBC | MATCH |
+| First block reward | 15.27 QBC | MATCH |
+| Difficulty adjustment | ratio=actual/expected, ±10%, 144-block | MATCH |
+| UTXO validation | inputs exist + sigs valid + amounts balance | MATCH |
+| Address derivation | SHA2-256(dilithium2_pubkey) | MATCH |
+| Coinbase maturity | 100 blocks | MATCH |
+| Max supply | 3,300,000,000 QBC | MATCH |
+| Halving interval | 15,474,020 blocks | MATCH |
+| Block time | 3.3 seconds | MATCH |
 
 ---
 
-## 5. HIGGS FIELD PHYSICS VERIFICATION
+## 3. HIGGS FIELD PHYSICS VERIFICATION
 
-| Formula | Standard Model | Python Correct | Solidity Correct | Cross-Match |
-|---------|---------------|----------------|------------------|-------------|
-| V(φ) = -μ²φ² + λφ⁴ | Electroweak Lagrangian | ✓ | ✓ | ✓ |
-| VEV = μ/√(2λ) | Spontaneous symmetry breaking | ✓ (174.14) | ✓ | ✓ |
-| m_H = √2·μ | Higgs boson mass | ✓ (125.1 GeV) | ✓ | ✓ |
-| tan(β) = φ | 2HDM mixing | ✓ (1.618) | ✓ | ✓ |
-| v_up = v·sin(β) | Expansion VEV | ✓ | ✓ | ✓ |
-| v_down = v·cos(β) | Constraint VEV | ✓ | ✓ | ✓ |
-| y_n = φ^(-n) | Yukawa cascade | ✓ (5 tiers) | ✓ | ✓ |
-| F = -dV/dφ | Euler-Lagrange | ✓ | ✓ | ✓ |
-| a = F/m | Newton's 2nd law | ✓ | ✓ | ✓ |
-| SUSY ratios = φ | 3 pairs | ✓ | ✓ | ✓ |
-
-**Physics Grade: A+** — All formulas correct, values match literature.
+| Formula | Standard Model | Python | Solidity | Both Correct |
+|---------|---------------|--------|----------|-------------|
+| V(phi) = -mu^2*phi^2 + lambda*phi^4 | EW Lagrangian | YES | YES | YES |
+| VEV = mu/sqrt(2*lambda) = 174.14 | SSB | YES | YES (~0.2%) | YES |
+| m_H = sqrt(2)*mu | Higgs mass | YES | YES | YES |
+| tan(beta) = phi = 1.618 | 2HDM | YES | YES | YES |
+| F = -dV/dphi | Euler-Lagrange | YES | YES | YES |
+| a = F/m | Newton's 2nd | YES | YES | YES |
+| Yukawa cascade (5 tiers) | SM fermions | YES | YES | YES |
 
 ---
 
-## 6. DATABASE SCHEMA VERIFICATION
+## 4. RUST AETHER-CORE AUDIT
 
-| Domain | SQL Files | Tables | Model Match | Dead Tables |
-|--------|-----------|--------|-------------|-------------|
-| qbc/ | 6 | ~10 | ✓ | 0 |
-| agi/ | 6 | ~10 (incl. Higgs) | ✓ | 0 |
-| qvm/ | 4 | ~8 | ✓ | 0 |
-| research/ | 3 | ~6 | ✓ | 0 |
-| shared/ | 2 | ~4 | ✓ | 0 |
-| bridge/ | 2 | ~3 (8 chains) | ✓ | 0 |
-| stablecoin/ | 2 | ~3 | ✓ | 0 |
-| **Total** | **26** | **~44** | **ALL MATCH** | **0** |
-
----
-
-## 7. AUTHENTICITY REPORT
-
-### Confirmed AUTHENTIC (Not Facade)
-
-| Subsystem | Evidence |
-|-----------|----------|
-| Aether reasoning | Real modus ponens, generalization, abduction with confidence calculus |
-| Phi calculator | Spectral bisection MIP, 10 anti-gaming milestone gates |
-| 10 Sephirot nodes | Each has 60-250 LOC of unique cognitive logic |
-| SUSY balance | Real golden ratio physics, mass-aware F=ma dynamics |
-| Higgs field | Standard Model formulas verified against physics literature |
-| Knowledge graph | Real TF-IDF + vector search, meaningful edge types |
-| Proof-of-Thought | Chain-bound, references knowledge Merkle root |
-| 296 API endpoints | All have real handler logic, 0 stubs |
-| 56 smart contracts | All Grade A, functionally unique |
-| Rust aether-core | 0 todo!(), 0 unimplemented!(), full PyO3 parity |
-
-### Confirmed ISSUES (Not Blocking Unless Noted)
-
-| Item | Location | Severity |
-|------|----------|----------|
-| mock-engine.ts in exchange hooks | frontend/src/components/exchange/hooks.ts | NOT BLOCKING — defensive fallback pattern |
-| Exchange uses float for money | exchange/engine.py | BLOCKING — precision loss |
-| 5 of 6 launchpad templates are stubs | contracts/templates.py | HIGH — incomplete |
-| Exchange orders in-memory only | exchange/engine.py | HIGH — lost on restart |
-| No on-chain settlement for exchange | exchange/engine.py | BLOCKING — trades don't update blockchain |
+| Module | LOC | todo!() | unsafe | Tests | Parity | Thread Safety |
+|--------|-----|---------|--------|-------|--------|---------------|
+| knowledge_graph | 2,751 | 0 | 0 | 59 | YES | RwLock |
+| phi_calculator | 1,931 | 0 | 0 | 35 | YES | Stateless |
+| vector_index | 1,618 | 0 | 0 | 45 | YES | RwLock |
+| csf_transport | 1,927 | 0 | 0 | 56 | YES | RwLock |
+| working_memory | 583 | 0 | 0 | 28 | YES | Single-owner |
+| memory_manager | 1,385 | 0 | 0 | 53 | YES | Single-owner |
+| **TOTAL** | **10,195** | **0** | **0** | **276** | **6/6** | **ALL SAFE** |
 
 ---
 
-## 8. GAP ANALYSIS (10 Components)
+## 5. GO QVM OPCODE VERIFICATION
 
-### 8.1 Frontend Gaps
-- OHLC, funding rates, liquidation heatmaps served by mock engine only (backend endpoints missing)
-- Exchange/Bridge/Launchpad use configurable `USE_MOCK` env var — acceptable but needs documentation
-
-### 8.2 Blockchain Core (Python L1) Gaps
-- No critical gaps. 267 REST + 23 JSON-RPC all functional. ✓
-
-### 8.3 Substrate Hybrid Node Gaps
-- **CRITICAL**: Address derivation hash mismatch (SHA2-256 vs SHA3-256)
-- All weights are placeholder (not benchmarked)
-- Poseidon2 lacks reference test vectors
-- WASM build blocked by serde_core issue (native-only for now)
-- Reversibility pallet: expired requests not garbage-collected
-
-### 8.4 QVM Gaps
-- **CRITICAL**: Gas cost mismatches (BALANCE, SLOAD, EXTCODE*)
-- **CRITICAL**: Opcode mapping incompatibility (Python 0xD0 vs Go 0xF0)
-- **CRITICAL**: ecRecover broken in Go (SHA256 placeholder)
-- QREASON gas differs 2x between implementations (25K vs 50K)
-- Python Keccak256 falls back to SHA-256 if pysha3 not installed
-
-### 8.5 Aether Tree / AGI Gaps
-- PoT cache unbounded (max 1000 in memory, no LRU eviction)
-- CSF transport lacks formal deadlock prevention
-- Emergency shutdown contract referenced but not fully integrated
-- Milestone gates are static (should adapt from historical data)
-
-### 8.6 QBC Economics & Bridge Gaps
-- Bridge fee documented as 0.1% but implemented as 0.3%
-- Bridge cross-chain proofs are off-chain validator-based (not cryptographic)
-- Bridge LP incentives exist but LP pairing contracts not fully implemented
-
-### 8.7 QUSD Stablecoin Gaps
-- No explicit 10-year backing progression schedule
-- Python engine and Solidity contracts may drift if both modify state concurrently
-- Flash loan callback security not fully documented in Python layer
-
-### 8.8 Exchange Gaps
-- **CRITICAL**: Float precision for order amounts
-- **CRITICAL**: No on-chain settlement (in-memory only)
-- Missing stop-loss and stop-limit order types
-- No self-trade prevention
-- No exchange-specific fee collection
-- Not integrated with consensus MEV protection
-- Orders lost on node restart
-
-### 8.9 Launchpad Gaps
-- Only 1 of 6 templates fully implemented (QUSD)
-- No constructor ABI encoding support
-- No source code verification mechanism
-- No gas estimation beyond bytecode size heuristics
-
-### 8.10 Smart Contract Gaps
-- QUSDGovernance: unbounded loop in `_emergencySignCount()` (acceptable with 10 signer cap)
-- wQUSD: bridge proof verification optional (should be enabled in production)
-- Verify wQBC.sol is not a duplicate of wQUSD.sol
+| Category | Count | Status | Issues |
+|----------|-------|--------|--------|
+| EVM Arithmetic | 11 | PASS | Real 256-bit via math/big |
+| EVM Comparison | 6 | PASS | Two's complement |
+| EVM Bitwise | 8 | PASS | — |
+| EVM Keccak | 1 | **FAIL** | Uses SHA-256 placeholder |
+| EVM Environment | 25 | PASS | — |
+| EVM Memory | 4 | PASS | Correct expansion gas |
+| EVM Storage | 2 | PARTIAL | EIP-2200 defined but not wired |
+| EVM Flow | 6 | PASS | JUMPDEST validation |
+| EVM Stack/Push | 51 | PASS | 1024-item limit |
+| EVM Log | 5 | PASS | LOG1-3 missing gas cost entry |
+| EVM System | 4 | PASS | — |
+| EVM Call | 6 | **STUB** | CREATE/CALL push 0, no sub-exec |
+| Quantum (real) | 7 | PASS | QCREATE/MEASURE/ENTANGLE/GATE/VERIFY/PHI + partial QREASON |
+| Quantum (stubs) | 5 | STUB | QCOMPLIANCE/QRISK/QRISK_SYSTEMIC/QBRIDGE_* |
+| AGI | 2 | PARTIAL | QPHI real, QREASON = deterministic hash |
+| Precompiles (real) | 4 | PASS | SHA256/RIPEMD160/identity/modexp |
+| Precompiles (broken) | 1 | **FAIL** | ecRecover: wrong curve (P-256 vs secp256k1) |
+| Precompiles (stubs) | 4 | STUB | bn256Add/Mul/Pairing + Blake2F |
+| **Total: 152** | | | |
 
 ---
 
-## 9. DOCKER & CI VERIFICATION
+## 6. ENDPOINT VERIFICATION
 
-### Docker (9 Core + 2 Production Services)
-- All images pinned to stable versions ✓
-- Port 8080 conflict resolved (IPFS → 8081) ✓
-- Health checks on all critical services ✓
-- Non-root Docker user (qbc:qbc) ✓
-- 3-stage multi-stage build (Rust → Aether → Python) ✓
-- Production compose: hardened ports, 90-day retention ✓
-
-### CI/CD (4 Workflows)
-- ci.yml: Python 3.11+3.12 matrix, Bandit security scan, frontend build ✓
-- qvm-ci.yml: Go build, test, lint, benchmark, govulncheck ✓
-- claude.yml: Claude Code integration ✓
-- contract-deploy.yml: Deployment pipeline ✓
-
-### Prometheus Metrics: 79 defined, 77 exported, ~75 instrumented ✓
+| Category | REST Routes | JSON-RPC | Total |
+|----------|------------|----------|-------|
+| Node/Chain/Health | 4 | — | 4 |
+| Blockchain/Balance/UTXO | 6 | 3 | 9 |
+| Mining | 3 | 2 | 5 |
+| P2P | 8 | — | 8 |
+| QVM | 18 | 3 | 21 |
+| Contracts | 8 | — | 8 |
+| Aether | 30 | — | 30 |
+| Higgs | 5 | — | 5 |
+| Economics | 4 | — | 4 |
+| Bridge | 17 | — | 17 |
+| QUSD | 12 | — | 12 |
+| Exchange | 17 | — | 17 |
+| Admin | 5 | — | 5 |
+| Privacy | 8 | — | 8 |
+| Cognitive | 8 | — | 8 |
+| Compliance | 10 | — | 10 |
+| Plugins | 9 | — | 9 |
+| WebSocket | 4 | — | 4 |
+| Other (wallet, staking, etc.) | 113 | 13 | 126 |
+| **TOTAL** | **~286** | **21** | **~307** |
 
 ---
 
-## 10. RUN HISTORY
+## 7. PROMETHEUS METRICS
 
-### Run #1 — 2026-02-28
-- **First full v4.1 audit**
-- 8 parallel audit agents across 10 components
-- 250+ files analyzed, 100,000+ LOC reviewed
-- 4 launch-blocking issues identified (QVM gas, QVM opcodes, ecRecover, exchange float)
-- 56/56 smart contracts audited — all Grade A
-- 7/7 Substrate pallets verified — 0 todo!(), 15/16 constants match Python
-- 296/296 API endpoints verified — 0 stubs
-- AGI authenticity confirmed: GENUINE reasoning, not facade
-- Higgs physics verified: Standard Model accurate
-- Rust aether-core: 0 todo!(), 0 unimplemented!(), full parity
+- **Defined:** 83 metrics
+- **Instrumented (used):** ~63
+- **Dead (never set):** ~20 metrics including: csf_messages_delivered, safety_vetoes, bridge_deposits/withdrawals/tvl, privacy_commitments/range_proofs/stealth, aml_alerts, qvm_token_transfers, spv_verifications, ipfs_memory_stored, mining_attempts
+- **Counter-as-Gauge issue:** higgs_excitations_total called with `.inc(0)` (no-op)
+
+---
+
+## 8. AUTHENTICITY REPORT
+
+### CRITICAL Authenticity Violations
+
+| ID | File | Violation |
+|----|------|-----------|
+| AUTH-1 | bridge-api.ts:18 | Defaults to mock mode — fabricated bridge data |
+| AUTH-2 | launchpad-api.ts:23 | Defaults to mock mode — fabricated project listings |
+| AUTH-3 | hooks.ts:561-582 | Mock engine runs unconditionally — fake ticks/trades |
+| AUTH-4 | hooks.ts:224-279 | 10+ hooks return only mock data (OHLC, positions, fills, etc.) |
+
+### HIGH Authenticity Issues
+
+| ID | File | Issue |
+|----|------|-------|
+| AUTH-5 | qvm/page.tsx:54,60 | Hardcoded "165" opcodes and "30,000,000" gas when API fails |
+| AUTH-6 | contracts/engine.py:770-801 | 3 template executors return "not yet implemented" |
+| AUTH-7 | exchange/engine.py:654 | In-memory persistence — orders lost on restart |
+| AUTH-8 | stablecoin/cdp.py | CDP positions in-memory — lost on restart |
+| AUTH-9 | rpc.py:3070-3083 | WebSocket /ws accepts connections but never pushes data |
+
+---
+
+## 9. DATABASE SCHEMA AUDIT
+
+- **SQL tables defined:** 41 across 7 domains (qbc/agi/qvm/research/shared/stablecoin/bridge)
+- **Python dataclass models:** 7 (transport objects, not ORM)
+- **SQLAlchemy ORM models in manager.py:** 41 (all inline in DatabaseManager)
+- **Orphan tables (SQL but never queried):** 0 confirmed
+- **Missing tables:** 0 confirmed
+
+---
+
+## 10. DOCKER & CI VERIFICATION
+
+### Docker Services
+- **Development:** 12 services (5 core + 5 monitoring + 2 production)
+- **Production:** 11 services
+- **Port conflicts:** NONE (IPFS 8081, Grafana 3001)
+- **Health checks:** 5 of 12 services have health checks
+
+### CI Workflows
+- **Total:** 4 workflows, 14 jobs
+- **Issue:** Integration tests, security scans, TypeScript checks ALL use `|| true` — CI never fails on these
+
+---
+
+## 11. FINDING SEVERITY SUMMARY
+
+### All Findings Across 10 Components
+
+| Severity | Count | Top Issues |
+|----------|-------|------------|
+| **CRITICAL** | 9 | Frontend mock defaults (2), mock engine always-on (2), Go QVM KECCAK256 (1), Go QVM ecRecover (1), IHiggsField sig mismatch (1), Sephirah ISephirah non-compliance (1), crypto fallback (1) |
+| **HIGH** | 18 | CREATE/CALL stubs, SynapticStaking reentrancy, BridgeVault reentrancy, QREASON stub, bn256 stubs, reserve_manager float, 3 stub templates, CI || true, UpgradeGovernor no min, dead metrics, exchange in-memory, etc. |
+| **MEDIUM** | 23 | Silent exception swallowing (~17), SSTORE gas not wired, LOG gas missing, consciousness race, Substrate weights, hardcoded config, /qusd/peg/history crash, WebSocket dead, CDP/savings in-memory, etc. |
+| **LOW** | 20 | Various code quality (dead code, missing type hints, redundant checks, stale comments) |
+| **INFO** | 10 | Universal logging compliance, zero SQL injection, Decimal usage verified, no command injection |
+
+---
+
+## 12. RUN HISTORY
+
+| Run | Date | Protocol | Tests | Score | Blocking |
+|-----|------|----------|-------|-------|----------|
+| #1 | 2026-02-28 | v4.0 | 3,812 | 85/100 | 4 |
+| #2-5 | 2026-02-28 | v4.0 | 3,847 | 82% govt / 91% AGI | 0 (all fixed) |
+| **#6** | **2026-02-28** | **v5.0** | **3,847** | **78/100** | **9** |
+
+Score decreased from Run #1 because v5.0 protocol is stricter:
+- Now audits frontend mock behavior as authenticity violations
+- Now counts Go QVM stubs as blocking (previously noted but not blocking)
+- Now checks interface-implementation signature parity on Solidity
+- Aether Tree score INCREASED (96/100 — genuine AGI confirmed)
