@@ -132,7 +132,10 @@ var ConstGas = map[Opcode]uint64{
 
 	// Log opcodes (base; + dynamic per topic + data)
 	LOG0: GasLog,
-	LOG4: GasLog, // LOG1-LOG3 also GasLog base
+	LOG1: GasLog,
+	LOG2: GasLog,
+	LOG3: GasLog,
+	LOG4: GasLog,
 
 	// System opcodes
 	RETURN: GasZero,

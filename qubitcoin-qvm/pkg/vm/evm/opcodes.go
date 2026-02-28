@@ -103,6 +103,9 @@ const (
 
 	// Log
 	LOG0 Opcode = 0xA0
+	LOG1 Opcode = 0xA1
+	LOG2 Opcode = 0xA2
+	LOG3 Opcode = 0xA3
 	LOG4 Opcode = 0xA4
 
 	// System

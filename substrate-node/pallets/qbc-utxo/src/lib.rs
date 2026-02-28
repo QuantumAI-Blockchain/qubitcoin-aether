@@ -126,7 +126,7 @@ pub mod pallet {
                 Balances::<T>::mutate(&utxo.address, |bal| {
                     *bal = bal.saturating_add(utxo.amount);
                 });
-                UtxoCount::<T>::mutate(|n| *n += 1);
+                UtxoCount::<T>::mutate(|n| *n = n.saturating_add(1));
 
                 Pallet::<T>::deposit_event(Event::UtxoCreated {
                     txid: utxo.txid,
@@ -257,7 +257,7 @@ pub mod pallet {
                 Balances::<T>::mutate(&output.address, |bal| {
                     *bal = bal.saturating_add(output.amount);
                 });
-                UtxoCount::<T>::mutate(|n| *n += 1);
+                UtxoCount::<T>::mutate(|n| *n = n.saturating_add(1));
                 Self::deposit_event(Event::UtxoCreated {
                     txid,
                     vout: vout as u32,
@@ -266,7 +266,7 @@ pub mod pallet {
                 });
             }
 
-            TxCount::<T>::mutate(|n| *n += 1);
+            TxCount::<T>::mutate(|n| *n = n.saturating_add(1));
             Self::deposit_event(Event::TransactionProcessed {
                 txid,
                 inputs: inputs.len() as u32,
@@ -298,7 +298,7 @@ pub mod pallet {
             Balances::<T>::mutate(&address, |bal| {
                 *bal = bal.saturating_add(reward);
             });
-            UtxoCount::<T>::mutate(|n| *n += 1);
+            UtxoCount::<T>::mutate(|n| *n = n.saturating_add(1));
 
             Self::deposit_event(Event::CoinbaseCreated {
                 txid,

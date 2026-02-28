@@ -258,8 +258,8 @@ class VQECapabilityDetector:
             num_qubits = getattr(backend, 'num_qubits', None)
             if num_qubits is not None:
                 return num_qubits
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not detect qubit count: %s", e)
         return 127  # Default to Eagle-class
 
     @staticmethod
@@ -269,8 +269,8 @@ class VQECapabilityDetector:
             config = getattr(backend, 'configuration', None)
             if config is not None:
                 return getattr(config(), 'dynamic_reprate_enabled', False)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not detect dynamic circuits: %s", e)
         return False
 
     @staticmethod
@@ -281,6 +281,6 @@ class VQECapabilityDetector:
             if callable(available_methods):
                 methods = available_methods()
                 return 'statevector_gpu' in methods or 'density_matrix_gpu' in methods
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not detect GPU: %s", e)
         return False

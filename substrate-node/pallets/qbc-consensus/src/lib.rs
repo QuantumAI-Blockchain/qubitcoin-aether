@@ -185,7 +185,7 @@ pub mod pallet {
 
             // Update counters
             LastMiner::<T>::put(miner_address.clone());
-            BlocksMined::<T>::mutate(|n| *n += 1);
+            BlocksMined::<T>::mutate(|n| *n = n.saturating_add(1));
 
             Self::deposit_event(Event::BlockMined {
                 block_height,

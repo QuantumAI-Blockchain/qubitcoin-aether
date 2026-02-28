@@ -173,6 +173,10 @@ contract QUSDGovernance is Initializable {
         require(prop.state == ProposalState.Active, "Governance: not active");
         require(block.timestamp > prop.endTimestamp, "Governance: voting not ended");
 
+        uint256 totalVotes = prop.votesFor + prop.votesAgainst;
+        uint256 quorumRequired = (IQBC20(qusdToken).totalSupply() * QUORUM_BPS) / BPS_DENOM;
+        require(totalVotes >= quorumRequired, "Governance: quorum not reached");
+
         if (prop.votesFor > prop.votesAgainst) {
             prop.state         = ProposalState.Queued;
             prop.executionTime = block.timestamp + TIMELOCK_DURATION;

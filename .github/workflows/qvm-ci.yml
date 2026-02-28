@@ -19,6 +19,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: qubitcoin-qvm
@@ -34,6 +35,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: build
     defaults:
       run:
@@ -55,6 +57,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: qubitcoin-qvm
@@ -74,6 +77,7 @@ jobs:
   benchmark:
     name: Benchmark
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     defaults:
@@ -95,6 +99,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: qubitcoin-qvm
@@ -111,6 +116,7 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: [test, lint]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:

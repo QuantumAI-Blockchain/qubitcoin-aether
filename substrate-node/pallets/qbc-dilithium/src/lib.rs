@@ -171,7 +171,7 @@ pub mod pallet {
 
             // Store the key
             PublicKeys::<T>::insert(&address, &public_key);
-            TotalKeys::<T>::mutate(|n| *n += 1);
+            TotalKeys::<T>::mutate(|n| *n = n.saturating_add(1));
 
             Self::deposit_event(Event::KeyRegistered { address });
             Ok(())

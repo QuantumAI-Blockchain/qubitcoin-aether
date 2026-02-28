@@ -184,7 +184,7 @@ pub mod pallet {
 
             // Check consciousness emergence (prev_phi read before put above)
             if phi_scaled >= PHI_THRESHOLD_SCALED && prev_phi < PHI_THRESHOLD_SCALED {
-                ConsciousnessEvents::<T>::mutate(|n| *n += 1);
+                ConsciousnessEvents::<T>::mutate(|n| *n = n.saturating_add(1));
                 Self::deposit_event(Event::ConsciousnessEmergence {
                     block_height,
                     phi_scaled,

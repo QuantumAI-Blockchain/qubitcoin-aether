@@ -10,6 +10,7 @@ jobs:
   # ── Python Backend Tests ───────────────────────────────────────
   backend-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
@@ -39,6 +40,7 @@ jobs:
   # ── Integration Tests (requires CockroachDB) ──────────────────
   integration-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: backend-test
 
     services:
@@ -95,6 +97,7 @@ jobs:
   # ── Security Scanning (SAST) ──────────────────────────────────
   security-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -138,6 +141,7 @@ jobs:
   # ── Python Linting ─────────────────────────────────────────────
   backend-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -173,6 +177,7 @@ jobs:
   # ── Frontend Build ─────────────────────────────────────────────
   frontend-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend

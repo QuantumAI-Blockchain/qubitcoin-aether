@@ -447,7 +447,7 @@ pub mod pallet {
             };
 
             ReversalRequests::<T>::insert(&request_id, request);
-            TotalRequests::<T>::mutate(|n| *n += 1);
+            TotalRequests::<T>::mutate(|n| *n = n.saturating_add(1));
 
             Self::deposit_event(Event::ReversalRequested {
                 request_id,
@@ -502,7 +502,7 @@ pub mod pallet {
                 let req_clone = request.clone();
                 ExpiredReversals::<T>::insert(&request_id, req_clone);
                 ReversalRequests::<T>::remove(&request_id);
-                TotalExpired::<T>::mutate(|n| *n += 1);
+                TotalExpired::<T>::mutate(|n| *n = n.saturating_add(1));
 
                 Self::deposit_event(Event::ReversalExpired {
                     request_id,
@@ -683,7 +683,7 @@ pub mod pallet {
             ExpiredReversals::<T>::insert(&request_id, request.clone());
             ReversalRequests::<T>::remove(&request_id);
             ReversalVotes::<T>::remove(&request_id);
-            TotalExpired::<T>::mutate(|n| *n += 1);
+            TotalExpired::<T>::mutate(|n| *n = n.saturating_add(1));
 
             Self::deposit_event(Event::ReversalExpired {
                 request_id,
@@ -811,8 +811,8 @@ pub mod pallet {
                 pallet_qbc_utxo::Balances::<T>::mutate(&request.original_sender, |bal| {
                     *bal = bal.saturating_add(total_reversed);
                 });
-                pallet_qbc_utxo::UtxoCount::<T>::mutate(|n| *n += 1);
-                pallet_qbc_utxo::TxCount::<T>::mutate(|n| *n += 1);
+                pallet_qbc_utxo::UtxoCount::<T>::mutate(|n| *n = n.saturating_add(1));
+                pallet_qbc_utxo::TxCount::<T>::mutate(|n| *n = n.saturating_add(1));
             }
 
             // Step 3: Record execution
@@ -837,7 +837,7 @@ pub mod pallet {
             // Clean up votes
             ReversalVotes::<T>::remove(request_id);
 
-            TotalExecuted::<T>::mutate(|n| *n += 1);
+            TotalExecuted::<T>::mutate(|n| *n = n.saturating_add(1));
 
             Self::deposit_event(Event::ReversalExecuted {
                 request_id: *request_id,

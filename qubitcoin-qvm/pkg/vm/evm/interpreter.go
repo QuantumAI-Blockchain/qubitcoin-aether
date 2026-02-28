@@ -2,6 +2,7 @@ package evm
 
 import (
 	"fmt"
+	"log"
 	"math/big"
 
 	"golang.org/x/crypto/sha3"
@@ -342,7 +343,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 		case op == BALANCE:
 			addrInt := mustPop1(ctx)
 			var addr [20]byte
-			addrInt.FillBytes(addr[:])
+			safeAddrBytes(addrInt, &addr)
 			balance := big.NewInt(0)
 			if interp.state != nil {
 				balance = interp.state.GetBalance(addr)
@@ -397,7 +398,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 		case op == EXTCODESIZE:
 			addrInt := mustPop1(ctx)
 			var addr [20]byte
-			addrInt.FillBytes(addr[:])
+			safeAddrBytes(addrInt, &addr)
 			var sz uint64
 			if interp.state != nil {
 				sz = interp.state.GetCodeSize(addr)
@@ -408,7 +409,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			addrInt := mustPop1(ctx)
 			destOff, codeOff, size := mustPop3(ctx)
 			var addr [20]byte
-			addrInt.FillBytes(addr[:])
+			safeAddrBytes(addrInt, &addr)
 			var extCode []byte
 			if interp.state != nil {
 				extCode = interp.state.GetCode(addr)
@@ -443,7 +444,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 		case op == EXTCODEHASH:
 			addrInt := mustPop1(ctx)
 			var addr [20]byte
-			addrInt.FillBytes(addr[:])
+			safeAddrBytes(addrInt, &addr)
 			hash := [32]byte{}
 			if interp.state != nil {
 				hash = interp.state.GetCodeHash(addr)
@@ -535,7 +536,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 		case op == SLOAD:
 			keyInt := mustPop1(ctx)
 			var key [32]byte
-			keyInt.FillBytes(key[:])
+			safeFillBytes(keyInt, key[:])
 			val := [32]byte{}
 			if interp.state != nil {
 				val = interp.state.GetStorage(ctx.Call.Address, key)
@@ -548,8 +549,8 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			}
 			keyInt, valInt := mustPop2(ctx)
 			var key, val [32]byte
-			keyInt.FillBytes(key[:])
-			valInt.FillBytes(val[:])
+			safeFillBytes(keyInt, key[:])
+			safeFillBytes(valInt, val[:])
 
 			// EIP-2200 dynamic gas: cost depends on current vs new value
 			if interp.state != nil {
@@ -667,7 +668,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			topics := make([][32]byte, numTopics)
 			for i := 0; i < numTopics; i++ {
 				t := mustPop1(ctx)
-				t.FillBytes(topics[i][:])
+				safeFillBytes(t, topics[i][:])
 			}
 
 			// Dynamic gas: 375 per topic + 8 per byte of data
@@ -789,8 +790,10 @@ func (interp *Interpreter) opCopy(ctx *ExecutionContext, source []byte) error {
 // ─── Helpers ──────────────────────────────────────────────────────────
 
 func mustPop1(ctx *ExecutionContext) *big.Int {
-	val, _ := ctx.Stack.Pop()
-	if val == nil {
+	val, err := ctx.Stack.Pop()
+	if err != nil || val == nil {
+		// Log underflow for debugging; return zero to avoid nil dereference
+		log.Printf("stack underflow in mustPop1: %v", err)
 		return big.NewInt(0)
 	}
 	return val
@@ -807,6 +810,30 @@ func mustPop3(ctx *ExecutionContext) (*big.Int, *big.Int, *big.Int) {
 	b := mustPop1(ctx)
 	c := mustPop1(ctx)
 	return a, b, c
+}
+
+// safeAddrBytes extracts at most 20 address bytes from a big.Int,
+// truncating values larger than 2^160 instead of panicking.
+func safeAddrBytes(v *big.Int, addr *[20]byte) {
+	b := v.Bytes()
+	if len(b) > 20 {
+		b = b[len(b)-20:] // take rightmost 20 bytes
+	}
+	copy(addr[20-len(b):], b)
+}
+
+// safeFillBytes copies big.Int bytes into dst, truncating if the
+// value is larger than the destination to prevent FillBytes panics.
+func safeFillBytes(v *big.Int, dst []byte) {
+	b := v.Bytes()
+	if len(b) > len(dst) {
+		b = b[len(b)-len(dst):]
+	}
+	// zero-fill prefix then copy
+	for i := range dst {
+		dst[i] = 0
+	}
+	copy(dst[len(dst)-len(b):], b)
 }
 
 func pushBool(ctx *ExecutionContext, val bool) error {

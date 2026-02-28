@@ -150,7 +150,7 @@ pub mod pallet {
         ) -> DispatchResult {
             ensure_root(origin)?;
 
-            TotalContracts::<T>::mutate(|n| *n += 1);
+            TotalContracts::<T>::mutate(|n| *n = n.saturating_add(1));
             TotalGasConsumed::<T>::mutate(|g| *g = g.saturating_add(gas_used as u128));
 
             Self::deposit_event(Event::ContractDeployed {

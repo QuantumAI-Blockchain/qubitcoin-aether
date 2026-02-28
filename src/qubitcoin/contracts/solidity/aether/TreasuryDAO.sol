@@ -69,6 +69,7 @@ contract TreasuryDAO is Initializable {
         address recipient,
         uint256 amount
     ) external returns (uint256 proposalId) {
+        require(qbcToken.balanceOf(msg.sender) >= quorum / 10, "Treasury: below min proposal balance");
         require(amount <= treasuryBalance, "Treasury: insufficient funds");
         require(recipient != address(0), "Treasury: zero recipient");
 
@@ -118,6 +119,7 @@ contract TreasuryDAO is Initializable {
 
     function execute(uint256 proposalId) external {
         Proposal storage p = proposals[proposalId];
+        require(msg.sender == p.proposer || msg.sender == owner, "Treasury: not authorized");
         require(p.status == ProposalStatus.Passed, "Treasury: not passed");
         require(block.timestamp >= p.executeAfter, "Treasury: delay not met");
         require(p.votesFor + p.votesAgainst >= quorum, "Treasury: quorum not reached");
