@@ -1,13 +1,13 @@
 # MASTERUPDATETODO.md — Qubitcoin Continuous Improvement Tracker
-# Last Updated: 2026-02-28 | Run #3
+# Last Updated: 2026-02-28 | Run #4
 
 ---
 
 ## PROGRESS TRACKER
 - **Total items: 49**
-- **Completed: 30** (C1-C4 + H1-H12 + M1-M14)
-- **Remaining: 19** (L1-L19)
-- **Completion: 61%**
+- **Completed: 46** (C1-C4 + H1-H12 + M1-M14 + L1-L9, L11-L13, L16-L19)
+- **Remaining: 3** (L10, L14, L15 — deferred, require large new features)
+- **Completion: 94%**
 
 ---
 
@@ -108,25 +108,43 @@
 
 ## 4. LOW-PRIORITY ENHANCEMENTS (19 items)
 
-- [ ] **L1** — Add ConsciousnessDashboard.sol pagination for large measurement arrays
-- [ ] **L2** — Verify SynapticStaking.sol reward distribution math at 1e18 precision
-- [ ] **L3** — Extract IHiggsField from SUSYEngine.sol to separate interface file
-- [ ] **L4** — Cap QUSDGovernance._emergencySignCount() signer array iteration at 10
-- [ ] **L5** — Add differential privacy to knowledge graph queries
-- [ ] **L6** — Audit Rust HNSW implementation for numerical stability on large embeddings
-- [ ] **L7** — Add comprehensive test comparing Python and Go opcode execution on identical bytecode
-- [ ] **L8** — Verify ModExp precompile gas calculation against EIP-198 reference (Go QVM)
-- [ ] **L9** — Pin pysha3 in requirements.txt to ensure Keccak256 is always available
-- [ ] **L10** — Add bridge LP pairing contract implementations
-- [ ] **L11** — Add cross-chain cryptographic proof verification (replace off-chain validators)
-- [ ] **L12** — Add gas limit estimation for contract deployment (beyond bytecode size heuristics)
-- [ ] **L13** — Add exchange depth chart backend endpoint
-- [ ] **L14** — Add exchange funding rate backend endpoint
-- [ ] **L15** — Add exchange liquidation heatmap backend endpoint
-- [ ] **L16** — Add exchange equity history backend endpoint
-- [ ] **L17** — Verify wQBC.sol is not a duplicate of wQUSD.sol
-- [ ] **L18** — Add QVM state channel metrics instrumentation
-- [ ] **L19** — Verify compliance circuit_breaker metric is wired
+- [x] **L1** — ALREADY DONE — ConsciousnessDashboard.sol has getPhiHistory(fromIndex, count) pagination (commit 6aad6bd)
+
+- [x] **L2** — VERIFIED CORRECT — SynapticStaking.sol uses standard accumulated-rewards-per-token pattern at 1e18 precision (commit 6aad6bd)
+
+- [x] **L3** — Extract IHiggsField interface to interfaces/IHiggsField.sol, SUSYEngine.sol imports it (commit 6aad6bd)
+
+- [x] **L4** — Add MAX_EMERGENCY_SIGNERS=10 constant + require check in addEmergencySigner() (commit 6aad6bd)
+
+- [x] **L5** — Add DPKnowledgeGraphQuery differential privacy wrapper: Laplace noise on counts, distributions, scores (commit 6aad6bd)
+
+- [x] **L6** — Fix Rust HNSW numerical stability: epsilon guard (1e-15) instead of ==0.0, clamp cosine to [-1,1], safety comment on ln(m) (commit 6aad6bd)
+
+- [x] **L7** — Add cross-implementation opcode test suite: 16 tests (13 MSTORE+RETURN programs, 3 precompile tests), exportable as JSON for Go QVM (commit 6aad6bd)
+
+- [x] **L8** — Fix ModExp precompile gas to EIP-198: mult_complexity × adjusted_exp_len / 3, min 200. Fixed in both Python QVM and Go QVM (commit 6aad6bd)
+
+- [x] **L9** — Pin pysha3>=1.0.2 in requirements.txt (commit 6aad6bd)
+
+- [ ] **L10** — DEFERRED — Bridge LP pairing contracts require 600-800 lines new Solidity (too large for this pass)
+
+- [x] **L11** — Wire ProofStore into BridgeManager: proof submitted + verified on every deposit (commit 6aad6bd)
+
+- [x] **L12** — Add estimate_deployment_gas() with opcode analysis + /contracts/estimate-gas endpoint (commit 6aad6bd)
+
+- [x] **L13** — Add /exchange/depth/{pair} cumulative depth chart endpoint (commit 6aad6bd)
+
+- [ ] **L14** — DEFERRED — Exchange funding rate requires perpetual market infrastructure (too large)
+
+- [ ] **L15** — DEFERRED — Exchange liquidation heatmap requires margin trading system (too large)
+
+- [x] **L16** — Add /exchange/equity-history/{address} endpoint with trade history (commit 6aad6bd)
+
+- [x] **L17** — VERIFIED CORRECT — wQBC.sol (bridge/) and wQUSD.sol (qusd/) are intentionally different contracts for different purposes (commit 6aad6bd)
+
+- [x] **L18** — Fix state channel metric key: total_locked → total_locked_qbc to match StateChannelManager.get_stats() (commit 6aad6bd)
+
+- [x] **L19** — Fix circuit breaker metric: is_open → is_tripped to match CircuitBreaker.is_tripped attribute (commit 6aad6bd)
 
 ---
 
@@ -335,3 +353,38 @@ L1-L19 in any order
 - Low-priority items L1-L19 (post-launch)
 - Live AGI test to verify organic Phi growth
 - Full WASM build (serde_core upstream fix needed)
+
+### Run #4 — 2026-02-28
+- **16 of 19 LOW-priority items completed** (L1-L9, L11-L13, L16-L19)
+- **3 items deferred** (L10, L14, L15 — large features, not fixes)
+- **3,847 tests** passing, 4 skipped, 0 failures
+- **13 files changed**, +491 lines, 1 new file, 1 new interface
+- **Commit**: 6aad6bd
+
+**L-series changes:**
+- L1: ALREADY DONE — ConsciousnessDashboard.sol has getPhiHistory pagination
+- L2: VERIFIED — SynapticStaking.sol math at 1e18 precision is correct
+- L3: IHiggsField interface extracted to interfaces/IHiggsField.sol
+- L4: MAX_EMERGENCY_SIGNERS=10 + require() check in addEmergencySigner
+- L5: DPKnowledgeGraphQuery: Laplace noise on counts, distributions, similarity scores
+- L6: Rust HNSW: epsilon guard (1e-15 vs ==0.0), clamp cosine to [-1,1]
+- L7: 16 cross-impl opcode tests (13 bytecode + 3 precompile), JSON-exportable for Go QVM
+- L8: ModExp EIP-198 gas formula in BOTH Python and Go (mult_complexity × adj_exp_len / 3)
+- L9: pysha3>=1.0.2 pinned in requirements.txt
+- L10: DEFERRED — Bridge LP contracts too large
+- L11: ProofStore wired into BridgeManager.process_deposit() flow
+- L12: estimate_deployment_gas() with opcode analysis + /contracts/estimate-gas endpoint
+- L13: /exchange/depth/{pair} cumulative bid/ask depth chart endpoint
+- L14: DEFERRED — Funding rate requires perpetual infrastructure
+- L15: DEFERRED — Liquidation heatmap requires margin system
+- L16: /exchange/equity-history/{address} with trade history
+- L17: VERIFIED — wQBC.sol and wQUSD.sol intentionally different
+- L18: Fixed state channel metric key (total_locked → total_locked_qbc)
+- L19: Fixed circuit breaker attribute (is_open → is_tripped)
+
+**Cumulative progress: 46/49 items complete (94%)**
+
+**Remaining 3 items (deferred — large features):**
+- L10: Bridge LP pairing contracts (600-800 LOC Solidity)
+- L14: Exchange funding rate (requires perpetual market tracking)
+- L15: Exchange liquidation heatmap (requires margin trading system)
