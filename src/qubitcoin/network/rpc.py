@@ -10,7 +10,7 @@ import time
 from typing import Dict, Optional
 from decimal import Decimal
 
-from fastapi import FastAPI, Request, HTTPException, Header
+from fastapi import FastAPI, Request, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse, Response
@@ -4584,11 +4584,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             return {"verified": False, "error": str(e)}
 
     @app.get("/qusd/peg/history")
-    async def qusd_peg_history():
+    async def qusd_peg_history(limit: int = Query(100, ge=1, le=500)):
         """Get historical QUSD peg deviation from price feeds."""
         try:
             from sqlalchemy import text as sql_text
-            limit = min(int(request.query_params.get('limit', '100')), 500)
             with db_manager.get_session() as session:
                 rows = session.execute(sql_text(
                     "SELECT price, block_height, timestamp, source "

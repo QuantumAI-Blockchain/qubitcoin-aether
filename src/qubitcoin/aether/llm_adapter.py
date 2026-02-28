@@ -414,8 +414,8 @@ class KnowledgeDistiller:
                     edge_type='derives',
                     weight=0.8,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Edge linking (derives): {e}")
 
         # Cross-reference: link new nodes to existing graph nodes with similar content
         self._cross_reference(node_ids)
@@ -487,8 +487,8 @@ class KnowledgeDistiller:
                                      weight=min(1.0, score))
                     refs_created += 1
                     total_refs += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Edge linking (cross-ref {edge_type}): {e}")
 
         if total_refs > 0:
             logger.info(f"Created {total_refs} cross-references for {len(new_node_ids)} new nodes")

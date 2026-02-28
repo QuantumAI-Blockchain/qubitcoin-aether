@@ -73,10 +73,12 @@ contract QBC721 is IQBC721, Initializable {
 
     function safeTransferFrom(address from, address to, uint256 tokenId) external {
         transferFrom(from, to, tokenId);
+        require(_checkOnERC721Received(from, to, tokenId, ""), "QBC721: transfer to non-receiver");
     }
 
-    function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata) external {
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata data) external {
         transferFrom(from, to, tokenId);
+        require(_checkOnERC721Received(from, to, tokenId, data), "QBC721: transfer to non-receiver");
     }
 
     // ─── Minting ─────────────────────────────────────────────────────────
@@ -133,8 +135,29 @@ contract QBC721 is IQBC721, Initializable {
                 _operatorApprovals[tokenOwner][spender]);
     }
 
+    function _checkOnERC721Received(address from, address to, uint256 tokenId, bytes memory data) internal returns (bool) {
+        if (to.code.length == 0) {
+            return true; // EOA — no callback needed
+        }
+        try IERC721Receiver(to).onERC721Received(msg.sender, from, tokenId, data) returns (bytes4 retval) {
+            return retval == IERC721Receiver.onERC721Received.selector;
+        } catch {
+            return false;
+        }
+    }
+
     function transferOwnership(address newOwner) external onlyOwner {
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
     }
+}
+
+/// @notice Interface for contracts that want to receive ERC-721 safe transfers.
+interface IERC721Receiver {
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4);
 }

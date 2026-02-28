@@ -224,7 +224,7 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
                 client: client.clone(),
                 pool: pool.clone(),
             };
-            crate::rpc::create_full(deps).map_err(Into::into)
+            crate::rpc::create_full::<_, _, FullBackend>(deps).map_err(Into::into)
         })
     };
 

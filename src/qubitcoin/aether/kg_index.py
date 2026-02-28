@@ -112,8 +112,6 @@ class TFIDFIndex:
         for term in terms:
             if term in self.inverted_index:
                 self.inverted_index[term].pop(node_id, None)
-                if node_id in self.inverted_index[term]:
-                    pass
                 self.doc_freq[term] = max(0, self.doc_freq.get(term, 1) - 1)
                 if not self.inverted_index[term]:
                     del self.inverted_index[term]

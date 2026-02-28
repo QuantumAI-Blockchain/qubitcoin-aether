@@ -72,7 +72,8 @@ type ExecutionContext struct {
 	ReturnData []byte
 
 	// Gas tracking
-	GasUsed uint64
+	GasUsed   uint64
+	GasRefund uint64
 
 	// Execution state
 	Stopped  bool

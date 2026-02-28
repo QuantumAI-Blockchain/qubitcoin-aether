@@ -10,14 +10,21 @@ Interest accrual:
 
 Default rate: 3.3% APY (golden ratio theme).
 Rate is adjustable via governance or the admin API.
+
+Persistence: When a ``DatabaseManager`` is provided, balances and accrued
+interest are persisted to the ``savings_balances`` table in CockroachDB.
+Without a DB the module falls back to in-memory operation (useful for tests).
 """
 
 import time
 from decimal import Decimal, ROUND_DOWN
-from typing import Dict, Optional
+from typing import Dict, Optional, TYPE_CHECKING
 
 from ..config import Config
 from ..utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from ..database.manager import DatabaseManager
 
 logger = get_logger(__name__)
 
@@ -30,9 +37,9 @@ BLOCKS_PER_YEAR: int = Config.BLOCKS_PER_YEAR  # ~9,563,636
 class QUSDSavingsRate:
     """Manages QUSD savings deposits and per-block interest accrual.
 
-    All balances are tracked in-memory with Decimal precision.  In a
-    production deployment these would be persisted to CockroachDB; the
-    in-memory design keeps this module self-contained and testable.
+    When *db* is provided, balances are persisted to CockroachDB so they
+    survive node restarts.  Without a DB the module is fully in-memory
+    (convenient for unit tests).
     """
 
     def __init__(
@@ -40,6 +47,7 @@ class QUSDSavingsRate:
         annual_rate: Optional[float] = None,
         min_deposit: Optional[Decimal] = None,
         max_rate: Optional[float] = None,
+        db: Optional["DatabaseManager"] = None,
     ) -> None:
         """Initialise the savings rate engine.
 
@@ -50,10 +58,12 @@ class QUSDSavingsRate:
                          Defaults to ``Config.QUSD_SAVINGS_MIN_DEPOSIT``.
             max_rate:    Hard cap on the annual rate (governance safety).
                          Defaults to ``Config.QUSD_SAVINGS_MAX_RATE``.
+            db:          Optional DatabaseManager for persistence.
         """
         self._annual_rate: float = annual_rate if annual_rate is not None else Config.QUSD_SAVINGS_RATE
         self._min_deposit: Decimal = min_deposit if min_deposit is not None else Config.QUSD_SAVINGS_MIN_DEPOSIT
         self._max_rate: float = max_rate if max_rate is not None else Config.QUSD_SAVINGS_MAX_RATE
+        self._db = db
 
         # Clamp the initial rate to [0, max_rate]
         self._annual_rate = max(0.0, min(self._annual_rate, self._max_rate))
@@ -78,12 +88,126 @@ class QUSDSavingsRate:
         self._rate_change_history: list = []
         self._created_at: float = time.time()
 
+        # Load persisted state if DB is available
+        if self._db is not None:
+            self._load_from_db()
+
         logger.info(
             "QUSDSavingsRate initialised — rate=%.4f%%, min_deposit=%s, max_rate=%.2f%%",
             self._annual_rate * 100,
             self._min_deposit,
             self._max_rate * 100,
         )
+
+    # ------------------------------------------------------------------
+    # Database persistence helpers
+    # ------------------------------------------------------------------
+
+    def _ensure_table(self) -> None:
+        """Create the savings_balances table if it does not exist."""
+        if self._db is None:
+            return
+        try:
+            from sqlalchemy import text
+            with self._db.get_session() as session:
+                session.execute(text("""
+                    CREATE TABLE IF NOT EXISTS savings_balances (
+                        user_address STRING PRIMARY KEY,
+                        principal DECIMAL NOT NULL DEFAULT 0,
+                        accrued_interest DECIMAL NOT NULL DEFAULT 0,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    )
+                """))
+                session.execute(text("""
+                    CREATE TABLE IF NOT EXISTS savings_state (
+                        key STRING PRIMARY KEY,
+                        value STRING NOT NULL
+                    )
+                """))
+                session.commit()
+        except Exception as e:
+            logger.warning(f"Could not create savings tables: {e}")
+
+    def _load_from_db(self) -> None:
+        """Load balances and state from CockroachDB."""
+        if self._db is None:
+            return
+        self._ensure_table()
+        try:
+            from sqlalchemy import text
+            with self._db.get_session() as session:
+                # Load per-user balances
+                rows = session.execute(text(
+                    "SELECT user_address, principal, accrued_interest "
+                    "FROM savings_balances WHERE principal > 0 OR accrued_interest > 0"
+                )).fetchall()
+                for row in rows:
+                    user = row[0]
+                    principal = Decimal(str(row[1]))
+                    accrued = Decimal(str(row[2]))
+                    if principal > 0:
+                        self._balances[user] = principal
+                    if accrued > 0:
+                        self._accrued_interest[user] = accrued
+
+                # Recompute total deposits from loaded balances
+                self._total_deposits = sum(self._balances.values(), Decimal('0'))
+
+                # Load aggregate state
+                state_rows = session.execute(text(
+                    "SELECT key, value FROM savings_state"
+                )).fetchall()
+                state = {r[0]: r[1] for r in state_rows}
+                if 'total_interest_paid' in state:
+                    self._total_interest_paid = Decimal(state['total_interest_paid'])
+                if 'last_accrual_block' in state:
+                    self._last_accrual_block = int(state['last_accrual_block'])
+                if 'annual_rate' in state:
+                    self._annual_rate = float(state['annual_rate'])
+
+                if self._balances:
+                    logger.info(
+                        "Loaded %d savings accounts from DB (total=%s)",
+                        len(self._balances), self._total_deposits,
+                    )
+        except Exception as e:
+            logger.warning(f"Could not load savings state from DB: {e}")
+
+    def _persist_user(self, user: str) -> None:
+        """Persist a single user's balance to the database."""
+        if self._db is None:
+            return
+        try:
+            from sqlalchemy import text
+            principal = self._balances.get(user, Decimal('0'))
+            accrued = self._accrued_interest.get(user, Decimal('0'))
+            with self._db.get_session() as session:
+                session.execute(text(
+                    "UPSERT INTO savings_balances (user_address, principal, accrued_interest, updated_at) "
+                    "VALUES (:user, :principal, :accrued, now())"
+                ), {'user': user, 'principal': str(principal), 'accrued': str(accrued)})
+                session.commit()
+        except Exception as e:
+            logger.warning(f"Could not persist savings for {user}: {e}")
+
+    def _persist_state(self) -> None:
+        """Persist aggregate state to the database."""
+        if self._db is None:
+            return
+        try:
+            from sqlalchemy import text
+            with self._db.get_session() as session:
+                for key, value in [
+                    ('total_interest_paid', str(self._total_interest_paid)),
+                    ('last_accrual_block', str(self._last_accrual_block)),
+                    ('annual_rate', str(self._annual_rate)),
+                ]:
+                    session.execute(text(
+                        "UPSERT INTO savings_state (key, value) VALUES (:key, :value)"
+                    ), {'key': key, 'value': value})
+                session.commit()
+        except Exception as e:
+            logger.warning(f"Could not persist savings state: {e}")
 
     # ------------------------------------------------------------------
     # Public API
@@ -114,6 +238,8 @@ class QUSDSavingsRate:
         self._balances[user] = self._balances.get(user, Decimal('0')) + amount
         self._accrued_interest.setdefault(user, Decimal('0'))
         self._total_deposits += amount
+
+        self._persist_user(user)
 
         logger.info("QUSD savings deposit — user=%s amount=%s", user, amount)
         return {
@@ -170,6 +296,8 @@ class QUSDSavingsRate:
         if self._balances.get(user, Decimal('0')) == 0 and self._accrued_interest.get(user, Decimal('0')) == 0:
             self._balances.pop(user, None)
             self._accrued_interest.pop(user, None)
+
+        self._persist_user(user)
 
         logger.info("QUSD savings withdrawal — user=%s amount=%s", user, amount)
         return {
@@ -238,6 +366,9 @@ class QUSDSavingsRate:
                 self._total_deposits,
             )
 
+        # Persist updated state periodically (every accrual)
+        self._persist_state()
+
         return distributed
 
     def get_balance(self, user: str) -> Decimal:
@@ -287,6 +418,8 @@ class QUSDSavingsRate:
             'new_rate': new_rate,
             'timestamp': time.time(),
         })
+
+        self._persist_state()
 
         logger.info(
             "QUSD savings rate changed — old=%.4f%% new=%.4f%%",

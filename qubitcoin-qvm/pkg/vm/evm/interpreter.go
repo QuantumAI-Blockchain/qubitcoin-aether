@@ -13,6 +13,7 @@ type ExecutionResult struct {
 	ReturnData   []byte
 	GasUsed      uint64
 	GasRemaining uint64
+	GasRefund    uint64
 	Logs         []*Log
 	RevertReason string
 	Err          error
@@ -84,6 +85,7 @@ func (interp *Interpreter) Execute(
 
 	result.GasUsed = ctx.GasUsed
 	result.GasRemaining = ctx.GasRemaining()
+	result.GasRefund = ctx.GasRefund
 	result.Logs = ctx.Logs
 	result.ReturnData = ctx.ReturnData
 
@@ -548,8 +550,24 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			var key, val [32]byte
 			keyInt.FillBytes(key[:])
 			valInt.FillBytes(val[:])
-			// Base cost already charged via ConstGas; dynamic EIP-2200 handled via state
+
+			// EIP-2200 dynamic gas: cost depends on current vs new value
 			if interp.state != nil {
+				current := interp.state.GetStorage(ctx.Call.Address, key)
+				currentIsZero := current == [32]byte{}
+				newIsZero := val == [32]byte{}
+				currentEqualsNew := current == val
+				// Without tx-start snapshot, treat current as original (conservative)
+				originalIsZero := currentIsZero
+				cold := false // warm access assumed for accessed slots
+
+				result := CalcSstoreGas(currentIsZero, newIsZero, currentEqualsNew, originalIsZero, cold)
+				if !ctx.UseGas(result.Cost) {
+					return fmt.Errorf("out of gas: SSTORE")
+				}
+				if result.Refund > 0 {
+					ctx.GasRefund += uint64(result.Refund)
+				}
 				interp.state.SetStorage(ctx.Call.Address, key, val)
 			}
 

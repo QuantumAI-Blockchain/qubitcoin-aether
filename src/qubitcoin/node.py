@@ -1373,6 +1373,26 @@ class QubitcoinNode:
             else:
                 logger.warning("No P2P network available - block not broadcasted")
 
+            # Broadcast to WebSocket clients for real-time updates
+            if hasattr(self.app, 'broadcast_ws'):
+                ws_data = {
+                    'height': block_height,
+                    'hash': block_hash,
+                    'timestamp': block_data.get('timestamp', 0),
+                    'miner': block_data.get('miner', ''),
+                    'reward': block_data.get('reward', 0),
+                    'tx_count': block_data.get('tx_count', 0),
+                }
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.ensure_future(self.app.broadcast_ws('new_block', ws_data))
+                    else:
+                        loop.run_until_complete(self.app.broadcast_ws('new_block', ws_data))
+                except RuntimeError:
+                    # No event loop in mining thread — expected; clients will poll instead
+                    logger.debug("No event loop for WebSocket broadcast (mining thread)")
+
         except Exception as e:
             logger.error(f"Error broadcasting mined block: {e}")
 
