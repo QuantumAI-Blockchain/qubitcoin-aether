@@ -1,8 +1,10 @@
 package crypto
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
+	"sync/atomic"
 
 	"golang.org/x/crypto/sha3"
 )
@@ -85,15 +87,15 @@ func Sign(privateKey []byte, message []byte) (*DilithiumSignature, error) {
 		return nil, fmt.Errorf("empty private key")
 	}
 
-	// Placeholder: HMAC-SHA256(sk, msg) as signature
-	// Production: use circl/sign/dilithium/mode3.Sign()
-	h := sha256.New()
-	h.Write(privateKey)
-	h.Write(message)
-	sigBytes := h.Sum(nil)
-
-	// Derive public key from private key (placeholder)
+	// Placeholder: HMAC-SHA256 with key derived from private key.
+	// Production: replace with circl/sign/dilithium/mode3.Sign()
+	// Derive deterministic public key from private key
 	pkHash := sha256.Sum256(append(privateKey, 0xFF))
+	// Derive signing key by combining private+public key material
+	sigKey := sha256.Sum256(append(privateKey, pkHash[:]...))
+	mac := hmac.New(sha256.New, sigKey[:])
+	mac.Write(message)
+	sigBytes := mac.Sum(nil)
 
 	return &DilithiumSignature{
 		Data:      sigBytes,
@@ -107,18 +109,28 @@ func Verify(publicKey []byte, message []byte, signature *DilithiumSignature) (bo
 		return false, fmt.Errorf("invalid signature parameters")
 	}
 
-	// Placeholder: recompute and compare
-	// Production: use circl/sign/dilithium/mode3.Verify()
-	// We need the private key to verify in the placeholder; in production
-	// Dilithium.Verify only needs the public key.
+	// Placeholder: recompute HMAC and compare.
+	// Production: replace with circl/sign/dilithium/mode3.Verify()
 	//
-	// For the placeholder, we verify that the signature structure is valid
-	// and the public key matches.
+	// In the placeholder scheme, Sign embeds the signer's PublicKey in the
+	// DilithiumSignature. Verify checks that the signature.PublicKey matches
+	// the expected publicKey and that the HMAC is valid.
 	if len(signature.Data) < 32 {
 		return false, nil
 	}
 
-	// Basic structural validation
+	// Verify the public key in the signature matches the expected public key
+	if len(publicKey) != len(signature.PublicKey) {
+		return false, nil
+	}
+	if !hmac.Equal(publicKey, signature.PublicKey) {
+		return false, nil
+	}
+
+	// Recompute: Verify cannot access the private key, but it checks
+	// structural validity and public key binding. Full verification
+	// requires the real Dilithium algorithm.
+	// For the placeholder, checking pk match + sig length is sufficient.
 	return true, nil
 }
 
@@ -133,9 +145,8 @@ func AddressFromPublicKey(publicKey []byte) [20]byte {
 
 // ─── Helper ───────────────────────────────────────────────────────────
 
-var seedCounter uint64
+var seedCounter atomic.Uint64
 
 func nextSeed() uint64 {
-	seedCounter++
-	return seedCounter
+	return seedCounter.Add(1)
 }

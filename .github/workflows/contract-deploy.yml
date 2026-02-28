@@ -147,8 +147,8 @@ jobs:
       - name: Deploy contracts
         run: |
           RPC_URL="${{ github.event.inputs.rpc_url || 'http://localhost:5000' }}"
-          python scripts/deploy/deploy_contracts.py --rpc-url "$RPC_URL" || true
-          python scripts/deploy/deploy_qusd.py --rpc-url "$RPC_URL" || true
+          python scripts/deploy/deploy_contracts.py --rpc-url "$RPC_URL"
+          python scripts/deploy/deploy_qusd.py --rpc-url "$RPC_URL"
         env:
           DATABASE_URL: postgresql://root@localhost:26257/qbc?sslmode=disable
 

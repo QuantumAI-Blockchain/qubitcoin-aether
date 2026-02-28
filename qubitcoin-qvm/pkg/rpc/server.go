@@ -15,6 +15,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"net"
 	"net/http"
 	"sync"
@@ -57,6 +58,14 @@ func DefaultServerConfig() *ServerConfig {
 	}
 }
 
+// StateReader is the minimal interface for reading account state (balance, nonce, code).
+type StateReader interface {
+	GetBalance(addr [20]byte) *big.Int
+	GetNonce(addr [20]byte) uint64
+	GetCode(addr [20]byte) []byte
+	GetStorage(addr [20]byte, key [32]byte) [32]byte
+}
+
 // ServiceRegistry holds references to QVM subsystems that RPC handlers need.
 type ServiceRegistry struct {
 	// ChainID is the network chain ID.
@@ -65,6 +74,8 @@ type ServiceRegistry struct {
 	BlockHeight func() uint64
 	// Version is the QVM software version.
 	Version string
+	// State provides read access to account balances, nonces, and code.
+	State StateReader
 }
 
 // Server is the QVM RPC server providing gRPC and HTTP/REST endpoints.

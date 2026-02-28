@@ -70,7 +70,7 @@ class StablecoinEngine:
         self._ensure_qusd_token()
 
         # Insurance fund state
-        self.insurance_fund_balance: float = 0.0
+        self.insurance_fund_balance: Decimal = Decimal('0')
         self._insurance_collection_history: List[Dict] = []
         self._insurance_payout_history: List[Dict] = []
 
@@ -969,14 +969,14 @@ class StablecoinEngine:
             The amount actually collected into the insurance fund.
         """
         if fee_amount <= 0:
-            return 0.0
+            return Decimal('0')
 
-        percentage = Config.QUSD_INSURANCE_FUND_PERCENTAGE
-        if percentage <= 0 or percentage > 1.0:
-            return 0.0
+        percentage = Decimal(str(Config.QUSD_INSURANCE_FUND_PERCENTAGE))
+        if percentage <= 0 or percentage > 1:
+            return Decimal('0')
 
-        collected = fee_amount * percentage
-        self.insurance_fund_balance += collected
+        collected = Decimal(str(fee_amount)) * percentage
+        self.insurance_fund_balance = Decimal(str(self.insurance_fund_balance)) + collected
 
         record: Dict = {
             'amount': collected,
@@ -1047,6 +1047,8 @@ class StablecoinEngine:
         Returns:
             True if the payout succeeded, False if insufficient funds.
         """
+        amount = Decimal(str(amount))
+        self.insurance_fund_balance = Decimal(str(self.insurance_fund_balance))
         if amount <= 0:
             return False
 

@@ -17,6 +17,7 @@ Security features:
 import hashlib
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -38,8 +39,8 @@ CONFIRMATION_DEPTHS: Dict[str, int] = {
 }
 
 # ── Default Daily Limits (QBC) ─────────────────────────────────────────
-DEFAULT_DAILY_LIMIT: float = 1_000_000.0  # 1M QBC per chain per day
-DEFAULT_SINGLE_TX_LIMIT: float = 100_000.0  # 100K QBC per single transfer
+DEFAULT_DAILY_LIMIT: Decimal = Decimal('1000000')  # 1M QBC per chain per day
+DEFAULT_SINGLE_TX_LIMIT: Decimal = Decimal('100000')  # 100K QBC per single transfer
 # Bridge fee loaded from Config.BRIDGE_FEE_BPS (default 30 bps = 0.3%)
 # This module-level constant is kept for backward compatibility as a fallback.
 from ..config import Config as _Config
@@ -107,9 +108,9 @@ class BridgeTransfer:
     direction: TransferDirection
     sender: str
     receiver: str
-    amount: float
-    fee: float
-    net_amount: float
+    amount: Decimal
+    fee: Decimal
+    net_amount: Decimal
     status: TransferStatus = TransferStatus.INITIATED
     created_at: float = field(default_factory=time.time)
     confirmed_at: Optional[float] = None
@@ -338,9 +339,9 @@ class TransferTracker:
         self._single_tx_limit = single_tx_limit
         self._paused: bool = False
         self._pause_reason: str = ""
-        self._daily_volumes: Dict[str, Dict[str, float]] = {}  # chain → {date → volume}
-        self._total_fees_collected: float = 0.0
-        self._insurance_fund: float = 0.0
+        self._daily_volumes: Dict[str, Dict[str, Decimal]] = {}  # chain → {date → volume}
+        self._total_fees_collected: Decimal = Decimal('0')
+        self._insurance_fund: Decimal = Decimal('0')
         logger.info(
             f"TransferTracker initialised: "
             f"{fee_bps}bps fee, {daily_limit} daily limit"
@@ -348,9 +349,9 @@ class TransferTracker:
 
     # ── Fee Calculation ────────────────────────────────────────────────
 
-    def calculate_fee(self, amount: float) -> float:
+    def calculate_fee(self, amount: float | Decimal) -> Decimal:
         """Calculate bridge fee for an amount."""
-        return (amount * self._fee_bps) / 10_000
+        return (Decimal(str(amount)) * self._fee_bps) / 10_000
 
     # ── Daily Limit Enforcement ────────────────────────────────────────
 
@@ -363,8 +364,8 @@ class TransferTracker:
         today = self._get_today_key()
         if chain not in self._daily_volumes:
             self._daily_volumes[chain] = {}
-        current = self._daily_volumes[chain].get(today, 0.0)
-        return (current + amount) <= self._daily_limit
+        current = self._daily_volumes[chain].get(today, Decimal('0'))
+        return (current + Decimal(str(amount))) <= self._daily_limit
 
     def _record_volume(self, chain: str, amount: float) -> None:
         """Record transfer volume for daily tracking."""
@@ -372,7 +373,7 @@ class TransferTracker:
         if chain not in self._daily_volumes:
             self._daily_volumes[chain] = {}
         self._daily_volumes[chain][today] = (
-            self._daily_volumes[chain].get(today, 0.0) + amount
+            self._daily_volumes[chain].get(today, Decimal('0')) + Decimal(str(amount))
         )
 
     # ── Transfer Lifecycle ─────────────────────────────────────────────
@@ -398,6 +399,7 @@ class TransferTracker:
         if self._paused:
             return {"success": False, "error": f"Bridge paused: {self._pause_reason}"}
 
+        amount = Decimal(str(amount))
         if amount > self._single_tx_limit:
             return {
                 "success": False,
@@ -524,7 +526,7 @@ class TransferTracker:
         """Add QBC to the insurance fund."""
         if amount <= 0:
             return {"success": False, "error": "Amount must be positive"}
-        self._insurance_fund += amount
+        self._insurance_fund += Decimal(str(amount))
         return {"success": True, "insurance_fund": self._insurance_fund}
 
     # ── Queries ────────────────────────────────────────────────────────
@@ -549,10 +551,10 @@ class TransferTracker:
             if t.status == status
         ]
 
-    def get_daily_volume(self, chain: str) -> float:
+    def get_daily_volume(self, chain: str) -> Decimal:
         """Get today's transfer volume for a chain."""
         today = self._get_today_key()
-        return self._daily_volumes.get(chain, {}).get(today, 0.0)
+        return self._daily_volumes.get(chain, {}).get(today, Decimal('0'))
 
     def get_stats(self) -> Dict:
         """Transfer tracker statistics."""

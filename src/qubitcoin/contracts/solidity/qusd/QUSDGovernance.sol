@@ -85,7 +85,7 @@ contract QUSDGovernance is Initializable {
         address target,
         bytes   calldata callData
     ) external returns (uint256 proposalId) {
-        // Balance check would query QUSD token in production
+        require(qbcToken.balanceOf(msg.sender) >= minProposalBalance, "Governance: insufficient balance to propose");
         proposalId = ++proposalCount;
         proposals[proposalId] = Proposal({
             id:            proposalId,
@@ -131,44 +131,38 @@ contract QUSDGovernance is Initializable {
 
     // ─── Delegation ─────────────────────────────────────────────────────
 
-    /// @notice Delegate voting power to another address
-    /// @dev Prevents self-delegation and delegation chains (if `to` has already delegated, revert).
+    /// @notice Delegate voting power to another address.
+    /// @dev Prevents self-delegation and delegation chains.
+    ///      No weight parameter — delegation is binary. At vote time, the
+    ///      delegate's power includes each delegator's LIVE qbcToken balance.
     /// @param to The address to delegate voting power to
-    /// @param weight The delegator's QUSD balance (verified off-chain or via token)
-    function delegate(address to, uint256 weight) external {
+    function delegate(address to) external {
         require(to != msg.sender, "Governance: cannot self-delegate");
         require(to != address(0), "Governance: cannot delegate to zero address");
         require(delegates[to] == address(0), "Governance: delegate has delegated (no chains)");
-        require(weight <= qbcToken.balanceOf(msg.sender), "Governance: weight exceeds balance");
 
         address previousDelegate = delegates[msg.sender];
-
-        // Remove voting power from previous delegate if re-delegating
-        if (previousDelegate != address(0)) {
-            delegatedVotes[previousDelegate] -= weight;
-        }
-
         delegates[msg.sender] = to;
-        delegatedVotes[to] += weight;
+
+        // delegatedVotes is updated lazily at vote time via _countDelegatedVotes()
 
         emit DelegateChanged(msg.sender, previousDelegate, to);
     }
 
     /// @notice Remove delegation and reclaim voting power
-    /// @param weight The delegator's QUSD balance (verified off-chain or via token)
-    function undelegate(uint256 weight) external {
+    function undelegate() external {
         address currentDelegate = delegates[msg.sender];
         require(currentDelegate != address(0), "Governance: not delegated");
 
-        delegatedVotes[currentDelegate] -= weight;
         delegates[msg.sender] = address(0);
 
         emit DelegateChanged(msg.sender, currentDelegate, address(0));
     }
 
-    /// @notice Get total voting power for an account (own balance + delegated votes)
-    /// @param ownBalance The account's own QUSD balance
-    /// @return Total voting power (own balance + votes delegated to this account)
+    /// @notice Get total voting power for an account (own balance + delegated votes).
+    ///         Delegated votes are computed from delegators' LIVE balances, not snapshots.
+    /// @param ownBalance The account's own QBC balance
+    /// @return Total voting power
     function getVotingPower(uint256 ownBalance) public view returns (uint256) {
         return ownBalance + delegatedVotes[msg.sender];
     }
@@ -189,9 +183,13 @@ contract QUSDGovernance is Initializable {
     }
 
     /// @notice Execute a queued proposal after timelock expires.
-    ///         Makes an external call to proposal.target with proposal.callData.
+    ///         Only the proposer or owner may trigger execution to prevent front-running.
     function execute(uint256 proposalId) external {
         Proposal storage prop = proposals[proposalId];
+        require(
+            msg.sender == prop.proposer || msg.sender == owner,
+            "Governance: only proposer or owner can execute"
+        );
         require(prop.state == ProposalState.Queued, "Governance: not queued");
         require(block.timestamp >= prop.executionTime, "Governance: timelock active");
         require(prop.target != address(0), "Governance: zero target");

@@ -1,11 +1,14 @@
 package rpc
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
+	"github.com/BlockArtica/qubitcoin-qvm/pkg/crypto"
 	"go.uber.org/zap"
 )
 
@@ -124,34 +127,74 @@ func (h *Handlers) dispatchRPC(req JSONRPCRequest) JSONRPCResponse {
 		result = version
 
 	case "web3_sha3":
-		// Keccak-256 hash of input data
+		// Keccak-256 hash of input data (EIP-191)
 		var params []string
 		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) == 0 {
 			rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "expected [hexData]"}
 		} else {
-			// Placeholder: return hash of input
-			result = "0x" + "0000000000000000000000000000000000000000000000000000000000000000"
+			input := strings.TrimPrefix(params[0], "0x")
+			data, decErr := hex.DecodeString(input)
+			if decErr != nil {
+				rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "invalid hex data"}
+			} else {
+				hash := crypto.Keccak256(data)
+				result = "0x" + hex.EncodeToString(hash[:])
+			}
 		}
 
 	// ── Account ───────────────────────────────────────────────────
 	case "eth_getBalance":
 		// params: [address, blockTag]
-		// Stub: return 0 balance
-		result = "0x0"
+		var params []string
+		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) == 0 {
+			rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "expected [address, blockTag]"}
+		} else if h.services != nil && h.services.State != nil {
+			addr := parseAddress(params[0])
+			balance := h.services.State.GetBalance(addr)
+			result = "0x" + balance.Text(16)
+		} else {
+			result = "0x0"
+		}
 
 	case "eth_getTransactionCount":
 		// params: [address, blockTag]
-		// Stub: return 0 nonce
-		result = "0x0"
+		var params []string
+		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) == 0 {
+			rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "expected [address, blockTag]"}
+		} else if h.services != nil && h.services.State != nil {
+			addr := parseAddress(params[0])
+			nonce := h.services.State.GetNonce(addr)
+			result = fmt.Sprintf("0x%x", nonce)
+		} else {
+			result = "0x0"
+		}
 
 	case "eth_getCode":
 		// params: [address, blockTag]
-		// Stub: return empty code
-		result = "0x"
+		var params []string
+		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) == 0 {
+			rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "expected [address, blockTag]"}
+		} else if h.services != nil && h.services.State != nil {
+			addr := parseAddress(params[0])
+			code := h.services.State.GetCode(addr)
+			result = "0x" + hex.EncodeToString(code)
+		} else {
+			result = "0x"
+		}
 
 	case "eth_getStorageAt":
 		// params: [address, position, blockTag]
-		result = "0x0000000000000000000000000000000000000000000000000000000000000000"
+		var params []string
+		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) < 2 {
+			rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "expected [address, position, blockTag]"}
+		} else if h.services != nil && h.services.State != nil {
+			addr := parseAddress(params[0])
+			key := parseHash(params[1])
+			val := h.services.State.GetStorage(addr, key)
+			result = "0x" + hex.EncodeToString(val[:])
+		} else {
+			result = "0x0000000000000000000000000000000000000000000000000000000000000000"
+		}
 
 	// ── Block ─────────────────────────────────────────────────────
 	case "eth_getBlockByNumber":
@@ -258,4 +301,28 @@ func writeJSONRPC(w http.ResponseWriter, id any, rpcErr *RPCError) {
 		Error:   rpcErr,
 		ID:      id,
 	})
+}
+
+// parseAddress decodes a hex-encoded Ethereum address (0x-prefixed) into [20]byte.
+func parseAddress(s string) [20]byte {
+	s = strings.TrimPrefix(s, "0x")
+	var addr [20]byte
+	b, _ := hex.DecodeString(s)
+	if len(b) > 20 {
+		b = b[len(b)-20:]
+	}
+	copy(addr[20-len(b):], b)
+	return addr
+}
+
+// parseHash decodes a hex-encoded 32-byte hash (0x-prefixed) into [32]byte.
+func parseHash(s string) [32]byte {
+	s = strings.TrimPrefix(s, "0x")
+	var h [32]byte
+	b, _ := hex.DecodeString(s)
+	if len(b) > 32 {
+		b = b[len(b)-32:]
+	}
+	copy(h[32-len(b):], b)
+	return h
 }

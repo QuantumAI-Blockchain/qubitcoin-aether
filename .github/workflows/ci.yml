@@ -88,7 +88,6 @@ jobs:
       - name: Run integration tests
         run: |
           python -m pytest tests/integration/ -v --tb=short -x
-        continue-on-error: true
         env:
           DATABASE_URL: postgresql://root@localhost:26257/qbc?sslmode=disable
           PYTHONDONTWRITEBYTECODE: 1
@@ -114,18 +113,18 @@ jobs:
           bandit -r src/qubitcoin/ -f json -o bandit-report.json \
             --severity-level medium \
             --confidence-level medium \
-            -x src/qubitcoin/contracts/solidity || true
+            -x src/qubitcoin/contracts/solidity
           bandit -r src/qubitcoin/ \
             --severity-level medium \
             --confidence-level medium \
             -x src/qubitcoin/contracts/solidity \
-            -f txt || true
+            -f txt
 
       - name: Run pip-audit (dependency vulnerabilities)
         run: |
-          pip install -r requirements.txt 2>/dev/null || true
-          pip-audit --format json --output pip-audit-report.json || true
-          pip-audit || true
+          pip install -r requirements.txt 2>/dev/null || pip install -r requirements.txt
+          pip-audit --format json --output pip-audit-report.json
+          pip-audit
 
       - name: Upload security reports
         uses: actions/upload-artifact@v4
@@ -195,7 +194,7 @@ jobs:
         run: pnpm install --frozen-lockfile || pnpm install
 
       - name: Type check
-        run: pnpm tsc --noEmit || true
+        run: pnpm tsc --noEmit
 
       - name: Build
         run: pnpm build

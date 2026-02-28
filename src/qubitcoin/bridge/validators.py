@@ -18,6 +18,7 @@ import hashlib
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from decimal import Decimal
 from typing import Dict, List, Optional, Set
 
 from ..utils.logger import get_logger
@@ -25,13 +26,13 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────
-MIN_BOND_QBC: float = 10_000.0
+MIN_BOND_QBC: Decimal = Decimal('10000')
 DEFAULT_QUORUM_THRESHOLD: int = 7
 DEFAULT_VALIDATOR_SET_SIZE: int = 11
 UNBONDING_DELAY_BLOCKS: int = 181_818  # ~7 days at 3.3s/block
-SLASH_DOUBLE_SIGN_PCT: float = 0.50    # 50% slash for double signing
-SLASH_INVALID_PROOF_PCT: float = 0.25  # 25% slash for invalid proofs
-SLASH_OFFLINE_PCT: float = 0.05        # 5% slash for prolonged offline
+SLASH_DOUBLE_SIGN_PCT: Decimal = Decimal('0.50')    # 50% slash for double signing
+SLASH_INVALID_PROOF_PCT: Decimal = Decimal('0.25')  # 25% slash for invalid proofs
+SLASH_OFFLINE_PCT: Decimal = Decimal('0.05')         # 5% slash for prolonged offline
 MAX_MISSED_ATTESTATIONS: int = 100     # before offline slash
 
 
@@ -54,20 +55,20 @@ class SlashReason(Enum):
 class ValidatorBond:
     """Economic bond for a bridge validator."""
     address: str
-    bond_amount: float
+    bond_amount: Decimal
     bonded_at: float = field(default_factory=time.time)
     status: ValidatorStatus = ValidatorStatus.ACTIVE
     unbonding_started_at: Optional[float] = None
     unbonding_complete_block: Optional[int] = None
     slash_history: List[Dict] = field(default_factory=list)
-    total_slashed: float = 0.0
+    total_slashed: Decimal = field(default_factory=lambda: Decimal('0'))
     attestations: int = 0
     missed_attestations: int = 0
 
     @property
-    def effective_bond(self) -> float:
+    def effective_bond(self) -> Decimal:
         """Bond minus accumulated slashing."""
-        return max(0.0, self.bond_amount - self.total_slashed)
+        return max(Decimal('0'), self.bond_amount - self.total_slashed)
 
     def to_dict(self) -> Dict:
         return {
@@ -111,7 +112,7 @@ class FederatedValidatorSet:
         self._attestations: Dict[str, List[BridgeAttestation]] = {}
         self._quorum_threshold = quorum_threshold
         self._max_validators = max_validators
-        self._total_slashed_qbc: float = 0.0
+        self._total_slashed_qbc: Decimal = Decimal('0')
         self._quorum_reached_count: int = 0
         logger.info(
             f"FederatedValidatorSet initialised: "
@@ -120,7 +121,7 @@ class FederatedValidatorSet:
 
     # ── Registration & Bonding ─────────────────────────────────────────
 
-    def register_validator(self, address: str, bond_amount: float) -> Dict:
+    def register_validator(self, address: str, bond_amount: float | Decimal) -> Dict:
         """
         Register a new validator with economic bond.
 
@@ -131,6 +132,7 @@ class FederatedValidatorSet:
         Returns:
             Result dict with status.
         """
+        bond_amount = Decimal(str(bond_amount))
         if address in self._validators:
             existing = self._validators[address]
             if existing.status == ValidatorStatus.ACTIVE:
@@ -164,11 +166,12 @@ class FederatedValidatorSet:
         logger.info(f"Validator registered: {address[:16]}… ({bond_amount} QBC)")
         return {"success": True, "address": address, "bond": bond_amount}
 
-    def increase_bond(self, address: str, additional: float) -> Dict:
+    def increase_bond(self, address: str, additional: float | Decimal) -> Dict:
         """Add more QBC to an existing validator's bond."""
         v = self._validators.get(address)
         if v is None or v.status != ValidatorStatus.ACTIVE:
             return {"success": False, "error": "Validator not active"}
+        additional = Decimal(str(additional))
         if additional <= 0:
             return {"success": False, "error": "Amount must be positive"}
         v.bond_amount += additional

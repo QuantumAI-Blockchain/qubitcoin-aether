@@ -12,12 +12,24 @@ type MemoryAccessor interface {
 	Resize(size uint64) uint64
 }
 
+// ComplianceOracle provides compliance/risk data to quantum opcodes.
+// When nil, opcodes return safe defaults (compliant=1, low risk).
+type ComplianceOracle interface {
+	// CheckCompliance returns 1 if compliant, 0 if not.
+	CheckCompliance(caller [20]byte, checkType uint64) uint64
+	// GetRiskScore returns risk score (0-10000, scaled by 100).
+	GetRiskScore(addr [20]byte) uint64
+	// GetSystemicRisk returns systemic risk (0-10000).
+	GetSystemicRisk() uint64
+}
+
 // Handler executes quantum opcodes (0xC0-0xDE) and AGI opcodes (0xC2-0xC3)
 // within the QVM. It bridges the EVM execution context with the quantum
 // state manager and the Aether Tree AGI engine.
 type Handler struct {
-	States *StateManager
-	AGI    *AGIHandler
+	States     *StateManager
+	AGI        *AGIHandler
+	Compliance ComplianceOracle // nil → safe defaults
 }
 
 // NewHandler creates a quantum opcode handler with AGI support.
@@ -242,35 +254,53 @@ func (h *Handler) opQVerify(stack StackAccessor) error {
 // opQCompliance checks KYC/AML/sanctions compliance for the caller.
 // Stack: [checkType] → [compliant (1/0)]
 // checkType: 0=KYC, 1=AML, 2=Sanctions, 3=Full
-// Stub implementation — full compliance engine in pkg/compliance.
+// Delegates to ComplianceOracle if wired; returns compliant (1) otherwise.
 func (h *Handler) opQCompliance(stack StackAccessor, caller [20]byte) error {
 	checkTypeVal, err := stack.Pop()
 	if err != nil {
 		return err
 	}
-	_ = checkTypeVal // Will be used by compliance engine
-	_ = caller
 
-	// Stub: return compliant (1) — real impl queries compliance engine
+	if h.Compliance != nil {
+		result := h.Compliance.CheckCompliance(caller, checkTypeVal.Uint64())
+		return stack.PushUint64(result)
+	}
+	// Default: compliant (1) when no compliance engine wired
 	return stack.Push(big.NewInt(1))
 }
 
 // opQRisk queries SUSY risk score for an address.
 // Stack: [address] → [riskScore (0-10000, scaled by 100)]
+// Delegates to ComplianceOracle if wired; returns low risk (100) otherwise.
 func (h *Handler) opQRisk(stack StackAccessor) error {
-	_, err := stack.Pop() // address
+	addrVal, err := stack.Pop()
 	if err != nil {
 		return err
 	}
 
-	// Stub: return low risk (100 = 1.00)
+	if h.Compliance != nil {
+		var addr [20]byte
+		addrBytes := addrVal.Bytes()
+		if len(addrBytes) > 20 {
+			addrBytes = addrBytes[len(addrBytes)-20:]
+		}
+		copy(addr[20-len(addrBytes):], addrBytes)
+		result := h.Compliance.GetRiskScore(addr)
+		return stack.PushUint64(result)
+	}
+	// Default: low risk (100 = 1.00)
 	return stack.PushUint64(100)
 }
 
 // opQRiskSystemic queries systemic risk via SUSY contagion model.
 // Stack: [] → [systemicRisk (0-10000)]
+// Delegates to ComplianceOracle if wired; returns low risk (50) otherwise.
 func (h *Handler) opQRiskSystemic(stack StackAccessor) error {
-	// Stub: return low systemic risk
+	if h.Compliance != nil {
+		result := h.Compliance.GetSystemicRisk()
+		return stack.PushUint64(result)
+	}
+	// Default: low systemic risk
 	return stack.PushUint64(50)
 }
 

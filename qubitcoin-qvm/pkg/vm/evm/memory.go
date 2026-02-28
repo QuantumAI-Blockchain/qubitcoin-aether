@@ -50,23 +50,34 @@ func (m *Memory) Resize(size uint64) uint64 {
 }
 
 // Set writes data to memory at the given offset.
-// Caller must ensure memory has been resized before calling Set.
+// Caller should ensure memory has been resized; panics are caught as a safety net.
 func (m *Memory) Set(offset uint64, data []byte) {
 	if len(data) == 0 {
 		return
 	}
-	copy(m.store[offset:offset+uint64(len(data))], data)
+	end := offset + uint64(len(data))
+	if end > uint64(len(m.store)) || end < offset {
+		panic(fmt.Sprintf("memory: Set out of bounds: offset=%d len=%d store=%d", offset, len(data), len(m.store)))
+	}
+	copy(m.store[offset:end], data)
 }
 
 // Set32 writes a 32-byte big-endian value to memory at the given offset.
 func (m *Memory) Set32(offset uint64, val *big.Int) {
+	end := offset + 32
+	if end > uint64(len(m.store)) || end < offset {
+		panic(fmt.Sprintf("memory: Set32 out of bounds: offset=%d store=%d", offset, len(m.store)))
+	}
 	var buf [32]byte
 	val.FillBytes(buf[:])
-	copy(m.store[offset:offset+32], buf[:])
+	copy(m.store[offset:end], buf[:])
 }
 
 // SetByte writes a single byte to memory.
 func (m *Memory) SetByte(offset uint64, val byte) {
+	if offset >= uint64(len(m.store)) {
+		panic(fmt.Sprintf("memory: SetByte out of bounds: offset=%d store=%d", offset, len(m.store)))
+	}
 	m.store[offset] = val
 }
 
@@ -75,8 +86,12 @@ func (m *Memory) Get(offset, size uint64) []byte {
 	if size == 0 {
 		return nil
 	}
+	end := offset + size
+	if end > uint64(len(m.store)) || end < offset {
+		panic(fmt.Sprintf("memory: Get out of bounds: offset=%d size=%d store=%d", offset, size, len(m.store)))
+	}
 	out := make([]byte, size)
-	copy(out, m.store[offset:offset+size])
+	copy(out, m.store[offset:end])
 	return out
 }
 
@@ -85,7 +100,11 @@ func (m *Memory) GetPtr(offset, size uint64) []byte {
 	if size == 0 {
 		return nil
 	}
-	return m.store[offset : offset+size]
+	end := offset + size
+	if end > uint64(len(m.store)) || end < offset {
+		panic(fmt.Sprintf("memory: GetPtr out of bounds: offset=%d size=%d store=%d", offset, size, len(m.store)))
+	}
+	return m.store[offset:end]
 }
 
 // Reset clears memory.

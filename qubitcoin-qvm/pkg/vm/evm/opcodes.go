@@ -131,6 +131,7 @@ var GasCost = map[Opcode]uint64{
 	CALLVALUE: 2, CALLDATALOAD: 3, CALLDATASIZE: 2, CALLDATACOPY: 3,
 	CODESIZE: 2, CODECOPY: 3, GASPRICE: 2,
 	POP: 2, MLOAD: 3, MSTORE: 3, MSTORE8: 3,
-	SLOAD: 2100, SSTORE: 20000,
+	SLOAD: 2100,
+	// SSTORE uses dynamic gas via CalcSstoreGas() — no flat cost here.
 	JUMP: 8, JUMPI: 10, PC: 2, MSIZE: 2, GAS: 2, JUMPDEST: 1,
 }
