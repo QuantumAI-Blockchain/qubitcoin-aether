@@ -59,6 +59,7 @@ class OnChainAGI:
         self._treasury_addr = Config.TREASURY_DAO_ADDRESS
         self._governor_addr = Config.UPGRADE_GOVERNOR_ADDRESS
         self._kernel_addr = Config.AETHER_KERNEL_ADDRESS
+        self._higgs_addr = getattr(Config, 'HIGGS_FIELD_ADDRESS', '')
 
         # Stats
         self._phi_writes: int = 0
@@ -465,12 +466,103 @@ class OnChainAGI:
         return None
 
     # ------------------------------------------------------------------
+    # 6.5 Higgs Cognitive Field
+    # ------------------------------------------------------------------
+
+    def update_higgs_field_onchain(self, block_height: int,
+                                    field_value: float,
+                                    avg_mass: float = 0.0) -> bool:
+        """Update the Higgs field value on-chain.
+
+        Called per-block from AetherEngine to track field evolution.
+
+        Args:
+            block_height: Current block height.
+            field_value: Current Higgs field value (float, e.g. 245.17).
+            avg_mass: Average cognitive mass across all nodes.
+
+        Returns:
+            True if successfully written on-chain.
+        """
+        if not self._higgs_addr:
+            return False
+
+        calldata = encode_function_call(
+            'updateFieldValue(uint256)',
+            [int(field_value * PHI_PRECISION)],
+            ['uint256'],
+        )
+
+        return self._write_call(self._higgs_addr, calldata, block_height)
+
+    def get_higgs_field_state(self) -> Optional[dict]:
+        """Read the Higgs field state from on-chain contract.
+
+        Returns:
+            Dict with vev, currentField, mu, lambda, tanBeta, avgMass,
+            totalMass, massGap, totalExcitations. Or None if unavailable.
+        """
+        if not self._higgs_addr:
+            return None
+
+        calldata = function_selector('getFieldState()')
+        result = self._static_call(self._higgs_addr, calldata)
+        if not result or len(result) < 288:  # 9 * 32 bytes
+            return None
+
+        try:
+            return {
+                'vev': decode_uint256(result[0:32]) / PHI_PRECISION,
+                'current_field': decode_uint256(result[32:64]) / PHI_PRECISION,
+                'mu': decode_uint256(result[64:96]) / PHI_PRECISION,
+                'lambda': decode_uint256(result[96:128]) / (PHI_PRECISION * PHI_PRECISION),
+                'tan_beta': decode_uint256(result[128:160]) / PHI_PRECISION,
+                'avg_mass': decode_uint256(result[160:192]) / PHI_PRECISION,
+                'total_mass': decode_uint256(result[192:224]) / PHI_PRECISION,
+                'mass_gap': decode_uint256(result[224:256]) / PHI_PRECISION,
+                'total_excitations': decode_uint256(result[256:288]),
+            }
+        except Exception as e:
+            logger.debug(f"Failed to decode Higgs field state: {e}")
+            return None
+
+    def get_node_mass_onchain(self, node_id: int) -> Optional[dict]:
+        """Read a node's cognitive mass from the on-chain Higgs contract.
+
+        Returns:
+            Dict with yukawa, mass, is_expansion. Or None if unavailable.
+        """
+        if not self._higgs_addr:
+            return None
+
+        calldata = encode_function_call(
+            'getNodeMass(uint8)',
+            [node_id],
+            ['uint8'],
+        )
+        result = self._static_call(self._higgs_addr, calldata)
+        if not result or len(result) < 96:
+            return None
+
+        try:
+            return {
+                'yukawa': decode_uint256(result[0:32]) / PHI_PRECISION,
+                'mass': decode_uint256(result[32:64]) / PHI_PRECISION,
+                'is_expansion': decode_bool(result[64:96]),
+            }
+        except Exception as e:
+            logger.debug(f"Failed to decode node mass: {e}")
+            return None
+
+    # ------------------------------------------------------------------
     # Combined integration hook
     # ------------------------------------------------------------------
 
     def process_block(self, block_height: int, phi_result: dict,
                       thought_hash: str = '', knowledge_root: str = '',
-                      validator_address: str = '') -> dict:
+                      validator_address: str = '',
+                      higgs_field_value: float = 0.0,
+                      avg_cognitive_mass: float = 0.0) -> dict:
         """Per-block on-chain integration hook.
 
         Called from AetherEngine after block processing. Writes Phi
@@ -482,6 +574,8 @@ class OnChainAGI:
             thought_hash: Proof-of-Thought hash.
             knowledge_root: Knowledge graph Merkle root.
             validator_address: Miner/validator address.
+            higgs_field_value: Current Higgs field value (float).
+            avg_cognitive_mass: Average cognitive mass across all nodes.
 
         Returns:
             Dict with write results.
@@ -489,6 +583,7 @@ class OnChainAGI:
         results: dict = {
             'phi_written': False,
             'pot_submitted': False,
+            'higgs_updated': False,
             'block_height': block_height,
         }
 
@@ -514,6 +609,14 @@ class OnChainAGI:
                 submitter=validator_address,
             )
 
+        # Update Higgs field value on-chain
+        if higgs_field_value > 0 and self._higgs_addr:
+            results['higgs_updated'] = self.update_higgs_field_onchain(
+                block_height=block_height,
+                field_value=higgs_field_value,
+                avg_mass=avg_cognitive_mass,
+            )
+
         return results
 
     # ------------------------------------------------------------------
@@ -534,5 +637,6 @@ class OnChainAGI:
                 'constitutional_ai': bool(self._constitution_addr),
                 'treasury_dao': bool(self._treasury_addr),
                 'upgrade_governor': bool(self._governor_addr),
+                'higgs_field': bool(self._higgs_addr),
             },
         }

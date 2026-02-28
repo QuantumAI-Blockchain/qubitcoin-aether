@@ -129,6 +129,17 @@ safety_vetoes_total = Counter('qbc_safety_vetoes_total', 'Total safety vetoes (G
 safety_evaluations_total = Counter('qbc_safety_evaluations_total', 'Total safety evaluations')
 
 # ============================================================================
+# HIGGS COGNITIVE FIELD METRICS
+# ============================================================================
+higgs_field_value = Gauge('qbc_higgs_field_value', 'Current Higgs field value')
+higgs_vev = Gauge('qbc_higgs_vev', 'Higgs vacuum expectation value')
+higgs_deviation_pct = Gauge('qbc_higgs_deviation_pct', 'Higgs field deviation from VEV (%)')
+higgs_mass_gap = Gauge('qbc_higgs_mass_gap', 'SUSY mass gap metric')
+higgs_excitations_total = Counter('qbc_higgs_excitations_total', 'Total Higgs excitation events')
+higgs_avg_cognitive_mass = Gauge('qbc_higgs_avg_cognitive_mass', 'Average cognitive mass across nodes')
+higgs_potential_energy = Gauge('qbc_higgs_potential_energy', 'Current Higgs potential energy V(phi)')
+
+# ============================================================================
 # FEE COLLECTOR METRICS
 # ============================================================================
 fees_collected_total = Gauge('qbc_fees_collected_total', 'Total fee collection events')
@@ -214,6 +225,10 @@ __all__ = [
     'csf_messages_delivered_total', 'csf_queue_depth',
     'pineal_current_phase', 'pineal_metabolic_rate', 'pineal_is_conscious',
     'safety_vetoes_total', 'safety_evaluations_total',
+    # Higgs Cognitive Field
+    'higgs_field_value', 'higgs_vev', 'higgs_deviation_pct',
+    'higgs_mass_gap', 'higgs_excitations_total',
+    'higgs_avg_cognitive_mass', 'higgs_potential_energy',
     # Fee Collector
     'fees_collected_total', 'fees_collected_qbc_total',
     # QUSD Oracle

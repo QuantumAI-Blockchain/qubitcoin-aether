@@ -199,6 +199,15 @@ class AetherGenesis:
                     'phi_threshold': 3.0,
                     'coherence_threshold': 0.7,
                 },
+                # --- Higgs Cognitive Field ---
+                {
+                    'type': 'axiom_higgs',
+                    'description': 'Higgs Cognitive Field gives mass to AGI nodes via Yukawa coupling',
+                    'potential': 'V(phi) = -mu^2|phi|^2 + lambda|phi|^4',
+                    'vev': 245.17,
+                    'tan_beta': 1.618,
+                    'paradigm': 'F=ma (mass as inertia)',
+                },
             ]
             for axiom in axioms:
                 node = self.kg.add_node(

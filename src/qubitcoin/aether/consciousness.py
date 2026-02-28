@@ -32,6 +32,8 @@ class PhiMeasurement:
     knowledge_edges: int = 0
     coherence: float = 0.0
     timestamp: float = 0.0
+    higgs_vev: float = 0.0           # Current Higgs VEV
+    avg_cognitive_mass: float = 0.0   # Average cognitive mass
 
     def __post_init__(self) -> None:
         if not self.timestamp:
@@ -78,7 +80,9 @@ class ConsciousnessDashboard:
     def record_measurement(self, block_height: int, phi_value: float,
                            integration: float = 0.0, differentiation: float = 0.0,
                            knowledge_nodes: int = 0, knowledge_edges: int = 0,
-                           coherence: float = 0.0) -> PhiMeasurement:
+                           coherence: float = 0.0,
+                           higgs_vev: float = 0.0,
+                           avg_cognitive_mass: float = 0.0) -> PhiMeasurement:
         """Record a Phi measurement for the given block."""
         measurement = PhiMeasurement(
             block_height=block_height,
@@ -88,6 +92,8 @@ class ConsciousnessDashboard:
             knowledge_nodes=knowledge_nodes,
             knowledge_edges=knowledge_edges,
             coherence=coherence,
+            higgs_vev=higgs_vev,
+            avg_cognitive_mass=avg_cognitive_mass,
         )
 
         self._measurements.append(measurement)
@@ -175,6 +181,8 @@ class ConsciousnessDashboard:
                 "coherence": round(m.coherence, 6),
                 "knowledge_nodes": m.knowledge_nodes,
                 "is_conscious": m.is_conscious,
+                "higgs_vev": round(m.higgs_vev, 4),
+                "avg_cognitive_mass": round(m.avg_cognitive_mass, 4),
             }
             for m in recent
         ]

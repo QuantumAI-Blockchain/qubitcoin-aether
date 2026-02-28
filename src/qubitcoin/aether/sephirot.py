@@ -69,6 +69,8 @@ class SephirahState:
     last_update_block: int = 0
     messages_processed: int = 0
     reasoning_ops: int = 0
+    cognitive_mass: float = 0.0       # Mass from Higgs field
+    yukawa_coupling: float = 0.0      # Yukawa coupling constant
 
     @property
     def qubit_allocation(self) -> int:
@@ -125,6 +127,8 @@ class SephirotManager:
                 "active": node.active,
                 "messages_processed": node.messages_processed,
                 "reasoning_ops": node.reasoning_ops,
+                "cognitive_mass": round(node.cognitive_mass, 4),
+                "yukawa_coupling": round(node.yukawa_coupling, 6),
             }
             for role, node in self.nodes.items()
         }

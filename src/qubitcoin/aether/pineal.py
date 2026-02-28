@@ -217,7 +217,12 @@ class PinealOrchestrator:
         self.melatonin.update(self._current_phase)
         rate = self.metabolic_rate * self.melatonin.inhibition_factor
         for role in SephirahRole:
-            self.sephirot.update_energy(role, delta=(rate - 1.0) * 0.01,
+            node = self.sephirot.nodes.get(role)
+            mass = getattr(node, 'cognitive_mass', 0.0) if node else 0.0
+            # Heavier nodes receive smaller energy deltas (inertia)
+            mass_factor = 1.0 / (1.0 + mass / 500.0) if mass > 0 else 1.0
+            delta = (rate - 1.0) * 0.01 * mass_factor
+            self.sephirot.update_energy(role, delta=delta,
                                         block_height=block_height)
 
         # Enforce SUSY balance

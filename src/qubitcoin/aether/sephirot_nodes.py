@@ -118,15 +118,19 @@ class BaseSephirah(ABC):
         self.state.reasoning_ops = state_data.get('reasoning_ops', 0)
 
     def _energy_quality_factor(self) -> float:
-        """Return a quality factor in [0.0, 1.0] based on node energy.
+        """Energy quality factor with Higgs mass dampening.
 
-        High energy (>= 1.0) -> factor 1.0 (full reasoning depth).
-        Low energy (approaching 0) -> factor approaches 0.1 (minimal reasoning).
-        Used by specialized_reason() to modulate output quality.
+        Base sigmoid: 0.1 + 0.9 * (1 - e^(-2*energy))
+        Mass factor: 1 / (1 + mass/500) — heavier nodes have diminished
+        quality ceiling, reflecting inertia's stabilizing effect.
         """
         e = max(0.0, self.state.energy)
-        # Sigmoid-like ramp: factor = 0.1 + 0.9 * (1 - e^(-2*e))
-        return 0.1 + 0.9 * (1.0 - math.exp(-2.0 * e))
+        base = 0.1 + 0.9 * (1.0 - math.exp(-2.0 * e))
+        mass = getattr(self.state, 'cognitive_mass', 0.0)
+        if mass > 0:
+            mass_dampen = 1.0 / (1.0 + mass / 500.0)
+            return base * (0.5 + 0.5 * mass_dampen)
+        return base
 
     @abstractmethod
     def process(self, context: Dict[str, Any]) -> ProcessingResult:
@@ -208,16 +212,22 @@ class BaseSephirah(ABC):
         }
 
     def get_performance_weight(self) -> float:
-        """Compute performance weight for reward distribution.
+        """Performance weight with cognitive mass factor.
 
+        Heavier nodes get weight bonus for stability contributions.
         Weight = tasks_solved * 0.5 + knowledge_contributed * 0.3 + reasoning_ops * 0.2
         Minimum weight is 1.0 so idle nodes still get baseline reward.
         """
-        return max(1.0, (
+        base = max(1.0, (
             self._tasks_solved * 0.5
             + self._knowledge_contributed * 0.3
             + self.state.reasoning_ops * 0.2
         ))
+        mass = getattr(self.state, 'cognitive_mass', 0.0)
+        if mass > 0:
+            mass_bonus = 1.0 + min(0.5, mass / 500.0)
+            return base * mass_bonus
+        return base
 
     def _consume_inbox(self) -> List[NodeMessage]:
         """Consume all messages from inbox."""

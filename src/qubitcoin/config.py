@@ -285,6 +285,18 @@ class Config:
     AETHER_KERNEL_ADDRESS: str = os.getenv('AETHER_KERNEL_ADDRESS', '')
 
     # ============================================================================
+    # HIGGS COGNITIVE FIELD PARAMETERS
+    # ============================================================================
+    HIGGS_FIELD_ADDRESS: str = os.getenv('HIGGS_FIELD_ADDRESS', '')
+    HIGGS_MU: float = float(os.getenv('HIGGS_MU', '88.45'))
+    HIGGS_LAMBDA: float = float(os.getenv('HIGGS_LAMBDA', '0.129'))
+    HIGGS_TAN_BETA: float = float(os.getenv('HIGGS_TAN_BETA', '1.618033988749895'))
+    HIGGS_EXCITATION_THRESHOLD: float = float(os.getenv('HIGGS_EXCITATION_THRESHOLD', '0.10'))
+    HIGGS_DT: float = float(os.getenv('HIGGS_DT', '0.01'))
+    HIGGS_ENABLE_MASS_REBALANCING: bool = os.getenv('HIGGS_ENABLE_MASS_REBALANCING', 'true').lower() == 'true'
+    HIGGS_FIELD_UPDATE_INTERVAL: int = int(os.getenv('HIGGS_FIELD_UPDATE_INTERVAL', '1'))
+
+    # ============================================================================
     # QUSD CONTRACT ADDRESSES (set after deployment)
     # ============================================================================
     QUSD_TOKEN_ADDRESS: str = os.getenv('QUSD_TOKEN_ADDRESS', '')
