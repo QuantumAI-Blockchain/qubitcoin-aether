@@ -216,6 +216,73 @@ def encode_call(func_sig: str, *args: Any) -> bytes:
     return encode_function_call(func_sig, list(args), types)
 
 
+def encode_constructor(bytecode: bytes, args: List[Any], types: List[str]) -> bytes:
+    """Encode deployment bytecode with constructor arguments.
+
+    Combines the contract initcode with ABI-encoded constructor arguments,
+    producing the full deployment calldata for ``eth_sendTransaction``
+    with ``to=null``.
+
+    Args:
+        bytecode: Raw contract initcode (compiled Solidity output).
+        args: Constructor argument values.
+        types: Constructor argument types (``"uint256"``, ``"address"``, etc.).
+
+    Returns:
+        ``bytecode + abi_encoded_args`` ready for deployment.
+
+    Raises:
+        ValueError: If argument count does not match types.
+
+    Example:
+        >>> code = bytes.fromhex("6080604052...")
+        >>> deploy_data = encode_constructor(code, ["MyToken", "MTK", 1000000], ["string", "string", "uint256"])
+    """
+    if len(args) != len(types):
+        raise ValueError(
+            f"Constructor argument count mismatch: {len(types)} types, {len(args)} values"
+        )
+    if not types:
+        return bytecode
+
+    # Encode arguments
+    encoded_args = b''
+    dynamic_parts: List[Tuple[int, bytes]] = []
+    static_size = len(types) * 32
+
+    # First pass: encode static types and collect dynamic offsets
+    for i, (arg, typ) in enumerate(zip(args, types)):
+        if typ in ('string', 'bytes'):
+            # Dynamic type: encode offset placeholder, data goes after static section
+            encoded_args += encode_uint256(0)  # placeholder
+            if typ == 'string':
+                dynamic_parts.append((i, encode_bytes_dynamic(arg.encode() if isinstance(arg, str) else arg)))
+            else:
+                dynamic_parts.append((i, encode_bytes_dynamic(arg if isinstance(arg, bytes) else arg.encode())))
+        elif typ == 'uint256':
+            encoded_args += encode_uint256(arg)
+        elif typ == 'address':
+            encoded_args += encode_address(arg)
+        elif typ == 'bool':
+            encoded_args += encode_bool(arg)
+        elif typ == 'bytes32':
+            encoded_args += encode_bytes32(arg if isinstance(arg, bytes) else bytes.fromhex(arg.replace('0x', '')))
+        else:
+            raise ValueError(f"Unsupported constructor type: {typ}")
+
+    # Second pass: fix dynamic offsets and append dynamic data
+    if dynamic_parts:
+        dynamic_data = b''
+        fixed = bytearray(encoded_args)
+        for idx, data in dynamic_parts:
+            offset = static_size + len(dynamic_data)
+            fixed[idx * 32:(idx + 1) * 32] = encode_uint256(offset)
+            dynamic_data += data
+        encoded_args = bytes(fixed) + dynamic_data
+
+    return bytecode + encoded_args
+
+
 def encode_return_value(value: Any, typ: str) -> bytes:
     """Encode a single return value."""
     if typ == 'uint256':

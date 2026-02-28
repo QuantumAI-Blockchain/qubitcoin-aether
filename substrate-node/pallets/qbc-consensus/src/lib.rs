@@ -137,7 +137,10 @@ pub mod pallet {
         /// - Adjusts difficulty
         /// - Stores SUSY solution
         #[pallet::call_index(0)]
-        #[pallet::weight(100_000)]
+        // Analytical weight: VQE proof validation (100µs) + Hamiltonian verification (200µs)
+        // + difficulty read (25µs) + coinbase UTXO write (25µs) + SUSY solution write (25µs)
+        // + difficulty adjustment (50µs) + 5 storage writes (125µs) = ~550µs ≈ 550_000
+        #[pallet::weight(550_000)]
         pub fn submit_mining_proof(
             origin: OriginFor<T>,
             miner_address: Address,

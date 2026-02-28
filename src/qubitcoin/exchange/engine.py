@@ -50,6 +50,8 @@ class Side(str, Enum):
 class OrderType(str, Enum):
     LIMIT = "limit"
     MARKET = "market"
+    STOP_LOSS = "stop_loss"
+    STOP_LIMIT = "stop_limit"
 
 
 class OrderStatus(str, Enum):
@@ -72,13 +74,14 @@ class Order:
     status: OrderStatus = OrderStatus.OPEN
     address: str = ""     # submitter wallet address
     timestamp: float = field(default_factory=time.time)
+    trigger_price: Optional[Decimal] = None  # stop orders: activate when market hits this price
 
     @property
     def remaining(self) -> Decimal:
         return self.size - self.filled
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "id": self.id,
             "pair": self.pair,
             "side": self.side.value,
@@ -91,6 +94,9 @@ class Order:
             "address": self.address,
             "timestamp": self.timestamp,
         }
+        if self.trigger_price is not None:
+            d["trigger_price"] = str(self.trigger_price)
+        return d
 
 
 @dataclass
@@ -185,6 +191,7 @@ class OrderBook:
         self.asks = _make_sorted_list(_ask_key)   # best ask at index 0
         self._orders: Dict[str, Order] = {}       # id -> Order (for O(1) lookup)
         self._trades: List[Fill] = []             # recent fills
+        self._stop_orders: Dict[str, Order] = {}  # id -> pending stop orders
 
     # ── Limit order ──────────────────────────────────────────────────────
 
@@ -280,10 +287,148 @@ class OrderBook:
         )
         return order, fills
 
+    # ── Stop orders ──────────────────────────────────────────────────────
+
+    def place_stop_loss_order(
+        self,
+        side: str,
+        trigger_price: float,
+        size: float,
+        address: str = "",
+    ) -> Order:
+        """Place a stop-loss order.
+
+        When the market price crosses the trigger price, the stop order
+        converts to a market order and executes immediately.
+        Returns the pending stop order (no fills until triggered).
+        """
+        d_trigger = Decimal(str(trigger_price))
+        d_size = Decimal(str(size))
+        if d_trigger <= ZERO:
+            raise ValueError("Trigger price must be positive")
+        if d_size <= ZERO:
+            raise ValueError("Order size must be positive")
+
+        order = Order(
+            id=uuid.uuid4().hex[:16],
+            pair=self.pair,
+            side=Side(side),
+            order_type=OrderType.STOP_LOSS,
+            price=ZERO,
+            size=d_size,
+            address=address,
+            trigger_price=d_trigger,
+        )
+        self._stop_orders[order.id] = order
+        logger.debug(
+            "Stop-loss %s %s %s trigger@%s", side, self.pair, d_size, d_trigger
+        )
+        return order
+
+    def place_stop_limit_order(
+        self,
+        side: str,
+        trigger_price: float,
+        limit_price: float,
+        size: float,
+        address: str = "",
+    ) -> Order:
+        """Place a stop-limit order.
+
+        When the market price crosses the trigger price, the stop order
+        converts to a limit order at the specified limit price.
+        Returns the pending stop order (no fills until triggered).
+        """
+        d_trigger = Decimal(str(trigger_price))
+        d_limit = Decimal(str(limit_price))
+        d_size = Decimal(str(size))
+        if d_trigger <= ZERO:
+            raise ValueError("Trigger price must be positive")
+        if d_limit <= ZERO:
+            raise ValueError("Limit price must be positive")
+        if d_size <= ZERO:
+            raise ValueError("Order size must be positive")
+
+        order = Order(
+            id=uuid.uuid4().hex[:16],
+            pair=self.pair,
+            side=Side(side),
+            order_type=OrderType.STOP_LIMIT,
+            price=d_limit,
+            size=d_size,
+            address=address,
+            trigger_price=d_trigger,
+        )
+        self._stop_orders[order.id] = order
+        logger.debug(
+            "Stop-limit %s %s %s trigger@%s limit@%s",
+            side, self.pair, d_size, d_trigger, d_limit,
+        )
+        return order
+
+    def check_triggers(self, last_trade_price: Decimal) -> List[Tuple[Order, List[Fill]]]:
+        """Check if any stop orders should be triggered by the current market price.
+
+        Call this after every trade. Returns list of (order, fills) for triggered orders.
+
+        Stop-loss sell triggers when price <= trigger_price.
+        Stop-loss buy triggers when price >= trigger_price.
+        """
+        triggered: List[Tuple[Order, List[Fill]]] = []
+        to_remove: List[str] = []
+
+        for order_id, order in self._stop_orders.items():
+            should_trigger = False
+
+            if order.side == Side.SELL:
+                # Sell stop: triggers when price falls to/below trigger
+                if last_trade_price <= order.trigger_price:
+                    should_trigger = True
+            else:
+                # Buy stop: triggers when price rises to/above trigger
+                if last_trade_price >= order.trigger_price:
+                    should_trigger = True
+
+            if should_trigger:
+                to_remove.append(order_id)
+                if order.order_type == OrderType.STOP_LOSS:
+                    # Convert to market order
+                    _, fills = self.place_market_order(
+                        order.side.value, float(order.size), order.address
+                    )
+                else:
+                    # Convert to limit order at the limit price
+                    _, fills = self.place_limit_order(
+                        order.side.value, float(order.price), float(order.size), order.address
+                    )
+                order.status = OrderStatus.FILLED if fills else OrderStatus.OPEN
+                triggered.append((order, fills))
+                logger.info(
+                    "Triggered stop order %s (%s) at price %s",
+                    order_id, order.order_type.value, last_trade_price,
+                )
+
+        for oid in to_remove:
+            del self._stop_orders[oid]
+
+        return triggered
+
+    def cancel_stop_order(self, order_id: str) -> bool:
+        """Cancel a pending stop order."""
+        order = self._stop_orders.pop(order_id, None)
+        if order is None:
+            return False
+        order.status = OrderStatus.CANCELLED
+        return True
+
     # ── Cancel ───────────────────────────────────────────────────────────
 
     def cancel_order(self, order_id: str) -> bool:
-        """Cancel a resting order. Returns True if found and cancelled."""
+        """Cancel a resting or stop order. Returns True if found and cancelled."""
+        # Check stop orders first
+        if order_id in self._stop_orders:
+            return self.cancel_stop_order(order_id)
+
         order = self._orders.pop(order_id, None)
         if order is None:
             return False
@@ -314,6 +459,10 @@ class OrderBook:
 
         while opposite and taker.remaining > EPSILON:
             maker = opposite[0]
+
+            # Self-trade prevention: skip orders from the same address
+            if maker.address and taker.address and maker.address == taker.address:
+                break
 
             # Price check for limit orders
             if taker.order_type == OrderType.LIMIT:
@@ -467,6 +616,160 @@ class OrderBook:
 # ExchangeEngine — multi-pair orchestrator
 # ---------------------------------------------------------------------------
 
+class OrderPersistence:
+    """Interface for persisting order book state to a database.
+
+    Subclass this and pass to ExchangeEngine to survive node restarts.
+    """
+
+    def save_order(self, pair: str, order: 'Order') -> None:
+        """Save or update an order."""
+        raise NotImplementedError
+
+    def delete_order(self, pair: str, order_id: str) -> None:
+        """Remove an order from persistence."""
+        raise NotImplementedError
+
+    def save_fill(self, pair: str, fill: 'Fill') -> None:
+        """Persist a fill/trade record."""
+        raise NotImplementedError
+
+    def load_orders(self, pair: str) -> List['Order']:
+        """Load all open/partial orders for a pair on startup."""
+        raise NotImplementedError
+
+    def load_fills(self, pair: str, limit: int = 500) -> List['Fill']:
+        """Load recent fills for a pair on startup."""
+        raise NotImplementedError
+
+
+class InMemoryPersistence(OrderPersistence):
+    """In-memory persistence for testing — stores data in dicts."""
+
+    def __init__(self) -> None:
+        self._orders: Dict[str, Dict[str, dict]] = {}  # pair -> {id -> order_dict}
+        self._fills: Dict[str, List[dict]] = {}         # pair -> [fill_dicts]
+
+    def save_order(self, pair: str, order: 'Order') -> None:
+        if pair not in self._orders:
+            self._orders[pair] = {}
+        self._orders[pair][order.id] = order.to_dict()
+
+    def delete_order(self, pair: str, order_id: str) -> None:
+        if pair in self._orders:
+            self._orders[pair].pop(order_id, None)
+
+    def save_fill(self, pair: str, fill: 'Fill') -> None:
+        if pair not in self._fills:
+            self._fills[pair] = []
+        self._fills[pair].insert(0, fill.to_dict())
+
+    def load_orders(self, pair: str) -> List['Order']:
+        return []  # In-memory starts fresh
+
+    def load_fills(self, pair: str, limit: int = 500) -> List['Fill']:
+        return []
+
+    def get_saved_orders(self, pair: str) -> List[dict]:
+        """Test helper: return saved order dicts."""
+        return list(self._orders.get(pair, {}).values())
+
+    def get_saved_fills(self, pair: str) -> List[dict]:
+        """Test helper: return saved fill dicts."""
+        return list(self._fills.get(pair, []))
+
+
+class SettlementCallback:
+    """Interface for on-chain settlement of matched trades.
+
+    Subclass this and pass to ExchangeEngine to create blockchain
+    transactions for every matched fill.
+    """
+
+    def settle_fill(self, fill: Fill) -> bool:
+        """Called for each matched fill to create an on-chain transaction.
+
+        Args:
+            fill: The fill to settle on-chain.
+
+        Returns:
+            True if settlement succeeded, False otherwise.
+        """
+        raise NotImplementedError
+
+    def settle_batch(self, fills: List[Fill]) -> int:
+        """Settle multiple fills in a single batch transaction.
+
+        Returns the number of successfully settled fills.
+        Default implementation settles one at a time.
+        """
+        settled = 0
+        for fill in fills:
+            if self.settle_fill(fill):
+                settled += 1
+        return settled
+
+
+class UTXOSettlement(SettlementCallback):
+    """Settlement callback that creates UTXO transactions for each trade.
+
+    Requires a reference to the node's transaction creation function.
+    """
+
+    def __init__(self, create_transaction_fn=None) -> None:
+        self._create_tx = create_transaction_fn
+        self._pending: List[dict] = []  # pending settlement records
+
+    def settle_fill(self, fill: Fill) -> bool:
+        """Create a UTXO transaction for a matched trade."""
+        record = {
+            "fill_id": fill.id,
+            "pair": fill.pair,
+            "price": str(fill.price),
+            "size": str(fill.size),
+            "side": fill.side.value,
+            "maker": fill.maker_address,
+            "taker": fill.taker_address,
+            "timestamp": fill.timestamp,
+            "settled": False,
+        }
+
+        if self._create_tx is not None:
+            try:
+                # Determine transfer: taker pays base asset, receives quote (or vice versa)
+                base, quote = fill.pair.split("_", 1) if "_" in fill.pair else (fill.pair, "QUSD")
+                notional = fill.price * fill.size  # quote amount
+
+                if fill.side == Side.BUY:
+                    # Taker bought base: taker sends quote to maker, maker sends base to taker
+                    self._create_tx(fill.taker_address, fill.maker_address, notional, quote)
+                    self._create_tx(fill.maker_address, fill.taker_address, fill.size, base)
+                else:
+                    # Taker sold base: taker sends base to maker, maker sends quote to taker
+                    self._create_tx(fill.taker_address, fill.maker_address, fill.size, base)
+                    self._create_tx(fill.maker_address, fill.taker_address, notional, quote)
+
+                record["settled"] = True
+                logger.info("Settled fill %s on-chain: %s %s @ %s",
+                            fill.id, fill.size, base, fill.price)
+            except Exception as e:
+                logger.error("Settlement failed for fill %s: %s", fill.id, e)
+                record["error"] = str(e)
+        else:
+            logger.debug("No settlement backend — fill %s recorded but not settled", fill.id)
+
+        self._pending.append(record)
+        return record["settled"]
+
+    def get_pending_settlements(self) -> List[dict]:
+        """Return all settlement records."""
+        return list(self._pending)
+
+    def get_unsettled(self) -> List[dict]:
+        """Return settlements that failed or have no backend."""
+        return [r for r in self._pending if not r["settled"]]
+
+
 class ExchangeEngine:
     """Multi-pair exchange engine.
 
@@ -484,9 +787,20 @@ class ExchangeEngine:
         "WQBC_QUSD",
     ]
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        settlement: Optional[SettlementCallback] = None,
+        persistence: Optional[OrderPersistence] = None,
+        mev_protection: bool = False,
+        commit_reveal_fn=None,
+    ) -> None:
         self.books: Dict[str, OrderBook] = {}
         self._user_balances: Dict[str, Dict[str, Decimal]] = {}  # address -> {asset: amount}
+        self._settlement = settlement
+        self._persistence = persistence
+        self._mev_protection = mev_protection
+        self._commit_reveal_fn = commit_reveal_fn  # callable(order_dict) -> commit_hash
+        self._committed_orders: Dict[str, dict] = {}  # commit_hash -> order_dict
 
         # Pre-create default order books
         for pair in self.DEFAULT_PAIRS:
@@ -515,10 +829,12 @@ class ExchangeEngine:
         price: float,
         size: float,
         address: str = "",
+        trigger_price: float = 0,
     ) -> dict:
         """Place an order on the given pair.
 
         Returns a dict with the order details and any fills produced.
+        For stop orders, fills will be empty until the trigger price is hit.
         """
         book = self.get_or_create_book(pair)
 
@@ -526,8 +842,31 @@ class ExchangeEngine:
             order, fills = book.place_market_order(side, size, address)
         elif order_type == "limit":
             order, fills = book.place_limit_order(side, price, size, address)
+        elif order_type == "stop_loss":
+            order = book.place_stop_loss_order(side, trigger_price, size, address)
+            fills = []
+        elif order_type == "stop_limit":
+            order = book.place_stop_limit_order(side, trigger_price, price, size, address)
+            fills = []
         else:
             raise ValueError(f"Unsupported order type: {order_type}")
+
+        # Check if any stop orders should trigger after a fill
+        if fills:
+            last_price = fills[-1].price
+            triggered = book.check_triggers(last_price)
+            for trig_order, trig_fills in triggered:
+                fills.extend(trig_fills)
+
+        # Settle fills on-chain
+        if fills and self._settlement:
+            self._settlement.settle_batch(fills)
+
+        # Persist order and fills
+        if self._persistence:
+            self._persistence.save_order(pair, order)
+            for fill in fills:
+                self._persistence.save_fill(pair, fill)
 
         return {
             "order": order.to_dict(),
@@ -630,6 +969,50 @@ class ExchangeEngine:
 
         return {"address": address, "balances": result}
 
+    # ── MEV Protection ─────────────────────────────────────────────────
+
+    def commit_order(self, order_dict: dict) -> Optional[str]:
+        """Phase 1 of commit-reveal: commit an order hash without revealing details.
+
+        Returns a commit hash that must be revealed within the reveal window.
+        Only effective when mev_protection=True and commit_reveal_fn is set.
+        """
+        if not self._mev_protection:
+            return None
+
+        import hashlib
+        import json
+        order_json = json.dumps(order_dict, sort_keys=True, default=str)
+        commit_hash = hashlib.sha256(order_json.encode()).hexdigest()
+
+        self._committed_orders[commit_hash] = order_dict
+
+        if self._commit_reveal_fn:
+            self._commit_reveal_fn(commit_hash)
+
+        logger.debug("MEV commit: %s for %s order", commit_hash[:16], order_dict.get("pair"))
+        return commit_hash
+
+    def reveal_and_place(self, commit_hash: str) -> Optional[dict]:
+        """Phase 2 of commit-reveal: reveal a previously committed order and place it.
+
+        Returns the placement result (same as place_order) or None if hash not found.
+        """
+        order_dict = self._committed_orders.pop(commit_hash, None)
+        if order_dict is None:
+            logger.warning("MEV reveal failed: unknown commit %s", commit_hash[:16])
+            return None
+
+        return self.place_order(
+            pair=order_dict["pair"],
+            side=order_dict["side"],
+            order_type=order_dict.get("type", "limit"),
+            price=float(order_dict.get("price", 0)),
+            size=float(order_dict["size"]),
+            address=order_dict.get("address", ""),
+            trigger_price=float(order_dict.get("trigger_price", 0)),
+        )
+
     def get_engine_stats(self) -> dict:
         """Return overall engine statistics."""
         total_bids = sum(len(b.bids) for b in self.books.values())
@@ -642,4 +1025,6 @@ class ExchangeEngine:
             "total_ask_orders": total_asks,
             "total_trades": total_trades,
             "total_users": len(self._user_balances),
+            "mev_protection": self._mev_protection,
+            "pending_commits": len(self._committed_orders),
         }

@@ -1455,7 +1455,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **Node types** | Full (500GB+, 16GB RAM), Light (1GB, SPV), Mining (Full + VQE). |
 | **Block structure** | Header has vqe_params + ground_state_energy + hamiltonian_seed. Body has susy_data. |
 | **SUSY database** | Every mined block contributes solved Hamiltonian to public scientific database. |
-| **Bridge fees** | 0.1% of transfer amount. Lock-and-mint (QBC→wQBC), burn-and-unlock (wQBC→QBC). |
+| **Bridge fees** | 0.3% of transfer amount (30 bps, configurable via `BRIDGE_FEE_BPS`). Lock-and-mint (QBC→wQBC), burn-and-unlock (wQBC→QBC). |
 | **Confirmations** | 1 = unconfirmed, 6 = standard, 100 = coinbase maturity. |
 | **L1 tx fees** | FEE = SIZE × FEE_RATE (QBC/byte). Miners select by fee density. No gas on L1. |
 | **QUSD** | 3.3B initial supply, fractional reserve, transparent debt tracking, 10-year path to 100% backing. |

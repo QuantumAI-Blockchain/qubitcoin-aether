@@ -150,7 +150,10 @@ pub mod pallet {
         /// 5. No duplicate inputs
         /// 6. No zero-amount outputs
         #[pallet::call_index(0)]
-        #[pallet::weight(50_000)]
+        // Analytical weight: N input reads (25µs each) + N Dilithium verifications (500µs each)
+        // + M output writes (25µs each) + N input deletions (25µs each) + overhead
+        // Estimate: 4 inputs × 550µs + 4 outputs × 25µs = 2.3ms ≈ 2_300_000 weight units
+        #[pallet::weight(2_300_000)]
         pub fn submit_transaction(
             origin: OriginFor<T>,
             inputs: BoundedVec<TransactionInput, T::MaxInputs>,

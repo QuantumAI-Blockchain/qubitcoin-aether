@@ -145,7 +145,9 @@ pub mod pallet {
         /// Register a Dilithium2 public key for an address.
         /// The address is derived from SHA2-256(public_key).
         #[pallet::call_index(0)]
-        #[pallet::weight(10_000)]
+        // Analytical weight: SHA2-256 hash (10µs) + 1 storage read (25µs) + 1 write (25µs)
+        // + Dilithium2 key validation (~100µs for 1312-byte key) = ~160µs ≈ 160_000
+        #[pallet::weight(160_000)]
         pub fn register_key(
             origin: OriginFor<T>,
             public_key: BoundedVec<u8, ConstU32<MAX_DILITHIUM_PK_SIZE>>,

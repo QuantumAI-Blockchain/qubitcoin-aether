@@ -371,7 +371,10 @@ pub mod pallet {
         /// Anyone can submit a request, but only governors can approve it.
         /// The request enters a voting window determined by `ReversalWindow`.
         #[pallet::call_index(0)]
-        #[pallet::weight(100_000)]
+        // Analytical weight: up to 256 UTXO reads (25µs each, worst case ~6.4ms)
+        // + governor read (25µs) + request write (25µs) + counter write (25µs)
+        // + SHA2-256 hash (10µs) + event = ~6.5ms ≈ 6_500_000
+        #[pallet::weight(6_500_000)]
         pub fn submit_reversal_request(
             origin: OriginFor<T>,
             target_txid: TxId,
@@ -463,7 +466,11 @@ pub mod pallet {
         /// - Target UTXOs are frozen
         /// - New UTXOs are created returning funds to the original sender
         #[pallet::call_index(1)]
-        #[pallet::weight(150_000)]
+        // Analytical weight: governor read (25µs) + request read (25µs) + votes read/write (50µs)
+        // + if threshold met: execute_reversal → up to 256 UTXO reads + freezes + removal
+        //   + reversal UTXO write + balance updates + counters = ~7ms worst case
+        // Total: ~7.2ms ≈ 7_200_000
+        #[pallet::weight(7_200_000)]
         pub fn approve_reversal(
             origin: OriginFor<T>,
             request_id: H256,
@@ -544,7 +551,8 @@ pub mod pallet {
 
         /// Add a new governor address (root/sudo only).
         #[pallet::call_index(2)]
-        #[pallet::weight(25_000)]
+        // Analytical weight: 1 storage read + mutate (50µs) + event = ~75µs ≈ 75_000
+        #[pallet::weight(75_000)]
         pub fn add_governor(
             origin: OriginFor<T>,
             address: Address,
@@ -568,7 +576,8 @@ pub mod pallet {
 
         /// Remove a governor address (root/sudo only).
         #[pallet::call_index(3)]
-        #[pallet::weight(25_000)]
+        // Analytical weight: 1 storage read + mutate (50µs) + threshold check (25µs) + event = ~100µs ≈ 100_000
+        #[pallet::weight(100_000)]
         pub fn remove_governor(
             origin: OriginFor<T>,
             address: Address,
@@ -597,7 +606,8 @@ pub mod pallet {
 
         /// Update the reversal window (root/sudo only).
         #[pallet::call_index(4)]
-        #[pallet::weight(10_000)]
+        // Analytical weight: 1 storage read + 1 write (50µs) + event = ~75µs ≈ 75_000
+        #[pallet::weight(75_000)]
         pub fn set_reversal_window(
             origin: OriginFor<T>,
             new_window: u64,
@@ -616,7 +626,8 @@ pub mod pallet {
 
         /// Update the approval threshold (root/sudo only).
         #[pallet::call_index(5)]
-        #[pallet::weight(10_000)]
+        // Analytical weight: 1 governor read (25µs) + 1 threshold read + write (50µs) + event = ~100µs ≈ 100_000
+        #[pallet::weight(100_000)]
         pub fn set_approval_threshold(
             origin: OriginFor<T>,
             new_threshold: u32,
@@ -645,7 +656,9 @@ pub mod pallet {
         /// This is a cleanup function — anyone can call it to move expired
         /// requests out of the pending queue.
         #[pallet::call_index(6)]
-        #[pallet::weight(50_000)]
+        // Analytical weight: request read (25µs) + height read (25µs) + expired write (25µs)
+        // + request removal (25µs) + votes removal (25µs) + counter (25µs) + event = ~175µs ≈ 175_000
+        #[pallet::weight(175_000)]
         pub fn expire_request(
             origin: OriginFor<T>,
             request_id: H256,

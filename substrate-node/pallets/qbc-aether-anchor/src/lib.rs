@@ -147,7 +147,9 @@ pub mod pallet {
         /// Record Aether Tree state for a block.
         /// Called by the block author after Aether Tree processes the block.
         #[pallet::call_index(0)]
-        #[pallet::weight(20_000)]
+        // Analytical weight: 7 storage writes (roots, phi, nodes, edges, ops, proof, measurement)
+        // + consciousness event check + event deposit = ~250µs ≈ 250_000
+        #[pallet::weight(250_000)]
         pub fn record_block_state(
             origin: OriginFor<T>,
             block_height: u64,
@@ -202,7 +204,8 @@ pub mod pallet {
 
         /// Update the Aether service endpoint.
         #[pallet::call_index(1)]
-        #[pallet::weight(5_000)]
+        // Analytical weight: 1 storage write (25µs) + event deposit = ~50µs ≈ 50_000
+        #[pallet::weight(50_000)]
         pub fn set_endpoint(
             origin: OriginFor<T>,
             endpoint: BoundedVec<u8, ConstU32<MAX_ENDPOINT_LEN>>,

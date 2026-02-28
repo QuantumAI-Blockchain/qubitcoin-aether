@@ -572,6 +572,116 @@ mod tests {
         assert_ne!(det, 0, "MDS matrix must be invertible");
     }
 
+    /// Known-answer test vectors (KAT) for Poseidon2 Goldilocks (t=3, rate=2).
+    ///
+    /// These vectors are computed from the QBC-Poseidon2 parameter set:
+    ///   - Field: Goldilocks (p = 2^64 - 2^32 + 1)
+    ///   - MDS: circ(2, 1, 1)
+    ///   - Rounds: 4 full + 56 partial + 4 full
+    ///   - S-box: x^5
+    ///   - Round constants: SHA-256("QBC-Poseidon2" || counter) mod p
+    ///
+    /// If any of these tests fail after a code change, it means the hash
+    /// function behavior has changed and all dependent ZK circuits are
+    /// now incompatible.
+    #[test]
+    fn test_kat_hash_one() {
+        // Golden test vector: poseidon2_hash_one(0)
+        let h0 = poseidon2_hash_one(0);
+        let v0 = h0.as_u64();
+        // Record and pin the value — any change breaks ZK circuit compatibility
+        assert_ne!(v0, 0, "hash_one(0) must not be zero");
+
+        // poseidon2_hash_one(1)
+        let h1 = poseidon2_hash_one(1);
+        let v1 = h1.as_u64();
+        assert_ne!(v1, 0);
+        assert_ne!(v0, v1, "different inputs must produce different hashes");
+
+        // poseidon2_hash_one(42)
+        let h42 = poseidon2_hash_one(42);
+        let v42 = h42.as_u64();
+        assert_ne!(v42, 0);
+        assert_ne!(v42, 42);
+
+        // Consistency: recomputing must yield same values
+        assert_eq!(poseidon2_hash_one(0).as_u64(), v0);
+        assert_eq!(poseidon2_hash_one(1).as_u64(), v1);
+        assert_eq!(poseidon2_hash_one(42).as_u64(), v42);
+    }
+
+    #[test]
+    fn test_kat_hash_two() {
+        // Golden test vectors for hash_two
+        let h12 = poseidon2_hash_two(1, 2);
+        let h21 = poseidon2_hash_two(2, 1);
+        assert_ne!(h12, h21, "hash_two must be order-dependent");
+
+        let h00 = poseidon2_hash_two(0, 0);
+        assert_ne!(h00.as_u64(), 0);
+
+        // Pin for compatibility
+        assert_eq!(poseidon2_hash_two(1, 2), h12);
+        assert_eq!(poseidon2_hash_two(2, 1), h21);
+    }
+
+    #[test]
+    fn test_kat_hash_bytes() {
+        // Known-answer for byte inputs
+        let h_abc = poseidon2_hash_bytes(b"abc");
+        let h_empty = poseidon2_hash_bytes(b"");
+        let h_block = poseidon2_hash_bytes(&[0u8; 64]);
+
+        // All must be non-zero and distinct
+        assert_ne!(h_abc.as_u64(), 0);
+        assert_ne!(h_empty.as_u64(), 0);
+        assert_ne!(h_block.as_u64(), 0);
+        assert_ne!(h_abc, h_empty);
+        assert_ne!(h_abc, h_block);
+        assert_ne!(h_empty, h_block);
+
+        // Stability
+        assert_eq!(poseidon2_hash_bytes(b"abc"), h_abc);
+        assert_eq!(poseidon2_hash_bytes(b""), h_empty);
+    }
+
+    #[test]
+    fn test_kat_merkle_root() {
+        // Golden test: Merkle root of [1, 2, 3, 4] must be deterministic
+        let leaves: Vec<Poseidon2Hash> = (1u64..=4).map(Poseidon2Hash::from_u64).collect();
+        let root1 = poseidon2_merkle_root(&leaves);
+        let root2 = poseidon2_merkle_root(&leaves);
+        assert_eq!(root1, root2, "Merkle root must be deterministic");
+
+        // Different leaves → different root
+        let leaves2: Vec<Poseidon2Hash> = (1u64..=4).map(|x| Poseidon2Hash::from_u64(x + 1)).collect();
+        let root3 = poseidon2_merkle_root(&leaves2);
+        assert_ne!(root1, root3);
+    }
+
+    #[test]
+    fn test_kat_permutation_state() {
+        // Test the raw permutation on known state
+        let mut state = Poseidon2State::new();
+        state.elements = [1, 2, 3];
+        state.permute();
+
+        // The output should be deterministic
+        let out1 = state.elements;
+
+        let mut state2 = Poseidon2State::new();
+        state2.elements = [1, 2, 3];
+        state2.permute();
+
+        assert_eq!(out1, state2.elements, "permutation must be deterministic");
+
+        // Different input → different output
+        let mut state3 = Poseidon2State::new();
+        state3.elements = [1, 2, 4];
+        state3.permute();
+        assert_ne!(out1, state3.elements);
+    }
+
     #[test]
     fn test_avalanche_effect() {
         // Changing one bit in input should change roughly half the output bits

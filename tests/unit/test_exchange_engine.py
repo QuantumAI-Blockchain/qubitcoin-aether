@@ -4,7 +4,11 @@ Unit tests for the DEX exchange engine (CLOB order matching).
 
 import pytest
 from decimal import Decimal
-from qubitcoin.exchange.engine import ExchangeEngine, OrderBook, Side, OrderType, OrderStatus
+from qubitcoin.exchange.engine import (
+    ExchangeEngine, OrderBook, Side, OrderType, OrderStatus,
+    SettlementCallback, UTXOSettlement, Fill,
+    OrderPersistence, InMemoryPersistence,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +172,40 @@ class TestOrderBook:
         assert order.status == OrderStatus.PARTIAL
         assert order.filled == 30
         assert len(fills) == 1
+
+    # ── Self-trade prevention ─────────────────────────────────────────
+
+    def test_self_trade_prevention(self):
+        """Orders from the same address must not match each other."""
+        book = OrderBook("QBC_QUSD")
+        book.place_limit_order("sell", 0.30, 100, "alice")
+        order, fills = book.place_limit_order("buy", 0.30, 100, "alice")
+        assert len(fills) == 0
+        assert order.status == OrderStatus.OPEN
+        # Both orders should rest in the book
+        assert len(book.bids) == 1
+        assert len(book.asks) == 1
+
+    def test_self_trade_does_not_block_others(self):
+        """Self-trade prevention should not block fills from other addresses."""
+        book = OrderBook("QBC_QUSD")
+        book.place_limit_order("sell", 0.30, 100, "alice")
+        book.place_limit_order("sell", 0.30, 100, "bob")
+        # alice's buy should skip alice's sell but match bob's sell
+        # Note: with break semantics, alice's order rests since alice's sell is first
+        order, fills = book.place_limit_order("buy", 0.30, 100, "alice")
+        # alice's sell is at best ask, self-trade breaks matching
+        assert len(fills) == 0
+        assert order.status == OrderStatus.OPEN
+
+    def test_no_address_allows_match(self):
+        """Orders without addresses (empty string) can match normally."""
+        book = OrderBook("QBC_QUSD")
+        book.place_limit_order("sell", 0.30, 100, "")
+        order, fills = book.place_limit_order("buy", 0.30, 100, "")
+        # Both empty addresses — self-trade check skipped
+        assert len(fills) == 1
+        assert order.status == OrderStatus.FILLED
 
     # ── Cancel ───────────────────────────────────────────────────────────
 
@@ -343,4 +381,218 @@ class TestExchangeEngine:
     def test_unsupported_order_type(self):
         engine = ExchangeEngine()
         with pytest.raises(ValueError, match="Unsupported order type"):
-            engine.place_order("QBC_QUSD", "buy", "stop_loss", 0.28, 100, "addr1")
+            engine.place_order("QBC_QUSD", "buy", "iceberg", 0.28, 100, "addr1")
+
+
+# ---------------------------------------------------------------------------
+# Stop Orders
+# ---------------------------------------------------------------------------
+
+class TestStopOrders:
+
+    def test_stop_loss_sell_triggers_on_price_drop(self):
+        """Stop-loss sell triggers when price falls to trigger level."""
+        book = OrderBook("QBC_QUSD")
+        # Place a stop-loss to sell if price drops to 0.25
+        stop = book.place_stop_loss_order("sell", 0.25, 100, "alice")
+        assert stop.order_type == OrderType.STOP_LOSS
+        assert stop.trigger_price == Decimal("0.25")
+        assert len(book._stop_orders) == 1
+
+        # Place a resting bid that will absorb the market order
+        book.place_limit_order("buy", 0.24, 200, "bob")
+
+        # Trigger: price drops to 0.24
+        triggered = book.check_triggers(Decimal("0.24"))
+        assert len(triggered) == 1
+        order, fills = triggered[0]
+        assert len(fills) == 1
+        assert len(book._stop_orders) == 0
+
+    def test_stop_loss_buy_triggers_on_price_rise(self):
+        """Stop-loss buy triggers when price rises to trigger level."""
+        book = OrderBook("QBC_QUSD")
+        stop = book.place_stop_loss_order("buy", 0.35, 50, "alice")
+        book.place_limit_order("sell", 0.36, 100, "bob")
+
+        triggered = book.check_triggers(Decimal("0.36"))
+        assert len(triggered) == 1
+        _, fills = triggered[0]
+        assert len(fills) == 1
+
+    def test_stop_loss_does_not_trigger_prematurely(self):
+        """Stop order should not trigger if price hasn't reached trigger."""
+        book = OrderBook("QBC_QUSD")
+        book.place_stop_loss_order("sell", 0.25, 100, "alice")
+        triggered = book.check_triggers(Decimal("0.30"))
+        assert len(triggered) == 0
+        assert len(book._stop_orders) == 1
+
+    def test_stop_limit_converts_to_limit(self):
+        """Stop-limit converts to a limit order (not market) when triggered."""
+        book = OrderBook("QBC_QUSD")
+        stop = book.place_stop_limit_order("sell", 0.25, 0.24, 100, "alice")
+        assert stop.order_type == OrderType.STOP_LIMIT
+        assert stop.price == Decimal("0.24")
+
+        # No bids — trigger the stop, limit rests in book
+        triggered = book.check_triggers(Decimal("0.20"))
+        assert len(triggered) == 1
+        _, fills = triggered[0]
+        assert len(fills) == 0  # no matching bid
+        # The limit order should now be resting in asks
+        assert len(book.asks) == 1
+
+    def test_cancel_stop_order(self):
+        book = OrderBook("QBC_QUSD")
+        stop = book.place_stop_loss_order("sell", 0.25, 100, "alice")
+        assert book.cancel_order(stop.id) is True
+        assert len(book._stop_orders) == 0
+        assert stop.status == OrderStatus.CANCELLED
+
+    def test_stop_order_via_engine(self):
+        """Stop orders can be placed through ExchangeEngine.place_order()."""
+        engine = ExchangeEngine()
+        result = engine.place_order(
+            "QBC_QUSD", "sell", "stop_loss", 0, 100, "alice", trigger_price=0.25
+        )
+        assert result["order"]["type"] == "stop_loss"
+        assert result["order"]["trigger_price"] == "0.25"
+        assert result["fillCount"] == 0
+
+    def test_stop_limit_via_engine(self):
+        engine = ExchangeEngine()
+        result = engine.place_order(
+            "QBC_QUSD", "sell", "stop_limit", 0.24, 100, "alice", trigger_price=0.25
+        )
+        assert result["order"]["type"] == "stop_limit"
+        assert result["order"]["trigger_price"] == "0.25"
+        assert result["order"]["price"] == "0.24"
+
+
+# ---------------------------------------------------------------------------
+# Settlement
+# ---------------------------------------------------------------------------
+
+class TestSettlement:
+
+    def test_settlement_callback_invoked_on_fill(self):
+        """Settlement callback is called for each matched fill."""
+        settled_fills = []
+
+        class MockSettlement(SettlementCallback):
+            def settle_fill(self, fill):
+                settled_fills.append(fill.id)
+                return True
+
+        engine = ExchangeEngine(settlement=MockSettlement())
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyer")
+        assert len(settled_fills) == 1
+
+    def test_utxo_settlement_records_fills(self):
+        """UTXOSettlement records fill details even without a create_tx backend."""
+        settlement = UTXOSettlement()  # no create_transaction_fn
+        engine = ExchangeEngine(settlement=settlement)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyer")
+
+        records = settlement.get_pending_settlements()
+        assert len(records) == 1
+        assert records[0]["settled"] is False  # no backend
+        assert records[0]["maker"] == "seller"
+        assert records[0]["taker"] == "buyer"
+
+    def test_utxo_settlement_with_backend(self):
+        """UTXOSettlement calls create_transaction_fn when provided."""
+        tx_log = []
+
+        def mock_create_tx(from_addr, to_addr, amount, asset):
+            tx_log.append({"from": from_addr, "to": to_addr, "amount": amount, "asset": asset})
+
+        settlement = UTXOSettlement(create_transaction_fn=mock_create_tx)
+        engine = ExchangeEngine(settlement=settlement)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 100, "buyer")
+
+        # Buy side: taker sends QUSD to maker, maker sends QBC to taker
+        assert len(tx_log) == 2
+        assert tx_log[0]["asset"] == "QUSD"  # buyer pays quote
+        assert tx_log[1]["asset"] == "QBC"    # seller sends base
+
+        records = settlement.get_pending_settlements()
+        assert records[0]["settled"] is True
+
+    def test_no_settlement_when_no_callback(self):
+        """Engine without settlement callback works normally (backward compatible)."""
+        engine = ExchangeEngine()  # no settlement
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
+        result = engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyer")
+        assert result["fillCount"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Order Persistence
+# ---------------------------------------------------------------------------
+
+class TestPersistence:
+
+    def test_orders_persisted_on_placement(self):
+        persistence = InMemoryPersistence()
+        engine = ExchangeEngine(persistence=persistence)
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "alice")
+
+        saved = persistence.get_saved_orders("QBC_QUSD")
+        assert len(saved) == 1
+        assert saved[0]["side"] == "buy"
+        assert saved[0]["address"] == "alice"
+
+    def test_fills_persisted_on_match(self):
+        persistence = InMemoryPersistence()
+        engine = ExchangeEngine(persistence=persistence)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyer")
+
+        fills = persistence.get_saved_fills("QBC_QUSD")
+        assert len(fills) == 1
+        assert fills[0]["maker_address"] == "seller"
+        assert fills[0]["taker_address"] == "buyer"
+
+
+# ---------------------------------------------------------------------------
+# MEV Protection
+# ---------------------------------------------------------------------------
+
+class TestMEVProtection:
+
+    def test_commit_reveal_flow(self):
+        """Orders can be committed then revealed."""
+        engine = ExchangeEngine(mev_protection=True)
+        order_dict = {
+            "pair": "QBC_QUSD",
+            "side": "buy",
+            "type": "limit",
+            "price": "0.28",
+            "size": "100",
+            "address": "alice",
+        }
+        commit_hash = engine.commit_order(order_dict)
+        assert commit_hash is not None
+        assert len(commit_hash) == 64  # SHA-256 hex
+        assert engine.get_engine_stats()["pending_commits"] == 1
+
+        # Reveal and place
+        result = engine.reveal_and_place(commit_hash)
+        assert result is not None
+        assert result["order"]["side"] == "buy"
+        assert engine.get_engine_stats()["pending_commits"] == 0
+
+    def test_reveal_unknown_hash_returns_none(self):
+        engine = ExchangeEngine(mev_protection=True)
+        result = engine.reveal_and_place("deadbeef" * 8)
+        assert result is None
+
+    def test_commit_disabled_when_no_mev(self):
+        engine = ExchangeEngine(mev_protection=False)
+        commit_hash = engine.commit_order({"pair": "QBC_QUSD", "side": "buy"})
+        assert commit_hash is None

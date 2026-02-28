@@ -108,7 +108,8 @@ pub mod pallet {
         /// Update the QVM state root for the current block.
         /// Called by the block author after processing QVM transactions.
         #[pallet::call_index(0)]
-        #[pallet::weight(10_000)]
+        // Analytical weight: 2 storage writes (state root + history) + event = ~75µs ≈ 75_000
+        #[pallet::weight(75_000)]
         pub fn update_state_root(
             origin: OriginFor<T>,
             block_height: u64,
@@ -125,7 +126,8 @@ pub mod pallet {
 
         /// Update the QVM service endpoint.
         #[pallet::call_index(1)]
-        #[pallet::weight(5_000)]
+        // Analytical weight: 1 storage write + event = ~50µs ≈ 50_000
+        #[pallet::weight(50_000)]
         pub fn set_endpoint(
             origin: OriginFor<T>,
             endpoint: BoundedVec<u8, ConstU32<MAX_ENDPOINT_LEN>>,
@@ -139,7 +141,8 @@ pub mod pallet {
 
         /// Record a contract deployment.
         #[pallet::call_index(2)]
-        #[pallet::weight(10_000)]
+        // Analytical weight: 2 storage writes (contract + count) + event = ~75µs ≈ 75_000
+        #[pallet::weight(75_000)]
         pub fn record_deployment(
             origin: OriginFor<T>,
             contract_address: H256,
