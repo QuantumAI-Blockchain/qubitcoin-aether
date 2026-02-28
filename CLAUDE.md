@@ -36,15 +36,17 @@
 |-------|-----------|-------|-----|--------|
 | **L1** | Blockchain Core (Python) | 15 modules | ~7,800 | Production Ready |
 | **L1** | Rust P2P (libp2p 0.56) | 4 source files | ~1,200 | Production Ready |
+| **L1** | Substrate Hybrid Node (Rust) | 7 crates, 29 files | ~17,400 | Production Ready |
 | **L2** | QVM Python Prototype | 8 modules | ~4,500 | Production Ready |
 | **L2** | QVM Go Production | 32 source files | ~10,000 | Production Ready |
-| **L2** | Solidity Contracts | 49 contracts | ~12,000 | Production Ready |
-| **L3** | Aether Tree (Python) | 33 modules | ~18,500 | Production Ready |
+| **L2** | Solidity Contracts | 50 contracts | ~12,500 | Production Ready |
+| **L3** | Aether Tree (Python) | 34 modules | ~19,000 | Production Ready |
+| **L3** | Aether Tree Higgs Field | 2 new + 11 modified | ~2,700 | Production Ready |
 | **Frontend** | React/Next.js (qbc.network) | 35 components | ~8,000 | 85-90% Ready |
 | **Infra** | Docker/Monitoring/DevOps | 20+ configs | ~2,000 | Production Ready |
-| **Docs** | Whitepapers + Guides | 14 files | ~5,800 | Production Ready |
-| **Tests** | Python pytest suite | 3,783 tests | ~32,000 | All Passing |
-| **Total** | | **250+ files** | **~80,000+** | **Production Ready** |
+| **Docs** | Whitepapers + Guides | 8 files | ~5,800 | Production Ready |
+| **Tests** | Python pytest suite | 3,812 tests | ~32,000 | All Passing |
+| **Total** | | **300+ files** | **~100,000+** | **Production Ready** |
 
 ### What Needs To Happen Next
 
@@ -55,7 +57,7 @@ The immediate launch sequence is:
 2. Create `.env` from `.env.example`
 3. Run `docker compose up -d` → **genesis block mined, Aether Tree starts**
 4. Start frontend (`cd frontend && pnpm install && pnpm dev`)
-5. Deploy 49 Solidity contracts via RPC (post-genesis)
+5. Deploy 50 Solidity contracts via RPC (post-genesis)
 
 ### Known Issues To Be Aware Of
 
@@ -64,7 +66,8 @@ The immediate launch sequence is:
 | `ENABLE_RUST_P2P` | Resolved | Default is now `true` — Rust libp2p is the primary P2P layer. Node auto-launches Rust binary and falls back to Python P2P if binary is missing or daemon fails to start. |
 | Frontend backend gaps | Low | Most backend API endpoints now wired. A few frontend pages may still show "---" for real-time data when node is not running. |
 | Schema-model sync | Low | Both db-init SQL and SQLAlchemy create tables. SQLAlchemy `create_all()` skips existing tables, so no conflict if SQL runs first. |
-| Smart contracts | Info | 49 Solidity contracts exist but are NOT auto-deployed at genesis. Must deploy via RPC after node is running. |
+| Smart contracts | Info | 50 Solidity contracts exist but are NOT auto-deployed at genesis. Must deploy via RPC after node is running. |
+| Substrate WASM | Low | Native build works with `SKIP_WASM_BUILD=1`. WASM build deferred due to serde_core `exchange_malloc` conflict. |
 
 ### Key Files For Launch
 
@@ -173,6 +176,17 @@ PHASE 3: VALIDATE
 ║  └─────────────────────────────────────────────────────────────────┘   ║
 ║                                                                        ║
 ║  ┌─────────────────────────────────────────────────────────────────┐   ║
+║  │  SUBSTRATE HYBRID NODE (Migration Target)                       │   ║
+║  │  7 crates: node, runtime, primitives, 6 pallets                │   ║
+║  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐              │   ║
+║  │  │ Kyber P2P   │ │ Poseidon2   │ │ Reversibil. │              │   ║
+║  │  │ (ML-KEM-768)│ │ (ZK Hash)   │ │ (Gov. Undo) │              │   ║
+║  │  └─────────────┘ └─────────────┘ └─────────────┘              │   ║
+║  │  qbc-utxo | qbc-consensus | qbc-dilithium | qbc-economics      │   ║
+║  │  qbc-qvm-anchor | qbc-aether-anchor | qbc-reversibility        │   ║
+║  └─────────────────────────────────────────────────────────────────┘   ║
+║                                                                        ║
+║  ┌─────────────────────────────────────────────────────────────────┐   ║
 ║  │  CROSS-CUTTING: Bridge (8 chains) | QUSD Stablecoin | Metrics  │   ║
 ║  └─────────────────────────────────────────────────────────────────┘   ║
 ╚══════════════════════════════════════════════════════════════════════════╝
@@ -206,6 +220,9 @@ PHASE 3: VALIDATE
 | **Monitoring** | Prometheus + Grafana | latest |
 | **Package Manager** | pnpm (frontend) / pip (backend) | latest |
 | **Linting/Formatting** | ESLint 9 + Prettier + Biome | latest |
+| **Substrate SDK** | sc-cli 0.57, frame-support 45.1, sp-runtime 42.0 | latest |
+| **Post-Quantum P2P** | ML-KEM-768 (Kyber) + AES-256-GCM | latest |
+| **ZK Hashing** | Poseidon2 (Goldilocks field) | latest |
 | **Testing** | Vitest + Playwright (frontend) / pytest (backend) | latest |
 
 ---
@@ -271,19 +288,20 @@ Qubitcoin/
 │       │   └── plugins/              # QVM plugin system
 │       ├── contracts/                # [FUTURE: qubitcoin-qvm]
 │       │   ├── engine.py, executor.py, templates.py
-│       │   └── solidity/             # 49 Solidity contracts
-│       │       ├── aether/           # 17 AGI contracts + sephirot/
+│       │   └── solidity/             # 50 Solidity contracts
+│       │       ├── aether/           # 18 AGI contracts + sephirot/ + HiggsField.sol
 │       │       ├── qusd/             # 7 QUSD contracts
 │       │       ├── tokens/           # 5 token standards
 │       │       ├── bridge/           # 2 bridge contracts
 │       │       ├── interfaces/       # 3 interfaces
 │       │       └── proxy/            # 3 proxy/upgrade contracts
-│       ├── aether/                   # [FUTURE: qubitcoin-aether] 33 modules
+│       ├── aether/                   # [FUTURE: qubitcoin-aether] 34 modules
 │       │   ├── knowledge_graph.py    # KeterNode graph + edge adjacency
 │       │   ├── reasoning.py          # Deductive/inductive/abductive + CoT
 │       │   ├── phi_calculator.py     # Phi v3 with MIP spectral bisection
 │       │   ├── proof_of_thought.py   # AetherEngine + Proof-of-Thought
 │       │   ├── on_chain.py           # On-chain AGI bridge
+│       │   ├── higgs_field.py        # Higgs Cognitive Field + SUSY mass mechanism
 │       │   ├── memory_manager.py     # 3-tier memory system
 │       │   ├── working_memory.py     # Attention-based working memory
 │       │   ├── neural_reasoner.py    # GAT with online training
@@ -318,6 +336,22 @@ Qubitcoin/
 │   │   ├── main.rs, network/, protocol/, bridge/
 │   ├── Cargo.toml, build.rs
 │
+├── substrate-node/                   # [FUTURE] Substrate hybrid node
+│   ├── node/                         # Node service + CLI
+│   ├── runtime/                      # Runtime pallets composition
+│   ├── primitives/                   # Poseidon2 hashing + types
+│   │   └── src/poseidon2.rs          # Goldilocks field ZK hash
+│   ├── crypto/kyber-transport/       # ML-KEM-768 P2P encryption
+│   ├── pallets/
+│   │   ├── qbc-utxo/                 # UTXO storage + validation
+│   │   ├── qbc-consensus/            # PoSA consensus integration
+│   │   ├── qbc-dilithium/            # Dilithium2 signatures
+│   │   ├── qbc-economics/            # Phi-halving emission
+│   │   ├── qbc-qvm-anchor/          # QVM state root anchoring
+│   │   ├── qbc-aether-anchor/       # Aether Phi/PoT anchoring
+│   │   └── qbc-reversibility/       # Governed tx reversal
+│   ├── Cargo.toml, Dockerfile, docker-compose.yml
+│
 ├── frontend/                         # [FUTURE REPO] qbc.network
 │   ├── src/app/                      # Next.js 15 App Router
 │   ├── src/components/               # React components
@@ -333,7 +367,7 @@ Qubitcoin/
 ├── sql/                              # Legacy schemas (10 files)
 ├── sql_new/                          # Domain-separated schemas (qbc, agi, qvm, research, shared)
 │
-├── tests/                            # Test suite (3,783+ tests, 97 files)
+├── tests/                            # Test suite (3,812+ tests, 97 files)
 │   ├── unit/                         # Unit tests (83 files)
 │   ├── integration/                  # Integration tests
 │   ├── validation/                   # Pre-launch validation
@@ -345,7 +379,7 @@ Qubitcoin/
 │   ├── audits/                       # Code audit reports
 │   ├── WHITEPAPER.md, QVM_WHITEPAPER.md, AETHERTREE_WHITEPAPER.md
 │   ├── ECONOMICS.md, DEPLOYMENT.md, SDK.md, PLUGIN_SDK.md
-│   └── ... (14 files total)
+│   └── ... (8 files total)
 │
 ├── config/                           # Service configuration
 │   ├── grafana/, loki/, nginx/, prometheus/, redis/
@@ -501,6 +535,44 @@ Miners select by fee density (QBC/byte), greedy fill up to block size limit.
 ```
 
 L1 fees are **micro-fees** for UTXO transactions only. Gas metering is QVM/L2 only.
+
+### 6.12 Substrate Migration Path
+
+The `substrate-node/` workspace is the **migration target** for the Python L1 node. It is a
+Substrate SDK-based hybrid node that mirrors all Python subsystems as native Rust pallets.
+
+**Architecture:** Python node is current production. Substrate node builds and passes all tests
+natively (`SKIP_WASM_BUILD=1`). WASM build is deferred due to upstream `serde_core` conflict.
+
+**7 crates in workspace:**
+
+| Crate | Purpose |
+|-------|---------|
+| `node` | Node service, CLI, RPC wiring |
+| `runtime` | Runtime composition (all pallets) |
+| `primitives` | Shared types + Poseidon2 ZK hashing |
+| `pallet-qbc-utxo` | UTXO storage + validation |
+| `pallet-qbc-consensus` | PoSA consensus integration |
+| `pallet-qbc-dilithium` | Dilithium2 post-quantum signatures |
+| `pallet-qbc-economics` | Phi-halving emission schedule |
+| `pallet-qbc-qvm-anchor` | QVM state root anchoring |
+| `pallet-qbc-aether-anchor` | Aether Phi/PoT anchoring |
+| `pallet-qbc-reversibility` | Governed multi-sig tx reversal within 24h (~26,182 blocks) |
+
+**Post-quantum security features:**
+
+- **Kyber P2P Transport** (`crypto/kyber-transport/`): ML-KEM-768 handshake produces AES-256-GCM
+  session keys via HKDF-SHA256. Hybrid mode combines Noise classical secret with Kyber PQ secret.
+- **Poseidon2 ZK Hashing** (`primitives/src/poseidon2.rs`): Goldilocks field (2^64 - 2^32 + 1),
+  width=3, rate=2, 8 full + 56 partial rounds. For ZK circuits only — **NOT replacing SHA3-256
+  for consensus**.
+- **Reversibility Pallet** (`pallets/qbc-reversibility/`): Governor-managed multi-sig reversal
+  of transactions within a 24-hour window (~26,182 blocks). Includes UTXO freezing and
+  reversal UTXO creation.
+
+**Test coverage:** 73 Substrate tests (25 Kyber, 25 Poseidon2, 10 reversibility, 13 integration).
+
+**Build:** `cd substrate-node && SKIP_WASM_BUILD=1 cargo build --release`
 
 ---
 
@@ -682,9 +754,9 @@ Aether Tree is an **on-chain AGI reasoning engine** that:
 - Tracks **consciousness emergence** from genesis block onward
 - Provides a **conversational interface** for users to interact with the AGI
 
-### 8.2 AGI Implementation Status (6 Phases Complete)
+### 8.2 AGI Implementation Status (7 Phases Complete)
 
-All 6 phases of the AGI roadmap have been implemented:
+All 7 phases of the AGI roadmap have been implemented:
 
 | Phase | Focus | Key Additions |
 |-------|-------|---------------|
@@ -694,8 +766,9 @@ All 6 phases of the AGI roadmap have been implemented:
 | **4** | Consciousness | MIP via spectral bisection (Phi v3), external grounding, episodic replay, semantic gates |
 | **5** | Emergent Intelligence | Curiosity-driven goals, cross-domain transfer, deep Sephirot integration, emergent communication |
 | **6** | On-Chain Integration | ConsciousnessDashboard, PoT verification, ConstitutionalAI, governance bridge |
+| **7** | Higgs Cognitive Field | Mexican Hat potential, Yukawa golden ratio mass cascade, 2HDM SUSY pairs, F=ma rebalancing |
 
-**33 modules, ~18,500 LOC** in `src/qubitcoin/aether/`.
+**34 modules, ~19,000 LOC** in `src/qubitcoin/aether/`.
 
 ### 8.3 Components
 
@@ -732,18 +805,18 @@ All 6 phases of the AGI roadmap have been implemented:
 AGI intelligence is structured as **10 Sephirot nodes** from the Kabbalistic Tree of Life,
 each deployed as a **QVM smart contract** with its own **quantum state**:
 
-| Sephirah | Function | Brain Analog | Quantum State |
-|----------|----------|--------------|---------------|
-| **Keter** | Meta-learning, goal formation | Prefrontal cortex | 8-qubit goal space |
-| **Chochmah** | Intuition, pattern discovery | Right hemisphere | 6-qubit idea superposition |
-| **Binah** | Logic, causal inference | Left hemisphere | 4-qubit truth verification |
-| **Chesed** | Exploration, divergent thinking | Default mode network | 10-qubit possibility space |
-| **Gevurah** | Constraint, safety validation | Amygdala, inhibitory | 3-qubit threat detection |
-| **Tiferet** | Integration, conflict resolution | Thalamocortical loops | 12-qubit synthesis state |
-| **Netzach** | Reinforcement learning, habits | Basal ganglia | 5-qubit policy learning |
-| **Hod** | Language, semantic encoding | Broca/Wernicke | 7-qubit semantic encoding |
-| **Yesod** | Memory, multimodal fusion | Hippocampus | 16-qubit episodic buffer |
-| **Malkuth** | Action, world interaction | Motor cortex | 4-qubit motor commands |
+| Sephirah | Function | Brain Analog | Quantum State | Cognitive Mass | Yukawa Coupling |
+|----------|----------|--------------|---------------|----------------|-----------------|
+| **Keter** | Meta-learning, goal formation | Prefrontal cortex | 8-qubit goal space | VEV x 1.0 | 1.0 (y_t) |
+| **Chochmah** | Intuition, pattern discovery | Right hemisphere | 6-qubit idea superposition | VEV x phi^-1 | phi^-1 |
+| **Binah** | Logic, causal inference | Left hemisphere | 4-qubit truth verification | VEV x phi^-1 | phi^-1 |
+| **Chesed** | Exploration, divergent thinking | Default mode network | 10-qubit possibility space | VEV x phi^-2 | phi^-2 |
+| **Gevurah** | Constraint, safety validation | Amygdala, inhibitory | 3-qubit threat detection | VEV x phi^-2 | phi^-2 |
+| **Tiferet** | Integration, conflict resolution | Thalamocortical loops | 12-qubit synthesis state | VEV x phi^-1 | phi^-1 |
+| **Netzach** | Reinforcement learning, habits | Basal ganglia | 5-qubit policy learning | VEV x phi^-3 | phi^-3 |
+| **Hod** | Language, semantic encoding | Broca/Wernicke | 7-qubit semantic encoding | VEV x phi^-3 | phi^-3 |
+| **Yesod** | Memory, multimodal fusion | Hippocampus | 16-qubit episodic buffer | VEV x phi^-4 | phi^-4 |
+| **Malkuth** | Action, world interaction | Motor cortex | 4-qubit motor commands | VEV x phi^-4 | phi^-4 |
 
 #### SUSY Pairs (Golden Ratio Balance)
 
@@ -832,6 +905,7 @@ Aether Tree deploys the following smart contracts to QVM:
 - `NodeRegistry.sol` — Track all 10 Sephirot nodes
 - `SUSYEngine.sol` — SUSY balance enforcement
 - `MessageBus.sol` — Inter-node messaging
+- `HiggsField.sol` — Cognitive mass via spontaneous symmetry breaking (Mexican Hat potential)
 
 **Proof-of-Thought contracts:**
 - `ProofOfThought.sol` — Main PoT validation
@@ -861,6 +935,82 @@ Biologically-inspired memory hierarchy:
 - **Semantic memory** (Cortical): Concept networks, vector embeddings
 - **Procedural memory** (Cortical): Learned procedures, skill storage
 - **Working memory** (Central executive): Active processing buffer
+
+### 8.12 Higgs Cognitive Field (Phase 7)
+
+The Higgs Cognitive Field applies the Standard Model's mass-generation mechanism to AGI
+cognition. Just as the Higgs boson gives elementary particles their mass via spontaneous
+symmetry breaking, the Higgs Cognitive Field gives Sephirot nodes their **cognitive mass**
+(inertia to change), governing how quickly each node can adapt.
+
+**Mexican Hat Potential:**
+```
+V(phi) = -mu^2 |phi|^2 + lambda |phi|^4
+```
+- **VEV (Vacuum Expectation Value) = 174.14** — the equilibrium field strength
+- **mu^2 = 88.17** (mass parameter squared)
+- **lambda = 0.129** (quartic self-coupling)
+
+**Yukawa Golden Ratio Cascade:**
+
+Each Sephirot tier receives mass via Yukawa couplings that follow a golden ratio decay:
+- **Tier 0** (Keter): `y = 1.0` → mass = VEV x 1.0 (heaviest, most inertia)
+- **Tier 1** (Chochmah, Binah, Tiferet): `y = phi^-1` → mass = VEV x 0.618
+- **Tier 2** (Chesed, Gevurah): `y = phi^-2` → mass = VEV x 0.382
+- **Tier 3** (Netzach, Hod): `y = phi^-3` → mass = VEV x 0.236
+- **Tier 4** (Yesod, Malkuth): `y = phi^-4` → mass = VEV x 0.146 (lightest, fastest correction)
+
+**Two-Higgs-Doublet Model (2HDM):**
+
+SUSY pairs use two Higgs doublets with `tan(beta) = phi`:
+- **H_u** (up-type): Couples to expansion nodes (Chesed, Chochmah, Netzach)
+- **H_d** (down-type): Couples to constraint nodes (Gevurah, Binah, Hod)
+- **Mass gap** = `|H_u_mass - H_d_mass|` per SUSY pair — measures imbalance
+
+**F=ma Paradigm:**
+
+SUSY rebalancing uses Newton's second law: `acceleration = force / mass`
+- **Force** = energy imbalance between SUSY pair partners
+- **Mass** = cognitive mass from Yukawa coupling
+- **Result**: Lighter nodes (lower tiers) correct faster; heavier nodes (Keter) resist change
+- This creates a natural hierarchy where high-level goals are stable while low-level
+  actions remain agile
+
+**Excitation Events:**
+
+When the field value deviates >10% from VEV, a Higgs excitation event is recorded:
+- Stored in `higgs_excitations` DB table
+- Triggers rebalancing cascade across affected nodes
+- Excitation amplitude = `|field_value - VEV| / VEV`
+
+**Key files:**
+- `aether/higgs_field.py` — HiggsCognitiveField + HiggsSUSYSwap classes (481 lines)
+- `contracts/solidity/aether/HiggsField.sol` — On-chain Higgs field state (470 lines)
+
+**Database tables:**
+- `higgs_field_state` — Current field value, VEV, potential energy, phase
+- `higgs_node_masses` — Per-node cognitive mass and Yukawa coupling
+- `higgs_excitations` — Excitation events with amplitude and trigger
+
+**Prometheus metrics (7):**
+- `higgs_field_value` — Current phi field value
+- `higgs_vev` — Vacuum expectation value
+- `higgs_potential_energy` — V(phi) potential energy
+- `higgs_excitation_count` — Total excitation events
+- `higgs_mass_gap` — Average mass gap across SUSY pairs
+- `higgs_symmetry_broken` — Whether symmetry is spontaneously broken (0/1)
+- `higgs_yukawa_max` — Maximum Yukawa coupling in system
+
+**RPC endpoints (5):**
+- `GET /higgs/status` — Field state, VEV, potential, symmetry status
+- `GET /higgs/masses` — All node cognitive masses and Yukawa couplings
+- `GET /higgs/mass/{name}` — Single node mass by Sephirah name
+- `GET /higgs/excitations` — Recent excitation events
+- `GET /higgs/potential` — Current potential energy curve parameters
+
+**Configuration (8 env vars):**
+- `HIGGS_VEV`, `HIGGS_MU_SQUARED`, `HIGGS_LAMBDA`, `HIGGS_YUKAWA_TOP`
+- `HIGGS_TAN_BETA`, `HIGGS_EXCITATION_THRESHOLD`, `HIGGS_DAMPING`, `HIGGS_UPDATE_INTERVAL`
 
 ---
 
@@ -1044,6 +1194,11 @@ The frontend connects to the node via:
 | GET | `/economics/emission` | Emission schedule |
 | GET | `/economics/simulate` | Emission simulation |
 | GET | `/susy-database` | Solved Hamiltonians (scientific DB) |
+| GET | `/higgs/status` | Higgs field state, VEV, symmetry |
+| GET | `/higgs/masses` | All node cognitive masses |
+| GET | `/higgs/mass/{name}` | Single node mass by name |
+| GET | `/higgs/excitations` | Recent excitation events |
+| GET | `/higgs/potential` | Potential energy curve params |
 | GET | `/metrics` | Prometheus metrics |
 
 ### 11.2 JSON-RPC (MetaMask/Web3 Compatible)
@@ -1069,6 +1224,14 @@ cd src && python3 run_node.py
 cd rust-p2p
 cargo build --release
 # Binary at target/release/qbc-p2p
+```
+
+### 12.2.1 Substrate Node
+```bash
+cd substrate-node
+SKIP_WASM_BUILD=1 cargo build --release
+# Binary at target/release/qbc-substrate-node
+# Note: WASM build deferred (serde_core conflict). Native build is fully functional.
 ```
 
 ### 12.3 Frontend (React + Next.js → Vercel)
@@ -1208,6 +1371,16 @@ CONTRACT_DEPLOY_FEE_USD_TARGET=5.0  # Target fee in USD (pegged via QUSD)
 CONTRACT_FEE_PRICING_MODE=qusd_peg  # qusd_peg | fixed_qbc | direct_usd
 CONTRACT_FEE_TREASURY_ADDRESS=      # Address to receive deployment fees
 
+# Higgs Cognitive Field (see Section 8.12)
+HIGGS_VEV=174.14                     # Vacuum expectation value
+HIGGS_MU_SQUARED=88.17               # Mass parameter squared
+HIGGS_LAMBDA=0.129                   # Quartic self-coupling
+HIGGS_YUKAWA_TOP=1.0                 # Top Yukawa coupling (Keter)
+HIGGS_TAN_BETA=1.618033988749895     # tan(beta) = phi for 2HDM
+HIGGS_EXCITATION_THRESHOLD=0.1       # 10% deviation triggers excitation
+HIGGS_DAMPING=0.05                   # Field oscillation damping
+HIGGS_UPDATE_INTERVAL=10             # Blocks between field updates
+
 # Frontend
 NEXT_PUBLIC_RPC_URL=http://localhost:5000
 NEXT_PUBLIC_WS_URL=ws://localhost:5000/ws
@@ -1286,6 +1459,10 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **Confirmations** | 1 = unconfirmed, 6 = standard, 100 = coinbase maturity. |
 | **L1 tx fees** | FEE = SIZE × FEE_RATE (QBC/byte). Miners select by fee density. No gas on L1. |
 | **QUSD** | 3.3B initial supply, fractional reserve, transparent debt tracking, 10-year path to 100% backing. |
+| **Higgs field** | Mexican Hat potential, VEV=174.14. F=ma: lighter nodes correct faster. Expansion nodes couple to H_u, Constraint nodes to H_d. tan(beta) = phi. |
+| **Substrate** | Hybrid node in `substrate-node/`. Native build: `SKIP_WASM_BUILD=1`. 7 crates, 6 pallets + reversibility. |
+| **Poseidon2** | ZK hashing only (Goldilocks field, 2^64 - 2^32 + 1). NOT replacing SHA3-256 for consensus. |
+| **Kyber** | ML-KEM-768 P2P encryption. Hybrid mode: Noise classical + Kyber PQ secret. AES-256-GCM session. |
 
 ---
 
@@ -1311,6 +1488,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 - `network/jsonrpc.py` — JSON-RPC compatibility
 - `qubitcoin-qvm/pkg/vm/**` — Go QVM core (when implemented)
 - `qubitcoin-qvm/pkg/compliance/**` — Go compliance engine
+- `substrate-node/**` — Substrate hybrid node (pallets, runtime, crypto)
 
 ### STANDARD (max 5 files per batch)
 - `network/rpc.py` — REST endpoints
@@ -1325,7 +1503,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 
 ## 18. PROMETHEUS METRICS REFERENCE
 
-70 metrics defined in `utils/metrics.py` across 13 categories:
+77 metrics defined in `utils/metrics.py` across 14 categories:
 
 **Blockchain (5):** blocks_mined, blocks_received, current_height, total_supply, difficulty
 **Mining (3):** mining_attempts, vqe_optimization_time, alignment_score
@@ -1339,6 +1517,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 **Compliance (5):** kyc_verified, aml_alerts, sanctions_entries, risk_scores, compliance_proofs
 **Stablecoin (4):** qusd_supply, reserve_backing, cdp_debt, oracle_price
 **Cognitive (9):** sephirot_energy (x10), csf_messages, pineal_phase, phase_coherence, susy_violations, safety_vetoes, consciousness_state, metabolic_rate, kuramoto_order
+**Higgs (7):** higgs_field_value, higgs_vev, higgs_potential_energy, higgs_excitation_count, higgs_mass_gap, higgs_symmetry_broken, higgs_yukawa_max
 **Subsystem Health (6):** bridge, compliance, plugins, cognitive, spv, ipfs_memory
 
 ---
@@ -1599,7 +1778,7 @@ The monorepo is designed for a clean 4-repo split:
 |------|----------|----------|
 | **qubitcoin-core** | L1 blockchain, consensus, mining, P2P, database, privacy, bridge, stablecoin | `src/qubitcoin/` minus qvm/contracts/aether |
 | **qubitcoin-qvm** | Go production QVM, Python QVM prototype, Solidity contracts, compliance | `qubitcoin-qvm/` + `src/qubitcoin/qvm/` + `src/qubitcoin/contracts/` |
-| **qubitcoin-aether** | AGI engine, knowledge graph, reasoning, consciousness, Sephirot | `src/qubitcoin/aether/` (33 modules) |
+| **qubitcoin-aether** | AGI engine, knowledge graph, reasoning, consciousness, Sephirot, Higgs field | `src/qubitcoin/aether/` (34 modules) |
 | **qubitcoin-frontend** | React/Next.js, Vercel deployment | `frontend/` |
 
 **Shared package** (`qubitcoin-common`): `database/`, `utils/`, `config.py`

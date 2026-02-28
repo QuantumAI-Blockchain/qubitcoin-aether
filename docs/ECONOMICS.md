@@ -1231,6 +1231,17 @@ SUSY Balance Check:
 
 Imbalances indicate real cognitive dysfunction (e.g., Chesed explores too much relative to Gevurah's safety checks), which the SUSYEngine.sol contract auto-corrects.
 
+### 13.2a Higgs Cognitive Field Mass Mechanism
+
+The Higgs Cognitive Field (Phase 7) adds mass-weighted inertia to the SUSY balance mechanism:
+
+- Each Sephirah has a `cognitive_mass` derived from the Higgs VEV (246.0) via Yukawa couplings
+- Expansion nodes (Chochmah, Chesed, Netzach) couple to H_u; constraint nodes (Binah, Gevurah, Hod) couple to H_d
+- Masses follow a golden ratio cascade: anchor nodes get full VEV, expansion nodes get VEV/phi, constraint nodes get VEV/phi^2, etc.
+- Higher-mass nodes resist energy redistribution more strongly (inertia), preventing rapid oscillations
+- SUSY mass rebalancing runs each block when `HIGGS_ENABLE_MASS_REBALANCING=true`
+- 7 new Prometheus metrics track the Higgs subsystem (field value, potential energy, excitations, etc.), bringing the total from 70 to 77
+
 ### 13.3 Proof-of-Thought Rewards
 
 | Parameter | Value | Rationale |

@@ -53,6 +53,19 @@ These are the #1 source of bugs. Memorize them.
 - `list_plugins()` returns list of dicts with `'name'` key
 - `DeFiPlugin` is the correct class name (NOT `DEXPlugin`)
 
+### HiggsCognitiveField (aether/higgs_field.py)
+- `._cognitive_masses` is `Dict[SephirahRole, float]` — mass assignments per node
+- `._field_value` is `float` — current Higgs field value
+- `.params.vev` is `float` — vacuum expectation value (default 246.0)
+- `EXPANSION_NODES = {Chochmah, Chesed, Netzach}` — couple to H_u
+- `CONSTRAINT_NODES = {Binah, Gevurah, Hod}` — couple to H_d
+
+### HiggsSUSYSwap (aether/higgs_field.py)
+- `enforce_susy_balance_with_mass(block_height)` returns `int` (correction count)
+
+### SephirahState (aether/sephirot.py)
+- Now has `cognitive_mass: float` and `yukawa_coupling: float` fields (from Higgs mechanism)
+
 ### Contract Detection (dual tables)
 - Template contracts: `contracts` table
 - EVM bytecode: `accounts` table (where `code_hash != ''`)
@@ -141,7 +154,7 @@ qubitcoin-common:   database/ utils/ config.py (shared)
 ## 4. TEST COMMANDS
 
 ```bash
-# Full suite (2,476+ tests)
+# Full suite (3,812+ tests)
 pytest tests/ -v --tb=short
 
 # By subsystem
@@ -191,7 +204,7 @@ Before committing any change, verify:
 | 22-component orchestrator | `src/qubitcoin/node.py` |
 | Configuration | `src/qubitcoin/config.py` |
 | 215+ REST endpoints | `src/qubitcoin/network/rpc.py` |
-| 70 Prometheus metrics | `src/qubitcoin/utils/metrics.py` |
+| 77 Prometheus metrics | `src/qubitcoin/utils/metrics.py` |
 | ORM models | `src/qubitcoin/database/models.py` |
 | 167-opcode QVM | `src/qubitcoin/qvm/vm.py` |
 | AGI engine | `src/qubitcoin/aether/proof_of_thought.py` |

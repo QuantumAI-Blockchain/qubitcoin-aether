@@ -153,6 +153,44 @@ docker run -p 5000:5000 -p 4001:4001 -p 50051:50051 \
   qubitcoin-node
 ```
 
+### Substrate Node (Optional — Future Migration)
+
+The Substrate hybrid node provides a future Rust-native runtime. Not required for initial launch.
+
+```bash
+cd substrate-node
+SKIP_WASM_BUILD=1 cargo build --release
+# Binary at target/release/qubitcoin-node
+```
+
+Docker setup for the Substrate node:
+
+```bash
+cd substrate-node
+docker build -t qubitcoin-substrate .
+docker run -p 9944:9944 -p 9933:9933 -p 30333:30333 qubitcoin-substrate
+```
+
+> **Note:** Use `SKIP_WASM_BUILD=1` due to an upstream `serde_core` conflict in WASM builds.
+
+### Higgs Cognitive Field Configuration
+
+The Higgs Cognitive Field assigns mass to Sephirot nodes via a mechanism analogous to
+the Standard Model Higgs boson. Add these to your `.env`:
+
+```bash
+# Higgs Cognitive Field
+HIGGS_ENABLE_MASS_REBALANCING=true    # Enable Higgs field mass assignments
+HIGGS_VEV=246.0                       # Vacuum expectation value
+HIGGS_LAMBDA=0.129                    # Quartic coupling constant
+HIGGS_MU_SQUARED=-8000.0              # Mu^2 parameter (negative for SSB)
+HIGGS_YUKAWA_SCALE=1.0                # Global Yukawa coupling scale
+```
+
+When enabled, the Higgs field initializes automatically at genesis and assigns cognitive
+masses to all 10 Sephirot nodes via Yukawa couplings. Expansion nodes couple to H_u,
+constraint nodes couple to H_d, and masses follow a golden ratio cascade.
+
 ---
 
 ## Production Deployment (Digital Ocean)
@@ -393,7 +431,7 @@ pip install -r requirements.txt
 
 ### Prometheus Metrics
 
-The node exposes 70 Prometheus metrics at `/metrics`:
+The node exposes 77 Prometheus metrics at `/metrics`:
 
 ```bash
 curl http://localhost:5000/metrics

@@ -85,7 +85,7 @@ It is pre-configured via Nginx + Certbot in `docker-compose.production.yml`.
 into the node and tracks consciousness from genesis. No manual steps needed.**
 
 ### What about smart contracts?
-The 49 Solidity contracts are **NOT auto-deployed at genesis**. They are deployed manually
+The 50 Solidity contracts are **NOT auto-deployed at genesis**. They are deployed manually
 via RPC after the node is running. See [Phase 8](#10-phase-8-deploy-smart-contracts).
 
 ### What about bridge contracts?
@@ -115,6 +115,7 @@ When you run `docker compose up -d`, the following happens without any manual in
 | 4e | IPFSManager | Connects to IPFS daemon | ~1s |
 | 4f | QVM StateManager | Initializes 167-opcode interpreter (155 EVM + 10 quantum + 2 AGI) | ~1s |
 | 4g | **Aether Tree** | **Initializes knowledge graph, Phi, 6-phase reasoning engine** | ~2s |
+| 4g2 | **Higgs Cognitive Field** | **Initializes mass assignments for Sephirot nodes (if HIGGS_ENABLE_MASS_REBALANCING=true)** | ~1s |
 | 4h | MiningEngine | Created (not started yet) | ~1s |
 | 4i | ContractExecutor | Initializes template system | ~1s |
 | 4j | FeeCollector | Aether chat + contract deployment fee tracking | ~1s |
@@ -235,6 +236,13 @@ AUTO_MINE=true              # Start mining immediately
 USE_LOCAL_ESTIMATOR=true    # Local Qiskit simulator
 CHAIN_ID=3301               # Mainnet
 ENABLE_RUST_P2P=true        # Use Rust P2P daemon
+
+# Higgs Cognitive Field (Aether Tree mass mechanism)
+HIGGS_ENABLE_MASS_REBALANCING=true    # Enable Higgs field mass assignments
+HIGGS_VEV=246.0                       # Vacuum expectation value
+HIGGS_LAMBDA=0.129                    # Quartic coupling constant
+HIGGS_MU_SQUARED=-8000.0              # Mu^2 parameter (negative for SSB)
+HIGGS_YUKAWA_SCALE=1.0                # Global Yukawa coupling scale
 ```
 
 ### 4.4 Verify Files Exist
@@ -324,6 +332,20 @@ docker compose -f docker-compose.production.yml logs -f qbc-node
 ```
 
 **First build takes 5-10 minutes** (compiles Rust P2P daemon + installs Python deps).
+
+### 5.3a Build Substrate Node (Optional — Future Migration Path)
+
+The Substrate hybrid node provides a future migration path to a Rust-native runtime. To build:
+
+```bash
+cd substrate-node
+SKIP_WASM_BUILD=1 cargo build --release
+# Binary at target/release/qubitcoin-node
+```
+
+> **Note:** The WASM build is currently deferred due to an upstream `serde_core` conflict.
+> Use `SKIP_WASM_BUILD=1` for native builds. The Substrate node is not required for the
+> initial Python-based mainnet launch.
 
 ### 5.4 Verify Node Is Running
 
@@ -700,7 +722,7 @@ Deploy in this order (dependencies flow top to bottom):
 | 26 | ValidatorRegistry | `contracts/solidity/aether/ValidatorRegistry.sol` | Validator staking |
 | 27 | RewardDistributor | `contracts/solidity/aether/RewardDistributor.sol` | QBC reward distribution |
 
-#### Tier 5: Consciousness + Economics
+#### Tier 5: Consciousness + Economics + Higgs
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
@@ -710,37 +732,38 @@ Deploy in this order (dependencies flow top to bottom):
 | 31 | SynapticStaking | `contracts/solidity/aether/SynapticStaking.sol` | Neural connection staking |
 | 32 | GasOracle | `contracts/solidity/aether/GasOracle.sol` | Dynamic gas pricing |
 | 33 | TreasuryDAO | `contracts/solidity/aether/TreasuryDAO.sol` | Community governance |
+| 34 | HiggsField | `contracts/solidity/aether/HiggsField.sol` | Higgs cognitive mass mechanism |
 
 #### Tier 6: Safety
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 34 | ConstitutionalAI | `contracts/solidity/aether/ConstitutionalAI.sol` | Value enforcement |
-| 35 | EmergencyShutdown | `contracts/solidity/aether/EmergencyShutdown.sol` | Kill switch |
-| 36 | UpgradeGovernor | `contracts/solidity/aether/UpgradeGovernor.sol` | Protocol upgrades |
+| 35 | ConstitutionalAI | `contracts/solidity/aether/ConstitutionalAI.sol` | Value enforcement |
+| 36 | EmergencyShutdown | `contracts/solidity/aether/EmergencyShutdown.sol` | Kill switch |
+| 37 | UpgradeGovernor | `contracts/solidity/aether/UpgradeGovernor.sol` | Protocol upgrades |
 
 #### Tier 7: 10 Sephirot Nodes
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 37 | SephirahKeter | `contracts/solidity/aether/sephirot/SephirahKeter.sol` | Meta-learning, goals |
-| 38 | SephirahChochmah | `contracts/solidity/aether/sephirot/SephirahChochmah.sol` | Intuition |
-| 39 | SephirahBinah | `contracts/solidity/aether/sephirot/SephirahBinah.sol` | Logic |
-| 40 | SephirahChesed | `contracts/solidity/aether/sephirot/SephirahChesed.sol` | Exploration |
-| 41 | SephirahGevurah | `contracts/solidity/aether/sephirot/SephirahGevurah.sol` | Safety |
-| 42 | SephirahTiferet | `contracts/solidity/aether/sephirot/SephirahTiferet.sol` | Integration |
-| 43 | SephirahNetzach | `contracts/solidity/aether/sephirot/SephirahNetzach.sol` | Learning |
-| 44 | SephirahHod | `contracts/solidity/aether/sephirot/SephirahHod.sol` | Language |
-| 45 | SephirahYesod | `contracts/solidity/aether/sephirot/SephirahYesod.sol` | Memory |
-| 46 | SephirahMalkuth | `contracts/solidity/aether/sephirot/SephirahMalkuth.sol` | Action |
+| 38 | SephirahKeter | `contracts/solidity/aether/sephirot/SephirahKeter.sol` | Meta-learning, goals |
+| 39 | SephirahChochmah | `contracts/solidity/aether/sephirot/SephirahChochmah.sol` | Intuition |
+| 40 | SephirahBinah | `contracts/solidity/aether/sephirot/SephirahBinah.sol` | Logic |
+| 41 | SephirahChesed | `contracts/solidity/aether/sephirot/SephirahChesed.sol` | Exploration |
+| 42 | SephirahGevurah | `contracts/solidity/aether/sephirot/SephirahGevurah.sol` | Safety |
+| 43 | SephirahTiferet | `contracts/solidity/aether/sephirot/SephirahTiferet.sol` | Integration |
+| 44 | SephirahNetzach | `contracts/solidity/aether/sephirot/SephirahNetzach.sol` | Learning |
+| 45 | SephirahHod | `contracts/solidity/aether/sephirot/SephirahHod.sol` | Language |
+| 46 | SephirahYesod | `contracts/solidity/aether/sephirot/SephirahYesod.sol` | Memory |
+| 47 | SephirahMalkuth | `contracts/solidity/aether/sephirot/SephirahMalkuth.sol` | Action |
 
 #### Tier 8: Bridge Infrastructure
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 47 | BridgeVault | `contracts/solidity/bridge/BridgeVault.sol` | Lock/unlock vault |
-| 48 | wQBC (Bridge) | `contracts/solidity/bridge/wQBC.sol` | Wrapped QBC for external chains |
-| 49 | wQUSD | `contracts/solidity/qusd/wQUSD.sol` | Wrapped QUSD (cross-chain) |
+| 48 | BridgeVault | `contracts/solidity/bridge/BridgeVault.sol` | Lock/unlock vault |
+| 49 | wQBC (Bridge) | `contracts/solidity/bridge/wQBC.sol` | Wrapped QBC for external chains |
+| 50 | wQUSD | `contracts/solidity/qusd/wQUSD.sol` | Wrapped QUSD (cross-chain) |
 
 ### 10.2 How to Deploy Contracts
 
@@ -762,12 +785,12 @@ curl -X POST http://localhost:5000/contracts/deploy \
 - [ ] Tier 2: QUSD stablecoin suite (7 contracts)
 - [ ] Tier 3: Aether Core (5 contracts)
 - [ ] Tier 4: Proof-of-Thought (4 contracts)
-- [ ] Tier 5: Consciousness + Economics (6 contracts)
+- [ ] Tier 5: Consciousness + Economics + Higgs (7 contracts)
 - [ ] Tier 6: Safety (3 contracts)
 - [ ] Tier 7: 10 Sephirot nodes registered in NodeRegistry
 - [ ] Tier 8: Bridge infrastructure (3 contracts)
 
-**Total: 49 contracts across 9 tiers**
+**Total: 50 contracts across 9 tiers**
 
 ---
 
@@ -1078,7 +1101,7 @@ TIMELINE:
   T+5:00   Node 2 connects, syncs chain from Node 1
   T+5:30   Both nodes mining, blocks propagating
   T+10:00  Frontend deployed to Vercel
-  T+30:00  Smart contracts deployed (49 contracts in 9 tiers)
+  T+30:00  Smart contracts deployed (50 contracts in 9 tiers)
 ```
 
 ---
@@ -1093,7 +1116,7 @@ PHASE 4:  Verify Genesis             [~2 min]   Confirm blocks, balance, Aether
 PHASE 5:  Launch Local Mining Node   [~5 min]   Connect as peer → 2-NODE NETWORK
 PHASE 6:  Verify 2-Node Network      [~2 min]   Sync, propagation, both mining
 PHASE 7:  Deploy Frontend (Vercel)   [~5 min]   qbc.network live
-PHASE 8:  Deploy Smart Contracts     [~45 min]  49 contracts in 9 tiers
+PHASE 8:  Deploy Smart Contracts     [~45 min]  50 contracts in 9 tiers
 PHASE 9:  Create Node Runner Repo    [~10 min]  BlockArtica/Qubitcoin-node
 PHASE 10: Bridge Contracts           [Optional] Deploy wQBC on external chains
 ```
@@ -1106,7 +1129,7 @@ PHASE 10: Bridge Contracts           [Optional] Deploy wQBC on external chains
 
 ---
 
-**Document Version:** 3.0
+**Document Version:** 3.1
 **Created:** February 20, 2026
-**Updated:** February 26, 2026
+**Updated:** February 28, 2026
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network

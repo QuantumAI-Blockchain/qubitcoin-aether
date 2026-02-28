@@ -75,6 +75,13 @@ cd rust-p2p
 cargo build --release
 ```
 
+### Substrate Node (Optional)
+
+```bash
+cd substrate-node
+SKIP_WASM_BUILD=1 cargo build --release
+```
+
 ### Docker (Full Stack)
 
 ```bash
@@ -90,6 +97,7 @@ Qubitcoin has four main layers:
 | **L1 Core** | `src/qubitcoin/` | Python (consensus, mining, crypto, database, network) |
 | **L2 QVM** | `src/qubitcoin/qvm/` | Python prototype, Go production (planned) |
 | **L3 Aether Tree** | `src/qubitcoin/aether/` | Python (knowledge graph, reasoning, consciousness) |
+| **Substrate Node** | `substrate-node/` | Rust (future migration path, 6 custom pallets) |
 | **Frontend** | `frontend/` | Next.js 15, React 19, TypeScript 5, TailwindCSS 4 |
 
 Cross-cutting systems: `bridge/` (8 chains), `stablecoin/` (QUSD), `privacy/` (Susy Swaps)
@@ -211,7 +219,7 @@ cd frontend && pnpm test:e2e
 | Bridge | 50+ | Covered |
 | Stablecoin | 123+ | Covered |
 | Frontend | 5 | Basic |
-| **Total** | **3,783** | **All Passing** |
+| **Total** | **3,812** | **All Passing** |
 
 ## Risk Classification
 

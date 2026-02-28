@@ -438,6 +438,94 @@ Violations are automatically corrected via QBC redistribution.
 
 ---
 
+## 7b. Higgs Cognitive Field
+
+The Higgs Cognitive Field assigns mass to Sephirot nodes via a mechanism analogous to
+spontaneous symmetry breaking in the Standard Model. Expansion nodes couple to H_u,
+constraint nodes couple to H_d, and masses follow a golden ratio cascade from the VEV.
+
+### 7b.1 Field Status
+
+```bash
+curl http://localhost:5000/higgs/status
+```
+
+```json
+{
+  "field_value": 245.8,
+  "vev": 246.0,
+  "total_masses": 1618.03,
+  "excitation_count": 42,
+  "potential_energy": -8000.12,
+  "enabled": true
+}
+```
+
+### 7b.2 All Node Masses
+
+```bash
+curl http://localhost:5000/higgs/masses
+```
+
+```json
+{
+  "masses": {
+    "Keter": 246.0,
+    "Chochmah": 152.07,
+    "Binah": 93.93,
+    "Chesed": 152.07,
+    "Gevurah": 93.93,
+    "Tiferet": 246.0,
+    "Netzach": 58.14,
+    "Hod": 35.93,
+    "Yesod": 246.0,
+    "Malkuth": 93.93
+  }
+}
+```
+
+### 7b.3 Single Node Mass
+
+```bash
+curl http://localhost:5000/higgs/mass/Keter
+```
+
+```json
+{
+  "node": "Keter",
+  "cognitive_mass": 246.0,
+  "yukawa_coupling": 1.0,
+  "coupling_type": "neutral"
+}
+```
+
+### 7b.4 Excitation Events
+
+```bash
+curl http://localhost:5000/higgs/excitations
+```
+
+Returns recent Higgs field excitation events (analogous to Higgs boson production),
+triggered when SUSY imbalances cause field perturbations.
+
+### 7b.5 Potential Energy
+
+```bash
+curl http://localhost:5000/higgs/potential
+```
+
+```json
+{
+  "potential_energy": -8000.12,
+  "field_gradient": 0.002,
+  "mu_squared": -8000.0,
+  "lambda": 0.129,
+  "field_value": 245.8
+}
+```
+
+---
+
 ## 8. WebSocket Streaming
 
 For real-time updates, connect to the Aether WebSocket endpoint.

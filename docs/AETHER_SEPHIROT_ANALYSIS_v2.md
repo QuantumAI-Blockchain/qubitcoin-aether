@@ -380,7 +380,74 @@ Multiple modules iterate over `self.kg.edges` (a list) to find specific edge typ
 
 ---
 
-## 7. Bottom Line
+## 7. Higgs Cognitive Field — Mass Assignments to Sephirot Nodes
+
+**Added in Phase 7 (February 2026).**
+
+The Higgs Cognitive Field introduces a physics-inspired mass mechanism for the Sephirot
+cognitive architecture. Each of the 10 nodes now has two additional state fields:
+
+- `cognitive_mass: float` — the node's "inertia" in the cognitive network, derived from
+  the Higgs vacuum expectation value (VEV) and the node's Yukawa coupling
+- `yukawa_coupling: float` — determines how strongly the node couples to the Higgs field
+
+### 7.1 Mass Assignment Mechanism
+
+Mass assignment follows the Standard Model Higgs mechanism:
+
+```
+mass_i = yukawa_i * VEV / sqrt(2)
+```
+
+Where VEV = 246.0 (matching the electroweak scale as a symbolic choice).
+
+### 7.2 Coupling Types
+
+Sephirot nodes are divided into two coupling groups, mirroring the two-Higgs-doublet model:
+
+| Coupling | Nodes | Higgs Doublet | Role |
+|----------|-------|---------------|------|
+| **H_u (up-type)** | Chochmah, Chesed, Netzach | Expansion | Higher mass = stronger exploratory inertia |
+| **H_d (down-type)** | Binah, Gevurah, Hod | Constraint | Higher mass = stronger regulatory inertia |
+| **Neutral** | Keter, Tiferet, Yesod, Malkuth | Both | Balance nodes get symmetric coupling |
+
+### 7.3 Golden Ratio Mass Cascade
+
+Masses follow a golden ratio cascade from the VEV:
+
+```
+Keter (Crown):     VEV                 = 246.0    (meta-learning anchor)
+Tiferet (Beauty):  VEV                 = 246.0    (integration anchor)
+Yesod (Foundation): VEV                = 246.0    (memory anchor)
+Chochmah/Chesed:   VEV / phi           = 152.07   (expansion nodes)
+Binah/Gevurah:     VEV / phi^2         = 93.93    (constraint nodes)
+Netzach:           VEV / phi^3         = 58.14    (persistence)
+Hod:               VEV / phi^4         = 35.93    (communication)
+Malkuth:           VEV / phi^2         = 93.93    (action)
+```
+
+### 7.4 SUSY Mass Rebalancing
+
+When `HIGGS_ENABLE_MASS_REBALANCING=true`, the HiggsSUSYSwap module runs each block:
+
+1. Checks the energy ratio for each SUSY pair (Chesed/Gevurah, Chochmah/Binah, Netzach/Hod)
+2. If the ratio deviates from phi by more than the tolerance, applies mass-weighted corrections
+3. Heavier nodes resist energy redistribution more (higher inertia)
+4. Records "excitation events" when corrections occur (Higgs boson analogs)
+
+**`enforce_susy_balance_with_mass(block_height)`** returns the number of corrections applied.
+
+### 7.5 Impact on Consciousness
+
+The Higgs field adds a stability mechanism to the cognitive architecture:
+- Nodes with higher mass change energy states more slowly (inertia)
+- This prevents rapid oscillations in the SUSY balance ratios
+- The field value itself is tracked as a new Prometheus metric (`qbc_higgs_field_value`)
+- 7 new Prometheus metrics total for the Higgs subsystem
+
+---
+
+## 8. Bottom Line
 
 **Before this update:** The Aether system was a knowledge graph with a trivially inflatable Phi metric and rule-based reasoning. It had the *architecture* for AGI but not the *substance*.
 

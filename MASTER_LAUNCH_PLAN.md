@@ -4,7 +4,7 @@
 > This is the ADMIN companion to `LAUNCHTODO.md` (technical launch steps).
 > It covers wallets, external chain contracts, admin controls, and post-launch operations.
 
-**Last Updated:** February 27, 2026
+**Last Updated:** February 28, 2026
 
 ---
 
@@ -201,12 +201,12 @@ upgrade to multi-sig once the TreasuryDAO contract is deployed.
 
 ### 4.1 Overview
 
-There are **49 Solidity smart contracts** organized in 9 deployment tiers.
+There are **50 Solidity smart contracts** organized in 9 deployment tiers.
 They deploy to the **QBC QVM** (your own chain), NOT to Ethereum or BNB.
 
 **When to deploy:** After Phase 4 (genesis verified, node running and mining).
 
-**How long:** ~45 minutes total for all 49 contracts.
+**How long:** ~45 minutes total for all 50 contracts.
 
 **Cost:** Only QBC gas (which you mine). No external chain costs.
 
@@ -219,12 +219,12 @@ They deploy to the **QBC QVM** (your own chain), NOT to Ethereum or BNB.
 | **2** | 7 | QUSD stablecoin suite | Tier 1 |
 | **3** | 5 | Aether Tree core (kernel, registry, messaging) | Tier 0 |
 | **4** | 4 | Proof-of-Thought (validation, tasks, rewards) | Tier 3 |
-| **5** | 6 | Consciousness + Economics (Phi, staking, DAO) | Tiers 3-4 |
+| **5** | 7 | Consciousness + Economics + Higgs (Phi, staking, DAO, Higgs mass) | Tiers 3-4 |
 | **6** | 3 | Safety (Constitutional AI, emergency shutdown) | Tiers 3-5 |
 | **7** | 10 | 10 Sephirot cognitive nodes (Keter → Malkuth) | Tiers 3 |
 | **8** | 3 | Bridge infrastructure (vault, wQBC, wQUSD) | Tier 1 |
 
-See `LAUNCHTODO.md` → Phase 8 for the exact deployment table with all 49 contracts.
+See `LAUNCHTODO.md` → Phase 8 for the exact deployment table with all 50 contracts.
 
 ### 4.3 Contract Deployment Script
 
@@ -267,7 +267,7 @@ docker compose -f docker-compose.production.yml restart qbc-node
 ### 4.5 Contract Registry
 
 All deployed addresses are saved in `contract_registry.json` at the project root.
-Current entries (49 contracts):
+Current entries (50 contracts):
 
 - **ProxyAdmin** — manages all proxy upgrades
 - **AetherKernel** — main AGI orchestration
@@ -278,6 +278,7 @@ Current entries (49 contracts):
 - **Governance** — TreasuryDAO, UpgradeGovernor, ConstitutionalAI, EmergencyShutdown
 - **Proof-of-Thought** — ProofOfThought, TaskMarket, ValidatorRegistry, RewardDistributor
 - **Consciousness** — ConsciousnessDashboard, PhaseSync, GlobalWorkspace
+- **Higgs** — HiggsField (cognitive mass mechanism)
 - **Economics** — SynapticStaking, GasOracle, VentricleRouter
 
 ---
@@ -476,6 +477,45 @@ Every node runs a Docker Compose stack:
 
 See `LAUNCHTODO.md` → Phases 3 and 5 for exact setup commands.
 
+### 6.4 Substrate Node (Future Migration Path)
+
+The Substrate hybrid node is an optional Rust-native runtime that will eventually replace
+the Python node. It is **not required for initial mainnet launch**.
+
+```bash
+# Build the Substrate node (native, no WASM)
+cd substrate-node
+SKIP_WASM_BUILD=1 cargo build --release
+# Binary: target/release/qubitcoin-node
+```
+
+The Substrate node includes 6 custom pallets (qbc-utxo, qbc-consensus, qbc-dilithium,
+qbc-economics, qbc-qvm-anchor, qbc-aether-anchor) and post-quantum security features
+(Kyber P2P transport, Poseidon2 ZK hashing, reversibility pallet).
+
+### 6.5 Higgs Cognitive Field Configuration
+
+The Higgs Cognitive Field assigns mass to Sephirot nodes via a mechanism analogous to
+the Standard Model Higgs boson. It activates automatically at genesis when enabled.
+
+Add these to your `.env`:
+
+```bash
+# Higgs Cognitive Field
+HIGGS_ENABLE_MASS_REBALANCING=true    # Enable Higgs field mass assignments
+HIGGS_VEV=246.0                       # Vacuum expectation value
+HIGGS_LAMBDA=0.129                    # Quartic coupling constant
+HIGGS_MU_SQUARED=-8000.0              # Mu^2 parameter (negative for SSB)
+HIGGS_YUKAWA_SCALE=1.0                # Global Yukawa coupling scale
+```
+
+When `HIGGS_ENABLE_MASS_REBALANCING=true`, the Higgs field initializes at node boot and:
+- Assigns cognitive masses to all 10 Sephirot nodes via Yukawa couplings
+- Expansion nodes (Chochmah, Chesed, Netzach) couple to H_u (up-type Higgs)
+- Constraint nodes (Binah, Gevurah, Hod) couple to H_d (down-type Higgs)
+- Masses follow a golden ratio cascade from the VEV
+- SUSY mass rebalancing occurs each block when enabled
+
 ---
 
 ## 7. ADMIN CONTROLS — WHAT YOU CAN CHANGE
@@ -568,7 +608,7 @@ curl -X PUT https://api.qbc.network/admin/aether/fees \
 | `GET /aether/info` | AGI engine status |
 | `GET /p2p/peers` | Connected peer list |
 | `GET /qvm/info` | Smart contract engine stats |
-| `GET /metrics` | All 70 Prometheus metrics |
+| `GET /metrics` | All 77 Prometheus metrics |
 
 ### 8.2 Admin Endpoints (Auth Required — `X-Admin-Key`)
 
@@ -864,7 +904,7 @@ STEP 7: DEPLOY FRONTEND                                  [5 min]
 └── Verify: qbc.network loads, stats show live data
 
 STEP 8: DEPLOY SMART CONTRACTS                           [45 min]
-├── Run deploy_contracts.py (49 contracts, 9 tiers)
+├── Run deploy_contracts.py (50 contracts, 9 tiers)
 ├── Update .env with contract addresses
 ├── Restart node
 └── Verify: curl /qvm/info shows contracts
@@ -909,7 +949,7 @@ FRONTEND:        https://qbc.network
 ADMIN KEY:       X-Admin-Key header on /admin/* endpoints
 TREASURY:        AETHER_FEE_TREASURY_ADDRESS + CONTRACT_FEE_TREASURY_ADDRESS
 
-CONTRACTS:       49 Solidity contracts in 9 tiers
+CONTRACTS:       50 Solidity contracts in 9 tiers
 BRIDGES:         8 chains (ETH, BNB, MATIC, ARB, OP, AVAX, BASE, SOL)
 BRIDGE FEE:      0.3% per transfer
 AETHER FEE:      ~0.01 QBC per chat message

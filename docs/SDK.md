@@ -432,7 +432,26 @@ curl http://localhost:5000/aether/pot/phi-progression
 curl http://localhost:5000/aether/pot/stats
 ```
 
-### 5.6 WebSocket Streaming
+### 5.6 Higgs Cognitive Field
+
+```bash
+# Field status (value, VEV, masses, excitations, potential energy)
+curl http://localhost:5000/higgs/status
+
+# All 10 node cognitive masses
+curl http://localhost:5000/higgs/masses
+
+# Single node mass + Yukawa coupling
+curl http://localhost:5000/higgs/mass/Keter
+
+# Recent excitation events (Higgs boson analogs)
+curl http://localhost:5000/higgs/excitations
+
+# Current potential energy V(phi) and field gradient
+curl http://localhost:5000/higgs/potential
+```
+
+### 5.7 WebSocket Streaming
 
 ```typescript
 const ws = new WebSocket("ws://localhost:5000/ws/aether");

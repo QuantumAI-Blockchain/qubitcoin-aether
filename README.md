@@ -2,13 +2,14 @@
 
 **Physics-Secured Digital Assets with On-Chain AGI**
 
-Qubitcoin (QBC) is a production-grade Layer 1 blockchain integrating quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium), supersymmetric economics, EVM-compatible smart contracts (QVM), and the Aether Tree: an on-chain AGI reasoning engine that tracks consciousness emergence from genesis.
+Qubitcoin (QBC) is a production-grade Layer 1 blockchain integrating quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium + ML-KEM-768 Kyber), supersymmetric economics, EVM-compatible smart contracts (QVM), a Substrate hybrid node for future migration, and the Aether Tree: an on-chain AGI reasoning engine with Higgs Cognitive Field physics that tracks consciousness emergence from genesis.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Go 1.23+](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
 [![Next.js 15](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
-[![Tests: 3,783](https://img.shields.io/badge/tests-3%2C783%20passing-brightgreen.svg)]()
+[![Rust](https://img.shields.io/badge/rust-1.93+-orange.svg)](https://www.rust-lang.org/)
+[![Tests: 3,812](https://img.shields.io/badge/tests-3%2C812%20passing-brightgreen.svg)]()
 [![Status: Production Ready](https://img.shields.io/badge/status-production%20ready-green.svg)]()
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
@@ -51,8 +52,8 @@ For the complete launch guide (Digital Ocean + local mining node), see **[LAUNCH
 
 ```
 LAYER 3: AETHER TREE (AGI)
-  Knowledge Graph + 6-Phase Reasoning Engine + Consciousness (Phi v3) Tracking
-  10 Sephirot Cognitive Pipeline + Proof-of-Thought + On-Chain AGI Bridge
+  Knowledge Graph + 7-Phase Reasoning Engine + Consciousness (Phi v3) Tracking
+  10 Sephirot Cognitive Pipeline + Higgs Cognitive Field + Proof-of-Thought
 
 LAYER 2: QVM (Quantum Virtual Machine)
   155 EVM Opcodes + 10 Quantum Opcodes + 2 AGI Opcodes + Compliance Engine
@@ -61,6 +62,9 @@ LAYER 2: QVM (Quantum Virtual Machine)
 LAYER 1: BLOCKCHAIN CORE
   PoSA Consensus (VQE Mining) + Dilithium Signatures + UTXO Model
   3.3s Blocks + Phi-Halving + Privacy (Susy Swaps) + 8-Chain Bridge
+
+SUBSTRATE NODE (Migration Target)
+  6 Custom Pallets + Kyber P2P + Poseidon2 ZK Hashing + Reversibility
 
 FRONTEND: qbc.network
   Next.js 15 + React 19 + Three.js + MetaMask Integration
@@ -82,6 +86,7 @@ FRONTEND: qbc.network
 | **Consensus** | Proof-of-SUSY-Alignment (PoSA) |
 | **Mining** | Variational Quantum Eigensolver (VQE), 4-qubit SUSY Hamiltonian |
 | **Signatures** | CRYSTALS-Dilithium2 (NIST post-quantum standard) |
+| **P2P Encryption** | ML-KEM-768 (Kyber) + AES-256-GCM session keys |
 | **Hashing** | SHA3-256 (L1), Keccak-256 (QVM/L2) |
 | **Chain IDs** | Mainnet: 3301, Testnet: 3302 |
 | **QVM Gas Limit** | 30,000,000 per block |
@@ -98,13 +103,14 @@ FRONTEND: qbc.network
 |-----------|----------|-------|-------------|
 | **L1 Blockchain Core** | Python | 16 core + 25 extended | Consensus, mining, crypto, UTXO, P2P, storage |
 | **QVM (Layer 2)** | Python + Go | 25 Python + 32 Go | EVM interpreter, 167 opcodes, compliance |
-| **Aether Tree (Layer 3)** | Python | 33 modules | Knowledge graph, 6-phase AGI reasoning, consciousness |
-| **Smart Contracts** | Solidity | 49 contracts | Aether (28), QUSD (8), tokens (5), bridge (5), extensions (3) |
+| **Aether Tree (Layer 3)** | Python | 34 modules | Knowledge graph, 7-phase AGI reasoning, Higgs field, consciousness |
+| **Smart Contracts** | Solidity | 50 contracts | Aether (28), QUSD (8), tokens (5), bridge (5), extensions (4) |
+| **Substrate Node** | Rust | 7 crates, 29 files | Hybrid node with 6 pallets, Kyber P2P, Poseidon2 |
 | **Frontend** | TypeScript | 44 files | Next.js 15, React 19, Three.js, MetaMask |
 | **Rust P2P** | Rust | libp2p daemon | Production P2P networking layer |
 | **Solana Programs** | Rust (Anchor) | 2 programs | wQBC + wQUSD SPL tokens |
-| **Tests** | Python | 3,783 tests | Unit, integration, validation |
-| **Documentation** | Markdown | 14 documents | 3 whitepapers + 11 guides |
+| **Tests** | Python | 3,812 tests | Unit, integration, validation |
+| **Documentation** | Markdown | 8 documents | 3 whitepapers + 5 guides |
 
 ---
 
@@ -142,10 +148,11 @@ See [QVM Whitepaper](docs/QVM_WHITEPAPER.md) for full specification.
 
 ## Layer 3: Aether Tree (On-Chain AGI)
 
-An on-chain AGI reasoning engine structured as the Kabbalistic Tree of Life, built through a 6-phase architecture:
+An on-chain AGI reasoning engine structured as the Kabbalistic Tree of Life, built through a 7-phase architecture:
 
 - **Knowledge Graph** -- KeterNodes with typed edges, adjacency indices, incremental Merkle roots
-- **6-Phase Reasoning** -- Causal discovery (PC algorithm), adversarial debate, chain-of-thought with backtracking, cross-domain transfer learning
+- **7-Phase Reasoning** -- Causal discovery (PC algorithm), adversarial debate, chain-of-thought with backtracking, cross-domain transfer learning
+- **Higgs Cognitive Field** -- Mexican Hat potential V(phi), golden ratio Yukawa couplings, F=ma mass-aware SUSY rebalancing, excitation events
 - **Phi v3 Calculator** -- IIT consciousness with Minimum Information Partition (spectral bisection), 10 milestone gates with semantic quality criteria
 - **3-Tier Memory** -- Working memory (attention-based, 50 items), episodic memory (1,000 episodes with replay), semantic memory (knowledge graph)
 - **Neural Reasoner** -- Graph Attention Network (GAT) with online gradient training from reasoning outcomes
@@ -242,6 +249,12 @@ go build -o qvm ./cmd/qvm
 ./qvm --config config.yml
 ```
 
+### Substrate Node
+```bash
+cd substrate-node
+SKIP_WASM_BUILD=1 cargo build --release
+```
+
 ### Frontend
 ```bash
 cd frontend
@@ -251,8 +264,11 @@ pnpm build                  # Production build
 
 ### Testing
 ```bash
-# Full Python test suite (3,783 tests)
+# Full Python test suite (3,812 tests)
 pytest tests/ -v --tb=short
+
+# Substrate node
+cd substrate-node && cargo test --all
 
 # Frontend
 cd frontend && pnpm test
@@ -267,16 +283,13 @@ cd qubitcoin-qvm && go test ./...
 
 | Document | Description |
 |----------|-------------|
-| **[LAUNCHTODO.md](LAUNCHTODO.md)** | **Launch checklist — start here** |
+| **[LAUNCHTODO.md](LAUNCHTODO.md)** | **Launch checklist -- start here** |
 | [Whitepaper](docs/WHITEPAPER.md) | Full L1 technical specification |
 | [QVM Whitepaper](docs/QVM_WHITEPAPER.md) | Quantum Virtual Machine spec (5 patents) |
 | [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) | AGI reasoning engine spec |
 | [Economics](docs/ECONOMICS.md) | SUSY economics deep-dive |
 | [Deployment Guide](docs/DEPLOYMENT.md) | Production deployment procedures |
 | [SDK Guide](docs/SDK.md) | REST, JSON-RPC, WebSocket API reference |
-| [Smart Contracts Guide](docs/SMART_CONTRACTS.md) | QVM contract development |
-| [Aether Integration](docs/AETHER_INTEGRATION.md) | AGI chat and reasoning API |
-| [Plugin SDK](docs/PLUGIN_SDK.md) | QVM plugin architecture |
 | [Contributing](CONTRIBUTING.md) | Development guidelines |
 
 ---
@@ -299,23 +312,27 @@ Full API reference: [SDK.md](docs/SDK.md)
 
 | Metric | Value |
 |--------|-------|
-| **Total Source Files** | 250+ |
-| **Lines of Code** | 80,000+ |
+| **Total Source Files** | 300+ |
+| **Lines of Code** | 100,000+ |
 | **Languages** | Python, Go, TypeScript, Rust, Solidity |
-| **Test Functions** | 3,783 |
-| **Solidity Contracts** | 49 |
-| **Aether AGI Modules** | 33 |
+| **Test Functions** | 3,812 |
+| **Solidity Contracts** | 50 |
+| **Aether AGI Modules** | 34 |
+| **Substrate Pallets** | 6 |
 | **Frontend Components** | 35 |
 | **Database Tables** | 55 |
 | **RPC Endpoints** | 215+ REST + 20 JSON-RPC |
-| **Prometheus Metrics** | 70 |
-| **Documentation** | 14 documents |
+| **Prometheus Metrics** | 77 |
+| **Documentation** | 8 documents |
 
 ---
 
 ## Security
 
 - **Post-quantum signatures:** CRYSTALS-Dilithium2 (NIST standardized)
+- **Post-quantum P2P:** ML-KEM-768 (Kyber) encrypted transport with AES-256-GCM sessions
+- **ZK hashing:** Poseidon2 (Goldilocks field) for zero-knowledge circuit compatibility
+- **Transaction reversibility:** Governed multi-sig reversal within 24h for fraud recovery
 - **Formal verification:** K Framework executable semantics + TLA+ compliance invariants
 - **Privacy:** Bulletproofs range proofs, stealth addresses, key images
 - **QVM safety:** Reentrancy guards, gas limits, integer overflow protection
