@@ -112,6 +112,7 @@ class RangeProof:
         return len(self.to_bytes())
 
     def to_hex(self) -> str:
+        """Return the serialised range proof as a hex string."""
         return self.to_bytes().hex()
 
 

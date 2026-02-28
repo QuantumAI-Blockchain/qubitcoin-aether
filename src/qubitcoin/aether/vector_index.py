@@ -654,16 +654,16 @@ class VectorIndex:
                     if nid is not None:
                         results.append((nid, 1.0 - float(dist)))
                 return results
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("hnswlib search failed, falling back: %s", e)
 
         # Try pure-Python HNSW
         py_hnsw = self._ensure_py_hnsw()
         if py_hnsw is not None:
             try:
                 return py_hnsw.search(query_emb, k=top_k)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Pure-Python HNSW search failed, falling back to brute-force: %s", e)
 
         scores = []
         for nid, emb in self.embeddings.items():

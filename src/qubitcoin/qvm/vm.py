@@ -140,7 +140,6 @@ def _ecrecover(msg_hash: bytes, v: int, r: int, s: int) -> bytes:
         # Any failure (bad signature, point at infinity, etc.) → 32 zero bytes
         try:
             # Fallback: manual ECDSA recovery via keccak256 of pubkey bytes
-            from eth_keys.backends.native.ecdsa import ecdsa_raw_recover
             from eth_keys.backends.native.jacobian import (
                 fast_multiply, inv, SECP256K1_G, SECP256K1_N, SECP256K1_P,
             )

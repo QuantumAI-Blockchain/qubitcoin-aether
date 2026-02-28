@@ -614,8 +614,8 @@ class AetherChat:
                 try:
                     phi_result = self.engine.phi.compute_phi()
                     phi_value = phi_result.get('phi_value', 0.0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Could not compute Phi for chat context: %s", e)
             if self.engine.kg:
                 kg_node_count = len(self.engine.kg.nodes)
 
@@ -684,8 +684,8 @@ class AetherChat:
             block_height = 0
             try:
                 block_height = self.db.get_current_height()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not get block height for distillation: %s", e)
 
             response = self.llm_manager.generate(
                 prompt=prompt,
@@ -743,8 +743,8 @@ class AetherChat:
             try:
                 phi_result = self.engine.phi.compute_phi()
                 phi_value = phi_result.get('phi_value', 0.0)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not compute Phi for greeting context: %s", e)
         if self.engine.kg:
             kg_node_count = len(self.engine.kg.nodes)
 

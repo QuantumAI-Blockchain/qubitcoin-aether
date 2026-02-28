@@ -259,8 +259,8 @@ class SnapshotScheduler:
             block = db_manager.get_block(height)  # type: ignore[attr-defined]
             if block:
                 chain_hash = getattr(block, 'block_hash', None)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not retrieve block hash for snapshot: %s", e)
 
         return {
             'version': '2.0',
@@ -303,7 +303,8 @@ class SnapshotScheduler:
         import json
         try:
             return len(json.dumps(data, default=str).encode())
-        except Exception:
+        except Exception as e:
+            logger.debug("Could not estimate snapshot size: %s", e)
             return 0
 
     # ------------------------------------------------------------------

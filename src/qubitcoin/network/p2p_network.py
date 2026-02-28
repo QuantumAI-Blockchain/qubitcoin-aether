@@ -7,9 +7,8 @@ import json
 import time
 import hashlib
 from typing import Dict, List, Set, Optional, Callable, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
-from collections import defaultdict
 from ..config import Config
 from ..database.models import Block
 from ..consensus.engine import ConsensusEngine  # For validation/reorg

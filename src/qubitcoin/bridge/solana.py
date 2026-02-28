@@ -12,8 +12,6 @@ from solders.pubkey import Pubkey
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
 from spl.token.client import Token
-from spl.token.constants import TOKEN_PROGRAM_ID
-
 from .base import BaseBridge, ChainType, BridgeStatus
 from ..utils.logger import get_logger
 

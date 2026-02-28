@@ -13,7 +13,6 @@ from eth_account import Account
 from eth_account.signers.local import LocalAccount
 
 from .base import BaseBridge, ChainType, BridgeStatus
-from ..config import Config
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)

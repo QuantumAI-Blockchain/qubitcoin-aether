@@ -156,6 +156,7 @@ class Commitment:
         return prefix + self.point.x.to_bytes(32, 'big')
 
     def to_hex(self) -> str:
+        """Return the compressed EC point as a hex string."""
         return self.to_bytes().hex()
 
 

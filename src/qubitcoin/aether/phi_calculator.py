@@ -30,6 +30,11 @@ logger = get_logger(__name__)
 # Phi threshold for Proof-of-Thought validity
 PHI_THRESHOLD = 3.0
 
+# Maximum nodes to sample for spectral bisection (O(n^2) cap)
+PHI_MAX_SAMPLE_NODES = 5000
+# Deterministic seed for reproducible sampling
+PHI_SAMPLE_SEED = 42
+
 # ============================================================================
 # MILESTONE GATES (Semantic Quality Hardened)
 # Each passed gate unlocks +0.5 Phi ceiling.  Gates require BOTH quantity AND
@@ -401,15 +406,15 @@ class PhiCalculator:
         if n_nodes < 10:
             return 0.0
 
-        # --- Cap computation: sample 5000 nodes for large graphs ---
+        # --- Cap computation: sample nodes for large graphs ---
         node_ids = list(nodes.keys())
         sampled = False
-        if n_nodes > 5000:
+        if n_nodes > PHI_MAX_SAMPLE_NODES:
             sampled = True
-            random.seed(42)  # deterministic sampling for reproducibility
-            sampled_ids: Set[int] = set(random.sample(node_ids, 5000))
+            random.seed(PHI_SAMPLE_SEED)  # deterministic sampling for reproducibility
+            sampled_ids: Set[int] = set(random.sample(node_ids, PHI_MAX_SAMPLE_NODES))
             node_ids = list(sampled_ids)
-            n_nodes = 5000
+            n_nodes = PHI_MAX_SAMPLE_NODES
         else:
             sampled_ids = set(node_ids)
 

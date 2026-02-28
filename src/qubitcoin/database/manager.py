@@ -14,7 +14,6 @@ from sqlalchemy import (
     ForeignKey, LargeBinary, Computed, CheckConstraint
 )
 from sqlalchemy.orm import sessionmaker, Session as DBSession, declarative_base, relationship
-from sqlalchemy.dialects.postgresql import UUID
 from .models import UTXO, Transaction, Block, Account, TransactionReceipt
 from ..config import Config
 from ..utils.logger import get_logger

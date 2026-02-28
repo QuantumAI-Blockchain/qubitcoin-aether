@@ -607,8 +607,8 @@ class KnowledgeSeeder:
                 domain_stats = self._kg.get_domain_stats()
                 if domain_stats:
                     return self._pick_weighted_prompt(domain_stats)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not get domain stats for prompt selection: %s", e)
 
         # Fallback: round-robin
         prompt = MASTER_PROMPTS[self._prompt_index % len(MASTER_PROMPTS)]

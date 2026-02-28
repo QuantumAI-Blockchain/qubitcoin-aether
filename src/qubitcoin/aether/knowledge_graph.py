@@ -300,6 +300,7 @@ class KnowledgeGraph:
         return edge
 
     def get_node(self, node_id: int) -> Optional[KeterNode]:
+        """Return a KeterNode by its ID, or None if not found."""
         return self.nodes.get(node_id)
 
     def get_neighbors(self, node_id: int, direction: str = 'out') -> List[KeterNode]:

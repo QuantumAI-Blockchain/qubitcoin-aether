@@ -27,6 +27,8 @@ os.environ['RPC_RATE_LIMIT'] = '100000'
 _TEST_ADMIN_KEY = 'test-admin-key-for-unit-tests'
 os.environ['ADMIN_API_KEY'] = _TEST_ADMIN_KEY
 
+from qubitcoin.config import Config
+
 
 # ---------------------------------------------------------------------------
 # SHAPE CONTRACTS — exact field names the frontend destructures
@@ -830,8 +832,8 @@ class TestBlockchainEndpoints:
         resp = client.get("/")
         assert resp.status_code == 200
         data = resp.json()
-        assert data['node'] == 'Qubitcoin Full Node v2.0'
-        assert data['version'] == '2.0.0'
+        assert data['node'] == f'Qubitcoin Full Node v{Config.NODE_VERSION}'
+        assert data['version'] == Config.NODE_VERSION
         assert 'economics' in data
         assert 'features' in data
         assert 'height' in data

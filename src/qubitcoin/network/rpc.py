@@ -96,7 +96,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     app = FastAPI(
         title="Qubitcoin Node RPC v2.0",
-        version="2.0.0",
+        version=Config.NODE_VERSION,
         description="Quantum-secured L1 blockchain with smart contracts and P2P networking"
     )
 
@@ -211,8 +211,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         
         _ms = mining_engine.get_stats_snapshot()
         return {
-            "node": "Qubitcoin Full Node v2.0",
-            "version": "2.0.0",
+            "node": f"Qubitcoin Full Node v{Config.NODE_VERSION}",
+            "version": Config.NODE_VERSION,
             "network": "mainnet",
             "height": db_manager.get_current_height(),
             "difficulty": _ms.get('current_difficulty', Config.INITIAL_DIFFICULTY),
@@ -390,7 +390,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         _ms = mining_engine.get_stats_snapshot()
         return {
             "node": {
-                "version": "2.0.0",
+                "version": Config.NODE_VERSION,
                 "address": Config.ADDRESS,
                 "uptime": _ms.get('uptime', 0)
             },
@@ -4045,7 +4045,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     def _hex_to_ecpoint(hex_str: str) -> 'ECPoint':
         """Decompress a 33-byte compressed EC point (02/03 prefix) from hex."""
-        from ..privacy.commitments import ECPoint, _P, _modinv
+        from ..privacy.commitments import ECPoint, _P
         raw = bytes.fromhex(hex_str)
         if len(raw) != 33 or raw[0] not in (0x02, 0x03):
             raise HTTPException(status_code=400, detail=f"Invalid compressed EC point: {hex_str[:16]}...")

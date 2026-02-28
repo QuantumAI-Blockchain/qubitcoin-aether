@@ -208,8 +208,8 @@ class AetherEngine:
                 if self.pineal is not None:
                     try:
                         coherence = self.pineal.sephirot.get_coherence()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Could not get Sephirot coherence: %s", e)
                 self.consciousness_dashboard.record_measurement(
                     block_height=block_height,
                     phi_value=phi_value,
@@ -303,8 +303,8 @@ class AetherEngine:
             if self.phi:
                 try:
                     block_phi_result = self.phi.compute_phi(block.height)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Could not compute Phi for block %d: %s", block.height, e)
 
             # Add block as an observation node
             block_content = {
@@ -1620,8 +1620,8 @@ class AetherEngine:
                 phi_data = self.phi.compute_phi(block_height)
                 result['phi'] = phi_data.get('phi_value', 0.0)
                 result['gates_passed'] = phi_data.get('gates_passed', 0)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not compute Phi for consciousness snapshot: %s", e)
 
         # Active goals from Keter node
         sephirot = self.sephirot
@@ -1702,13 +1702,13 @@ class AetherEngine:
             if block.height % Config.AETHER_DEBATE_INTERVAL == 0 and self.phi:
                 try:
                     self.phi.downsample_phi_measurements()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Could not downsample Phi measurements: %s", e)
             if block.height % Config.AETHER_DEBATE_INTERVAL == 0 and self.reasoning:
                 try:
                     self.reasoning.archive_old_reasoning(block.height, Config.REASONING_ARCHIVE_RETAIN_BLOCKS)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Could not archive old reasoning: %s", e)
 
         elif phase == CircadianPhase.REM_DREAMING:
             # During REM: find analogies across random domain pairs
@@ -1786,8 +1786,8 @@ class AetherEngine:
                         )
                         if node:
                             created += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Could not create knowledge node from cross-domain transfer: %s", e)
 
             # Query LLM about weak domains
             for domain, info in weak_domains[:2]:
@@ -1799,8 +1799,8 @@ class AetherEngine:
                     response = self.llm_manager.generate(prompt, distill=True)
                     if response and response.content:
                         created += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("LLM generation failed for weak domain: %s", e)
 
             if created > 0:
                 logger.info(
@@ -2090,8 +2090,8 @@ class AetherEngine:
                             'status': 'pending',
                         })
                         generated += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not generate curiosity goals: %s", e)
 
         # Sort by priority descending
         self._curiosity_goals.sort(

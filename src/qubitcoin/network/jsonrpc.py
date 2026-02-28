@@ -247,7 +247,7 @@ class JsonRpcHandler:
         return str(Config.CHAIN_ID)
 
     async def web3_clientVersion(self, params):
-        return "Qubitcoin/v2.0.0-QVM/python"
+        return f"Qubitcoin/v{Config.NODE_VERSION}-QVM/python"
 
     async def eth_blockNumber(self, params):
         height = self.db.get_current_height()

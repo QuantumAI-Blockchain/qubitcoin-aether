@@ -238,8 +238,8 @@ class SephirotManager:
             try:
                 from ..utils.metrics import sephirot_susy_corrections_total
                 sephirot_susy_corrections_total.inc()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not increment SUSY correction metric: %s", e)
 
             logger.info(
                 f"SUSY correction: {v.expansion_node.value}/{v.constraint_node.value} "

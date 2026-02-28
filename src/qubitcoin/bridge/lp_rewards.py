@@ -23,8 +23,6 @@ from ..utils.logger import get_logger
 from .liquidity_pool import (
     BridgeLiquidityPool,
     LPPosition,
-    RewardDistribution,
-    SECONDS_PER_YEAR,
 )
 
 logger = get_logger(__name__)

@@ -6,9 +6,7 @@ Routes deposits and withdrawals across multiple chains
 import asyncio
 from decimal import Decimal
 from typing import Dict, Optional, List
-from enum import Enum
-
-from .base import BaseBridge, ChainType, BridgeStatus
+from .base import BaseBridge, ChainType
 from .ethereum import EVMBridge
 from .solana import SolanaBridge
 from .validator_rewards import ValidatorRewardTracker
