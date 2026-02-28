@@ -709,9 +709,9 @@ class DatabasePersistence(OrderPersistence):
                 """),
                 {
                     'oid': order.id, 'pair': pair, 'side': order.side.value,
-                    'otype': order.type.value, 'price': str(order.price),
+                    'otype': order.order_type.value, 'price': str(order.price),
                     'size': str(order.size), 'filled': str(order.filled),
-                    'status': order.status.value, 'owner': order.owner,
+                    'status': order.status.value, 'owner': order.address,
                     'ts': order.timestamp,
                 },
             )

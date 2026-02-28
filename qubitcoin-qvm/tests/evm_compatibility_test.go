@@ -45,32 +45,29 @@ func runBytecode(t *testing.T, code []byte, gas uint64, stateDB *state.StateDB) 
 		stateDB = testStateDB()
 	}
 
-	interp := evm.NewInterpreter(stateDB)
-	ctx := &evm.ExecutionContext{
-		Block: evm.BlockContext{
-			GasLimit:    30_000_000,
-			BlockNumber: 100,
-			Timestamp:   1700000000,
-			BaseFee:     big.NewInt(1_000_000_000),
-			ChainID:     big.NewInt(3301),
-			Coinbase:    [20]byte{0x01},
-		},
-		Tx: evm.TxContext{
-			Origin:   [20]byte{0xAA},
-			GasPrice: big.NewInt(1_000_000_000),
-		},
-		Call: evm.CallContext{
-			Caller:  [20]byte{0xAA},
-			Address: [20]byte{0xBB},
-			Value:   big.NewInt(0),
-			Input:   nil,
-			Code:    code,
-			Gas:     gas,
-		},
+	interp := evm.NewInterpreter(stateDB, nil)
+	block := &evm.BlockContext{
+		GasLimit:    30_000_000,
+		BlockNumber: 100,
+		Timestamp:   1700000000,
+		BaseFee:     big.NewInt(1_000_000_000),
+		ChainID:     big.NewInt(3301),
+		Coinbase:    [20]byte{0x01},
 	}
-	ctx.AnalyzeJumpdests()
+	tx := &evm.TxContext{
+		Origin:   [20]byte{0xAA},
+		GasPrice: big.NewInt(1_000_000_000),
+	}
+	call := &evm.CallContext{
+		Caller:  [20]byte{0xAA},
+		Address: [20]byte{0xBB},
+		Value:   big.NewInt(0),
+		Input:   nil,
+		Code:    code,
+		Gas:     gas,
+	}
 
-	return interp.Execute(ctx)
+	return interp.Execute(block, tx, call)
 }
 
 // ─── 1. Arithmetic Opcodes ───────────────────────────────────────────

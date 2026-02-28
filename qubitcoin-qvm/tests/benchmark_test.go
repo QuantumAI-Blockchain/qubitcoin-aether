@@ -19,16 +19,14 @@ func BenchmarkEVM_SimpleTransfer(b *testing.B) {
 	// PUSH1 0, PUSH1 0, RETURN (simplest possible execution)
 	code := []byte{0x60, 0, 0x60, 0, 0xF3}
 	sdb := state.NewStateDB()
-	interp := evm.NewInterpreter(sdb)
-
-	ctx := makeTestContext(code, 100_000)
-	ctx.AnalyzeJumpdests()
+	interp := evm.NewInterpreter(sdb, nil)
+	block, tx, call := makeTestContextArgs(code, 100_000)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ctx.Call.Gas = 100_000
-		interp.Execute(ctx)
+		call.Gas = 100_000
+		interp.Execute(block, tx, call)
 	}
 }
 
@@ -44,15 +42,14 @@ func BenchmarkEVM_ArithmeticLoop(b *testing.B) {
 	code = append(code, 0x60, 0, 0x52, 0x60, 32, 0x60, 0, 0xF3) // MSTORE + RETURN
 
 	sdb := state.NewStateDB()
-	interp := evm.NewInterpreter(sdb)
-	ctx := makeTestContext(code, 1_000_000)
-	ctx.AnalyzeJumpdests()
+	interp := evm.NewInterpreter(sdb, nil)
+	block, tx, call := makeTestContextArgs(code, 1_000_000)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ctx.Call.Gas = 1_000_000
-		interp.Execute(ctx)
+		call.Gas = 1_000_000
+		interp.Execute(block, tx, call)
 	}
 }
 
@@ -75,15 +72,14 @@ func BenchmarkEVM_Keccak256(b *testing.B) {
 	)
 
 	sdb := state.NewStateDB()
-	interp := evm.NewInterpreter(sdb)
-	ctx := makeTestContext(code, 1_000_000)
-	ctx.AnalyzeJumpdests()
+	interp := evm.NewInterpreter(sdb, nil)
+	block, tx, call := makeTestContextArgs(code, 1_000_000)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ctx.Call.Gas = 1_000_000
-		interp.Execute(ctx)
+		call.Gas = 1_000_000
+		interp.Execute(block, tx, call)
 	}
 }
 
@@ -100,15 +96,14 @@ func BenchmarkEVM_MemoryExpansion(b *testing.B) {
 	code = append(code, 0x00) // STOP
 
 	sdb := state.NewStateDB()
-	interp := evm.NewInterpreter(sdb)
-	ctx := makeTestContext(code, 10_000_000)
-	ctx.AnalyzeJumpdests()
+	interp := evm.NewInterpreter(sdb, nil)
+	block, tx, call := makeTestContextArgs(code, 10_000_000)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ctx.Call.Gas = 10_000_000
-		interp.Execute(ctx)
+		call.Gas = 10_000_000
+		interp.Execute(block, tx, call)
 	}
 }
 
@@ -126,16 +121,14 @@ func BenchmarkEVM_StorageWrite(b *testing.B) {
 	sdb := state.NewStateDB()
 	addr := [20]byte{0xBB}
 	sdb.CreateAccount(addr)
-	interp := evm.NewInterpreter(sdb)
-
-	ctx := makeTestContext(code, 10_000_000)
-	ctx.AnalyzeJumpdests()
+	interp := evm.NewInterpreter(sdb, nil)
+	block, tx, call := makeTestContextArgs(code, 10_000_000)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ctx.Call.Gas = 10_000_000
-		interp.Execute(ctx)
+		call.Gas = 10_000_000
+		interp.Execute(block, tx, call)
 	}
 }
 
@@ -150,15 +143,14 @@ func BenchmarkEVM_PUSH_POP(b *testing.B) {
 	code = append(code, 0x00) // STOP
 
 	sdb := state.NewStateDB()
-	interp := evm.NewInterpreter(sdb)
-	ctx := makeTestContext(code, 1_000_000)
-	ctx.AnalyzeJumpdests()
+	interp := evm.NewInterpreter(sdb, nil)
+	block, tx, call := makeTestContextArgs(code, 1_000_000)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		ctx.Call.Gas = 1_000_000
-		interp.Execute(ctx)
+		call.Gas = 1_000_000
+		interp.Execute(block, tx, call)
 	}
 }
 
@@ -219,78 +211,87 @@ func BenchmarkPrecompile_ModExp_Small(b *testing.B) {
 
 func BenchmarkQuantum_CreateState_4Qubit(b *testing.B) {
 	sm := quantum.NewStateManager()
+	owner := [20]byte{0xAA}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		sm.CreateState("bench_state", 4)
+		sm.CreateState(4, owner)
 	}
 }
 
 func BenchmarkQuantum_CreateState_8Qubit(b *testing.B) {
 	sm := quantum.NewStateManager()
+	owner := [20]byte{0xAA}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		sm.CreateState("bench_state_8", 8)
+		sm.CreateState(8, owner)
 	}
 }
 
 func BenchmarkQuantum_ApplyGate_Hadamard(b *testing.B) {
 	sm := quantum.NewStateManager()
-	sm.CreateState("hadamard_bench", 4)
+	owner := [20]byte{0xAA}
+	id, _ := sm.CreateState(4, owner)
+	qs, _ := sm.GetState(id)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		quantum.ApplyGate(sm, "hadamard_bench", quantum.GateH, 0, 0)
+		quantum.ApplyGate(qs, quantum.GateH, 0, 0)
 	}
 }
 
 func BenchmarkQuantum_ApplyGate_CNOT(b *testing.B) {
 	sm := quantum.NewStateManager()
-	sm.CreateState("cnot_bench", 4)
+	owner := [20]byte{0xAA}
+	id, _ := sm.CreateState(4, owner)
+	qs, _ := sm.GetState(id)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		quantum.ApplyCNOT(sm, "cnot_bench", 0, 1)
+		quantum.ApplyCNOT(qs, 0, 1)
 	}
 }
 
 func BenchmarkQuantum_Measure_4Qubit(b *testing.B) {
 	sm := quantum.NewStateManager()
+	owner := [20]byte{0xAA}
 	blockSeed := [32]byte{0x01, 0x02, 0x03}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		sm.CreateState("measure_bench", 4)
-		sm.MeasureState("measure_bench", blockSeed)
+		id, _ := sm.CreateState(4, owner)
+		sm.MeasureState(id, blockSeed)
 	}
 }
 
 func BenchmarkQuantum_Entangle(b *testing.B) {
 	sm := quantum.NewStateManager()
+	owner := [20]byte{0xAA}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		sm.CreateState("ent_a", 2)
-		sm.CreateState("ent_b", 2)
-		sm.CreateEntanglement("ent_a", "ent_b", uint64(i))
+		idA, _ := sm.CreateState(2, owner)
+		idB, _ := sm.CreateState(2, owner)
+		sm.Entangle(idA, idB)
 	}
 }
 
 func BenchmarkQuantum_VerifyState(b *testing.B) {
 	sm := quantum.NewStateManager()
-	sm.CreateState("verify_bench", 4)
+	owner := [20]byte{0xAA}
+	id, _ := sm.CreateState(4, owner)
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		sm.VerifyState("verify_bench")
+		sm.VerifyState(id)
 	}
 }
 
@@ -415,22 +416,27 @@ func BenchmarkCrypto_AddressFromPubkey(b *testing.B) {
 
 func BenchmarkCompliance_KYC_CheckTransaction(b *testing.B) {
 	reg := compliance.NewKYCRegistry()
-	reg.Register("0xAABB", compliance.TierProfessional, 365*24*3600)
+	addr := [20]byte{0xAA, 0xBB}
+	reg.Register(&compliance.KYCStatus{
+		Address: addr,
+		Tier:    compliance.TierProfessional,
+	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		reg.CheckTransactionAllowed("0xAABB", 500_000)
+		reg.CheckTransactionAllowed(addr, 500_000, 100)
 	}
 }
 
 func BenchmarkCompliance_AML_RecordTransaction(b *testing.B) {
-	mon := compliance.NewAMLMonitor(compliance.DefaultAMLConfig())
+	mon := compliance.NewAMLMonitor()
+	addr := [20]byte{0xAA, 0xBB}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		mon.RecordTransaction("0xAABB", 1000, uint64(i))
+		mon.RecordTransaction(addr, 1000, uint64(i))
 	}
 }
 
@@ -438,40 +444,35 @@ func BenchmarkCompliance_Sanctions_Check(b *testing.B) {
 	checker := compliance.NewSanctionsChecker()
 	// Add 1000 sanctioned addresses
 	for i := 0; i < 1000; i++ {
-		addr := big.NewInt(int64(i)).Text(16)
-		checker.AddEntry(addr, "OFAC")
+		addr := [20]byte{byte(i >> 8), byte(i)}
+		checker.AddEntry(addr, "OFAC", 0)
 	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		checker.IsSanctioned("0xNOT_SANCTIONED")
+		checker.IsSanctioned([20]byte{0xFF, 0xFF})
 	}
 }
 
 func BenchmarkCompliance_Risk_ComputeRisk(b *testing.B) {
 	scorer := compliance.NewRiskScorer()
+	addr := [20]byte{0xAA, 0xBB}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		scorer.ComputeRisk("0xAABB", 50, 100_000, 1000, compliance.TierProfessional)
+		scorer.ComputeRisk(addr, 50, 100_000, 1000, compliance.TierProfessional, 100)
 	}
 }
 
 func BenchmarkCompliance_Risk_SystemicRisk(b *testing.B) {
 	scorer := compliance.NewRiskScorer()
 
-	scores := make(map[string]uint64, 100)
-	for i := 0; i < 100; i++ {
-		addr := big.NewInt(int64(i)).Text(16)
-		scores[addr] = uint64(i * 100)
-	}
-
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		scorer.ComputeSystemicRisk(scores)
+		scorer.ComputeSystemicRisk()
 	}
 }
 
@@ -518,13 +519,12 @@ func BenchmarkStack_Swap(b *testing.B) {
 
 func BenchmarkMemory_Set32(b *testing.B) {
 	mem := evm.NewMemory()
-	data := make([]byte, 32)
-	rand.Read(data)
+	val := new(big.Int).SetBytes([]byte{0xFF, 0xAA, 0xBB, 0xCC})
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		mem.Set32(0, data)
+		mem.Set32(0, val)
 	}
 }
 
@@ -539,27 +539,25 @@ func BenchmarkMemory_Resize(b *testing.B) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-func makeTestContext(code []byte, gas uint64) *evm.ExecutionContext {
-	ctx := &evm.ExecutionContext{
-		Block: evm.BlockContext{
-			GasLimit:    30_000_000,
-			BlockNumber: 100,
-			Timestamp:   1700000000,
-			BaseFee:     big.NewInt(1_000_000_000),
-			ChainID:     big.NewInt(3301),
-			Coinbase:    [20]byte{0x01},
-		},
-		Tx: evm.TxContext{
-			Origin:   [20]byte{0xAA},
-			GasPrice: big.NewInt(1_000_000_000),
-		},
-		Call: evm.CallContext{
-			Caller:  [20]byte{0xAA},
-			Address: [20]byte{0xBB},
-			Value:   big.NewInt(0),
-			Code:    code,
-			Gas:     gas,
-		},
+func makeTestContextArgs(code []byte, gas uint64) (*evm.BlockContext, *evm.TxContext, *evm.CallContext) {
+	block := &evm.BlockContext{
+		GasLimit:    30_000_000,
+		BlockNumber: 100,
+		Timestamp:   1700000000,
+		BaseFee:     big.NewInt(1_000_000_000),
+		ChainID:     big.NewInt(3301),
+		Coinbase:    [20]byte{0x01},
 	}
-	return ctx
+	tx := &evm.TxContext{
+		Origin:   [20]byte{0xAA},
+		GasPrice: big.NewInt(1_000_000_000),
+	}
+	call := &evm.CallContext{
+		Caller:  [20]byte{0xAA},
+		Address: [20]byte{0xBB},
+		Value:   big.NewInt(0),
+		Code:    code,
+		Gas:     gas,
+	}
+	return block, tx, call
 }

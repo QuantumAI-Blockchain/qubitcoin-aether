@@ -12,6 +12,7 @@ but hides amounts and addresses from observers while remaining verifiable
 by consensus.
 """
 import hashlib
+import hmac
 import time
 from decimal import Decimal
 from typing import List, Optional, Tuple
@@ -226,15 +227,19 @@ class SusySwapBuilder:
         # Serialize outputs
         serialized_outputs = [out.to_dict() for out in self._outputs]
 
-        # Signature: HMAC-SHA3-256 binding over txid + excess + all key images
-        # This binds the transaction to the excess commitment and key images,
-        # preventing modification without knowing the blinding factors.
-        # Full Schnorr/Dilithium signatures require the sender's private key
-        # to be passed in; this binding provides computational integrity.
+        # Signature: HMAC-SHA3-256 keyed with aggregate spending key.
+        # The aggregate key is the sum of all input spending keys mod N,
+        # binding the signature to private key knowledge (not just public data).
+        # This prevents transaction malleability without the spending keys.
+        aggregate_key = 0
+        for inp in self._inputs:
+            aggregate_key = (aggregate_key + inp.spending_key) % _N
+        hmac_key = aggregate_key.to_bytes(32, 'big')
+
         sig_preimage = txid.encode() + excess_commitment.to_hex().encode()
         for ki in key_images:
             sig_preimage += ki.encode() if isinstance(ki, str) else str(ki).encode()
-        signature = hashlib.sha3_256(sig_preimage).hexdigest()
+        signature = hmac.new(hmac_key, sig_preimage, hashlib.sha3_256).hexdigest()
 
         tx = ConfidentialTransaction(
             txid=txid,
