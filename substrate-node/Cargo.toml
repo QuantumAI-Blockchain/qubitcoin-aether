@@ -10,6 +10,8 @@ members = [
     "pallets/qbc-economics",
     "pallets/qbc-qvm-anchor",
     "pallets/qbc-aether-anchor",
+    "pallets/qbc-reversibility",
+    "crypto/kyber-transport",
 ]
 
 [workspace.package]
@@ -104,6 +106,10 @@ pallet-qbc-dilithium = { path = "pallets/qbc-dilithium", default-features = fals
 pallet-qbc-economics = { path = "pallets/qbc-economics", default-features = false }
 pallet-qbc-qvm-anchor = { path = "pallets/qbc-qvm-anchor", default-features = false }
 pallet-qbc-aether-anchor = { path = "pallets/qbc-aether-anchor", default-features = false }
+pallet-qbc-reversibility = { path = "pallets/qbc-reversibility", default-features = false }
+
+# Kyber transport
+qbc-kyber-transport = { path = "crypto/kyber-transport" }
 
 # Qubitcoin runtime
 qbc-runtime = { path = "runtime" }

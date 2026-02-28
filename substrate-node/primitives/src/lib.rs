@@ -1,8 +1,11 @@
 //! Qubitcoin Primitives — shared types used across all pallets and runtime.
 //!
-//! Contains: Address, TxId, UTXO types, DilithiumSignature, amount constants.
+//! Contains: Address, TxId, UTXO types, DilithiumSignature, amount constants,
+//! Poseidon2 ZK-friendly hash function.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+
+pub mod poseidon2;
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;

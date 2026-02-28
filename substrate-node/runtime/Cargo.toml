@@ -56,6 +56,7 @@ pallet-qbc-dilithium = { workspace = true }
 pallet-qbc-economics = { workspace = true }
 pallet-qbc-qvm-anchor = { workspace = true }
 pallet-qbc-aether-anchor = { workspace = true }
+pallet-qbc-reversibility = { workspace = true }
 
 [features]
 default = ["std"]
@@ -97,6 +98,7 @@ std = [
     "pallet-qbc-economics/std",
     "pallet-qbc-qvm-anchor/std",
     "pallet-qbc-aether-anchor/std",
+    "pallet-qbc-reversibility/std",
 ]
 runtime-benchmarks = [
     "frame-benchmarking/runtime-benchmarks",
@@ -106,6 +108,7 @@ runtime-benchmarks = [
     "pallet-qbc-consensus/runtime-benchmarks",
     "pallet-qbc-dilithium/runtime-benchmarks",
     "pallet-qbc-economics/runtime-benchmarks",
+    "pallet-qbc-reversibility/runtime-benchmarks",
 ]
 try-runtime = [
     "frame-support/try-runtime",

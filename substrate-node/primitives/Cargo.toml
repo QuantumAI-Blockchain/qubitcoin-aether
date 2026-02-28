@@ -13,6 +13,9 @@ sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 serde = { workspace = true, optional = true }
 
+[dev-dependencies]
+qbc-kyber-transport = { path = "../crypto/kyber-transport" }
+
 [features]
 default = ["std"]
 std = [

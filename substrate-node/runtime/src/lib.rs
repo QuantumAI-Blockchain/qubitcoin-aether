@@ -237,6 +237,17 @@ impl pallet_qbc_aether_anchor::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
 }
 
+parameter_types! {
+    pub const MaxGovernors: u32 = 10;
+    pub const MaxReasonLength: u32 = 512;
+}
+
+impl pallet_qbc_reversibility::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type MaxGovernors = MaxGovernors;
+    type MaxReasonLength = MaxReasonLength;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Construct runtime
 // ═══════════════════════════════════════════════════════════════════════
@@ -259,6 +270,7 @@ construct_runtime!(
         QbcConsensus: pallet_qbc_consensus,
         QbcQvmAnchor: pallet_qbc_qvm_anchor,
         QbcAetherAnchor: pallet_qbc_aether_anchor,
+        QbcReversibility: pallet_qbc_reversibility,
     }
 );
 
