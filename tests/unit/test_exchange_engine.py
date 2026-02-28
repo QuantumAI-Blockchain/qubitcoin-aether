@@ -3,6 +3,7 @@ Unit tests for the DEX exchange engine (CLOB order matching).
 """
 
 import pytest
+from decimal import Decimal
 from qubitcoin.exchange.engine import ExchangeEngine, OrderBook, Side, OrderType, OrderStatus
 
 
@@ -22,8 +23,8 @@ class TestOrderBook:
         book = OrderBook("QBC_QUSD")
         order, fills = book.place_limit_order("buy", 0.28, 100, "addr1")
         assert order.side == Side.BUY
-        assert order.price == 0.28
-        assert order.size == 100
+        assert order.price == Decimal("0.28")
+        assert order.size == Decimal("100")
         assert order.status == OrderStatus.OPEN
         assert len(fills) == 0
         assert len(book.bids) == 1
@@ -57,10 +58,10 @@ class TestOrderBook:
         order, fills = book.place_limit_order("buy", 0.30, 100, "buyer")
 
         assert order.status == OrderStatus.FILLED
-        assert order.filled == 100
+        assert order.filled == Decimal("100")
         assert len(fills) == 1
-        assert fills[0].price == 0.30
-        assert fills[0].size == 100
+        assert fills[0].price == Decimal("0.30")
+        assert fills[0].size == Decimal("100")
         assert fills[0].side == Side.BUY  # taker side
         assert fills[0].maker_address == "seller"
         assert fills[0].taker_address == "buyer"
@@ -122,7 +123,7 @@ class TestOrderBook:
         order, fills = book.place_limit_order("buy", 0.35, 50, "buyer")
         assert len(fills) == 1
         assert fills[0].maker_address == "cheap"
-        assert fills[0].price == 0.30
+        assert fills[0].price == Decimal("0.30")
 
     def test_multi_level_fill(self):
         """Taker consumes multiple price levels."""
@@ -132,12 +133,12 @@ class TestOrderBook:
         book.place_limit_order("sell", 0.32, 30, "s3")
 
         order, fills = book.place_limit_order("buy", 0.32, 80, "buyer")
-        assert order.filled == 80
+        assert order.filled == Decimal("80")
         assert len(fills) == 3
-        assert fills[0].price == 0.30
-        assert fills[1].price == 0.31
-        assert fills[2].price == 0.32
-        assert fills[2].size == 20  # partial fill on s3
+        assert fills[0].price == Decimal("0.30")
+        assert fills[1].price == Decimal("0.31")
+        assert fills[2].price == Decimal("0.32")
+        assert fills[2].size == Decimal("20")  # partial fill on s3
 
     # ── Market orders ────────────────────────────────────────────────────
 
@@ -149,7 +150,7 @@ class TestOrderBook:
         assert order.status == OrderStatus.FILLED
         assert order.filled == 50
         assert len(fills) == 1
-        assert fills[0].price == 0.30
+        assert fills[0].price == Decimal("0.30")
 
     def test_market_order_no_liquidity(self):
         book = OrderBook("QBC_QUSD")
@@ -199,16 +200,16 @@ class TestOrderBook:
         assert len(snapshot["bids"]) == 2
         assert len(snapshot["asks"]) == 2
         # Bids: highest price first
-        assert snapshot["bids"][0]["price"] == 0.28
-        assert snapshot["bids"][1]["price"] == 0.27
+        assert snapshot["bids"][0]["price"] == "0.28"
+        assert snapshot["bids"][1]["price"] == "0.27"
         # Asks: lowest price first
-        assert snapshot["asks"][0]["price"] == 0.30
-        assert snapshot["asks"][1]["price"] == 0.31
-        # Cumulative totals
-        assert snapshot["bids"][0]["total"] == 100
-        assert snapshot["bids"][1]["total"] == 300
-        assert snapshot["spread"] > 0
-        assert snapshot["midPrice"] > 0
+        assert Decimal(snapshot["asks"][0]["price"]) == Decimal("0.30")
+        assert snapshot["asks"][1]["price"] == "0.31"
+        # Cumulative totals (quantized strings)
+        assert Decimal(snapshot["bids"][0]["total"]) == Decimal("100")
+        assert Decimal(snapshot["bids"][1]["total"]) == Decimal("300")
+        assert Decimal(snapshot["spread"]) > 0
+        assert Decimal(snapshot["midPrice"]) > 0
 
     def test_get_recent_trades(self):
         book = OrderBook("QBC_QUSD")
@@ -217,8 +218,8 @@ class TestOrderBook:
 
         trades = book.get_recent_trades(limit=10)
         assert len(trades) == 1
-        assert trades[0]["price"] == 0.30
-        assert trades[0]["size"] == 50
+        assert trades[0]["price"] == "0.3"
+        assert trades[0]["size"] == "50"
 
     def test_get_open_orders_by_address(self):
         book = OrderBook("QBC_QUSD")
@@ -316,15 +317,15 @@ class TestExchangeEngine:
         result = engine.deposit("alice", "QBC", 1000.0)
         assert result["address"] == "alice"
         balances = {b["asset"]: b for b in result["balances"]}
-        assert balances["QBC"]["total"] == 1000.0
-        assert balances["QBC"]["available"] == 1000.0
+        assert Decimal(balances["QBC"]["total"]) == Decimal("1000")
+        assert Decimal(balances["QBC"]["available"]) == Decimal("1000")
 
     def test_withdraw(self):
         engine = ExchangeEngine()
         engine.deposit("alice", "QBC", 1000.0)
         result = engine.withdraw("alice", "QBC", 300.0)
         balances = {b["asset"]: b for b in result["balances"]}
-        assert balances["QBC"]["total"] == 700.0
+        assert Decimal(balances["QBC"]["total"]) == Decimal("700")
 
     def test_withdraw_insufficient(self):
         engine = ExchangeEngine()

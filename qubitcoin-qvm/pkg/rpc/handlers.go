@@ -123,7 +123,7 @@ func (h *Handlers) QVMInfo(w http.ResponseWriter, r *http.Request) {
 		"implementation":     "go",
 		"evm_opcodes":        155,
 		"quantum_opcodes":    10,
-		"quantum_opcode_range": "0xF0-0xF9",
+		"quantum_opcode_range": "0xC0-0xDE",
 		"max_stack_depth":    1024,
 		"block_gas_limit":    30_000_000,
 		"max_code_size":      24576,

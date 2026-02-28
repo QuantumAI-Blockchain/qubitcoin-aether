@@ -2,7 +2,7 @@
 //
 // The QVM (Quantum Virtual Machine) is the production-grade EVM-compatible
 // bytecode interpreter for the Qubitcoin blockchain. It extends standard
-// EVM execution with quantum opcodes (0xF0-0xF9), AGI opcodes (0xFA-0xFB),
+// EVM execution with quantum opcodes (0xC0-0xDE), AGI opcodes (0xC2-0xC3),
 // compliance enforcement, and institutional-grade features.
 //
 // Usage:

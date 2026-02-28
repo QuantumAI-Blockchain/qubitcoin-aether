@@ -12,7 +12,7 @@ type MemoryAccessor interface {
 	Resize(size uint64) uint64
 }
 
-// Handler executes quantum opcodes (0xF0-0xF9) and AGI opcodes (0xFA-0xFB)
+// Handler executes quantum opcodes (0xC0-0xDE) and AGI opcodes (0xC2-0xC3)
 // within the QVM. It bridges the EVM execution context with the quantum
 // state manager and the Aether Tree AGI engine.
 type Handler struct {

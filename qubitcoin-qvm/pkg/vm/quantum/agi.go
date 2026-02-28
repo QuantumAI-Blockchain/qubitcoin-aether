@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// AGIHandler implements the AGI opcodes (QREASON 0xFA, QPHI 0xFB) that
+// AGIHandler implements the AGI opcodes (QREASON 0xC2, QPHI 0xC3) that
 // bridge the QVM with the Aether Tree AGI engine.
 //
 // In production, QREASON delegates reasoning to the Python Aether engine
@@ -66,7 +66,7 @@ func (a *AGIHandler) GetPhi() uint64 {
 	return a.PhiScaled
 }
 
-// OpQReason implements the QREASON opcode (0xFA).
+// OpQReason implements the QREASON opcode (0xC2).
 //
 // On-chain reasoning query: reads a query from EVM memory, produces a
 // deterministic reasoning result hash, and pushes it onto the stack.
@@ -123,7 +123,7 @@ func (a *AGIHandler) OpQReason(stack StackAccessor, gas GasConsumer, memory Memo
 	return stack.Push(new(big.Int).SetBytes(resultHash[:]))
 }
 
-// OpQPhi implements the QPHI opcode (0xFB).
+// OpQPhi implements the QPHI opcode (0xC3).
 //
 // Consciousness metric query: pushes the current Phi value (scaled by 1000)
 // onto the stack. No stack inputs required.

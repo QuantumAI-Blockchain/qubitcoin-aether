@@ -240,7 +240,7 @@ class Opcode(IntEnum):
     SELFDESTRUCT = 0xff
 
 
-# Base gas costs per opcode
+# Base gas costs per opcode (EIP-2929 Berlin fork compliant)
 GAS_COSTS = {
     Opcode.STOP: 0,
     Opcode.ADD: 3, Opcode.MUL: 5, Opcode.SUB: 3, Opcode.DIV: 5,
@@ -252,18 +252,18 @@ GAS_COSTS = {
     Opcode.AND: 3, Opcode.OR: 3, Opcode.XOR: 3, Opcode.NOT: 3,
     Opcode.BYTE: 3, Opcode.SHL: 3, Opcode.SHR: 3, Opcode.SAR: 3,
     Opcode.KECCAK256: 30,
-    Opcode.ADDRESS: 2, Opcode.BALANCE: 700, Opcode.ORIGIN: 2,
+    Opcode.ADDRESS: 2, Opcode.BALANCE: 2600, Opcode.ORIGIN: 2,
     Opcode.CALLER: 2, Opcode.CALLVALUE: 2,
     Opcode.CALLDATALOAD: 3, Opcode.CALLDATASIZE: 2, Opcode.CALLDATACOPY: 3,
     Opcode.CODESIZE: 2, Opcode.CODECOPY: 3,
-    Opcode.GASPRICE: 2, Opcode.EXTCODESIZE: 700,
-    Opcode.EXTCODECOPY: 700, Opcode.RETURNDATASIZE: 2, Opcode.RETURNDATACOPY: 3,
-    Opcode.EXTCODEHASH: 700,
+    Opcode.GASPRICE: 2, Opcode.EXTCODESIZE: 2600,
+    Opcode.EXTCODECOPY: 2600, Opcode.RETURNDATASIZE: 2, Opcode.RETURNDATACOPY: 3,
+    Opcode.EXTCODEHASH: 2600,
     Opcode.BLOCKHASH: 20, Opcode.COINBASE: 2, Opcode.TIMESTAMP: 2,
     Opcode.NUMBER: 2, Opcode.PREVRANDAO: 2, Opcode.GASLIMIT: 2,
     Opcode.CHAINID: 2, Opcode.SELFBALANCE: 5, Opcode.BASEFEE: 2,
     Opcode.POP: 2, Opcode.MLOAD: 3, Opcode.MSTORE: 3, Opcode.MSTORE8: 3,
-    Opcode.SLOAD: 800, Opcode.SSTORE: 20000,
+    Opcode.SLOAD: 2100, Opcode.SSTORE: 20000,
     Opcode.JUMP: 8, Opcode.JUMPI: 10, Opcode.PC: 2, Opcode.MSIZE: 2,
     Opcode.GAS: 2, Opcode.JUMPDEST: 1,
     Opcode.PUSH0: 2,
@@ -278,7 +278,7 @@ GAS_COSTS = {
     Opcode.QCREATE: 5000, Opcode.QVERIFY: 8000,
     Opcode.QCOMPLIANCE: 15000, Opcode.QRISK: 5000, Opcode.QRISK_SYSTEMIC: 10000,
     Opcode.QBRIDGE_ENTANGLE: 20000, Opcode.QBRIDGE_VERIFY: 15000,
-    Opcode.QREASON: 25000, Opcode.QPHI: 5000,
+    Opcode.QREASON: 50000, Opcode.QPHI: 5000,
     # System
     Opcode.CREATE: 32000, Opcode.CALL: 700, Opcode.CALLCODE: 700,
     Opcode.RETURN: 0, Opcode.DELEGATECALL: 700, Opcode.CREATE2: 32000,

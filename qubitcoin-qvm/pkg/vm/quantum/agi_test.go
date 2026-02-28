@@ -140,7 +140,7 @@ func TestAGIHandler_SetGetPhi(t *testing.T) {
 	}
 }
 
-// ─── QPHI (0xFB) Tests ─────────────────────────────────────────────────
+// ─── QPHI (0xC3) Tests ─────────────────────────────────────────────────
 
 func TestOpQPhi_DefaultZero(t *testing.T) {
 	h := NewAGIHandler()
@@ -222,7 +222,7 @@ func TestOpQPhi_MultipleReads(t *testing.T) {
 	}
 }
 
-// ─── QREASON (0xFA) Tests ──────────────────────────────────────────────
+// ─── QREASON (0xC2) Tests ──────────────────────────────────────────────
 
 func TestOpQReason_BasicQuery(t *testing.T) {
 	h := NewAGIHandler()
@@ -543,11 +543,11 @@ func TestHandler_ExecuteQReason_OutOfGas(t *testing.T) {
 // ─── Opcode Constant Tests ─────────────────────────────────────────────
 
 func TestOpcodeConstants(t *testing.T) {
-	if QREASON != 0xFA {
-		t.Errorf("QREASON = 0x%02x, want 0xFA", byte(QREASON))
+	if QREASON != 0xC2 {
+		t.Errorf("QREASON = 0x%02x, want 0xC2", byte(QREASON))
 	}
-	if QPHI != 0xFB {
-		t.Errorf("QPHI = 0x%02x, want 0xFB", byte(QPHI))
+	if QPHI != 0xC3 {
+		t.Errorf("QPHI = 0x%02x, want 0xC3", byte(QPHI))
 	}
 }
 
