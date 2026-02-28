@@ -47,7 +47,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    bridge_lp=None,
                    neural_reasoner=None,
                    exchange_engine=None,
-                   stratum_pool=None) -> FastAPI:
+                   stratum_pool=None,
+                   higgs_field=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -4720,6 +4721,69 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if veto:
             result["veto"] = veto.to_dict() if hasattr(veto, 'to_dict') else str(veto)
         return result
+
+    # ========================================================================
+    # HIGGS COGNITIVE FIELD ENDPOINTS
+    # ========================================================================
+
+    @app.get("/higgs/status")
+    async def higgs_status():
+        """Get current Higgs field status (field value, VEV, masses, excitations)."""
+        if not higgs_field:
+            return {"error": "Higgs field not initialized"}
+        return higgs_field.get_status()
+
+    @app.get("/higgs/masses")
+    async def higgs_masses():
+        """Get cognitive masses for all 10 Sephirot nodes."""
+        if not higgs_field:
+            return {"error": "Higgs field not initialized"}
+        return higgs_field.get_all_masses()
+
+    @app.get("/higgs/mass/{node_name}")
+    async def higgs_node_mass(node_name: str):
+        """Get cognitive mass for a specific Sephirot node by name."""
+        if not higgs_field:
+            return {"error": "Higgs field not initialized"}
+        try:
+            from ..aether.sephirot import SephirahRole
+            role = SephirahRole(node_name.lower())
+            return {
+                "node": node_name,
+                "cognitive_mass": higgs_field.get_cognitive_mass(role),
+                "yukawa_coupling": higgs_field._yukawa_couplings.get(role, 0.0),
+            }
+        except ValueError:
+            return {"error": f"Unknown node: {node_name}"}
+
+    @app.get("/higgs/excitations")
+    async def higgs_excitations():
+        """Get excitation event history (Higgs boson analogs)."""
+        if not higgs_field:
+            return {"error": "Higgs field not initialized"}
+        return {
+            "total": higgs_field._total_excitations,
+            "recent": [
+                {
+                    "block": e.block_height,
+                    "deviation_bps": e.deviation_bps,
+                    "energy": round(e.energy_released, 4),
+                }
+                for e in higgs_field._excitations[-50:]
+            ],
+        }
+
+    @app.get("/higgs/potential")
+    async def higgs_potential():
+        """Get current Higgs potential energy V(phi) and field gradient."""
+        if not higgs_field:
+            return {"error": "Higgs field not initialized"}
+        return {
+            "potential_energy": higgs_field.potential_energy(),
+            "field_value": higgs_field._field_value,
+            "vev": higgs_field.params.vev,
+            "gradient": higgs_field.higgs_gradient(higgs_field._field_value),
+        }
 
     # ========================================================================
     # LIGHT NODE / SPV ENDPOINTS

@@ -63,6 +63,10 @@ from .utils.metrics import (
     # Cognitive Architecture
     sephirot_active_nodes, csf_queue_depth,
     pineal_current_phase, pineal_metabolic_rate, pineal_is_conscious,
+    # Higgs Cognitive Field
+    higgs_field_value, higgs_vev, higgs_deviation_pct,
+    higgs_mass_gap, higgs_excitations_total,
+    higgs_avg_cognitive_mass, higgs_potential_energy,
     # Fee Collector
     fees_collected_total, fees_collected_qbc_total,
     # QUSD Oracle
@@ -477,6 +481,23 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"GATReasoner init: {e}")
 
+        # Component 16c: Higgs Cognitive Field
+        self.higgs_field = None
+        self.higgs_susy = None
+        try:
+            if Config.HIGGS_ENABLE_MASS_REBALANCING and self.sephirot_manager:
+                from .aether.higgs_field import HiggsCognitiveField, HiggsSUSYSwap
+                self.higgs_field = HiggsCognitiveField(self.sephirot_manager)
+                self.higgs_field.initialize()
+                self.higgs_susy = HiggsSUSYSwap(self.higgs_field, self.sephirot_manager)
+                logger.info("[16c/22] Higgs Cognitive Field initialized (mass rebalancing enabled)")
+            else:
+                logger.debug("[16c/22] Higgs Cognitive Field skipped (disabled or no SephirotManager)")
+        except Exception as e:
+            logger.warning(f"[16c/22] Higgs Cognitive Field init failed (non-fatal): {e}")
+            self.higgs_field = None
+            self.higgs_susy = None
+
         # Wire cognitive + LLM components into AetherEngine
         if hasattr(self, 'aether') and self.aether:
             if self.pineal_orchestrator:
@@ -599,6 +620,7 @@ class QubitcoinNode:
                 bridge_lp=self.bridge_lp,
                 neural_reasoner=self.neural_reasoner,
                 exchange_engine=self.exchange_engine,
+                higgs_field=self.higgs_field,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
@@ -1056,6 +1078,24 @@ class QubitcoinNode:
                 except Exception:
                     pass
             subsystem_cognitive_up.set(1 if self.sephirot_manager else 0)
+
+            # Higgs Cognitive Field
+            if self.higgs_field:
+                try:
+                    h_status = self.higgs_field.get_status()
+                    higgs_field_value.set(h_status.get('field_value', 0))
+                    higgs_vev.set(h_status.get('vev', 0))
+                    higgs_deviation_pct.set(h_status.get('deviation_pct', 0))
+                    higgs_mass_gap.set(h_status.get('mass_gap', 0))
+                    higgs_excitations_total.inc(0)  # Counter: just keep alive
+                    masses = self.higgs_field._cognitive_masses
+                    if masses:
+                        higgs_avg_cognitive_mass.set(
+                            sum(masses.values()) / len(masses)
+                        )
+                    higgs_potential_energy.set(h_status.get('potential_energy', 0))
+                except Exception:
+                    pass
 
             # Fee Collector
             if self.fee_collector:

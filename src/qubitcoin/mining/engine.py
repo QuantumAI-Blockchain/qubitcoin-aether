@@ -249,6 +249,22 @@ class MiningEngine:
                 except Exception as e:
                     logger.debug(f"Aether knowledge processing: {e}")
 
+            # Higgs Cognitive Field per-block tick
+            if self.node and getattr(self.node, 'higgs_field', None):
+                try:
+                    self.node.higgs_field.tick(next_height)
+                except Exception as e:
+                    logger.debug(f"Higgs field tick: {e}")
+
+            # Higgs-aware SUSY enforcement (replaces flat rebalancing)
+            if self.node and getattr(self.node, 'higgs_susy', None):
+                try:
+                    corrections = self.node.higgs_susy.enforce_susy_balance_with_mass(next_height)
+                    if corrections > 0:
+                        logger.debug(f"Higgs SUSY corrections: {corrections} at block {next_height}")
+                except Exception as e:
+                    logger.debug(f"Higgs SUSY enforcement: {e}")
+
             # Process matured Sephirot unstaking requests (7-day lock)
             try:
                 withdrawn = self.db.process_unstakes(next_height)
