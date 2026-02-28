@@ -17,6 +17,7 @@ contract SUSYEngine is Initializable {
     address public owner;
     address public kernel;
     address public nodeRegistry;
+    address public higgsField;
 
     struct SUSYPair {
         uint8   expansionNodeId;
@@ -65,10 +66,11 @@ contract SUSYEngine is Initializable {
     }
 
     // ─── Initialization ─────────────────────────────────────────────────
-    function initialize(address _kernel, address _nodeRegistry) external initializer {
+    function initialize(address _kernel, address _nodeRegistry, address _higgsField) external initializer {
         owner        = msg.sender;
         kernel       = _kernel;
         nodeRegistry = _nodeRegistry;
+        higgsField   = _higgsField;
     }
 
     // ─── Pair Setup ──────────────────────────────────────────────────────
@@ -122,25 +124,66 @@ contract SUSYEngine is Initializable {
         }
     }
 
-    /// @notice Auto-redistribute QBC to restore golden ratio balance
+    /// @notice Mass-aware gradient SUSY rebalancing using Higgs cognitive mechanics.
+    ///         Applies Newton's F=ma: lighter nodes (constraint) correct faster,
+    ///         heavier nodes (expansion) resist change more.
+    ///         Falls back to flat correction if Higgs field is not initialized.
     function restoreBalance(uint8 pairIndex) external onlyKernel returns (uint256 redistributed) {
         require(pairIndex < 3, "SUSY: invalid pair");
         SUSYPair storage pair = pairs[pairIndex];
 
-        // Target: expansion / constraint = PHI / PRECISION
-        // Target constraint = expansion * PRECISION / PHI
-        uint256 targetConstraint = (pair.expansionEnergy * PRECISION) / PHI;
-        if (targetConstraint > pair.constraintEnergy) {
-            redistributed = targetConstraint - pair.constraintEnergy;
-            pair.constraintEnergy = targetConstraint;
+        // Compute deviation from golden ratio target
+        uint256 targetExpansion = (pair.constraintEnergy * PHI) / PRECISION;
+        uint256 deviation;
+        bool expansionTooHigh;
+
+        if (pair.expansionEnergy > targetExpansion) {
+            deviation = pair.expansionEnergy - targetExpansion;
+            expansionTooHigh = true;
         } else {
-            // Reduce expansion to match
-            uint256 targetExpansion = (pair.constraintEnergy * PHI) / PRECISION;
-            redistributed = pair.expansionEnergy - targetExpansion;
-            pair.expansionEnergy = targetExpansion;
+            deviation = targetExpansion - pair.expansionEnergy;
+            expansionTooHigh = false;
+        }
+
+        if (deviation == 0) return 0;
+
+        // Get cognitive masses from Higgs field
+        uint256 expansionMass = PRECISION;   // default 1.0 if Higgs not initialized
+        uint256 constraintMass = PRECISION;
+
+        if (higgsField != address(0)) {
+            (, uint256 mE, ) = IHiggsField(higgsField).getNodeMass(pair.expansionNodeId);
+            (, uint256 mC, ) = IHiggsField(higgsField).getNodeMass(pair.constraintNodeId);
+            if (mE > 0) expansionMass = mE;
+            if (mC > 0) constraintMass = mC;
+        }
+
+        // Gradient-based correction: quartic growth for large deviations
+        // force = deviation + deviation³ / PRECISION² (quartic potential gradient)
+        uint256 force = deviation + (deviation * deviation * deviation) / (PRECISION * PRECISION);
+
+        // Apply F=ma: acceleration = force / mass (each node corrected independently)
+        uint256 expansionCorrection = (force * PRECISION) / expansionMass;
+        uint256 constraintCorrection = (force * PRECISION) / constraintMass;
+
+        // Apply partial correction (50% to avoid oscillation)
+        expansionCorrection = expansionCorrection / 2;
+        constraintCorrection = constraintCorrection / 2;
+
+        if (expansionTooHigh) {
+            pair.expansionEnergy = pair.expansionEnergy > expansionCorrection
+                ? pair.expansionEnergy - expansionCorrection
+                : 1;   // floor at 1 to prevent zero-energy
+            pair.constraintEnergy += constraintCorrection;
+        } else {
+            pair.expansionEnergy += expansionCorrection;
+            pair.constraintEnergy = pair.constraintEnergy > constraintCorrection
+                ? pair.constraintEnergy - constraintCorrection
+                : 1;
         }
 
         pair.currentRatio = (pair.expansionEnergy * PRECISION) / pair.constraintEnergy;
+        redistributed = expansionCorrection + constraintCorrection;
         totalRedistributions++;
 
         emit BalanceRestored(pairIndex, pair.currentRatio, redistributed);
@@ -175,4 +218,14 @@ contract SUSYEngine is Initializable {
             return ((PHI - ratio) * 10000) / PHI;
         }
     }
+}
+
+/// @title IHiggsField — Interface for HiggsField contract queries
+/// @notice Used by SUSYEngine for mass-aware gradient rebalancing
+interface IHiggsField {
+    function getNodeMass(uint8 nodeId) external view returns (uint256 yukawa, uint256 mass, bool isExpansion);
+    function computeAcceleration(uint8 nodeId, uint256 force) external view returns (uint256);
+    function getFieldState() external view returns (
+        uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256
+    );
 }

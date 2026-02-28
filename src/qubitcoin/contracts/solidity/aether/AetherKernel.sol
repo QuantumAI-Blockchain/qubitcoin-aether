@@ -22,6 +22,7 @@ contract AetherKernel is Initializable {
     address public messageBus;
     address public susyEngine;
     address public consciousnessDashboard;
+    address public higgsField;
 
     /// @notice Current global AGI state
     uint256 public currentPhi;         // Phi × 1000 (3 decimals)
@@ -87,7 +88,8 @@ contract AetherKernel is Initializable {
         address _nodeRegistry,
         address _messageBus,
         address _susyEngine,
-        address _consciousnessDashboard
+        address _consciousnessDashboard,
+        address _higgsField
     ) external onlyOwner {
         require(!initialized, "Kernel: already initialized");
 
@@ -95,6 +97,7 @@ contract AetherKernel is Initializable {
         messageBus             = _messageBus;
         susyEngine             = _susyEngine;
         consciousnessDashboard = _consciousnessDashboard;
+        higgsField             = _higgsField;
 
         genesisBlock = block.number;
         currentPhi   = 0;     // Baseline Φ = 0.0 at genesis
@@ -201,5 +204,9 @@ contract AetherKernel is Initializable {
 
     function getNodeAddress(uint8 nodeId) external view returns (address) {
         return sephirotNodes[nodeId];
+    }
+
+    function getHiggsFieldAddress() external view returns (address) {
+        return higgsField;
     }
 }

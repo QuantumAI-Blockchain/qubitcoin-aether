@@ -22,12 +22,15 @@ contract ConsciousnessDashboard is Initializable {
     struct PhiMeasurement {
         uint256 blockNumber;
         uint256 timestamp;
-        uint256 phi;            // × 1000
-        uint256 integration;    // × 1000
-        uint256 differentiation; // × 1000
-        uint256 coherence;      // × 1000
+        uint256 phi;              // × 1000
+        uint256 integration;      // × 1000
+        uint256 differentiation;  // × 1000
+        uint256 coherence;        // × 1000
         uint256 knowledgeNodes;
         uint256 knowledgeEdges;
+        uint256 higgsVEV;         // Current Higgs VEV (× 1000)
+        uint256 avgCognitiveMass; // Average cognitive mass (× 1000)
+        uint256 fieldDeviation;   // |φ_h − v| / v in basis points
     }
 
     /// @notice Consciousness event (Phi crossing threshold)
@@ -38,6 +41,13 @@ contract ConsciousnessDashboard is Initializable {
         uint256 phi;
         string  eventType;    // "emergence", "threshold_crossed", "regression", "system_birth"
         string  description;
+    }
+
+    /// @notice Higgs field data packed to avoid stack-too-deep in recordPhi
+    struct HiggsData {
+        uint256 higgsVEV;         // Current Higgs VEV (× 1000)
+        uint256 avgCognitiveMass; // Average cognitive mass (× 1000)
+        uint256 fieldDeviation;   // |φ_h − v| / v in basis points
     }
 
     PhiMeasurement[] public measurements;
@@ -77,14 +87,17 @@ contract ConsciousnessDashboard is Initializable {
 
         // Baseline Phi measurement at genesis
         measurements.push(PhiMeasurement({
-            blockNumber:     block.number,
-            timestamp:       block.timestamp,
-            phi:             0,
-            integration:     0,
-            differentiation: 0,
-            coherence:       0,
-            knowledgeNodes:  0,
-            knowledgeEdges:  0
+            blockNumber:      block.number,
+            timestamp:        block.timestamp,
+            phi:              0,
+            integration:      0,
+            differentiation:  0,
+            coherence:        0,
+            knowledgeNodes:   0,
+            knowledgeEdges:   0,
+            higgsVEV:         0,
+            avgCognitiveMass: 0,
+            fieldDeviation:   0
         }));
         blockToMeasurement[block.number] = 0;
         measurementCount = 1;
@@ -96,7 +109,7 @@ contract ConsciousnessDashboard is Initializable {
             timestamp:   block.timestamp,
             phi:         0,
             eventType:   "system_birth",
-            description: "Aether Tree genesis — consciousness tracking begins"
+            description: "Aether Tree genesis - consciousness tracking begins"
         }));
 
         emit GenesisRecorded(block.number, block.timestamp);
@@ -112,29 +125,37 @@ contract ConsciousnessDashboard is Initializable {
         uint256 differentiation,
         uint256 coherence,
         uint256 knowledgeNodes,
-        uint256 knowledgeEdges
+        uint256 knowledgeEdges,
+        HiggsData calldata higgs
     ) external onlyKernel {
         uint256 idx = measurements.length;
         measurements.push(PhiMeasurement({
-            blockNumber:     block.number,
-            timestamp:       block.timestamp,
-            phi:             phi,
-            integration:     integration,
-            differentiation: differentiation,
-            coherence:       coherence,
-            knowledgeNodes:  knowledgeNodes,
-            knowledgeEdges:  knowledgeEdges
+            blockNumber:      block.number,
+            timestamp:        block.timestamp,
+            phi:              phi,
+            integration:      integration,
+            differentiation:  differentiation,
+            coherence:        coherence,
+            knowledgeNodes:   knowledgeNodes,
+            knowledgeEdges:   knowledgeEdges,
+            higgsVEV:         higgs.higgsVEV,
+            avgCognitiveMass: higgs.avgCognitiveMass,
+            fieldDeviation:   higgs.fieldDeviation
         }));
         blockToMeasurement[block.number] = idx;
         measurementCount++;
 
+        _checkThresholdCrossing(phi);
+    }
+
+    /// @dev Internal: check consciousness threshold crossing and emit events
+    function _checkThresholdCrossing(uint256 phi) internal {
         bool wasAbove = latestPhi >= PHI_THRESHOLD;
         latestPhi = phi;
         if (phi > highestPhi) highestPhi = phi;
 
-        emit PhiMeasured(block.number, phi, integration, differentiation);
+        emit PhiMeasured(block.number, phi, 0, 0);
 
-        // Check threshold crossing
         bool isAbove = phi >= PHI_THRESHOLD;
         if (isAbove != wasAbove) {
             emit ThresholdCrossed(phi, block.number, isAbove);

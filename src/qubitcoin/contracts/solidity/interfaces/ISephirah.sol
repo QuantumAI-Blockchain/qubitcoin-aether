@@ -18,6 +18,10 @@ interface ISephirah {
     function energyLevel() external view returns (uint256);
     function setEnergyLevel(uint256 energy) external;
 
+    /// @notice Cognitive mass from Higgs field
+    function cognitiveMass() external view returns (uint256);
+    function setCognitiveMass(uint256 mass) external;
+
     /// @notice Process a message from the MessageBus
     function processMessage(
         uint8 fromNodeId,
@@ -34,6 +38,7 @@ interface ISephirah {
 
     event StateUpdated(bytes32 indexed oldState, bytes32 indexed newState);
     event EnergyChanged(uint256 oldEnergy, uint256 newEnergy);
+    event MassChanged(uint256 oldMass, uint256 newMass);
     event MessageProcessed(uint8 indexed fromNodeId, bytes32 indexed messageType);
     event SolutionSubmitted(uint256 indexed taskId, bytes32 solutionHash);
 }

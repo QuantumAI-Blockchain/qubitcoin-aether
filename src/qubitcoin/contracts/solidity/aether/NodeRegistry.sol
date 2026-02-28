@@ -25,6 +25,8 @@ contract NodeRegistry is Initializable {
         uint8       qubitCount;
         bytes32     quantumStateHash;
         uint256     energyLevel;    // for SUSY balance
+        uint256     cognitiveMass;  // from Higgs field (× 1000)
+        uint256     yukawaCoupling; // Yukawa coupling constant (× 1000)
         NodeStatus  status;
         uint256     registeredAt;
     }
@@ -48,6 +50,7 @@ contract NodeRegistry is Initializable {
     event QuantumStateUpdated(uint8 indexed id, bytes32 oldHash, bytes32 newHash);
     event EnergyUpdated(uint8 indexed id, uint256 oldEnergy, uint256 newEnergy);
     event SUSYPairRegistered(uint8 expansionId, uint8 constraintId);
+    event MassUpdated(uint8 indexed id, uint256 oldMass, uint256 newMass);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -86,6 +89,8 @@ contract NodeRegistry is Initializable {
             qubitCount:       qubitCount,
             quantumStateHash: bytes32(0),
             energyLevel:      1000, // baseline energy
+            cognitiveMass:    0,    // assigned by HiggsField
+            yukawaCoupling:   0,    // assigned by HiggsField
             status:           NodeStatus.Active,
             registeredAt:     block.timestamp
         });
@@ -122,6 +127,15 @@ contract NodeRegistry is Initializable {
         emit EnergyUpdated(id, old, newEnergy);
     }
 
+    /// @notice Update cognitive mass and Yukawa coupling from HiggsField contract
+    function updateMass(uint8 id, uint256 newMass, uint256 yukawa) external onlyKernel {
+        require(nodes[id].contractAddr != address(0), "Registry: not found");
+        uint256 oldMass = nodes[id].cognitiveMass;
+        nodes[id].cognitiveMass = newMass;
+        nodes[id].yukawaCoupling = yukawa;
+        emit MassUpdated(id, oldMass, newMass);
+    }
+
     // ─── SUSY Pairs ──────────────────────────────────────────────────────
     /// @notice Register the 3 SUSY pairs (expansion ↔ constraint)
     function registerSUSYPairs() external onlyOwner {
@@ -146,10 +160,13 @@ contract NodeRegistry is Initializable {
         uint8   qubitCount,
         bytes32 quantumStateHash,
         uint256 energyLevel,
+        uint256 cognitiveMass,
+        uint256 yukawaCoupling,
         NodeStatus status
     ) {
         NodeInfo storage n = nodes[id];
-        return (n.name, n.role, n.contractAddr, n.qubitCount, n.quantumStateHash, n.energyLevel, n.status);
+        return (n.name, n.role, n.contractAddr, n.qubitCount, n.quantumStateHash,
+                n.energyLevel, n.cognitiveMass, n.yukawaCoupling, n.status);
     }
 
     function getNodeAddress(uint8 id) external view returns (address) {
