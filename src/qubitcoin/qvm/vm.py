@@ -924,12 +924,32 @@ class QVM:
                 result.return_data = data
 
             elif address == 5:
-                # modexp: base^exp % mod
-                result.gas_used = 200  # Simplified cost
+                # modexp: base^exp % mod (EIP-198 gas formula)
                 if len(data) >= 96:
                     b_len = int.from_bytes(data[:32], 'big')
                     e_len = int.from_bytes(data[32:64], 'big')
                     m_len = int.from_bytes(data[64:96], 'big')
+
+                    # EIP-198 gas: max(200, mult_complexity * iter_count / 3)
+                    max_len = max(b_len, m_len)
+                    if max_len <= 64:
+                        mult_complexity = max_len * max_len
+                    elif max_len <= 1024:
+                        mult_complexity = max_len * max_len // 4 + 96 * max_len - 3072
+                    else:
+                        mult_complexity = max_len * max_len // 16 + 480 * max_len - 199680
+                    # Adjusted exponent length: leading zeros in exponent
+                    if e_len <= 32:
+                        exp_head = data[96 + b_len:96 + b_len + min(e_len, 32)]
+                        exp_head_int = int.from_bytes(exp_head, 'big') if exp_head else 0
+                        adj_exp_len = max(exp_head_int.bit_length() - 1, 0)
+                    else:
+                        exp_head = data[96 + b_len:96 + b_len + 32]
+                        exp_head_int = int.from_bytes(exp_head, 'big') if exp_head else 0
+                        adj_exp_len = 8 * (e_len - 32) + max(exp_head_int.bit_length() - 1, 0)
+                    iter_count = max(adj_exp_len, 1)
+                    result.gas_used = max(200, mult_complexity * iter_count // 3)
+
                     offset = 96
                     base = int.from_bytes(data[offset:offset + b_len], 'big') if b_len else 0
                     offset += b_len
@@ -942,6 +962,7 @@ class QVM:
                         r_val = pow(base, exp, mod)
                         result.return_data = r_val.to_bytes(max(m_len, 1), 'big')
                 else:
+                    result.gas_used = 200
                     result.return_data = b'\x00' * 32
 
             elif address == 6:

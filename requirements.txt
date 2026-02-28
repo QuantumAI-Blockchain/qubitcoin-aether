@@ -20,6 +20,7 @@ cryptography>=44.0.0
 dilithium-py>=0.5.0
 eth-account>=0.13.0
 eth-keys>=0.6.0
+pysha3>=1.0.2
 
 # Networking
 httpx>=0.28.0

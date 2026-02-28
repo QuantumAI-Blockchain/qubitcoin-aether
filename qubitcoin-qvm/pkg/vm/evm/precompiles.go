@@ -271,25 +271,57 @@ func (c *dataCopy) Run(input []byte) ([]byte, error) {
 type bigModExp struct{}
 
 func (c *bigModExp) RequiredGas(input []byte) uint64 {
-	// Simplified gas: 200 base + dynamic based on sizes
+	// EIP-198 gas formula: max(200, mult_complexity * iter_count / 3)
 	if len(input) < 96 {
 		return 200
 	}
 	bLen := new(big.Int).SetBytes(getData(input, 0, 32)).Uint64()
 	eLen := new(big.Int).SetBytes(getData(input, 32, 32)).Uint64()
 	mLen := new(big.Int).SetBytes(getData(input, 64, 32)).Uint64()
+
+	// mult_complexity based on max(bLen, mLen)
 	maxLen := bLen
-	if eLen > maxLen {
-		maxLen = eLen
-	}
 	if mLen > maxLen {
 		maxLen = mLen
 	}
-	words := (maxLen + 7) / 8
-	if words < 1 {
-		words = 1
+	var multComplexity uint64
+	if maxLen <= 64 {
+		multComplexity = maxLen * maxLen
+	} else if maxLen <= 1024 {
+		multComplexity = maxLen*maxLen/4 + 96*maxLen - 3072
+	} else {
+		multComplexity = maxLen*maxLen/16 + 480*maxLen - 199680
 	}
-	return 200 + words*words/10
+
+	// Adjusted exponent length
+	var adjExpLen uint64
+	if eLen <= 32 {
+		expHead := getData(input, 96+bLen, eLen)
+		expHeadInt := new(big.Int).SetBytes(expHead)
+		bitLen := expHeadInt.BitLen()
+		if bitLen > 1 {
+			adjExpLen = uint64(bitLen - 1)
+		}
+	} else {
+		expHead := getData(input, 96+bLen, 32)
+		expHeadInt := new(big.Int).SetBytes(expHead)
+		bitLen := expHeadInt.BitLen()
+		adjExpLen = 8 * (eLen - 32)
+		if bitLen > 1 {
+			adjExpLen += uint64(bitLen - 1)
+		}
+	}
+
+	iterCount := adjExpLen
+	if iterCount < 1 {
+		iterCount = 1
+	}
+
+	gas := multComplexity * iterCount / 3
+	if gas < 200 {
+		return 200
+	}
+	return gas
 }
 
 func (c *bigModExp) Run(input []byte) ([]byte, error) {

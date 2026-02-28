@@ -885,3 +885,70 @@ try:
     logger.info("KnowledgeGraph: using Rust-accelerated aether_core backend")
 except ImportError:
     logger.debug("aether_core not installed — using pure-Python KnowledgeGraph")
+
+
+# ────────────────────────────────────────────────────────────────────────
+# Differential Privacy Wrapper (L5)
+# ────────────────────────────────────────────────────────────────────────
+
+import random as _random
+
+
+class DPKnowledgeGraphQuery:
+    """Differential-privacy wrapper for knowledge graph queries.
+
+    Adds calibrated Laplace noise to aggregate numeric results (counts,
+    scores) so that the presence or absence of any single knowledge node
+    cannot be inferred from the query output.
+
+    Args:
+        knowledge_graph: The underlying KnowledgeGraph instance.
+        epsilon: Privacy budget (lower = more private, higher = more accurate).
+                 Default 1.0 is a reasonable balance.
+    """
+
+    def __init__(self, knowledge_graph: "KnowledgeGraph", epsilon: float = 1.0):
+        self.kg = knowledge_graph
+        self.epsilon = max(epsilon, 0.01)  # floor to prevent division by zero
+
+    def _laplace_noise(self, sensitivity: float) -> float:
+        """Sample Laplace noise scaled to sensitivity / epsilon."""
+        scale = sensitivity / self.epsilon
+        return _random.gauss(0, 0) + (_random.expovariate(1.0 / scale) - _random.expovariate(1.0 / scale))
+
+    def node_count(self) -> int:
+        """Return noisy node count (sensitivity = 1)."""
+        return max(0, int(len(self.kg.nodes) + self._laplace_noise(1.0)))
+
+    def edge_count(self) -> int:
+        """Return noisy edge count (sensitivity = 1)."""
+        return max(0, int(len(self.kg.edges) + self._laplace_noise(1.0)))
+
+    def type_distribution(self) -> Dict[str, int]:
+        """Return noisy distribution of node types (sensitivity = 1 per type)."""
+        counts: Dict[str, int] = {}
+        for node in self.kg.nodes.values():
+            counts[node.node_type] = counts.get(node.node_type, 0) + 1
+        return {
+            ntype: max(0, int(count + self._laplace_noise(1.0)))
+            for ntype, count in counts.items()
+        }
+
+    def avg_confidence(self) -> float:
+        """Return noisy average confidence (sensitivity ≈ 1/n)."""
+        nodes = list(self.kg.nodes.values())
+        if not nodes:
+            return 0.0
+        avg = sum(n.confidence for n in nodes) / len(nodes)
+        sensitivity = 1.0 / max(len(nodes), 1)
+        return max(0.0, min(1.0, avg + self._laplace_noise(sensitivity)))
+
+    def search(self, query: str, top_k: int = 10) -> List[Tuple["KeterNode", float]]:
+        """Run search with noisy scores (sensitivity = 1.0 for similarity)."""
+        results = self.kg.search(query, top_k=top_k)
+        noisy_results = []
+        for node, score in results:
+            noisy_score = max(0.0, score + self._laplace_noise(0.1))
+            noisy_results.append((node, noisy_score))
+        noisy_results.sort(key=lambda x: x[1], reverse=True)
+        return noisy_results

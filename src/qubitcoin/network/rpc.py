@@ -1351,6 +1351,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "fee_paid": str(fee_record.fee_amount) if fee_record else "0",
         }
 
+    @app.post("/contracts/estimate-gas")
+    async def estimate_deployment_gas(req: DeployRequest):
+        """Estimate gas cost for contract deployment (L12)."""
+        if not contract_engine:
+            raise HTTPException(status_code=503, detail="Contract engine not available")
+        if hasattr(contract_engine, 'estimate_deployment_gas'):
+            return contract_engine.estimate_deployment_gas(req.contract_type, req.contract_code)
+        # Fallback: simple size-based estimate
+        import json as _json
+        code_size = len(_json.dumps(req.contract_code))
+        return {
+            "contract_type": req.contract_type,
+            "code_size_bytes": code_size,
+            "total_estimated_qbc": round(code_size / 1024 * 0.1 + 1.0, 6),
+        }
+
     class ExecuteRequest(BaseModel):
         contract_id: str
         function: str
@@ -5438,6 +5454,65 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not book:
             raise HTTPException(status_code=404, detail=f"Pair {pair} not found")
         return book.get_stats()
+
+    # ========================================================================
+    # EXCHANGE DEPTH & EQUITY (L13 + L16)
+    # ========================================================================
+
+    @app.get("/exchange/depth/{pair}")
+    async def exchange_depth_chart(pair: str, levels: int = 50):
+        """Return depth chart data: cumulative bids/asks for visualization."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        book = exchange_engine.books.get(pair)
+        if not book:
+            raise HTTPException(status_code=404, detail=f"Pair {pair} not found")
+        ob = book.get_orderbook(levels)
+        # Build cumulative depth arrays
+        bid_depth = []
+        cum = 0.0
+        for level in ob.get("bids", []):
+            cum += float(level["size"])
+            bid_depth.append({"price": level["price"], "cumulative": round(cum, 8)})
+        ask_depth = []
+        cum = 0.0
+        for level in ob.get("asks", []):
+            cum += float(level["size"])
+            ask_depth.append({"price": level["price"], "cumulative": round(cum, 8)})
+        return {
+            "pair": pair,
+            "bids": bid_depth,
+            "asks": ask_depth,
+            "midPrice": ob.get("midPrice", "0"),
+            "updatedAt": ob.get("updatedAt", 0),
+        }
+
+    @app.get("/exchange/equity-history/{address}")
+    async def exchange_equity_history(address: str, limit: int = 100):
+        """Return equity snapshots for a user (balance over time)."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        # Current balance snapshot
+        balance = exchange_engine.get_user_balance(address)
+        # Recent trades as equity change events
+        events = []
+        for pair_name, book in exchange_engine.books.items():
+            for trade in book.get_recent_trades(limit):
+                # Include trades where this address was maker or taker
+                if trade.get("maker") == address or trade.get("taker") == address:
+                    events.append({
+                        "pair": pair_name,
+                        "price": trade.get("price", "0"),
+                        "size": trade.get("size", "0"),
+                        "side": "maker" if trade.get("maker") == address else "taker",
+                        "timestamp": trade.get("timestamp", 0),
+                    })
+        events.sort(key=lambda e: e.get("timestamp", 0), reverse=True)
+        return {
+            "address": address,
+            "current_balance": balance,
+            "trade_history": events[:limit],
+        }
 
     # ========================================================================
     # EXCHANGE WEBSOCKET FEEDS (M12)

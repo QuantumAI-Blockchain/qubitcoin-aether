@@ -850,3 +850,55 @@ class ContractEngine:
                 return True, f"Source verified (hash={source_hash[:16]}...)"
             return False, f"Source mismatch (expected={stored_hash or 'N/A'}, got={source_hash[:16]}...)"
 
+    def estimate_deployment_gas(self, contract_type: str, contract_code: Dict) -> Dict:
+        """Estimate gas cost for deploying a contract.
+
+        Uses bytecode size + opcode analysis for more accurate estimation
+        than simple per-KB heuristics.
+
+        Args:
+            contract_type: Type of contract (token, nft, etc.)
+            contract_code: Contract code/configuration
+
+        Returns:
+            Dict with base_cost, size_cost, total_cost, breakdown
+        """
+        code_json = json.dumps(contract_code, sort_keys=True)
+        code_size = len(code_json)
+        code_size_kb = code_size / 1024
+
+        is_template = contract_type in ('token', 'nft', 'launchpad', 'escrow', 'governance')
+
+        # Base deployment cost
+        base_cost = float(Config.GAS_CONTRACT_DEPLOY_BASE)
+
+        # Per-KB storage cost
+        per_kb_cost = float(Config.GAS_CONTRACT_DEPLOY_PER_KB) * code_size_kb
+
+        # Opcode analysis: estimate execution cost from code structure
+        opcode_cost = 0.0
+        # Count storage slots (SSTORE-like operations)
+        storage_slots = code_json.count('"storage"') + code_json.count('"state"')
+        opcode_cost += storage_slots * 20000  # ~20000 gas per SSTORE
+
+        # Count function selectors (method entries)
+        method_count = sum(1 for k in contract_code if callable(contract_code.get(k)) or k.startswith('function'))
+        if isinstance(contract_code, dict):
+            method_count = max(method_count, len([k for k in contract_code if not k.startswith('_')]))
+        opcode_cost += method_count * 700  # ~700 gas per function dispatch
+
+        # Template discount
+        discount = float(getattr(Config, 'CONTRACT_TEMPLATE_DISCOUNT', 0.5)) if is_template else 1.0
+        total_cost = (base_cost + per_kb_cost + opcode_cost) * discount
+
+        return {
+            "contract_type": contract_type,
+            "code_size_bytes": code_size,
+            "is_template": is_template,
+            "base_cost_qbc": round(base_cost, 6),
+            "size_cost_qbc": round(per_kb_cost, 6),
+            "opcode_cost_qbc": round(opcode_cost, 6),
+            "template_discount": discount,
+            "total_estimated_qbc": round(total_cost, 6),
+        }
+

@@ -28,6 +28,7 @@ use rand::Rng;
 /// Cosine similarity in [-1, 1].  Returns 0.0 if either vector has zero norm.
 #[inline]
 fn cosine_similarity(a: &[f64], b: &[f64]) -> f64 {
+    const EPSILON: f64 = 1e-15;
     let mut dot = 0.0_f64;
     let mut norm_a = 0.0_f64;
     let mut norm_b = 0.0_f64;
@@ -36,10 +37,10 @@ fn cosine_similarity(a: &[f64], b: &[f64]) -> f64 {
         norm_a += x * x;
         norm_b += y * y;
     }
-    if norm_a == 0.0 || norm_b == 0.0 {
+    if norm_a < EPSILON || norm_b < EPSILON {
         return 0.0;
     }
-    dot / (norm_a.sqrt() * norm_b.sqrt())
+    (dot / (norm_a.sqrt() * norm_b.sqrt())).clamp(-1.0, 1.0)
 }
 
 /// Cosine distance: 1.0 - cosine_similarity.  In [0, 2].
@@ -77,6 +78,7 @@ struct HnswInner {
 impl HnswInner {
     fn new(max_connections: usize, ef_construction: usize, max_layers: usize) -> Self {
         let m = max_connections.max(2);
+        // Safety: m >= 2 guarantees ln(m) >= 0.693 > 0, no division by zero
         let ml = 1.0 / (m as f64).ln();
         let mut graph = Vec::with_capacity(max_layers);
         for _ in 0..max_layers {

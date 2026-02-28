@@ -13,6 +13,7 @@ contract QUSDGovernance is Initializable {
     uint256 public constant VOTING_PERIOD     = 7 days;
     uint256 public constant QUORUM_BPS        = 400; // 4% of total supply
     uint256 public constant BPS_DENOM         = 10000;
+    uint256 public constant MAX_EMERGENCY_SIGNERS = 10;
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
@@ -249,6 +250,7 @@ contract QUSDGovernance is Initializable {
     }
 
     function addEmergencySigner(address signer) external onlyOwner {
+        require(emergencySigners.length < MAX_EMERGENCY_SIGNERS, "Governance: max signers reached");
         emergencySigners.push(signer);
         emit EmergencySignerAdded(signer);
     }

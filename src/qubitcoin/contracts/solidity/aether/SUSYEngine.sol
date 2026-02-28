@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "../interfaces/IHiggsField.sol";
 
 /// @title SUSYEngine — Supersymmetric Balance Enforcement
 /// @notice Enforces the golden ratio (φ = 1.618) between SUSY expansion/constraint pairs.
@@ -218,14 +219,4 @@ contract SUSYEngine is Initializable {
             return ((PHI - ratio) * 10000) / PHI;
         }
     }
-}
-
-/// @title IHiggsField — Interface for HiggsField contract queries
-/// @notice Used by SUSYEngine for mass-aware gradient rebalancing
-interface IHiggsField {
-    function getNodeMass(uint8 nodeId) external view returns (uint256 yukawa, uint256 mass, bool isExpansion);
-    function computeAcceleration(uint8 nodeId, uint256 force) external view returns (uint256);
-    function getFieldState() external view returns (
-        uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256
-    );
 }

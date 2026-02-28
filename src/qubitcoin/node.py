@@ -996,7 +996,7 @@ class QubitcoinNode:
                     blocked = sum(1 for p in policies if getattr(p, 'is_blocked', False))
                     compliance_blocked_addresses.set(blocked)
                     cb = self.compliance_engine.circuit_breaker
-                    compliance_circuit_breaker.set(1 if getattr(cb, 'is_open', False) else 0)
+                    compliance_circuit_breaker.set(1 if getattr(cb, 'is_tripped', False) else 0)
                 except Exception:
                     pass
                 if self.compliance_engine and hasattr(self.compliance_engine, 'sanctions'):
@@ -1022,7 +1022,7 @@ class QubitcoinNode:
                 try:
                     sc_stats = self.state_channel_manager.get_stats()
                     qvm_state_channels_open.set(sc_stats.get('open_channels', 0))
-                    qvm_state_channels_tvl.set(float(sc_stats.get('total_locked', 0)))
+                    qvm_state_channels_tvl.set(float(sc_stats.get('total_locked_qbc', 0)))
                 except Exception:
                     pass
             if self.transaction_batcher:
