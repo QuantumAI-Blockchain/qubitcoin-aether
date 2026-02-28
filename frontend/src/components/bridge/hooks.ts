@@ -3,8 +3,17 @@
    --------------------------------------------------------------------------- */
 
 import { useQuery } from "@tanstack/react-query";
-import { getBridgeMockEngine } from "./mock-engine";
 import { bridgeApi } from "@/lib/bridge-api";
+
+// Lazy-load mock engine only when mock mode is active (no production bundle cost)
+let _bridgeMock: ReturnType<typeof import("./mock-engine")["getBridgeMockEngine"]> | null = null;
+function getBridgeMockEngine() {
+  if (!_bridgeMock) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    _bridgeMock = require("./mock-engine").getBridgeMockEngine();
+  }
+  return _bridgeMock!;
+}
 import type {
   BridgeStatus,
   BridgeTx,
@@ -21,7 +30,7 @@ import type {
 // Environment switch
 // ---------------------------------------------------------------------------
 
-const USE_MOCK = process.env.NEXT_PUBLIC_BRIDGE_MOCK !== "false";
+const USE_MOCK = process.env.NEXT_PUBLIC_BRIDGE_MOCK === "true";
 
 // ---------------------------------------------------------------------------
 // Query Key Factory (collision-safe, easy invalidation)

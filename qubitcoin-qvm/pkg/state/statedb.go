@@ -7,9 +7,10 @@
 package state
 
 import (
-	"crypto/sha256"
 	"math/big"
 	"sync"
+
+	"golang.org/x/crypto/sha3"
 )
 
 // StateDB is the in-memory state database implementing evm.StateAccessor.
@@ -213,7 +214,10 @@ func (s *StateDB) SetCode(addr [20]byte, code []byte) {
 		prevAcc: &prevAcc,
 	})
 
-	hash := sha256.Sum256(code)
+	kh := sha3.NewLegacyKeccak256()
+	kh.Write(code)
+	var hash [32]byte
+	kh.Sum(hash[:0])
 	acc.CodeHash = hash
 	s.codes[hash] = make([]byte, len(code))
 	copy(s.codes[hash], code)
@@ -336,7 +340,7 @@ func (s *StateDB) ComputeStateRoot() StateRoot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	h := sha256.New()
+	h := sha3.NewLegacyKeccak256()
 	for addr, acc := range s.accounts {
 		h.Write(addr[:])
 		h.Write(acc.Balance[:])
