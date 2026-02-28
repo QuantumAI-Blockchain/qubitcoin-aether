@@ -1,8 +1,18 @@
+-- ================================================================
+-- DEPRECATED: Use sql_new/qbc/99_genesis_block.sql instead.
+--
+-- This file is the legacy genesis block SQL without premine or
+-- AGI genesis initialization.  The canonical genesis is in
+-- sql_new/qbc/99_genesis_block.sql which includes:
+--   - 33M QBC premine (vout=1)
+--   - AGI genesis KeterNodes (22 nodes)
+--   - Correct total_supply = 33,000,015.27 QBC
+-- ================================================================
+
 SET DATABASE = qubitcoin;
 
 -- ================================================================
--- GENESIS BLOCK (Block 0)
--- Whitepaper v1.0.0 - Network Launch
+-- GENESIS BLOCK (Block 0) — LEGACY, see sql_new/ for current
 -- ================================================================
 
 -- Genesis Block

@@ -692,6 +692,54 @@ pub mod pallet {
 
             Ok(())
         }
+
+        /// Prune old expired reversal records from storage (root/sudo only).
+        ///
+        /// Removes entries from `ExpiredReversals` where the request expired
+        /// more than `max_age_blocks` ago.  This prevents unbounded storage growth.
+        ///
+        /// `max_entries` limits how many entries are pruned per call to bound
+        /// the execution weight.
+        #[pallet::call_index(7)]
+        // Analytical weight: height read (25µs) + up to max_entries iteration reads (25µs each)
+        // + removals (25µs each). For max_entries=100: ~100*50µs = 5ms ≈ 5_000_000
+        #[pallet::weight(5_000_000)]
+        pub fn prune_expired_reversals(
+            origin: OriginFor<T>,
+            max_age_blocks: u64,
+            max_entries: u32,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let current_height = pallet_qbc_utxo::CurrentHeight::<T>::get();
+            let mut pruned: u32 = 0;
+            let mut to_remove: sp_std::vec::Vec<H256> = sp_std::vec::Vec::new();
+
+            // Iterate expired reversals and collect those older than max_age_blocks
+            let iter = ExpiredReversals::<T>::iter();
+            for (request_id, request) in iter {
+                if pruned >= max_entries {
+                    break;
+                }
+                let age = current_height.saturating_sub(request.expiry_block_height);
+                if age > max_age_blocks {
+                    to_remove.push(request_id);
+                    pruned += 1;
+                }
+            }
+
+            for id in to_remove {
+                ExpiredReversals::<T>::remove(&id);
+            }
+
+            log::info!(
+                "Pruned {} expired reversal records (max_age={} blocks)",
+                pruned,
+                max_age_blocks,
+            );
+
+            Ok(())
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════

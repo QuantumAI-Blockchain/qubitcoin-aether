@@ -5360,6 +5360,137 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return exchange_engine.get_engine_stats()
 
     # ========================================================================
+    # EXCHANGE OHLC / CANDLES (M11)
+    # ========================================================================
+
+    @app.get("/exchange/candles/{pair}")
+    async def exchange_candles(pair: str, interval: str = "1h", limit: int = 100):
+        """Return OHLC candlestick data for a trading pair.
+
+        Interval: 1m, 5m, 15m, 1h, 4h, 1d. Computed from trade history.
+        """
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+
+        interval_seconds = {
+            "1m": 60, "5m": 300, "15m": 900,
+            "1h": 3600, "4h": 14400, "1d": 86400,
+        }
+        secs = interval_seconds.get(interval, 3600)
+
+        book = exchange_engine.books.get(pair)
+        if not book:
+            return {"pair": pair, "interval": interval, "candles": []}
+
+        trades = book._trades[:5000]  # Use recent history
+        if not trades:
+            return {"pair": pair, "interval": interval, "candles": []}
+
+        # Build candles from trades
+        from collections import defaultdict
+        from decimal import Decimal
+        buckets: dict = defaultdict(list)
+        for t in trades:
+            bucket = int(t.timestamp // secs) * secs
+            buckets[bucket].append(t)
+
+        candles = []
+        for ts in sorted(buckets.keys())[-limit:]:
+            bucket_trades = buckets[ts]
+            prices = [t.price for t in bucket_trades]
+            volumes = [t.price * t.size for t in bucket_trades]
+            candles.append({
+                "timestamp": ts,
+                "open": str(bucket_trades[-1].price),  # oldest in bucket
+                "high": str(max(prices)),
+                "low": str(min(prices)),
+                "close": str(bucket_trades[0].price),  # newest in bucket
+                "volume": str(sum(volumes)),
+                "trades": len(bucket_trades),
+            })
+
+        return {"pair": pair, "interval": interval, "candles": candles}
+
+    @app.get("/exchange/book/{pair}")
+    async def exchange_book_depth(pair: str, depth: int = 50):
+        """Return full depth order book for a trading pair."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        return exchange_engine.get_orderbook(pair, depth)
+
+    @app.get("/exchange/ticker")
+    async def exchange_ticker():
+        """Return ticker data for all trading pairs."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        tickers = []
+        for pair_name, book in exchange_engine.books.items():
+            stats = book.get_stats()
+            tickers.append(stats)
+        return {"tickers": tickers}
+
+    @app.get("/exchange/ticker/{pair}")
+    async def exchange_ticker_pair(pair: str):
+        """Return ticker data for a single trading pair."""
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        book = exchange_engine.books.get(pair)
+        if not book:
+            raise HTTPException(status_code=404, detail=f"Pair {pair} not found")
+        return book.get_stats()
+
+    # ========================================================================
+    # EXCHANGE WEBSOCKET FEEDS (M12)
+    # ========================================================================
+
+    _exchange_ws_clients: list = []
+
+    @app.websocket("/ws/exchange")
+    async def exchange_ws(websocket: WebSocket):
+        """WebSocket for real-time exchange feeds.
+
+        Connect with optional query params:
+          ?pair=QBC_QUSD  — subscribe to a specific trading pair
+          ?subscribe=fills,book,ticker  — comma-separated feed types
+
+        Feed types: fills (trade executions), book (order book updates),
+                    ticker (price ticker updates)
+        """
+        await websocket.accept()
+        _exchange_ws_clients.append(websocket)
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            if websocket in _exchange_ws_clients:
+                _exchange_ws_clients.remove(websocket)
+
+    async def broadcast_exchange_event(event_type: str, data: dict) -> None:
+        """Broadcast an exchange event to all exchange WebSocket subscribers."""
+        import json as _json
+        message = _json.dumps({"type": event_type, "data": data})
+        disconnected = []
+        for ws in _exchange_ws_clients:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                disconnected.append(ws)
+        for ws in disconnected:
+            if ws in _exchange_ws_clients:
+                _exchange_ws_clients.remove(ws)
+
+    app.broadcast_exchange_event = broadcast_exchange_event  # type: ignore[attr-defined]
+
+    @app.get("/ws/exchange/stats")
+    async def exchange_ws_stats():
+        """Get exchange WebSocket connection statistics."""
+        return {
+            "connected_clients": len(_exchange_ws_clients),
+        }
+
+    # ========================================================================
     # STRATUM MINING POOL (B11)
     # ========================================================================
 

@@ -112,9 +112,12 @@ class Fill:
     maker_address: str
     taker_address: str
     timestamp: float = field(default_factory=time.time)
+    maker_fee: Decimal = ZERO
+    taker_fee: Decimal = ZERO
+    fee_asset: str = "QBC"
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "id": self.id,
             "pair": self.pair,
             "price": str(self.price),
@@ -126,6 +129,11 @@ class Fill:
             "taker_address": self.taker_address,
             "timestamp": self.timestamp,
         }
+        if self.maker_fee > ZERO or self.taker_fee > ZERO:
+            d["maker_fee"] = str(self.maker_fee)
+            d["taker_fee"] = str(self.taker_fee)
+            d["fee_asset"] = self.fee_asset
+        return d
 
 
 # ---------------------------------------------------------------------------
@@ -787,12 +795,19 @@ class ExchangeEngine:
         "WQBC_QUSD",
     ]
 
+    # Default fee rates (configurable)
+    DEFAULT_MAKER_FEE: Decimal = Decimal('0.001')   # 0.1%
+    DEFAULT_TAKER_FEE: Decimal = Decimal('0.002')   # 0.2%
+
     def __init__(
         self,
         settlement: Optional[SettlementCallback] = None,
         persistence: Optional[OrderPersistence] = None,
         mev_protection: bool = False,
         commit_reveal_fn=None,
+        maker_fee: Optional[Decimal] = None,
+        taker_fee: Optional[Decimal] = None,
+        fee_treasury: str = "",
     ) -> None:
         self.books: Dict[str, OrderBook] = {}
         self._user_balances: Dict[str, Dict[str, Decimal]] = {}  # address -> {asset: amount}
@@ -801,6 +816,12 @@ class ExchangeEngine:
         self._mev_protection = mev_protection
         self._commit_reveal_fn = commit_reveal_fn  # callable(order_dict) -> commit_hash
         self._committed_orders: Dict[str, dict] = {}  # commit_hash -> order_dict
+
+        # Fee configuration
+        self._maker_fee = maker_fee if maker_fee is not None else self.DEFAULT_MAKER_FEE
+        self._taker_fee = taker_fee if taker_fee is not None else self.DEFAULT_TAKER_FEE
+        self._fee_treasury = fee_treasury
+        self._total_fees_collected: Decimal = ZERO
 
         # Pre-create default order books
         for pair in self.DEFAULT_PAIRS:
@@ -857,6 +878,14 @@ class ExchangeEngine:
             triggered = book.check_triggers(last_price)
             for trig_order, trig_fills in triggered:
                 fills.extend(trig_fills)
+
+        # Calculate and apply fees to fills
+        if fills and (self._maker_fee > ZERO or self._taker_fee > ZERO):
+            for fill in fills:
+                notional = fill.price * fill.size
+                fill.maker_fee = notional * self._maker_fee
+                fill.taker_fee = notional * self._taker_fee
+                self._total_fees_collected += fill.maker_fee + fill.taker_fee
 
         # Settle fills on-chain
         if fills and self._settlement:
@@ -1027,4 +1056,10 @@ class ExchangeEngine:
             "total_users": len(self._user_balances),
             "mev_protection": self._mev_protection,
             "pending_commits": len(self._committed_orders),
+            "fees": {
+                "maker_fee_rate": str(self._maker_fee),
+                "taker_fee_rate": str(self._taker_fee),
+                "total_collected": str(self._total_fees_collected),
+                "treasury": self._fee_treasury,
+            },
         }

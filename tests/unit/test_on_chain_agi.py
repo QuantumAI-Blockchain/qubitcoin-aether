@@ -22,6 +22,7 @@ class TestOnChainAGIInit:
         mock_config.UPGRADE_GOVERNOR_ADDRESS = ''
         mock_config.AETHER_KERNEL_ADDRESS = ''
         mock_config.HIGGS_FIELD_ADDRESS = ''
+        mock_config.EMERGENCY_SHUTDOWN_ADDRESS = ''
 
         sm = MagicMock()
         sm.qvm = MagicMock()
@@ -520,6 +521,7 @@ class TestGetStats:
         mock_config.UPGRADE_GOVERNOR_ADDRESS = ''
         mock_config.AETHER_KERNEL_ADDRESS = ''
         mock_config.HIGGS_FIELD_ADDRESS = ''
+        mock_config.EMERGENCY_SHUTDOWN_ADDRESS = ''
         mock_config.ONCHAIN_PHI_INTERVAL = 10
 
         sm = MagicMock()
@@ -533,4 +535,4 @@ class TestGetStats:
         assert 'governance_reads' in stats
         assert 'errors' in stats
         assert 'contracts_configured' in stats
-        assert len(stats['contracts_configured']) == 6  # 5 original + higgs_field
+        assert len(stats['contracts_configured']) == 7  # 5 original + higgs_field + emergency_shutdown

@@ -60,6 +60,7 @@ class OnChainAGI:
         self._governor_addr = Config.UPGRADE_GOVERNOR_ADDRESS
         self._kernel_addr = Config.AETHER_KERNEL_ADDRESS
         self._higgs_addr = getattr(Config, 'HIGGS_FIELD_ADDRESS', '')
+        self._emergency_addr = getattr(Config, 'EMERGENCY_SHUTDOWN_ADDRESS', '')
 
         # Stats
         self._phi_writes: int = 0
@@ -555,6 +556,65 @@ class OnChainAGI:
             return None
 
     # ------------------------------------------------------------------
+    # 6.5 Emergency Shutdown Integration
+    # ------------------------------------------------------------------
+
+    def is_shutdown_onchain(self) -> bool:
+        """Check if emergency shutdown has been triggered on-chain.
+
+        Queries the EmergencyShutdown contract's getStatus() function.
+
+        Returns:
+            True if the system is currently shut down on-chain.
+        """
+        if not self._emergency_addr:
+            return False
+
+        calldata = function_selector('getStatus()')
+        result = self._static_call(self._emergency_addr, calldata)
+        if result and len(result) >= 32:
+            return decode_bool(result[:32])
+        return False
+
+    def trigger_shutdown_onchain(self, block_height: int = 0) -> bool:
+        """Propose emergency shutdown on-chain.
+
+        Calls initiateShutdown() on the EmergencyShutdown contract.
+        Requires multi-sig governance consensus to actually execute.
+
+        Args:
+            block_height: Current block height for transaction ordering.
+
+        Returns:
+            True if the call was submitted successfully.
+        """
+        if not self._emergency_addr:
+            return False
+
+        calldata = function_selector('initiateShutdown()')
+        return self._write_call(self._emergency_addr, calldata, block_height)
+
+    def get_emergency_status(self) -> dict:
+        """Get full emergency shutdown status from on-chain contract.
+
+        Returns:
+            Dict with 'shutdown' (bool), 'timestamp', 'signers' count.
+        """
+        if not self._emergency_addr:
+            return {'shutdown': False, 'on_chain': False}
+
+        calldata = function_selector('getStatus()')
+        result = self._static_call(self._emergency_addr, calldata)
+        if result and len(result) >= 96:
+            return {
+                'shutdown': decode_bool(result[0:32]),
+                'timestamp': decode_uint256(result[32:64]),
+                'signers': decode_uint256(result[64:96]),
+                'on_chain': True,
+            }
+        return {'shutdown': False, 'on_chain': bool(self._emergency_addr)}
+
+    # ------------------------------------------------------------------
     # Combined integration hook
     # ------------------------------------------------------------------
 
@@ -638,5 +698,6 @@ class OnChainAGI:
                 'treasury_dao': bool(self._treasury_addr),
                 'upgrade_governor': bool(self._governor_addr),
                 'higgs_field': bool(self._higgs_addr),
+                'emergency_shutdown': bool(self._emergency_addr),
             },
         }

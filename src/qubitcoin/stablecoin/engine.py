@@ -6,6 +6,7 @@ Multi-collateral, multi-oracle stable USD token with flash loan support
 import time
 import json
 import uuid
+import threading
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Tuple, Optional, List, Dict
@@ -81,6 +82,27 @@ class StablecoinEngine:
         self._flash_loan_total_borrowed: Decimal = Decimal('0')
         self._flash_loan_total_fees: Decimal = Decimal('0')
 
+        # 10-year backing schedule: year → required reserve ratio
+        # Year 0 = genesis, Year 10 = 100% backed
+        self._backing_schedule: Dict[int, Decimal] = {
+            0: Decimal('0.10'),   # 10% at launch
+            1: Decimal('0.20'),   # 20% year 1
+            2: Decimal('0.30'),   # 30% year 2
+            3: Decimal('0.40'),   # 40% year 3
+            4: Decimal('0.50'),   # 50% year 4
+            5: Decimal('0.60'),   # 60% year 5
+            6: Decimal('0.70'),   # 70% year 6
+            7: Decimal('0.80'),   # 80% year 7
+            8: Decimal('0.85'),   # 85% year 8
+            9: Decimal('0.92'),   # 92% year 9
+            10: Decimal('1.00'),  # 100% year 10
+        }
+        self._blocks_per_year: int = int(365.25 * 24 * 3600 / Config.TARGET_BLOCK_TIME)
+
+        # Thread lock for sync_from_chain concurrent access
+        self._sync_lock = threading.Lock()
+        self._last_sync_ratio: Optional[Decimal] = None
+
         logger.info("Stablecoin engine initialized")
 
     def _load_params(self) -> Dict:
@@ -125,6 +147,63 @@ class StablecoinEngine:
                     logger.info(f"✅ QUSD token ready: {token_id}")
             else:
                 logger.warning("⚠️  QUSD token not found - needs deployment")
+
+    # ========================================================================
+    # 10-YEAR BACKING SCHEDULE
+    # ========================================================================
+
+    def get_required_backing_for_block(self, block_height: int) -> Decimal:
+        """Return the required reserve ratio for a given block height.
+
+        Linearly interpolates between the yearly milestones defined in
+        ``_backing_schedule``.  After year 10, returns 1.0 (100%).
+
+        Args:
+            block_height: Current blockchain height.
+
+        Returns:
+            Required reserve ratio as Decimal (0.0 to 1.0).
+        """
+        if block_height <= 0:
+            return self._backing_schedule[0]
+
+        year_float = block_height / self._blocks_per_year
+        if year_float >= 10:
+            return Decimal('1.00')
+
+        year_low = int(year_float)
+        year_high = year_low + 1
+        fraction = Decimal(str(year_float - year_low))
+
+        ratio_low = self._backing_schedule.get(year_low, Decimal('1.00'))
+        ratio_high = self._backing_schedule.get(year_high, Decimal('1.00'))
+
+        return ratio_low + (ratio_high - ratio_low) * fraction
+
+    def get_backing_schedule_status(self, block_height: int) -> dict:
+        """Return backing schedule compliance info for a given block height.
+
+        Args:
+            block_height: Current blockchain height.
+
+        Returns:
+            Dict with required ratio, current ratio, compliance status.
+        """
+        required = self.get_required_backing_for_block(block_height)
+        health = self.get_system_health()
+        current = health.get('reserve_backing', Decimal(0))
+        if isinstance(current, (int, float)):
+            current = Decimal(str(current))
+
+        return {
+            'block_height': block_height,
+            'year': round(block_height / self._blocks_per_year, 2),
+            'required_ratio': str(required),
+            'current_ratio': str(current),
+            'compliant': current >= required,
+            'deficit': str(max(Decimal(0), required - current)),
+            'schedule': {str(y): str(r) for y, r in sorted(self._backing_schedule.items())},
+        }
 
     # ========================================================================
     # DYNAMIC REDEMPTION FEE
@@ -706,6 +785,21 @@ class StablecoinEngine:
         except Exception as e:
             logger.debug(f"On-chain reserve ratio unavailable, using in-memory: {e}")
 
+        # Backing schedule compliance
+        try:
+            current_height = self.db.get_current_height()
+            required = self.get_required_backing_for_block(current_height)
+            current_ratio = result.get('reserve_backing', Decimal(0))
+            if isinstance(current_ratio, (int, float)):
+                current_ratio = Decimal(str(current_ratio))
+            result['backing_schedule'] = {
+                'required_ratio': str(required),
+                'compliant': current_ratio >= required,
+                'year': round(current_height / self._blocks_per_year, 2),
+            }
+        except Exception as e:
+            logger.debug(f"Backing schedule check failed: {e}")
+
         return result
 
     def sync_from_chain(self) -> bool:
@@ -716,6 +810,9 @@ class StablecoinEngine:
         the local database view so that subsequent ``get_system_health()``
         calls reflect on-chain reality even without a live QVM.
 
+        Thread-safe: uses ``_sync_lock`` to prevent concurrent reads.
+        Drift detection: warns when on-chain and DB ratios diverge by >5%.
+
         Returns:
             True if the sync succeeded, False if contracts are unavailable
             or the QVM is not configured.
@@ -724,9 +821,13 @@ class StablecoinEngine:
             logger.debug("sync_from_chain: no QVM instance — skipping")
             return False
 
-        caller = '0' * 40
+        if not self._sync_lock.acquire(timeout=5.0):
+            logger.debug("sync_from_chain: lock contention — skipping")
+            return False
 
         try:
+            caller = '0' * 40
+
             # 1. Read total supply from QUSD token contract
             supply_selector = _abi_selector("totalSupply()")
             supply_raw = self._qvm.static_call(
@@ -755,6 +856,18 @@ class StablecoinEngine:
                 if total_supply > 0 else Decimal(0)
             )
 
+            # 4. Drift detection: compare on-chain ratio to last known DB ratio
+            if self._last_sync_ratio is not None and self._last_sync_ratio > 0:
+                drift = abs(ratio - self._last_sync_ratio) / self._last_sync_ratio
+                if drift > Decimal('0.05'):
+                    logger.warning(
+                        f"sync_from_chain: reserve ratio drift detected! "
+                        f"previous={self._last_sync_ratio:.6f}, "
+                        f"current={ratio:.6f}, drift={drift:.4f}"
+                    )
+
+            self._last_sync_ratio = ratio
+
             logger.info(
                 f"sync_from_chain: supply={total_supply}, "
                 f"reserve={total_reserve}, ratio={ratio:.6f}"
@@ -764,6 +877,8 @@ class StablecoinEngine:
         except Exception as e:
             logger.warning(f"sync_from_chain failed: {e}")
             return False
+        finally:
+            self._sync_lock.release()
 
     # ========================================================================
     # ON-CHAIN RESERVE QUERIES (via QVM static_call)

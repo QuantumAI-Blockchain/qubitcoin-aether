@@ -401,12 +401,14 @@ class SafetyManager:
     Top-level safety orchestrator for Aether Tree.
 
     Combines Gevurah veto, multi-node consensus, and emergency controls
-    into a unified safety interface.
+    into a unified safety interface.  Optionally syncs with the on-chain
+    EmergencyShutdown contract via an ``OnChainAGI`` instance.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, on_chain_agi: object = None) -> None:
         self.gevurah = GevurahVeto()
         self.consensus = MultiNodeConsensus()
+        self._on_chain = on_chain_agi
         self._shutdown = False
         self._shutdown_reason: str = ""
         self._shutdown_block: int = 0
@@ -415,6 +417,27 @@ class SafetyManager:
     @property
     def is_shutdown(self) -> bool:
         return self._shutdown
+
+    def sync_with_onchain(self, block_height: int) -> None:
+        """Sync local shutdown state with on-chain EmergencyShutdown contract.
+
+        Called periodically (e.g. every block) to detect on-chain shutdown
+        triggered by governance signers.
+        """
+        if not self._on_chain:
+            return
+        try:
+            onchain_shutdown = getattr(self._on_chain, 'is_shutdown_onchain', None)
+            if onchain_shutdown and onchain_shutdown():
+                if not self._shutdown:
+                    self.emergency_shutdown(
+                        reason="Emergency shutdown triggered on-chain by governance",
+                        block_height=block_height,
+                    )
+            elif self._shutdown and self._shutdown_reason.startswith("Emergency shutdown triggered on-chain"):
+                self.resume(block_height)
+        except Exception as e:
+            logger.debug(f"On-chain shutdown sync failed: {e}")
 
     def evaluate_and_decide(self, action_description: str, source_node: str = "",
                             target_node: str = "",
@@ -452,6 +475,7 @@ class SafetyManager:
 
         This is the kill switch — all operations are halted.
         Requires multi-sig consensus to resume (handled off-chain).
+        Also proposes shutdown on-chain if OnChainAGI is available.
         """
         self._shutdown = True
         self._shutdown_reason = reason
@@ -467,6 +491,15 @@ class SafetyManager:
             reason=VetoReason.SAFETY_VIOLATION,
             block_height=block_height,
         )
+
+        # Propose shutdown on-chain (requires multi-sig to execute)
+        if self._on_chain:
+            try:
+                trigger = getattr(self._on_chain, 'trigger_shutdown_onchain', None)
+                if trigger:
+                    trigger(block_height)
+            except Exception as e:
+                logger.error(f"Failed to trigger on-chain shutdown: {e}")
 
     def resume(self, block_height: int) -> bool:
         """

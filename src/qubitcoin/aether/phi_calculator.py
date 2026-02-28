@@ -162,6 +162,12 @@ class PhiCalculator:
     v3 formula uses information-theoretic integration (mutual information
     between graph partitions via VectorIndex embeddings), Shannon entropy
     differentiation, and redundancy penalty from near-duplicate detection.
+
+    Milestone gates support adaptive thresholds via a configurable scale
+    factor.  When ``gate_scale > 1.0``, node count thresholds increase
+    (harder to pass); when ``gate_scale < 1.0`` they decrease (easier).
+    The scale factor can be adjusted at runtime based on historical Phi
+    progression data.
     """
 
     def __init__(self, db_manager, knowledge_graph=None):
@@ -174,6 +180,13 @@ class PhiCalculator:
         self._compute_interval: int = int(
             __import__('os').getenv('PHI_COMPUTE_INTERVAL', '1')
         )
+        # Adaptive gate scale factor: multiplier for node-count thresholds
+        self._gate_scale: float = float(
+            __import__('os').getenv('PHI_GATE_SCALE', '1.0')
+        )
+        # History of (block_height, phi_value) for adaptation
+        self._phi_history: List[Tuple[int, float]] = []
+        self._max_history: int = 1000
 
     def compute_phi(self, block_height: int = 0) -> dict:
         """
@@ -826,10 +839,21 @@ class PhiCalculator:
             'prediction_accuracy': ext.get('prediction_accuracy', 0.0),
         }
 
+        # Apply adaptive gate scaling: multiply n_nodes threshold by _gate_scale.
+        # This is achieved by dividing the actual n_nodes by _gate_scale before
+        # passing to the gate check, so a scale of 1.5 makes gates 50% harder
+        # and 0.8 makes them 20% easier.
+        gate_scale = getattr(self, '_gate_scale', 1.0)
+        if gate_scale != 1.0 and gate_scale > 0:
+            scaled_stats = dict(stats)
+            scaled_stats['n_nodes'] = int(stats['n_nodes'] / gate_scale)
+        else:
+            scaled_stats = stats
+
         results: List[dict] = []
         for gate in MILESTONE_GATES:
             try:
-                passed = bool(gate['check'](stats))
+                passed = bool(gate['check'](scaled_stats))
             except Exception:
                 passed = False
             results.append({
@@ -840,6 +864,47 @@ class PhiCalculator:
                 'passed': passed,
             })
         return results
+
+    def adapt_gate_scale(self, block_height: int, phi_value: float) -> None:
+        """Record Phi progression and adapt gate scale based on growth rate.
+
+        If Phi has been growing too quickly (potential gaming), tighten gates.
+        If Phi is stagnant despite real knowledge growth, relax slightly.
+
+        Args:
+            block_height: Current block height.
+            phi_value: Current computed Phi.
+        """
+        self._phi_history.append((block_height, phi_value))
+        if len(self._phi_history) > self._max_history:
+            self._phi_history = self._phi_history[-self._max_history:]
+
+        # Need at least 100 measurements to adapt
+        if len(self._phi_history) < 100:
+            return
+
+        # Compare recent (last 20) vs older (20 before that) growth rate
+        recent = self._phi_history[-20:]
+        older = self._phi_history[-40:-20]
+
+        recent_delta = recent[-1][1] - recent[0][1]
+        older_delta = older[-1][1] - older[0][1]
+
+        if older_delta <= 0:
+            return  # No previous growth to compare
+
+        growth_ratio = recent_delta / older_delta
+
+        # If Phi is growing >3x faster than before, tighten gates slightly
+        if growth_ratio > 3.0:
+            self._gate_scale = min(2.0, self._gate_scale * 1.05)
+            logger.info(f"Phi growth anomaly (ratio={growth_ratio:.1f}), "
+                        f"tightening gates: scale={self._gate_scale:.3f}")
+        # If Phi is growing <0.2x the previous rate, relax slightly
+        elif growth_ratio < 0.2 and self._gate_scale > 0.5:
+            self._gate_scale = max(0.5, self._gate_scale * 0.98)
+            logger.info(f"Phi growth stagnation (ratio={growth_ratio:.1f}), "
+                        f"relaxing gates: scale={self._gate_scale:.3f}")
 
     # ========================================================================
     # Storage & History

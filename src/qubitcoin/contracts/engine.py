@@ -135,15 +135,19 @@ class ContractEngine:
                 if not success:
                     return False, f"Fee payment failed: {fee_msg}", None
 
+            # Verify bytecode hash for template contracts
+            code_json_str = json.dumps(contract_code, sort_keys=True)
+            bytecode_hash = hashlib.sha256(code_json_str.encode()).hexdigest()
+
             # Deploy contract
             with self.db.get_session() as session:
                 result = session.execute(
                     text("""
-                        INSERT INTO contracts 
-                        (deployer_address, contract_type, contract_code, 
-                         contract_state, gas_paid, block_height)
-                        VALUES (:deployer, :type, CAST(:code AS jsonb), 
-                                CAST(:state AS jsonb), :gas, :height)
+                        INSERT INTO contracts
+                        (deployer_address, contract_type, contract_code,
+                         contract_state, gas_paid, block_height, bytecode_hash)
+                        VALUES (:deployer, :type, CAST(:code AS jsonb),
+                                CAST(:state AS jsonb), :gas, :height, :bhash)
                         RETURNING contract_id
                     """),
                     {
@@ -152,7 +156,8 @@ class ContractEngine:
                         'code': json.dumps(contract_code),
                         'state': json.dumps({}),
                         'gas': str(gas_cost),
-                        'height': self.db.get_current_height() + 1
+                        'height': self.db.get_current_height() + 1,
+                        'bhash': bytecode_hash,
                     }
                 )
                 
@@ -794,4 +799,54 @@ class ContractEngine:
         """Execute governance method"""
         # TODO: Implement governance methods
         return False, "Governance contracts not yet implemented", None, args[2]
+
+    # ========================================================================
+    # CONTRACT SOURCE VERIFICATION
+    # ========================================================================
+
+    def verify_contract_source(self, contract_id: str,
+                               source_code: Dict) -> Tuple[bool, str]:
+        """Verify that submitted source matches the deployed contract bytecode.
+
+        Computes SHA-256 of the provided source code (JSON-serialized, sorted
+        keys) and compares it against the stored ``bytecode_hash``.
+
+        Args:
+            contract_id: Deployed contract to verify.
+            source_code: Source code dict to compare.
+
+        Returns:
+            (matches, message) tuple.
+        """
+        with self.db.get_session() as session:
+            result = session.execute(
+                text("""
+                    SELECT contract_code, bytecode_hash
+                    FROM contracts WHERE contract_id = :id
+                """),
+                {'id': contract_id}
+            ).fetchone()
+
+            if not result:
+                return False, "Contract not found"
+
+            stored_code_json, stored_hash = result
+
+            # Compute hash of submitted source
+            source_json = json.dumps(source_code, sort_keys=True)
+            source_hash = hashlib.sha256(source_json.encode()).hexdigest()
+
+            # If bytecode_hash column exists and is populated, compare hashes
+            if stored_hash:
+                matches = source_hash == stored_hash
+            else:
+                # Fallback: compare against stored code directly
+                stored_code = json.loads(stored_code_json) if isinstance(stored_code_json, str) else stored_code_json
+                stored_json = json.dumps(stored_code, sort_keys=True)
+                expected_hash = hashlib.sha256(stored_json.encode()).hexdigest()
+                matches = source_hash == expected_hash
+
+            if matches:
+                return True, f"Source verified (hash={source_hash[:16]}...)"
+            return False, f"Source mismatch (expected={stored_hash or 'N/A'}, got={source_hash[:16]}...)"
 

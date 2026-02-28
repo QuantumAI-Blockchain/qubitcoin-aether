@@ -192,13 +192,21 @@ class CSFTransport:
     - Priority queue: higher QBC = faster processing
     - Topology-aware routing via BFS pathfinding
     - TTL prevents infinite loops
+    - Adaptive TTL based on path length
+    - Max queue size prevents unbounded memory growth
+    - Deadlock monitoring via stale message detection
     - Message history for debugging/monitoring
     """
+
+    MAX_QUEUE_SIZE: int = 500  # Maximum total messages in queue
+    MAX_PER_DEST_QUEUE: int = 100  # Max messages queued per destination
+    STALE_THRESHOLD_S: float = 60.0  # Seconds before a queued message is stale
 
     def __init__(self) -> None:
         self._queue: List[CSFMessage] = []  # Priority queue (sorted by qbc desc)
         self._delivered: List[CSFMessage] = []
         self._dropped: int = 0
+        self._stale_dropped: int = 0
         self.pressure = PressureMonitor()
         self.entangled = QuantumEntangledChannel()
         logger.info("CSF Transport initialized (Tree of Life topology + quantum entanglement)")
@@ -219,12 +227,17 @@ class CSFTransport:
         Returns:
             The queued CSFMessage.
         """
+        # Adaptive TTL: base on path length + safety margin
+        path = self.find_path(source, destination)
+        adaptive_ttl = max(10, len(path) + 5) if path else 10
+
         msg = CSFMessage(
             source=source,
             destination=destination,
             msg_type=msg_type,
             payload=payload,
             priority_qbc=priority_qbc,
+            ttl=adaptive_ttl,
         )
         msg.hops.append(source.value)
 
@@ -232,6 +245,21 @@ class CSFTransport:
         if self.entangled.is_entangled(source, destination):
             self.entangled.deliver_entangled(msg)
             self._delivered.append(msg)
+            return msg
+
+        # Enforce max queue size to prevent unbounded memory growth
+        if len(self._queue) >= self.MAX_QUEUE_SIZE:
+            self._dropped += 1
+            logger.warning(f"CSF queue full ({self.MAX_QUEUE_SIZE}), dropping message "
+                           f"{source.value}→{destination.value}")
+            return msg
+
+        # Per-destination queue limit to prevent flow starvation
+        dest_count = sum(1 for m in self._queue if m.destination == destination)
+        if dest_count >= self.MAX_PER_DEST_QUEUE:
+            self._dropped += 1
+            logger.debug(f"Per-dest queue limit ({self.MAX_PER_DEST_QUEUE}) reached for "
+                         f"{destination.value}, dropping")
             return msg
 
         # Backpressure check: if destination is congested, deprioritize
@@ -270,10 +298,21 @@ class CSFTransport:
         delivered = []
         remaining = []
 
+        now = time.time()
         for msg in self._queue[:max_messages]:
             if msg.ttl <= 0:
                 self._dropped += 1
                 self.pressure.record_dequeue(msg.destination)
+                continue
+
+            # Stale message detection: drop messages stuck too long
+            if now - msg.timestamp > self.STALE_THRESHOLD_S:
+                self._stale_dropped += 1
+                self._dropped += 1
+                self.pressure.record_dequeue(msg.destination)
+                logger.debug(f"Dropping stale CSF message {msg.msg_id} "
+                             f"({msg.source.value}→{msg.destination.value}, "
+                             f"age={now - msg.timestamp:.1f}s)")
                 continue
 
             # Check if destination is directly reachable from current position
@@ -353,8 +392,10 @@ class CSFTransport:
         """Get transport statistics."""
         return {
             "queue_size": len(self._queue),
+            "max_queue_size": self.MAX_QUEUE_SIZE,
             "total_delivered": len(self._delivered),
             "total_dropped": self._dropped,
+            "stale_dropped": self._stale_dropped,
             "pressure": self.pressure.get_status(),
             "entangled_channels": self.entangled.get_status(),
             "recent_messages": [
