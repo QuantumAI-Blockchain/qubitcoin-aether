@@ -3,12 +3,24 @@
 // Mock engine is retained for local tick simulation and data types
 // that the API does not yet serve (OHLC, positions, funding, liquidation,
 // equity, quantum intelligence).
+// Mock engine is lazily imported and only active when USE_MOCK is true.
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useCallback, useMemo } from "react";
-import { mockEngine } from "./mock-engine";
 import { useExchangeStore } from "./store";
+
+const USE_MOCK = process.env.NEXT_PUBLIC_EXCHANGE_MOCK === "true";
+
+// Lazy-load mock engine only when mock mode is active
+let _mockEngine: typeof import("./mock-engine")["mockEngine"] | null = null;
+function getMockEngine() {
+  if (!_mockEngine) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    _mockEngine = require("./mock-engine").mockEngine;
+  }
+  return _mockEngine!;
+}
 import {
   getMarkets as apiGetMarkets,
   getOrderBook as apiGetOrderBook,
@@ -195,7 +207,7 @@ export function useMarkets() {
         return apiMarkets.map(adaptApiMarket);
       } catch {
         // Fallback to mock engine if API call fails
-        return mockEngine.getAllMarkets();
+        return getMockEngine().getAllMarkets();
       }
     },
     staleTime: 2000,
@@ -211,7 +223,7 @@ export function useMarket(id: MarketId) {
   );
   return useQuery({
     queryKey: qk.market(id),
-    queryFn: (): Market | undefined => market ?? mockEngine.getMarket(id),
+    queryFn: (): Market | undefined => market ?? getMockEngine().getMarket(id),
     staleTime: 1000,
     refetchInterval: 1000,
     initialData: market,
@@ -224,7 +236,7 @@ export function useMarket(id: MarketId) {
 export function useOHLC(id: MarketId, tf: Timeframe) {
   return useQuery({
     queryKey: qk.ohlc(id, tf),
-    queryFn: (): OHLCBar[] => mockEngine.generateOHLC(id, tf),
+    queryFn: (): OHLCBar[] => getMockEngine().generateOHLC(id, tf),
     staleTime: 10000,
   });
 }
@@ -239,7 +251,7 @@ export function useOrderBook(id: MarketId) {
         const apiBook = await apiGetOrderBook(id);
         return adaptApiOrderBook(apiBook);
       } catch {
-        return mockEngine.getOrderBook(id);
+        return getMockEngine().getOrderBook(id);
       }
     },
     staleTime: 2000,
@@ -259,7 +271,7 @@ export function useTrades(id: MarketId) {
         const apiTrades = await apiGetRecentTrades(id, 50);
         return apiTrades.map(adaptApiTrade);
       } catch {
-        return mockEngine.getTrades(id);
+        return getMockEngine().getTrades(id);
       }
     },
     staleTime: 1000,
@@ -273,7 +285,7 @@ export function useTrades(id: MarketId) {
 export function usePositions() {
   return useQuery({
     queryKey: qk.positions,
-    queryFn: (): Position[] => mockEngine.generatePositions(),
+    queryFn: (): Position[] => getMockEngine().generatePositions(),
     staleTime: 2000,
     refetchInterval: 2000,
   });
@@ -285,12 +297,12 @@ export function useOpenOrders() {
   return useQuery({
     queryKey: qk.openOrders,
     queryFn: async (): Promise<Order[]> => {
-      if (!walletAddress) return mockEngine.generateOpenOrders();
+      if (!walletAddress) return getMockEngine().generateOpenOrders();
       try {
         const apiOrders = await apiGetUserOrders(walletAddress);
         return apiOrders.map(adaptApiOrder);
       } catch {
-        return mockEngine.generateOpenOrders();
+        return getMockEngine().generateOpenOrders();
       }
     },
     staleTime: 2000,
@@ -301,7 +313,7 @@ export function useOpenOrders() {
 export function useMyFills() {
   return useQuery({
     queryKey: qk.myFills,
-    queryFn: (): Order[] => mockEngine.generateMyFills(),
+    queryFn: (): Order[] => getMockEngine().generateMyFills(),
     staleTime: 10000,
   });
 }
@@ -314,12 +326,12 @@ export function useBalances() {
   return useQuery({
     queryKey: qk.balances,
     queryFn: async (): Promise<Balance[]> => {
-      if (!walletAddress) return mockEngine.generateBalances();
+      if (!walletAddress) return getMockEngine().generateBalances();
       try {
         const apiBalance = await apiGetUserBalance(walletAddress);
         return apiBalance.balances.map(adaptApiBalance);
       } catch {
-        return mockEngine.generateBalances();
+        return getMockEngine().generateBalances();
       }
     },
     staleTime: 5000,
@@ -433,7 +445,7 @@ export function useWithdraw() {
 export function useFunding(id: MarketId) {
   return useQuery({
     queryKey: qk.funding(id),
-    queryFn: (): FundingPayment[] => mockEngine.generateFundingPayments(id),
+    queryFn: (): FundingPayment[] => getMockEngine().generateFundingPayments(id),
     staleTime: 30000,
   });
 }
@@ -443,7 +455,7 @@ export function useFunding(id: MarketId) {
 export function useLiquidationLevels(id: MarketId) {
   return useQuery({
     queryKey: qk.liquidations(id),
-    queryFn: (): LiquidationLevel[] => mockEngine.generateLiquidationLevels(id),
+    queryFn: (): LiquidationLevel[] => getMockEngine().generateLiquidationLevels(id),
     staleTime: 30000,
   });
 }
@@ -453,7 +465,7 @@ export function useLiquidationLevels(id: MarketId) {
 export function useEquityHistory() {
   return useQuery({
     queryKey: qk.equity,
-    queryFn: (): EquitySnapshot[] => mockEngine.generateEquityHistory(),
+    queryFn: (): EquitySnapshot[] => getMockEngine().generateEquityHistory(),
     staleTime: 60000,
   });
 }
@@ -463,7 +475,7 @@ export function useEquityHistory() {
 export function useSusySignal() {
   return useQuery({
     queryKey: qk.susy,
-    queryFn: (): SusySignal => mockEngine.generateSusySignal(),
+    queryFn: (): SusySignal => getMockEngine().generateSusySignal(),
     staleTime: 30000,
   });
 }
@@ -471,7 +483,7 @@ export function useSusySignal() {
 export function useVqeOracle() {
   return useQuery({
     queryKey: qk.vqe,
-    queryFn: (): VqeOracle => mockEngine.generateVqeOracle(),
+    queryFn: (): VqeOracle => getMockEngine().generateVqeOracle(),
     staleTime: 15000,
   });
 }
@@ -479,7 +491,7 @@ export function useVqeOracle() {
 export function useValidators() {
   return useQuery({
     queryKey: qk.validators,
-    queryFn: (): ValidatorStatus[] => mockEngine.generateValidators(),
+    queryFn: (): ValidatorStatus[] => getMockEngine().generateValidators(),
     staleTime: 15000,
   });
 }
@@ -487,7 +499,7 @@ export function useValidators() {
 export function useQevi() {
   return useQuery({
     queryKey: qk.qevi,
-    queryFn: (): QeviData => mockEngine.generateQevi(),
+    queryFn: (): QeviData => getMockEngine().generateQevi(),
     staleTime: 30000,
   });
 }
@@ -562,8 +574,9 @@ export function useTickSimulation() {
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   useEffect(() => {
+    if (!USE_MOCK) return; // Only run tick simulation in mock mode
     intervalRef.current = setInterval(() => {
-      mockEngine.tick();
+      getMockEngine().tick();
     }, 1000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -575,8 +588,9 @@ export function useTickSimulation() {
 
 export function useTradeSimulation(id: MarketId) {
   useEffect(() => {
+    if (!USE_MOCK) return; // Only run trade simulation in mock mode
     const interval = setInterval(() => {
-      mockEngine.addTrade(id);
+      getMockEngine().addTrade(id);
     }, 1500 + Math.random() * 3000);
     return () => clearInterval(interval);
   }, [id]);

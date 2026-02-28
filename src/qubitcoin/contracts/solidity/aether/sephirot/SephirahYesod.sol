@@ -18,6 +18,7 @@ contract SephirahYesod is ISephirah, Initializable {
     bool    public isActive;
     bytes32 public quantumStateHash;
     uint256 public energyLevel;
+    uint256 public cognitiveMass;
 
     uint256 public memoriesStored;
     uint256 public memoriesRetrieved;
@@ -38,6 +39,7 @@ contract SephirahYesod is ISephirah, Initializable {
     event ConsolidationCompleted(uint256 memoriesConsolidated, uint256 blockNumber);
     event StateUpdated(bytes32 indexed oldState, bytes32 indexed newState);
     event EnergyChanged(uint256 oldEnergy, uint256 newEnergy);
+    event MassChanged(uint256 oldMass, uint256 newMass);
     event MessageProcessed(uint8 indexed fromNodeId, bytes32 indexed messageType);
     event SolutionSubmitted(uint256 indexed taskId, bytes32 solutionHash);
 
@@ -55,6 +57,9 @@ contract SephirahYesod is ISephirah, Initializable {
     }
     function setEnergyLevel(uint256 energy) external onlyKernel {
         emit EnergyChanged(energyLevel, energy); energyLevel = energy;
+    }
+    function setCognitiveMass(uint256 mass) external onlyKernel {
+        emit MassChanged(cognitiveMass, mass); cognitiveMass = mass;
     }
     function processMessage(uint8 fromNodeId, bytes32 messageType, bytes calldata) external onlyKernel returns (bool) {
         emit MessageProcessed(fromNodeId, messageType); return true;

@@ -1,9 +1,10 @@
 package evm
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"math/big"
+
+	"golang.org/x/crypto/sha3"
 )
 
 // ExecutionResult holds the outcome of bytecode execution.
@@ -325,8 +326,10 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 				return fmt.Errorf("out of gas: KECCAK256")
 			}
 			data := ctx.Memory.Get(off, sz)
-			hash := sha256.Sum256(data) // SHA-256 placeholder; production uses crypto/keccak256
-			err = ctx.Stack.Push(new(big.Int).SetBytes(hash[:]))
+			h := sha3.NewLegacyKeccak256()
+			h.Write(data)
+			hash := h.Sum(nil)
+			err = ctx.Stack.Push(new(big.Int).SetBytes(hash))
 
 		// ════════════════════════════════════════════════════════════════
 		// ENVIRONMENT

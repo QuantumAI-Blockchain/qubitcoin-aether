@@ -4,9 +4,8 @@
  * Typed fetch functions for the Qubitcoin Bridge.
  * Switches between mock data and real backend API via NEXT_PUBLIC_BRIDGE_MOCK.
  *
- * When NEXT_PUBLIC_BRIDGE_MOCK is unset or not explicitly "false",
- * mock data is returned. Set NEXT_PUBLIC_BRIDGE_MOCK=false to hit the
- * real backend at NEXT_PUBLIC_RPC_URL.
+ * When NEXT_PUBLIC_BRIDGE_MOCK is explicitly "true", mock data is returned.
+ * Otherwise, the real backend at NEXT_PUBLIC_RPC_URL is used.
  */
 
 import { RPC_URL } from "./constants";
@@ -15,7 +14,7 @@ import { RPC_URL } from "./constants";
 // Environment switch
 // ---------------------------------------------------------------------------
 
-const USE_MOCK = process.env.NEXT_PUBLIC_BRIDGE_MOCK !== "false";
+const USE_MOCK = process.env.NEXT_PUBLIC_BRIDGE_MOCK === "true";
 
 // ---------------------------------------------------------------------------
 // Types (backend-aligned)

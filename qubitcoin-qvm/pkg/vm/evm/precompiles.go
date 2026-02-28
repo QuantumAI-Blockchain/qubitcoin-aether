@@ -8,6 +8,7 @@ import (
 	"math/big"
 
 	"golang.org/x/crypto/ripemd160"
+	"golang.org/x/crypto/sha3"
 )
 
 // PrecompiledContract is the interface for EVM precompiled contracts (0x01-0x09).
@@ -103,13 +104,8 @@ func (c *ecRecover) Run(input []byte) ([]byte, error) {
 	copy(sig[64-len(sBytes):64], sBytes)
 	sig[64] = recoveryID
 
-	// Use elliptic curve point recovery
-	// secp256k1 parameters
-	curve := elliptic.P256() // Using P256 as Go stdlib substitute
-	// Note: Production should use btcec/secp256k1 for exact Ethereum compatibility.
-	// This implementation uses Go's standard crypto library for correctness
-	// over the P256 curve. For full Ethereum ecRecover compatibility,
-	// integrate github.com/btcsuite/btcd/btcec/v2 or similar secp256k1 library.
+	// Use secp256k1 curve (Ethereum-compatible)
+	curve := Secp256k1()
 
 	// Recover public key using standard ECDSA verification approach:
 	// Given (hash, r, s, v), reconstruct the point R from r and recovery bit,
@@ -151,19 +147,14 @@ func recoverPublicKey(curve elliptic.Curve, hash []byte, r, s *big.Int, recovery
 		return nil, fmt.Errorf("rx out of range")
 	}
 
-	// Compute y from x on the curve: y^2 = x^3 + ax + b (mod p)
-	// For secp256k1/P256: a = -3, so y^2 = x^3 - 3x + b
+	// Compute y from x on the curve: y^2 = x^3 + b (mod p)
+	// For secp256k1: a = 0, b = 7, so y^2 = x^3 + 7
 	x3 := new(big.Int).Mul(rx, rx)
 	x3.Mul(x3, rx)
 	x3.Mod(x3, params.P)
 
-	// a*x
-	threeX := new(big.Int).Mul(big.NewInt(3), rx)
-	threeX.Mod(threeX, params.P)
-
-	// y^2 = x^3 - 3x + b (mod p) for P256
-	ySquared := new(big.Int).Sub(x3, threeX)
-	ySquared.Add(ySquared, params.B)
+	// y^2 = x^3 + b (mod p) for secp256k1
+	ySquared := new(big.Int).Add(x3, params.B)
 	ySquared.Mod(ySquared, params.P)
 
 	// Compute y = sqrt(y^2) mod p
@@ -212,12 +203,10 @@ func recoverPublicKey(curve elliptic.Curve, hash []byte, r, s *big.Int, recovery
 }
 
 // keccak256 computes Keccak-256 hash (Ethereum-compatible).
-// Falls back to SHA-256 if no keccak library is available.
 func keccak256(data []byte) []byte {
-	// Use SHA-256 as fallback — for full Ethereum compatibility,
-	// integrate golang.org/x/crypto/sha3 with NewLegacyKeccak256()
-	h := sha256.Sum256(data)
-	return h[:]
+	h := sha3.NewLegacyKeccak256()
+	h.Write(data)
+	return h.Sum(nil)
 }
 
 // ─── 0x02: SHA-256 ───────────────────────────────────────────────────
@@ -405,6 +394,30 @@ func (c *blake2F) RequiredGas(input []byte) uint64 {
 
 func (c *blake2F) Run(_ []byte) ([]byte, error) {
 	return make([]byte, 64), nil
+}
+
+// ─── secp256k1 Curve ──────────────────────────────────────────────────
+// Ethereum uses secp256k1, not P-256. We define the curve parameters
+// here to avoid adding an external dependency like btcec.
+
+var secp256k1once = &elliptic.CurveParams{
+	P:       fromHex("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"),
+	N:       fromHex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"),
+	B:       big.NewInt(7),
+	Gx:      fromHex("79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"),
+	Gy:      fromHex("483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"),
+	BitSize: 256,
+	Name:    "secp256k1",
+}
+
+// Secp256k1 returns the secp256k1 elliptic curve parameters used by Ethereum.
+func Secp256k1() elliptic.Curve {
+	return secp256k1once
+}
+
+func fromHex(s string) *big.Int {
+	v, _ := new(big.Int).SetString(s, 16)
+	return v
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────

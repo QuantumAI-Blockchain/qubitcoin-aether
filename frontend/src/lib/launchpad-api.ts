@@ -1,6 +1,6 @@
 // ─── QBC LAUNCHPAD — API Layer with Mock Fallback ──────────────────────────────
 //
-// When NEXT_PUBLIC_LAUNCHPAD_MOCK !== 'false', all functions fall back to the
+// When NEXT_PUBLIC_LAUNCHPAD_MOCK === 'true', all functions fall back to the
 // LaunchpadMockEngine so the UI works without a running backend.
 
 import { get, post } from "./api";
@@ -20,7 +20,7 @@ import type {
 
 /* ── Mock toggle ─────────────────────────────────────────────────────────── */
 
-const USE_MOCK = process.env.NEXT_PUBLIC_LAUNCHPAD_MOCK !== "false";
+const USE_MOCK = process.env.NEXT_PUBLIC_LAUNCHPAD_MOCK === "true";
 
 /** Lazy-loaded mock engine — only imported when mock mode is active. */
 async function getMockEngine() {

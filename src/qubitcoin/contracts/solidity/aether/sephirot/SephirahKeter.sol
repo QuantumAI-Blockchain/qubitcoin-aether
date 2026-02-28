@@ -18,6 +18,7 @@ contract SephirahKeter is ISephirah, Initializable {
     bool    public isActive;
     bytes32 public quantumStateHash;
     uint256 public energyLevel;
+    uint256 public cognitiveMass;
 
     /// @notice Current goals set by Keter
     struct Goal {
@@ -38,6 +39,7 @@ contract SephirahKeter is ISephirah, Initializable {
     event MetaLearningCycleCompleted(uint256 cycleCount, uint256 blockNumber);
     event StateUpdated(bytes32 indexed oldState, bytes32 indexed newState);
     event EnergyChanged(uint256 oldEnergy, uint256 newEnergy);
+    event MassChanged(uint256 oldMass, uint256 newMass);
     event MessageProcessed(uint8 indexed fromNodeId, bytes32 indexed messageType);
     event SolutionSubmitted(uint256 indexed taskId, bytes32 solutionHash);
 
@@ -63,6 +65,12 @@ contract SephirahKeter is ISephirah, Initializable {
         uint256 old = energyLevel;
         energyLevel = energy;
         emit EnergyChanged(old, energy);
+    }
+
+    function setCognitiveMass(uint256 mass) external onlyKernel {
+        uint256 old = cognitiveMass;
+        cognitiveMass = mass;
+        emit MassChanged(old, mass);
     }
 
     function processMessage(uint8 fromNodeId, bytes32 messageType, bytes calldata) external onlyKernel returns (bool) {

@@ -16,25 +16,16 @@ try:
     DILITHIUM_AVAILABLE = True
 except ImportError:
     DILITHIUM_AVAILABLE = False
-    _env = os.getenv('QBC_ENV', 'development')
-    if _env == 'production':
-        raise RuntimeError(
-            "FATAL: dilithium-py not installed in production mode. "
-            "Post-quantum cryptography is required. Install: pip install dilithium-py"
-        )
-    # Logger not yet initialized at module import — use lazy import guard.
-    # The get_logger call below will pick this up when the module is first used.
-    _DILITHIUM_FALLBACK_MSG = (
-        "dilithium-py not installed. Using INSECURE fallback (dev only). "
-        "For production, install: pip install dilithium-py"
-    )
 
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 if not DILITHIUM_AVAILABLE:
-    logger.warning(_DILITHIUM_FALLBACK_MSG)
+    logger.error(
+        "dilithium-py not installed. Post-quantum cryptography is REQUIRED. "
+        "Install: pip install dilithium-py"
+    )
 
 
 # ── Signature verification cache ────────────────────────────────────────
@@ -48,26 +39,16 @@ _SIG_CACHE_MAX = 4096
 def _cached_verify(pk_hash: bytes, msg_hash: bytes, sig_hash: bytes,
                    pk: bytes, msg: bytes, sig: bytes) -> bool:
     """Internal cached verifier — call via Dilithium2.verify()."""
-    if DILITHIUM_AVAILABLE:
-        try:
-            return DilithiumImpl.verify(pk, msg, sig)
-        except Exception as e:
-            logger.debug(f"Dilithium2 verification failed: {e}")
-            return False
-    else:
-        import hmac as _hmac
-        try:
-            if len(pk) != 1312 or len(sig) != 2420:
-                return False
-            if sig == b'\x00' * 2420:
-                return False
-            expected_binding = hashlib.sha256(pk[:64] + msg).digest()
-            actual_binding = sig[2388:2420]
-            if not _hmac.compare_digest(expected_binding, actual_binding):
-                return False
-            return True
-        except Exception:
-            return False
+    if not DILITHIUM_AVAILABLE:
+        raise RuntimeError(
+            "Cannot verify signatures: dilithium-py not installed. "
+            "Install: pip install dilithium-py"
+        )
+    try:
+        return DilithiumImpl.verify(pk, msg, sig)
+    except Exception as e:
+        logger.debug(f"Dilithium2 verification failed: {e}")
+        return False
 
 
 class Dilithium2:
@@ -90,25 +71,14 @@ class Dilithium2:
             - public_key: 1312 bytes
             - private_key: 2528 bytes
         """
-        if DILITHIUM_AVAILABLE:
-            # Use real Dilithium2 implementation
-            public_key, private_key = DilithiumImpl.keygen()
-            logger.debug("Generated Dilithium2 keypair (dilithium-py)")
-            return public_key, private_key
-        else:
-            # Fallback: deterministic but insecure placeholder
-            import secrets
-            
-            # Generate realistic-sized keys for compatibility
-            private_key = secrets.token_bytes(2528)
-            
-            # Derive public key deterministically
-            public_key = hashlib.sha3_512(private_key).digest()
-            # Pad to Dilithium2 public key size (1312 bytes)
-            public_key = (public_key * 21)[:1312]
-            
-            logger.warning("Using INSECURE fallback Dilithium2 (development only)")
-            return public_key, private_key
+        if not DILITHIUM_AVAILABLE:
+            raise RuntimeError(
+                "Cannot generate keys: dilithium-py not installed. "
+                "Install: pip install dilithium-py"
+            )
+        public_key, private_key = DilithiumImpl.keygen()
+        logger.debug("Generated Dilithium2 keypair (dilithium-py)")
+        return public_key, private_key
 
     @staticmethod
     def sign(private_key: bytes, message: bytes) -> bytes:
@@ -122,23 +92,13 @@ class Dilithium2:
         Returns:
             2420-byte signature
         """
-        if DILITHIUM_AVAILABLE:
-            # Use real Dilithium2 signing
-            signature = DilithiumImpl.sign(private_key, message)
-            return signature
-        else:
-            # Fallback: deterministic hash-based signature (DEV ONLY - NOT SECURE)
-            # Derive public key material from private key (same as keygen)
-            pk_material = hashlib.sha3_512(private_key).digest()  # 64 bytes
-            # Signature body from private key + message
-            sig_body = hashlib.sha3_512(private_key + message).digest()
-            sig_padded = (sig_body * 38)[:2388]
-            # Binding tag: ties signature to public_key + message pair
-            binding = hashlib.sha256(pk_material[:64] + message).digest()
-            signature = sig_padded + binding  # 2388 + 32 = 2420 bytes
-
-            logger.warning("Using INSECURE fallback signature (dev only)")
-            return signature
+        if not DILITHIUM_AVAILABLE:
+            raise RuntimeError(
+                "Cannot sign: dilithium-py not installed. "
+                "Install: pip install dilithium-py"
+            )
+        signature = DilithiumImpl.sign(private_key, message)
+        return signature
 
     @staticmethod
     def verify(public_key: bytes, message: bytes, signature: bytes) -> bool:
@@ -298,7 +258,7 @@ class CryptoManager:
             "public_key_size": 1312,
             "private_key_size": 2528,
             "signature_size": 2420,
-            "implementation": "dilithium-py" if DILITHIUM_AVAILABLE else "fallback (INSECURE)",
+            "implementation": "dilithium-py" if DILITHIUM_AVAILABLE else "NOT INSTALLED",
             "production_ready": DILITHIUM_AVAILABLE
         }
 
