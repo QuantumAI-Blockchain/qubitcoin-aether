@@ -10,6 +10,7 @@ import "../proxy/Initializable.sol";
 contract BridgeVault is Initializable {
     address public owner;
     bool    public paused;
+    bool    private _locked;
 
     uint256 public constant FEE_BPS = 10;        // 0.1% = 10 basis points
     uint256 public constant BPS_DENOMINATOR = 10000;
@@ -96,6 +97,13 @@ contract BridgeVault is Initializable {
     modifier whenNotPaused() {
         require(!paused, "Vault: paused");
         _;
+    }
+
+    modifier nonReentrant() {
+        require(!_locked, "Vault: reentrant call");
+        _locked = true;
+        _;
+        _locked = false;
     }
 
     // ── Initializer ────────────────────────────────────────────────
@@ -196,7 +204,7 @@ contract BridgeVault is Initializable {
         uint256 amount,
         uint256 sourceChain,
         bytes32 sourceTxHash
-    ) external onlyRelayer whenNotPaused {
+    ) external onlyRelayer whenNotPaused nonReentrant {
         require(recipient != address(0), "Vault: zero recipient");
         require(amount > 0, "Vault: zero amount");
         require(amount <= totalLocked, "Vault: insufficient locked");
@@ -252,7 +260,7 @@ contract BridgeVault is Initializable {
         emit RelayerRemoved(relayer);
     }
 
-    function withdrawFees() external onlyOwner {
+    function withdrawFees() external onlyOwner nonReentrant {
         uint256 amount = totalFees;
         require(amount > 0, "Vault: no fees");
         totalFees = 0;

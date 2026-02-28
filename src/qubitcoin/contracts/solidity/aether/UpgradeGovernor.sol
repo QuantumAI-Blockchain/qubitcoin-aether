@@ -11,6 +11,7 @@ contract UpgradeGovernor is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant VOTING_PERIOD   = 7 days;
     uint256 public constant TIMELOCK_PERIOD = 48 hours;
+    uint256 public constant MIN_PROPOSAL_BALANCE = 1000 ether; // 1000 QBC to propose
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
@@ -65,6 +66,7 @@ contract UpgradeGovernor is Initializable {
     ) external returns (uint256 proposalId) {
         require(targetContract != address(0), "Governor: zero target");
         require(newImplementation != address(0), "Governor: zero impl");
+        require(qbcToken.balanceOf(msg.sender) >= MIN_PROPOSAL_BALANCE, "Governor: insufficient QBC balance");
 
         proposalId = ++proposalCount;
         proposals[proposalId] = UpgradeProposal({

@@ -698,15 +698,32 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 		// SYSTEM: CREATE, CALL, etc. — stubs for sub-call support
 		// ════════════════════════════════════════════════════════════════
 		case op == CREATE || op == CREATE2:
-			// Consume 3 stack items, push 0 (stub — full impl in call.go)
-			_, _, _ = mustPop3(ctx)
+			// Consume stack items and push 0 (failure).
+			// CREATE: [value, offset, size] → [address]
+			// CREATE2: [value, offset, size, salt] → [address]
+			// Returns 0 (no contract created) until call.go provides the
+			// full sub-call implementation with state management.
+			val, offset, size := mustPop3(ctx)
 			if op == CREATE2 {
 				mustPop1(ctx) // salt
 			}
+			// Charge gas for init code memory access
+			off, sz := offset.Uint64(), size.Uint64()
+			if sz > 0 {
+				memCost := ctx.Memory.Resize(off + sz)
+				if !ctx.UseGas(memCost + 32000) { // CREATE base gas
+					return fmt.Errorf("out of gas: CREATE")
+				}
+			}
+			_ = val // value to send to new contract
 			err = ctx.Stack.Push(big.NewInt(0))
 
 		case op == CALL || op == CALLCODE || op == DELEGATECALL || op == STATICCALL:
-			// Consume stack items, push 0 (stub — full impl in call.go)
+			// Consume stack items and push 0 (failure).
+			// CALL/CALLCODE: [gas, addr, value, argsOff, argsLen, retOff, retLen] → [success]
+			// DELEGATECALL/STATICCALL: [gas, addr, argsOff, argsLen, retOff, retLen] → [success]
+			// Returns 0 (call failed) until call.go provides the
+			// full sub-call implementation with state management.
 			n := 7
 			if op == DELEGATECALL || op == STATICCALL {
 				n = 6

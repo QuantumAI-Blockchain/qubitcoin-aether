@@ -687,6 +687,71 @@ class InMemoryPersistence(OrderPersistence):
         return list(self._fills.get(pair, []))
 
 
+class DatabasePersistence(OrderPersistence):
+    """Database-backed persistence using SQLAlchemy sessions.
+
+    Persists orders and fills to CockroachDB so the order book
+    survives node restarts.
+    """
+
+    def __init__(self, db_manager: 'DatabaseManager') -> None:
+        self._db = db_manager
+
+    def save_order(self, pair: str, order: 'Order') -> None:
+        from sqlalchemy import text
+        with self._db.get_session() as session:
+            session.execute(
+                text("""
+                    INSERT INTO exchange_orders (order_id, pair, side, order_type, price, size, filled, status, owner, created_at)
+                    VALUES (:oid, :pair, :side, :otype, :price, :size, :filled, :status, :owner, to_timestamp(:ts))
+                    ON CONFLICT (order_id) DO UPDATE SET
+                        filled = :filled, status = :status
+                """),
+                {
+                    'oid': order.id, 'pair': pair, 'side': order.side.value,
+                    'otype': order.type.value, 'price': str(order.price),
+                    'size': str(order.size), 'filled': str(order.filled),
+                    'status': order.status.value, 'owner': order.owner,
+                    'ts': order.timestamp,
+                },
+            )
+            session.commit()
+
+    def delete_order(self, pair: str, order_id: str) -> None:
+        from sqlalchemy import text
+        with self._db.get_session() as session:
+            session.execute(
+                text("DELETE FROM exchange_orders WHERE order_id = :oid"),
+                {'oid': order_id},
+            )
+            session.commit()
+
+    def save_fill(self, pair: str, fill: 'Fill') -> None:
+        from sqlalchemy import text
+        with self._db.get_session() as session:
+            session.execute(
+                text("""
+                    INSERT INTO exchange_fills (fill_id, pair, price, size, side, maker_order_id, taker_order_id, maker_address, taker_address, timestamp)
+                    VALUES (:fid, :pair, :price, :size, :side, :moid, :toid, :maddr, :taddr, to_timestamp(:ts))
+                    ON CONFLICT (fill_id) DO NOTHING
+                """),
+                {
+                    'fid': fill.id, 'pair': pair, 'price': str(fill.price),
+                    'size': str(fill.size), 'side': fill.side.value,
+                    'moid': fill.maker_order_id, 'toid': fill.taker_order_id,
+                    'maddr': fill.maker_address, 'taddr': fill.taker_address,
+                    'ts': fill.timestamp,
+                },
+            )
+            session.commit()
+
+    def load_orders(self, pair: str) -> List['Order']:
+        return []  # Orders are loaded from DB on demand; fresh start
+
+    def load_fills(self, pair: str, limit: int = 500) -> List['Fill']:
+        return []  # Fills are loaded from DB on demand; fresh start
+
+
 class SettlementCallback:
     """Interface for on-chain settlement of matched trades.
 

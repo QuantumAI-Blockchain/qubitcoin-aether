@@ -32,6 +32,8 @@ contract QUSDStabilizer is Initializable {
 
     bool public autoRebalanceEnabled;
     bool public paused;
+    uint256 public lastRebalanceBlock;
+    uint256 public constant REBALANCE_COOLDOWN = 10; // min blocks between rebalances
 
     // ─── Events ──────────────────────────────────────────────────────────
     event StabilityBuy(uint256 qusdAmount, uint256 qbcSpent, uint256 price, uint256 timestamp);
@@ -128,6 +130,8 @@ contract QUSDStabilizer is Initializable {
         require(autoRebalanceEnabled, "Stabilizer: auto-rebalance disabled");
         require(amount > 0, "Stabilizer: zero amount");
         require(amount <= maxTradeSize, "Stabilizer: exceeds max trade size");
+        require(block.number >= lastRebalanceBlock + REBALANCE_COOLDOWN, "Stabilizer: cooldown active");
+        lastRebalanceBlock = block.number;
 
         if (currentPrice < floorPrice && stabilityFundBalance > 0) {
             uint256 qbcCost = (amount * pegTarget) / currentPrice;

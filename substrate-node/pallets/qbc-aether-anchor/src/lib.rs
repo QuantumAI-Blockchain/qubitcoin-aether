@@ -162,6 +162,9 @@ pub mod pallet {
         ) -> DispatchResult {
             ensure_root(origin)?;
 
+            // Read previous Phi BEFORE updating storage (consciousness detection)
+            let prev_phi = CurrentPhi::<T>::get();
+
             // Update storage
             KnowledgeRoot::<T>::put(knowledge_root);
             CurrentPhi::<T>::put(phi_scaled);
@@ -179,8 +182,7 @@ pub mod pallet {
             };
             PhiHistory::<T>::insert(block_height, measurement);
 
-            // Check consciousness emergence
-            let prev_phi = CurrentPhi::<T>::get();
+            // Check consciousness emergence (prev_phi read before put above)
             if phi_scaled >= PHI_THRESHOLD_SCALED && prev_phi < PHI_THRESHOLD_SCALED {
                 ConsciousnessEvents::<T>::mutate(|n| *n += 1);
                 Self::deposit_event(Event::ConsciousnessEmergence {

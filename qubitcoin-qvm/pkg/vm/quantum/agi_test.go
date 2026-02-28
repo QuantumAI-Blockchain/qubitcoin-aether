@@ -1,9 +1,10 @@
 package quantum
 
 import (
-	"crypto/sha256"
 	"math/big"
 	"testing"
+
+	"golang.org/x/crypto/sha3"
 )
 
 // ─── Test Infrastructure ────────────────────────────────────────────────
@@ -247,8 +248,10 @@ func TestOpQReason_BasicQuery(t *testing.T) {
 	// Verify the result is SHA-256("aether:reason:" + query)
 	prefix := []byte("aether:reason:")
 	hashInput := append(prefix, query...)
-	expected := sha256.Sum256(hashInput)
-	expectedInt := new(big.Int).SetBytes(expected[:])
+	kh := sha3.NewLegacyKeccak256()
+	kh.Write(hashInput)
+	expected := kh.Sum(nil)
+	expectedInt := new(big.Int).SetBytes(expected)
 
 	got := stack.top()
 	if got.Cmp(expectedInt) != 0 {
@@ -271,9 +274,11 @@ func TestOpQReason_EmptyQuery(t *testing.T) {
 		t.Fatalf("OpQReason with empty query failed: %v", err)
 	}
 
-	// Empty query: SHA-256("aether:reason:")
-	expected := sha256.Sum256([]byte("aether:reason:"))
-	expectedInt := new(big.Int).SetBytes(expected[:])
+	// Empty query: Keccak-256("aether:reason:")
+	emptyKh := sha3.NewLegacyKeccak256()
+	emptyKh.Write([]byte("aether:reason:"))
+	expected := emptyKh.Sum(nil)
+	expectedInt := new(big.Int).SetBytes(expected)
 
 	got := stack.top()
 	if got.Cmp(expectedInt) != 0 {
@@ -365,9 +370,11 @@ func TestOpQReason_NilMemory(t *testing.T) {
 		t.Fatalf("OpQReason with nil memory failed: %v", err)
 	}
 
-	// With nil memory, queryData is nil → hash is SHA-256("aether:reason:")
-	expected := sha256.Sum256([]byte("aether:reason:"))
-	expectedInt := new(big.Int).SetBytes(expected[:])
+	// With nil memory, queryData is nil → hash is Keccak-256("aether:reason:")
+	nilKh := sha3.NewLegacyKeccak256()
+	nilKh.Write([]byte("aether:reason:"))
+	expected := nilKh.Sum(nil)
+	expectedInt := new(big.Int).SetBytes(expected)
 	if stack.top().Cmp(expectedInt) != 0 {
 		t.Errorf("nil memory result mismatch")
 	}
@@ -456,8 +463,10 @@ func TestOpQReason_NonZeroOffset(t *testing.T) {
 	// Verify result matches the query at offset 32
 	prefix := []byte("aether:reason:")
 	hashInput := append(prefix, query...)
-	expected := sha256.Sum256(hashInput)
-	expectedInt := new(big.Int).SetBytes(expected[:])
+	kh := sha3.NewLegacyKeccak256()
+	kh.Write(hashInput)
+	expected := kh.Sum(nil)
+	expectedInt := new(big.Int).SetBytes(expected)
 
 	if stack.top().Cmp(expectedInt) != 0 {
 		t.Error("QREASON with non-zero offset produced wrong result")

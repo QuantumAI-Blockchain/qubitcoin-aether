@@ -11,6 +11,7 @@ contract SynapticStaking is Initializable {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
+    bool private _locked;
 
     uint256 public constant MIN_STAKE = 100 ether;           // 100 QBC minimum
     uint256 public constant MAX_STAKE_PER_CONNECTION = 1000000 ether; // 1M QBC max per connection
@@ -66,6 +67,13 @@ contract SynapticStaking is Initializable {
     modifier onlyKernel() {
         require(msg.sender == kernel || msg.sender == owner, "Synaptic: not authorized");
         _;
+    }
+
+    modifier nonReentrant() {
+        require(!_locked, "Synaptic: reentrant call");
+        _locked = true;
+        _;
+        _locked = false;
     }
 
     // ─── Initialization ─────────────────────────────────────────────────
@@ -152,7 +160,7 @@ contract SynapticStaking is Initializable {
 
     /// @notice Complete unstaking after the delay has passed.
     /// @param requestIndex Index in the caller's unstakeRequests array
-    function userCompleteUnstake(uint256 requestIndex) external {
+    function userCompleteUnstake(uint256 requestIndex) external nonReentrant {
         require(requestIndex < unstakeRequests[msg.sender].length, "Synaptic: invalid request");
         UnstakeRequest storage req = unstakeRequests[msg.sender][requestIndex];
         require(req.amount > 0, "Synaptic: already completed");
@@ -168,7 +176,7 @@ contract SynapticStaking is Initializable {
     }
 
     /// @notice Claim accumulated staking rewards.
-    function claimRewards() external {
+    function claimRewards() external nonReentrant {
         // Accrue rewards across all active stakes
         for (uint256 i = 0; i < userStakes[msg.sender].length; i++) {
             if (userStakes[msg.sender][i].amount > 0) {

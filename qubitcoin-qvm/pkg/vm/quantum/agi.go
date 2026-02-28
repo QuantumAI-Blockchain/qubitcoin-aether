@@ -1,10 +1,11 @@
 package quantum
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"math/big"
 	"sync"
+
+	"golang.org/x/crypto/sha3"
 )
 
 // AGIHandler implements the AGI opcodes (QREASON 0xC2, QPHI 0xC3) that
@@ -111,16 +112,18 @@ func (a *AGIHandler) OpQReason(stack StackAccessor, gas GasConsumer, memory Memo
 	}
 
 	// Compute reasoning result hash
-	// Stub: SHA-256("aether:reason:" || query_data)
-	// This is deterministic so all validators produce the same result.
+	// Stub: Keccak-256("aether:reason:" || query_data)
+	// Uses Keccak-256 (EVM-compatible) so all validators produce the same result.
 	prefix := []byte("aether:reason:")
 	hashInput := make([]byte, len(prefix)+len(queryData))
 	copy(hashInput, prefix)
 	copy(hashInput[len(prefix):], queryData)
-	resultHash := sha256.Sum256(hashInput)
+	h := sha3.NewLegacyKeccak256()
+	h.Write(hashInput)
+	resultHash := h.Sum(nil)
 
 	// Push result hash as uint256
-	return stack.Push(new(big.Int).SetBytes(resultHash[:]))
+	return stack.Push(new(big.Int).SetBytes(resultHash))
 }
 
 // OpQPhi implements the QPHI opcode (0xC3).

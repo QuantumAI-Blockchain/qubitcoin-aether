@@ -185,7 +185,8 @@ class Config:
     # BRIDGE SETTINGS
     # ============================================================================
     INFURA_URL: Optional[str] = os.getenv('INFURA_URL')
-    ETH_PRIVATE_KEY: Optional[str] = os.getenv('ETH_PRIVATE_KEY')
+    # ETH_PRIVATE_KEY loaded from secure_key.env only (never from .env)
+    ETH_PRIVATE_KEY: Optional[str] = os.getenv('ETH_PRIVATE_KEY_SECURE')
     BRIDGE_CONTRACT_ADDRESS: Optional[str] = os.getenv('BRIDGE_CONTRACT_ADDRESS')
 
     # ============================================================================

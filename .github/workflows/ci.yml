@@ -87,7 +87,8 @@ jobs:
 
       - name: Run integration tests
         run: |
-          python -m pytest tests/integration/ -v --tb=short -x || true
+          python -m pytest tests/integration/ -v --tb=short -x
+        continue-on-error: true
         env:
           DATABASE_URL: postgresql://root@localhost:26257/qbc?sslmode=disable
           PYTHONDONTWRITEBYTECODE: 1

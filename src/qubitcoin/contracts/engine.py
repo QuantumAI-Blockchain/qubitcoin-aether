@@ -771,34 +771,262 @@ class ContractEngine:
     # ========================================================================
 
     def _validate_nft_contract(self, code: Dict) -> Tuple[bool, Optional[str]]:
-        """Validate NFT contract"""
-        # TODO: Implement NFT validation
+        """Validate NFT contract — requires name, symbol, and optional max_supply."""
+        name = code.get('name')
+        symbol = code.get('symbol')
+        if not name or not isinstance(name, str):
+            return False, "NFT contract requires a 'name' field"
+        if not symbol or not isinstance(symbol, str):
+            return False, "NFT contract requires a 'symbol' field"
+        max_supply = code.get('max_supply', 0)
+        if max_supply and (not isinstance(max_supply, int) or max_supply < 0):
+            return False, "max_supply must be a non-negative integer"
         return True, None
 
     def _validate_escrow_contract(self, code: Dict) -> Tuple[bool, Optional[str]]:
-        """Validate escrow contract"""
-        # TODO: Implement escrow validation
+        """Validate escrow contract — requires buyer, seller, and amount."""
+        for field in ('buyer', 'seller', 'amount'):
+            if not code.get(field):
+                return False, f"Escrow contract requires a '{field}' field"
+        amount = code.get('amount', 0)
+        if not isinstance(amount, (int, float, str)):
+            return False, "amount must be a number"
+        if Decimal(str(amount)) <= 0:
+            return False, "amount must be positive"
         return True, None
 
     def _validate_governance_contract(self, code: Dict) -> Tuple[bool, Optional[str]]:
-        """Validate governance contract"""
-        # TODO: Implement governance validation
+        """Validate governance contract — requires name and quorum_pct."""
+        name = code.get('name')
+        if not name or not isinstance(name, str):
+            return False, "Governance contract requires a 'name' field"
+        quorum = code.get('quorum_pct', 50)
+        if not isinstance(quorum, (int, float)) or quorum <= 0 or quorum > 100:
+            return False, "quorum_pct must be between 0 and 100"
         return True, None
 
-    def _execute_nft_method(self, *args) -> Tuple[bool, str, Any, Dict]:
-        """Execute NFT method"""
-        # TODO: Implement NFT methods
-        return False, "NFT contracts not yet implemented", None, args[2]
+    def _execute_nft_method(
+        self, contract_id: str, method: str,
+        state: Dict, params: Dict, executor: str,
+    ) -> Tuple[bool, str, Any, None]:
+        """Execute NFT method — supports mint, transfer, and balance_of."""
+        if method == 'mint':
+            token_id = params.get('token_id')
+            if not token_id:
+                return False, "token_id required", None, None
+            with self.db.get_session() as session:
+                session.execute(
+                    text("""
+                        INSERT INTO contract_storage (contract_id, storage_key, storage_value)
+                        VALUES (:cid, :key, :val)
+                        ON CONFLICT (contract_id, storage_key) DO NOTHING
+                    """),
+                    {'cid': contract_id, 'key': f'nft:{token_id}:owner', 'val': executor},
+                )
+                session.commit()
+            return True, "NFT minted", {'token_id': token_id, 'owner': executor}, None
 
-    def _execute_escrow_method(self, *args) -> Tuple[bool, str, Any, Dict]:
-        """Execute escrow method"""
-        # TODO: Implement escrow methods
-        return False, "Escrow contracts not yet implemented", None, args[2]
+        elif method == 'transfer':
+            token_id = params.get('token_id')
+            to_addr = params.get('to')
+            if not token_id or not to_addr:
+                return False, "token_id and to required", None, None
+            with self.db.get_session() as session:
+                row = session.execute(
+                    text("SELECT storage_value FROM contract_storage WHERE contract_id = :cid AND storage_key = :key"),
+                    {'cid': contract_id, 'key': f'nft:{token_id}:owner'},
+                ).fetchone()
+                if not row or row[0] != executor:
+                    return False, "Not token owner", None, None
+                session.execute(
+                    text("UPDATE contract_storage SET storage_value = :val WHERE contract_id = :cid AND storage_key = :key"),
+                    {'cid': contract_id, 'key': f'nft:{token_id}:owner', 'val': to_addr},
+                )
+                session.commit()
+            return True, "NFT transferred", {'token_id': token_id, 'to': to_addr}, None
 
-    def _execute_governance_method(self, *args) -> Tuple[bool, str, Any, Dict]:
-        """Execute governance method"""
-        # TODO: Implement governance methods
-        return False, "Governance contracts not yet implemented", None, args[2]
+        elif method == 'balance_of':
+            owner = params.get('owner', executor)
+            with self.db.get_session() as session:
+                count = session.execute(
+                    text("SELECT COUNT(*) FROM contract_storage WHERE contract_id = :cid AND storage_key LIKE 'nft:%:owner' AND storage_value = :owner"),
+                    {'cid': contract_id, 'owner': owner},
+                ).scalar() or 0
+            return True, "Balance retrieved", {'owner': owner, 'balance': count}, None
+
+        return False, f"Unknown NFT method: {method}", None, None
+
+    def _execute_escrow_method(
+        self, contract_id: str, method: str,
+        state: Dict, params: Dict, executor: str,
+    ) -> Tuple[bool, str, Any, None]:
+        """Execute escrow method — supports deposit, release, and refund."""
+        if method == 'deposit':
+            amount = Decimal(str(params.get('amount', 0)))
+            if amount <= 0:
+                return False, "Amount must be positive", None, None
+            balance = self.db.get_balance(executor)
+            if balance < amount:
+                return False, "Insufficient balance", None, None
+            if not self.db.transfer_between_accounts(executor, contract_id, amount):
+                return False, "Transfer failed", None, None
+            with self.db.get_session() as session:
+                session.execute(
+                    text("""
+                        INSERT INTO contract_storage (contract_id, storage_key, storage_value)
+                        VALUES (:cid, :key, :val)
+                        ON CONFLICT (contract_id, storage_key)
+                        DO UPDATE SET storage_value = CAST(CAST(contract_storage.storage_value AS DECIMAL) + :amt AS TEXT)
+                    """),
+                    {'cid': contract_id, 'key': f'escrow:{executor}:deposited', 'val': str(amount), 'amt': amount},
+                )
+                session.commit()
+            return True, "Deposited to escrow", {'amount': str(amount)}, None
+
+        elif method == 'release':
+            to_addr = params.get('to')
+            if not to_addr:
+                return False, "to address required", None, None
+            with self.db.get_session() as session:
+                row = session.execute(
+                    text("SELECT storage_value FROM contract_storage WHERE contract_id = :cid AND storage_key = 'escrow:status'"),
+                    {'cid': contract_id},
+                ).fetchone()
+                if row and row[0] == 'released':
+                    return False, "Already released", None, None
+                bal = self.db.get_balance(contract_id)
+                if bal <= 0:
+                    return False, "No funds in escrow", None, None
+                if not self.db.transfer_between_accounts(contract_id, to_addr, bal):
+                    return False, "Release transfer failed", None, None
+                session.execute(
+                    text("INSERT INTO contract_storage (contract_id, storage_key, storage_value) VALUES (:cid, 'escrow:status', 'released') ON CONFLICT (contract_id, storage_key) DO UPDATE SET storage_value = 'released'"),
+                    {'cid': contract_id},
+                )
+                session.commit()
+            return True, "Escrow released", {'to': to_addr, 'amount': str(bal)}, None
+
+        elif method == 'refund':
+            refund_to = params.get('to', executor)
+            with self.db.get_session() as session:
+                row = session.execute(
+                    text("SELECT storage_value FROM contract_storage WHERE contract_id = :cid AND storage_key = 'escrow:status'"),
+                    {'cid': contract_id},
+                ).fetchone()
+                if row and row[0] == 'released':
+                    return False, "Already released", None, None
+                bal = self.db.get_balance(contract_id)
+                if bal <= 0:
+                    return False, "No funds to refund", None, None
+                if not self.db.transfer_between_accounts(contract_id, refund_to, bal):
+                    return False, "Refund transfer failed", None, None
+                session.execute(
+                    text("INSERT INTO contract_storage (contract_id, storage_key, storage_value) VALUES (:cid, 'escrow:status', 'refunded') ON CONFLICT (contract_id, storage_key) DO UPDATE SET storage_value = 'refunded'"),
+                    {'cid': contract_id},
+                )
+                session.commit()
+            return True, "Escrow refunded", {'to': refund_to, 'amount': str(bal)}, None
+
+        return False, f"Unknown escrow method: {method}", None, None
+
+    def _execute_governance_method(
+        self, contract_id: str, method: str,
+        state: Dict, params: Dict, executor: str,
+    ) -> Tuple[bool, str, Any, None]:
+        """Execute governance method — supports propose, vote, and finalize."""
+        if method == 'propose':
+            description = params.get('description', '')
+            if not description:
+                return False, "Description required", None, None
+            proposal_id = hashlib.sha256(f"{contract_id}:{description}:{executor}:{time.time()}".encode()).hexdigest()[:16]
+            with self.db.get_session() as session:
+                session.execute(
+                    text("""
+                        INSERT INTO contract_storage (contract_id, storage_key, storage_value)
+                        VALUES (:cid, :key, :val)
+                    """),
+                    {'cid': contract_id, 'key': f'proposal:{proposal_id}:status', 'val': 'voting'},
+                )
+                session.execute(
+                    text("INSERT INTO contract_storage (contract_id, storage_key, storage_value) VALUES (:cid, :key, :val)"),
+                    {'cid': contract_id, 'key': f'proposal:{proposal_id}:proposer', 'val': executor},
+                )
+                session.execute(
+                    text("INSERT INTO contract_storage (contract_id, storage_key, storage_value) VALUES (:cid, :key, :val)"),
+                    {'cid': contract_id, 'key': f'proposal:{proposal_id}:description', 'val': description},
+                )
+                session.execute(
+                    text("INSERT INTO contract_storage (contract_id, storage_key, storage_value) VALUES (:cid, :key, :val)"),
+                    {'cid': contract_id, 'key': f'proposal:{proposal_id}:votes_for', 'val': '0'},
+                )
+                session.execute(
+                    text("INSERT INTO contract_storage (contract_id, storage_key, storage_value) VALUES (:cid, :key, :val)"),
+                    {'cid': contract_id, 'key': f'proposal:{proposal_id}:votes_against', 'val': '0'},
+                )
+                session.commit()
+            return True, "Proposal created", {'proposal_id': proposal_id}, None
+
+        elif method == 'vote':
+            proposal_id = params.get('proposal_id')
+            support = params.get('support', True)
+            if not proposal_id:
+                return False, "proposal_id required", None, None
+            key_prefix = f'proposal:{proposal_id}'
+            with self.db.get_session() as session:
+                status = session.execute(
+                    text("SELECT storage_value FROM contract_storage WHERE contract_id = :cid AND storage_key = :key"),
+                    {'cid': contract_id, 'key': f'{key_prefix}:status'},
+                ).fetchone()
+                if not status or status[0] != 'voting':
+                    return False, "Proposal not in voting", None, None
+                # Check double vote
+                voted = session.execute(
+                    text("SELECT 1 FROM contract_storage WHERE contract_id = :cid AND storage_key = :key"),
+                    {'cid': contract_id, 'key': f'{key_prefix}:voter:{executor}'},
+                ).fetchone()
+                if voted:
+                    return False, "Already voted", None, None
+                vote_field = f'{key_prefix}:votes_for' if support else f'{key_prefix}:votes_against'
+                session.execute(
+                    text("UPDATE contract_storage SET storage_value = CAST(CAST(storage_value AS INT) + 1 AS TEXT) WHERE contract_id = :cid AND storage_key = :key"),
+                    {'cid': contract_id, 'key': vote_field},
+                )
+                session.execute(
+                    text("INSERT INTO contract_storage (contract_id, storage_key, storage_value) VALUES (:cid, :key, :val)"),
+                    {'cid': contract_id, 'key': f'{key_prefix}:voter:{executor}', 'val': 'true'},
+                )
+                session.commit()
+            return True, "Vote recorded", {'proposal_id': proposal_id, 'support': support}, None
+
+        elif method == 'finalize':
+            proposal_id = params.get('proposal_id')
+            if not proposal_id:
+                return False, "proposal_id required", None, None
+            key_prefix = f'proposal:{proposal_id}'
+            with self.db.get_session() as session:
+                status = session.execute(
+                    text("SELECT storage_value FROM contract_storage WHERE contract_id = :cid AND storage_key = :key"),
+                    {'cid': contract_id, 'key': f'{key_prefix}:status'},
+                ).fetchone()
+                if not status or status[0] != 'voting':
+                    return False, "Proposal not in voting", None, None
+                votes_for = int(session.execute(
+                    text("SELECT storage_value FROM contract_storage WHERE contract_id = :cid AND storage_key = :key"),
+                    {'cid': contract_id, 'key': f'{key_prefix}:votes_for'},
+                ).scalar() or '0')
+                votes_against = int(session.execute(
+                    text("SELECT storage_value FROM contract_storage WHERE contract_id = :cid AND storage_key = :key"),
+                    {'cid': contract_id, 'key': f'{key_prefix}:votes_against'},
+                ).scalar() or '0')
+                result = 'approved' if votes_for > votes_against else 'rejected'
+                session.execute(
+                    text("UPDATE contract_storage SET storage_value = :val WHERE contract_id = :cid AND storage_key = :key"),
+                    {'cid': contract_id, 'key': f'{key_prefix}:status', 'val': result},
+                )
+                session.commit()
+            return True, f"Proposal {result}", {'proposal_id': proposal_id, 'result': result, 'votes_for': votes_for, 'votes_against': votes_against}, None
+
+        return False, f"Unknown governance method: {method}", None, None
 
     # ========================================================================
     # CONTRACT SOURCE VERIFICATION

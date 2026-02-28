@@ -18,6 +18,7 @@ See: docs/WHITEPAPER.md Section 11, CLAUDE.md Section 22
 import hashlib
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -43,8 +44,8 @@ class ReserveInflow:
     """A single inflow event into the QUSD reserve."""
     inflow_id: str
     source: FeeSource
-    amount_qbc: float
-    amount_usd: float  # estimated USD value at time of inflow
+    amount_qbc: Decimal
+    amount_usd: Decimal  # estimated USD value at time of inflow
     block_height: int
     tx_hash: str
     timestamp: float = field(default_factory=time.time)
@@ -54,8 +55,8 @@ class ReserveInflow:
         return {
             "inflow_id": self.inflow_id,
             "source": self.source.value,
-            "amount_qbc": self.amount_qbc,
-            "amount_usd": self.amount_usd,
+            "amount_qbc": str(self.amount_qbc),
+            "amount_usd": str(self.amount_usd),
             "block_height": self.block_height,
             "tx_hash": self.tx_hash,
             "timestamp": self.timestamp,
@@ -95,19 +96,19 @@ class ReserveFeeRouter:
             qbc_usd_price: Initial QBC/USD price for USD value estimation.
         """
         self._allocations = reserve_allocations or dict(DEFAULT_RESERVE_ALLOCATIONS)
-        self._qbc_usd_price = qbc_usd_price
+        self._qbc_usd_price = Decimal(str(qbc_usd_price))
         self._inflows: List[ReserveInflow] = []
-        self._total_inflow_qbc: float = 0.0
-        self._total_inflow_usd: float = 0.0
-        self._by_source: Dict[str, float] = {}
-        self._reserve_balance_qbc: float = 0.0
+        self._total_inflow_qbc: Decimal = Decimal('0')
+        self._total_inflow_usd: Decimal = Decimal('0')
+        self._by_source: Dict[str, Decimal] = {}
+        self._reserve_balance_qbc: Decimal = Decimal('0')
         logger.info("ReserveFeeRouter initialised")
 
     def set_qbc_price(self, price: float) -> None:
         """Update QBC/USD price for USD value estimation."""
         if price <= 0:
             return
-        self._qbc_usd_price = price
+        self._qbc_usd_price = Decimal(str(price))
 
     def get_allocation(self, source: FeeSource) -> float:
         """Get the reserve allocation percentage for a fee source."""
@@ -145,9 +146,10 @@ class ReserveFeeRouter:
         if total_fee_qbc <= 0:
             return {"success": False, "error": "Fee must be positive"}
 
-        alloc = self._allocations.get(source.value, 0.0)
-        reserve_qbc = total_fee_qbc * alloc
-        treasury_qbc = total_fee_qbc - reserve_qbc
+        fee_dec = Decimal(str(total_fee_qbc))
+        alloc = Decimal(str(self._allocations.get(source.value, 0.0)))
+        reserve_qbc = fee_dec * alloc
+        treasury_qbc = fee_dec - reserve_qbc
         reserve_usd = reserve_qbc * self._qbc_usd_price
 
         if reserve_qbc > 0:
@@ -169,7 +171,7 @@ class ReserveFeeRouter:
             self._total_inflow_usd += reserve_usd
             self._reserve_balance_qbc += reserve_qbc
             self._by_source[source.value] = (
-                self._by_source.get(source.value, 0.0) + reserve_qbc
+                self._by_source.get(source.value, Decimal('0')) + reserve_qbc
             )
 
             logger.info(
@@ -180,11 +182,11 @@ class ReserveFeeRouter:
         return {
             "success": True,
             "source": source.value,
-            "total_fee": total_fee_qbc,
-            "reserve_amount": reserve_qbc,
-            "treasury_amount": treasury_qbc,
-            "reserve_usd_value": reserve_usd,
-            "allocation_pct": alloc,
+            "total_fee": str(fee_dec),
+            "reserve_amount": str(reserve_qbc),
+            "treasury_amount": str(treasury_qbc),
+            "reserve_usd_value": str(reserve_usd),
+            "allocation_pct": float(alloc),
         }
 
     def get_inflows(
@@ -202,7 +204,7 @@ class ReserveFeeRouter:
                 break
         return results
 
-    def get_reserve_balance(self) -> float:
+    def get_reserve_balance(self) -> Decimal:
         """Get current reserve balance in QBC."""
         return self._reserve_balance_qbc
 
@@ -210,11 +212,11 @@ class ReserveFeeRouter:
         """Reserve fee router statistics."""
         return {
             "total_inflows": len(self._inflows),
-            "total_inflow_qbc": self._total_inflow_qbc,
-            "total_inflow_usd": self._total_inflow_usd,
-            "reserve_balance_qbc": self._reserve_balance_qbc,
-            "qbc_usd_price": self._qbc_usd_price,
-            "by_source": dict(self._by_source),
+            "total_inflow_qbc": str(self._total_inflow_qbc),
+            "total_inflow_usd": str(self._total_inflow_usd),
+            "reserve_balance_qbc": str(self._reserve_balance_qbc),
+            "qbc_usd_price": str(self._qbc_usd_price),
+            "by_source": {k: str(v) for k, v in self._by_source.items()},
             "allocations": dict(self._allocations),
         }
 
@@ -254,9 +256,9 @@ class ReserveMilestoneEnforcer:
             milestones: Override milestone schedule.
         """
         self._genesis_height = genesis_block_height
-        self._total_minted = total_minted_qusd
+        self._total_minted = Decimal(str(total_minted_qusd))
         self._milestones = milestones or list(RESERVE_MILESTONES)
-        self._reserve_value_usd: float = 0.0
+        self._reserve_value_usd: Decimal = Decimal('0')
         self._minting_halted: bool = False
         self._fee_increase_active: bool = False
         self._violation_history: List[Dict] = []
@@ -265,11 +267,11 @@ class ReserveMilestoneEnforcer:
 
     def set_reserve_value(self, usd_value: float) -> None:
         """Update the current total reserve value in USD."""
-        self._reserve_value_usd = max(0.0, usd_value)
+        self._reserve_value_usd = max(Decimal('0'), Decimal(str(usd_value)))
 
     def set_total_minted(self, qusd_amount: float) -> None:
         """Update total QUSD minted."""
-        self._total_minted = max(0.0, qusd_amount)
+        self._total_minted = max(Decimal('0'), Decimal(str(qusd_amount)))
 
     def get_chain_year(self, current_block: int) -> int:
         """Calculate the chain's current year from genesis."""
@@ -286,9 +288,9 @@ class ReserveMilestoneEnforcer:
 
     def get_current_backing(self) -> float:
         """Calculate current backing percentage."""
-        if self._total_minted <= 0:
+        if self._total_minted <= Decimal('0'):
             return 100.0
-        return (self._reserve_value_usd / self._total_minted) * 100.0
+        return float((self._reserve_value_usd / self._total_minted) * Decimal('100'))
 
     def check_compliance(self, current_block: int) -> Dict:
         """
@@ -301,7 +303,7 @@ class ReserveMilestoneEnforcer:
         actual = self.get_current_backing()
         compliant = actual >= required
         deficit = max(0.0, required - actual)
-        deficit_usd = (deficit / 100.0) * self._total_minted if deficit > 0 else 0.0
+        deficit_usd = float((Decimal(str(deficit)) / Decimal('100')) * self._total_minted) if deficit > 0 else 0.0
 
         result = {
             "compliant": compliant,
@@ -422,8 +424,8 @@ class ReserveMilestoneEnforcer:
     def get_stats(self) -> Dict:
         """Enforcer statistics."""
         return {
-            "total_minted_qusd": self._total_minted,
-            "reserve_value_usd": self._reserve_value_usd,
+            "total_minted_qusd": str(self._total_minted),
+            "reserve_value_usd": str(self._reserve_value_usd),
             "current_backing_pct": round(self.get_current_backing(), 4),
             "minting_halted": self._minting_halted,
             "fee_increase_active": self._fee_increase_active,
@@ -445,8 +447,8 @@ class CrossChainQUSDAggregator:
     WQUSD_BRIDGE_FEE_BPS: int = 5
 
     def __init__(self) -> None:
-        self._chain_supplies: Dict[str, float] = {}
-        self._bridge_fees_collected: float = 0.0
+        self._chain_supplies: Dict[str, Decimal] = {}
+        self._bridge_fees_collected: Decimal = Decimal('0')
         self._bridge_transfers: int = 0
         logger.info("CrossChainQUSDAggregator initialised")
 
@@ -461,12 +463,12 @@ class CrossChainQUSDAggregator:
         Returns:
             Result with total supply.
         """
-        self._chain_supplies[chain] = max(0.0, supply)
+        self._chain_supplies[chain] = max(Decimal('0'), Decimal(str(supply)))
         return {
             "success": True,
             "chain": chain,
-            "supply": supply,
-            "total_supply": self.get_total_supply(),
+            "supply": str(Decimal(str(supply))),
+            "total_supply": str(self.get_total_supply()),
         }
 
     def record_bridge_transfer(self, amount: float) -> Dict:
@@ -475,27 +477,28 @@ class CrossChainQUSDAggregator:
 
         Fee: 0.05% routed to QUSD reserves.
         """
-        fee = (amount * self.WQUSD_BRIDGE_FEE_BPS) / 10_000
-        net = amount - fee
+        amt = Decimal(str(amount))
+        fee = (amt * self.WQUSD_BRIDGE_FEE_BPS) / Decimal('10000')
+        net = amt - fee
         self._bridge_fees_collected += fee
         self._bridge_transfers += 1
         return {
             "success": True,
-            "amount": amount,
-            "fee": fee,
-            "net_amount": net,
-            "total_fees_collected": self._bridge_fees_collected,
+            "amount": str(amt),
+            "fee": str(fee),
+            "net_amount": str(net),
+            "total_fees_collected": str(self._bridge_fees_collected),
         }
 
-    def get_chain_supply(self, chain: str) -> float:
+    def get_chain_supply(self, chain: str) -> Decimal:
         """Get wQUSD supply on a specific chain."""
-        return self._chain_supplies.get(chain, 0.0)
+        return self._chain_supplies.get(chain, Decimal('0'))
 
-    def get_total_supply(self) -> float:
+    def get_total_supply(self) -> Decimal:
         """Get total QUSD+wQUSD supply across all chains."""
-        return sum(self._chain_supplies.values())
+        return sum(self._chain_supplies.values(), Decimal('0'))
 
-    def get_all_chain_supplies(self) -> Dict[str, float]:
+    def get_all_chain_supplies(self) -> Dict[str, Decimal]:
         """Get supply breakdown by chain."""
         return dict(self._chain_supplies)
 
@@ -503,9 +506,9 @@ class CrossChainQUSDAggregator:
         """Aggregator statistics."""
         return {
             "chain_count": len(self._chain_supplies),
-            "chain_supplies": dict(self._chain_supplies),
-            "total_supply": self.get_total_supply(),
+            "chain_supplies": {k: str(v) for k, v in self._chain_supplies.items()},
+            "total_supply": str(self.get_total_supply()),
             "bridge_fee_bps": self.WQUSD_BRIDGE_FEE_BPS,
-            "bridge_fees_collected": self._bridge_fees_collected,
+            "bridge_fees_collected": str(self._bridge_fees_collected),
             "bridge_transfers": self._bridge_transfers,
         }
