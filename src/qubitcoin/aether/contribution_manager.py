@@ -70,6 +70,9 @@ class ContributionRecord:
 class ContributionManager:
     """Orchestrates the full AIKGS contribution lifecycle."""
 
+    # Maximum stored contributions to prevent unbounded memory growth
+    MAX_CONTRIBUTIONS = 50000
+
     def __init__(self,
                  knowledge_graph: object = None,
                  knowledge_scorer: object = None,
@@ -130,24 +133,25 @@ class ContributionManager:
         start = time.time()
         block_height = self._block_height_fn() if self._block_height_fn else 0
 
-        # 0. Daily rate limit check
-        now = time.time()
-        day_start = now - (now % 86400)
-        submissions = self._daily_submissions.get(contributor_address, [])
-        # Prune old entries (before today)
-        submissions = [t for t in submissions if t >= day_start]
-        self._daily_submissions[contributor_address] = submissions
-        if len(submissions) >= self._daily_max:
-            logger.warning(
-                f"Rate limit exceeded: contributor={contributor_address[:8]}... "
-                f"submissions_today={len(submissions)} max={self._daily_max}"
-            )
-            raise ValueError(
-                f"Daily submission limit reached ({self._daily_max}). Try again tomorrow."
-            )
-        submissions.append(now)
-
+        # C12 FIX: Rate limit + counter increment under a single lock
+        # to prevent TOCTOU race where concurrent requests bypass the limit
         with self._lock:
+            now = time.time()
+            day_start = now - (now % 86400)
+            submissions = self._daily_submissions.get(contributor_address, [])
+            # Prune old entries (before today)
+            submissions = [t for t in submissions if t >= day_start]
+            self._daily_submissions[contributor_address] = submissions
+            if len(submissions) >= self._daily_max:
+                logger.warning(
+                    f"Rate limit exceeded: contributor={contributor_address[:8]}... "
+                    f"submissions_today={len(submissions)} max={self._daily_max}"
+                )
+                raise ValueError(
+                    f"Daily submission limit reached ({self._daily_max}). Try again tomorrow."
+                )
+            submissions.append(now)
+
             self._contribution_counter += 1
             contribution_id = self._contribution_counter
 
@@ -268,6 +272,12 @@ class ContributionManager:
             if contributor_address not in self._contributor_history:
                 self._contributor_history[contributor_address] = []
             self._contributor_history[contributor_address].append(contribution_id)
+
+            # Evict oldest contributions if over limit (C14 memory bounds)
+            if len(self._contributions) > self.MAX_CONTRIBUTIONS:
+                oldest_ids = sorted(self._contributions.keys())[:len(self._contributions) - self.MAX_CONTRIBUTIONS]
+                for old_id in oldest_ids:
+                    self._contributions.pop(old_id, None)
 
         # 9. Queue UTXO reward output for next mined block
         if self._queue_reward_fn and reward_amount > 0:

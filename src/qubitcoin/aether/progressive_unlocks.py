@@ -17,6 +17,7 @@ Reputation earned from:
   - Bounty fulfillment: 50 RP
   - Streak milestones: 10-100 RP
 """
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -106,7 +107,11 @@ class ContributorProfile:
 class ProgressiveUnlocks:
     """Manages reputation-based feature unlocking."""
 
+    # Maximum profiles to prevent unbounded memory growth
+    MAX_PROFILES = 100000
+
     def __init__(self) -> None:
+        self._lock = threading.Lock()
         self._profiles: Dict[str, ContributorProfile] = {}
         self._global_contribution_count: int = 0
 
@@ -122,6 +127,12 @@ class ProgressiveUnlocks:
         Returns:
             List of newly earned badge names.
         """
+        with self._lock:
+            return self._record_contribution_inner(address, combined_score, tier)
+
+    def _record_contribution_inner(self, address: str, combined_score: float,
+                                    tier: str) -> List[str]:
+        """Inner logic — must hold self._lock."""
         profile = self._get_or_create(address)
         self._global_contribution_count += 1
 

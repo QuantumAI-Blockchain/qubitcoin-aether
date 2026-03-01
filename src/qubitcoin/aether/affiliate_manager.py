@@ -13,6 +13,7 @@ Features:
 """
 import hashlib
 import os
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -76,10 +77,15 @@ class CommissionEvent:
 class AffiliateManager:
     """Manages 2-level referral system for AIKGS."""
 
-    def __init__(self) -> None:
+    # Maximum stored commission events to prevent unbounded memory growth
+    MAX_COMMISSION_HISTORY = 10000
+
+    def __init__(self, reward_engine: object = None) -> None:
         self._l1_commission_rate = float(getattr(Config, 'AIKGS_L1_COMMISSION_RATE', 0.10))
         self._l2_commission_rate = float(getattr(Config, 'AIKGS_L2_COMMISSION_RATE', 0.05))
+        self._reward_engine = reward_engine  # For pool deductions
 
+        self._lock = threading.Lock()
         self._affiliates: Dict[str, AffiliateRecord] = {}
         self._referral_codes: Dict[str, str] = {}  # code => address
         self._commission_history: List[CommissionEvent] = []
@@ -95,6 +101,11 @@ class AffiliateManager:
         Returns:
             AffiliateRecord for the new affiliate.
         """
+        with self._lock:
+            return self._register_inner(address, referrer_code)
+
+    def _register_inner(self, address: str, referrer_code: Optional[str] = None) -> AffiliateRecord:
+        """Inner registration logic — must be called under self._lock."""
         if address in self._affiliates:
             return self._affiliates[address]
 
@@ -145,7 +156,9 @@ class AffiliateManager:
                             contribution_id: int) -> Tuple[float, float]:
         """Calculate and record affiliate commissions.
 
-        Commissions come FROM THE POOL, not from the contributor's reward.
+        Commissions are DEDUCTED FROM THE REWARD POOL via RewardEngine,
+        not created from thin air. If the pool lacks funds, commissions
+        are reduced proportionally.
 
         Args:
             contributor_address: The contributor who earned the reward.
@@ -155,47 +168,69 @@ class AffiliateManager:
         Returns:
             Tuple of (l1_commission, l2_commission).
         """
-        affiliate = self._affiliates.get(contributor_address)
-        if not affiliate or not affiliate.referrer_address:
-            return (0.0, 0.0)
+        with self._lock:
+            affiliate = self._affiliates.get(contributor_address)
+            if not affiliate or not affiliate.referrer_address:
+                return (0.0, 0.0)
 
-        l1_amount = 0.0
-        l2_amount = 0.0
+            l1_amount = 0.0
+            l2_amount = 0.0
 
-        # L1 commission to direct referrer
-        l1_referrer = affiliate.referrer_address
-        if l1_referrer and l1_referrer in self._affiliates:
-            l1_amount = reward_amount * self._l1_commission_rate
-            self._affiliates[l1_referrer].total_l1_commission += l1_amount
-            self._affiliates[l1_referrer].total_referral_rewards += l1_amount
+            # L1 commission to direct referrer
+            l1_referrer = affiliate.referrer_address
+            if l1_referrer and l1_referrer in self._affiliates:
+                l1_amount = reward_amount * self._l1_commission_rate
 
-            self._commission_history.append(CommissionEvent(
-                affiliate_address=l1_referrer,
-                contributor_address=contributor_address,
-                amount=l1_amount,
-                level=1,
-                contribution_id=contribution_id,
-                timestamp=time.time(),
-            ))
+                # Deduct from reward pool — commissions MUST be pool-funded
+                if self._reward_engine:
+                    with self._reward_engine._lock:
+                        l1_amount = min(l1_amount, self._reward_engine._pool_balance)
+                        self._reward_engine._pool_balance -= l1_amount
+                        self._reward_engine._total_distributed += l1_amount
 
-            # L2 commission to referrer's referrer
-            l2_referrer = self._affiliates[l1_referrer].referrer_address
-            if l2_referrer and l2_referrer in self._affiliates:
-                l2_amount = reward_amount * self._l2_commission_rate
-                self._affiliates[l2_referrer].total_l2_commission += l2_amount
-                self._affiliates[l2_referrer].total_referral_rewards += l2_amount
+                self._affiliates[l1_referrer].total_l1_commission += l1_amount
+                self._affiliates[l1_referrer].total_referral_rewards += l1_amount
 
                 self._commission_history.append(CommissionEvent(
-                    affiliate_address=l2_referrer,
+                    affiliate_address=l1_referrer,
                     contributor_address=contributor_address,
-                    amount=l2_amount,
-                    level=2,
+                    amount=l1_amount,
+                    level=1,
                     contribution_id=contribution_id,
                     timestamp=time.time(),
                 ))
 
-        self._total_commissions += l1_amount + l2_amount
-        return (round(l1_amount, 8), round(l2_amount, 8))
+                # L2 commission to referrer's referrer
+                l2_referrer = self._affiliates[l1_referrer].referrer_address
+                if l2_referrer and l2_referrer in self._affiliates:
+                    l2_amount = reward_amount * self._l2_commission_rate
+
+                    # Deduct from reward pool
+                    if self._reward_engine:
+                        with self._reward_engine._lock:
+                            l2_amount = min(l2_amount, self._reward_engine._pool_balance)
+                            self._reward_engine._pool_balance -= l2_amount
+                            self._reward_engine._total_distributed += l2_amount
+
+                    self._affiliates[l2_referrer].total_l2_commission += l2_amount
+                    self._affiliates[l2_referrer].total_referral_rewards += l2_amount
+
+                    self._commission_history.append(CommissionEvent(
+                        affiliate_address=l2_referrer,
+                        contributor_address=contributor_address,
+                        amount=l2_amount,
+                        level=2,
+                        contribution_id=contribution_id,
+                        timestamp=time.time(),
+                    ))
+
+            self._total_commissions += l1_amount + l2_amount
+
+            # Evict old commission history to prevent unbounded memory growth
+            if len(self._commission_history) > self.MAX_COMMISSION_HISTORY:
+                self._commission_history = self._commission_history[-self.MAX_COMMISSION_HISTORY:]
+
+            return (round(l1_amount, 8), round(l2_amount, 8))
 
     def get_affiliate(self, address: str) -> Optional[AffiliateRecord]:
         """Get affiliate info."""

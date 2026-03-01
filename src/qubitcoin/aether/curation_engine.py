@@ -7,6 +7,7 @@ Gold and Diamond tier contributions go through curation:
   - Curators stake reputation; correct curation earns reputation points
   - Incorrect curation (minority vote) loses reputation points
 """
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -71,7 +72,13 @@ class CurationRound:
 class CurationEngine:
     """Peer review engine for high-quality contributions."""
 
+    # Maximum stored rounds to prevent unbounded memory growth
+    MAX_ROUNDS = 5000
+    # Minimum curator reputation to submit reviews (H4 fix)
+    MIN_CURATOR_REPUTATION = 50.0
+
     def __init__(self) -> None:
+        self._lock = threading.Lock()
         self._rounds: Dict[int, CurationRound] = {}  # contribution_id => round
         self._curator_reputation: Dict[str, float] = {}  # address => reputation
         self._curator_reviews: Dict[str, List[int]] = {}  # address => [contribution_ids]
@@ -82,16 +89,22 @@ class CurationEngine:
 
     def submit_for_curation(self, contribution_id: int) -> CurationRound:
         """Submit a contribution for peer review."""
-        if contribution_id in self._rounds:
-            return self._rounds[contribution_id]
+        with self._lock:
+            if contribution_id in self._rounds:
+                return self._rounds[contribution_id]
 
-        round_ = CurationRound(
-            contribution_id=contribution_id,
-            required_votes=self._required_votes,
-        )
-        self._rounds[contribution_id] = round_
-        logger.info(f"Contribution {contribution_id} submitted for curation")
-        return round_
+            round_ = CurationRound(
+                contribution_id=contribution_id,
+                required_votes=self._required_votes,
+            )
+            self._rounds[contribution_id] = round_
+
+            # Evict finalized rounds if over limit
+            if len(self._rounds) > self.MAX_ROUNDS:
+                self._evict_finalized()
+
+            logger.info(f"Contribution {contribution_id} submitted for curation")
+            return round_
 
     def submit_review(self, contribution_id: int, curator_address: str,
                       vote: bool, comment: str = '') -> Optional[CurationRound]:
@@ -105,36 +118,56 @@ class CurationEngine:
 
         Returns:
             Updated CurationRound, or None if invalid.
+
+        Raises:
+            PermissionError: If curator reputation is below threshold.
         """
-        round_ = self._rounds.get(contribution_id)
-        if not round_ or round_.status != 'pending':
-            return None
+        with self._lock:
+            round_ = self._rounds.get(contribution_id)
+            if not round_ or round_.status != 'pending':
+                return None
 
-        # Prevent duplicate reviews
-        for r in round_.reviews:
-            if r.curator_address == curator_address:
-                logger.warning(f"Duplicate curation review: curator={curator_address[:8]}... contribution={contribution_id}")
-                return round_
+            # H4 FIX: Permission check — curator must have sufficient reputation
+            curator_rep = self._curator_reputation.get(curator_address, 100.0)
+            if curator_rep < self.MIN_CURATOR_REPUTATION:
+                raise PermissionError(
+                    f"Curator reputation {curator_rep:.1f} below minimum {self.MIN_CURATOR_REPUTATION}"
+                )
 
-        review = CurationReview(
-            curator_address=curator_address,
-            contribution_id=contribution_id,
-            vote=vote,
-            comment=comment,
-            timestamp=time.time(),
-        )
-        round_.reviews.append(review)
+            # Prevent duplicate reviews
+            for r in round_.reviews:
+                if r.curator_address == curator_address:
+                    logger.warning(f"Duplicate curation review: curator={curator_address[:8]}... contribution={contribution_id}")
+                    return round_
 
-        # Track curator activity
-        if curator_address not in self._curator_reviews:
-            self._curator_reviews[curator_address] = []
-        self._curator_reviews[curator_address].append(contribution_id)
+            review = CurationReview(
+                curator_address=curator_address,
+                contribution_id=contribution_id,
+                vote=vote,
+                comment=comment,
+                timestamp=time.time(),
+            )
+            round_.reviews.append(review)
 
-        # Check if round is complete
-        if round_.is_complete:
-            self._finalize_round(round_)
+            # Track curator activity
+            if curator_address not in self._curator_reviews:
+                self._curator_reviews[curator_address] = []
+            self._curator_reviews[curator_address].append(contribution_id)
 
-        return round_
+            # Check if round is complete
+            if round_.is_complete:
+                self._finalize_round(round_)
+
+            return round_
+
+    def _evict_finalized(self) -> None:
+        """Remove finalized rounds to bound memory. Must hold self._lock."""
+        evictable = [
+            cid for cid, r in self._rounds.items()
+            if r.status != 'pending'
+        ]
+        for cid in evictable[:len(self._rounds) - self.MAX_ROUNDS]:
+            self._rounds.pop(cid, None)
 
     def _finalize_round(self, round_: CurationRound) -> None:
         """Finalize a completed curation round."""

@@ -307,6 +307,9 @@ class ConsensusEngine:
                         aikgs_reward_total = Decimal(str(meta['aikgs_rewards_total']))
             except Exception:
                 aikgs_reward_total = Decimal(0)
+            # C2 FIX: Reject NaN/Infinity — these bypass all Decimal comparisons
+            if not aikgs_reward_total.is_finite() or aikgs_reward_total < 0:
+                return False, f"Invalid AIKGS reward total: {aikgs_reward_total}"
             expected_coinbase += aikgs_reward_total
             if coinbase_amount > expected_coinbase:
                 return False, f"Excessive coinbase: {coinbase_amount} > {expected_coinbase}"

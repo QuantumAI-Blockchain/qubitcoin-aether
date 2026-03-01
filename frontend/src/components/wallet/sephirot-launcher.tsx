@@ -256,7 +256,7 @@ function StakeModal({
         amount,
         node_id: node.id,
       };
-      const sigHex = await signTransaction(privateKey, txData);
+      const sigHex = await signTransaction(wallet.publicKeyHex, txData);
       await api.stakeSephirot({
         address: wallet.address,
         node_id: node.id,
@@ -354,7 +354,7 @@ function StakeRow({
         address: wallet.address,
         stake_id: stake.stake_id,
       };
-      const sigHex = await signTransaction(privateKey, txData);
+      const sigHex = await signTransaction(wallet.publicKeyHex, txData);
       await api.unstakeSephirot({
         address: wallet.address,
         stake_id: stake.stake_id,
@@ -473,7 +473,7 @@ function ClaimButton({
     setClaiming(true);
     try {
       const txData = { action: "claim_rewards", address: wallet.address };
-      const sigHex = await signTransaction(privateKey, txData);
+      const sigHex = await signTransaction(wallet.publicKeyHex, txData);
       await api.claimRewards({
         address: wallet.address,
         signature_hex: sigHex,

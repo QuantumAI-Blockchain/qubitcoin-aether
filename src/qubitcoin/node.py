@@ -235,7 +235,8 @@ class QubitcoinNode:
             logger.error(f"[7/22] Aether Engine failed: {e}", exc_info=True)
             raise
 
-        # Component 7c: AIKGS (Aether Incentivized Knowledge Growth System)
+        # Component 7c: AIKGS — initialized after MiningEngine (Component 20)
+        # because ContributionManager needs mining.queue_reward_output.
         self.aikgs_contribution_manager = None
         self.aikgs_affiliate_manager = None
         self.aikgs_reward_engine = None
@@ -245,50 +246,6 @@ class QubitcoinNode:
         self.aikgs_api_key_vault = None
         self.aikgs_knowledge_scorer = None
         self.aikgs_telegram_bot = None
-        if Config.AIKGS_ENABLED:
-            try:
-                from .aether.knowledge_scorer import KnowledgeScorer
-                from .aether.api_key_vault import APIKeyVault
-                from .aether.reward_engine import RewardEngine
-                from .aether.affiliate_manager import AffiliateManager
-                from .aether.contribution_manager import ContributionManager
-                from .aether.bounty_manager import BountyManager
-                from .aether.curation_engine import CurationEngine
-                from .aether.progressive_unlocks import ProgressiveUnlocks
-                from .aether.telegram_bot import TelegramBot
-
-                self.aikgs_knowledge_scorer = KnowledgeScorer(
-                    vector_index=getattr(self.knowledge_graph, 'vector_index', None)
-                )
-                self.aikgs_api_key_vault = APIKeyVault(
-                    master_secret=Config.API_KEY_VAULT_SECRET
-                )
-                self.aikgs_reward_engine = RewardEngine()
-                self.aikgs_affiliate_manager = AffiliateManager()
-                self.aikgs_progressive_unlocks = ProgressiveUnlocks()
-                self.aikgs_bounty_manager = BountyManager()
-                self.aikgs_curation_engine = CurationEngine()
-                self.aikgs_contribution_manager = ContributionManager(
-                    knowledge_graph=self.knowledge_graph,
-                    knowledge_scorer=self.aikgs_knowledge_scorer,
-                    reward_engine=self.aikgs_reward_engine,
-                    affiliate_manager=self.aikgs_affiliate_manager,
-                    bounty_manager=self.aikgs_bounty_manager,
-                    progressive_unlocks=self.aikgs_progressive_unlocks,
-                    curation_engine=self.aikgs_curation_engine,
-                    on_chain=getattr(self, 'on_chain', None),
-                    block_height_fn=self.db.get_current_height,
-                    queue_reward_fn=self.mining.queue_reward_output,
-                )
-                self.aikgs_telegram_bot = TelegramBot(
-                    contribution_manager=self.aikgs_contribution_manager,
-                    affiliate_manager=self.aikgs_affiliate_manager,
-                    reward_engine=self.aikgs_reward_engine,
-                    progressive_unlocks=self.aikgs_progressive_unlocks,
-                )
-                logger.info("AIKGS initialized (ContributionManager + RewardEngine + Affiliate + Bounties + Curation + Unlocks + Vault + Telegram)")
-            except Exception as e:
-                logger.warning(f"AIKGS init failed (non-critical): {e}", exc_info=True)
 
         # Component 7b: LLM Adapters + Knowledge Seeder (optional)
         self.llm_manager = None
@@ -622,6 +579,57 @@ class QubitcoinNode:
         except Exception as e:
             logger.error(f"[20/22] MiningEngine failed: {e}", exc_info=True)
             raise
+
+        # Component 20b: AIKGS (Aether Incentivized Knowledge Growth System)
+        # Deferred from 7c because ContributionManager needs self.mining
+        if Config.AIKGS_ENABLED:
+            try:
+                from .aether.knowledge_scorer import KnowledgeScorer
+                from .aether.api_key_vault import APIKeyVault
+                from .aether.reward_engine import RewardEngine
+                from .aether.affiliate_manager import AffiliateManager
+                from .aether.contribution_manager import ContributionManager
+                from .aether.bounty_manager import BountyManager
+                from .aether.curation_engine import CurationEngine
+                from .aether.progressive_unlocks import ProgressiveUnlocks
+                from .aether.telegram_bot import TelegramBot
+
+                self.aikgs_knowledge_scorer = KnowledgeScorer(
+                    vector_index=getattr(self.knowledge_graph, 'vector_index', None)
+                )
+                self.aikgs_api_key_vault = APIKeyVault(
+                    master_secret=Config.API_KEY_VAULT_SECRET
+                )
+                self.aikgs_reward_engine = RewardEngine()
+                self.aikgs_affiliate_manager = AffiliateManager(
+                    reward_engine=self.aikgs_reward_engine,
+                )
+                self.aikgs_progressive_unlocks = ProgressiveUnlocks()
+                self.aikgs_bounty_manager = BountyManager(
+                    reward_engine=self.aikgs_reward_engine,
+                )
+                self.aikgs_curation_engine = CurationEngine()
+                self.aikgs_contribution_manager = ContributionManager(
+                    knowledge_graph=self.knowledge_graph,
+                    knowledge_scorer=self.aikgs_knowledge_scorer,
+                    reward_engine=self.aikgs_reward_engine,
+                    affiliate_manager=self.aikgs_affiliate_manager,
+                    bounty_manager=self.aikgs_bounty_manager,
+                    progressive_unlocks=self.aikgs_progressive_unlocks,
+                    curation_engine=self.aikgs_curation_engine,
+                    on_chain=getattr(self, 'on_chain', None),
+                    block_height_fn=self.db.get_current_height,
+                    queue_reward_fn=self.mining.queue_reward_output,
+                )
+                self.aikgs_telegram_bot = TelegramBot(
+                    contribution_manager=self.aikgs_contribution_manager,
+                    affiliate_manager=self.aikgs_affiliate_manager,
+                    reward_engine=self.aikgs_reward_engine,
+                    progressive_unlocks=self.aikgs_progressive_unlocks,
+                )
+                logger.info("[20b/22] AIKGS initialized (ContributionManager + RewardEngine + Affiliate + Bounties + Curation + Unlocks + Vault + Telegram)")
+            except Exception as e:
+                logger.warning(f"[20b/22] AIKGS init failed (non-critical): {e}", exc_info=True)
 
         # Component 21: Contract Executor (legacy template contracts)
         logger.info("[21/22] Initializing ContractExecutor...")

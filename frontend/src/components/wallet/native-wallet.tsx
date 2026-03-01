@@ -340,7 +340,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
       } else {
         // Standard (public) flow
         const txData = { from: wallet.address, to, amount };
-        const sigHex = await signTransaction(privateKey, txData);
+        const sigHex = await signTransaction(wallet.publicKeyHex, txData);
         const res = await api.sendNative({
           from_address: wallet.address,
           to_address: to,

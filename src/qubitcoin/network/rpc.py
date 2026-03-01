@@ -5634,27 +5634,27 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     def _verify_signature_flexible(pk: bytes, msg: bytes, sig: bytes) -> bool:
         """Verify a signature using Dilithium2 first, HMAC-SHA256 as fallback.
 
-        HMAC-SHA256 is accepted temporarily until Dilithium2 WASM is available
-        in the browser. The public key must already be verified to derive the
-        correct owner address, so HMAC just proves knowledge of the private key.
+        HMAC-SHA256 fallback uses the PUBLIC KEY as the HMAC key. The frontend
+        computes: HMAC-SHA256(public_key_bytes, SHA256(message)). The backend
+        recomputes and verifies via constant-time comparison.
+
+        This is a transitional measure until Dilithium2 WASM is available.
         """
         from ..quantum.crypto import Dilithium2
         # Dilithium2 signatures are ~2420 bytes; HMAC-SHA256 is 32 bytes
         if len(sig) > 64:
             return Dilithium2.verify(pk, msg, sig)
-        # HMAC-SHA256 fallback: hash the message first, then verify HMAC
+        # C6 FIX: Actually verify the HMAC using public key as HMAC key
         import hashlib
-        import hmac
+        import hmac as hmac_mod
+        if len(sig) != 32:
+            return False
         msg_hash = hashlib.sha256(msg).digest()
-        # The frontend uses the private key (in hex->bytes) as HMAC key,
-        # but we only have the public key. Since HMAC verification requires
-        # the same key used for signing, we cannot verify HMAC with the public key.
-        # Instead, we verify address derivation (already done) and accept HMAC
-        # signatures as proof of private key possession when the signature format
-        # indicates it's an HMAC (32 bytes).
-        # This is a transitional measure — will be removed when Dilithium WASM lands.
-        logger.debug("Accepting HMAC-SHA256 signature (Dilithium WASM not available on client)")
-        return len(sig) == 32  # Accept any 32-byte signature with valid public key
+        expected = hmac_mod.new(pk, msg_hash, hashlib.sha256).digest()
+        if hmac_mod.compare_digest(sig, expected):
+            logger.debug("HMAC-SHA256 signature verified (Dilithium WASM not available on client)")
+            return True
+        return False
 
     @app.post("/aikgs/contribute")
     async def aikgs_contribute(body: dict):
@@ -5866,9 +5866,39 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         }
 
     @app.get("/aikgs/keys/{address}")
-    async def aikgs_keys(address: str):
+    async def aikgs_keys(address: str, request: Request):
+        """Get stored keys for an address.
+
+        H2 FIX: Requires admin key OR signature proving address ownership
+        to prevent unauthenticated enumeration of key metadata.
+        """
         if not aikgs_api_key_vault:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        # Allow admin key to list any address
+        admin_key = getattr(Config, 'ADMIN_API_KEY', '')
+        x_admin = request.headers.get('X-Admin-Key', '')
+        is_admin = admin_key and x_admin and hmac.compare_digest(x_admin, admin_key)
+        if not is_admin:
+            # Require signature for non-admin access (query param)
+            sig_hex = request.query_params.get('signature_hex', '')
+            pk_hex = request.query_params.get('public_key_hex', '')
+            if not sig_hex or not pk_hex:
+                raise HTTPException(status_code=401, detail="Authentication required to list keys")
+            try:
+                from ..quantum.crypto import Dilithium2
+                pk = bytes.fromhex(pk_hex)
+                derived = Dilithium2.derive_address(pk)
+                if derived != address:
+                    raise HTTPException(status_code=403, detail="Address mismatch")
+                import json as _json
+                msg = _json.dumps({'action': 'list_keys', 'owner_address': address}, sort_keys=True).encode()
+                sig = bytes.fromhex(sig_hex)
+                if not _verify_signature_flexible(pk, msg, sig):
+                    raise HTTPException(status_code=403, detail="Invalid signature")
+            except HTTPException:
+                raise
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid credentials")
         keys = aikgs_api_key_vault.get_owner_keys(address)
         return {"keys": [k.to_dict() for k in keys]}
 
@@ -5926,12 +5956,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             contrib = aikgs_contribution_manager.get_contribution(contribution_id)
             if contrib and contrib.contributor_address == curator_address:
                 raise HTTPException(status_code=400, detail="Cannot vote on your own contribution")
-        result = aikgs_curation_engine.submit_review(
-            contribution_id,
-            curator_address,
-            body.get("approved", False),
-            body.get("comment", ""),
-        )
+        try:
+            result = aikgs_curation_engine.submit_review(
+                contribution_id,
+                curator_address,
+                body.get("approved", False),
+                body.get("comment", ""),
+            )
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
         return {"status": "voted" if result else "failed"}
 
     # ========================================================================

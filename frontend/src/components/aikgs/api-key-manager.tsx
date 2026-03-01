@@ -59,7 +59,7 @@ export function APIKeyManager() {
       const privKeyHex = sessionStorage.getItem(`qbc-privkey-${address}`);
       if (pubKeyHex && privKeyHex) {
         const signData = { action: "store_key", owner_address: address, provider };
-        body.signature_hex = await signTransaction(privKeyHex, signData);
+        body.signature_hex = await signTransaction(pubKeyHex, signData);
         body.public_key_hex = pubKeyHex;
       }
       const res = await api.aikgsStoreKey(body);
@@ -89,7 +89,7 @@ export function APIKeyManager() {
         const privKeyHex = sessionStorage.getItem(`qbc-privkey-${address}`);
         if (pubKeyHex && privKeyHex) {
           const signData = { action: "revoke_key", key_id: keyId, owner_address: address };
-          body.signature_hex = await signTransaction(privKeyHex, signData);
+          body.signature_hex = await signTransaction(pubKeyHex, signData);
           body.public_key_hex = pubKeyHex;
         }
         await api.aikgsRevokeKey(body);

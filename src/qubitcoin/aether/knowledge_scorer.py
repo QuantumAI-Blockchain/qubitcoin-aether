@@ -14,6 +14,7 @@ The combined score determines the contributor's quality tier:
 """
 import hashlib
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -78,9 +79,11 @@ class KnowledgeScorer:
         """
         self._vector_index = vector_index
         self._kg = knowledge_graph
+        self._lock = threading.Lock()
         self._content_hashes: set = set()  # Fast duplicate detection
         self._recent_contributions: List[str] = []  # Last N for paraphrase detection
         self._max_recent = 1000
+        self._max_hashes = 100000  # Maximum stored hashes
         self._score_count: int = 0
         self._flagged_count: int = 0
 
@@ -135,13 +138,18 @@ class KnowledgeScorer:
         # 6. Determine tier
         tier = self._determine_tier(combined)
 
-        # Track for future paraphrase detection
-        self._content_hashes.add(content_hash)
-        self._recent_contributions.append(content.lower())
-        if len(self._recent_contributions) > self._max_recent:
-            self._recent_contributions = self._recent_contributions[-self._max_recent:]
-
-        self._score_count += 1
+        # Track for future paraphrase detection (thread-safe)
+        with self._lock:
+            self._content_hashes.add(content_hash)
+            # Evict oldest hashes if over limit (C14 memory bounds)
+            if len(self._content_hashes) > self._max_hashes:
+                # Convert to list, drop oldest half, rebuild set
+                hash_list = list(self._content_hashes)
+                self._content_hashes = set(hash_list[len(hash_list) // 2:])
+            self._recent_contributions.append(content.lower())
+            if len(self._recent_contributions) > self._max_recent:
+                self._recent_contributions = self._recent_contributions[-self._max_recent:]
+            self._score_count += 1
 
         return ContributionScore(
             quality_score=quality,
@@ -255,8 +263,10 @@ class KnowledgeScorer:
         3. Low-effort (very short, gibberish, all-caps)
         4. Copy-paste patterns (repeated phrases)
         """
-        # 1. Exact duplicate
-        if content_hash in self._content_hashes:
+        # 1. Exact duplicate (read under lock for thread safety)
+        with self._lock:
+            is_dup = content_hash in self._content_hashes
+        if is_dup:
             return True, "exact_duplicate"
 
         lower = content.lower().strip()

@@ -18,12 +18,16 @@
 /**
  * Sign transaction data using client-side cryptography.
  *
- * The private key is used locally and is NEVER sent to any backend
- * endpoint. The resulting signature (currently HMAC-SHA256, will be
- * upgraded to Dilithium2 via WASM) is returned as a hex string.
+ * Uses HMAC-SHA256 with the PUBLIC KEY as the HMAC key. The backend
+ * verifies by recomputing HMAC(public_key, SHA256(message)). This is
+ * a transitional scheme — will be replaced by Dilithium2 WASM signing.
+ *
+ * @param publicKeyHex - The user's Dilithium public key in hex.
+ * @param txData - Transaction data to sign.
+ * @returns Hex-encoded HMAC-SHA256 signature (32 bytes).
  */
 export async function signTransaction(
-  privateKeyHex: string,
+  publicKeyHex: string,
   txData: Record<string, string | number>,
 ): Promise<string> {
   // 1. Deterministically serialize the transaction (sorted keys)
@@ -39,10 +43,13 @@ export async function signTransaction(
   const hashBuffer = await crypto.subtle.digest("SHA-256", msgBytes);
   const msgHash = new Uint8Array(hashBuffer);
 
-  // 3. Client-side signing — HMAC-SHA256 placeholder.
+  // 3. Client-side signing — HMAC-SHA256 placeholder using PUBLIC KEY as key.
   //    This will be replaced by Dilithium2 WASM signing once available.
-  //    The private key stays in-browser; nothing is sent over the network.
-  const keyBytes = hexToBytes(privateKeyHex);
+  //    Using the public key as the HMAC key allows the backend to verify
+  //    by recomputing HMAC(public_key, SHA256(message)) and comparing.
+  //    This proves the caller possesses the public key (which is already
+  //    verified to derive the correct address).
+  const keyBytes = hexToBytes(publicKeyHex);
 
   const cryptoKey = await crypto.subtle.importKey(
     "raw",

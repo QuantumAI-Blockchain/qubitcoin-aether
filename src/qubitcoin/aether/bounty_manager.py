@@ -4,6 +4,7 @@ AIKGS Bounty Manager — Knowledge gap bounties and seasonal events.
 Auto-generates bounties for knowledge gaps detected by the reasoning engine.
 Supports seasonal events with time-limited domain boosts.
 """
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -71,10 +72,16 @@ class Season:
 class BountyManager:
     """Manages knowledge gap bounties and seasonal events."""
 
-    def __init__(self) -> None:
+    # Maximum stored bounties/seasons to prevent unbounded memory growth
+    MAX_BOUNTIES = 10000
+    MAX_SEASONS = 100
+
+    def __init__(self, reward_engine: object = None) -> None:
         self._default_reward = float(getattr(Config, 'AIKGS_DEFAULT_BOUNTY_REWARD', 50.0))
         self._default_duration = int(getattr(Config, 'AIKGS_DEFAULT_BOUNTY_DURATION_DAYS', 7))
+        self._reward_engine = reward_engine  # For pool deductions
 
+        self._lock = threading.Lock()
         self._bounties: Dict[int, Bounty] = {}
         self._bounty_counter: int = 0
         self._gap_hashes: set = set()  # Prevent duplicate bounties
@@ -96,78 +103,112 @@ class BountyManager:
         Returns:
             The created Bounty.
         """
-        if gap_hash in self._gap_hashes:
-            # Return existing bounty
-            for b in self._bounties.values():
-                if b.gap_hash == gap_hash and b.status == 'open':
-                    return b
-            self._gap_hashes.discard(gap_hash)  # Allow re-creation if expired
+        with self._lock:
+            if gap_hash in self._gap_hashes:
+                # Return existing bounty
+                for b in self._bounties.values():
+                    if b.gap_hash == gap_hash and b.status == 'open':
+                        return b
+                self._gap_hashes.discard(gap_hash)  # Allow re-creation if expired
 
-        self._bounty_counter += 1
-        reward = reward_amount or self._default_reward
-        now = time.time()
+            self._bounty_counter += 1
+            reward = reward_amount or self._default_reward
+            now = time.time()
 
-        # Check for active season boost
-        boost = 1.0
-        season_id = self._active_domain_seasons.get(domain)
-        if season_id and season_id in self._seasons:
-            season = self._seasons[season_id]
-            if season.active and now <= season.ends_at:
-                boost = season.boost_multiplier
+            # Check for active season boost
+            boost = 1.0
+            season_id = self._active_domain_seasons.get(domain)
+            if season_id and season_id in self._seasons:
+                season = self._seasons[season_id]
+                if season.active and now <= season.ends_at:
+                    boost = season.boost_multiplier
 
-        bounty = Bounty(
-            bounty_id=self._bounty_counter,
-            domain=domain,
-            description=description,
-            gap_hash=gap_hash,
-            reward_amount=reward,
-            boost_multiplier=boost,
-            created_at=now,
-            expires_at=now + (self._default_duration * 86400),
-        )
+            bounty = Bounty(
+                bounty_id=self._bounty_counter,
+                domain=domain,
+                description=description,
+                gap_hash=gap_hash,
+                reward_amount=reward,
+                boost_multiplier=boost,
+                created_at=now,
+                expires_at=now + (self._default_duration * 86400),
+            )
 
-        self._bounties[bounty.bounty_id] = bounty
-        self._gap_hashes.add(gap_hash)
+            self._bounties[bounty.bounty_id] = bounty
+            self._gap_hashes.add(gap_hash)
 
-        logger.info(f"Bounty created: id={bounty.bounty_id} domain={domain} reward={reward:.4f} boost={boost}x")
-        return bounty
+            # Evict expired bounties if over limit
+            if len(self._bounties) > self.MAX_BOUNTIES:
+                self._evict_expired()
+
+            logger.info(f"Bounty created: id={bounty.bounty_id} domain={domain} reward={reward:.4f} boost={boost}x")
+            return bounty
 
     def claim_bounty(self, bounty_id: int, claimer_address: str) -> bool:
         """Claim an open bounty."""
-        bounty = self._bounties.get(bounty_id)
-        if not bounty or bounty.status != 'open':
-            return False
-        if time.time() > bounty.expires_at:
-            bounty.status = 'expired'
-            return False
+        with self._lock:
+            bounty = self._bounties.get(bounty_id)
+            if not bounty or bounty.status != 'open':
+                return False
+            if time.time() > bounty.expires_at:
+                bounty.status = 'expired'
+                return False
 
-        bounty.claimer_address = claimer_address
-        bounty.status = 'claimed'
-        logger.info(f"Bounty claimed: id={bounty_id} claimer={claimer_address[:8]}...")
-        return True
+            bounty.claimer_address = claimer_address
+            bounty.status = 'claimed'
+            logger.info(f"Bounty claimed: id={bounty_id} claimer={claimer_address[:8]}...")
+            return True
+
+    def _evict_expired(self) -> None:
+        """Remove expired/fulfilled bounties to bound memory. Must hold self._lock."""
+        evictable = [
+            bid for bid, b in self._bounties.items()
+            if b.status in ('expired', 'fulfilled', 'canceled')
+        ]
+        for bid in evictable[:len(self._bounties) - self.MAX_BOUNTIES]:
+            bounty = self._bounties.pop(bid, None)
+            if bounty:
+                self._gap_hashes.discard(bounty.gap_hash)
 
     def fulfill_bounty(self, bounty_id: int, contribution_id: int,
                        contributor_address: str) -> Optional[float]:
         """Fulfill a bounty with a contribution.
 
+        Bounty reward is DEDUCTED FROM THE REWARD POOL. If pool lacks
+        funds, the reward is reduced to what's available.
+
         Returns:
             Boosted reward amount, or None if fulfillment failed.
         """
-        bounty = self._bounties.get(bounty_id)
-        if not bounty:
-            return None
-        if bounty.status not in ('open', 'claimed'):
-            return None
-        if bounty.status == 'claimed' and bounty.claimer_address != contributor_address:
-            return None
+        with self._lock:
+            bounty = self._bounties.get(bounty_id)
+            if not bounty:
+                return None
+            if bounty.status not in ('open', 'claimed'):
+                return None
+            # C13 FIX: Only the claimer can fulfill a claimed bounty
+            if bounty.status == 'claimed' and bounty.claimer_address != contributor_address:
+                return None
+            # Expired check
+            if time.time() > bounty.expires_at:
+                bounty.status = 'expired'
+                return None
 
-        bounty.contribution_id = contribution_id
-        bounty.claimer_address = contributor_address
-        bounty.status = 'fulfilled'
+            bounty.contribution_id = contribution_id
+            bounty.claimer_address = contributor_address
+            bounty.status = 'fulfilled'
 
-        boosted = bounty.reward_amount * bounty.boost_multiplier
-        logger.info(f"Bounty fulfilled: id={bounty_id} reward={boosted:.4f} QBC")
-        return boosted
+            boosted = bounty.reward_amount * bounty.boost_multiplier
+
+            # C3 FIX: Deduct bounty reward from pool — not created from nothing
+            if self._reward_engine:
+                with self._reward_engine._lock:
+                    boosted = min(boosted, self._reward_engine._pool_balance)
+                    self._reward_engine._pool_balance -= boosted
+                    self._reward_engine._total_distributed += boosted
+
+            logger.info(f"Bounty fulfilled: id={bounty_id} reward={boosted:.4f} QBC (pool-funded)")
+            return boosted
 
     def expire_stale_bounties(self) -> int:
         """Expire bounties past their deadline."""

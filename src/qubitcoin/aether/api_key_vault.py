@@ -282,16 +282,17 @@ class APIKeyVault:
         return nonce + ciphertext
 
     def _decrypt(self, encrypted: bytes, aad: Optional[bytes] = None) -> Optional[str]:
-        """Decrypt ciphertext with AES-256-GCM."""
+        """Decrypt ciphertext with AES-256-GCM.
+
+        C5 FIX: Legacy XOR decryption removed — it was a backdoor-class
+        vulnerability (trivially reversible with the same key). Any data
+        encrypted with XOR is no longer recoverable; affected keys must
+        be re-stored.
+        """
         try:
-            if encrypted[:4] == b'\xff\xfe\xfd\xfc':
-                # Legacy XOR fallback — decrypt one last time, will be
-                # re-encrypted properly on next store_key call
-                logger.warning("Decrypting legacy XOR-encrypted key — re-encrypt for security")
-                data = encrypted[4:]
-                key = self._aes_key
-                decrypted = bytes(d ^ key[i % len(key)] for i, d in enumerate(data))
-                return decrypted.decode()
+            if len(encrypted) < 12 + 16:  # nonce(12) + tag(16) minimum
+                logger.warning("Encrypted data too short for AES-256-GCM")
+                return None
 
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
             nonce = encrypted[:12]
