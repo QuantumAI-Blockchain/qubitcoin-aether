@@ -270,14 +270,14 @@ class APIKeyVault:
             data = plaintext.encode()
             key = self._aes_key
             encrypted = bytes(d ^ key[i % len(key)] for i, d in enumerate(data))
-            return b'\x00' + encrypted  # Prefix to indicate fallback mode
+            return b'\xff\xfe\xfd\xfc' + encrypted  # 4-byte sentinel prefix for fallback mode
 
     def _decrypt(self, encrypted: bytes) -> Optional[str]:
         """Decrypt ciphertext."""
         try:
-            if encrypted[0:1] == b'\x00':
-                # XOR fallback mode
-                data = encrypted[1:]
+            if encrypted[:4] == b'\xff\xfe\xfd\xfc':
+                # XOR fallback mode (4-byte sentinel avoids collision with AES-GCM nonce)
+                data = encrypted[4:]
                 key = self._aes_key
                 decrypted = bytes(d ^ key[i % len(key)] for i, d in enumerate(data))
                 return decrypted.decode()

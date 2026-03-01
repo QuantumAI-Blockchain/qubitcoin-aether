@@ -414,8 +414,8 @@ class Config:
     # AIKGS (Aether Incentivized Knowledge Growth System)
     # ============================================================================
     AIKGS_ENABLED: bool = os.getenv('AIKGS_ENABLED', 'true').lower() == 'true'
-    AIKGS_BASE_REWARD_QBC: float = float(os.getenv('AIKGS_BASE_REWARD_QBC', '10.0'))
-    AIKGS_MAX_REWARD_QBC: float = float(os.getenv('AIKGS_MAX_REWARD_QBC', '500.0'))
+    AIKGS_BASE_REWARD_QBC: float = float(os.getenv('AIKGS_BASE_REWARD_QBC', '1.0'))
+    AIKGS_MAX_REWARD_QBC: float = float(os.getenv('AIKGS_MAX_REWARD_QBC', '50.0'))
     AIKGS_INITIAL_POOL_QBC: float = float(os.getenv('AIKGS_INITIAL_POOL_QBC', '1000000.0'))
     AIKGS_EARLY_THRESHOLD: int = int(os.getenv('AIKGS_EARLY_THRESHOLD', '10000'))
     AIKGS_EARLY_MAX_BONUS: float = float(os.getenv('AIKGS_EARLY_MAX_BONUS', '5.0'))
@@ -426,16 +426,16 @@ class Config:
     AIKGS_MAX_DAILY_SUBMISSIONS: int = int(os.getenv('AIKGS_MAX_DAILY_SUBMISSIONS', '50'))
     AIKGS_AETHER_FEE_PERCENT: float = float(os.getenv('AIKGS_AETHER_FEE_PERCENT', '0.10'))
     AIKGS_EXCHANGE_FEE_PERCENT: float = float(os.getenv('AIKGS_EXCHANGE_FEE_PERCENT', '0.05'))
-    AIKGS_DEFAULT_BOUNTY_REWARD: float = float(os.getenv('AIKGS_DEFAULT_BOUNTY_REWARD', '50.0'))
-    AIKGS_DEFAULT_BOUNTY_DURATION_DAYS: int = int(os.getenv('AIKGS_DEFAULT_BOUNTY_DURATION_DAYS', '7'))
+    AIKGS_DEFAULT_BOUNTY_REWARD: float = float(os.getenv('AIKGS_DEFAULT_BOUNTY_REWARD', '10.0'))
+    AIKGS_DEFAULT_BOUNTY_DURATION_DAYS: int = int(os.getenv('AIKGS_DEFAULT_BOUNTY_DURATION_DAYS', '30'))
     AIKGS_CURATION_REQUIRED_VOTES: int = int(os.getenv('AIKGS_CURATION_REQUIRED_VOTES', '3'))
 
     # AIKGS Contract Addresses (set after deployment)
-    KNOWLEDGE_REWARD_POOL_ADDRESS: str = os.getenv('KNOWLEDGE_REWARD_POOL_ADDRESS', '')
-    AFFILIATE_REGISTRY_ADDRESS: str = os.getenv('AFFILIATE_REGISTRY_ADDRESS', '')
-    CONTRIBUTION_LEDGER_ADDRESS: str = os.getenv('CONTRIBUTION_LEDGER_ADDRESS', '')
-    KNOWLEDGE_BOUNTY_ADDRESS: str = os.getenv('KNOWLEDGE_BOUNTY_ADDRESS', '')
-    CONTRIBUTION_NFT_ADDRESS: str = os.getenv('CONTRIBUTION_NFT_ADDRESS', '')
+    AIKGS_REWARD_POOL_ADDRESS: str = os.getenv('AIKGS_REWARD_POOL_ADDRESS', '')
+    AIKGS_AFFILIATE_REGISTRY_ADDRESS: str = os.getenv('AIKGS_AFFILIATE_REGISTRY_ADDRESS', '')
+    AIKGS_CONTRIBUTION_LEDGER_ADDRESS: str = os.getenv('AIKGS_CONTRIBUTION_LEDGER_ADDRESS', '')
+    AIKGS_BOUNTY_CONTRACT_ADDRESS: str = os.getenv('AIKGS_BOUNTY_CONTRACT_ADDRESS', '')
+    AIKGS_NFT_CONTRACT_ADDRESS: str = os.getenv('AIKGS_NFT_CONTRACT_ADDRESS', '')
 
     # API Key Vault
     API_KEY_VAULT_SECRET: str = os.getenv('API_KEY_VAULT_SECRET', '')

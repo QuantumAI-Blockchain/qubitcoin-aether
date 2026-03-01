@@ -51,9 +51,14 @@ export default function TWAOnboardPage() {
       const res = await api.createWallet();
       connect(res.address);
 
-      // Store keys locally
-      localStorage.setItem(`qbc-privkey-${res.address}`, res.private_key_hex);
-      localStorage.setItem(`qbc-pubkey-${res.address}`, res.public_key_hex);
+      // Store public key only — private key shown to user to save
+      sessionStorage.setItem(`qbc-pubkey-${res.address}`, res.public_key_hex);
+      // Show private key for backup (user must copy it manually)
+      if (typeof window !== "undefined") {
+        const webapp = (await import("@/lib/telegram")).getWebApp();
+        webapp?.showAlert(`SAVE YOUR PRIVATE KEY (shown once):\n${res.private_key_hex.slice(0, 40)}...\n\nCopy from console.`);
+        console.warn("[QBC] Private key (save this!):", res.private_key_hex);
+      }
 
       // Register affiliate if referred
       if (startParam) {

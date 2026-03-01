@@ -5636,8 +5636,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         domain = body.get("domain")
         if not addr or len(content) < 20:
             raise HTTPException(status_code=400, detail="Address required and content must be >= 20 chars")
-        result = aikgs_contribution_manager.submit_contribution(addr, content, domain)
-        return result
+        if len(content) > 100000:
+            raise HTTPException(status_code=400, detail="Content too long (max 100KB)")
+        metadata = {"domain": domain} if domain else None
+        result = aikgs_contribution_manager.process_contribution(addr, content, metadata)
+        return result.to_dict() if hasattr(result, 'to_dict') else vars(result) if result else {"status": "rejected"}
 
     @app.get("/aikgs/profile/{address}")
     async def aikgs_profile(address: str):
@@ -5664,28 +5667,31 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def aikgs_contributions(address: str, limit: int = 20):
         if not aikgs_contribution_manager:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        history = aikgs_contribution_manager.get_contributions(address, limit)
-        return {"contributions": [vars(c) for c in history]}
+        history = aikgs_contribution_manager.get_contributor_history(address, limit)
+        return {"contributions": [c.to_dict() for c in history]}
 
     @app.get("/aikgs/reward/{contribution_id}")
     async def aikgs_reward(contribution_id: int):
-        if not aikgs_reward_engine:
+        if not aikgs_contribution_manager:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        breakdown = aikgs_reward_engine.get_reward_breakdown(contribution_id)
-        if not breakdown:
+        # Look up contribution by ID and return its reward data
+        record = aikgs_contribution_manager._contributions.get(contribution_id)
+        if not record:
             raise HTTPException(status_code=404, detail="Contribution not found")
-        return vars(breakdown)
+        return record.to_dict()
 
     @app.get("/aikgs/pool/stats")
     async def aikgs_pool_stats():
         if not aikgs_reward_engine:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        re_stats = aikgs_reward_engine.get_stats()
+        cm_stats = aikgs_contribution_manager.get_stats() if aikgs_contribution_manager else {}
         return {
-            "pool_balance": aikgs_reward_engine.pool_balance,
-            "total_distributed": aikgs_reward_engine.total_distributed,
-            "total_contributions": aikgs_contribution_manager.total_contributions if aikgs_contribution_manager else 0,
-            "unique_contributors": len(aikgs_contribution_manager.contributor_history) if aikgs_contribution_manager else 0,
-            "tier_breakdown": aikgs_reward_engine.get_tier_breakdown() if hasattr(aikgs_reward_engine, 'get_tier_breakdown') else {},
+            "pool_balance": re_stats['pool_balance'],
+            "total_distributed": re_stats['total_distributed'],
+            "total_contributions": cm_stats.get('total_contributions', 0),
+            "unique_contributors": cm_stats.get('unique_contributors', 0),
+            "tier_breakdown": cm_stats.get('tier_distribution', {}),
         }
 
     @app.get("/aikgs/leaderboard")
@@ -5740,8 +5746,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def aikgs_bounties(status: str = "open"):
         if not aikgs_bounty_manager:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        bounties = aikgs_bounty_manager.get_bounties(status)
-        return {"bounties": [vars(b) for b in bounties]}
+        bounties = aikgs_bounty_manager.get_open_bounties()
+        return {"bounties": [b.to_dict() for b in bounties]}
 
     @app.post("/aikgs/bounty/claim")
     async def aikgs_bounty_claim(body: dict):
@@ -5755,15 +5761,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def aikgs_bounty_fulfill(body: dict):
         if not aikgs_bounty_manager:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        result = aikgs_bounty_manager.fulfill_bounty(
-            body.get("bounty_id", 0), body.get("contributor_address", ""), body.get("content", ""))
-        return result
+        bounty_id = body.get("bounty_id", 0)
+        contribution_id = body.get("contribution_id", 0)
+        contributor_address = body.get("contributor_address", "")
+        result = aikgs_bounty_manager.fulfill_bounty(bounty_id, contribution_id, contributor_address)
+        return {"status": "fulfilled" if result else "failed", "reward_amount": result if isinstance(result, (int, float)) else 0}
 
     @app.post("/aikgs/keys/store")
     async def aikgs_key_store(body: dict):
         if not aikgs_api_key_vault:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        key_id = aikgs_api_key_vault.store_key(
+        stored_key = aikgs_api_key_vault.store_key(
             owner_address=body.get("owner_address", ""),
             provider=body.get("provider", ""),
             api_key=body.get("api_key", ""),
@@ -5771,43 +5779,47 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             label=body.get("label", ""),
             is_shared=body.get("is_shared", False),
         )
-        return {"key_id": key_id, "status": "stored"}
+        return {"key_id": stored_key.key_id, "status": "stored"}
 
     @app.get("/aikgs/keys/{address}")
     async def aikgs_keys(address: str):
         if not aikgs_api_key_vault:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        keys = aikgs_api_key_vault.get_keys(address)
-        return {"keys": [k.to_safe_dict() for k in keys]}
+        keys = aikgs_api_key_vault.get_owner_keys(address)
+        return {"keys": [k.to_dict() for k in keys]}
 
     @app.post("/aikgs/keys/revoke")
     async def aikgs_key_revoke(body: dict):
         if not aikgs_api_key_vault:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
         result = aikgs_api_key_vault.revoke_key(
-            body.get("owner_address", ""), body.get("key_id", ""))
+            body.get("key_id", ""), body.get("owner_address", ""))
         return {"status": "revoked" if result else "failed"}
 
     @app.get("/aikgs/keys/shared-pool")
     async def aikgs_shared_pool():
         if not aikgs_api_key_vault:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        pool = aikgs_api_key_vault.get_shared_pool()
-        return pool
+        vault_stats = aikgs_api_key_vault.get_stats()
+        return {
+            "pool_size": vault_stats['shared_pool_size'],
+            "providers": {p: len(aikgs_api_key_vault._shared_pool.get(p, [])) for p in vault_stats.get('shared_pool_providers', [])},
+        }
 
     @app.get("/aikgs/curation/pending")
     async def aikgs_curation_pending():
         if not aikgs_curation_engine:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        rounds = aikgs_curation_engine.get_pending_rounds()
-        return {"rounds": [vars(r) for r in rounds]}
+        rounds = aikgs_curation_engine.get_pending_reviews()
+        return {"rounds": [r.to_dict() for r in rounds]}
 
     @app.post("/aikgs/curation/vote")
     async def aikgs_curation_vote(body: dict):
         if not aikgs_curation_engine:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        result = aikgs_curation_engine.submit_vote(
-            body.get("round_id", ""),
+        contribution_id = int(body.get("round_id", body.get("contribution_id", 0)))
+        result = aikgs_curation_engine.submit_review(
+            contribution_id,
             body.get("curator_address", ""),
             body.get("approved", False),
             body.get("comment", ""),

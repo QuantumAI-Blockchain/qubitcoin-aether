@@ -127,7 +127,6 @@ class ProgressiveUnlocks:
 
         # Update stats
         profile.total_contributions += 1
-        profile.last_contribution_at = time.time()
 
         if tier == 'gold':
             profile.gold_count += 1
@@ -139,9 +138,10 @@ class ProgressiveUnlocks:
         rp_earned = combined_score * RP_CONTRIBUTION_BASE * tier_mult
         profile.reputation_points += rp_earned
 
-        # Update streak
+        # Update streak (read old timestamp BEFORE overwriting)
         today = int(time.time() / 86400)
         last_day = int(profile.last_contribution_at / 86400) if profile.last_contribution_at else 0
+        profile.last_contribution_at = time.time()
         if last_day > 0 and today == last_day + 1:
             profile.current_streak += 1
         elif last_day == 0 or today > last_day + 1:

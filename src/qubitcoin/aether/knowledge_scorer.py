@@ -170,10 +170,10 @@ class KnowledgeScorer:
             score -= 0.3
         elif word_count < 30:
             score -= 0.1
-        elif word_count > 50:
-            score += 0.05
         elif word_count > 100:
             score += 0.1
+        elif word_count > 50:
+            score += 0.05
 
         # Specificity: concrete claims with numbers, names, formulas
         numbers = re.findall(r'\d+\.?\d*', content)
@@ -226,9 +226,8 @@ class KnowledgeScorer:
             return 0.5  # Neutral when no index available
 
         try:
-            # Search for similar existing content
-            from . import vector_index as vi
-            results = vi.search_similar(content, self._vector_index, top_k=5)
+            # Search for similar existing content using VectorIndex.query()
+            results = self._vector_index.query(content, top_k=5)
 
             if not results:
                 return 0.9  # Very novel — nothing similar found

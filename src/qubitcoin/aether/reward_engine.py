@@ -7,6 +7,7 @@ Reward formula:
 
 All parameters are configurable via Config (.env).
 """
+import threading
 import time
 from dataclasses import dataclass
 from typing import Dict, Optional
@@ -76,7 +77,8 @@ class RewardEngine:
         self._base_reward = float(getattr(Config, 'AIKGS_BASE_REWARD_QBC', 10.0))
         self._max_reward = float(getattr(Config, 'AIKGS_MAX_REWARD_QBC', 500.0))
 
-        # Pool tracking
+        # Pool tracking (protected by lock for thread safety)
+        self._lock = threading.Lock()
         self._pool_balance: float = float(getattr(Config, 'AIKGS_INITIAL_POOL_QBC', 1000000.0))
         self._total_distributed: float = 0.0
         self._distribution_count: int = 0
@@ -143,17 +145,23 @@ class RewardEngine:
         # Clamp to max
         reward = min(reward, self._max_reward)
 
-        # Check pool balance
-        if reward > self._pool_balance:
-            reward = self._pool_balance
+        # Thread-safe pool deduction
+        with self._lock:
+            if reward > self._pool_balance:
+                reward = self._pool_balance
+            reward = max(0.0, reward)
             if reward <= 0:
                 logger.warning("Reward pool depleted!")
-
-        # Update tracking
-        self._pool_balance -= reward
-        self._total_distributed += reward
-        self._distribution_count += 1
-        self._total_contributions += 1
+                return RewardCalculation(
+                    base_reward=base, quality_factor=quality_factor,
+                    novelty_factor=novelty_factor, tier_multiplier=tier_mult,
+                    streak_multiplier=streak_mult, staking_boost=staking_boost,
+                    early_bonus=early_bonus, final_reward=0.0,
+                )
+            self._pool_balance -= reward
+            self._total_distributed += reward
+            self._distribution_count += 1
+            self._total_contributions += 1
 
         # Update streak
         self._update_streak(contributor_address)
@@ -192,7 +200,10 @@ class RewardEngine:
 
     def fund_pool(self, amount: float) -> None:
         """Add QBC to the reward pool."""
-        self._pool_balance += amount
+        if amount <= 0:
+            raise ValueError("Fund amount must be positive")
+        with self._lock:
+            self._pool_balance += amount
         logger.info(f"Reward pool funded: +{amount:.4f} QBC (balance={self._pool_balance:.4f})")
 
     def get_contributor_streak(self, address: str) -> dict:

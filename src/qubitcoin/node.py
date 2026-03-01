@@ -263,28 +263,17 @@ class QubitcoinNode:
                 self.aikgs_api_key_vault = APIKeyVault(
                     master_secret=Config.API_KEY_VAULT_SECRET
                 )
-                self.aikgs_reward_engine = RewardEngine(
-                    initial_pool=Config.AIKGS_INITIAL_POOL_QBC,
-                    base_reward=Config.AIKGS_BASE_REWARD_QBC,
-                    max_reward=Config.AIKGS_MAX_REWARD_QBC,
-                )
-                self.aikgs_affiliate_manager = AffiliateManager(
-                    l1_rate=Config.AIKGS_L1_COMMISSION_RATE,
-                    l2_rate=Config.AIKGS_L2_COMMISSION_RATE,
-                )
+                self.aikgs_reward_engine = RewardEngine()
+                self.aikgs_affiliate_manager = AffiliateManager()
                 self.aikgs_progressive_unlocks = ProgressiveUnlocks()
-                self.aikgs_bounty_manager = BountyManager(
-                    default_reward=Config.AIKGS_DEFAULT_BOUNTY_REWARD,
-                )
-                self.aikgs_curation_engine = CurationEngine(
-                    required_votes=Config.AIKGS_CURATION_REQUIRED_VOTES,
-                    progressive_unlocks=self.aikgs_progressive_unlocks,
-                )
+                self.aikgs_bounty_manager = BountyManager()
+                self.aikgs_curation_engine = CurationEngine()
                 self.aikgs_contribution_manager = ContributionManager(
                     knowledge_graph=self.knowledge_graph,
-                    scorer=self.aikgs_knowledge_scorer,
+                    knowledge_scorer=self.aikgs_knowledge_scorer,
                     reward_engine=self.aikgs_reward_engine,
                     affiliate_manager=self.aikgs_affiliate_manager,
+                    bounty_manager=self.aikgs_bounty_manager,
                     progressive_unlocks=self.aikgs_progressive_unlocks,
                 )
                 self.aikgs_telegram_bot = TelegramBot(
@@ -1220,34 +1209,32 @@ class QubitcoinNode:
             if self.aikgs_contribution_manager:
                 try:
                     cm = self.aikgs_contribution_manager
-                    aikgs_total_contributions.set(cm.total_contributions)
-                    aikgs_unique_contributors.set(len(cm.contributor_history))
+                    cm_stats = cm.get_stats()
+                    aikgs_total_contributions.set(cm_stats['total_contributions'])
+                    aikgs_unique_contributors.set(cm_stats['unique_contributors'])
+                    tier_dist = cm_stats.get('tier_distribution', {})
+                    aikgs_tier_bronze.set(tier_dist.get('bronze', 0))
+                    aikgs_tier_silver.set(tier_dist.get('silver', 0))
+                    aikgs_tier_gold.set(tier_dist.get('gold', 0))
+                    aikgs_tier_diamond.set(tier_dist.get('diamond', 0))
                     if self.aikgs_reward_engine:
-                        re = self.aikgs_reward_engine
-                        aikgs_total_rewards_distributed.set(re.total_distributed)
-                        aikgs_pool_balance.set(re.pool_balance)
+                        re_stats = self.aikgs_reward_engine.get_stats()
+                        aikgs_total_rewards_distributed.set(re_stats['total_distributed'])
+                        aikgs_pool_balance.set(re_stats['pool_balance'])
                     if self.aikgs_affiliate_manager:
-                        am = self.aikgs_affiliate_manager
-                        aikgs_affiliates_total.set(len(am.affiliates))
-                        total_comm = sum(
-                            a.total_l1_commission + a.total_l2_commission
-                            for a in am.affiliates.values()
-                        )
-                        aikgs_commissions_total.set(total_comm)
+                        am_stats = self.aikgs_affiliate_manager.get_stats()
+                        aikgs_affiliates_total.set(am_stats['total_affiliates'])
+                        aikgs_commissions_total.set(am_stats['total_commissions'])
                     if self.aikgs_bounty_manager:
-                        open_b = len([b for b in self.aikgs_bounty_manager.bounties.values()
-                                      if b.status == 'open'])
-                        aikgs_bounties_active.set(open_b)
+                        bm_stats = self.aikgs_bounty_manager.get_stats()
+                        aikgs_bounties_active.set(bm_stats.get('status_distribution', {}).get('open', 0))
                     if self.aikgs_curation_engine:
-                        pending_c = len([r for r in self.aikgs_curation_engine.rounds.values()
-                                         if r.status == 'pending'])
-                        aikgs_curation_pending.set(pending_c)
+                        ce_stats = self.aikgs_curation_engine.get_stats()
+                        aikgs_curation_pending.set(ce_stats.get('status_distribution', {}).get('pending', 0))
                     if self.aikgs_api_key_vault:
-                        vault = self.aikgs_api_key_vault
-                        active_keys = len([k for k in vault.keys.values() if k.is_active])
-                        shared_keys = len([k for k in vault.keys.values() if k.is_shared and k.is_active])
-                        aikgs_api_keys_active.set(active_keys)
-                        aikgs_shared_keys_pool.set(shared_keys)
+                        vault_stats = self.aikgs_api_key_vault.get_stats()
+                        aikgs_api_keys_active.set(vault_stats['active_keys'])
+                        aikgs_shared_keys_pool.set(vault_stats['shared_pool_size'])
                 except Exception as e:
                     logger.debug(f"Metrics update error (AIKGS): {e}")
 

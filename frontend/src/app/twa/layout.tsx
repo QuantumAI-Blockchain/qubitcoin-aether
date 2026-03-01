@@ -27,6 +27,17 @@ export default function TWALayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const webapp = initTelegramApp();
+
+    // Store named callbacks for cleanup
+    const onThemeChanged = () => {
+      const wa = getWebApp();
+      if (wa) setColorScheme(wa.colorScheme);
+    };
+    const onViewportChanged = () => {
+      const wa = getWebApp();
+      if (wa) setViewportHeight(wa.viewportStableHeight);
+    };
+
     if (webapp) {
       setIsTWA(true);
       const user = getTelegramUser();
@@ -36,19 +47,21 @@ export default function TWALayout({ children }: { children: React.ReactNode }) {
       setColorScheme(webapp.colorScheme);
       setViewportHeight(webapp.viewportHeight);
 
-      // Listen for theme changes
-      webapp.onEvent("themeChanged", () => {
-        const wa = getWebApp();
-        if (wa) setColorScheme(wa.colorScheme);
-      });
-      webapp.onEvent("viewportChanged", () => {
-        const wa = getWebApp();
-        if (wa) setViewportHeight(wa.viewportStableHeight);
-      });
+      webapp.onEvent("themeChanged", onThemeChanged);
+      webapp.onEvent("viewportChanged", onViewportChanged);
     } else {
       setIsTWA(isTelegramWebApp());
     }
     setInitialized(true);
+
+    return () => {
+      // Clean up event listeners
+      const wa = getWebApp();
+      if (wa) {
+        wa.offEvent("themeChanged", onThemeChanged);
+        wa.offEvent("viewportChanged", onViewportChanged);
+      }
+    };
   }, [setIsTWA, setUser, setStartParam, setColorScheme, setViewportHeight]);
 
   if (!initialized) {
@@ -75,6 +88,7 @@ export default function TWALayout({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-label={item.label}
                 className={`flex flex-col items-center gap-0.5 px-3 py-1 transition ${
                   active ? "text-quantum-violet" : "text-text-secondary"
                 }`}
@@ -87,6 +101,7 @@ export default function TWALayout({ children }: { children: React.ReactNode }) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   className="h-5 w-5"
+                  aria-hidden="true"
                 >
                   <path d={item.icon} />
                 </svg>

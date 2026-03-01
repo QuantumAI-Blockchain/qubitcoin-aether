@@ -123,17 +123,31 @@ export function hapticNotification(type: "success" | "warning" | "error") {
   getWebApp()?.HapticFeedback?.notificationOccurred(type);
 }
 
+/** Active back button callback reference for cleanup */
+let _activeBackButtonCb: (() => void) | null = null;
+
 /** Show the back button */
 export function showBackButton(callback: () => void) {
   const webapp = getWebApp();
   if (!webapp) return;
-  webapp.BackButton.show();
+  // Remove previous callback to prevent listener accumulation
+  if (_activeBackButtonCb) {
+    webapp.BackButton.offClick(_activeBackButtonCb);
+  }
+  _activeBackButtonCb = callback;
   webapp.BackButton.onClick(callback);
+  webapp.BackButton.show();
 }
 
 /** Hide the back button */
 export function hideBackButton() {
-  getWebApp()?.BackButton?.hide();
+  const webapp = getWebApp();
+  if (!webapp) return;
+  if (_activeBackButtonCb) {
+    webapp.BackButton.offClick(_activeBackButtonCb);
+    _activeBackButtonCb = null;
+  }
+  webapp.BackButton.hide();
 }
 
 /** Show the main button */

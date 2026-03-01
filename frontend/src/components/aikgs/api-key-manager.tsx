@@ -28,12 +28,13 @@ export function APIKeyManager() {
     } else {
       setModel("");
     }
-  }, [provider, selectedProvider]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedProvider is derived from provider
+  }, [provider]);
 
   // Fetch stored keys on mount
   useEffect(() => {
     if (!address) return;
-    api.aikgsGetKeys(address).then((res) => setStoredKeys(res.keys)).catch(() => {});
+    api.aikgsGetKeys(address).then((res) => setStoredKeys(res.keys)).catch((e) => console.error("[AIKGS] Failed to load keys:", e));
   }, [address, setStoredKeys]);
 
   const handleStore = useCallback(async () => {
