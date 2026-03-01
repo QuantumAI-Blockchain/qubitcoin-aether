@@ -19,6 +19,10 @@ pub mod pallet {
     /// Maximum endpoint URL length.
     pub const MAX_ENDPOINT_LEN: u32 = 256;
 
+    /// Number of blocks of state root history to retain. Older entries are pruned
+    /// to prevent unbounded storage growth.
+    pub const STATE_ROOT_RETENTION_WINDOW: u64 = 100_000;
+
     #[pallet::pallet]
     pub struct Pallet<T>(_);
 
@@ -108,10 +112,11 @@ pub mod pallet {
         /// Update the QVM state root for the current block.
         /// Called by the block author after processing QVM transactions.
         #[pallet::call_index(0)]
-        // Analytical weight: 2 storage writes (state root + history) + event = ~75µs ≈ 75_000
+        // Analytical weight: 2 storage writes (state root + history) + 1 conditional
+        // storage removal (pruning) + event = ~85µs ≈ 85_000
         // NOTE: These are analytical estimates and should be replaced with
         // benchmarked weights before mainnet.
-        #[pallet::weight(75_000)]
+        #[pallet::weight(85_000)]
         pub fn update_state_root(
             origin: OriginFor<T>,
             block_height: u64,
@@ -130,6 +135,11 @@ pub mod pallet {
 
             QvmStateRoot::<T>::put(state_root);
             StateRootHistory::<T>::insert(block_height, state_root);
+
+            // Prune old state root history beyond the retention window
+            if block_height > STATE_ROOT_RETENTION_WINDOW {
+                StateRootHistory::<T>::remove(block_height.saturating_sub(STATE_ROOT_RETENTION_WINDOW));
+            }
 
             Self::deposit_event(Event::StateRootUpdated { block_height, state_root });
             Ok(())

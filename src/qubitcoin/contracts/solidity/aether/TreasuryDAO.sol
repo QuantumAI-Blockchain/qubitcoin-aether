@@ -37,6 +37,8 @@ contract TreasuryDAO is Initializable {
 
     mapping(uint256 => Proposal) public proposals;
     mapping(uint256 => mapping(address => bool)) public hasVoted;
+    /// @notice Stores the voter's balance snapshot at vote time to prevent vote-transfer-vote attacks
+    mapping(uint256 => mapping(address => uint256)) public voteWeightUsed;
 
     // ─── Events ──────────────────────────────────────────────────────────
     event FundsDeposited(address indexed from, uint256 amount, uint256 newBalance);
@@ -104,9 +106,13 @@ contract TreasuryDAO is Initializable {
         require(p.status == ProposalStatus.Active, "Treasury: not active");
         require(block.timestamp <= p.endTime, "Treasury: voting ended");
         require(!hasVoted[proposalId][msg.sender], "Treasury: already voted");
-        require(weight <= qbcToken.balanceOf(msg.sender), "Treasury: weight exceeds balance");
+
+        // Snapshot voter's balance on first vote to prevent vote-transfer-vote attacks
+        uint256 voterBalance = qbcToken.balanceOf(msg.sender);
+        require(weight <= voterBalance, "Treasury: weight exceeds balance");
 
         hasVoted[proposalId][msg.sender] = true;
+        voteWeightUsed[proposalId][msg.sender] = voterBalance;
         if (support) { p.votesFor += weight; }
         else { p.votesAgainst += weight; }
 

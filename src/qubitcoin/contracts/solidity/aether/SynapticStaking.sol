@@ -18,6 +18,7 @@ contract SynapticStaking is Initializable {
     uint256 public constant MIN_STAKE = 100 ether;           // 100 QBC minimum
     uint256 public constant MAX_STAKE_PER_CONNECTION = 1000000 ether; // 1M QBC max per connection
     uint256 public constant UNSTAKING_DELAY = 183272;        // ~7 days at 3.3s blocks
+    uint256 public constant MAX_CLAIM_BATCH = 50;            // max stakes processed per claimRewards call
 
     struct Connection {
         uint8   fromNodeId;
@@ -178,10 +179,19 @@ contract SynapticStaking is Initializable {
         emit UnstakeCompleted(msg.sender, connId, amount);
     }
 
-    /// @notice Claim accumulated staking rewards.
-    function claimRewards() external nonReentrant {
-        // Accrue rewards across all active stakes
-        for (uint256 i = 0; i < userStakes[msg.sender].length; i++) {
+    /// @notice Claim accumulated staking rewards with bounded iteration.
+    /// @param startIndex Index in userStakes to start accruing from (0 for first call).
+    ///        If a user has more than MAX_CLAIM_BATCH stakes, they must call multiple times
+    ///        with increasing startIndex values.
+    function claimRewards(uint256 startIndex) external nonReentrant {
+        uint256 stakesLen = userStakes[msg.sender].length;
+        require(startIndex < stakesLen || stakesLen == 0, "Synaptic: invalid startIndex");
+
+        // Accrue rewards for up to MAX_CLAIM_BATCH active stakes starting at startIndex
+        uint256 end = startIndex + MAX_CLAIM_BATCH;
+        if (end > stakesLen) { end = stakesLen; }
+
+        for (uint256 i = startIndex; i < end; i++) {
             if (userStakes[msg.sender][i].amount > 0) {
                 _accrueRewards(msg.sender, i);
             }

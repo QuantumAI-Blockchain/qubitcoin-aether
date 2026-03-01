@@ -643,12 +643,13 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 				}
 				original := ctx.OriginalStorage[addr][key]
 				originalIsZero := original == [32]byte{}
+				originalEqualsCurrent := original == current
 
 				// EIP-2929: Check warm/cold access for storage slot
 				cold := !ctx.AccessList.IsSlotWarm(addr, key)
 				ctx.AccessList.MarkSlotWarm(addr, key)
 
-				result := CalcSstoreGas(currentIsZero, newIsZero, currentEqualsNew, originalIsZero, cold)
+				result := CalcSstoreGas(currentIsZero, newIsZero, currentEqualsNew, originalIsZero, cold, originalEqualsCurrent)
 				if !ctx.UseGas(result.Cost) {
 					return fmt.Errorf("out of gas: SSTORE")
 				}

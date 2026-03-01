@@ -35,6 +35,8 @@ contract MessageBus is Initializable {
 
     /// @notice Message queue per node (nodeId → message ids)
     mapping(uint8 => uint256[]) public nodeInbox;
+    /// @notice Head pointer per node inbox — messages before this index are consumed
+    mapping(uint8 => uint256) public inboxHead;
     mapping(uint256 => Message)  public messages;
 
     /// @notice Tree of Life adjacency (nodeId → allowed target nodes)
@@ -46,6 +48,7 @@ contract MessageBus is Initializable {
     event MessageFailed(uint256 indexed id, string reason);
     event TopologyUpdated(uint8 indexed from, uint8 indexed to, bool connected);
     event BaseFeeUpdated(uint256 oldFee, uint256 newFee);
+    event InboxConsumed(uint8 indexed nodeId, uint256 count, uint256 newHead);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -110,7 +113,8 @@ contract MessageBus is Initializable {
         require(fromNodeId < 10 && toNodeId < 10, "MessageBus: invalid node");
         require(fee >= baseFee || messageType == MSG_EMERGENCY, "MessageBus: fee too low");
         require(payload.length <= MAX_PAYLOAD_SIZE, "MessageBus: payload too large");
-        require(nodeInbox[toNodeId].length < MAX_INBOX_SIZE, "MessageBus: inbox full");
+        // Effective inbox size = total entries minus consumed (head pointer)
+        require(nodeInbox[toNodeId].length - inboxHead[toNodeId] < MAX_INBOX_SIZE, "MessageBus: inbox full");
 
         msgId = ++messageCount;
         messages[msgId] = Message({
@@ -136,9 +140,28 @@ contract MessageBus is Initializable {
         emit MessageDelivered(msgId, messages[msgId].toNodeId, block.timestamp);
     }
 
+    // ─── Inbox Management ────────────────────────────────────────────────
+
+    /// @notice Consume (advance past) delivered messages from the front of a node's inbox.
+    ///         This frees inbox capacity so new messages can be sent to the node.
+    /// @param nodeId The Sephirot node whose inbox to consume
+    /// @param count  Number of messages to consume from the head
+    function consumeInbox(uint8 nodeId, uint256 count) external onlyKernel {
+        require(nodeId < 10, "MessageBus: invalid node");
+        uint256 head = inboxHead[nodeId];
+        uint256 totalLen = nodeInbox[nodeId].length;
+        uint256 unconsumed = totalLen - head;
+        require(count > 0 && count <= unconsumed, "MessageBus: invalid count");
+
+        inboxHead[nodeId] = head + count;
+        emit InboxConsumed(nodeId, count, head + count);
+    }
+
     // ─── Queries ─────────────────────────────────────────────────────────
+
+    /// @notice Returns the number of unconsumed messages in a node's inbox
     function getInboxSize(uint8 nodeId) external view returns (uint256) {
-        return nodeInbox[nodeId].length;
+        return nodeInbox[nodeId].length - inboxHead[nodeId];
     }
 
     function getMessage(uint256 msgId) external view returns (

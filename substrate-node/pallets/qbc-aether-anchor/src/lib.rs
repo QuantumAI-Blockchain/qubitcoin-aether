@@ -21,6 +21,10 @@ pub mod pallet {
     /// Maximum endpoint URL length.
     pub const MAX_ENDPOINT_LEN: u32 = 256;
 
+    /// Number of blocks of Phi history to retain. Older entries are pruned
+    /// to prevent unbounded storage growth.
+    pub const PHI_HISTORY_RETENTION_WINDOW: u64 = 100_000;
+
     #[pallet::pallet]
     pub struct Pallet<T>(_);
 
@@ -174,10 +178,11 @@ pub mod pallet {
         /// Called by the block author after Aether Tree processes the block.
         #[pallet::call_index(0)]
         // Analytical weight: 7 storage writes (roots, phi, nodes, edges, ops, proof, measurement)
-        // + consciousness event check + event deposit = ~250µs ≈ 250_000
+        // + 1 conditional storage removal (pruning) + consciousness event check
+        // + event deposit = ~265µs ≈ 265_000
         // NOTE: These are analytical estimates and should be replaced with
         // benchmarked weights before mainnet.
-        #[pallet::weight(250_000)]
+        #[pallet::weight(265_000)]
         pub fn record_block_state(
             origin: OriginFor<T>,
             block_height: u64,
@@ -226,6 +231,11 @@ pub mod pallet {
                 knowledge_edges,
             };
             PhiHistory::<T>::insert(block_height, measurement);
+
+            // Prune old Phi history beyond the retention window
+            if block_height > PHI_HISTORY_RETENTION_WINDOW {
+                PhiHistory::<T>::remove(block_height.saturating_sub(PHI_HISTORY_RETENTION_WINDOW));
+            }
 
             // Check consciousness emergence (prev_phi read before put above)
             if phi_scaled >= PHI_THRESHOLD_SCALED && prev_phi < PHI_THRESHOLD_SCALED {

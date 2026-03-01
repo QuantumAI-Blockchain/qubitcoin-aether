@@ -114,11 +114,18 @@ func (a *AGIHandler) OpQReason(stack StackAccessor, gas GasConsumer, memory Memo
 	var queryData []byte
 	if queryLen > 0 && memory != nil {
 		// Charge memory expansion gas
-		memCost := memory.Resize(queryPtr + queryLen)
+		memCost, memErr := memory.Resize(queryPtr + queryLen)
+		if memErr != nil {
+			return fmt.Errorf("QREASON: memory resize failed: %w", memErr)
+		}
 		if memCost > 0 && !gas.UseGas(memCost) {
 			return fmt.Errorf("out of gas: QREASON memory expansion")
 		}
-		queryData = memory.Get(queryPtr, queryLen)
+		var getErr error
+		queryData, getErr = memory.Get(queryPtr, queryLen)
+		if getErr != nil {
+			return fmt.Errorf("QREASON: memory read failed: %w", getErr)
+		}
 	}
 
 	// Compute reasoning result hash

@@ -201,20 +201,22 @@ type SstoreGasCost struct {
 //   - current: value currently in storage (may differ from original due to prior SSTOREs)
 //   - new: value being written
 //   - cold: whether this is first access to the slot in this transaction
+//   - originalEqualsCurrent: whether original == current (needed to distinguish clean vs dirty
+//     when both original and current are non-zero)
 //
 // Full transition table:
-//  1. current == new (no-op): GasSloadWarm
+//  1. current == new (no-op): GasSloadWarm (100)
 //  2. current != new:
 //     a. original == current (slot is clean):
-//     - original == 0 (fresh create): GasSstoreCold (20000)
-//     - original != 0 && new == 0 (clearing): GasSstoreReset + refund
-//     - original != 0 && new != 0 (resetting to different): GasSstoreReset
+//        - original == 0 (fresh create): GasSstoreCold (20000)
+//        - original != 0 && new == 0 (clearing): GasSstoreReset (2900) + refund
+//        - original != 0 && new != 0 (resetting to different non-zero): GasSstoreReset (2900)
 //     b. original != current (slot is dirty):
-//     - original == 0 (reverting a create or overwriting dirty create): GasSloadWarm
-//     - original != 0 && current == 0 (un-clearing): GasSloadWarm, subtract refund
-//     - original != 0 && current != 0 && new == 0 (clearing dirty): GasSloadWarm + refund
-//     - otherwise: GasSloadWarm
-func CalcSstoreGas(currentIsZero, newIsZero, currentEqualsNew, originalIsZero, cold bool) SstoreGasCost {
+//        - original == 0 (reverting a create or overwriting dirty create): GasSloadWarm (100)
+//        - original != 0 && current == 0 (un-clearing): GasSloadWarm (100), subtract refund
+//        - original != 0 && current != 0 && new == 0 (clearing dirty): GasSloadWarm (100) + refund
+//        - otherwise (dirty non-zero to different non-zero): GasSloadWarm (100)
+func CalcSstoreGas(currentIsZero, newIsZero, currentEqualsNew, originalIsZero, cold, originalEqualsCurrent bool) SstoreGasCost {
 	var baseCost uint64
 	if cold {
 		baseCost = GasSloadCold
@@ -225,38 +227,32 @@ func CalcSstoreGas(currentIsZero, newIsZero, currentEqualsNew, originalIsZero, c
 		return SstoreGasCost{Cost: GasSloadWarm + baseCost, Refund: 0}
 	}
 
-	// Slot is clean: original == current
-	// We detect this when originalIsZero == currentIsZero AND neither has been
-	// modified in this tx (the caller tracks original vs current).
-	// However, the caller passes booleans, so we use the following logic:
-	// If original is zero and current is zero → clean fresh slot.
-	// If original is non-zero and current is non-zero → might be clean (depends on value equality).
-	// The "currentEqualsNew" is already handled above, so we know current != new here.
-
-	// Case 2a: original == current (clean slot)
-	if originalIsZero && currentIsZero {
-		// Fresh create: 0 → non-zero
-		return SstoreGasCost{Cost: GasSstoreCold + baseCost, Refund: 0}
-	}
-
-	if originalIsZero && !currentIsZero {
-		// Dirty slot: original is 0 but current is non-zero (prior SSTORE set it).
-		// Writing to a dirty slot costs only warm access.
+	// Case 2a: original == current (slot is clean)
+	if originalEqualsCurrent {
+		if originalIsZero {
+			// Fresh create: 0 → non-zero
+			return SstoreGasCost{Cost: GasSstoreCold + baseCost, Refund: 0}
+		}
+		// Clean non-zero slot being modified
 		var refund int64
 		if newIsZero {
-			// Reverting a create: original was 0, current is non-zero, new is 0
-			// This undoes the prior SSTORE that created the slot.
-			// Per EIP-3529: no refund for reverting a create (removed in EIP-3529).
-			// But we should not add a clear refund since original was 0.
+			// Clearing a clean non-zero slot → charge reset cost + refund
+			refund = int64(GasSstoreRefund)
 		}
-		return SstoreGasCost{Cost: GasSloadWarm + baseCost, Refund: refund}
+		return SstoreGasCost{Cost: GasSstoreReset + baseCost, Refund: refund}
+	}
+
+	// Case 2b: original != current (slot is dirty)
+	// All dirty writes cost only GasSloadWarm (100).
+	if originalIsZero && !currentIsZero {
+		// Dirty slot: original is 0 but current is non-zero (prior SSTORE set it).
+		// Per EIP-3529: no refund for reverting a create (original was 0).
+		return SstoreGasCost{Cost: GasSloadWarm + baseCost, Refund: 0}
 	}
 
 	if !originalIsZero && currentIsZero {
 		// Original was non-zero, current is zero (a prior SSTORE cleared it).
 		// Now writing a new value to it.
-		// Dirty slot: warm access cost.
-		// The previous clear gave a refund; if we're now un-clearing, subtract it.
 		var refund int64
 		if !newIsZero {
 			// Un-clearing: restore a previously cleared slot → subtract the refund
@@ -265,19 +261,11 @@ func CalcSstoreGas(currentIsZero, newIsZero, currentEqualsNew, originalIsZero, c
 		return SstoreGasCost{Cost: GasSloadWarm + baseCost, Refund: refund}
 	}
 
-	// !originalIsZero && !currentIsZero && current != new (both are non-zero)
-	// Check if this is a clean or dirty slot
-	// If the caller's original value tracking shows original != current, it's dirty.
-	// Since we only have booleans, we must handle both cases:
-	// The common case where original == current (clean reset):
-	// We can't distinguish clean vs dirty with just zero/non-zero booleans,
-	// so we use the conservative approach: if original and current are both non-zero,
-	// charge GasSstoreReset (clean reset cost) and add refund if clearing.
+	// !originalIsZero && !currentIsZero && original != current (dirty non-zero slot)
 	var refund int64
 	if newIsZero {
-		// Clearing a non-zero slot → add refund
+		// Clearing a dirty non-zero slot → add refund
 		refund = int64(GasSstoreRefund)
 	}
-
-	return SstoreGasCost{Cost: GasSstoreReset + baseCost, Refund: refund}
+	return SstoreGasCost{Cost: GasSloadWarm + baseCost, Refund: refund}
 }

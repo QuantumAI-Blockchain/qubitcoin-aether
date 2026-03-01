@@ -123,7 +123,13 @@ export function useVaultState() {
 export function useBridgeTransactions() {
   return useQuery<BridgeTx[]>({
     queryKey: bridgeKeys.transactions(),
-    queryFn: () => getBridgeMockEngine().transactions,
+    queryFn: async (): Promise<BridgeTx[]> => {
+      if (USE_MOCK) {
+        return getBridgeMockEngine().transactions;
+      }
+      // No dedicated transfer history endpoint yet — return empty array
+      return [];
+    },
     staleTime: 10_000,
   });
 }
@@ -134,14 +140,18 @@ export function useBridgeTransactions() {
  * on active (pending) transactions.
  */
 export function useBridgeTransaction(id: string | undefined) {
-  return useQuery<BridgeTx>({
+  return useQuery<BridgeTx | null>({
     queryKey: bridgeKeys.transaction(id ?? ""),
-    queryFn: () => {
-      const tx = getBridgeMockEngine().getTransaction(id!);
-      if (!tx) {
-        throw new Error(`Bridge transaction not found: ${id}`);
+    queryFn: async (): Promise<BridgeTx | null> => {
+      if (USE_MOCK) {
+        const tx = getBridgeMockEngine().getTransaction(id!);
+        if (!tx) {
+          throw new Error(`Bridge transaction not found: ${id}`);
+        }
+        return tx;
       }
-      return tx;
+      // No dedicated transaction lookup endpoint yet — return null
+      return null;
     },
     enabled: id !== undefined && id !== "",
     staleTime: 5_000,
@@ -234,7 +244,13 @@ export function useFeeEstimate(
 export function useGasPrices() {
   return useQuery<GasPrice[]>({
     queryKey: bridgeKeys.gasPrices(),
-    queryFn: () => getBridgeMockEngine().gasPrices,
+    queryFn: async (): Promise<GasPrice[]> => {
+      if (USE_MOCK) {
+        return getBridgeMockEngine().gasPrices;
+      }
+      // No dedicated gas prices endpoint yet — return empty array
+      return [];
+    },
     staleTime: 10_000,
     refetchInterval: 30_000,
   });
@@ -255,32 +271,27 @@ export function useTickerItems() {
         return getBridgeMockEngine().getTickerItems();
       }
 
-      try {
-        const stats = await bridgeApi.getBridgeStats();
-        const items: TickerItem[] = [
-          { label: "Total Volume", value: `${Math.floor(parseFloat(stats.totals.total_volume)).toLocaleString()} QBC`, color: "#00ff88" },
-          { label: "Total Deposits", value: stats.totals.total_deposits.toLocaleString(), color: "#00d4ff" },
-          { label: "Total Withdrawals", value: stats.totals.total_withdrawals.toLocaleString(), color: "#f5c842" },
-          { label: "Active Chains", value: stats.totals.active_chains.toString(), color: "#10b981" },
-          { label: "Backing Ratio", value: "1:1", color: "#22c55e" },
-          { label: "Protocol Fee", value: "0.10%" },
-          { label: "Relayer Fee", value: "0.05%" },
-          { label: "Bridge Version", value: "v2.1.0", color: "#94a3b8" },
-        ];
+      const stats = await bridgeApi.getBridgeStats();
+      const items: TickerItem[] = [
+        { label: "Total Volume", value: `${Math.floor(parseFloat(stats.totals.total_volume)).toLocaleString()} QBC`, color: "#00ff88" },
+        { label: "Total Deposits", value: stats.totals.total_deposits.toLocaleString(), color: "#00d4ff" },
+        { label: "Total Withdrawals", value: stats.totals.total_withdrawals.toLocaleString(), color: "#f5c842" },
+        { label: "Active Chains", value: stats.totals.active_chains.toString(), color: "#10b981" },
+        { label: "Backing Ratio", value: "1:1", color: "#22c55e" },
+        { label: "Protocol Fee", value: "0.10%" },
+        { label: "Relayer Fee", value: "0.05%" },
+        { label: "Bridge Version", value: "v2.1.0", color: "#94a3b8" },
+      ];
 
-        // Add per-chain volume
-        for (const chain of stats.chains) {
-          items.push({
-            label: `${chain.chain.toUpperCase()} Vol`,
-            value: `${Math.floor(parseFloat(chain.total_volume)).toLocaleString()} QBC`,
-          });
-        }
-
-        return items;
-      } catch {
-        // Fallback to mock on error
-        return getBridgeMockEngine().getTickerItems();
+      // Add per-chain volume
+      for (const chain of stats.chains) {
+        items.push({
+          label: `${chain.chain.toUpperCase()} Vol`,
+          value: `${Math.floor(parseFloat(chain.total_volume)).toLocaleString()} QBC`,
+        });
       }
+
+      return items;
     },
     staleTime: 5_000,
     refetchInterval: 10_000,
@@ -295,14 +306,18 @@ export function useTickerItems() {
 export function useFilteredHistory(filters: HistoryFilters) {
   return useQuery<BridgeTx[]>({
     queryKey: bridgeKeys.history(filters),
-    queryFn: () => {
-      const engine = getBridgeMockEngine();
-      return engine.getHistoryFiltered({
-        operation: filters.operation,
-        token: filters.token,
-        chain: filters.chain,
-        status: filters.status,
-      });
+    queryFn: async (): Promise<BridgeTx[]> => {
+      if (USE_MOCK) {
+        const engine = getBridgeMockEngine();
+        return engine.getHistoryFiltered({
+          operation: filters.operation,
+          token: filters.token,
+          chain: filters.chain,
+          status: filters.status,
+        });
+      }
+      // No dedicated filtered history endpoint yet — return empty array
+      return [];
     },
     staleTime: 10_000,
   });

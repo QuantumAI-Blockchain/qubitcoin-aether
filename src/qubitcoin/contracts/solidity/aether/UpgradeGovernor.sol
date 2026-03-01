@@ -31,11 +31,14 @@ contract UpgradeGovernor is Initializable {
         uint256       votesAgainst;
         uint256       votingEndTime;
         uint256       executeAfter;
+        uint256       totalSupplyAtCreation; // snapshot for quorum check
         UpgradeStatus status;
     }
 
     mapping(uint256 => UpgradeProposal) public proposals;
     mapping(uint256 => mapping(address => bool)) public hasVoted;
+    /// @notice Stores the voter's balance snapshot at vote time to prevent vote-transfer-vote attacks
+    mapping(uint256 => mapping(address => uint256)) public voteWeightUsed;
 
     // ─── Events ──────────────────────────────────────────────────────────
     event UpgradeProposed(uint256 indexed id, address targetContract, address newImpl, string description);
@@ -79,6 +82,7 @@ contract UpgradeGovernor is Initializable {
             votesAgainst:      0,
             votingEndTime:     block.timestamp + VOTING_PERIOD,
             executeAfter:      0,
+            totalSupplyAtCreation: qbcToken.totalSupply(),
             status:            UpgradeStatus.Voting
         });
 
@@ -90,9 +94,13 @@ contract UpgradeGovernor is Initializable {
         require(p.status == UpgradeStatus.Voting, "Governor: not voting");
         require(block.timestamp <= p.votingEndTime, "Governor: voting ended");
         require(!hasVoted[proposalId][msg.sender], "Governor: already voted");
-        require(weight <= qbcToken.balanceOf(msg.sender), "Governor: weight exceeds balance");
+
+        // Snapshot voter's balance on first vote to prevent vote-transfer-vote attacks
+        uint256 voterBalance = qbcToken.balanceOf(msg.sender);
+        require(weight <= voterBalance, "Governor: weight exceeds balance");
 
         hasVoted[proposalId][msg.sender] = true;
+        voteWeightUsed[proposalId][msg.sender] = voterBalance;
         if (support) { p.votesFor += weight; }
         else { p.votesAgainst += weight; }
 
@@ -103,6 +111,10 @@ contract UpgradeGovernor is Initializable {
         UpgradeProposal storage p = proposals[proposalId];
         require(p.status == UpgradeStatus.Voting, "Governor: not voting");
         require(block.timestamp > p.votingEndTime, "Governor: voting ongoing");
+
+        // Require 10% quorum of total supply at proposal creation time
+        uint256 totalVotes = p.votesFor + p.votesAgainst;
+        require(totalVotes >= p.totalSupplyAtCreation / 10, "Governor: quorum not reached");
 
         if (p.votesFor > p.votesAgainst) {
             p.status = UpgradeStatus.Approved;

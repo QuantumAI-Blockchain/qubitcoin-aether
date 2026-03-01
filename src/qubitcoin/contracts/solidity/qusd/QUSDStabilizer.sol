@@ -196,6 +196,7 @@ contract QUSDStabilizer is Initializable {
     function withdrawQBC(address recipient, uint256 amount) external onlyGovernance {
         require(stabilityFundBalance >= amount, "Stabilizer: insufficient");
         stabilityFundBalance -= amount;
+        require(qbcToken.transfer(recipient, amount), "Stabilizer: QBC transfer failed");
         emit FundWithdrawal(recipient, amount, true);
     }
 

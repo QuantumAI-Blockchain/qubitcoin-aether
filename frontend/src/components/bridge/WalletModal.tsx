@@ -428,14 +428,10 @@ export function WalletModal() {
             qbc: { connected: true, address: activeNative, balance: 0 },
           }));
         } else {
-          // Create a demo connection — in production, prompt user to create/import wallet
-          const demoAddr = "qbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-          setConn((prev) => ({
-            ...prev,
-            qbc: { connected: true, address: demoAddr, balance: 0 },
-          }));
-          // Sync to global store so GlobalHeader and other components see it
-          walletStore.setActiveNativeWallet(demoAddr);
+          // No QBC wallet extension available yet
+          setConnectError("No QBC wallet detected. Please create or import a wallet at qbc.network/wallet.");
+          setConnectingId(null);
+          return;
         }
       } else if (def.category === "evm") {
         if (def.id === "walletconnect") {

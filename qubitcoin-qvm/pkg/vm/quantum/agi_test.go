@@ -77,9 +77,9 @@ func newMockMemory(data []byte) *mockMemory {
 	return &mockMemory{store: append([]byte{}, data...)}
 }
 
-func (m *mockMemory) Get(offset, size uint64) []byte {
+func (m *mockMemory) Get(offset, size uint64) ([]byte, error) {
 	if size == 0 {
-		return nil
+		return nil, nil
 	}
 	end := offset + size
 	if end > uint64(len(m.store)) {
@@ -88,21 +88,21 @@ func (m *mockMemory) Get(offset, size uint64) []byte {
 		if offset < uint64(len(m.store)) {
 			copy(out, m.store[offset:])
 		}
-		return out
+		return out, nil
 	}
 	out := make([]byte, size)
 	copy(out, m.store[offset:end])
-	return out
+	return out, nil
 }
 
-func (m *mockMemory) Resize(size uint64) uint64 {
+func (m *mockMemory) Resize(size uint64) (uint64, error) {
 	if uint64(len(m.store)) >= size {
-		return 0
+		return 0, nil
 	}
 	newStore := make([]byte, size)
 	copy(newStore, m.store)
 	m.store = newStore
-	return 3 // nominal gas cost for testing
+	return 3, nil // nominal gas cost for testing
 }
 
 // ─── AGIHandler Unit Tests ──────────────────────────────────────────────

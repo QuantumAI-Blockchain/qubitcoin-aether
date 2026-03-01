@@ -11,9 +11,11 @@ import (
 
 // MemoryAccessor abstracts the EVM memory for opcodes that read from memory.
 // This avoids a circular import between evm and quantum packages.
+// Signatures match evm.Memory: Get and Resize return errors for out-of-bounds
+// or max-size violations.
 type MemoryAccessor interface {
-	Get(offset, size uint64) []byte
-	Resize(size uint64) uint64
+	Get(offset, size uint64) ([]byte, error)
+	Resize(size uint64) (uint64, error)
 }
 
 // ComplianceOracle provides compliance/risk data to quantum opcodes.
