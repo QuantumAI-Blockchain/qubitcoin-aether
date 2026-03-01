@@ -60,7 +60,9 @@ const MDS: [[u64; STATE_WIDTH]; STATE_WIDTH] = [
 /// Internal round constants — generated deterministically from the "QBC-Poseidon2" seed.
 /// Total constants needed: (FULL_ROUNDS_BEGIN + FULL_ROUNDS_END) * STATE_WIDTH + PARTIAL_ROUNDS
 /// = 8 * 3 + 56 = 80 constants.
-/// These are computed as SHA-256(seed || counter) mod p for each counter.
+/// Generated via a 128-bit LCG seeded from "QBC-Pos2" (see `generate_round_constants()`).
+/// LCG is used because `const fn` in Rust cannot call SHA-256 at compile time.
+/// The constants are deterministic, nonzero, and uniformly distributed mod p.
 const ROUND_CONSTANTS: [u64; 80] = generate_round_constants();
 
 /// Poseidon2 hash output — a single field element (8 bytes).
@@ -342,8 +344,11 @@ pub fn poseidon2_merkle_verify(
 
 /// Generate 80 round constants deterministically from the "QBC-Poseidon2" seed.
 ///
-/// Uses a simple PRNG based on the seed bytes, suitable for compile-time computation.
-/// In production, these would be derived from SHA-256(seed || counter) mod p.
+/// Uses a 128-bit Linear Congruential Generator (Knuth's constants) seeded from
+/// the ASCII bytes of "QBC-Pos2". LCG is chosen because Rust `const fn` cannot
+/// invoke SHA-256 at compile time. The upper 64 bits of the 128-bit state are
+/// extracted and reduced mod p, ensuring uniform distribution over the Goldilocks
+/// field. All generated constants are verified nonzero in tests.
 const fn generate_round_constants() -> [u64; 80] {
     let mut constants = [0u64; 80];
     // Deterministic generation using a linear congruential generator
@@ -579,7 +584,7 @@ mod tests {
     ///   - MDS: circ(2, 1, 1)
     ///   - Rounds: 4 full + 56 partial + 4 full
     ///   - S-box: x^5
-    ///   - Round constants: SHA-256("QBC-Poseidon2" || counter) mod p
+    ///   - Round constants: LCG(seed="QBC-Pos2") mod p (compile-time deterministic)
     ///
     /// If any of these tests fail after a code change, it means the hash
     /// function behavior has changed and all dependent ZK circuits are

@@ -47,7 +47,9 @@ contract SUSYEngine is Initializable {
         uint256 redistributedAmount;
     }
 
+    uint256 public constant MAX_VIOLATIONS = 10000;
     Violation[] public violations;
+    uint256 public violationHead;  // ring-buffer write index
 
     // ─── Events ──────────────────────────────────────────────────────────
     event EnergyUpdated(uint8 indexed pairIndex, uint256 expansionEnergy, uint256 constraintEnergy, uint256 ratio);
@@ -111,15 +113,23 @@ contract SUSYEngine is Initializable {
             pair.violationCount++;
             totalViolations++;
 
-            violations.push(Violation({
-                id:                   violations.length,
+            Violation memory v = Violation({
+                id:                   totalViolations,
                 pairIndex:            pairIndex,
                 ratio:                pair.currentRatio,
                 deviation:            deviation,
                 blockNumber:          block.number,
                 timestamp:            block.timestamp,
                 redistributedAmount:  0
-            }));
+            });
+
+            // Ring buffer: overwrite oldest entry when at capacity
+            if (violations.length < MAX_VIOLATIONS) {
+                violations.push(v);
+            } else {
+                violations[violationHead] = v;
+            }
+            violationHead = (violationHead + 1) % MAX_VIOLATIONS;
 
             emit SUSYViolation(pairIndex, pair.currentRatio, deviation, block.number);
         }

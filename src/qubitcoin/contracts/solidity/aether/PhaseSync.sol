@@ -51,7 +51,9 @@ contract PhaseSync is Initializable {
         uint256 timestamp;
         uint256 coherence;
     }
+    uint256 public constant MAX_TRANSITIONS = 10000;
     PhaseTransition[] public transitions;
+    uint256 public transitionHead;  // ring-buffer write index
 
     // ─── Events ──────────────────────────────────────────────────────────
     event PhaseTransitionEvent(uint8 indexed fromPhase, uint8 indexed toPhase, uint256 coherence, uint256 blockNumber);
@@ -89,13 +91,21 @@ contract PhaseSync is Initializable {
         require(newPhase != currentPhase, "PhaseSync: same phase");
 
         uint8 oldPhase = currentPhase;
-        transitions.push(PhaseTransition({
+        PhaseTransition memory t = PhaseTransition({
             fromPhase:   oldPhase,
             toPhase:     newPhase,
             blockNumber: block.number,
             timestamp:   block.timestamp,
             coherence:   currentCoherence
-        }));
+        });
+
+        // Ring buffer: overwrite oldest entry when at capacity
+        if (transitions.length < MAX_TRANSITIONS) {
+            transitions.push(t);
+        } else {
+            transitions[transitionHead] = t;
+        }
+        transitionHead = (transitionHead + 1) % MAX_TRANSITIONS;
 
         currentPhase    = newPhase;
         phaseStartBlock = block.number;

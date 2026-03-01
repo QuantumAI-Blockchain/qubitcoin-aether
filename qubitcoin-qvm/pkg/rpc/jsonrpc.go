@@ -198,43 +198,117 @@ func (h *Handlers) dispatchRPC(req JSONRPCRequest) JSONRPCResponse {
 
 	// ── Block ─────────────────────────────────────────────────────
 	case "eth_getBlockByNumber":
-		// Stub: return minimal block
-		var height uint64
-		if h.services != nil && h.services.BlockHeight != nil {
-			height = h.services.BlockHeight()
-		}
-		result = map[string]any{
-			"number":     fmt.Sprintf("0x%x", height),
-			"hash":       "0x" + "0000000000000000000000000000000000000000000000000000000000000000",
-			"parentHash": "0x" + "0000000000000000000000000000000000000000000000000000000000000000",
-			"timestamp":  "0x0",
-			"gasLimit":   "0x1c9c380", // 30,000,000
-			"gasUsed":    "0x0",
-			"miner":      "0x" + "0000000000000000000000000000000000000000",
-			"transactions": []any{},
+		var params []json.RawMessage
+		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) == 0 {
+			rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "expected [blockNumber, fullTx]"}
+		} else {
+			var blockNum string
+			json.Unmarshal(params[0], &blockNum)
+			height := resolveBlockNumber(blockNum, h.services)
+			result = h.buildBlockResponse(height)
 		}
 
 	case "eth_getBlockByHash":
-		// Stub: same as getBlockByNumber
-		result = map[string]any{
-			"number":       "0x0",
-			"hash":         "0x" + "0000000000000000000000000000000000000000000000000000000000000000",
-			"transactions": []any{},
+		var params []json.RawMessage
+		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) == 0 {
+			rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "expected [blockHash, fullTx]"}
+		} else {
+			var hashStr string
+			json.Unmarshal(params[0], &hashStr)
+			if h.services != nil && h.services.BlockStore != nil {
+				bHash := parseHash(hashStr)
+				if blk, err := h.services.BlockStore.GetBlockByHash(bHash); err == nil && blk != nil {
+					result = formatBlock(blk)
+				} else {
+					result = nil
+				}
+			} else {
+				result = nil
+			}
 		}
 
 	// ── Transaction ───────────────────────────────────────────────
 	case "eth_sendRawTransaction":
-		// Stub: not yet implemented
-		rpcErr = &RPCError{Code: ErrCodeInternal, Message: "not yet implemented"}
+		var params []string
+		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) == 0 {
+			rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "expected [signedTxData]"}
+		} else if h.services != nil && h.services.TxPool != nil {
+			rawTx := strings.TrimPrefix(params[0], "0x")
+			txBytes, decErr := hex.DecodeString(rawTx)
+			if decErr != nil {
+				rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "invalid hex transaction data"}
+			} else {
+				txHash, submitErr := h.services.TxPool.SubmitRawTransaction(txBytes)
+				if submitErr != nil {
+					rpcErr = &RPCError{Code: ErrCodeInternal, Message: submitErr.Error()}
+				} else {
+					result = "0x" + hex.EncodeToString(txHash[:])
+				}
+			}
+		} else {
+			rpcErr = &RPCError{Code: ErrCodeInternal, Message: "transaction pool not available"}
+		}
 
 	case "eth_call":
-		// params: [{to, data, ...}, blockTag]
-		// Stub: return empty data
-		result = "0x"
+		var params []json.RawMessage
+		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) == 0 {
+			rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "expected [{to, data, from, gas}, blockTag]"}
+		} else {
+			var callObj struct {
+				From string `json:"from"`
+				To   string `json:"to"`
+				Data string `json:"data"`
+				Gas  string `json:"gas"`
+			}
+			if err := json.Unmarshal(params[0], &callObj); err != nil {
+				rpcErr = &RPCError{Code: ErrCodeInvalidParams, Message: "invalid call object"}
+			} else if h.services != nil && h.services.VM != nil {
+				from := parseAddress(callObj.From)
+				to := parseAddress(callObj.To)
+				input := strings.TrimPrefix(callObj.Data, "0x")
+				data, _ := hex.DecodeString(input)
+				var gas uint64 = DefaultGasLimit
+				if callObj.Gas != "" {
+					fmt.Sscanf(strings.TrimPrefix(callObj.Gas, "0x"), "%x", &gas)
+				}
+				retData, _, callErr := h.services.VM.StaticCall(from, to, data, gas)
+				if callErr != nil {
+					rpcErr = &RPCError{Code: ErrCodeInternal, Message: callErr.Error()}
+				} else {
+					result = "0x" + hex.EncodeToString(retData)
+				}
+			} else {
+				result = "0x"
+			}
+		}
 
 	case "eth_estimateGas":
-		// Stub: return 21000 (basic transfer)
-		result = "0x5208"
+		var params []json.RawMessage
+		if err := json.Unmarshal(req.Params, &params); err != nil || len(params) == 0 {
+			result = "0x5208" // default: 21000 for simple transfer
+		} else {
+			var callObj struct {
+				From string `json:"from"`
+				To   string `json:"to"`
+				Data string `json:"data"`
+			}
+			if err := json.Unmarshal(params[0], &callObj); err != nil {
+				result = "0x5208"
+			} else if h.services != nil && h.services.VM != nil {
+				from := parseAddress(callObj.From)
+				to := parseAddress(callObj.To)
+				input := strings.TrimPrefix(callObj.Data, "0x")
+				data, _ := hex.DecodeString(input)
+				estimated, estErr := h.services.VM.EstimateGas(from, to, data)
+				if estErr != nil {
+					result = "0x5208"
+				} else {
+					result = fmt.Sprintf("0x%x", estimated)
+				}
+			} else {
+				result = "0x5208"
+			}
+		}
 
 	case "eth_gasPrice":
 		// Return default gas price (1 Gwei equivalent)
@@ -301,6 +375,66 @@ func writeJSONRPC(w http.ResponseWriter, id any, rpcErr *RPCError) {
 		Error:   rpcErr,
 		ID:      id,
 	})
+}
+
+// DefaultGasLimit is the default gas for eth_call / eth_estimateGas.
+const DefaultGasLimit uint64 = 30_000_000
+
+// resolveBlockNumber parses a block number string (hex or "latest"/"earliest"/"pending").
+func resolveBlockNumber(tag string, services *ServiceRegistry) uint64 {
+	switch tag {
+	case "latest", "pending", "":
+		if services != nil && services.BlockHeight != nil {
+			return services.BlockHeight()
+		}
+		return 0
+	case "earliest":
+		return 0
+	default:
+		tag = strings.TrimPrefix(tag, "0x")
+		var n uint64
+		fmt.Sscanf(tag, "%x", &n)
+		return n
+	}
+}
+
+// buildBlockResponse constructs a block JSON response for the given height.
+func (h *Handlers) buildBlockResponse(height uint64) any {
+	if h.services != nil && h.services.BlockStore != nil {
+		blk, err := h.services.BlockStore.GetBlockByNumber(height)
+		if err == nil && blk != nil {
+			return formatBlock(blk)
+		}
+	}
+	// Fallback: minimal block with correct height
+	return map[string]any{
+		"number":       fmt.Sprintf("0x%x", height),
+		"hash":         "0x" + "0000000000000000000000000000000000000000000000000000000000000000",
+		"parentHash":   "0x" + "0000000000000000000000000000000000000000000000000000000000000000",
+		"timestamp":    "0x0",
+		"gasLimit":     "0x1c9c380",
+		"gasUsed":      "0x0",
+		"miner":        "0x" + "0000000000000000000000000000000000000000",
+		"transactions": []any{},
+	}
+}
+
+// formatBlock converts a BlockData into a JSON-RPC compatible map.
+func formatBlock(blk *BlockData) map[string]any {
+	txs := make([]string, len(blk.Transactions))
+	for i, tx := range blk.Transactions {
+		txs[i] = "0x" + hex.EncodeToString(tx)
+	}
+	return map[string]any{
+		"number":       fmt.Sprintf("0x%x", blk.Number),
+		"hash":         "0x" + hex.EncodeToString(blk.Hash[:]),
+		"parentHash":   "0x" + hex.EncodeToString(blk.ParentHash[:]),
+		"timestamp":    fmt.Sprintf("0x%x", blk.Timestamp),
+		"gasLimit":     fmt.Sprintf("0x%x", blk.GasLimit),
+		"gasUsed":      fmt.Sprintf("0x%x", blk.GasUsed),
+		"miner":        "0x" + hex.EncodeToString(blk.Miner[:]),
+		"transactions": txs,
+	}
 }
 
 // parseAddress decodes a hex-encoded Ethereum address (0x-prefixed) into [20]byte.

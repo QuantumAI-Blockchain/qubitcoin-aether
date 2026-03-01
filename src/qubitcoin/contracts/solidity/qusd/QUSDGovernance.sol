@@ -319,6 +319,8 @@ contract QUSDGovernance is Initializable {
 
     function addEmergencySigner(address signer) external onlyOwner {
         require(emergencySigners.length < MAX_EMERGENCY_SIGNERS, "Governance: max signers reached");
+        require(signer != address(0), "Governance: zero address");
+        require(!_isEmergencySigner(signer), "Governance: duplicate signer");
         emergencySigners.push(signer);
         emit EmergencySignerAdded(signer);
     }

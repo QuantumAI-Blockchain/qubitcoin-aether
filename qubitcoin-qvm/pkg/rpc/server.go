@@ -66,6 +66,35 @@ type StateReader interface {
 	GetStorage(addr [20]byte, key [32]byte) [32]byte
 }
 
+// BlockData represents a block returned by the block store.
+type BlockData struct {
+	Number       uint64
+	Hash         [32]byte
+	ParentHash   [32]byte
+	Timestamp    uint64
+	GasLimit     uint64
+	GasUsed      uint64
+	Miner        [20]byte
+	Transactions [][]byte // RLP-encoded transactions
+}
+
+// BlockStore provides read access to blocks by number or hash.
+type BlockStore interface {
+	GetBlockByNumber(number uint64) (*BlockData, error)
+	GetBlockByHash(hash [32]byte) (*BlockData, error)
+}
+
+// TxPool accepts raw signed transactions for inclusion in the mempool.
+type TxPool interface {
+	SubmitRawTransaction(rlpTx []byte) ([32]byte, error)
+}
+
+// VMCaller executes a read-only contract call (eth_call).
+type VMCaller interface {
+	StaticCall(from, to [20]byte, data []byte, gas uint64) ([]byte, uint64, error)
+	EstimateGas(from, to [20]byte, data []byte) (uint64, error)
+}
+
 // ServiceRegistry holds references to QVM subsystems that RPC handlers need.
 type ServiceRegistry struct {
 	// ChainID is the network chain ID.
@@ -76,6 +105,12 @@ type ServiceRegistry struct {
 	Version string
 	// State provides read access to account balances, nonces, and code.
 	State StateReader
+	// BlockStore provides read access to blocks.
+	BlockStore BlockStore
+	// TxPool accepts raw transactions for inclusion.
+	TxPool TxPool
+	// VM provides contract call execution.
+	VM VMCaller
 }
 
 // Server is the QVM RPC server providing gRPC and HTTP/REST endpoints.

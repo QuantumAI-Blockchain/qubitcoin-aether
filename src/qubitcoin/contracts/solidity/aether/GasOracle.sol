@@ -26,7 +26,9 @@ contract GasOracle is Initializable {
         uint256 utilizationBps;
         uint256 timestamp;
     }
+    uint256 public constant MAX_PRICE_HISTORY = 10000;
     PricePoint[] public priceHistory;
+    uint256 public priceHistoryHead;  // ring-buffer write index
 
     // ─── Events ──────────────────────────────────────────────────────────
     event GasPriceUpdated(uint256 oldFee, uint256 newFee, uint256 utilization, uint256 blockNumber);
@@ -71,12 +73,21 @@ contract GasOracle is Initializable {
 
         lastUpdated = block.number;
         lastUpdateTimestamp = block.timestamp;
-        priceHistory.push(PricePoint({
+
+        PricePoint memory pp = PricePoint({
             blockNumber:    block.number,
             baseFee:        baseFee,
             utilizationBps: newUtilization,
             timestamp:      block.timestamp
-        }));
+        });
+
+        // Ring buffer: overwrite oldest entry when at capacity
+        if (priceHistory.length < MAX_PRICE_HISTORY) {
+            priceHistory.push(pp);
+        } else {
+            priceHistory[priceHistoryHead] = pp;
+        }
+        priceHistoryHead = (priceHistoryHead + 1) % MAX_PRICE_HISTORY;
 
         emit GasPriceUpdated(oldFee, baseFee, newUtilization, block.number);
     }

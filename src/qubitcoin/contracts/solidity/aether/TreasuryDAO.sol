@@ -124,6 +124,9 @@ contract TreasuryDAO is Initializable {
         require(p.status == ProposalStatus.Active, "Treasury: not active");
         require(block.timestamp > p.endTime, "Treasury: voting ongoing");
 
+        uint256 totalVotes = p.votesFor + p.votesAgainst;
+        require(totalVotes >= quorum, "Treasury: quorum not reached");
+
         if (p.votesFor > p.votesAgainst) {
             p.status = ProposalStatus.Passed;
             p.executeAfter = block.timestamp + EXECUTION_DELAY;
@@ -137,7 +140,6 @@ contract TreasuryDAO is Initializable {
         require(msg.sender == p.proposer || msg.sender == owner, "Treasury: not authorized");
         require(p.status == ProposalStatus.Passed, "Treasury: not passed");
         require(block.timestamp >= p.executeAfter, "Treasury: delay not met");
-        require(p.votesFor + p.votesAgainst >= quorum, "Treasury: quorum not reached");
         require(treasuryBalance >= p.amount, "Treasury: insufficient funds");
 
         treasuryBalance -= p.amount;

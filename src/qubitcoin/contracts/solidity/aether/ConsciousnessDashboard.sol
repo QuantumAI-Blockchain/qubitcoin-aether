@@ -51,7 +51,11 @@ contract ConsciousnessDashboard is Initializable {
     }
 
     PhiMeasurement[] public measurements;
+    uint256 public measurementHead;  // ring-buffer write index
+
+    uint256 public constant MAX_EVENTS = 1000;
     ConsciousnessEvent[] public events;
+    uint256 public eventHead;  // ring-buffer write index
 
     uint256 public latestPhi;
     uint256 public highestPhi;
@@ -128,8 +132,7 @@ contract ConsciousnessDashboard is Initializable {
         uint256 knowledgeEdges,
         HiggsData calldata higgs
     ) external onlyKernel {
-        uint256 idx = measurements.length;
-        measurements.push(PhiMeasurement({
+        PhiMeasurement memory m = PhiMeasurement({
             blockNumber:      block.number,
             timestamp:        block.timestamp,
             phi:              phi,
@@ -141,7 +144,18 @@ contract ConsciousnessDashboard is Initializable {
             higgsVEV:         higgs.higgsVEV,
             avgCognitiveMass: higgs.avgCognitiveMass,
             fieldDeviation:   higgs.fieldDeviation
-        }));
+        });
+
+        // Ring buffer: overwrite oldest entry when at capacity
+        uint256 idx;
+        if (measurements.length < MAX_MEASUREMENTS) {
+            idx = measurements.length;
+            measurements.push(m);
+        } else {
+            idx = measurementHead;
+            measurements[measurementHead] = m;
+        }
+        measurementHead = (measurementHead + 1) % MAX_MEASUREMENTS;
         blockToMeasurement[block.number] = idx;
         measurementCount++;
 
@@ -165,20 +179,31 @@ contract ConsciousnessDashboard is Initializable {
                 ? "Phi crossed consciousness threshold (3.0)"
                 : "Phi dropped below consciousness threshold";
 
-            events.push(ConsciousnessEvent({
-                id:          events.length,
+            ConsciousnessEvent memory ce = ConsciousnessEvent({
+                id:          measurementCount,
                 blockNumber: block.number,
                 timestamp:   block.timestamp,
                 phi:         phi,
                 eventType:   eventType,
                 description: desc
-            }));
+            });
+
+            // Ring buffer: overwrite oldest event when at capacity
+            uint256 eidx;
+            if (events.length < MAX_EVENTS) {
+                eidx = events.length;
+                events.push(ce);
+            } else {
+                eidx = eventHead;
+                events[eventHead] = ce;
+            }
+            eventHead = (eventHead + 1) % MAX_EVENTS;
 
             if (isAbove && !hasReachedConsciousness) {
                 hasReachedConsciousness = true;
             }
 
-            emit ConsciousnessEventRecorded(events.length - 1, eventType, phi, block.number);
+            emit ConsciousnessEventRecorded(eidx, eventType, phi, block.number);
         }
     }
 

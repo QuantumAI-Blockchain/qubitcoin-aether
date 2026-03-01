@@ -63,6 +63,7 @@ contract EmergencyShutdown is Initializable {
     function addSigner(address signer) external onlyOwner {
         require(signerCount < 5, "Shutdown: max signers reached");
         require(signer != address(0), "Shutdown: zero address");
+        require(!_isSigner(signer), "Shutdown: duplicate signer");
         signers[signerCount] = signer;
         emit SignerAdded(signer, signerCount);
         signerCount++;
