@@ -17,12 +17,12 @@ Three institutional-grade compliance features from the QVM whitepaper:
    Quantum audit trails that prove a computation was performed correctly
    without re-executing it. 100x faster than re-execution for auditors.
 """
-import hashlib
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 from enum import IntEnum
 
+from .vm import keccak256
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -117,9 +117,9 @@ class TLACManager:
         if not jurisdictions:
             return {"success": False, "error": "At least one jurisdiction required"}
 
-        tlac_id = hashlib.sha3_256(
+        tlac_id = keccak256(
             f"tlac:{initiator}:{block_height}:{time.time()}".encode()
-        ).hexdigest()[:16]
+        ).hex()[:16]
 
         tx = TLACTransaction(
             tlac_id=tlac_id,
@@ -301,7 +301,7 @@ class HDCKManager:
 
         # Derive key hash (in production: actual BIP-32 derivation)
         key_material = public_key_hex or f"{path}:{time.time()}"
-        key_hash = hashlib.sha3_256(key_material.encode()).hexdigest()
+        key_hash = keccak256(key_material.encode()).hex()
 
         node = HDCKNode(
             path=path,
@@ -378,7 +378,7 @@ class ComputationReceipt:
             f"{self.receipt_id}:{self.computation_hash}:{self.result_hash}:"
             f"{self.execution_trace_root}:{self.gas_used}:{self.block_height}"
         )
-        return hashlib.sha3_256(data.encode()).hexdigest()
+        return keccak256(data.encode()).hex()
 
     def to_dict(self) -> dict:
         return {
@@ -430,12 +430,12 @@ class VCRStore:
         Returns:
             The created ComputationReceipt.
         """
-        receipt_id = hashlib.sha3_256(
+        receipt_id = keccak256(
             f"vcr:{executor}:{block_height}:{time.time()}".encode()
-        ).hexdigest()[:16]
+        ).hex()[:16]
 
-        computation_hash = hashlib.sha3_256(computation_input.encode()).hexdigest()
-        result_hash = hashlib.sha3_256(computation_output.encode()).hexdigest()
+        computation_hash = keccak256(computation_input.encode()).hex()
+        result_hash = keccak256(computation_output.encode()).hex()
         trace_root = self._compute_trace_root(execution_trace)
 
         receipt = ComputationReceipt(
@@ -478,10 +478,10 @@ class VCRStore:
 
         # Verify integrity (hash binding)
         expected_integrity = receipt.integrity_hash
-        recomputed = hashlib.sha3_256(
+        recomputed = keccak256(
             f"{receipt.receipt_id}:{receipt.computation_hash}:{receipt.result_hash}:"
             f"{receipt.execution_trace_root}:{receipt.gas_used}:{receipt.block_height}".encode()
-        ).hexdigest()
+        ).hex()
 
         if expected_integrity != recomputed:
             return {"verified": False, "reason": "Integrity check failed"}
@@ -522,14 +522,14 @@ class VCRStore:
         """Compute Merkle root of execution trace steps."""
         if not trace:
             return "0" * 64
-        leaves = [hashlib.sha3_256(s.encode()).hexdigest() for s in trace]
+        leaves = [keccak256(s.encode()).hex() for s in trace]
         while len(leaves) > 1:
             if len(leaves) % 2 == 1:
                 leaves.append(leaves[-1])
             next_level = []
             for i in range(0, len(leaves), 2):
                 combined = leaves[i] + leaves[i + 1]
-                next_level.append(hashlib.sha3_256(combined.encode()).hexdigest())
+                next_level.append(keccak256(combined.encode()).hex())
             leaves = next_level
         return leaves[0]
 

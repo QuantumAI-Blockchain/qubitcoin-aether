@@ -18,12 +18,12 @@ Benefits:
 - Compressed storage: batch proof replaces N individual proofs
 - Higher throughput: reduced per-tx chain interaction
 """
-import hashlib
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from enum import Enum
 
+from .vm import keccak256
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -187,9 +187,9 @@ class TransactionBatcher:
         """
         start = time.monotonic()
         self._batch_id_counter += 1
-        batch_id = hashlib.sha3_256(
+        batch_id = keccak256(
             f"batch:{self._batch_id_counter}:{block_height}:{time.time()}".encode()
-        ).hexdigest()[:16]
+        ).hex()[:16]
 
         tx_results = []
         total_gas = 0
@@ -209,9 +209,9 @@ class TransactionBatcher:
         batch_root = self._compute_batch_root(tx_results)
 
         # Compute new state root (simulated)
-        state_root_after = hashlib.sha3_256(
+        state_root_after = keccak256(
             f"{state_root_before}:{batch_root}".encode()
-        ).hexdigest()
+        ).hex()
 
         duration = time.monotonic() - start
         receipt = BatchReceipt(
@@ -249,9 +249,9 @@ class TransactionBatcher:
 
         # Leaf hashes
         leaves = [
-            hashlib.sha3_256(
+            keccak256(
                 f"{r['tx_id']}:{r['gas_used']}:{r['success']}".encode()
-            ).hexdigest()
+            ).hex()
             for r in tx_results
         ]
 
@@ -263,7 +263,7 @@ class TransactionBatcher:
             for i in range(0, len(leaves), 2):
                 combined = leaves[i] + leaves[i + 1]
                 next_level.append(
-                    hashlib.sha3_256(combined.encode()).hexdigest()
+                    keccak256(combined.encode()).hex()
                 )
             leaves = next_level
 

@@ -45,6 +45,41 @@ class ExecutionError(Exception):
     pass
 
 
+class OutOfGasError(ExecutionError):
+    """Raised when gas is exhausted"""
+    pass
+
+
+class StackUnderflowError(ExecutionError):
+    """Raised when stack has insufficient items"""
+    pass
+
+
+class InvalidJumpError(ExecutionError):
+    """Raised on invalid JUMP destination"""
+    pass
+
+
+def safe_gas_add(a: int, b: int, gas_limit: int) -> int:
+    """Checked gas accumulation — prevents integer overflow in gas calculation.
+
+    Args:
+        a: Current gas used.
+        b: Gas to add.
+        gas_limit: Maximum allowed gas.
+
+    Returns:
+        The sum ``a + b``.
+
+    Raises:
+        OutOfGasError: If ``a + b`` would exceed ``gas_limit`` or overflow.
+    """
+    total = a + b
+    if total < a or total > gas_limit:
+        raise OutOfGasError(f"Gas overflow: {a} + {b} exceeds limit {gas_limit}")
+    return total
+
+
 def _rlp_encode_length(data: bytes, offset: int) -> bytes:
     """RLP length prefix for a single item or list.
 
@@ -714,21 +749,6 @@ def _opcode_name(op: int, pc: int = 0, code: bytes = b'') -> str:
     return f"UNKNOWN(0x{op:02x})"
 
 
-class OutOfGasError(ExecutionError):
-    """Raised when gas is exhausted"""
-    pass
-
-
-class StackUnderflowError(ExecutionError):
-    """Raised when stack has insufficient items"""
-    pass
-
-
-class InvalidJumpError(ExecutionError):
-    """Raised on invalid JUMP destination"""
-    pass
-
-
 class ExecutionResult:
     """Result of QVM bytecode execution"""
     def __init__(self):
@@ -796,10 +816,12 @@ class ExecutionContext:
         return dests
 
     def use_gas(self, amount: int) -> None:
-        """Consume gas, raise OutOfGasError if insufficient"""
-        self.gas_used += amount
-        if self.gas_used > self.gas:
-            raise OutOfGasError(f"Out of gas: used {self.gas_used}, limit {self.gas}")
+        """Consume gas, raise OutOfGasError if insufficient.
+
+        Uses checked arithmetic to prevent integer overflow in gas
+        calculations (Py-H3).
+        """
+        self.gas_used = safe_gas_add(self.gas_used, amount, self.gas)
 
     def push(self, value: int) -> None:
         """Push value onto stack"""

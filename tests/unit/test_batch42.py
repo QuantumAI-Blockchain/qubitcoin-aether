@@ -370,12 +370,12 @@ class TestVCRStore(unittest.TestCase):
         assert not result["verified"]
 
     def test_verify_with_expected_hashes(self):
-        import hashlib
+        from qubitcoin.qvm.vm import keccak256
         inp = "test_input"
         out = "test_output"
         receipt = self.vcr.create_receipt(inp, out, ["s1"], 1000, 1, "alice")
-        expected_comp = hashlib.sha3_256(inp.encode()).hexdigest()
-        expected_res = hashlib.sha3_256(out.encode()).hexdigest()
+        expected_comp = keccak256(inp.encode()).hex()
+        expected_res = keccak256(out.encode()).hex()
         result = self.vcr.verify_receipt(
             receipt.receipt_id, "auditor",
             expected_computation_hash=expected_comp,

@@ -55,12 +55,12 @@ func runBytecode(t *testing.T, code []byte, gas uint64, stateDB *state.StateDB) 
 		Coinbase:    [20]byte{0x01},
 	}
 	tx := &evm.TxContext{
-		Origin:   [20]byte{0xAA},
+		Origin:   [20]byte{19: 0xAA},
 		GasPrice: big.NewInt(1_000_000_000),
 	}
 	call := &evm.CallContext{
-		Caller:  [20]byte{0xAA},
-		Address: [20]byte{0xBB},
+		Caller:  [20]byte{19: 0xAA},
+		Address: [20]byte{19: 0xBB},
 		Value:   big.NewInt(0),
 		Input:   nil,
 		Code:    code,
@@ -314,12 +314,14 @@ func TestEVM_DUP_SWAP(t *testing.T) {
 		t.Errorf("DUP1+ADD: got %s, want 84", got)
 	}
 
-	// PUSH1 1, PUSH1 2, SWAP1, SUB → 2 - 1 = 1
-	// After SWAP1: stack is [2, 1] (top=2), SUB: pops 2, pops 1 → 2-1=1
+	// PUSH1 2, PUSH1 1, SWAP1, SUB → 2 - 1 = 1
+	// Stack after PUSH: [2, 1] (top=1).
+	// After SWAP1: [1, 2] (top=2).
+	// SUB: a=pop()=2, b=pop()=1, result = a-b = 2-1 = 1
 	code2 := []byte{
-		0x60, 1, // PUSH1 1
 		0x60, 2, // PUSH1 2
-		0x90,    // SWAP1 → stack [2, 1]
+		0x60, 1, // PUSH1 1
+		0x90,    // SWAP1 → stack [1, 2] (top=2)
 		0x03,    // SUB → 2 - 1 = 1
 		0x60, 0, 0x52, 0x60, 32, 0x60, 0, 0xF3,
 	}
@@ -723,6 +725,279 @@ func TestEVM_INVALID(t *testing.T) {
 	result := runBytecode(t, code, 100_000, nil)
 	if result.Success {
 		t.Fatal("INVALID should not succeed")
+	}
+}
+
+// ─── 13. CREATE / CREATE2 ───────────────────────────────────────────
+
+func TestEVM_CREATE_BasicContract(t *testing.T) {
+	sdb := testStateDB()
+	creator := [20]byte{19: 0xBB}
+	sdb.CreateAccount(creator)
+	sdb.SetBalance(creator, big.NewInt(1_000_000_000))
+
+	// Init code that RETURNs a single-byte runtime code (0x00 = STOP)
+	// PUSH1 0x00, PUSH1 0, MSTORE8, PUSH1 1, PUSH1 0, RETURN
+	initCode := []byte{
+		0x60, 0x00, // PUSH1 0x00 (STOP opcode as runtime code)
+		0x60, 0x00, // PUSH1 0
+		0x53,       // MSTORE8 (store at memory[0])
+		0x60, 0x01, // PUSH1 1 (size = 1)
+		0x60, 0x00, // PUSH1 0 (offset = 0)
+		0xF3,       // RETURN
+	}
+
+	// Build outer bytecode that stores initCode in memory, then CREATEs
+	code := make([]byte, 0, 200)
+
+	// Store initCode in memory starting at offset 0
+	for i, b := range initCode {
+		code = append(code, 0x60, b)     // PUSH1 byte
+		code = append(code, 0x60, byte(i)) // PUSH1 offset
+		code = append(code, 0x53)        // MSTORE8
+	}
+
+	// CREATE(value=0, offset=0, size=len(initCode))
+	code = append(code, 0x60, byte(len(initCode))) // PUSH1 size
+	code = append(code, 0x60, 0x00)                // PUSH1 offset
+	code = append(code, 0x60, 0x00)                // PUSH1 value (0 wei)
+	code = append(code, 0xF0)                      // CREATE
+
+	// Store result (address) at memory[0] and return it
+	code = append(code, 0x60, 0x00, 0x52) // MSTORE at 0
+	code = append(code, 0x60, 0x20, 0x60, 0x00, 0xF3) // RETURN 32 bytes
+
+	result := runBytecode(t, code, 1_000_000, sdb)
+	if !result.Success {
+		t.Fatalf("CREATE failed: %s (reason: %s)", result.Err, result.RevertReason)
+	}
+	// The return data should contain the new contract address (non-zero)
+	addr := new(big.Int).SetBytes(result.ReturnData)
+	if addr.Sign() == 0 {
+		t.Error("CREATE returned zero address (expected a valid contract address)")
+	}
+}
+
+func TestEVM_CREATE_InsufficientBalance(t *testing.T) {
+	sdb := testStateDB()
+	creator := [20]byte{19: 0xBB}
+	sdb.CreateAccount(creator)
+	sdb.SetBalance(creator, big.NewInt(0)) // No balance
+
+	// Init code: STOP
+	initCode := []byte{0x00}
+
+	code := make([]byte, 0, 100)
+	code = append(code, 0x60, initCode[0], 0x60, 0x00, 0x53) // store initCode
+	code = append(code, 0x60, 0x01) // size
+	code = append(code, 0x60, 0x00) // offset
+	code = append(code, 0x60, 0x01) // value = 1 (needs balance)
+	code = append(code, 0xF0)       // CREATE
+	// Result: 0 (failure) because balance is insufficient
+	code = append(code, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xF3)
+
+	result := runBytecode(t, code, 1_000_000, sdb)
+	if !result.Success {
+		t.Fatalf("execution failed: %s", result.Err)
+	}
+	addr := new(big.Int).SetBytes(result.ReturnData)
+	if addr.Sign() != 0 {
+		t.Error("CREATE with insufficient balance should return 0")
+	}
+}
+
+// ─── 14. CALL ───────────────────────────────────────────────────────
+
+func TestEVM_CALL_EmptyCode(t *testing.T) {
+	sdb := testStateDB()
+	caller := [20]byte{19: 0xBB}
+	target := [20]byte{19: 0xCC}
+	sdb.CreateAccount(caller)
+	sdb.CreateAccount(target)
+	sdb.SetBalance(caller, big.NewInt(1_000_000))
+
+	// CALL to an account with empty code should succeed
+	// Stack args: gas, addr, value, argsOffset, argsLength, retOffset, retLength
+	code := []byte{
+		0x60, 0x00, // retLength = 0
+		0x60, 0x00, // retOffset = 0
+		0x60, 0x00, // argsLength = 0
+		0x60, 0x00, // argsOffset = 0
+		0x60, 0x00, // value = 0
+		0x60, 0xCC, // address = 0xCC
+		0x61, 0xFF, 0xFF, // gas = 65535
+		0xF1,       // CALL
+		// Store success flag and return
+		0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xF3,
+	}
+
+	result := runBytecode(t, code, 1_000_000, sdb)
+	if !result.Success {
+		t.Fatalf("CALL to empty code failed: %s", result.Err)
+	}
+	got := new(big.Int).SetBytes(result.ReturnData)
+	if got.Cmp(big.NewInt(1)) != 0 {
+		t.Errorf("CALL to empty code: got %s, want 1 (success)", got)
+	}
+}
+
+func TestEVM_STATICCALL_SSTOREFails(t *testing.T) {
+	sdb := testStateDB()
+	caller := [20]byte{19: 0xBB}
+	target := [20]byte{19: 0xDD}
+	sdb.CreateAccount(caller)
+	sdb.CreateAccount(target)
+
+	// Target contract code: PUSH1 42, PUSH1 0, SSTORE (should fail in static context)
+	targetCode := []byte{0x60, 42, 0x60, 0x00, 0x55, 0x00}
+	sdb.SetCode(target, targetCode)
+
+	// STATICCALL to target
+	code := []byte{
+		0x60, 0x00, // retLength = 0
+		0x60, 0x00, // retOffset = 0
+		0x60, 0x00, // argsLength = 0
+		0x60, 0x00, // argsOffset = 0
+		0x60, 0xDD, // address = 0xDD
+		0x61, 0xFF, 0xFF, // gas = 65535
+		0xFA,       // STATICCALL
+		// Store result (should be 0 = failure)
+		0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xF3,
+	}
+
+	result := runBytecode(t, code, 1_000_000, sdb)
+	if !result.Success {
+		t.Fatalf("STATICCALL execution failed: %s", result.Err)
+	}
+	got := new(big.Int).SetBytes(result.ReturnData)
+	if got.Cmp(big.NewInt(0)) != 0 {
+		t.Errorf("STATICCALL with SSTORE: got %s, want 0 (failure)", got)
+	}
+}
+
+// ─── 15. SSTORE Gas Accounting ──────────────────────────────────────
+
+func TestEVM_SSTORE_GasCost_ColdVsWarm(t *testing.T) {
+	sdb := testStateDB()
+	addr := [20]byte{19: 0xBB}
+	sdb.CreateAccount(addr)
+
+	// First SSTORE (cold): PUSH1 1 (value), PUSH1 0 (key), SSTORE
+	// Second SSTORE (warm, same key, same value = no-op): PUSH1 1, PUSH1 0, SSTORE
+	// Then STOP
+	code := []byte{
+		0x60, 1,  // PUSH1 1 (value)
+		0x60, 0,  // PUSH1 0 (key)
+		0x55,     // SSTORE (cold write: ~20000 + 2100 gas)
+		0x60, 1,  // PUSH1 1 (same value)
+		0x60, 0,  // PUSH1 0 (same key)
+		0x55,     // SSTORE (warm no-op: 100 gas)
+		0x00,     // STOP
+	}
+	result := runBytecode(t, code, 100_000, sdb)
+	if !result.Success {
+		t.Fatalf("SSTORE gas test failed: %s", result.Err)
+	}
+	// Cold SSTORE should cost significantly more than warm no-op
+	// Exact gas: PUSH(3)*4 + SSTORE_cold(2900+2100) + SSTORE_warm_noop(100+0) + STOP(0)
+	// = 12 + 5000 + 100 = 5112
+	// (actual may vary based on exact EIP-2200/2929 implementation)
+	if result.GasUsed < 5000 {
+		t.Errorf("SSTORE gas used = %d, expected at least 5000 (cold write)", result.GasUsed)
+	}
+}
+
+// ─── 16. Precompile via CALL opcode ────────────────────────────────
+
+func TestEVM_CALL_Precompile_SHA256(t *testing.T) {
+	sdb := testStateDB()
+	caller := [20]byte{19: 0xBB}
+	sdb.CreateAccount(caller)
+
+	// Store "hello" (5 bytes) in memory at offset 0
+	// then CALL precompile 0x02 (SHA-256) with that input
+	code := []byte{
+		// Store "hello" in memory
+		0x64,                               // PUSH5
+		'h', 'e', 'l', 'l', 'o',           // "hello"
+		0x60, 0x00,                         // PUSH1 0
+		0x52,                               // MSTORE (stores left-padded at offset 0)
+		// CALL: gas=0xFFFF, addr=0x02, value=0, argsOff=27, argsLen=5, retOff=0, retLen=32
+		0x60, 0x20,                         // retLength = 32
+		0x60, 0x00,                         // retOffset = 0
+		0x60, 0x05,                         // argsLength = 5
+		0x60, 0x1B,                         // argsOffset = 27 (32 - 5 = 27, since MSTORE left-pads)
+		0x60, 0x00,                         // value = 0
+		0x60, 0x02,                         // address = 0x02 (SHA-256 precompile)
+		0x61, 0xFF, 0xFF,                   // gas = 65535
+		0xF1,                               // CALL
+		0x50,                               // POP (discard success flag)
+		// Return the hash from memory
+		0x60, 0x20, 0x60, 0x00, 0xF3,
+	}
+
+	result := runBytecode(t, code, 1_000_000, sdb)
+	if !result.Success {
+		t.Fatalf("CALL to SHA-256 precompile failed: %s", result.Err)
+	}
+	if len(result.ReturnData) != 32 {
+		t.Fatalf("SHA-256 return data length = %d, want 32", len(result.ReturnData))
+	}
+	// SHA-256("hello") starts with 0x2CF2
+	if result.ReturnData[0] != 0x2C || result.ReturnData[1] != 0xF2 {
+		t.Errorf("SHA-256 via CALL: got prefix %x, want 2CF2...", result.ReturnData[:4])
+	}
+}
+
+// ─── 17. SELFDESTRUCT ──────────────────────────────────────────────
+
+func TestEVM_SELFDESTRUCT_TransfersBalance(t *testing.T) {
+	sdb := testStateDB()
+	contract := [20]byte{19: 0xBB}
+	beneficiary := [20]byte{19: 0xEE}
+	sdb.CreateAccount(contract)
+	sdb.CreateAccount(beneficiary)
+	sdb.SetBalance(contract, big.NewInt(500_000))
+	sdb.SetBalance(beneficiary, big.NewInt(100))
+
+	// PUSH1 0xEE (beneficiary), SELFDESTRUCT
+	code := []byte{
+		0x60, 0xEE, // PUSH1 0xEE (beneficiary address)
+		0xFF,       // SELFDESTRUCT
+	}
+
+	result := runBytecode(t, code, 100_000, sdb)
+	if !result.Success {
+		t.Fatalf("SELFDESTRUCT failed: %s", result.Err)
+	}
+
+	// Beneficiary should have received the contract balance
+	beneficiaryBal := sdb.GetBalance(beneficiary)
+	expectedBal := big.NewInt(500_100) // 100 + 500_000
+	if beneficiaryBal.Cmp(expectedBal) != 0 {
+		t.Errorf("beneficiary balance = %s, want %s", beneficiaryBal, expectedBal)
+	}
+
+	// Contract balance should be 0
+	contractBal := sdb.GetBalance(contract)
+	if contractBal.Sign() != 0 {
+		t.Errorf("contract balance after SELFDESTRUCT = %s, want 0", contractBal)
+	}
+}
+
+// ─── 18. Memory Limit ──────────────────────────────────────────────
+
+func TestEVM_MemoryMaxSize(t *testing.T) {
+	m := evm.NewMemory()
+	// Reasonable resize should succeed
+	cost := m.Resize(1024)
+	if cost == 0 && m.Len() < 1024 {
+		t.Error("Resize to 1024 should have expanded memory")
+	}
+
+	// Verify the max constant exists and is 32MB
+	if evm.MaxMemorySize != 32*1024*1024 {
+		t.Errorf("MaxMemorySize = %d, want %d", evm.MaxMemorySize, 32*1024*1024)
 	}
 }
 

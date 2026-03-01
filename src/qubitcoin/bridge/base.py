@@ -146,6 +146,30 @@ class BaseBridge(ABC):
     # HELPER METHODS (Implemented for all bridges)
     # ========================================================================
 
+    # Bridge fee bounds (basis points): 0.01% minimum, 10% maximum
+    MIN_FEE_BPS: int = 1
+    MAX_FEE_BPS: int = 1000
+
+    @classmethod
+    def validate_fee_bps(cls, fee_bps: int) -> int:
+        """Validate that fee BPS is within safe bounds.
+
+        Args:
+            fee_bps: Fee in basis points to validate.
+
+        Returns:
+            The validated fee_bps value.
+
+        Raises:
+            ValueError: If fee_bps is outside [MIN_FEE_BPS, MAX_FEE_BPS].
+        """
+        if not isinstance(fee_bps, int) or fee_bps < cls.MIN_FEE_BPS or fee_bps > cls.MAX_FEE_BPS:
+            raise ValueError(
+                f"Bridge fee {fee_bps} BPS out of bounds "
+                f"[{cls.MIN_FEE_BPS}, {cls.MAX_FEE_BPS}]"
+            )
+        return fee_bps
+
     def _calculate_bridge_fee(self, amount: Decimal, fee_bps: Optional[int] = None) -> Decimal:
         """
         Calculate bridge fee
@@ -156,10 +180,16 @@ class BaseBridge(ABC):
 
         Returns:
             Fee amount
+
+        Raises:
+            ValueError: If amount is not positive or fee_bps is out of bounds.
         """
+        if amount <= 0:
+            raise ValueError(f"Bridge amount must be positive, got {amount}")
         if fee_bps is None:
             from ..config import Config
             fee_bps = Config.BRIDGE_FEE_BPS
+        fee_bps = self.validate_fee_bps(fee_bps)
         return (amount * Decimal(fee_bps)) / Decimal(10000)
 
     async def _create_deposit_record(

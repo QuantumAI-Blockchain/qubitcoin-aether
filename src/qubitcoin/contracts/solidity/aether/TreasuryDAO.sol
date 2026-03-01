@@ -18,6 +18,7 @@ contract TreasuryDAO is Initializable {
     uint256 public quorum = 100e18;   // minimum total votes to execute (default 100 QBC)
     uint256 public treasuryBalance;
     uint256 public proposalCount;
+    bool private _locked; // reentrancy guard
 
     enum ProposalStatus { Active, Passed, Rejected, Executed, Canceled }
 
@@ -50,6 +51,13 @@ contract TreasuryDAO is Initializable {
         _;
     }
 
+    modifier nonReentrant() {
+        require(!_locked, "Treasury: reentrant call");
+        _locked = true;
+        _;
+        _locked = false;
+    }
+
     // ─── Initializer ────────────────────────────────────────────────────
     function initialize(address _qbcToken) external initializer {
         owner    = msg.sender;
@@ -57,8 +65,9 @@ contract TreasuryDAO is Initializable {
     }
 
     // ─── Treasury Management ─────────────────────────────────────────────
-    function deposit(uint256 amount) external {
+    function deposit(uint256 amount) external nonReentrant {
         require(amount > 0, "Treasury: zero amount");
+        require(qbcToken.transferFrom(msg.sender, address(this), amount), "Treasury: transfer failed");
         treasuryBalance += amount;
         emit FundsDeposited(msg.sender, amount, treasuryBalance);
     }
@@ -117,7 +126,7 @@ contract TreasuryDAO is Initializable {
         }
     }
 
-    function execute(uint256 proposalId) external {
+    function execute(uint256 proposalId) external nonReentrant {
         Proposal storage p = proposals[proposalId];
         require(msg.sender == p.proposer || msg.sender == owner, "Treasury: not authorized");
         require(p.status == ProposalStatus.Passed, "Treasury: not passed");
@@ -127,6 +136,9 @@ contract TreasuryDAO is Initializable {
 
         treasuryBalance -= p.amount;
         p.status = ProposalStatus.Executed;
+
+        // Transfer QBC tokens to the proposal recipient
+        require(qbcToken.transfer(p.recipient, p.amount), "Treasury: transfer to recipient failed");
 
         emit ProposalExecuted(proposalId, p.recipient, p.amount);
         emit FundsAllocated(proposalId, p.recipient, p.amount);

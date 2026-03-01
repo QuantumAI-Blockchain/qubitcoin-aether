@@ -14,15 +14,29 @@
 # ============================================================================
 
 services:
-  # ── CockroachDB (single-node, internal only) ────────────────────────────
+  # ── CockroachDB (single-node, TLS-secured) ──────────────────────────────
+  #
+  # IMPORTANT: Before first run, generate CockroachDB certificates:
+  #
+  #   mkdir -p certs/cockroach
+  #   cockroach cert create-ca --certs-dir=certs/cockroach --ca-key=certs/cockroach/ca.key
+  #   cockroach cert create-node localhost cockroachdb 127.0.0.1 \
+  #       --certs-dir=certs/cockroach --ca-key=certs/cockroach/ca.key
+  #   cockroach cert create-client root \
+  #       --certs-dir=certs/cockroach --ca-key=certs/cockroach/ca.key
+  #
+  #   Ensure the ca.key file is stored securely and NOT mounted into the container.
+  #   Only the certs directory (without ca.key) should be mounted.
+  #
   cockroachdb:
     image: cockroachdb/cockroach:v25.2.12
     container_name: qbc-cockroachdb
-    command: start-single-node --insecure
+    command: start-single-node --certs-dir=/cockroach/certs
     volumes:
       - cockroach-data:/cockroach/cockroach-data
+      - ./certs/cockroach:/cockroach/certs:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
+      test: ["CMD", "curl", "-f", "--cacert", "/cockroach/certs/ca.crt", "https://localhost:8080/health?ready=1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -31,7 +45,7 @@ services:
       - qbc-net
     restart: unless-stopped
     # No exposed ports — internal only. Access via docker exec if needed:
-    #   docker exec -it qbc-cockroachdb ./cockroach sql --insecure
+    #   docker exec -it qbc-cockroachdb ./cockroach sql --certs-dir=/cockroach/certs
 
   # ── Database initialization ─────────────────────────────────────────────
   db-init:
@@ -43,21 +57,22 @@ services:
     volumes:
       - ./sql/:/sql/:ro
       - ./sql_new/:/sql_new/:ro
+      - ./certs/cockroach:/cockroach/certs:ro
     entrypoint: >
       /bin/sh -c "
         echo '=== Qubitcoin DB Init: Creating database ===' &&
-        cockroach sql --insecure --host=cockroachdb:26257 -e 'CREATE DATABASE IF NOT EXISTS qbc;' &&
+        cockroach sql --certs-dir=/cockroach/certs --host=cockroachdb:26257 -e 'CREATE DATABASE IF NOT EXISTS qbc;' &&
         echo '=== Loading core schemas (sql_new/) ===' &&
         for dir in qbc agi qvm research shared bridge stablecoin; do
           if [ -d /sql_new/$$dir ]; then
             for f in /sql_new/$$dir/*.sql; do
               echo \"  Loading $$f\" &&
-              cockroach sql --insecure --host=cockroachdb:26257 --database=qbc < $$f || true;
+              cockroach sql --certs-dir=/cockroach/certs --host=cockroachdb:26257 --database=qbc < $$f || true;
             done;
           fi;
         done &&
         echo '=== Loading genesis block ===' &&
-        cockroach sql --insecure --host=cockroachdb:26257 --database=qbc < /sql/09_genesis_block.sql || true &&
+        cockroach sql --certs-dir=/cockroach/certs --host=cockroachdb:26257 --database=qbc < /sql/09_genesis_block.sql || true &&
         echo '=== Qubitcoin DB Init: Complete ==='
       "
     networks:
@@ -111,7 +126,7 @@ services:
       - .env
       - secure_key.env
     environment:
-      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
+      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=require
       - IPFS_API=/ip4/ipfs/tcp/5001/http
       - IPFS_GATEWAY_PORT=8080
       - DEBUG=false

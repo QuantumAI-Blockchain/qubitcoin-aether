@@ -78,7 +78,8 @@ contract wQUSD is IQBC20, Initializable {
     /// @notice Lock QUSD and receive wQUSD 1:1
     function wrap(uint256 amount) external nonReentrant whenNotPaused {
         require(amount > 0, "wQUSD: zero amount");
-        // In production, would call QUSD.transferFrom(msg.sender, address(this), amount)
+        // Lock underlying QUSD in this contract
+        require(IQBC20(qusdToken).transferFrom(msg.sender, address(this), amount), "wQUSD: lock failed");
         totalLocked        += amount;
         totalWrapped       += amount;
         totalSupply        += amount;
@@ -98,6 +99,9 @@ contract wQUSD is IQBC20, Initializable {
         totalSupply           -= amount;
         totalLocked           -= amount;
         totalUnwrapped        += amount;
+
+        // Unlock underlying QUSD back to the user
+        require(IQBC20(qusdToken).transfer(msg.sender, amount), "wQUSD: unlock failed");
 
         emit Transfer(msg.sender, address(0), amount);
         emit Unwrapped(msg.sender, amount, amount);

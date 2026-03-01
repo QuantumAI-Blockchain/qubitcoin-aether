@@ -92,25 +92,19 @@ function WalletSelector({
   const handleImport = useCallback(async () => {
     if (!importKey.trim()) return;
     try {
-      // Sign a test message to derive the public key
-      const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_RPC_URL ?? "http://localhost:5000"}/wallet/sign`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message_hash:
-              "0000000000000000000000000000000000000000000000000000000000000000",
-            private_key_hex: importKey.trim(),
-          }),
-        },
-      );
-      if (!resp.ok) throw new Error("Invalid private key");
+      // SECURITY: Private keys must NEVER be sent to the backend.
+      // Client-side import validates key format locally. Full Dilithium
+      // key derivation (private key -> public key -> address) will be
+      // available once the Dilithium WASM module is integrated.
+      const keyHex = importKey.trim();
+      if (!/^[0-9a-fA-F]+$/.test(keyHex) || keyHex.length < 64) {
+        throw new Error("Invalid private key format: must be a hex string of sufficient length");
+      }
 
-      // Derive address from the private key via a create call
-      // For import we create a new wallet then the user should use the address
+      // TODO: Derive public key and address from private key using
+      // Dilithium2 WASM module. Until then, import is not supported.
       alert(
-        "Import is not yet supported client-side. Please use 'Create Wallet' and fund it.",
+        "Import is not yet supported client-side. Dilithium2 WASM module required for key derivation. Please use 'Create Wallet' and fund it.",
       );
     } catch (e) {
       alert(`Import failed: ${e}`);

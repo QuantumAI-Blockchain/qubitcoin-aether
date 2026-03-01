@@ -462,23 +462,31 @@ pub mod pallet {
 
         /// Approve a pending reversal request (governor only).
         ///
+        /// The governor identity is derived from the transaction sender (`origin`),
+        /// NOT from a user-supplied parameter. This prevents impersonation attacks
+        /// where a non-governor could pass another governor's address.
+        ///
         /// When the approval threshold is met, the reversal is automatically executed:
         /// - Target UTXOs are frozen
         /// - New UTXOs are created returning funds to the original sender
         #[pallet::call_index(1)]
         // Analytical weight: governor read (25µs) + request read (25µs) + votes read/write (50µs)
-        // + if threshold met: execute_reversal → up to 256 UTXO reads + freezes + removal
-        //   + reversal UTXO write + balance updates + counters = ~7ms worst case
+        // + AccountId→Address conversion (10µs) + if threshold met: execute_reversal →
+        //   up to 256 UTXO reads + freezes + removal + reversal UTXO write + balance
+        //   updates + counters = ~7ms worst case
         // Total: ~7.2ms ≈ 7_200_000
         #[pallet::weight(7_200_000)]
         pub fn approve_reversal(
             origin: OriginFor<T>,
             request_id: H256,
-            governor_address: Address,
         ) -> DispatchResult {
-            ensure_signed(origin)?;
+            // Derive the governor address from the actual transaction sender.
+            // This is critical for security — we must verify WHO is calling,
+            // not trust a parameter that anyone could forge.
+            let caller = ensure_signed(origin)?;
+            let governor_address = Self::account_to_address(&caller);
 
-            // Verify governor is authorized
+            // Verify the actual caller is an authorized governor
             let governors = Governors::<T>::get();
             ensure!(
                 governors.iter().any(|g| *g == governor_address),
@@ -747,6 +755,19 @@ pub mod pallet {
     // ═══════════════════════════════════════════════════════════════════
 
     impl<T: Config> Pallet<T> {
+        /// Convert a Substrate AccountId to a QBC Address.
+        ///
+        /// Uses the SCALE-encoded bytes of the AccountId (typically 32 bytes for
+        /// AccountId32) and hashes them with SHA2-256 to produce a deterministic
+        /// QBC address. This ensures a consistent mapping from Substrate accounts
+        /// to QBC addresses across the system.
+        fn account_to_address(account: &T::AccountId) -> Address {
+            use codec::Encode;
+            use sp_core::hashing::sha2_256;
+            let encoded = account.encode();
+            Address(sha2_256(&encoded))
+        }
+
         /// Execute an approved reversal.
         ///
         /// 1. Freeze the target UTXOs (mark as reversed)

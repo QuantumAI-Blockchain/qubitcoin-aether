@@ -83,6 +83,10 @@ pub mod pallet {
         InvalidStateRoot,
         /// Execution receipt validation failed.
         InvalidReceipt,
+        /// State root is all zeros (invalid empty root).
+        ZeroStateRoot,
+        /// State root is identical to the previous block (no-op update).
+        DuplicateStateRoot,
     }
 
     #[pallet::genesis_config]
@@ -116,6 +120,16 @@ pub mod pallet {
             state_root: H256,
         ) -> DispatchResult {
             ensure_root(origin)?;
+
+            // Reject all-zero state root (indicates uninitialized or corrupt state)
+            ensure!(state_root != H256::zero(), Error::<T>::ZeroStateRoot);
+
+            // Reject duplicate state root (no actual state transition occurred)
+            let prev_root = QvmStateRoot::<T>::get();
+            // Allow duplicate only if previous is zero (genesis / first update)
+            if prev_root != H256::zero() {
+                ensure!(state_root != prev_root, Error::<T>::DuplicateStateRoot);
+            }
 
             QvmStateRoot::<T>::put(state_root);
             StateRootHistory::<T>::insert(block_height, state_root);

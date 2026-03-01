@@ -10,12 +10,21 @@ contract ProofOfThought is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant CONSENSUS_THRESHOLD_BPS = 6700; // 67%
     uint256 public constant BPS_DENOM = 10000;
+    uint256 public constant MIN_VALIDATOR_STAKE = 100 ether; // 100 QBC minimum stake
+    uint256 public constant SLASH_PERCENTAGE = 50;           // 50% slash per CLAUDE.md spec
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
     address public validatorRegistry;
     uint256 public proofCount;
+
+    /// @notice Validator stakes: address => staked amount
+    mapping(address => uint256) public stakes;
+    /// @notice Total staked across all validators
+    uint256 public totalStaked;
+    /// @notice Total slashed across all validators
+    uint256 public totalSlashed;
 
     enum ProofStatus { Submitted, Validating, Validated, Rejected }
 
@@ -44,8 +53,16 @@ contract ProofOfThought is Initializable {
     event ProofValidated(uint256 indexed id, uint256 votesFor, uint256 totalValidators);
     event ProofRejected(uint256 indexed id, uint256 votesAgainst, uint256 totalValidators);
     event ValidationVote(uint256 indexed proofId, address indexed validator, bool support);
+    event ValidatorStaked(address indexed validator, uint256 amount, uint256 totalStake);
+    event ValidatorSlashed(address indexed validator, uint256 slashAmount, uint256 remainingStake);
+    event StakeWithdrawn(address indexed validator, uint256 amount);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
+    modifier onlyOwner() {
+        require(msg.sender == owner, "PoT: not owner");
+        _;
+    }
+
     modifier onlyKernel() {
         require(msg.sender == kernel || msg.sender == owner, "PoT: not authorized");
         _;
@@ -122,6 +139,54 @@ contract ProofOfThought is Initializable {
             proof.status = ProofStatus.Rejected;
             emit ProofRejected(proofId, proof.votesAgainst, proof.totalValidators);
         }
+    }
+
+    // ─── Validator Staking ────────────────────────────────────────────────
+
+    /// @notice Stake QBC to become a validator. Must meet minimum stake requirement.
+    function stake() external payable {
+        require(msg.value > 0, "PoT: zero stake");
+        require(stakes[msg.sender] + msg.value >= MIN_VALIDATOR_STAKE, "PoT: below minimum stake");
+
+        stakes[msg.sender] += msg.value;
+        totalStaked += msg.value;
+
+        emit ValidatorStaked(msg.sender, msg.value, stakes[msg.sender]);
+    }
+
+    /// @notice Slash a validator for submitting an invalid proof (50% of stake).
+    ///         Only callable by owner/kernel when a proof is rejected.
+    /// @param validator Address of the validator to slash
+    function slash(address validator) external onlyKernel {
+        uint256 validatorStake = stakes[validator];
+        require(validatorStake > 0, "PoT: no stake to slash");
+
+        uint256 slashAmount = (validatorStake * SLASH_PERCENTAGE) / 100;
+        stakes[validator] -= slashAmount;
+        totalStaked -= slashAmount;
+        totalSlashed += slashAmount;
+
+        emit ValidatorSlashed(validator, slashAmount, stakes[validator]);
+    }
+
+    /// @notice Withdraw unstaked validator funds (remaining after slash or full amount).
+    ///         Validator must have no active validations pending.
+    function withdrawStake(uint256 amount) external {
+        require(amount > 0, "PoT: zero amount");
+        require(stakes[msg.sender] >= amount, "PoT: insufficient stake");
+
+        stakes[msg.sender] -= amount;
+        totalStaked -= amount;
+
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "PoT: transfer failed");
+
+        emit StakeWithdrawn(msg.sender, amount);
+    }
+
+    /// @notice Check if an address meets minimum stake to be a validator
+    function isValidValidator(address validator) external view returns (bool) {
+        return stakes[validator] >= MIN_VALIDATOR_STAKE;
     }
 
     // ─── Queries ─────────────────────────────────────────────────────────

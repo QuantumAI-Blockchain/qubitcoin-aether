@@ -120,7 +120,7 @@ var ConstGas = map[Opcode]uint64{
 	MLOAD:   GasVeryLow, // + dynamic memory expansion
 	MSTORE:  GasVeryLow, // + dynamic memory expansion
 	MSTORE8: GasVeryLow, // + dynamic memory expansion
-	SLOAD:   GasSloadCold,
+	SLOAD:   GasSloadWarm, // Base warm cost; cold surcharge added dynamically (EIP-2929)
 	// SSTORE: dynamic (EIP-2200 / EIP-3529)
 	JUMP:     GasMid,
 	JUMPI:    GasHigh,

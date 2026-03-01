@@ -805,6 +805,11 @@ def app_and_client():
     # Set app.node for P2P endpoints
     app.node = _make_mock_node()
 
+    # Disable rate limiting for tests by setting very high limits
+    if hasattr(app.state, 'rate_limit_store'):
+        app.state.rate_limit_store['max_read_per_minute'] = 100_000
+        app.state.rate_limit_store['max_write_per_minute'] = 100_000
+
     client = _SyncASGIClient(app)
 
     yield app, client, {

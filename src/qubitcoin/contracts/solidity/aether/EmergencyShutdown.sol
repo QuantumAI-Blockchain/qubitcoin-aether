@@ -10,6 +10,7 @@ contract EmergencyShutdown is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
     uint256 public constant SHUTDOWN_THRESHOLD = 3;  // 3-of-5 to shutdown
     uint256 public constant RESUME_THRESHOLD   = 4;  // 4-of-5 to resume
+    uint256 public constant RESUME_COOLDOWN    = 1 hours; // Minimum time before resume can execute
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
@@ -131,6 +132,11 @@ contract EmergencyShutdown is Initializable {
         emit ResumeSigned(actionId, msg.sender, actions[actionId].signCount);
 
         if (actions[actionId].signCount >= RESUME_THRESHOLD) {
+            // Enforce cooldown — prevent hasty resume before investigation completes
+            require(
+                block.timestamp >= shutdownTimestamp + RESUME_COOLDOWN,
+                "Shutdown: resume cooldown not elapsed"
+            );
             actions[actionId].executed = true;
             isShutdown = false;
             emit SystemResumed(actionId, block.timestamp, actions[actionId].signCount);

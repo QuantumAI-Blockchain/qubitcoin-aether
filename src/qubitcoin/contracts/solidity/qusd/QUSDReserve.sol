@@ -4,6 +4,13 @@ pragma solidity ^0.8.24;
 import "../proxy/Initializable.sol";
 import "../interfaces/IDebtLedger.sol";
 
+/// @notice Minimal ERC-20 interface for reserve asset token transfers
+interface IERC20 {
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
 /// @notice Minimal oracle interface — returns price in USD with 8 decimals
 interface IPriceOracle {
     function getPrice() external view returns (uint256);
@@ -112,9 +119,12 @@ contract QUSDReserve is Initializable {
     /// @param asset Token address (address(0) for native QBC)
     /// @param amount Amount deposited
     /// @param usdValue USD value of this deposit (8 decimals, provided by caller or oracle)
-    function deposit(address asset, uint256 amount, uint256 usdValue) external whenNotPaused {
+    function deposit(address asset, uint256 amount, uint256 usdValue) external nonReentrant whenNotPaused {
         require(assets[asset].active, "QUSDReserve: asset not registered");
         require(amount > 0, "QUSDReserve: zero amount");
+
+        // Transfer tokens from depositor to reserve
+        require(IERC20(asset).transferFrom(msg.sender, address(this), amount), "QUSDReserve: transfer failed");
 
         assets[asset].totalDeposited += amount;
         assets[asset].currentBalance += amount;
@@ -134,8 +144,12 @@ contract QUSDReserve is Initializable {
         require(assets[asset].currentBalance >= amount, "QUSDReserve: insufficient");
         require(recipient != address(0), "QUSDReserve: zero recipient");
 
+        // Effects before interactions (CEI pattern)
         assets[asset].currentBalance -= amount;
         assets[asset].totalWithdrawn += amount;
+
+        // Transfer tokens to recipient
+        require(IERC20(asset).transfer(recipient, amount), "QUSDReserve: transfer failed");
 
         emit ReserveWithdrawal(asset, recipient, amount);
     }

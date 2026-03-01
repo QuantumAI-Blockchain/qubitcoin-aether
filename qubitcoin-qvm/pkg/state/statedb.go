@@ -8,6 +8,7 @@ package state
 
 import (
 	"math/big"
+	"sort"
 	"sync"
 
 	"golang.org/x/crypto/sha3"
@@ -138,7 +139,7 @@ func (s *StateDB) SetBalance(addr [20]byte, balance *big.Int) {
 	var bal [32]byte
 	b := balance.Bytes()
 	if len(b) > 32 {
-		b = b[:32]
+		b = b[len(b)-32:] // keep least-significant 32 bytes (big-endian)
 	}
 	copy(bal[32-len(b):], b)
 	acc.Balance = bal
@@ -336,12 +337,31 @@ func (s *StateDB) Commit() {
 
 // ComputeStateRoot computes a Merkle root over all accounts and storage.
 // This is a simplified hash — production uses a Merkle Patricia Trie.
+//
+// CRITICAL: Accounts are sorted by address before hashing to ensure
+// deterministic results. Go map iteration order is non-deterministic,
+// so iterating unsorted would produce different roots for the same state.
 func (s *StateDB) ComputeStateRoot() StateRoot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	// Collect and sort addresses for deterministic ordering
+	addrs := make([][20]byte, 0, len(s.accounts))
+	for addr := range s.accounts {
+		addrs = append(addrs, addr)
+	}
+	sort.Slice(addrs, func(i, j int) bool {
+		for k := 0; k < 20; k++ {
+			if addrs[i][k] != addrs[j][k] {
+				return addrs[i][k] < addrs[j][k]
+			}
+		}
+		return false
+	})
+
 	h := sha3.NewLegacyKeccak256()
-	for addr, acc := range s.accounts {
+	for _, addr := range addrs {
+		acc := s.accounts[addr]
 		h.Write(addr[:])
 		h.Write(acc.Balance[:])
 		nonceBytes := big.NewInt(int64(acc.Nonce)).Bytes()

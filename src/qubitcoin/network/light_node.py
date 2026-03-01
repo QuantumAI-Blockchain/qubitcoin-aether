@@ -10,12 +10,12 @@ Node type comparison (from CLAUDE.md):
   Light Node:   1GB,    2GB RAM,  SPV verification, <5min sync
   Mining Node:  Full + quantum hardware
 """
-import hashlib
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from ..config import Config
+from ..qvm.vm import keccak256
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -44,7 +44,7 @@ class BlockHeader:
             f"{self.height}:{self.prev_hash}:{self.merkle_root}:"
             f"{self.timestamp}:{self.difficulty}"
         )
-        return hashlib.sha3_256(data.encode()).hexdigest()
+        return keccak256(data.encode()).hex()
 
     def to_dict(self) -> dict:
         return {
@@ -135,7 +135,7 @@ class SPVVerifier:
             else:
                 # Current is on the right, sibling is on the left
                 combined = sibling + current
-            current = hashlib.sha3_256(combined.encode()).hexdigest()
+            current = keccak256(combined.encode()).hex()
 
         result = current == proof.merkle_root
         self._record(result)

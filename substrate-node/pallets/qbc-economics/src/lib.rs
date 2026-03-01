@@ -80,23 +80,32 @@ pub mod pallet {
         /// era = block_height / HALVING_INTERVAL
         ///
         /// Uses fixed-point arithmetic to avoid floating point in runtime.
+        /// If the total emitted plus the reward would exceed MAX_SUPPLY,
+        /// the reward is capped to the remaining supply (or 0 if already at max).
         pub fn calculate_reward(block_height: u64) -> QbcBalance {
             let era = (block_height / HALVING_INTERVAL) as u32;
 
-            if era == 0 {
-                return INITIAL_REWARD;
-            }
+            let base_reward = if era == 0 {
+                INITIAL_REWARD
+            } else {
+                // PHI^era using fixed-point: start with INITIAL_REWARD * PHI_DENOM,
+                // then divide by PHI_SCALED `era` times.
+                let mut reward = INITIAL_REWARD as u128 * PHI_DENOM;
+                for _ in 0..era {
+                    reward = reward * PHI_DENOM / PHI_SCALED;
+                }
+                let result = reward / PHI_DENOM;
+                // Never go below 1 unit
+                result.max(1)
+            };
 
-            // PHI^era using fixed-point: start with INITIAL_REWARD * PHI_DENOM,
-            // then divide by PHI_SCALED `era` times.
-            let mut reward = INITIAL_REWARD as u128 * PHI_DENOM;
-            for _ in 0..era {
-                reward = reward * PHI_DENOM / PHI_SCALED;
+            // Cap reward so total emitted never exceeds MAX_SUPPLY
+            let total = TotalEmitted::<T>::get();
+            let remaining = MAX_SUPPLY.saturating_sub(total);
+            if remaining == 0 {
+                return 0;
             }
-            let result = reward / PHI_DENOM;
-
-            // Never go below 1 unit
-            result.max(1)
+            base_reward.min(remaining)
         }
 
         /// Calculate total emitted supply up to a given block height.

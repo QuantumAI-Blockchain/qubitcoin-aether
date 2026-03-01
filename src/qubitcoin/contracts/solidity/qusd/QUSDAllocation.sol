@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "../interfaces/IQUSD.sol";
 
 /// @title QUSDAllocation — Vesting & Distribution for 3.3B QUSD
 /// @notice Manages the initial QUSD allocation across 4 tiers:
@@ -167,6 +168,10 @@ contract QUSDAllocation is Initializable {
         require(claimable > 0, "Allocation: nothing to claim");
 
         sched.claimed += claimable;
+
+        // Transfer QUSD tokens to the beneficiary
+        require(IQUSD(qusdToken).transfer(msg.sender, claimable), "Allocation: transfer failed");
+
         emit TokensClaimed(msg.sender, claimable, sched.claimed);
     }
 

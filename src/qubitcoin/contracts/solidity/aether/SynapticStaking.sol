@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "../interfaces/IQBC20.sol";
 
 /// @title SynapticStaking — Stake QBC on Neural Connections
 /// @notice Stake QBC on specific Sephirot connections (edges) to strengthen or weaken them.
@@ -11,6 +12,7 @@ contract SynapticStaking is Initializable {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
+    IQBC20  public qbcToken;
     bool private _locked;
 
     uint256 public constant MIN_STAKE = 100 ether;           // 100 QBC minimum
@@ -77,9 +79,10 @@ contract SynapticStaking is Initializable {
     }
 
     // ─── Initialization ─────────────────────────────────────────────────
-    function initialize(address _kernel) external initializer {
-        owner  = msg.sender;
-        kernel = _kernel;
+    function initialize(address _kernel, address _qbcToken) external initializer {
+        owner    = msg.sender;
+        kernel   = _kernel;
+        qbcToken = IQBC20(_qbcToken);
     }
 
     // ─── Connection Setup (admin only) ───────────────────────────────────
@@ -221,9 +224,12 @@ contract SynapticStaking is Initializable {
     // ─── Kernel-Only Admin Functions ─────────────────────────────────────
 
     /// @notice Admin: stake on behalf of a user (kernel-managed staking)
-    function stake(address staker, uint256 connectionId, uint256 amount) external onlyKernel {
+    function stake(address staker, uint256 connectionId, uint256 amount) external onlyKernel nonReentrant {
         require(connections[connectionId].active, "Synaptic: not active");
         require(amount > 0, "Synaptic: zero amount");
+
+        // Transfer QBC tokens from the staker to this contract
+        require(qbcToken.transferFrom(staker, address(this), amount), "Synaptic: transfer failed");
 
         connections[connectionId].totalStaked += amount;
         totalStaked += amount;
@@ -240,20 +246,34 @@ contract SynapticStaking is Initializable {
         emit ConnectionStaked(staker, connectionId, amount);
     }
 
-    /// @notice Admin: unstake on behalf of a user (kernel-managed)
-    function unstake(address staker, uint256 stakeIndex) external onlyKernel {
+    /// @notice Admin: request unstake on behalf of a user (kernel-managed).
+    ///         Goes through the same timelock as user unstaking.
+    function unstake(address staker, uint256 stakeIndex) external onlyKernel nonReentrant {
         require(stakeIndex < userStakes[staker].length, "Synaptic: invalid index");
         Stake storage s = userStakes[staker][stakeIndex];
+        require(s.amount > 0, "Synaptic: already unstaking");
         uint256 amount = s.amount;
         uint256 connId = s.connectionId;
+        uint256 unlockBlock = block.number + UNSTAKING_DELAY;
+
+        // Accrue pending rewards before unstaking
+        _accrueRewards(staker, stakeIndex);
 
         connections[connId].totalStaked -= amount;
         totalStaked -= amount;
 
-        // Remove stake by swapping with last
-        userStakes[staker][stakeIndex] = userStakes[staker][userStakes[staker].length - 1];
-        userStakes[staker].pop();
+        // Record unstake request with timelock
+        unstakeRequests[staker].push(UnstakeRequest({
+            stakeIndex:   stakeIndex,
+            connectionId: connId,
+            amount:       amount,
+            unlockBlock:  unlockBlock
+        }));
 
+        // Zero out the stake (preserve index stability)
+        s.amount = 0;
+
+        emit UnstakeRequested(staker, connId, amount, unlockBlock);
         emit ConnectionUnstaked(staker, connId, amount);
     }
 

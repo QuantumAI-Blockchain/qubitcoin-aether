@@ -121,36 +121,53 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
     import collections
 
-    _rate_limit_store: dict = {
-        'requests': collections.defaultdict(list),  # ip -> [timestamps]
-        'max_per_minute': int(os.getenv('RPC_RATE_LIMIT', '120')),
+    # Write endpoints that get stricter rate limits (10/min vs 120/min for reads)
+    _WRITE_ENDPOINT_PREFIXES = (
+        '/wallet/send', '/mining/start', '/mining/stop',
+        '/transfer', '/admin/', '/aether/chat',
+        '/bridge/deposit', '/bridge/withdraw',
+    )
+
+    # Attach rate limiter to app instance so each app gets its own store,
+    # and tests can clear it via app.state.rate_limit_store.
+    app.state.rate_limit_store = {
+        'read': collections.defaultdict(list),   # ip -> [timestamps]
+        'write': collections.defaultdict(list),  # ip -> [timestamps]
+        'max_read_per_minute': int(os.getenv('RPC_RATE_LIMIT', '120')),
+        'max_write_per_minute': int(os.getenv('RPC_WRITE_RATE_LIMIT', '10')),
     }
+    _rate_limit_store = app.state.rate_limit_store
 
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next):
-        """Simple in-memory rate limiter — per IP, per minute."""
+        """In-memory rate limiter — per IP, per minute, stricter for write endpoints."""
         import time as _time
         client_ip = request.client.host if request.client else 'unknown'
         now = _time.time()
         window = 60.0  # 1 minute window
-        max_requests = _rate_limit_store['max_per_minute']
+        path = request.url.path
 
-        # Clean old entries for this IP
-        timestamps = _rate_limit_store['requests'][client_ip]
-        filtered = [t for t in timestamps if now - t < window]
-        if filtered:
-            _rate_limit_store['requests'][client_ip] = filtered
-        else:
-            # Evict key entirely to prevent unbounded dict growth
-            _rate_limit_store['requests'].pop(client_ip, None)
+        # Determine if this is a write (sensitive) endpoint
+        is_write = any(path.startswith(p) for p in _WRITE_ENDPOINT_PREFIXES)
+        bucket = 'write' if is_write else 'read'
+        max_requests = _rate_limit_store['max_write_per_minute'] if is_write else _rate_limit_store['max_read_per_minute']
 
-        if len(_rate_limit_store['requests'].get(client_ip, [])) >= max_requests:
+        # Clean old entries for this IP in both buckets
+        for bkt in ('read', 'write'):
+            timestamps = _rate_limit_store[bkt][client_ip]
+            filtered = [t for t in timestamps if now - t < window]
+            if filtered:
+                _rate_limit_store[bkt][client_ip] = filtered
+            else:
+                _rate_limit_store[bkt].pop(client_ip, None)
+
+        if len(_rate_limit_store[bucket].get(client_ip, [])) >= max_requests:
             return JSONResponse(
                 status_code=429,
                 content={"error": "Rate limit exceeded", "retry_after": 60},
             )
 
-        _rate_limit_store['requests'][client_ip].append(now)
+        _rate_limit_store[bucket][client_ip].append(now)
         response = await call_next(request)
         return response
 
@@ -2467,14 +2484,16 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                     {'txid': tx_hash, 'vout': vout, 'amt': str(change), 'addr': req.from_address, 'h': db_manager.get_current_height()}
                 )
                 outputs.append({'address': req.from_address, 'amount': str(change)})
-            # Transaction record
+            # Transaction record — route through mempool (status='pending')
+            # so the block pipeline validates and confirms it properly.
+            # Writing directly as 'confirmed' bypasses consensus.
             session.execute(
                 sa_text("""
                     INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
                                               timestamp, status, tx_type, to_address, data,
                                               gas_limit, gas_price, nonce)
                     VALUES (:txid, CAST(:inputs AS jsonb), CAST(:outputs AS jsonb), 0, :sig, :pk,
-                            :ts, 'confirmed', 'transfer', :to_addr, '', 0, 0, 0)
+                            :ts, 'pending', 'transfer', :to_addr, '', 0, 0, 0)
                 """),
                 {
                     'txid': tx_hash,
@@ -2486,8 +2505,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             )
             session.commit()
 
-        logger.info(f"Native send: {req.from_address[:8]}→{to_addr[:8]} {amount} QBC")
-        return {'tx_hash': tx_hash, 'status': 'confirmed'}
+        logger.info(f"Native send: {req.from_address[:8]}→{to_addr[:8]} {amount} QBC (pending)")
+        return {'tx_hash': tx_hash, 'status': 'pending'}
 
     class WalletSignRequest(BaseModel):
         message_hash: str
@@ -2664,32 +2683,49 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                        f"Current: {node_total}, remaining capacity: {max(Decimal(0), remaining)}"
             )
 
-        # Check balance
-        balance = db_manager.get_balance(req.address)
-        if balance < amount:
-            raise HTTPException(status_code=400, detail=f"Insufficient balance: have {balance}, need {amount}")
-
-        # Deduct UTXOs
+        # Deduct UTXOs — use a single DB transaction with SELECT FOR UPDATE
+        # to prevent TOCTOU race between balance check and UTXO spending.
+        # Without this, concurrent requests could double-spend the same UTXOs.
         import hashlib
         import time as _time
-        utxos = db_manager.get_utxos(req.address)
-        utxos.sort(key=lambda u: u.amount, reverse=True)
-        selected = []
-        total = Decimal(0)
-        for u in utxos:
-            selected.append(u)
-            total += u.amount
-            if total >= amount:
-                break
-        change = total - amount
         tx_hash = hashlib.sha256(f"stake:{req.address}:{req.node_id}:{amount}:{_time.time()}".encode()).hexdigest()
 
         with db_manager.get_session() as session:
             from sqlalchemy import text as sa_text
-            for u in selected:
+            # Lock unspent UTXOs for this address atomically (SELECT FOR UPDATE)
+            rows = session.execute(
+                sa_text("""
+                    SELECT txid, vout, amount FROM utxos
+                    WHERE address = :addr AND spent = false
+                    ORDER BY amount DESC
+                    FOR UPDATE
+                """),
+                {'addr': req.address}
+            ).fetchall()
+
+            # Check balance under lock
+            available = sum(Decimal(str(r[2])) for r in rows)
+            if available < amount:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient balance: have {available}, need {amount}"
+                )
+
+            # Select UTXOs to spend (largest first)
+            selected_rows = []
+            total = Decimal(0)
+            for r in rows:
+                selected_rows.append(r)
+                total += Decimal(str(r[2]))
+                if total >= amount:
+                    break
+            change = total - amount
+
+            # Spend selected UTXOs and create change — all within same transaction
+            for r in selected_rows:
                 session.execute(
                     sa_text("UPDATE utxos SET spent = true, spent_by = :txid WHERE txid = :utxid AND vout = :vout AND spent = false"),
-                    {'txid': tx_hash, 'utxid': u.txid, 'vout': u.vout}
+                    {'txid': tx_hash, 'utxid': r[0], 'vout': r[1]}
                 )
             if change > 0:
                 session.execute(

@@ -46,6 +46,19 @@ contract QUSDGovernance is Initializable {
     mapping(uint256 => mapping(address => bool))    public hasVoted;
     mapping(uint256 => mapping(address => bool))    public emergencySigned;
 
+    /// @notice Snapshot block number at proposal creation — prevents vote-transfer-vote attacks
+    mapping(uint256 => uint256) public snapshotBlock;
+    /// @notice Tracks total voting power already used per proposal (across all addresses)
+    ///         to prevent the same tokens from being used twice via transfers
+    mapping(uint256 => mapping(address => uint256)) public votePowerUsed;
+
+    /// @notice Balance snapshots: proposalId => address => balance at snapshot block
+    mapping(uint256 => mapping(address => uint256)) public balanceSnapshots;
+    /// @notice Whether an address has been snapshotted for a given proposal
+    mapping(uint256 => mapping(address => bool)) public hasSnapshot;
+    /// @notice Total token supply recorded at proposal creation (for quorum calculation)
+    mapping(uint256 => uint256) public totalSupplyAtSnapshot;
+
     // ─── Delegation State ───────────────────────────────────────────────
     /// @notice Who each address has delegated their voting power to (zero = no delegation)
     mapping(address => address) public delegates;
@@ -101,6 +114,16 @@ contract QUSDGovernance is Initializable {
             state:         ProposalState.Active
         });
 
+        // Record snapshot block at proposal creation to prevent vote-transfer-vote attacks
+        snapshotBlock[proposalId] = block.number;
+
+        // Record total supply at snapshot for quorum calculation
+        totalSupplyAtSnapshot[proposalId] = qbcToken.totalSupply();
+
+        // Snapshot the proposer's balance at creation time
+        balanceSnapshots[proposalId][msg.sender] = qbcToken.balanceOf(msg.sender);
+        hasSnapshot[proposalId][msg.sender] = true;
+
         emit ProposalCreated(proposalId, msg.sender, description);
     }
 
@@ -116,9 +139,22 @@ contract QUSDGovernance is Initializable {
         require(block.timestamp <= prop.endTimestamp, "Governance: voting ended");
         require(!hasVoted[proposalId][msg.sender], "Governance: already voted");
         require(delegates[msg.sender] == address(0), "Governance: must undelegate before voting");
-        require(weight <= qbcToken.balanceOf(msg.sender), "Governance: weight exceeds balance");
+
+        // Lazily snapshot balance on first interaction — uses balance at vote time
+        // but locks it so subsequent transfers don't allow double-voting
+        if (!hasSnapshot[proposalId][msg.sender]) {
+            balanceSnapshots[proposalId][msg.sender] = qbcToken.balanceOf(msg.sender);
+            hasSnapshot[proposalId][msg.sender] = true;
+        }
+
+        // Use snapshotted balance as cap — prevents vote-transfer-vote attacks
+        uint256 snapshotBalance = balanceSnapshots[proposalId][msg.sender];
+        require(weight <= snapshotBalance, "Governance: weight exceeds snapshot balance");
 
         hasVoted[proposalId][msg.sender] = true;
+        // Record how much voting power this address used to prevent reuse after transfer
+        votePowerUsed[proposalId][msg.sender] = weight;
+
         uint256 totalPower = getVotingPower(weight);
         if (support) {
             prop.votesFor += totalPower;
@@ -133,8 +169,7 @@ contract QUSDGovernance is Initializable {
 
     /// @notice Delegate voting power to another address.
     /// @dev Prevents self-delegation and delegation chains.
-    ///      No weight parameter — delegation is binary. At vote time, the
-    ///      delegate's power includes each delegator's LIVE qbcToken balance.
+    ///      Delegator's current balance is added to the delegate's delegatedVotes.
     /// @param to The address to delegate voting power to
     function delegate(address to) external {
         require(to != msg.sender, "Governance: cannot self-delegate");
@@ -142,9 +177,15 @@ contract QUSDGovernance is Initializable {
         require(delegates[to] == address(0), "Governance: delegate has delegated (no chains)");
 
         address previousDelegate = delegates[msg.sender];
-        delegates[msg.sender] = to;
+        uint256 delegatorBalance = qbcToken.balanceOf(msg.sender);
 
-        // delegatedVotes is updated lazily at vote time via _countDelegatedVotes()
+        // Remove votes from previous delegate if re-delegating
+        if (previousDelegate != address(0)) {
+            delegatedVotes[previousDelegate] -= delegatorBalance;
+        }
+
+        delegates[msg.sender] = to;
+        delegatedVotes[to] += delegatorBalance;
 
         emit DelegateChanged(msg.sender, previousDelegate, to);
     }
@@ -154,6 +195,8 @@ contract QUSDGovernance is Initializable {
         address currentDelegate = delegates[msg.sender];
         require(currentDelegate != address(0), "Governance: not delegated");
 
+        uint256 delegatorBalance = qbcToken.balanceOf(msg.sender);
+        delegatedVotes[currentDelegate] -= delegatorBalance;
         delegates[msg.sender] = address(0);
 
         emit DelegateChanged(msg.sender, currentDelegate, address(0));
@@ -174,7 +217,10 @@ contract QUSDGovernance is Initializable {
         require(block.timestamp > prop.endTimestamp, "Governance: voting not ended");
 
         uint256 totalVotes = prop.votesFor + prop.votesAgainst;
-        uint256 quorumRequired = (IQBC20(qusdToken).totalSupply() * QUORUM_BPS) / BPS_DENOM;
+        // Use total supply recorded at proposal creation — not live supply
+        uint256 snapshotSupply = totalSupplyAtSnapshot[proposalId];
+        require(snapshotSupply > 0, "Governance: no snapshot supply");
+        uint256 quorumRequired = (snapshotSupply * QUORUM_BPS) / BPS_DENOM;
         require(totalVotes >= quorumRequired, "Governance: quorum not reached");
 
         if (prop.votesFor > prop.votesAgainst) {
@@ -237,6 +283,10 @@ contract QUSDGovernance is Initializable {
             require(
                 prop.state != ProposalState.Executed && prop.state != ProposalState.Canceled,
                 "Governance: invalid state"
+            );
+            require(
+                prop.state != ProposalState.Defeated,
+                "Governance: proposal defeated"
             );
 
             prop.state = ProposalState.Executed;

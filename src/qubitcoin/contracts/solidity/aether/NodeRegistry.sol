@@ -105,6 +105,15 @@ contract NodeRegistry is Initializable {
         emit NodeRemoved(id);
     }
 
+    /// @notice Allow a node contract to deregister itself
+    function selfDeregister(uint8 id) external {
+        require(nodes[id].contractAddr != address(0), "Registry: not found");
+        require(nodes[id].contractAddr == msg.sender, "Registry: only node contract can self-deregister");
+        delete nodes[id];
+        nodeCount--;
+        emit NodeRemoved(id);
+    }
+
     function setNodeStatus(uint8 id, NodeStatus newStatus) external onlyKernel {
         require(nodes[id].contractAddr != address(0), "Registry: not found");
         NodeStatus old = nodes[id].status;

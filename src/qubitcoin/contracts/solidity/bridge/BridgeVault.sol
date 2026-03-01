@@ -16,6 +16,7 @@ contract BridgeVault is Initializable {
     uint256 public constant BPS_DENOMINATOR = 10000;
     uint256 public constant MIN_DEPOSIT = 1e6;    // 0.01 QBC (8 decimals)
     uint256 public constant MAX_DEPOSIT = 1e16;   // 100M QBC daily limit
+    uint256 public constant MIN_RELAYERS = 3;     // Minimum relayers for security
 
     uint256 public totalLocked;                   // Total QBC currently locked
     uint256 public totalFees;                     // Accumulated fees
@@ -56,7 +57,12 @@ contract BridgeVault is Initializable {
 
     // Authorized bridge relayers (multi-sig path)
     mapping(address => bool) public relayers;
+    uint256 public relayerCount;
     uint256 public requiredConfirmations;
+
+    // Multi-sig confirmation tracking for withdrawals
+    mapping(bytes32 => uint256) public confirmationCount;
+    mapping(bytes32 => mapping(address => bool)) public hasConfirmed;
 
     // ── Events ──────────────────────────────────────────────────────
     event DepositLocked(
@@ -80,6 +86,7 @@ contract BridgeVault is Initializable {
     event RelayerAdded(address indexed relayer);
     event RelayerRemoved(address indexed relayer);
     event FeesWithdrawn(address indexed to, uint256 amount);
+    event WithdrawalConfirmed(bytes32 indexed withdrawalId, address indexed relayer, uint256 confirmations);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
 
@@ -192,9 +199,33 @@ contract BridgeVault is Initializable {
         emit DepositProcessed(depositId, targetTxHash);
     }
 
-    // ── Unlock QBC (Withdrawal) ─────────────────────────────────────
+    // ── Confirm & Unlock QBC (Withdrawal) ─────────────────────────────
+
+    /// @notice Confirm a pending withdrawal. Multiple relayers must confirm before release.
+    /// @param recipient    QBC address to receive unlocked funds
+    /// @param amount       Amount of QBC to unlock
+    /// @param sourceChain  Chain where wQBC was burned
+    /// @param sourceTxHash Tx hash of the burn on the source chain
+    function confirmWithdrawal(
+        address recipient,
+        uint256 amount,
+        uint256 sourceChain,
+        bytes32 sourceTxHash
+    ) external onlyRelayer whenNotPaused {
+        bytes32 wId = keccak256(abi.encodePacked(
+            recipient, amount, sourceChain, sourceTxHash
+        ));
+        require(!withdrawals[wId].completed, "Vault: already withdrawn");
+        require(!hasConfirmed[wId][msg.sender], "Vault: already confirmed");
+
+        hasConfirmed[wId][msg.sender] = true;
+        confirmationCount[wId]++;
+
+        emit WithdrawalConfirmed(wId, msg.sender, confirmationCount[wId]);
+    }
 
     /// @notice Unlock QBC when wQBC is burned on an external chain.
+    ///         Requires sufficient relayer confirmations before release.
     /// @param recipient    QBC address to receive unlocked funds
     /// @param amount       Amount of QBC to unlock
     /// @param sourceChain  Chain where wQBC was burned
@@ -213,6 +244,7 @@ contract BridgeVault is Initializable {
             recipient, amount, sourceChain, sourceTxHash
         ));
         require(!withdrawals[wId].completed, "Vault: already withdrawn");
+        require(confirmationCount[wId] >= requiredConfirmations, "Vault: insufficient confirmations");
 
         withdrawals[wId] = Withdrawal({
             recipient: recipient,
@@ -249,14 +281,18 @@ contract BridgeVault is Initializable {
     }
 
     function addRelayer(address relayer) external onlyOwner {
+        require(relayer != address(0), "Vault: zero address");
         require(!relayers[relayer], "Vault: relayer exists");
         relayers[relayer] = true;
+        relayerCount++;
         emit RelayerAdded(relayer);
     }
 
     function removeRelayer(address relayer) external onlyOwner {
         require(relayers[relayer], "Vault: relayer not found");
+        require(relayerCount > MIN_RELAYERS, "Vault: cannot go below minimum relayers");
         relayers[relayer] = false;
+        relayerCount--;
         emit RelayerRemoved(relayer);
     }
 

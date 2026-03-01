@@ -33,6 +33,37 @@ class JsonRpcResponse(BaseModel):
     id: Any = 1
 
 
+def validate_hex(value: str, name: str, max_len: int = 66) -> str:
+    """Validate a hex parameter (e.g. address, tx hash).
+
+    Checks:
+        1. Starts with '0x'
+        2. Remaining chars are valid hex
+        3. Total length does not exceed max_len
+
+    Args:
+        value: The hex string to validate.
+        name: Parameter name (for error messages).
+        max_len: Maximum allowed string length (default 66 for 32-byte hashes).
+
+    Returns:
+        The validated hex string.
+
+    Raises:
+        ValueError: If the value fails any check.
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"{name}: expected hex string, got {type(value).__name__}")
+    if not value.startswith('0x'):
+        raise ValueError(f"{name}: hex value must start with '0x', got '{value[:10]}'")
+    hex_part = value[2:]
+    if len(value) > max_len:
+        raise ValueError(f"{name}: hex value too long ({len(value)} > {max_len})")
+    if hex_part and not all(c in '0123456789abcdefABCDEF' for c in hex_part):
+        raise ValueError(f"{name}: contains invalid hex characters")
+    return value
+
+
 def hex_int(value: int) -> str:
     return hex(value)
 
@@ -273,6 +304,8 @@ class JsonRpcHandler:
         return _block_to_rpc(block, include_txs)
 
     async def eth_getBlockByHash(self, params):
+        if params:
+            validate_hex(params[0], "blockHash", max_len=66)
         block_hash = params[0].replace('0x', '') if params else ''
         include_txs = params[1] if len(params) > 1 else False
         block = self.db.get_block_by_hash(block_hash)
@@ -282,6 +315,9 @@ class JsonRpcHandler:
     # ACCOUNT METHODS
     # ========================================================================
     async def eth_getBalance(self, params):
+        if not params:
+            raise ValueError("eth_getBalance requires an address parameter")
+        validate_hex(params[0], "address", max_len=42)
         address = params[0].replace('0x', '') if params else ''
         # Sum both account balance (QVM/MetaMask) and UTXO balance
         account_bal = self.db.get_account_balance(address)
@@ -290,17 +326,28 @@ class JsonRpcHandler:
         return hex_balance(balance)
 
     async def eth_getTransactionCount(self, params):
+        if not params:
+            raise ValueError("eth_getTransactionCount requires an address parameter")
+        validate_hex(params[0], "address", max_len=42)
         address = params[0].replace('0x', '') if params else ''
         account = self.db.get_account(address)
         nonce = account.nonce if account else 0
         return hex_int(nonce)
 
     async def eth_getCode(self, params):
+        if not params:
+            raise ValueError("eth_getCode requires an address parameter")
+        validate_hex(params[0], "address", max_len=42)
         address = params[0].replace('0x', '') if params else ''
         bytecode = self.db.get_contract_bytecode(address)
         return '0x' + (bytecode or '')
 
     async def eth_getStorageAt(self, params):
+        if not params:
+            raise ValueError("eth_getStorageAt requires an address parameter")
+        validate_hex(params[0], "address", max_len=42)
+        if len(params) > 1:
+            validate_hex(params[1], "position", max_len=66)
         address = params[0].replace('0x', '') if params else ''
         position = params[1].replace('0x', '') if len(params) > 1 else '0' * 64
         value = self.db.get_storage(address, position)
@@ -310,6 +357,9 @@ class JsonRpcHandler:
     # TRANSACTION METHODS
     # ========================================================================
     async def eth_getTransactionByHash(self, params):
+        if not params:
+            raise ValueError("eth_getTransactionByHash requires a txHash parameter")
+        validate_hex(params[0], "txHash", max_len=66)
         txid = params[0].replace('0x', '') if params else ''
         with self.db.get_session() as session:
             from sqlalchemy import text as sql_text
@@ -408,7 +458,10 @@ class JsonRpcHandler:
                     block_hash='0' * 64, tx_index=0,
                 )
 
-            # Store transaction record
+            # Store transaction record — route through mempool (status='pending')
+            # so the block pipeline validates and confirms it properly.
+            # Writing directly as 'confirmed' with fee=0 and fake block_hash
+            # bypasses consensus validation.
             from sqlalchemy import text as sql_text
             with self.db.get_session() as session:
                 session.execute(
@@ -416,7 +469,7 @@ class JsonRpcHandler:
                         INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
                                                   timestamp, status, tx_type, to_address, data,
                                                   gas_limit, gas_price, nonce)
-                        VALUES (:txid, '[]', CAST(:outputs AS jsonb), 0, :sig, '', :ts, 'confirmed',
+                        VALUES (:txid, '[]', CAST(:outputs AS jsonb), 0, :sig, '', :ts, 'pending',
                                 :tx_type, :to_addr, :data, :gas, 0, :nonce)
                         ON CONFLICT (txid) DO NOTHING
                     """),
@@ -534,6 +587,12 @@ class JsonRpcHandler:
     async def eth_call(self, params):
         """Read-only contract call (no state change)"""
         call_obj = params[0] if params else {}
+        if call_obj.get('to'):
+            validate_hex(call_obj['to'], "to", max_len=42)
+        if call_obj.get('from'):
+            validate_hex(call_obj['from'], "from", max_len=42)
+        if call_obj.get('data'):
+            validate_hex(call_obj['data'], "data", max_len=131072)  # 64KB hex
         if self.qvm:
             to_addr = call_obj.get('to', '').replace('0x', '')
             data_hex = call_obj.get('data', '').replace('0x', '')

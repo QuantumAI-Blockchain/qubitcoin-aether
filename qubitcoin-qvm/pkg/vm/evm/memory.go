@@ -5,6 +5,10 @@ import (
 	"math/big"
 )
 
+// MaxMemorySize is the maximum allowed memory size (32 MB).
+// This prevents denial-of-service via unbounded memory allocation.
+const MaxMemorySize = 32 * 1024 * 1024
+
 // Memory implements the EVM's linear byte-addressable memory.
 // Memory is word-aligned (32 bytes) and grows dynamically.
 // Expansion cost follows the EVM specification:
@@ -26,11 +30,18 @@ func (m *Memory) Len() int {
 	return len(m.store)
 }
 
+// ErrMaxMemoryExceeded is returned when a memory resize would exceed MaxMemorySize.
+var ErrMaxMemoryExceeded = fmt.Errorf("memory expansion exceeds maximum (%d bytes)", MaxMemorySize)
+
 // Resize grows memory to at least size bytes (word-aligned to 32 bytes).
 // Returns the gas cost of expansion (0 if no expansion needed).
+// Returns 0 with a panic-equivalent error if the requested size exceeds MaxMemorySize.
 func (m *Memory) Resize(size uint64) uint64 {
 	if size == 0 || uint64(len(m.store)) >= size {
 		return 0
+	}
+	if size > MaxMemorySize {
+		panic(fmt.Sprintf("memory: Resize exceeds max (%d > %d)", size, MaxMemorySize))
 	}
 	oldWords := toWordSize(uint64(len(m.store)))
 	newWords := toWordSize(size)
@@ -44,6 +55,9 @@ func (m *Memory) Resize(size uint64) uint64 {
 
 	// Extend to word boundary
 	newSize := newWords * 32
+	if newSize > MaxMemorySize {
+		panic(fmt.Sprintf("memory: Resize exceeds max (%d > %d)", newSize, MaxMemorySize))
+	}
 	m.store = append(m.store, make([]byte, newSize-uint64(len(m.store)))...)
 
 	return gasCost
@@ -126,6 +140,9 @@ func (m *Memory) CalcExpansionCost(offset, size uint64) (uint64, error) {
 	end, overflow := safeAdd(offset, size)
 	if overflow {
 		return 0, fmt.Errorf("memory offset overflow: %d + %d", offset, size)
+	}
+	if end > MaxMemorySize {
+		return 0, ErrMaxMemoryExceeded
 	}
 	if uint64(len(m.store)) >= end {
 		return 0, nil

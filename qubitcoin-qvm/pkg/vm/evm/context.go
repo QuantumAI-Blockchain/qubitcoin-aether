@@ -59,6 +59,46 @@ type CallContext struct {
 	Depth int
 }
 
+// AccessSet tracks warm/cold address and storage slot accesses per EIP-2929.
+type AccessSet struct {
+	Addresses map[[20]byte]bool
+	Slots     map[[20]byte]map[[32]byte]bool
+}
+
+// NewAccessSet creates a new empty access set.
+func NewAccessSet() *AccessSet {
+	return &AccessSet{
+		Addresses: make(map[[20]byte]bool),
+		Slots:     make(map[[20]byte]map[[32]byte]bool),
+	}
+}
+
+// IsAddressWarm returns true if the address has been accessed this transaction.
+func (as *AccessSet) IsAddressWarm(addr [20]byte) bool {
+	return as.Addresses[addr]
+}
+
+// MarkAddressWarm marks an address as warm (accessed).
+func (as *AccessSet) MarkAddressWarm(addr [20]byte) {
+	as.Addresses[addr] = true
+}
+
+// IsSlotWarm returns true if the storage slot has been accessed this transaction.
+func (as *AccessSet) IsSlotWarm(addr [20]byte, key [32]byte) bool {
+	if slots, ok := as.Slots[addr]; ok {
+		return slots[key]
+	}
+	return false
+}
+
+// MarkSlotWarm marks a storage slot as warm (accessed).
+func (as *AccessSet) MarkSlotWarm(addr [20]byte, key [32]byte) {
+	if _, ok := as.Slots[addr]; !ok {
+		as.Slots[addr] = make(map[[32]byte]bool)
+	}
+	as.Slots[addr][key] = true
+}
+
 // ExecutionContext is the complete execution environment for a single call frame.
 type ExecutionContext struct {
 	Block *BlockContext
@@ -84,6 +124,13 @@ type ExecutionContext struct {
 
 	// Valid JUMPDEST positions (pre-analyzed)
 	ValidJumpdests map[uint64]bool
+
+	// EIP-2929: Warm/cold access tracking
+	AccessList *AccessSet
+
+	// EIP-2200: Original storage values at transaction start
+	// Used for accurate SSTORE gas calculation
+	OriginalStorage map[[20]byte]map[[32]byte][32]byte
 }
 
 // Log represents an EVM log entry (event).
@@ -100,12 +147,20 @@ func NewExecutionContext(
 	call *CallContext,
 ) *ExecutionContext {
 	ctx := &ExecutionContext{
-		Block:          block,
-		Tx:             tx,
-		Call:           call,
-		Stack:          NewStack(),
-		Memory:         NewMemory(),
-		ValidJumpdests: analyzeJumpdests(call.Code),
+		Block:           block,
+		Tx:              tx,
+		Call:            call,
+		Stack:           NewStack(),
+		Memory:          NewMemory(),
+		ValidJumpdests:  analyzeJumpdests(call.Code),
+		AccessList:      NewAccessSet(),
+		OriginalStorage: make(map[[20]byte]map[[32]byte][32]byte),
+	}
+	// Pre-warm the contract address and caller per EIP-2929
+	ctx.AccessList.MarkAddressWarm(call.Address)
+	ctx.AccessList.MarkAddressWarm(call.Caller)
+	if tx != nil {
+		ctx.AccessList.MarkAddressWarm(tx.Origin)
 	}
 	return ctx
 }

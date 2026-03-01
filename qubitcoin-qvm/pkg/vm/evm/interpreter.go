@@ -26,10 +26,18 @@ type StateAccessor interface {
 	GetStorage(addr [20]byte, key [32]byte) [32]byte
 	SetStorage(addr [20]byte, key [32]byte, val [32]byte)
 	GetBalance(addr [20]byte) *big.Int
+	SetBalance(addr [20]byte, balance *big.Int)
 	GetCodeHash(addr [20]byte) [32]byte
 	GetCode(addr [20]byte) []byte
 	GetCodeSize(addr [20]byte) uint64
+	SetCode(addr [20]byte, code []byte)
 	GetBlockHash(num uint64) [32]byte
+	AccountExists(addr [20]byte) bool
+	CreateAccount(addr [20]byte)
+	GetNonce(addr [20]byte) uint64
+	SetNonce(addr [20]byte, nonce uint64)
+	Snapshot() int
+	RevertToSnapshot(id int)
 }
 
 // Interpreter is the QVM EVM bytecode interpreter.
@@ -537,6 +545,16 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			keyInt := mustPop1(ctx)
 			var key [32]byte
 			safeFillBytes(keyInt, key[:])
+
+			// EIP-2929: Charge cold access surcharge for first-time slot access
+			if !ctx.AccessList.IsSlotWarm(ctx.Call.Address, key) {
+				ctx.AccessList.MarkSlotWarm(ctx.Call.Address, key)
+				// Cold access: additional cost = 2100 - 100 (base already charged)
+				if !ctx.UseGas(GasSloadCold - GasSloadWarm) {
+					return fmt.Errorf("out of gas: SLOAD cold access")
+				}
+			}
+
 			val := [32]byte{}
 			if interp.state != nil {
 				val = interp.state.GetStorage(ctx.Call.Address, key)
@@ -552,15 +570,28 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			safeFillBytes(keyInt, key[:])
 			safeFillBytes(valInt, val[:])
 
-			// EIP-2200 dynamic gas: cost depends on current vs new value
+			// EIP-2200/EIP-2929 dynamic gas with warm/cold and original value tracking
 			if interp.state != nil {
 				current := interp.state.GetStorage(ctx.Call.Address, key)
 				currentIsZero := current == [32]byte{}
 				newIsZero := val == [32]byte{}
 				currentEqualsNew := current == val
-				// Without tx-start snapshot, treat current as original (conservative)
-				originalIsZero := currentIsZero
-				cold := false // warm access assumed for accessed slots
+
+				// EIP-2200: Track original value at transaction start
+				addr := ctx.Call.Address
+				if _, ok := ctx.OriginalStorage[addr]; !ok {
+					ctx.OriginalStorage[addr] = make(map[[32]byte][32]byte)
+				}
+				if _, ok := ctx.OriginalStorage[addr][key]; !ok {
+					// First access to this slot in this tx — record original
+					ctx.OriginalStorage[addr][key] = current
+				}
+				original := ctx.OriginalStorage[addr][key]
+				originalIsZero := original == [32]byte{}
+
+				// EIP-2929: Check warm/cold access for storage slot
+				cold := !ctx.AccessList.IsSlotWarm(addr, key)
+				ctx.AccessList.MarkSlotWarm(addr, key)
 
 				result := CalcSstoreGas(currentIsZero, newIsZero, currentEqualsNew, originalIsZero, cold)
 				if !ctx.UseGas(result.Cost) {
@@ -608,9 +639,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 		// PUSH
 		// ════════════════════════════════════════════════════════════════
 		case op == PUSH0:
-			if !ctx.UseGas(GasBase) {
-				return fmt.Errorf("out of gas: PUSH0")
-			}
+			// Gas already charged via ConstGas[PUSH0] = GasBase
 			err = ctx.Stack.Push(big.NewInt(0))
 
 		case op >= PUSH1 && op <= PUSH32:
@@ -714,49 +743,317 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			return fmt.Errorf("invalid opcode 0xFE at PC=%d", ctx.PC)
 
 		// ════════════════════════════════════════════════════════════════
-		// SYSTEM: CREATE, CALL, etc. — stubs for sub-call support
+		// SYSTEM: CREATE, CALL — full sub-call support
 		// ════════════════════════════════════════════════════════════════
 		case op == CREATE || op == CREATE2:
-			// Consume stack items and push 0 (failure).
-			// CREATE: [value, offset, size] → [address]
-			// CREATE2: [value, offset, size, salt] → [address]
-			// Returns 0 (no contract created) until call.go provides the
-			// full sub-call implementation with state management.
+			if ctx.Call.IsStatic {
+				return fmt.Errorf("CREATE in static context")
+			}
 			val, offset, size := mustPop3(ctx)
+			var salt *big.Int
 			if op == CREATE2 {
-				mustPop1(ctx) // salt
+				salt = mustPop1(ctx)
 			}
-			// Charge gas for init code memory access
 			off, sz := offset.Uint64(), size.Uint64()
-			if sz > 0 {
-				memCost := ctx.Memory.Resize(off + sz)
-				if !ctx.UseGas(memCost + 32000) { // CREATE base gas
-					return fmt.Errorf("out of gas: CREATE")
-				}
+
+			// Memory expansion + CREATE base gas
+			memCost := ctx.Memory.Resize(off + sz)
+			createGas := GasCreate
+			if op == CREATE2 {
+				// CREATE2 extra: 6 * ceil(len / 32) for keccak of init code
+				createGas += GasKeccak256Word * ((sz + 31) / 32)
 			}
-			_ = val // value to send to new contract
-			err = ctx.Stack.Push(big.NewInt(0))
+			if !ctx.UseGas(memCost + createGas) {
+				return fmt.Errorf("out of gas: CREATE")
+			}
+
+			if interp.state == nil {
+				err = ctx.Stack.Push(big.NewInt(0))
+				break
+			}
+
+			initCode := ctx.Memory.Get(off, sz)
+			if uint64(len(initCode)) > MaxInitCodeSize {
+				err = ctx.Stack.Push(big.NewInt(0))
+				break
+			}
+
+			// Compute new contract address
+			var newAddr [20]byte
+			callerNonce := interp.state.GetNonce(ctx.Call.Address)
+			if op == CREATE {
+				// CREATE: address = keccak256(rlp([sender, nonce]))[12:]
+				h := sha3.NewLegacyKeccak256()
+				h.Write(ctx.Call.Address[:])
+				nonceBytes := new(big.Int).SetUint64(callerNonce).Bytes()
+				h.Write(nonceBytes)
+				copy(newAddr[:], h.Sum(nil)[12:])
+			} else {
+				// CREATE2: address = keccak256(0xff ++ sender ++ salt ++ keccak256(init_code))[12:]
+				h := sha3.NewLegacyKeccak256()
+				h.Write(initCode)
+				codeHash := h.Sum(nil)
+
+				h2 := sha3.NewLegacyKeccak256()
+				h2.Write([]byte{0xff})
+				h2.Write(ctx.Call.Address[:])
+				var saltBytes [32]byte
+				if salt != nil {
+					safeFillBytes(salt, saltBytes[:])
+				}
+				h2.Write(saltBytes[:])
+				h2.Write(codeHash)
+				copy(newAddr[:], h2.Sum(nil)[12:])
+			}
+
+			// Increment caller nonce
+			interp.state.SetNonce(ctx.Call.Address, callerNonce+1)
+
+			// Snapshot for rollback
+			snapID := interp.state.Snapshot()
+
+			// Create new account
+			interp.state.CreateAccount(newAddr)
+
+			// Transfer value
+			if val.Sign() > 0 {
+				senderBal := interp.state.GetBalance(ctx.Call.Address)
+				if senderBal.Cmp(val) < 0 {
+					interp.state.RevertToSnapshot(snapID)
+					err = ctx.Stack.Push(big.NewInt(0))
+					break
+				}
+				interp.state.SetBalance(ctx.Call.Address, new(big.Int).Sub(senderBal, val))
+				interp.state.SetBalance(newAddr, new(big.Int).Add(interp.state.GetBalance(newAddr), val))
+			}
+
+			// Execute init code as a sub-call
+			subGas := ctx.GasRemaining() - ctx.GasRemaining()/64 // EIP-150: retain 1/64
+			subCall := &CallContext{
+				Caller:  ctx.Call.Address,
+				Address: newAddr,
+				Value:   val,
+				Code:    initCode,
+				Gas:     subGas,
+				Depth:   ctx.Call.Depth + 1,
+			}
+			subResult := interp.Execute(ctx.Block, ctx.Tx, subCall)
+
+			if subResult.Success && len(subResult.ReturnData) > 0 {
+				// Code deposit: check EIP-170 max code size
+				if uint64(len(subResult.ReturnData)) > MaxCodeSize {
+					interp.state.RevertToSnapshot(snapID)
+					err = ctx.Stack.Push(big.NewInt(0))
+				} else {
+					// Charge code deposit gas
+					depositGas := GasCodeDeposit * uint64(len(subResult.ReturnData))
+					if !ctx.UseGas(depositGas + subResult.GasUsed) {
+						interp.state.RevertToSnapshot(snapID)
+						err = ctx.Stack.Push(big.NewInt(0))
+					} else {
+						interp.state.SetCode(newAddr, subResult.ReturnData)
+						err = ctx.Stack.Push(new(big.Int).SetBytes(newAddr[:]))
+					}
+				}
+			} else {
+				ctx.UseGas(subResult.GasUsed)
+				if !subResult.Success {
+					interp.state.RevertToSnapshot(snapID)
+				}
+				err = ctx.Stack.Push(big.NewInt(0))
+			}
 
 		case op == CALL || op == CALLCODE || op == DELEGATECALL || op == STATICCALL:
-			// Consume stack items and push 0 (failure).
-			// CALL/CALLCODE: [gas, addr, value, argsOff, argsLen, retOff, retLen] → [success]
-			// DELEGATECALL/STATICCALL: [gas, addr, argsOff, argsLen, retOff, retLen] → [success]
-			// Returns 0 (call failed) until call.go provides the
-			// full sub-call implementation with state management.
-			n := 7
-			if op == DELEGATECALL || op == STATICCALL {
-				n = 6
+			gasInt := mustPop1(ctx)
+			addrInt := mustPop1(ctx)
+			var callValue *big.Int
+			if op == CALL || op == CALLCODE {
+				callValue = mustPop1(ctx)
+			} else {
+				callValue = big.NewInt(0)
 			}
-			for i := 0; i < n; i++ {
-				mustPop1(ctx)
+			argsOff, argsLen := mustPop2(ctx)
+			retOff, retLen := mustPop2(ctx)
+
+			var toAddr [20]byte
+			safeAddrBytes(addrInt, &toAddr)
+
+			aOff, aLen := argsOff.Uint64(), argsLen.Uint64()
+			rOff, rLen := retOff.Uint64(), retLen.Uint64()
+
+			// Memory expansion for args + return
+			memCost := ctx.Memory.Resize(aOff + aLen)
+			memCost += ctx.Memory.Resize(rOff + rLen)
+			if !ctx.UseGas(memCost) {
+				return fmt.Errorf("out of gas: CALL memory")
 			}
-			err = ctx.Stack.Push(big.NewInt(0))
+
+			// Check for precompile
+			toAddrInt := new(big.Int).SetBytes(toAddr[:])
+			if toAddrInt.Uint64() > 0 && toAddrInt.Uint64() <= 9 && IsPrecompile(toAddrInt.Uint64()) {
+				callArgs := ctx.Memory.Get(aOff, aLen)
+				subGas := gasInt.Uint64()
+				if subGas > ctx.GasRemaining() {
+					subGas = ctx.GasRemaining()
+				}
+				output, gasUsed, preErr := ExecutePrecompile(toAddrInt.Uint64(), callArgs, subGas)
+				ctx.UseGas(gasUsed)
+				if preErr != nil {
+					err = ctx.Stack.Push(big.NewInt(0))
+				} else {
+					// Copy return data
+					ctx.ReturnData = output
+					copyLen := rLen
+					if uint64(len(output)) < copyLen {
+						copyLen = uint64(len(output))
+					}
+					if copyLen > 0 {
+						ctx.Memory.Set(rOff, output[:copyLen])
+					}
+					err = ctx.Stack.Push(big.NewInt(1))
+				}
+				break
+			}
+
+			if interp.state == nil {
+				err = ctx.Stack.Push(big.NewInt(0))
+				break
+			}
+
+			// EIP-2929: warm/cold address access
+			if !ctx.AccessList.IsAddressWarm(toAddr) {
+				ctx.AccessList.MarkAddressWarm(toAddr)
+				if !ctx.UseGas(GasCallCold - GasCallWarm) {
+					return fmt.Errorf("out of gas: CALL cold address")
+				}
+			}
+
+			// Calculate sub-call gas (EIP-150: max 63/64 of remaining)
+			subGas := gasInt.Uint64()
+			maxGas := ctx.GasRemaining() - ctx.GasRemaining()/64
+			if subGas > maxGas {
+				subGas = maxGas
+			}
+
+			// Value transfer gas
+			if callValue.Sign() > 0 {
+				if !ctx.UseGas(GasCallValue) {
+					return fmt.Errorf("out of gas: CALL value transfer")
+				}
+				if !interp.state.AccountExists(toAddr) {
+					if !ctx.UseGas(GasCallNewAcct) {
+						return fmt.Errorf("out of gas: CALL new account")
+					}
+				}
+				subGas += GasCallStipend // stipend for non-zero value calls
+			}
+
+			callArgs := ctx.Memory.Get(aOff, aLen)
+
+			// Snapshot for rollback
+			snapID := interp.state.Snapshot()
+
+			// Value transfer
+			if callValue.Sign() > 0 && (op == CALL || op == CALLCODE) {
+				senderBal := interp.state.GetBalance(ctx.Call.Address)
+				if senderBal.Cmp(callValue) < 0 {
+					interp.state.RevertToSnapshot(snapID)
+					err = ctx.Stack.Push(big.NewInt(0))
+					break
+				}
+				interp.state.SetBalance(ctx.Call.Address, new(big.Int).Sub(senderBal, callValue))
+				interp.state.SetBalance(toAddr, new(big.Int).Add(interp.state.GetBalance(toAddr), callValue))
+			}
+
+			// Build sub-call context
+			targetCode := interp.state.GetCode(toAddr)
+			subCall := &CallContext{
+				Input: callArgs,
+				Gas:   subGas,
+				Value: callValue,
+				Depth: ctx.Call.Depth + 1,
+			}
+			switch op {
+			case CALL:
+				subCall.Caller = ctx.Call.Address
+				subCall.Address = toAddr
+				subCall.Code = targetCode
+				subCall.IsStatic = ctx.Call.IsStatic
+			case CALLCODE:
+				subCall.Caller = ctx.Call.Address
+				subCall.Address = ctx.Call.Address // code runs in caller's context
+				subCall.Code = targetCode
+			case DELEGATECALL:
+				subCall.Caller = ctx.Call.Caller // preserve original caller
+				subCall.Address = ctx.Call.Address // code runs in caller's context
+				subCall.Code = targetCode
+				subCall.Value = ctx.Call.Value // preserve original value
+			case STATICCALL:
+				subCall.Caller = ctx.Call.Address
+				subCall.Address = toAddr
+				subCall.Code = targetCode
+				subCall.IsStatic = true
+			}
+
+			var subResult *ExecutionResult
+			if len(subCall.Code) > 0 {
+				subResult = interp.Execute(ctx.Block, ctx.Tx, subCall)
+			} else {
+				// Empty code = success with no return data
+				subResult = &ExecutionResult{Success: true}
+			}
+
+			ctx.UseGas(subResult.GasUsed)
+			ctx.ReturnData = subResult.ReturnData
+
+			if subResult.Success {
+				copyLen := rLen
+				if uint64(len(subResult.ReturnData)) < copyLen {
+					copyLen = uint64(len(subResult.ReturnData))
+				}
+				if copyLen > 0 {
+					ctx.Memory.Set(rOff, subResult.ReturnData[:copyLen])
+				}
+				err = ctx.Stack.Push(big.NewInt(1))
+			} else {
+				interp.state.RevertToSnapshot(snapID)
+				err = ctx.Stack.Push(big.NewInt(0))
+			}
 
 		case op == SELFDESTRUCT:
 			if ctx.Call.IsStatic {
 				return fmt.Errorf("SELFDESTRUCT in static context")
 			}
-			mustPop1(ctx) // beneficiary address
+			if !ctx.UseGas(GasSelfDestruct) {
+				return fmt.Errorf("out of gas: SELFDESTRUCT")
+			}
+			beneficiaryInt := mustPop1(ctx)
+			var beneficiary [20]byte
+			safeAddrBytes(beneficiaryInt, &beneficiary)
+
+			if interp.state != nil {
+				// EIP-2929: cold address surcharge
+				if !ctx.AccessList.IsAddressWarm(beneficiary) {
+					ctx.AccessList.MarkAddressWarm(beneficiary)
+					if !ctx.UseGas(GasCallCold) {
+						return fmt.Errorf("out of gas: SELFDESTRUCT cold address")
+					}
+				}
+
+				// Transfer entire balance to beneficiary
+				balance := interp.state.GetBalance(ctx.Call.Address)
+				if balance.Sign() > 0 {
+					// New account creation gas if beneficiary doesn't exist
+					if !interp.state.AccountExists(beneficiary) && balance.Sign() > 0 {
+						if !ctx.UseGas(GasCallNewAcct) {
+							return fmt.Errorf("out of gas: SELFDESTRUCT new account")
+						}
+					}
+					beneficiaryBal := interp.state.GetBalance(beneficiary)
+					interp.state.SetBalance(beneficiary, new(big.Int).Add(beneficiaryBal, balance))
+					interp.state.SetBalance(ctx.Call.Address, big.NewInt(0))
+				}
+			}
 			ctx.Stopped = true
 
 		default:
@@ -789,11 +1086,17 @@ func (interp *Interpreter) opCopy(ctx *ExecutionContext, source []byte) error {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
+// errStackUnderflow is the sentinel error for EVM stack underflow.
+// Per EVM spec, stack underflow is an exceptional halt that consumes all gas.
+var errStackUnderflow = fmt.Errorf("stack underflow")
+
 func mustPop1(ctx *ExecutionContext) *big.Int {
 	val, err := ctx.Stack.Pop()
 	if err != nil || val == nil {
-		// Log underflow for debugging; return zero to avoid nil dereference
-		log.Printf("stack underflow in mustPop1: %v", err)
+		// EVM spec: stack underflow = exceptional halt (consume all gas)
+		ctx.Stopped = true
+		ctx.GasUsed = ctx.Call.Gas // consume all remaining gas
+		log.Printf("EVM exceptional halt: stack underflow at PC=%d", ctx.PC)
 		return big.NewInt(0)
 	}
 	return val

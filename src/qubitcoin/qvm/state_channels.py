@@ -17,12 +17,12 @@ Security model:
 - Challenge window (default 100 blocks) allows dispute resolution
 - Timeout closes channel with latest mutually-signed state
 """
-import hashlib
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
 
+from .vm import keccak256
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -61,7 +61,7 @@ class StateUpdate:
     def state_hash(self) -> str:
         """Compute hash of the state update for signing."""
         data = f"{self.channel_id}:{self.nonce}:{self.balance_a}:{self.balance_b}"
-        return hashlib.sha3_256(data.encode()).hexdigest()
+        return keccak256(data.encode()).hex()
 
     def is_fully_signed(self) -> bool:
         return bool(self.signature_a and self.signature_b)
@@ -169,9 +169,9 @@ class StateChannelManager:
             if len(self._address_channels.get(addr, [])) >= MAX_CHANNELS_PER_ADDRESS:
                 return {"success": False, "error": f"Channel limit reached for {addr[:16]}..."}
 
-        channel_id = hashlib.sha3_256(
+        channel_id = keccak256(
             f"{party_a}:{party_b}:{block_height}:{time.time()}".encode()
-        ).hexdigest()[:16]
+        ).hex()[:16]
 
         channel = StateChannel(
             channel_id=channel_id,

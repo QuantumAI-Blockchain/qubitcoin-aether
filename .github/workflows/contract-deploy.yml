@@ -146,11 +146,16 @@ jobs:
 
       - name: Deploy contracts
         run: |
-          RPC_URL="${{ github.event.inputs.rpc_url || 'http://localhost:5000' }}"
+          # Validate RPC_URL is a well-formed http(s) URL to prevent injection
+          if ! echo "$RPC_URL" | grep -qE '^https?://[a-zA-Z0-9._:-]+(/[a-zA-Z0-9._/-]*)?$'; then
+            echo "::error::Invalid RPC URL format: must be a valid http(s) URL"
+            exit 1
+          fi
           python scripts/deploy/deploy_contracts.py --rpc-url "$RPC_URL"
           python scripts/deploy/deploy_qusd.py --rpc-url "$RPC_URL"
         env:
           DATABASE_URL: postgresql://root@localhost:26257/qbc?sslmode=disable
+          RPC_URL: ${{ github.event.inputs.rpc_url || 'http://localhost:5000' }}
 
       - name: Upload deployment artifacts
         uses: actions/upload-artifact@v4

@@ -7,13 +7,17 @@ import "../proxy/Initializable.sol";
 /// @notice Adjusts QVM gas price based on network utilization.
 ///         Provides gas price queries for contract execution cost estimation.
 contract GasOracle is Initializable {
+    // ─── Constants ───────────────────────────────────────────────────────
+    uint256 public constant MAX_STALENESS = 1 hours; // Gas price expires after 1 hour
+
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
 
-    uint256 public baseFee;         // base gas price in QBC (8 decimals)
-    uint256 public utilizationBps;  // network utilization in basis points (0-10000)
-    uint256 public lastUpdated;     // block number of last update
+    uint256 public baseFee;              // base gas price in QBC (8 decimals)
+    uint256 public utilizationBps;       // network utilization in basis points (0-10000)
+    uint256 public lastUpdated;          // block number of last update
+    uint256 public lastUpdateTimestamp;  // timestamp of last update
 
     /// @notice Price history
     struct PricePoint {
@@ -39,6 +43,7 @@ contract GasOracle is Initializable {
         owner   = msg.sender;
         kernel  = _kernel;
         baseFee = _initialBaseFee;
+        lastUpdateTimestamp = block.timestamp;
     }
 
     // ─── Price Updates ───────────────────────────────────────────────────
@@ -65,6 +70,7 @@ contract GasOracle is Initializable {
         }
 
         lastUpdated = block.number;
+        lastUpdateTimestamp = block.timestamp;
         priceHistory.push(PricePoint({
             blockNumber:    block.number,
             baseFee:        baseFee,
@@ -80,12 +86,31 @@ contract GasOracle is Initializable {
         require(newFee > 0, "GasOracle: zero fee");
         baseFee = newFee;
         lastUpdated = block.number;
+        lastUpdateTimestamp = block.timestamp;
         emit BaseFeeAdjusted(newFee, block.number);
     }
 
     // ─── Queries ─────────────────────────────────────────────────────────
+
+    /// @notice Get current gas price. Reverts if the price data is stale (older than MAX_STALENESS).
     function getGasPrice() external view returns (uint256) {
+        require(lastUpdateTimestamp > 0, "GasOracle: never updated");
+        require(
+            block.timestamp - lastUpdateTimestamp <= MAX_STALENESS,
+            "GasOracle: gas price is stale"
+        );
         return baseFee;
+    }
+
+    /// @notice Get gas price without staleness check (for monitoring/display)
+    function getGasPriceUnchecked() external view returns (uint256) {
+        return baseFee;
+    }
+
+    /// @notice Check if the gas price data is stale
+    function isStale() external view returns (bool) {
+        if (lastUpdateTimestamp == 0) return true;
+        return block.timestamp - lastUpdateTimestamp > MAX_STALENESS;
     }
 
     function getBaseFee() external view returns (uint256 fee, uint256 utilization, uint256 updatedAt) {

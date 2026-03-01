@@ -16,6 +16,7 @@ sp-std = { workspace = true }
 qbc-primitives = { workspace = true }
 pallet-qbc-economics = { workspace = true }
 pallet-qbc-utxo = { workspace = true }
+pallet-timestamp = { workspace = true }
 log = { workspace = true }
 
 [dev-dependencies]
@@ -34,6 +35,7 @@ std = [
     "qbc-primitives/std",
     "pallet-qbc-economics/std",
     "pallet-qbc-utxo/std",
+    "pallet-timestamp/std",
 ]
 runtime-benchmarks = ["frame-support/runtime-benchmarks", "frame-system/runtime-benchmarks"]
 try-runtime = ["frame-support/try-runtime", "frame-system/try-runtime"]

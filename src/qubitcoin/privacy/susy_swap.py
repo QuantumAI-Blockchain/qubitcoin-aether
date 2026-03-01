@@ -239,7 +239,19 @@ class SusySwapBuilder:
         sig_preimage = txid.encode() + excess_commitment.to_hex().encode()
         for ki in key_images:
             sig_preimage += ki.encode() if isinstance(ki, str) else str(ki).encode()
-        signature = hmac.new(hmac_key, sig_preimage, hashlib.sha3_256).hexdigest()
+        # Use Keccak-256 (EVM-compatible) for HMAC, not hashlib.sha3_256.
+        # hashlib.sha3_256 is NIST SHA3-256 (different padding from Keccak).
+        from ..qvm.vm import keccak256 as _keccak256
+        # HMAC via manual key padding (pycryptodome keccak doesn't fit hmac API).
+        # HMAC(K, m) = H((K ^ opad) || H((K ^ ipad) || m))
+        _block_size = 136  # Keccak-256 rate in bytes
+        _key = hmac_key if len(hmac_key) <= _block_size else _keccak256(hmac_key)
+        _key = _key.ljust(_block_size, b'\x00')
+        _ipad = bytes(b ^ 0x36 for b in _key)
+        _opad = bytes(b ^ 0x5C for b in _key)
+        _inner = _keccak256(_ipad + sig_preimage)
+        _hmac_digest = _keccak256(_opad + _inner)
+        signature = _hmac_digest.hex()
 
         tx = ConfidentialTransaction(
             txid=txid,

@@ -426,8 +426,9 @@ export const api = {
     public_key_hex: string;
     utxo_strategy?: "largest_first" | "smallest_first" | "exact_match";
   }) => post<{ tx_hash: string; status: string }>("/wallet/send", body),
-  signMessage: (body: { message_hash: string; private_key_hex: string }) =>
-    post<{ signature_hex: string }>("/wallet/sign", body),
+  // SECURITY: signMessage removed — private keys must NEVER be sent to the
+  // backend. Use signTransaction() from @/lib/dilithium for client-side signing.
+  // signMessage is intentionally omitted to prevent accidental private key leakage.
 
   // Transfer (UTXO → Account bridge)
   transferToAccount: (body: { to: string; amount: string }) =>

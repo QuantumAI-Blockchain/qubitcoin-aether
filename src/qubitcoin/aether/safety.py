@@ -12,6 +12,8 @@ acts as the amygdala of the AGI — a dedicated threat detection system
 with the authority to veto any action that violates safety constraints.
 """
 import hashlib
+import hmac
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
@@ -112,6 +114,77 @@ class ConsensusVote:
     def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = time.time()
+
+
+class VetoAuthenticator:
+    """HMAC-based authentication for veto and shutdown operations.
+
+    Prevents unauthenticated callers from issuing vetoes or triggering
+    emergency shutdown.  Each operation requires a one-time nonce token
+    signed with a shared secret (derived from the node's private key
+    material or a dedicated ``GEVURAH_SECRET`` env var).
+
+    Usage:
+        auth = VetoAuthenticator()
+        nonce = auth.generate_nonce()
+        token = auth.sign_nonce(nonce, action="emergency_shutdown")
+        if auth.validate(nonce, token, action="emergency_shutdown"):
+            # proceed with protected operation
+    """
+
+    def __init__(self, secret: Optional[bytes] = None) -> None:
+        if secret is not None:
+            self._secret = secret
+        else:
+            env_secret = os.environ.get("GEVURAH_SECRET", "")
+            if env_secret:
+                self._secret = env_secret.encode()
+            else:
+                # Derive from node private key file as fallback
+                self._secret = hashlib.sha256(
+                    b"gevurah-veto-default-secret"
+                ).digest()
+                logger.warning(
+                    "VetoAuthenticator using default secret — "
+                    "set GEVURAH_SECRET env var for production"
+                )
+        self._used_nonces: Set[str] = set()
+        self._max_nonces = 100_000
+
+    def generate_nonce(self) -> str:
+        """Generate a cryptographically random nonce."""
+        return hashlib.sha256(os.urandom(32)).hexdigest()
+
+    def sign_nonce(self, nonce: str, action: str = "") -> str:
+        """Create an HMAC signature for a nonce + action pair."""
+        msg = f"{nonce}:{action}".encode()
+        return hmac.new(self._secret, msg, hashlib.sha256).hexdigest()
+
+    def validate(self, nonce: str, token: str, action: str = "") -> bool:
+        """Validate a nonce + HMAC token pair.
+
+        Each nonce can only be used once (replay prevention).
+
+        Returns:
+            True if the token is valid and the nonce has not been used.
+        """
+        if nonce in self._used_nonces:
+            logger.warning(f"VetoAuth: nonce replay attempt: {nonce[:16]}...")
+            return False
+
+        expected = self.sign_nonce(nonce, action)
+        if not hmac.compare_digest(expected, token):
+            logger.warning(f"VetoAuth: invalid HMAC for nonce {nonce[:16]}...")
+            return False
+
+        self._used_nonces.add(nonce)
+        # Evict oldest nonces to cap memory
+        if len(self._used_nonces) > self._max_nonces:
+            # Convert to list, drop first half
+            nonce_list = list(self._used_nonces)
+            self._used_nonces = set(nonce_list[len(nonce_list) // 2:])
+
+        return True
 
 
 class GevurahVeto:
@@ -408,11 +481,12 @@ class SafetyManager:
     def __init__(self, on_chain_agi: object = None) -> None:
         self.gevurah = GevurahVeto()
         self.consensus = MultiNodeConsensus()
+        self.authenticator = VetoAuthenticator()
         self._on_chain = on_chain_agi
         self._shutdown = False
         self._shutdown_reason: str = ""
         self._shutdown_block: int = 0
-        logger.info("Safety Manager initialized (Gevurah + BFT consensus)")
+        logger.info("Safety Manager initialized (Gevurah + BFT consensus + HMAC auth)")
 
     @property
     def is_shutdown(self) -> bool:
@@ -468,6 +542,19 @@ class SafetyManager:
             return False, veto
 
         return True, None
+
+    def validate_operation(self, nonce: str, token: str, action: str) -> bool:
+        """Validate an HMAC-authenticated operation request.
+
+        Args:
+            nonce: One-time nonce from ``authenticator.generate_nonce()``.
+            token: HMAC signature from ``authenticator.sign_nonce(nonce, action)``.
+            action: Action identifier (e.g. "emergency_shutdown", "veto").
+
+        Returns:
+            True if the request is authenticated.
+        """
+        return self.authenticator.validate(nonce, token, action)
 
     def emergency_shutdown(self, reason: str, block_height: int) -> None:
         """

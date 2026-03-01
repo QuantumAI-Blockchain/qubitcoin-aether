@@ -4,6 +4,11 @@ pragma solidity ^0.8.24;
 import "../proxy/Initializable.sol";
 import "../interfaces/IQUSD.sol";
 
+/// @notice Minimal oracle interface for reading QUSD price
+interface IStabilizerOracle {
+    function getPrice() external view returns (uint256);
+}
+
 /// @title QUSDStabilizer — Peg Maintenance for QUSD
 /// @notice Maintains the $1 USD peg by buying QUSD below $0.99 and selling above $1.01.
 ///         Stability fund is funded by governance and depleted by market operations.
@@ -74,12 +79,21 @@ contract QUSDStabilizer is Initializable {
         autoRebalanceEnabled = true;
     }
 
+    // ─── Oracle Price Reading ────────────────────────────────────────────
+    /// @notice Read the current QUSD price from the oracle contract
+    /// @return price Current QUSD price with 8 decimals
+    function getOraclePrice() public view returns (uint256 price) {
+        require(oracleAddress != address(0), "Stabilizer: oracle not set");
+        price = IStabilizerOracle(oracleAddress).getPrice();
+        require(price > 0, "Stabilizer: oracle returned zero price");
+    }
+
     // ─── Stability Operations ────────────────────────────────────────────
     /// @notice Buy QUSD when price is below floor ($0.99) — floor defense.
     ///         Mints QUSD to the stabilizer's holdings via the QUSD token contract.
     /// @param qusdAmount Amount of QUSD to buy
-    /// @param currentPrice Current QUSD price from oracle (8 decimals)
-    function buyQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner whenNotPaused {
+    function buyQUSD(uint256 qusdAmount) external onlyOwner whenNotPaused {
+        uint256 currentPrice = getOraclePrice();
         require(currentPrice < floorPrice, "Stabilizer: price above floor");
         require(qusdAmount > 0, "Stabilizer: zero amount");
         require(qusdAmount <= maxTradeSize, "Stabilizer: exceeds max trade size");
@@ -103,8 +117,8 @@ contract QUSDStabilizer is Initializable {
     /// @notice Sell QUSD when price is above ceiling ($1.01) — ceiling defense.
     ///         Burns QUSD from the stabilizer's holdings via the QUSD token contract.
     /// @param qusdAmount Amount of QUSD to sell
-    /// @param currentPrice Current QUSD price from oracle (8 decimals)
-    function sellQUSD(uint256 qusdAmount, uint256 currentPrice) external onlyOwner whenNotPaused {
+    function sellQUSD(uint256 qusdAmount) external onlyOwner whenNotPaused {
+        uint256 currentPrice = getOraclePrice();
         require(currentPrice > ceilingPrice, "Stabilizer: price below ceiling");
         require(qusdHeld >= qusdAmount, "Stabilizer: insufficient QUSD");
         require(qusdAmount <= maxTradeSize, "Stabilizer: exceeds max trade size");
@@ -124,10 +138,10 @@ contract QUSDStabilizer is Initializable {
     }
 
     /// @notice Auto-rebalance check — can be called by anyone (e.g., keeper bot)
-    /// @param currentPrice Current QUSD price from oracle
     /// @param amount Amount to buy or sell
-    function triggerRebalance(uint256 currentPrice, uint256 amount) external whenNotPaused {
+    function triggerRebalance(uint256 amount) external whenNotPaused {
         require(autoRebalanceEnabled, "Stabilizer: auto-rebalance disabled");
+        uint256 currentPrice = getOraclePrice();
         require(amount > 0, "Stabilizer: zero amount");
         require(amount <= maxTradeSize, "Stabilizer: exceeds max trade size");
         require(block.number >= lastRebalanceBlock + REBALANCE_COOLDOWN, "Stabilizer: cooldown active");

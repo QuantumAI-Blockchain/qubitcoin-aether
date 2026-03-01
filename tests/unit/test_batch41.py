@@ -6,7 +6,6 @@ Batch 41 tests:
   - OrchestrationStakingPool (QBC staking for phase influence)
 """
 import time
-import hashlib
 import unittest
 from unittest.mock import MagicMock
 
@@ -20,12 +19,14 @@ from qubitcoin.network.light_node import (
 from qubitcoin.aether.pineal import (
     OrchestrationStakingPool, CircadianPhase,
 )
+from qubitcoin.qvm.vm import keccak256
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 def sha3(data: str) -> str:
-    return hashlib.sha3_256(data.encode()).hexdigest()
+    """Keccak-256 hash (matching light_node.py's keccak256 usage)."""
+    return keccak256(data.encode()).hex()
 
 
 def make_header(height: int, prev_hash: str = "", merkle_root: str = "") -> BlockHeader:

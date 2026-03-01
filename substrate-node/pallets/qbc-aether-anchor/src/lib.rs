@@ -99,6 +99,32 @@ pub mod pallet {
         EndpointUpdated,
     }
 
+    /// Maximum allowed Phi change per block (scaled by 1000).
+    /// A jump of more than 500 (i.e. 0.5 Phi) in a single block is suspicious.
+    pub const MAX_PHI_DELTA_SCALED: u64 = 500;
+
+    /// Number of recent Phi values to keep for moving-average outlier detection.
+    pub const PHI_WINDOW_SIZE: u64 = 10;
+
+    /// Recent Phi submissions for outlier detection (circular buffer index → phi_scaled).
+    #[pallet::storage]
+    pub type RecentPhiValues<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        u64,  // index mod PHI_WINDOW_SIZE
+        u64,  // phi_scaled
+        ValueQuery,
+    >;
+
+    /// Next index into the RecentPhiValues circular buffer.
+    #[pallet::storage]
+    pub type PhiWindowIndex<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+    /// Count of Phi submissions that were flagged as outliers.
+    #[pallet::storage]
+    #[pallet::getter(fn phi_outlier_count)]
+    pub type PhiOutlierCount<T: Config> = StorageValue<_, u64, ValueQuery>;
+
     #[pallet::error]
     pub enum Error<T> {
         /// Aether service is not available.
@@ -107,6 +133,8 @@ pub mod pallet {
         InvalidKnowledgeRoot,
         /// Invalid Phi measurement.
         InvalidPhiMeasurement,
+        /// Phi value changed too dramatically in a single block.
+        PhiDeltaTooLarge,
     }
 
     #[pallet::genesis_config]
@@ -164,6 +192,23 @@ pub mod pallet {
 
             // Read previous Phi BEFORE updating storage (consciousness detection)
             let prev_phi = CurrentPhi::<T>::get();
+
+            // Validate Phi delta — reject suspiciously large jumps
+            let delta = if phi_scaled > prev_phi {
+                phi_scaled - prev_phi
+            } else {
+                prev_phi - phi_scaled
+            };
+            if prev_phi > 0 && delta > MAX_PHI_DELTA_SCALED {
+                // Record the outlier but reject the submission
+                PhiOutlierCount::<T>::mutate(|n| *n = n.saturating_add(1));
+                return Err(Error::<T>::PhiDeltaTooLarge.into());
+            }
+
+            // Record in the circular buffer for moving-average checks
+            let idx = PhiWindowIndex::<T>::get();
+            RecentPhiValues::<T>::insert(idx % PHI_WINDOW_SIZE, phi_scaled);
+            PhiWindowIndex::<T>::put(idx.wrapping_add(1));
 
             // Update storage
             KnowledgeRoot::<T>::put(knowledge_root);

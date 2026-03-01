@@ -14,6 +14,7 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
     use frame_support::pallet_prelude::*;
+    use frame_support::traits::Time;
     use frame_system::pallet_prelude::*;
     use qbc_primitives::*;
     use sp_core::H256;
@@ -30,6 +31,7 @@ pub mod pallet {
         frame_system::Config
         + pallet_qbc_economics::Config
         + pallet_qbc_utxo::Config
+        + pallet_timestamp::Config<Moment = u64>
     {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
     }
@@ -70,6 +72,22 @@ pub mod pallet {
         OptionQuery,
     >;
 
+    /// Hash of the last accepted mining proof — prevents replay attacks.
+    #[pallet::storage]
+    #[pallet::getter(fn last_proof_hash)]
+    pub type LastProofHash<T: Config> = StorageValue<_, H256, OptionQuery>;
+
+    /// Last block height at which each miner submitted a proof — rate limiting.
+    #[pallet::storage]
+    #[pallet::getter(fn last_miner_block)]
+    pub type LastMinerBlock<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        Address,
+        u64,
+        ValueQuery,
+    >;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -105,6 +123,10 @@ pub mod pallet {
         InvalidVqeParams,
         /// Miner address is invalid.
         InvalidMinerAddress,
+        /// Duplicate mining proof (replay attack prevention).
+        DuplicateProof,
+        /// Rate limited — only one mining proof per block per miner.
+        MinerRateLimited,
     }
 
     #[pallet::genesis_config]
@@ -128,31 +150,68 @@ pub mod pallet {
         /// Submit a VQE mining proof.
         ///
         /// Validates:
-        /// 1. Hamiltonian seed matches derived value from previous block
+        /// 1. Hamiltonian seed matches derived value from previous block hash
         /// 2. Ground state energy < current difficulty threshold
-        /// 3. VQE parameters are valid
+        /// 3. VQE parameters are valid (n_qubits > 0, non-empty params)
+        /// 4. Proof is unique (not a replay of a previous proof)
+        /// 5. Rate limiting: one proof per block per miner
         ///
         /// On success:
         /// - Creates coinbase UTXO for miner
-        /// - Adjusts difficulty
+        /// - Adjusts difficulty using chain timestamp (not user-supplied)
         /// - Stores SUSY solution
         #[pallet::call_index(0)]
         // Analytical weight: VQE proof validation (100µs) + Hamiltonian verification (200µs)
         // + difficulty read (25µs) + coinbase UTXO write (25µs) + SUSY solution write (25µs)
-        // + difficulty adjustment (50µs) + 5 storage writes (125µs) = ~550µs ≈ 550_000
-        #[pallet::weight(550_000)]
+        // + difficulty adjustment (50µs) + proof hash check (25µs) + rate limit check (25µs)
+        // + 7 storage writes (175µs) = ~650µs ≈ 650_000
+        #[pallet::weight(650_000)]
         pub fn submit_mining_proof(
             origin: OriginFor<T>,
             miner_address: Address,
             vqe_proof: VqeProof,
-            timestamp_ms: u64,
         ) -> DispatchResult {
             ensure_signed(origin)?;
 
             let block_height = pallet_qbc_utxo::Pallet::<T>::current_height() + 1;
             let difficulty = CurrentDifficulty::<T>::get();
 
-            // Validate energy < difficulty threshold
+            // ── VQE Parameter Validation ─────────────────────────────────
+            // Reject proofs with no qubits or empty parameter vectors
+            ensure!(
+                vqe_proof.n_qubits > 0,
+                Error::<T>::InvalidVqeParams
+            );
+            ensure!(
+                !vqe_proof.params.is_empty(),
+                Error::<T>::InvalidVqeParams
+            );
+
+            // ── Hamiltonian Seed Verification ────────────────────────────
+            // The seed must be deterministically derived from the parent block hash.
+            // This prevents miners from choosing a favorable Hamiltonian.
+            let expected_seed = Self::derive_hamiltonian_seed(block_height);
+            ensure!(
+                vqe_proof.hamiltonian_seed == expected_seed,
+                Error::<T>::InvalidHamiltonianSeed
+            );
+
+            // ── Replay Prevention ────────────────────────────────────────
+            // Compute a unique hash of this proof and reject duplicates
+            let proof_hash = Self::compute_proof_hash(&vqe_proof, &miner_address, block_height);
+            if let Some(last_hash) = LastProofHash::<T>::get() {
+                ensure!(proof_hash != last_hash, Error::<T>::DuplicateProof);
+            }
+
+            // ── Rate Limiting ────────────────────────────────────────────
+            // Only one mining proof per block height per miner
+            let last_block = LastMinerBlock::<T>::get(&miner_address);
+            ensure!(
+                block_height > last_block,
+                Error::<T>::MinerRateLimited
+            );
+
+            // ── Energy Threshold Check ───────────────────────────────────
             // Energy is negative (ground state), difficulty is positive.
             // energy (scaled by 10^12) must be < difficulty (scaled by 10^6) * 10^6
             let difficulty_threshold = (difficulty as i128) * 1_000_000;
@@ -160,6 +219,12 @@ pub mod pallet {
                 vqe_proof.energy < difficulty_threshold,
                 Error::<T>::EnergyAboveDifficulty
             );
+
+            // ── Chain Timestamp ──────────────────────────────────────────
+            // Use the chain's timestamp from pallet_timestamp instead of any
+            // user-supplied value. This prevents timestamp manipulation attacks
+            // that could skew difficulty adjustment.
+            let chain_timestamp_ms = pallet_timestamp::Pallet::<T>::now();
 
             // Calculate reward
             let reward = pallet_qbc_economics::Pallet::<T>::calculate_reward(block_height);
@@ -177,11 +242,17 @@ pub mod pallet {
             // Update block height
             pallet_qbc_utxo::Pallet::<T>::set_block_height(block_height);
 
-            // Adjust difficulty
-            Self::adjust_difficulty(timestamp_ms, block_height);
+            // Adjust difficulty using the chain timestamp (tamper-proof)
+            Self::adjust_difficulty(chain_timestamp_ms, block_height);
 
             // Store SUSY solution
             SusySolutions::<T>::insert(block_height, &vqe_proof);
+
+            // Update proof hash for replay prevention
+            LastProofHash::<T>::put(proof_hash);
+
+            // Update rate limit tracker
+            LastMinerBlock::<T>::insert(&miner_address, block_height);
 
             // Update counters
             LastMiner::<T>::put(miner_address.clone());
@@ -206,6 +277,44 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        /// Derive the expected Hamiltonian seed from the parent block hash.
+        ///
+        /// The seed is SHA2-256("hamiltonian-seed-v1:" || parent_block_hash || block_height).
+        /// This ensures miners cannot choose a favorable Hamiltonian — the seed is
+        /// deterministically derived from the previous block and the target height.
+        ///
+        /// Uses `frame_system::Pallet::parent_hash()` which returns the hash of the
+        /// parent of the block currently being executed. This is tamper-proof because
+        /// block hashes are committed by consensus before extrinsic execution.
+        fn derive_hamiltonian_seed(block_height: u64) -> H256 {
+            use sp_core::hashing::sha2_256;
+            let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+            let mut data = sp_std::vec::Vec::new();
+            data.extend_from_slice(b"hamiltonian-seed-v1:");
+            data.extend_from_slice(parent_hash.as_ref());
+            data.extend_from_slice(&block_height.to_le_bytes());
+            H256::from(sha2_256(&data))
+        }
+
+        /// Compute a unique hash of the mining proof for replay prevention.
+        ///
+        /// Includes the VQE proof data, miner address, and block height so that
+        /// the same proof cannot be replayed at a different height or by a different miner.
+        fn compute_proof_hash(proof: &VqeProof, miner: &Address, block_height: u64) -> H256 {
+            use sp_core::hashing::sha2_256;
+            let mut data = sp_std::vec::Vec::new();
+            data.extend_from_slice(b"mining-proof-v1:");
+            data.extend_from_slice(proof.hamiltonian_seed.as_bytes());
+            data.extend_from_slice(&proof.energy.to_le_bytes());
+            data.extend_from_slice(&[proof.n_qubits]);
+            for p in proof.params.iter() {
+                data.extend_from_slice(&p.to_le_bytes());
+            }
+            data.extend_from_slice(miner.as_ref());
+            data.extend_from_slice(&block_height.to_le_bytes());
+            H256::from(sha2_256(&data))
+        }
+
         /// Adjust difficulty based on block timestamps.
         ///
         /// CRITICAL: Must match Python consensus/engine.py exactly.

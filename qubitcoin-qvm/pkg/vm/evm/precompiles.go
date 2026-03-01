@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/cloudflare/bn256"
 	"golang.org/x/crypto/ripemd160"
 	"golang.org/x/crypto/sha3"
 )
@@ -347,103 +348,64 @@ func (c *bigModExp) Run(input []byte) ([]byte, error) {
 }
 
 // ─── 0x06: bn256Add ──────────────────────────────────────────────────
-// Alt_bn128 elliptic curve point addition.
+// Alt_bn128 elliptic curve point addition (EIP-196).
+// Input: two G1 points (64 bytes each = 128 bytes total).
+// Output: G1 point (64 bytes) = P1 + P2.
 type bn256Add struct{}
 
 func (c *bn256Add) RequiredGas(_ []byte) uint64 { return 150 }
 
 func (c *bn256Add) Run(input []byte) ([]byte, error) {
-	// Stub: bn256 point addition requires the cloudflare/bn256 or gnark-crypto library.
-	// Input: two G1 points (64 bytes each = 128 bytes total).
-	// Returns identity point (0, 0) when both inputs are zero,
-	// otherwise returns first non-zero input point as approximation.
 	padded := make([]byte, 128)
 	copy(padded, input)
 
-	p1 := padded[:64]
-	p2 := padded[64:128]
-
-	// If both are zero points, return identity
-	allZero := true
-	for _, b := range p1 {
-		if b != 0 {
-			allZero = false
-			break
-		}
-	}
-	if allZero {
-		result := make([]byte, 64)
-		copy(result, p2)
-		return result, nil
+	// Unmarshal first point
+	p1 := new(bn256.G1)
+	if _, err := p1.Unmarshal(padded[:64]); err != nil {
+		return nil, fmt.Errorf("bn256Add: invalid point P1: %w", err)
 	}
 
-	result := make([]byte, 64)
-	copy(result, p1)
-	return result, nil
+	// Unmarshal second point
+	p2 := new(bn256.G1)
+	if _, err := p2.Unmarshal(padded[64:128]); err != nil {
+		return nil, fmt.Errorf("bn256Add: invalid point P2: %w", err)
+	}
+
+	// P1 + P2
+	p1.Add(p1, p2)
+	return p1.Marshal(), nil
 }
 
 // ─── 0x07: bn256ScalarMul ────────────────────────────────────────────
+// Alt_bn128 scalar multiplication (EIP-196).
+// Input: G1 point (64 bytes) + scalar (32 bytes) = 96 bytes.
+// Output: G1 point (64 bytes) = scalar * P.
 type bn256Mul struct{}
 
 func (c *bn256Mul) RequiredGas(_ []byte) uint64 { return 6000 }
 
 func (c *bn256Mul) Run(input []byte) ([]byte, error) {
-	// Stub: bn256 scalar multiplication requires gnark-crypto or cloudflare/bn256.
-	// Input: G1 point (64 bytes) + scalar (32 bytes) = 96 bytes.
-	// Identity check: if scalar is 0 or point is identity, return identity.
 	padded := make([]byte, 96)
 	copy(padded, input)
 
-	point := padded[:64]
-	scalar := padded[64:96]
-
-	// Zero scalar → identity point
-	scalarZero := true
-	for _, b := range scalar {
-		if b != 0 {
-			scalarZero = false
-			break
-		}
-	}
-	if scalarZero {
-		return make([]byte, 64), nil
+	// Unmarshal point
+	p := new(bn256.G1)
+	if _, err := p.Unmarshal(padded[:64]); err != nil {
+		return nil, fmt.Errorf("bn256Mul: invalid point: %w", err)
 	}
 
-	// Identity point × scalar → identity point
-	pointZero := true
-	for _, b := range point {
-		if b != 0 {
-			pointZero = false
-			break
-		}
-	}
-	if pointZero {
-		return make([]byte, 64), nil
-	}
+	// Parse scalar (big-endian 32 bytes)
+	k := new(big.Int).SetBytes(padded[64:96])
 
-	// Scalar = 1 → return point unchanged
-	scalarOne := true
-	for i, b := range scalar {
-		if i == 31 && b == 1 {
-			continue
-		}
-		if b != 0 {
-			scalarOne = false
-			break
-		}
-	}
-	if scalarOne {
-		result := make([]byte, 64)
-		copy(result, point)
-		return result, nil
-	}
-
-	// For non-trivial cases, return identity and log a stub warning.
-	// Full implementation requires bn256 elliptic curve library.
-	return make([]byte, 64), nil
+	// scalar * P
+	p.ScalarMult(p, k)
+	return p.Marshal(), nil
 }
 
 // ─── 0x08: bn256Pairing ──────────────────────────────────────────────
+// Alt_bn128 pairing check (EIP-197).
+// Input: pairs of (G1 point (64 bytes), G2 point (128 bytes)) = 192 bytes per pair.
+// Output: 32 bytes — 1 if pairing check passes, 0 otherwise.
 type bn256Pairing struct{}
 
 func (c *bn256Pairing) RequiredGas(input []byte) uint64 {
@@ -451,10 +413,61 @@ func (c *bn256Pairing) RequiredGas(input []byte) uint64 {
 	return 45000 + 34000*pairs
 }
 
-func (c *bn256Pairing) Run(_ []byte) ([]byte, error) {
-	// Stub: return true (pairing check passes)
+func (c *bn256Pairing) Run(input []byte) ([]byte, error) {
+	// Input length must be a multiple of 192 bytes
+	if len(input)%192 != 0 {
+		return nil, fmt.Errorf("bn256Pairing: invalid input length %d (must be multiple of 192)", len(input))
+	}
+
+	numPairs := len(input) / 192
+	if numPairs == 0 {
+		// Empty input: pairing check trivially passes
+		result := make([]byte, 32)
+		result[31] = 1
+		return result, nil
+	}
+
+	// Parse all G1 and G2 points
+	g1Points := make([]*bn256.G1, numPairs)
+	g2Points := make([]*bn256.G2, numPairs)
+
+	for i := 0; i < numPairs; i++ {
+		offset := i * 192
+
+		g1Points[i] = new(bn256.G1)
+		if _, err := g1Points[i].Unmarshal(input[offset : offset+64]); err != nil {
+			return nil, fmt.Errorf("bn256Pairing: invalid G1 point at pair %d: %w", i, err)
+		}
+
+		g2Points[i] = new(bn256.G2)
+		if _, err := g2Points[i].Unmarshal(input[offset+64 : offset+192]); err != nil {
+			return nil, fmt.Errorf("bn256Pairing: invalid G2 point at pair %d: %w", i, err)
+		}
+	}
+
+	// Check: ∏ e(P_i, Q_i) == 1 (identity element in GT)
+	// Compute the product of pairings
+	acc := new(bn256.GT)
+	for i := 0; i < numPairs; i++ {
+		pair := bn256.Pair(g1Points[i], g2Points[i])
+		if i == 0 {
+			acc = pair
+		} else {
+			acc.Add(acc, pair)
+		}
+	}
+
+	// Check if the result is the identity element
+	// The identity in GT is the point at infinity, which marshals to specific bytes
+	// For bn256, the identity check is: marshal and compare to expected identity
+	identityGT := bn256.Pair(new(bn256.G1), new(bn256.G2))
+	ok := acc.Marshal() != nil && identityGT.Marshal() != nil &&
+		string(acc.Marshal()) == string(identityGT.Marshal())
+
 	result := make([]byte, 32)
-	result[31] = 1
+	if ok {
+		result[31] = 1
+	}
 	return result, nil
 }
 

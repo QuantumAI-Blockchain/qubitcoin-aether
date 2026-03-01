@@ -74,6 +74,17 @@ pub mod pallet {
     #[pallet::getter(fn current_height)]
     pub type CurrentHeight<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+    /// UTXOs spent during the current block — prevents double-spend within a block.
+    /// Cleared at the start of each new block via `set_block_height`.
+    #[pallet::storage]
+    pub type SpentUtxos<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        (TxId, u32),  // (prev_txid, prev_vout)
+        bool,
+        ValueQuery,
+    >;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -107,6 +118,8 @@ pub mod pallet {
         CoinbaseNotMature,
         /// Overflow in amount calculation.
         AmountOverflow,
+        /// UTXO already spent in this block (double-spend attempt).
+        UtxoAlreadySpent,
     }
 
     #[pallet::genesis_config]
@@ -178,6 +191,14 @@ pub mod pallet {
                 }
             }
 
+            // Check that no input was already spent in this block (cross-tx double-spend)
+            for input in inputs.iter() {
+                ensure!(
+                    !SpentUtxos::<T>::contains_key((&input.prev_txid, input.prev_vout)),
+                    Error::<T>::UtxoAlreadySpent
+                );
+            }
+
             // Validate all inputs exist and calculate total input amount
             let mut total_input: QbcBalance = 0;
             let mut input_utxos = sp_std::vec::Vec::new();
@@ -230,9 +251,10 @@ pub mod pallet {
             // Compute txid from inputs + outputs
             let txid = Self::compute_txid(&inputs, &outputs);
 
-            // Remove spent UTXOs
+            // Remove spent UTXOs and mark them in SpentUtxos for this block
             for (input, utxo) in inputs.iter().zip(input_utxos.iter()) {
                 UtxoSet::<T>::remove((&input.prev_txid, input.prev_vout));
+                SpentUtxos::<T>::insert((&input.prev_txid, input.prev_vout), true);
                 Balances::<T>::mutate(&utxo.address, |bal| {
                     *bal = bal.saturating_sub(utxo.amount);
                 });
@@ -307,8 +329,11 @@ pub mod pallet {
             });
         }
 
-        /// Update the current block height.
+        /// Update the current block height and clear per-block spent UTXO set.
         pub fn set_block_height(height: u64) {
+            // Clear the per-block spent set from the previous block.
+            // `remove_all` with a limit drains the map efficiently.
+            let _ = SpentUtxos::<T>::clear(u32::MAX, None);
             CurrentHeight::<T>::put(height);
         }
 

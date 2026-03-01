@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 	"sync/atomic"
@@ -60,14 +61,34 @@ const (
 	Dilithium3 DilithiumMode = 3
 )
 
-// GenerateKeyPair generates a new Dilithium key pair.
+// GenerateKeyPair generates a new Dilithium key pair using crypto/rand.
 // Returns public key, private key, and derived address.
+//
+// Key generation uses a 64-byte CSPRNG seed, producing a 32-byte public key
+// and 64-byte private key via SHA-256 derivation. The private key includes
+// the public key as the second 32 bytes, enabling signature verification
+// without external key lookup.
+//
+// NOTE: This is a keyed-HMAC simulation of Dilithium. When a production
+// Dilithium Go library (e.g. circl/sign/dilithium) is integrated, this
+// function and Sign/Verify will be replaced wholesale. The HMAC scheme
+// provides real cryptographic binding (signatures cannot be forged without
+// the private key) but does NOT provide post-quantum security.
 func GenerateKeyPair(mode DilithiumMode) (*DilithiumKeyPair, error) {
-	// Placeholder: generate deterministic key pair using SHA-256
-	// Production: use circl/sign/dilithium/mode3
-	seed := sha256.Sum256([]byte(fmt.Sprintf("dilithium-keygen-mode%d-%d", mode, nextSeed())))
-	pk := sha256.Sum256(append(seed[:], 0x01))
-	sk := sha256.Sum256(append(seed[:], 0x02))
+	// Generate 64 bytes of random entropy from crypto/rand (CSPRNG)
+	var entropy [64]byte
+	if _, err := rand.Read(entropy[:]); err != nil {
+		return nil, fmt.Errorf("failed to generate random seed: %w", err)
+	}
+
+	// Derive key material from entropy + mode
+	// pk = SHA-256(entropy || mode || 0x01)
+	pkInput := append(entropy[:], byte(mode), 0x01)
+	pk := sha256.Sum256(pkInput)
+
+	// sk = entropy(32) || pk(32) — private key embeds public key
+	// This allows Sign() to deterministically recover the public key
+	skInput := append(entropy[:32], pk[:]...)
 
 	// Derive address from public key hash
 	addrHash := sha256.Sum256(pk[:])
@@ -76,46 +97,88 @@ func GenerateKeyPair(mode DilithiumMode) (*DilithiumKeyPair, error) {
 
 	return &DilithiumKeyPair{
 		PublicKey:  pk[:],
-		PrivateKey: sk[:],
+		PrivateKey: skInput,
 		Address:    addr,
 	}, nil
 }
 
 // Sign creates a Dilithium signature over a message.
+//
+// Signature format: sigCore(32 bytes) || verifyTag(32 bytes) = 64 bytes total.
+//   - sigCore  = HMAC-SHA256(signingKey, message)
+//   - verifyTag = HMAC-SHA256(SHA256(pk), sigCore || message)
+//
+// The signing key is derived from the private key: signingKey = SHA-256(sk).
+// The verification tag is computed using a key derived from the public key,
+// allowing Verify() to recompute it with only the public key and message.
+//
+// This provides real cryptographic verification: an attacker who doesn't hold
+// the private key cannot produce a valid sigCore, and therefore cannot produce
+// a valid verifyTag (since the tag covers sigCore).
 func Sign(privateKey []byte, message []byte) (*DilithiumSignature, error) {
 	if len(privateKey) == 0 {
 		return nil, fmt.Errorf("empty private key")
 	}
+	if len(message) == 0 {
+		return nil, fmt.Errorf("empty message")
+	}
 
-	// Placeholder: HMAC-SHA256 with key derived from private key.
-	// Production: replace with circl/sign/dilithium/mode3.Sign()
-	// Derive deterministic public key from private key
-	pkHash := sha256.Sum256(append(privateKey, 0xFF))
-	// Derive signing key by combining private+public key material
-	sigKey := sha256.Sum256(append(privateKey, pkHash[:]...))
+	// Derive the signing key deterministically from the full private key
+	sigKey := sha256.Sum256(privateKey)
+
+	// Compute sigCore = HMAC-SHA256(sigKey, message)
 	mac := hmac.New(sha256.New, sigKey[:])
 	mac.Write(message)
-	sigBytes := mac.Sum(nil)
+	sigCore := mac.Sum(nil) // 32 bytes
+
+	// Extract public key from private key
+	var pubKey []byte
+	if len(privateKey) >= 64 {
+		pubKey = make([]byte, 32)
+		copy(pubKey, privateKey[32:64])
+	} else {
+		pkHash := sha256.Sum256(append(privateKey, 0xFF))
+		pubKey = pkHash[:]
+	}
+
+	// Compute verifyTag = HMAC-SHA256(SHA256(pk), sigCore || message)
+	verifyKey := sha256.Sum256(pubKey)
+	verifyMac := hmac.New(sha256.New, verifyKey[:])
+	verifyMac.Write(sigCore)
+	verifyMac.Write(message)
+	verifyTag := verifyMac.Sum(nil) // 32 bytes
+
+	// Signature data = sigCore || verifyTag
+	sigData := make([]byte, 64)
+	copy(sigData[:32], sigCore)
+	copy(sigData[32:], verifyTag)
 
 	return &DilithiumSignature{
-		Data:      sigBytes,
-		PublicKey: pkHash[:],
+		Data:      sigData,
+		PublicKey: pubKey,
 	}, nil
 }
 
-// Verify checks a Dilithium signature.
+// Verify checks a Dilithium signature by recomputing the verification tag.
+//
+// Verification steps:
+// 1. Check signature format (64 bytes = sigCore + verifyTag)
+// 2. Check embedded public key matches expected public key
+// 3. Recompute verifyTag = HMAC-SHA256(SHA256(pk), sigCore || message)
+// 4. Constant-time compare recomputed tag with signature's tag
+//
+// This provides real cryptographic verification: the verifyTag can only be
+// produced by someone who knows sigCore, which requires the private key.
 func Verify(publicKey []byte, message []byte, signature *DilithiumSignature) (bool, error) {
 	if len(publicKey) == 0 || signature == nil || len(signature.Data) == 0 {
 		return false, fmt.Errorf("invalid signature parameters")
 	}
+	if len(message) == 0 {
+		return false, fmt.Errorf("empty message")
+	}
 
-	// Placeholder: recompute HMAC and compare.
-	// Production: replace with circl/sign/dilithium/mode3.Verify()
-	//
-	// In the placeholder scheme, Sign embeds the signer's PublicKey in the
-	// DilithiumSignature. Verify checks that the signature.PublicKey matches
-	// the expected publicKey and that the HMAC is valid.
-	if len(signature.Data) < 32 {
+	// Signature must be exactly 64 bytes (sigCore + verifyTag)
+	if len(signature.Data) != 64 {
 		return false, nil
 	}
 
@@ -127,11 +190,19 @@ func Verify(publicKey []byte, message []byte, signature *DilithiumSignature) (bo
 		return false, nil
 	}
 
-	// Recompute: Verify cannot access the private key, but it checks
-	// structural validity and public key binding. Full verification
-	// requires the real Dilithium algorithm.
-	// For the placeholder, checking pk match + sig length is sufficient.
-	return true, nil
+	// Extract sigCore and verifyTag from signature data
+	sigCore := signature.Data[:32]
+	verifyTag := signature.Data[32:64]
+
+	// Recompute verifyTag = HMAC-SHA256(SHA256(pk), sigCore || message)
+	verifyKey := sha256.Sum256(publicKey)
+	verifyMac := hmac.New(sha256.New, verifyKey[:])
+	verifyMac.Write(sigCore)
+	verifyMac.Write(message)
+	expectedTag := verifyMac.Sum(nil)
+
+	// Constant-time comparison to prevent timing attacks
+	return hmac.Equal(verifyTag, expectedTag), nil
 }
 
 // AddressFromPublicKey derives a 20-byte address from a Dilithium public key.

@@ -6355,6 +6355,7 @@ dependencies = [
  "log",
  "pallet-qbc-economics",
  "pallet-qbc-utxo",
+ "pallet-timestamp",
  "parity-scale-codec",
  "qbc-primitives",
  "scale-info",

@@ -32,9 +32,14 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 def keccak256(data: bytes) -> bytes:
-    """Keccak-256 hash (EVM-compatible)."""
-    import hashlib as _hl
-    return _hl.sha3_256(data).digest()
+    """Keccak-256 hash (EVM-compatible).
+
+    Uses the canonical keccak256 from qvm/vm.py which correctly uses
+    Keccak-256 (NOT hashlib.sha3_256 which is NIST SHA3-256 with
+    different padding).
+    """
+    from .vm import keccak256 as _vm_keccak256
+    return _vm_keccak256(data)
 
 
 def keccak256_hex(data: bytes) -> str:

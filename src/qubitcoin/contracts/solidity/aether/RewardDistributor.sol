@@ -15,6 +15,9 @@ contract RewardDistributor is Initializable {
     address public owner;
     address public kernel;
 
+    /// @notice Maximum reward amount per single distribution (configurable by owner)
+    uint256 public maxRewardPerDistribution;
+
     uint256 public totalDistributed;
     uint256 public totalSlashed;
     uint256 public distributionCount;
@@ -37,6 +40,11 @@ contract RewardDistributor is Initializable {
     event StakeSlashed(address indexed validator, uint256 slashAmount, uint256 indexed taskId, uint256 blockNumber);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Rewards: not owner");
+        _;
+    }
+
     modifier onlyKernel() {
         require(msg.sender == kernel || msg.sender == owner, "Rewards: not authorized");
         _;
@@ -46,6 +54,13 @@ contract RewardDistributor is Initializable {
     function initialize(address _kernel) external initializer {
         owner  = msg.sender;
         kernel = _kernel;
+        maxRewardPerDistribution = 10000 ether; // Default: 10,000 QBC max per distribution
+    }
+
+    /// @notice Update the maximum reward per distribution
+    function setMaxRewardPerDistribution(uint256 _max) external onlyOwner {
+        require(_max > 0, "Rewards: max must be > 0");
+        maxRewardPerDistribution = _max;
     }
 
     // ─── Distribution ────────────────────────────────────────────────────
@@ -53,6 +68,7 @@ contract RewardDistributor is Initializable {
     function distributeReward(address recipient, uint256 amount, uint256 taskId) external onlyKernel {
         require(recipient != address(0), "Rewards: zero address");
         require(amount > 0, "Rewards: zero amount");
+        require(amount <= maxRewardPerDistribution, "Rewards: exceeds max per distribution");
 
         totalDistributed += amount;
         totalEarnedBy[recipient] += amount;

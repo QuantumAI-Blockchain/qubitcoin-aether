@@ -38,6 +38,8 @@ contract MultiSigAdmin is Initializable {
         uint256  proposedAt;
         bool     executed;
         bool     canceled;
+        address  target;      // target contract to call on execution
+        bytes    callData;    // encoded function call data
     }
 
     /// @notice All proposed actions (actionHash → Action)
@@ -114,7 +116,9 @@ contract MultiSigAdmin is Initializable {
     /// @notice Propose a new action. Any signer can propose.
     /// @param actionHash   Unique hash identifying the action (e.g., keccak256 of function call)
     /// @param description  Human-readable description of what this action does
-    function proposeAction(bytes32 actionHash, string calldata description) external onlySigner {
+    /// @param target       Target contract address to call on execution (address(0) for non-call actions)
+    /// @param callData     Encoded function call data (empty for non-call actions)
+    function proposeAction(bytes32 actionHash, string calldata description, address target, bytes calldata callData) external onlySigner {
         require(actionHash != bytes32(0), "MultiSig: zero hash");
         require(actions[actionHash].proposedAt == 0, "MultiSig: action exists");
 
@@ -125,7 +129,9 @@ contract MultiSigAdmin is Initializable {
             approvalCount: 1,
             proposedAt:    block.timestamp,
             executed:       false,
-            canceled:       false
+            canceled:       false,
+            target:        target,
+            callData:      callData
         });
         approvals[actionHash][msg.sender] = true;
         actionHashes.push(actionHash);
@@ -165,6 +171,12 @@ contract MultiSigAdmin is Initializable {
 
         action.executed = true;
         totalExecuted++;
+
+        // Execute the actual call on the target contract if specified
+        if (action.target != address(0) && action.callData.length > 0) {
+            (bool success, ) = action.target.call(action.callData);
+            require(success, "MultiSig: execution failed");
+        }
 
         emit ActionExecuted(actionHash, msg.sender, action.approvalCount);
     }

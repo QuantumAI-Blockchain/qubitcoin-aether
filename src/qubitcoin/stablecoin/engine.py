@@ -85,10 +85,11 @@ class StablecoinEngine:
 
         # IFlashBorrower callback verification
         # Must match Solidity: keccak256("IFlashBorrower.onFlashLoan")
-        import hashlib as _hl
-        self.CALLBACK_SUCCESS: bytes = _hl.sha3_256(
+        # Use Keccak-256 (EVM-compatible), NOT hashlib.sha3_256 (different padding)
+        from ..qvm.vm import keccak256 as _keccak256
+        self.CALLBACK_SUCCESS: bytes = _keccak256(
             b"IFlashBorrower.onFlashLoan"
-        ).digest()
+        )
 
         # 10-year backing schedule: year → required reserve ratio
         # Year 0 = genesis, Year 10 = 100% backed
@@ -414,11 +415,33 @@ class StablecoinEngine:
         Returns:
             (success, message, vault_id)
         """
+        # Minimum reserve ratio — refuse to mint if system reserve drops below 20%
+        MIN_RESERVE_RATIO = Decimal('0.20')
+
         try:
             # Check emergency shutdown
             if self.params.get('emergency_shutdown', False):
                 return False, "System in emergency shutdown", None
-            
+
+            # Check system reserve ratio before minting
+            try:
+                health = self.get_system_health()
+                current_ratio = Decimal(str(health.get('reserve_backing', 0)))
+                if current_ratio < MIN_RESERVE_RATIO:
+                    logger.warning(
+                        f"Mint rejected: reserve ratio {current_ratio:.4f} "
+                        f"below minimum {MIN_RESERVE_RATIO}"
+                    )
+                    return False, (
+                        f"System reserve ratio ({current_ratio:.2%}) is below "
+                        f"minimum ({MIN_RESERVE_RATIO:.0%}). Minting suspended."
+                    ), None
+            except Exception as health_err:
+                logger.warning(
+                    f"Could not verify system reserve ratio: {health_err}. "
+                    f"Proceeding with other checks."
+                )
+
             # Get collateral type info
             with self.db.get_session() as session:
                 coll_info = session.execute(
