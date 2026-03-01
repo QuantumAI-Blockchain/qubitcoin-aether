@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS aikgs_contributions (
     tier            VARCHAR(16) NOT NULL DEFAULT 'bronze' CHECK (tier IN ('bronze', 'silver', 'gold', 'diamond')),
     domain          VARCHAR(64) NOT NULL DEFAULT 'general',
     reward_amount   DECIMAL(20,8) NOT NULL DEFAULT 0 CHECK (reward_amount >= 0),
-    status          VARCHAR(32) NOT NULL DEFAULT 'accepted',
+    status          VARCHAR(32) NOT NULL DEFAULT 'accepted' CHECK (status IN ('pending', 'accepted', 'rejected_spam', 'rejected', 'disputed')),
     block_height    BIGINT NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -30,19 +30,20 @@ CREATE TABLE IF NOT EXISTS aikgs_rewards (
     id              SERIAL PRIMARY KEY,
     contribution_id BIGINT NOT NULL REFERENCES aikgs_contributions(contribution_id),
     contributor_address VARCHAR(128) NOT NULL,
-    amount          DECIMAL(20,8) NOT NULL,
-    base_reward     DECIMAL(20,8) NOT NULL,
-    quality_factor  FLOAT NOT NULL,
-    novelty_factor  FLOAT NOT NULL,
-    tier_multiplier FLOAT NOT NULL,
-    streak_multiplier FLOAT NOT NULL,
-    staking_boost   FLOAT NOT NULL DEFAULT 1.0,
-    early_bonus     FLOAT NOT NULL DEFAULT 1.0,
+    amount          DECIMAL(20,8) NOT NULL CHECK (amount >= 0),
+    base_reward     DECIMAL(20,8) NOT NULL CHECK (base_reward >= 0),
+    quality_factor  FLOAT NOT NULL CHECK (quality_factor >= 0),
+    novelty_factor  FLOAT NOT NULL CHECK (novelty_factor >= 0),
+    tier_multiplier FLOAT NOT NULL CHECK (tier_multiplier >= 0),
+    streak_multiplier FLOAT NOT NULL CHECK (streak_multiplier >= 0),
+    staking_boost   FLOAT NOT NULL DEFAULT 1.0 CHECK (staking_boost >= 0),
+    early_bonus     FLOAT NOT NULL DEFAULT 1.0 CHECK (early_bonus >= 0),
     block_height    BIGINT NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_aikgs_rewards_contributor ON aikgs_rewards (contributor_address);
 CREATE INDEX IF NOT EXISTS idx_aikgs_rewards_block_height ON aikgs_rewards (block_height);
+CREATE INDEX IF NOT EXISTS idx_aikgs_rewards_contribution ON aikgs_rewards (contribution_id);
 
 -- Affiliate registrations
 CREATE TABLE IF NOT EXISTS aikgs_affiliates (
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS aikgs_commissions (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_aikgs_commissions_affiliate ON aikgs_commissions (affiliate_address);
+CREATE INDEX IF NOT EXISTS idx_aikgs_commissions_contribution ON aikgs_commissions (contribution_id);
 
 -- Contributor profiles (reputation + progressive unlocks)
 CREATE TABLE IF NOT EXISTS aikgs_profiles (
@@ -103,11 +105,12 @@ CREATE TABLE IF NOT EXISTS aikgs_bounties (
     gap_hash        VARCHAR(64) NOT NULL,
     reward_amount   DECIMAL(20,8) NOT NULL CHECK (reward_amount >= 0),
     boost_multiplier FLOAT NOT NULL DEFAULT 1.0 CHECK (boost_multiplier > 0),
-    status          VARCHAR(32) NOT NULL DEFAULT 'open',
+    status          VARCHAR(32) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'claimed', 'fulfilled', 'expired', 'cancelled')),
     claimer_address VARCHAR(128),
     contribution_id BIGINT REFERENCES aikgs_contributions(contribution_id),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at      TIMESTAMPTZ NOT NULL
+    expires_at      TIMESTAMPTZ NOT NULL,
+    CHECK (expires_at > created_at)
 );
 CREATE INDEX IF NOT EXISTS idx_aikgs_bounties_status ON aikgs_bounties (status);
 CREATE INDEX IF NOT EXISTS idx_aikgs_bounties_domain ON aikgs_bounties (domain);
@@ -122,7 +125,8 @@ CREATE TABLE IF NOT EXISTS aikgs_seasons (
     boost_multiplier FLOAT NOT NULL CHECK (boost_multiplier > 0),
     starts_at       TIMESTAMPTZ NOT NULL,
     ends_at         TIMESTAMPTZ NOT NULL,
-    active          BOOLEAN NOT NULL DEFAULT true
+    active          BOOLEAN NOT NULL DEFAULT true,
+    CHECK (starts_at < ends_at)
 );
 CREATE INDEX IF NOT EXISTS idx_aikgs_seasons_active ON aikgs_seasons (active) WHERE active = true;
 CREATE INDEX IF NOT EXISTS idx_aikgs_seasons_domain ON aikgs_seasons (domain);
@@ -134,10 +138,11 @@ CREATE TABLE IF NOT EXISTS aikgs_curation_rounds (
     required_votes  INT NOT NULL DEFAULT 3 CHECK (required_votes > 0),
     votes_for       INT NOT NULL DEFAULT 0 CHECK (votes_for >= 0),
     votes_against   INT NOT NULL DEFAULT 0 CHECK (votes_against >= 0),
-    status          VARCHAR(32) NOT NULL DEFAULT 'pending',
+    status          VARCHAR(32) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
     finalized_at    TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_aikgs_curation_rounds_status ON aikgs_curation_rounds (status);
 
 -- Curation reviews
 CREATE TABLE IF NOT EXISTS aikgs_curation_reviews (
@@ -160,9 +165,9 @@ CREATE TABLE IF NOT EXISTS aikgs_api_keys (
     owner_address   VARCHAR(128) NOT NULL,
     encrypted_key   BYTEA NOT NULL,
     is_shared       BOOLEAN NOT NULL DEFAULT false,
-    shared_reward_bps INT NOT NULL DEFAULT 1500,
+    shared_reward_bps INT NOT NULL DEFAULT 1500 CHECK (shared_reward_bps >= 0 AND shared_reward_bps <= 10000),
     is_active       BOOLEAN NOT NULL DEFAULT true,
-    use_count       INT NOT NULL DEFAULT 0,
+    use_count       INT NOT NULL DEFAULT 0 CHECK (use_count >= 0),
     label           VARCHAR(128) NOT NULL DEFAULT '',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_used_at    TIMESTAMPTZ

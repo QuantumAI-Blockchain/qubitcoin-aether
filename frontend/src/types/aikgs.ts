@@ -34,8 +34,8 @@ export interface ContributionRecord {
 
 export interface RewardBreakdown {
   base_reward: number;
-  quality_multiplier: number;
-  novelty_bonus: number;
+  quality_factor: number;
+  novelty_factor: number;
   tier_multiplier: number;
   streak_multiplier: number;
   staking_boost: number;

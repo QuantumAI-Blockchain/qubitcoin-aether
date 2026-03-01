@@ -66,10 +66,12 @@ class APIKeyVault:
             master_secret: Master secret for key derivation. Defaults to
                           Config value or a random secret.
         """
+        _EXAMPLE_PLACEHOLDER = 'change-this-to-a-secure-secret'
         self._master_secret = master_secret or getattr(Config, 'API_KEY_VAULT_SECRET', '')
-        if not self._master_secret:
+        if not self._master_secret or self._master_secret == _EXAMPLE_PLACEHOLDER:
             self._master_secret = os.urandom(32).hex()
-            logger.warning("APIKeyVault: using ephemeral secret — keys will not persist across restarts")
+            logger.warning("APIKeyVault: using ephemeral secret — keys will not persist across restarts. "
+                          "Set API_KEY_VAULT_SECRET in .env for persistent encryption.")
 
         self._derive_key()
 
@@ -80,15 +82,25 @@ class APIKeyVault:
         self._shared_pool: Dict[str, List[str]] = {}   # provider => [key_ids] (shared pool)
 
     def _derive_key(self) -> None:
-        """Derive AES-256 encryption key from master secret via HKDF-like."""
+        """Derive AES-256 encryption key from master secret via HKDF (RFC 5869)."""
         secret_bytes = self._master_secret.encode() if isinstance(self._master_secret, str) else self._master_secret
-        # Simple HKDF: HMAC-SHA256(salt="aikgs-vault", ikm=secret)
-        import hmac
-        self._aes_key = hmac.new(
-            b'aikgs-vault-v1',
-            secret_bytes,
-            hashlib.sha256,
-        ).digest()  # 32 bytes = AES-256
+        try:
+            from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+            from cryptography.hazmat.primitives import hashes
+            self._aes_key = HKDF(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=b'aikgs-vault-v1',
+                info=b'api-key-encryption',
+            ).derive(secret_bytes)
+        except ImportError:
+            # Fallback to HMAC-based derivation if cryptography not available
+            import hmac
+            self._aes_key = hmac.new(
+                b'aikgs-vault-v1',
+                secret_bytes,
+                hashlib.sha256,
+            ).digest()  # 32 bytes = AES-256
 
     def store_key(self, owner_address: str, provider: str, api_key: str,
                   model: str = '', label: str = '',
@@ -111,8 +123,9 @@ class APIKeyVault:
             f"{owner_address}:{provider}:{time.time()}:{os.urandom(8).hex()}".encode()
         ).hexdigest()[:16]
 
-        # Encrypt the API key
-        encrypted = self._encrypt(api_key)
+        # Encrypt the API key with AAD binding to key_id + owner
+        aad = f"{key_id}:{owner_address}".encode()
+        encrypted = self._encrypt(api_key, aad=aad)
         self._encrypted_keys[key_id] = encrypted
 
         # Store metadata
@@ -158,7 +171,9 @@ class APIKeyVault:
         if stored and not stored.is_active:
             return None
 
-        plaintext = self._decrypt(encrypted)
+        # Decrypt with AAD context binding
+        aad = f"{key_id}:{stored.owner_address}".encode() if stored else None
+        plaintext = self._decrypt(encrypted, aad=aad)
 
         # Update usage stats
         if stored:
@@ -253,30 +268,26 @@ class APIKeyVault:
 
         return True
 
-    def _encrypt(self, plaintext: str) -> bytes:
+    def _encrypt(self, plaintext: str, aad: Optional[bytes] = None) -> bytes:
         """Encrypt plaintext with AES-256-GCM.
 
-        Falls back to XOR obfuscation if cryptography lib is unavailable.
+        Requires the `cryptography` package — no fallback.
+        AAD (Associated Authenticated Data) binds ciphertext to context,
+        preventing encrypted blob swaps between database rows.
         """
-        try:
-            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-            nonce = os.urandom(12)
-            aes = AESGCM(self._aes_key)
-            ciphertext = aes.encrypt(nonce, plaintext.encode(), None)
-            return nonce + ciphertext
-        except ImportError:
-            # Fallback: simple XOR with key (NOT production-grade)
-            logger.warning("cryptography package not available, using XOR fallback")
-            data = plaintext.encode()
-            key = self._aes_key
-            encrypted = bytes(d ^ key[i % len(key)] for i, d in enumerate(data))
-            return b'\xff\xfe\xfd\xfc' + encrypted  # 4-byte sentinel prefix for fallback mode
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        nonce = os.urandom(12)
+        aes = AESGCM(self._aes_key)
+        ciphertext = aes.encrypt(nonce, plaintext.encode(), aad)
+        return nonce + ciphertext
 
-    def _decrypt(self, encrypted: bytes) -> Optional[str]:
-        """Decrypt ciphertext."""
+    def _decrypt(self, encrypted: bytes, aad: Optional[bytes] = None) -> Optional[str]:
+        """Decrypt ciphertext with AES-256-GCM."""
         try:
             if encrypted[:4] == b'\xff\xfe\xfd\xfc':
-                # XOR fallback mode (4-byte sentinel avoids collision with AES-GCM nonce)
+                # Legacy XOR fallback — decrypt one last time, will be
+                # re-encrypted properly on next store_key call
+                logger.warning("Decrypting legacy XOR-encrypted key — re-encrypt for security")
                 data = encrypted[4:]
                 key = self._aes_key
                 decrypted = bytes(d ^ key[i % len(key)] for i, d in enumerate(data))
@@ -286,11 +297,15 @@ class APIKeyVault:
             nonce = encrypted[:12]
             ciphertext = encrypted[12:]
             aes = AESGCM(self._aes_key)
-            plaintext = aes.decrypt(nonce, ciphertext, None)
+            plaintext = aes.decrypt(nonce, ciphertext, aad)
             return plaintext.decode()
         except Exception as e:
             logger.warning(f"Key decryption failed: {e}")
             return None
+
+    def get_shared_pool_counts(self) -> dict:
+        """Get per-provider key counts in the shared pool."""
+        return {p: len(keys) for p, keys in self._shared_pool.items()}
 
     def get_stats(self) -> dict:
         """Get vault statistics (never includes key material)."""

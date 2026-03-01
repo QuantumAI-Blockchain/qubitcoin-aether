@@ -73,9 +73,9 @@ class RewardEngine:
     """Calculates and tracks QBC rewards for contributions."""
 
     def __init__(self) -> None:
-        # Configurable base reward
-        self._base_reward = float(getattr(Config, 'AIKGS_BASE_REWARD_QBC', 10.0))
-        self._max_reward = float(getattr(Config, 'AIKGS_MAX_REWARD_QBC', 500.0))
+        # Configurable base reward (defaults match config.py: 1.0 and 50.0)
+        self._base_reward = float(getattr(Config, 'AIKGS_BASE_REWARD_QBC', 1.0))
+        self._max_reward = float(getattr(Config, 'AIKGS_MAX_REWARD_QBC', 50.0))
 
         # Pool tracking (protected by lock for thread safety)
         self._lock = threading.Lock()
@@ -162,9 +162,8 @@ class RewardEngine:
             self._total_distributed += reward
             self._distribution_count += 1
             self._total_contributions += 1
-
-        # Update streak
-        self._update_streak(contributor_address)
+            # Update streak inside lock to prevent race condition
+            self._update_streak(contributor_address)
 
         return RewardCalculation(
             base_reward=base,

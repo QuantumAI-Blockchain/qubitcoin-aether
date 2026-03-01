@@ -214,6 +214,16 @@ class BountyManager:
         logger.info(f"Season ended: {season.name}")
         return True
 
+    def get_bounties(self, status: Optional[str] = None, domain: Optional[str] = None,
+                     limit: int = 50) -> List[Bounty]:
+        """Get bounties, optionally filtered by status and domain."""
+        bounties = [
+            b for b in self._bounties.values()
+            if (not status or b.status == status) and (not domain or b.domain == domain)
+        ]
+        bounties.sort(key=lambda b: b.reward_amount, reverse=True)
+        return bounties[:limit]
+
     def get_open_bounties(self, domain: Optional[str] = None, limit: int = 50) -> List[Bounty]:
         """Get open bounties, optionally filtered by domain."""
         bounties = [

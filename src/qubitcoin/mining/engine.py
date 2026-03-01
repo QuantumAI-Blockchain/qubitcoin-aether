@@ -172,6 +172,13 @@ class MiningEngine:
             difficulty=difficulty
         )
 
+        # Tag block with AIKGS rewards total for consensus validation
+        aikgs_total = getattr(self, '_last_aikgs_total', Decimal(0))
+        if aikgs_total > 0:
+            if not hasattr(block, 'metadata') or block.metadata is None:
+                block.metadata = {}
+            block.metadata['aikgs_rewards_total'] = str(aikgs_total)
+
         # Execute QVM transactions and compute state/receipts roots
         if self.state_manager:
             try:
@@ -214,6 +221,9 @@ class MiningEngine:
                         return
 
                     self.db.store_block(block, session=session)
+                    # AIKGS rewards are NOT new supply — they come from the
+                    # pre-allocated reward pool (part of genesis premine).
+                    # Only the mining reward and genesis premine are new supply.
                     supply_amount = reward + (Config.GENESIS_PREMINE if next_height == 0 else Decimal(0))
                     self.db.update_supply(supply_amount, session)
                     self.db.store_hamiltonian(
@@ -453,16 +463,22 @@ class MiningEngine:
                 'amount': Config.GENESIS_PREMINE
             })
 
-        # AIKGS reward outputs: drain queued rewards into additional coinbase outputs
+        # AIKGS reward outputs: drain queued rewards into additional coinbase outputs.
+        # These rewards come from the pre-allocated AIKGS pool (part of premine),
+        # NOT new supply. The total is tagged on the block for consensus validation.
         aikgs_outputs = self._drain_reward_outputs()
+        aikgs_total = Decimal(0)
         for ro in aikgs_outputs:
             outputs.append({
                 'address': ro['address'],
                 'amount': ro['amount'],
             })
+            aikgs_total += ro['amount']
         if aikgs_outputs:
             logger.info(f"Block {height}: including {len(aikgs_outputs)} AIKGS reward outputs "
-                       f"(total {sum(r['amount'] for r in aikgs_outputs):.8f} QBC)")
+                       f"(total {aikgs_total:.8f} QBC)")
+        # Store total for consensus validation — set on block after creation
+        self._last_aikgs_total = aikgs_total
 
         # Deterministic coinbase txid — same inputs always produce same txid
         coinbase_txid = hashlib.sha256(

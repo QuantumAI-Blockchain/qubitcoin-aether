@@ -150,18 +150,32 @@ export function hideBackButton() {
   webapp.BackButton.hide();
 }
 
+/** Active main button callback reference for cleanup */
+let _activeMainButtonCb: (() => void) | null = null;
+
 /** Show the main button */
 export function showMainButton(text: string, callback: () => void) {
   const webapp = getWebApp();
   if (!webapp) return;
+  // Remove previous callback to prevent listener accumulation
+  if (_activeMainButtonCb) {
+    webapp.MainButton.offClick(_activeMainButtonCb);
+  }
+  _activeMainButtonCb = callback;
   webapp.MainButton.setText(text);
-  webapp.MainButton.show();
   webapp.MainButton.onClick(callback);
+  webapp.MainButton.show();
 }
 
 /** Hide the main button */
 export function hideMainButton() {
-  getWebApp()?.MainButton?.hide();
+  const webapp = getWebApp();
+  if (!webapp) return;
+  if (_activeMainButtonCb) {
+    webapp.MainButton.offClick(_activeMainButtonCb);
+    _activeMainButtonCb = null;
+  }
+  webapp.MainButton.hide();
 }
 
 /** Open an external link */

@@ -12,6 +12,7 @@ Features:
   - Anti-abuse: self-referral prevention, minimum activity requirements
 """
 import hashlib
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -103,6 +104,18 @@ class AffiliateManager:
             referrer_address = self._referral_codes.get(referrer_code)
             if referrer_address == address:
                 referrer_address = None  # Anti-abuse: no self-referral
+            # Anti-abuse: detect circular referral chains (A→B→A)
+            if referrer_address:
+                visited = {address}
+                current = referrer_address
+                while current:
+                    if current in visited:
+                        logger.warning(f"Circular referral detected: {address[:8]}... → {referrer_address[:8]}...")
+                        referrer_address = None
+                        break
+                    visited.add(current)
+                    parent = self._affiliates.get(current)
+                    current = parent.referrer_address if parent else None
 
         # Generate unique referral code
         code = self._generate_code(address)
@@ -154,7 +167,7 @@ class AffiliateManager:
         if l1_referrer and l1_referrer in self._affiliates:
             l1_amount = reward_amount * self._l1_commission_rate
             self._affiliates[l1_referrer].total_l1_commission += l1_amount
-            self._affiliates[l1_referrer].total_referral_rewards += reward_amount
+            self._affiliates[l1_referrer].total_referral_rewards += l1_amount
 
             self._commission_history.append(CommissionEvent(
                 affiliate_address=l1_referrer,
@@ -170,6 +183,7 @@ class AffiliateManager:
             if l2_referrer and l2_referrer in self._affiliates:
                 l2_amount = reward_amount * self._l2_commission_rate
                 self._affiliates[l2_referrer].total_l2_commission += l2_amount
+                self._affiliates[l2_referrer].total_referral_rewards += l2_amount
 
                 self._commission_history.append(CommissionEvent(
                     affiliate_address=l2_referrer,
@@ -229,9 +243,15 @@ class AffiliateManager:
         return [a.to_dict() for a in ranked[:limit]]
 
     def _generate_code(self, address: str) -> str:
-        """Generate a unique referral code from an address."""
-        h = hashlib.sha256(f"{address}:{time.time()}".encode()).hexdigest()
-        return f"QBC-{h[:8].upper()}"
+        """Generate a unique referral code from an address with collision check."""
+        for _ in range(10):
+            h = hashlib.sha256(f"{address}:{time.time()}:{os.urandom(4).hex()}".encode()).hexdigest()
+            code = f"QBC-{h[:8].upper()}"
+            if code not in self._referral_codes:
+                return code
+        # Extremely unlikely fallback — use longer hash
+        h = hashlib.sha256(f"{address}:{time.time()}:{os.urandom(16).hex()}".encode()).hexdigest()
+        return f"QBC-{h[:12].upper()}"
 
     def get_stats(self) -> dict:
         """Get affiliate system statistics."""

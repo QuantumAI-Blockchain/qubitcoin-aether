@@ -50,6 +50,9 @@ export default function TWAWalletPage() {
       sessionStorage.setItem(`qbc-pubkey-${res.address}`, res.public_key_hex);
       setPrivateKeyShown(res.private_key_hex);
 
+      // Auto-clear private key from memory after 5 minutes
+      setTimeout(() => setPrivateKeyShown(null), 5 * 60 * 1000);
+
       hapticNotification("success");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create wallet");

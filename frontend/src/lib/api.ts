@@ -608,7 +608,7 @@ export const api = {
   aikgsFulfillBounty: (body: {
     bounty_id: number;
     contributor_address: string;
-    content: string;
+    contribution_id: number;
   }) =>
     post<{ status: string; reward_amount: number }>("/aikgs/bounty/fulfill", body),
 

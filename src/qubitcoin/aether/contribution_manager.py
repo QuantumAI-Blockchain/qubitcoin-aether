@@ -11,6 +11,7 @@ Flow:
   7. Badge NFTs minted for milestone achievements
 """
 import hashlib
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -76,6 +77,7 @@ class ContributionManager:
                  affiliate_manager: object = None,
                  bounty_manager: object = None,
                  progressive_unlocks: object = None,
+                 curation_engine: object = None,
                  on_chain: object = None,
                  block_height_fn: object = None,
                  queue_reward_fn: object = None) -> None:
@@ -97,10 +99,12 @@ class ContributionManager:
         self._affiliates = affiliate_manager
         self._bounties = bounty_manager
         self._unlocks = progressive_unlocks
+        self._curation = curation_engine
         self._on_chain = on_chain
         self._block_height_fn = block_height_fn
         self._queue_reward_fn = queue_reward_fn
 
+        self._lock = threading.Lock()
         self._contribution_counter: int = 0
         self._contributions: Dict[int, ContributionRecord] = {}
         self._contributor_history: Dict[str, List[int]] = {}
@@ -143,8 +147,9 @@ class ContributionManager:
             )
         submissions.append(now)
 
-        self._contribution_counter += 1
-        contribution_id = self._contribution_counter
+        with self._lock:
+            self._contribution_counter += 1
+            contribution_id = self._contribution_counter
 
         # 1. Score the contribution
         score = None
@@ -257,11 +262,12 @@ class ContributionManager:
             status='accepted',
         )
 
-        # Store
-        self._contributions[contribution_id] = record
-        if contributor_address not in self._contributor_history:
-            self._contributor_history[contributor_address] = []
-        self._contributor_history[contributor_address].append(contribution_id)
+        # Store (thread-safe)
+        with self._lock:
+            self._contributions[contribution_id] = record
+            if contributor_address not in self._contributor_history:
+                self._contributor_history[contributor_address] = []
+            self._contributor_history[contributor_address].append(contribution_id)
 
         # 9. Queue UTXO reward output for next mined block
         if self._queue_reward_fn and reward_amount > 0:
@@ -269,6 +275,32 @@ class ContributionManager:
                 contributor_address, reward_amount,
                 f'aikgs_contribution_{contribution_id}',
             )
+
+        # 9b. Queue affiliate commission UTXO outputs
+        if self._queue_reward_fn and self._affiliates:
+            if l1_amount > 0:
+                affiliate = self._affiliates.get_affiliate(contributor_address)
+                if affiliate and affiliate.referrer_address:
+                    self._queue_reward_fn(
+                        affiliate.referrer_address, l1_amount,
+                        f'aikgs_l1_commission_{contribution_id}',
+                    )
+            if l2_amount > 0:
+                affiliate = self._affiliates.get_affiliate(contributor_address)
+                if affiliate and affiliate.referrer_address:
+                    l1_aff = self._affiliates.get_affiliate(affiliate.referrer_address)
+                    if l1_aff and l1_aff.referrer_address:
+                        self._queue_reward_fn(
+                            l1_aff.referrer_address, l2_amount,
+                            f'aikgs_l2_commission_{contribution_id}',
+                        )
+
+        # 10. Submit gold/diamond contributions for peer curation
+        if self._curation and score.tier in ('gold', 'diamond'):
+            try:
+                self._curation.submit_for_curation(contribution_id)
+            except Exception as e:
+                logger.warning(f"Curation submission failed: {e}")
 
         elapsed = (time.time() - start) * 1000
         logger.info(

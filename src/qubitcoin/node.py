@@ -258,7 +258,7 @@ class QubitcoinNode:
                 from .aether.telegram_bot import TelegramBot
 
                 self.aikgs_knowledge_scorer = KnowledgeScorer(
-                    vector_index=getattr(self.aether, 'vector_index', None)
+                    vector_index=getattr(self.knowledge_graph, 'vector_index', None)
                 )
                 self.aikgs_api_key_vault = APIKeyVault(
                     master_secret=Config.API_KEY_VAULT_SECRET
@@ -275,6 +275,9 @@ class QubitcoinNode:
                     affiliate_manager=self.aikgs_affiliate_manager,
                     bounty_manager=self.aikgs_bounty_manager,
                     progressive_unlocks=self.aikgs_progressive_unlocks,
+                    curation_engine=self.aikgs_curation_engine,
+                    on_chain=getattr(self, 'on_chain', None),
+                    block_height_fn=self.db.get_current_height,
                     queue_reward_fn=self.mining.queue_reward_output,
                 )
                 self.aikgs_telegram_bot = TelegramBot(
@@ -285,7 +288,7 @@ class QubitcoinNode:
                 )
                 logger.info("AIKGS initialized (ContributionManager + RewardEngine + Affiliate + Bounties + Curation + Unlocks + Vault + Telegram)")
             except Exception as e:
-                logger.warning(f"AIKGS init failed (non-critical): {e}")
+                logger.warning(f"AIKGS init failed (non-critical): {e}", exc_info=True)
 
         # Component 7b: LLM Adapters + Knowledge Seeder (optional)
         self.llm_manager = None
