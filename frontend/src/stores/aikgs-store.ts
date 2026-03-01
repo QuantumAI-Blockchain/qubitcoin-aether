@@ -1,68 +1,16 @@
 /** AIKGS (Aether Incentivized Knowledge Growth System) global state */
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type {
+  ContributorProfile,
+  ContributionRecord,
+  AffiliateInfo,
+  BountyInfo,
+  StoredKeyInfo,
+} from "@/types/aikgs";
 
-export interface ContributorProfile {
-  address: string;
-  reputation_points: number;
-  level: number;
-  level_name: string;
-  total_contributions: number;
-  best_streak: number;
-  current_streak: number;
-  gold_count: number;
-  diamond_count: number;
-  bounties_fulfilled: number;
-  referrals: number;
-  badges: string[];
-  unlocked_features: string[];
-}
-
-export interface ContributionRecord {
-  contribution_id: number;
-  contributor_address: string;
-  content_hash: string;
-  knowledge_node_id: number | null;
-  quality_score: number;
-  novelty_score: number;
-  combined_score: number;
-  tier: "bronze" | "silver" | "gold" | "diamond";
-  domain: string;
-  reward_amount: number;
-  block_height: number;
-  timestamp: number;
-  status: string;
-}
-
-export interface AffiliateInfo {
-  address: string;
-  referrer_address: string | null;
-  referral_code: string;
-  l1_referrals: number;
-  l2_referrals: number;
-  total_l1_commission: number;
-  total_l2_commission: number;
-}
-
-export interface BountyInfo {
-  bounty_id: number;
-  domain: string;
-  description: string;
-  reward_amount: number;
-  boost_multiplier: number;
-  status: string;
-  expires_at: number;
-}
-
-export interface StoredKeyInfo {
-  key_id: string;
-  provider: string;
-  model: string;
-  label: string;
-  is_shared: boolean;
-  use_count: number;
-  is_active: boolean;
-}
+// Re-export shared types so existing imports still work
+export type { ContributorProfile, ContributionRecord, AffiliateInfo, BountyInfo, StoredKeyInfo };
 
 interface AIKGSState {
   // Profile

@@ -1,6 +1,6 @@
 """
 Data models for Qubitcoin
-Defines core blockchain structures with QVM and Aether Tree support
+Defines core blockchain structures with QVM, Aether Tree, and AIKGS support
 """
 from dataclasses import dataclass, asdict, field
 from typing import List, Dict, Any, Optional
@@ -264,3 +264,200 @@ class ProofOfThought:
         return hashlib.sha256(
             json.dumps(data, sort_keys=True).encode()
         ).hexdigest()
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# AIKGS (Aether Incentivized Knowledge Growth System) Models
+# Corresponds to sql_new/shared/02_aikgs.sql
+# ───────────────────────────────────────────────────────────────────────────
+
+@dataclass
+class AIKGSContribution:
+    """AIKGS contribution record (aikgs_contributions table)."""
+    contribution_id: int
+    contributor_address: str
+    content_hash: str
+    knowledge_node_id: Optional[int] = None
+    quality_score: float = 0.0
+    novelty_score: float = 0.0
+    combined_score: float = 0.0
+    tier: str = 'bronze'
+    domain: str = 'general'
+    reward_amount: Decimal = Decimal(0)
+    status: str = 'accepted'
+    block_height: int = 0
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['reward_amount'] = str(d['reward_amount'])
+        return d
+
+
+@dataclass
+class AIKGSReward:
+    """AIKGS reward distribution (aikgs_rewards table)."""
+    contribution_id: int
+    contributor_address: str
+    amount: Decimal
+    base_reward: Decimal
+    quality_factor: float
+    novelty_factor: float
+    tier_multiplier: float
+    streak_multiplier: float
+    staking_boost: float = 1.0
+    early_bonus: float = 1.0
+    block_height: int = 0
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['amount'] = str(d['amount'])
+        d['base_reward'] = str(d['base_reward'])
+        return d
+
+
+@dataclass
+class AIKGSAffiliate:
+    """AIKGS affiliate registration (aikgs_affiliates table)."""
+    address: str
+    referral_code: str
+    referrer_address: Optional[str] = None
+    l1_referrals: int = 0
+    l2_referrals: int = 0
+    total_l1_commission: Decimal = Decimal(0)
+    total_l2_commission: Decimal = Decimal(0)
+    is_active: bool = True
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['total_l1_commission'] = str(d['total_l1_commission'])
+        d['total_l2_commission'] = str(d['total_l2_commission'])
+        return d
+
+
+@dataclass
+class AIKGSCommission:
+    """AIKGS commission event (aikgs_commissions table)."""
+    affiliate_address: str
+    contributor_address: str
+    amount: Decimal
+    level: int  # 1 or 2
+    contribution_id: int
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['amount'] = str(d['amount'])
+        return d
+
+
+@dataclass
+class AIKGSProfile:
+    """AIKGS contributor profile (aikgs_profiles table)."""
+    address: str
+    reputation_points: float = 0.0
+    level: int = 1
+    level_name: str = 'Novice'
+    total_contributions: int = 0
+    best_streak: int = 0
+    current_streak: int = 0
+    gold_count: int = 0
+    diamond_count: int = 0
+    bounties_fulfilled: int = 0
+    referrals: int = 0
+    badges: List[str] = field(default_factory=list)
+    unlocked_features: List[str] = field(default_factory=lambda: ['basic_chat', 'contribute'])
+    last_contribution_at: Optional[float] = None
+    updated_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class AIKGSBounty:
+    """AIKGS knowledge bounty (aikgs_bounties table)."""
+    bounty_id: int
+    domain: str
+    description: str
+    gap_hash: str
+    reward_amount: Decimal
+    boost_multiplier: float = 1.0
+    status: str = 'open'
+    claimer_address: Optional[str] = None
+    contribution_id: Optional[int] = None
+    created_at: Optional[float] = None
+    expires_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['reward_amount'] = str(d['reward_amount'])
+        return d
+
+
+@dataclass
+class AIKGSSeason:
+    """AIKGS seasonal event (aikgs_seasons table)."""
+    season_id: int
+    name: str
+    domain: str
+    boost_multiplier: float
+    starts_at: float
+    ends_at: float
+    active: bool = True
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class AIKGSCurationRound:
+    """AIKGS curation round (aikgs_curation_rounds table)."""
+    contribution_id: int
+    required_votes: int = 3
+    votes_for: int = 0
+    votes_against: int = 0
+    status: str = 'pending'
+    finalized_at: Optional[float] = None
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class AIKGSCurationReview:
+    """AIKGS curation review (aikgs_curation_reviews table)."""
+    contribution_id: int
+    curator_address: str
+    vote: bool
+    comment: Optional[str] = None
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class AIKGSApiKey:
+    """AIKGS API key vault entry (aikgs_api_keys table)."""
+    key_id: str
+    provider: str
+    owner_address: str
+    encrypted_key: bytes = b''
+    model: str = ''
+    is_shared: bool = False
+    shared_reward_bps: int = 1500
+    is_active: bool = True
+    use_count: int = 0
+    label: str = ''
+    created_at: Optional[float] = None
+    last_used_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        # Don't expose encrypted key in serialization
+        d.pop('encrypted_key', None)
+        return d

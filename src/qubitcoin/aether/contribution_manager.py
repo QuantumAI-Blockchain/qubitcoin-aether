@@ -77,7 +77,8 @@ class ContributionManager:
                  bounty_manager: object = None,
                  progressive_unlocks: object = None,
                  on_chain: object = None,
-                 block_height_fn: object = None) -> None:
+                 block_height_fn: object = None,
+                 queue_reward_fn: object = None) -> None:
         """
         Args:
             knowledge_graph: KnowledgeGraph instance.
@@ -88,6 +89,7 @@ class ContributionManager:
             progressive_unlocks: ProgressiveUnlocks for reputation.
             on_chain: OnChainAGI for contract interactions.
             block_height_fn: Callable returning current block height.
+            queue_reward_fn: Callable(address, amount, reason) to queue UTXO reward outputs.
         """
         self._kg = knowledge_graph
         self._scorer = knowledge_scorer
@@ -97,10 +99,15 @@ class ContributionManager:
         self._unlocks = progressive_unlocks
         self._on_chain = on_chain
         self._block_height_fn = block_height_fn
+        self._queue_reward_fn = queue_reward_fn
 
         self._contribution_counter: int = 0
         self._contributions: Dict[int, ContributionRecord] = {}
         self._contributor_history: Dict[str, List[int]] = {}
+
+        # Daily rate limit tracking: address => list of timestamps for today
+        self._daily_max = int(getattr(Config, 'AIKGS_MAX_DAILY_SUBMISSIONS', 50))
+        self._daily_submissions: Dict[str, List[float]] = {}
 
     def process_contribution(self, contributor_address: str, content: str,
                              metadata: Optional[dict] = None,
@@ -118,6 +125,23 @@ class ContributionManager:
         """
         start = time.time()
         block_height = self._block_height_fn() if self._block_height_fn else 0
+
+        # 0. Daily rate limit check
+        now = time.time()
+        day_start = now - (now % 86400)
+        submissions = self._daily_submissions.get(contributor_address, [])
+        # Prune old entries (before today)
+        submissions = [t for t in submissions if t >= day_start]
+        self._daily_submissions[contributor_address] = submissions
+        if len(submissions) >= self._daily_max:
+            logger.warning(
+                f"Rate limit exceeded: contributor={contributor_address[:8]}... "
+                f"submissions_today={len(submissions)} max={self._daily_max}"
+            )
+            raise ValueError(
+                f"Daily submission limit reached ({self._daily_max}). Try again tomorrow."
+            )
+        submissions.append(now)
 
         self._contribution_counter += 1
         contribution_id = self._contribution_counter
@@ -238,6 +262,13 @@ class ContributionManager:
         if contributor_address not in self._contributor_history:
             self._contributor_history[contributor_address] = []
         self._contributor_history[contributor_address].append(contribution_id)
+
+        # 9. Queue UTXO reward output for next mined block
+        if self._queue_reward_fn and reward_amount > 0:
+            self._queue_reward_fn(
+                contributor_address, reward_amount,
+                f'aikgs_contribution_{contribution_id}',
+            )
 
         elapsed = (time.time() - start) * 1000
         logger.info(

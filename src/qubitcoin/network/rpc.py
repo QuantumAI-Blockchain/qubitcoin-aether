@@ -5639,7 +5639,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if len(content) > 100000:
             raise HTTPException(status_code=400, detail="Content too long (max 100KB)")
         metadata = {"domain": domain} if domain else None
-        result = aikgs_contribution_manager.process_contribution(addr, content, metadata)
+        try:
+            result = aikgs_contribution_manager.process_contribution(addr, content, metadata)
+        except ValueError as e:
+            raise HTTPException(status_code=429, detail=str(e))
         return result.to_dict() if hasattr(result, 'to_dict') else vars(result) if result else {"status": "rejected"}
 
     @app.get("/aikgs/profile/{address}")
@@ -5771,8 +5774,27 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def aikgs_key_store(body: dict):
         if not aikgs_api_key_vault:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        owner_address = body.get("owner_address", "")
+        signature_hex = body.get("signature_hex", "")
+        public_key_hex = body.get("public_key_hex", "")
+        # If signature is provided, verify ownership
+        if signature_hex and public_key_hex:
+            import json as _json
+            from ..quantum.crypto import Dilithium2
+            try:
+                pk = bytes.fromhex(public_key_hex)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid public key hex")
+            derived_addr = Dilithium2.derive_address(pk)
+            if derived_addr != owner_address:
+                raise HTTPException(status_code=400, detail="Public key does not match owner address")
+            sign_data = {'owner_address': owner_address, 'provider': body.get("provider", ""), 'action': 'store_key'}
+            msg = _json.dumps(sign_data, sort_keys=True).encode()
+            sig = bytes.fromhex(signature_hex)
+            if not Dilithium2.verify(pk, msg, sig):
+                raise HTTPException(status_code=400, detail="Invalid signature")
         stored_key = aikgs_api_key_vault.store_key(
-            owner_address=body.get("owner_address", ""),
+            owner_address=owner_address,
             provider=body.get("provider", ""),
             api_key=body.get("api_key", ""),
             model=body.get("model", ""),
@@ -5792,8 +5814,27 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def aikgs_key_revoke(body: dict):
         if not aikgs_api_key_vault:
             raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        result = aikgs_api_key_vault.revoke_key(
-            body.get("key_id", ""), body.get("owner_address", ""))
+        owner_address = body.get("owner_address", "")
+        key_id = body.get("key_id", "")
+        signature_hex = body.get("signature_hex", "")
+        public_key_hex = body.get("public_key_hex", "")
+        # If signature is provided, verify ownership
+        if signature_hex and public_key_hex:
+            import json as _json
+            from ..quantum.crypto import Dilithium2
+            try:
+                pk = bytes.fromhex(public_key_hex)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid public key hex")
+            derived_addr = Dilithium2.derive_address(pk)
+            if derived_addr != owner_address:
+                raise HTTPException(status_code=400, detail="Public key does not match owner address")
+            sign_data = {'owner_address': owner_address, 'key_id': key_id, 'action': 'revoke_key'}
+            msg = _json.dumps(sign_data, sort_keys=True).encode()
+            sig = bytes.fromhex(signature_hex)
+            if not Dilithium2.verify(pk, msg, sig):
+                raise HTTPException(status_code=400, detail="Invalid signature")
+        result = aikgs_api_key_vault.revoke_key(key_id, owner_address)
         return {"status": "revoked" if result else "failed"}
 
     @app.get("/aikgs/keys/shared-pool")

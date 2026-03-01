@@ -31,6 +31,8 @@ class MiningEngine:
         self.aether = aether_engine
         self.node = None
         self.circulation_tracker = None  # Wired from node.py after RPC app creation
+        self._pending_reward_outputs: list = []  # AIKGS reward outputs queued for next block
+        self._reward_outputs_lock = threading.Lock()
         self.is_mining = False
         self.mining_thread = None
         self._lock = threading.Lock()
@@ -451,6 +453,17 @@ class MiningEngine:
                 'amount': Config.GENESIS_PREMINE
             })
 
+        # AIKGS reward outputs: drain queued rewards into additional coinbase outputs
+        aikgs_outputs = self._drain_reward_outputs()
+        for ro in aikgs_outputs:
+            outputs.append({
+                'address': ro['address'],
+                'amount': ro['amount'],
+            })
+        if aikgs_outputs:
+            logger.info(f"Block {height}: including {len(aikgs_outputs)} AIKGS reward outputs "
+                       f"(total {sum(r['amount'] for r in aikgs_outputs):.8f} QBC)")
+
         # Deterministic coinbase txid — same inputs always produce same txid
         coinbase_txid = hashlib.sha256(
             f"coinbase-{height}-{prev_hash}".encode()
@@ -465,6 +478,31 @@ class MiningEngine:
             timestamp=time.time(),
             status='pending'
         )
+
+    def queue_reward_output(self, address: str, amount: float, reason: str = 'aikgs_reward') -> None:
+        """Queue an AIKGS reward output to be included in the next mined block's coinbase.
+
+        Args:
+            address: Recipient QBC address.
+            amount: Amount of QBC to reward.
+            reason: Reason tag for logging.
+        """
+        if amount <= 0 or not address:
+            return
+        with self._reward_outputs_lock:
+            self._pending_reward_outputs.append({
+                'address': address,
+                'amount': Decimal(str(amount)),
+                'reason': reason,
+            })
+        logger.debug(f"Queued reward output: {amount:.8f} QBC → {address[:8]}... ({reason})")
+
+    def _drain_reward_outputs(self) -> list:
+        """Drain all pending reward outputs for inclusion in coinbase. Thread-safe."""
+        with self._reward_outputs_lock:
+            outputs = self._pending_reward_outputs[:]
+            self._pending_reward_outputs.clear()
+        return outputs
 
     def _display_success(self, block: Block, energy: float, reward: Decimal):
         """Display mining success"""

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useTelegramStore } from "@/stores/telegram-store";
 import {
   isTelegramWebApp,
@@ -76,7 +77,7 @@ export default function TWALayout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen flex-col bg-bg-deep twa-safe-area">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto pb-20">
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
       </main>
 
       {/* Bottom navigation */}

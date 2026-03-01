@@ -275,6 +275,7 @@ class QubitcoinNode:
                     affiliate_manager=self.aikgs_affiliate_manager,
                     bounty_manager=self.aikgs_bounty_manager,
                     progressive_unlocks=self.aikgs_progressive_unlocks,
+                    queue_reward_fn=self.mining.queue_reward_output,
                 )
                 self.aikgs_telegram_bot = TelegramBot(
                     contribution_manager=self.aikgs_contribution_manager,
