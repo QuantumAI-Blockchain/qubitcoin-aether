@@ -20,6 +20,7 @@ import {
   deleteSessionStorage,
 } from "@/components/aether/conversation-sidebar";
 import { KnowledgeSeeder } from "@/components/aether/knowledge-seeder";
+import { ContributionIndicator } from "@/components/aikgs/contribution-indicator";
 
 const KnowledgeGraph3D = dynamic(
   () => import("@/components/aether/knowledge-graph-3d").then((m) => m.KnowledgeGraph3D),
@@ -505,6 +506,8 @@ function AetherPageContent() {
           </Card>
 
           <KnowledgeSeeder />
+
+          <ContributionIndicator className="mb-4" compact />
         </aside>
       </div>
 

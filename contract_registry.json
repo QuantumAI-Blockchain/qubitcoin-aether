@@ -174,5 +174,30 @@
   "tokens_wQBC": {
     "proxy": "0xc8f90358e2ac135072114595c52904b0a16ef1e8",
     "implementation": "0xc9369163efea800fd1745abe82727a46d400bc89"
+  },
+  "KnowledgeRewardPool": {
+    "proxy": "",
+    "implementation": "",
+    "note": "AIKGS reward pool — deploy post-genesis"
+  },
+  "AffiliateRegistry": {
+    "proxy": "",
+    "implementation": "",
+    "note": "AIKGS 2-level affiliate system — deploy post-genesis"
+  },
+  "ContributionLedger": {
+    "proxy": "",
+    "implementation": "",
+    "note": "AIKGS contribution record — deploy post-genesis"
+  },
+  "KnowledgeBounty": {
+    "proxy": "",
+    "implementation": "",
+    "note": "AIKGS knowledge bounties — deploy post-genesis"
+  },
+  "ContributionNFT": {
+    "proxy": "",
+    "implementation": "",
+    "note": "AIKGS QBC-721 badge NFTs — deploy post-genesis"
   }
 }

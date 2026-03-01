@@ -178,6 +178,24 @@ subsystem_plugins_up = Gauge('qbc_subsystem_plugins_up', 'Plugin subsystem up (0
 subsystem_cognitive_up = Gauge('qbc_subsystem_cognitive_up', 'Cognitive architecture up (0/1)')
 subsystem_privacy_up = Gauge('qbc_subsystem_privacy_up', 'Privacy subsystem up (0/1)')
 
+# ============================================================================
+# AIKGS (Aether Incentivized Knowledge Growth System) METRICS
+# ============================================================================
+aikgs_total_contributions = Gauge('qbc_aikgs_total_contributions', 'Total AIKGS knowledge contributions')
+aikgs_total_rewards_distributed = Gauge('qbc_aikgs_total_rewards_distributed', 'Total QBC rewards distributed via AIKGS')
+aikgs_pool_balance = Gauge('qbc_aikgs_pool_balance', 'AIKGS reward pool balance in QBC')
+aikgs_unique_contributors = Gauge('qbc_aikgs_unique_contributors', 'Unique contributors in AIKGS')
+aikgs_tier_bronze = Gauge('qbc_aikgs_tier_bronze', 'Bronze tier contributions')
+aikgs_tier_silver = Gauge('qbc_aikgs_tier_silver', 'Silver tier contributions')
+aikgs_tier_gold = Gauge('qbc_aikgs_tier_gold', 'Gold tier contributions')
+aikgs_tier_diamond = Gauge('qbc_aikgs_tier_diamond', 'Diamond tier contributions')
+aikgs_affiliates_total = Gauge('qbc_aikgs_affiliates_total', 'Total registered affiliates')
+aikgs_commissions_total = Gauge('qbc_aikgs_commissions_total', 'Total affiliate commissions in QBC')
+aikgs_bounties_active = Gauge('qbc_aikgs_bounties_active', 'Active knowledge bounties')
+aikgs_curation_pending = Gauge('qbc_aikgs_curation_pending', 'Pending curation rounds')
+aikgs_api_keys_active = Gauge('qbc_aikgs_api_keys_active', 'Active API keys in vault')
+aikgs_shared_keys_pool = Gauge('qbc_aikgs_shared_keys_pool', 'Keys in shared pool')
+
 def setup_metrics(app) -> None:
     """Setup Prometheus metrics for FastAPI app"""
     instrumentator = Instrumentator().instrument(app).expose(app)
@@ -242,6 +260,12 @@ __all__ = [
     # Subsystem Health
     'subsystem_bridge_up', 'subsystem_stablecoin_up', 'subsystem_compliance_up',
     'subsystem_plugins_up', 'subsystem_cognitive_up', 'subsystem_privacy_up',
+    # AIKGS
+    'aikgs_total_contributions', 'aikgs_total_rewards_distributed', 'aikgs_pool_balance',
+    'aikgs_unique_contributors', 'aikgs_tier_bronze', 'aikgs_tier_silver',
+    'aikgs_tier_gold', 'aikgs_tier_diamond', 'aikgs_affiliates_total',
+    'aikgs_commissions_total', 'aikgs_bounties_active', 'aikgs_curation_pending',
+    'aikgs_api_keys_active', 'aikgs_shared_keys_pool',
     # Setup
     'setup_metrics', 'generate_latest', 'CONTENT_TYPE_LATEST',
 ]

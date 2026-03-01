@@ -19,6 +19,7 @@ const navKeys = [
   { href: "/wallet", key: "wallet" },
   { href: "/qvm", key: "qvm" },
   { href: "/bridge", key: "bridge" },
+  { href: "/rewards", key: "rewards" },
 ] as const;
 
 /** Static label lookup for nav items not in translation keys */
@@ -32,6 +33,7 @@ const fallbackLabels: Record<string, string> = {
   wallet: "Wallet",
   qvm: "QVM",
   bridge: "Bridge",
+  rewards: "Earn",
 };
 
 export function Navbar() {

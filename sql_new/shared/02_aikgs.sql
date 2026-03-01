@@ -1,0 +1,166 @@
+-- AIKGS (Aether Incentivized Knowledge Growth System) Schema
+-- 10 tables for contribution tracking, rewards, affiliates, bounties, curation
+
+-- Contributions ledger
+CREATE TABLE IF NOT EXISTS aikgs_contributions (
+    id              SERIAL PRIMARY KEY,
+    contribution_id BIGINT NOT NULL UNIQUE,
+    contributor_address VARCHAR(128) NOT NULL,
+    content_hash    VARCHAR(64) NOT NULL,
+    knowledge_node_id BIGINT,
+    quality_score   FLOAT NOT NULL DEFAULT 0.0,
+    novelty_score   FLOAT NOT NULL DEFAULT 0.0,
+    combined_score  FLOAT NOT NULL DEFAULT 0.0,
+    tier            VARCHAR(16) NOT NULL DEFAULT 'bronze',
+    domain          VARCHAR(64) NOT NULL DEFAULT 'general',
+    reward_amount   DECIMAL(20,8) NOT NULL DEFAULT 0,
+    status          VARCHAR(32) NOT NULL DEFAULT 'accepted',
+    block_height    BIGINT NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_aikgs_contributions_contributor ON aikgs_contributions (contributor_address);
+CREATE INDEX IF NOT EXISTS idx_aikgs_contributions_domain ON aikgs_contributions (domain);
+CREATE INDEX IF NOT EXISTS idx_aikgs_contributions_tier ON aikgs_contributions (tier);
+CREATE INDEX IF NOT EXISTS idx_aikgs_contributions_content_hash ON aikgs_contributions (content_hash);
+
+-- Reward distributions
+CREATE TABLE IF NOT EXISTS aikgs_rewards (
+    id              SERIAL PRIMARY KEY,
+    contribution_id BIGINT NOT NULL REFERENCES aikgs_contributions(contribution_id),
+    contributor_address VARCHAR(128) NOT NULL,
+    amount          DECIMAL(20,8) NOT NULL,
+    base_reward     DECIMAL(20,8) NOT NULL,
+    quality_factor  FLOAT NOT NULL,
+    novelty_factor  FLOAT NOT NULL,
+    tier_multiplier FLOAT NOT NULL,
+    streak_multiplier FLOAT NOT NULL,
+    staking_boost   FLOAT NOT NULL DEFAULT 1.0,
+    early_bonus     FLOAT NOT NULL DEFAULT 1.0,
+    block_height    BIGINT NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_aikgs_rewards_contributor ON aikgs_rewards (contributor_address);
+
+-- Affiliate registrations
+CREATE TABLE IF NOT EXISTS aikgs_affiliates (
+    id              SERIAL PRIMARY KEY,
+    address         VARCHAR(128) NOT NULL UNIQUE,
+    referrer_address VARCHAR(128),
+    referral_code   VARCHAR(32) NOT NULL UNIQUE,
+    l1_referrals    INT NOT NULL DEFAULT 0,
+    l2_referrals    INT NOT NULL DEFAULT 0,
+    total_l1_commission DECIMAL(20,8) NOT NULL DEFAULT 0,
+    total_l2_commission DECIMAL(20,8) NOT NULL DEFAULT 0,
+    is_active       BOOLEAN NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_aikgs_affiliates_referrer ON aikgs_affiliates (referrer_address);
+CREATE INDEX IF NOT EXISTS idx_aikgs_affiliates_code ON aikgs_affiliates (referral_code);
+
+-- Commission events
+CREATE TABLE IF NOT EXISTS aikgs_commissions (
+    id              SERIAL PRIMARY KEY,
+    affiliate_address VARCHAR(128) NOT NULL,
+    contributor_address VARCHAR(128) NOT NULL,
+    amount          DECIMAL(20,8) NOT NULL,
+    level           SMALLINT NOT NULL, -- 1 or 2
+    contribution_id BIGINT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_aikgs_commissions_affiliate ON aikgs_commissions (affiliate_address);
+
+-- Contributor profiles (reputation + progressive unlocks)
+CREATE TABLE IF NOT EXISTS aikgs_profiles (
+    id              SERIAL PRIMARY KEY,
+    address         VARCHAR(128) NOT NULL UNIQUE,
+    reputation_points FLOAT NOT NULL DEFAULT 0,
+    level           INT NOT NULL DEFAULT 1,
+    level_name      VARCHAR(32) NOT NULL DEFAULT 'Novice',
+    total_contributions INT NOT NULL DEFAULT 0,
+    best_streak     INT NOT NULL DEFAULT 0,
+    current_streak  INT NOT NULL DEFAULT 0,
+    gold_count      INT NOT NULL DEFAULT 0,
+    diamond_count   INT NOT NULL DEFAULT 0,
+    bounties_fulfilled INT NOT NULL DEFAULT 0,
+    referrals       INT NOT NULL DEFAULT 0,
+    badges          JSONB NOT NULL DEFAULT '[]',
+    unlocked_features JSONB NOT NULL DEFAULT '["basic_chat","contribute"]',
+    last_contribution_at TIMESTAMPTZ,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_aikgs_profiles_level ON aikgs_profiles (level);
+CREATE INDEX IF NOT EXISTS idx_aikgs_profiles_reputation ON aikgs_profiles (reputation_points DESC);
+
+-- Knowledge bounties
+CREATE TABLE IF NOT EXISTS aikgs_bounties (
+    id              SERIAL PRIMARY KEY,
+    bounty_id       BIGINT NOT NULL UNIQUE,
+    domain          VARCHAR(64) NOT NULL,
+    description     TEXT NOT NULL,
+    gap_hash        VARCHAR(64) NOT NULL,
+    reward_amount   DECIMAL(20,8) NOT NULL,
+    boost_multiplier FLOAT NOT NULL DEFAULT 1.0,
+    status          VARCHAR(32) NOT NULL DEFAULT 'open',
+    claimer_address VARCHAR(128),
+    contribution_id BIGINT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_aikgs_bounties_status ON aikgs_bounties (status);
+CREATE INDEX IF NOT EXISTS idx_aikgs_bounties_domain ON aikgs_bounties (domain);
+
+-- Seasonal events
+CREATE TABLE IF NOT EXISTS aikgs_seasons (
+    id              SERIAL PRIMARY KEY,
+    season_id       BIGINT NOT NULL UNIQUE,
+    name            VARCHAR(128) NOT NULL,
+    domain          VARCHAR(64) NOT NULL,
+    boost_multiplier FLOAT NOT NULL,
+    starts_at       TIMESTAMPTZ NOT NULL,
+    ends_at         TIMESTAMPTZ NOT NULL,
+    active          BOOLEAN NOT NULL DEFAULT true
+);
+
+-- Curation rounds
+CREATE TABLE IF NOT EXISTS aikgs_curation_rounds (
+    id              SERIAL PRIMARY KEY,
+    contribution_id BIGINT NOT NULL UNIQUE,
+    required_votes  INT NOT NULL DEFAULT 3,
+    votes_for       INT NOT NULL DEFAULT 0,
+    votes_against   INT NOT NULL DEFAULT 0,
+    status          VARCHAR(32) NOT NULL DEFAULT 'pending',
+    finalized_at    TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Curation reviews
+CREATE TABLE IF NOT EXISTS aikgs_curation_reviews (
+    id              SERIAL PRIMARY KEY,
+    contribution_id BIGINT NOT NULL,
+    curator_address VARCHAR(128) NOT NULL,
+    vote            BOOLEAN NOT NULL,
+    comment         TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(contribution_id, curator_address)
+);
+CREATE INDEX IF NOT EXISTS idx_aikgs_curation_reviews_curator ON aikgs_curation_reviews (curator_address);
+
+-- API Key Vault (encrypted keys stored separately)
+CREATE TABLE IF NOT EXISTS aikgs_api_keys (
+    id              SERIAL PRIMARY KEY,
+    key_id          VARCHAR(32) NOT NULL UNIQUE,
+    provider        VARCHAR(32) NOT NULL,
+    model           VARCHAR(64) NOT NULL DEFAULT '',
+    owner_address   VARCHAR(128) NOT NULL,
+    encrypted_key   BYTEA NOT NULL,
+    is_shared       BOOLEAN NOT NULL DEFAULT false,
+    shared_reward_bps INT NOT NULL DEFAULT 1500,
+    is_active       BOOLEAN NOT NULL DEFAULT true,
+    use_count       INT NOT NULL DEFAULT 0,
+    label           VARCHAR(128) NOT NULL DEFAULT '',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at    TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_aikgs_api_keys_owner ON aikgs_api_keys (owner_address);
+CREATE INDEX IF NOT EXISTS idx_aikgs_api_keys_provider ON aikgs_api_keys (provider);
+CREATE INDEX IF NOT EXISTS idx_aikgs_api_keys_shared ON aikgs_api_keys (is_shared) WHERE is_shared = true;

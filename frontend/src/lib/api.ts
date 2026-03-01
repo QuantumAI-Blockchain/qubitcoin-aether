@@ -326,6 +326,108 @@ export interface ConfidentialTxResult {
   tx_type: string;
 }
 
+/* ---- AIKGS Interfaces ---- */
+
+export interface AIKGSContributorProfile {
+  address: string;
+  reputation_points: number;
+  level: number;
+  level_name: string;
+  total_contributions: number;
+  best_streak: number;
+  current_streak: number;
+  gold_count: number;
+  diamond_count: number;
+  bounties_fulfilled: number;
+  referrals: number;
+  badges: string[];
+  unlocked_features: string[];
+}
+
+export interface AIKGSContribution {
+  contribution_id: number;
+  contributor_address: string;
+  content_hash: string;
+  knowledge_node_id: number | null;
+  quality_score: number;
+  novelty_score: number;
+  combined_score: number;
+  tier: "bronze" | "silver" | "gold" | "diamond";
+  domain: string;
+  reward_amount: number;
+  block_height: number;
+  timestamp: number;
+  status: string;
+}
+
+export interface AIKGSRewardBreakdown {
+  base_reward: number;
+  quality_multiplier: number;
+  novelty_bonus: number;
+  tier_multiplier: number;
+  streak_multiplier: number;
+  staking_boost: number;
+  early_bonus: number;
+  final_reward: number;
+}
+
+export interface AIKGSAffiliateInfo {
+  address: string;
+  referrer_address: string | null;
+  referral_code: string;
+  l1_referrals: number;
+  l2_referrals: number;
+  total_l1_commission: number;
+  total_l2_commission: number;
+}
+
+export interface AIKGSBounty {
+  bounty_id: number;
+  domain: string;
+  description: string;
+  reward_amount: number;
+  boost_multiplier: number;
+  status: string;
+  expires_at: number;
+  created_at: number;
+}
+
+export interface AIKGSLeaderboardEntry {
+  rank: number;
+  address: string;
+  reputation_points: number;
+  level: number;
+  level_name: string;
+  total_contributions: number;
+}
+
+export interface AIKGSPoolStats {
+  pool_balance: number;
+  total_distributed: number;
+  total_contributions: number;
+  unique_contributors: number;
+  tier_breakdown: { bronze: number; silver: number; gold: number; diamond: number };
+}
+
+export interface AIKGSStoredKey {
+  key_id: string;
+  provider: string;
+  model: string;
+  label: string;
+  is_shared: boolean;
+  use_count: number;
+  is_active: boolean;
+}
+
+export interface AIKGSCurationRound {
+  round_id: string;
+  contribution_id: number;
+  status: "pending" | "approved" | "rejected";
+  votes_for: number;
+  votes_against: number;
+  reviews: Array<{ curator: string; approved: boolean; comment: string }>;
+}
+
 /* ---- Typed helpers ---- */
 
 export const api = {
@@ -522,4 +624,109 @@ export const api = {
       "/privacy/range-proof/generate",
       body,
     ),
+
+  // ─── AIKGS ──────────────────────────────────────────────────────────
+  aikgsSubmitContribution: (body: {
+    contributor_address: string;
+    content: string;
+    domain?: string;
+    session_id?: string;
+  }) =>
+    post<{
+      contribution_id: number;
+      quality_score: number;
+      novelty_score: number;
+      combined_score: number;
+      tier: string;
+      reward_amount: number;
+      knowledge_node_id: number | null;
+    }>("/aikgs/contribute", body),
+
+  aikgsGetProfile: (address: string) =>
+    get<AIKGSContributorProfile>(`/aikgs/profile/${address}`),
+
+  aikgsGetContributions: (address: string, limit = 20) =>
+    get<{ contributions: AIKGSContribution[] }>(`/aikgs/contributions/${address}?limit=${limit}`),
+
+  aikgsGetRewardBreakdown: (contributionId: number) =>
+    get<AIKGSRewardBreakdown>(`/aikgs/reward/${contributionId}`),
+
+  aikgsGetPoolStats: () =>
+    get<AIKGSPoolStats>("/aikgs/pool/stats"),
+
+  aikgsGetLeaderboard: (limit = 20) =>
+    get<{ leaderboard: AIKGSLeaderboardEntry[] }>(`/aikgs/leaderboard?limit=${limit}`),
+
+  aikgsGetStreak: (address: string) =>
+    get<{ current_streak: number; best_streak: number; multiplier: number }>(
+      `/aikgs/streak/${address}`,
+    ),
+
+  // Affiliate
+  aikgsRegisterAffiliate: (body: { address: string; referral_code?: string }) =>
+    post<{ referral_code: string; referrer: string | null }>("/aikgs/affiliate/register", body),
+
+  aikgsGetAffiliate: (address: string) =>
+    get<AIKGSAffiliateInfo>(`/aikgs/affiliate/${address}`),
+
+  aikgsGetReferralLink: (address: string) =>
+    get<{ referral_code: string; link: string; telegram_link: string }>(
+      `/aikgs/affiliate/link/${address}`,
+    ),
+
+  // Bounties
+  aikgsGetBounties: (status = "open") =>
+    get<{ bounties: AIKGSBounty[] }>(`/aikgs/bounties?status=${status}`),
+
+  aikgsClaimBounty: (body: { bounty_id: number; contributor_address: string }) =>
+    post<{ status: string }>("/aikgs/bounty/claim", body),
+
+  aikgsFulfillBounty: (body: {
+    bounty_id: number;
+    contributor_address: string;
+    content: string;
+  }) =>
+    post<{ status: string; reward_amount: number }>("/aikgs/bounty/fulfill", body),
+
+  // API Key Vault
+  aikgsStoreKey: (body: {
+    owner_address: string;
+    provider: string;
+    api_key: string;
+    model: string;
+    label?: string;
+    is_shared?: boolean;
+  }) =>
+    post<{ key_id: string; status: string }>("/aikgs/keys/store", body),
+
+  aikgsGetKeys: (address: string) =>
+    get<{ keys: AIKGSStoredKey[] }>(`/aikgs/keys/${address}`),
+
+  aikgsRevokeKey: (body: { owner_address: string; key_id: string }) =>
+    post<{ status: string }>("/aikgs/keys/revoke", body),
+
+  aikgsGetSharedPool: () =>
+    get<{ pool_size: number; providers: Record<string, number> }>("/aikgs/keys/shared-pool"),
+
+  // Curation
+  aikgsGetPendingCuration: () =>
+    get<{ rounds: AIKGSCurationRound[] }>("/aikgs/curation/pending"),
+
+  aikgsSubmitCurationVote: (body: {
+    curator_address: string;
+    round_id: string;
+    approved: boolean;
+    comment?: string;
+  }) =>
+    post<{ status: string }>("/aikgs/curation/vote", body),
+
+  // ─── Telegram ───────────────────────────────────────────────────────
+  telegramLinkWallet: (body: { telegram_user_id: number; qbc_address: string }) =>
+    post<{ status: string }>("/telegram/link-wallet", body),
+
+  telegramGetWallet: (telegramUserId: number) =>
+    get<{ address: string | null }>(`/telegram/wallet/${telegramUserId}`),
+
+  telegramWebhook: (body: Record<string, unknown>) =>
+    post<Record<string, unknown>>("/telegram/webhook", body),
 } as const;

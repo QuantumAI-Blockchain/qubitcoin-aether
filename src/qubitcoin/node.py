@@ -78,6 +78,12 @@ from .utils.metrics import (
     # Subsystem Health
     subsystem_bridge_up, subsystem_stablecoin_up, subsystem_compliance_up,
     subsystem_plugins_up, subsystem_cognitive_up, subsystem_privacy_up,
+    # AIKGS
+    aikgs_total_contributions, aikgs_total_rewards_distributed, aikgs_pool_balance,
+    aikgs_unique_contributors, aikgs_tier_bronze, aikgs_tier_silver,
+    aikgs_tier_gold, aikgs_tier_diamond, aikgs_affiliates_total,
+    aikgs_commissions_total, aikgs_bounties_active, aikgs_curation_pending,
+    aikgs_api_keys_active, aikgs_shared_keys_pool,
 )
 
 getcontext().prec = 28
@@ -228,6 +234,68 @@ class QubitcoinNode:
         except Exception as e:
             logger.error(f"[7/22] Aether Engine failed: {e}", exc_info=True)
             raise
+
+        # Component 7c: AIKGS (Aether Incentivized Knowledge Growth System)
+        self.aikgs_contribution_manager = None
+        self.aikgs_affiliate_manager = None
+        self.aikgs_reward_engine = None
+        self.aikgs_bounty_manager = None
+        self.aikgs_curation_engine = None
+        self.aikgs_progressive_unlocks = None
+        self.aikgs_api_key_vault = None
+        self.aikgs_knowledge_scorer = None
+        self.aikgs_telegram_bot = None
+        if Config.AIKGS_ENABLED:
+            try:
+                from .aether.knowledge_scorer import KnowledgeScorer
+                from .aether.api_key_vault import APIKeyVault
+                from .aether.reward_engine import RewardEngine
+                from .aether.affiliate_manager import AffiliateManager
+                from .aether.contribution_manager import ContributionManager
+                from .aether.bounty_manager import BountyManager
+                from .aether.curation_engine import CurationEngine
+                from .aether.progressive_unlocks import ProgressiveUnlocks
+                from .aether.telegram_bot import TelegramBot
+
+                self.aikgs_knowledge_scorer = KnowledgeScorer(
+                    vector_index=getattr(self.aether, 'vector_index', None)
+                )
+                self.aikgs_api_key_vault = APIKeyVault(
+                    master_secret=Config.API_KEY_VAULT_SECRET
+                )
+                self.aikgs_reward_engine = RewardEngine(
+                    initial_pool=Config.AIKGS_INITIAL_POOL_QBC,
+                    base_reward=Config.AIKGS_BASE_REWARD_QBC,
+                    max_reward=Config.AIKGS_MAX_REWARD_QBC,
+                )
+                self.aikgs_affiliate_manager = AffiliateManager(
+                    l1_rate=Config.AIKGS_L1_COMMISSION_RATE,
+                    l2_rate=Config.AIKGS_L2_COMMISSION_RATE,
+                )
+                self.aikgs_progressive_unlocks = ProgressiveUnlocks()
+                self.aikgs_bounty_manager = BountyManager(
+                    default_reward=Config.AIKGS_DEFAULT_BOUNTY_REWARD,
+                )
+                self.aikgs_curation_engine = CurationEngine(
+                    required_votes=Config.AIKGS_CURATION_REQUIRED_VOTES,
+                    progressive_unlocks=self.aikgs_progressive_unlocks,
+                )
+                self.aikgs_contribution_manager = ContributionManager(
+                    knowledge_graph=self.knowledge_graph,
+                    scorer=self.aikgs_knowledge_scorer,
+                    reward_engine=self.aikgs_reward_engine,
+                    affiliate_manager=self.aikgs_affiliate_manager,
+                    progressive_unlocks=self.aikgs_progressive_unlocks,
+                )
+                self.aikgs_telegram_bot = TelegramBot(
+                    contribution_manager=self.aikgs_contribution_manager,
+                    affiliate_manager=self.aikgs_affiliate_manager,
+                    reward_engine=self.aikgs_reward_engine,
+                    progressive_unlocks=self.aikgs_progressive_unlocks,
+                )
+                logger.info("AIKGS initialized (ContributionManager + RewardEngine + Affiliate + Bounties + Curation + Unlocks + Vault + Telegram)")
+            except Exception as e:
+                logger.warning(f"AIKGS init failed (non-critical): {e}")
 
         # Component 7b: LLM Adapters + Knowledge Seeder (optional)
         self.llm_manager = None
@@ -621,6 +689,16 @@ class QubitcoinNode:
                 neural_reasoner=self.neural_reasoner,
                 exchange_engine=self.exchange_engine,
                 higgs_field=self.higgs_field,
+                # AIKGS
+                aikgs_contribution_manager=self.aikgs_contribution_manager,
+                aikgs_affiliate_manager=self.aikgs_affiliate_manager,
+                aikgs_reward_engine=self.aikgs_reward_engine,
+                aikgs_bounty_manager=self.aikgs_bounty_manager,
+                aikgs_curation_engine=self.aikgs_curation_engine,
+                aikgs_progressive_unlocks=self.aikgs_progressive_unlocks,
+                aikgs_api_key_vault=self.aikgs_api_key_vault,
+                aikgs_knowledge_scorer=self.aikgs_knowledge_scorer,
+                aikgs_telegram_bot=self.aikgs_telegram_bot,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
@@ -1135,6 +1213,43 @@ class QubitcoinNode:
 
             # Privacy — static classes, always up
             subsystem_privacy_up.set(1)
+
+            # ============================================================
+            # AIKGS METRICS
+            # ============================================================
+            if self.aikgs_contribution_manager:
+                try:
+                    cm = self.aikgs_contribution_manager
+                    aikgs_total_contributions.set(cm.total_contributions)
+                    aikgs_unique_contributors.set(len(cm.contributor_history))
+                    if self.aikgs_reward_engine:
+                        re = self.aikgs_reward_engine
+                        aikgs_total_rewards_distributed.set(re.total_distributed)
+                        aikgs_pool_balance.set(re.pool_balance)
+                    if self.aikgs_affiliate_manager:
+                        am = self.aikgs_affiliate_manager
+                        aikgs_affiliates_total.set(len(am.affiliates))
+                        total_comm = sum(
+                            a.total_l1_commission + a.total_l2_commission
+                            for a in am.affiliates.values()
+                        )
+                        aikgs_commissions_total.set(total_comm)
+                    if self.aikgs_bounty_manager:
+                        open_b = len([b for b in self.aikgs_bounty_manager.bounties.values()
+                                      if b.status == 'open'])
+                        aikgs_bounties_active.set(open_b)
+                    if self.aikgs_curation_engine:
+                        pending_c = len([r for r in self.aikgs_curation_engine.rounds.values()
+                                         if r.status == 'pending'])
+                        aikgs_curation_pending.set(pending_c)
+                    if self.aikgs_api_key_vault:
+                        vault = self.aikgs_api_key_vault
+                        active_keys = len([k for k in vault.keys.values() if k.is_active])
+                        shared_keys = len([k for k in vault.keys.values() if k.is_shared and k.is_active])
+                        aikgs_api_keys_active.set(active_keys)
+                        aikgs_shared_keys_pool.set(shared_keys)
+                except Exception as e:
+                    logger.debug(f"Metrics update error (AIKGS): {e}")
 
         except Exception as e:
             logger.error(f"Error in _update_all_metrics: {e}", exc_info=True)

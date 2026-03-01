@@ -207,3 +207,110 @@ code, pre, kbd {
 .light .glow-emerald {
   text-shadow: none;
 }
+
+/* ============================================================
+   AIKGS ANIMATIONS
+   ============================================================ */
+
+/* Reward glow pulse */
+@keyframes reward-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(245, 200, 66, 0.2); }
+  50% { box-shadow: 0 0 24px rgba(245, 200, 66, 0.5), 0 0 60px rgba(245, 200, 66, 0.15); }
+}
+
+.reward-glow {
+  animation: reward-glow 2s ease-in-out infinite;
+}
+
+/* Contribution success flash */
+@keyframes contribution-flash {
+  0% { opacity: 0; transform: translateY(10px) scale(0.95); }
+  20% { opacity: 1; transform: translateY(0) scale(1.02); }
+  40% { transform: scale(1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.contribution-flash {
+  animation: contribution-flash 0.6s ease-out;
+}
+
+/* Tier badge animations */
+.tier-bronze { color: #cd7f32; text-shadow: 0 0 6px rgba(205, 127, 50, 0.3); }
+.tier-silver { color: #c0c0c0; text-shadow: 0 0 6px rgba(192, 192, 192, 0.4); }
+.tier-gold { color: #ffd700; text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+.tier-diamond { color: #b9f2ff; text-shadow: 0 0 14px rgba(185, 242, 255, 0.6), 0 0 30px rgba(185, 242, 255, 0.2); }
+
+@keyframes tier-diamond-sparkle {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
+}
+
+.tier-diamond {
+  animation: tier-diamond-sparkle 2s ease-in-out infinite;
+}
+
+/* Streak fire glow */
+@keyframes streak-fire {
+  0%, 100% { text-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+  25% { text-shadow: 0 0 12px rgba(239, 68, 68, 0.5), 0 0 24px rgba(245, 158, 11, 0.3); }
+  50% { text-shadow: 0 0 18px rgba(239, 68, 68, 0.6), 0 0 36px rgba(245, 158, 11, 0.4); }
+  75% { text-shadow: 0 0 12px rgba(245, 158, 11, 0.5), 0 0 24px rgba(239, 68, 68, 0.3); }
+}
+
+.streak-fire {
+  animation: streak-fire 1.5s ease-in-out infinite;
+}
+
+/* Level up animation */
+@keyframes level-up {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.15); }
+  60% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+.level-up {
+  animation: level-up 0.5s ease-out;
+}
+
+/* Referral link shimmer */
+@keyframes referral-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.referral-shimmer {
+  background: linear-gradient(90deg, var(--color-glow-cyan), var(--color-quantum-violet), var(--color-glow-cyan));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: referral-shimmer 3s linear infinite;
+}
+
+/* ============================================================
+   TELEGRAM MINI APP OVERRIDES
+   Applied when running inside Telegram TWA context.
+   ============================================================ */
+
+.twa-safe-area {
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+.twa-bottom-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0) + 16px);
+}
+
+/* Haptic feedback visual indicator */
+@keyframes haptic-tap {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+
+.haptic-tap:active {
+  animation: haptic-tap 0.15s ease-out;
+}

@@ -595,6 +595,359 @@ class KnowledgeDistiller:
         }
 
 
+class GrokAdapter(LLMAdapter):
+    """Adapter for xAI Grok models via OpenAI-compatible API."""
+
+    def __init__(self, api_key: str = '', model: str = 'grok-2',
+                 base_url: str = 'https://api.x.ai/v1',
+                 max_tokens: int = 1024, temperature: float = 0.7) -> None:
+        super().__init__(model, api_key, base_url, max_tokens, temperature)
+
+    @property
+    def adapter_type(self) -> str:
+        return 'grok'
+
+    def is_available(self) -> bool:
+        return bool(self.api_key)
+
+    def generate(self, prompt: str,
+                 context: Optional[List[dict]] = None,
+                 system_prompt: Optional[str] = None) -> LLMResponse:
+        """Generate via xAI Grok API (OpenAI-compatible)."""
+        if not self.is_available():
+            return LLMResponse(
+                content="Grok adapter not configured (no API key).",
+                model=self.model, adapter_type=self.adapter_type,
+            )
+
+        messages = []
+        if system_prompt:
+            messages.append({'role': 'system', 'content': system_prompt})
+        if context:
+            messages.extend(context)
+        messages.append({'role': 'user', 'content': prompt})
+
+        start = time.time()
+        try:
+            import urllib.request
+            payload = json.dumps({
+                'model': self.model,
+                'messages': messages,
+                'max_tokens': self.max_tokens,
+                'temperature': self.temperature,
+            }).encode()
+
+            req = urllib.request.Request(
+                f"{self.base_url}/chat/completions",
+                data=payload,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {self.api_key}',
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode())
+
+            content = data['choices'][0]['message']['content']
+            tokens = data.get('usage', {}).get('total_tokens', 0)
+            latency = (time.time() - start) * 1000
+
+            self._request_count += 1
+            self._total_tokens += tokens
+
+            return LLMResponse(
+                content=content, model=self.model,
+                adapter_type=self.adapter_type,
+                tokens_used=tokens, latency_ms=latency,
+            )
+        except Exception as e:
+            logger.warning(f"Grok request failed: {e}")
+            return LLMResponse(
+                content=f"Grok request failed: {e}",
+                model=self.model, adapter_type=self.adapter_type,
+                latency_ms=(time.time() - start) * 1000,
+                metadata={'error': str(e)},
+            )
+
+
+class GeminiAdapter(LLMAdapter):
+    """Adapter for Google Gemini models."""
+
+    def __init__(self, api_key: str = '', model: str = 'gemini-2.0-flash',
+                 base_url: str = 'https://generativelanguage.googleapis.com/v1beta',
+                 max_tokens: int = 1024, temperature: float = 0.7) -> None:
+        super().__init__(model, api_key, base_url, max_tokens, temperature)
+
+    @property
+    def adapter_type(self) -> str:
+        return 'gemini'
+
+    def is_available(self) -> bool:
+        return bool(self.api_key)
+
+    def generate(self, prompt: str,
+                 context: Optional[List[dict]] = None,
+                 system_prompt: Optional[str] = None) -> LLMResponse:
+        """Generate via Google Gemini generateContent API."""
+        if not self.is_available():
+            return LLMResponse(
+                content="Gemini adapter not configured (no API key).",
+                model=self.model, adapter_type=self.adapter_type,
+            )
+
+        # Build Gemini-format messages
+        contents = []
+        if context:
+            for msg in context:
+                role = 'model' if msg.get('role') == 'assistant' else 'user'
+                contents.append({'role': role, 'parts': [{'text': msg.get('content', '')}]})
+        contents.append({'role': 'user', 'parts': [{'text': prompt}]})
+
+        start = time.time()
+        try:
+            import urllib.request
+            body: dict = {
+                'contents': contents,
+                'generationConfig': {
+                    'maxOutputTokens': self.max_tokens,
+                    'temperature': self.temperature,
+                },
+            }
+            if system_prompt:
+                body['systemInstruction'] = {'parts': [{'text': system_prompt}]}
+
+            payload = json.dumps(body).encode()
+
+            req = urllib.request.Request(
+                f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}",
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode())
+
+            content = data['candidates'][0]['content']['parts'][0]['text']
+            tokens = data.get('usageMetadata', {}).get('totalTokenCount', 0)
+            latency = (time.time() - start) * 1000
+
+            self._request_count += 1
+            self._total_tokens += tokens
+
+            return LLMResponse(
+                content=content, model=self.model,
+                adapter_type=self.adapter_type,
+                tokens_used=tokens, latency_ms=latency,
+            )
+        except Exception as e:
+            logger.warning(f"Gemini request failed: {e}")
+            return LLMResponse(
+                content=f"Gemini request failed: {e}",
+                model=self.model, adapter_type=self.adapter_type,
+                latency_ms=(time.time() - start) * 1000,
+                metadata={'error': str(e)},
+            )
+
+
+class MistralAdapter(LLMAdapter):
+    """Adapter for Mistral AI models."""
+
+    def __init__(self, api_key: str = '', model: str = 'mistral-large-latest',
+                 base_url: str = 'https://api.mistral.ai/v1',
+                 max_tokens: int = 1024, temperature: float = 0.7) -> None:
+        super().__init__(model, api_key, base_url, max_tokens, temperature)
+
+    @property
+    def adapter_type(self) -> str:
+        return 'mistral'
+
+    def is_available(self) -> bool:
+        return bool(self.api_key)
+
+    def generate(self, prompt: str,
+                 context: Optional[List[dict]] = None,
+                 system_prompt: Optional[str] = None) -> LLMResponse:
+        """Generate via Mistral Chat Completions API."""
+        if not self.is_available():
+            return LLMResponse(
+                content="Mistral adapter not configured (no API key).",
+                model=self.model, adapter_type=self.adapter_type,
+            )
+
+        messages = []
+        if system_prompt:
+            messages.append({'role': 'system', 'content': system_prompt})
+        if context:
+            messages.extend(context)
+        messages.append({'role': 'user', 'content': prompt})
+
+        start = time.time()
+        try:
+            import urllib.request
+            payload = json.dumps({
+                'model': self.model,
+                'messages': messages,
+                'max_tokens': self.max_tokens,
+                'temperature': self.temperature,
+            }).encode()
+
+            req = urllib.request.Request(
+                f"{self.base_url}/chat/completions",
+                data=payload,
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {self.api_key}',
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode())
+
+            content = data['choices'][0]['message']['content']
+            tokens = data.get('usage', {}).get('total_tokens', 0)
+            latency = (time.time() - start) * 1000
+
+            self._request_count += 1
+            self._total_tokens += tokens
+
+            return LLMResponse(
+                content=content, model=self.model,
+                adapter_type=self.adapter_type,
+                tokens_used=tokens, latency_ms=latency,
+            )
+        except Exception as e:
+            logger.warning(f"Mistral request failed: {e}")
+            return LLMResponse(
+                content=f"Mistral request failed: {e}",
+                model=self.model, adapter_type=self.adapter_type,
+                latency_ms=(time.time() - start) * 1000,
+                metadata={'error': str(e)},
+            )
+
+
+class CustomOpenAICompatibleAdapter(LLMAdapter):
+    """Adapter for any OpenAI-compatible API (Together, Fireworks, Perplexity, etc.)."""
+
+    def __init__(self, adapter_name: str = 'custom',
+                 api_key: str = '', model: str = '',
+                 base_url: str = '',
+                 max_tokens: int = 1024, temperature: float = 0.7) -> None:
+        super().__init__(model, api_key, base_url, max_tokens, temperature)
+        self._adapter_name = adapter_name
+
+    @property
+    def adapter_type(self) -> str:
+        return self._adapter_name
+
+    def is_available(self) -> bool:
+        return bool(self.api_key and self.base_url and self.model)
+
+    def generate(self, prompt: str,
+                 context: Optional[List[dict]] = None,
+                 system_prompt: Optional[str] = None) -> LLMResponse:
+        """Generate via OpenAI-compatible API."""
+        if not self.is_available():
+            return LLMResponse(
+                content=f"{self._adapter_name} adapter not configured.",
+                model=self.model, adapter_type=self.adapter_type,
+            )
+
+        messages = []
+        if system_prompt:
+            messages.append({'role': 'system', 'content': system_prompt})
+        if context:
+            messages.extend(context)
+        messages.append({'role': 'user', 'content': prompt})
+
+        start = time.time()
+        try:
+            import urllib.request
+            payload = json.dumps({
+                'model': self.model,
+                'messages': messages,
+                'max_tokens': self.max_tokens,
+                'temperature': self.temperature,
+            }).encode()
+
+            headers = {'Content-Type': 'application/json'}
+            if self.api_key:
+                headers['Authorization'] = f'Bearer {self.api_key}'
+
+            req = urllib.request.Request(
+                f"{self.base_url}/chat/completions",
+                data=payload,
+                headers=headers,
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode())
+
+            content = data['choices'][0]['message']['content']
+            tokens = data.get('usage', {}).get('total_tokens', 0)
+            latency = (time.time() - start) * 1000
+
+            self._request_count += 1
+            self._total_tokens += tokens
+
+            return LLMResponse(
+                content=content, model=self.model,
+                adapter_type=self.adapter_type,
+                tokens_used=tokens, latency_ms=latency,
+            )
+        except Exception as e:
+            logger.warning(f"{self._adapter_name} request failed: {e}")
+            return LLMResponse(
+                content=f"{self._adapter_name} request failed: {e}",
+                model=self.model, adapter_type=self.adapter_type,
+                latency_ms=(time.time() - start) * 1000,
+                metadata={'error': str(e)},
+            )
+
+
+# ─── Adapter Registry ────────────────────────────────────────────────────
+# Maps adapter type names to their classes for runtime instantiation.
+ADAPTER_REGISTRY: Dict[str, type] = {
+    'openai': OpenAIAdapter,
+    'claude': ClaudeAdapter,
+    'grok': GrokAdapter,
+    'gemini': GeminiAdapter,
+    'mistral': MistralAdapter,
+    'local': LocalAdapter,
+}
+
+
+def create_adapter(adapter_type: str, **kwargs) -> Optional[LLMAdapter]:
+    """Factory function to create an adapter by type name.
+
+    Args:
+        adapter_type: Registered adapter type (openai, claude, grok, etc.)
+        **kwargs: Constructor keyword arguments (api_key, model, etc.)
+
+    Returns:
+        LLMAdapter instance or None if type is not registered.
+    """
+    cls = ADAPTER_REGISTRY.get(adapter_type)
+    if cls:
+        return cls(**kwargs)
+
+    # Fallback: create a CustomOpenAICompatibleAdapter
+    if kwargs.get('base_url') and kwargs.get('model'):
+        return CustomOpenAICompatibleAdapter(adapter_name=adapter_type, **kwargs)
+
+    logger.warning(f"Unknown adapter type '{adapter_type}' and insufficient config for custom adapter")
+    return None
+
+
+def register_adapter_type(name: str, cls: type) -> None:
+    """Register a new adapter class at runtime.
+
+    Args:
+        name: The adapter type name.
+        cls: The adapter class (must inherit from LLMAdapter).
+    """
+    if not issubclass(cls, LLMAdapter):
+        raise TypeError(f"{cls.__name__} must inherit from LLMAdapter")
+    ADAPTER_REGISTRY[name] = cls
+    logger.info(f"Registered adapter type: {name} -> {cls.__name__}")
+
+
 class LLMAdapterManager:
     """Manages multiple LLM adapters with fallback chain.
 

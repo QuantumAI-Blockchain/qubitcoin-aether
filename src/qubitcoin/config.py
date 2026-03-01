@@ -411,6 +411,53 @@ class Config:
     KEY_ROTATION_GRACE_PERIOD_DAYS: int = int(os.getenv('KEY_ROTATION_GRACE_PERIOD_DAYS', '7'))
 
     # ============================================================================
+    # AIKGS (Aether Incentivized Knowledge Growth System)
+    # ============================================================================
+    AIKGS_ENABLED: bool = os.getenv('AIKGS_ENABLED', 'true').lower() == 'true'
+    AIKGS_BASE_REWARD_QBC: float = float(os.getenv('AIKGS_BASE_REWARD_QBC', '10.0'))
+    AIKGS_MAX_REWARD_QBC: float = float(os.getenv('AIKGS_MAX_REWARD_QBC', '500.0'))
+    AIKGS_INITIAL_POOL_QBC: float = float(os.getenv('AIKGS_INITIAL_POOL_QBC', '1000000.0'))
+    AIKGS_EARLY_THRESHOLD: int = int(os.getenv('AIKGS_EARLY_THRESHOLD', '10000'))
+    AIKGS_EARLY_MAX_BONUS: float = float(os.getenv('AIKGS_EARLY_MAX_BONUS', '5.0'))
+    AIKGS_QUALITY_WEIGHT: float = float(os.getenv('AIKGS_QUALITY_WEIGHT', '0.6'))
+    AIKGS_NOVELTY_WEIGHT: float = float(os.getenv('AIKGS_NOVELTY_WEIGHT', '0.4'))
+    AIKGS_L1_COMMISSION_RATE: float = float(os.getenv('AIKGS_L1_COMMISSION_RATE', '0.10'))
+    AIKGS_L2_COMMISSION_RATE: float = float(os.getenv('AIKGS_L2_COMMISSION_RATE', '0.05'))
+    AIKGS_MAX_DAILY_SUBMISSIONS: int = int(os.getenv('AIKGS_MAX_DAILY_SUBMISSIONS', '50'))
+    AIKGS_AETHER_FEE_PERCENT: float = float(os.getenv('AIKGS_AETHER_FEE_PERCENT', '0.10'))
+    AIKGS_EXCHANGE_FEE_PERCENT: float = float(os.getenv('AIKGS_EXCHANGE_FEE_PERCENT', '0.05'))
+    AIKGS_DEFAULT_BOUNTY_REWARD: float = float(os.getenv('AIKGS_DEFAULT_BOUNTY_REWARD', '50.0'))
+    AIKGS_DEFAULT_BOUNTY_DURATION_DAYS: int = int(os.getenv('AIKGS_DEFAULT_BOUNTY_DURATION_DAYS', '7'))
+    AIKGS_CURATION_REQUIRED_VOTES: int = int(os.getenv('AIKGS_CURATION_REQUIRED_VOTES', '3'))
+
+    # AIKGS Contract Addresses (set after deployment)
+    KNOWLEDGE_REWARD_POOL_ADDRESS: str = os.getenv('KNOWLEDGE_REWARD_POOL_ADDRESS', '')
+    AFFILIATE_REGISTRY_ADDRESS: str = os.getenv('AFFILIATE_REGISTRY_ADDRESS', '')
+    CONTRIBUTION_LEDGER_ADDRESS: str = os.getenv('CONTRIBUTION_LEDGER_ADDRESS', '')
+    KNOWLEDGE_BOUNTY_ADDRESS: str = os.getenv('KNOWLEDGE_BOUNTY_ADDRESS', '')
+    CONTRIBUTION_NFT_ADDRESS: str = os.getenv('CONTRIBUTION_NFT_ADDRESS', '')
+
+    # API Key Vault
+    API_KEY_VAULT_SECRET: str = os.getenv('API_KEY_VAULT_SECRET', '')
+
+    # Additional LLM Adapters
+    GROK_API_KEY: str = os.getenv('GROK_API_KEY', '')
+    GROK_MODEL: str = os.getenv('GROK_MODEL', 'grok-2')
+    GEMINI_API_KEY: str = os.getenv('GEMINI_API_KEY', '')
+    GEMINI_MODEL: str = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+    MISTRAL_API_KEY: str = os.getenv('MISTRAL_API_KEY', '')
+    MISTRAL_MODEL: str = os.getenv('MISTRAL_MODEL', 'mistral-large-latest')
+
+    # ============================================================================
+    # TELEGRAM BOT
+    # ============================================================================
+    TELEGRAM_BOT_TOKEN: str = os.getenv('TELEGRAM_BOT_TOKEN', '')
+    TELEGRAM_BOT_USERNAME: str = os.getenv('TELEGRAM_BOT_USERNAME', '')
+    TELEGRAM_WEBHOOK_SECRET: str = os.getenv('TELEGRAM_WEBHOOK_SECRET', '')
+    TELEGRAM_MINI_APP_URL: str = os.getenv('TELEGRAM_MINI_APP_URL', '')
+    TELEGRAM_WEBHOOK_URL: str = os.getenv('TELEGRAM_WEBHOOK_URL', '')
+
+    # ============================================================================
     # LOGGING & MONITORING
     # ============================================================================
     DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'
