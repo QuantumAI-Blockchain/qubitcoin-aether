@@ -62,8 +62,10 @@ contract QUSDGovernance is Initializable {
     // ─── Delegation State ───────────────────────────────────────────────
     /// @notice Who each address has delegated their voting power to (zero = no delegation)
     mapping(address => address) public delegates;
-    /// @notice Total votes delegated TO each address (sum of delegators' balances)
+    /// @notice Total votes delegated TO each address (sum of delegators' stored balances)
     mapping(address => uint256) public delegatedVotes;
+    /// @notice Stored balance at delegation time per delegator — prevents live-balance manipulation
+    mapping(address => uint256) public delegatedAmount;
 
     // ─── Events ──────────────────────────────────────────────────────────
     event ProposalCreated(uint256 indexed id, address indexed proposer, string description);
@@ -141,7 +143,12 @@ contract QUSDGovernance is Initializable {
         require(delegates[msg.sender] == address(0), "Governance: must undelegate before voting");
 
         // Lazily snapshot balance on first interaction — uses balance at vote time
-        // but locks it so subsequent transfers don't allow double-voting
+        // but locks it so subsequent transfers don't allow double-voting.
+        // NOTE: A full checkpoint-based balance system (like ERC20Votes / ERC20Snapshot)
+        // would be the gold standard, allowing historical balance queries at any block.
+        // This lazy snapshot approach is a pragmatic middle ground: it prevents
+        // vote-transfer-vote attacks but does not capture balances at proposal creation
+        // for voters who interact after the proposal is created.
         if (!hasSnapshot[proposalId][msg.sender]) {
             balanceSnapshots[proposalId][msg.sender] = qbcToken.balanceOf(msg.sender);
             hasSnapshot[proposalId][msg.sender] = true;
@@ -169,7 +176,8 @@ contract QUSDGovernance is Initializable {
 
     /// @notice Delegate voting power to another address.
     /// @dev Prevents self-delegation and delegation chains.
-    ///      Delegator's current balance is added to the delegate's delegatedVotes.
+    ///      Delegator's balance at delegation time is stored and used for vote weight,
+    ///      preventing manipulation via live balance changes after delegation.
     /// @param to The address to delegate voting power to
     function delegate(address to) external {
         require(to != msg.sender, "Governance: cannot self-delegate");
@@ -177,33 +185,41 @@ contract QUSDGovernance is Initializable {
         require(delegates[to] == address(0), "Governance: delegate has delegated (no chains)");
 
         address previousDelegate = delegates[msg.sender];
-        uint256 delegatorBalance = qbcToken.balanceOf(msg.sender);
 
-        // Remove votes from previous delegate if re-delegating
+        // Remove stored delegation amount from previous delegate if re-delegating
         if (previousDelegate != address(0)) {
-            delegatedVotes[previousDelegate] -= delegatorBalance;
+            delegatedVotes[previousDelegate] -= delegatedAmount[msg.sender];
         }
 
+        // Store balance at delegation time — this is the amount used for voting power.
+        // Using stored amount prevents delegators from inflating/deflating vote weight
+        // by transferring tokens after delegation.
+        uint256 storedBalance = qbcToken.balanceOf(msg.sender);
+        delegatedAmount[msg.sender] = storedBalance;
         delegates[msg.sender] = to;
-        delegatedVotes[to] += delegatorBalance;
+        delegatedVotes[to] += storedBalance;
 
         emit DelegateChanged(msg.sender, previousDelegate, to);
     }
 
-    /// @notice Remove delegation and reclaim voting power
+    /// @notice Remove delegation and reclaim voting power.
+    ///         Uses the stored delegation amount (not current live balance) to ensure
+    ///         correct accounting even if delegator's balance changed since delegation.
     function undelegate() external {
         address currentDelegate = delegates[msg.sender];
         require(currentDelegate != address(0), "Governance: not delegated");
 
-        uint256 delegatorBalance = qbcToken.balanceOf(msg.sender);
-        delegatedVotes[currentDelegate] -= delegatorBalance;
+        // Use stored amount — not live balance — to correctly subtract delegated votes
+        uint256 amount = delegatedAmount[msg.sender];
+        delegatedVotes[currentDelegate] -= amount;
+        delegatedAmount[msg.sender] = 0;
         delegates[msg.sender] = address(0);
 
         emit DelegateChanged(msg.sender, currentDelegate, address(0));
     }
 
     /// @notice Get total voting power for an account (own balance + delegated votes).
-    ///         Delegated votes are computed from delegators' LIVE balances, not snapshots.
+    ///         Delegated votes are computed from delegators' stored balances at delegation time.
     /// @param ownBalance The account's own QBC balance
     /// @return Total voting power
     function getVotingPower(uint256 ownBalance) public view returns (uint256) {

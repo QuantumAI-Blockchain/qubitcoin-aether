@@ -495,9 +495,11 @@ func TestHandler_ExecuteQReason(t *testing.T) {
 		t.Fatalf("stack size = %d, want 1", len(stack.data))
 	}
 
-	// Verify gas was consumed (base 50000 + memory expansion)
-	if gas.used < 50000 {
-		t.Errorf("gas used = %d, want >= 50000", gas.used)
+	// Verify gas was consumed (base 50000 + per-byte cost + memory expansion)
+	// Per-byte cost: len("test reasoning") = 14 bytes * 3 = 42 gas
+	expectedMinGas := uint64(50000 + 14*3)
+	if gas.used < expectedMinGas {
+		t.Errorf("gas used = %d, want >= %d", gas.used, expectedMinGas)
 	}
 }
 

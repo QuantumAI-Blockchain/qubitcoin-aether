@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
 import "../interfaces/IQUSD.sol";
+import "../interfaces/IQBC20.sol";
 
 /// @notice Minimal oracle interface for reading QUSD price
 interface IStabilizerOracle {
@@ -26,6 +27,8 @@ contract QUSDStabilizer is Initializable {
     address public governance;
     address public oracleAddress;
     address public qusdToken;
+    IQBC20  public qbcToken;       // QBC ERC-20 token for actual transfers
+    IQBC20  public qusdTokenERC20; // QUSD as ERC-20 for transferFrom in deposits
 
     /// @notice Maximum trade size per stabilization operation
     uint256 public maxTradeSize = 1_000_000e18;
@@ -68,11 +71,18 @@ contract QUSDStabilizer is Initializable {
     }
 
     // ─── Initializer ────────────────────────────────────────────────────
-    function initialize(address _governance, address _oracle, address _qusdToken) external initializer {
+    function initialize(
+        address _governance,
+        address _oracle,
+        address _qusdToken,
+        address _qbcToken
+    ) external initializer {
         owner         = msg.sender;
         governance    = _governance;
         oracleAddress = _oracle;
         qusdToken     = _qusdToken;
+        qbcToken      = IQBC20(_qbcToken);
+        qusdTokenERC20 = IQBC20(_qusdToken);  // QUSD implements ERC-20 (IQBC20-compatible)
         pegTarget    = 1_00000000;  // $1.00
         floorPrice   = 99000000;    // $0.99
         ceilingPrice = 101000000;   // $1.01
@@ -166,16 +176,18 @@ contract QUSDStabilizer is Initializable {
     }
 
     // ─── Fund Management ─────────────────────────────────────────────────
-    /// @notice Deposit QBC into stability fund
+    /// @notice Deposit QBC into stability fund. Caller must approve this contract first.
     function depositQBC(uint256 amount) external onlyGovernance {
         require(amount > 0, "Stabilizer: zero deposit");
+        require(qbcToken.transferFrom(msg.sender, address(this), amount), "Stabilizer: QBC transfer failed");
         stabilityFundBalance += amount;
         emit FundDeposit(msg.sender, amount, true);
     }
 
-    /// @notice Deposit QUSD for ceiling defense
+    /// @notice Deposit QUSD for ceiling defense. Caller must approve this contract first.
     function depositQUSD(uint256 amount) external onlyGovernance {
         require(amount > 0, "Stabilizer: zero deposit");
+        require(qusdTokenERC20.transferFrom(msg.sender, address(this), amount), "Stabilizer: QUSD transfer failed");
         qusdHeld += amount;
         emit FundDeposit(msg.sender, amount, false);
     }

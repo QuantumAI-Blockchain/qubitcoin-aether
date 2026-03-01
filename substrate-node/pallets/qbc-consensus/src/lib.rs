@@ -23,6 +23,10 @@ pub mod pallet {
     /// Maximum VQE parameters per proof.
     pub const MAX_VQE_PARAMS: u32 = 32;
 
+    /// Number of blocks of SUSY solutions to retain. Older entries are pruned
+    /// to prevent unbounded storage growth.
+    pub const SUSY_RETENTION_WINDOW: u64 = 100_000;
+
     #[pallet::pallet]
     pub struct Pallet<T>(_);
 
@@ -164,8 +168,11 @@ pub mod pallet {
         // Analytical weight: VQE proof validation (100µs) + Hamiltonian verification (200µs)
         // + difficulty read (25µs) + coinbase UTXO write (25µs) + SUSY solution write (25µs)
         // + difficulty adjustment (50µs) + proof hash check (25µs) + rate limit check (25µs)
-        // + 7 storage writes (175µs) = ~650µs ≈ 650_000
-        #[pallet::weight(650_000)]
+        // + fee accumulation read+reset (50µs) + SUSY pruning (25µs)
+        // + 9 storage writes (225µs) = ~750µs ≈ 750_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
+        #[pallet::weight(750_000)]
         pub fn submit_mining_proof(
             origin: OriginFor<T>,
             miner_address: Address,
@@ -226,18 +233,23 @@ pub mod pallet {
             // that could skew difficulty adjustment.
             let chain_timestamp_ms = pallet_timestamp::Pallet::<T>::now();
 
-            // Calculate reward
+            // Calculate reward and include accumulated transaction fees
             let reward = pallet_qbc_economics::Pallet::<T>::calculate_reward(block_height);
             pallet_qbc_economics::Pallet::<T>::on_block_authored(block_height);
+            let fees = pallet_qbc_utxo::Pallet::<T>::accumulated_fees();
+            let total_reward = reward.saturating_add(fees);
 
-            // Create coinbase UTXO
+            // Create coinbase UTXO (block reward + fees)
             let coinbase_txid = Self::coinbase_txid(block_height);
             pallet_qbc_utxo::Pallet::<T>::create_coinbase(
                 coinbase_txid,
                 miner_address.clone(),
-                reward,
+                total_reward,
                 block_height,
             );
+
+            // Reset accumulated fees after including them in the coinbase
+            pallet_qbc_utxo::Pallet::<T>::reset_accumulated_fees();
 
             // Update block height
             pallet_qbc_utxo::Pallet::<T>::set_block_height(block_height);
@@ -245,8 +257,11 @@ pub mod pallet {
             // Adjust difficulty using the chain timestamp (tamper-proof)
             Self::adjust_difficulty(chain_timestamp_ms, block_height);
 
-            // Store SUSY solution
+            // Store SUSY solution and prune old entries beyond retention window
             SusySolutions::<T>::insert(block_height, &vqe_proof);
+            if block_height > SUSY_RETENTION_WINDOW {
+                SusySolutions::<T>::remove(block_height.saturating_sub(SUSY_RETENTION_WINDOW));
+            }
 
             // Update proof hash for replay prevention
             LastProofHash::<T>::put(proof_hash);
@@ -263,7 +278,7 @@ pub mod pallet {
                 miner: miner_address,
                 energy: vqe_proof.energy,
                 difficulty,
-                reward,
+                reward: total_reward,
             });
 
             Self::deposit_event(Event::SusySolutionStored {

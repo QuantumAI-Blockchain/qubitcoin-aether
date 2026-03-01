@@ -990,7 +990,10 @@ func TestEVM_SELFDESTRUCT_TransfersBalance(t *testing.T) {
 func TestEVM_MemoryMaxSize(t *testing.T) {
 	m := evm.NewMemory()
 	// Reasonable resize should succeed
-	cost := m.Resize(1024)
+	cost, err := m.Resize(1024)
+	if err != nil {
+		t.Fatalf("Resize to 1024 failed: %v", err)
+	}
 	if cost == 0 && m.Len() < 1024 {
 		t.Error("Resize to 1024 should have expanded memory")
 	}
@@ -998,6 +1001,13 @@ func TestEVM_MemoryMaxSize(t *testing.T) {
 	// Verify the max constant exists and is 32MB
 	if evm.MaxMemorySize != 32*1024*1024 {
 		t.Errorf("MaxMemorySize = %d, want %d", evm.MaxMemorySize, 32*1024*1024)
+	}
+
+	// Verify that exceeding max returns error instead of panicking
+	m2 := evm.NewMemory()
+	_, err = m2.Resize(evm.MaxMemorySize + 1)
+	if err == nil {
+		t.Error("Resize beyond MaxMemorySize should return an error")
 	}
 }
 

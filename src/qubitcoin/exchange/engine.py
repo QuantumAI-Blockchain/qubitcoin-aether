@@ -12,6 +12,8 @@ Architecture:
   - Limit orders rest in the book if they cannot be fully matched.
 """
 
+import json
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -746,10 +748,71 @@ class DatabasePersistence(OrderPersistence):
             session.commit()
 
     def load_orders(self, pair: str) -> List['Order']:
-        return []  # Orders are loaded from DB on demand; fresh start
+        """Load all open/partial orders for a pair from the database."""
+        from sqlalchemy import text
+        try:
+            with self._db.get_session() as session:
+                rows = session.execute(
+                    text("""
+                        SELECT order_id, pair, side, order_type, price, size, filled, status, owner, EXTRACT(EPOCH FROM created_at) as ts
+                        FROM exchange_orders
+                        WHERE pair = :pair AND status IN ('open', 'partial')
+                        ORDER BY created_at ASC
+                    """),
+                    {'pair': pair},
+                ).fetchall()
+                orders: List['Order'] = []
+                for row in rows:
+                    orders.append(Order(
+                        id=row[0],
+                        pair=row[1],
+                        side=Side(row[2]),
+                        order_type=OrderType(row[3]),
+                        price=Decimal(str(row[4])),
+                        size=Decimal(str(row[5])),
+                        filled=Decimal(str(row[6])),
+                        status=OrderStatus(row[7]),
+                        address=row[8] or "",
+                        timestamp=float(row[9]) if row[9] else time.time(),
+                    ))
+                return orders
+        except Exception as e:
+            logger.debug("Failed to load orders for %s: %s", pair, e)
+            return []
 
     def load_fills(self, pair: str, limit: int = 500) -> List['Fill']:
-        return []  # Fills are loaded from DB on demand; fresh start
+        """Load recent fills for a pair from the database."""
+        from sqlalchemy import text
+        try:
+            with self._db.get_session() as session:
+                rows = session.execute(
+                    text("""
+                        SELECT fill_id, pair, price, size, side, maker_order_id, taker_order_id, maker_address, taker_address, EXTRACT(EPOCH FROM timestamp) as ts
+                        FROM exchange_fills
+                        WHERE pair = :pair
+                        ORDER BY timestamp DESC
+                        LIMIT :lim
+                    """),
+                    {'pair': pair, 'lim': limit},
+                ).fetchall()
+                fills: List['Fill'] = []
+                for row in rows:
+                    fills.append(Fill(
+                        id=row[0],
+                        pair=row[1],
+                        price=Decimal(str(row[2])),
+                        size=Decimal(str(row[3])),
+                        side=Side(row[4]),
+                        maker_order_id=row[5],
+                        taker_order_id=row[6],
+                        maker_address=row[7] or "",
+                        taker_address=row[8] or "",
+                        timestamp=float(row[9]) if row[9] else time.time(),
+                    ))
+                return fills
+        except Exception as e:
+            logger.debug("Failed to load fills for %s: %s", pair, e)
+            return []
 
 
 class SettlementCallback:
@@ -774,13 +837,66 @@ class SettlementCallback:
         """Settle multiple fills in a single batch transaction.
 
         Returns the number of successfully settled fills.
-        Default implementation settles one at a time.
+        If any single fill fails, logs the failure but continues settling
+        remaining fills. Failed settlements are tracked for retry.
         """
         settled = 0
+        self._failed_settlements: List[dict] = getattr(self, '_failed_settlements', [])
         for fill in fills:
-            if self.settle_fill(fill):
-                settled += 1
+            try:
+                if self.settle_fill(fill):
+                    settled += 1
+                else:
+                    self._failed_settlements.append({
+                        'fill_id': fill.id,
+                        'pair': fill.pair,
+                        'error': 'settle_fill returned False',
+                        'timestamp': time.time(),
+                    })
+            except Exception as e:
+                logger.error("Settlement failed for fill %s: %s", fill.id, e)
+                self._failed_settlements.append({
+                    'fill_id': fill.id,
+                    'pair': fill.pair,
+                    'error': str(e),
+                    'timestamp': time.time(),
+                })
         return settled
+
+    def get_failed_settlements(self) -> List[dict]:
+        """Return list of failed settlements for retry or reporting."""
+        return list(getattr(self, '_failed_settlements', []))
+
+    def retry_failed_settlements(self, fills_by_id: Dict[str, 'Fill']) -> int:
+        """Retry previously failed settlements.
+
+        Args:
+            fills_by_id: Mapping of fill_id to Fill objects for retry.
+
+        Returns:
+            Number of successfully retried settlements.
+        """
+        failed = getattr(self, '_failed_settlements', [])
+        if not failed:
+            return 0
+        still_failed: List[dict] = []
+        retried = 0
+        for entry in failed:
+            fill = fills_by_id.get(entry['fill_id'])
+            if fill is None:
+                still_failed.append(entry)
+                continue
+            try:
+                if self.settle_fill(fill):
+                    retried += 1
+                else:
+                    still_failed.append(entry)
+            except Exception as e:
+                entry['error'] = str(e)
+                entry['timestamp'] = time.time()
+                still_failed.append(entry)
+        self._failed_settlements = still_failed
+        return retried
 
 
 class UTXOSettlement(SettlementCallback):
@@ -873,6 +989,7 @@ class ExchangeEngine:
         maker_fee: Optional[Decimal] = None,
         taker_fee: Optional[Decimal] = None,
         fee_treasury: str = "",
+        db_manager: Optional['DatabaseManager'] = None,
     ) -> None:
         self.books: Dict[str, OrderBook] = {}
         self._user_balances: Dict[str, Dict[str, Decimal]] = {}  # address -> {asset: amount}
@@ -881,6 +998,8 @@ class ExchangeEngine:
         self._mev_protection = mev_protection
         self._commit_reveal_fn = commit_reveal_fn  # callable(order_dict) -> commit_hash
         self._committed_orders: Dict[str, dict] = {}  # commit_hash -> order_dict
+        self._lock = threading.Lock()
+        self._db_manager = db_manager
 
         # Fee configuration
         self._maker_fee = maker_fee if maker_fee is not None else self.DEFAULT_MAKER_FEE
@@ -892,9 +1011,58 @@ class ExchangeEngine:
         for pair in self.DEFAULT_PAIRS:
             self.get_or_create_book(pair)
 
+        # Load persisted balances from DB if available
+        self.load_balances()
+
         logger.info(
             "ExchangeEngine initialized with %d default pairs", len(self.DEFAULT_PAIRS)
         )
+
+    # ── Balance persistence ──────────────────────────────────────────────
+
+    def save_balances(self) -> None:
+        """Persist user balances to database (system_config table as JSON)."""
+        if not self._db_manager:
+            return
+        try:
+            from sqlalchemy import text
+            # Serialize balances: {address: {asset: str(amount)}}
+            serialized: Dict[str, Dict[str, str]] = {}
+            for addr, assets in self._user_balances.items():
+                serialized[addr] = {asset: str(amount) for asset, amount in assets.items()}
+            payload = json.dumps(serialized)
+            with self._db_manager.get_session() as session:
+                session.execute(
+                    text("""
+                        INSERT INTO system_config (config_key, config_value, config_type)
+                        VALUES ('exchange_balances', :val, 'json')
+                        ON CONFLICT (config_key) DO UPDATE SET config_value = :val
+                    """),
+                    {'val': payload},
+                )
+                session.commit()
+        except Exception as e:
+            logger.debug("Failed to save exchange balances: %s", e)
+
+    def load_balances(self) -> None:
+        """Restore user balances from database on startup."""
+        if not self._db_manager:
+            return
+        try:
+            from sqlalchemy import text
+            with self._db_manager.get_session() as session:
+                row = session.execute(
+                    text("SELECT config_value FROM system_config WHERE config_key = 'exchange_balances'")
+                ).fetchone()
+                if row and row[0]:
+                    data = json.loads(row[0])
+                    for addr, assets in data.items():
+                        self._user_balances[addr] = {
+                            asset: Decimal(amount) for asset, amount in assets.items()
+                        }
+                    logger.info("Loaded exchange balances for %d users from DB", len(data))
+        except Exception as e:
+            logger.debug("Failed to load exchange balances: %s", e)
 
     # ── Book management ──────────────────────────────────────────────────
 
@@ -921,68 +1089,76 @@ class ExchangeEngine:
 
         Returns a dict with the order details and any fills produced.
         For stop orders, fills will be empty until the trigger price is hit.
+        Thread-safe: acquires internal lock for the duration of matching.
         """
-        book = self.get_or_create_book(pair)
+        with self._lock:
+            book = self.get_or_create_book(pair)
 
-        if order_type == "market":
-            order, fills = book.place_market_order(side, size, address)
-        elif order_type == "limit":
-            order, fills = book.place_limit_order(side, price, size, address)
-        elif order_type == "stop_loss":
-            order = book.place_stop_loss_order(side, trigger_price, size, address)
-            fills = []
-        elif order_type == "stop_limit":
-            order = book.place_stop_limit_order(side, trigger_price, price, size, address)
-            fills = []
-        else:
-            raise ValueError(f"Unsupported order type: {order_type}")
+            if order_type == "market":
+                order, fills = book.place_market_order(side, size, address)
+            elif order_type == "limit":
+                order, fills = book.place_limit_order(side, price, size, address)
+            elif order_type == "stop_loss":
+                order = book.place_stop_loss_order(side, trigger_price, size, address)
+                fills = []
+            elif order_type == "stop_limit":
+                order = book.place_stop_limit_order(side, trigger_price, price, size, address)
+                fills = []
+            else:
+                raise ValueError(f"Unsupported order type: {order_type}")
 
-        # Check if any stop orders should trigger after a fill
-        if fills:
-            last_price = fills[-1].price
-            triggered = book.check_triggers(last_price)
-            for trig_order, trig_fills in triggered:
-                fills.extend(trig_fills)
+            # Check if any stop orders should trigger after a fill
+            if fills:
+                last_price = fills[-1].price
+                triggered = book.check_triggers(last_price)
+                for trig_order, trig_fills in triggered:
+                    fills.extend(trig_fills)
 
-        # Calculate and apply fees to fills
-        if fills and (self._maker_fee > ZERO or self._taker_fee > ZERO):
-            for fill in fills:
-                notional = fill.price * fill.size
-                fill.maker_fee = notional * self._maker_fee
-                fill.taker_fee = notional * self._taker_fee
-                self._total_fees_collected += fill.maker_fee + fill.taker_fee
+            # Calculate and apply fees to fills
+            if fills and (self._maker_fee > ZERO or self._taker_fee > ZERO):
+                for fill in fills:
+                    notional = fill.price * fill.size
+                    fill.maker_fee = notional * self._maker_fee
+                    fill.taker_fee = notional * self._taker_fee
+                    self._total_fees_collected += fill.maker_fee + fill.taker_fee
 
-        # Settle fills on-chain
-        if fills and self._settlement:
-            self._settlement.settle_batch(fills)
+            # Settle fills on-chain
+            if fills and self._settlement:
+                self._settlement.settle_batch(fills)
 
-        # Persist order and fills
-        if self._persistence:
-            self._persistence.save_order(pair, order)
-            for fill in fills:
-                self._persistence.save_fill(pair, fill)
+            # Persist order and fills
+            if self._persistence:
+                self._persistence.save_order(pair, order)
+                for fill in fills:
+                    self._persistence.save_fill(pair, fill)
 
-        return {
-            "order": order.to_dict(),
-            "fills": [f.to_dict() for f in fills],
-            "fillCount": len(fills),
-        }
+            # Persist balances after any fills
+            if fills:
+                self.save_balances()
+
+            return {
+                "order": order.to_dict(),
+                "fills": [f.to_dict() for f in fills],
+                "fillCount": len(fills),
+            }
 
     # ── Cancel ───────────────────────────────────────────────────────────
 
     def cancel_order(self, pair: str, order_id: str) -> bool:
-        """Cancel an order on the given pair."""
-        book = self.books.get(pair)
-        if not book:
-            return False
-        return book.cancel_order(order_id)
+        """Cancel an order on the given pair. Thread-safe."""
+        with self._lock:
+            book = self.books.get(pair)
+            if not book:
+                return False
+            return book.cancel_order(order_id)
 
     def cancel_order_any_pair(self, order_id: str) -> bool:
-        """Search all books for the order and cancel it."""
-        for book in self.books.values():
-            if book.cancel_order(order_id):
-                return True
-        return False
+        """Search all books for the order and cancel it. Thread-safe."""
+        with self._lock:
+            for book in self.books.values():
+                if book.cancel_order(order_id):
+                    return True
+            return False
 
     # ── Queries ──────────────────────────────────────────────────────────
 
@@ -1014,29 +1190,33 @@ class ExchangeEngine:
     # ── Balance management (exchange-internal balances) ───────────────────
 
     def deposit(self, address: str, asset: str, amount: float) -> dict:
-        """Credit exchange balance for a user (called after on-chain deposit confirmation)."""
-        d_amount = Decimal(str(amount))
-        if d_amount <= ZERO:
-            raise ValueError("Deposit amount must be positive")
-        if address not in self._user_balances:
-            self._user_balances[address] = {}
-        current = self._user_balances[address].get(asset, ZERO)
-        self._user_balances[address][asset] = current + d_amount
-        logger.info("Deposit %s %s for %s", d_amount, asset, address[:16])
-        return self.get_user_balance(address)
+        """Credit exchange balance for a user (called after on-chain deposit confirmation). Thread-safe."""
+        with self._lock:
+            d_amount = Decimal(str(amount))
+            if d_amount <= ZERO:
+                raise ValueError("Deposit amount must be positive")
+            if address not in self._user_balances:
+                self._user_balances[address] = {}
+            current = self._user_balances[address].get(asset, ZERO)
+            self._user_balances[address][asset] = current + d_amount
+            logger.info("Deposit %s %s for %s", d_amount, asset, address[:16])
+            self.save_balances()
+            return self.get_user_balance(address)
 
     def withdraw(self, address: str, asset: str, amount: float) -> dict:
-        """Debit exchange balance for a user (initiates on-chain withdrawal)."""
-        d_amount = Decimal(str(amount))
-        if d_amount <= ZERO:
-            raise ValueError("Withdrawal amount must be positive")
-        balances = self._user_balances.get(address, {})
-        current = balances.get(asset, ZERO)
-        if current < d_amount:
-            raise ValueError(f"Insufficient {asset} balance: have {current}, need {d_amount}")
-        self._user_balances[address][asset] = current - d_amount
-        logger.info("Withdraw %s %s for %s", d_amount, asset, address[:16])
-        return self.get_user_balance(address)
+        """Debit exchange balance for a user (initiates on-chain withdrawal). Thread-safe."""
+        with self._lock:
+            d_amount = Decimal(str(amount))
+            if d_amount <= ZERO:
+                raise ValueError("Withdrawal amount must be positive")
+            balances = self._user_balances.get(address, {})
+            current = balances.get(asset, ZERO)
+            if current < d_amount:
+                raise ValueError(f"Insufficient {asset} balance: have {current}, need {d_amount}")
+            self._user_balances[address][asset] = current - d_amount
+            logger.info("Withdraw %s %s for %s", d_amount, asset, address[:16])
+            self.save_balances()
+            return self.get_user_balance(address)
 
     def get_user_balance(self, address: str) -> dict:
         """Return exchange balances for a user."""
@@ -1070,16 +1250,17 @@ class ExchangeEngine:
 
         Returns a commit hash that must be revealed within the reveal window.
         Only effective when mev_protection=True and commit_reveal_fn is set.
+        Thread-safe.
         """
         if not self._mev_protection:
             return None
 
         import hashlib
-        import json
         order_json = json.dumps(order_dict, sort_keys=True, default=str)
         commit_hash = hashlib.sha256(order_json.encode()).hexdigest()
 
-        self._committed_orders[commit_hash] = order_dict
+        with self._lock:
+            self._committed_orders[commit_hash] = order_dict
 
         if self._commit_reveal_fn:
             self._commit_reveal_fn(commit_hash)
@@ -1091,8 +1272,10 @@ class ExchangeEngine:
         """Phase 2 of commit-reveal: reveal a previously committed order and place it.
 
         Returns the placement result (same as place_order) or None if hash not found.
+        Thread-safe: lock is acquired by place_order internally.
         """
-        order_dict = self._committed_orders.pop(commit_hash, None)
+        with self._lock:
+            order_dict = self._committed_orders.pop(commit_hash, None)
         if order_dict is None:
             logger.warning("MEV reveal failed: unknown commit %s", commit_hash[:16])
             return None

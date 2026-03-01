@@ -535,13 +535,19 @@ class QUSDDeployer:
         ).hex()
         debt_addr = self.deploy_with_proxy("QUSDDebtLedger", init_data)
 
-        # ── Step 6: QUSDStabilizer (needs governance + oracle + QUSD) ─
+        # ── Step 6: QUSDStabilizer (needs governance + oracle + QUSD + QBC) ─
         logger.info("[6/8] QUSDStabilizer — peg maintenance ($0.99-$1.01)")
+        # QBC20 token must be deployed before this step (via deploy_contracts.py)
+        qbc_token_addr = get_address(self.registry, "QBC20")
+        if not qbc_token_addr:
+            logger.warning("QBC20 not found in registry — using zero address for QBC token")
+            qbc_token_addr = "0x" + "0" * 40
         init_data = (
-            function_selector("initialize(address,address,address)")
+            function_selector("initialize(address,address,address,address)")
             + encode_address(governance_addr)
             + encode_address(oracle_addr)
             + encode_address(qusd_addr)
+            + encode_address(qbc_token_addr)
         ).hex()
         stabilizer_addr = self.deploy_with_proxy("QUSDStabilizer", init_data)
 

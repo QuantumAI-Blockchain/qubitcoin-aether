@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "../interfaces/IQBC20.sol";
 
 /// @title RewardDistributor — QBC Reward Distribution for Proof-of-Thought
 /// @notice Distributes QBC rewards for correct reasoning solutions.
@@ -14,6 +15,7 @@ contract RewardDistributor is Initializable {
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
+    IQBC20  public qbcToken; // QBC token for actual reward transfers
 
     /// @notice Maximum reward amount per single distribution (configurable by owner)
     uint256 public maxRewardPerDistribution;
@@ -51,9 +53,10 @@ contract RewardDistributor is Initializable {
     }
 
     // ─── Initialization ─────────────────────────────────────────────────
-    function initialize(address _kernel) external initializer {
-        owner  = msg.sender;
-        kernel = _kernel;
+    function initialize(address _kernel, address _qbcToken) external initializer {
+        owner    = msg.sender;
+        kernel   = _kernel;
+        qbcToken = IQBC20(_qbcToken);
         maxRewardPerDistribution = 10000 ether; // Default: 10,000 QBC max per distribution
     }
 
@@ -64,7 +67,9 @@ contract RewardDistributor is Initializable {
     }
 
     // ─── Distribution ────────────────────────────────────────────────────
-    /// @notice Distribute reward for a correct Proof-of-Thought solution
+    /// @notice Distribute reward for a correct Proof-of-Thought solution.
+    ///         Transfers QBC from this contract's balance to the recipient.
+    ///         This contract must hold sufficient QBC (funded by treasury or minting).
     function distributeReward(address recipient, uint256 amount, uint256 taskId) external onlyKernel {
         require(recipient != address(0), "Rewards: zero address");
         require(amount > 0, "Rewards: zero amount");
@@ -82,6 +87,9 @@ contract RewardDistributor is Initializable {
             timestamp:   block.timestamp,
             isSlash:     false
         }));
+
+        // Transfer QBC tokens to the recipient
+        require(qbcToken.transfer(recipient, amount), "Rewards: QBC transfer failed");
 
         emit RewardDistributed(recipient, amount, taskId, block.number);
     }

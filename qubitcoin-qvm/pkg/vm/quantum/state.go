@@ -39,9 +39,14 @@ func NewStateManager() *StateManager {
 // CreateState allocates a new quantum state with nQubits qubits.
 // The state is initialized to |0...0⟩ (ground state).
 // Returns the state ID.
+// MaxQubits is the maximum number of qubits allowed per quantum state.
+// 10 qubits → 1024x1024 density matrix → ~16MB, a safe upper bound
+// that prevents memory exhaustion while keeping quantum states useful.
+const MaxQubits uint8 = 10
+
 func (sm *StateManager) CreateState(nQubits uint8, owner [20]byte) (uint64, error) {
-	if nQubits == 0 || nQubits > 16 {
-		return 0, fmt.Errorf("invalid qubit count: %d (must be 1-16)", nQubits)
+	if nQubits == 0 || nQubits > MaxQubits {
+		return 0, fmt.Errorf("invalid qubit count: %d (must be 1-%d)", nQubits, MaxQubits)
 	}
 
 	sm.mu.Lock()

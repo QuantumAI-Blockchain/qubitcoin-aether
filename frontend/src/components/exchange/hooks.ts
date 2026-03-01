@@ -202,13 +202,9 @@ export function useMarkets() {
   return useQuery({
     queryKey: qk.markets,
     queryFn: async (): Promise<Market[]> => {
-      try {
-        const apiMarkets = await apiGetMarkets();
-        return apiMarkets.map(adaptApiMarket);
-      } catch {
-        // Fallback to mock engine if API call fails
-        return getMockEngine().getAllMarkets();
-      }
+      if (USE_MOCK) return getMockEngine().getAllMarkets();
+      const apiMarkets = await apiGetMarkets();
+      return apiMarkets.map(adaptApiMarket);
     },
     staleTime: 2000,
     refetchInterval: 2000,
@@ -223,7 +219,11 @@ export function useMarket(id: MarketId) {
   );
   return useQuery({
     queryKey: qk.market(id),
-    queryFn: (): Market | undefined => market ?? getMockEngine().getMarket(id),
+    queryFn: (): Market | undefined => {
+      if (market) return market;
+      if (USE_MOCK) return getMockEngine().getMarket(id);
+      return undefined;
+    },
     staleTime: 1000,
     refetchInterval: 1000,
     initialData: market,
@@ -231,12 +231,19 @@ export function useMarket(id: MarketId) {
 }
 
 // ─── OHLC HOOK ──────────────────────────────────────────────────────────────
-// OHLC data is not yet served by the backend — keep using mock engine.
 
 export function useOHLC(id: MarketId, tf: Timeframe) {
   return useQuery({
     queryKey: qk.ohlc(id, tf),
-    queryFn: (): OHLCBar[] => getMockEngine().generateOHLC(id, tf),
+    queryFn: async (): Promise<OHLCBar[]> => {
+      if (USE_MOCK) return getMockEngine().generateOHLC(id, tf);
+      try {
+        const res = await fetchJson<{ bars: OHLCBar[] }>(`/exchange/ohlc/${id}?timeframe=${tf}`);
+        return res.bars;
+      } catch {
+        return [];
+      }
+    },
     staleTime: 10000,
   });
 }
@@ -247,12 +254,9 @@ export function useOrderBook(id: MarketId) {
   return useQuery({
     queryKey: qk.orderbook(id),
     queryFn: async (): Promise<OrderBook | undefined> => {
-      try {
-        const apiBook = await apiGetOrderBook(id);
-        return adaptApiOrderBook(apiBook);
-      } catch {
-        return getMockEngine().getOrderBook(id);
-      }
+      if (USE_MOCK) return getMockEngine().getOrderBook(id);
+      const apiBook = await apiGetOrderBook(id);
+      return adaptApiOrderBook(apiBook);
     },
     staleTime: 2000,
     refetchInterval: 2000,
@@ -267,12 +271,9 @@ export function useTrades(id: MarketId) {
   return useQuery({
     queryKey: qk.trades(id),
     queryFn: async (): Promise<Trade[]> => {
-      try {
-        const apiTrades = await apiGetRecentTrades(id, 50);
-        return apiTrades.map(adaptApiTrade);
-      } catch {
-        return getMockEngine().getTrades(id);
-      }
+      if (USE_MOCK) return getMockEngine().getTrades(id);
+      const apiTrades = await apiGetRecentTrades(id, 50);
+      return apiTrades.map(adaptApiTrade);
     },
     staleTime: 1000,
     refetchInterval: 1000,
@@ -280,12 +281,19 @@ export function useTrades(id: MarketId) {
 }
 
 // ─── POSITION HOOKS ─────────────────────────────────────────────────────────
-// Positions are mock-only (backend does not serve them yet for perps).
 
 export function usePositions() {
   return useQuery({
     queryKey: qk.positions,
-    queryFn: (): Position[] => getMockEngine().generatePositions(),
+    queryFn: async (): Promise<Position[]> => {
+      if (USE_MOCK) return getMockEngine().generatePositions();
+      try {
+        const res = await fetchJson<{ positions: Position[] }>("/exchange/positions");
+        return res.positions;
+      } catch {
+        return [];
+      }
+    },
     staleTime: 2000,
     refetchInterval: 2000,
   });
@@ -297,13 +305,10 @@ export function useOpenOrders() {
   return useQuery({
     queryKey: qk.openOrders,
     queryFn: async (): Promise<Order[]> => {
-      if (!walletAddress) return getMockEngine().generateOpenOrders();
-      try {
-        const apiOrders = await apiGetUserOrders(walletAddress);
-        return apiOrders.map(adaptApiOrder);
-      } catch {
-        return getMockEngine().generateOpenOrders();
-      }
+      if (USE_MOCK) return getMockEngine().generateOpenOrders();
+      if (!walletAddress) return [];
+      const apiOrders = await apiGetUserOrders(walletAddress);
+      return apiOrders.map(adaptApiOrder);
     },
     staleTime: 2000,
     refetchInterval: 5000,
@@ -311,9 +316,20 @@ export function useOpenOrders() {
 }
 
 export function useMyFills() {
+  const walletAddress = useExchangeStore((s) => s.walletAddress);
+
   return useQuery({
     queryKey: qk.myFills,
-    queryFn: (): Order[] => getMockEngine().generateMyFills(),
+    queryFn: async (): Promise<Order[]> => {
+      if (USE_MOCK) return getMockEngine().generateMyFills();
+      if (!walletAddress) return [];
+      try {
+        const res = await fetchJson<{ fills: Order[] }>(`/exchange/fills/${walletAddress}`);
+        return res.fills;
+      } catch {
+        return [];
+      }
+    },
     staleTime: 10000,
   });
 }
@@ -326,13 +342,10 @@ export function useBalances() {
   return useQuery({
     queryKey: qk.balances,
     queryFn: async (): Promise<Balance[]> => {
-      if (!walletAddress) return getMockEngine().generateBalances();
-      try {
-        const apiBalance = await apiGetUserBalance(walletAddress);
-        return apiBalance.balances.map(adaptApiBalance);
-      } catch {
-        return getMockEngine().generateBalances();
-      }
+      if (USE_MOCK) return getMockEngine().generateBalances();
+      if (!walletAddress) return [];
+      const apiBalance = await apiGetUserBalance(walletAddress);
+      return apiBalance.balances.map(adaptApiBalance);
     },
     staleTime: 5000,
     refetchInterval: 5000,
@@ -354,13 +367,14 @@ export function usePlaceOrder() {
       price: number;
       size: number;
     }) => {
+      if (!walletAddress) throw new Error("Wallet not connected");
       const order: NewOrder = {
         pair: params.pair,
         side: params.side,
         type: params.type,
         price: params.price,
         size: params.size,
-        address: walletAddress || "qbc1demo",
+        address: walletAddress,
       };
       return apiPlaceOrder(order);
     },
@@ -445,7 +459,15 @@ export function useWithdraw() {
 export function useFunding(id: MarketId) {
   return useQuery({
     queryKey: qk.funding(id),
-    queryFn: (): FundingPayment[] => getMockEngine().generateFundingPayments(id),
+    queryFn: async (): Promise<FundingPayment[]> => {
+      if (USE_MOCK) return getMockEngine().generateFundingPayments(id);
+      try {
+        const res = await fetchJson<{ payments: FundingPayment[] }>(`/exchange/funding/${id}`);
+        return res.payments;
+      } catch {
+        return [];
+      }
+    },
     staleTime: 30000,
   });
 }
@@ -455,7 +477,15 @@ export function useFunding(id: MarketId) {
 export function useLiquidationLevels(id: MarketId) {
   return useQuery({
     queryKey: qk.liquidations(id),
-    queryFn: (): LiquidationLevel[] => getMockEngine().generateLiquidationLevels(id),
+    queryFn: async (): Promise<LiquidationLevel[]> => {
+      if (USE_MOCK) return getMockEngine().generateLiquidationLevels(id);
+      try {
+        const res = await fetchJson<{ levels: LiquidationLevel[] }>(`/exchange/liquidations/${id}`);
+        return res.levels;
+      } catch {
+        return [];
+      }
+    },
     staleTime: 30000,
   });
 }
@@ -463,9 +493,20 @@ export function useLiquidationLevels(id: MarketId) {
 // ─── EQUITY HOOK ────────────────────────────────────────────────────────────
 
 export function useEquityHistory() {
+  const walletAddress = useExchangeStore((s) => s.walletAddress);
+
   return useQuery({
     queryKey: qk.equity,
-    queryFn: (): EquitySnapshot[] => getMockEngine().generateEquityHistory(),
+    queryFn: async (): Promise<EquitySnapshot[]> => {
+      if (USE_MOCK) return getMockEngine().generateEquityHistory();
+      if (!walletAddress) return [];
+      try {
+        const res = await fetchJson<{ snapshots: EquitySnapshot[] }>(`/exchange/equity/${walletAddress}`);
+        return res.snapshots;
+      } catch {
+        return [];
+      }
+    },
     staleTime: 60000,
   });
 }
@@ -475,7 +516,14 @@ export function useEquityHistory() {
 export function useSusySignal() {
   return useQuery({
     queryKey: qk.susy,
-    queryFn: (): SusySignal => getMockEngine().generateSusySignal(),
+    queryFn: async (): Promise<SusySignal> => {
+      if (USE_MOCK) return getMockEngine().generateSusySignal();
+      try {
+        return await fetchJson<SusySignal>("/exchange/susy-signal");
+      } catch {
+        return { score: 0, label: "unavailable", interpretation: "Data unavailable", history: [] };
+      }
+    },
     staleTime: 30000,
   });
 }
@@ -483,7 +531,18 @@ export function useSusySignal() {
 export function useVqeOracle() {
   return useQuery({
     queryKey: qk.vqe,
-    queryFn: (): VqeOracle => getMockEngine().generateVqeOracle(),
+    queryFn: async (): Promise<VqeOracle> => {
+      if (USE_MOCK) return getMockEngine().generateVqeOracle();
+      try {
+        return await fetchJson<VqeOracle>("/exchange/vqe-oracle");
+      } catch {
+        return {
+          fairValue: 0, marketPrice: 0, deviation: 0, deviationPct: 0,
+          oracleSources: 0, oracleTotal: 0, confidence: 0,
+          lastBlock: 0, lastBlockAge: 0, history: [],
+        };
+      }
+    },
     staleTime: 15000,
   });
 }
@@ -491,7 +550,15 @@ export function useVqeOracle() {
 export function useValidators() {
   return useQuery({
     queryKey: qk.validators,
-    queryFn: (): ValidatorStatus[] => getMockEngine().generateValidators(),
+    queryFn: async (): Promise<ValidatorStatus[]> => {
+      if (USE_MOCK) return getMockEngine().generateValidators();
+      try {
+        const res = await fetchJson<{ validators: ValidatorStatus[] }>("/exchange/validators");
+        return res.validators;
+      } catch {
+        return [];
+      }
+    },
     staleTime: 15000,
   });
 }
@@ -499,7 +566,14 @@ export function useValidators() {
 export function useQevi() {
   return useQuery({
     queryKey: qk.qevi,
-    queryFn: (): QeviData => getMockEngine().generateQevi(),
+    queryFn: async (): Promise<QeviData> => {
+      if (USE_MOCK) return getMockEngine().generateQevi();
+      try {
+        return await fetchJson<QeviData>("/exchange/qevi");
+      } catch {
+        return { entropy: 0, score: 0, regime: "unavailable", history: [] };
+      }
+    },
     staleTime: 30000,
   });
 }

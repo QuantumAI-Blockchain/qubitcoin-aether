@@ -8,7 +8,8 @@ import "../proxy/Initializable.sol";
 ///         Minimum bounty: 1 QBC. Solutions validated via ProofOfThought.
 contract TaskMarket is Initializable {
     // ─── Constants ───────────────────────────────────────────────────────
-    uint256 public constant MIN_BOUNTY = 1 * 10**8; // 1 QBC (8 decimals)
+    uint256 public constant MIN_BOUNTY  = 1 * 10**8;  // 1 QBC (8 decimals)
+    uint256 public constant TASK_EXPIRY = 183927;      // 7 days at 3.3s blocks (7*24*3600/3.3)
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
@@ -28,6 +29,7 @@ contract TaskMarket is Initializable {
         bytes32    solutionHash;
         uint256    createdAt;
         uint256    deadline;      // 0 = no deadline
+        uint256    expiryBlock;   // Block at which task expires and bounty is reclaimable
         TaskStatus status;
     }
 
@@ -40,6 +42,7 @@ contract TaskMarket is Initializable {
     event TaskCompleted(uint256 indexed id, address indexed solver, uint256 bounty);
     event TaskExpired(uint256 indexed id);
     event TaskCanceled(uint256 indexed id, address indexed submitter);
+    event BountyReclaimed(uint256 indexed id, address indexed submitter, uint256 bounty);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyKernel() {
@@ -75,6 +78,7 @@ contract TaskMarket is Initializable {
             solutionHash: bytes32(0),
             createdAt:    block.timestamp,
             deadline:     deadline,
+            expiryBlock:  block.number + TASK_EXPIRY,
             status:       TaskStatus.Open
         });
 
@@ -122,6 +126,28 @@ contract TaskMarket is Initializable {
         emit TaskCanceled(taskId, task.submitter);
     }
 
+    /// @notice Reclaim bounty for an expired, unclaimed task.
+    ///         Only the original task submitter (or kernel/owner) can reclaim.
+    ///         Task must be past its expiryBlock and still Open or Claimed (unsolved).
+    function reclaimBounty(uint256 taskId) external {
+        Task storage task = tasks[taskId];
+        require(
+            task.status == TaskStatus.Open || task.status == TaskStatus.Claimed,
+            "TaskMarket: task not reclaimable"
+        );
+        require(block.number >= task.expiryBlock, "TaskMarket: task not yet expired");
+        require(
+            msg.sender == task.submitter || msg.sender == kernel || msg.sender == owner,
+            "TaskMarket: not authorized"
+        );
+
+        task.status = TaskStatus.Expired;
+        totalBounties -= task.bounty;
+
+        emit TaskExpired(taskId);
+        emit BountyReclaimed(taskId, task.submitter, task.bounty);
+    }
+
     // ─── Queries ─────────────────────────────────────────────────────────
     function getTask(uint256 taskId) external view returns (
         address    submitter,
@@ -130,10 +156,11 @@ contract TaskMarket is Initializable {
         address    solver,
         TaskStatus status,
         uint256    createdAt,
-        uint256    deadline
+        uint256    deadline,
+        uint256    expiryBlock
     ) {
         Task storage t = tasks[taskId];
-        return (t.submitter, t.description, t.bounty, t.solver, t.status, t.createdAt, t.deadline);
+        return (t.submitter, t.description, t.bounty, t.solver, t.status, t.createdAt, t.deadline, t.expiryBlock);
     }
 
     function getMarketStats() external view returns (uint256 total, uint256 bounties) {

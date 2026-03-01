@@ -1,8 +1,12 @@
 package quantum
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"math/big"
+	"sync"
 )
 
 // MemoryAccessor abstracts the EVM memory for opcodes that read from memory.
@@ -23,6 +27,31 @@ type ComplianceOracle interface {
 	GetSystemicRisk() uint64
 }
 
+// BridgeEntanglementRecord tracks a cross-chain entanglement created by QBRIDGE_ENTANGLE.
+type BridgeEntanglementRecord struct {
+	ID            uint64
+	SourceChainID uint64
+	TargetChainID uint64
+	CallerAddr    [20]byte
+	StateID       uint64
+	ProofHash     [32]byte // HMAC-SHA256 derived deterministic proof
+}
+
+// BridgeRegistry manages cross-chain bridge entanglement records.
+type BridgeRegistry struct {
+	mu      sync.RWMutex
+	records map[uint64]*BridgeEntanglementRecord
+	nextID  uint64
+}
+
+// NewBridgeRegistry creates a new empty bridge registry.
+func NewBridgeRegistry() *BridgeRegistry {
+	return &BridgeRegistry{
+		records: make(map[uint64]*BridgeEntanglementRecord),
+		nextID:  1,
+	}
+}
+
 // Handler executes quantum opcodes (0xC0-0xDE) and AGI opcodes (0xC2-0xC3)
 // within the QVM. It bridges the EVM execution context with the quantum
 // state manager and the Aether Tree AGI engine.
@@ -30,6 +59,7 @@ type Handler struct {
 	States     *StateManager
 	AGI        *AGIHandler
 	Compliance ComplianceOracle // nil → safe defaults
+	Bridge     *BridgeRegistry
 }
 
 // NewHandler creates a quantum opcode handler with AGI support.
@@ -37,6 +67,7 @@ func NewHandler() *Handler {
 	return &Handler{
 		States: NewStateManager(),
 		AGI:    NewAGIHandler(),
+		Bridge: NewBridgeRegistry(),
 	}
 }
 
@@ -104,7 +135,7 @@ func (h *Handler) ExecuteWithMemory(
 	case QRISK_SYSTEMIC:
 		return h.opQRiskSystemic(stack)
 	case QBRIDGE_ENTANGLE:
-		return h.opQBridgeEntangle(stack)
+		return h.opQBridgeEntangle(stack, caller, blockSeed)
 	case QBRIDGE_VERIFY:
 		return h.opQBridgeVerify(stack)
 
@@ -128,7 +159,7 @@ func (h *Handler) opQCreate(stack StackAccessor, gas GasConsumer, owner [20]byte
 		return err
 	}
 	nQubits := uint8(nQubitsVal.Uint64())
-	if nQubits == 0 || nQubits > 16 {
+	if nQubits == 0 || nQubits > MaxQubits {
 		return stack.Push(big.NewInt(0)) // failure: push 0
 	}
 
@@ -304,34 +335,102 @@ func (h *Handler) opQRiskSystemic(stack StackAccessor) error {
 	return stack.PushUint64(50)
 }
 
-// opQBridgeEntangle creates cross-chain quantum entanglement.
+// opQBridgeEntangle creates a cross-chain entanglement record.
+//
 // Stack: [targetChainID, stateID] → [bridgeEntanglementID]
-func (h *Handler) opQBridgeEntangle(stack StackAccessor) error {
-	_, err := stack.Pop() // targetChainID
+//
+// The entanglement ID is derived deterministically using HMAC-SHA256
+// over the caller address, target chain ID, state ID, and block seed.
+// This ensures all validators produce the same entanglement ID for
+// the same inputs within the same block.
+func (h *Handler) opQBridgeEntangle(stack StackAccessor, caller [20]byte, blockSeed [32]byte) error {
+	targetChainIDVal, err := stack.Pop()
 	if err != nil {
 		return err
 	}
-	_, err = stack.Pop() // stateID
+	stateIDVal, err := stack.Pop()
 	if err != nil {
 		return err
 	}
 
-	// Stub: return placeholder bridge entanglement ID
-	return stack.PushUint64(0)
+	targetChainID := targetChainIDVal.Uint64()
+	stateID := stateIDVal.Uint64()
+
+	// Derive a deterministic entanglement ID using HMAC-SHA256
+	// Key: blockSeed (ensures uniqueness per block)
+	// Message: caller ++ targetChainID ++ stateID
+	mac := hmac.New(sha256.New, blockSeed[:])
+	mac.Write(caller[:])
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], targetChainID)
+	mac.Write(buf[:])
+	binary.BigEndian.PutUint64(buf[:], stateID)
+	mac.Write(buf[:])
+	proofHash := mac.Sum(nil)
+
+	var proofHashArr [32]byte
+	copy(proofHashArr[:], proofHash)
+
+	// Create and store the bridge entanglement record
+	h.Bridge.mu.Lock()
+	id := h.Bridge.nextID
+	h.Bridge.records[id] = &BridgeEntanglementRecord{
+		ID:            id,
+		SourceChainID: 3301, // QBC mainnet
+		TargetChainID: targetChainID,
+		CallerAddr:    caller,
+		StateID:       stateID,
+		ProofHash:     proofHashArr,
+	}
+	h.Bridge.nextID++
+	h.Bridge.mu.Unlock()
+
+	return stack.PushUint64(id)
 }
 
 // opQBridgeVerify verifies a cross-chain bridge proof.
-// Stack: [proofHash, sourceChainID] → [valid (1/0)]
+//
+// Stack: [proofHash, bridgeEntanglementID] → [valid (1/0)]
+//
+// Verification checks that:
+//  1. An entanglement record exists with the given ID
+//  2. The provided proof hash matches the stored proof hash
+//
+// Returns 1 if valid, 0 if the entanglement does not exist or proof mismatches.
 func (h *Handler) opQBridgeVerify(stack StackAccessor) error {
-	_, err := stack.Pop() // proofHash
+	proofHashVal, err := stack.Pop()
 	if err != nil {
 		return err
 	}
-	_, err = stack.Pop() // sourceChainID
+	entIDVal, err := stack.Pop()
 	if err != nil {
 		return err
 	}
 
-	// Stub: return valid (1)
-	return stack.Push(big.NewInt(1))
+	entID := entIDVal.Uint64()
+
+	// Extract proof hash from stack value
+	var providedHash [32]byte
+	proofBytes := proofHashVal.Bytes()
+	if len(proofBytes) > 32 {
+		proofBytes = proofBytes[len(proofBytes)-32:]
+	}
+	copy(providedHash[32-len(proofBytes):], proofBytes)
+
+	// Look up the entanglement record
+	h.Bridge.mu.RLock()
+	record, ok := h.Bridge.records[entID]
+	h.Bridge.mu.RUnlock()
+
+	if !ok {
+		// Entanglement record not found
+		return stack.Push(big.NewInt(0))
+	}
+
+	// Verify the proof hash matches
+	if record.ProofHash == providedHash {
+		return stack.Push(big.NewInt(1))
+	}
+
+	return stack.Push(big.NewInt(0))
 }

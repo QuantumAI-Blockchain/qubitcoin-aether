@@ -2580,9 +2580,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             node.state.qbc_stake = total_stake
             factor = Config.SEPHIROT_STAKE_ENERGY_FACTOR
             node.state.energy = 1.0 + factor * math.log2(1.0 + total_stake / 100.0)
-            # TODO: Wire SephirotManager.enforce_susy_balance() properly
-            # Currently skipped — SephirotManager operates on SephirahState objects
-            # while AetherEngine._sephirot contains BaseSephirah objects (different types)
+            # SUSY enforcement is handled by AetherEngine.process_block() pipeline:
+            # process_block() -> _enforce_susy_balance() -> SephirotManager.enforce_susy_balance()
+            # This runs every AETHER_SEPHIROT_ROUTE_INTERVAL blocks (default 10).
+            # No additional call needed here — stake energy updates feed into the
+            # next process_block cycle automatically.
         except Exception as e:
             logger.debug(f"Stake energy sync for node {node_id}: {e}")
 

@@ -59,18 +59,19 @@ class HiggsParameters:
         return self.vev * math.cos(beta)
 
 
-# Default Yukawa couplings — golden ratio cascade
+# Default Yukawa couplings — golden ratio cascade (matches CLAUDE.md Section 8.12)
+# SUSY pairs must share the same Yukawa tier so mass ratio = v_up/v_down = phi (from 2HDM)
 YUKAWA_COUPLINGS: Dict[SephirahRole, float] = {
-    SephirahRole.KETER:    PHI ** 0,    # 1.000 — Crown, max coupling
-    SephirahRole.TIFERET:  PHI ** -1,   # 0.618 — Central integrator
-    SephirahRole.YESOD:    PHI ** -1,   # 0.618 — Memory foundation
-    SephirahRole.CHOCHMAH: PHI ** -2,   # 0.382 — Expansion (intuition)
-    SephirahRole.CHESED:   PHI ** -2,   # 0.382 — Expansion (creativity)
-    SephirahRole.NETZACH:  PHI ** -2,   # 0.382 — Expansion (persistence)
-    SephirahRole.BINAH:    PHI ** -3,   # 0.236 — Constraint (logic)
-    SephirahRole.GEVURAH:  PHI ** -3,   # 0.236 — Constraint (safety)
-    SephirahRole.HOD:      PHI ** -3,   # 0.236 — Constraint (language)
-    SephirahRole.MALKUTH:  PHI ** -4,   # 0.146 — Ground, most agile
+    SephirahRole.KETER:    PHI ** 0,    # 1.000 — Tier 0: Crown, max coupling
+    SephirahRole.CHOCHMAH: PHI ** -1,   # 0.618 — Tier 1: Expansion (intuition)
+    SephirahRole.BINAH:    PHI ** -1,   # 0.618 — Tier 1: Constraint (logic)
+    SephirahRole.TIFERET:  PHI ** -1,   # 0.618 — Tier 1: Central integrator
+    SephirahRole.CHESED:   PHI ** -2,   # 0.382 — Tier 2: Expansion (creativity)
+    SephirahRole.GEVURAH:  PHI ** -2,   # 0.382 — Tier 2: Constraint (safety)
+    SephirahRole.NETZACH:  PHI ** -3,   # 0.236 — Tier 3: Expansion (persistence)
+    SephirahRole.HOD:      PHI ** -3,   # 0.236 — Tier 3: Constraint (language)
+    SephirahRole.YESOD:    PHI ** -4,   # 0.146 — Tier 4: Memory foundation
+    SephirahRole.MALKUTH:  PHI ** -4,   # 0.146 — Tier 4: Ground, most agile
 }
 
 # Which nodes are expansion (couple to H_u)

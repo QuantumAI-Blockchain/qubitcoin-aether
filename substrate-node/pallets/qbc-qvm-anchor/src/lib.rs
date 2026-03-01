@@ -77,16 +77,12 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
-        /// QVM service is not available.
-        ServiceUnavailable,
-        /// Invalid state root.
-        InvalidStateRoot,
-        /// Execution receipt validation failed.
-        InvalidReceipt,
         /// State root is all zeros (invalid empty root).
         ZeroStateRoot,
-        /// State root is identical to the previous block (no-op update).
-        DuplicateStateRoot,
+        // Note: ServiceUnavailable, InvalidStateRoot, InvalidReceipt, and
+        // DuplicateStateRoot were removed — they were never used in any
+        // extrinsic or internal function. ZeroStateRoot is the only error
+        // variant actively used by update_state_root().
     }
 
     #[pallet::genesis_config]
@@ -113,6 +109,8 @@ pub mod pallet {
         /// Called by the block author after processing QVM transactions.
         #[pallet::call_index(0)]
         // Analytical weight: 2 storage writes (state root + history) + event = ~75µs ≈ 75_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(75_000)]
         pub fn update_state_root(
             origin: OriginFor<T>,
@@ -124,12 +122,11 @@ pub mod pallet {
             // Reject all-zero state root (indicates uninitialized or corrupt state)
             ensure!(state_root != H256::zero(), Error::<T>::ZeroStateRoot);
 
-            // Reject duplicate state root (no actual state transition occurred)
-            let prev_root = QvmStateRoot::<T>::get();
-            // Allow duplicate only if previous is zero (genesis / first update)
-            if prev_root != H256::zero() {
-                ensure!(state_root != prev_root, Error::<T>::DuplicateStateRoot);
-            }
+            // Note: Duplicate state roots are allowed. It is legitimate for the
+            // QVM state to remain unchanged between blocks (e.g. no QVM
+            // transactions in that block). The previous DuplicateStateRoot
+            // check was removed because it incorrectly blocked valid
+            // empty-block state root updates.
 
             QvmStateRoot::<T>::put(state_root);
             StateRootHistory::<T>::insert(block_height, state_root);
@@ -141,6 +138,8 @@ pub mod pallet {
         /// Update the QVM service endpoint.
         #[pallet::call_index(1)]
         // Analytical weight: 1 storage write + event = ~50µs ≈ 50_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(50_000)]
         pub fn set_endpoint(
             origin: OriginFor<T>,
@@ -156,6 +155,8 @@ pub mod pallet {
         /// Record a contract deployment.
         #[pallet::call_index(2)]
         // Analytical weight: 2 storage writes (contract + count) + event = ~75µs ≈ 75_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(75_000)]
         pub fn record_deployment(
             origin: OriginFor<T>,

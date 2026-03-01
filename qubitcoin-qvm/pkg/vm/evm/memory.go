@@ -34,19 +34,18 @@ func (m *Memory) Len() int {
 var ErrMaxMemoryExceeded = fmt.Errorf("memory expansion exceeds maximum (%d bytes)", MaxMemorySize)
 
 // Resize grows memory to at least size bytes (word-aligned to 32 bytes).
-// Returns the gas cost of expansion (0 if no expansion needed).
-// Returns 0 with a panic-equivalent error if the requested size exceeds MaxMemorySize.
-func (m *Memory) Resize(size uint64) uint64 {
+// Returns the gas cost of expansion and an error if the requested size exceeds MaxMemorySize.
+func (m *Memory) Resize(size uint64) (uint64, error) {
 	if size == 0 || uint64(len(m.store)) >= size {
-		return 0
+		return 0, nil
 	}
 	if size > MaxMemorySize {
-		panic(fmt.Sprintf("memory: Resize exceeds max (%d > %d)", size, MaxMemorySize))
+		return 0, fmt.Errorf("memory: Resize exceeds max (%d > %d)", size, MaxMemorySize)
 	}
 	oldWords := toWordSize(uint64(len(m.store)))
 	newWords := toWordSize(size)
 	if newWords <= oldWords {
-		return 0
+		return 0, nil
 	}
 
 	oldCost := memoryCost(oldWords)
@@ -56,69 +55,76 @@ func (m *Memory) Resize(size uint64) uint64 {
 	// Extend to word boundary
 	newSize := newWords * 32
 	if newSize > MaxMemorySize {
-		panic(fmt.Sprintf("memory: Resize exceeds max (%d > %d)", newSize, MaxMemorySize))
+		return 0, fmt.Errorf("memory: Resize exceeds max (%d > %d)", newSize, MaxMemorySize)
 	}
 	m.store = append(m.store, make([]byte, newSize-uint64(len(m.store)))...)
 
-	return gasCost
+	return gasCost, nil
 }
 
 // Set writes data to memory at the given offset.
-// Caller should ensure memory has been resized; panics are caught as a safety net.
-func (m *Memory) Set(offset uint64, data []byte) {
+// Returns an error if the write is out of bounds.
+func (m *Memory) Set(offset uint64, data []byte) error {
 	if len(data) == 0 {
-		return
+		return nil
 	}
 	end := offset + uint64(len(data))
 	if end > uint64(len(m.store)) || end < offset {
-		panic(fmt.Sprintf("memory: Set out of bounds: offset=%d len=%d store=%d", offset, len(data), len(m.store)))
+		return fmt.Errorf("memory: Set out of bounds: offset=%d len=%d store=%d", offset, len(data), len(m.store))
 	}
 	copy(m.store[offset:end], data)
+	return nil
 }
 
 // Set32 writes a 32-byte big-endian value to memory at the given offset.
-func (m *Memory) Set32(offset uint64, val *big.Int) {
+// Returns an error if the write is out of bounds.
+func (m *Memory) Set32(offset uint64, val *big.Int) error {
 	end := offset + 32
 	if end > uint64(len(m.store)) || end < offset {
-		panic(fmt.Sprintf("memory: Set32 out of bounds: offset=%d store=%d", offset, len(m.store)))
+		return fmt.Errorf("memory: Set32 out of bounds: offset=%d store=%d", offset, len(m.store))
 	}
 	var buf [32]byte
 	val.FillBytes(buf[:])
 	copy(m.store[offset:end], buf[:])
+	return nil
 }
 
 // SetByte writes a single byte to memory.
-func (m *Memory) SetByte(offset uint64, val byte) {
+// Returns an error if the offset is out of bounds.
+func (m *Memory) SetByte(offset uint64, val byte) error {
 	if offset >= uint64(len(m.store)) {
-		panic(fmt.Sprintf("memory: SetByte out of bounds: offset=%d store=%d", offset, len(m.store)))
+		return fmt.Errorf("memory: SetByte out of bounds: offset=%d store=%d", offset, len(m.store))
 	}
 	m.store[offset] = val
+	return nil
 }
 
 // Get returns a copy of data from memory at the given offset and size.
-func (m *Memory) Get(offset, size uint64) []byte {
+// Returns an error if the read is out of bounds.
+func (m *Memory) Get(offset, size uint64) ([]byte, error) {
 	if size == 0 {
-		return nil
+		return nil, nil
 	}
 	end := offset + size
 	if end > uint64(len(m.store)) || end < offset {
-		panic(fmt.Sprintf("memory: Get out of bounds: offset=%d size=%d store=%d", offset, size, len(m.store)))
+		return nil, fmt.Errorf("memory: Get out of bounds: offset=%d size=%d store=%d", offset, size, len(m.store))
 	}
 	out := make([]byte, size)
 	copy(out, m.store[offset:end])
-	return out
+	return out, nil
 }
 
 // GetPtr returns a slice reference (not a copy) for read-only use.
-func (m *Memory) GetPtr(offset, size uint64) []byte {
+// Returns an error if the access is out of bounds.
+func (m *Memory) GetPtr(offset, size uint64) ([]byte, error) {
 	if size == 0 {
-		return nil
+		return nil, nil
 	}
 	end := offset + size
 	if end > uint64(len(m.store)) || end < offset {
-		panic(fmt.Sprintf("memory: GetPtr out of bounds: offset=%d size=%d store=%d", offset, size, len(m.store)))
+		return nil, fmt.Errorf("memory: GetPtr out of bounds: offset=%d size=%d store=%d", offset, size, len(m.store))
 	}
-	return m.store[offset:end]
+	return m.store[offset:end], nil
 }
 
 // Reset clears memory.

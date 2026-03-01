@@ -519,12 +519,13 @@ func BenchmarkStack_Swap(b *testing.B) {
 
 func BenchmarkMemory_Set32(b *testing.B) {
 	mem := evm.NewMemory()
+	mem.Resize(32) // pre-expand
 	val := new(big.Int).SetBytes([]byte{0xFF, 0xAA, 0xBB, 0xCC})
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		mem.Set32(0, val)
+		_ = mem.Set32(0, val)
 	}
 }
 
@@ -533,7 +534,7 @@ func BenchmarkMemory_Resize(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		mem := evm.NewMemory()
-		mem.Resize(4096)
+		_, _ = mem.Resize(4096)
 	}
 }
 

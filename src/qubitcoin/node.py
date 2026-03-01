@@ -827,7 +827,8 @@ class QubitcoinNode:
                 channel.close()
                 connected = True
                 break
-            except Exception:
+            except Exception as e:
+                logger.debug(f"gRPC connect attempt: {e}")
                 time.sleep(0.5)
 
         if connected:
@@ -984,8 +985,8 @@ class QubitcoinNode:
             if self.bridge_manager:
                 try:
                     bridge_active_chains.set(len(self.bridge_manager.bridges))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (bridge): {e}")
             subsystem_bridge_up.set(1 if self.bridge_manager else 0)
 
             # Compliance
@@ -997,13 +998,13 @@ class QubitcoinNode:
                     compliance_blocked_addresses.set(blocked)
                     cb = self.compliance_engine.circuit_breaker
                     compliance_circuit_breaker.set(1 if getattr(cb, 'is_tripped', False) else 0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (compliance): {e}")
                 if self.compliance_engine and hasattr(self.compliance_engine, 'sanctions'):
                     try:
                         sanctions_entries_total.set(len(self.compliance_engine.sanctions._entries))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Metrics update error (sanctions): {e}")
             subsystem_compliance_up.set(1 if self.compliance_engine else 0)
 
             # Plugins
@@ -1013,8 +1014,8 @@ class QubitcoinNode:
                     qvm_plugins_registered.set(len(all_plugins))
                     active_count = sum(1 for p in all_plugins if p.get('active', False))
                     qvm_plugins_active.set(active_count)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (plugins): {e}")
             subsystem_plugins_up.set(1 if self.plugin_manager else 0)
 
             # QVM Extensions
@@ -1023,26 +1024,26 @@ class QubitcoinNode:
                     sc_stats = self.state_channel_manager.get_stats()
                     qvm_state_channels_open.set(sc_stats.get('open_channels', 0))
                     qvm_state_channels_tvl.set(float(sc_stats.get('total_locked_qbc', 0)))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (state channels): {e}")
             if self.transaction_batcher:
                 try:
                     b_stats = self.transaction_batcher.get_stats()
                     qvm_batch_pending_txs.set(b_stats.get('pending_transactions', 0))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (tx batcher): {e}")
             if self.decoherence_manager:
                 try:
                     d_stats = self.decoherence_manager.get_stats()
                     qvm_decoherence_active.set(d_stats.get('active_states', 0))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (decoherence): {e}")
             if self.tlac_manager:
                 try:
                     t_stats = self.tlac_manager.get_stats()
                     tlac_pending.set(t_stats.get('pending', 0))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (TLAC): {e}")
 
             # Stablecoin
             if self.stablecoin_engine:
@@ -1052,8 +1053,8 @@ class QubitcoinNode:
                     qusd_reserve_backing_pct.set(float(sc_info.get('reserve_backing', 0)))
                     qusd_active_vaults.set(sc_info.get('active_vaults', 0))
                     qusd_total_debt.set(float(sc_info.get('cdp_debt', 0)))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (stablecoin): {e}")
             subsystem_stablecoin_up.set(1 if self.stablecoin_engine else 0)
 
             # Cognitive Architecture
@@ -1061,22 +1062,22 @@ class QubitcoinNode:
                 try:
                     s_status = self.sephirot_manager.get_status()
                     sephirot_active_nodes.set(s_status.get('active_nodes', 10))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (sephirot): {e}")
             if self.csf_transport:
                 try:
                     csf_stats = self.csf_transport.get_stats()
                     csf_queue_depth.set(csf_stats.get('queue_depth', 0))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (CSF transport): {e}")
             if self.pineal_orchestrator:
                 try:
                     p_status = self.pineal_orchestrator.get_status()
                     pineal_current_phase.set(p_status.get('phase_index', 0))
                     pineal_metabolic_rate.set(float(p_status.get('metabolic_rate', 1.0)))
                     pineal_is_conscious.set(1 if p_status.get('is_conscious', False) else 0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (pineal): {e}")
             subsystem_cognitive_up.set(1 if self.sephirot_manager else 0)
 
             # Higgs Cognitive Field
@@ -1094,8 +1095,8 @@ class QubitcoinNode:
                             sum(masses.values()) / len(masses)
                         )
                     higgs_potential_energy.set(h_status.get('potential_energy', 0))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (Higgs field): {e}")
 
             # Fee Collector
             if self.fee_collector:
@@ -1103,8 +1104,8 @@ class QubitcoinNode:
                     fc_stats = self.fee_collector.get_stats()
                     fees_collected_total.set(fc_stats.get('total_events', 0))
                     fees_collected_qbc_total.set(float(fc_stats.get('total_collected', 0)))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (fee collector): {e}")
 
             # QUSD Oracle
             if self.qusd_oracle:
@@ -1112,8 +1113,8 @@ class QubitcoinNode:
                     o_status = self.qusd_oracle.get_status()
                     qusd_price_qbc_usd.set(float(o_status.get('qbc_usd_price', 0)))
                     qusd_oracle_stale.set(1 if o_status.get('is_stale', True) else 0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (QUSD oracle): {e}")
 
             # Capability
             if self.capability_advertiser:
@@ -1121,16 +1122,16 @@ class QubitcoinNode:
                     c_summary = self.capability_advertiser.get_network_summary()
                     capability_active_peers.set(c_summary.get('total_peers', 0))
                     capability_total_mining_power.set(float(c_summary.get('total_mining_power', 0)))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (capability): {e}")
 
             # IPFS Memory
             if self.ipfs_memory:
                 try:
                     m_stats = self.ipfs_memory.get_stats()
                     ipfs_memory_cache_size.set(m_stats.get('cache_size', 0))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (IPFS memory): {e}")
 
             # Privacy — static classes, always up
             subsystem_privacy_up.set(1)
@@ -1278,8 +1279,8 @@ class QubitcoinNode:
                 for plugin_info in self.plugin_manager.list_plugins():
                     try:
                         self.plugin_manager.stop(plugin_info['name'])
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"Plugin stop error ({plugin_info.get('name', '?')}): {e}")
             except Exception as e:
                 logger.debug(f"Plugin shutdown: {e}")
 

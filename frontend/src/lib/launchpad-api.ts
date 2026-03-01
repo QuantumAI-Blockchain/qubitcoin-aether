@@ -159,14 +159,8 @@ export async function getProjects(): Promise<Project[]> {
     return engine.getProjects();
   }
 
-  try {
-    const result = await get<{ projects: Project[] }>("/contracts/projects");
-    return result.projects;
-  } catch {
-    // Fallback to mock if backend unavailable
-    const engine = await getMockEngine();
-    return engine.getProjects();
-  }
+  const result = await get<{ projects: Project[] }>("/contracts/projects");
+  return result.projects;
 }
 
 /* ── Get Single Project ──────────────────────────────────────────────────── */
@@ -177,12 +171,7 @@ export async function getProject(address: string): Promise<Project | null> {
     return engine.getProject(address) ?? null;
   }
 
-  try {
-    return await get<Project>(`/contracts/project/${address}`);
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getProject(address) ?? null;
-  }
+  return await get<Project>(`/contracts/project/${address}`);
 }
 
 /* ── QPCS Scoring ────────────────────────────────────────────────────────── */
@@ -264,33 +253,30 @@ export async function getEcosystemHealth(): Promise<EcosystemHealth> {
     return engine.getEcosystemHealth();
   }
 
-  try {
-    // Merge chain info with mock ecosystem data for fields that
-    // don't have backend equivalents yet
-    const [chainInfo, engine] = await Promise.all([
-      get<{
-        height: number;
-        difficulty: number;
-        peers: number;
-        mempool_size: number;
-        total_supply: number;
-      }>("/chain/info"),
-      getMockEngine(),
-    ]);
+  const chainInfo = await get<{
+    height: number;
+    difficulty: number;
+    peers: number;
+    mempool_size: number;
+    total_supply: number;
+  }>("/chain/info");
 
-    const mockHealth = engine.getEcosystemHealth();
-
-    return {
-      ...mockHealth,
-      blockHeight: chainInfo.height,
-      peerCount: chainInfo.peers,
-      memPoolDepth: chainInfo.mempool_size,
-      networkHashrate: chainInfo.difficulty,
-    };
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getEcosystemHealth();
-  }
+  return {
+    status: "optimal",
+    blockHeight: chainInfo.height,
+    networkHashrate: chainInfo.difficulty,
+    memPoolDepth: chainInfo.mempool_size,
+    susyAlignment: 0,
+    peerCount: chainInfo.peers,
+    totalProjectsLaunched: 0,
+    totalLiquidityLockedQusd: 0,
+    totalQbcDomains: 0,
+    totalDDReports: 0,
+    totalReputationStakes: 0,
+    qbcQusdPrice: 0,
+    avgQpcs: 0,
+    latestLaunch: null,
+  };
 }
 
 /* ── Leaderboard ─────────────────────────────────────────────────────────── */
@@ -314,26 +300,10 @@ export async function getLeaderboard(
     }
   }
 
-  try {
-    const result = await get<{ projects: Project[] }>(
-      `/contracts/leaderboard/${tab}`,
-    );
-    return result.projects;
-  } catch {
-    const engine = await getMockEngine();
-    switch (tab) {
-      case "qpcs":
-        return engine.getLeaderboardQPCS();
-      case "raises":
-        return engine.getLeaderboardRaises();
-      case "locks":
-        return engine.getLeaderboardLocks();
-      case "growth":
-        return engine.getLeaderboardGrowth();
-      case "reputation":
-        return engine.getLeaderboardReputation();
-    }
-  }
+  const result = await get<{ projects: Project[] }>(
+    `/contracts/leaderboard/${tab}`,
+  );
+  return result.projects;
 }
 
 /* ── DD Reports (all) ────────────────────────────────────────────────────── */
@@ -344,13 +314,8 @@ export async function getAllDDReports(): Promise<DDReport[]> {
     return engine.getAllDDReports();
   }
 
-  try {
-    const result = await get<{ reports: DDReport[] }>("/contracts/dd-reports");
-    return result.reports;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getAllDDReports();
-  }
+  const result = await get<{ reports: DDReport[] }>("/contracts/dd-reports");
+  return result.reports;
 }
 
 /* ── Vouches (all) ───────────────────────────────────────────────────────── */
@@ -361,13 +326,8 @@ export async function getAllVouches(): Promise<Vouch[]> {
     return engine.getAllVouches();
   }
 
-  try {
-    const result = await get<{ vouches: Vouch[] }>("/contracts/vouches");
-    return result.vouches;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getAllVouches();
-  }
+  const result = await get<{ vouches: Vouch[] }>("/contracts/vouches");
+  return result.vouches;
 }
 
 /* ── Ecosystem Edges ─────────────────────────────────────────────────────── */
@@ -385,20 +345,15 @@ export async function getEcosystemEdges(): Promise<
     return engine.getEcosystemEdges();
   }
 
-  try {
-    const result = await get<{
-      edges: Array<{
-        source: string;
-        target: string;
-        type: string;
-        weight: number;
-      }>;
-    }>("/contracts/ecosystem/edges");
-    return result.edges;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getEcosystemEdges();
-  }
+  const result = await get<{
+    edges: Array<{
+      source: string;
+      target: string;
+      type: string;
+      weight: number;
+    }>;
+  }>("/contracts/ecosystem/edges");
+  return result.edges;
 }
 
 /* ── Projects by Tier ────────────────────────────────────────────────────── */
@@ -411,15 +366,10 @@ export async function getProjectsByTier(
     return engine.getProjectsByTier(tier);
   }
 
-  try {
-    const result = await get<{ projects: Project[] }>(
-      `/contracts/projects?tier=${tier}`,
-    );
-    return result.projects;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getProjectsByTier(tier);
-  }
+  const result = await get<{ projects: Project[] }>(
+    `/contracts/projects?tier=${tier}`,
+  );
+  return result.projects;
 }
 
 /* ── Projects with Presale ───────────────────────────────────────────────── */
@@ -430,15 +380,10 @@ export async function getProjectsWithPresale(): Promise<Project[]> {
     return engine.getProjectsWithPresale();
   }
 
-  try {
-    const result = await get<{ projects: Project[] }>(
-      "/contracts/projects?presale=true",
-    );
-    return result.projects;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getProjectsWithPresale();
-  }
+  const result = await get<{ projects: Project[] }>(
+    "/contracts/projects?presale=true",
+  );
+  return result.projects;
 }
 
 /* ── Vouched Projects ────────────────────────────────────────────────────── */
@@ -449,15 +394,10 @@ export async function getProjectsVouched(): Promise<Project[]> {
     return engine.getProjectsVouched();
   }
 
-  try {
-    const result = await get<{ projects: Project[] }>(
-      "/contracts/projects?vouched=true",
-    );
-    return result.projects;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getProjectsVouched();
-  }
+  const result = await get<{ projects: Project[] }>(
+    "/contracts/projects?vouched=true",
+  );
+  return result.projects;
 }
 
 /* ── Verified Projects ───────────────────────────────────────────────────── */
@@ -468,15 +408,10 @@ export async function getProjectsVerified(): Promise<Project[]> {
     return engine.getProjectsVerified();
   }
 
-  try {
-    const result = await get<{ projects: Project[] }>(
-      "/contracts/projects?verified=true",
-    );
-    return result.projects;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getProjectsVerified();
-  }
+  const result = await get<{ projects: Project[] }>(
+    "/contracts/projects?verified=true",
+  );
+  return result.projects;
 }
 
 /* ── Domain Projects ─────────────────────────────────────────────────────── */
@@ -487,15 +422,10 @@ export async function getProjectsWithDomain(): Promise<Project[]> {
     return engine.getProjectsWithDomain();
   }
 
-  try {
-    const result = await get<{ projects: Project[] }>(
-      "/contracts/projects?domain=true",
-    );
-    return result.projects;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getProjectsWithDomain();
-  }
+  const result = await get<{ projects: Project[] }>(
+    "/contracts/projects?domain=true",
+  );
+  return result.projects;
 }
 
 /* ── Portfolio ───────────────────────────────────────────────────────────── */
@@ -506,15 +436,10 @@ export async function getMyDeployed(): Promise<Project[]> {
     return engine.getMyDeployed();
   }
 
-  try {
-    const result = await get<{ projects: Project[] }>(
-      "/contracts/portfolio/deployed",
-    );
-    return result.projects;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getMyDeployed();
-  }
+  const result = await get<{ projects: Project[] }>(
+    "/contracts/portfolio/deployed",
+  );
+  return result.projects;
 }
 
 export async function getMyInvestments(): Promise<PortfolioInvestment[]> {
@@ -523,13 +448,8 @@ export async function getMyInvestments(): Promise<PortfolioInvestment[]> {
     return engine.getMyInvestments();
   }
 
-  try {
-    const result = await get<{ investments: PortfolioInvestment[] }>(
-      "/contracts/portfolio/investments",
-    );
-    return result.investments;
-  } catch {
-    const engine = await getMockEngine();
-    return engine.getMyInvestments();
-  }
+  const result = await get<{ investments: PortfolioInvestment[] }>(
+    "/contracts/portfolio/investments",
+  );
+  return result.investments;
 }

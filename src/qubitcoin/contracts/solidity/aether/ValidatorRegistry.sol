@@ -28,6 +28,8 @@ contract ValidatorRegistry is Initializable {
 
     mapping(address => Validator) public validators;
     address[] public validatorList;
+    /// @notice Index of each validator in validatorList for O(1) removal (swap-and-pop)
+    mapping(address => uint256) public validatorListIndex;
     uint256 public activeValidatorCount;
     uint256 public totalStaked;
 
@@ -69,6 +71,7 @@ contract ValidatorRegistry is Initializable {
                 incorrectVotes:     0,
                 active:             true
             });
+            validatorListIndex[validator] = validatorList.length;
             validatorList.push(validator);
             activeValidatorCount++;
         } else {
@@ -89,7 +92,7 @@ contract ValidatorRegistry is Initializable {
         emit ValidatorUnstakeRequested(validator, block.timestamp + UNSTAKING_DELAY);
     }
 
-    /// @notice Complete unstaking after delay
+    /// @notice Complete unstaking after delay. Removes validator from the list via swap-and-pop.
     function completeUnstake(address validator) external onlyKernel {
         Validator storage v = validators[validator];
         require(v.unstakeRequestedAt > 0, "VReg: not unstaking");
@@ -101,6 +104,9 @@ contract ValidatorRegistry is Initializable {
         v.active      = false;
         v.stakeAmount = 0;
         v.unstakeRequestedAt = 0;
+
+        // Remove from validatorList using swap-and-pop for O(1) cleanup
+        _removeFromList(validator);
 
         emit ValidatorUnstaked(validator, amount);
     }
@@ -117,6 +123,7 @@ contract ValidatorRegistry is Initializable {
         if (v.stakeAmount < MIN_STAKE) {
             v.active = false;
             activeValidatorCount--;
+            _removeFromList(validator);
         }
 
         emit ValidatorSlashed(validator, actualSlash, v.stakeAmount);
@@ -151,5 +158,22 @@ contract ValidatorRegistry is Initializable {
 
     function getValidatorCount() external view returns (uint256 active, uint256 total) {
         return (activeValidatorCount, validatorList.length);
+    }
+
+    // ─── Internal ──────────────────────────────────────────────────────
+    /// @dev Remove a validator from validatorList using swap-and-pop for O(1) removal.
+    ///      Moves the last element into the removed slot to avoid shifting.
+    function _removeFromList(address validator) internal {
+        uint256 index = validatorListIndex[validator];
+        uint256 lastIndex = validatorList.length - 1;
+
+        if (index != lastIndex) {
+            address lastValidator = validatorList[lastIndex];
+            validatorList[index] = lastValidator;
+            validatorListIndex[lastValidator] = index;
+        }
+
+        validatorList.pop();
+        delete validatorListIndex[validator];
     }
 }

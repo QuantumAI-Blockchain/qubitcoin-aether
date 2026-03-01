@@ -74,6 +74,13 @@ pub mod pallet {
     #[pallet::getter(fn current_height)]
     pub type CurrentHeight<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+    /// Accumulated transaction fees since the last coinbase. Fees are the
+    /// difference between total inputs and total outputs in each transaction.
+    /// Reset to zero after being included in a coinbase by the consensus pallet.
+    #[pallet::storage]
+    #[pallet::getter(fn accumulated_fees)]
+    pub type AccumulatedFees<T: Config> = StorageValue<_, QbcBalance, ValueQuery>;
+
     /// UTXOs spent during the current block — prevents double-spend within a block.
     /// Cleared at the start of each new block via `set_block_height`.
     #[pallet::storage]
@@ -164,9 +171,11 @@ pub mod pallet {
         /// 6. No zero-amount outputs
         #[pallet::call_index(0)]
         // Analytical weight: N input reads (25µs each) + N Dilithium verifications (500µs each)
-        // + M output writes (25µs each) + N input deletions (25µs each) + overhead
-        // Estimate: 4 inputs × 550µs + 4 outputs × 25µs = 2.3ms ≈ 2_300_000 weight units
-        #[pallet::weight(2_300_000)]
+        // + M output writes (25µs each) + N input deletions (25µs each) + fee accumulation (25µs)
+        // Estimate: 4 inputs × 550µs + 4 outputs × 25µs + 25µs fee = ~2.3ms ≈ 2_325_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
+        #[pallet::weight(2_325_000)]
         pub fn submit_transaction(
             origin: OriginFor<T>,
             inputs: BoundedVec<TransactionInput, T::MaxInputs>,
@@ -248,6 +257,12 @@ pub mod pallet {
             // Inputs must cover outputs (difference is fee)
             ensure!(total_input >= total_output, Error::<T>::InsufficientFunds);
 
+            // Accumulate the fee (difference between inputs and outputs)
+            let fee = total_input.saturating_sub(total_output);
+            if fee > 0 {
+                AccumulatedFees::<T>::mutate(|f| *f = f.saturating_add(fee));
+            }
+
             // Compute txid from inputs + outputs
             let txid = Self::compute_txid(&inputs, &outputs);
 
@@ -327,6 +342,12 @@ pub mod pallet {
                 address,
                 reward,
             });
+        }
+
+        /// Reset accumulated fees to zero. Called by the consensus pallet
+        /// after including the fees in a coinbase UTXO.
+        pub fn reset_accumulated_fees() {
+            AccumulatedFees::<T>::put(0u128);
         }
 
         /// Update the current block height and clear per-block spent UTXO set.

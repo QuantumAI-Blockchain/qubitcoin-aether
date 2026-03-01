@@ -200,6 +200,8 @@ pub mod pallet {
         #[pallet::call_index(0)]
         // Analytical weight: SHA2-256 hash (10µs) + 1 storage read (25µs) + 1 write (25µs)
         // + Dilithium2 key validation (~100µs for 1312-byte key) = ~160µs ≈ 160_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(160_000)]
         pub fn register_key(
             origin: OriginFor<T>,
@@ -243,6 +245,8 @@ pub mod pallet {
         /// Once revoked, the key cannot be re-registered.
         #[pallet::call_index(1)]
         // Analytical weight: 1 Dilithium verify (500µs) + 3 storage ops (75µs) = ~575µs
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(575_000)]
         pub fn revoke_key(
             origin: OriginFor<T>,

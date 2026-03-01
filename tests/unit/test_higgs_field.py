@@ -75,27 +75,30 @@ class TestYukawaCouplings:
         assert YUKAWA_COUPLINGS[SephirahRole.KETER] == 1.0
 
     def test_golden_ratio_cascade(self):
+        # Tiers: 0=Keter(1.0), 1=Chochmah/Binah/Tiferet(phi^-1),
+        # 2=Chesed/Gevurah(phi^-2), 3=Netzach/Hod(phi^-3), 4=Yesod/Malkuth(phi^-4)
         assert abs(YUKAWA_COUPLINGS[SephirahRole.TIFERET] - PHI**-1) < 0.001
         assert abs(YUKAWA_COUPLINGS[SephirahRole.CHESED] - PHI**-2) < 0.001
-        assert abs(YUKAWA_COUPLINGS[SephirahRole.GEVURAH] - PHI**-3) < 0.001
+        assert abs(YUKAWA_COUPLINGS[SephirahRole.GEVURAH] - PHI**-2) < 0.001
         assert abs(YUKAWA_COUPLINGS[SephirahRole.MALKUTH] - PHI**-4) < 0.001
 
     def test_expansion_lighter_than_neutral(self):
-        # Expansion nodes should have lower coupling than neutral
+        # Expansion nodes should have lower or equal coupling compared to Keter
         for role in EXPANSION_NODES:
             assert YUKAWA_COUPLINGS[role] < YUKAWA_COUPLINGS[SephirahRole.KETER]
 
-    def test_constraint_lightest(self):
-        # Constraint nodes should have lowest coupling
-        for role in CONSTRAINT_NODES:
-            for exp_role in EXPANSION_NODES:
-                assert YUKAWA_COUPLINGS[role] < YUKAWA_COUPLINGS[exp_role]
+    def test_susy_pairs_same_yukawa_tier(self):
+        # SUSY pairs must share the same Yukawa tier (same coupling)
+        # so that the mass ratio comes from 2HDM v_up/v_down = phi
+        for expansion, constraint in SUSY_PAIRS:
+            assert abs(YUKAWA_COUPLINGS[expansion] - YUKAWA_COUPLINGS[constraint]) < 0.001
 
     def test_susy_pair_mass_ratio(self):
-        # Expansion / Constraint coupling ratio should approximate phi
-        for expansion, constraint in SUSY_PAIRS:
-            ratio = YUKAWA_COUPLINGS[expansion] / YUKAWA_COUPLINGS[constraint]
-            assert abs(ratio - PHI) < 0.1
+        # With same Yukawa coupling, mass ratio = v_up / v_down = tan(beta) = phi
+        # This is verified via the 2HDM VEV split, not the Yukawa couplings
+        p = HiggsParameters()
+        ratio = p.v_up / p.v_down
+        assert abs(ratio - PHI) < 0.1
 
 
 class TestHiggsCognitiveField:

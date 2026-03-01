@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"encoding/binary"
 	"fmt"
 	"log"
 	"math/big"
@@ -79,6 +80,19 @@ func (interp *Interpreter) Execute(
 	tx *TxContext,
 	call *CallContext,
 ) *ExecutionResult {
+	return interp.ExecuteWithAccess(block, tx, call, nil, nil)
+}
+
+// ExecuteWithAccess runs bytecode with a shared AccessSet and OriginalStorage map.
+// This ensures EIP-2929 warm/cold tracking and EIP-2200 original storage persist
+// across sub-calls within the same transaction.
+func (interp *Interpreter) ExecuteWithAccess(
+	block *BlockContext,
+	tx *TxContext,
+	call *CallContext,
+	parentAccess *AccessSet,
+	parentOriginalStorage map[[20]byte]map[[32]byte][32]byte,
+) *ExecutionResult {
 	if call.Depth > interp.config.MaxCallDepth {
 		return &ExecutionResult{
 			Success:      false,
@@ -88,6 +102,15 @@ func (interp *Interpreter) Execute(
 	}
 
 	ctx := NewExecutionContext(block, tx, call)
+
+	// Share AccessSet and OriginalStorage across sub-calls (EIP-2929, EIP-2200)
+	if parentAccess != nil {
+		ctx.AccessList = parentAccess
+	}
+	if parentOriginalStorage != nil {
+		ctx.OriginalStorage = parentOriginalStorage
+	}
+
 	result := &ExecutionResult{}
 
 	err := interp.run(ctx)
@@ -331,12 +354,18 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			offset, size := mustPop2(ctx)
 			off, sz := offset.Uint64(), size.Uint64()
 			// Memory expansion + dynamic gas
-			memCost := ctx.Memory.Resize(off + sz)
+			memCost, memErr := ctx.Memory.Resize(off + sz)
+			if memErr != nil {
+				return memErr
+			}
 			wordCost := Keccak256GasCost(sz) - GasKeccak256 // subtract base (already charged)
 			if !ctx.UseGas(memCost + wordCost) {
 				return fmt.Errorf("out of gas: KECCAK256")
 			}
-			data := ctx.Memory.Get(off, sz)
+			data, memErr := ctx.Memory.Get(off, sz)
+			if memErr != nil {
+				return memErr
+			}
 			h := sha3.NewLegacyKeccak256()
 			h.Write(data)
 			hash := h.Sum(nil)
@@ -425,12 +454,17 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			sz := size.Uint64()
 			// Dynamic copy cost + memory expansion
 			copyCost := CopyGasCost(sz)
-			memCost := ctx.Memory.Resize(destOff.Uint64() + sz)
+			memCost, memErr := ctx.Memory.Resize(destOff.Uint64() + sz)
+			if memErr != nil {
+				return memErr
+			}
 			if !ctx.UseGas(copyCost + memCost) {
 				return fmt.Errorf("out of gas: EXTCODECOPY")
 			}
 			data := padRight(sliceBytes(extCode, codeOff.Uint64(), sz), int(sz))
-			ctx.Memory.Set(destOff.Uint64(), data)
+			if memErr := ctx.Memory.Set(destOff.Uint64(), data); memErr != nil {
+				return memErr
+			}
 
 		case op == RETURNDATASIZE:
 			err = ctx.Stack.PushUint64(uint64(len(ctx.ReturnData)))
@@ -443,11 +477,16 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 				return fmt.Errorf("return data out of bounds")
 			}
 			copyCost := CopyGasCost(sz)
-			memCost := ctx.Memory.Resize(destOff.Uint64() + sz)
+			memCost, memErr := ctx.Memory.Resize(destOff.Uint64() + sz)
+			if memErr != nil {
+				return memErr
+			}
 			if !ctx.UseGas(copyCost + memCost) {
 				return fmt.Errorf("out of gas: RETURNDATACOPY")
 			}
-			ctx.Memory.Set(destOff.Uint64(), ctx.ReturnData[offVal:offVal+sz])
+			if memErr := ctx.Memory.Set(destOff.Uint64(), ctx.ReturnData[offVal:offVal+sz]); memErr != nil {
+				return memErr
+			}
 
 		case op == EXTCODEHASH:
 			addrInt := mustPop1(ctx)
@@ -516,30 +555,46 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 		case op == MLOAD:
 			offset := mustPop1(ctx)
 			off := offset.Uint64()
-			memCost := ctx.Memory.Resize(off + 32)
+			memCost, memErr := ctx.Memory.Resize(off + 32)
+			if memErr != nil {
+				return memErr
+			}
 			if !ctx.UseGas(memCost) {
 				return fmt.Errorf("out of gas: MLOAD")
 			}
-			data := ctx.Memory.Get(off, 32)
+			data, memErr := ctx.Memory.Get(off, 32)
+			if memErr != nil {
+				return memErr
+			}
 			err = ctx.Stack.Push(new(big.Int).SetBytes(data))
 
 		case op == MSTORE:
 			offset, val := mustPop2(ctx)
 			off := offset.Uint64()
-			memCost := ctx.Memory.Resize(off + 32)
+			memCost, memErr := ctx.Memory.Resize(off + 32)
+			if memErr != nil {
+				return memErr
+			}
 			if !ctx.UseGas(memCost) {
 				return fmt.Errorf("out of gas: MSTORE")
 			}
-			ctx.Memory.Set32(off, val)
+			if memErr := ctx.Memory.Set32(off, val); memErr != nil {
+				return memErr
+			}
 
 		case op == MSTORE8:
 			offset, val := mustPop2(ctx)
 			off := offset.Uint64()
-			memCost := ctx.Memory.Resize(off + 1)
+			memCost, memErr := ctx.Memory.Resize(off + 1)
+			if memErr != nil {
+				return memErr
+			}
 			if !ctx.UseGas(memCost) {
 				return fmt.Errorf("out of gas: MSTORE8")
 			}
-			ctx.Memory.SetByte(off, byte(val.Uint64()&0xFF))
+			if memErr := ctx.Memory.SetByte(off, byte(val.Uint64()&0xFF)); memErr != nil {
+				return memErr
+			}
 
 		case op == SLOAD:
 			keyInt := mustPop1(ctx)
@@ -702,18 +757,24 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 
 			// Dynamic gas: 375 per topic + 8 per byte of data
 			dynGas := LogGasCost(numTopics, sz) - GasLog // subtract base
-			memCost := ctx.Memory.Resize(off + sz)
+			memCost, memErr := ctx.Memory.Resize(off + sz)
+			if memErr != nil {
+				return memErr
+			}
 			if !ctx.UseGas(dynGas + memCost) {
 				return fmt.Errorf("out of gas: LOG")
 			}
 
-			data := ctx.Memory.Get(off, sz)
-			log := &Log{
+			data, memErr := ctx.Memory.Get(off, sz)
+			if memErr != nil {
+				return memErr
+			}
+			logEntry := &Log{
 				Address: ctx.Call.Address,
 				Topics:  topics,
 				Data:    data,
 			}
-			ctx.Logs = append(ctx.Logs, log)
+			ctx.Logs = append(ctx.Logs, logEntry)
 
 		// ════════════════════════════════════════════════════════════════
 		// SYSTEM
@@ -721,21 +782,35 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 		case op == RETURN:
 			offset, size := mustPop2(ctx)
 			off, sz := offset.Uint64(), size.Uint64()
-			memCost := ctx.Memory.Resize(off + sz)
+			memCost, memErr := ctx.Memory.Resize(off + sz)
+			if memErr != nil {
+				return memErr
+			}
 			if !ctx.UseGas(memCost) {
 				return fmt.Errorf("out of gas: RETURN")
 			}
-			ctx.ReturnData = ctx.Memory.Get(off, sz)
+			retData, memErr := ctx.Memory.Get(off, sz)
+			if memErr != nil {
+				return memErr
+			}
+			ctx.ReturnData = retData
 			ctx.Stopped = true
 
 		case op == REVERT:
 			offset, size := mustPop2(ctx)
 			off, sz := offset.Uint64(), size.Uint64()
-			memCost := ctx.Memory.Resize(off + sz)
+			memCost, memErr := ctx.Memory.Resize(off + sz)
+			if memErr != nil {
+				return memErr
+			}
 			if !ctx.UseGas(memCost) {
 				return fmt.Errorf("out of gas: REVERT")
 			}
-			ctx.ReturnData = ctx.Memory.Get(off, sz)
+			retData, memErr := ctx.Memory.Get(off, sz)
+			if memErr != nil {
+				return memErr
+			}
+			ctx.ReturnData = retData
 			ctx.Reverted = true
 			ctx.Stopped = true
 
@@ -757,7 +832,10 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			off, sz := offset.Uint64(), size.Uint64()
 
 			// Memory expansion + CREATE base gas
-			memCost := ctx.Memory.Resize(off + sz)
+			memCost, memErr := ctx.Memory.Resize(off + sz)
+			if memErr != nil {
+				return memErr
+			}
 			createGas := GasCreate
 			if op == CREATE2 {
 				// CREATE2 extra: 6 * ceil(len / 32) for keccak of init code
@@ -772,7 +850,10 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 				break
 			}
 
-			initCode := ctx.Memory.Get(off, sz)
+			initCode, memErr := ctx.Memory.Get(off, sz)
+			if memErr != nil {
+				return memErr
+			}
 			if uint64(len(initCode)) > MaxInitCodeSize {
 				err = ctx.Stack.Push(big.NewInt(0))
 				break
@@ -783,10 +864,9 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			callerNonce := interp.state.GetNonce(ctx.Call.Address)
 			if op == CREATE {
 				// CREATE: address = keccak256(rlp([sender, nonce]))[12:]
+				rlpData := rlpEncodeCreateAddress(ctx.Call.Address[:], callerNonce)
 				h := sha3.NewLegacyKeccak256()
-				h.Write(ctx.Call.Address[:])
-				nonceBytes := new(big.Int).SetUint64(callerNonce).Bytes()
-				h.Write(nonceBytes)
+				h.Write(rlpData)
 				copy(newAddr[:], h.Sum(nil)[12:])
 			} else {
 				// CREATE2: address = keccak256(0xff ++ sender ++ salt ++ keccak256(init_code))[12:]
@@ -837,7 +917,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 				Gas:     subGas,
 				Depth:   ctx.Call.Depth + 1,
 			}
-			subResult := interp.Execute(ctx.Block, ctx.Tx, subCall)
+			subResult := interp.ExecuteWithAccess(ctx.Block, ctx.Tx, subCall, ctx.AccessList, ctx.OriginalStorage)
 
 			if subResult.Success && len(subResult.ReturnData) > 0 {
 				// Code deposit: check EIP-170 max code size
@@ -882,16 +962,25 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			rOff, rLen := retOff.Uint64(), retLen.Uint64()
 
 			// Memory expansion for args + return
-			memCost := ctx.Memory.Resize(aOff + aLen)
-			memCost += ctx.Memory.Resize(rOff + rLen)
-			if !ctx.UseGas(memCost) {
+			memCost, memErr := ctx.Memory.Resize(aOff + aLen)
+			if memErr != nil {
+				return memErr
+			}
+			memCost2, memErr := ctx.Memory.Resize(rOff + rLen)
+			if memErr != nil {
+				return memErr
+			}
+			if !ctx.UseGas(memCost + memCost2) {
 				return fmt.Errorf("out of gas: CALL memory")
 			}
 
 			// Check for precompile
 			toAddrInt := new(big.Int).SetBytes(toAddr[:])
 			if toAddrInt.Uint64() > 0 && toAddrInt.Uint64() <= 9 && IsPrecompile(toAddrInt.Uint64()) {
-				callArgs := ctx.Memory.Get(aOff, aLen)
+				callArgs, memErr := ctx.Memory.Get(aOff, aLen)
+				if memErr != nil {
+					return memErr
+				}
 				subGas := gasInt.Uint64()
 				if subGas > ctx.GasRemaining() {
 					subGas = ctx.GasRemaining()
@@ -908,7 +997,9 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 						copyLen = uint64(len(output))
 					}
 					if copyLen > 0 {
-						ctx.Memory.Set(rOff, output[:copyLen])
+						if memErr := ctx.Memory.Set(rOff, output[:copyLen]); memErr != nil {
+							return memErr
+						}
 					}
 					err = ctx.Stack.Push(big.NewInt(1))
 				}
@@ -948,13 +1039,18 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 				subGas += GasCallStipend // stipend for non-zero value calls
 			}
 
-			callArgs := ctx.Memory.Get(aOff, aLen)
+			callArgs, memErr := ctx.Memory.Get(aOff, aLen)
+			if memErr != nil {
+				return memErr
+			}
 
 			// Snapshot for rollback
 			snapID := interp.state.Snapshot()
 
-			// Value transfer
-			if callValue.Sign() > 0 && (op == CALL || op == CALLCODE) {
+			// Value transfer — only for CALL, NOT CALLCODE
+			// CALLCODE runs target's code in caller's context; the value field
+			// indicates msg.value but does not actually transfer funds.
+			if callValue.Sign() > 0 && op == CALL {
 				senderBal := interp.state.GetBalance(ctx.Call.Address)
 				if senderBal.Cmp(callValue) < 0 {
 					interp.state.RevertToSnapshot(snapID)
@@ -997,7 +1093,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 
 			var subResult *ExecutionResult
 			if len(subCall.Code) > 0 {
-				subResult = interp.Execute(ctx.Block, ctx.Tx, subCall)
+				subResult = interp.ExecuteWithAccess(ctx.Block, ctx.Tx, subCall, ctx.AccessList, ctx.OriginalStorage)
 			} else {
 				// Empty code = success with no return data
 				subResult = &ExecutionResult{Success: true}
@@ -1012,7 +1108,9 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 					copyLen = uint64(len(subResult.ReturnData))
 				}
 				if copyLen > 0 {
-					ctx.Memory.Set(rOff, subResult.ReturnData[:copyLen])
+					if memErr := ctx.Memory.Set(rOff, subResult.ReturnData[:copyLen]); memErr != nil {
+						return memErr
+					}
 				}
 				err = ctx.Stack.Push(big.NewInt(1))
 			} else {
@@ -1075,13 +1173,83 @@ func (interp *Interpreter) opCopy(ctx *ExecutionContext, source []byte) error {
 	destOff, srcOff, size := mustPop3(ctx)
 	sz := size.Uint64()
 	copyCost := CopyGasCost(sz)
-	memCost := ctx.Memory.Resize(destOff.Uint64() + sz)
+	memCost, memErr := ctx.Memory.Resize(destOff.Uint64() + sz)
+	if memErr != nil {
+		return memErr
+	}
 	if !ctx.UseGas(copyCost + memCost) {
 		return fmt.Errorf("out of gas: COPY")
 	}
 	data := padRight(sliceBytes(source, srcOff.Uint64(), sz), int(sz))
-	ctx.Memory.Set(destOff.Uint64(), data)
-	return nil
+	return ctx.Memory.Set(destOff.Uint64(), data)
+}
+
+// ─── RLP Encoding for CREATE Address ──────────────────────────────────
+
+// rlpEncodeCreateAddress computes the RLP encoding of [sender_address, nonce]
+// for CREATE address derivation per the Ethereum yellow paper.
+//
+// The encoding follows RLP rules:
+//   - sender is always 20 bytes, so its RLP is 0x94 ++ sender (21 bytes)
+//   - nonce encoding follows single-value RLP rules:
+//     nonce 0: encoded as 0x80 (empty string)
+//     nonce 1-127: encoded as a single byte
+//     nonce > 127: length-prefixed encoding
+//   - The list is the concatenation of these, prefixed by its RLP list header
+func rlpEncodeCreateAddress(sender []byte, nonce uint64) []byte {
+	// Encode sender: 20-byte string → 0x94 + 20 bytes = 21 bytes
+	senderRLP := make([]byte, 21)
+	senderRLP[0] = 0x80 + 20 // 0x94
+	copy(senderRLP[1:], sender[:20])
+
+	// Encode nonce
+	var nonceRLP []byte
+	switch {
+	case nonce == 0:
+		nonceRLP = []byte{0x80} // RLP for empty string / zero
+	case nonce < 128:
+		nonceRLP = []byte{byte(nonce)} // single byte
+	default:
+		// Encode as big-endian bytes with length prefix
+		var buf [8]byte
+		binary.BigEndian.PutUint64(buf[:], nonce)
+		// Find first non-zero byte
+		start := 0
+		for start < 7 && buf[start] == 0 {
+			start++
+		}
+		nonceBytes := buf[start:]
+		nonceRLP = make([]byte, 1+len(nonceBytes))
+		nonceRLP[0] = 0x80 + byte(len(nonceBytes))
+		copy(nonceRLP[1:], nonceBytes)
+	}
+
+	// Build list: length of payload
+	payload := append(senderRLP, nonceRLP...)
+	payloadLen := len(payload)
+
+	var result []byte
+	if payloadLen < 56 {
+		// Short list: 0xC0 + length, then payload
+		result = make([]byte, 1+payloadLen)
+		result[0] = 0xC0 + byte(payloadLen)
+		copy(result[1:], payload)
+	} else {
+		// Long list: 0xF7 + length-of-length, then length, then payload
+		var lenBuf [8]byte
+		binary.BigEndian.PutUint64(lenBuf[:], uint64(payloadLen))
+		start := 0
+		for start < 7 && lenBuf[start] == 0 {
+			start++
+		}
+		lenBytes := lenBuf[start:]
+		result = make([]byte, 1+len(lenBytes)+payloadLen)
+		result[0] = 0xF7 + byte(len(lenBytes))
+		copy(result[1:], lenBytes)
+		copy(result[1+len(lenBytes):], payload)
+	}
+
+	return result
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────

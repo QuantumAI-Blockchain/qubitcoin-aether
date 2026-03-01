@@ -46,15 +46,15 @@ pub mod pallet {
         RewardCalculated { block_height: u64, reward: QbcBalance, era: u32 },
         /// New era started (phi-halving occurred).
         NewEra { era: u32, reward: QbcBalance },
-        /// Genesis premine emitted.
-        PremineEmitted { amount: QbcBalance, address: Address },
+        // Note: PremineEmitted was removed because Substrate genesis_build
+        // cannot emit events (no block context during genesis construction).
+        // The genesis premine is recorded via TotalEmitted storage instead.
     }
 
-    #[pallet::error]
-    pub enum Error<T> {
-        /// Max supply would be exceeded.
-        MaxSupplyExceeded,
-    }
+    // Note: No #[pallet::error] enum is defined for this pallet because
+    // calculate_reward() returns a capped value (or 0) rather than an error
+    // when supply is depleted. The previously defined MaxSupplyExceeded
+    // variant was never used and has been removed.
 
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]
@@ -108,22 +108,17 @@ pub mod pallet {
             base_reward.min(remaining)
         }
 
-        /// Calculate total emitted supply up to a given block height.
-        pub fn compute_total_emitted(block_height: u64) -> QbcBalance {
-            let mut total = GENESIS_PREMINE;
-            let mut height = 0u64;
-
-            while height <= block_height {
-                total = total.saturating_add(Self::calculate_reward(height));
-                height += 1;
-
-                // Early exit if we've exceeded max supply
-                if total >= MAX_SUPPLY {
-                    return MAX_SUPPLY;
-                }
-            }
-
-            total
+        /// Return the current total emitted supply.
+        ///
+        /// This is O(1) — it reads directly from the `TotalEmitted` storage
+        /// value which is updated incrementally by `on_block_authored()`.
+        /// The previous implementation iterated over every block height,
+        /// which was O(block_height) and would become unusable on a mature chain.
+        ///
+        /// The `block_height` parameter is accepted for API compatibility but
+        /// is not used; the canonical total is always the storage value.
+        pub fn compute_total_emitted(_block_height: u64) -> QbcBalance {
+            TotalEmitted::<T>::get()
         }
 
         /// Record emission for a new block. Returns the reward amount.

@@ -12,6 +12,10 @@ contract ProofOfThought is Initializable {
     uint256 public constant BPS_DENOM = 10000;
     uint256 public constant MIN_VALIDATOR_STAKE = 100 ether; // 100 QBC minimum stake
     uint256 public constant SLASH_PERCENTAGE = 50;           // 50% slash per CLAUDE.md spec
+    uint256 public constant UNSTAKING_DELAY = 183927;        // 7 days at 3.3s blocks (7*24*3600/3.3)
+
+    // ─── Reentrancy Guard ───────────────────────────────────────────────
+    bool private _locked;
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
@@ -21,6 +25,8 @@ contract ProofOfThought is Initializable {
 
     /// @notice Validator stakes: address => staked amount
     mapping(address => uint256) public stakes;
+    /// @notice Block at which unstake was requested (0 = no pending request)
+    mapping(address => uint256) public unstakeRequestBlock;
     /// @notice Total staked across all validators
     uint256 public totalStaked;
     /// @notice Total slashed across all validators
@@ -55,6 +61,7 @@ contract ProofOfThought is Initializable {
     event ValidationVote(uint256 indexed proofId, address indexed validator, bool support);
     event ValidatorStaked(address indexed validator, uint256 amount, uint256 totalStake);
     event ValidatorSlashed(address indexed validator, uint256 slashAmount, uint256 remainingStake);
+    event UnstakeRequested(address indexed validator, uint256 requestBlock, uint256 unlockBlock);
     event StakeWithdrawn(address indexed validator, uint256 amount);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
@@ -66,6 +73,13 @@ contract ProofOfThought is Initializable {
     modifier onlyKernel() {
         require(msg.sender == kernel || msg.sender == owner, "PoT: not authorized");
         _;
+    }
+
+    modifier nonReentrant() {
+        require(!_locked, "PoT: reentrant call");
+        _locked = true;
+        _;
+        _locked = false;
     }
 
     // ─── Initialization ─────────────────────────────────────────────────
@@ -169,14 +183,34 @@ contract ProofOfThought is Initializable {
         emit ValidatorSlashed(validator, slashAmount, stakes[validator]);
     }
 
-    /// @notice Withdraw unstaked validator funds (remaining after slash or full amount).
-    ///         Validator must have no active validations pending.
-    function withdrawStake(uint256 amount) external {
+    /// @notice Request to unstake. Starts the 7-day unstaking delay.
+    ///         Must be called before withdrawStake().
+    function requestUnstake() external {
+        require(stakes[msg.sender] > 0, "PoT: no stake");
+        require(unstakeRequestBlock[msg.sender] == 0, "PoT: already requested");
+
+        unstakeRequestBlock[msg.sender] = block.number;
+        emit UnstakeRequested(msg.sender, block.number, block.number + UNSTAKING_DELAY);
+    }
+
+    /// @notice Withdraw unstaked validator funds after the 7-day unstaking delay.
+    ///         Requires prior call to requestUnstake() and waiting UNSTAKING_DELAY blocks.
+    function withdrawStake(uint256 amount) external nonReentrant {
         require(amount > 0, "PoT: zero amount");
         require(stakes[msg.sender] >= amount, "PoT: insufficient stake");
+        require(unstakeRequestBlock[msg.sender] > 0, "PoT: unstake not requested");
+        require(
+            block.number >= unstakeRequestBlock[msg.sender] + UNSTAKING_DELAY,
+            "PoT: unstaking delay not met"
+        );
 
         stakes[msg.sender] -= amount;
         totalStaked -= amount;
+
+        // Reset unstake request if fully withdrawn
+        if (stakes[msg.sender] == 0) {
+            unstakeRequestBlock[msg.sender] = 0;
+        }
 
         (bool success, ) = payable(msg.sender).call{value: amount}("");
         require(success, "PoT: transfer failed");

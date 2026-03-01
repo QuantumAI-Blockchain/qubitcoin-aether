@@ -374,6 +374,8 @@ pub mod pallet {
         // Analytical weight: up to 256 UTXO reads (25µs each, worst case ~6.4ms)
         // + governor read (25µs) + request write (25µs) + counter write (25µs)
         // + SHA2-256 hash (10µs) + event = ~6.5ms ≈ 6_500_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(6_500_000)]
         pub fn submit_reversal_request(
             origin: OriginFor<T>,
@@ -381,7 +383,8 @@ pub mod pallet {
             original_sender: Address,
             reason: BoundedVec<u8, ConstU32<MAX_REASON_LENGTH>>,
         ) -> DispatchResult {
-            ensure_signed(origin)?;
+            let caller = ensure_signed(origin)?;
+            let requester_address = Self::account_to_address(&caller);
 
             // Ensure we have governors configured
             let governors = Governors::<T>::get();
@@ -443,7 +446,7 @@ pub mod pallet {
                 approval_count: 0,
                 status: ReversalStatus::Pending,
                 reason,
-                requester: original_sender.clone(),
+                requester: requester_address.clone(),
             };
 
             ReversalRequests::<T>::insert(&request_id, request);
@@ -453,7 +456,7 @@ pub mod pallet {
                 request_id,
                 target_txid,
                 amount: total_amount,
-                requester: original_sender,
+                requester: requester_address,
                 expiry_block: expiry,
             });
 
@@ -475,6 +478,8 @@ pub mod pallet {
         //   up to 256 UTXO reads + freezes + removal + reversal UTXO write + balance
         //   updates + counters = ~7ms worst case
         // Total: ~7.2ms ≈ 7_200_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(7_200_000)]
         pub fn approve_reversal(
             origin: OriginFor<T>,
@@ -560,6 +565,8 @@ pub mod pallet {
         /// Add a new governor address (root/sudo only).
         #[pallet::call_index(2)]
         // Analytical weight: 1 storage read + mutate (50µs) + event = ~75µs ≈ 75_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(75_000)]
         pub fn add_governor(
             origin: OriginFor<T>,
@@ -585,6 +592,8 @@ pub mod pallet {
         /// Remove a governor address (root/sudo only).
         #[pallet::call_index(3)]
         // Analytical weight: 1 storage read + mutate (50µs) + threshold check (25µs) + event = ~100µs ≈ 100_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(100_000)]
         pub fn remove_governor(
             origin: OriginFor<T>,
@@ -615,6 +624,8 @@ pub mod pallet {
         /// Update the reversal window (root/sudo only).
         #[pallet::call_index(4)]
         // Analytical weight: 1 storage read + 1 write (50µs) + event = ~75µs ≈ 75_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(75_000)]
         pub fn set_reversal_window(
             origin: OriginFor<T>,
@@ -635,6 +646,8 @@ pub mod pallet {
         /// Update the approval threshold (root/sudo only).
         #[pallet::call_index(5)]
         // Analytical weight: 1 governor read (25µs) + 1 threshold read + write (50µs) + event = ~100µs ≈ 100_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(100_000)]
         pub fn set_approval_threshold(
             origin: OriginFor<T>,
@@ -666,6 +679,8 @@ pub mod pallet {
         #[pallet::call_index(6)]
         // Analytical weight: request read (25µs) + height read (25µs) + expired write (25µs)
         // + request removal (25µs) + votes removal (25µs) + counter (25µs) + event = ~175µs ≈ 175_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(175_000)]
         pub fn expire_request(
             origin: OriginFor<T>,
@@ -711,6 +726,8 @@ pub mod pallet {
         #[pallet::call_index(7)]
         // Analytical weight: height read (25µs) + up to max_entries iteration reads (25µs each)
         // + removals (25µs each). For max_entries=100: ~100*50µs = 5ms ≈ 5_000_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(5_000_000)]
         pub fn prune_expired_reversals(
             origin: OriginFor<T>,

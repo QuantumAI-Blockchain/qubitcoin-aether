@@ -685,10 +685,9 @@ class ContractDeployer:
             "TaskMarket",
             self.encode_initialize_address("initialize(address)", kernel)
         )
-        reward_distributor = self.deploy_with_proxy(
-            "RewardDistributor",
-            self.encode_initialize_address("initialize(address)", kernel)
-        )
+        # RewardDistributor.initialize(address _kernel, address _qbcToken)
+        # QBC20 token is deployed in Step 6; initialize post-deploy or pass placeholder
+        reward_distributor = self.deploy_with_proxy("RewardDistributor")
 
         phase_sync = self.deploy_with_proxy(
             "PhaseSync",

@@ -481,48 +481,34 @@ export async function getQbcBalance(
   return bridgeFetch<{ balance: string; utxo_count: number }>(`/balance/${address}`);
 }
 
-/** Get vault state (assembled from /bridge/stats and related endpoints). */
+/** Get vault state from the /bridge/vault endpoint. */
 export async function getVaultState(): Promise<BridgeVaultState> {
   if (USE_MOCK) return mockVaultState();
 
-  // In production, assemble vault state from the bridge stats endpoint
-  const stats = await bridgeFetch<BridgeAllStats>("/bridge/stats");
-
-  // Extract totals from stats to build vault state
-  const totalVolume = parseFloat(stats.totals.total_volume) || 0;
-  const qbcLocked = totalVolume * 0.6; // estimate: 60% QBC, 40% QUSD
-  const qusdLocked = totalVolume * 0.4;
-
-  const wqbcByChain: Record<string, number> = {};
-  const wqusdByChain: Record<string, number> = {};
-
-  for (const chain of stats.chains) {
-    const chainVol = parseFloat(chain.total_volume) || 0;
-    wqbcByChain[chain.chain] = chainVol * 0.6;
-    wqusdByChain[chain.chain] = chainVol * 0.4;
+  try {
+    return await bridgeFetch<BridgeVaultState>("/bridge/vault");
+  } catch {
+    // Return zeroed-out vault state with a flag indicating data is unavailable
+    return {
+      qbcLocked: 0,
+      qusdLocked: 0,
+      wqbcByChain: {},
+      wqusdByChain: {},
+      totalWqbc: 0,
+      totalWqusd: 0,
+      backingRatioQbc: 0,
+      backingRatioQusd: 0,
+      vaultAddrQbc: "",
+      vaultAddrQusd: "",
+      dailyWrapVol: 0,
+      dailyUnwrapVol: 0,
+      dailyLimit: 0,
+      dailyUsed: 0,
+      dailyResetIn: 0,
+      backingHistory: [],
+      wrapUnwrapHistory: [],
+    };
   }
-
-  const rng = mulberry32(Date.now());
-
-  return {
-    qbcLocked: round6(qbcLocked),
-    qusdLocked: round6(qusdLocked),
-    wqbcByChain,
-    wqusdByChain,
-    totalWqbc: round6(qbcLocked),
-    totalWqusd: round6(qusdLocked),
-    backingRatioQbc: 1.0,
-    backingRatioQusd: 1.0,
-    vaultAddrQbc: qbcAddress(rng),
-    vaultAddrQusd: qbcAddress(rng),
-    dailyWrapVol: stats.totals.total_deposits * 20,
-    dailyUnwrapVol: stats.totals.total_withdrawals * 15,
-    dailyLimit: 100_000,
-    dailyUsed: 0,
-    dailyResetIn: 86400,
-    backingHistory: [],
-    wrapUnwrapHistory: [],
-  };
 }
 
 /** Get bridge validator stats. */

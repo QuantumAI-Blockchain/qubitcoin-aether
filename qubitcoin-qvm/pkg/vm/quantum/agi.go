@@ -100,6 +100,16 @@ func (a *AGIHandler) OpQReason(stack StackAccessor, gas GasConsumer, memory Memo
 		return fmt.Errorf("QREASON: query too large: %d bytes (max 1024)", queryLen)
 	}
 
+	// Charge per-byte gas proportional to query length (3 gas per byte,
+	// similar to CALLDATACOPY). This prevents abuse via large queries
+	// while keeping short queries affordable.
+	if queryLen > 0 {
+		perByteGas := queryLen * 3
+		if !gas.UseGas(perByteGas) {
+			return fmt.Errorf("out of gas: QREASON per-byte cost (%d bytes * 3 gas)", queryLen)
+		}
+	}
+
 	// Read query from memory
 	var queryData []byte
 	if queryLen > 0 && memory != nil {

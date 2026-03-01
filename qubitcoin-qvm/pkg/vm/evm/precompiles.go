@@ -131,6 +131,12 @@ func (c *ecRecover) Run(input []byte) ([]byte, error) {
 
 // recoverPublicKey recovers an ECDSA public key from a signature.
 // This implements the EC point recovery algorithm for signature verification.
+//
+// NOTE: This uses generic elliptic.CurveParams for secp256k1, which relies on
+// Go's big.Int arithmetic and is not constant-time. For production use, this
+// could be optimized with the btcec library (github.com/btcsuite/btcd/btcec)
+// which provides optimized, constant-time secp256k1 field operations. The
+// current implementation is functionally correct but ~10x slower than btcec.
 func recoverPublicKey(curve elliptic.Curve, hash []byte, r, s *big.Int, recoveryID int) (*ecdsa.PublicKey, error) {
 	// Get curve parameters
 	params := curve.Params()

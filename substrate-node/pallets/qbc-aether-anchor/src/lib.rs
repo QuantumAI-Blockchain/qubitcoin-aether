@@ -127,14 +127,12 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
-        /// Aether service is not available.
-        ServiceUnavailable,
-        /// Invalid knowledge root.
-        InvalidKnowledgeRoot,
-        /// Invalid Phi measurement.
-        InvalidPhiMeasurement,
         /// Phi value changed too dramatically in a single block.
         PhiDeltaTooLarge,
+        // Note: ServiceUnavailable, InvalidKnowledgeRoot, and
+        // InvalidPhiMeasurement were removed — they were never used in any
+        // extrinsic or internal function. PhiDeltaTooLarge is the only error
+        // variant actively used by record_block_state().
     }
 
     #[pallet::genesis_config]
@@ -177,6 +175,8 @@ pub mod pallet {
         #[pallet::call_index(0)]
         // Analytical weight: 7 storage writes (roots, phi, nodes, edges, ops, proof, measurement)
         // + consciousness event check + event deposit = ~250µs ≈ 250_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(250_000)]
         pub fn record_block_state(
             origin: OriginFor<T>,
@@ -252,6 +252,8 @@ pub mod pallet {
         /// Update the Aether service endpoint.
         #[pallet::call_index(1)]
         // Analytical weight: 1 storage write (25µs) + event deposit = ~50µs ≈ 50_000
+        // NOTE: These are analytical estimates and should be replaced with
+        // benchmarked weights before mainnet.
         #[pallet::weight(50_000)]
         pub fn set_endpoint(
             origin: OriginFor<T>,

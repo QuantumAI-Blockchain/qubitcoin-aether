@@ -197,8 +197,17 @@ func (s *StateDB) GetCode(addr [20]byte) []byte {
 }
 
 // GetCodeSize returns the size of the bytecode for an address.
+// Uses its own lock acquisition instead of calling GetCode to avoid
+// double-locking (GetCode also acquires s.mu.RLock).
 func (s *StateDB) GetCodeSize(addr [20]byte) uint64 {
-	code := s.GetCode(addr)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	acc := s.accounts[addr]
+	if acc == nil {
+		return 0
+	}
+	code := s.codes[acc.CodeHash]
 	return uint64(len(code))
 }
 

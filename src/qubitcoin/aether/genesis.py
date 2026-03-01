@@ -204,7 +204,7 @@ class AetherGenesis:
                     'type': 'axiom_higgs',
                     'description': 'Higgs Cognitive Field gives mass to AGI nodes via Yukawa coupling',
                     'potential': 'V(phi) = -mu^2|phi|^2 + lambda|phi|^4',
-                    'vev': 245.17,
+                    'vev': 174.14,
                     'tan_beta': 1.618,
                     'paradigm': 'F=ma (mass as inertia)',
                 },
