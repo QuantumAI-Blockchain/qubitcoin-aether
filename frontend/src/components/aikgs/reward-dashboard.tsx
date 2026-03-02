@@ -179,18 +179,18 @@ export function RewardDashboard() {
                   <span className={`w-6 text-center text-xs font-bold ${
                     i === 0 ? "text-golden" : i === 1 ? "tier-silver" : i === 2 ? "tier-bronze" : "text-text-secondary"
                   }`}>
-                    #{entry.rank}
+                    #{i + 1}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs text-text-primary font-[family-name:var(--font-code)]">
                       {entry.address.slice(0, 10)}...{entry.address.slice(-6)}
                     </p>
                     <p className="text-[10px] text-text-secondary">
-                      Lv{entry.level} {entry.level_name} | {entry.total_contributions} contributions
+                      {entry.best_tier} | {entry.contribution_count} contributions | avg {entry.avg_quality.toFixed(2)}
                     </p>
                   </div>
                   <span className="text-xs font-semibold glow-gold">
-                    {entry.reputation_points.toLocaleString()} RP
+                    {entry.total_reward.toLocaleString()} QBC
                   </span>
                 </div>
               ))}

@@ -14,6 +14,7 @@ export interface ContributorProfile {
   referrals: number;
   badges: string[];
   unlocked_features: string[];
+  last_contribution_at: number;
 }
 
 export interface ContributionRecord {
@@ -75,12 +76,11 @@ export interface StoredKeyInfo {
 }
 
 export interface LeaderboardEntry {
-  rank: number;
   address: string;
-  reputation_points: number;
-  level: number;
-  level_name: string;
-  total_contributions: number;
+  total_reward: number;
+  contribution_count: number;
+  avg_quality: number;
+  best_tier: string;
 }
 
 export interface PoolStats {
@@ -88,7 +88,7 @@ export interface PoolStats {
   total_distributed: number;
   total_contributions: number;
   unique_contributors: number;
-  tier_breakdown: { bronze: number; silver: number; gold: number; diamond: number };
+  tier_breakdown: Record<string, number>;
 }
 
 export interface CurationRound {

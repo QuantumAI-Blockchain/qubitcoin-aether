@@ -57,13 +57,15 @@ class TelegramBot:
                  contribution_manager: object = None,
                  affiliate_manager: object = None,
                  reward_engine: object = None,
-                 progressive_unlocks: object = None) -> None:
+                 progressive_unlocks: object = None,
+                 aikgs_client: object = None) -> None:
         """
         Args:
-            contribution_manager: AIKGS ContributionManager.
-            affiliate_manager: AIKGS AffiliateManager.
-            reward_engine: AIKGS RewardEngine.
-            progressive_unlocks: AIKGS ProgressiveUnlocks.
+            contribution_manager: AIKGS ContributionManager (legacy Python).
+            affiliate_manager: AIKGS AffiliateManager (legacy Python).
+            reward_engine: AIKGS RewardEngine (legacy Python).
+            progressive_unlocks: AIKGS ProgressiveUnlocks (legacy Python).
+            aikgs_client: AIKGS Rust sidecar gRPC client (preferred).
         """
         self._token = Config.TELEGRAM_BOT_TOKEN
         self._username = Config.TELEGRAM_BOT_USERNAME
@@ -74,8 +76,11 @@ class TelegramBot:
         self._affiliate_manager = affiliate_manager
         self._reward_engine = reward_engine
         self._unlocks = progressive_unlocks
+        self._aikgs_client = aikgs_client
 
-        # Telegram user_id => QBC address mapping
+        # WARNING: In-memory wallet links — lost on process restart.
+        # TODO: Persist to CockroachDB (telegram_wallet_links table) or
+        # delegate to AIKGS sidecar for durable storage.
         self._user_wallets: Dict[int, str] = {}
         # Message stats
         self._messages_processed: int = 0
@@ -87,14 +92,19 @@ class TelegramBot:
         return bool(self._token and self._webhook_secret)
 
     def verify_webhook(self, body: bytes, signature: str) -> bool:
-        """Verify webhook signature using HMAC-SHA-256.
+        """Verify webhook secret token (constant-time comparison).
+
+        Compares the X-Telegram-Bot-Api-Secret-Token header against the
+        configured secret. Authenticates the sender but does NOT verify
+        body integrity — Telegram's security model uses a shared secret
+        header, not a body signature.
 
         Args:
-            body: Raw request body bytes.
+            body: Raw request body bytes (unused — kept for API compat).
             signature: X-Telegram-Bot-Api-Secret-Token header value.
 
         Returns:
-            True if signature is valid.
+            True if the secret token matches.
         """
         return hmac.compare_digest(signature, self._webhook_secret)
 
@@ -166,9 +176,9 @@ class TelegramBot:
         elif command == '/wallet':
             return self._cmd_wallet(msg)
         elif command == '/refer':
-            return self._cmd_refer(msg)
+            return await self._cmd_refer(msg)
         elif command == '/stats':
-            return self._cmd_stats(msg)
+            return await self._cmd_stats(msg)
         elif command == '/help':
             return self._cmd_help(msg)
         else:
@@ -180,11 +190,14 @@ class TelegramBot:
         referral_code = args[0] if args else None
 
         # Process referral if provided
-        if referral_code and self._affiliate_manager:
+        if referral_code:
             wallet = self._user_wallets.get(msg.user.id)
             if wallet:
                 try:
-                    self._affiliate_manager.register(wallet, referral_code)
+                    if self._aikgs_client:
+                        await self._aikgs_client.register_affiliate(wallet, referral_code=referral_code)
+                    elif self._affiliate_manager:
+                        self._affiliate_manager.register(wallet, referral_code)
                 except Exception as e:
                     logger.debug(f"Referral registration failed: {e}")
 
@@ -235,29 +248,48 @@ class TelegramBot:
         return self._reply_with_webapp(msg.chat_id, text, "Open Wallet",
                                        f"{self._mini_app_url}/wallet")
 
-    def _cmd_refer(self, msg: TelegramMessage) -> dict:
+    async def _cmd_refer(self, msg: TelegramMessage) -> dict:
         """Show referral info and link."""
         wallet = self._user_wallets.get(msg.user.id)
-        if wallet and self._affiliate_manager:
-            affiliate = self._affiliate_manager.get_affiliate(wallet)
-            if affiliate:
-                code = affiliate.referral_code
-                link = f"https://t.me/{self._username}?start={code}"
-                text = (
-                    f"Your referral code: `{code}`\n"
-                    f"Your referral link: {link}\n\n"
-                    f"Direct referrals (L1): {affiliate.l1_referrals}\n"
-                    f"Indirect referrals (L2): {affiliate.l2_referrals}\n"
-                    f"L1 commission earned: {affiliate.total_l1_commission:.4f} QBC\n"
-                    f"L2 commission earned: {affiliate.total_l2_commission:.4f} QBC\n\n"
-                    "Share your link to earn 10% L1 + 5% L2 commission on referral rewards!"
-                )
-                return self._reply(msg.chat_id, text, parse_mode='Markdown')
+        if wallet:
+            try:
+                if self._aikgs_client:
+                    result = await self._aikgs_client.get_affiliate(wallet)
+                    if result:
+                        code = result.get('referral_code', '')
+                        link = f"https://t.me/{self._username}?start={code}"
+                        text = (
+                            f"Your referral code: `{code}`\n"
+                            f"Your referral link: {link}\n\n"
+                            f"Direct referrals (L1): {result.get('l1_referrals', 0)}\n"
+                            f"Indirect referrals (L2): {result.get('l2_referrals', 0)}\n"
+                            f"L1 commission earned: {result.get('total_l1_commission', 0):.4f} QBC\n"
+                            f"L2 commission earned: {result.get('total_l2_commission', 0):.4f} QBC\n\n"
+                            "Share your link to earn 10% L1 + 5% L2 commission on referral rewards!"
+                        )
+                        return self._reply(msg.chat_id, text, parse_mode='Markdown')
+                elif self._affiliate_manager:
+                    affiliate = self._affiliate_manager.get_affiliate(wallet)
+                    if affiliate:
+                        code = affiliate.referral_code
+                        link = f"https://t.me/{self._username}?start={code}"
+                        text = (
+                            f"Your referral code: `{code}`\n"
+                            f"Your referral link: {link}\n\n"
+                            f"Direct referrals (L1): {affiliate.l1_referrals}\n"
+                            f"Indirect referrals (L2): {affiliate.l2_referrals}\n"
+                            f"L1 commission earned: {affiliate.total_l1_commission:.4f} QBC\n"
+                            f"L2 commission earned: {affiliate.total_l2_commission:.4f} QBC\n\n"
+                            "Share your link to earn 10% L1 + 5% L2 commission on referral rewards!"
+                        )
+                        return self._reply(msg.chat_id, text, parse_mode='Markdown')
+            except Exception as e:
+                logger.debug(f"Failed to fetch referral info: {e}")
 
         return self._reply(msg.chat_id,
             "Link your wallet first to get a referral code. Use /wallet to connect.")
 
-    def _cmd_stats(self, msg: TelegramMessage) -> dict:
+    async def _cmd_stats(self, msg: TelegramMessage) -> dict:
         """Show user stats."""
         wallet = self._user_wallets.get(msg.user.id)
         if not wallet:
@@ -266,20 +298,38 @@ class TelegramBot:
 
         text = f"Stats for `{wallet[:12]}...`\n\n"
 
-        if self._unlocks:
-            profile = self._unlocks.get_profile(wallet)
-            text += (
-                f"Level: {profile.level} ({profile.level_name})\n"
-                f"Reputation: {profile.reputation_points:.0f} RP\n"
-                f"Contributions: {profile.total_contributions}\n"
-                f"Streak: {profile.current_streak} days\n"
-                f"Best Streak: {profile.best_streak} days\n"
-                f"Badges: {len(profile.badges)}\n"
-            )
+        try:
+            if self._aikgs_client:
+                result = await self._aikgs_client.get_profile(wallet)
+                if result:
+                    text += (
+                        f"Level: {result.get('level', 0)} ({result.get('level_name', 'Unknown')})\n"
+                        f"Reputation: {result.get('reputation_points', 0):.0f} RP\n"
+                        f"Contributions: {result.get('total_contributions', 0)}\n"
+                        f"Streak: {result.get('current_streak', 0)} days\n"
+                        f"Best Streak: {result.get('best_streak', 0)} days\n"
+                        f"Badges: {len(result.get('badges', []))}\n"
+                    )
+                    multiplier = result.get('streak_multiplier', 1.0)
+                    text += f"\nStreak Multiplier: {multiplier}x\n"
+            else:
+                if self._unlocks:
+                    profile = self._unlocks.get_profile(wallet)
+                    text += (
+                        f"Level: {profile.level} ({profile.level_name})\n"
+                        f"Reputation: {profile.reputation_points:.0f} RP\n"
+                        f"Contributions: {profile.total_contributions}\n"
+                        f"Streak: {profile.current_streak} days\n"
+                        f"Best Streak: {profile.best_streak} days\n"
+                        f"Badges: {len(profile.badges)}\n"
+                    )
 
-        if self._reward_engine:
-            streak_info = self._reward_engine.get_contributor_streak(wallet)
-            text += f"\nStreak Multiplier: {streak_info['multiplier']}x\n"
+                if self._reward_engine:
+                    streak_info = self._reward_engine.get_contributor_streak(wallet)
+                    text += f"\nStreak Multiplier: {streak_info['multiplier']}x\n"
+        except Exception as e:
+            logger.debug(f"Failed to fetch user stats: {e}")
+            text += "(Unable to load stats — please try again later.)\n"
 
         return self._reply(msg.chat_id, text, parse_mode='Markdown')
 

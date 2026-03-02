@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { useWalletStore } from "@/stores/wallet-store";
 import { useAIKGSStore } from "@/stores/aikgs-store";
 import { api } from "@/lib/api";
-import { signTransaction } from "@/lib/dilithium";
 import { LLM_PROVIDERS } from "@/lib/constants";
 
 export function APIKeyManager() {
@@ -54,14 +53,6 @@ export function APIKeyManager() {
         label: label || undefined,
         is_shared: isShared,
       };
-      // Sign with Dilithium if we have keys in session storage
-      const pubKeyHex = sessionStorage.getItem(`qbc-pubkey-${address}`);
-      const privKeyHex = sessionStorage.getItem(`qbc-privkey-${address}`);
-      if (pubKeyHex && privKeyHex) {
-        const signData = { action: "store_key", owner_address: address, provider };
-        body.signature_hex = await signTransaction(pubKeyHex, signData);
-        body.public_key_hex = pubKeyHex;
-      }
       const res = await api.aikgsStoreKey(body);
       setSuccess(`Key stored: ${res.key_id.slice(0, 8)}...`);
       setApiKey("");
@@ -84,14 +75,6 @@ export function APIKeyManager() {
           owner_address: address,
           key_id: keyId,
         };
-        // Sign with Dilithium if available
-        const pubKeyHex = sessionStorage.getItem(`qbc-pubkey-${address}`);
-        const privKeyHex = sessionStorage.getItem(`qbc-privkey-${address}`);
-        if (pubKeyHex && privKeyHex) {
-          const signData = { action: "revoke_key", key_id: keyId, owner_address: address };
-          body.signature_hex = await signTransaction(pubKeyHex, signData);
-          body.public_key_hex = pubKeyHex;
-        }
         await api.aikgsRevokeKey(body);
         setStoredKeys(storedKeys.filter((k) => k.key_id !== keyId));
       } catch (e) {

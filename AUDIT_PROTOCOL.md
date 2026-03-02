@@ -1,6 +1,6 @@
 # QUBITCOIN GOVERNMENT-GRADE PROJECT AUDIT
 # Master Audit & Continuous Improvement Protocol
-# Version: 7.0 — Military/Government-Grade Edition (100% Target — No Exceptions)
+# Version: 7.1 — Military/Government-Grade Edition (100% Target — No Exceptions)
 # Last Verified: 2026-03-02
 
 ---
@@ -81,11 +81,16 @@ The audit MUST confirm these numbers are still accurate. Flag any drift.
 | **Prometheus metrics** | 82 metrics | `utils/metrics.py` | 247 |
 | **Python tests** | 3,847 functions | `tests/` (156 files) | ~51,581 |
 | **SQL schema files** | 26 files | `sql_new/` (41 tables across 7 domains) | 1,682 |
-| **Frontend pages** | 15 pages | `frontend/src/app/` | — |
-| **Frontend TS/TSX** | 167 files | `frontend/src/` | 43,103 |
-| **Frontend API libs** | 7 files | `frontend/src/lib/` (with fetch/API) | — |
-| **Frontend stores** | 3 files | `frontend/src/stores/` | — |
+| **Frontend pages** | 15 pages + 8 TWA pages | `frontend/src/app/` | — |
+| **Frontend TS/TSX** | 167+ files | `frontend/src/` | 43,103+ |
+| **Frontend API libs** | 7 files + telegram.ts | `frontend/src/lib/` (with fetch/API) | — |
+| **Frontend stores** | 3 files + telegram-store.ts + aikgs-store.ts | `frontend/src/stores/` | — |
 | **Frontend hooks** | 3 files | `frontend/src/hooks/` | — |
+| **TWA pages** | 8 pages (7 routes + layout) | `frontend/src/app/twa/` | ~1,080 |
+| **TWA components (AIKGS)** | 5 components | `frontend/src/components/aikgs/` | ~968 |
+| **TWA types** | 1 file (10 interfaces) | `frontend/src/types/aikgs.ts` | 102 |
+| **Telegram SDK** | 1 file | `frontend/src/lib/telegram.ts` | 203 |
+| **Telegram Bot backend** | 1 file | `src/qubitcoin/aether/telegram_bot.py` | 395 |
 | **Docker services** | 24 (dev) / 22 (prod) | `docker-compose.yml` / `.production.yml` | — |
 | **CI workflows** | 4 | `.github/workflows/` | — |
 | **Documentation** | 13 files | `docs/` | — |
@@ -112,9 +117,9 @@ continuous improvement engine that runs until both end goals are achieved.
 
 ---
 
-## THE 11 COMPONENTS
+## THE 12 COMPONENTS
 
-Every audit run evaluates all 11 components. No component is optional.
+Every audit run evaluates all 12 components. No component is optional.
 
 | # | Component | Source Location | Key Counts |
 |---|-----------|----------------|------------|
@@ -129,6 +134,7 @@ Every audit run evaluates all 11 components. No component is optional.
 | 9 | **Launchpad** | `contracts/engine.py` + frontend launchpad (10 files) | Deploy wizard, templates, verification |
 | 10 | **Smart Contracts** | `contracts/solidity/` (57 .sol, 9,071 LOC) | Aether(29), QUSD(10), tokens(6), bridge(2), proxy(3), interfaces(7) |
 | 11 | **AIKGS Rust Sidecar** | `aikgs-sidecar/` (~4,500 LOC) + `aether/aikgs_client.py` (~600 LOC) | 35 gRPC RPCs, 14 Rust src files, AES-256-GCM vault, reward engine |
+| 12 | **Telegram Mini App (TWA)** | `frontend/src/app/twa/` + `frontend/src/components/aikgs/` + `aether/telegram_bot.py` | 8 pages (~1,080 LOC), 5 components (~968 LOC), 2 stores, Telegram SDK, bot backend (395 LOC) |
 
 ---
 
@@ -660,6 +666,111 @@ original AIKGS implementation (ephemeral state, metadata not in hash, pool reset
 
 ---
 
+### 1P. Telegram Mini App (TWA) Audit (8 Pages + 5 Components + Bot Backend)
+
+**NEW COMPONENT #12 — First introduced in v7.1 (March 2, 2026)**
+
+The Telegram Mini App (TWA) is the mobile entry point for Aether Tree, enabling users to
+interact with the AGI, earn AIKGS rewards, manage wallets, and refer friends — all from
+within Telegram.
+
+**Frontend TWA Pages** (`frontend/src/app/twa/`, 8 files, ~1,080 LOC):
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `layout.tsx` | 117 | Telegram SDK init, theme/viewport listeners, event cleanup, bottom nav, ErrorBoundary |
+| `page.tsx` | 149 | Real chain data from `/chain/info` and `/aether/phi`, AIKGS profile from sidecar, no hardcoded stats |
+| `onboard/page.tsx` | 175 | 3-step wizard, wallet creation via API, affiliate registration via startParam, Telegram link, in-memory key Map |
+| `chat/page.tsx` | 180 | Real chat via `/aether/chat/message`, streaming text, PoT hash display, haptic feedback |
+| `earn/page.tsx` | 76 | Tab toggle (Contribute/Rewards), UploadPanel + RewardDashboard + ContributionIndicator components |
+| `wallet/page.tsx` | 212 | Wallet creation, balance from `/balance/{address}`, Telegram linking, private key backup UI |
+| `refer/page.tsx` | 39 | AffiliateTree component, referral code display |
+| `more/page.tsx` | 130 | User profile card, external links, APIKeyManager, closeMiniApp() |
+
+**AIKGS Components** (`frontend/src/components/aikgs/`, 5 files, ~968 LOC):
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `contribution-indicator.tsx` | 137 | Profile level/streak from real API, not hardcoded |
+| `upload-panel.tsx` | 163 | Submits to `/aikgs/contribute` via sidecar, domain validation |
+| `reward-dashboard.tsx` | 203 | Pool stats from `/aikgs/pool/stats`, leaderboard from real data |
+| `affiliate-tree.tsx` | 224 | L1/L2 tree from `/aikgs/affiliate/{address}`, commission display |
+| `api-key-manager.tsx` | 241 | AES-256-GCM encrypted key storage via sidecar vault |
+
+**Telegram SDK Integration** (`frontend/src/lib/telegram.ts`, 203 LOC):
+
+- Custom integration (no @telegram-apps npm dependency — minimal surface area)
+- Full TelegramWebApp type declarations (68 lines)
+- 14 exported functions: isTelegramWebApp, getWebApp, initTelegramApp, getStartParam,
+  getTelegramUser, hapticFeedback, hapticNotification, showBackButton, hideBackButton,
+  showMainButton, hideMainButton, openExternalLink, shareViaTelegram, closeMiniApp
+- Module-scoped callback refs for listener cleanup (prevents accumulation)
+
+**State Management** (`frontend/src/stores/`, 2 files, 145 LOC):
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `telegram-store.ts` | 65 | Zustand, no persistence (transient TWA state), 7 state fields |
+| `aikgs-store.ts` | 80 | Zustand + persist middleware, only `activeTab` persisted to localStorage |
+
+**Type Definitions** (`frontend/src/types/aikgs.ts`, 102 LOC):
+- 10 interfaces: ContributorProfile, ContributionRecord, RewardBreakdown, AffiliateInfo,
+  BountyInfo, StoredKeyInfo, LeaderboardEntry, PoolStats, CurationRound
+
+**Backend: Telegram Bot** (`src/qubitcoin/aether/telegram_bot.py`, 395 LOC):
+
+| Aspect | Verification |
+|--------|-------------|
+| Webhook auth | HMAC-SHA-256 via `hmac.compare_digest()` (constant-time) |
+| Commands | /start (deep-link referral), /chat, /earn, /wallet, /refer, /stats, /help — all functional |
+| Wallet linking | In-memory `_user_wallets` dict (not persisted — loses on restart) |
+| Mini App buttons | `_reply_with_webapp()` generates inline keyboard with `web_app.url` |
+| Message parsing | `_parse_message()` extracts user/chat/text safely with fallbacks |
+| Stats | `get_stats()` returns configured, username, messages/commands processed, linked wallets |
+
+**Per-File Verification Checklist:**
+
+1. **Telegram initData NOT trusted:** Frontend uses `initDataUnsafe` for UI only. Server must validate `initData.hash` — verify webhook verification is HMAC-SHA-256
+2. **Private keys never on server:** Wallet creation returns `address + public_key_hex` only. Verify `/wallet/create` endpoint does NOT return `private_key_hex`
+3. **In-memory key storage:** `_inMemoryPrivateKeys` Map in `onboard/page.tsx` — verify keys are NOT in localStorage/sessionStorage
+4. **Callback cleanup:** BackButton/MainButton callbacks properly removed via `offClick` before new `onClick` — verify no listener accumulation
+5. **Event listener cleanup:** Layout `useEffect` returns cleanup function calling `offEvent` for theme/viewport
+6. **No hardcoded data:** All TWA pages fetch real data from backend APIs (chain info, Phi, AIKGS profile, balance)
+7. **ErrorBoundary:** Layout wraps children in `<ErrorBoundary>` — verify component exists and functions
+8. **Haptic feedback:** Used appropriately (user actions only, not error-triggered loops)
+9. **Deep link security:** `startParam` (referral code) validated by sidecar before affiliate registration
+10. **Wallet linking race:** `telegramLinkWallet` called after wallet creation — verify order is correct
+11. **Bot webhook secret:** Must be set via `TELEGRAM_WEBHOOK_SECRET` env var, not hardcoded
+12. **Bot wallet persistence:** `_user_wallets` is in-memory only — document that it resets on restart
+13. **AIKGS API integration:** All 22 AIKGS API methods in `api.ts` must match backend endpoints
+14. **Production mock guard:** Verify no mock data in TWA pages (unlike exchange/bridge/launchpad mock-engines)
+
+**Cross-System Verification:**
+
+| Check | Source | Target | Must Match |
+|-------|--------|--------|------------|
+| API methods | `frontend/src/lib/api.ts` AIKGS section | `network/rpc.py` AIKGS endpoints | All 22 methods → real endpoints |
+| Type shapes | `frontend/src/types/aikgs.ts` | Sidecar proto responses (`aikgs.proto`) | Field names and types match |
+| Store fields | `telegram-store.ts` TelegramUser | `telegram_bot.py` TelegramUser dataclass | Same fields |
+| Telegram SDK types | `lib/telegram.ts` TelegramWebApp | Telegram Bot API v7+ | All methods exist |
+| Bot commands | `/start, /chat, /earn, /wallet, /refer, /stats, /help` | Mini App routes | Commands link to correct `/twa/*` pages |
+| Onboard flow | `onboard/page.tsx` wallet creation | `/wallet/create` endpoint | Response shape matches |
+| Affiliate reg | `onboard/page.tsx` startParam handling | `/aikgs/affiliate/register` | referral_code passed correctly |
+
+**Frontend Build Verification:**
+
+```bash
+cd frontend && pnpm build
+```
+
+The TWA pages must compile without errors. Verify:
+- No TypeScript strict mode violations in TWA pages
+- All imports resolve (components, stores, lib, types)
+- No unused variables or dead imports flagged by ESLint
+- Build output includes `/twa/*` routes in Next.js manifest
+
+---
+
 ### 1H. Exchange Deep Audit (1,065 LOC Engine + 28 Frontend Files)
 
 **Backend** (`exchange/engine.py`, 1,065 LOC):
@@ -759,8 +870,9 @@ Every page must render real data, not mocks:
 | Admin | `/admin` | Auth-protected, real admin endpoints |
 | Docs (5 sub-routes) | `/docs/*` | Whitepaper, QVM, Aether, Economics |
 
-State Management: `chain-store.ts` (chain data), `wallet-store.ts` (wallet), `theme-store.ts` (theme)
+State Management: `chain-store.ts` (chain data), `wallet-store.ts` (wallet), `theme-store.ts` (theme), `telegram-store.ts` (TWA), `aikgs-store.ts` (AIKGS)
 Hooks: `use-chain-socket.ts` (WebSocket), `use-focus-trap.ts`, `use-keyboard-shortcuts.ts`
+TWA Routes: `/twa`, `/twa/chat`, `/twa/earn`, `/twa/wallet`, `/twa/refer`, `/twa/more`, `/twa/onboard` (see Phase 1P for detailed TWA audit)
 
 **Critical Questions:**
 
@@ -801,9 +913,9 @@ Flag EVERY instance of:
 
 ---
 
-## PHASE 2: IMPROVEMENT PLAN (3 Per Component = 30 Total)
+## PHASE 2: IMPROVEMENT PLAN (3 Per Component = 36 Total)
 
-Produce 3 specific, high-impact improvements for EACH of the 11 components.
+Produce 3 specific, high-impact improvements for EACH of the 12 components.
 
 **Every improvement MUST include:**
 
@@ -840,7 +952,7 @@ Produce 3 specific, high-impact improvements for EACH of the 11 components.
 - Top 5 Critical Findings
 - Top 5 Strengths
 
-## COMPONENT READINESS MATRIX (11 components)
+## COMPONENT READINESS MATRIX (12 components)
 | # | Component | Score /100 | Launch Ready | Blocking Issues |
 
 ## 1. SMART CONTRACT AUDIT TABLE (57 rows)
@@ -899,8 +1011,8 @@ Produce 3 specific, high-impact improvements for EACH of the 11 components.
 - [ ] CSF routing: real messages between Sephirot
 - [ ] Pineal: circadian phases modulate intensity
 
-## IMPROVEMENTS (33 total, 3 per component)
-### 5.1-5.11 (one section per component, including AIKGS sidecar)
+## IMPROVEMENTS (36 total, 3 per component)
+### 5.1-5.12 (one section per component, including AIKGS sidecar + TWA)
 
 ## IMPLEMENTATION SEQUENCE
 ## RUN LOG
@@ -942,4 +1054,9 @@ Each: title, novel aspect, technical description, implementation plan, competiti
 23. **AIKGS sidecar is launch-blocking.** No gRPC auth = CRITICAL. Disburse without validation = CRITICAL. Fire-and-forget treasury payments = CRITICAL.
 24. **AIKGS pool accounting must be complete.** Pool balance = initial_pool - SUM(rewards + commissions + bounties). All outflows tracked.
 25. **AIKGS contribution pipeline must be transactional.** All 12 steps wrapped in a DB transaction. No partial state on failure.
-26. **11 components, 33 improvements.** No component skipped. AIKGS sidecar is the newest and least audited — give it extra scrutiny.
+26. **12 components, 36 improvements.** No component skipped. AIKGS sidecar and TWA are the newest — give them extra scrutiny.
+27. **TWA pages must render real data.** All 8 pages fetch from live backend APIs. No hardcoded stats, no mock data.
+28. **Telegram initData is untrusted.** Frontend uses `initDataUnsafe` for UI display only. Server validates webhook HMAC-SHA-256.
+29. **TWA private keys never on server.** `/wallet/create` returns address + public_key_hex ONLY. Private key generation is client-side WASM.
+30. **TWA event listener cleanup.** All Telegram SDK callbacks (BackButton, MainButton, theme, viewport) must be cleaned up on unmount.
+31. **Bot wallet persistence.** `_user_wallets` in `telegram_bot.py` is in-memory only. Flag if no DB persistence plan documented.

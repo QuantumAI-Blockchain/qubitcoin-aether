@@ -6,14 +6,13 @@ import { Card } from "@/components/ui/card";
 import { useWalletStore } from "@/stores/wallet-store";
 import { useTelegramStore } from "@/stores/telegram-store";
 import { api } from "@/lib/api";
-import { showBackButton, hideBackButton, hapticFeedback, hapticNotification, getWebApp } from "@/lib/telegram";
+import { showBackButton, hideBackButton, hapticFeedback, hapticNotification } from "@/lib/telegram";
 
 export default function TWAWalletPage() {
   const { address, connected, balance, connect, setBalance } = useWalletStore();
   const { user, linkedWallet, setLinkedWallet } = useTelegramStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [privateKeyShown, setPrivateKeyShown] = useState<string | null>(null);
 
   useEffect(() => {
     showBackButton(() => window.history.back());
@@ -51,7 +50,6 @@ export default function TWAWalletPage() {
 
       // SECURITY [FE-C1]: private_key_hex is no longer returned by the server.
       // Private key generation must happen client-side via Dilithium2 WASM.
-      setPrivateKeyShown(null);
 
       hapticNotification("success");
     } catch (e) {
@@ -166,44 +164,6 @@ export default function TWAWalletPage() {
           <p className="text-[10px] text-text-secondary/60">
             Keys are generated using post-quantum Dilithium2 signatures
           </p>
-        </motion.div>
-      )}
-
-      {/* Private key backup prompt — shown once after wallet creation */}
-      {privateKeyShown && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mt-4"
-        >
-          <Card className="border-amber-500/30 bg-amber-500/5">
-            <h3 className="text-xs font-bold text-amber-400">Save Your Private Key</h3>
-            <p className="mt-1 text-[10px] text-text-secondary">
-              This key is shown only once and is NOT stored by the app. Copy it now and keep it safe.
-            </p>
-            <div className="mt-2 break-all rounded bg-bg-deep p-2 font-[family-name:var(--font-code)] text-[10px] text-text-primary">
-              {privateKeyShown.slice(0, 32)}...
-            </div>
-            <div className="mt-2 flex gap-2">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(privateKeyShown);
-                  hapticNotification("success");
-                  const webapp = getWebApp();
-                  if (webapp) webapp.showAlert("Private key copied! Store it securely.");
-                }}
-                className="flex-1 rounded-lg bg-amber-500 px-3 py-2 text-[10px] font-semibold text-void"
-              >
-                Copy Full Key
-              </button>
-              <button
-                onClick={() => setPrivateKeyShown(null)}
-                className="rounded-lg border border-border-subtle px-3 py-2 text-[10px] text-text-secondary"
-              >
-                I Saved It
-              </button>
-            </div>
-          </Card>
         </motion.div>
       )}
     </div>
