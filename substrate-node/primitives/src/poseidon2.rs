@@ -728,7 +728,8 @@ mod tests {
     ///   - MDS: circ(2, 1, 1)
     ///   - Rounds: 4 full + 56 partial + 4 full
     ///   - S-box: x^5
-    ///   - Round constants: LCG(seed="QBC-Pos2") mod p (compile-time deterministic)
+    ///   - Round constants: SHA-256 hash chain (seed="QBC-Poseidon2-RC-v1")
+    ///     mod p (compile-time deterministic) [SUB-H8: replaces previous LCG]
     ///
     /// If any of these tests fail after a code change, it means the hash
     /// function behavior has changed and all dependent ZK circuits are

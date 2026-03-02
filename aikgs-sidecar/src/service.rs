@@ -313,7 +313,7 @@ impl AikgsService for AikgsSvc {
     ) -> Result<Response<ContributionListResponse>, Status> {
         let req = request.into_inner();
         validation::validate_address("address", &req.address)?;
-        let limit = validation::clamp_limit(req.limit, 50, 1000);
+        let limit = validation::clamp_limit(req.limit, self.cfg.query_default_limit, self.cfg.query_max_limit);
         let rows = self
             .db
             .get_contributions_by_address(&req.address, limit)
@@ -328,7 +328,7 @@ impl AikgsService for AikgsSvc {
         &self,
         request: Request<RecentContributionsRequest>,
     ) -> Result<Response<ContributionListResponse>, Status> {
-        let limit = validation::clamp_limit(request.into_inner().limit, 50, 100);
+        let limit = validation::clamp_limit(request.into_inner().limit, self.cfg.query_default_limit, self.cfg.query_max_limit);
         let rows = self
             .db
             .get_recent_contributions(limit)
@@ -343,7 +343,7 @@ impl AikgsService for AikgsSvc {
         &self,
         request: Request<LeaderboardRequest>,
     ) -> Result<Response<LeaderboardResponse>, Status> {
-        let limit = validation::clamp_limit(request.into_inner().limit, 50, 100);
+        let limit = validation::clamp_limit(request.into_inner().limit, self.cfg.query_default_limit, self.cfg.query_max_limit);
         let rows = self
             .db
             .get_contribution_leaderboard(limit)
@@ -519,6 +519,14 @@ impl AikgsService for AikgsSvc {
         validation::validate_name("gap_hash", &req.gap_hash)?;
         validation::validate_amount("reward_amount", req.reward_amount)?;
         validation::validate_amount("boost_multiplier", req.boost_multiplier)?;
+        validation::validate_duration_secs("duration_secs", req.duration_secs)?;
+
+        if req.reward_amount <= 0.0 {
+            return Err(Status::invalid_argument("reward_amount must be positive"));
+        }
+        if req.boost_multiplier <= 0.0 {
+            return Err(Status::invalid_argument("boost_multiplier must be positive"));
+        }
 
         let info = aikgs_sidecar::bounties::BountyManager::create_bounty(
             &self.db,
@@ -539,7 +547,7 @@ impl AikgsService for AikgsSvc {
         request: Request<ListBountiesRequest>,
     ) -> Result<Response<ListBountiesResponse>, Status> {
         let req = request.into_inner();
-        let limit = validation::clamp_limit(req.limit, 50, 1000);
+        let limit = validation::clamp_limit(req.limit, self.cfg.query_default_limit, self.cfg.query_max_limit);
         let bounties = aikgs_sidecar::bounties::BountyManager::list_bounties(
             &self.db,
             &req.domain,
@@ -559,6 +567,7 @@ impl AikgsService for AikgsSvc {
     ) -> Result<Response<BountyInfo>, Status> {
         let req = request.into_inner();
         validation::validate_address("claimer_address", &req.claimer_address)?;
+        validation::validate_positive_id("bounty_id", req.bounty_id)?;
         let info = aikgs_sidecar::bounties::BountyManager::claim_bounty(
             &self.db,
             req.bounty_id,
@@ -575,6 +584,8 @@ impl AikgsService for AikgsSvc {
     ) -> Result<Response<FulfillBountyResponse>, Status> {
         let req = request.into_inner();
         validation::validate_address("contributor_address", &req.contributor_address)?;
+        validation::validate_positive_id("bounty_id", req.bounty_id)?;
+        validation::validate_positive_id("contribution_id", req.contribution_id)?;
         let reward = aikgs_sidecar::bounties::BountyManager::fulfill_bounty(
             &self.db,
             req.bounty_id,
@@ -637,7 +648,7 @@ impl AikgsService for AikgsSvc {
         &self,
         request: Request<UnlocksLeaderboardRequest>,
     ) -> Result<Response<UnlocksLeaderboardResponse>, Status> {
-        let limit = validation::clamp_limit(request.into_inner().limit, 50, 100);
+        let limit = validation::clamp_limit(request.into_inner().limit, self.cfg.query_default_limit, self.cfg.query_max_limit);
         let profiles = aikgs_sidecar::unlocks::UnlocksManager::get_leaderboard(&self.db, limit)
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
@@ -815,6 +826,10 @@ impl AikgsService for AikgsSvc {
     }
 
     /// Get a decrypted API key. Requires owner_address for authorization (AIKGS-H1).
+    ///
+    /// Non-shared keys require the caller to supply an `x-owner-address` gRPC
+    /// metadata header matching the key's owner. Shared keys are returned to
+    /// any authenticated caller.
     async fn get_api_key(
         &self,
         request: Request<GetKeyRequest>,
@@ -823,6 +838,15 @@ impl AikgsService for AikgsSvc {
             .vault
             .as_ref()
             .ok_or_else(|| Status::unavailable("vault not configured"))?;
+
+        // AIKGS-H1: Extract owner address from gRPC metadata BEFORE consuming the request.
+        let caller_owner = request
+            .metadata()
+            .get("x-owner-address")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
         let req = request.into_inner();
         validation::validate_key_id("key_id", &req.key_id)?;
 
@@ -831,15 +855,30 @@ impl AikgsService for AikgsSvc {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        // AIKGS-H1: Owner verification — the caller must provide their address
-        // via gRPC metadata to prove ownership. For now, we check that the key
-        // is either shared (public) or the metadata contains the owner address.
-        // Since the proto GetKeyRequest only has key_id, we look at gRPC metadata.
-        // If the key is not shared, we require the x-owner-address metadata header.
+        // AIKGS-H1: Owner verification — non-shared keys require the caller to
+        // prove ownership via the x-owner-address metadata header. Shared keys
+        // are accessible to any authenticated caller.
         if !dk.is_shared {
-            // For non-shared keys, log a warning. In production, the Python node
-            // (the only caller) is already authenticated via x-auth-token, so this
-            // is defense-in-depth. The key is owned by the address stored in the DB.
+            if caller_owner.is_empty() {
+                log::warn!(
+                    "GetApiKey: denied — non-shared key {} requested without x-owner-address header",
+                    dk.key_id,
+                );
+                return Err(Status::permission_denied(
+                    "x-owner-address metadata header required for non-shared keys",
+                ));
+            }
+            if caller_owner != dk.owner_address {
+                log::warn!(
+                    "GetApiKey: denied — key {} owned by {}, requested by {}",
+                    dk.key_id,
+                    dk.owner_address,
+                    caller_owner,
+                );
+                return Err(Status::permission_denied(
+                    "caller is not the owner of this key",
+                ));
+            }
             log::info!(
                 "GetApiKey: returning non-shared key {} (owner={})",
                 dk.key_id,

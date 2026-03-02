@@ -6,6 +6,16 @@
 //   process.env.NODE_ENV !== "production"
 // or a dedicated NEXT_PUBLIC_LAUNCHPAD_MOCK flag.
 
+// SECURITY [FE-H6]: Hard guard against mock data leaking into production builds.
+// This check runs at module evaluation time. If somehow imported in production,
+// the module throws immediately rather than silently providing fake data.
+if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_LAUNCHPAD_MOCK !== "true") {
+  throw new Error(
+    "[LaunchpadMockEngine] Mock data module loaded in production without NEXT_PUBLIC_LAUNCHPAD_MOCK=true. " +
+    "This is a build configuration error — mock engines must never be bundled in production."
+  );
+}
+
 import type {
   Project,
   ProjectTier,

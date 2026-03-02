@@ -256,6 +256,9 @@ impl Db {
     // Rewards
     // ════════════════════════════════════════════════════════════════════════
 
+    /// Insert a reward record. The `bounty_amount` parameter tracks the bounty
+    /// reward component separately from the base reward (AIKGS-H3), ensuring
+    /// accounting accuracy between the total `amount` and its constituents.
     pub async fn insert_reward(
         &self,
         contribution_id: i64,
@@ -268,14 +271,15 @@ impl Db {
         streak_multiplier: f64,
         staking_boost: f64,
         early_bonus: f64,
+        bounty_amount: f64,
         block_height: i64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             "INSERT INTO aikgs_rewards
              (contribution_id, contributor_address, amount, base_reward,
               quality_factor, novelty_factor, tier_multiplier, streak_multiplier,
-              staking_boost, early_bonus, block_height)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+              staking_boost, early_bonus, bounty_amount, block_height)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
         )
         .bind(contribution_id)
         .bind(contributor_address)
@@ -287,6 +291,7 @@ impl Db {
         .bind(streak_multiplier)
         .bind(staking_boost)
         .bind(early_bonus)
+        .bind(bounty_amount)
         .bind(block_height)
         .execute(&self.pool)
         .await?;
@@ -294,6 +299,7 @@ impl Db {
     }
 
     /// Insert a reward record within an existing transaction (AIKGS-H7).
+    /// The `bounty_amount` is tracked separately from the base reward (AIKGS-H3).
     pub async fn insert_reward_in_tx(
         tx: &mut Transaction<'_, Postgres>,
         contribution_id: i64,
@@ -306,14 +312,15 @@ impl Db {
         streak_multiplier: f64,
         staking_boost: f64,
         early_bonus: f64,
+        bounty_amount: f64,
         block_height: i64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             "INSERT INTO aikgs_rewards
              (contribution_id, contributor_address, amount, base_reward,
               quality_factor, novelty_factor, tier_multiplier, streak_multiplier,
-              staking_boost, early_bonus, block_height)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+              staking_boost, early_bonus, bounty_amount, block_height)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
         )
         .bind(contribution_id)
         .bind(contributor_address)
@@ -325,6 +332,7 @@ impl Db {
         .bind(streak_multiplier)
         .bind(staking_boost)
         .bind(early_bonus)
+        .bind(bounty_amount)
         .bind(block_height)
         .execute(&mut **tx)
         .await?;
@@ -707,6 +715,12 @@ impl Db {
         .await
     }
 
+    /// List bounties with optional domain/status filters.
+    ///
+    /// AIKGS-H6: Although this builds SQL dynamically, only the *parameter index*
+    /// (`$1`, `$2`, etc.) is interpolated into the query string via `format!`.
+    /// User-supplied values are always bound via `.bind()` — no string concatenation
+    /// of user data into SQL.
     pub async fn list_bounties(
         &self,
         domain: &str,
@@ -744,44 +758,116 @@ impl Db {
         q.fetch_all(&self.pool).await
     }
 
+    /// Claim an open bounty. Uses a transaction with `SELECT FOR UPDATE` to
+    /// prevent double-claim race conditions (AIKGS-H4).
     pub async fn claim_bounty(
         &self,
         bounty_id: i64,
         claimer: &str,
     ) -> Result<bool, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        // AIKGS-H4: Lock the row to prevent concurrent claims.
+        let locked = sqlx::query(
+            "SELECT bounty_id FROM aikgs_bounties
+             WHERE bounty_id = $1 AND status = 'open' AND expires_at > now()
+             FOR UPDATE",
+        )
+        .bind(bounty_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if locked.is_none() {
+            tx.rollback().await?;
+            return Ok(false);
+        }
+
         let result = sqlx::query(
             "UPDATE aikgs_bounties SET status = 'claimed', claimer_address = $1
              WHERE bounty_id = $2 AND status = 'open' AND expires_at > now()",
         )
         .bind(claimer)
         .bind(bounty_id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+
+        tx.commit().await?;
         Ok(result.rows_affected() > 0)
     }
 
+    /// Fulfill a bounty with a contribution. Uses a transaction with `SELECT FOR
+    /// UPDATE` to prevent double-fulfill race conditions (AIKGS-H4, AIKGS-H7).
+    ///
+    /// Returns `Some((reward_amount, boost_multiplier))` on success, `None` if the
+    /// bounty was not in 'claimed' status (already fulfilled or doesn't exist).
+    /// This combines the lock + update + read into a single transaction.
     pub async fn fulfill_bounty(
         &self,
         bounty_id: i64,
         contribution_id: i64,
-    ) -> Result<bool, sqlx::Error> {
-        let result = sqlx::query(
+    ) -> Result<Option<(f64, f64)>, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        // AIKGS-H4: Lock the row to prevent concurrent fulfillment.
+        let locked = sqlx::query(
+            "SELECT bounty_id, reward_amount::float8 as reward_amount, boost_multiplier
+             FROM aikgs_bounties
+             WHERE bounty_id = $1 AND status = 'claimed'
+             FOR UPDATE",
+        )
+        .bind(bounty_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let locked_row = match locked {
+            Some(row) => row,
+            None => {
+                tx.rollback().await?;
+                return Ok(None);
+            }
+        };
+
+        let reward_amount: f64 = locked_row.try_get("reward_amount").unwrap_or(0.0);
+        let boost_multiplier: f64 = locked_row.try_get("boost_multiplier").unwrap_or(1.0);
+
+        sqlx::query(
             "UPDATE aikgs_bounties SET status = 'fulfilled', contribution_id = $1
              WHERE bounty_id = $2 AND status = 'claimed'",
         )
         .bind(contribution_id)
         .bind(bounty_id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
-        Ok(result.rows_affected() > 0)
+
+        tx.commit().await?;
+        Ok(Some((reward_amount, boost_multiplier)))
     }
 
-    /// Fulfill bounty within an existing transaction (AIKGS-H7).
+    /// Fulfill bounty within an existing transaction (AIKGS-H4, AIKGS-H7).
+    ///
+    /// Uses `SELECT ... FOR UPDATE` to acquire a row-level lock before the
+    /// status transition, preventing double-fulfill under concurrent requests.
+    /// The lock is held until the enclosing transaction commits or rolls back.
     pub async fn fulfill_bounty_in_tx(
         tx: &mut Transaction<'_, Postgres>,
         bounty_id: i64,
         contribution_id: i64,
     ) -> Result<bool, sqlx::Error> {
+        // AIKGS-H4: Acquire row-level lock to prevent concurrent fulfillment.
+        let locked = sqlx::query(
+            "SELECT bounty_id FROM aikgs_bounties
+             WHERE bounty_id = $1 AND status = 'claimed'
+             FOR UPDATE",
+        )
+        .bind(bounty_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        if locked.is_none() {
+            // Bounty doesn't exist or isn't in 'claimed' status — no-op.
+            return Ok(false);
+        }
+
         let result = sqlx::query(
             "UPDATE aikgs_bounties SET status = 'fulfilled', contribution_id = $1
              WHERE bounty_id = $2 AND status = 'claimed'",
@@ -1140,6 +1226,18 @@ impl Db {
     // ════════════════════════════════════════════════════════════════════════
     // Disbursement tracking (AIKGS-C4)
     // ════════════════════════════════════════════════════════════════════════
+
+    /// Ensure the aikgs_rewards table has the `bounty_amount` column (AIKGS-H3 migration).
+    /// This column tracks the bounty reward component separately from the base reward.
+    pub async fn ensure_reward_bounty_column(&self) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "ALTER TABLE aikgs_rewards ADD COLUMN IF NOT EXISTS bounty_amount DECIMAL(20,8) NOT NULL DEFAULT 0",
+        )
+        .execute(&self.pool)
+        .await?;
+        log::info!("AIKGS-H3: ensured bounty_amount column on aikgs_rewards");
+        Ok(())
+    }
 
     /// Ensure ID sequences exist for contributions and bounties (AIKGS-C3).
     ///

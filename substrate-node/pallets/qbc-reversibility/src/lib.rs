@@ -759,19 +759,31 @@ pub mod pallet {
             let current_height = pallet_qbc_utxo::CurrentHeight::<T>::get();
             let mut pruned: u32 = 0;
 
-            // Use the expiry index to efficiently find old entries.
-            // Walk block heights from 0 up to (current_height - max_age_blocks)
-            // and remove entries at those heights.
+            // SECURITY [SUB-H7]: Use the ExpiryIndex for efficient pruning instead
+            // of iterating the entire ReversalRequests or ExpiredReversals storage map.
+            //
+            // Strategy: probe individual block heights from 0 up to the cutoff.
+            // This avoids calling `ExpiryIndex::<T>::iter()` which would enumerate
+            // ALL entries in the map (including future ones), causing O(total_entries)
+            // reads even when only a few need pruning.
+            //
+            // We walk backwards from the cutoff to find entries efficiently. Since
+            // the reversal window is ~26,182 blocks (~24h), the expiry index is
+            // sparse (one entry per block that had a reversal request), so most
+            // lookups will be misses (cheap: single storage read returning None).
             let cutoff = current_height.saturating_sub(max_age_blocks);
 
-            // Scan expiry index blocks that are older than cutoff.
-            // We iterate the ExpiryIndex map, but only entries at expired heights.
+            // Walk from oldest possible expiry up to the cutoff. To bound work,
+            // we scan at most `max_entries * 4` block heights (generous factor
+            // since most heights won't have entries).
+            let scan_limit = (max_entries as u64).saturating_mul(4).max(1000);
+            let scan_start = cutoff.saturating_sub(scan_limit);
             let mut blocks_to_clean: sp_std::vec::Vec<u64> = sp_std::vec::Vec::new();
-            for (block_height, request_ids) in ExpiryIndex::<T>::iter() {
-                if pruned >= max_entries {
-                    break;
-                }
-                if block_height <= cutoff {
+
+            let mut height = scan_start;
+            while height <= cutoff && pruned < max_entries {
+                let request_ids = ExpiryIndex::<T>::get(height);
+                if !request_ids.is_empty() {
                     for request_id in request_ids.iter() {
                         if pruned >= max_entries {
                             break;
@@ -779,8 +791,9 @@ pub mod pallet {
                         ExpiredReversals::<T>::remove(request_id);
                         pruned += 1;
                     }
-                    blocks_to_clean.push(block_height);
+                    blocks_to_clean.push(height);
                 }
+                height = height.saturating_add(1);
             }
 
             // Remove cleaned expiry index entries
@@ -789,9 +802,11 @@ pub mod pallet {
             }
 
             log::info!(
-                "Pruned {} expired reversal records (max_age={} blocks)",
+                "Pruned {} expired reversal records (max_age={} blocks, scanned heights {}..={})",
                 pruned,
                 max_age_blocks,
+                scan_start,
+                cutoff.min(height),
             );
 
             Ok(())

@@ -51,11 +51,16 @@ contract QBC20 is IQBC20, Initializable {
     }
 
     /// @notice Approve `spender` to spend `amount` tokens on behalf of msg.sender.
-    /// @dev WARNING: Front-running risk. If you change an allowance from N to M,
-    ///      the spender may spend both N and M via a front-run. To safely change
-    ///      allowances, use increaseAllowance/decreaseAllowance instead, or first
-    ///      set allowance to 0 then set the new value in a separate transaction.
+    /// @dev Front-running mitigation: to change an existing non-zero allowance to
+    ///      another non-zero value, you MUST first set it to 0 (or use the safe
+    ///      increaseAllowance/decreaseAllowance methods). This prevents the classic
+    ///      ERC-20 approve front-running vulnerability where a spender could spend
+    ///      both the old and new allowance by observing the approve tx in the mempool.
     function approve(address spender, uint256 amount) external returns (bool) {
+        require(
+            amount == 0 || _allowances[msg.sender][spender] == 0,
+            "QBC20: approve from non-zero to non-zero, set to 0 first"
+        );
         _allowances[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;

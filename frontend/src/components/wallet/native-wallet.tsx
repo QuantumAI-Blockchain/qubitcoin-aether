@@ -315,6 +315,30 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
           return;
         }
 
+        // SECURITY [FE-H7]: Derive a spending key using HMAC-SHA256 with
+        // domain separation. This ensures the spending key is:
+        //   1. Deterministically derived from the private key (reproducible)
+        //   2. Domain-separated from the signing key (different purpose = different key)
+        //   3. Not a simple truncation of the private key (no key material leakage)
+        //
+        // We use the Web Crypto API (SubtleCrypto) which is available in all
+        // modern browsers and Next.js server components.
+        const keyBytes = new Uint8Array(
+          (privateKey.match(/.{1,2}/g) ?? []).map((b) => parseInt(b, 16))
+        );
+        const domainSeparator = new TextEncoder().encode("qubitcoin-susy-swap-spending-key-v1");
+        const cryptoKey = await crypto.subtle.importKey(
+          "raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+        );
+        const derivedBytes = new Uint8Array(
+          await crypto.subtle.sign("HMAC", cryptoKey, domainSeparator)
+        );
+        // Use the first 8 bytes of the HMAC output as the spending key scalar.
+        // This provides 64 bits of key material with proper domain separation.
+        const spendingKey = derivedBytes.slice(0, 8).reduce(
+          (acc, byte, i) => acc + byte * (256 ** i), 0
+        ) || 1; // fallback to 1 if somehow zero
+
         // Build confidential transaction
         const buildRes = await api.buildPrivateTx({
           inputs: [
@@ -323,12 +347,7 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
               vout: picked.vout,
               value: Math.round(picked.amount * 1e8),
               blinding: 0, // fresh UTXO, no existing blinding
-              // SECURITY [FE-H7]: PLACEHOLDER — In production, the spending
-              // key MUST be derived using a proper KDF (e.g. HKDF-SHA256) from
-              // the private key, NOT by truncating and parsing the hex.  This
-              // naive derivation leaks key material and provides no domain
-              // separation.  Replace with a proper KDF before mainnet.
-              spending_key: parseInt(privateKey.slice(0, 16), 16) || 1,
+              spending_key: spendingKey,
             },
           ],
           outputs: [

@@ -2380,6 +2380,16 @@ class AetherEngine:
             'peer_consensus_boosts': self._peer_consensus_boosts,
         }
 
+        # SUSY balance enforcement stats
+        susy_stats: dict = {'corrections': 0, 'violations': 0}
+        sephirot_mgr = self._sephirot_manager
+        if sephirot_mgr is None and self.pineal is not None:
+            sephirot_mgr = getattr(self.pineal, 'sephirot', None)
+        if sephirot_mgr is not None:
+            susy_stats['corrections'] = getattr(sephirot_mgr, '_total_corrections', 0)
+            susy_stats['violations'] = len(getattr(sephirot_mgr, 'violations', []))
+        stats['susy_balance'] = susy_stats
+
         # Phase 6: On-chain integration stats
         if self.on_chain:
             stats['on_chain'] = self.on_chain.get_stats()

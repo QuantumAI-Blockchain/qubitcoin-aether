@@ -73,6 +73,47 @@ def safe_gas_add(a: int, b: int, gas_limit: int) -> int:
     return total
 
 
+# QVM-H8: Maximum gas refund value — prevents overflow when porting to fixed-width
+# uint64 in Go. In Python this is defensive; in Go it becomes essential.
+_MAX_GAS_REFUND = (1 << 63) - 1  # max int63 (safe for uint64 arithmetic)
+
+
+def safe_gas_refund_add(current_refund: int, delta: int) -> int:
+    """Checked gas refund accumulation — prevents overflow in refund counter.
+
+    QVM-H8: When porting to Go (uint64), unchecked refund accumulation could
+    overflow, causing the refund to wrap around and become a tiny value (or zero).
+    This function caps the refund at a safe maximum.
+
+    Args:
+        current_refund: Current accumulated gas refund.
+        delta: Refund amount to add.
+
+    Returns:
+        Clamped sum ``current_refund + delta``, never exceeding _MAX_GAS_REFUND.
+    """
+    total = current_refund + delta
+    if total < 0:
+        return 0
+    if total > _MAX_GAS_REFUND:
+        return _MAX_GAS_REFUND
+    return total
+
+
+def safe_gas_refund_sub(current_refund: int, delta: int) -> int:
+    """Checked gas refund subtraction — prevents underflow in refund counter.
+
+    Args:
+        current_refund: Current accumulated gas refund.
+        delta: Refund amount to subtract.
+
+    Returns:
+        ``max(0, current_refund - delta)`` — never goes negative.
+    """
+    result = current_refund - delta
+    return max(0, result)
+
+
 def _rlp_encode_length(data: bytes, offset: int) -> bytes:
     """RLP length prefix for a single item or list.
 
@@ -1195,13 +1236,19 @@ class QVM:
             result.success = not ctx.reverted
             result.return_data = ctx.return_data
             # EIP-3529: refund capped at gas_used // 5 (max 20% refund)
-            # PORTING NOTE (QVM-H8): Python's arbitrary-precision integers make this
-            # safe, but when porting to Go (fixed-width uint64), ensure:
-            #   1. gas_refund accumulation uses checked arithmetic (no overflow)
+            # QVM-H8: All gas arithmetic uses checked operations to prevent
+            # overflow/underflow when porting to Go (fixed-width uint64):
+            #   1. gas_refund accumulation uses safe_gas_refund_add (capped)
             #   2. gas_used // 5 uses integer division (not floating point)
-            #   3. The subtraction (gas_used - refund) cannot underflow
-            refund = min(ctx.gas_refund, ctx.gas_used // 5) if not ctx.reverted else 0
-            result.gas_used = ctx.gas_used - refund
+            #   3. The subtraction (gas_used - refund) is guarded against underflow
+            if not ctx.reverted:
+                max_refund = ctx.gas_used // 5  # integer division, safe
+                refund = min(ctx.gas_refund, max_refund)
+                # Guard: refund must not exceed gas_used (prevents underflow)
+                refund = min(refund, ctx.gas_used)
+            else:
+                refund = 0
+            result.gas_used = ctx.gas_used - refund  # safe: refund <= gas_used
             result.gas_remaining = max(0, ctx.gas - result.gas_used)
             result.gas_refund = refund
             result.logs = ctx.logs
@@ -1664,6 +1711,14 @@ class QVM:
                 elif self.db:
                     val = self.db.get_storage(ctx.address, key_hex)
                     ctx.push(int(val, 16))
+                    # EIP-2200 (QVM-H5): Record original value on first SLOAD
+                    # so that a subsequent SSTORE has the correct baseline for
+                    # gas refund calculation even if the value was read before
+                    # being written.
+                    if ctx.address not in ctx._original_storage:
+                        ctx._original_storage[ctx.address] = {}
+                    if key_hex not in ctx._original_storage[ctx.address]:
+                        ctx._original_storage[ctx.address][key_hex] = val
                 else:
                     ctx.push(0)
             elif op == Opcode.SSTORE:
@@ -1684,12 +1739,22 @@ class QVM:
                         current_hex = zero_hex
                 current_hex = current_hex or zero_hex
 
-                # ── EIP-2200: Track original value at transaction start ──
+                # ── EIP-2200 (QVM-H5): Track original value at transaction start ──
+                # The original value MUST be the value from the DB at the start of
+                # the transaction, NOT from the storage cache (which may have been
+                # modified by a prior SSTORE in this tx). On first access to a slot,
+                # fetch directly from DB to guarantee correctness.
                 if ctx.address not in ctx._original_storage:
                     ctx._original_storage[ctx.address] = {}
                 if key_hex not in ctx._original_storage[ctx.address]:
-                    # First SSTORE to this slot in this tx — record original
-                    ctx._original_storage[ctx.address][key_hex] = current_hex
+                    # First access to this slot in this tx — record original from DB
+                    db_original = zero_hex
+                    if self.db:
+                        try:
+                            db_original = self.db.get_storage(ctx.address, key_hex)
+                        except Exception:
+                            db_original = zero_hex
+                    ctx._original_storage[ctx.address][key_hex] = db_original or zero_hex
                 original_hex = ctx._original_storage[ctx.address][key_hex]
 
                 # ── EIP-2929: Check warm/cold access ──
@@ -1727,16 +1792,25 @@ class QVM:
                         # Clean non-zero slot being modified
                         ctx.use_gas(2900 + cold_cost)  # SSTORE_RESET
                         if new_is_zero:
-                            ctx.gas_refund += 4800  # EIP-3529 SSTORE_CLEARS_SCHEDULE
+                            # QVM-H8: Use checked arithmetic for gas refund
+                            ctx.gas_refund = safe_gas_refund_add(
+                                ctx.gas_refund, 4800
+                            )  # EIP-3529 SSTORE_CLEARS_SCHEDULE
                 else:
                     # Slot is dirty (original != current)
                     ctx.use_gas(100 + cold_cost)  # SLOAD_GAS (warm)
                     if not original_is_zero and current_is_zero and not new_is_zero:
                         # Un-clearing: subtract the previously given refund
-                        ctx.gas_refund = max(0, ctx.gas_refund - 4800)
+                        # QVM-H8: Use checked arithmetic for gas refund
+                        ctx.gas_refund = safe_gas_refund_sub(
+                            ctx.gas_refund, 4800
+                        )
                     elif not original_is_zero and not current_is_zero and new_is_zero:
                         # Clearing a dirty non-zero slot → add refund
-                        ctx.gas_refund += 4800
+                        # QVM-H8: Use checked arithmetic for gas refund
+                        ctx.gas_refund = safe_gas_refund_add(
+                            ctx.gas_refund, 4800
+                        )
 
                 if ctx.address not in self._storage_cache:
                     self._storage_cache[ctx.address] = {}
@@ -2268,16 +2342,19 @@ class QVM:
                     capped = (available * 63) // 64  # EIP-150
                     sub_gas = min(gas_limit, capped)
                     cache_snap = {k: dict(v) for k, v in self._storage_cache.items()}
-                    # DELEGATECALL: execute target code in caller's context.
+                    # DELEGATECALL (QVM-H6): execute target code in caller's context.
                     # Per EVM spec, DELEGATECALL preserves:
                     #   - msg.sender (ctx.caller — the original caller, not this contract)
                     #   - msg.value  (ctx.value — the value from the parent call frame)
                     #   - storage context (ctx.address — this contract's storage)
+                    #   - static context (ctx.is_static — inherited from parent frame)
                     # This ensures the delegate code sees the same msg.value as the
                     # calling contract, which is critical for payable proxy patterns.
+                    # NOTE: ctx.value MUST be forwarded (not 0 or a stack-popped value)
+                    # because DELEGATECALL does not have a value parameter on the stack.
                     sub_result = self.execute(
                         ctx.caller, ctx.address, code, call_data, ctx.value,
-                        sub_gas, ctx.origin, depth=ctx.depth + 1
+                        sub_gas, ctx.origin, is_static=ctx.is_static, depth=ctx.depth + 1
                     )
                     ctx.gas_used += sub_result.gas_used
                     ctx.return_data = sub_result.return_data

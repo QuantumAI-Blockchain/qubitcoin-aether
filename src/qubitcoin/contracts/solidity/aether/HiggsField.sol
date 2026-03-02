@@ -394,9 +394,32 @@ contract HiggsField is Initializable {
         );
     }
 
-    /// @notice Number of excitation events recorded.
+    /// @notice Number of excitation events stored in the circular buffer.
     function getExcitationCount() external view returns (uint256) {
         return excitations.length;
+    }
+
+    /// @notice Total excitation events ever recorded (including overwritten ones).
+    function getTotalExcitationCount() external view returns (uint256) {
+        return totalExcitations;
+    }
+
+    /// @notice Get a page of recent excitation events from the circular buffer.
+    /// @param offset  Start index within the stored excitations array.
+    /// @param count   Maximum number of events to return.
+    /// @return events Array of excitation events (may be shorter than count).
+    function getExcitations(uint256 offset, uint256 count) external view returns (ExcitationEvent[] memory events) {
+        uint256 stored = excitations.length;
+        if (offset >= stored) {
+            return new ExcitationEvent[](0);
+        }
+        uint256 end = offset + count;
+        if (end > stored) end = stored;
+        uint256 len = end - offset;
+        events = new ExcitationEvent[](len);
+        for (uint256 i = 0; i < len; i++) {
+            events[i] = excitations[offset + i];
+        }
     }
 
     /// @notice Compute the current potential energy V(φ_h).

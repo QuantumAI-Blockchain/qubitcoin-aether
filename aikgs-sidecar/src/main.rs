@@ -210,6 +210,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     db.ensure_disbursement_table().await?;
     log::info!("Disbursement tracking table ready");
 
+    // Ensure bounty_amount column on rewards table (AIKGS-H3)
+    db.ensure_reward_bounty_column().await?;
+
     // Treasury client (calls Python node RPC for disbursements)
     let treasury = TreasuryClient::new(&cfg.node_rpc_url);
     if treasury.check_health().await {

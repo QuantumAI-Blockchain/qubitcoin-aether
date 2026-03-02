@@ -9,8 +9,9 @@ SUSY balance enforced by the golden ratio.
 Each Sephirah is a QVM smart contract with its own quantum state.
 """
 import time
+from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Deque, List, Optional, Tuple
 from enum import Enum
 
 from ..config import Config
@@ -101,7 +102,7 @@ class SephirotManager:
         self.db = db_manager
         self.state_manager = state_manager
         self.nodes: Dict[SephirahRole, SephirahState] = {}
-        self.violations: List[SUSYViolation] = []
+        self.violations: Deque[SUSYViolation] = deque(maxlen=self.MAX_VIOLATIONS_HISTORY)
         self._total_corrections: int = 0  # Total SUSY corrections applied
         self._initialize_nodes()
         logger.info("Sephirot Manager initialized (10 Tree of Life nodes)")
@@ -183,9 +184,6 @@ class SephirotManager:
                 )
                 violations.append(violation)
                 self.violations.append(violation)
-                # Cap violations history to prevent unbounded memory growth
-                if len(self.violations) > self.MAX_VIOLATIONS_HISTORY:
-                    self.violations = self.violations[-self.MAX_VIOLATIONS_HISTORY:]
                 logger.warning(
                     f"SUSY violation: {expansion.value}/{constraint.value} "
                     f"ratio={ratio:.4f} (expected φ={PHI:.4f}, dev={deviation:.2%})"
@@ -466,6 +464,6 @@ class SephirotManager:
                     "correction": v.correction_qbc,
                     "block": v.block_height,
                 }
-                for v in self.violations[-10:]
+                for v in list(self.violations)[-10:]
             ],
         }

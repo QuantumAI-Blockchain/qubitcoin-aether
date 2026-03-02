@@ -8,6 +8,16 @@
      process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
    ───────────────────────────────────────────────────────────────────────── */
 
+// SECURITY [FE-H6]: Hard guard against mock data leaking into production builds.
+// This check runs at module evaluation time. If somehow imported in production,
+// the module throws immediately rather than silently providing fake data.
+if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_USE_MOCK_DATA !== "true") {
+  throw new Error(
+    "[ExplorerMockEngine] Mock data module loaded in production without NEXT_PUBLIC_USE_MOCK_DATA=true. " +
+    "This is a build configuration error — mock engines must never be bundled in production."
+  );
+}
+
 import type {
   Block,
   Transaction,

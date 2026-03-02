@@ -205,7 +205,7 @@ class CSFTransport:
 
     def __init__(self) -> None:
         self._queue: List[CSFMessage] = []  # Priority queue (sorted by qbc desc)
-        self._delivered: List[CSFMessage] = []
+        self._delivered: deque = deque(maxlen=self.MAX_DELIVERED_HISTORY)
         self._total_delivered: int = 0  # Total count (survives truncation)
         self._dropped: int = 0
         self._stale_dropped: int = 0
@@ -214,11 +214,9 @@ class CSFTransport:
         logger.info("CSF Transport initialized (Tree of Life topology + quantum entanglement)")
 
     def _record_delivered(self, msg: CSFMessage) -> None:
-        """Append a delivered message and enforce history cap."""
+        """Append a delivered message (deque auto-evicts oldest beyond maxlen)."""
         self._delivered.append(msg)
         self._total_delivered += 1
-        if len(self._delivered) > self.MAX_DELIVERED_HISTORY:
-            self._delivered = self._delivered[-self.MAX_DELIVERED_HISTORY:]
 
     def send(self, source: SephirahRole, destination: SephirahRole,
              payload: dict, msg_type: str = "signal",
@@ -416,7 +414,7 @@ class CSFTransport:
                     "hops": len(m.hops),
                     "priority": m.priority_qbc,
                 }
-                for m in self._delivered[-20:]
+                for m in list(self._delivered)[-20:]
             ],
         }
 

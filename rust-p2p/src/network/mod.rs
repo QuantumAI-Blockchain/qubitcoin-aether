@@ -227,13 +227,25 @@ impl P2PNetwork {
     }
     
     fn handle_gossipsub_message(&self, message: gossipsub::Message) {
+        // SECURITY [SUB-H5]: Defense-in-depth size check at the application layer.
+        // Gossipsub already enforces MAX_GOSSIPSUB_MESSAGE_SIZE at the transport level,
+        // but we verify again here to guard against any bypass or future misconfiguration.
+        if message.data.len() > 10 * 1024 * 1024 {
+            warn!(
+                "Dropping oversized gossipsub message ({} bytes) from {:?}",
+                message.data.len(),
+                message.source
+            );
+            return;
+        }
+
         match bincode::deserialize::<NetworkMessage>(&message.data) {
             Ok(msg) => {
                 debug!("📥 Decoded: {}", msg);
                 let _ = self.to_python_tx.send(msg);
             }
             Err(e) => {
-                warn!("Failed to deserialize: {}", e);
+                warn!("Failed to deserialize gossipsub message ({} bytes): {}", message.data.len(), e);
             }
         }
     }

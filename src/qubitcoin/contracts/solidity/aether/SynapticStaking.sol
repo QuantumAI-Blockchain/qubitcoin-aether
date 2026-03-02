@@ -13,7 +13,11 @@ contract SynapticStaking is Initializable {
     address public owner;
     address public kernel;
     IQBC20  public qbcToken;
-    bool private _locked;
+
+    // ─── Reentrancy Guard (OpenZeppelin-style uint256 for gas efficiency) ──
+    uint256 private constant _NOT_ENTERED = 1;
+    uint256 private constant _ENTERED = 2;
+    uint256 private _status;
 
     uint256 public constant MIN_STAKE = 100 ether;           // 100 QBC minimum
     uint256 public constant MAX_STAKE_PER_CONNECTION = 1000000 ether; // 1M QBC max per connection
@@ -73,10 +77,10 @@ contract SynapticStaking is Initializable {
     }
 
     modifier nonReentrant() {
-        require(!_locked, "Synaptic: reentrant call");
-        _locked = true;
+        require(_status != _ENTERED, "Synaptic: reentrant call");
+        _status = _ENTERED;
         _;
-        _locked = false;
+        _status = _NOT_ENTERED;
     }
 
     // ─── Initialization ─────────────────────────────────────────────────
@@ -84,6 +88,7 @@ contract SynapticStaking is Initializable {
         owner    = msg.sender;
         kernel   = _kernel;
         qbcToken = IQBC20(_qbcToken);
+        _status  = _NOT_ENTERED;
     }
 
     // ─── Connection Setup (admin only) ───────────────────────────────────

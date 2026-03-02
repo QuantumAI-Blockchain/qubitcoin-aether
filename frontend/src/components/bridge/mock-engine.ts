@@ -8,6 +8,16 @@
      process.env.NEXT_PUBLIC_BRIDGE_MOCK === "true"
    ───────────────────────────────────────────────────────────────────────── */
 
+// SECURITY [FE-H6]: Hard guard against mock data leaking into production builds.
+// This check runs at module evaluation time. If somehow imported in production,
+// the module throws immediately rather than silently providing fake data.
+if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_BRIDGE_MOCK !== "true") {
+  throw new Error(
+    "[BridgeMockEngine] Mock data module loaded in production without NEXT_PUBLIC_BRIDGE_MOCK=true. " +
+    "This is a build configuration error — mock engines must never be bundled in production."
+  );
+}
+
 import type {
   ChainId,
   ExternalChainId,

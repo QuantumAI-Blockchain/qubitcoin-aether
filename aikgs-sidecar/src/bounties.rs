@@ -189,51 +189,47 @@ impl BountyManager {
 
     /// Fulfill a claimed bounty with a contribution.
     ///
-    /// Uses atomic `UPDATE ... WHERE status = 'claimed' RETURNING *` to prevent
-    /// double-fulfill race condition. If the bounty is not in "claimed" status,
-    /// the update affects zero rows and we return an error.
+    /// Uses `SELECT ... FOR UPDATE` within a transaction to acquire a row-level
+    /// lock before the status transition, preventing double-fulfill race conditions
+    /// (AIKGS-H4). The lock + update + read are all within a single transaction
+    /// (AIKGS-H7).
     pub async fn fulfill_bounty(
         db: &Db,
         bounty_id: i64,
         contribution_id: i64,
         _contributor_address: &str,
     ) -> Result<f64, BountyError> {
-        // Atomic check-and-update: only fulfills if status is still 'claimed'.
-        // This prevents double-fulfill even under concurrent requests.
-        let fulfilled = db.fulfill_bounty(bounty_id, contribution_id).await?;
-        if !fulfilled {
-            // Either the bounty doesn't exist or isn't in 'claimed' status.
-            let bounty = db.get_bounty(bounty_id).await?;
-            match bounty {
-                None => return Err(BountyError::NotFound(bounty_id)),
-                Some(b) => {
-                    return Err(BountyError::InvalidStatus(
+        // AIKGS-H4 + H7: Atomic lock + update + read in single transaction.
+        let result = db.fulfill_bounty(bounty_id, contribution_id).await?;
+
+        match result {
+            Some((reward_amount, boost_multiplier)) => {
+                let effective_reward = reward_amount * boost_multiplier;
+
+                log::info!(
+                    "Bounty {} fulfilled via contribution {} — reward={:.8} ({}x{} boost)",
+                    bounty_id,
+                    contribution_id,
+                    effective_reward,
+                    reward_amount,
+                    boost_multiplier,
+                );
+
+                Ok(effective_reward)
+            }
+            None => {
+                // Either the bounty doesn't exist or isn't in 'claimed' status.
+                let bounty = db.get_bounty(bounty_id).await?;
+                match bounty {
+                    None => Err(BountyError::NotFound(bounty_id)),
+                    Some(b) => Err(BountyError::InvalidStatus(
                         bounty_id,
                         "claimed".to_string(),
                         b.status,
-                    ))
+                    )),
                 }
             }
         }
-
-        // Fetch the now-fulfilled bounty to compute the effective reward.
-        let bounty = db
-            .get_bounty(bounty_id)
-            .await?
-            .ok_or(BountyError::NotFound(bounty_id))?;
-
-        let effective_reward = bounty.reward_amount * bounty.boost_multiplier;
-
-        log::info!(
-            "Bounty {} fulfilled via contribution {} — reward={:.8} ({}x{} boost)",
-            bounty_id,
-            contribution_id,
-            effective_reward,
-            bounty.reward_amount,
-            bounty.boost_multiplier,
-        );
-
-        Ok(effective_reward)
     }
 
     /// Aggregate bounty statistics.

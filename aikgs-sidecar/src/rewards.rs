@@ -5,6 +5,13 @@
 //!   * staking_boost * early_contributor_bonus
 //!
 //! Pool balance is derived from DB (initial_pool - SUM(distributed)), never from RAM.
+//!
+//! Accounting (AIKGS-H3, AIKGS-H5):
+//!   - The `aikgs_rewards` table stores each reward with a separate `bounty_amount`
+//!     column, so `reward.amount = base_calculated_reward + reward.bounty_amount`.
+//!   - `Db::get_total_distributed()` sums both `aikgs_rewards.amount` and
+//!     `aikgs_commissions.amount` to derive the true pool balance, ensuring
+//!     affiliate commissions are properly deducted from the pool.
 
 use crate::config::AikgsConfig;
 use crate::db::Db;

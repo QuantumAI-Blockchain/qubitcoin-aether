@@ -542,7 +542,12 @@ class Config:
 
     @classmethod
     def validate(cls) -> None:
-        """Validate critical configuration"""
+        """Validate critical configuration.
+
+        Raises ValueError for any configuration that would cause the node
+        to malfunction at runtime.  This prevents the node from starting
+        in an unsafe or misconfigured state.
+        """
         required = ['ADDRESS', 'PRIVATE_KEY_HEX', 'PUBLIC_KEY_HEX']
         missing = [k for k in required if not getattr(cls, k)]
 
@@ -552,6 +557,7 @@ class Config:
                 f"Run: python scripts/generate_keys.py"
             )
 
+        # ── Economics validation ──────────────────────────────────────
         if cls.MAX_SUPPLY <= 0:
             raise ValueError("MAX_SUPPLY must be positive")
 
@@ -575,6 +581,48 @@ class Config:
 
         if cls.COINBASE_MATURITY < 1:
             raise ValueError("COINBASE_MATURITY must be at least 1")
+
+        # ── Network / DB validation (critical for runtime) ───────────
+        if cls.CHAIN_ID <= 0:
+            raise ValueError(f"CHAIN_ID must be positive, got {cls.CHAIN_ID}")
+
+        if not cls.DATABASE_URL or '://' not in cls.DATABASE_URL:
+            raise ValueError(
+                f"DATABASE_URL must be a valid connection string, "
+                f"got: '{cls.DATABASE_URL[:40] if cls.DATABASE_URL else ''}'"
+            )
+
+        if cls.RPC_PORT < 1 or cls.RPC_PORT > 65535:
+            raise ValueError(f"RPC_PORT must be 1-65535, got {cls.RPC_PORT}")
+
+        # ── Consensus validation ─────────────────────────────────────
+        if cls.INITIAL_DIFFICULTY <= 0:
+            raise ValueError(f"INITIAL_DIFFICULTY must be positive, got {cls.INITIAL_DIFFICULTY}")
+
+        if cls.DIFFICULTY_FLOOR <= 0:
+            raise ValueError(f"DIFFICULTY_FLOOR must be positive, got {cls.DIFFICULTY_FLOOR}")
+
+        if cls.DIFFICULTY_CEILING <= cls.DIFFICULTY_FLOOR:
+            raise ValueError(
+                f"DIFFICULTY_CEILING ({cls.DIFFICULTY_CEILING}) must be greater "
+                f"than DIFFICULTY_FLOOR ({cls.DIFFICULTY_FLOOR})"
+            )
+
+        if cls.MAX_REORG_DEPTH < 1:
+            raise ValueError(f"MAX_REORG_DEPTH must be at least 1, got {cls.MAX_REORG_DEPTH}")
+
+        if cls.TARGET_BLOCK_TIME <= 0:
+            raise ValueError(f"TARGET_BLOCK_TIME must be positive, got {cls.TARGET_BLOCK_TIME}")
+
+        # ── Fee validation ───────────────────────────────────────────
+        if cls.FEE_BURN_PERCENTAGE < 0.0 or cls.FEE_BURN_PERCENTAGE > 1.0:
+            raise ValueError(
+                f"FEE_BURN_PERCENTAGE must be between 0.0 and 1.0, "
+                f"got {cls.FEE_BURN_PERCENTAGE}"
+            )
+
+        if cls.BLOCK_GAS_LIMIT < 21000:
+            raise ValueError(f"BLOCK_GAS_LIMIT must be at least 21000, got {cls.BLOCK_GAS_LIMIT}")
 
     @classmethod
     def _compute_supply_at_height(cls, target_height: int) -> Decimal:
@@ -701,15 +749,17 @@ Expected Emission (phi-halving + tail emission):
 
 
 # Initialize and validate on import.
-# Critical validation failures (missing keys, invalid economics) raise
-# immediately to prevent the node from starting in an unsafe state.
-# Only non-critical warnings (e.g. empty optional fields) are tolerated.
+# Critical validation failures (invalid economics, bad DB URL, bad consensus
+# params) raise immediately to prevent the node from starting in an unsafe
+# state.  Only the "missing keys" case is tolerated as a warning, because
+# tests and key-generation scripts import this module before keys exist.
 try:
     Config.validate()
 except ValueError as e:
     # ADDRESS/PRIVATE_KEY_HEX/PUBLIC_KEY_HEX may legitimately be empty
     # during test imports or key generation scripts.  Allow those through
-    # with a warning.  All other validation failures are fatal.
+    # with a warning.  All other validation failures are FATAL — the node
+    # must not start with invalid economics, DB config, or consensus params.
     err_str = str(e)
     if 'Missing required configuration' in err_str:
         import warnings

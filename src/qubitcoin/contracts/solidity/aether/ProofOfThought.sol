@@ -158,6 +158,9 @@ contract ProofOfThought is Initializable {
     // ─── Validator Staking ────────────────────────────────────────────────
 
     /// @notice Stake QBC to become a validator. Must meet minimum stake requirement.
+    ///         QVM-H9: Adding new stake while an unstake request is pending
+    ///         resets the unstake request to prevent bypassing the 7-day delay.
+    ///         The validator must call requestUnstake() again after adding funds.
     function stake() external payable {
         require(msg.value > 0, "PoT: zero stake");
         require(stakes[msg.sender] + msg.value >= MIN_VALIDATOR_STAKE, "PoT: below minimum stake");
@@ -165,11 +168,25 @@ contract ProofOfThought is Initializable {
         stakes[msg.sender] += msg.value;
         totalStaked += msg.value;
 
+        // QVM-H9: Reset any pending unstake request when new funds are added.
+        // Without this, a validator could:
+        //   1. requestUnstake() with 100 QBC
+        //   2. Wait 7 days
+        //   3. stake() another 1000 QBC
+        //   4. Immediately withdrawStake() all 1100 QBC (bypassing delay on the 1000)
+        if (unstakeRequestBlock[msg.sender] != 0) {
+            unstakeRequestBlock[msg.sender] = 0;
+        }
+
         emit ValidatorStaked(msg.sender, msg.value, stakes[msg.sender]);
     }
 
     /// @notice Slash a validator for submitting an invalid proof (50% of stake).
     ///         Only callable by owner/kernel when a proof is rejected.
+    ///         QVM-H9: If slashing reduces the stake below MIN_VALIDATOR_STAKE,
+    ///         any pending unstake request is automatically closed to prevent
+    ///         the validator from bypassing the 7-day delay on subsequently
+    ///         added funds by reusing a stale unstake request.
     /// @param validator Address of the validator to slash
     function slash(address validator) external onlyKernel {
         uint256 validatorStake = stakes[validator];
@@ -179,6 +196,18 @@ contract ProofOfThought is Initializable {
         stakes[validator] -= slashAmount;
         totalStaked -= slashAmount;
         totalSlashed += slashAmount;
+
+        // QVM-H9: If remaining stake drops below minimum, close any pending
+        // unstake request. This prevents a validator from:
+        //   1. requestUnstake() (starts 7-day timer)
+        //   2. Getting slashed (stake reduced below minimum)
+        //   3. stake() again to reach minimum
+        //   4. Immediately withdrawStake() using the old, already-matured request
+        // By clearing the request, they must call requestUnstake() again and
+        // wait a fresh 7-day delay.
+        if (stakes[validator] < MIN_VALIDATOR_STAKE && unstakeRequestBlock[validator] != 0) {
+            unstakeRequestBlock[validator] = 0;
+        }
 
         emit ValidatorSlashed(validator, slashAmount, stakes[validator]);
     }

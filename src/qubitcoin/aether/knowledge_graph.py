@@ -574,29 +574,32 @@ class KnowledgeGraph:
 
     def find_by_type(self, node_type: str, limit: int = 100) -> List[KeterNode]:
         """Find nodes by type, sorted by confidence descending."""
-        matching = [
-            n for n in self.nodes.values()
-            if n.node_type == node_type
-        ]
+        with self._lock:
+            matching = [
+                n for n in self.nodes.values()
+                if n.node_type == node_type
+            ]
         matching.sort(key=lambda n: n.confidence, reverse=True)
         return matching[:limit]
 
     def find_by_content(self, key: str, value: str, limit: int = 50) -> List[KeterNode]:
         """Find nodes whose content dict contains a matching key-value."""
-        matching = [
-            n for n in self.nodes.values()
-            if str(n.content.get(key, '')) == str(value)
-        ]
+        with self._lock:
+            matching = [
+                n for n in self.nodes.values()
+                if str(n.content.get(key, '')) == str(value)
+            ]
         matching.sort(key=lambda n: n.source_block, reverse=True)
         return matching[:limit]
 
     def find_recent(self, count: int = 20) -> List[KeterNode]:
         """Get the most recently added nodes by source block."""
-        nodes = sorted(
-            self.nodes.values(),
-            key=lambda n: n.source_block,
-            reverse=True,
-        )
+        with self._lock:
+            nodes = sorted(
+                self.nodes.values(),
+                key=lambda n: n.source_block,
+                reverse=True,
+            )
         return nodes[:count]
 
     def get_edge_types_for_node(self, node_id: int) -> Dict[str, List[int]]:

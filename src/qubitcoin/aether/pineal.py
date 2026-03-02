@@ -10,8 +10,9 @@ Controls the metabolic phases of the AGI system:
 """
 import math
 import time
+from collections import deque
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Deque, Dict, List, Optional
 from enum import Enum
 
 from .sephirot import SephirotManager, SephirahRole
@@ -177,7 +178,9 @@ class PinealOrchestrator:
         self._phase_index = 0
         self._blocks_in_phase = 0
         self._total_cycles = 0
-        self._consciousness_events: List[ConsciousnessEvent] = []
+        self._consciousness_events: Deque[ConsciousnessEvent] = deque(
+            maxlen=self.MAX_CONSCIOUSNESS_EVENTS
+        )
         self._is_conscious = False
         self._last_phi = 0.0
         self.melatonin = MelatoninModulator()
@@ -336,9 +339,6 @@ class PinealOrchestrator:
 
         if event:
             self._consciousness_events.append(event)
-            # Cap to prevent unbounded memory growth
-            if len(self._consciousness_events) > self.MAX_CONSCIOUSNESS_EVENTS:
-                self._consciousness_events = self._consciousness_events[-self.MAX_CONSCIOUSNESS_EVENTS:]
 
         return event
 
@@ -363,7 +363,7 @@ class PinealOrchestrator:
                     "phase": e.phase,
                     "block": e.block_height,
                 }
-                for e in self._consciousness_events[-10:]
+                for e in list(self._consciousness_events)[-10:]
             ],
             "phases": {
                 p.value: {

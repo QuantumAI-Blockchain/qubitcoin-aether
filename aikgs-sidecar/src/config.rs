@@ -58,6 +58,12 @@ pub struct AikgsConfig {
     pub disburse_max_retries: u32,
     /// Initial backoff delay in milliseconds for retries.
     pub disburse_initial_backoff_ms: u64,
+
+    // ── Query limits (AIKGS-H8) ──
+    /// Default page size for list queries when the caller does not specify a limit.
+    pub query_default_limit: i32,
+    /// Maximum page size for list queries (hard cap, cannot be exceeded).
+    pub query_max_limit: i32,
 }
 
 impl AikgsConfig {
@@ -89,6 +95,8 @@ impl AikgsConfig {
             max_disbursements_per_hour: env_i64("AIKGS_MAX_DISBURSEMENTS_PER_HOUR", 100),
             disburse_max_retries: env_u32("AIKGS_DISBURSE_MAX_RETRIES", 3),
             disburse_initial_backoff_ms: env_u64("AIKGS_DISBURSE_INITIAL_BACKOFF_MS", 1000),
+            query_default_limit: env_i32("AIKGS_QUERY_DEFAULT_LIMIT", 50),
+            query_max_limit: env_i32("AIKGS_QUERY_MAX_LIMIT", 1000),
         }
     }
 }

@@ -31,6 +31,31 @@ class ConsensusEngine:
         self._difficulty_cache_max: int = Config.DIFFICULTY_WINDOW * 3  # 432 entries max
         logger.info("Consensus engine initialized (SUSY Economics + QVM + Aether)")
 
+    def invalidate_difficulty_cache_above(self, fork_height: int) -> int:
+        """Invalidate all difficulty cache entries above a fork height.
+
+        Called during fork resolution to ensure stale difficulty values from
+        the old chain branch are not reused for the new branch.
+
+        Args:
+            fork_height: The height at which the fork occurred. All entries
+                with height > fork_height are removed.
+
+        Returns:
+            Number of entries evicted.
+        """
+        before = len(self.difficulty_cache)
+        self.difficulty_cache = {
+            k: v for k, v in self.difficulty_cache.items() if k <= fork_height
+        }
+        evicted = before - len(self.difficulty_cache)
+        if evicted > 0:
+            logger.info(
+                f"Difficulty cache: evicted {evicted} entries above height {fork_height} "
+                f"(remaining: {len(self.difficulty_cache)})"
+            )
+        return evicted
+
     def calculate_reward(self, height: int, total_supply: Decimal) -> Decimal:
         """Calculate block reward with golden ratio halvings + tail emission.
 
@@ -261,8 +286,12 @@ class ConsensusEngine:
             sig_hex = proof.get('signature', '')
             if pk_hex and sig_hex:
                 pk = bytes.fromhex(pk_hex)
-                # Message includes params + prev_hash + height (chain binding)
-                msg = (str(proof.get('params', [])).encode()
+                # Message includes params + prev_hash + height (chain binding).
+                # Uses canonical JSON serialization for params to ensure
+                # deterministic byte representation across Python versions.
+                import json as _json
+                msg = (_json.dumps(proof.get('params', []), sort_keys=True,
+                                   separators=(',', ':')).encode()
                        + block.prev_hash.encode()
                        + str(block.height).encode())
                 sig = bytes.fromhex(sig_hex)
@@ -548,6 +577,10 @@ class ConsensusEngine:
         Returns True (conservative) on DB errors — treating an unknown UTXO
         as coinbase prevents spending immature coinbase outputs if the DB
         is temporarily unavailable.
+
+        Raises:
+            RuntimeError: If the DB is unreachable and the caller should
+                abort the validation entirely rather than silently proceeding.
         """
         try:
             with db_manager.get_session() as session:
@@ -558,6 +591,10 @@ class ConsensusEngine:
                 ).fetchone()
                 if not result:
                     # Transaction not found — conservatively treat as coinbase
+                    logger.warning(
+                        f"_is_coinbase_utxo: tx {utxo.txid[:16]}... not found in DB, "
+                        f"treating as coinbase (conservative)"
+                    )
                     return True
                 inputs = result[0]
                 if isinstance(inputs, str):
@@ -565,9 +602,16 @@ class ConsensusEngine:
                     inputs = json.loads(inputs)
                 return isinstance(inputs, list) and len(inputs) == 0
         except Exception as e:
-            # DB error — conservatively treat as coinbase to prevent
-            # spending immature coinbase UTXOs
-            logger.warning(f"_is_coinbase_utxo DB error (treating as coinbase): {e}")
+            # DB error — log at ERROR level (this is a serious condition
+            # that could indicate DB unavailability, not just a missing row).
+            # Return True conservatively to prevent spending immature
+            # coinbase UTXOs, but raise if the error indicates the DB
+            # is completely unreachable (connection refused, timeout, etc.).
+            logger.error(
+                f"_is_coinbase_utxo DB error for UTXO {utxo.txid[:16]}... "
+                f"(treating as coinbase to prevent immature spend): {e}",
+                exc_info=True,
+            )
             return True
 
     def _validate_block_susy_swaps(self, block: Block, db_manager) -> Tuple[bool, str]:
@@ -792,9 +836,7 @@ class ConsensusEngine:
             session.commit()
 
         # Invalidate difficulty cache entries above fork height
-        self.difficulty_cache = {
-            k: v for k, v in self.difficulty_cache.items() if k <= fork_height
-        }
+        self.invalidate_difficulty_cache_above(fork_height)
 
         logger.info(f"Fork resolved: reverted to height {fork_height}")
 

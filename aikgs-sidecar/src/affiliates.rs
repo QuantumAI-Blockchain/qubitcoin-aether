@@ -5,8 +5,11 @@
 //!   - L2 (referrer's referrer): `l2_commission_rate` of contributor's reward
 //!
 //! Commissions are funded from the reward pool (via RewardEngine), NOT deducted
-//! from the contributor's reward. Commission records are persisted in the DB for
-//! auditability and treasury disbursement.
+//! from the contributor's reward. Commission records are persisted in the
+//! `aikgs_commissions` table and are included in pool balance accounting via
+//! `Db::get_total_distributed()` which sums both `aikgs_rewards.amount` and
+//! `aikgs_commissions.amount` (AIKGS-H5). This ensures that affiliate payouts
+//! reduce the available pool balance.
 
 use sqlx::{Postgres, Transaction};
 
@@ -112,6 +115,9 @@ impl AffiliateManager {
     ///
     /// Commission records are inserted into `aikgs_commissions` and the affiliate's
     /// running totals are incremented in `aikgs_affiliates`.
+    ///
+    /// Commissions are deducted from the reward pool (AIKGS-H5) — the total pool
+    /// balance accounts for both `aikgs_rewards` and `aikgs_commissions`.
     ///
     /// Returns `(l1_amount, l2_amount)`.
     pub async fn process_commissions(

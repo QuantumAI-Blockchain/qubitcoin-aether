@@ -419,8 +419,13 @@ class MiningEngine:
                 f"Invalid Dilithium2 private key length: {len(sk_bytes)} bytes "
                 f"(expected 2528). Regenerate keys with scripts/setup/generate_keys.py"
             )
-        # Sign params + prev_hash + height for chain binding
-        msg = str(params.tolist()).encode() + prev_hash.encode() + str(height).encode()
+        # Sign params + prev_hash + height for chain binding.
+        # Uses canonical JSON serialization for params to ensure deterministic
+        # byte representation that matches the verification side.
+        import json as _json
+        msg = (_json.dumps(params.tolist(), sort_keys=True,
+                           separators=(',', ':')).encode()
+               + prev_hash.encode() + str(height).encode())
         signature = Dilithium2.sign(sk_bytes, msg)
         return {
             'challenge': hamiltonian,

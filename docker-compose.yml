@@ -19,9 +19,14 @@ services:
       - "8080:8080"     # Admin UI
     volumes:
       - cockroach-data:/cockroach/cockroach-data
-    # WARNING: --insecure is for development only. Use TLS certificates and
-    # --certs-dir in production. See https://www.cockroachlabs.com/docs/stable/secure-a-cluster
-    command: start-single-node --insecure
+    # SECURITY WARNING [FE-H2]: --insecure disables ALL authentication and
+    # encryption. This is acceptable ONLY for local development / CI.
+    # For production, use TLS certificates with --certs-dir.
+    # See: https://www.cockroachlabs.com/docs/stable/secure-a-cluster
+    #
+    # --accept-sql-without-tls is an explicit opt-in to allow unencrypted
+    # SQL connections, making the security posture visible in the config.
+    command: start-single-node --insecure --accept-sql-without-tls
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
       interval: 10s
@@ -148,6 +153,9 @@ services:
       - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
       - AIKGS_NODE_RPC_URL=http://qbc-node:5000
       - AIKGS_TREASURY_ADDRESS=${AIKGS_TREASURY_ADDRESS:-}
+      # SECURITY [FE-H5]: Vault master key passed as env var for dev only.
+      # In production, use a secrets manager (Vault, AWS SM, GCP SM) instead.
+      # See .env.example for details.
       - AIKGS_VAULT_MASTER_KEY=${AIKGS_VAULT_MASTER_KEY:-}
       - AIKGS_MAX_SINGLE_DISBURSEMENT=${AIKGS_MAX_SINGLE_DISBURSEMENT:-1000.0}
       - AIKGS_MAX_DAILY_DISBURSEMENT=${AIKGS_MAX_DAILY_DISBURSEMENT:-50000.0}

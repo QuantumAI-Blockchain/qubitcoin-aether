@@ -340,7 +340,11 @@ impl ContributionManager {
             }
         }
 
-        // 9. Insert reward record — includes bounty component (AIKGS-H3)
+        // 9. Insert reward record — bounty component tracked separately (AIKGS-H3).
+        //
+        // The `amount` field holds the total reward (base + bounty), while
+        // `bounty_amount` tracks the bounty component independently so that
+        // `amount = base_calculated_reward + bounty_amount` is verifiable.
         Db::insert_reward_in_tx(
             &mut tx,
             contribution_id,
@@ -352,7 +356,8 @@ impl ContributionManager {
             reward_calc.tier_multiplier,
             reward_calc.streak_multiplier,
             reward_calc.staking_boost,
-            reward_calc.early_bonus + bounty_reward_component, // bounty stored in early_bonus field
+            reward_calc.early_bonus,
+            bounty_reward_component, // AIKGS-H3: tracked separately, not stuffed into early_bonus
             block_height,
         )
         .await?;

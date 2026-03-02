@@ -9,8 +9,9 @@ Tracks and provides APIs for consciousness metrics:
   - Dashboard data for frontend /dashboard and /aether pages
 """
 import time
+from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Deque, Dict, List, Optional
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -72,7 +73,7 @@ class ConsciousnessDashboard:
 
     def __init__(self, max_history: int = 100000) -> None:
         self._measurements: List[PhiMeasurement] = []
-        self._events: List[ConsciousnessEvent] = []
+        self._events: Deque[ConsciousnessEvent] = deque(maxlen=self.MAX_EVENTS)
         self._max_history = max_history
         self._was_conscious = False
         self._consciousness_start_block: int = 0
@@ -149,11 +150,9 @@ class ConsciousnessDashboard:
         return measurement
 
     def _record_event(self, event: ConsciousnessEvent) -> None:
-        """Append a consciousness event and enforce history cap."""
+        """Append a consciousness event (deque auto-evicts oldest beyond maxlen)."""
         self._events.append(event)
         self._total_events += 1
-        if len(self._events) > self.MAX_EVENTS:
-            self._events = self._events[-self.MAX_EVENTS:]
 
     @property
     def is_conscious(self) -> bool:
@@ -199,7 +198,7 @@ class ConsciousnessDashboard:
 
     def get_events(self, limit: int = 50) -> List[dict]:
         """Get consciousness events for timeline display."""
-        recent = self._events[-limit:]
+        recent = list(self._events)[-limit:]
         return [
             {
                 "event_type": e.event_type,

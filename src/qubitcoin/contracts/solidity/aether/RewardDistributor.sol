@@ -12,8 +12,10 @@ contract RewardDistributor is Initializable {
     uint256 public constant SLASH_BPS = 5000; // 50% slash
     uint256 public constant BPS_DENOM = 10000;
 
-    // ─── Reentrancy Guard ───────────────────────────────────────────────
-    bool private _locked;
+    // ─── Reentrancy Guard (OpenZeppelin-style uint256 for gas efficiency) ──
+    uint256 private constant _NOT_ENTERED = 1;
+    uint256 private constant _ENTERED = 2;
+    uint256 private _status;
 
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
@@ -56,10 +58,10 @@ contract RewardDistributor is Initializable {
     }
 
     modifier nonReentrant() {
-        require(!_locked, "Rewards: reentrant call");
-        _locked = true;
+        require(_status != _ENTERED, "Rewards: reentrant call");
+        _status = _ENTERED;
         _;
-        _locked = false;
+        _status = _NOT_ENTERED;
     }
 
     // ─── Initialization ─────────────────────────────────────────────────
@@ -68,6 +70,7 @@ contract RewardDistributor is Initializable {
         kernel   = _kernel;
         qbcToken = IQBC20(_qbcToken);
         maxRewardPerDistribution = 10000 ether; // Default: 10,000 QBC max per distribution
+        _status = _NOT_ENTERED;
     }
 
     /// @notice Update the maximum reward per distribution

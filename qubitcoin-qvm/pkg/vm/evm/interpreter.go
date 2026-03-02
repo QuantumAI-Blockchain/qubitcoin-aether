@@ -668,7 +668,16 @@ func (interp *Interpreter) run(ctx *ExecutionContext) (retErr error) {
 					return fmt.Errorf("out of gas: SSTORE")
 				}
 				if result.Refund > 0 {
-					ctx.GasRefund += uint64(result.Refund)
+					// QVM-H8: Overflow-safe gas refund accumulation.
+					// Without this check, a uint64 addition could silently wrap
+					// around, causing the refund to become a tiny value.
+					refundDelta := uint64(result.Refund)
+					if ctx.GasRefund > ^uint64(0)-refundDelta {
+						// Would overflow — cap at max uint64
+						ctx.GasRefund = ^uint64(0)
+					} else {
+						ctx.GasRefund += refundDelta
+					}
 				}
 				interp.state.SetStorage(ctx.Call.Address, key, val)
 			}
@@ -1075,8 +1084,25 @@ func (interp *Interpreter) run(ctx *ExecutionContext) (retErr error) {
 					err = ctx.Stack.Push(big.NewInt(0))
 					break
 				}
-				interp.state.SetBalance(ctx.Call.Address, new(big.Int).Sub(senderBal, callValue))
-				interp.state.SetBalance(toAddr, new(big.Int).Add(interp.state.GetBalance(toAddr), callValue))
+				newSenderBal := new(big.Int).Sub(senderBal, callValue)
+				// QVM-H7: Defensive check — newSenderBal must be non-negative.
+				// The Cmp check above guarantees this, but we guard against
+				// any future refactoring that might break the invariant.
+				if newSenderBal.Sign() < 0 {
+					interp.state.RevertToSnapshot(snapID)
+					err = ctx.Stack.Push(big.NewInt(0))
+					break
+				}
+				interp.state.SetBalance(ctx.Call.Address, newSenderBal)
+				recipientBal := interp.state.GetBalance(toAddr)
+				newRecipientBal := new(big.Int).Add(recipientBal, callValue)
+				// Overflow check: recipient balance must not wrap around
+				if newRecipientBal.Cmp(recipientBal) < 0 {
+					interp.state.RevertToSnapshot(snapID)
+					err = ctx.Stack.Push(big.NewInt(0))
+					break
+				}
+				interp.state.SetBalance(toAddr, newRecipientBal)
 			}
 
 			// Build sub-call context
