@@ -1,7 +1,7 @@
 # QUBITCOIN GOVERNMENT-GRADE PROJECT AUDIT
 # Master Audit & Continuous Improvement Protocol
-# Version: 6.1 — Military/Government-Grade Edition (100% Target — No Exceptions)
-# Last Verified: 2026-03-01
+# Version: 7.0 — Military/Government-Grade Edition (100% Target — No Exceptions)
+# Last Verified: 2026-03-02
 
 ---
 
@@ -51,7 +51,7 @@ Neither is complete without the other.
 
 ---
 
-## EXACT CODEBASE INVENTORY (Master Branch — March 1, 2026)
+## EXACT CODEBASE INVENTORY (Master Branch — March 2, 2026)
 
 **Verified via automated scan against actual source files.**
 The audit MUST confirm these numbers are still accurate. Flag any drift.
@@ -59,6 +59,8 @@ The audit MUST confirm these numbers are still accurate. Flag any drift.
 | Category | Count | Location | LOC |
 |----------|-------|----------|-----|
 | **Python L1 modules** | 92 files | `src/qubitcoin/` | 68,055 |
+| **AIKGS Rust Sidecar** | 18 files (14 src + proto + build + Cargo + Dockerfile) | `aikgs-sidecar/` | ~4,500 |
+| **AIKGS Python Client** | 4 files (client + proto stubs) | `src/qubitcoin/aether/aikgs_client.py` + `aikgs_pb/` | ~600 |
 | **Aether AGI modules** | 36 files | `src/qubitcoin/aether/` | 24,560 |
 | **QVM Python modules** | 28 files | `src/qubitcoin/qvm/` | 12,301 |
 | **Bridge modules** | 12 files | `src/qubitcoin/bridge/` | 4,247 |
@@ -110,9 +112,9 @@ continuous improvement engine that runs until both end goals are achieved.
 
 ---
 
-## THE 10 COMPONENTS
+## THE 11 COMPONENTS
 
-Every audit run evaluates all 10 components. No component is optional.
+Every audit run evaluates all 11 components. No component is optional.
 
 | # | Component | Source Location | Key Counts |
 |---|-----------|----------------|------------|
@@ -126,6 +128,7 @@ Every audit run evaluates all 10 components. No component is optional.
 | 8 | **Exchange** | `exchange/engine.py` (1,065 LOC) + frontend exchange (28 files) | CLOB, WebSocket, MEV protection |
 | 9 | **Launchpad** | `contracts/engine.py` + frontend launchpad (10 files) | Deploy wizard, templates, verification |
 | 10 | **Smart Contracts** | `contracts/solidity/` (57 .sol, 9,071 LOC) | Aether(29), QUSD(10), tokens(6), bridge(2), proxy(3), interfaces(7) |
+| 11 | **AIKGS Rust Sidecar** | `aikgs-sidecar/` (~4,500 LOC) + `aether/aikgs_client.py` (~600 LOC) | 35 gRPC RPCs, 14 Rust src files, AES-256-GCM vault, reward engine |
 
 ---
 
@@ -598,6 +601,65 @@ crossbeam-channel 0.5, serde 1.0, serde_json 1.0, rand 0.8, pyo3-log 0.11
 
 ---
 
+### 1N. AIKGS Rust Sidecar Audit (14 Source Files, ~4,500 LOC + Python Client ~600 LOC)
+
+**NEW COMPONENT — First introduced in v7.0 (March 2, 2026)**
+
+The AIKGS (Aether Incentivized Knowledge Growth System) was migrated from 8 Python in-process
+modules to a standalone Rust gRPC sidecar. This resolves audit findings C7-C10 from the
+original AIKGS implementation (ephemeral state, metadata not in hash, pool resets, fork reverts).
+
+**Rust Sidecar** (`aikgs-sidecar/`, 14 source files):
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `proto/aikgs.proto` | 391 | 35 RPCs, field numbering, backward compat |
+| `src/main.rs` | ~70 | Entry point, server startup |
+| `src/config.rs` | ~100 | Env var config, validation |
+| `src/db.rs` | ~700 | CockroachDB CRUD, 10 AIKGS tables, parameterized queries |
+| `src/service.rs` | ~850 | gRPC service (35 RPCs), input validation, error codes |
+| `src/scorer.rs` | ~280 | Quality/novelty scoring, deterministic |
+| `src/rewards.rs` | ~170 | Reward calculation, pool balance from DB |
+| `src/contributions.rs` | ~652 | 12-step pipeline, transaction safety |
+| `src/affiliates.rs` | ~311 | 2-level (L1=10%, L2=5%), commission tracking |
+| `src/bounties.rs` | ~200 | Create/claim/fulfill lifecycle |
+| `src/unlocks.rs` | ~350 | 8-level progressive system |
+| `src/curation.rs` | ~296 | 2/3 consensus, reputation-gated |
+| `src/vault.rs` | ~301 | AES-256-GCM, nonce management, key lifecycle |
+| `src/treasury.rs` | ~156 | HTTP client for disbursements to Python node |
+
+**Python Client** (`src/qubitcoin/aether/aikgs_client.py`, ~600 LOC):
+
+- Async gRPC client wrapping all 35 RPCs
+- Proto stubs in `aether/aikgs_pb/` (generated from proto)
+- Connection lifecycle (connect, disconnect, health check)
+- Error handling, timeouts, retry policy
+
+**Per-File Verification Checklist:**
+
+1. **Authentication:** Every gRPC endpoint must have auth (mTLS or token interceptor)
+2. **SQL safety:** All queries parameterized (no `format!()` string interpolation)
+3. **Input validation:** Addresses, amounts, content length, string fields bounded
+4. **Transaction wrapping:** Multi-step operations in DB transactions
+5. **Reward accounting:** Pool balance = `initial_pool - SUM(rewards + commissions)`
+6. **Disbursement idempotency:** Treasury payouts tracked, no double-payment
+7. **Vault key management:** Master key not in `.env`, nonce reuse prevention
+8. **Docker security:** Non-root user, no host port binding for gRPC
+9. **Error handling:** No `unwrap()`/`expect()` in production paths
+10. **Race conditions:** Contribution ID assignment atomic (DB sequence, not MAX+1)
+
+**Cross-System Verification:**
+
+| Check | Source | Target | Must Match |
+|-------|--------|--------|------------|
+| gRPC contract | `proto/aikgs.proto` | `aikgs_client.py` | All 35 RPCs callable from Python |
+| DB schema | `sql_new/shared/02_aikgs.sql` | `db.rs` queries | All 10 tables, column names, types |
+| Config vars | `.env.example` AIKGS section | `config.rs` | All vars loaded correctly |
+| Docker networking | `docker-compose.yml` aikgs-sidecar | `node.py` gRPC connect | Address/port match |
+| Consensus isolation | `mining/engine.py`, `consensus/engine.py` | N/A | No AIKGS in coinbase or block validation |
+
+---
+
 ### 1H. Exchange Deep Audit (1,065 LOC Engine + 28 Frontend Files)
 
 **Backend** (`exchange/engine.py`, 1,065 LOC):
@@ -741,7 +803,7 @@ Flag EVERY instance of:
 
 ## PHASE 2: IMPROVEMENT PLAN (3 Per Component = 30 Total)
 
-Produce 3 specific, high-impact improvements for EACH of the 10 components.
+Produce 3 specific, high-impact improvements for EACH of the 11 components.
 
 **Every improvement MUST include:**
 
@@ -778,7 +840,7 @@ Produce 3 specific, high-impact improvements for EACH of the 10 components.
 - Top 5 Critical Findings
 - Top 5 Strengths
 
-## COMPONENT READINESS MATRIX (10 components)
+## COMPONENT READINESS MATRIX (11 components)
 | # | Component | Score /100 | Launch Ready | Blocking Issues |
 
 ## 1. SMART CONTRACT AUDIT TABLE (57 rows)
@@ -789,10 +851,11 @@ Produce 3 specific, high-impact improvements for EACH of the 10 components.
 ## 6. HIGGS FIELD PHYSICS TABLE (formulas, Python correct, Solidity correct)
 ## 7. DATABASE SCHEMA TABLE (41 tables, SQL-model match, dead tables)
 ## 8. AUTHENTICITY REPORT (every fake with file:line)
-## 9. GAP ANALYSIS (10 components)
+## 9. GAP ANALYSIS (11 components)
 ## 10. DOCKER & CI VERIFICATION (24 services, 4 workflows)
-## 11. FILE-BY-FILE FINDINGS
-## 12. RUN HISTORY
+## 11. AIKGS SIDECAR AUDIT TABLE (35 RPCs, auth, input validation, accounting)
+## 12. FILE-BY-FILE FINDINGS
+## 13. RUN HISTORY
 ```
 
 ### File 2: MASTERUPDATETODO.md
@@ -807,7 +870,7 @@ Produce 3 specific, high-impact improvements for EACH of the 10 components.
 ## END GOAL STATUS
 
 ### Government-Grade: [X]% ready
-- [ ] Zero placeholder code (10 components)
+- [ ] Zero placeholder code (11 components)
 - [ ] 57 contracts Grade A/B
 - [ ] 167 opcodes verified (Python + Go)
 - [ ] 295 endpoints verified (276 REST + 19 JSON-RPC)
@@ -836,8 +899,8 @@ Produce 3 specific, high-impact improvements for EACH of the 10 components.
 - [ ] CSF routing: real messages between Sephirot
 - [ ] Pineal: circadian phases modulate intensity
 
-## IMPROVEMENTS (30 total, 3 per component)
-### 5.1-5.10 (one section per component)
+## IMPROVEMENTS (33 total, 3 per component)
+### 5.1-5.11 (one section per component, including AIKGS sidecar)
 
 ## IMPLEMENTATION SEQUENCE
 ## RUN LOG
@@ -876,3 +939,7 @@ Each: title, novel aspect, technical description, implementation plan, competiti
 20. **57 contracts, 57 rows.** No contract skipped. No contract assumed correct unread.
 21. **mock-engine.ts is launch-blocking.** If imported in production exchange code, flag CRITICAL.
 22. **Higgs Yukawa hierarchy is tiered.** Not sequential phi^-i. Verify actual code tiers match documentation.
+23. **AIKGS sidecar is launch-blocking.** No gRPC auth = CRITICAL. Disburse without validation = CRITICAL. Fire-and-forget treasury payments = CRITICAL.
+24. **AIKGS pool accounting must be complete.** Pool balance = initial_pool - SUM(rewards + commissions + bounties). All outflows tracked.
+25. **AIKGS contribution pipeline must be transactional.** All 12 steps wrapped in a DB transaction. No partial state on failure.
+26. **11 components, 33 improvements.** No component skipped. AIKGS sidecar is the newest and least audited — give it extra scrutiny.
