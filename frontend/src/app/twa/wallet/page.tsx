@@ -46,12 +46,12 @@ export default function TWAWalletPage() {
         setLinkedWallet(res.address);
       }
 
-      // Store public key only — private key shown once for user to save
+      // Store public key only — server no longer returns private keys.
       sessionStorage.setItem(`qbc-pubkey-${res.address}`, res.public_key_hex);
-      setPrivateKeyShown(res.private_key_hex);
 
-      // Auto-clear private key from memory after 5 minutes
-      setTimeout(() => setPrivateKeyShown(null), 5 * 60 * 1000);
+      // SECURITY [FE-C1]: private_key_hex is no longer returned by the server.
+      // Private key generation must happen client-side via Dilithium2 WASM.
+      setPrivateKeyShown(null);
 
       hapticNotification("success");
     } catch (e) {

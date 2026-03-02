@@ -12,6 +12,9 @@ contract RewardDistributor is Initializable {
     uint256 public constant SLASH_BPS = 5000; // 50% slash
     uint256 public constant BPS_DENOM = 10000;
 
+    // ─── Reentrancy Guard ───────────────────────────────────────────────
+    bool private _locked;
+
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public kernel;
@@ -52,6 +55,13 @@ contract RewardDistributor is Initializable {
         _;
     }
 
+    modifier nonReentrant() {
+        require(!_locked, "Rewards: reentrant call");
+        _locked = true;
+        _;
+        _locked = false;
+    }
+
     // ─── Initialization ─────────────────────────────────────────────────
     function initialize(address _kernel, address _qbcToken) external initializer {
         owner    = msg.sender;
@@ -70,7 +80,7 @@ contract RewardDistributor is Initializable {
     /// @notice Distribute reward for a correct Proof-of-Thought solution.
     ///         Transfers QBC from this contract's balance to the recipient.
     ///         This contract must hold sufficient QBC (funded by treasury or minting).
-    function distributeReward(address recipient, uint256 amount, uint256 taskId) external onlyKernel {
+    function distributeReward(address recipient, uint256 amount, uint256 taskId) external onlyKernel nonReentrant {
         require(recipient != address(0), "Rewards: zero address");
         require(amount > 0, "Rewards: zero amount");
         require(amount <= maxRewardPerDistribution, "Rewards: exceeds max per distribution");
@@ -95,7 +105,7 @@ contract RewardDistributor is Initializable {
     }
 
     /// @notice Slash validator stake for incorrect proposal (50%)
-    function slashStake(address validator, uint256 stakeAmount, uint256 taskId) external onlyKernel {
+    function slashStake(address validator, uint256 stakeAmount, uint256 taskId) external onlyKernel nonReentrant {
         require(validator != address(0), "Rewards: zero address");
         uint256 slashAmount = (stakeAmount * SLASH_BPS) / BPS_DENOM;
 

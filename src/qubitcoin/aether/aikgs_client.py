@@ -28,6 +28,34 @@ except ImportError as e:
     GRPC_AVAILABLE = False
 
 
+class _AuthMetadataInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
+    """gRPC client interceptor that attaches x-auth-token metadata to every call."""
+
+    def __init__(self, token: str) -> None:
+        self._token = token
+
+    async def intercept_unary_unary(
+        self,
+        continuation: Any,
+        client_call_details: Any,
+        request: Any,
+    ) -> Any:
+        if self._token:
+            # Build new metadata with auth token
+            metadata = list(client_call_details.metadata or [])
+            metadata.append(("x-auth-token", self._token))
+            # Create updated call details with new metadata
+            new_details = grpc.aio.ClientCallDetails(
+                client_call_details.method,
+                client_call_details.timeout,
+                metadata,
+                client_call_details.credentials,
+                client_call_details.wait_for_ready,
+            )
+            return await continuation(new_details, request)
+        return await continuation(client_call_details, request)
+
+
 class AikgsClient:
     """
     Async gRPC client for the AIKGS Rust sidecar.
@@ -35,10 +63,14 @@ class AikgsClient:
     Wraps all 35 AikgsService RPCs with Python-friendly interfaces
     that return plain dicts. The node uses this instead of the
     8 Python AIKGS modules.
+
+    All gRPC calls include the x-auth-token metadata header for
+    authentication (AIKGS-C1).
     """
 
-    def __init__(self, grpc_addr: str = "127.0.0.1:50052") -> None:
+    def __init__(self, grpc_addr: str = "127.0.0.1:50052", auth_token: str = "") -> None:
         self.grpc_addr = grpc_addr
+        self.auth_token = auth_token
         self.channel: Any = None
         self.stub: Any = None
         self._connected = False
@@ -49,7 +81,17 @@ class AikgsClient:
             logger.error("grpcio / protobuf stubs not available — cannot connect to AIKGS sidecar")
             return False
         try:
-            self.channel = grpc.aio.insecure_channel(self.grpc_addr)
+            # Build channel with auth interceptor (AIKGS-C1)
+            interceptors: list = []
+            if self.auth_token:
+                interceptors.append(_AuthMetadataInterceptor(self.auth_token))
+            else:
+                logger.warning(
+                    "AIKGS_AUTH_TOKEN not set — gRPC calls will be rejected by the sidecar"
+                )
+            self.channel = grpc.aio.insecure_channel(
+                self.grpc_addr, interceptors=interceptors
+            )
             self.stub = aikgs_pb2_grpc.AikgsServiceStub(self.channel)
             # Quick health probe — try GetRewardStats
             await self.stub.GetRewardStats(aikgs_pb2.Empty(), timeout=5)

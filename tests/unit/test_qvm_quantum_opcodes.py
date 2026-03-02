@@ -198,7 +198,12 @@ class TestQVerifyExecution:
 
 
 class TestQComplianceExecution:
-    def test_qcompliance_returns_level_1(self):
+    def test_qcompliance_denies_when_engine_unavailable(self):
+        """QCOMPLIANCE defaults to deny (0) when compliance engine is unavailable.
+
+        This is a security-critical behavior: fail-closed prevents unchecked
+        addresses from bypassing KYC/AML/sanctions checks.
+        """
         from qubitcoin.qvm.opcodes import Opcode
         vm = _make_vm()
         bytecode = bytes([
@@ -208,7 +213,8 @@ class TestQComplianceExecution:
         ])
         result = _run(vm, bytecode)
         assert result.success is True
-        assert int.from_bytes(result.return_data, 'big') == 1
+        # No compliance engine → deny (0), NOT pass (1)
+        assert int.from_bytes(result.return_data, 'big') == 0
 
 
 class TestQRiskExecution:

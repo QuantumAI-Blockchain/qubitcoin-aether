@@ -261,12 +261,16 @@ class JsonRpcHandler:
     # AUTH HELPERS
     # ========================================================================
     def _is_localhost(self) -> bool:
-        """Return True if the current HTTP request originates from localhost."""
+        """Return True if the current HTTP request originates from localhost.
+
+        Defaults to False when request info is unavailable (conservative:
+        deny access if we cannot confirm the caller is local).
+        """
         req = self._http_request
         if req and hasattr(req, 'client') and req.client:
             return req.client.host in ('127.0.0.1', '::1', 'localhost')
-        # If no request info available (e.g. unit tests), assume local
-        return True
+        # No request info available — default deny for safety
+        return False
 
     # ========================================================================
     # CHAIN METHODS
@@ -382,11 +386,13 @@ class JsonRpcHandler:
         return _receipt_to_rpc(receipt)
 
     async def eth_sendRawTransaction(self, params):
-        """Accept raw signed transaction hex from MetaMask and execute it.
+        """Accept raw signed transaction hex from MetaMask and store in mempool.
 
         Decodes the RLP-encoded signed transaction, recovers the ECDSA
-        sender address, validates balance/nonce, and executes value
-        transfers or contract calls.
+        sender address, validates balance/nonce, and stores the transaction
+        as pending in the mempool.  Actual execution (value transfers,
+        QVM contract calls/deploys) happens when a miner includes this tx
+        in a block and the block passes consensus validation.
         """
         raw_tx = params[0] if params else ''
         if not raw_tx or raw_tx == '0x':
@@ -423,45 +429,19 @@ class JsonRpcHandler:
             if total_available < value_qbc:
                 raise ValueError(f"Insufficient balance: have {total_available}, need {value_qbc}")
 
-            # Execute the transaction
-            if to_addr and data_hex and self.qvm:
-                # Contract call — route through QVM
-                from ..database.models import Transaction as TxModel
-                tx = TxModel(
-                    txid=tx_hash, inputs=[], outputs=[],
-                    fee=Decimal(0), signature='', public_key='',
-                    timestamp=time.time(), tx_type='contract_call',
-                    to_address=to_addr, data=data_hex,
-                    gas_limit=gas_limit, gas_price=Decimal(0), nonce=nonce,
-                )
-                receipt = self.qvm.process_transaction(
-                    tx, block_height=self.db.get_current_height(),
-                    block_hash='0' * 64, tx_index=0,
-                )
-                if value_qbc > 0:
-                    self.db.transfer_between_accounts(sender, to_addr, value_qbc)
-            elif to_addr and value_qbc > 0:
-                # Simple value transfer
-                self.db.transfer_between_accounts(sender, to_addr, value_qbc)
-            elif not to_addr and data_hex and self.qvm:
-                # Contract deploy
-                from ..database.models import Transaction as TxModel
-                tx = TxModel(
-                    txid=tx_hash, inputs=[], outputs=[],
-                    fee=Decimal(0), signature='', public_key='',
-                    timestamp=time.time(), tx_type='contract_deploy',
-                    to_address=None, data=data_hex,
-                    gas_limit=gas_limit, gas_price=Decimal(0), nonce=nonce,
-                )
-                self.qvm.process_transaction(
-                    tx, block_height=self.db.get_current_height(),
-                    block_hash='0' * 64, tx_index=0,
-                )
+            # Determine tx_type for mempool record
+            if not to_addr and data_hex:
+                tx_type = 'contract_deploy'
+            elif to_addr and data_hex:
+                tx_type = 'contract_call'
+            else:
+                tx_type = 'transfer'
 
-            # Store transaction record — route through mempool (status='pending')
-            # so the block pipeline validates and confirms it properly.
-            # Writing directly as 'confirmed' with fee=0 and fake block_hash
-            # bypasses consensus validation.
+            # Store transaction in mempool ONLY (status='pending').
+            # Execution (value transfers, QVM contract calls/deploys) happens
+            # when the miner includes this tx in a block and the block is
+            # validated by consensus.  Executing here would bypass consensus
+            # and risk double-execution when the tx is later mined.
             from sqlalchemy import text as sql_text
             with self.db.get_session() as session:
                 session.execute(
@@ -477,14 +457,14 @@ class JsonRpcHandler:
                         'txid': tx_hash, 'sig': raw_hex[:128],
                         'ts': time.time(),
                         'outputs': json.dumps([{'address': to_addr, 'amount': str(value_qbc)}]) if to_addr else '[]',
-                        'tx_type': 'contract_deploy' if not to_addr else ('contract_call' if data_hex else 'transfer'),
+                        'tx_type': tx_type,
                         'to_addr': to_addr or None,
                         'data': data_hex, 'gas': gas_limit, 'nonce': nonce,
                     }
                 )
                 session.commit()
 
-            logger.info(f"MetaMask tx processed: {sender[:8]}→{to_addr[:8] if to_addr else 'deploy'} {value_qbc} QBC")
+            logger.info(f"MetaMask tx accepted to mempool: {sender[:8]}→{to_addr[:8] if to_addr else 'deploy'} {value_qbc} QBC ({tx_type})")
             return '0x' + tx_hash
         except ImportError:
             # eth-account not installed — fallback to simple store
@@ -508,7 +488,7 @@ class JsonRpcHandler:
             raise RuntimeError(f"Failed to process transaction: {e}") from e
 
     async def eth_sendTransaction(self, params: list) -> str:
-        """Accept a transaction object and route deploys/calls through StateManager.
+        """Accept a transaction object and store it in the mempool.
 
         Params:
             [{ from, to, data, gas, value, nonce }]
@@ -519,6 +499,12 @@ class JsonRpcHandler:
         Security: This endpoint is restricted to localhost-only access because it
         does not require a signed transaction (the node signs on behalf of the
         caller).  Remote callers must use eth_sendRawTransaction instead.
+
+        NOTE: Transactions are stored as pending in the mempool ONLY.
+        Execution (QVM contract calls/deploys, value transfers) happens when a
+        miner includes this tx in a block and the block passes consensus
+        validation.  Executing here would bypass consensus and risk
+        double-execution when the tx is later mined.
         """
         # Only allow from localhost — this method has no cryptographic auth
         if not self._is_localhost():
@@ -537,34 +523,10 @@ class JsonRpcHandler:
             (from_addr + to_addr + data_hex + str(time.time())).encode()
         ).hex()
 
-        from ..database.models import Transaction as TxModel
-        tx = TxModel(
-            txid=tx_hash,
-            inputs=[],
-            outputs=[],
-            fee=Decimal(0),
-            signature='',
-            public_key='',
-            timestamp=time.time(),
-            tx_type=tx_type,
-            to_address=to_addr or None,
-            data=data_hex,
-            gas_limit=gas_limit,
-            gas_price=Decimal(0),
-            nonce=nonce,
-        )
+        value_qbc = parse_wei_to_qbc(value) if value else Decimal(0)
 
-        if self.qvm:
-            receipt = self.qvm.process_transaction(
-                tx,
-                block_height=self.db.get_current_height(),
-                block_hash='0' * 64,
-                tx_index=0,
-            )
-            if receipt:
-                return '0x' + tx_hash
-
-        # Fallback — insert into mempool for deferred execution
+        # Store transaction in mempool ONLY (status='pending').
+        # Execution happens when a miner includes this in a block.
         from sqlalchemy import text as sql_text
         with self.db.get_session() as session:
             session.execute(
@@ -572,16 +534,23 @@ class JsonRpcHandler:
                     INSERT INTO transactions (txid, inputs, outputs, fee, signature,
                                               public_key, timestamp, status, tx_type,
                                               to_address, data, gas_limit, gas_price, nonce)
-                    VALUES (:txid, '[]', '[]', 0, '', '', :ts, 'pending',
+                    VALUES (:txid, '[]', CAST(:outputs AS jsonb), 0, '', '', :ts, 'pending',
                             :tx_type, :to_addr, :data, :gas, 0, :nonce)
+                    ON CONFLICT (txid) DO NOTHING
                 """),
                 {
                     'txid': tx_hash, 'ts': time.time(), 'tx_type': tx_type,
-                    'to_addr': to_addr, 'data': data_hex, 'gas': gas_limit,
+                    'to_addr': to_addr or None, 'data': data_hex, 'gas': gas_limit,
                     'nonce': nonce,
+                    'outputs': json.dumps([{'address': to_addr, 'amount': str(value_qbc)}]) if to_addr else '[]',
                 },
             )
             session.commit()
+
+        logger.info(
+            f"eth_sendTransaction accepted to mempool: {from_addr[:8]}..."
+            f"→{to_addr[:8] + '...' if to_addr else 'deploy'} ({tx_type})"
+        )
         return '0x' + tx_hash
 
     async def eth_call(self, params):

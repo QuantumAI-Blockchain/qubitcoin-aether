@@ -108,7 +108,7 @@ contract SynapticStaking is Initializable {
 
     /// @notice Stake QBC on a Sephirot connection. Payable — send QBC with the call.
     /// @param connectionId The connection ID (fromNodeId * 10 + toNodeId)
-    function userStake(uint256 connectionId) external payable {
+    function userStake(uint256 connectionId) external payable nonReentrant {
         require(connections[connectionId].active, "Synaptic: not active");
         require(msg.value >= MIN_STAKE, "Synaptic: below minimum stake");
         require(
@@ -133,7 +133,7 @@ contract SynapticStaking is Initializable {
 
     /// @notice Request unstaking. Funds unlock after UNSTAKING_DELAY blocks.
     /// @param stakeIndex Index in the caller's userStakes array
-    function userRequestUnstake(uint256 stakeIndex) external {
+    function userRequestUnstake(uint256 stakeIndex) external nonReentrant {
         require(stakeIndex < userStakes[msg.sender].length, "Synaptic: invalid index");
         Stake storage s = userStakes[msg.sender][stakeIndex];
         require(s.amount > 0, "Synaptic: already unstaking");

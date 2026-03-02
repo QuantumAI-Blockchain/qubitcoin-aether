@@ -379,6 +379,13 @@ class Config:
     AETHER_SEPHIROT_PERSIST_INTERVAL: int = int(os.getenv('AETHER_SEPHIROT_PERSIST_INTERVAL', '100'))
 
     # ============================================================================
+    # PROOF-OF-THOUGHT ENFORCEMENT HEIGHTS
+    # ============================================================================
+    MANDATORY_POT_HEIGHT: int = int(os.getenv('MANDATORY_POT_HEIGHT', '1000'))
+    MANDATORY_PHI_ENFORCEMENT_HEIGHT: int = int(os.getenv('MANDATORY_PHI_ENFORCEMENT_HEIGHT', '5000'))
+    PHI_THRESHOLD: float = float(os.getenv('PHI_THRESHOLD', '3.0'))
+
+    # ============================================================================
     # SELF-IMPROVEMENT ENGINE (Recursive reasoning optimization)
     # ============================================================================
     SELF_IMPROVEMENT_INTERVAL: int = int(os.getenv('SELF_IMPROVEMENT_INTERVAL', '100'))
@@ -434,6 +441,7 @@ class Config:
     AIKGS_USE_RUST_SIDECAR: bool = os.getenv('AIKGS_USE_RUST_SIDECAR', 'true').lower() == 'true'
     AIKGS_GRPC_PORT: int = int(os.getenv('AIKGS_GRPC_PORT', '50052'))
     AIKGS_GRPC_ADDR: str = os.getenv('AIKGS_GRPC_ADDR', '127.0.0.1')
+    AIKGS_AUTH_TOKEN: str = os.getenv('AIKGS_AUTH_TOKEN', '')
     AIKGS_TREASURY_ADDRESS: str = os.getenv('AIKGS_TREASURY_ADDRESS', '')
 
     # AIKGS Contract Addresses (set after deployment)
@@ -462,6 +470,15 @@ class Config:
     TELEGRAM_WEBHOOK_SECRET: str = os.getenv('TELEGRAM_WEBHOOK_SECRET', '')
     TELEGRAM_MINI_APP_URL: str = os.getenv('TELEGRAM_MINI_APP_URL', '')
     TELEGRAM_WEBHOOK_URL: str = os.getenv('TELEGRAM_WEBHOOK_URL', '')
+
+    # ============================================================================
+    # GEVURAH SAFETY (Aether Tree veto / emergency shutdown authentication)
+    # ============================================================================
+    # Shared secret for HMAC-based veto and shutdown authentication.
+    # Generate with: openssl rand -hex 32
+    # If not set, a random ephemeral secret is generated at startup
+    # (tokens will not persist across restarts).
+    GEVURAH_SECRET: str = os.getenv('GEVURAH_SECRET', '')
 
     # ============================================================================
     # LOGGING & MONITORING
@@ -683,9 +700,21 @@ Expected Emission (phi-halving + tail emission):
 """
 
 
-# Initialize and validate on import
+# Initialize and validate on import.
+# Critical validation failures (missing keys, invalid economics) raise
+# immediately to prevent the node from starting in an unsafe state.
+# Only non-critical warnings (e.g. empty optional fields) are tolerated.
 try:
     Config.validate()
 except ValueError as e:
-    import warnings
-    warnings.warn(f"Configuration validation failed: {e}")
+    # ADDRESS/PRIVATE_KEY_HEX/PUBLIC_KEY_HEX may legitimately be empty
+    # during test imports or key generation scripts.  Allow those through
+    # with a warning.  All other validation failures are fatal.
+    err_str = str(e)
+    if 'Missing required configuration' in err_str:
+        import warnings
+        warnings.warn(
+            f"Configuration incomplete (node will fail at startup): {e}"
+        )
+    else:
+        raise

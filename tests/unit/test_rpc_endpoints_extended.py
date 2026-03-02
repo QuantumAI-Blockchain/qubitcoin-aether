@@ -623,7 +623,9 @@ class TestWalletEndpoints:
             data = resp.json()
             assert 'address' in data
             assert 'public_key_hex' in data
-            assert 'private_key_hex' in data
+            # FE-C1: private_key_hex is no longer returned for security
+            assert 'private_key_hex' not in data
+            assert '_notice' in data
 
     def test_wallet_sign(self, app_and_client):
         _, client, _ = app_and_client
@@ -1228,16 +1230,24 @@ class TestKnowledgeGraphExtended:
 
     def test_knowledge_prune(self, app_and_client):
         _, client, _ = app_and_client
+        # L1-H10: knowledge_prune now requires admin auth
         resp = client.post("/aether/knowledge/prune?threshold=0.1")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert 'removed' in data
-        assert 'remaining_nodes' in data
+        assert resp.status_code == 403  # No auth provided
+        # With valid admin key
+        import os
+        admin_key = os.getenv("ADMIN_API_KEY", "")
+        if admin_key:
+            resp = client.post(
+                "/aether/knowledge/prune?threshold=0.1",
+                headers={"X-Admin-Key": admin_key},
+            )
+            assert resp.status_code == 200
 
     def test_knowledge_prune_bad_threshold(self, app_and_client):
         _, client, _ = app_and_client
+        # L1-H10: now returns 403 (auth required) before checking threshold
         resp = client.post("/aether/knowledge/prune?threshold=0.9")
-        assert resp.status_code == 400
+        assert resp.status_code == 403
 
     def test_knowledge_export(self, app_and_client):
         _, client, _ = app_and_client

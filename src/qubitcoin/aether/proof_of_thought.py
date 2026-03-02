@@ -32,7 +32,8 @@ class AetherEngine:
 
     def __init__(self, db_manager, knowledge_graph=None, phi_calculator=None,
                  reasoning_engine=None, llm_manager=None, pineal=None,
-                 pot_protocol=None, csf_transport=None):
+                 pot_protocol=None, csf_transport=None,
+                 sephirot_manager=None):
         self.db = db_manager
         self.kg = knowledge_graph
         self.phi = phi_calculator
@@ -41,6 +42,8 @@ class AetherEngine:
         self.pineal = pineal  # PinealOrchestrator for circadian phases
         self.pot_protocol = pot_protocol  # ProofOfThoughtProtocol instance
         self.csf = csf_transport  # CSFTransport for inter-Sephirot routing
+        self._sephirot_manager = sephirot_manager  # SephirotManager for SUSY enforcement
+        self._susy_enforcement_warned = False  # Log once when manager is missing
         self._pot_cache: Dict[int, ProofOfThought] = {}
         self._pot_cache_max = 1000  # Bound cache to prevent unbounded memory growth
 
@@ -151,6 +154,21 @@ class AetherEngine:
         """Get the Sephirot nodes dict."""
         return self._ensure_sephirot()
 
+    def set_sephirot_manager(self, manager: object) -> None:
+        """Wire the SephirotManager for SUSY balance enforcement.
+
+        Called by node.py after both AetherEngine and SephirotManager are
+        initialized (they live in different init phases).
+
+        Args:
+            manager: A SephirotManager instance (or None to clear).
+        """
+        self._sephirot_manager = manager
+        if manager is not None:
+            logger.info("SephirotManager wired to AetherEngine — SUSY enforcement active")
+        else:
+            logger.warning("SephirotManager cleared — SUSY balance enforcement disabled")
+
     def generate_thought_proof(self, block_height: int,
                                validator_address: str) -> Optional[ProofOfThought]:
         """
@@ -252,12 +270,20 @@ class AetherEngine:
         Validate a Proof-of-Thought from a peer block.
 
         Checks:
-        1. Thought hash matches content
-        2. Phi value is non-negative
-        3. Knowledge root is not empty
-        4. Reasoning steps are present
+        1. PoT presence — mandatory after MANDATORY_POT_HEIGHT (default 1000)
+        2. Thought hash matches content
+        3. Phi value is non-negative
+        4. Phi >= PHI_THRESHOLD after MANDATORY_PHI_ENFORCEMENT_HEIGHT (default 5000)
+        5. Knowledge root is not empty
+        6. Reasoning steps are present (after bootstrap window)
         """
         if not pot:
+            # After MANDATORY_POT_HEIGHT, null PoT is rejected
+            if block.height >= Config.MANDATORY_POT_HEIGHT:
+                return False, (
+                    f"Null thought proof rejected: PoT mandatory after block "
+                    f"{Config.MANDATORY_POT_HEIGHT} (current={block.height})"
+                )
             return True, "No thought proof (PoT optional during transition)"
 
         # Verify thought hash
@@ -268,6 +294,15 @@ class AetherEngine:
         # Verify non-negative Phi
         if pot.phi_value < 0:
             return False, f"Invalid Phi value: {pot.phi_value}"
+
+        # After MANDATORY_PHI_ENFORCEMENT_HEIGHT, Phi must meet the threshold
+        if block.height >= Config.MANDATORY_PHI_ENFORCEMENT_HEIGHT:
+            if pot.phi_value < Config.PHI_THRESHOLD:
+                return False, (
+                    f"Phi value {pot.phi_value:.4f} below threshold "
+                    f"{Config.PHI_THRESHOLD} (enforced after block "
+                    f"{Config.MANDATORY_PHI_ENFORCEMENT_HEIGHT})"
+                )
 
         # Verify knowledge root exists
         if not pot.knowledge_root:
@@ -605,10 +640,21 @@ class AetherEngine:
 
         Returns number of corrections applied.
         """
-        sephirot_mgr = getattr(self, '_sephirot_manager', None)
+        sephirot_mgr = self._sephirot_manager
+        if sephirot_mgr is None and self.pineal is not None:
+            # Fallback: PinealOrchestrator holds a SephirotManager reference
+            sephirot_mgr = getattr(self.pineal, 'sephirot', None)
+            if sephirot_mgr is not None:
+                # Cache the resolved reference for future calls
+                self._sephirot_manager = sephirot_mgr
+                logger.info("SephirotManager resolved from PinealOrchestrator fallback")
         if sephirot_mgr is None:
-            # Try to access via the node's cognitive subsystem
-            # The SephirotManager is typically on the node, not the engine
+            if not self._susy_enforcement_warned:
+                logger.warning(
+                    "SUSY balance enforcement skipped — no SephirotManager available. "
+                    "Golden ratio enforcement between Sephirot pairs is inactive."
+                )
+                self._susy_enforcement_warned = True
             return 0
 
         try:

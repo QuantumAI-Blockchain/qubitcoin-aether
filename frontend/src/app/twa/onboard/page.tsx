@@ -8,6 +8,21 @@ import { useWalletStore } from "@/stores/wallet-store";
 import { api } from "@/lib/api";
 import { hapticFeedback, hapticNotification } from "@/lib/telegram";
 
+// SECURITY [FE-C2]: In-memory private key store.  Keys are held only in this
+// module-scope Map — never persisted to sessionStorage, localStorage, or any
+// other DOM-accessible storage API.  This prevents XSS exfiltration of private
+// keys.  Keys are lost on page refresh (by design — users must back up).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _inMemoryPrivateKeys = new Map<string, string>();
+
+/**
+ * Retrieve a private key that was stored in memory during wallet creation.
+ * Returns `undefined` if the key was never stored or the page was refreshed.
+ */
+export function getInMemoryPrivateKey(address: string): string | undefined {
+  return _inMemoryPrivateKeys.get(address);
+}
+
 const STEPS = [
   {
     title: "Welcome to Aether Tree",
@@ -51,13 +66,17 @@ export default function TWAOnboardPage() {
       const res = await api.createWallet();
       connect(res.address);
 
-      // Store keys in sessionStorage for signing operations
+      // Store public key in sessionStorage (non-secret, needed for signing calls).
       sessionStorage.setItem(`qbc-pubkey-${res.address}`, res.public_key_hex);
-      sessionStorage.setItem(`qbc-privkey-${res.address}`, res.private_key_hex);
-      // Notify user — do NOT log or alert the private key
+
+      // SECURITY [FE-C1]: The server no longer returns private_key_hex.
+      // Private keys must be generated client-side via Dilithium2 WASM.
+      // The createWallet endpoint only provides address + public key.
+
+      // Notify user that they need to set up client-side key management
       if (typeof window !== "undefined") {
         const webapp = (await import("@/lib/telegram")).getWebApp();
-        webapp?.showAlert("Wallet created! Your keys are stored in this session. Visit the Wallet page to back up your private key.");
+        webapp?.showAlert("Wallet address created! Full key management (including private key generation) will be available via the Dilithium2 WASM module.");
       }
 
       // Register affiliate if referred

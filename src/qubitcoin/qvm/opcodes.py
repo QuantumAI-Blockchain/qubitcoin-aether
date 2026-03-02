@@ -252,18 +252,18 @@ GAS_COSTS = {
     Opcode.AND: 3, Opcode.OR: 3, Opcode.XOR: 3, Opcode.NOT: 3,
     Opcode.BYTE: 3, Opcode.SHL: 3, Opcode.SHR: 3, Opcode.SAR: 3,
     Opcode.KECCAK256: 30,
-    Opcode.ADDRESS: 2, Opcode.BALANCE: 2600, Opcode.ORIGIN: 2,
+    Opcode.ADDRESS: 2, Opcode.BALANCE: 0, Opcode.ORIGIN: 2,  # BALANCE: EIP-2929 dynamic
     Opcode.CALLER: 2, Opcode.CALLVALUE: 2,
     Opcode.CALLDATALOAD: 3, Opcode.CALLDATASIZE: 2, Opcode.CALLDATACOPY: 3,
     Opcode.CODESIZE: 2, Opcode.CODECOPY: 3,
-    Opcode.GASPRICE: 2, Opcode.EXTCODESIZE: 2600,
-    Opcode.EXTCODECOPY: 2600, Opcode.RETURNDATASIZE: 2, Opcode.RETURNDATACOPY: 3,
-    Opcode.EXTCODEHASH: 2600,
+    Opcode.GASPRICE: 2, Opcode.EXTCODESIZE: 0,  # EIP-2929 dynamic
+    Opcode.EXTCODECOPY: 0, Opcode.RETURNDATASIZE: 2, Opcode.RETURNDATACOPY: 3,  # EIP-2929 dynamic
+    Opcode.EXTCODEHASH: 0,  # EIP-2929 dynamic
     Opcode.BLOCKHASH: 20, Opcode.COINBASE: 2, Opcode.TIMESTAMP: 2,
     Opcode.NUMBER: 2, Opcode.PREVRANDAO: 2, Opcode.GASLIMIT: 2,
     Opcode.CHAINID: 2, Opcode.SELFBALANCE: 5, Opcode.BASEFEE: 2,
     Opcode.POP: 2, Opcode.MLOAD: 3, Opcode.MSTORE: 3, Opcode.MSTORE8: 3,
-    Opcode.SLOAD: 2100, Opcode.SSTORE: 20000,
+    Opcode.SLOAD: 0, Opcode.SSTORE: 0,  # EIP-2929: gas charged dynamically (warm/cold)
     Opcode.JUMP: 8, Opcode.JUMPI: 10, Opcode.PC: 2, Opcode.MSIZE: 2,
     Opcode.GAS: 2, Opcode.JUMPDEST: 1,
     Opcode.PUSH0: 2,
@@ -279,10 +279,11 @@ GAS_COSTS = {
     Opcode.QCOMPLIANCE: 15000, Opcode.QRISK: 5000, Opcode.QRISK_SYSTEMIC: 10000,
     Opcode.QBRIDGE_ENTANGLE: 20000, Opcode.QBRIDGE_VERIFY: 15000,
     Opcode.QREASON: 50000, Opcode.QPHI: 5000,
-    # System
-    Opcode.CREATE: 32000, Opcode.CALL: 700, Opcode.CALLCODE: 700,
-    Opcode.RETURN: 0, Opcode.DELEGATECALL: 700, Opcode.CREATE2: 32000,
-    Opcode.STATICCALL: 700, Opcode.REVERT: 0,
+    # System — CALL/CALLCODE/DELEGATECALL/STATICCALL: base gas charged dynamically
+    # (EIP-2929 warm=100, cold=2600) so set to 0 here to avoid double-charging.
+    Opcode.CREATE: 32000, Opcode.CALL: 0, Opcode.CALLCODE: 0,
+    Opcode.RETURN: 0, Opcode.DELEGATECALL: 0, Opcode.CREATE2: 32000,
+    Opcode.STATICCALL: 0, Opcode.REVERT: 0,
     Opcode.INVALID: 0, Opcode.SELFDESTRUCT: 5000,
 }
 
@@ -295,9 +296,17 @@ for i in range(0x90, 0xa0):  # SWAP1-SWAP16
     GAS_COSTS[i] = 3
 
 
+# Gas cost for unknown/unrecognized opcodes — prevents zero-cost invalid opcode DOS
+INVALID_OPCODE_GAS = 10000
+
+
 def get_gas_cost(opcode: int) -> int:
-    """Get gas cost for an opcode"""
-    return GAS_COSTS.get(opcode, 0)
+    """Get gas cost for an opcode.
+
+    Returns INVALID_OPCODE_GAS (10000) for unrecognized opcodes to prevent
+    attackers from filling blocks with zero-cost invalid opcodes.
+    """
+    return GAS_COSTS.get(opcode, INVALID_OPCODE_GAS)
 
 
 # Quantum opcodes that support n-qubit scaling

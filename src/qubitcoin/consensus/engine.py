@@ -27,7 +27,8 @@ class ConsensusEngine:
         self.p2p = p2p_network
         self.state_manager = None  # Injected by node after StateManager init
         self.aether = None  # Injected by node after AetherEngine init
-        self.difficulty_cache = {}
+        self.difficulty_cache: Dict[int, float] = {}
+        self._difficulty_cache_max: int = Config.DIFFICULTY_WINDOW * 3  # 432 entries max
         logger.info("Consensus engine initialized (SUSY Economics + QVM + Aether)")
 
     def calculate_reward(self, height: int, total_supply: Decimal) -> Decimal:
@@ -183,9 +184,12 @@ class ConsensusEngine:
 
             # Cache to avoid re-computation (evict old entries to bound memory)
             self.difficulty_cache[height] = new_difficulty
-            if len(self.difficulty_cache) > Config.DIFFICULTY_WINDOW * 2:
-                oldest = min(self.difficulty_cache)
-                del self.difficulty_cache[oldest]
+            if len(self.difficulty_cache) > self._difficulty_cache_max:
+                # Evict oldest half to amortize eviction cost
+                sorted_keys = sorted(self.difficulty_cache.keys())
+                evict_count = len(sorted_keys) // 2
+                for k in sorted_keys[:evict_count]:
+                    del self.difficulty_cache[k]
 
             if abs(ratio - 1.0) > 0.001:
                 logger.info(
@@ -234,6 +238,10 @@ class ConsensusEngine:
             proof = block.proof_data
             if not proof or not isinstance(proof, dict):
                 return False, "Missing or invalid proof data"
+
+            # Require proof signature on all blocks except genesis
+            if block.height > 0 and not proof.get('signature'):
+                return False, "Proof data missing required 'signature' field"
 
             # RE-DERIVE the Hamiltonian from chain state and verify
             # the miner's proof is against the correct challenge
@@ -368,14 +376,15 @@ class ConsensusEngine:
             if getattr(tx, 'is_private', False):
                 return self._validate_private_transaction(tx, db_manager, current_height)
 
-            # Verify signature
+            # Verify signature using canonical JSON serialization (deterministic)
+            import json as _json
             pk = bytes.fromhex(tx.public_key)
-            msg = str({
+            msg = _json.dumps({
                 'inputs': tx.inputs,
                 'outputs': [{'address': o['address'], 'amount': str(o['amount'])} for o in tx.outputs],
                 'fee': str(tx.fee),
                 'timestamp': tx.timestamp
-            }).encode()
+            }, sort_keys=True, separators=(',', ':')).encode()
             sig = bytes.fromhex(tx.signature)
             from ..quantum.crypto import Dilithium2
             if not Dilithium2.verify(pk, msg, sig):
@@ -401,14 +410,20 @@ class ConsensusEngine:
                     logger.warning(f"UTXO not found or spent: {inp['txid']}:{inp['vout']}")
                     return False
 
-                # Coinbase maturity: coinbase UTXOs can't be spent for COINBASE_MATURITY blocks
+                # Coinbase maturity: coinbase UTXOs can't be spent for COINBASE_MATURITY blocks.
+                # A coinbase at height H needs COINBASE_MATURITY (100) confirmations,
+                # meaning it can be spent starting at height H + COINBASE_MATURITY.
+                # confirmations = current_height - block_height
+                # At H+99:  confirmations=99,  99 < 100 = True  → immature (correct)
+                # At H+100: confirmations=100, 100 < 100 = False → mature (correct)
+                # This matches Bitcoin's convention: 100 confirmations required.
                 if self._is_coinbase_utxo(utxo, db_manager):
                     if utxo.block_height is not None:
                         confirmations = current_height - utxo.block_height
                         if confirmations < Config.COINBASE_MATURITY:
                             logger.warning(
                                 f"Immature coinbase UTXO: {utxo.txid}:{utxo.vout} "
-                                f"({confirmations} < {Config.COINBASE_MATURITY} required)"
+                                f"({confirmations} confirmations < {Config.COINBASE_MATURITY} required)"
                             )
                             return False
 
@@ -439,15 +454,16 @@ class ConsensusEngine:
                 logger.warning(f"Private tx {tx.txid}: no inputs")
                 return False
 
-            # 1. Verify signature
+            # 1. Verify signature using canonical JSON serialization (deterministic)
+            import json as _json
             pk = bytes.fromhex(tx.public_key)
-            msg = str({
+            msg = _json.dumps({
                 'inputs': tx.inputs,
                 'outputs': [{'address': o.get('address', o.get('one_time_address', '')),
                              'amount': str(o.get('amount', '0'))} for o in tx.outputs],
                 'fee': str(tx.fee),
                 'timestamp': tx.timestamp
-            }).encode()
+            }, sort_keys=True, separators=(',', ':')).encode()
             sig = bytes.fromhex(tx.signature)
             from ..quantum.crypto import Dilithium2
             if not Dilithium2.verify(pk, msg, sig):
@@ -527,7 +543,12 @@ class ConsensusEngine:
             return True
 
     def _is_coinbase_utxo(self, utxo: UTXO, db_manager) -> bool:
-        """Check if a UTXO came from a coinbase transaction (no inputs)."""
+        """Check if a UTXO came from a coinbase transaction (no inputs).
+
+        Returns True (conservative) on DB errors — treating an unknown UTXO
+        as coinbase prevents spending immature coinbase outputs if the DB
+        is temporarily unavailable.
+        """
         try:
             with db_manager.get_session() as session:
                 from sqlalchemy import text
@@ -536,14 +557,18 @@ class ConsensusEngine:
                     {'txid': utxo.txid}
                 ).fetchone()
                 if not result:
-                    return False
+                    # Transaction not found — conservatively treat as coinbase
+                    return True
                 inputs = result[0]
                 if isinstance(inputs, str):
                     import json
                     inputs = json.loads(inputs)
                 return isinstance(inputs, list) and len(inputs) == 0
-        except Exception:
-            return False
+        except Exception as e:
+            # DB error — conservatively treat as coinbase to prevent
+            # spending immature coinbase UTXOs
+            logger.warning(f"_is_coinbase_utxo DB error (treating as coinbase): {e}")
+            return True
 
     def _validate_block_susy_swaps(self, block: Block, db_manager) -> Tuple[bool, str]:
         """Validate all Susy Swap (confidential) transactions at the block level.
@@ -662,9 +687,22 @@ class ConsensusEngine:
             return False, f"Susy Swap validation error: {e}"
 
     async def resolve_fork(self, new_block: Block, sender_id: str):
-        """Resolve fork by adopting longer valid chain"""
+        """Resolve fork by adopting longer valid chain.
+
+        Rejects forks deeper than MAX_REORG_DEPTH to prevent long-range
+        reorg attacks.
+        """
         current_height = self.db.get_current_height()
         if new_block.height <= current_height:
+            return
+
+        # Enforce maximum reorg depth to prevent long-range attacks
+        reorg_depth = new_block.height - current_height
+        if reorg_depth > Config.MAX_REORG_DEPTH:
+            logger.warning(
+                f"Rejecting fork from peer {sender_id}: reorg depth {reorg_depth} "
+                f"exceeds MAX_REORG_DEPTH ({Config.MAX_REORG_DEPTH})"
+            )
             return
 
         # In Rust P2P mode self.p2p is None; fork resolution requires the

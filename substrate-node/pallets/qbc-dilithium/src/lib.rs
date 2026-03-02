@@ -5,8 +5,8 @@
 //!
 //! Signature verification strategy:
 //! - In `std` builds (native node): uses `pqcrypto-dilithium` crate for real verification
-//! - In `no_std` builds (WASM runtime): uses `sp_io::crypto::dilithium2_verify` host function
-//!   which delegates to the native node's verification logic
+//! - In `no_std` builds (WASM runtime): always returns `false` (fail-closed).
+//!   Native execution validates signatures before WASM re-execution.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -19,10 +19,7 @@ pub use pallet::*;
 /// Dilithium2 signature verification.
 ///
 /// In native (`std`): calls pqcrypto-dilithium directly.
-/// In WASM (`no_std`): calls through to native via host function.
-///
-/// Until the host function is registered in the Substrate executor,
-/// we use a pure-Rust reference implementation compatible with no_std.
+/// In WASM (`no_std`): always returns `false` (fail-closed). No bypass.
 pub mod dilithium_verify {
     /// Verify a Dilithium2 detached signature.
     ///
@@ -33,24 +30,16 @@ pub mod dilithium_verify {
     /// - Signature: 2420 bytes
     /// - Security level: NIST Level 2
     ///
-    /// ## Security Model (WASM / no_std)
+    /// ## Security Model
     ///
-    /// In WASM builds, this function performs structural validation (size checks,
-    /// non-zero content) but does NOT perform cryptographic signature verification.
-    /// This is architecturally correct for Substrate's execution model:
-    ///
-    /// 1. **Native execution validates first**: Blocks are validated in native mode
-    ///    (where `pqcrypto-dilithium` is available) BEFORE the WASM runtime re-executes
-    ///    for deterministic state transitions.
-    /// 2. **WASM re-execution trusts native**: By the time WASM runs, the native
-    ///    runtime has already cryptographically verified every signature in the block.
-    /// 3. **Replay protection**: The `signing_message()` function in `pallet-qbc-utxo`
-    ///    creates a deterministic message from inputs+outputs, so signature replay
-    ///    across different transactions is impossible even without WASM-side crypto.
-    ///
-    /// **WARNING**: This means WASM-only execution (without prior native validation)
-    /// would accept any structurally valid signature. This is safe in Substrate's
-    /// hybrid execution model but would be unsafe in a WASM-only runtime.
+    /// - **Native (`std`) builds**: Uses `pqcrypto-dilithium` for full cryptographic
+    ///   Dilithium2 signature verification.
+    /// - **WASM (`no_std`) builds**: **Always returns `false`** (fail-closed). The
+    ///   `pqcrypto-dilithium` crate is not available in `no_std`, so rather than
+    ///   implementing a bypass or partial check, we reject all signatures. This is
+    ///   safe in Substrate's hybrid execution model where native validation runs
+    ///   first. If WASM-only execution is ever attempted, the failure is loud and
+    ///   obvious rather than silently accepting forged signatures.
     pub fn verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> bool {
         // Dilithium2 signature sizes
         const DILITHIUM2_PK_SIZE: usize = 1312;
@@ -87,38 +76,36 @@ pub mod dilithium_verify {
 
         #[cfg(not(feature = "std"))]
         {
-            // WASM build: structural validation only (see Security Model above).
+            // WASM build: ALWAYS REJECT — fail closed.
             //
-            // Defense-in-depth: re-validate sizes inside this block and reject
-            // all-zero signatures/public keys which are structurally suspicious.
-            // This catches accidental misuse without cryptographic verification.
+            // Dilithium2 cryptographic verification requires the `pqcrypto-dilithium`
+            // crate which is only available in native (`std`) builds. Rather than
+            // implementing a partial/bypass check that could be exploited, we
+            // unconditionally reject all signatures in WASM.
+            //
+            // This is safe in Substrate's hybrid execution model because:
+            //
+            // 1. **Native execution validates first**: Blocks are validated in native
+            //    mode (where `pqcrypto-dilithium` is available) BEFORE the WASM
+            //    runtime re-executes for deterministic state transitions.
+            // 2. **WASM re-execution trusts native**: By the time WASM runs, the
+            //    native runtime has already cryptographically verified every
+            //    signature in the block. The WASM runtime should never independently
+            //    accept a signature that native didn't validate.
+            // 3. **Fail-closed security**: If WASM-only execution is ever attempted
+            //    (e.g., light-client, forkless upgrade), ALL signatures will be
+            //    rejected rather than silently accepted. This makes the failure
+            //    mode obvious and auditable.
+            //
+            // When a pure-Rust `no_std`-compatible Dilithium2 implementation
+            // becomes available (e.g., via `pqc-dilithium` or `ml-dsa`), replace
+            // this block with real verification.
 
-            // Redundant size checks (defense-in-depth — guard against future refactors
-            // that might move or remove the outer checks)
-            if public_key.len() != DILITHIUM2_PK_SIZE {
-                return false;
-            }
-            if signature.len() != DILITHIUM2_SIG_SIZE {
-                return false;
-            }
-            if message.is_empty() {
-                return false;
-            }
+            // Suppress unused variable warnings for the no_std path
+            let _ = (public_key, message, signature);
 
-            // Reject all-zero public keys — no valid Dilithium2 key is all zeros
-            if public_key.iter().all(|&b| b == 0) {
-                return false;
-            }
-
-            // Reject all-zero signatures — no valid Dilithium2 signature is all zeros
-            if signature.iter().all(|&b| b == 0) {
-                return false;
-            }
-
-            // Structural validation passed.
-            // Cryptographic verification was performed by native execution prior to
-            // this WASM re-execution. See Security Model documentation above.
-            true
+            // FAIL CLOSED: No signature is valid in WASM-only mode.
+            false
         }
     }
 }
@@ -294,7 +281,7 @@ pub mod pallet {
         /// Verify a Dilithium2 signature against a public key and message.
         ///
         /// Uses real pqcrypto-dilithium verification in native (std) builds.
-        /// In WASM (no_std), delegates to size validation (native validates first).
+        /// In WASM (no_std), always returns `false` (fail-closed).
         pub fn verify_signature(
             public_key: &[u8],
             message: &[u8],
@@ -355,6 +342,32 @@ mod tests {
         let pk = vec![42u8; 1312];
         let msg = b"";
         let sig = vec![0u8; 2420];
+        assert!(!dilithium_verify::verify(&pk, msg, &sig));
+    }
+
+    #[test]
+    fn test_verify_signature_rejects_all_zero_sig() {
+        let pk = vec![42u8; 1312];
+        let msg = b"test message";
+        let sig = vec![0u8; 2420]; // All zeros
+        assert!(!dilithium_verify::verify(&pk, msg, &sig));
+    }
+
+    #[test]
+    fn test_verify_signature_rejects_all_zero_pk() {
+        let pk = vec![0u8; 1312]; // All zeros
+        let msg = b"test message";
+        let sig = vec![42u8; 2420];
+        assert!(!dilithium_verify::verify(&pk, msg, &sig));
+    }
+
+    #[test]
+    fn test_verify_rejects_random_signature() {
+        // In std builds: real Dilithium verification rejects invalid signatures.
+        // In no_std builds: fail-closed — always returns false.
+        let pk = vec![42u8; 1312];
+        let msg = b"test message";
+        let sig = vec![0xAB; 2420]; // Random bytes, not a valid Dilithium2 signature
         assert!(!dilithium_verify::verify(&pk, msg, &sig));
     }
 }

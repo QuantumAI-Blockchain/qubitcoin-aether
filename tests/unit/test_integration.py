@@ -368,5 +368,8 @@ class TestSafetyIntegration:
         mgr.emergency_shutdown("test_reason", block_height=100)
         assert mgr.is_shutdown is True
 
-        mgr.resume(block_height=200)
+        # AETHER-C5: resume() now requires authentication
+        nonce = mgr.authenticator.generate_nonce()
+        token = mgr.authenticator.sign_nonce(nonce, action="resume")
+        mgr.resume(block_height=200, nonce=nonce, token=token)
         assert mgr.is_shutdown is False

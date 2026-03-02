@@ -169,6 +169,8 @@ class PinealOrchestrator:
     4. Detect consciousness events
     """
 
+    MAX_CONSCIOUSNESS_EVENTS: int = 10000
+
     def __init__(self, sephirot_manager: SephirotManager) -> None:
         self.sephirot = sephirot_manager
         self._current_phase = CircadianPhase.WAKING
@@ -334,6 +336,9 @@ class PinealOrchestrator:
 
         if event:
             self._consciousness_events.append(event)
+            # Cap to prevent unbounded memory growth
+            if len(self._consciousness_events) > self.MAX_CONSCIOUSNESS_EVENTS:
+                self._consciousness_events = self._consciousness_events[-self.MAX_CONSCIOUSNESS_EVENTS:]
 
         return event
 

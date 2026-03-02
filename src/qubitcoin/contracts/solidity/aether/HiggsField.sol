@@ -31,6 +31,7 @@ contract HiggsField is Initializable {
     uint256 public constant PHI                     = 1618;    // φ × 1000
     uint256 public constant MAX_NODES               = 10;
     uint256 public constant EXCITATION_THRESHOLD_BPS = 1000;   // 10% field deviation → excitation
+    uint256 public constant MAX_EXCITATIONS          = 1000;   // Circular buffer limit (gas bomb prevention)
 
     // Pre-computed golden-ratio inverse powers × 1000 (avoids on-chain float math)
     uint256 private constant YUKAWA_PHI_0  = 1000;  // φ⁰  = 1.000
@@ -244,14 +245,24 @@ contract HiggsField is Initializable {
             // enough energy concentrated to excite the field above the VEV.
             uint256 energy = _computeExcitationEnergy(deviation);
 
-            excitations.push(ExcitationEvent({
+            ExcitationEvent memory evt = ExcitationEvent({
                 id:              totalExcitations,
                 blockNumber:     block.number,
                 timestamp:       block.timestamp,
                 fieldDeviation:  deviation,
                 deviationBps:    deviationBps,
                 energyReleased:  energy
-            }));
+            });
+
+            // Circular buffer: overwrite oldest entry when at capacity
+            // to prevent unbounded storage growth (gas bomb prevention)
+            if (excitations.length < MAX_EXCITATIONS) {
+                excitations.push(evt);
+            } else {
+                // Overwrite oldest: use modular index
+                uint256 index = totalExcitations % MAX_EXCITATIONS;
+                excitations[index] = evt;
+            }
             totalExcitations++;
 
             emit ExcitationDetected(totalExcitations - 1, deviation, energy);

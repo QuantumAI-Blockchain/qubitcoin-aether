@@ -8,6 +8,10 @@ pub struct AikgsConfig {
     // ── gRPC server ──
     pub grpc_port: u16,
 
+    // ── Authentication ──
+    /// Shared secret for gRPC authentication. If empty, all requests are rejected.
+    pub auth_token: String,
+
     // ── Database ──
     pub database_url: String,
 
@@ -40,6 +44,20 @@ pub struct AikgsConfig {
 
     // ── Treasury ──
     pub treasury_address: String,
+
+    // ── Disbursement limits (AIKGS-C2) ──
+    /// Maximum single disbursement amount in QBC.
+    pub max_single_disbursement: f64,
+    /// Maximum total daily disbursement amount in QBC.
+    pub max_daily_disbursement: f64,
+    /// Maximum number of disbursements per hour (rate limit).
+    pub max_disbursements_per_hour: i64,
+
+    // ── Retry settings (AIKGS-C4) ──
+    /// Maximum number of retry attempts for failed disbursements.
+    pub disburse_max_retries: u32,
+    /// Initial backoff delay in milliseconds for retries.
+    pub disburse_initial_backoff_ms: u64,
 }
 
 impl AikgsConfig {
@@ -47,6 +65,7 @@ impl AikgsConfig {
     pub fn from_env() -> Self {
         Self {
             grpc_port: env_u16("AIKGS_GRPC_PORT", 50052),
+            auth_token: env_str("AIKGS_AUTH_TOKEN", ""),
             database_url: env_str(
                 "DATABASE_URL",
                 "postgresql://root@localhost:26257/qbc?sslmode=disable",
@@ -65,6 +84,11 @@ impl AikgsConfig {
             novelty_weight: env_f64("AIKGS_NOVELTY_WEIGHT", 0.4),
             vault_master_key_hex: env_str("AIKGS_VAULT_MASTER_KEY", ""),
             treasury_address: env_str("AIKGS_TREASURY_ADDRESS", ""),
+            max_single_disbursement: env_f64("AIKGS_MAX_SINGLE_DISBURSEMENT", 1000.0),
+            max_daily_disbursement: env_f64("AIKGS_MAX_DAILY_DISBURSEMENT", 50000.0),
+            max_disbursements_per_hour: env_i64("AIKGS_MAX_DISBURSEMENTS_PER_HOUR", 100),
+            disburse_max_retries: env_u32("AIKGS_DISBURSE_MAX_RETRIES", 3),
+            disburse_initial_backoff_ms: env_u64("AIKGS_DISBURSE_INITIAL_BACKOFF_MS", 1000),
         }
     }
 }
@@ -95,6 +119,20 @@ fn env_i32(key: &str, default: i32) -> i32 {
 }
 
 fn env_i64(key: &str, default: i64) -> i64 {
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
+fn env_u32(key: &str, default: u32) -> u32 {
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
+fn env_u64(key: &str, default: u64) -> u64 {
     env::var(key)
         .ok()
         .and_then(|v| v.parse().ok())

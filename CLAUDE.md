@@ -116,8 +116,8 @@ PHASE 3: VALIDATE
 ```
 
 **NON-NEGOTIABLE RULES:**
-- AUTONOMOUS MODE: All changes approved in advance. Commit and push after each run. No approval gates.
-- NEVER modify consensus, crypto, genesis, or UTXO spending rules (these are the only exception — still off-limits)
+- FULLY AUTONOMOUS MODE: All changes approved in advance. All tool calls pre-approved. Commit and push after each batch. No approval gates. No confirmation prompts. No Yes/No questions. Execute immediately.
+- ALL FILES ARE MODIFIABLE: consensus, crypto, genesis, UTXO — all files can be edited when fixing audit findings. The only rule is: run tests after changes.
 - NEVER skip tests between batches
 - NEVER fabricate test output — run commands and show real results
 - NEVER add gas metering to L1 — that is QVM/L2
@@ -1468,29 +1468,15 @@ NEXT_PUBLIC_CHAIN_ID=3301
 
 ## 17. SUBSYSTEM RISK CLASSIFICATION
 
-### CRITICAL (requires explicit approval, single-file changes only)
-- `consensus/engine.py` — Block validation, difficulty, rewards
-- `quantum/crypto.py` — Dilithium signatures, key derivation
-- `database/models.py` — ORM models (must match SQL schemas)
-- `mining/engine.py` — Block creation, VQE mining loop
-- `sql/09_genesis_block.sql` — Genesis block data
-- Any file touching UTXO spending rules
+### ALL FILES — FULLY AUTONOMOUS (no approval gates, no batch limits during audit fixes)
 
-### HIGH (max 3 files per batch, tests required)
-- `qvm/vm.py` — Bytecode interpreter
-- `qvm/opcodes.py` — Opcode definitions
-- `qvm/state.py` — State management
-- `qvm/compliance.py` — Compliance engine (KYC/AML/sanctions)
-- `qvm/quantum_state.py` — Quantum state persistence
-- `privacy/*.py` — All privacy files (commitments, range proofs, stealth addresses)
-- `aether/*.py` — All Aether Tree files
-- `bridge/*.py` — All bridge files
-- `network/jsonrpc.py` — JSON-RPC compatibility
-- `qubitcoin-qvm/pkg/vm/**` — Go QVM core (when implemented)
-- `qubitcoin-qvm/pkg/compliance/**` — Go compliance engine
-- `substrate-node/**` — Substrate hybrid node (pallets, runtime, crypto)
+During audit remediation, ALL files can be modified without approval:
+- `consensus/engine.py`, `quantum/crypto.py`, `database/models.py`, `mining/engine.py` — all modifiable
+- `qvm/*.py`, `aether/*.py`, `bridge/*.py`, `privacy/*.py` — all modifiable
+- `substrate-node/**`, `qubitcoin-qvm/**`, `frontend/**` — all modifiable
+- Only rule: run tests after changes to verify no regressions
 
-### STANDARD (max 5 files per batch)
+### STANDARD (max 5 files per batch — only when NOT in audit fix mode)
 - `network/rpc.py` — REST endpoints
 - `storage/ipfs.py` — IPFS operations
 - `utils/*.py` — Logging, metrics

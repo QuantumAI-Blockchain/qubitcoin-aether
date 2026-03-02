@@ -313,22 +313,23 @@ class KnowledgeGraph:
 
     def get_subgraph(self, root_id: int, depth: int = 3) -> Dict[int, KeterNode]:
         """BFS to get subgraph up to given depth"""
-        visited: Dict[int, KeterNode] = {}
-        queue = deque([(root_id, 0)])
+        with self._lock:
+            visited: Dict[int, KeterNode] = {}
+            queue = deque([(root_id, 0)])
 
-        while queue:
-            nid, d = queue.popleft()
-            if nid in visited or d > depth:
-                continue
-            node = self.nodes.get(nid)
-            if not node:
-                continue
-            visited[nid] = node
-            for neighbor_id in node.edges_out + node.edges_in:
-                if neighbor_id not in visited:
-                    queue.append((neighbor_id, d + 1))
+            while queue:
+                nid, d = queue.popleft()
+                if nid in visited or d > depth:
+                    continue
+                node = self.nodes.get(nid)
+                if not node:
+                    continue
+                visited[nid] = node
+                for neighbor_id in node.edges_out + node.edges_in:
+                    if neighbor_id not in visited:
+                        queue.append((neighbor_id, d + 1))
 
-        return visited
+            return visited
 
     def find_paths(self, from_id: int, to_id: int, max_depth: int = 5) -> List[List[int]]:
         """Find all paths between two nodes up to max_depth"""
@@ -360,32 +361,33 @@ class KnowledgeGraph:
         Nodes supported by high-confidence parents gain confidence;
         nodes contradicted by high-confidence parents lose it.
         """
-        for _ in range(iterations):
-            updates = {}
-            for nid, node in self.nodes.items():
-                if not node.edges_in:
-                    continue
-                support_sum = 0.0
-                contradict_sum = 0.0
-                count = 0
-                for edge in self._adj_in.get(nid, []):
-                    parent = self.nodes.get(edge.from_node_id)
-                    if not parent:
+        with self._lock:
+            for _ in range(iterations):
+                updates = {}
+                for nid, node in self.nodes.items():
+                    if not node.edges_in:
                         continue
-                    if edge.edge_type in ('supports', 'derives'):
-                        support_sum += parent.confidence * edge.weight
-                    elif edge.edge_type == 'contradicts':
-                        contradict_sum += parent.confidence * edge.weight
-                    count += 1
+                    support_sum = 0.0
+                    contradict_sum = 0.0
+                    count = 0
+                    for edge in self._adj_in.get(nid, []):
+                        parent = self.nodes.get(edge.from_node_id)
+                        if not parent:
+                            continue
+                        if edge.edge_type in ('supports', 'derives'):
+                            support_sum += parent.confidence * edge.weight
+                        elif edge.edge_type == 'contradicts':
+                            contradict_sum += parent.confidence * edge.weight
+                        count += 1
 
-                if count > 0:
-                    # Weighted update: support raises confidence, contradiction lowers it
-                    delta = (support_sum - contradict_sum) / count * 0.1
-                    new_conf = max(0.0, min(1.0, node.confidence + delta))
-                    updates[nid] = new_conf
+                    if count > 0:
+                        # Weighted update: support raises confidence, contradiction lowers it
+                        delta = (support_sum - contradict_sum) / count * 0.1
+                        new_conf = max(0.0, min(1.0, node.confidence + delta))
+                        updates[nid] = new_conf
 
-            for nid, conf in updates.items():
-                self.nodes[nid].confidence = conf
+                for nid, conf in updates.items():
+                    self.nodes[nid].confidence = conf
 
     def compute_knowledge_root(self) -> str:
         """
@@ -393,35 +395,36 @@ class KnowledgeGraph:
         Used in Proof-of-Thought for chain binding.
         Cached — only recomputes when graph is mutated.
         """
-        if not self.nodes:
-            return hashlib.sha256(b'empty_knowledge').hexdigest()
+        with self._lock:
+            if not self.nodes:
+                return hashlib.sha256(b'empty_knowledge').hexdigest()
 
-        if not self._merkle_dirty and self._merkle_cache:
-            return self._merkle_cache
+            if not self._merkle_dirty and self._merkle_cache:
+                return self._merkle_cache
 
-        leaves = []
-        for nid in sorted(self.nodes.keys()):
-            node = self.nodes[nid]
-            leaf = hashlib.sha256(
-                f"{nid}:{node.content_hash}:{node.confidence:.6f}".encode()
-            ).hexdigest()
-            leaves.append(leaf)
-
-        # Merkle tree
-        while len(leaves) > 1:
-            if len(leaves) % 2 == 1:
-                leaves.append(leaves[-1])
-            new_leaves = []
-            for i in range(0, len(leaves), 2):
-                combined = hashlib.sha256(
-                    (leaves[i] + leaves[i + 1]).encode()
+            leaves = []
+            for nid in sorted(self.nodes.keys()):
+                node = self.nodes[nid]
+                leaf = hashlib.sha256(
+                    f"{nid}:{node.content_hash}:{node.confidence:.6f}".encode()
                 ).hexdigest()
-                new_leaves.append(combined)
-            leaves = new_leaves
+                leaves.append(leaf)
 
-        self._merkle_cache = leaves[0]
-        self._merkle_dirty = False
-        return self._merkle_cache
+            # Merkle tree
+            while len(leaves) > 1:
+                if len(leaves) % 2 == 1:
+                    leaves.append(leaves[-1])
+                new_leaves = []
+                for i in range(0, len(leaves), 2):
+                    combined = hashlib.sha256(
+                        (leaves[i] + leaves[i + 1]).encode()
+                    ).hexdigest()
+                    new_leaves.append(combined)
+                leaves = new_leaves
+
+            self._merkle_cache = leaves[0]
+            self._merkle_dirty = False
+            return self._merkle_cache
 
     def prune_low_confidence(self, threshold: float = 0.1, protect_types: Optional[Set[str]] = None) -> int:
         """

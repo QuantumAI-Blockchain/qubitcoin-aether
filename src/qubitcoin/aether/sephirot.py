@@ -95,11 +95,14 @@ class SephirotManager:
     Coordinates with QVM for contract deployment and state management.
     """
 
+    MAX_VIOLATIONS_HISTORY: int = 10000
+
     def __init__(self, db_manager: object, state_manager: Optional[object] = None) -> None:
         self.db = db_manager
         self.state_manager = state_manager
         self.nodes: Dict[SephirahRole, SephirahState] = {}
         self.violations: List[SUSYViolation] = []
+        self._total_corrections: int = 0  # Total SUSY corrections applied
         self._initialize_nodes()
         logger.info("Sephirot Manager initialized (10 Tree of Life nodes)")
 
@@ -180,6 +183,9 @@ class SephirotManager:
                 )
                 violations.append(violation)
                 self.violations.append(violation)
+                # Cap violations history to prevent unbounded memory growth
+                if len(self.violations) > self.MAX_VIOLATIONS_HISTORY:
+                    self.violations = self.violations[-self.MAX_VIOLATIONS_HISTORY:]
                 logger.warning(
                     f"SUSY violation: {expansion.value}/{constraint.value} "
                     f"ratio={ratio:.4f} (expected φ={PHI:.4f}, dev={deviation:.2%})"
@@ -233,6 +239,7 @@ class SephirotManager:
             c_node.last_update_block = block_height
 
             corrections += 1
+            self._total_corrections += 1
 
             # Increment Prometheus metric
             try:
@@ -285,6 +292,11 @@ class SephirotManager:
 
         R = |1/N * sum(e^(i*theta_j))| where theta_j is phase of each node.
         R = 1.0 means perfect sync, R = 0.0 means no sync.
+
+        Special case: when all energies are equal (zero variance), coherence
+        is reported as 0.0 because there is no meaningful synchronization
+        signal — all phases collapse to the same value, which is trivially
+        "in sync" but does not indicate genuine coordination.
         """
         import math
         n = len(self.nodes)
@@ -293,6 +305,12 @@ class SephirotManager:
 
         # Use energy as proxy for phase (normalized to [0, 2*pi])
         energies = [node.energy for node in self.nodes.values()]
+
+        # If all energies are equal (e.g., genesis), report 0.0 — no
+        # meaningful synchronization can be measured from identical values.
+        if len(set(energies)) <= 1:
+            return 0.0
+
         max_e = max(energies) if max(energies) > 0 else 1.0
         phases = [(e / max_e) * 2 * math.pi for e in energies]
 
@@ -439,9 +457,7 @@ class SephirotManager:
             ],
             "coherence": self.get_coherence(),
             "total_violations": len(self.violations),
-            "total_corrections": sum(
-                1 for _ in []  # count from violation list
-            ),
+            "total_corrections": self._total_corrections,
             "recent_violations": [
                 {
                     "expansion": v.expansion_node.value,

@@ -136,19 +136,21 @@ class VetoAuthenticator:
         if secret is not None:
             self._secret = secret
         else:
-            env_secret = os.environ.get("GEVURAH_SECRET", "")
-            if env_secret:
-                self._secret = env_secret.encode()
+            cfg_secret = Config.GEVURAH_SECRET
+            if cfg_secret:
+                self._secret = cfg_secret.encode()
             else:
-                # Derive from node private key file as fallback
-                self._secret = hashlib.sha256(
-                    b"gevurah-veto-default-secret"
-                ).digest()
-                logger.warning(
-                    "VetoAuthenticator using default secret — "
-                    "set GEVURAH_SECRET env var for production"
+                # Generate a cryptographically random 32-byte secret for this
+                # session.  This is safe but ephemeral: tokens from this
+                # session will NOT be valid after a restart.
+                # SECURITY: Never fall back to a hardcoded/derivable secret.
+                self._secret = os.urandom(32)
+                logger.critical(
+                    "GEVURAH_SECRET not configured — using ephemeral random secret. "
+                    "Authentication tokens will not persist across restarts. "
+                    "Set GEVURAH_SECRET in .env for production deployments."
                 )
-        self._used_nonces: Set[str] = set()
+        self._used_nonces: Dict[str, float] = {}  # nonce -> timestamp
         self._max_nonces = 100_000
 
     def generate_nonce(self) -> str:
@@ -177,12 +179,14 @@ class VetoAuthenticator:
             logger.warning(f"VetoAuth: invalid HMAC for nonce {nonce[:16]}...")
             return False
 
-        self._used_nonces.add(nonce)
-        # Evict oldest nonces to cap memory
+        self._used_nonces[nonce] = time.time()
+        # Evict oldest nonces (by insertion order) to cap memory.
+        # Dict preserves insertion order in Python 3.7+, so we evict
+        # the first (oldest) half deterministically.
         if len(self._used_nonces) > self._max_nonces:
-            # Convert to list, drop first half
-            nonce_list = list(self._used_nonces)
-            self._used_nonces = set(nonce_list[len(nonce_list) // 2:])
+            keys = list(self._used_nonces.keys())
+            for k in keys[:len(keys) // 2]:
+                del self._used_nonces[k]
 
         return True
 
@@ -509,7 +513,11 @@ class SafetyManager:
                         block_height=block_height,
                     )
             elif self._shutdown and self._shutdown_reason.startswith("Emergency shutdown triggered on-chain"):
-                self.resume(block_height)
+                # On-chain resume is authorized by the governance contract itself.
+                # Generate an authenticated nonce/token pair internally.
+                nonce = self.authenticator.generate_nonce()
+                token = self.authenticator.sign_nonce(nonce, "resume")
+                self.resume(block_height, nonce=nonce, token=token)
         except Exception as e:
             logger.debug(f"On-chain shutdown sync failed: {e}")
 
@@ -588,13 +596,37 @@ class SafetyManager:
             except Exception as e:
                 logger.error(f"Failed to trigger on-chain shutdown: {e}")
 
-    def resume(self, block_height: int) -> bool:
+    def resume(self, block_height: int, nonce: str = "",
+               token: str = "") -> bool:
         """
         Resume from emergency shutdown.
 
-        In production, this requires multi-sig consensus verification.
+        Requires HMAC authentication via the VetoAuthenticator to prevent
+        unauthorized resume. The caller must provide a valid nonce/token
+        pair signed with the ``resume`` action.
+
+        Args:
+            block_height: Current block height.
+            nonce: One-time nonce from ``authenticator.generate_nonce()``.
+            token: HMAC signature from ``authenticator.sign_nonce(nonce, "resume")``.
+
+        Returns:
+            True if successfully resumed, False otherwise.
         """
         if not self._shutdown:
+            return False
+
+        # Authenticate the resume request
+        if not nonce or not token:
+            logger.warning(
+                "Resume rejected: authentication required (nonce and token)"
+            )
+            return False
+
+        if not self.authenticator.validate(nonce, token, action="resume"):
+            logger.warning(
+                "Resume rejected: invalid authentication credentials"
+            )
             return False
 
         self._shutdown = False

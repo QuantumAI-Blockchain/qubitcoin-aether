@@ -215,10 +215,20 @@ parameter_types! {
     pub const MaxOutputs: u32 = 256;
 }
 
+/// Freeze checker that reads from the reversibility pallet's FrozenUtxos storage.
+pub struct ReversibilityFreezeChecker;
+
+impl pallet_qbc_utxo::UtxoFreezeChecker for ReversibilityFreezeChecker {
+    fn is_frozen(txid: &sp_core::H256, vout: u32) -> bool {
+        pallet_qbc_reversibility::pallet::FrozenUtxos::<Runtime>::get((txid, vout))
+    }
+}
+
 impl pallet_qbc_utxo::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type MaxInputs = MaxInputs;
     type MaxOutputs = MaxOutputs;
+    type FreezeChecker = ReversibilityFreezeChecker;
 }
 
 impl pallet_qbc_economics::Config for Runtime {

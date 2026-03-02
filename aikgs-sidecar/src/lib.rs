@@ -15,4 +15,5 @@ pub mod rewards;
 pub mod scorer;
 pub mod treasury;
 pub mod unlocks;
+pub mod validation;
 pub mod vault;

@@ -520,7 +520,7 @@ class QubitcoinNode:
             if self.neural_reasoner:
                 self.aether.neural_reasoner = self.neural_reasoner
             if self.sephirot_manager:
-                self.aether._sephirot_manager = self.sephirot_manager
+                self.aether.set_sephirot_manager(self.sephirot_manager)
             logger.info("[16/22] Cognitive + LLM + Neural components wired to Aether Engine")
 
         # Component 17: SPV Verifier
@@ -578,7 +578,7 @@ class QubitcoinNode:
             try:
                 from .aether.aikgs_client import AikgsClient
                 grpc_addr = f"{Config.AIKGS_GRPC_ADDR}:{Config.AIKGS_GRPC_PORT}"
-                self.aikgs_client = AikgsClient(grpc_addr)
+                self.aikgs_client = AikgsClient(grpc_addr, auth_token=Config.AIKGS_AUTH_TOKEN)
                 # Connection happens async in on_startup
                 logger.info(f"[20b/22] AIKGS sidecar client created (will connect to {grpc_addr})")
             except Exception as e:

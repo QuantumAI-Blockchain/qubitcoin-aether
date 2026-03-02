@@ -43,7 +43,7 @@ impl P2PStats {
     pub fn new() -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
         Self {
             peer_count: AtomicUsize::new(0),
@@ -58,9 +58,9 @@ impl P2PStats {
     pub fn uptime_seconds(&self) -> u64 {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
-        now - self.start_time
+        now.saturating_sub(self.start_time)
     }
 }
 

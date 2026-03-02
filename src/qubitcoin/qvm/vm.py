@@ -27,17 +27,10 @@ except (ImportError, AttributeError, TypeError, AssertionError):
         def keccak256(data: bytes) -> bytes:
             return _keccak.new(digest_bits=256, data=data).digest()
     except ImportError:
-        # Last resort fallback — NOT EVM-compatible but allows node to start
-        import warnings
-        warnings.warn(
-            "Neither pysha3 nor pycryptodome installed. "
-            "keccak256 falling back to SHA-256 — EVM hash outputs will differ. "
-            "Install: pip install pysha3  OR  pip install pycryptodome",
-            RuntimeWarning,
+        raise ImportError(
+            "keccak256 requires pysha3 or pycryptodome. "
+            "Install: pip install pysha3  OR  pip install pycryptodome"
         )
-        from hashlib import sha256
-        def keccak256(data: bytes) -> bytes:
-            return sha256(data).digest()
 
 
 class ExecutionError(Exception):
@@ -799,6 +792,13 @@ class ExecutionContext:
         self.reverted = False
         self.gas_refund = 0  # EIP-3529 gas refund counter
 
+        # EIP-2929: Warm/cold access tracking (shared across sub-calls within a tx)
+        self._accessed_addresses: set = set()
+        self._accessed_storage_keys: set = set()  # set of (address_hex, key_hex) tuples
+
+        # EIP-2200: Original storage values at transaction start (for gas refund calc)
+        self._original_storage: Dict[str, Dict[str, str]] = {}  # addr -> {key: original_val}
+
         # Pre-analyze JUMPDEST positions
         self.valid_jumpdests = self._analyze_jumpdests()
 
@@ -1156,6 +1156,21 @@ class QVM:
         # Sub-calls (depth > 0) share the parent's cache within a single transaction.
         if depth == 0:
             self._storage_cache = {}
+            # EIP-2929: Initialize warm/cold access tracking for new transaction
+            self._tx_accessed_addresses: set = set()
+            self._tx_accessed_storage_keys: set = set()
+            # EIP-2200: Initialize original storage tracking for new transaction
+            self._tx_original_storage: Dict[str, Dict[str, str]] = {}
+            # Pre-warm sender, recipient, and origin per EIP-2929
+            self._tx_accessed_addresses.add(caller)
+            self._tx_accessed_addresses.add(address)
+            self._tx_accessed_addresses.add(origin or caller)
+        elif not hasattr(self, '_tx_accessed_addresses'):
+            # Safety: if execute() is called directly at depth > 0 without a parent
+            # top-level call (e.g., in tests), initialize the tracking sets
+            self._tx_accessed_addresses = set()
+            self._tx_accessed_storage_keys = set()
+            self._tx_original_storage = {}
 
         ctx = ExecutionContext(
             caller=caller,
@@ -1168,6 +1183,10 @@ class QVM:
             is_static=is_static,
             depth=depth,
         )
+        # Share transaction-level access tracking with this execution context
+        ctx._accessed_addresses = self._tx_accessed_addresses
+        ctx._accessed_storage_keys = self._tx_accessed_storage_keys
+        ctx._original_storage = self._tx_original_storage
 
         result = ExecutionResult()
 
@@ -1175,7 +1194,12 @@ class QVM:
             self._run(ctx)
             result.success = not ctx.reverted
             result.return_data = ctx.return_data
-            # EIP-3529: refund capped at gas_used // 5
+            # EIP-3529: refund capped at gas_used // 5 (max 20% refund)
+            # PORTING NOTE (QVM-H8): Python's arbitrary-precision integers make this
+            # safe, but when porting to Go (fixed-width uint64), ensure:
+            #   1. gas_refund accumulation uses checked arithmetic (no overflow)
+            #   2. gas_used // 5 uses integer division (not floating point)
+            #   3. The subtraction (gas_used - refund) cannot underflow
             refund = min(ctx.gas_refund, ctx.gas_used // 5) if not ctx.reverted else 0
             result.gas_used = ctx.gas_used - refund
             result.gas_remaining = max(0, ctx.gas - result.gas_used)
@@ -1476,6 +1500,12 @@ class QVM:
             elif op == Opcode.BALANCE:
                 addr_int = ctx.pop()
                 addr = format(addr_int, '040x')
+                # EIP-2929: warm/cold address access
+                if addr not in ctx._accessed_addresses:
+                    ctx._accessed_addresses.add(addr)
+                    ctx.use_gas(2600)  # Cold access
+                else:
+                    ctx.use_gas(100)   # Warm access
                 balance = 0
                 if self.db:
                     balance = int(self.db.get_account_balance(addr) * 10**8)
@@ -1513,6 +1543,12 @@ class QVM:
             elif op == Opcode.EXTCODESIZE:
                 addr_int = ctx.pop()
                 addr = format(addr_int, '040x')
+                # EIP-2929: warm/cold address access
+                if addr not in ctx._accessed_addresses:
+                    ctx._accessed_addresses.add(addr)
+                    ctx.use_gas(2600)  # Cold access
+                else:
+                    ctx.use_gas(100)   # Warm access
                 size = 0
                 if self.db:
                     bc = self.db.get_contract_bytecode(addr)
@@ -1523,6 +1559,12 @@ class QVM:
                 addr_int = ctx.pop()
                 dest, offset, size = ctx.pop(), ctx.pop(), ctx.pop()
                 addr = format(addr_int, '040x')
+                # EIP-2929: warm/cold address access
+                if addr not in ctx._accessed_addresses:
+                    ctx._accessed_addresses.add(addr)
+                    ctx.use_gas(2600)  # Cold access
+                else:
+                    ctx.use_gas(100)   # Warm access
                 code = b''
                 if self.db:
                     bc = self.db.get_contract_bytecode(addr)
@@ -1542,6 +1584,12 @@ class QVM:
             elif op == Opcode.EXTCODEHASH:
                 addr_int = ctx.pop()
                 addr = format(addr_int, '040x')
+                # EIP-2929: warm/cold address access
+                if addr not in ctx._accessed_addresses:
+                    ctx._accessed_addresses.add(addr)
+                    ctx.use_gas(2600)  # Cold access
+                else:
+                    ctx.use_gas(100)   # Warm access
                 code_hash = 0
                 if self.db:
                     account = self.db.get_account(addr)
@@ -1602,6 +1650,13 @@ class QVM:
             elif op == Opcode.SLOAD:
                 key = ctx.pop()
                 key_hex = format(key, '064x')
+                # EIP-2929: Charge warm (100) or cold (2100) gas dynamically
+                slot_key = (ctx.address, key_hex)
+                if slot_key not in ctx._accessed_storage_keys:
+                    ctx._accessed_storage_keys.add(slot_key)
+                    ctx.use_gas(2100)  # Cold SLOAD
+                else:
+                    ctx.use_gas(100)   # Warm SLOAD
                 # Check cache first
                 cached = self._storage_cache.get(ctx.address, {}).get(key_hex)
                 if cached is not None:
@@ -1617,22 +1672,72 @@ class QVM:
                 key, value = ctx.pop(), ctx.pop()
                 key_hex = format(key, '064x')
                 val_hex = format(value, '064x')
-                # EIP-3529 gas refund: clearing a storage slot (non-zero → zero)
-                old_val_hex = self._storage_cache.get(ctx.address, {}).get(key_hex)
-                if old_val_hex is None and self.db:
+                zero_hex = '0' * 64
+
+                # ── Get current value in storage ──
+                current_hex = self._storage_cache.get(ctx.address, {}).get(key_hex)
+                if current_hex is None and self.db:
                     try:
-                        old_val_hex = self.db.get_storage(ctx.address, key_hex)
+                        current_hex = self.db.get_storage(ctx.address, key_hex)
                     except Exception as e:
-                        logger.debug(f"SSTORE old value fetch failed: {e}")
-                        old_val_hex = '0' * 64
-                old_val_hex = old_val_hex or ('0' * 64)
+                        logger.debug(f"SSTORE current value fetch failed: {e}")
+                        current_hex = zero_hex
+                current_hex = current_hex or zero_hex
+
+                # ── EIP-2200: Track original value at transaction start ──
+                if ctx.address not in ctx._original_storage:
+                    ctx._original_storage[ctx.address] = {}
+                if key_hex not in ctx._original_storage[ctx.address]:
+                    # First SSTORE to this slot in this tx — record original
+                    ctx._original_storage[ctx.address][key_hex] = current_hex
+                original_hex = ctx._original_storage[ctx.address][key_hex]
+
+                # ── EIP-2929: Check warm/cold access ──
+                slot_key = (ctx.address, key_hex)
+                is_cold = slot_key not in ctx._accessed_storage_keys
+                if is_cold:
+                    ctx._accessed_storage_keys.add(slot_key)
+
+                # ── Classify values ──
                 try:
-                    old_is_nonzero = isinstance(old_val_hex, str) and int(old_val_hex, 16) != 0
+                    original_is_zero = int(original_hex, 16) == 0
                 except (ValueError, TypeError):
-                    old_is_nonzero = False
+                    original_is_zero = True
+                try:
+                    current_is_zero = int(current_hex, 16) == 0
+                except (ValueError, TypeError):
+                    current_is_zero = True
                 new_is_zero = (value == 0)
-                if old_is_nonzero and new_is_zero:
-                    ctx.gas_refund += 4800  # EIP-3529 SSTORE_CLEARS_SCHEDULE
+                current_equals_new = (current_hex == val_hex)
+                original_equals_current = (original_hex == current_hex)
+
+                # ── EIP-2200/EIP-2929/EIP-3529 gas calculation ──
+                # Cold access surcharge
+                cold_cost = 2100 if is_cold else 0
+
+                if current_equals_new:
+                    # No-op: current == new
+                    ctx.use_gas(100 + cold_cost)  # SLOAD_GAS (warm)
+                elif original_equals_current:
+                    # Slot is clean (original == current)
+                    if original_is_zero:
+                        # Fresh create: 0 → non-zero
+                        ctx.use_gas(20000 + cold_cost)
+                    else:
+                        # Clean non-zero slot being modified
+                        ctx.use_gas(2900 + cold_cost)  # SSTORE_RESET
+                        if new_is_zero:
+                            ctx.gas_refund += 4800  # EIP-3529 SSTORE_CLEARS_SCHEDULE
+                else:
+                    # Slot is dirty (original != current)
+                    ctx.use_gas(100 + cold_cost)  # SLOAD_GAS (warm)
+                    if not original_is_zero and current_is_zero and not new_is_zero:
+                        # Un-clearing: subtract the previously given refund
+                        ctx.gas_refund = max(0, ctx.gas_refund - 4800)
+                    elif not original_is_zero and not current_is_zero and new_is_zero:
+                        # Clearing a dirty non-zero slot → add refund
+                        ctx.gas_refund += 4800
+
                 if ctx.address not in self._storage_cache:
                     self._storage_cache[ctx.address] = {}
                 self._storage_cache[ctx.address][key_hex] = val_hex
@@ -1877,14 +1982,17 @@ class QVM:
 
             elif op == Opcode.QCOMPLIANCE:
                 # Pre-flight KYC/AML/sanctions compliance check
-                # Stack: address_hash → compliance_level (0=none, 1=basic, 2=enhanced, 3=full)
+                # Stack: address_hash → compliance_level (0=none/deny, 1=basic, 2=enhanced, 3=full)
                 addr_hash = ctx.pop()
                 if self.compliance:
                     addr_hex = hex(addr_hash)[2:].zfill(40)
                     level = self.compliance.check_compliance(addr_hex)
                     ctx.push(level)
                 else:
-                    ctx.push(1)  # Fallback: basic compliance when engine unavailable
+                    # SECURITY: Default to deny (0) when compliance engine unavailable.
+                    # Fail-open (returning 1) would allow unchecked addresses to pass
+                    # KYC/AML/sanctions checks, which is a critical security risk.
+                    ctx.push(0)
 
             elif op == Opcode.QRISK:
                 # SUSY risk score for individual address
@@ -2036,6 +2144,12 @@ class QVM:
                 if ctx.is_static and value != 0:
                     raise ExecutionError("CALL with value in static context")
                 to_addr = format(addr_int, '040x')
+                # EIP-2929: warm/cold address access for CALL target
+                if to_addr not in ctx._accessed_addresses:
+                    ctx._accessed_addresses.add(to_addr)
+                    ctx.use_gas(2600)  # Cold address access
+                else:
+                    ctx.use_gas(100)   # Warm address access
                 call_data = ctx.memory_read(args_offset, args_size)
 
                 # Check precompiled contracts (addresses 0x01-0x09)
@@ -2086,6 +2200,12 @@ class QVM:
                 args_offset, args_size = ctx.pop(), ctx.pop()
                 ret_offset, ret_size = ctx.pop(), ctx.pop()
                 to_addr = format(addr_int, '040x')
+                # EIP-2929: warm/cold address access for STATICCALL target
+                if to_addr not in ctx._accessed_addresses:
+                    ctx._accessed_addresses.add(to_addr)
+                    ctx.use_gas(2600)  # Cold address access
+                else:
+                    ctx.use_gas(100)   # Warm address access
                 call_data = ctx.memory_read(args_offset, args_size)
 
                 # Check precompiled contracts
@@ -2131,6 +2251,12 @@ class QVM:
                 args_offset, args_size = ctx.pop(), ctx.pop()
                 ret_offset, ret_size = ctx.pop(), ctx.pop()
                 to_addr = format(addr_int, '040x')
+                # EIP-2929: warm/cold address access for DELEGATECALL target
+                if to_addr not in ctx._accessed_addresses:
+                    ctx._accessed_addresses.add(to_addr)
+                    ctx.use_gas(2600)  # Cold address access
+                else:
+                    ctx.use_gas(100)   # Warm address access
                 call_data = ctx.memory_read(args_offset, args_size)
                 code = b''
                 if self.db:
@@ -2142,7 +2268,13 @@ class QVM:
                     capped = (available * 63) // 64  # EIP-150
                     sub_gas = min(gas_limit, capped)
                     cache_snap = {k: dict(v) for k, v in self._storage_cache.items()}
-                    # Delegatecall: execute target code in caller's context
+                    # DELEGATECALL: execute target code in caller's context.
+                    # Per EVM spec, DELEGATECALL preserves:
+                    #   - msg.sender (ctx.caller — the original caller, not this contract)
+                    #   - msg.value  (ctx.value — the value from the parent call frame)
+                    #   - storage context (ctx.address — this contract's storage)
+                    # This ensures the delegate code sees the same msg.value as the
+                    # calling contract, which is critical for payable proxy patterns.
                     sub_result = self.execute(
                         ctx.caller, ctx.address, code, call_data, ctx.value,
                         sub_gas, ctx.origin, depth=ctx.depth + 1
@@ -2172,6 +2304,12 @@ class QVM:
                 if ctx.is_static and value != 0:
                     raise ExecutionError("CALLCODE with value in static context")
                 to_addr = format(addr_int, '040x')
+                # EIP-2929: warm/cold address access for CALLCODE target
+                if to_addr not in ctx._accessed_addresses:
+                    ctx._accessed_addresses.add(to_addr)
+                    ctx.use_gas(2600)  # Cold address access
+                else:
+                    ctx.use_gas(100)   # Warm address access
                 call_data = ctx.memory_read(args_offset, args_size)
 
                 # Check precompiled contracts

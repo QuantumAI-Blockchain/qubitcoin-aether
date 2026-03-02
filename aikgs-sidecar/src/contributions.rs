@@ -23,6 +23,8 @@ use crate::db::{
 use crate::rewards::RewardEngine;
 use crate::scorer::Scorer;
 
+// Transaction support (AIKGS-H7) — types used implicitly via db.begin()
+
 /// Errors that can occur during contribution processing.
 #[derive(Debug, thiserror::Error)]
 pub enum AikgsError {
@@ -175,24 +177,24 @@ impl ContributionManager {
 
         // 3. Reject spam
         if score.is_spam {
-            let contribution_id = db.next_contribution_id().await?;
             let block_height = 0_i64; // Rejected contributions don't need block height
 
-            db.insert_contribution(
-                contribution_id,
-                contributor_address,
-                &score.content_hash,
-                None,
-                0.0,
-                0.0,
-                0.0,
-                "bronze",
-                &score.domain,
-                0.0,
-                "rejected_spam",
-                block_height,
-            )
-            .await?;
+            // Atomic insert with DB-generated ID (AIKGS-C3)
+            let contribution_id = db
+                .insert_contribution_returning_id(
+                    contributor_address,
+                    &score.content_hash,
+                    None,
+                    0.0,
+                    0.0,
+                    0.0,
+                    "bronze",
+                    &score.domain,
+                    0.0,
+                    "rejected_spam",
+                    block_height,
+                )
+                .await?;
 
             return Ok(ContributionResult {
                 contribution_id,
@@ -219,23 +221,22 @@ impl ContributionManager {
         // 4. Dedup check
         let is_duplicate = db.content_hash_exists(&score.content_hash).await?;
         if is_duplicate {
-            let contribution_id = db.next_contribution_id().await?;
-
-            db.insert_contribution(
-                contribution_id,
-                contributor_address,
-                &score.content_hash,
-                None,
-                score.quality_score,
-                0.0,
-                0.0,
-                "bronze",
-                &score.domain,
-                0.0,
-                "rejected_duplicate",
-                0,
-            )
-            .await?;
+            // Atomic insert with DB-generated ID (AIKGS-C3)
+            let contribution_id = db
+                .insert_contribution_returning_id(
+                    contributor_address,
+                    &score.content_hash,
+                    None,
+                    score.quality_score,
+                    0.0,
+                    0.0,
+                    "bronze",
+                    &score.domain,
+                    0.0,
+                    "rejected_duplicate",
+                    0,
+                )
+                .await?;
 
             return Ok(ContributionResult {
                 contribution_id,
@@ -266,7 +267,7 @@ impl ContributionManager {
         // 6. Calculate reward
         let (streak_days, _best_streak) = db.get_streak(contributor_address).await?;
         let pool_balance = reward_engine.pool_balance(db).await;
-        let total_contributions = db.next_contribution_id().await? - 1;
+        let total_contributions = db.contribution_count().await?;
         let staked_amount = 0.0; // Staking not yet wired to sidecar
 
         let reward_calc = reward_engine.calculate(
@@ -280,27 +281,35 @@ impl ContributionManager {
         );
 
         let mut reward_amount = reward_calc.final_reward;
+        let mut bounty_reward_component = 0.0;
 
         // 7. Handle bounty fulfillment (adds bounty reward on top)
         let mut is_bounty_fulfillment = false;
         if bounty_id > 0 {
             if let Ok(Some(bounty)) = db.get_bounty(bounty_id).await {
                 if bounty.status == "claimed" && bounty.claimer_address == contributor_address {
-                    let contribution_id = db.next_contribution_id().await?;
-                    if db.fulfill_bounty(bounty_id, contribution_id).await? {
-                        reward_amount += bounty.reward_amount * bounty.boost_multiplier;
-                        is_bounty_fulfillment = true;
-                    }
+                    // Note: We fulfill the bounty AFTER inserting the contribution
+                    // (below) to have the contribution_id available. The bounty
+                    // fulfill uses atomic UPDATE ... WHERE status='claimed'.
+                    bounty_reward_component =
+                        bounty.reward_amount * bounty.boost_multiplier;
+                    reward_amount += bounty_reward_component;
+                    is_bounty_fulfillment = true;
                 }
             }
         }
 
-        // 8. Allocate contribution_id and insert
-        let contribution_id = db.next_contribution_id().await?;
+        // 8-10. Insert contribution + reward + commissions in a single transaction (AIKGS-H7).
+        //
+        // This ensures that either ALL of (contribution, reward, bounty fulfillment,
+        // affiliate commissions) are committed, or NONE are — preventing inconsistent
+        // state from partial failures.
         let block_height = 0_i64; // Will be set by the node when included in a block
+        let mut tx = db.begin().await?;
 
-        db.insert_contribution(
-            contribution_id,
+        // 8. Atomic insert with DB-generated contribution_id (AIKGS-C3)
+        let contribution_id = Db::insert_contribution_in_tx(
+            &mut tx,
             contributor_address,
             &score.content_hash,
             None, // knowledge_node_id — set when KG integration is wired
@@ -315,24 +324,42 @@ impl ContributionManager {
         )
         .await?;
 
-        // 9. Insert reward record
-        db.insert_reward(
+        // Fulfill bounty now that we have the contribution_id
+        if is_bounty_fulfillment {
+            if !Db::fulfill_bounty_in_tx(&mut tx, bounty_id, contribution_id).await? {
+                // Bounty was fulfilled by another request in the meantime —
+                // deduct the bounty component from the reward.
+                reward_amount -= bounty_reward_component;
+                bounty_reward_component = 0.0;
+                is_bounty_fulfillment = false;
+                log::warn!(
+                    "Bounty {} was already fulfilled — deducting bounty reward from contribution {}",
+                    bounty_id,
+                    contribution_id
+                );
+            }
+        }
+
+        // 9. Insert reward record — includes bounty component (AIKGS-H3)
+        Db::insert_reward_in_tx(
+            &mut tx,
             contribution_id,
             contributor_address,
-            reward_calc.final_reward,
+            reward_amount, // total including bounty component
             reward_calc.base_reward,
             reward_calc.quality_factor,
             reward_calc.novelty_factor,
             reward_calc.tier_multiplier,
             reward_calc.streak_multiplier,
             reward_calc.staking_boost,
-            reward_calc.early_bonus,
+            reward_calc.early_bonus + bounty_reward_component, // bounty stored in early_bonus field
             block_height,
         )
         .await?;
 
-        // 10. Process affiliate commissions
-        let (l1_amount, l2_amount) = AffiliateManager::process_commissions(
+        // 10. Process affiliate commissions (within the same transaction)
+        let (l1_amount, l2_amount) = AffiliateManager::process_commissions_in_tx(
+            &mut tx,
             db,
             contributor_address,
             reward_amount,
@@ -340,6 +367,9 @@ impl ContributionManager {
             cfg,
         )
         .await?;
+
+        // Commit the transaction — all or nothing
+        tx.commit().await?;
 
         // 11. Update profile (progressive unlocks)
         let badges_earned = Self::update_profile(

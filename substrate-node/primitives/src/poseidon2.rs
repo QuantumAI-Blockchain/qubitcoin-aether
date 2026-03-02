@@ -60,8 +60,10 @@ const MDS: [[u64; STATE_WIDTH]; STATE_WIDTH] = [
 /// Internal round constants — generated deterministically from the "QBC-Poseidon2" seed.
 /// Total constants needed: (FULL_ROUNDS_BEGIN + FULL_ROUNDS_END) * STATE_WIDTH + PARTIAL_ROUNDS
 /// = 8 * 3 + 56 = 80 constants.
-/// Generated via a 128-bit LCG seeded from "QBC-Pos2" (see `generate_round_constants()`).
-/// LCG is used because `const fn` in Rust cannot call SHA-256 at compile time.
+/// Generated via a SHA-256 hash chain seeded from "QBC-Poseidon2-RC-v1".
+/// SHA-256 is used instead of LCG because LCG is a weak PRNG whose linear
+/// structure could be exploited to find algebraic shortcuts in the hash function.
+/// A const-fn SHA-256 implementation is used for compile-time determinism.
 /// The constants are deterministic, nonzero, and uniformly distributed mod p.
 const ROUND_CONSTANTS: [u64; 80] = generate_round_constants();
 
@@ -344,25 +346,167 @@ pub fn poseidon2_merkle_verify(
 
 /// Generate 80 round constants deterministically from the "QBC-Poseidon2" seed.
 ///
-/// Uses a 128-bit Linear Congruential Generator (Knuth's constants) seeded from
-/// the ASCII bytes of "QBC-Pos2". LCG is chosen because Rust `const fn` cannot
-/// invoke SHA-256 at compile time. The upper 64 bits of the 128-bit state are
-/// extracted and reduced mod p, ensuring uniform distribution over the Goldilocks
-/// field. All generated constants are verified nonzero in tests.
+/// Uses a SHA-256 hash chain for cryptographic-quality deterministic generation.
+/// Starting from seed "QBC-Poseidon2-RC-v1", each round constant is derived by:
+///   state = SHA-256(state)
+///   constant = u64::from_le_bytes(state[0..8]) % GOLDILOCKS_P
+///
+/// This replaces the previous LCG (Linear Congruential Generator) approach.
+/// LCG is a weak PRNG unsuitable for cryptographic round constants — its linear
+/// structure could theoretically be exploited to find algebraic shortcuts in the
+/// hash function. SHA-256 provides the necessary avalanche and preimage resistance.
+///
+/// **Implementation note:** `const fn` in Rust cannot call SHA-256 crate functions,
+/// so we implement a minimal SHA-256 core inline using only const-compatible
+/// operations (loops, arrays, bitwise ops). This is NOT a general-purpose SHA-256
+/// library — it exists solely for compile-time constant generation.
+///
+/// All generated constants are verified nonzero and < p in tests.
 const fn generate_round_constants() -> [u64; 80] {
+    // Minimal const-fn SHA-256 implementation for compile-time use only.
+    // Based on NIST FIPS 180-4. Only supports single-block messages (< 56 bytes).
+    const K: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+        0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+        0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+        0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+        0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+        0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+        0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+        0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    ];
+
+    const fn rotr32(x: u32, n: u32) -> u32 {
+        (x >> n) | (x << (32 - n))
+    }
+
+    const fn sha256_block(input: &[u8], len: usize) -> [u8; 32] {
+        // Pad the message into a single 512-bit (64-byte) block.
+        // input must be < 56 bytes.
+        let mut block = [0u8; 64];
+        let mut i = 0;
+        while i < len {
+            block[i] = input[i];
+            i += 1;
+        }
+        block[len] = 0x80;
+        // Length in bits as big-endian u64 at end of block
+        let bit_len = (len as u64) * 8;
+        block[56] = (bit_len >> 56) as u8;
+        block[57] = (bit_len >> 48) as u8;
+        block[58] = (bit_len >> 40) as u8;
+        block[59] = (bit_len >> 32) as u8;
+        block[60] = (bit_len >> 24) as u8;
+        block[61] = (bit_len >> 16) as u8;
+        block[62] = (bit_len >> 8) as u8;
+        block[63] = bit_len as u8;
+
+        // Parse block into 16 words
+        let mut w = [0u32; 64];
+        let mut j = 0;
+        while j < 16 {
+            w[j] = ((block[j * 4] as u32) << 24)
+                | ((block[j * 4 + 1] as u32) << 16)
+                | ((block[j * 4 + 2] as u32) << 8)
+                | (block[j * 4 + 3] as u32);
+            j += 1;
+        }
+
+        // Extend words
+        j = 16;
+        while j < 64 {
+            let s0 = rotr32(w[j - 15], 7) ^ rotr32(w[j - 15], 18) ^ (w[j - 15] >> 3);
+            let s1 = rotr32(w[j - 2], 17) ^ rotr32(w[j - 2], 19) ^ (w[j - 2] >> 10);
+            w[j] = w[j - 16].wrapping_add(s0).wrapping_add(w[j - 7]).wrapping_add(s1);
+            j += 1;
+        }
+
+        // Initialize hash values
+        let mut h0: u32 = 0x6a09e667;
+        let mut h1: u32 = 0xbb67ae85;
+        let mut h2: u32 = 0x3c6ef372;
+        let mut h3: u32 = 0xa54ff53a;
+        let mut h4: u32 = 0x510e527f;
+        let mut h5: u32 = 0x9b05688c;
+        let mut h6: u32 = 0x1f83d9ab;
+        let mut h7: u32 = 0x5be0cd19;
+
+        let mut a = h0; let mut b = h1; let mut c = h2; let mut d = h3;
+        let mut e = h4; let mut f = h5; let mut g = h6; let mut h = h7;
+
+        // Compression
+        j = 0;
+        while j < 64 {
+            let s1 = rotr32(e, 6) ^ rotr32(e, 11) ^ rotr32(e, 25);
+            let ch = (e & f) ^ ((!e) & g);
+            let temp1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[j]).wrapping_add(w[j]);
+            let s0 = rotr32(a, 2) ^ rotr32(a, 13) ^ rotr32(a, 22);
+            let maj = (a & b) ^ (a & c) ^ (b & c);
+            let temp2 = s0.wrapping_add(maj);
+
+            h = g; g = f; f = e; e = d.wrapping_add(temp1);
+            d = c; c = b; b = a; a = temp1.wrapping_add(temp2);
+            j += 1;
+        }
+
+        h0 = h0.wrapping_add(a); h1 = h1.wrapping_add(b);
+        h2 = h2.wrapping_add(c); h3 = h3.wrapping_add(d);
+        h4 = h4.wrapping_add(e); h5 = h5.wrapping_add(f);
+        h6 = h6.wrapping_add(g); h7 = h7.wrapping_add(h);
+
+        // Produce output
+        let mut out = [0u8; 32];
+        out[0] = (h0 >> 24) as u8; out[1] = (h0 >> 16) as u8;
+        out[2] = (h0 >> 8) as u8;  out[3] = h0 as u8;
+        out[4] = (h1 >> 24) as u8; out[5] = (h1 >> 16) as u8;
+        out[6] = (h1 >> 8) as u8;  out[7] = h1 as u8;
+        out[8] = (h2 >> 24) as u8; out[9] = (h2 >> 16) as u8;
+        out[10] = (h2 >> 8) as u8; out[11] = h2 as u8;
+        out[12] = (h3 >> 24) as u8; out[13] = (h3 >> 16) as u8;
+        out[14] = (h3 >> 8) as u8; out[15] = h3 as u8;
+        out[16] = (h4 >> 24) as u8; out[17] = (h4 >> 16) as u8;
+        out[18] = (h4 >> 8) as u8; out[19] = h4 as u8;
+        out[20] = (h5 >> 24) as u8; out[21] = (h5 >> 16) as u8;
+        out[22] = (h5 >> 8) as u8; out[23] = h5 as u8;
+        out[24] = (h6 >> 24) as u8; out[25] = (h6 >> 16) as u8;
+        out[26] = (h6 >> 8) as u8; out[27] = h6 as u8;
+        out[28] = (h7 >> 24) as u8; out[29] = (h7 >> 16) as u8;
+        out[30] = (h7 >> 8) as u8; out[31] = h7 as u8;
+
+        out
+    }
+
     let mut constants = [0u64; 80];
-    // Deterministic generation using a linear congruential generator
-    // seeded from "QBC-Poseidon2" ASCII bytes.
-    let seed: u64 = 0x5142_432D_506F_7332; // "QBC-Pos2" as u64
-    let mut state: u128 = seed as u128;
+    // Seed: "QBC-Poseidon2-RC-v1" (19 bytes, fits in single SHA-256 block)
+    let seed: [u8; 19] = *b"QBC-Poseidon2-RC-v1";
+    let mut state = sha256_block(&seed, 19);
 
     let mut i = 0;
     while i < 80 {
-        // LCG: state = (state * 6364136223846793005 + 1) mod 2^128
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        // Extract upper 64 bits and reduce mod p
-        let raw = (state >> 64) as u64;
-        constants[i] = raw % GOLDILOCKS_P;
+        // Hash chain: state = SHA-256(state)
+        state = sha256_block(&state, 32);
+
+        // Extract first 8 bytes as little-endian u64, reduce mod p
+        let raw = ((state[0] as u64))
+            | ((state[1] as u64) << 8)
+            | ((state[2] as u64) << 16)
+            | ((state[3] as u64) << 24)
+            | ((state[4] as u64) << 32)
+            | ((state[5] as u64) << 40)
+            | ((state[6] as u64) << 48)
+            | ((state[7] as u64) << 56);
+        let reduced = raw % GOLDILOCKS_P;
+        // Ensure nonzero: if the reduction gives 0 (astronomically unlikely),
+        // use 1 instead.
+        constants[i] = if reduced == 0 { 1 } else { reduced };
         i += 1;
     }
 

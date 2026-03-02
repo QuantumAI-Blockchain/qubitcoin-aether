@@ -170,6 +170,21 @@ pub mod pallet {
         ValueQuery,
     >;
 
+    /// Index of request IDs by their expiry block height.
+    ///
+    /// Maps `expiry_block_height → Vec<request_id>`. This allows efficient
+    /// lookup of which requests expire at a given block height, avoiding
+    /// full iteration of the `ReversalRequests` map when pruning or
+    /// auto-expiring entries.
+    #[pallet::storage]
+    pub type ExpiryIndex<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        u64,  // expiry_block_height
+        BoundedVec<H256, ConstU32<MAX_GOVERNORS>>,  // request_ids (bounded per block)
+        ValueQuery,
+    >;
+
     // ═══════════════════════════════════════════════════════════════════
     // Types
     // ═══════════════════════════════════════════════════════════════════
@@ -451,6 +466,11 @@ pub mod pallet {
 
             ReversalRequests::<T>::insert(&request_id, request);
             TotalRequests::<T>::mutate(|n| *n = n.saturating_add(1));
+
+            // Add to expiry index for efficient pruning
+            ExpiryIndex::<T>::mutate(expiry, |ids| {
+                let _ = ids.try_push(request_id);
+            });
 
             Self::deposit_event(Event::ReversalRequested {
                 request_id,
@@ -738,23 +758,34 @@ pub mod pallet {
 
             let current_height = pallet_qbc_utxo::CurrentHeight::<T>::get();
             let mut pruned: u32 = 0;
-            let mut to_remove: sp_std::vec::Vec<H256> = sp_std::vec::Vec::new();
 
-            // Iterate expired reversals and collect those older than max_age_blocks
-            let iter = ExpiredReversals::<T>::iter();
-            for (request_id, request) in iter {
+            // Use the expiry index to efficiently find old entries.
+            // Walk block heights from 0 up to (current_height - max_age_blocks)
+            // and remove entries at those heights.
+            let cutoff = current_height.saturating_sub(max_age_blocks);
+
+            // Scan expiry index blocks that are older than cutoff.
+            // We iterate the ExpiryIndex map, but only entries at expired heights.
+            let mut blocks_to_clean: sp_std::vec::Vec<u64> = sp_std::vec::Vec::new();
+            for (block_height, request_ids) in ExpiryIndex::<T>::iter() {
                 if pruned >= max_entries {
                     break;
                 }
-                let age = current_height.saturating_sub(request.expiry_block_height);
-                if age > max_age_blocks {
-                    to_remove.push(request_id);
-                    pruned += 1;
+                if block_height <= cutoff {
+                    for request_id in request_ids.iter() {
+                        if pruned >= max_entries {
+                            break;
+                        }
+                        ExpiredReversals::<T>::remove(request_id);
+                        pruned += 1;
+                    }
+                    blocks_to_clean.push(block_height);
                 }
             }
 
-            for id in to_remove {
-                ExpiredReversals::<T>::remove(&id);
+            // Remove cleaned expiry index entries
+            for block_height in blocks_to_clean {
+                ExpiryIndex::<T>::remove(block_height);
             }
 
             log::info!(

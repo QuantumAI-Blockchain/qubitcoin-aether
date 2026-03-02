@@ -19,6 +19,8 @@ services:
       - "8080:8080"     # Admin UI
     volumes:
       - cockroach-data:/cockroach/cockroach-data
+    # WARNING: --insecure is for development only. Use TLS certificates and
+    # --certs-dir in production. See https://www.cockroachlabs.com/docs/stable/secure-a-cluster
     command: start-single-node --insecure
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
@@ -88,9 +90,9 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --save 60 1 --loglevel warning
+    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-changeme}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -117,6 +119,7 @@ services:
       - IPFS_GATEWAY_PORT=8080
       - AIKGS_GRPC_ADDR=aikgs-sidecar
       - AIKGS_GRPC_PORT=50052
+      - AIKGS_AUTH_TOKEN=${AIKGS_AUTH_TOKEN:-}
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -137,14 +140,20 @@ services:
       context: ./aikgs-sidecar
       dockerfile: Dockerfile
     container_name: qbc-aikgs-sidecar
-    ports:
-      - "50052:50052"   # gRPC
+    # NOTE: gRPC port intentionally NOT exposed to host (AIKGS-C1).
+    # Only accessible via Docker internal networking (qbc-node → aikgs-sidecar:50052).
     environment:
       - AIKGS_GRPC_PORT=50052
+      - AIKGS_AUTH_TOKEN=${AIKGS_AUTH_TOKEN:-}
       - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
-      - NODE_RPC_URL=http://qbc-node:5000
+      - AIKGS_NODE_RPC_URL=http://qbc-node:5000
       - AIKGS_TREASURY_ADDRESS=${AIKGS_TREASURY_ADDRESS:-}
       - AIKGS_VAULT_MASTER_KEY=${AIKGS_VAULT_MASTER_KEY:-}
+      - AIKGS_MAX_SINGLE_DISBURSEMENT=${AIKGS_MAX_SINGLE_DISBURSEMENT:-1000.0}
+      - AIKGS_MAX_DAILY_DISBURSEMENT=${AIKGS_MAX_DAILY_DISBURSEMENT:-50000.0}
+      - AIKGS_MAX_DISBURSEMENTS_PER_HOUR=${AIKGS_MAX_DISBURSEMENTS_PER_HOUR:-100}
+      - AIKGS_DISBURSE_MAX_RETRIES=${AIKGS_DISBURSE_MAX_RETRIES:-3}
+      - AIKGS_DISBURSE_INITIAL_BACKOFF_MS=${AIKGS_DISBURSE_INITIAL_BACKOFF_MS:-1000}
       - RUST_LOG=info
     depends_on:
       db-init:
@@ -185,7 +194,7 @@ services:
       - "3001:3000"     # 3001 to avoid conflict with frontend dev on 3000
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-qbc_grafana_change_me}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana-data:/var/lib/grafana

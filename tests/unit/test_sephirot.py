@@ -112,11 +112,12 @@ class TestSephirotManager:
         assert corrections == 3  # All 3 pairs corrected
 
     def test_get_coherence_uniform(self):
-        """All equal energies should give high coherence."""
+        """All equal energies should report 0.0 (no meaningful synchronization)."""
         mgr = self._make_manager()
-        # All nodes start at energy=1.0
+        # All nodes start at energy=1.0 — identical values cannot demonstrate
+        # meaningful synchronization, so coherence should be 0.0
         coherence = mgr.get_coherence()
-        assert coherence == 1.0  # All same phase → perfect sync
+        assert coherence == 0.0  # All same → no meaningful sync signal
 
     def test_get_coherence_varied(self):
         """Different energies should give coherence different from uniform case."""

@@ -276,13 +276,36 @@ class TestSafetyManager:
         sm = SafetyManager()
         sm.emergency_shutdown("test", block_height=100)
         assert sm.is_shutdown is True
-        assert sm.resume(block_height=110) is True
+        # Resume now requires authentication
+        nonce = sm.authenticator.generate_nonce()
+        token = sm.authenticator.sign_nonce(nonce, "resume")
+        assert sm.resume(block_height=110, nonce=nonce, token=token) is True
         assert sm.is_shutdown is False
+
+    def test_resume_rejected_without_auth(self):
+        from qubitcoin.aether.safety import SafetyManager
+        sm = SafetyManager()
+        sm.emergency_shutdown("test", block_height=100)
+        assert sm.is_shutdown is True
+        # Resume without auth should be rejected
+        assert sm.resume(block_height=110) is False
+        assert sm.is_shutdown is True
+
+    def test_resume_rejected_with_bad_token(self):
+        from qubitcoin.aether.safety import SafetyManager
+        sm = SafetyManager()
+        sm.emergency_shutdown("test", block_height=100)
+        assert sm.is_shutdown is True
+        nonce = sm.authenticator.generate_nonce()
+        assert sm.resume(block_height=110, nonce=nonce, token="bad") is False
+        assert sm.is_shutdown is True
 
     def test_resume_when_not_shutdown(self):
         from qubitcoin.aether.safety import SafetyManager
         sm = SafetyManager()
-        assert sm.resume(block_height=1) is False
+        nonce = sm.authenticator.generate_nonce()
+        token = sm.authenticator.sign_nonce(nonce, "resume")
+        assert sm.resume(block_height=1, nonce=nonce, token=token) is False
 
     def test_get_stats(self):
         from qubitcoin.aether.safety import SafetyManager

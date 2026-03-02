@@ -439,8 +439,12 @@ export const api = {
     }>("/aether/llm/seed-user", body),
 
   // Native wallet
+  // SECURITY [FE-C1]: /wallet/create no longer returns private_key_hex.
+  // The server generates a keypair but only returns the address and public key.
+  // Private keys must be generated client-side via Dilithium2 WASM.
+  // See: https://github.com/nicoburniske/pqc-wasm for a reference WASM build.
   createWallet: () =>
-    post<{ address: string; public_key_hex: string; private_key_hex: string }>(
+    post<{ address: string; public_key_hex: string }>(
       "/wallet/create",
       {},
     ),

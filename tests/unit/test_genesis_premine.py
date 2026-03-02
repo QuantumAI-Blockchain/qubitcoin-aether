@@ -5,7 +5,7 @@ and circulation tracking with the premine included.
 """
 import pytest
 from decimal import Decimal
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 # ── Config ──────────────────────────────────────────────────────────
@@ -157,7 +157,9 @@ class TestPremineConsensus:
         valid, reason = eng.validate_block(block, None, db)
         assert valid is True, f"Should accept genesis premine: {reason}"
 
-    def test_non_genesis_premine_rejected(self):
+    @patch('qubitcoin.quantum.crypto.Dilithium2')
+    def test_non_genesis_premine_rejected(self, mock_dil):
+        mock_dil.verify.return_value = True
         from qubitcoin.config import Config
         from qubitcoin.database.models import Block, Transaction
         eng = self._make_engine()
@@ -179,7 +181,8 @@ class TestPremineConsensus:
         block = Block(
             height=1, block_hash=None, prev_hash='a' * 64,
             timestamp=1001, difficulty=1.0,
-            proof_data={'params': [], 'challenge': [], 'energy': 0.5},
+            proof_data={'params': [], 'challenge': [], 'energy': 0.5,
+                       'signature': 'aa' * 64, 'public_key': 'bb' * 64},
             transactions=[coinbase],
         )
         valid, reason = eng.validate_block(block, prev, db)

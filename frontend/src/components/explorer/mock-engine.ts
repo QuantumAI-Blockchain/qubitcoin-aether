@@ -1,6 +1,11 @@
 /* ─────────────────────────────────────────────────────────────────────────
    QBC Explorer — Deterministic Mock Data Engine
    mulberry32 PRNG — same seed = identical data every reload
+
+   WARNING: This file provides MOCK DATA for development and testing only.
+   It is imported lazily and should never be loaded in production builds.
+   All consuming hooks guard imports behind:
+     process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
    ───────────────────────────────────────────────────────────────────────── */
 
 import type {

@@ -4,7 +4,7 @@ mod bridge;
 
 use anyhow::Result;
 use tokio::sync::{mpsc, broadcast};
-use tracing::info;
+use tracing::{info, error};
 use std::sync::Arc;
 
 use bridge::p2p_service::NetworkEvent;
@@ -41,18 +41,22 @@ async fn main() -> Result<()> {
 
     // ── Spawn P2P network ───────────────────────────────────────────
     tokio::spawn(async move {
-        let p2p = network::P2PNetwork::new(p2p_port, to_python_tx, from_python_rx)
-            .await
-            .expect("Failed to create P2P network");
-        p2p.run().await;
+        match network::P2PNetwork::new(p2p_port, to_python_tx, from_python_rx).await {
+            Ok(p2p) => {
+                p2p.run().await;
+            }
+            Err(e) => {
+                error!("Failed to create P2P network: {}", e);
+            }
+        }
     });
 
     // ── Spawn gRPC server ───────────────────────────────────────────
     let grpc_addr_clone = grpc_addr.clone();
     tokio::spawn(async move {
-        bridge::start_grpc_server(&grpc_addr_clone, to_network_tx, event_tx_clone, stats_clone)
-            .await
-            .expect("Failed to start gRPC server");
+        if let Err(e) = bridge::start_grpc_server(&grpc_addr_clone, to_network_tx, event_tx_clone, stats_clone).await {
+            error!("Failed to start gRPC server: {}", e);
+        }
     });
 
     info!("All services running");
@@ -67,7 +71,7 @@ async fn main() -> Result<()> {
             Some(msg) = to_python_rx.recv() => {
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_secs();
 
                 let event = match &msg {

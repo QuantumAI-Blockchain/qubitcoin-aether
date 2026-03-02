@@ -42,9 +42,16 @@ impl P2PNetwork {
         
         info!("🦀 Local peer ID: {}", local_peer_id);
         
+        // Maximum gossipsub message size: 10 MB.
+        // This prevents OOM attacks from peers sending excessively large messages.
+        // A typical QBC block is well under 5 MB (Dilithium sigs are ~3KB each,
+        // with ~333 tx/MB → a full 5 MB block is ~1,665 transactions).
+        const MAX_GOSSIPSUB_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10 MB
+
         let gossipsub_config = gossipsub::ConfigBuilder::default()
             .heartbeat_interval(Duration::from_secs(1))
             .validation_mode(gossipsub::ValidationMode::Strict)
+            .max_transmit_size(MAX_GOSSIPSUB_MESSAGE_SIZE)
             .message_id_fn(|message| {
                 use sha2::{Sha256, Digest};
                 let mut hasher = Sha256::new();
@@ -157,7 +164,7 @@ impl P2PNetwork {
                 for (peer_id, multiaddr) in peers {
                     info!("🔍 mDNS discovered: {} at {}", peer_id, multiaddr);
                     
-                    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+                    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
                     self.peers.insert(peer_id, PeerInfo {
                         peer_id: peer_id.to_string(),
                         address: multiaddr.to_string(),

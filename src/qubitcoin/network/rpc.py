@@ -680,7 +680,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
 
     # In-memory commit store: commit_hash -> {timestamp, block_height}
+    # Capped at 10,000 entries; oldest evicted when full.
     _pending_commits: Dict[str, Dict] = {}
+    _PENDING_COMMITS_MAX: int = 10_000
 
     # Track which txids came through commit-reveal: txid -> commit_timestamp
     _committed_txids: Dict[str, float] = {}
@@ -710,6 +712,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "timestamp": now,
             "block_height": current_height,
         }
+
+        # Evict oldest commits if cache exceeds cap
+        if len(_pending_commits) > _PENDING_COMMITS_MAX:
+            sorted_items = sorted(
+                _pending_commits.items(), key=lambda x: x[1]["timestamp"]
+            )
+            evict_count = len(sorted_items) - _PENDING_COMMITS_MAX // 2
+            for k, _ in sorted_items[:evict_count]:
+                _pending_commits.pop(k, None)
 
         logger.info(f"MEV commit received: {commit_hash[:16]}... at height {current_height}")
 
@@ -1541,6 +1552,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Submit a Community Due Diligence report for a contract/project."""
         import time as _time
         import hashlib as _hashlib
+        import re as _re
 
         if not req.title.strip() or not req.content.strip():
             raise HTTPException(status_code=400, detail="Title and content are required")
@@ -1549,11 +1561,29 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if len(req.content) > 2000:
             raise HTTPException(status_code=400, detail="Content must be 2000 characters or less")
 
-        # Generate a unique report ID
-        raw = f"{req.project_address}:{req.author}:{req.title}:{_time.time()}"
-        report_id = _hashlib.sha256(raw.encode()).hexdigest()
+        # Sanitize inputs: strip control characters and limit lengths
+        _HEX_RE = _re.compile(r'^[a-fA-F0-9]{1,64}$')
+        safe_project = req.project_address.strip()[:64]
+        safe_author = req.author.strip()[:64]
+        safe_title = req.title.strip()[:200]
+        safe_category = req.category.strip()[:50]
+        safe_content = req.content.strip()[:2000]
 
-        # Store in the database if we have a session
+        if not _HEX_RE.match(safe_project):
+            raise HTTPException(status_code=400, detail="Invalid project address format")
+        if not _HEX_RE.match(safe_author):
+            raise HTTPException(status_code=400, detail="Invalid author address format")
+
+        # Generate a unique report ID using proper serialization
+        raw_for_hash = json.dumps({
+            "project": safe_project,
+            "author": safe_author,
+            "title": safe_title,
+            "ts": _time.time(),
+        }, sort_keys=True, separators=(',', ':'))
+        report_id = _hashlib.sha256(raw_for_hash.encode()).hexdigest()
+
+        # Store in the database using parameterized queries
         try:
             from sqlalchemy import text as sa_text
             with db_manager.get_session() as session:
@@ -1565,9 +1595,14 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                         ON CONFLICT (contract_id) DO NOTHING
                     """),
                     {
-                        'rid': f"dd_{report_id[:32]}",
-                        'author': req.author,
-                        'code': f'{{"category":"{req.category}","title":"{req.title}","content":"{req.content[:200]}","project":"{req.project_address}"}}',
+                        'rid': "dd_" + report_id[:32],
+                        'author': safe_author,
+                        'code': json.dumps({
+                            "category": safe_category,
+                            "title": safe_title,
+                            "content": safe_content[:200],
+                            "project": safe_project,
+                        }),
                         'height': db_manager.get_current_height(),
                     }
                 )
@@ -1578,7 +1613,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return {
             "success": True,
             "report_id": report_id,
-            "message": f"DD report submitted for {req.project_address}",
+            "message": "DD report submitted for " + safe_project,
         }
 
     # ========================================================================
@@ -1847,8 +1882,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return {"paths": paths, "count": len(paths)}
 
     @app.post("/aether/knowledge/prune")
-    async def knowledge_prune(threshold: float = 0.1):
-        """Prune low-confidence nodes from knowledge graph (admin)."""
+    async def knowledge_prune(
+        threshold: float = 0.1,
+        x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    ):
+        """Prune low-confidence nodes from knowledge graph (admin auth required)."""
+        _require_admin_key(x_admin_key)
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
         if threshold < 0.0 or threshold > 0.5:
@@ -2364,15 +2403,40 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.post("/wallet/create")
     async def wallet_create():
-        """Generate a new Dilithium2 quantum-secure wallet."""
+        """Generate a new Dilithium2 quantum-secure wallet.
+
+        SECURITY [FE-C1]: Private keys are NEVER returned over HTTP.  Only
+        the address and public key are returned.  The private key is
+        discarded server-side immediately after address derivation.
+
+        This endpoint exists for backward compatibility.  Prefer client-side
+        key generation via a Dilithium2 WASM module so key material never
+        leaves the browser.
+        """
         from ..quantum.crypto import Dilithium2
         pk, sk = Dilithium2.keygen()
         address = Dilithium2.derive_address(pk)
-        logger.info(f"Native wallet created: {address[:12]}...")
+
+        # SECURITY [FE-C1]: Explicitly discard the private key — it must
+        # NEVER be sent over the network.  The variable is overwritten to
+        # reduce the window where it exists in memory.
+        del sk
+
+        logger.info(
+            f"/wallet/create: generated address {address[:12]}... "
+            "(public key only — private key discarded server-side)"
+        )
+
         return {
             'address': address,
             'public_key_hex': pk.hex(),
-            'private_key_hex': sk.hex(),  # Returned ONCE — client stores securely
+            # SECURITY [FE-C1]: private_key_hex is intentionally NOT returned.
+            # Private keys must be generated client-side (Dilithium2 WASM).
+            '_notice': (
+                'Private key is NOT returned.  Generate and store private keys '
+                'client-side using a Dilithium2 WASM module.  This endpoint only '
+                'provides address and public key for convenience.'
+            ),
         }
 
     class WalletSendRequest(BaseModel):

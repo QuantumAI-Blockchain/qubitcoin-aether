@@ -81,7 +81,9 @@ function WalletSelector({
         label: `Wallet ${wallets.length + 1}`,
         createdAt: Date.now(),
       });
-      setNewKey(res.private_key_hex);
+      // SECURITY [FE-C1]: Server no longer returns private_key_hex.
+      // Private key generation must happen client-side via Dilithium2 WASM.
+      setNewKey(null);
     } catch (e) {
       alert(`Failed to create wallet: ${e}`);
     } finally {
@@ -321,6 +323,11 @@ function SendPanel({ wallet }: { wallet: NativeWallet }) {
               vout: picked.vout,
               value: Math.round(picked.amount * 1e8),
               blinding: 0, // fresh UTXO, no existing blinding
+              // SECURITY [FE-H7]: PLACEHOLDER — In production, the spending
+              // key MUST be derived using a proper KDF (e.g. HKDF-SHA256) from
+              // the private key, NOT by truncating and parsing the hex.  This
+              // naive derivation leaks key material and provides no domain
+              // separation.  Replace with a proper KDF before mainnet.
               spending_key: parseInt(privateKey.slice(0, 16), 16) || 1,
             },
           ],

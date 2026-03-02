@@ -195,27 +195,33 @@ contract ProofOfThought is Initializable {
 
     /// @notice Withdraw unstaked validator funds after the 7-day unstaking delay.
     ///         Requires prior call to requestUnstake() and waiting UNSTAKING_DELAY blocks.
-    function withdrawStake(uint256 amount) external nonReentrant {
-        require(amount > 0, "PoT: zero amount");
-        require(stakes[msg.sender] >= amount, "PoT: insufficient stake");
+    ///         Withdraws the FULL staked amount — partial withdrawals are not allowed
+    ///         to prevent bypassing the 7-day delay on new stakes added after requestUnstake().
+    function withdrawStake() external nonReentrant {
+        uint256 amount = stakes[msg.sender];
+        require(amount > 0, "PoT: no stake to withdraw");
         require(unstakeRequestBlock[msg.sender] > 0, "PoT: unstake not requested");
         require(
             block.number >= unstakeRequestBlock[msg.sender] + UNSTAKING_DELAY,
             "PoT: unstaking delay not met"
         );
 
-        stakes[msg.sender] -= amount;
+        stakes[msg.sender] = 0;
         totalStaked -= amount;
 
-        // Reset unstake request if fully withdrawn
-        if (stakes[msg.sender] == 0) {
-            unstakeRequestBlock[msg.sender] = 0;
-        }
+        // Always reset unstake request — full withdrawal only
+        unstakeRequestBlock[msg.sender] = 0;
 
         (bool success, ) = payable(msg.sender).call{value: amount}("");
         require(success, "PoT: transfer failed");
 
         emit StakeWithdrawn(msg.sender, amount);
+    }
+
+    /// @notice Cancel a pending unstake request. Validator remains active.
+    function cancelUnstake() external {
+        require(unstakeRequestBlock[msg.sender] > 0, "PoT: no pending unstake");
+        unstakeRequestBlock[msg.sender] = 0;
     }
 
     /// @notice Check if an address meets minimum stake to be a validator

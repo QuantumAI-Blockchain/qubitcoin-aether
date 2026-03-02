@@ -140,7 +140,21 @@ func (interp *Interpreter) ExecuteWithAccess(
 }
 
 // run is the main execution loop.
-func (interp *Interpreter) run(ctx *ExecutionContext) error {
+func (interp *Interpreter) run(ctx *ExecutionContext) (retErr error) {
+	// Recover from mustPop panics (stack underflow).
+	// Per EVM spec, stack underflow is an exceptional halt that consumes all gas.
+	defer func() {
+		if r := recover(); r != nil {
+			if r == errStackUnderflow {
+				ctx.Stopped = true
+				ctx.GasUsed = ctx.Call.Gas // consume all remaining gas
+				retErr = errStackUnderflow
+			} else {
+				panic(r) // re-panic for non-underflow panics
+			}
+		}
+	}()
+
 	code := ctx.Call.Code
 
 	for ctx.PC < uint64(len(code)) && !ctx.Stopped && !ctx.Reverted {
@@ -1048,12 +1062,15 @@ func (interp *Interpreter) run(ctx *ExecutionContext) error {
 			// Snapshot for rollback
 			snapID := interp.state.Snapshot()
 
-			// Value transfer — only for CALL, NOT CALLCODE
+			// Value transfer — only for CALL, NOT CALLCODE/DELEGATECALL/STATICCALL.
 			// CALLCODE runs target's code in caller's context; the value field
 			// indicates msg.value but does not actually transfer funds.
+			// QVM-H7: Balance check is critical — without it, a CALL with value
+			// could transfer more QBC than the sender holds, creating funds from nothing.
 			if callValue.Sign() > 0 && op == CALL {
 				senderBal := interp.state.GetBalance(ctx.Call.Address)
 				if senderBal.Cmp(callValue) < 0 {
+					// Insufficient balance: revert snapshot and push 0 (failure)
 					interp.state.RevertToSnapshot(snapID)
 					err = ctx.Stack.Push(big.NewInt(0))
 					break
@@ -1259,14 +1276,17 @@ func rlpEncodeCreateAddress(sender []byte, nonce uint64) []byte {
 // Per EVM spec, stack underflow is an exceptional halt that consumes all gas.
 var errStackUnderflow = fmt.Errorf("stack underflow")
 
+// mustPop1 pops one value from the stack. On underflow it panics with
+// errStackUnderflow; the deferred recovery in the run loop converts this
+// into an exceptional halt that consumes all remaining gas.
 func mustPop1(ctx *ExecutionContext) *big.Int {
 	val, err := ctx.Stack.Pop()
 	if err != nil || val == nil {
-		// EVM spec: stack underflow = exceptional halt (consume all gas)
-		ctx.Stopped = true
-		ctx.GasUsed = ctx.Call.Gas // consume all remaining gas
+		// EVM spec: stack underflow = exceptional halt (consume all gas).
+		// Panic so the run-loop's deferred recover catches it and aborts
+		// execution instead of silently continuing with a zero value.
 		log.Printf("EVM exceptional halt: stack underflow at PC=%d", ctx.PC)
-		return big.NewInt(0)
+		panic(errStackUnderflow)
 	}
 	return val
 }

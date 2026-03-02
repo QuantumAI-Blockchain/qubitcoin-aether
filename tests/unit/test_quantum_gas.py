@@ -90,5 +90,6 @@ class TestQuantumGasScaling:
         """Original get_gas_cost should still work unchanged."""
         from qubitcoin.qvm.opcodes import get_gas_cost, Opcode
         assert get_gas_cost(Opcode.ADD) == 3
-        assert get_gas_cost(Opcode.SSTORE) == 20000
+        # EIP-2929: SSTORE gas is now charged dynamically (warm/cold tracking)
+        assert get_gas_cost(Opcode.SSTORE) == 0  # Base cost 0; actual cost computed at runtime
         assert get_gas_cost(Opcode.QGATE) == 5000

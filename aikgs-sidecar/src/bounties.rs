@@ -95,6 +95,9 @@ impl BountyManager {
     ///
     /// Assigns the next sequential bounty_id, calculates the expiration
     /// timestamp, inserts into DB, and returns the created bounty.
+    /// Create a new bounty targeting a knowledge gap.
+    ///
+    /// Uses atomic ID generation via `INSERT ... RETURNING bounty_id`.
     pub async fn create_bounty(
         db: &Db,
         domain: &str,
@@ -104,24 +107,20 @@ impl BountyManager {
         duration_secs: i64,
         boost_multiplier: f64,
     ) -> Result<BountyInfo, BountyError> {
-        let bounty_id = db.next_bounty_id().await?;
         let expires_at = Utc::now() + Duration::seconds(duration_secs);
+        let expires_at_epoch = expires_at.timestamp() as f64;
 
-        let row = BountyRow {
-            bounty_id,
-            domain: domain.to_string(),
-            description: description.to_string(),
-            gap_hash: gap_hash.to_string(),
-            reward_amount,
-            boost_multiplier,
-            status: "open".to_string(),
-            claimer_address: String::new(),
-            contribution_id: 0,
-            created_at_epoch: Utc::now().timestamp() as f64,
-            expires_at_epoch: expires_at.timestamp() as f64,
-        };
-
-        db.insert_bounty(&row).await?;
+        // Atomic insert with DB-generated bounty_id
+        let bounty_id = db
+            .insert_bounty_returning_id(
+                domain,
+                description,
+                gap_hash,
+                reward_amount,
+                boost_multiplier,
+                expires_at_epoch,
+            )
+            .await?;
 
         log::info!(
             "Created bounty {} in domain={} reward={} boost={} expires={}s",
@@ -132,7 +131,19 @@ impl BountyManager {
             duration_secs,
         );
 
-        Ok(BountyInfo::from(row))
+        Ok(BountyInfo {
+            bounty_id,
+            domain: domain.to_string(),
+            description: description.to_string(),
+            gap_hash: gap_hash.to_string(),
+            reward_amount,
+            boost_multiplier,
+            status: "open".to_string(),
+            claimer_address: String::new(),
+            contribution_id: 0,
+            created_at: Utc::now().timestamp() as f64,
+            expires_at: expires_at_epoch,
+        })
     }
 
     /// List bounties filtered by domain and/or status.
@@ -178,36 +189,38 @@ impl BountyManager {
 
     /// Fulfill a claimed bounty with a contribution.
     ///
-    /// Verifies the bounty is in "claimed" status, transitions it to
-    /// "fulfilled", and returns the effective reward (reward_amount * boost_multiplier).
+    /// Uses atomic `UPDATE ... WHERE status = 'claimed' RETURNING *` to prevent
+    /// double-fulfill race condition. If the bounty is not in "claimed" status,
+    /// the update affects zero rows and we return an error.
     pub async fn fulfill_bounty(
         db: &Db,
         bounty_id: i64,
         contribution_id: i64,
         _contributor_address: &str,
     ) -> Result<f64, BountyError> {
-        // Fetch the bounty to verify status and compute reward.
+        // Atomic check-and-update: only fulfills if status is still 'claimed'.
+        // This prevents double-fulfill even under concurrent requests.
+        let fulfilled = db.fulfill_bounty(bounty_id, contribution_id).await?;
+        if !fulfilled {
+            // Either the bounty doesn't exist or isn't in 'claimed' status.
+            let bounty = db.get_bounty(bounty_id).await?;
+            match bounty {
+                None => return Err(BountyError::NotFound(bounty_id)),
+                Some(b) => {
+                    return Err(BountyError::InvalidStatus(
+                        bounty_id,
+                        "claimed".to_string(),
+                        b.status,
+                    ))
+                }
+            }
+        }
+
+        // Fetch the now-fulfilled bounty to compute the effective reward.
         let bounty = db
             .get_bounty(bounty_id)
             .await?
             .ok_or(BountyError::NotFound(bounty_id))?;
-
-        if bounty.status != "claimed" {
-            return Err(BountyError::InvalidStatus(
-                bounty_id,
-                "claimed".to_string(),
-                bounty.status.clone(),
-            ));
-        }
-
-        let fulfilled = db.fulfill_bounty(bounty_id, contribution_id).await?;
-        if !fulfilled {
-            return Err(BountyError::InvalidStatus(
-                bounty_id,
-                "claimed".to_string(),
-                bounty.status,
-            ));
-        }
 
         let effective_reward = bounty.reward_amount * bounty.boost_multiplier;
 

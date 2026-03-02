@@ -135,7 +135,7 @@ impl RewardEngine {
     pub async fn stats(&self, db: &Db) -> RewardStats {
         let distributed = db.get_total_distributed().await.unwrap_or(0.0);
         let count = db.get_reward_distribution_count().await.unwrap_or(0);
-        let total_contributions = db.next_contribution_id().await.unwrap_or(1) - 1;
+        let total_contributions = db.contribution_count().await.unwrap_or(0);
 
         RewardStats {
             pool_balance: (self.initial_pool - distributed).max(0.0),

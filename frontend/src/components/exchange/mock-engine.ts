@@ -1,5 +1,10 @@
 // ─── QBC EXCHANGE — Mock Data Engine ─────────────────────────────────────────
 // Deterministic seeded PRNG. All data types. Zero empty states.
+//
+// WARNING: This file provides MOCK DATA for development and testing only.
+// It is imported lazily and should never be loaded in production builds.
+// All consuming hooks guard imports behind:
+//   process.env.NEXT_PUBLIC_EXCHANGE_MOCK === "true"
 
 import type {
   MarketId, Market, OHLCBar, OrderBook, OrderBookLevel, Trade, Order,

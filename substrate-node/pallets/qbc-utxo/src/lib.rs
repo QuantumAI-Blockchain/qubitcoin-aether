@@ -10,6 +10,23 @@
 
 pub use pallet::*;
 
+/// Trait for checking if a UTXO has been frozen by an external pallet
+/// (e.g., the reversibility pallet). This provides loose coupling between
+/// the UTXO pallet and the reversibility pallet.
+pub trait UtxoFreezeChecker {
+    /// Returns true if the UTXO identified by (txid, vout) has been frozen
+    /// and should not be spent.
+    fn is_frozen(txid: &sp_core::H256, vout: u32) -> bool;
+}
+
+/// Default implementation that never freezes anything.
+/// Used when no reversibility pallet is configured.
+impl UtxoFreezeChecker for () {
+    fn is_frozen(_txid: &sp_core::H256, _vout: u32) -> bool {
+        false
+    }
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use frame_support::pallet_prelude::*;
@@ -17,6 +34,7 @@ pub mod pallet {
     use qbc_primitives::*;
     use sp_core::H256;
     use sp_runtime::BoundedVec;
+    use crate::UtxoFreezeChecker;
 
     /// Maximum transaction inputs.
     pub const MAX_INPUTS: u32 = 256;
@@ -35,6 +53,9 @@ pub mod pallet {
         /// Maximum outputs per transaction.
         #[pallet::constant]
         type MaxOutputs: Get<u32>;
+        /// Optional freeze checker for cross-pallet UTXO freezing
+        /// (e.g., from the reversibility pallet).
+        type FreezeChecker: crate::UtxoFreezeChecker;
     }
 
     /// UTXO set: (txid, vout) → Utxo.
@@ -127,6 +148,8 @@ pub mod pallet {
         AmountOverflow,
         /// UTXO already spent in this block (double-spend attempt).
         UtxoAlreadySpent,
+        /// UTXO has been frozen by the reversibility pallet and cannot be spent.
+        UtxoFrozen,
     }
 
     #[pallet::genesis_config]
@@ -205,6 +228,15 @@ pub mod pallet {
                 ensure!(
                     !SpentUtxos::<T>::contains_key((&input.prev_txid, input.prev_vout)),
                     Error::<T>::UtxoAlreadySpent
+                );
+            }
+
+            // Check that no input UTXO has been frozen by the reversibility pallet.
+            // Frozen UTXOs are part of a reversal process and must not be spent.
+            for input in inputs.iter() {
+                ensure!(
+                    !T::FreezeChecker::is_frozen(&input.prev_txid, input.prev_vout),
+                    Error::<T>::UtxoFrozen
                 );
             }
 

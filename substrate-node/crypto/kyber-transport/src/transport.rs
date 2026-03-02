@@ -108,7 +108,8 @@ impl KyberTransport {
     /// Returns the handshake-complete message to send to the peer.
     pub fn finalize_handshake(&mut self) -> Result<Vec<u8>, KyberTransportError> {
         let session_key = self.handshake.derive_session_key()?;
-        self.session = Some(SecureSession::new(session_key));
+        let is_initiator = self.handshake.role() == HandshakeRole::Initiator;
+        self.session = Some(SecureSession::new(session_key, is_initiator));
         self.state = TransportState::Established;
 
         Ok(self.handshake.complete_message())

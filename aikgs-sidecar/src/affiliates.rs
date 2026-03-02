@@ -8,6 +8,8 @@
 //! from the contributor's reward. Commission records are persisted in the DB for
 //! auditability and treasury disbursement.
 
+use sqlx::{Postgres, Transaction};
+
 use crate::config::AikgsConfig;
 use crate::db::{AffiliateRow, AffiliateStatsRow, Db};
 
@@ -189,6 +191,103 @@ impl AffiliateManager {
         if l1_amount > 0.0 || l2_amount > 0.0 {
             log::info!(
                 "Affiliate commissions: contributor={}... L1={:.8} L2={:.8}",
+                &contributor_address[..contributor_address.len().min(8)],
+                l1_amount,
+                l2_amount,
+            );
+        }
+
+        Ok((l1_amount, l2_amount))
+    }
+
+    /// Process commissions within an existing transaction (AIKGS-H7).
+    ///
+    /// Same logic as `process_commissions` but uses `_in_tx` DB methods
+    /// so that all operations are part of the caller's transaction.
+    pub async fn process_commissions_in_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        _db: &Db,
+        contributor_address: &str,
+        reward_amount: f64,
+        contribution_id: i64,
+        cfg: &AikgsConfig,
+    ) -> Result<(f64, f64), AikgsError> {
+        if reward_amount <= 0.0 {
+            return Ok((0.0, 0.0));
+        }
+
+        // Look up contributor's affiliate record (read from tx for consistency)
+        let affiliate = match Db::get_affiliate_in_tx(tx, contributor_address).await? {
+            Some(a) => a,
+            None => return Ok((0.0, 0.0)),
+        };
+
+        let l1_referrer = match &affiliate.referrer_address {
+            Some(addr) if !addr.is_empty() => addr.clone(),
+            _ => return Ok((0.0, 0.0)),
+        };
+
+        let mut l1_amount = 0.0;
+        let mut l2_amount = 0.0;
+
+        // L1 commission: direct referrer
+        let l1_affiliate = Db::get_affiliate_in_tx(tx, &l1_referrer).await?;
+        if let Some(ref _l1_aff) = l1_affiliate {
+            l1_amount = round8(reward_amount * cfg.l1_commission_rate);
+            if l1_amount > 0.0 {
+                Db::insert_commission_in_tx(
+                    tx,
+                    &l1_referrer,
+                    contributor_address,
+                    l1_amount,
+                    1,
+                    contribution_id,
+                )
+                .await?;
+
+                Db::increment_affiliate_commission_in_tx(tx, &l1_referrer, 1, l1_amount).await?;
+            }
+
+            // L2 commission: referrer's referrer
+            if let Some(ref l1_aff) = l1_affiliate {
+                let l2_referrer = match &l1_aff.referrer_address {
+                    Some(addr) if !addr.is_empty() => addr.clone(),
+                    _ => String::new(),
+                };
+
+                if !l2_referrer.is_empty() {
+                    if Db::get_affiliate_in_tx(tx, &l2_referrer)
+                        .await?
+                        .is_some()
+                    {
+                        l2_amount = round8(reward_amount * cfg.l2_commission_rate);
+                        if l2_amount > 0.0 {
+                            Db::insert_commission_in_tx(
+                                tx,
+                                &l2_referrer,
+                                contributor_address,
+                                l2_amount,
+                                2,
+                                contribution_id,
+                            )
+                            .await?;
+
+                            Db::increment_affiliate_commission_in_tx(
+                                tx,
+                                &l2_referrer,
+                                2,
+                                l2_amount,
+                            )
+                            .await?;
+                        }
+                    }
+                }
+            }
+        }
+
+        if l1_amount > 0.0 || l2_amount > 0.0 {
+            log::info!(
+                "Affiliate commissions (in tx): contributor={}... L1={:.8} L2={:.8}",
                 &contributor_address[..contributor_address.len().min(8)],
                 l1_amount,
                 l2_amount,

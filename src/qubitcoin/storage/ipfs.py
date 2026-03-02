@@ -47,13 +47,19 @@ class IPFSManager:
             logger.info("Node will run without IPFS snapshot support")
             self.client = None
 
-    def create_snapshot(self, db_manager, height: int) -> Optional[str]:
+    # Maximum rows per table exported in a single snapshot to prevent OOM
+    SNAPSHOT_MAX_ROWS: int = 50_000
+
+    def create_snapshot(self, db_manager, height: int,
+                        max_rows: Optional[int] = None) -> Optional[str]:
         """
-        Create and upload blockchain snapshot
+        Create and upload blockchain snapshot with pagination.
 
         Args:
             db_manager: Database manager instance
             height: Current blockchain height
+            max_rows: Maximum rows per table (default: SNAPSHOT_MAX_ROWS).
+                      Prevents OOM on large chains.
 
         Returns:
             IPFS CID or None if failed
@@ -62,16 +68,21 @@ class IPFSManager:
             logger.warning("IPFS not available, skipping snapshot")
             return None
 
-        try:
-            logger.info(f"Creating snapshot at height {height}")
+        if max_rows is None:
+            max_rows = self.SNAPSHOT_MAX_ROWS
 
-            # Export blockchain state
+        try:
+            logger.info(f"Creating snapshot at height {height} (max {max_rows} rows/table)")
+
+            # Export blockchain state with pagination limits
             with db_manager.get_session() as session:
                 from sqlalchemy import text
 
-                # Get blocks - use raw SQL for simplicity
+                # Get blocks — paginated, most recent first
                 blocks_result = session.execute(
-                    text("SELECT height, prev_hash, proof_json, difficulty, created_at, block_hash FROM blocks ORDER BY height")
+                    text("SELECT height, prev_hash, proof_json, difficulty, created_at, block_hash "
+                         "FROM blocks ORDER BY height DESC LIMIT :lim"),
+                    {'lim': max_rows}
                 ).fetchall()
 
                 # Convert to list of dicts manually
@@ -85,10 +96,14 @@ class IPFSManager:
                         'created_at': row[4].isoformat() if hasattr(row[4], 'isoformat') else str(row[4]),
                         'block_hash': row[5]
                     })
+                # Restore ascending order for consumers
+                blocks.reverse()
 
-                # Get UTXOs
+                # Get UTXOs — paginated
                 utxos_result = session.execute(
-                    text("SELECT txid, vout, amount, address, proof, block_height, spent FROM utxos WHERE spent = false")
+                    text("SELECT txid, vout, amount, address, proof, block_height, spent "
+                         "FROM utxos WHERE spent = false LIMIT :lim"),
+                    {'lim': max_rows}
                 ).fetchall()
 
                 utxos = []
@@ -103,9 +118,12 @@ class IPFSManager:
                         'spent': row[6]
                     })
 
-                # Get confirmed transactions
+                # Get confirmed transactions — paginated, most recent first
                 txs_result = session.execute(
-                    text("SELECT txid, inputs, outputs, fee, signature, public_key, timestamp, status, block_height FROM transactions WHERE status = 'confirmed'")
+                    text("SELECT txid, inputs, outputs, fee, signature, public_key, timestamp, status, block_height "
+                         "FROM transactions WHERE status = 'confirmed' "
+                         "ORDER BY block_height DESC LIMIT :lim"),
+                    {'lim': max_rows}
                 ).fetchall()
 
                 transactions = []
@@ -121,6 +139,7 @@ class IPFSManager:
                         'status': row[7],
                         'block_height': row[8]
                     })
+                transactions.reverse()
 
                 # Get chain hash
                 chain_hash = None
@@ -131,9 +150,13 @@ class IPFSManager:
 
                 # Create snapshot object
                 snapshot = {
-                    'version': '1.0',
+                    'version': '1.1',
                     'timestamp': time.time(),
                     'height': height,
+                    'max_rows_per_table': max_rows,
+                    'truncated': (len(blocks) >= max_rows
+                                  or len(utxos) >= max_rows
+                                  or len(transactions) >= max_rows),
                     'blocks': blocks,
                     'utxos': utxos,
                     'transactions': transactions,

@@ -137,7 +137,7 @@ class TestProofCreation:
     def test_proof_structure(self, mock_dilithium, mock_config):
         """Proof data contains all required fields."""
         import numpy as np
-        mock_config.PRIVATE_KEY_HEX = 'aa' * 32
+        mock_config.PRIVATE_KEY_HEX = 'aa' * 2528
         mock_config.PUBLIC_KEY_HEX = 'bb' * 32
         mock_config.ADDRESS = 'qbc1test'
         mock_dilithium.sign.return_value = b'\x00' * 64
@@ -166,7 +166,7 @@ class TestProofCreation:
     def test_proof_params_are_list(self, mock_dilithium, mock_config):
         """VQE params are serialized as list (not numpy array)."""
         import numpy as np
-        mock_config.PRIVATE_KEY_HEX = 'aa' * 32
+        mock_config.PRIVATE_KEY_HEX = 'aa' * 2528
         mock_config.PUBLIC_KEY_HEX = 'bb' * 32
         mock_config.ADDRESS = 'qbc1test'
         mock_dilithium.sign.return_value = b'\x00' * 64

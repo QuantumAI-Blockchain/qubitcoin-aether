@@ -82,17 +82,56 @@ pub mod pallet {
         /// Uses fixed-point arithmetic to avoid floating point in runtime.
         /// If the total emitted plus the reward would exceed MAX_SUPPLY,
         /// the reward is capped to the remaining supply (or 0 if already at max).
+        /// Maximum number of eras for the phi-halving loop.
+        ///
+        /// At 15,474,020 blocks per era and 3.3s/block, 100 eras spans ~161 years.
+        /// The reward at era 100 is astronomically small (INITIAL_REWARD / phi^100 ≈ 0).
+        /// Capping prevents u128 overflow in the fixed-point multiplication chain
+        /// and avoids unbounded loops from extreme block heights.
+        const MAX_ERA: u32 = 100;
+
         pub fn calculate_reward(block_height: u64) -> QbcBalance {
             let era = (block_height / HALVING_INTERVAL) as u32;
 
             let base_reward = if era == 0 {
                 INITIAL_REWARD
             } else {
+                // Cap the era to prevent unbounded loops at extreme block heights.
+                // Beyond MAX_ERA, the reward is effectively 1 (minimum unit).
+                let capped_era = era.min(Self::MAX_ERA);
+
                 // PHI^era using fixed-point: start with INITIAL_REWARD * PHI_DENOM,
                 // then divide by PHI_SCALED `era` times.
+                //
+                // Each iteration computes: reward = reward * PHI_DENOM / PHI_SCALED
+                // which is equivalent to: reward = reward / PHI (in fixed-point).
+                //
+                // The intermediate product `reward * PHI_DENOM` can overflow u128
+                // when reward is still large (early eras). To avoid this, we split
+                // the multiplication using 128-bit safe division:
+                //   reward * PHI_DENOM / PHI_SCALED
+                //   = reward * (PHI_DENOM / gcd) / (PHI_SCALED / gcd)
+                //
+                // But simpler: since PHI_DENOM and PHI_SCALED share factors, we can
+                // reduce first: PHI_DENOM / PHI_SCALED = 1/phi, and we need to
+                // compute reward / phi. Using the identity:
+                //   reward * PHI_DENOM / PHI_SCALED
+                // We pre-divide reward to avoid overflow when possible.
                 let mut reward = INITIAL_REWARD as u128 * PHI_DENOM;
-                for _ in 0..era {
-                    reward = reward * PHI_DENOM / PHI_SCALED;
+                for _ in 0..capped_era {
+                    // Split to avoid overflow: divide first, then correct remainder.
+                    // reward * PHI_DENOM / PHI_SCALED
+                    // = (reward / PHI_SCALED) * PHI_DENOM + (reward % PHI_SCALED) * PHI_DENOM / PHI_SCALED
+                    let quotient = reward / PHI_SCALED;
+                    let remainder = reward % PHI_SCALED;
+                    reward = quotient.saturating_mul(PHI_DENOM)
+                        .saturating_add(remainder.saturating_mul(PHI_DENOM) / PHI_SCALED);
+                    // If reward has decayed below PHI_DENOM, the final result will be < 1.
+                    // Short-circuit to avoid unnecessary iterations.
+                    if reward < PHI_DENOM {
+                        reward = PHI_DENOM; // Will yield result.max(1) = 1 below
+                        break;
+                    }
                 }
                 let result = reward / PHI_DENOM;
                 // Never go below 1 unit
@@ -198,15 +237,34 @@ mod tests {
     }
 
     /// Standalone reward calculation for testing without runtime.
+    /// Mirrors the pallet's `calculate_reward` logic without needing storage.
     fn calculate_reward_standalone(block_height: u64) -> QbcBalance {
         let era = (block_height / HALVING_INTERVAL) as u32;
         if era == 0 {
             return INITIAL_REWARD;
         }
+        let capped_era = era.min(100);
         let mut reward = INITIAL_REWARD as u128 * PHI_DENOM;
-        for _ in 0..era {
-            reward = reward * PHI_DENOM / PHI_SCALED;
+        for _ in 0..capped_era {
+            // Split to avoid overflow: divide first, then correct remainder.
+            // reward * PHI_DENOM / PHI_SCALED
+            // = (reward / PHI_SCALED) * PHI_DENOM + (reward % PHI_SCALED) * PHI_DENOM / PHI_SCALED
+            let quotient = reward / PHI_SCALED;
+            let remainder = reward % PHI_SCALED;
+            reward = quotient.saturating_mul(PHI_DENOM)
+                .saturating_add(remainder.saturating_mul(PHI_DENOM) / PHI_SCALED);
+            if reward < PHI_DENOM {
+                reward = PHI_DENOM;
+                break;
+            }
         }
         (reward / PHI_DENOM).max(1)
+    }
+
+    #[test]
+    fn test_extreme_era_no_overflow() {
+        // Even at an absurdly high era, the function should not overflow
+        let reward = calculate_reward_standalone(1_000_000 * HALVING_INTERVAL);
+        assert!(reward >= 1, "reward must be at least 1 even at extreme eras");
     }
 }

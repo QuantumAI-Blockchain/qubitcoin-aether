@@ -380,8 +380,10 @@ class TestBlockValidation:
         assert valid is False
         assert 'prev_hash' in reason.lower()
 
-    def test_no_coinbase_rejected(self):
+    @patch('qubitcoin.quantum.crypto.Dilithium2')
+    def test_no_coinbase_rejected(self, mock_dil):
         """Block without coinbase transaction is rejected."""
+        mock_dil.verify.return_value = True
         eng = self._make_engine()
         db = MagicMock()
         db.get_total_supply.return_value = Decimal(0)
@@ -402,7 +404,8 @@ class TestBlockValidation:
 
         block = Block(height=1, block_hash=None, prev_hash='a' * 64,
                       timestamp=1001, difficulty=1.0,
-                      proof_data={'params': [], 'challenge': [], 'energy': 0.5},
+                      proof_data={'params': [], 'challenge': [], 'energy': 0.5,
+                                 'signature': 'aa' * 64, 'public_key': 'bb' * 64},
                       transactions=[tx])
         valid, reason = eng.validate_block(block, prev, db)
         assert valid is False
@@ -437,8 +440,10 @@ class TestBlockValidation:
         valid, reason = eng.validate_block(block, None, db)
         assert valid is True, f"Genesis with premine should be valid: {reason}"
 
-    def test_non_genesis_with_premine_rejected(self):
+    @patch('qubitcoin.quantum.crypto.Dilithium2')
+    def test_non_genesis_with_premine_rejected(self, mock_dil):
         """Non-genesis block with premine-sized coinbase is rejected."""
+        mock_dil.verify.return_value = True
         eng = self._make_engine()
         db = MagicMock()
         db.get_total_supply.return_value = Decimal(0)
@@ -463,7 +468,8 @@ class TestBlockValidation:
         block = Block(
             height=1, block_hash=None, prev_hash='a' * 64,
             timestamp=1001, difficulty=1.0,
-            proof_data={'params': [], 'challenge': [], 'energy': 0.5},
+            proof_data={'params': [], 'challenge': [], 'energy': 0.5,
+                       'signature': 'aa' * 64, 'public_key': 'bb' * 64},
             transactions=[coinbase],
         )
         valid, reason = eng.validate_block(block, prev, db)

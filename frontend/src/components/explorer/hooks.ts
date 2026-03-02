@@ -24,12 +24,19 @@ import type {
 
 const STALE_TIME = 10_000;
 
-/** Check if we should use mock data (no node running or SSR). */
-const USE_MOCK = typeof window !== "undefined"
-  ? process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
-  : true;
+/**
+ * Check if we should use mock data.  Defaults to false in production builds.
+ * Set NEXT_PUBLIC_USE_MOCK_DATA=true in .env.local for development.
+ * During SSR we also fall back to mock if the flag is set.
+ */
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
 
 function engine() {
+  if (process.env.NODE_ENV === "production" && !USE_MOCK) {
+    throw new Error(
+      "MockDataEngine accessed in production without NEXT_PUBLIC_USE_MOCK_DATA=true",
+    );
+  }
   return getMockEngine();
 }
 

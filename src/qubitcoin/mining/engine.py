@@ -37,6 +37,7 @@ class MiningEngine:
         self.mining_thread = None
         self._lock = threading.Lock()
         self._mining_start_time: float | None = None
+        self._stop_event = threading.Event()
         self.stats = {
             'blocks_found': 0,
             'total_attempts': 0,
@@ -49,25 +50,30 @@ class MiningEngine:
         logger.info("Mining engine initialized (SUSY Economics + QVM)")
 
     def start(self) -> None:
-        """Start mining"""
-        if self.is_mining:
-            logger.warning("Mining already running")
-            return
-        self.is_mining = True
-        self._mining_start_time = time.time()
-        self.mining_thread = threading.Thread(
-            target=self._mine_loop,
-            daemon=True,
-            name="MiningThread"
-        )
-        self.mining_thread.start()
-        logger.info("Mining started")
+        """Start mining (thread-safe)."""
+        with self._lock:
+            if self.is_mining:
+                logger.warning("Mining already running")
+                return
+            self.is_mining = True
+            self._stop_event.clear()
+            self._mining_start_time = time.time()
+            self.mining_thread = threading.Thread(
+                target=self._mine_loop,
+                daemon=True,
+                name="MiningThread"
+            )
+            self.mining_thread.start()
+            logger.info("Mining started")
 
     def stop(self) -> None:
-        """Stop mining"""
-        if not self.is_mining:
-            return
-        self.is_mining = False
+        """Stop mining (thread-safe)."""
+        with self._lock:
+            if not self.is_mining:
+                return
+            self.is_mining = False
+            self._stop_event.set()
+        # Join outside the lock to avoid deadlock with mine loop
         if self.mining_thread:
             self.mining_thread.join(timeout=5)
         logger.info("Mining stopped")
@@ -78,8 +84,12 @@ class MiningEngine:
             return dict(self.stats)
 
     def _mine_loop(self):
-        """Main mining loop"""
-        while self.is_mining:
+        """Main mining loop.
+
+        Uses ``_stop_event`` for responsive shutdown instead of polling
+        a bare boolean, preventing races between start/stop calls.
+        """
+        while not self._stop_event.is_set():
             try:
                 if self._mining_start_time is not None:
                     with self._lock:
@@ -87,7 +97,8 @@ class MiningEngine:
                 self._mine_block()
             except Exception as e:
                 logger.error(f"Mining error: {e}", exc_info=True)
-                time.sleep(Config.MINING_INTERVAL)
+                # Use event-based wait instead of sleep for faster shutdown
+                self._stop_event.wait(timeout=Config.MINING_INTERVAL)
 
     def _mine_block(self):
         """Attempt to mine a single block"""
@@ -100,7 +111,7 @@ class MiningEngine:
         # Pre-check if height exists (from P2P sync)
         if self.db.get_block(next_height):
             logger.debug(f"Block {next_height} already exists from P2P, skipping")
-            time.sleep(Config.MINING_INTERVAL)
+            self._stop_event.wait(timeout=Config.MINING_INTERVAL)
             return
 
         prev_hash = self._get_prev_hash(current_height)
@@ -119,7 +130,7 @@ class MiningEngine:
         # until we find one that converges to energy < difficulty
         max_attempts = 50
         for attempt in range(max_attempts):
-            if not self.is_mining:
+            if self._stop_event.is_set():
                 return
 
             # Check if someone else found this block
@@ -154,7 +165,7 @@ class MiningEngine:
         else:
             # All attempts exhausted
             logger.debug(f"No solution in {max_attempts} attempts, retrying next round")
-            time.sleep(Config.MINING_INTERVAL)
+            self._stop_event.wait(timeout=Config.MINING_INTERVAL)
             return
 
         # Build proof with chain binding
@@ -229,8 +240,10 @@ class MiningEngine:
                     )
                     session.commit()
 
-            with self._lock:
-                self.stats['blocks_found'] += 1
+                    # Update stats inside the same lock scope as block storage
+                    # to prevent data races between mining and stats readers.
+                    self.stats['blocks_found'] += 1
+
             blocks_mined.inc()
             current_height_metric.set(next_height)
             self._display_success(block, energy, reward)
@@ -312,7 +325,7 @@ class MiningEngine:
         except Exception as e:
             logger.error(f"Failed to store block: {e}", exc_info=True)
 
-        time.sleep(Config.MINING_INTERVAL)
+        self._stop_event.wait(timeout=Config.MINING_INTERVAL)
 
     def _distribute_staking_rewards(self, block_reward: Decimal, block_height: int) -> None:
         """
@@ -399,10 +412,16 @@ class MiningEngine:
     def _create_proof(self, hamiltonian, params, energy,
                       prev_hash: str, height: int) -> dict:
         """Create quantum proof data with chain binding"""
-        pk_bytes = bytes.fromhex(Config.PRIVATE_KEY_HEX)
+        sk_bytes = bytes.fromhex(Config.PRIVATE_KEY_HEX)
+        # Dilithium2 secret key is 2528 bytes
+        if len(sk_bytes) != 2528:
+            raise ValueError(
+                f"Invalid Dilithium2 private key length: {len(sk_bytes)} bytes "
+                f"(expected 2528). Regenerate keys with scripts/setup/generate_keys.py"
+            )
         # Sign params + prev_hash + height for chain binding
         msg = str(params.tolist()).encode() + prev_hash.encode() + str(height).encode()
-        signature = Dilithium2.sign(pk_bytes, msg)
+        signature = Dilithium2.sign(sk_bytes, msg)
         return {
             'challenge': hamiltonian,
             'params': params.tolist(),
@@ -432,10 +451,12 @@ class MiningEngine:
         miner_fees = total_fees - burned
 
         if burned > 0:
-            self.stats['total_burned'] = float(
-                Decimal(str(self.stats.get('total_burned', 0))) + burned
-            )
-            total_fees_burned_metric.set(self.stats['total_burned'])
+            with self._lock:
+                self.stats['total_burned'] = float(
+                    Decimal(str(self.stats.get('total_burned', 0))) + burned
+                )
+                burned_total = self.stats['total_burned']
+            total_fees_burned_metric.set(burned_total)
             logger.debug(
                 f"Block {height}: burning {burned:.8f} QBC of {total_fees:.8f} fees "
                 f"({Config.FEE_BURN_PERCENTAGE * 100:.0f}%)"

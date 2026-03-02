@@ -76,10 +76,31 @@ pub mod pallet {
         OptionQuery,
     >;
 
-    /// Hash of the last accepted mining proof — prevents replay attacks.
+    /// Maximum number of recent proof hashes retained for replay prevention.
+    /// Proofs older than this many blocks are implicitly expired because the
+    /// block_height component of the hash makes them unique to their target height.
+    pub const MAX_RECENT_PROOF_HASHES: u32 = 1000;
+
+    /// Recent proof hashes — prevents replay attacks by storing up to
+    /// MAX_RECENT_PROOF_HASHES recent proof hashes. This replaces the old
+    /// single-hash approach that only caught consecutive duplicates.
     #[pallet::storage]
-    #[pallet::getter(fn last_proof_hash)]
-    pub type LastProofHash<T: Config> = StorageValue<_, H256, OptionQuery>;
+    #[pallet::getter(fn recent_proof_hash)]
+    pub type RecentProofHashes<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        H256,  // proof_hash
+        u64,   // block_height when submitted
+        OptionQuery,
+    >;
+
+    /// Count of entries in RecentProofHashes for bounded cleanup.
+    #[pallet::storage]
+    pub type RecentProofHashCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Oldest block height tracked in RecentProofHashes — for efficient pruning.
+    #[pallet::storage]
+    pub type ProofHashOldestBlock<T: Config> = StorageValue<_, u64, ValueQuery>;
 
     /// Last block height at which each miner submitted a proof — rate limiting.
     #[pallet::storage]
@@ -175,10 +196,16 @@ pub mod pallet {
         #[pallet::weight(750_000)]
         pub fn submit_mining_proof(
             origin: OriginFor<T>,
-            miner_address: Address,
+            _miner_address: Address,
             vqe_proof: VqeProof,
         ) -> DispatchResult {
-            ensure_signed(origin)?;
+            // SECURITY: Derive miner_address from the transaction origin.
+            // The submitter IS the miner — they cannot submit on behalf of
+            // someone else. The `_miner_address` parameter is kept for API
+            // compatibility but is ignored; the canonical address is derived
+            // from the caller's AccountId.
+            let caller = ensure_signed(origin)?;
+            let miner_address = Self::account_to_address(&caller);
 
             let block_height = pallet_qbc_utxo::Pallet::<T>::current_height() + 1;
             let difficulty = CurrentDifficulty::<T>::get();
@@ -204,11 +231,14 @@ pub mod pallet {
             );
 
             // ── Replay Prevention ────────────────────────────────────────
-            // Compute a unique hash of this proof and reject duplicates
+            // Compute a unique hash of this proof and check against the set of
+            // recent proof hashes (last MAX_RECENT_PROOF_HASHES entries).
+            // This prevents replay of ANY recent proof, not just the last one.
             let proof_hash = Self::compute_proof_hash(&vqe_proof, &miner_address, block_height);
-            if let Some(last_hash) = LastProofHash::<T>::get() {
-                ensure!(proof_hash != last_hash, Error::<T>::DuplicateProof);
-            }
+            ensure!(
+                !RecentProofHashes::<T>::contains_key(&proof_hash),
+                Error::<T>::DuplicateProof
+            );
 
             // ── Rate Limiting ────────────────────────────────────────────
             // Only one mining proof per block height per miner
@@ -263,8 +293,39 @@ pub mod pallet {
                 SusySolutions::<T>::remove(block_height.saturating_sub(SUSY_RETENTION_WINDOW));
             }
 
-            // Update proof hash for replay prevention
-            LastProofHash::<T>::put(proof_hash);
+            // Store proof hash for replay prevention and prune if over limit
+            RecentProofHashes::<T>::insert(&proof_hash, block_height);
+            RecentProofHashCount::<T>::mutate(|count| {
+                *count = count.saturating_add(1);
+
+                // Prune oldest entries if we exceed the limit.
+                // We prune by removing entries from the oldest tracked block height
+                // until we are back under the limit.
+                while *count > MAX_RECENT_PROOF_HASHES {
+                    let oldest = ProofHashOldestBlock::<T>::get();
+                    // Remove all proof hashes at the oldest block height by
+                    // iterating. In practice each block has 1 proof, so this is O(1).
+                    let mut removed_any = false;
+                    let mut to_remove = sp_std::vec::Vec::new();
+                    for (hash, height) in RecentProofHashes::<T>::iter() {
+                        if height <= oldest {
+                            to_remove.push(hash);
+                        }
+                    }
+                    for hash in &to_remove {
+                        RecentProofHashes::<T>::remove(hash);
+                        *count = count.saturating_sub(1);
+                        removed_any = true;
+                    }
+                    if removed_any {
+                        ProofHashOldestBlock::<T>::put(oldest.saturating_add(1));
+                    } else {
+                        // Safety: if nothing was removed, bump oldest to avoid infinite loop
+                        ProofHashOldestBlock::<T>::put(oldest.saturating_add(1));
+                        break;
+                    }
+                }
+            });
 
             // Update rate limit tracker
             LastMinerBlock::<T>::insert(&miner_address, block_height);
@@ -292,6 +353,18 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        /// Convert a Substrate AccountId to a QBC Address.
+        ///
+        /// Uses the SCALE-encoded bytes of the AccountId and hashes them with
+        /// SHA2-256 to produce a deterministic QBC address. Matches the same
+        /// derivation used in pallet-qbc-reversibility.
+        fn account_to_address(account: &T::AccountId) -> Address {
+            use codec::Encode;
+            use sp_core::hashing::sha2_256;
+            let encoded = account.encode();
+            Address(sha2_256(&encoded))
+        }
+
         /// Derive the expected Hamiltonian seed from the parent block hash.
         ///
         /// The seed is SHA2-256("hamiltonian-seed-v1:" || parent_block_hash || block_height).

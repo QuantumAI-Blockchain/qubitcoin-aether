@@ -1,4 +1,10 @@
 // ─── QBC LAUNCHPAD — Mock Data Engine ─────────────────────────────────────────
+//
+// WARNING: This file provides MOCK DATA for development and testing only.
+// It should never be loaded in production builds.  All consuming code should
+// guard imports behind:
+//   process.env.NODE_ENV !== "production"
+// or a dedicated NEXT_PUBLIC_LAUNCHPAD_MOCK flag.
 
 import type {
   Project,

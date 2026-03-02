@@ -368,9 +368,21 @@ class ProofOfThoughtProtocol:
 
     def validate_solution(self, task_id: str, validator_address: str,
                           approve: bool) -> bool:
-        """Submit a validation vote on a proposed solution."""
+        """Submit a validation vote on a proposed solution.
+
+        Rejects votes where the validator is the same as the solver
+        to prevent self-voting bias.
+        """
         task = self.task_market.get_task(task_id)
         if not task or task.status not in (TaskStatus.PROPOSED, TaskStatus.VALIDATING):
+            return False
+
+        # Prevent self-voting: solver cannot validate their own solution
+        if task.claimed_by and task.claimed_by == validator_address:
+            logger.warning(
+                f"Self-voting rejected: {validator_address[:16]}... is the solver "
+                f"for task {task_id}"
+            )
             return False
 
         validator = self.validator_registry.get_validator(validator_address)

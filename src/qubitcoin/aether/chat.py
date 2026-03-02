@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -25,8 +26,24 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Default persistence path for chat memory
-_DEFAULT_MEMORY_PATH = "/tmp/aether_chat_memory.json"
+
+def _default_memory_dir() -> str:
+    """Return a secure default directory for chat memory storage.
+
+    Uses a subdirectory under the project data directory (if configured)
+    or creates a private temp directory with restrictive permissions (0o700).
+    """
+    # Prefer explicit config if available
+    data_dir = os.environ.get('QUBITCOIN_DATA_DIR', '')
+    if data_dir:
+        mem_dir = os.path.join(data_dir, 'aether_chat')
+        os.makedirs(mem_dir, mode=0o700, exist_ok=True)
+        return os.path.join(mem_dir, 'chat_memory.json')
+
+    # Fallback: create a private temp directory
+    mem_dir = os.path.join(tempfile.gettempdir(), f'aether_chat_{os.getuid()}')
+    os.makedirs(mem_dir, mode=0o700, exist_ok=True)
+    return os.path.join(mem_dir, 'chat_memory.json')
 
 
 class ChatMemory:
@@ -40,9 +57,9 @@ class ChatMemory:
         """
         Args:
             storage_path: Path to the JSON file for persistence.
-                          Defaults to /tmp/aether_chat_memory.json.
+                          Defaults to a secure private directory.
         """
-        self._storage_path: str = storage_path or _DEFAULT_MEMORY_PATH
+        self._storage_path: str = storage_path or _default_memory_dir()
         self._memories: Dict[str, Dict[str, str]] = {}
         self._load()
 

@@ -1,9 +1,15 @@
-//! Database layer — CockroachDB persistence for all 10 AIKGS tables.
+//! Database layer — CockroachDB persistence for all AIKGS tables.
+//!
+//! Security notes:
+//! - All queries use parameterized bindings (no string concatenation for values).
+//! - Multi-step mutations are wrapped in explicit transactions.
+//! - IDs are generated via DB sequences (`RETURNING id`) to avoid TOCTOU races.
+//! - All list queries have enforced LIMIT caps.
 
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 use sqlx::postgres::PgPoolOptions;
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Postgres, Row, Transaction};
 
 use crate::config::AikgsConfig;
 
@@ -28,9 +34,14 @@ impl Db {
     // Contributions
     // ════════════════════════════════════════════════════════════════════════
 
-    pub async fn insert_contribution(
+    /// Insert a contribution and return the DB-assigned `contribution_id`.
+    ///
+    /// Uses `nextval('aikgs_contribution_id_seq')` to generate a unique ID
+    /// from a database sequence, eliminating the TOCTOU race condition that
+    /// existed with the previous `SELECT MAX(contribution_id)+1` approach
+    /// (AIKGS-C3).
+    pub async fn insert_contribution_returning_id(
         &self,
-        contribution_id: i64,
         contributor_address: &str,
         content_hash: &str,
         knowledge_node_id: Option<i64>,
@@ -42,16 +53,17 @@ impl Db {
         reward_amount: f64,
         status: &str,
         block_height: i64,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query(
+    ) -> Result<i64, sqlx::Error> {
+        let row = sqlx::query(
             "INSERT INTO aikgs_contributions
              (contribution_id, contributor_address, content_hash, knowledge_node_id,
               quality_score, novelty_score, combined_score, tier, domain,
               reward_amount, status, block_height)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-             ON CONFLICT (contribution_id) DO NOTHING",
+             VALUES (
+               nextval('aikgs_contribution_id_seq'),
+               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+             RETURNING contribution_id",
         )
-        .bind(contribution_id)
         .bind(contributor_address)
         .bind(content_hash)
         .bind(knowledge_node_id)
@@ -63,9 +75,51 @@ impl Db {
         .bind(reward_amount)
         .bind(status)
         .bind(block_height)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(())
+        Ok(row.try_get::<i64, _>("contribution_id").unwrap_or(0))
+    }
+
+    /// Insert a contribution within an existing transaction, returning the ID.
+    /// Uses `nextval('aikgs_contribution_id_seq')` for race-free ID generation (AIKGS-C3).
+    pub async fn insert_contribution_in_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        contributor_address: &str,
+        content_hash: &str,
+        knowledge_node_id: Option<i64>,
+        quality_score: f64,
+        novelty_score: f64,
+        combined_score: f64,
+        tier: &str,
+        domain: &str,
+        reward_amount: f64,
+        status: &str,
+        block_height: i64,
+    ) -> Result<i64, sqlx::Error> {
+        let row = sqlx::query(
+            "INSERT INTO aikgs_contributions
+             (contribution_id, contributor_address, content_hash, knowledge_node_id,
+              quality_score, novelty_score, combined_score, tier, domain,
+              reward_amount, status, block_height)
+             VALUES (
+               nextval('aikgs_contribution_id_seq'),
+               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+             RETURNING contribution_id",
+        )
+        .bind(contributor_address)
+        .bind(content_hash)
+        .bind(knowledge_node_id)
+        .bind(quality_score)
+        .bind(novelty_score)
+        .bind(combined_score)
+        .bind(tier)
+        .bind(domain)
+        .bind(reward_amount)
+        .bind(status)
+        .bind(block_height)
+        .fetch_one(&mut **tx)
+        .await?;
+        Ok(row.try_get::<i64, _>("contribution_id").unwrap_or(0))
     }
 
     pub async fn get_contribution(
@@ -189,13 +243,13 @@ impl Db {
         Ok(row.try_get::<i64, _>("cnt").unwrap_or(0))
     }
 
-    /// Get the next contribution_id (max + 1).
-    pub async fn next_contribution_id(&self) -> Result<i64, sqlx::Error> {
-        let row =
-            sqlx::query("SELECT COALESCE(MAX(contribution_id), 0) + 1 as next_id FROM aikgs_contributions")
-                .fetch_one(&self.pool)
-                .await?;
-        Ok(row.try_get::<i64, _>("next_id").unwrap_or(1))
+    /// Get the current contribution count (for non-critical reads like stats).
+    /// Do NOT use for generating IDs — use `insert_contribution_returning_id` instead.
+    pub async fn contribution_count(&self) -> Result<i64, sqlx::Error> {
+        let row = sqlx::query("SELECT COALESCE(MAX(contribution_id), 0) as cnt FROM aikgs_contributions")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.try_get::<i64, _>("cnt").unwrap_or(0))
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -239,9 +293,52 @@ impl Db {
         Ok(())
     }
 
+    /// Insert a reward record within an existing transaction (AIKGS-H7).
+    pub async fn insert_reward_in_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        contribution_id: i64,
+        contributor_address: &str,
+        amount: f64,
+        base_reward: f64,
+        quality_factor: f64,
+        novelty_factor: f64,
+        tier_multiplier: f64,
+        streak_multiplier: f64,
+        staking_boost: f64,
+        early_bonus: f64,
+        block_height: i64,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO aikgs_rewards
+             (contribution_id, contributor_address, amount, base_reward,
+              quality_factor, novelty_factor, tier_multiplier, streak_multiplier,
+              staking_boost, early_bonus, block_height)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+        )
+        .bind(contribution_id)
+        .bind(contributor_address)
+        .bind(amount)
+        .bind(base_reward)
+        .bind(quality_factor)
+        .bind(novelty_factor)
+        .bind(tier_multiplier)
+        .bind(streak_multiplier)
+        .bind(staking_boost)
+        .bind(early_bonus)
+        .bind(block_height)
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
+
+    /// Get total distributed from pool = SUM(rewards) + SUM(commissions).
+    ///
+    /// Affiliate commissions are funded from the reward pool (AIKGS-H5),
+    /// so they must be subtracted from the pool balance alongside rewards.
     pub async fn get_total_distributed(&self) -> Result<f64, sqlx::Error> {
         let row = sqlx::query(
-            "SELECT COALESCE(SUM(amount), 0)::float8 as total FROM aikgs_rewards",
+            "SELECT (COALESCE((SELECT SUM(amount) FROM aikgs_rewards), 0)
+                   + COALESCE((SELECT SUM(amount) FROM aikgs_commissions), 0))::float8 AS total",
         )
         .fetch_one(&self.pool)
         .await?;
@@ -292,6 +389,24 @@ impl Db {
         .await
     }
 
+    /// Get affiliate within an existing transaction (AIKGS-H7).
+    pub async fn get_affiliate_in_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        address: &str,
+    ) -> Result<Option<AffiliateRow>, sqlx::Error> {
+        sqlx::query_as::<_, AffiliateRow>(
+            "SELECT address, referrer_address, referral_code,
+                    l1_referrals, l2_referrals,
+                    total_l1_commission::float8 as total_l1_commission,
+                    total_l2_commission::float8 as total_l2_commission,
+                    is_active
+             FROM aikgs_affiliates WHERE address = $1",
+        )
+        .bind(address)
+        .fetch_optional(&mut **tx)
+        .await
+    }
+
     pub async fn get_affiliate_by_code(
         &self,
         code: &str,
@@ -309,31 +424,70 @@ impl Db {
         .await
     }
 
+    /// Increment affiliate commission totals using parameterized queries.
+    /// Level 1 = direct referrer, Level 2 = referrer's referrer.
     pub async fn increment_affiliate_commission(
         &self,
         address: &str,
         level: i32,
         amount: f64,
     ) -> Result<(), sqlx::Error> {
-        let col = if level == 1 {
-            "total_l1_commission"
-        } else {
-            "total_l2_commission"
-        };
-        let ref_col = if level == 1 {
-            "l1_referrals"
-        } else {
-            "l2_referrals"
-        };
-        let query = format!(
-            "UPDATE aikgs_affiliates SET {} = {} + $1, {} = {} + 1 WHERE address = $2",
-            col, col, ref_col, ref_col
-        );
-        sqlx::query(&query)
+        if level == 1 {
+            sqlx::query(
+                "UPDATE aikgs_affiliates
+                 SET total_l1_commission = total_l1_commission + $1,
+                     l1_referrals = l1_referrals + 1
+                 WHERE address = $2",
+            )
             .bind(amount)
             .bind(address)
             .execute(&self.pool)
             .await?;
+        } else {
+            sqlx::query(
+                "UPDATE aikgs_affiliates
+                 SET total_l2_commission = total_l2_commission + $1,
+                     l2_referrals = l2_referrals + 1
+                 WHERE address = $2",
+            )
+            .bind(amount)
+            .bind(address)
+            .execute(&self.pool)
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// Increment affiliate commission within an existing transaction (AIKGS-H7).
+    pub async fn increment_affiliate_commission_in_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        address: &str,
+        level: i32,
+        amount: f64,
+    ) -> Result<(), sqlx::Error> {
+        if level == 1 {
+            sqlx::query(
+                "UPDATE aikgs_affiliates
+                 SET total_l1_commission = total_l1_commission + $1,
+                     l1_referrals = l1_referrals + 1
+                 WHERE address = $2",
+            )
+            .bind(amount)
+            .bind(address)
+            .execute(&mut **tx)
+            .await?;
+        } else {
+            sqlx::query(
+                "UPDATE aikgs_affiliates
+                 SET total_l2_commission = total_l2_commission + $1,
+                     l2_referrals = l2_referrals + 1
+                 WHERE address = $2",
+            )
+            .bind(amount)
+            .bind(address)
+            .execute(&mut **tx)
+            .await?;
+        }
         Ok(())
     }
 
@@ -356,6 +510,30 @@ impl Db {
         .bind(level)
         .bind(contribution_id)
         .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Insert a commission record within an existing transaction (AIKGS-H7).
+    pub async fn insert_commission_in_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        affiliate_address: &str,
+        contributor_address: &str,
+        amount: f64,
+        level: i16,
+        contribution_id: i64,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO aikgs_commissions
+             (affiliate_address, contributor_address, amount, level, contribution_id)
+             VALUES ($1,$2,$3,$4,$5)",
+        )
+        .bind(affiliate_address)
+        .bind(contributor_address)
+        .bind(amount)
+        .bind(level)
+        .bind(contribution_id)
+        .execute(&mut **tx)
         .await?;
         Ok(())
     }
@@ -483,23 +661,35 @@ impl Db {
     // Bounties
     // ════════════════════════════════════════════════════════════════════════
 
-    pub async fn insert_bounty(&self, b: &BountyRow) -> Result<(), sqlx::Error> {
-        sqlx::query(
+    /// Insert a bounty, using a DB sequence for the bounty_id. Returns the assigned ID.
+    /// Uses `nextval('aikgs_bounty_id_seq')` for race-free ID generation (AIKGS-C3).
+    pub async fn insert_bounty_returning_id(
+        &self,
+        domain: &str,
+        description: &str,
+        gap_hash: &str,
+        reward_amount: f64,
+        boost_multiplier: f64,
+        expires_at_epoch: f64,
+    ) -> Result<i64, sqlx::Error> {
+        let row = sqlx::query(
             "INSERT INTO aikgs_bounties
              (bounty_id, domain, description, gap_hash, reward_amount,
               boost_multiplier, status, expires_at)
-             VALUES ($1,$2,$3,$4,$5,$6,'open',$7)",
+             VALUES (
+               nextval('aikgs_bounty_id_seq'),
+               $1,$2,$3,$4,$5,'open',to_timestamp($6))
+             RETURNING bounty_id",
         )
-        .bind(b.bounty_id)
-        .bind(&b.domain)
-        .bind(&b.description)
-        .bind(&b.gap_hash)
-        .bind(b.reward_amount)
-        .bind(b.boost_multiplier)
-        .bind(b.expires_at_epoch)
-        .execute(&self.pool)
+        .bind(domain)
+        .bind(description)
+        .bind(gap_hash)
+        .bind(reward_amount)
+        .bind(boost_multiplier)
+        .bind(expires_at_epoch)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(())
+        Ok(row.try_get::<i64, _>("bounty_id").unwrap_or(0))
     }
 
     pub async fn get_bounty(&self, bounty_id: i64) -> Result<Option<BountyRow>, sqlx::Error> {
@@ -586,12 +776,24 @@ impl Db {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn next_bounty_id(&self) -> Result<i64, sqlx::Error> {
-        let row = sqlx::query("SELECT COALESCE(MAX(bounty_id), 0) + 1 as nid FROM aikgs_bounties")
-            .fetch_one(&self.pool)
-            .await?;
-        Ok(row.try_get::<i64, _>("nid").unwrap_or(1))
+    /// Fulfill bounty within an existing transaction (AIKGS-H7).
+    pub async fn fulfill_bounty_in_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        bounty_id: i64,
+        contribution_id: i64,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE aikgs_bounties SET status = 'fulfilled', contribution_id = $1
+             WHERE bounty_id = $2 AND status = 'claimed'",
+        )
+        .bind(contribution_id)
+        .bind(bounty_id)
+        .execute(&mut **tx)
+        .await?;
+        Ok(result.rows_affected() > 0)
     }
+
+    // bounty_id generation is now atomic inside insert_bounty_returning_id()
 
     pub async fn get_bounty_stats(&self) -> Result<BountyStatsRow, sqlx::Error> {
         let row = sqlx::query(
@@ -669,6 +871,8 @@ impl Db {
         }
     }
 
+    /// Insert a curation review and update the round vote counts atomically.
+    /// Uses parameterized queries (no dynamic SQL) and wraps in a transaction.
     pub async fn insert_curation_review(
         &self,
         contribution_id: i64,
@@ -676,6 +880,8 @@ impl Db {
         vote: bool,
         comment: &str,
     ) -> Result<bool, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
         let result = sqlx::query(
             "INSERT INTO aikgs_curation_reviews (contribution_id, curator_address, vote, comment)
              VALUES ($1, $2, $3, $4)
@@ -685,20 +891,34 @@ impl Db {
         .bind(curator_address)
         .bind(vote)
         .bind(comment)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+
         if result.rows_affected() == 0 {
+            tx.rollback().await?;
             return Ok(false); // duplicate review
         }
-        // Update round vote counts
-        let col = if vote { "votes_for" } else { "votes_against" };
-        let upd = format!(
-            "UPDATE aikgs_curation_rounds SET {col} = {col} + 1 WHERE contribution_id = $1"
-        );
-        sqlx::query(&upd)
+
+        // Update round vote counts with parameterized queries (no format!)
+        if vote {
+            sqlx::query(
+                "UPDATE aikgs_curation_rounds SET votes_for = votes_for + 1
+                 WHERE contribution_id = $1",
+            )
             .bind(contribution_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+        } else {
+            sqlx::query(
+                "UPDATE aikgs_curation_rounds SET votes_against = votes_against + 1
+                 WHERE contribution_id = $1",
+            )
+            .bind(contribution_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
         Ok(true)
     }
 
@@ -726,7 +946,8 @@ impl Db {
             sqlx::query_as::<_, CurationRoundBasic>(
                 "SELECT contribution_id, required_votes, votes_for, votes_against,
                         status, 0.0 as finalized_epoch
-                 FROM aikgs_curation_rounds WHERE status = 'pending'",
+                 FROM aikgs_curation_rounds WHERE status = 'pending'
+                 ORDER BY contribution_id DESC LIMIT 100",
             )
             .fetch_all(&self.pool)
             .await?
@@ -739,7 +960,8 @@ impl Db {
                  AND NOT EXISTS (
                      SELECT 1 FROM aikgs_curation_reviews rv
                      WHERE rv.contribution_id = cr.contribution_id AND rv.curator_address = $1
-                 )",
+                 )
+                 ORDER BY cr.contribution_id DESC LIMIT 100",
             )
             .bind(exclude_curator)
             .fetch_all(&self.pool)
@@ -846,7 +1068,8 @@ impl Db {
             "SELECT key_id, provider, model, owner_address, encrypted_key,
                     is_shared, shared_reward_bps, label, use_count, is_active
              FROM aikgs_api_keys WHERE owner_address = $1 AND is_active = true
-             ORDER BY key_id",
+             ORDER BY key_id
+             LIMIT 100",
         )
         .bind(owner)
         .fetch_all(&self.pool)
@@ -874,7 +1097,8 @@ impl Db {
             "SELECT key_id, provider, model, owner_address, encrypted_key,
                     is_shared, shared_reward_bps, label, use_count, is_active
              FROM aikgs_api_keys
-             WHERE provider = $1 AND is_shared = true AND is_active = true",
+             WHERE provider = $1 AND is_shared = true AND is_active = true
+             LIMIT 100",
         )
         .bind(provider)
         .fetch_all(&self.pool)
@@ -911,6 +1135,239 @@ impl Db {
             )),
             None => Ok((0, 0)),
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Disbursement tracking (AIKGS-C4)
+    // ════════════════════════════════════════════════════════════════════════
+
+    /// Ensure ID sequences exist for contributions and bounties (AIKGS-C3).
+    ///
+    /// Replaces the TOCTOU-prone `SELECT MAX(id)+1` pattern with proper DB
+    /// sequences. The sequence starts at the current MAX+1 to be backward
+    /// compatible with existing data.
+    pub async fn ensure_sequences(&self) -> Result<(), sqlx::Error> {
+        // Contribution ID sequence
+        sqlx::query(
+            "CREATE SEQUENCE IF NOT EXISTS aikgs_contribution_id_seq MINVALUE 1"
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Sync sequence to current max (idempotent — safe to re-run)
+        sqlx::query(
+            "SELECT setval('aikgs_contribution_id_seq',
+                GREATEST((SELECT COALESCE(MAX(contribution_id), 0) FROM aikgs_contributions), 1))"
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Bounty ID sequence
+        sqlx::query(
+            "CREATE SEQUENCE IF NOT EXISTS aikgs_bounty_id_seq MINVALUE 1"
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "SELECT setval('aikgs_bounty_id_seq',
+                GREATEST((SELECT COALESCE(MAX(bounty_id), 0) FROM aikgs_bounties), 1))"
+        )
+        .execute(&self.pool)
+        .await?;
+
+        log::info!("AIKGS ID sequences initialized (contributions + bounties)");
+        Ok(())
+    }
+
+    /// Ensure the disbursement tracking table exists. Called once at startup.
+    /// Includes `retry_count` column for exponential backoff retry logic (AIKGS-C4).
+    pub async fn ensure_disbursement_table(&self) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS aikgs_disbursements (
+                id              SERIAL PRIMARY KEY,
+                idempotency_key VARCHAR(256) NOT NULL UNIQUE,
+                recipient_address VARCHAR(128) NOT NULL,
+                amount          DECIMAL(20,8) NOT NULL CHECK (amount > 0),
+                reason          VARCHAR(256) NOT NULL DEFAULT '',
+                status          VARCHAR(32) NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'success', 'failed')),
+                txid            VARCHAR(128),
+                error_message   TEXT,
+                retry_count     INT NOT NULL DEFAULT 0,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                completed_at    TIMESTAMPTZ
+             )",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        // Add retry_count column if table already exists without it (migration)
+        sqlx::query(
+            "ALTER TABLE aikgs_disbursements ADD COLUMN IF NOT EXISTS retry_count INT NOT NULL DEFAULT 0",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_aikgs_disbursements_key
+             ON aikgs_disbursements (idempotency_key)",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_aikgs_disbursements_created
+             ON aikgs_disbursements (created_at)",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_aikgs_disbursements_retry
+             ON aikgs_disbursements (status, retry_count) WHERE status = 'failed'",
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Check if a disbursement with the given idempotency key already exists.
+    pub async fn get_disbursement_by_key(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<DisbursementRow>, sqlx::Error> {
+        sqlx::query_as::<_, DisbursementRow>(
+            "SELECT idempotency_key, recipient_address, amount::float8 as amount,
+                    reason, status, COALESCE(txid, '') as txid,
+                    COALESCE(error_message, '') as error_message,
+                    retry_count
+             FROM aikgs_disbursements WHERE idempotency_key = $1",
+        )
+        .bind(idempotency_key)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    /// Insert a pending disbursement record. Returns false if the key already exists.
+    pub async fn insert_disbursement(
+        &self,
+        idempotency_key: &str,
+        recipient_address: &str,
+        amount: f64,
+        reason: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            "INSERT INTO aikgs_disbursements (idempotency_key, recipient_address, amount, reason)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (idempotency_key) DO NOTHING",
+        )
+        .bind(idempotency_key)
+        .bind(recipient_address)
+        .bind(amount)
+        .bind(reason)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Update a disbursement record with the result.
+    pub async fn complete_disbursement(
+        &self,
+        idempotency_key: &str,
+        success: bool,
+        txid: Option<&str>,
+        error_message: Option<&str>,
+    ) -> Result<(), sqlx::Error> {
+        let status = if success { "success" } else { "failed" };
+        sqlx::query(
+            "UPDATE aikgs_disbursements
+             SET status = $1, txid = $2, error_message = $3, completed_at = now()
+             WHERE idempotency_key = $4",
+        )
+        .bind(status)
+        .bind(txid)
+        .bind(error_message)
+        .bind(idempotency_key)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Get today's total disbursed amount.
+    pub async fn get_daily_disbursed_total(&self) -> Result<f64, sqlx::Error> {
+        let row = sqlx::query(
+            "SELECT COALESCE(SUM(amount), 0)::float8 as total
+             FROM aikgs_disbursements
+             WHERE created_at >= CURRENT_DATE
+             AND status != 'failed'",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.try_get::<f64, _>("total").unwrap_or(0.0))
+    }
+
+    /// Get the number of disbursements in the last hour (AIKGS-C2 rate limiting).
+    pub async fn get_hourly_disbursement_count(&self) -> Result<i64, sqlx::Error> {
+        let row = sqlx::query(
+            "SELECT COUNT(*) as cnt
+             FROM aikgs_disbursements
+             WHERE created_at >= now() - INTERVAL '1 hour'
+             AND status != 'failed'",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.try_get::<i64, _>("cnt").unwrap_or(0))
+    }
+
+    /// Get failed disbursements that have not exceeded the retry limit,
+    /// for background retry processing (AIKGS-C4).
+    pub async fn get_failed_disbursements_for_retry(
+        &self,
+        max_retries: i64,
+    ) -> Result<Vec<DisbursementRow>, sqlx::Error> {
+        sqlx::query_as::<_, DisbursementRow>(
+            "SELECT idempotency_key, recipient_address, amount::float8 as amount,
+                    reason, status, COALESCE(txid, '') as txid,
+                    COALESCE(error_message, '') as error_message,
+                    retry_count
+             FROM aikgs_disbursements
+             WHERE status = 'failed'
+             AND retry_count < $1
+             ORDER BY created_at ASC
+             LIMIT 50",
+        )
+        .bind(max_retries)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    /// Increment the retry count for a disbursement and reset status to pending.
+    pub async fn mark_disbursement_retrying(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "UPDATE aikgs_disbursements
+             SET status = 'pending', retry_count = retry_count + 1, completed_at = NULL
+             WHERE idempotency_key = $1",
+        )
+        .bind(idempotency_key)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Transaction support
+    // ════════════════════════════════════════════════════════════════════════
+
+    /// Start a new database transaction.
+    pub async fn begin(&self) -> Result<Transaction<'_, Postgres>, sqlx::Error> {
+        self.pool.begin().await
+    }
+
+    /// Expose pool for direct queries within transactions.
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
     }
 }
 
@@ -1077,6 +1534,27 @@ pub struct ApiKeyRow {
     pub label: String,
     pub use_count: i32,
     pub is_active: bool,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct DisbursementRow {
+    pub idempotency_key: String,
+    pub recipient_address: String,
+    pub amount: f64,
+    pub reason: String,
+    pub status: String,
+    pub txid: String,
+    pub error_message: String,
+    /// Number of retry attempts so far (AIKGS-C4).
+    #[sqlx(default)]
+    pub retry_count: Option<i32>,
+}
+
+impl DisbursementRow {
+    /// Get the retry count, defaulting to 0 if not present.
+    pub fn retry_count_val(&self) -> u32 {
+        self.retry_count.unwrap_or(0) as u32
+    }
 }
 
 fn bigdecimal_to_f64(bd: &sqlx::types::BigDecimal) -> f64 {

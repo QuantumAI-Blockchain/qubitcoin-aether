@@ -29,9 +29,15 @@ class TestOpcodeDefinitions:
         from qubitcoin.qvm.opcodes import Opcode, GAS_COSTS
         key_ops = [Opcode.ADD, Opcode.MUL, Opcode.SLOAD, Opcode.SSTORE,
                    Opcode.CALL, Opcode.CREATE, Opcode.QVQE]
+        # Some opcodes have gas=0 in table because their gas is charged dynamically
+        # (EIP-2929 warm/cold tracking: SLOAD, SSTORE, CALL, STATICCALL, etc.)
+        dynamic_gas_ops = {Opcode.SLOAD, Opcode.SSTORE, Opcode.CALL,
+                           Opcode.CALLCODE, Opcode.DELEGATECALL, Opcode.STATICCALL,
+                           Opcode.BALANCE, Opcode.EXTCODESIZE, Opcode.EXTCODECOPY,
+                           Opcode.EXTCODEHASH}
         for op in key_ops:
             assert op in GAS_COSTS, f"No gas cost for {op:#x}"
-            assert GAS_COSTS[op] > 0 or op == Opcode.STOP
+            assert GAS_COSTS[op] > 0 or op == Opcode.STOP or op in dynamic_gas_ops
 
     def test_quantum_gas_higher_than_arithmetic(self):
         """Quantum opcodes cost more gas than basic arithmetic."""
@@ -60,7 +66,7 @@ class TestOpcodeDefinitions:
     def test_get_gas_cost_helper(self):
         from qubitcoin.qvm.opcodes import get_gas_cost, Opcode
         assert get_gas_cost(Opcode.ADD) == 3
-        assert get_gas_cost(0xCF) == 0  # unknown opcode returns 0
+        assert get_gas_cost(0xCF) == 10000  # unknown opcode returns INVALID_OPCODE_GAS
 
 
 class TestExecutionContext:
@@ -905,11 +911,14 @@ class TestSSTOREGasRefund:
         code = bytes([Opcode.PUSH1, 0, Opcode.PUSH1, 0, Opcode.SSTORE, Opcode.STOP])
         result = qvm.execute(caller='c', address='a', code=code, gas=100000)
         assert result.success is True
-        # With refund, effective gas_used should be less than base cost
-        # Base: SSTORE(20000) + 2*PUSH(3) + STOP(0) = 20006
-        # Refund = min(4800, 20006//5=4001) = 4001
-        assert result.gas_refund == 4001  # capped at 20006 // 5
-        assert result.gas_used == 20006 - 4001  # = 16005
+        # EIP-2200/2929 gas calculation:
+        #   2*PUSH(3) = 6
+        #   SSTORE: cold slot (2100) + clean non-zero→zero SSTORE_RESET (2900) = 5000
+        #   STOP = 0
+        #   Total base gas = 5006
+        #   Refund: 4800 (clearing non-zero), capped at 5006//5 = 1001
+        assert result.gas_refund == 1001  # capped at 5006 // 5
+        assert result.gas_used == 5006 - 1001  # = 4005
         # gas_used already has refund subtracted, so gas_used + gas_remaining == total
         assert result.gas_used + result.gas_remaining == 100000
 

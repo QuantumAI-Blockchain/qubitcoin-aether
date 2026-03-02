@@ -222,7 +222,7 @@ class TestCoinbaseFeeBurn:
         block.block_hash = None
         block.timestamp = now
         block.difficulty = 1.0
-        block.proof_data = {'params': [], 'energy': 0.5, 'challenge': []}
+        block.proof_data = {'params': [], 'energy': 0.5, 'challenge': [], 'signature': 'aa' * 32, 'public_key': 'bb' * 32}
         block.state_root = None
         block.receipts_root = None
         block.transactions = [coinbase_tx, regular_tx]
@@ -240,7 +240,8 @@ class TestCoinbaseFeeBurn:
         ce.validate_transaction = MagicMock(return_value=True)
         ce._validate_block_susy_swaps = MagicMock(return_value=(True, ''))
 
-        with patch.object(Config, 'FEE_BURN_PERCENTAGE', 0.5):
+        with patch.object(Config, 'FEE_BURN_PERCENTAGE', 0.5), \
+             patch('qubitcoin.quantum.crypto.Dilithium2.verify', return_value=True):
             valid, reason = ce.validate_block(block, prev, db)
             assert valid is False
             assert 'excessive' in reason.lower() or 'coinbase' in reason.lower()

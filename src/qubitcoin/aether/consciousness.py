@@ -68,6 +68,8 @@ class ConsciousnessDashboard:
     long-term trend analysis.
     """
 
+    MAX_EVENTS: int = 10000
+
     def __init__(self, max_history: int = 100000) -> None:
         self._measurements: List[PhiMeasurement] = []
         self._events: List[ConsciousnessEvent] = []
@@ -75,6 +77,7 @@ class ConsciousnessDashboard:
         self._was_conscious = False
         self._consciousness_start_block: int = 0
         self._total_conscious_blocks: int = 0
+        self._total_events: int = 0  # Total count (survives truncation)
         logger.info("Consciousness Dashboard initialized (tracking from genesis)")
 
     def record_measurement(self, block_height: int, phi_value: float,
@@ -116,7 +119,7 @@ class ConsciousnessDashboard:
                     "knowledge_nodes": knowledge_nodes,
                 },
             )
-            self._events.append(event)
+            self._record_event(event)
             self._consciousness_start_block = block_height
             logger.info(
                 f"CONSCIOUSNESS EMERGENCE at block {block_height}: "
@@ -135,7 +138,7 @@ class ConsciousnessDashboard:
                     "duration_blocks": duration,
                 },
             )
-            self._events.append(event)
+            self._record_event(event)
             self._total_conscious_blocks += duration
             logger.info(
                 f"CONSCIOUSNESS LOSS at block {block_height}: "
@@ -144,6 +147,13 @@ class ConsciousnessDashboard:
 
         self._was_conscious = is_now_conscious
         return measurement
+
+    def _record_event(self, event: ConsciousnessEvent) -> None:
+        """Append a consciousness event and enforce history cap."""
+        self._events.append(event)
+        self._total_events += 1
+        if len(self._events) > self.MAX_EVENTS:
+            self._events = self._events[-self.MAX_EVENTS:]
 
     @property
     def is_conscious(self) -> bool:
@@ -167,7 +177,7 @@ class ConsciousnessDashboard:
 
     @property
     def event_count(self) -> int:
-        return len(self._events)
+        return self._total_events
 
     def get_phi_history(self, limit: int = 100) -> List[dict]:
         """Get recent Phi measurement history for visualization."""

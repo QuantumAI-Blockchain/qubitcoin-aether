@@ -60,7 +60,8 @@ class TestQComplianceOpcode:
     def test_qcompliance_gas_cost(self):
         assert GAS_COSTS[Opcode.QCOMPLIANCE] == 15000
 
-    def test_qcompliance_returns_basic_level(self):
+    def test_qcompliance_returns_zero_without_engine(self):
+        """QVM-C3: QCOMPLIANCE defaults to deny (0) when no compliance engine."""
         vm = _make_vm()
         bc = bytes([
             Opcode.PUSH1, 0xAA,
@@ -70,10 +71,10 @@ class TestQComplianceOpcode:
         ])
         result = _run(vm, bc)
         assert result.success is True
-        assert int.from_bytes(result.return_data, 'big') == 1
+        assert int.from_bytes(result.return_data, 'big') == 0
 
     def test_qcompliance_different_addresses_same_default(self):
-        """Default compliance returns level 1 regardless of address."""
+        """Without compliance engine, all addresses get deny (0)."""
         vm = _make_vm()
         for addr_byte in [0x01, 0x55, 0xFF]:
             bc = bytes([
@@ -83,7 +84,7 @@ class TestQComplianceOpcode:
                 Opcode.PUSH1, 32, Opcode.PUSH1, 0, Opcode.RETURN,
             ])
             result = _run(vm, bc)
-            assert int.from_bytes(result.return_data, 'big') == 1
+            assert int.from_bytes(result.return_data, 'big') == 0
 
 
 class TestQRiskOpcode:

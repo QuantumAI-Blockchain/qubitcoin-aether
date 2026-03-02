@@ -201,15 +201,24 @@ class CSFTransport:
     MAX_QUEUE_SIZE: int = 500  # Maximum total messages in queue
     MAX_PER_DEST_QUEUE: int = 100  # Max messages queued per destination
     STALE_THRESHOLD_S: float = 60.0  # Seconds before a queued message is stale
+    MAX_DELIVERED_HISTORY: int = 10000  # Cap delivered history to prevent unbounded growth
 
     def __init__(self) -> None:
         self._queue: List[CSFMessage] = []  # Priority queue (sorted by qbc desc)
         self._delivered: List[CSFMessage] = []
+        self._total_delivered: int = 0  # Total count (survives truncation)
         self._dropped: int = 0
         self._stale_dropped: int = 0
         self.pressure = PressureMonitor()
         self.entangled = QuantumEntangledChannel()
         logger.info("CSF Transport initialized (Tree of Life topology + quantum entanglement)")
+
+    def _record_delivered(self, msg: CSFMessage) -> None:
+        """Append a delivered message and enforce history cap."""
+        self._delivered.append(msg)
+        self._total_delivered += 1
+        if len(self._delivered) > self.MAX_DELIVERED_HISTORY:
+            self._delivered = self._delivered[-self.MAX_DELIVERED_HISTORY:]
 
     def send(self, source: SephirahRole, destination: SephirahRole,
              payload: dict, msg_type: str = "signal",
@@ -244,7 +253,7 @@ class CSFTransport:
         # Check for quantum-entangled shortcut (instant delivery for SUSY pairs)
         if self.entangled.is_entangled(source, destination):
             self.entangled.deliver_entangled(msg)
-            self._delivered.append(msg)
+            self._record_delivered(msg)
             return msg
 
         # Enforce max queue size to prevent unbounded memory growth
@@ -322,14 +331,14 @@ class CSFTransport:
             if msg.destination == current:
                 # Already at destination
                 msg.delivered = True
-                self._delivered.append(msg)
+                self._record_delivered(msg)
                 delivered.append(msg)
                 self.pressure.record_dequeue(msg.destination)
             elif msg.destination in neighbors:
                 # Direct neighbor — deliver
                 msg.hops.append(msg.destination.value)
                 msg.delivered = True
-                self._delivered.append(msg)
+                self._record_delivered(msg)
                 delivered.append(msg)
                 self.pressure.record_dequeue(msg.destination)
             else:
@@ -393,7 +402,7 @@ class CSFTransport:
         return {
             "queue_size": len(self._queue),
             "max_queue_size": self.MAX_QUEUE_SIZE,
-            "total_delivered": len(self._delivered),
+            "total_delivered": self._total_delivered,
             "total_dropped": self._dropped,
             "stale_dropped": self._stale_dropped,
             "pressure": self.pressure.get_status(),
