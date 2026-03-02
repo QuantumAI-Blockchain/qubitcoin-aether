@@ -731,4 +731,5 @@ print(f"{'='*80}")
 print(f"Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"{'='*80}\n")
 
-sys.exit(0 if failed_critical == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed_critical == 0 else 1)

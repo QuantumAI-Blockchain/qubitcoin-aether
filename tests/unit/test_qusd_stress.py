@@ -116,18 +116,22 @@ class TestMassiveReserveWithdrawal:
             call_count[0] += 1
             result = MagicMock()
             if call_count[0] == 1:
+                # UTXO balance check (collateral verification)
+                result.scalar.return_value = '999999'
+                return result
+            if call_count[0] == 2:
                 # qusd_health query (from get_system_health in mint_qusd)
                 result.fetchone.return_value = (
                     '1000000', '0.95', '500000', 10, 0,
                 )
                 return result
-            if call_count[0] == 2:
+            if call_count[0] == 3:
                 # collateral_types query: ceiling = 100, asset = stablecoin
                 result.fetchone.return_value = (
                     1, '1.5', '100', '10', 'stablecoin',
                 )
                 return result
-            if call_count[0] == 3:
+            if call_count[0] == 4:
                 # current debt SUM query — at ceiling
                 result.scalar.return_value = '100'
                 return result
@@ -200,12 +204,16 @@ class TestZeroLiquidity:
             call_count[0] += 1
             result = MagicMock()
             if call_count[0] == 1:
+                # UTXO balance check (collateral verification)
+                result.scalar.return_value = '999999'
+                return result
+            if call_count[0] == 2:
                 # qusd_health query (from get_system_health in mint_qusd)
                 result.fetchone.return_value = (
                     '1000000', '0.95', '500000', 10, 0,
                 )
                 return result
-            if call_count[0] == 2:
+            if call_count[0] == 3:
                 # collateral_types query
                 result.fetchone.return_value = (
                     1, '1.5', '999999999', '10', 'volatile',
@@ -355,18 +363,22 @@ class TestMaxSupplyReached:
             call_count[0] += 1
             result = MagicMock()
             if call_count[0] == 1:
+                # UTXO balance check (collateral verification)
+                result.scalar.return_value = '999999'
+                return result
+            if call_count[0] == 2:
                 # qusd_health query (from get_system_health in mint_qusd)
                 result.fetchone.return_value = (
                     '1000000', '0.95', '500000', 10, 0,
                 )
                 return result
-            if call_count[0] == 2:
+            if call_count[0] == 3:
                 # collateral_types query: ceiling = 1_000_000, asset = stablecoin
                 result.fetchone.return_value = (
                     1, '1.5', '1000000', '10', 'stablecoin',
                 )
                 return result
-            if call_count[0] == 3:
+            if call_count[0] == 4:
                 # current_debt SUM query — already at ceiling
                 result.scalar.return_value = '1000000'
                 return result
@@ -392,22 +404,26 @@ class TestMaxSupplyReached:
             call_count[0] += 1
             result = MagicMock()
             if call_count[0] == 1:
+                # UTXO balance check (collateral verification)
+                result.scalar.return_value = '999999'
+                return result
+            if call_count[0] == 2:
                 # qusd_health query (from get_system_health in mint_qusd)
                 result.fetchone.return_value = (
                     '1000000', '0.95', '500000', 10, 0,
                 )
                 return result
-            if call_count[0] == 2:
+            if call_count[0] == 3:
                 # collateral_types: high ceiling, stablecoin asset
                 result.fetchone.return_value = (
                     1, '1.5', '999999999', '10', 'stablecoin',
                 )
                 return result
-            if call_count[0] == 3:
+            if call_count[0] == 4:
                 # current debt SUM is very low
                 result.scalar.return_value = '100'
                 return result
-            if call_count[0] == 4:
+            if call_count[0] == 5:
                 # vault creation returns vault_id
                 result.scalar.return_value = 'vault-123'
                 return result

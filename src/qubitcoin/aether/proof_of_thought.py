@@ -113,6 +113,7 @@ class AetherEngine:
 
         # Phase 5.1: Curiosity-driven goal formation
         self._curiosity_goals: List[dict] = []
+        self._max_curiosity_goals: int = 500
         self._curiosity_stats = {
             'goals_generated': 0, 'goals_completed': 0, 'goals_failed': 0,
         }
@@ -120,6 +121,7 @@ class AetherEngine:
         # Phase 5.4: Emergent communication protocol
         self._pending_digest: Optional[dict] = None
         self._seen_digests: dict = {}  # OrderedDict-like (dict preserves insertion order in 3.7+)
+        self._max_seen_digests: int = 10000
         self._digests_created: int = 0
         self._digests_received: int = 0
         self._nodes_from_peers: int = 0
@@ -2139,12 +2141,12 @@ class AetherEngine:
             except Exception as e:
                 logger.debug("Could not generate curiosity goals: %s", e)
 
-        # Sort by priority descending
+        # Sort by priority descending and trim to max cap
         self._curiosity_goals.sort(
             key=lambda g: g.get('priority', 0), reverse=True
         )
-        # Cap at 50
-        self._curiosity_goals = self._curiosity_goals[:50]
+        if len(self._curiosity_goals) > self._max_curiosity_goals:
+            self._curiosity_goals = self._curiosity_goals[:self._max_curiosity_goals]
 
         self._curiosity_stats['goals_generated'] += generated
         return generated
@@ -2265,9 +2267,10 @@ class AetherEngine:
 
         self._seen_digests[digest_hash] = True
         # Cap seen digests — dict preserves insertion order, so we keep newest
-        if len(self._seen_digests) > 1000:
+        if len(self._seen_digests) > self._max_seen_digests:
             keys = list(self._seen_digests.keys())
-            for k in keys[:500]:  # Remove oldest 500
+            evict_count = len(keys) - self._max_seen_digests + self._max_seen_digests // 10
+            for k in keys[:evict_count]:
                 del self._seen_digests[k]
 
         self._digests_received += 1

@@ -25,7 +25,7 @@ class TestOrderBook:
 
     def test_place_limit_buy(self):
         book = OrderBook("QBC_QUSD")
-        order, fills = book.place_limit_order("buy", 0.28, 100, "addr1")
+        order, fills = book.place_limit_order("buy", 0.28, 100, "addr1xxx")
         assert order.side == Side.BUY
         assert order.price == Decimal("0.28")
         assert order.size == Decimal("100")
@@ -36,7 +36,7 @@ class TestOrderBook:
 
     def test_place_limit_sell(self):
         book = OrderBook("QBC_QUSD")
-        order, fills = book.place_limit_order("sell", 0.30, 50, "addr2")
+        order, fills = book.place_limit_order("sell", 0.30, 50, "addr2xxx")
         assert order.side == Side.SELL
         assert order.status == OrderStatus.OPEN
         assert len(fills) == 0
@@ -45,21 +45,21 @@ class TestOrderBook:
     def test_limit_order_price_must_be_positive(self):
         book = OrderBook("QBC_QUSD")
         with pytest.raises(ValueError, match="price must be positive"):
-            book.place_limit_order("buy", 0, 100, "addr1")
+            book.place_limit_order("buy", 0, 100, "addr1xxx")
 
     def test_order_size_must_be_positive(self):
         book = OrderBook("QBC_QUSD")
         with pytest.raises(ValueError, match="size must be positive"):
-            book.place_limit_order("buy", 1.0, 0, "addr1")
+            book.place_limit_order("buy", 1.0, 0, "addr1xxx")
 
     # ── Matching tests ─────────────────────────────────────────────────
 
     def test_exact_match(self):
         book = OrderBook("QBC_QUSD")
         # Resting sell at 0.30
-        book.place_limit_order("sell", 0.30, 100, "seller")
+        book.place_limit_order("sell", 0.30, 100, "sellerxx")
         # Incoming buy at 0.30 -> should match
-        order, fills = book.place_limit_order("buy", 0.30, 100, "buyer")
+        order, fills = book.place_limit_order("buy", 0.30, 100, "buyerxxx")
 
         assert order.status == OrderStatus.FILLED
         assert order.filled == Decimal("100")
@@ -67,16 +67,16 @@ class TestOrderBook:
         assert fills[0].price == Decimal("0.30")
         assert fills[0].size == Decimal("100")
         assert fills[0].side == Side.BUY  # taker side
-        assert fills[0].maker_address == "seller"
-        assert fills[0].taker_address == "buyer"
+        assert fills[0].maker_address == "sellerxx"
+        assert fills[0].taker_address == "buyerxxx"
         # Book should be empty
         assert len(book.bids) == 0
         assert len(book.asks) == 0
 
     def test_partial_match_taker_larger(self):
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("sell", 0.30, 50, "seller")
-        order, fills = book.place_limit_order("buy", 0.30, 100, "buyer")
+        book.place_limit_order("sell", 0.30, 50, "sellerxx")
+        order, fills = book.place_limit_order("buy", 0.30, 100, "buyerxxx")
 
         assert order.status == OrderStatus.PARTIAL
         assert order.filled == 50
@@ -88,8 +88,8 @@ class TestOrderBook:
 
     def test_partial_match_maker_larger(self):
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("sell", 0.30, 200, "seller")
-        order, fills = book.place_limit_order("buy", 0.30, 50, "buyer")
+        book.place_limit_order("sell", 0.30, 200, "sellerxx")
+        order, fills = book.place_limit_order("buy", 0.30, 50, "buyerxxx")
 
         assert order.status == OrderStatus.FILLED
         assert order.filled == 50
@@ -100,8 +100,8 @@ class TestOrderBook:
 
     def test_no_match_when_prices_dont_cross(self):
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("sell", 0.35, 100, "seller")
-        order, fills = book.place_limit_order("buy", 0.30, 100, "buyer")
+        book.place_limit_order("sell", 0.35, 100, "sellerxx")
+        order, fills = book.place_limit_order("buy", 0.30, 100, "buyerxxx")
 
         assert order.status == OrderStatus.OPEN
         assert len(fills) == 0
@@ -114,7 +114,7 @@ class TestOrderBook:
         book.place_limit_order("sell", 0.30, 50, "seller1")
         book.place_limit_order("sell", 0.30, 50, "seller2")
 
-        order, fills = book.place_limit_order("buy", 0.30, 50, "buyer")
+        order, fills = book.place_limit_order("buy", 0.30, 50, "buyerxxx")
         assert len(fills) == 1
         assert fills[0].maker_address == "seller1"
 
@@ -124,7 +124,7 @@ class TestOrderBook:
         book.place_limit_order("sell", 0.32, 50, "expensive")
         book.place_limit_order("sell", 0.30, 50, "cheap")
 
-        order, fills = book.place_limit_order("buy", 0.35, 50, "buyer")
+        order, fills = book.place_limit_order("buy", 0.35, 50, "buyerxxx")
         assert len(fills) == 1
         assert fills[0].maker_address == "cheap"
         assert fills[0].price == Decimal("0.30")
@@ -136,7 +136,7 @@ class TestOrderBook:
         book.place_limit_order("sell", 0.31, 30, "s2")
         book.place_limit_order("sell", 0.32, 30, "s3")
 
-        order, fills = book.place_limit_order("buy", 0.32, 80, "buyer")
+        order, fills = book.place_limit_order("buy", 0.32, 80, "buyerxxx")
         assert order.filled == Decimal("80")
         assert len(fills) == 3
         assert fills[0].price == Decimal("0.30")
@@ -148,8 +148,8 @@ class TestOrderBook:
 
     def test_market_buy_fills_against_asks(self):
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("sell", 0.30, 100, "seller")
-        order, fills = book.place_market_order("buy", 50, "buyer")
+        book.place_limit_order("sell", 0.30, 100, "sellerxx")
+        order, fills = book.place_market_order("buy", 50, "buyerxxx")
 
         assert order.status == OrderStatus.FILLED
         assert order.filled == 50
@@ -158,7 +158,7 @@ class TestOrderBook:
 
     def test_market_order_no_liquidity(self):
         book = OrderBook("QBC_QUSD")
-        order, fills = book.place_market_order("buy", 100, "buyer")
+        order, fills = book.place_market_order("buy", 100, "buyerxxx")
 
         assert order.status == OrderStatus.CANCELLED
         assert order.filled == 0
@@ -166,8 +166,8 @@ class TestOrderBook:
 
     def test_market_order_partial_liquidity(self):
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("sell", 0.30, 30, "seller")
-        order, fills = book.place_market_order("buy", 100, "buyer")
+        book.place_limit_order("sell", 0.30, 30, "sellerxx")
+        order, fills = book.place_market_order("buy", 100, "buyerxxx")
 
         assert order.status == OrderStatus.PARTIAL
         assert order.filled == 30
@@ -179,8 +179,8 @@ class TestOrderBook:
         """Self-trade prevention: cancel-oldest mode cancels the resting own
         order instead of matching, then the taker rests in the book."""
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("sell", 0.30, 100, "alice")
-        order, fills = book.place_limit_order("buy", 0.30, 100, "alice")
+        book.place_limit_order("sell", 0.30, 100, "aliceaaa")
+        order, fills = book.place_limit_order("buy", 0.30, 100, "aliceaaa")
         assert len(fills) == 0
         assert order.status == OrderStatus.OPEN
         # Cancel-oldest: alice's sell is cancelled, buy rests
@@ -191,12 +191,12 @@ class TestOrderBook:
         """Self-trade prevention cancels own resting order then matches
         against other addresses."""
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("sell", 0.30, 100, "alice")
-        book.place_limit_order("sell", 0.30, 100, "bob")
+        book.place_limit_order("sell", 0.30, 100, "aliceaaa")
+        book.place_limit_order("sell", 0.30, 100, "bob12345")
         # alice's buy should cancel alice's sell (cancel-oldest) then match bob's sell
-        order, fills = book.place_limit_order("buy", 0.30, 100, "alice")
+        order, fills = book.place_limit_order("buy", 0.30, 100, "aliceaaa")
         assert len(fills) == 1
-        assert fills[0].maker_address == "bob"
+        assert fills[0].maker_address == "bob12345"
         assert order.status == OrderStatus.FILLED
 
     def test_no_address_allows_match(self):
@@ -212,7 +212,7 @@ class TestOrderBook:
 
     def test_cancel_order(self):
         book = OrderBook("QBC_QUSD")
-        order, _ = book.place_limit_order("buy", 0.28, 100, "addr1")
+        order, _ = book.place_limit_order("buy", 0.28, 100, "addr1xxx")
         assert len(book.bids) == 1
 
         result = book.cancel_order(order.id)
@@ -252,8 +252,8 @@ class TestOrderBook:
 
     def test_get_recent_trades(self):
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("sell", 0.30, 100, "seller")
-        book.place_limit_order("buy", 0.30, 50, "buyer")
+        book.place_limit_order("sell", 0.30, 100, "sellerxx")
+        book.place_limit_order("buy", 0.30, 50, "buyerxxx")
 
         trades = book.get_recent_trades(limit=10)
         assert len(trades) == 1
@@ -262,19 +262,19 @@ class TestOrderBook:
 
     def test_get_open_orders_by_address(self):
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("buy", 0.28, 100, "alice")
-        book.place_limit_order("sell", 0.32, 50, "bob")
-        book.place_limit_order("buy", 0.27, 200, "alice")
+        book.place_limit_order("buy", 0.28, 100, "aliceaaa")
+        book.place_limit_order("sell", 0.32, 50, "bob12345")
+        book.place_limit_order("buy", 0.27, 200, "aliceaaa")
 
-        alice_orders = book.get_open_orders("alice")
+        alice_orders = book.get_open_orders("aliceaaa")
         assert len(alice_orders) == 2
-        bob_orders = book.get_open_orders("bob")
+        bob_orders = book.get_open_orders("bob12345")
         assert len(bob_orders) == 1
 
     def test_get_stats(self):
         book = OrderBook("QBC_QUSD")
-        book.place_limit_order("sell", 0.30, 100, "seller")
-        book.place_limit_order("buy", 0.30, 50, "buyer")  # partial match
+        book.place_limit_order("sell", 0.30, 100, "sellerxx")
+        book.place_limit_order("buy", 0.30, 50, "buyerxxx")  # partial match
 
         stats = book.get_stats()
         assert stats["pair"] == "QBC_QUSD"
@@ -302,7 +302,8 @@ class TestExchangeEngine:
 
     def test_place_order_limit(self):
         engine = ExchangeEngine()
-        result = engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "addr1")
+        engine.deposit("addr1xxx", "QUSD", 100000)
+        result = engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "addr1xxx")
         assert result["order"]["pair"] == "QBC_QUSD"
         assert result["order"]["side"] == "buy"
         assert result["order"]["status"] == "open"
@@ -310,15 +311,18 @@ class TestExchangeEngine:
 
     def test_place_order_market(self):
         engine = ExchangeEngine()
+        engine.deposit("sellerxx", "QBC", 100000)
+        engine.deposit("buyerxxx", "QUSD", 100000)
         # Place a resting sell, then market buy
-        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
-        result = engine.place_order("QBC_QUSD", "buy", "market", 0, 50, "buyer")
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "sellerxx")
+        result = engine.place_order("QBC_QUSD", "buy", "market", 0, 50, "buyerxxx")
         assert result["order"]["status"] == "filled"
         assert result["fillCount"] == 1
 
     def test_cancel_order(self):
         engine = ExchangeEngine()
-        result = engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "addr1")
+        engine.deposit("addr1xxx", "QUSD", 100000)
+        result = engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "addr1xxx")
         order_id = result["order"]["id"]
 
         success = engine.cancel_order("QBC_QUSD", order_id)
@@ -326,7 +330,8 @@ class TestExchangeEngine:
 
     def test_cancel_order_any_pair(self):
         engine = ExchangeEngine()
-        result = engine.place_order("WETH_QUSD", "buy", "limit", 3400, 1.0, "addr1")
+        engine.deposit("addr1xxx", "QUSD", 100000)
+        result = engine.place_order("WETH_QUSD", "buy", "limit", 3400, 1.0, "addr1xxx")
         order_id = result["order"]["id"]
 
         success = engine.cancel_order_any_pair(order_id)
@@ -342,13 +347,16 @@ class TestExchangeEngine:
 
     def test_get_user_orders_across_pairs(self):
         engine = ExchangeEngine()
-        engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "alice")
-        engine.place_order("WETH_QUSD", "sell", "limit", 3500, 0.5, "alice")
-        engine.place_order("QBC_QUSD", "buy", "limit", 0.27, 200, "bob")
+        engine.deposit("aliceaaa", "QUSD", 100000)
+        engine.deposit("aliceaaa", "WETH", 100000)
+        engine.deposit("bob12345", "QUSD", 100000)
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "aliceaaa")
+        engine.place_order("WETH_QUSD", "sell", "limit", 3500, 0.5, "aliceaaa")
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.27, 200, "bob12345")
 
-        alice_orders = engine.get_user_orders("alice")
+        alice_orders = engine.get_user_orders("aliceaaa")
         assert len(alice_orders) == 2
-        bob_orders = engine.get_user_orders("bob")
+        bob_orders = engine.get_user_orders("bob12345")
         assert len(bob_orders) == 1
 
     def test_deposit_and_balance(self):
@@ -374,15 +382,17 @@ class TestExchangeEngine:
 
     def test_get_engine_stats(self):
         engine = ExchangeEngine()
-        engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "addr1")
+        engine.deposit("addr1xxx", "QUSD", 100000)
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "addr1xxx")
         stats = engine.get_engine_stats()
         assert stats["pairs"] == len(ExchangeEngine.DEFAULT_PAIRS)
         assert stats["total_bid_orders"] >= 1
 
     def test_unsupported_order_type(self):
         engine = ExchangeEngine()
+        engine.deposit("addr1xxx", "QUSD", 100000)
         with pytest.raises(ValueError, match="Unsupported order type"):
-            engine.place_order("QBC_QUSD", "buy", "iceberg", 0.28, 100, "addr1")
+            engine.place_order("QBC_QUSD", "buy", "iceberg", 0.28, 100, "addr1xxx")
 
 
 # ---------------------------------------------------------------------------
@@ -395,13 +405,13 @@ class TestStopOrders:
         """Stop-loss sell triggers when price falls to trigger level."""
         book = OrderBook("QBC_QUSD")
         # Place a stop-loss to sell if price drops to 0.25
-        stop = book.place_stop_loss_order("sell", 0.25, 100, "alice")
+        stop = book.place_stop_loss_order("sell", 0.25, 100, "aliceaaa")
         assert stop.order_type == OrderType.STOP_LOSS
         assert stop.trigger_price == Decimal("0.25")
         assert len(book._stop_orders) == 1
 
         # Place a resting bid that will absorb the market order
-        book.place_limit_order("buy", 0.24, 200, "bob")
+        book.place_limit_order("buy", 0.24, 200, "bob12345")
 
         # Trigger: price drops to 0.24
         triggered = book.check_triggers(Decimal("0.24"))
@@ -413,8 +423,8 @@ class TestStopOrders:
     def test_stop_loss_buy_triggers_on_price_rise(self):
         """Stop-loss buy triggers when price rises to trigger level."""
         book = OrderBook("QBC_QUSD")
-        stop = book.place_stop_loss_order("buy", 0.35, 50, "alice")
-        book.place_limit_order("sell", 0.36, 100, "bob")
+        stop = book.place_stop_loss_order("buy", 0.35, 50, "aliceaaa")
+        book.place_limit_order("sell", 0.36, 100, "bob12345")
 
         triggered = book.check_triggers(Decimal("0.36"))
         assert len(triggered) == 1
@@ -424,7 +434,7 @@ class TestStopOrders:
     def test_stop_loss_does_not_trigger_prematurely(self):
         """Stop order should not trigger if price hasn't reached trigger."""
         book = OrderBook("QBC_QUSD")
-        book.place_stop_loss_order("sell", 0.25, 100, "alice")
+        book.place_stop_loss_order("sell", 0.25, 100, "aliceaaa")
         triggered = book.check_triggers(Decimal("0.30"))
         assert len(triggered) == 0
         assert len(book._stop_orders) == 1
@@ -432,7 +442,7 @@ class TestStopOrders:
     def test_stop_limit_converts_to_limit(self):
         """Stop-limit converts to a limit order (not market) when triggered."""
         book = OrderBook("QBC_QUSD")
-        stop = book.place_stop_limit_order("sell", 0.25, 0.24, 100, "alice")
+        stop = book.place_stop_limit_order("sell", 0.25, 0.24, 100, "aliceaaa")
         assert stop.order_type == OrderType.STOP_LIMIT
         assert stop.price == Decimal("0.24")
 
@@ -446,7 +456,7 @@ class TestStopOrders:
 
     def test_cancel_stop_order(self):
         book = OrderBook("QBC_QUSD")
-        stop = book.place_stop_loss_order("sell", 0.25, 100, "alice")
+        stop = book.place_stop_loss_order("sell", 0.25, 100, "aliceaaa")
         assert book.cancel_order(stop.id) is True
         assert len(book._stop_orders) == 0
         assert stop.status == OrderStatus.CANCELLED
@@ -454,8 +464,9 @@ class TestStopOrders:
     def test_stop_order_via_engine(self):
         """Stop orders can be placed through ExchangeEngine.place_order()."""
         engine = ExchangeEngine()
+        engine.deposit("aliceaaa", "QBC", 100000)
         result = engine.place_order(
-            "QBC_QUSD", "sell", "stop_loss", 0, 100, "alice", trigger_price=0.25
+            "QBC_QUSD", "sell", "stop_loss", 0, 100, "aliceaaa", trigger_price=0.25
         )
         assert result["order"]["type"] == "stop_loss"
         assert result["order"]["trigger_price"] == "0.25"
@@ -463,8 +474,9 @@ class TestStopOrders:
 
     def test_stop_limit_via_engine(self):
         engine = ExchangeEngine()
+        engine.deposit("aliceaaa", "QBC", 100000)
         result = engine.place_order(
-            "QBC_QUSD", "sell", "stop_limit", 0.24, 100, "alice", trigger_price=0.25
+            "QBC_QUSD", "sell", "stop_limit", 0.24, 100, "aliceaaa", trigger_price=0.25
         )
         assert result["order"]["type"] == "stop_limit"
         assert result["order"]["trigger_price"] == "0.25"
@@ -487,22 +499,26 @@ class TestSettlement:
                 return True
 
         engine = ExchangeEngine(settlement=MockSettlement())
-        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
-        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyer")
+        engine.deposit("sellerxx", "QBC", 100000)
+        engine.deposit("buyerxxx", "QUSD", 100000)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "sellerxx")
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyerxxx")
         assert len(settled_fills) == 1
 
     def test_utxo_settlement_records_fills(self):
         """UTXOSettlement records fill details even without a create_tx backend."""
         settlement = UTXOSettlement()  # no create_transaction_fn
         engine = ExchangeEngine(settlement=settlement)
-        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
-        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyer")
+        engine.deposit("sellerxx", "QBC", 100000)
+        engine.deposit("buyerxxx", "QUSD", 100000)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "sellerxx")
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyerxxx")
 
         records = settlement.get_pending_settlements()
         assert len(records) == 1
         assert records[0]["settled"] is False  # no backend
-        assert records[0]["maker"] == "seller"
-        assert records[0]["taker"] == "buyer"
+        assert records[0]["maker"] == "sellerxx"
+        assert records[0]["taker"] == "buyerxxx"
 
     def test_utxo_settlement_with_backend(self):
         """UTXOSettlement calls create_transaction_fn when provided."""
@@ -513,8 +529,10 @@ class TestSettlement:
 
         settlement = UTXOSettlement(create_transaction_fn=mock_create_tx)
         engine = ExchangeEngine(settlement=settlement)
-        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
-        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 100, "buyer")
+        engine.deposit("sellerxx", "QBC", 100000)
+        engine.deposit("buyerxxx", "QUSD", 100000)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "sellerxx")
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 100, "buyerxxx")
 
         # Buy side: taker sends QUSD to maker, maker sends QBC to taker
         assert len(tx_log) == 2
@@ -527,8 +545,10 @@ class TestSettlement:
     def test_no_settlement_when_no_callback(self):
         """Engine without settlement callback works normally (backward compatible)."""
         engine = ExchangeEngine()  # no settlement
-        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
-        result = engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyer")
+        engine.deposit("sellerxx", "QBC", 100000)
+        engine.deposit("buyerxxx", "QUSD", 100000)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "sellerxx")
+        result = engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyerxxx")
         assert result["fillCount"] == 1
 
 
@@ -541,23 +561,26 @@ class TestPersistence:
     def test_orders_persisted_on_placement(self):
         persistence = InMemoryPersistence()
         engine = ExchangeEngine(persistence=persistence)
-        engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "alice")
+        engine.deposit("aliceaaa", "QUSD", 100000)
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "aliceaaa")
 
         saved = persistence.get_saved_orders("QBC_QUSD")
         assert len(saved) == 1
         assert saved[0]["side"] == "buy"
-        assert saved[0]["address"] == "alice"
+        assert saved[0]["address"] == "aliceaaa"
 
     def test_fills_persisted_on_match(self):
         persistence = InMemoryPersistence()
         engine = ExchangeEngine(persistence=persistence)
-        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "seller")
-        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyer")
+        engine.deposit("sellerxx", "QBC", 100000)
+        engine.deposit("buyerxxx", "QUSD", 100000)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "sellerxx")
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.30, 50, "buyerxxx")
 
         fills = persistence.get_saved_fills("QBC_QUSD")
         assert len(fills) == 1
-        assert fills[0]["maker_address"] == "seller"
-        assert fills[0]["taker_address"] == "buyer"
+        assert fills[0]["maker_address"] == "sellerxx"
+        assert fills[0]["taker_address"] == "buyerxxx"
 
 
 # ---------------------------------------------------------------------------
@@ -569,13 +592,14 @@ class TestMEVProtection:
     def test_commit_reveal_flow(self):
         """Orders can be committed then revealed."""
         engine = ExchangeEngine(mev_protection=True)
+        engine.deposit("aliceaaa", "QUSD", 100000)
         order_dict = {
             "pair": "QBC_QUSD",
             "side": "buy",
             "type": "limit",
             "price": "0.28",
             "size": "100",
-            "address": "alice",
+            "address": "aliceaaa",
         }
         commit_hash = engine.commit_order(order_dict)
         assert commit_hash is not None

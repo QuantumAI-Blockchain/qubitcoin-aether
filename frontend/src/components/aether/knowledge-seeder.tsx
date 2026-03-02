@@ -31,7 +31,7 @@ export function KnowledgeSeeder() {
   // Load saved key from localStorage when wallet changes
   useEffect(() => {
     if (address) {
-      const saved = localStorage.getItem(storageKey(address));
+      const saved = sessionStorage.getItem(storageKey(address));
       if (saved) setApiKey(saved);
       else setApiKey("");
     } else {
@@ -44,8 +44,8 @@ export function KnowledgeSeeder() {
     (value: string) => {
       setApiKey(value);
       if (address) {
-        if (value) localStorage.setItem(storageKey(address), value);
-        else localStorage.removeItem(storageKey(address));
+        if (value) sessionStorage.setItem(storageKey(address), value);
+        else sessionStorage.removeItem(storageKey(address));
       }
     },
     [address],

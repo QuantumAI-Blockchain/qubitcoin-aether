@@ -51,8 +51,9 @@ function ExplorerRouter() {
     return () => window.removeEventListener("popstate", handler);
   }, [syncFromHash]);
 
-  // Keyboard: Ctrl+Shift+D for DevTools
+  // Keyboard: Ctrl+Shift+D for DevTools (development only)
   useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === "D") {
         e.preventDefault();
@@ -134,8 +135,8 @@ export default function QBCExplorer() {
           </span>
         </footer>
 
-        {/* DevTools Overlay */}
-        <DevToolsPanel />
+        {/* DevTools Overlay (development only) */}
+        {process.env.NODE_ENV !== "production" && <DevToolsPanel />}
       </div>
     </QueryClientProvider>
   );

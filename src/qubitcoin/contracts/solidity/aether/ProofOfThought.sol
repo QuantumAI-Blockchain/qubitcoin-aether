@@ -122,6 +122,7 @@ contract ProofOfThought is Initializable {
     function validateProof(uint256 proofId, address validator, bool support) external onlyKernel {
         Proof storage proof = proofs[proofId];
         require(proof.id == proofId, "PoT: proof not found");
+        require(stakes[validator] >= MIN_VALIDATOR_STAKE, "PoT: validator below min stake");
         require(!hasValidated[proofId][validator], "PoT: already validated");
         require(proof.status == ProofStatus.Submitted || proof.status == ProofStatus.Validating, "PoT: not validating");
 

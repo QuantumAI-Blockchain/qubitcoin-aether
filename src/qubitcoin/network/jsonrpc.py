@@ -252,7 +252,7 @@ class JsonRpcHandler:
             logger.error(f"JSON-RPC error ({request.method}): {e}")
             return JsonRpcResponse(
                 id=request.id,
-                error={'code': -32000, 'message': str(e)}
+                error={'code': -32000, 'message': 'Internal error'}
             )
         finally:
             self._http_request = None
@@ -381,7 +381,10 @@ class JsonRpcHandler:
         return None
 
     async def eth_getTransactionReceipt(self, params):
-        txid = params[0].replace('0x', '') if params else ''
+        if not params:
+            raise ValueError("Missing txHash parameter")
+        validate_hex(params[0], "txHash", max_len=66)
+        txid = params[0].replace('0x', '')
         receipt = self.db.get_receipt(txid)
         return _receipt_to_rpc(receipt)
 
@@ -632,6 +635,10 @@ class JsonRpcHandler:
             to_block = 0 if to_block_str == 'earliest' else self.db.get_current_height()
         else:
             to_block = parse_hex_int(to_block_str)
+
+        # Enforce max block range to prevent DoS
+        if to_block - from_block > 10000:
+            raise ValueError("Block range too large (max 10,000)")
 
         address = filter_obj.get('address', '').replace('0x', '')
         raw_topics = filter_obj.get('topics', [])

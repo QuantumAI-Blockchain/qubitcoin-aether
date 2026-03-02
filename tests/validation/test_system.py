@@ -461,4 +461,5 @@ else:
     print("⚠️  PLEASE FIX FAILED TESTS BEFORE GENESIS")
 print("=" * 70)
 
-sys.exit(0 if failed_tests == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed_tests == 0 else 1)

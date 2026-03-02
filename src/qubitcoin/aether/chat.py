@@ -245,6 +245,9 @@ class ChatMessage:
         return asdict(self)
 
 
+MAX_SESSION_MESSAGES: int = 1000
+
+
 @dataclass
 class ChatSession:
     """An Aether chat session."""
@@ -390,6 +393,9 @@ class AetherChat:
         user_msg = ChatMessage(role='user', content=message, timestamp=time.time())
         session.messages.append(user_msg)
         session.messages_sent += 1
+        # Trim oldest messages if session exceeds cap
+        if len(session.messages) > MAX_SESSION_MESSAGES:
+            session.messages = session.messages[-MAX_SESSION_MESSAGES:]
 
         # Load cross-session user memories for context enrichment
         user_memories: Dict[str, str] = {}

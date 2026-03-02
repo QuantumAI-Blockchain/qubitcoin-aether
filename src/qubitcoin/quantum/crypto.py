@@ -30,7 +30,7 @@ if not DILITHIUM_AVAILABLE:
 # Caches (pk_hash, msg_hash, sig_hash) → bool so repeated verifications
 # of the same (public_key, message, signature) triple skip the expensive
 # Dilithium math.  Cache key uses SHA-256 digests to keep memory bounded.
-_SIG_CACHE_MAX = 4096
+_SIG_CACHE_MAX = 1024
 
 
 @lru_cache(maxsize=_SIG_CACHE_MAX)

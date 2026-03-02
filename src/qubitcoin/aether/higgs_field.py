@@ -205,6 +205,8 @@ class HiggsCognitiveField:
 
         # Compute effective field value from Sephirot energy landscape
         self._field_value = self._compute_field_value()
+        # Clamp to prevent overflow from extreme energy values
+        self._field_value = max(-10000.0, min(10000.0, self._field_value))
 
         # Check for excitation events
         excitation = self._check_excitation(block_height)
@@ -408,8 +410,11 @@ class HiggsSUSYSwap:
         tolerance = 0.20  # 20% deviation threshold (same as original)
 
         for expansion, constraint in SUSY_PAIRS:
-            e_node = self.sephirot.nodes[expansion]
-            c_node = self.sephirot.nodes[constraint]
+            e_node = self.sephirot.nodes.get(expansion)
+            c_node = self.sephirot.nodes.get(constraint)
+
+            if e_node is None or c_node is None:
+                continue
 
             if c_node.energy <= 0:
                 continue

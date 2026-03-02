@@ -511,6 +511,8 @@ export const api = {
     ),
 
   // Privacy (Susy Swaps)
+  // NOTE: Server generates keypair over HTTPS. Keys are NOT stored server-side.
+  // Future: migrate to client-side Dilithium2 WASM generation.
   generateStealthKeypair: () =>
     post<StealthKeyPair>("/privacy/stealth/generate-keypair", {}),
   createStealthOutput: (body: {

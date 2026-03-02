@@ -11,8 +11,6 @@ import threading
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Tuple, Optional, List, Dict
-import numpy as np
-
 from sqlalchemy import text
 from ..config import Config
 from ..database.manager import DatabaseManager
@@ -343,18 +341,19 @@ class StablecoinEngine:
         Returns:
             Median price or None if insufficient data
         """
+        ORACLE_STALENESS_BLOCKS = 30  # ~100 seconds at 3.3s/block
+
         with self.db.get_session() as session:
-            # Get recent prices (last 10 blocks)
             results = session.execute(
                 text("""
-                    SELECT price 
-                    FROM price_feeds 
-                    WHERE asset_pair = :pair 
-                    AND block_height > (SELECT MAX(height) FROM blocks) - 10
+                    SELECT price
+                    FROM price_feeds
+                    WHERE asset_pair = :pair
+                    AND block_height > (SELECT MAX(height) FROM blocks) - :staleness
                     ORDER BY timestamp DESC
                     LIMIT 10
                 """),
-                {'pair': asset_pair}
+                {'pair': asset_pair, 'staleness': ORACLE_STALENESS_BLOCKS}
             )
             
             prices = [Decimal(row[0]) for row in results]
@@ -374,7 +373,8 @@ class StablecoinEngine:
             
             # Store aggregated price
             mean = sum(prices) / len(prices)
-            std_dev = Decimal(np.std([float(p) for p in prices], ddof=1))
+            variance = sum((p - mean) ** 2 for p in prices) / (len(prices) - 1)
+            std_dev = variance.sqrt() if hasattr(variance, 'sqrt') else Decimal(str(float(variance) ** 0.5))
 
             # Inline height subquery to avoid nested session / extra round-trip
             session.execute(
@@ -441,6 +441,20 @@ class StablecoinEngine:
                     f"Could not verify system reserve ratio: {health_err}. "
                     f"Proceeding with other checks."
                 )
+
+            # Verify collateral balance exists on-chain
+            if self.db:
+                try:
+                    with self.db.get_session() as session:
+                        result = session.execute(
+                            text("SELECT COALESCE(SUM(amount), 0) FROM utxos WHERE address = :addr AND spent = false"),
+                            {'addr': user_address}
+                        ).scalar()
+                        on_chain_balance = Decimal(str(result))
+                        if on_chain_balance < collateral_amount:
+                            return False, f"Insufficient on-chain balance: have {result}, need {collateral_amount}", None
+                except Exception as bal_err:
+                    logger.warning(f"Could not verify on-chain balance: {bal_err}")
 
             # Get collateral type info
             with self.db.get_session() as session:
@@ -640,7 +654,7 @@ class StablecoinEngine:
                 debt_amt = Decimal(debt_amt)
                 
                 if amount > debt_amt:
-                    amount = debt_amt
+                    return False, f"Burn amount {amount} exceeds debt {debt_amt}. Specify exact amount."
                 
                 # Check user has QUSD
                 token_id = session.execute(
@@ -1147,6 +1161,8 @@ class StablecoinEngine:
             ValueError: If flash loans are disabled, amount is invalid,
                 exceeds maximum, or borrower already has an active loan.
         """
+        FLASH_LOAN_TTL = 30  # seconds - flash loans must complete within one block
+
         if not self._flash_loan_enabled:
             raise ValueError("Flash loans are currently disabled")
 
@@ -1158,6 +1174,15 @@ class StablecoinEngine:
                 f"Amount {amount} exceeds maximum flash loan of "
                 f"{self._flash_loan_max_amount} QUSD"
             )
+
+        # Clean up expired flash loans
+        now = time.time()
+        expired = [lid for lid, loan in self._active_flash_loans.items()
+                   if not loan.repaid and (now - loan.timestamp) > FLASH_LOAN_TTL]
+        for lid in expired:
+            loan = self._active_flash_loans.pop(lid)
+            self._flash_loan_total_borrowed -= loan.amount
+            logger.warning(f"Flash loan {lid} expired (borrower={loan.borrower})")
 
         # Check if borrower already has an active flash loan
         for loan in self._active_flash_loans.values():

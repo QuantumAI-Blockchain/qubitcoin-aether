@@ -3,6 +3,8 @@ QVM - Qubitcoin Virtual Machine
 Stack-based bytecode interpreter, EVM-compatible with quantum extensions
 """
 import hashlib
+import signal
+import time as _time_mod
 from typing import List, Dict, Any, Optional
 
 from .opcodes import (
@@ -1111,7 +1113,16 @@ class QVM:
                         return result
                     pairs.append((g1_pt, g2_pt))
                 try:
+                    # Wall-clock timeout to prevent pure-Python DoS
+                    _pairing_start = _time_mod.monotonic()
+                    _PAIRING_TIMEOUT_SECS = 5.0
                     ok = _bn128_pairing_check(pairs)
+                    _pairing_elapsed = _time_mod.monotonic() - _pairing_start
+                    if _pairing_elapsed > _PAIRING_TIMEOUT_SECS:
+                        result.success = False
+                        result.revert_reason = "ecPairing: computation timeout (out of gas)"
+                        result.gas_used = gas
+                        return result
                     result.return_data = b'\x00' * 31 + (b'\x01' if ok else b'\x00')
                 except Exception as e:
                     logger.debug(f"ecPairing computation error: {e}")

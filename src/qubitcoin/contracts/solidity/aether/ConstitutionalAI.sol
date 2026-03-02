@@ -39,6 +39,9 @@ contract ConstitutionalAI is Initializable {
     Veto[] public vetoes;
     uint256 public totalVetoes;
 
+    /// @notice O(1) lookup: operationHash => vetoed (true if any non-overridden veto exists)
+    mapping(bytes32 => bool) public operationVetoed;
+
     // ─── Events ──────────────────────────────────────────────────────────
     event PrincipleAdded(uint256 indexed id, string category, string text, uint256 blockNumber);
     event PrincipleDeprecated(uint256 indexed id, uint256 blockNumber);
@@ -115,6 +118,7 @@ contract ConstitutionalAI is Initializable {
             overridden:    false
         }));
         totalVetoes++;
+        operationVetoed[operationHash] = true;
 
         emit OperationVetoed(vetoId, principleId, operationHash, reason);
     }
@@ -124,6 +128,20 @@ contract ConstitutionalAI is Initializable {
         require(vetoId < vetoes.length, "Constitution: invalid veto");
         require(!vetoes[vetoId].overridden, "Constitution: already overridden");
         vetoes[vetoId].overridden = true;
+
+        // Check if any non-overridden veto remains for this operation
+        bytes32 opHash = vetoes[vetoId].operationHash;
+        bool stillVetoed = false;
+        for (uint256 i = 0; i < vetoes.length; i++) {
+            if (vetoes[i].operationHash == opHash && !vetoes[i].overridden) {
+                stillVetoed = true;
+                break;
+            }
+        }
+        if (!stillVetoed) {
+            operationVetoed[opHash] = false;
+        }
+
         emit VetoOverridden(vetoId, msg.sender);
     }
 
@@ -133,12 +151,7 @@ contract ConstitutionalAI is Initializable {
     }
 
     function isOperationVetoed(bytes32 operationHash) external view returns (bool) {
-        for (uint256 i = vetoes.length; i > 0; i--) {
-            if (vetoes[i-1].operationHash == operationHash && !vetoes[i-1].overridden) {
-                return true;
-            }
-        }
-        return false;
+        return operationVetoed[operationHash];
     }
 
     function getVetoCount() external view returns (uint256) {

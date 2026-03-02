@@ -354,7 +354,6 @@ class QUSDSavingsRate:
             self._accrued_interest[user] = self._accrued_interest.get(user, Decimal('0')) + share
             distributed += share
 
-        self._total_deposits += distributed
         self._total_interest_paid += distributed
         self._last_accrual_block = block_height
 

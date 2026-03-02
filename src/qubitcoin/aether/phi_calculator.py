@@ -416,8 +416,8 @@ class PhiCalculator:
         sampled = False
         if n_nodes > PHI_MAX_SAMPLE_NODES:
             sampled = True
-            random.seed(PHI_SAMPLE_SEED)  # deterministic sampling for reproducibility
-            sampled_ids: Set[int] = set(random.sample(node_ids, PHI_MAX_SAMPLE_NODES))
+            _phi_rng = random.Random(PHI_SAMPLE_SEED)  # local RNG for reproducibility
+            sampled_ids: Set[int] = set(_phi_rng.sample(node_ids, PHI_MAX_SAMPLE_NODES))
             node_ids = list(sampled_ids)
             n_nodes = PHI_MAX_SAMPLE_NODES
         else:
@@ -576,9 +576,9 @@ class PhiCalculator:
 
         # Initialize with a non-constant vector
         # Use alternating +/- to break symmetry, with slight randomness
-        random.seed(123)  # deterministic for reproducibility
+        _fiedler_rng = random.Random(123)  # local RNG for reproducibility
         v: List[float] = [
-            (1.0 if i % 2 == 0 else -1.0) + random.uniform(-0.01, 0.01)
+            (1.0 if i % 2 == 0 else -1.0) + _fiedler_rng.uniform(-0.01, 0.01)
             for i in range(n)
         ]
 

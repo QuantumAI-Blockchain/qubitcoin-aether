@@ -154,6 +154,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     }
     _rate_limit_store = app.state.rate_limit_store
 
+    _rate_limit_sweep_counter = {'count': 0}
+
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next):
         """In-memory rate limiter — per IP, per minute, stricter for write endpoints."""
@@ -176,6 +178,18 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 _rate_limit_store[bkt][client_ip] = filtered
             else:
                 _rate_limit_store[bkt].pop(client_ip, None)
+
+        # Global sweep every 100 requests: remove stale IPs with no recent activity
+        _rate_limit_sweep_counter['count'] += 1
+        if _rate_limit_sweep_counter['count'] >= 100:
+            _rate_limit_sweep_counter['count'] = 0
+            for bkt in ('read', 'write'):
+                stale_ips = [
+                    ip for ip, ts in _rate_limit_store[bkt].items()
+                    if not ts or (now - max(ts)) >= window
+                ]
+                for ip in stale_ips:
+                    _rate_limit_store[bkt].pop(ip, None)
 
         if len(_rate_limit_store[bucket].get(client_ip, [])) >= max_requests:
             return JSONResponse(
@@ -2355,8 +2369,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=400, detail=f"Insufficient UTXO balance: have {total}, need {amount}")
 
         change = total - amount
+        # Deterministic txid: hash inputs (UTXOs) + outputs instead of wall-clock time
+        _input_nonce = ":".join(f"{u.txid}:{u.vout}" for u in selected)
         tx_hash = hashlib.sha256(
-            f"{miner_addr}:{to_addr}:{amount}:{_time.time()}".encode()
+            f"{miner_addr}:{to_addr}:{amount}:{_input_nonce}".encode()
         ).hexdigest()
 
         with db_manager.get_session() as session:
@@ -2524,8 +2540,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=400, detail=f"Insufficient balance: have {total}, need {amount}")
 
         change = total - amount
+        # Deterministic txid: hash inputs (UTXOs) + outputs instead of wall-clock time
+        _input_nonce = ":".join(f"{u.txid}:{u.vout}" for u in selected)
         tx_hash = hashlib.sha256(
-            f"{req.from_address}:{req.to_address}:{amount}:{_time.time()}".encode()
+            f"{req.from_address}:{req.to_address}:{amount}:{_input_nonce}".encode()
         ).hexdigest()
 
         to_addr = req.to_address.replace('0x', '')

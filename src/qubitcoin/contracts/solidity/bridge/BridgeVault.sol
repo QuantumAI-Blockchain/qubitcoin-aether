@@ -211,7 +211,7 @@ contract BridgeVault is Initializable {
         uint256 amount,
         uint256 sourceChain,
         bytes32 sourceTxHash
-    ) external onlyRelayer whenNotPaused {
+    ) external onlyRelayer whenNotPaused nonReentrant {
         bytes32 wId = keccak256(abi.encodePacked(
             recipient, amount, sourceChain, sourceTxHash
         ));

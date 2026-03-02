@@ -258,6 +258,7 @@ class ComplianceEngine:
 
     RISK_CACHE_TTL_BLOCKS: int = 10  # Cache entries expire after 10 blocks
     RISK_CACHE_MAX: int = 10000      # Maximum cached risk scores
+    MAX_POLICIES: int = 100000       # Maximum compliance policies in memory
 
     def __init__(self, db_manager=None) -> None:
         self.db = db_manager
@@ -278,6 +279,8 @@ class ComplianceEngine:
                       tier: int = ComplianceTier.RETAIL,
                       jurisdiction: str = '') -> CompliancePolicy:
         """Create a new compliance policy for an address."""
+        if len(self._policies) >= self.MAX_POLICIES:
+            raise ValueError(f"Policy limit reached ({self.MAX_POLICIES})")
         policy_id = hashlib.sha256(
             f"{address}:{time.time()}".encode()
         ).hexdigest()[:16]

@@ -472,13 +472,14 @@ class KnowledgeGraph:
         if not to_remove:
             return 0
 
-        # Remove from in-memory graph
-        for nid in to_remove:
-            self.edges = [
-                e for e in self.edges
-                if e.from_node_id != nid and e.to_node_id != nid
-            ]
-            # Clean adjacency index
+        # Remove from in-memory graph — single-pass over edges using a set
+        remove_set = set(to_remove)
+        self.edges = [
+            e for e in self.edges
+            if e.from_node_id not in remove_set and e.to_node_id not in remove_set
+        ]
+        # Clean adjacency indices and node cross-references in one pass
+        for nid in remove_set:
             for edge in self._adj_out.get(nid, []):
                 adj_list = self._adj_in.get(edge.to_node_id, [])
                 self._adj_in[edge.to_node_id] = [e for e in adj_list if e.from_node_id != nid]
@@ -487,6 +488,7 @@ class KnowledgeGraph:
                 self._adj_out[edge.from_node_id] = [e for e in adj_list if e.to_node_id != nid]
             self._adj_out.pop(nid, None)
             self._adj_in.pop(nid, None)
+        for nid in remove_set:
             for other_node in self.nodes.values():
                 if nid in other_node.edges_out:
                     other_node.edges_out.remove(nid)

@@ -1111,6 +1111,17 @@ class ExchangeEngine:
                     in_orders += Decimal(o["remaining"])
         return total - in_orders
 
+    def _debit_balance(self, address: str, asset: str, amount: Decimal) -> None:
+        if address not in self._user_balances:
+            return
+        bal = self._user_balances[address].get(asset, ZERO)
+        self._user_balances[address][asset] = max(ZERO, bal - amount)
+
+    def _credit_balance(self, address: str, asset: str, amount: Decimal) -> None:
+        if address not in self._user_balances:
+            self._user_balances[address] = {}
+        self._user_balances[address][asset] = self._user_balances[address].get(asset, ZERO) + amount
+
     def place_order(
         self,
         pair: str,
@@ -1132,7 +1143,7 @@ class ExchangeEngine:
             book = self.get_or_create_book(pair)
 
             # ── Balance verification ──────────────────────────────────────
-            if address and self._user_balances:
+            if address:
                 base, quote = pair.split("_", 1) if "_" in pair else (pair, "QUSD")
                 d_size = Decimal(str(size))
                 d_price = Decimal(str(price)) if price > 0 else ZERO
@@ -1141,7 +1152,9 @@ class ExchangeEngine:
                     # conservative estimate — require full size * best-ask or 0 if no asks.
                     if order_type == "market":
                         best_ask = book.best_ask()
-                        required = d_size * best_ask if best_ask > ZERO else ZERO
+                        if best_ask <= ZERO:
+                            raise ValueError(f"No asks available for market buy on {pair}")
+                        required = d_size * best_ask
                     else:
                         required = d_size * d_price
                     if required > ZERO:
@@ -1185,6 +1198,23 @@ class ExchangeEngine:
                     fill.maker_fee = notional * self._maker_fee
                     fill.taker_fee = notional * self._taker_fee
                     self._total_fees_collected += fill.maker_fee + fill.taker_fee
+
+            # Debit/credit user balances for each fill
+            for fill in fills:
+                base, quote = pair.split("_", 1) if "_" in pair else (pair, "QUSD")
+                fill_value = fill.price * fill.size
+                if order.side == "buy":
+                    self._debit_balance(order.address, quote, fill_value + fill.taker_fee)
+                    self._credit_balance(order.address, base, fill.size)
+                    self._debit_balance(fill.maker_address, base, fill.size)
+                    self._credit_balance(fill.maker_address, quote, fill_value - fill.maker_fee)
+                else:
+                    self._debit_balance(order.address, base, fill.size)
+                    self._credit_balance(order.address, quote, fill_value - fill.taker_fee)
+                    self._debit_balance(fill.maker_address, quote, fill_value + fill.maker_fee)
+                    self._credit_balance(fill.maker_address, base, fill.size)
+                if self._fee_treasury:
+                    self._credit_balance(self._fee_treasury, quote, fill.maker_fee + fill.taker_fee)
 
             # Settle fills on-chain
             if fills and self._settlement:

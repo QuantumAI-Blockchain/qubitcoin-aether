@@ -466,11 +466,15 @@ class AikgsClient:
         )
         return _key_info_to_dict(resp.key_info) if resp.key_info else {}
 
-    async def get_api_key(self, key_id: str) -> Optional[Dict[str, Any]]:
+    async def get_api_key(self, key_id: str, owner_address: str = "") -> Optional[Dict[str, Any]]:
         """Get and decrypt an API key via the Rust gRPC sidecar."""
         try:
+            metadata = []
+            if owner_address:
+                metadata.append(("x-owner-address", owner_address))
             resp = await self.stub.GetApiKey(
-                aikgs_pb2.GetKeyRequest(key_id=key_id)
+                aikgs_pb2.GetKeyRequest(key_id=key_id),
+                metadata=metadata if metadata else None,
             )
             return {
                 "key_id": resp.key_id,

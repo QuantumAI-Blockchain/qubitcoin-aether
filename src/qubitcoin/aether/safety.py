@@ -94,9 +94,13 @@ class VetoRecord:
     override_consensus: float = 0.0  # % of validators that approved override
     principles_violated: List[str] = field(default_factory=list)
 
+    # Monotonic counter for deterministic veto IDs (class-level)
+    _veto_counter: int = 0
+
     def __post_init__(self) -> None:
         if not self.veto_id:
-            data = f"{self.reason.value}:{self.action_description}:{time.time()}"
+            VetoRecord._veto_counter += 1
+            data = f"{self.reason.value}:{self.action_description}:{self.source_node}:{self.target_node}:{self.block_height}:{VetoRecord._veto_counter}"
             self.veto_id = hashlib.sha256(data.encode()).hexdigest()[:16]
         if not self.timestamp:
             self.timestamp = time.time()

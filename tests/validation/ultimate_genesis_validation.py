@@ -1679,4 +1679,5 @@ print(f"{'=' * 120}\n")
 
 print("🌟 QUBITCOIN v1.0 - QUANTUM-SECURED CRYPTOCURRENCY 🌟\n")
 
-sys.exit(0)
+if __name__ == "__main__":
+    sys.exit(0)

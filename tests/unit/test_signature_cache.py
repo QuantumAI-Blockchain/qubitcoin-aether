@@ -66,7 +66,7 @@ class TestCacheWorks:
         assert 'misses' in info
         assert 'maxsize' in info
         assert 'currsize' in info
-        assert info['maxsize'] == 4096
+        assert info['maxsize'] == 1024
 
 
 class TestCacheDoesNotBreakEdgeCases:

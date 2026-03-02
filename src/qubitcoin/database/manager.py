@@ -1252,7 +1252,7 @@ class DatabaseManager:
     def mark_utxos_spent(self, inputs: List[dict], txid: str, session: DBSession) -> None:
         """Mark UTXOs as spent"""
         for inp in inputs:
-            session.execute(
+            result = session.execute(
                 text("""
                     UPDATE utxos
                     SET spent = true, spent_by = :spent_by
@@ -1260,6 +1260,8 @@ class DatabaseManager:
                 """),
                 {'txid': inp['txid'], 'vout': inp['vout'], 'spent_by': txid}
             )
+            if result.rowcount == 0:
+                raise ValueError(f"UTXO already spent or not found: {inp['txid']}:{inp['vout']}")
     def create_utxos(self, txid: str, outputs: List[dict], block_height: int,
                      proof: dict, session: DBSession) -> None:
         """Create new UTXOs"""

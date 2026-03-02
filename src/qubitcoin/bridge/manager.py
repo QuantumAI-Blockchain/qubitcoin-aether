@@ -4,15 +4,19 @@ Routes deposits and withdrawals across multiple chains
 """
 
 import asyncio
-import hashlib
 from decimal import Decimal
 from typing import Dict, Optional, List
 from .base import BaseBridge, ChainType
-from .ethereum import EVMBridge
+from .ethereum import EVMBridge, CHAIN_CONFIG
 from .solana import SolanaBridge
 from .validator_rewards import ValidatorRewardTracker
-from .proof_store import ProofStore
+from .proof_store import ProofStore, ProofType
 from ..utils.logger import get_logger
+
+DEST_CHAIN_IDS: Dict[ChainType, int] = {
+    ct: cfg['chain_id'] for ct, cfg in CHAIN_CONFIG.items()
+}
+DEST_CHAIN_IDS[ChainType.SOLANA] = 900
 
 logger = get_logger(__name__)
 
@@ -158,12 +162,18 @@ class BridgeManager:
             logger.error(f"Bridge not available: {chain.value}")
             return None
 
+        if not bridge.connected:
+            logger.error(f"Bridge {chain.value} is paused")
+            return None
+
         # Submit proof to proof store for cryptographic verification
         try:
             proof = self.proof_store.submit_proof(
                 source_chain_id=3301,  # QBC mainnet
-                dest_chain_id=chain.value if isinstance(chain.value, int) else int(hashlib.sha256(str(chain.value).encode()).hexdigest()[:8], 16) % 100000,
+                dest_chain_id=DEST_CHAIN_IDS.get(chain, 0),
+                proof_type=ProofType.DEPOSIT,
                 source_tx_hash=qbc_txid,
+                source_block_height=0,
                 sender=qbc_address,
                 receiver=target_address,
                 amount=float(amount),
@@ -315,7 +325,7 @@ class BridgeManager:
                 'total_withdrawals': total_withdrawals,
                 'total_volume_deposited': str(total_volume_deposited),
                 'total_volume_withdrawn': str(total_volume_withdrawn),
-                'tvl': str(total_volume_deposited - total_volume_withdrawn)
+                'tvl': str(max(Decimal(0), total_volume_deposited - total_volume_withdrawn))
             }
         }
 

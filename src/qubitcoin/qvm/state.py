@@ -724,6 +724,10 @@ class QuantumStateStore:
                         'measured': row[4],
                         'entangled_with': int(row[5]) if row[5] else None,
                     }
+                    # Evict oldest cached state if at capacity
+                    if len(self._states) >= self.MAX_CACHED_STATES and state_id not in self._states:
+                        oldest_key = next(iter(self._states))
+                        del self._states[oldest_key]
                     self._states[state_id] = record
                     return record
         except Exception as e:
