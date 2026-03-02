@@ -55,9 +55,10 @@ connect your local machine as a second mining node. Total time: ~30 minutes.
 11. [Phase 9: Create Qubitcoin-node Public Repo](#11-phase-9-create-qubitcoin-node-public-repo)
 12. [Phase 10: Bridge Contracts (Optional)](#12-phase-10-bridge-contracts-optional)
 13. [Wallet Guide](#13-wallet-guide)
-14. [Port Reference](#14-port-reference)
-15. [Troubleshooting](#15-troubleshooting)
-16. [Architecture Diagram](#16-architecture-diagram)
+14. [Known Limitations at Launch](#14-known-limitations-at-launch)
+15. [Port Reference](#15-port-reference)
+16. [Troubleshooting](#16-troubleshooting)
+17. [Architecture Diagram](#17-architecture-diagram)
 
 ---
 
@@ -1052,6 +1053,11 @@ curl http://localhost:5000/balance/<your-address>
 
 The native wallet uses Dilithium2 post-quantum signatures. This is what mining rewards go to.
 
+> **Launch Note:** At launch, L1 transactions are sent via the node's RPC endpoints (CLI / curl)
+> using server-side Dilithium2 signing. The frontend native wallet page (`/wallet`) can display
+> balances and UTXOs but **cannot send transactions from the browser** — see
+> [Section 14: Known Limitations](#14-known-limitations-at-launch) for details.
+
 ```bash
 # Generate a new wallet
 python3 scripts/setup/generate_keys.py
@@ -1106,7 +1112,61 @@ Or click "Connect Wallet" on the qbc.network frontend — it auto-prompts MetaMa
 
 ---
 
-## 14. PORT REFERENCE
+## 14. KNOWN LIMITATIONS AT LAUNCH
+
+These are documented architectural items that do not block launch. Each has a clear
+post-launch resolution path.
+
+### 14.1 Dilithium2 WASM Signing (Frontend Native Wallet)
+
+**What:** The frontend native wallet page (`/wallet`) cannot send L1 transactions from the
+browser. The file `frontend/src/lib/dilithium.ts` contains a placeholder HMAC-SHA256 signing
+function instead of real Dilithium2 post-quantum signing.
+
+**Why:** Dilithium2 signing requires a WASM build of liboqs or dilithium-py. No production-ready
+Dilithium2 WASM module exists yet for browsers. The placeholder generates a fake "signature" that
+fails real Dilithium2 verification on the backend — so no invalid transactions can be created.
+
+**Impact at launch:**
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| MetaMask wallet (QVM/L2) | **Works** | Primary user flow. All signing handled by MetaMask. |
+| Mining rewards | **Works** | Coinbase transactions require no user signing. |
+| L1 send via CLI/curl | **Works** | `POST /wallet/send` with real Dilithium sig from `secure_key.env`. |
+| L1 send via RPC (programmatic) | **Works** | `POST /wallet/sign` (localhost only) + `POST /wallet/send`. |
+| Frontend `/wallet` — view balance | **Works** | Read-only queries don't need signing. |
+| Frontend `/wallet` — send QBC | **Blocked** | Placeholder signature fails backend verification. |
+| Frontend Sephirot launcher | **Blocked** | Same placeholder signing issue. |
+| Smart contract deployment | **Works** | Done via MetaMask or `scripts/deploy/deploy_contracts.py`. |
+
+**Resolution (post-launch):**
+1. Build Dilithium2 as a WASM module (from [liboqs](https://github.com/nicoburniske/pqc-wasm) or
+   [dilithium-wasm](https://github.com/nicoburniske/dilithium-wasm))
+2. Replace the internals of `placeholderSignTransaction()` in `frontend/src/lib/dilithium.ts`
+   — the function signature stays the same, only the signing primitive changes
+3. Add client-side key generation so `/wallet/create` can return a full keypair in-browser
+4. No backend changes needed — the node already validates real Dilithium2 signatures
+
+**Priority:** Medium. The primary user flow (MetaMask) is unaffected. This only blocks the
+native QBC wallet send feature in the browser UI.
+
+### 14.2 WASM Build for Substrate Node
+
+**What:** The Substrate hybrid node (`substrate-node/`) builds natively with
+`SKIP_WASM_BUILD=1` but the WASM runtime build is deferred.
+
+**Why:** Upstream `serde_core` v1.0.218+ introduces a duplicate `exchange_malloc` lang item
+in WASM targets. This is a known Rust ecosystem issue affecting all Substrate projects.
+
+**Impact at launch:** None. The Python L1 node is the production node. The Substrate node is
+the migration target for a future release.
+
+**Resolution:** Wait for upstream serde fix or use `substrate-wasm-builder` workaround.
+
+---
+
+## 15. PORT REFERENCE
 
 ### Local Development (docker-compose.yml)
 
@@ -1139,7 +1199,7 @@ Grafana is bound to `127.0.0.1:3001` — access via SSH tunnel: `ssh -L 3001:loc
 
 ---
 
-## 15. TROUBLESHOOTING
+## 16. TROUBLESHOOTING
 
 ### Node won't start
 
@@ -1226,7 +1286,7 @@ docker compose up -d --build
 
 ---
 
-## 16. ARCHITECTURE DIAGRAM
+## 17. ARCHITECTURE DIAGRAM
 
 ```
 PRODUCTION DEPLOYMENT (2-NODE NETWORK)
@@ -1306,7 +1366,7 @@ PHASE 10: Bridge Contracts           [Optional] Deploy wQBC/wQUSD to ETH, BNB, S
 
 ---
 
-**Document Version:** 3.1
+**Document Version:** 3.2
 **Created:** February 20, 2026
-**Updated:** February 28, 2026
+**Updated:** March 2, 2026
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
