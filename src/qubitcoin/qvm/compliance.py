@@ -257,6 +257,7 @@ class ComplianceEngine:
     """
 
     RISK_CACHE_TTL_BLOCKS: int = 10  # Cache entries expire after 10 blocks
+    RISK_CACHE_MAX: int = 10000      # Maximum cached risk scores
 
     def __init__(self, db_manager=None) -> None:
         self.db = db_manager
@@ -389,6 +390,10 @@ class ComplianceEngine:
 
     def cache_risk(self, address: str, score: float) -> None:
         """Store a risk score in the cache at current block height."""
+        if len(self._risk_cache) >= self.RISK_CACHE_MAX and address not in self._risk_cache:
+            # Evict oldest entry by timestamp
+            oldest_key = min(self._risk_cache, key=lambda k: self._risk_cache[k].timestamp)
+            del self._risk_cache[oldest_key]
         self._risk_cache[address] = _RiskCacheEntry(
             score=score, timestamp=float(self._current_block)
         )

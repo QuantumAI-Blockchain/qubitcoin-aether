@@ -53,6 +53,9 @@ class ChatMemory:
     Persists to a JSON file so memories survive process restarts.
     """
 
+    MAX_USERS: int = 100000         # Maximum tracked user profiles
+    MAX_KEYS_PER_USER: int = 100    # Maximum memory keys per user
+
     def __init__(self, storage_path: Optional[str] = None) -> None:
         """
         Args:
@@ -96,7 +99,15 @@ class ChatMemory:
             value: Memory value (e.g., "DeFi", "quantum computing").
         """
         if user_id not in self._memories:
+            if len(self._memories) >= self.MAX_USERS:
+                # Evict least-recently-stored user
+                oldest = next(iter(self._memories))
+                del self._memories[oldest]
             self._memories[user_id] = {}
+        if len(self._memories[user_id]) >= self.MAX_KEYS_PER_USER:
+            # Evict oldest key
+            oldest_key = next(iter(self._memories[user_id]))
+            del self._memories[user_id][oldest_key]
         self._memories[user_id][key] = value
         self._save()
 

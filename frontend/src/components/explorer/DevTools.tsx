@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Database, Activity, Gauge, ChevronDown, ChevronRight } from "lucide-react";
 import { useExplorerStore } from "./store";
 import { useNetworkStats } from "./hooks";
-import { getMockEngine } from "./mock-engine";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const getMockEngine = () => (require("./mock-engine") as typeof import("./mock-engine")).getMockEngine();
 import { C, FONT } from "./shared";
 
 /* ── State Tab ────────────────────────────────────────────────────────── */

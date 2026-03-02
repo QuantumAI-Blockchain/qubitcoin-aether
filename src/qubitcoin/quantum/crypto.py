@@ -9,8 +9,6 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
-import os
-
 try:
     from dilithium_py.dilithium import Dilithium2 as DilithiumImpl
     DILITHIUM_AVAILABLE = True

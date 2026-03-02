@@ -6,7 +6,9 @@
    ───────────────────────────────────────────────────────────────────────── */
 
 import { useQuery } from "@tanstack/react-query";
-import { getMockEngine } from "./mock-engine";
+// Lazy require — never bundled in production unless USE_MOCK is set (FE-H4 audit fix)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const getMockEngine = () => (require("./mock-engine") as typeof import("./mock-engine")).getMockEngine();
 import { get } from "@/lib/api";
 import type {
   Block,

@@ -4,6 +4,7 @@ Routes deposits and withdrawals across multiple chains
 """
 
 import asyncio
+import hashlib
 from decimal import Decimal
 from typing import Dict, Optional, List
 from .base import BaseBridge, ChainType
@@ -161,7 +162,7 @@ class BridgeManager:
         try:
             proof = self.proof_store.submit_proof(
                 source_chain_id=3301,  # QBC mainnet
-                dest_chain_id=chain.value if isinstance(chain.value, int) else hash(chain.value) % 100000,
+                dest_chain_id=chain.value if isinstance(chain.value, int) else int(hashlib.sha256(str(chain.value).encode()).hexdigest()[:8], 16) % 100000,
                 source_tx_hash=qbc_txid,
                 sender=qbc_address,
                 receiver=target_address,

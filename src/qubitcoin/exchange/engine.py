@@ -433,16 +433,26 @@ class OrderBook:
 
     # ── Cancel ───────────────────────────────────────────────────────────
 
-    def cancel_order(self, order_id: str) -> bool:
-        """Cancel a resting or stop order. Returns True if found and cancelled."""
+    def cancel_order(self, order_id: str, owner_address: str = "") -> bool:
+        """Cancel a resting or stop order. Returns True if found and cancelled.
+
+        If owner_address is provided, verifies the caller owns the order.
+        """
         # Check stop orders first
         if order_id in self._stop_orders:
+            stop = self._stop_orders.get(order_id)
+            if owner_address and stop and stop.address != owner_address:
+                return False
             return self.cancel_stop_order(order_id)
 
-        order = self._orders.pop(order_id, None)
+        order = self._orders.get(order_id)
         if order is None:
             return False
+        # Verify ownership if address provided
+        if owner_address and order.address != owner_address:
+            return False
 
+        self._orders.pop(order_id, None)
         try:
             if order.side == Side.BUY:
                 self.bids.remove(order)
@@ -470,9 +480,12 @@ class OrderBook:
         while opposite and taker.remaining > EPSILON:
             maker = opposite[0]
 
-            # Self-trade prevention: skip orders from the same address
+            # Self-trade prevention: skip own resting orders (cancel-oldest mode)
             if maker.address and taker.address and maker.address == taker.address:
-                break
+                opposite.remove(maker)
+                maker.status = OrderStatus.CANCELLED
+                self._orders.pop(maker.id, None)
+                continue
 
             # Price check for limit orders
             if taker.order_type == OrderType.LIMIT:
@@ -524,6 +537,14 @@ class OrderBook:
         return fills
 
     # ── Queries ──────────────────────────────────────────────────────────
+
+    def best_ask(self) -> Decimal:
+        """Return the best (lowest) ask price, or ZERO if no asks."""
+        return self.asks[0].price if self.asks else ZERO
+
+    def best_bid(self) -> Decimal:
+        """Return the best (highest) bid price, or ZERO if no bids."""
+        return self.bids[0].price if self.bids else ZERO
 
     def get_orderbook(self, depth: int = 20) -> dict:
         """Return order book snapshot with aggregated levels."""
@@ -1075,6 +1096,21 @@ class ExchangeEngine:
 
     # ── Order placement ──────────────────────────────────────────────────
 
+    def _available_balance(self, address: str, asset: str) -> Decimal:
+        """Return available (non-locked) exchange balance for *address* + *asset*."""
+        total = self._user_balances.get(address, {}).get(asset, ZERO)
+        if total <= ZERO:
+            return ZERO
+        in_orders = ZERO
+        for book in self.books.values():
+            for o in book.get_open_orders(address):
+                base, quote = book.pair.split("_", 1) if "_" in book.pair else (book.pair, "QUSD")
+                if o["side"] == "buy" and asset == quote:
+                    in_orders += Decimal(o["remaining"]) * Decimal(o["price"])
+                elif o["side"] == "sell" and asset == base:
+                    in_orders += Decimal(o["remaining"])
+        return total - in_orders
+
     def place_order(
         self,
         pair: str,
@@ -1090,9 +1126,37 @@ class ExchangeEngine:
         Returns a dict with the order details and any fills produced.
         For stop orders, fills will be empty until the trigger price is hit.
         Thread-safe: acquires internal lock for the duration of matching.
+        Verifies the caller has sufficient deposited balance before placing.
         """
         with self._lock:
             book = self.get_or_create_book(pair)
+
+            # ── Balance verification ──────────────────────────────────────
+            if address and self._user_balances:
+                base, quote = pair.split("_", 1) if "_" in pair else (pair, "QUSD")
+                d_size = Decimal(str(size))
+                d_price = Decimal(str(price)) if price > 0 else ZERO
+                if side == "buy":
+                    # Buyer needs quote asset (e.g. QUSD). For market orders use a
+                    # conservative estimate — require full size * best-ask or 0 if no asks.
+                    if order_type == "market":
+                        best_ask = book.best_ask()
+                        required = d_size * best_ask if best_ask > ZERO else ZERO
+                    else:
+                        required = d_size * d_price
+                    if required > ZERO:
+                        avail = self._available_balance(address, quote)
+                        if avail < required:
+                            raise ValueError(
+                                f"Insufficient {quote} balance: have {avail}, need {required}"
+                            )
+                else:  # sell
+                    required = d_size
+                    avail = self._available_balance(address, base)
+                    if avail < required:
+                        raise ValueError(
+                            f"Insufficient {base} balance: have {avail}, need {required}"
+                        )
 
             if order_type == "market":
                 order, fills = book.place_market_order(side, size, address)
@@ -1144,19 +1208,22 @@ class ExchangeEngine:
 
     # ── Cancel ───────────────────────────────────────────────────────────
 
-    def cancel_order(self, pair: str, order_id: str) -> bool:
-        """Cancel an order on the given pair. Thread-safe."""
+    def cancel_order(self, pair: str, order_id: str, owner_address: str = "") -> bool:
+        """Cancel an order on the given pair. Thread-safe.
+
+        If owner_address is provided, verifies the caller owns the order.
+        """
         with self._lock:
             book = self.books.get(pair)
             if not book:
                 return False
-            return book.cancel_order(order_id)
+            return book.cancel_order(order_id, owner_address=owner_address)
 
-    def cancel_order_any_pair(self, order_id: str) -> bool:
+    def cancel_order_any_pair(self, order_id: str, owner_address: str = "") -> bool:
         """Search all books for the order and cancel it. Thread-safe."""
         with self._lock:
             for book in self.books.values():
-                if book.cancel_order(order_id):
+                if book.cancel_order(order_id, owner_address=owner_address):
                     return True
             return False
 
@@ -1189,9 +1256,18 @@ class ExchangeEngine:
 
     # ── Balance management (exchange-internal balances) ───────────────────
 
+    @staticmethod
+    def _validate_address(address: str) -> None:
+        """Validate address format. Rejects empty or suspiciously short addresses."""
+        if not address or len(address) < 8:
+            raise ValueError("Invalid address: must be at least 8 characters")
+        if not all(c.isalnum() or c in ('_', '-') for c in address):
+            raise ValueError("Invalid address: contains forbidden characters")
+
     def deposit(self, address: str, asset: str, amount: float) -> dict:
         """Credit exchange balance for a user (called after on-chain deposit confirmation). Thread-safe."""
         with self._lock:
+            self._validate_address(address)
             d_amount = Decimal(str(amount))
             if d_amount <= ZERO:
                 raise ValueError("Deposit amount must be positive")
@@ -1206,6 +1282,7 @@ class ExchangeEngine:
     def withdraw(self, address: str, asset: str, amount: float) -> dict:
         """Debit exchange balance for a user (initiates on-chain withdrawal). Thread-safe."""
         with self._lock:
+            self._validate_address(address)
             d_amount = Decimal(str(amount))
             if d_amount <= ZERO:
                 raise ValueError("Withdrawal amount must be positive")

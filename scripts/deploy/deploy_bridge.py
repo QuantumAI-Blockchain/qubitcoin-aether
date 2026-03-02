@@ -82,6 +82,13 @@ def keccak256(data: bytes) -> bytes:
             from Crypto.Hash import keccak as _keccak
             return _keccak.new(digest_bits=256, data=data).digest()
         except ImportError:
+            # WARNING: hashlib.sha3_256 is NOT Keccak-256 (different padding).
+            # This will produce WRONG function selectors / ABI encodings.
+            # Install pysha3 or pycryptodome for correct Keccak-256.
+            logger.warning(
+                "Neither pysha3 nor pycryptodome available — using hashlib.sha3_256 "
+                "which is NOT Keccak-256. Contract interactions may fail!"
+            )
             return hashlib.sha3_256(data).digest()
 
 

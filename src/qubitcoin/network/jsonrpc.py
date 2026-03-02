@@ -709,7 +709,11 @@ class JsonRpcHandler:
             [tx_hash, {optional trace options}]
 
         Returns a Geth-compatible trace with structLogs.
+
+        Security: restricted to localhost connections only.
         """
+        if not self._is_localhost():
+            raise ValueError("debug_traceTransaction is restricted to localhost")
         if not params:
             raise ValueError("Missing transaction hash parameter")
 
@@ -785,8 +789,11 @@ def create_jsonrpc_router(db, consensus=None, mining=None, quantum=None, qvm=Non
     async def jsonrpc_endpoint(request: Request):
         body = await request.json()
 
-        # Handle batch requests
+        # Handle batch requests (bounded to prevent DoS)
+        MAX_BATCH_SIZE = 100
         if isinstance(body, list):
+            if len(body) > MAX_BATCH_SIZE:
+                return {"jsonrpc": "2.0", "error": {"code": -32600, "message": f"Batch too large: {len(body)} > {MAX_BATCH_SIZE}"}, "id": None}
             responses = []
             for item in body:
                 req = JsonRpcRequest(**item)

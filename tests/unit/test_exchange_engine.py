@@ -176,27 +176,28 @@ class TestOrderBook:
     # ── Self-trade prevention ─────────────────────────────────────────
 
     def test_self_trade_prevention(self):
-        """Orders from the same address must not match each other."""
+        """Self-trade prevention: cancel-oldest mode cancels the resting own
+        order instead of matching, then the taker rests in the book."""
         book = OrderBook("QBC_QUSD")
         book.place_limit_order("sell", 0.30, 100, "alice")
         order, fills = book.place_limit_order("buy", 0.30, 100, "alice")
         assert len(fills) == 0
         assert order.status == OrderStatus.OPEN
-        # Both orders should rest in the book
+        # Cancel-oldest: alice's sell is cancelled, buy rests
         assert len(book.bids) == 1
-        assert len(book.asks) == 1
+        assert len(book.asks) == 0
 
     def test_self_trade_does_not_block_others(self):
-        """Self-trade prevention should not block fills from other addresses."""
+        """Self-trade prevention cancels own resting order then matches
+        against other addresses."""
         book = OrderBook("QBC_QUSD")
         book.place_limit_order("sell", 0.30, 100, "alice")
         book.place_limit_order("sell", 0.30, 100, "bob")
-        # alice's buy should skip alice's sell but match bob's sell
-        # Note: with break semantics, alice's order rests since alice's sell is first
+        # alice's buy should cancel alice's sell (cancel-oldest) then match bob's sell
         order, fills = book.place_limit_order("buy", 0.30, 100, "alice")
-        # alice's sell is at best ask, self-trade breaks matching
-        assert len(fills) == 0
-        assert order.status == OrderStatus.OPEN
+        assert len(fills) == 1
+        assert fills[0].maker_address == "bob"
+        assert order.status == OrderStatus.FILLED
 
     def test_no_address_allows_match(self):
         """Orders without addresses (empty string) can match normally."""
@@ -352,24 +353,24 @@ class TestExchangeEngine:
 
     def test_deposit_and_balance(self):
         engine = ExchangeEngine()
-        result = engine.deposit("alice", "QBC", 1000.0)
-        assert result["address"] == "alice"
+        result = engine.deposit("alice1234", "QBC", 1000.0)
+        assert result["address"] == "alice1234"
         balances = {b["asset"]: b for b in result["balances"]}
         assert Decimal(balances["QBC"]["total"]) == Decimal("1000")
         assert Decimal(balances["QBC"]["available"]) == Decimal("1000")
 
     def test_withdraw(self):
         engine = ExchangeEngine()
-        engine.deposit("alice", "QBC", 1000.0)
-        result = engine.withdraw("alice", "QBC", 300.0)
+        engine.deposit("alice1234", "QBC", 1000.0)
+        result = engine.withdraw("alice1234", "QBC", 300.0)
         balances = {b["asset"]: b for b in result["balances"]}
         assert Decimal(balances["QBC"]["total"]) == Decimal("700")
 
     def test_withdraw_insufficient(self):
         engine = ExchangeEngine()
-        engine.deposit("alice", "QBC", 100.0)
+        engine.deposit("alice1234", "QBC", 100.0)
         with pytest.raises(ValueError, match="Insufficient"):
-            engine.withdraw("alice", "QBC", 200.0)
+            engine.withdraw("alice1234", "QBC", 200.0)
 
     def test_get_engine_stats(self):
         engine = ExchangeEngine()

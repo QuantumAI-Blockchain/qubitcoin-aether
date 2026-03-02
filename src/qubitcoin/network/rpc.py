@@ -5415,19 +5415,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=400, detail=str(e))
 
     @app.delete("/exchange/order/{order_id}")
-    async def exchange_cancel_order(order_id: str, pair: str = ""):
+    async def exchange_cancel_order(order_id: str, pair: str = "", address: str = ""):
         """Cancel an open order.
 
         If pair is provided, search only that book. Otherwise search all books.
+        Requires the owner address to prevent unauthorized cancellations.
         """
         if not exchange_engine:
             raise HTTPException(status_code=503, detail="Exchange engine not available")
+        if not address:
+            raise HTTPException(status_code=400, detail="address is required to cancel an order")
         if pair:
-            success = exchange_engine.cancel_order(pair, order_id)
+            success = exchange_engine.cancel_order(pair, order_id, owner_address=address)
         else:
-            success = exchange_engine.cancel_order_any_pair(order_id)
+            success = exchange_engine.cancel_order_any_pair(order_id, owner_address=address)
         if not success:
-            raise HTTPException(status_code=404, detail="Order not found or already cancelled")
+            raise HTTPException(status_code=404, detail="Order not found, already cancelled, or not owned by address")
         return {"status": "cancelled", "order_id": order_id}
 
     @app.get("/exchange/balance/{address}")

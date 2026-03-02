@@ -2046,8 +2046,9 @@ class DatabaseManager:
                 total_return = amount + unclaimed
 
                 # Create UTXO returning staked amount + unclaimed rewards
+                # Use deterministic hash (no time.time()) so all nodes agree on txid
                 tx_hash = hashlib.sha256(
-                    f"unstake:{stake_id}:{block_height}:{_time.time()}".encode()
+                    f"unstake:{stake_id}:{block_height}".encode()
                 ).hexdigest()
                 session.execute(
                     text("""

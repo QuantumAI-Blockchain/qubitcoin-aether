@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { useBridgeStore } from "./store";
 import { CHAINS, EXTERNAL_CHAINS, CONFIRMATION_COUNTS } from "./chain-config";
-import { getBridgeMockEngine } from "./mock-engine";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const getBridgeMockEngine = () => (require("./mock-engine") as typeof import("./mock-engine")).getBridgeMockEngine();
 import { B, FONT, GlowButton } from "./shared";
 import type { ExternalChainId, BridgeTx, VaultState } from "./types";
 

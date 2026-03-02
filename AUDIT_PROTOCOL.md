@@ -79,7 +79,7 @@ The audit MUST confirm these numbers are still accurate. Flag any drift.
 | **REST endpoints** | 276 routes | `network/rpc.py` | 5,589 |
 | **JSON-RPC methods** | 19 methods | `network/jsonrpc.py` | 769 |
 | **Prometheus metrics** | 82 metrics | `utils/metrics.py` | 247 |
-| **Python tests** | 3,847 functions | `tests/` (156 files) | ~51,581 |
+| **Python tests** | 3,901 functions | `tests/` (156 files) | ~51,581 |
 | **SQL schema files** | 26 files | `sql_new/` (41 tables across 7 domains) | 1,682 |
 | **Frontend pages** | 15 pages + 8 TWA pages | `frontend/src/app/` | — |
 | **Frontend TS/TSX** | 167+ files | `frontend/src/` | 43,103+ |
@@ -94,7 +94,7 @@ The audit MUST confirm these numbers are still accurate. Flag any drift.
 | **Docker services** | 24 (dev) / 22 (prod) | `docker-compose.yml` / `.production.yml` | — |
 | **CI workflows** | 4 | `.github/workflows/` | — |
 | **Documentation** | 13 files | `docs/` | — |
-| **Scripts** | 21 files | `scripts/` | — |
+| **Scripts** | 22 files | `scripts/` (incl. `deploy_bridge.py`) | — |
 | **Config attributes** | ~125 | `config.py` | 632 |
 | **Node components** | 22 | `node.py` | 1,411 |
 | **Data models** | 7 dataclasses | `database/models.py` | 266 |
@@ -843,7 +843,7 @@ Current: `const USE_MOCK = process.env.NEXT_PUBLIC_EXCHANGE_MOCK === "true"` —
 
 **CI/CD (4 workflows):**
 
-- `ci.yml`: Python tests (3,788 tests must pass)
+- `ci.yml`: Python tests (3,901 tests must pass)
 - `qvm-ci.yml`: Go QVM tests
 - `claude.yml`: Claude Code integration
 - `contract-deploy.yml`: Solidity deployment pipeline

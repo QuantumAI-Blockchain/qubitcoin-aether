@@ -564,6 +564,8 @@ class QuantumStateStore:
     patent feature described in the QVM whitepaper.
     """
 
+    MAX_CACHED_STATES: int = 50000  # Bound in-memory quantum state cache
+
     def __init__(self, db_manager=None):
         self.db = db_manager
         # Fast in-memory index: state_id → state dict
@@ -590,6 +592,10 @@ class QuantumStateStore:
             'measured': False,
             'entangled_with': None,
         }
+        # Evict oldest cached state if at capacity
+        if len(self._states) >= self.MAX_CACHED_STATES and state_id not in self._states:
+            oldest_key = next(iter(self._states))
+            del self._states[oldest_key]
         self._states[state_id] = record
         self._persist(record)
         return record

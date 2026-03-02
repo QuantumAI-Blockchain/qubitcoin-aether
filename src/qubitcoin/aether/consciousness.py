@@ -18,7 +18,7 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-PHI_THRESHOLD = 3.0
+PHI_THRESHOLD = Config.PHI_THRESHOLD
 COHERENCE_THRESHOLD = 0.7
 
 

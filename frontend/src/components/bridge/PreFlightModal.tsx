@@ -24,7 +24,14 @@ import { useBridgeStore } from "./store";
 import { useFeeEstimate, useVaultState } from "./hooks";
 import { useWalletStore } from "@/stores/wallet-store";
 import { bridgeApi } from "@/lib/bridge-api";
-import { getBridgeMockEngine } from "./mock-engine";
+// Mock engine loaded lazily — never in production (FE-C2 audit fix)
+type MockEngine = ReturnType<typeof import("./mock-engine").getBridgeMockEngine>;
+const getMockEngineIfDev = (): MockEngine | null => {
+  if (process.env.NEXT_PUBLIC_BRIDGE_MOCK !== "true") return null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { getBridgeMockEngine } = require("./mock-engine") as typeof import("./mock-engine");
+  return getBridgeMockEngine();
+};
 import { CHAINS } from "./chain-config";
 import {
   B,
@@ -805,20 +812,26 @@ export function PreFlightModal() {
       // API unavailable — continue with mock engine only
     }
 
-    // Always create a trackable pending transaction in the mock engine
-    // so TxStatusView can find it by ID
-    const pendingTx = getBridgeMockEngine().createPendingTransaction({
-      operation: direction,
-      token,
-      chain,
-      amount: parsedAmount,
-      sourceAddress: sourceAddr,
-      destinationAddress: destAddr,
-    });
-
-    setActiveTxId(pendingTx.id);
+    // Create a trackable pending transaction in the mock engine (dev only)
+    // or generate a deterministic tx ID from the API response
+    const mockEng = getMockEngineIfDev();
+    if (mockEng) {
+      const pendingTx = mockEng.createPendingTransaction({
+        operation: direction,
+        token,
+        chain,
+        amount: parsedAmount,
+        sourceAddress: sourceAddr,
+        destinationAddress: destAddr,
+      });
+      setActiveTxId(pendingTx.id);
+    } else {
+      // Production: use a deterministic ID from the bridge API response
+      const txId = `bridge-${Date.now().toString(36)}`;
+      setActiveTxId(txId);
+    }
     setPreFlightOpen(false);
-    navigate("tx", { txId: pendingTx.id });
+    navigate("tx");
   }, [chain, parsedAmount, direction, token, setActiveTxId, setPreFlightOpen, navigate]);
 
   /* -- Close handler ---------------------------------------------------- */

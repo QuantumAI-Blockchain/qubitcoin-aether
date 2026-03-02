@@ -364,6 +364,9 @@ class MultiNodeConsensus:
     - Validating Proof-of-Thought solutions
     """
 
+    MAX_DECISIONS: int = 10000
+    MAX_PENDING_VOTES: int = 1000
+
     def __init__(self, threshold: float = BFT_THRESHOLD) -> None:
         self._threshold = threshold
         self._validators: Dict[str, float] = {}  # address -> stake weight
@@ -397,6 +400,10 @@ class MultiNodeConsensus:
         )
 
         if action_hash not in self._pending_votes:
+            # Evict oldest entry if at capacity
+            if len(self._pending_votes) >= self.MAX_PENDING_VOTES:
+                oldest = next(iter(self._pending_votes))
+                del self._pending_votes[oldest]
             self._pending_votes[action_hash] = []
 
         # Prevent double-voting
@@ -446,6 +453,8 @@ class MultiNodeConsensus:
         }
 
         self._decisions.append(decision)
+        if len(self._decisions) > self.MAX_DECISIONS:
+            self._decisions = self._decisions[-self.MAX_DECISIONS:]
 
         # Clean up pending votes
         if action_hash in self._pending_votes:
