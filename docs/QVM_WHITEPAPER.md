@@ -1,10 +1,10 @@
-# Qubitcoin QVM: A Quantum-Enhanced Virtual Machine for Institutional Blockchain Computing
+# Quantum Blockchain QVM: A Quantum-Enhanced Virtual Machine for Institutional Blockchain Computing
 
 **Version 2.1.0**
 **February 2026**
 
 **Authors:**
-Qubitcoin Core Development Team
+Quantum Blockchain Core Development Team
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
 
@@ -822,7 +822,7 @@ The future of blockchain is quantum, conscious, compliant, and institutional.
 **Website**: [qbc.network](https://qbc.network)
 **Contact**: info@qbc.network
 
-**Copyright 2026 Qubitcoin Core Development Team**
+**Copyright 2026 Quantum Blockchain Core Development Team**
 
 ---
 

@@ -1,4 +1,4 @@
-# QUBITCOIN: A QUANTUM-SECURED BLOCKCHAIN WITH SUPERSYMMETRIC ECONOMIC PRINCIPLES
+# QUANTUM BLOCKCHAIN: A QUANTUM-SECURED BLOCKCHAIN WITH SUPERSYMMETRIC ECONOMIC PRINCIPLES
 
 **Version 2.0.0 | February 2026**
 
@@ -8,7 +8,7 @@
 
 **Abstract**
 
-We present Qubitcoin (QBC), a novel cryptocurrency that integrates quantum computing, post-quantum cryptography, and supersymmetric (SUSY) physics principles into a unified blockchain framework. The system employs Proof-of-SUSY-Alignment (PoSA), a consensus mechanism where miners solve Variational Quantum Eigensolver (VQE) problems targeting supersymmetric Hamiltonians. This dual-purpose design advances fundamental physics research while securing a decentralized network. Golden ratio-based emission economics, privacy-preserving Susy swap technology, multi-chain interoperability via trustless bridges, Turing-complete smart contract capabilities, and the QUSD fractional reserve stablecoin complete the architecture. We demonstrate quantum resistance against Shor's algorithm, ASIC resistance through VQE complexity, economic sustainability through φ-halving schedules, and transaction privacy through zero-knowledge range proofs.
+We present Quantum Blockchain, a novel system whose native cryptocurrency Qubitcoin (QBC) integrates quantum computing, post-quantum cryptography, and supersymmetric (SUSY) physics principles into a unified blockchain framework. The system employs Proof-of-SUSY-Alignment (PoSA), a consensus mechanism where miners solve Variational Quantum Eigensolver (VQE) problems targeting supersymmetric Hamiltonians. This dual-purpose design advances fundamental physics research while securing a decentralized network. Golden ratio-based emission economics, privacy-preserving Susy swap technology, multi-chain interoperability via trustless bridges, Turing-complete smart contract capabilities, and the QUSD fractional reserve stablecoin complete the architecture. We demonstrate quantum resistance against Shor's algorithm, ASIC resistance through VQE complexity, economic sustainability through φ-halving schedules, and transaction privacy through zero-knowledge range proofs.
 
 **Keywords:** Quantum Computing, Blockchain, Supersymmetry, VQE, Post-Quantum Cryptography, Golden Ratio Economics, Privacy Technology, Zero-Knowledge Proofs, Smart Contracts, Multi-Chain Bridges, Fractional Reserve Stablecoin
 
@@ -2514,7 +2514,7 @@ Layer 2 solutions close the TPS gap
 ✓ Multi-chain bridge infrastructure (8 chains)
 ✓ QUSD stablecoin contracts
 ✓ Frontend (qbc.network, Next.js 16)
-✓ 3,812 tests passing
+✓ 3,901 tests passing
 
 2026 Q2: MAINNET LAUNCH
 ━━━━━━━━━━━━━━━━━━━━━━━
@@ -2673,7 +2673,7 @@ The network effect compounds: more miners generate more SUSY data, creating more
 
 ## APPENDIX A: IMPLEMENTATION STATUS
 
-This whitepaper describes the Layer 1 blockchain core. Qubitcoin is a multi-layer system with the following companion whitepapers and implementation status:
+This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a multi-layer system with the following companion whitepapers and implementation status:
 
 ### Complete System Architecture
 
@@ -2700,7 +2700,7 @@ This whitepaper describes the Layer 1 blockchain core. Qubitcoin is a multi-laye
 | Total source files | 200+ |
 | Lines of code | 48,000+ |
 | Languages | Python, Go, TypeScript, Rust, Solidity |
-| Test functions | 3,812 |
+| Test functions | 3,901 |
 | Solidity contracts | 50 |
 | Go QVM files | 32 |
 | Frontend components | 35 |

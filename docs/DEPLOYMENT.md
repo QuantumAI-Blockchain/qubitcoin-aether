@@ -1,6 +1,6 @@
-# Qubitcoin Deployment Guide
+# Quantum Blockchain Deployment Guide
 
-Production deployment for Qubitcoin nodes, from single-node development to multi-node mainnet.
+Production deployment for Quantum Blockchain nodes, from single-node development to multi-node mainnet.
 
 ## Table of Contents
 

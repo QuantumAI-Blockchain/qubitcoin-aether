@@ -138,7 +138,7 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-border-subtle pt-6 sm:flex-row">
           <p className="font-[family-name:var(--font-reading)] text-xs text-text-secondary">
-            &copy; 2026 Qubitcoin. MIT License.
+            &copy; 2026 Quantum Blockchain. MIT License.
           </p>
           <p className="font-[family-name:var(--font-code)] text-[10px] tracking-wide text-text-secondary">
             Proof-of-SUSY-Alignment &middot; Dilithium2 &middot; QVM (167 Opcodes) &middot; Aether Tree AGI &middot; Multi-Chain Bridge

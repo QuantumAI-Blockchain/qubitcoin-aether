@@ -1,4 +1,4 @@
-# QUBITCOIN PROJECT REVIEW
+# QUANTUM BLOCKCHAIN PROJECT REVIEW
 # Military-Grade Production Audit — v7.1 Protocol
 # Date: 2026-03-02 | Run #12
 

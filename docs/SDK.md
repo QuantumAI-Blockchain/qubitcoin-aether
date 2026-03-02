@@ -1,6 +1,6 @@
-# Qubitcoin Developer SDK Guide
+# Quantum Blockchain Developer SDK Guide
 
-> **Complete reference for integrating with Qubitcoin's L1, L2 (QVM), and L3 (Aether Tree) layers.**
+> **Complete reference for integrating with Quantum Blockchain's L1, L2 (QVM), and L3 (Aether Tree) layers.**
 
 ---
 

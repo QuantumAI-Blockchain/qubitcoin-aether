@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import Script from "next/script";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -26,10 +27,11 @@ export default function TWALayout({ children }: { children: React.ReactNode }) {
   const { setIsTWA, setUser, setStartParam, setColorScheme, setViewportHeight } = useTelegramStore();
   const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {
+  const initSDK = useCallback(() => {
+    if (initialized) return;
+
     const webapp = initTelegramApp();
 
-    // Store named callbacks for cleanup
     const onThemeChanged = () => {
       const wa = getWebApp();
       if (wa) setColorScheme(wa.colorScheme);
@@ -54,64 +56,74 @@ export default function TWALayout({ children }: { children: React.ReactNode }) {
       setIsTWA(isTelegramWebApp());
     }
     setInitialized(true);
+  }, [initialized, setIsTWA, setUser, setStartParam, setColorScheme, setViewportHeight]);
 
-    return () => {
-      // Clean up event listeners
-      const wa = getWebApp();
-      if (wa) {
-        wa.offEvent("themeChanged", onThemeChanged);
-        wa.offEvent("viewportChanged", onViewportChanged);
-      }
-    };
-  }, [setIsTWA, setUser, setStartParam, setColorScheme, setViewportHeight]);
-
-  if (!initialized) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-bg-deep">
-        <div className="phi-spin h-8 w-8 rounded-full border-2 border-quantum-violet/30 border-t-quantum-violet" />
-      </div>
-    );
-  }
+  // If SDK was already loaded (e.g. cached), init immediately
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.Telegram?.WebApp) {
+      initSDK();
+    }
+  }, [initSDK]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg-deep twa-safe-area">
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto pb-20">
-        <ErrorBoundary>{children}</ErrorBoundary>
-      </main>
+    <>
+      {/* Load Telegram WebApp SDK — required for Mini App functionality */}
+      <Script
+        src="https://telegram.org/js/telegram-web-app.js"
+        strategy="afterInteractive"
+        onLoad={initSDK}
+        onError={() => {
+          // SDK failed to load (opened outside Telegram, or network error)
+          // Still render pages — they work as a standalone web app too
+          setInitialized(true);
+        }}
+      />
 
-      {/* Bottom navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 border-t border-border-subtle bg-bg-panel/95 backdrop-blur-md twa-bottom-nav">
-        <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
-          {NAV_ITEMS.map((item) => {
-            const active = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-label={item.label}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 transition ${
-                  active ? "text-quantum-violet" : "text-text-secondary"
-                }`}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-5 w-5"
-                  aria-hidden="true"
-                >
-                  <path d={item.icon} />
-                </svg>
-                <span className="text-[10px] font-semibold">{item.label}</span>
-              </Link>
-            );
-          })}
+      {!initialized ? (
+        <div className="flex h-screen items-center justify-center bg-bg-deep">
+          <div className="phi-spin h-8 w-8 rounded-full border-2 border-quantum-violet/30 border-t-quantum-violet" />
         </div>
-      </nav>
-    </div>
+      ) : (
+        <div className="flex min-h-screen flex-col bg-bg-deep twa-safe-area">
+          {/* Main content */}
+          <main className="flex-1 overflow-y-auto pb-20">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </main>
+
+          {/* Bottom navigation */}
+          <nav className="fixed bottom-0 left-0 right-0 border-t border-border-subtle bg-bg-panel/95 backdrop-blur-md twa-bottom-nav">
+            <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
+              {NAV_ITEMS.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-label={item.label}
+                    className={`flex flex-col items-center gap-0.5 px-3 py-1 transition ${
+                      active ? "text-quantum-violet" : "text-text-secondary"
+                    }`}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-5 w-5"
+                      aria-hidden="true"
+                    >
+                      <path d={item.icon} />
+                    </svg>
+                    <span className="text-[10px] font-semibold">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+        </div>
+      )}
+    </>
   );
 }

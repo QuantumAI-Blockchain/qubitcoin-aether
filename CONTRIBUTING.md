@@ -1,6 +1,6 @@
-# Contributing to Qubitcoin
+# Contributing to Quantum Blockchain
 
-Thank you for your interest in contributing to Qubitcoin! This guide will help you get
+Thank you for your interest in contributing to Quantum Blockchain! This guide will help you get
 started with the development workflow.
 
 ## Table of Contents
@@ -219,7 +219,7 @@ cd frontend && pnpm test:e2e
 | Bridge | 50+ | Covered |
 | Stablecoin | 123+ | Covered |
 | Frontend | 5 | Basic |
-| **Total** | **3,812** | **All Passing** |
+| **Total** | **3,901** | **All Passing** |
 
 ## Risk Classification
 

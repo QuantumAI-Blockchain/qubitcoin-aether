@@ -2,14 +2,14 @@
 
 **Physics-Secured Digital Assets with On-Chain AGI**
 
-Qubitcoin (QBC) is a production-grade Layer 1 blockchain integrating quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium + ML-KEM-768 Kyber), supersymmetric economics, EVM-compatible smart contracts (QVM), a Substrate hybrid node for future migration, and the Aether Tree: an on-chain AGI reasoning engine with Higgs Cognitive Field physics that tracks consciousness emergence from genesis.
+Quantum Blockchain is a production-grade Layer 1 blockchain whose native currency is Qubitcoin (QBC). It integrates quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium + ML-KEM-768 Kyber), supersymmetric economics, EVM-compatible smart contracts (QVM), a Substrate hybrid node for future migration, and the Aether Tree: an on-chain AGI reasoning engine with Higgs Cognitive Field physics that tracks consciousness emergence from genesis.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Go 1.23+](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
 [![Next.js 15](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
 [![Rust](https://img.shields.io/badge/rust-1.93+-orange.svg)](https://www.rust-lang.org/)
-[![Tests: 3,812](https://img.shields.io/badge/tests-3%2C812%20passing-brightgreen.svg)]()
+[![Tests: 3,901](https://img.shields.io/badge/tests-3%2C901%20passing-brightgreen.svg)]()
 [![Status: Production Ready](https://img.shields.io/badge/status-production%20ready-green.svg)]()
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network

@@ -1,6 +1,6 @@
-# CLAUDE.md - Qubitcoin Master Development Guide
+# CLAUDE.md - Quantum Blockchain Master Development Guide
 
-> **The definitive reference for AI-assisted development on the Qubitcoin codebase.**
+> **The definitive reference for AI-assisted development on the Quantum Blockchain codebase.**
 > Covers Layer 1 (blockchain), Layer 2 (QVM + smart contracts), Layer 3 (Aether Tree AGI),
 > and the Frontend (qbc.network).
 
@@ -8,7 +8,7 @@
 
 ## 1. PROJECT IDENTITY
 
-**Qubitcoin (QBC) | Quantum Blockchain** is a physics-secured Layer 1 blockchain that combines:
+**Quantum Blockchain** is a physics-secured Layer 1 blockchain whose native currency is **Qubitcoin (QBC)**. It combines:
 - **Quantum Computing** (Qiskit VQE) for Proof-of-SUSY-Alignment mining
 - **Post-Quantum Cryptography** (CRYSTALS-Dilithium2) for quantum-resistant signatures
 - **Supersymmetric (SUSY) Economics** with golden ratio (phi) emission principles
@@ -45,7 +45,7 @@
 | **Frontend** | React/Next.js (qbc.network) | 35 components | ~8,000 | 85-90% Ready |
 | **Infra** | Docker/Monitoring/DevOps | 20+ configs | ~2,000 | Production Ready |
 | **Docs** | Whitepapers + Guides | 8 files | ~5,800 | Production Ready |
-| **Tests** | Python pytest suite | 3,812 tests | ~32,000 | All Passing |
+| **Tests** | Python pytest suite | 3,901 tests | ~32,000 | All Passing |
 | **Total** | | **300+ files** | **~100,000+** | **Production Ready** |
 
 ### What Needs To Happen Next
@@ -367,7 +367,7 @@ Qubitcoin/
 ├── sql/                              # Legacy schemas (10 files)
 ├── sql_new/                          # Domain-separated schemas (qbc, agi, qvm, research, shared)
 │
-├── tests/                            # Test suite (3,812+ tests, 97 files)
+├── tests/                            # Test suite (3,901+ tests, 97 files)
 │   ├── unit/                         # Unit tests (83 files)
 │   ├── integration/                  # Integration tests
 │   ├── validation/                   # Pre-launch validation

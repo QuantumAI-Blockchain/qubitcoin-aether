@@ -1,4 +1,4 @@
-/** Qubitcoin chain and project constants */
+/** Quantum Blockchain chain and project constants */
 
 export const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 3301);
 export const CHAIN_NAME = process.env.NEXT_PUBLIC_CHAIN_NAME ?? "Quantum Blockchain";

@@ -9,6 +9,8 @@ const TAU = Math.PI * 2;
 
 // --- Custom shader: quantum probability particles with glow halos ---
 const quantumVertexShader = `
+  #define TAU 6.2831853071795864
+
   attribute float aPhase;
   attribute float aEnergy;
   attribute float aEntangled;
@@ -345,25 +347,13 @@ function QuantumParticles() {
   );
 
   return (
-    <>
-      <points ref={pointsRef} material={shaderMaterial}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-          <bufferAttribute attach="attributes-color" args={[colors, 3]} />
-          <bufferAttribute attach="attributes-aPhase" args={[phases, 1]} />
-          <bufferAttribute attach="attributes-aEnergy" args={[energies, 1]} />
-          <bufferAttribute attach="attributes-aEntangled" args={[entangled, 1]} />
-          <bufferAttribute attach="attributes-aGhost" args={[ghosts, 3]} />
-        </bufferGeometry>
-      </points>
-      <lineSegments ref={filamentRef} material={filamentMaterial}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[filamentPositions, 3]} />
-          <bufferAttribute attach="attributes-aProgress" args={[filamentProgress, 1]} />
-          <bufferAttribute attach="attributes-aPairId" args={[filamentPairIds, 1]} />
-        </bufferGeometry>
-      </lineSegments>
-    </>
+    <lineSegments ref={filamentRef} material={filamentMaterial}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[filamentPositions, 3]} />
+        <bufferAttribute attach="attributes-aProgress" args={[filamentProgress, 1]} />
+        <bufferAttribute attach="attributes-aPairId" args={[filamentPairIds, 1]} />
+      </bufferGeometry>
+    </lineSegments>
   );
 }
 
@@ -436,7 +426,6 @@ export function ParticleField() {
       >
         <ResponsiveCamera />
         <QuantumParticles />
-        <ProbabilityFog />
       </Canvas>
     </div>
   );

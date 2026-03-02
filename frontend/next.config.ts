@@ -28,8 +28,26 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
     return [
+      // TWA routes — allow Telegram to embed in iframe/WebView + load SDK script
       {
-        source: "/(.*)",
+        source: "/twa/:path*",
+        headers: [
+          // No X-Frame-Options — Telegram needs to embed TWA pages
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Content-Security-Policy",
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws: wss: http://localhost:* https://*; font-src 'self' data:; frame-ancestors https://web.telegram.org https://desktop.telegram.org https://*.telegram.org",
+          },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
+      // All other routes — strict security
+      {
+        source: "/((?!twa).*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },

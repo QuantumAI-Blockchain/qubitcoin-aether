@@ -1,4 +1,4 @@
-# AGENTS.md — AI Efficiency Guide for Qubitcoin
+# AGENTS.md — AI Efficiency Guide for Quantum Blockchain
 
 > **Purpose:** Prevent repeated mistakes. Every fact here was learned the hard way.
 > Read this before touching code. See `CLAUDE.md` for full architecture reference.
@@ -154,7 +154,7 @@ qubitcoin-common:   database/ utils/ config.py (shared)
 ## 4. TEST COMMANDS
 
 ```bash
-# Full suite (3,812+ tests)
+# Full suite (3,901+ tests)
 pytest tests/ -v --tb=short
 
 # By subsystem

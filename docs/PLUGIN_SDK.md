@@ -1,6 +1,6 @@
 # QVM Plugin SDK
 
-> **How to build, register, and deploy plugins for the Qubitcoin QVM.**
+> **How to build, register, and deploy plugins for the Quantum Blockchain QVM.**
 
 ---
 
