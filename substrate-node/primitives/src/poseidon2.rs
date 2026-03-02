@@ -29,7 +29,7 @@
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-/// Field modulus — Goldilocks prime (2^64 - 2^32 + 1).
+/// Field modulus — Goldilocks prime: 2^64 - 2^32 + 1 (verified prime).
 /// Used for efficient modular arithmetic in embedded/no_std environments.
 /// In production ZK circuits, this would use the BN254 scalar field.
 const GOLDILOCKS_P: u64 = 0xFFFF_FFFF_0000_0001;

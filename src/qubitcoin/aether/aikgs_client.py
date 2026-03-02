@@ -1,13 +1,14 @@
 """
 Python gRPC client for the Rust AIKGS sidecar.
 
-Bridges the Python node with the Rust AIKGS sidecar via gRPC.
+Bridges the Python node with the Rust AIKGS gRPC sidecar.
 All AIKGS business logic runs in the sidecar; this client
 translates between Python dicts and protobuf messages.
 """
 import asyncio
 from typing import Any, Dict, List, Optional
 
+from ..config import Config
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -58,11 +59,11 @@ class _AuthMetadataInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
 
 class AikgsClient:
     """
-    Async gRPC client for the AIKGS Rust sidecar.
+    Async gRPC client for the AIKGS Rust gRPC sidecar.
 
     Wraps all 35 AikgsService RPCs with Python-friendly interfaces
-    that return plain dicts. The node uses this instead of the
-    8 Python AIKGS modules.
+    that return plain dicts. The node uses this client to communicate
+    with the Rust sidecar which handles all AIKGS business logic.
 
     All gRPC calls include the x-auth-token metadata header for
     authentication (AIKGS-C1).
@@ -71,12 +72,13 @@ class AikgsClient:
     def __init__(self, grpc_addr: str = "127.0.0.1:50052", auth_token: str = "") -> None:
         self.grpc_addr = grpc_addr
         self.auth_token = auth_token
+        self._grpc_timeout: int = Config.AIKGS_GRPC_TIMEOUT
         self.channel: Any = None
         self.stub: Any = None
         self._connected = False
 
     async def connect(self) -> bool:
-        """Connect to the AIKGS sidecar gRPC server."""
+        """Connect to the AIKGS Rust gRPC sidecar."""
         if not GRPC_AVAILABLE:
             logger.error("grpcio / protobuf stubs not available — cannot connect to AIKGS sidecar")
             return False
@@ -86,15 +88,20 @@ class AikgsClient:
             if self.auth_token:
                 interceptors.append(_AuthMetadataInterceptor(self.auth_token))
             else:
+                # Expected in dev mode — the sidecar can run without auth
+                # for local development. In production, set AIKGS_AUTH_TOKEN.
                 logger.warning(
-                    "AIKGS_AUTH_TOKEN not set — gRPC calls will be rejected by the sidecar"
+                    "AIKGS_AUTH_TOKEN not set — expected in dev mode; "
+                    "set AIKGS_AUTH_TOKEN in .env for production"
                 )
             self.channel = grpc.aio.insecure_channel(
                 self.grpc_addr, interceptors=interceptors
             )
             self.stub = aikgs_pb2_grpc.AikgsServiceStub(self.channel)
             # Quick health probe — try GetRewardStats
-            await self.stub.GetRewardStats(aikgs_pb2.Empty(), timeout=5)
+            await self.stub.GetRewardStats(
+                aikgs_pb2.Empty(), timeout=self._grpc_timeout
+            )
             self._connected = True
             logger.info(f"AIKGS sidecar connected at {self.grpc_addr}")
             return True
@@ -104,7 +111,7 @@ class AikgsClient:
             return False
 
     async def close(self) -> None:
-        """Close the gRPC channel."""
+        """Close the gRPC channel to the Rust sidecar."""
         if self.channel:
             await self.channel.close()
             self._connected = False
@@ -124,7 +131,10 @@ class AikgsClient:
         metadata: Optional[Dict[str, str]] = None,
         bounty_id: int = 0,
     ) -> Dict[str, Any]:
-        """Submit a knowledge contribution. Returns contribution record dict."""
+        """Submit a knowledge contribution to the Rust gRPC sidecar.
+
+        Returns contribution record dict with scoring and reward info.
+        """
         req = aikgs_pb2.ContributeRequest(
             contributor_address=contributor_address,
             content=content,
@@ -132,10 +142,17 @@ class AikgsClient:
             bounty_id=bounty_id,
         )
         resp = await self.stub.ProcessContribution(req)
-        return _contribution_to_dict(resp)
+        result = _contribution_to_dict(resp)
+        # Validate expected fields in response
+        if 'contribution_id' not in result or 'quality_score' not in result:
+            logger.warning(
+                "ProcessContribution response missing expected fields "
+                "(contribution_id, quality_score)"
+            )
+        return result
 
     async def get_contribution(self, contribution_id: int) -> Optional[Dict[str, Any]]:
-        """Get a specific contribution by ID."""
+        """Get a specific contribution by ID from the Rust gRPC sidecar."""
         try:
             resp = await self.stub.GetContribution(
                 aikgs_pb2.GetContributionRequest(contribution_id=contribution_id)
@@ -147,14 +164,14 @@ class AikgsClient:
             raise
 
     async def get_contributor_history(self, address: str, limit: int = 20) -> List[Dict[str, Any]]:
-        """Get contribution history for an address."""
+        """Get contribution history for an address from the Rust gRPC sidecar."""
         resp = await self.stub.GetContributorHistory(
             aikgs_pb2.ContributorHistoryRequest(address=address, limit=limit)
         )
         return [_contribution_to_dict(c) for c in resp.contributions]
 
     async def get_leaderboard(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """Get contribution leaderboard."""
+        """Get contribution leaderboard from the Rust gRPC sidecar."""
         resp = await self.stub.GetContributionLeaderboard(
             aikgs_pb2.LeaderboardRequest(limit=limit)
         )
@@ -170,7 +187,7 @@ class AikgsClient:
         ]
 
     async def get_contribution_stats(self) -> Dict[str, Any]:
-        """Get aggregate contribution statistics."""
+        """Get aggregate contribution statistics from the Rust gRPC sidecar."""
         resp = await self.stub.GetContributionStats(aikgs_pb2.Empty())
         return {
             "total_contributions": resp.total_contributions,
@@ -185,9 +202,9 @@ class AikgsClient:
     # ================================================================
 
     async def get_reward_stats(self) -> Dict[str, Any]:
-        """Get reward pool statistics."""
+        """Get reward pool statistics from the Rust gRPC sidecar."""
         resp = await self.stub.GetRewardStats(aikgs_pb2.Empty())
-        return {
+        result = {
             "pool_balance": resp.pool_balance,
             "total_distributed": resp.total_distributed,
             "distribution_count": resp.distribution_count,
@@ -197,9 +214,16 @@ class AikgsClient:
             "early_threshold": resp.early_threshold,
             "contributors_with_streaks": resp.contributors_with_streaks,
         }
+        # Validate expected fields in response
+        if not hasattr(resp, 'pool_balance') or not hasattr(resp, 'total_distributed'):
+            logger.warning(
+                "GetRewardStats response missing expected fields "
+                "(pool_balance, total_distributed)"
+            )
+        return result
 
     async def get_contributor_streak(self, address: str) -> Dict[str, Any]:
-        """Get streak info for an address."""
+        """Get streak info for an address from the Rust gRPC sidecar."""
         resp = await self.stub.GetContributorStreak(
             aikgs_pb2.StreakRequest(address=address)
         )
@@ -216,7 +240,7 @@ class AikgsClient:
     async def register_affiliate(
         self, address: str, referral_code: str = "", referrer_address: str = ""
     ) -> Dict[str, Any]:
-        """Register an affiliate."""
+        """Register an affiliate via the Rust gRPC sidecar."""
         resp = await self.stub.RegisterAffiliate(
             aikgs_pb2.RegisterAffiliateRequest(
                 address=address,
@@ -227,7 +251,7 @@ class AikgsClient:
         return _affiliate_to_dict(resp)
 
     async def get_affiliate(self, address: str) -> Optional[Dict[str, Any]]:
-        """Get affiliate info."""
+        """Get affiliate info from the Rust gRPC sidecar."""
         try:
             resp = await self.stub.GetAffiliate(
                 aikgs_pb2.GetAffiliateRequest(address=address)
@@ -239,7 +263,7 @@ class AikgsClient:
             raise
 
     async def get_affiliate_link(self, address: str) -> Optional[Dict[str, Any]]:
-        """Get affiliate referral link."""
+        """Get affiliate referral link from the Rust gRPC sidecar."""
         try:
             resp = await self.stub.GetAffiliateLink(
                 aikgs_pb2.AffiliateLinkRequest(address=address)
@@ -254,7 +278,7 @@ class AikgsClient:
             raise
 
     async def get_affiliate_stats(self) -> Dict[str, Any]:
-        """Get aggregate affiliate statistics."""
+        """Get aggregate affiliate statistics from the Rust gRPC sidecar."""
         resp = await self.stub.GetAffiliateStats(aikgs_pb2.Empty())
         return {
             "total_affiliates": resp.total_affiliates,
@@ -270,7 +294,7 @@ class AikgsClient:
         self, domain: str, description: str, reward_amount: float,
         gap_hash: str = "", duration_secs: int = 0, boost_multiplier: float = 1.0,
     ) -> Dict[str, Any]:
-        """Create a new bounty."""
+        """Create a new bounty via the Rust gRPC sidecar."""
         resp = await self.stub.CreateBounty(
             aikgs_pb2.CreateBountyRequest(
                 domain=domain, description=description, gap_hash=gap_hash,
@@ -283,14 +307,14 @@ class AikgsClient:
     async def list_bounties(
         self, status: str = "open", domain: str = "", limit: int = 50
     ) -> List[Dict[str, Any]]:
-        """List bounties."""
+        """List bounties from the Rust gRPC sidecar."""
         resp = await self.stub.ListBounties(
             aikgs_pb2.ListBountiesRequest(domain=domain, status=status, limit=limit)
         )
         return [_bounty_to_dict(b) for b in resp.bounties]
 
     async def claim_bounty(self, bounty_id: int, claimer_address: str) -> Dict[str, Any]:
-        """Claim a bounty."""
+        """Claim a bounty via the Rust gRPC sidecar."""
         resp = await self.stub.ClaimBounty(
             aikgs_pb2.ClaimBountyRequest(bounty_id=bounty_id, claimer_address=claimer_address)
         )
@@ -299,7 +323,7 @@ class AikgsClient:
     async def fulfill_bounty(
         self, bounty_id: int, contribution_id: int, contributor_address: str
     ) -> Dict[str, Any]:
-        """Fulfill a bounty with a contribution."""
+        """Fulfill a bounty with a contribution via the Rust gRPC sidecar."""
         resp = await self.stub.FulfillBounty(
             aikgs_pb2.FulfillBountyRequest(
                 bounty_id=bounty_id, contribution_id=contribution_id,
@@ -309,7 +333,7 @@ class AikgsClient:
         return {"reward_amount": resp.reward_amount}
 
     async def get_bounty_stats(self) -> Dict[str, Any]:
-        """Get aggregate bounty statistics."""
+        """Get aggregate bounty statistics from the Rust gRPC sidecar."""
         resp = await self.stub.GetBountyStats(aikgs_pb2.Empty())
         return {
             "total_bounties": resp.total_bounties,
@@ -323,7 +347,7 @@ class AikgsClient:
     # ================================================================
 
     async def get_profile(self, address: str) -> Optional[Dict[str, Any]]:
-        """Get contributor profile."""
+        """Get contributor profile from the Rust gRPC sidecar."""
         try:
             resp = await self.stub.GetProfile(
                 aikgs_pb2.ProfileRequest(address=address)
@@ -335,21 +359,21 @@ class AikgsClient:
             raise
 
     async def has_feature(self, address: str, feature: str) -> bool:
-        """Check if a contributor has unlocked a feature."""
+        """Check if a contributor has unlocked a feature via the Rust gRPC sidecar."""
         resp = await self.stub.HasFeature(
             aikgs_pb2.HasFeatureRequest(address=address, feature=feature)
         )
         return resp.has_feature
 
     async def get_unlocks_leaderboard(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """Get unlocks leaderboard."""
+        """Get unlocks leaderboard from the Rust gRPC sidecar."""
         resp = await self.stub.GetUnlocksLeaderboard(
             aikgs_pb2.UnlocksLeaderboardRequest(limit=limit)
         )
         return [_profile_to_dict(p) for p in resp.profiles]
 
     async def get_unlocks_stats(self) -> Dict[str, Any]:
-        """Get unlock statistics."""
+        """Get unlock statistics from the Rust gRPC sidecar."""
         resp = await self.stub.GetUnlocksStats(aikgs_pb2.Empty())
         return {
             "total_profiles": resp.total_profiles,
@@ -363,7 +387,7 @@ class AikgsClient:
     # ================================================================
 
     async def submit_for_curation(self, contribution_id: int) -> Dict[str, Any]:
-        """Submit a contribution for curation."""
+        """Submit a contribution for curation via the Rust gRPC sidecar."""
         resp = await self.stub.SubmitForCuration(
             aikgs_pb2.SubmitForCurationRequest(contribution_id=contribution_id)
         )
@@ -372,7 +396,7 @@ class AikgsClient:
     async def submit_review(
         self, contribution_id: int, curator_address: str, vote: bool, comment: str = ""
     ) -> Dict[str, Any]:
-        """Submit a curation review/vote."""
+        """Submit a curation review/vote via the Rust gRPC sidecar."""
         resp = await self.stub.SubmitReview(
             aikgs_pb2.SubmitReviewRequest(
                 contribution_id=contribution_id, curator_address=curator_address,
@@ -382,14 +406,14 @@ class AikgsClient:
         return _curation_round_to_dict(resp)
 
     async def get_pending_reviews(self, curator_address: str = "") -> List[Dict[str, Any]]:
-        """Get pending curation rounds."""
+        """Get pending curation rounds from the Rust gRPC sidecar."""
         resp = await self.stub.GetPendingReviews(
             aikgs_pb2.PendingReviewsRequest(curator_address=curator_address)
         )
         return [_curation_round_to_dict(r) for r in resp.rounds]
 
     async def get_curation_round(self, contribution_id: int) -> Optional[Dict[str, Any]]:
-        """Get a curation round for a contribution."""
+        """Get a curation round for a contribution from the Rust gRPC sidecar."""
         try:
             resp = await self.stub.GetCurationRound(
                 aikgs_pb2.GetCurationRoundRequest(contribution_id=contribution_id)
@@ -401,7 +425,7 @@ class AikgsClient:
             raise
 
     async def get_curator_stats(self, address: str) -> Dict[str, Any]:
-        """Get stats for a curator."""
+        """Get stats for a curator from the Rust gRPC sidecar."""
         resp = await self.stub.GetCuratorStats(
             aikgs_pb2.CuratorStatsRequest(address=address)
         )
@@ -414,7 +438,7 @@ class AikgsClient:
         }
 
     async def get_curation_stats(self) -> Dict[str, Any]:
-        """Get aggregate curation statistics."""
+        """Get aggregate curation statistics from the Rust gRPC sidecar."""
         resp = await self.stub.GetCurationStats(aikgs_pb2.Empty())
         return {
             "total_rounds": resp.total_rounds,
@@ -432,7 +456,7 @@ class AikgsClient:
         model: str = "", is_shared: bool = False,
         shared_reward_bps: int = 0, label: str = "",
     ) -> Dict[str, Any]:
-        """Store an API key in the vault."""
+        """Store an API key in the vault via the Rust gRPC sidecar."""
         resp = await self.stub.StoreApiKey(
             aikgs_pb2.StoreKeyRequest(
                 provider=provider, api_key=api_key, owner_address=owner_address,
@@ -443,7 +467,7 @@ class AikgsClient:
         return _key_info_to_dict(resp.key_info) if resp.key_info else {}
 
     async def get_api_key(self, key_id: str) -> Optional[Dict[str, Any]]:
-        """Get and decrypt an API key."""
+        """Get and decrypt an API key via the Rust gRPC sidecar."""
         try:
             resp = await self.stub.GetApiKey(
                 aikgs_pb2.GetKeyRequest(key_id=key_id)
@@ -459,21 +483,21 @@ class AikgsClient:
             raise
 
     async def list_api_keys(self, owner_address: str) -> List[Dict[str, Any]]:
-        """List API keys for an owner."""
+        """List API keys for an owner via the Rust gRPC sidecar."""
         resp = await self.stub.ListApiKeys(
             aikgs_pb2.ListKeysRequest(owner_address=owner_address)
         )
         return [_key_info_to_dict(k) for k in resp.keys]
 
     async def revoke_api_key(self, key_id: str, owner_address: str) -> bool:
-        """Revoke an API key."""
+        """Revoke an API key via the Rust gRPC sidecar."""
         resp = await self.stub.RevokeApiKey(
             aikgs_pb2.RevokeKeyRequest(key_id=key_id, owner_address=owner_address)
         )
         return resp.ok
 
     async def get_shared_key_pool(self, provider: str = "") -> List[Dict[str, Any]]:
-        """Get shared API key pool."""
+        """Get shared API key pool from the Rust gRPC sidecar."""
         resp = await self.stub.GetSharedKeyPool(
             aikgs_pb2.SharedPoolRequest(provider=provider)
         )
@@ -484,7 +508,7 @@ class AikgsClient:
     # ================================================================
 
     async def get_full_stats(self) -> Dict[str, Any]:
-        """Get full AIKGS statistics (all subsystems)."""
+        """Get full AIKGS statistics (all subsystems) from the Rust gRPC sidecar."""
         resp = await self.stub.GetFullStats(aikgs_pb2.Empty())
         result: Dict[str, Any] = {}
         if resp.contributions:

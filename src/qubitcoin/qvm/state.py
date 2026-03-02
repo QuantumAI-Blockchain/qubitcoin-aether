@@ -268,7 +268,7 @@ class StateManager:
             return receipt
 
         except Exception as e:
-            logger.debug(f"Compliance check error (allowing tx): {e}")
+            logger.debug(f"Compliance check error [{type(e).__name__}] (allowing tx): {e}")
             return None
 
     def _deploy_contract(self, tx: Transaction, block_height: int, block_hash: str, tx_index: int) -> TransactionReceipt:
@@ -454,7 +454,7 @@ class StateManager:
                     log_index=i,
                 )
         except Exception as e:
-            logger.debug(f"Event indexing skipped: {e}")
+            logger.debug(f"Event indexing skipped [{type(e).__name__}]: {e}")
 
     def _get_sender_address(self, tx: Transaction) -> str:
         """Derive sender address from transaction (consistent with crypto.derive_address)"""
@@ -694,7 +694,7 @@ class QuantumStateStore:
                 )
                 session.commit()
         except Exception as e:
-            logger.debug(f"Quantum state persist skipped: {e}")
+            logger.debug(f"Quantum state persist skipped [{type(e).__name__}]: {e}")
 
     def _load(self, state_id: int) -> Optional[dict]:
         """Load a state from the DB (fallback when not in memory)."""
@@ -721,5 +721,5 @@ class QuantumStateStore:
                     self._states[state_id] = record
                     return record
         except Exception as e:
-            logger.debug(f"Quantum state load skipped: {e}")
+            logger.debug(f"Quantum state load skipped [{type(e).__name__}]: {e}")
         return None

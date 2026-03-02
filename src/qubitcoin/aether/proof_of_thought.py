@@ -54,29 +54,29 @@ class AetherEngine:
         self.consciousness_dashboard = None
 
         # --- AGI Improvement Subsystems ---
-        # #2: Graph Attention Network Reasoner
+        # #2: Graph Attention Network Reasoner (critical for neural reasoning)
         self.neural_reasoner = None
         try:
             from .neural_reasoner import GATReasoner
             self.neural_reasoner = GATReasoner()
         except Exception as e:
-            logger.debug(f"GATReasoner init failed: {e}")
+            logger.warning(f"GATReasoner init failed — neural reasoning disabled: {e}")
 
-        # #3: Causal Discovery Engine
+        # #3: Causal Discovery Engine (critical for causal inference)
         self.causal_engine = None
         try:
             from .causal_engine import CausalDiscovery
             self.causal_engine = CausalDiscovery(knowledge_graph)
         except Exception as e:
-            logger.debug(f"CausalDiscovery init failed: {e}")
+            logger.warning(f"CausalDiscovery init failed — causal inference disabled: {e}")
 
-        # #5: Adversarial Debate Protocol
+        # #5: Adversarial Debate Protocol (critical for contradiction resolution)
         self.debate_protocol = None
         try:
             from .debate import DebateProtocol
             self.debate_protocol = DebateProtocol(knowledge_graph)
         except Exception as e:
-            logger.debug(f"DebateProtocol init failed: {e}")
+            logger.warning(f"DebateProtocol init failed — adversarial debate disabled: {e}")
 
         # #6: Temporal Reasoning Engine
         self.temporal_engine = None

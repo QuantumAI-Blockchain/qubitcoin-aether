@@ -1191,7 +1191,8 @@ class DatabaseManager:
             # Auto-commit pending ORM changes on clean exit
             if session.new or session.dirty or session.deleted:
                 session.commit()
-        except Exception:
+        except Exception as exc:
+            logger.error(f"Session error, rolling back: {exc}", exc_info=True)
             session.rollback()
             raise
         finally:

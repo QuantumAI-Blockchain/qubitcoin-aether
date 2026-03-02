@@ -44,6 +44,12 @@ pub mod pallet {
     pub const DEFAULT_REVERSAL_WINDOW: u64 = 26_182;
 
     /// Default approval threshold: 3 of 5 governors must approve.
+    ///
+    /// A reversal request is executed when `approval_count >= ApprovalThreshold`.
+    /// The threshold is stored on-chain via `ApprovalThreshold` storage and can
+    /// be updated by governance via `set_approval_threshold()`. It must satisfy:
+    ///   1 <= threshold <= number_of_governors
+    /// A majority threshold (e.g., 3-of-5) is recommended to prevent unilateral reversals.
     pub const DEFAULT_APPROVAL_THRESHOLD: u32 = 3;
 
     #[pallet::pallet]

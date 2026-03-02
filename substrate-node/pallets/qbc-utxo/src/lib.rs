@@ -21,6 +21,8 @@ pub trait UtxoFreezeChecker {
 
 /// Default implementation that never freezes anything.
 /// Used when no reversibility pallet is configured.
+///
+/// WARNING: Default implementation never freezes UTXOs. Override in production runtime.
 impl UtxoFreezeChecker for () {
     fn is_frozen(_txid: &sp_core::H256, _vout: u32) -> bool {
         false

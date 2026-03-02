@@ -96,6 +96,10 @@ class MiningEngine:
                         self.stats['uptime'] = int(time.time() - self._mining_start_time)
                 self._mine_block()
             except Exception as e:
+                # Broad catch is intentional: the mining loop must never crash
+                # the node process.  Any unhandled exception (DB hiccup, numpy
+                # error, transient quantum backend failure) is logged with full
+                # traceback and mining retries after a cooldown interval.
                 logger.error(f"Mining error: {e}", exc_info=True)
                 # Use event-based wait instead of sleep for faster shutdown
                 self._stop_event.wait(timeout=Config.MINING_INTERVAL)

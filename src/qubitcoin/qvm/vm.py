@@ -14,6 +14,7 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Keccak256: EVM-compatible (NOT SHA3-256, which is different)
+_keccak_source: str = "none"
 try:
     import sha3
     # Validate sha3 is real (not a test stub)
@@ -21,16 +22,19 @@ try:
     assert isinstance(_test, bytes) and len(_test) == 32
     def keccak256(data: bytes) -> bytes:
         return sha3.keccak_256(data).digest()
+    _keccak_source = "pysha3"
 except (ImportError, AttributeError, TypeError, AssertionError):
     try:
         from Crypto.Hash import keccak as _keccak
         def keccak256(data: bytes) -> bytes:
             return _keccak.new(digest_bits=256, data=data).digest()
+        _keccak_source = "pycryptodome"
     except ImportError:
         raise ImportError(
             "keccak256 requires pysha3 or pycryptodome. "
             "Install: pip install pysha3  OR  pip install pycryptodome"
         )
+logger.info(f"Using keccak256 implementation: {_keccak_source}")
 
 
 class ExecutionError(Exception):

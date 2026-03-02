@@ -154,40 +154,61 @@ class KnowledgeGraph:
         self._load_from_db()
 
     def _load_from_db(self):
-        """Load knowledge graph from database into memory"""
+        """Load knowledge graph from database into memory.
+
+        If the DB query fails mid-iteration (e.g. connection drop),
+        partial data already loaded into self.nodes / self.edges is
+        retained so the graph starts with whatever was successfully read.
+        """
+        nodes_loaded = 0
+        edges_loaded = 0
         try:
             from sqlalchemy import text
             with self.db.get_session() as session:
                 rows = session.execute(
                     text("SELECT id, node_type, content_hash, content, confidence, source_block FROM knowledge_nodes ORDER BY id")
                 )
-                for r in rows:
-                    node = KeterNode(
-                        node_id=r[0],
-                        node_type=r[1],
-                        content_hash=r[2],
-                        content=json.loads(r[3]) if isinstance(r[3], str) else (r[3] or {}),
-                        confidence=float(r[4] or 0.5),
-                        source_block=r[5] or 0,
+                try:
+                    for r in rows:
+                        node = KeterNode(
+                            node_id=r[0],
+                            node_type=r[1],
+                            content_hash=r[2],
+                            content=json.loads(r[3]) if isinstance(r[3], str) else (r[3] or {}),
+                            confidence=float(r[4] or 0.5),
+                            source_block=r[5] or 0,
+                        )
+                        self.nodes[node.node_id] = node
+                        self._next_id = max(self._next_id, node.node_id + 1)
+                        nodes_loaded += 1
+                except Exception as e:
+                    logger.warning(
+                        f"Knowledge graph node iteration failed after {nodes_loaded} nodes: {e}; "
+                        f"continuing with partial data"
                     )
-                    self.nodes[node.node_id] = node
-                    self._next_id = max(self._next_id, node.node_id + 1)
 
                 edge_rows = session.execute(
                     text("SELECT from_node_id, to_node_id, edge_type, weight FROM knowledge_edges ORDER BY id")
                 )
-                for r in edge_rows:
-                    edge = KeterEdge(
-                        from_node_id=r[0], to_node_id=r[1],
-                        edge_type=r[2], weight=float(r[3] or 1.0)
+                try:
+                    for r in edge_rows:
+                        edge = KeterEdge(
+                            from_node_id=r[0], to_node_id=r[1],
+                            edge_type=r[2], weight=float(r[3] or 1.0)
+                        )
+                        self.edges.append(edge)
+                        self._adj_out.setdefault(r[0], []).append(edge)
+                        self._adj_in.setdefault(r[1], []).append(edge)
+                        if r[0] in self.nodes:
+                            self.nodes[r[0]].edges_out.append(r[1])
+                        if r[1] in self.nodes:
+                            self.nodes[r[1]].edges_in.append(r[0])
+                        edges_loaded += 1
+                except Exception as e:
+                    logger.warning(
+                        f"Knowledge graph edge iteration failed after {edges_loaded} edges: {e}; "
+                        f"continuing with partial data"
                     )
-                    self.edges.append(edge)
-                    self._adj_out.setdefault(r[0], []).append(edge)
-                    self._adj_in.setdefault(r[1], []).append(edge)
-                    if r[0] in self.nodes:
-                        self.nodes[r[0]].edges_out.append(r[1])
-                    if r[1] in self.nodes:
-                        self.nodes[r[1]].edges_in.append(r[0])
 
             # Build TF-IDF index and auto-classify domains for loaded nodes
             unclassified = 0
@@ -214,7 +235,9 @@ class KnowledgeGraph:
                          f"{len(domain_counts)} domains"
                          + (f" ({unclassified} auto-classified)" if unclassified else ''))
         except Exception as e:
-            logger.debug(f"Knowledge graph load: {e}")
+            logger.warning(
+                f"Knowledge graph DB load failed ({nodes_loaded} nodes, {edges_loaded} edges recovered): {e}"
+            )
 
     def add_node(self, node_type: str, content: dict, confidence: float,
                  source_block: int, domain: str = '') -> KeterNode:

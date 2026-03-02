@@ -58,6 +58,12 @@ impl SecureSession {
     /// This ensures that the initiator's send key matches the responder's
     /// receive key and vice versa, while preventing nonce reuse across
     /// directions (different keys for each direction).
+    ///
+    /// # Panics
+    ///
+    /// The `.expect()` calls in this constructor are infallible: AES-256-GCM
+    /// always accepts a 32-byte key, and HKDF-SHA256 always produces a 32-byte
+    /// output. These invariants are guaranteed by the cryptographic primitives.
     pub fn new(session_key: [u8; 32], is_initiator: bool) -> Self {
         let (send_key, recv_key) = Self::derive_directional_keys(&session_key, is_initiator);
 

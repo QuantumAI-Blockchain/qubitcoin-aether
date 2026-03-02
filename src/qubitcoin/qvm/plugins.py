@@ -75,12 +75,12 @@ class QVMPlugin(ABC):
     @abstractmethod
     def name(self) -> str:
         """Unique plugin identifier."""
-        ...
+        raise NotImplementedError("Subclasses must implement this method")
 
     @abstractmethod
     def version(self) -> str:
         """Semver version string."""
-        ...
+        raise NotImplementedError("Subclasses must implement this method")
 
     def description(self) -> str:
         return ''

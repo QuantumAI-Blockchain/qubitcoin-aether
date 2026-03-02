@@ -149,6 +149,8 @@ class Config:
     # not always the exact ground state).
     ENERGY_MARGIN: float = float(os.getenv('ENERGY_MARGIN', 0.5))
     # PHI_FORK_HEIGHT removed — v3 is the only formula (DB reset + new genesis)
+    # One-time difficulty reset height to recover from ceiling runaway
+    DIFFICULTY_CEILING_FIX_HEIGHT: int = int(os.getenv('DIFFICULTY_CEILING_FIX_HEIGHT', 2750))
     COINBASE_MATURITY: int = 100  # Coinbase outputs unspendable for 100 blocks
     MAX_FUTURE_BLOCK_TIME: int = 120  # Max seconds a block timestamp can be in the future (2 minutes)
     CONFIRMATION_DEPTH: int = 180  # Wait 180 blocks (~10 min) for finality
@@ -385,6 +387,10 @@ class Config:
     MANDATORY_PHI_ENFORCEMENT_HEIGHT: int = int(os.getenv('MANDATORY_PHI_ENFORCEMENT_HEIGHT', '5000'))
     PHI_THRESHOLD: float = float(os.getenv('PHI_THRESHOLD', '3.0'))
 
+    # Phi calculator spectral bisection sampling limits
+    PHI_MAX_SAMPLE_NODES: int = int(os.getenv('PHI_MAX_SAMPLE_NODES', '5000'))
+    PHI_SAMPLE_SEED: int = int(os.getenv('PHI_SAMPLE_SEED', '42'))
+
     # ============================================================================
     # SELF-IMPROVEMENT ENGINE (Recursive reasoning optimization)
     # ============================================================================
@@ -443,6 +449,7 @@ class Config:
     AIKGS_GRPC_ADDR: str = os.getenv('AIKGS_GRPC_ADDR', '127.0.0.1')
     AIKGS_AUTH_TOKEN: str = os.getenv('AIKGS_AUTH_TOKEN', '')
     AIKGS_TREASURY_ADDRESS: str = os.getenv('AIKGS_TREASURY_ADDRESS', '')
+    AIKGS_GRPC_TIMEOUT: int = int(os.getenv('AIKGS_GRPC_TIMEOUT', '5'))
 
     # AIKGS Contract Addresses (set after deployment)
     AIKGS_REWARD_POOL_ADDRESS: str = os.getenv('AIKGS_REWARD_POOL_ADDRESS', '')

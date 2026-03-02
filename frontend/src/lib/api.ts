@@ -3,9 +3,12 @@ import { RPC_URL } from "./constants";
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
 
+/** API base URL with fallback if the env var / constants import is undefined at runtime. */
+const API_URL = RPC_URL || "http://localhost:5000";
+
 /** Generic fetch wrapper for the QBC node REST API with exponential backoff retry. */
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${RPC_URL}${path}`;
+  const url = `${API_URL}${path}`;
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {

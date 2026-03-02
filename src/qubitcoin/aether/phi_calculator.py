@@ -23,17 +23,18 @@ import time
 from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
 
+from ..config import Config
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Phi threshold for Proof-of-Thought validity
-PHI_THRESHOLD = 3.0
+# Phi threshold for Proof-of-Thought validity (loaded from Config)
+PHI_THRESHOLD = Config.PHI_THRESHOLD
 
 # Maximum nodes to sample for spectral bisection (O(n^2) cap)
-PHI_MAX_SAMPLE_NODES = 5000
+PHI_MAX_SAMPLE_NODES = Config.PHI_MAX_SAMPLE_NODES
 # Deterministic seed for reproducible sampling
-PHI_SAMPLE_SEED = 42
+PHI_SAMPLE_SEED = Config.PHI_SAMPLE_SEED
 
 # ============================================================================
 # MILESTONE GATES (Semantic Quality Hardened)
@@ -192,6 +193,10 @@ class PhiCalculator:
         # History of (block_height, phi_value) for adaptation
         self._phi_history: List[Tuple[int, float]] = []
         self._max_history: int = 1000
+        # Cached Config values — avoids re-importing Config on every call
+        self._confidence_decay_halflife: int = Config.CONFIDENCE_DECAY_HALFLIFE
+        self._confidence_decay_floor: float = Config.CONFIDENCE_DECAY_FLOOR
+        self._phi_downsample_retain_days: int = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
 
     def compute_phi(self, block_height: int = 0) -> dict:
         """
@@ -972,9 +977,8 @@ class PhiCalculator:
         - Rows older than retain_days but < 30 days: collapsed to hourly averages
         - Rows older than 30 days: collapsed to daily averages
         """
-        from ..config import Config
         if retain_days is None:
-            retain_days = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
+            retain_days = self._phi_downsample_retain_days
 
         stats = {'hourly_created': 0, 'daily_created': 0, 'rows_deleted': 0}
 

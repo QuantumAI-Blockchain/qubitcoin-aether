@@ -555,6 +555,8 @@ class JsonRpcHandler:
 
     async def eth_call(self, params):
         """Read-only contract call (no state change)"""
+        if self.qvm is None:
+            raise RuntimeError("QVM state manager not initialized")
         call_obj = params[0] if params else {}
         if call_obj.get('to'):
             validate_hex(call_obj['to'], "to", max_len=42)
@@ -575,6 +577,8 @@ class JsonRpcHandler:
 
     async def eth_estimateGas(self, params):
         """Estimate gas for a transaction using QVM dry-run"""
+        if self.qvm is None:
+            raise RuntimeError("QVM state manager not initialized")
         call_obj = params[0] if params else {}
         if self.qvm and call_obj.get('data'):
             to_addr = call_obj.get('to', '').replace('0x', '')

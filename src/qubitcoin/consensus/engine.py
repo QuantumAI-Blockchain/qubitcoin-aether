@@ -66,9 +66,9 @@ class ConsensusEngine:
         3. Tail emission continues until MAX_SUPPLY is reached.
         4. Once MAX_SUPPLY is reached, reward = 0.
         """
-        PHI = Decimal('1.618033988749895')
+        phi = Decimal(str(Config.PHI))
         era = height // Config.HALVING_INTERVAL
-        phi_reward = Config.INITIAL_REWARD / (PHI ** era)
+        phi_reward = Config.INITIAL_REWARD / (phi ** era)
 
         # Use tail emission when phi-halving drops below the threshold
         if phi_reward >= Config.TAIL_EMISSION_REWARD:
@@ -98,7 +98,8 @@ class ConsensusEngine:
     # difficulty ran away to 1000 because the ceiling was raised but
     # there was no check for "already trivially easy".  Reset to
     # INITIAL_DIFFICULTY at this height to recover.
-    DIFFICULTY_CEILING_FIX_HEIGHT = 2750
+    # Configurable via DIFFICULTY_CEILING_FIX_HEIGHT env var (default 2750).
+    DIFFICULTY_CEILING_FIX_HEIGHT = Config.DIFFICULTY_CEILING_FIX_HEIGHT
 
     # Height at which difficulty dropped below the Hamiltonian ground state
     # (0.0798 < 0.182), making mining impossible.  Reset + ground state
@@ -207,7 +208,12 @@ class ConsensusEngine:
             except Exception as e:
                 logger.warning(f"Ground state check failed at height {height}: {e}")
 
-            # Cache to avoid re-computation (evict old entries to bound memory)
+            # Cache to avoid re-computation (evict old entries to bound memory).
+            # Cache eviction strategy: when size exceeds _difficulty_cache_max
+            # (DIFFICULTY_WINDOW * 3 = 432 entries), evict the oldest half by
+            # block height.  This keeps recent entries (needed for adjustment
+            # lookback) while bounding memory.  Entries are also invalidated
+            # above a fork height via invalidate_difficulty_cache_above().
             self.difficulty_cache[height] = new_difficulty
             if len(self.difficulty_cache) > self._difficulty_cache_max:
                 # Evict oldest half to amortize eviction cost
@@ -898,8 +904,8 @@ class ConsensusEngine:
         blocks_until_halving = Config.HALVING_INTERVAL - (height % Config.HALVING_INTERVAL) if height >= 0 else Config.HALVING_INTERVAL
 
         # Determine if we are in tail emission phase
-        PHI = Decimal('1.618033988749895')
-        phi_reward = Config.INITIAL_REWARD / (PHI ** era) if era >= 0 else Config.INITIAL_REWARD
+        phi = Decimal(str(Config.PHI))
+        phi_reward = Config.INITIAL_REWARD / (phi ** era) if era >= 0 else Config.INITIAL_REWARD
         in_tail_emission = phi_reward < Config.TAIL_EMISSION_REWARD
 
         return {

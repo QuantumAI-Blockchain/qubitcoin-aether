@@ -61,7 +61,7 @@ class QuantumEngine:
                     logger.info("GPU Aer backend available")
                     return 'gpu_aer'
             except Exception as e:
-                logger.warning(f"GPU Aer not available, falling back: {e}")
+                logger.debug(f"GPU Aer not available, falling back: {e}")
                 # Fall through to next option
 
         if Config.USE_LOCAL_ESTIMATOR:
@@ -72,7 +72,7 @@ class QuantumEngine:
                 from qiskit_aer import AerSimulator  # noqa: F811
                 return 'cpu_aer'
             except ImportError:
-                logger.warning("Aer not installed, falling back to StatevectorEstimator")
+                logger.debug("Aer not installed, falling back to StatevectorEstimator")
                 return 'statevector'
 
         # IBM Quantum
@@ -96,7 +96,7 @@ class QuantumEngine:
                 logger.info("Quantum Engine: AerSimulator GPU-accelerated")
                 return
             except Exception as e:
-                logger.warning(f"GPU Aer init failed, falling back to CPU: {e}")
+                logger.debug(f"GPU Aer init failed, falling back to CPU: {e}")
                 # Fall through to CPU Aer or Statevector
                 selected = 'cpu_aer' if Config.USE_SIMULATOR else 'statevector'
                 self.backend_name = selected
@@ -113,7 +113,7 @@ class QuantumEngine:
                 self.estimator = AerEstimator.from_backend(self.backend)
                 logger.info("Quantum Engine: AerSimulator with EstimatorV2")
             except ImportError:
-                logger.warning("Aer not available, using StatevectorEstimator")
+                logger.debug("Aer not available, using StatevectorEstimator")
                 self.estimator = StatevectorEstimator()
                 self.backend_name = 'statevector'
         elif selected == 'ibm_quantum':

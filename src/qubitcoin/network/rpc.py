@@ -94,7 +94,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     Returns:
         Configured FastAPI app
+
+    Raises:
+        ValueError: If critical subsystems (db_manager, consensus_engine, mining_engine) are None.
     """
+    # Validate critical subsystems that most endpoints depend on
+    if db_manager is None:
+        raise ValueError("create_rpc_app: db_manager is required (cannot be None)")
+    if consensus_engine is None:
+        raise ValueError("create_rpc_app: consensus_engine is required (cannot be None)")
+    if mining_engine is None:
+        raise ValueError("create_rpc_app: mining_engine is required (cannot be None)")
 
     app = FastAPI(
         title="Qubitcoin Node RPC v2.0",
@@ -620,19 +630,24 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         try:
             height = db_manager.get_current_height()
             supply = db_manager.get_total_supply()
+            supply_f = float(supply)
             reward = consensus_engine.calculate_reward(max(0, height), supply)
             blocks_per_year = int(365.25 * 24 * 3600 / Config.TARGET_BLOCK_TIME)
             annual_emission = float(reward) * blocks_per_year
-            inflation_rate = (annual_emission / float(supply) * 100) if float(supply) > 0 else float('inf')
+            if supply_f == 0:
+                inflation_rate = float('inf') if annual_emission > 0 else 0.0
+            else:
+                inflation_rate = annual_emission / supply_f * 100
 
+            max_supply_f = float(Config.MAX_SUPPLY)
             return {
                 'current_height': height,
-                'total_supply': float(supply),
-                'max_supply': float(Config.MAX_SUPPLY),
+                'total_supply': supply_f,
+                'max_supply': max_supply_f,
                 'current_block_reward': float(reward),
                 'annual_emission_estimate': annual_emission,
                 'inflation_rate_percent': round(inflation_rate, 4),
-                'percent_emitted': round(float(supply) / float(Config.MAX_SUPPLY) * 100, 4) if Config.MAX_SUPPLY > 0 else 0,
+                'percent_emitted': round(supply_f / max_supply_f * 100, 4) if max_supply_f > 0 else 0,
                 'blocks_per_year': blocks_per_year,
             }
         except Exception as e:
@@ -646,6 +661,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/balance/{address}")
     async def get_balance(address: str):
         """Get address balance"""
+        import re
+        # Basic address format validation: reject obviously invalid addresses
+        if not address or len(address) > 256 or not re.fullmatch(r'[a-zA-Z0-9_]+', address):
+            raise HTTPException(status_code=400, detail="Invalid address format")
         balance = db_manager.get_balance(address)
         utxos = db_manager.get_utxos(address)
         return {
