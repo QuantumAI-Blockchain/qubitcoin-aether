@@ -1,6 +1,6 @@
-# LAUNCHTODO.md — Qubitcoin Mainnet Launch Checklist
+# LAUNCHTODO.md — Quantum Blockchain Mainnet Launch Checklist
 
-> **Master document for bringing Qubitcoin live: seed node on Digital Ocean + mining node locally.**
+> **Master document for bringing Quantum Blockchain live: seed node on Digital Ocean + mining node locally.**
 > Work through each phase in order. Check boxes as you go.
 
 **Website:** qbc.network | **Contact:** info@qbc.network | **Chain ID:** 3301
@@ -833,39 +833,216 @@ gh repo create BlockArtica/Qubitcoin-node --public --source=. --push
 ## 12. PHASE 10: BRIDGE CONTRACTS (OPTIONAL)
 
 > **Bridges are NOT required for initial launch.** The QBC chain operates independently.
+> This phase deploys **wQBC** and **wQUSD** wrapped tokens to external chains and
+> transfers the initial 3.3B QUSD from deployer to a dedicated treasury address.
 
 Bridge contracts enable cross-chain transfers and are deployed on **external chains**
 (not on QBC). Each requires a funded wallet on the target chain.
 
-### 12.1 Target Chains
+**Launch targets:** Ethereum, BNB Chain, and Solana. Additional chains (Polygon, Avalanche,
+Arbitrum, Optimism, Base) are supported by the deployment tooling and can be added later
+as demand warrants — the same script and deployer key work for all EVM chains.
+
+### 12.0 Prerequisites
+
+- [ ] QBC node running and mining (Phases 1-6 complete)
+- [ ] 50 smart contracts deployed on QBC (Phase 8 complete)
+- [ ] `pip install web3 py-solc-x` (bridge deployment dependencies)
+- [ ] Funded wallet on each target chain (ETH and BNB for gas, SOL for Solana)
+- [ ] EVM deployer private key (secp256k1) — one key works for all EVM chains
+
+### 12.0a QUSD Treasury Transfer
+
+The QUSD contract mints 3.3B QUSD to `msg.sender` (the deployer) at initialization.
+Transfer this supply to a dedicated treasury address:
+
+```bash
+# Set treasury address in .env
+# QUSD_TREASURY_ADDRESS=<your-treasury-address>
+
+# Transfer (requires running QBC node + QUSD deployed in Phase 8)
+python3 scripts/deploy/deploy_bridge.py --qusd-treasury-transfer --skip-bridge
+```
+
+- [ ] `QUSD_TREASURY_ADDRESS` set in `.env`
+- [ ] 3.3B QUSD transferred from deployer to treasury
+- [ ] Verify: `curl http://localhost:5000/qvm/account/<treasury-address>`
+
+### 12.1 Configure Bridge Environment Variables
+
+Add external chain RPC URLs and deployer keys:
+
+```bash
+# In .env — external chain RPC endpoints
+ETH_RPC_URL=https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY
+BSC_RPC_URL=https://bsc-dataseed1.binance.org
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+# Optional: BRIDGE_OPERATOR_ADDRESS (defaults to deployer)
+
+# In secure_key.env — deployer private keys (NEVER in .env)
+ETH_DEPLOYER_PRIVATE_KEY=0x<your-secp256k1-private-key>
+SOLANA_DEPLOYER_KEYPAIR_PATH=/path/to/keypair.json
+```
+
+- [ ] `ETH_RPC_URL` configured (Alchemy/Infura recommended)
+- [ ] `BSC_RPC_URL` configured
+- [ ] `ETH_DEPLOYER_PRIVATE_KEY` in `secure_key.env`
+- [ ] `SOLANA_DEPLOYER_KEYPAIR_PATH` in `secure_key.env` (if deploying to Solana)
+- [ ] Deployer wallet funded on target chains
+
+### 12.2 Dry Run Validation
+
+```bash
+# Compile contracts + check balances without spending gas
+python3 scripts/deploy/deploy_bridge.py --chains ethereum,bsc --dry-run
+```
+
+This will:
+1. Install solc 0.8.28 (if not present)
+2. Flatten and compile `wQBC.sol` and `wQUSD.sol`
+3. Cache artifacts to `deployment/crosschain/artifacts/`
+4. Connect to each chain and verify deployer balance
+5. Report what would be deployed (no transactions sent)
+
+- [ ] Dry run completes without errors
+- [ ] Both contracts compile successfully
+- [ ] Deployer has sufficient gas on target chains
+
+### 12.3 Deploy to Ethereum + BNB Chain
+
+```bash
+# Deploy wQBC + wQUSD to Ethereum and BSC
+python3 scripts/deploy/deploy_bridge.py --chains ethereum,bsc
+```
+
+For each chain, the script:
+1. Deploys wQBC contract → calls `initialize(bridge_operator)`
+2. Deploys wQUSD contract → calls `initialize(address(0), bridge_operator)`
+3. Saves addresses to `contract_registry.json` under `external:{chain}:wQBC`
+
+**Estimated deployment costs (launch chains):**
 
 | Chain | Token Standard | Est. Deploy Cost |
 |-------|---------------|-----------------|
-| Ethereum | wQBC ERC-20 | ~$50-200 |
-| Solana | wQBC SPL (Anchor) | ~$5-10 |
-| Polygon | wQBC ERC-20 | ~$1-5 |
-| BNB Chain | wQBC BEP-20 | ~$5-20 |
-| Avalanche | wQBC ERC-20 | ~$5-20 |
-| Arbitrum | wQBC ERC-20 | ~$5-20 |
-| Optimism | wQBC ERC-20 | ~$5-20 |
-| Base | wQBC ERC-20 | ~$5-20 |
+| Ethereum | wQBC + wQUSD ERC-20 | ~$100-400 |
+| BNB Chain | wQBC + wQUSD BEP-20 | ~$10-40 |
 
-### 12.2 Bridge Deployment Steps
+- [ ] wQBC deployed on Ethereum (address in registry)
+- [ ] wQUSD deployed on Ethereum (address in registry)
+- [ ] wQBC deployed on BSC (address in registry)
+- [ ] wQUSD deployed on BSC (address in registry)
 
-For each EVM chain:
-1. Compile wQBC.sol with solc
-2. Deploy to target chain using Hardhat/Foundry
-3. Configure bridge validator set (multi-sig recommended)
-4. Register bridge contract address in QBC BridgeManager
-5. Fund bridge relayer wallet on target chain
+### 12.4 Deploy to Solana
 
-### 12.3 Bridge Checklist
+Requires Anchor CLI (`anchor`) and Solana CLI (`solana`):
 
-- [ ] wQBC contract compiled
-- [ ] Test bridge on testnet (Sepolia) first
-- [ ] Bridge relayer wallets funded
-- [ ] BridgeManager configured with contract addresses
-- [ ] End-to-end test: Lock QBC → Mint wQBC → Burn wQBC → Unlock QBC
+```bash
+# Generate keypair if needed
+solana-keygen new --outfile ~/.config/solana/bridge-deployer.json
+
+# Set in secure_key.env
+# SOLANA_DEPLOYER_KEYPAIR_PATH=/home/user/.config/solana/bridge-deployer.json
+
+python3 scripts/deploy/deploy_bridge.py --chains solana
+```
+
+> **Note:** Solana deployment requires Anchor project scaffolds in
+> `deployment/solana/wqbc/` and `deployment/solana/wqusd/`. These must be created
+> separately using `anchor init`.
+
+- [ ] Solana keypair generated and funded (~2 SOL)
+- [ ] `SOLANA_DEPLOYER_KEYPAIR_PATH` in `secure_key.env`
+- [ ] wQBC SPL program deployed (program ID in registry)
+- [ ] wQUSD SPL program deployed (program ID in registry)
+
+### 12.5 Future Chains (Post-Launch)
+
+The following chains are supported by the deployment script and `deploy.json` but
+are **not part of the initial launch**. Deploy when there is user demand:
+
+```bash
+# Example: add Polygon and Arbitrum later
+python3 scripts/deploy/deploy_bridge.py --chains polygon,arbitrum
+```
+
+| Chain | Chain ID | Status |
+|-------|----------|--------|
+| Polygon | 137 | Deploy when needed |
+| Avalanche | 43114 | Deploy when needed |
+| Arbitrum | 42161 | Deploy when needed |
+| Optimism | 10 | Deploy when needed |
+| Base | 8453 | Deploy when needed |
+
+The same `ETH_DEPLOYER_PRIVATE_KEY` works for all EVM chains. Just add the
+chain's RPC URL to `.env` (e.g. `POLYGON_RPC_URL=...`) and run the script.
+
+### 12.6 Register Bridge Addresses in QBC Node
+
+After external deployment, register the bridge contract addresses so the QBC node's
+BridgeManager knows where wrapped tokens live:
+
+```bash
+# Update .env with external chain contract addresses
+# (addresses are in contract_registry.json under external:* keys)
+
+# Restart node to pick up new config
+docker compose restart qbc-node
+```
+
+- [ ] External bridge addresses registered in QBC node config
+- [ ] BridgeManager shows active bridges: `curl http://localhost:5000/bridge/stats`
+
+### 12.7 Configure Bridge Relayer
+
+The bridge relayer watches for lock events on QBC and mint events on external chains:
+
+```bash
+# Fund relayer wallets on each external chain
+# Relayer needs gas to call bridgeMint() / bridgeBurn()
+
+# Verify relayer can sign transactions on target chains
+# Relayer address should be set as bridge operator or added to BridgeVault
+```
+
+- [ ] Relayer wallets funded on all launch chains (ETH, BNB, Solana)
+- [ ] Relayer registered in BridgeVault as authorized relayer
+- [ ] Relayer process running and monitoring both chains
+
+### 12.8 End-to-End Bridge Test
+
+```bash
+# 1. Lock QBC on QBC chain (creates deposit in BridgeVault)
+curl -X POST http://localhost:5000/bridge/deposit \
+  -H "Content-Type: application/json" \
+  -d '{"target_chain": 1, "target_address": "0xYourEthAddress", "amount": 10}'
+
+# 2. Verify wQBC minted on Ethereum
+# (relayer picks up deposit event and calls wQBC.mint() on ETH)
+
+# 3. Burn wQBC on Ethereum → Unlock QBC on QBC chain
+# (relayer picks up burn event and confirms withdrawal on QBC)
+
+# 4. Verify QBC unlocked
+curl http://localhost:5000/balance/<your-address>
+```
+
+- [ ] Lock QBC → Mint wQBC on Ethereum works
+- [ ] Burn wQBC on Ethereum → Unlock QBC works
+- [ ] Round-trip completes within expected time (~5 min for ETH confirmations)
+
+### 12.9 Bridge Deployment Checklist (Complete)
+
+- [ ] **Prerequisites:** web3 + py-solc-x installed, wallets funded
+- [ ] **QUSD Treasury:** 3.3B QUSD transferred to dedicated treasury address
+- [ ] **Dry Run:** Compilation and balance checks pass
+- [ ] **ETH Deploy:** wQBC + wQUSD live on Ethereum
+- [ ] **BSC Deploy:** wQBC + wQUSD live on BNB Chain
+- [ ] **Solana Deploy:** wQBC + wQUSD Anchor programs deployed
+- [ ] **Node Config:** Bridge addresses registered in QBC node
+- [ ] **Relayer:** Bridge relayer running and funded
+- [ ] **E2E Test:** Lock QBC → Mint wQBC → Burn wQBC → Unlock QBC
+- [ ] **contract_registry.json** updated with all `external:*` entries
+- [ ] **Future chains:** Polygon, Avalanche, Arbitrum, Optimism, Base — deploy later as needed
 
 ---
 
@@ -1118,7 +1295,7 @@ PHASE 6:  Verify 2-Node Network      [~2 min]   Sync, propagation, both mining
 PHASE 7:  Deploy Frontend (Vercel)   [~5 min]   qbc.network live
 PHASE 8:  Deploy Smart Contracts     [~45 min]  50 contracts in 9 tiers
 PHASE 9:  Create Node Runner Repo    [~10 min]  BlockArtica/Qubitcoin-node
-PHASE 10: Bridge Contracts           [Optional] Deploy wQBC on external chains
+PHASE 10: Bridge Contracts           [Optional] Deploy wQBC/wQUSD to ETH, BNB, Solana
 ```
 
 **Minimum viable launch: Phase 1 → Phase 3. ~20 minutes to first block.**

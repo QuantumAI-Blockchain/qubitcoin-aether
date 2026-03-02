@@ -195,6 +195,8 @@ class Config:
     # ETH_PRIVATE_KEY loaded from secure_key.env only (never from .env)
     ETH_PRIVATE_KEY: Optional[str] = os.getenv('ETH_PRIVATE_KEY_SECURE')
     BRIDGE_CONTRACT_ADDRESS: Optional[str] = os.getenv('BRIDGE_CONTRACT_ADDRESS')
+    QUSD_TREASURY_ADDRESS: str = os.getenv('QUSD_TREASURY_ADDRESS', '')
+    BRIDGE_TREASURY_ADDRESS: str = os.getenv('BRIDGE_TREASURY_ADDRESS', '')
 
     # ============================================================================
     # AETHER TREE FEE ECONOMICS
@@ -427,11 +429,11 @@ class Config:
     # AIKGS (Aether Incentivized Knowledge Growth System)
     # ============================================================================
     AIKGS_ENABLED: bool = os.getenv('AIKGS_ENABLED', 'true').lower() == 'true'
-    AIKGS_BASE_REWARD_QBC: float = float(os.getenv('AIKGS_BASE_REWARD_QBC', '1.0'))
-    AIKGS_MAX_REWARD_QBC: float = float(os.getenv('AIKGS_MAX_REWARD_QBC', '50.0'))
+    AIKGS_BASE_REWARD_QBC: float = float(os.getenv('AIKGS_BASE_REWARD_QBC', '0.05'))
+    AIKGS_MAX_REWARD_QBC: float = float(os.getenv('AIKGS_MAX_REWARD_QBC', '0.5'))
     AIKGS_INITIAL_POOL_QBC: float = float(os.getenv('AIKGS_INITIAL_POOL_QBC', '1000000.0'))
     AIKGS_EARLY_THRESHOLD: int = int(os.getenv('AIKGS_EARLY_THRESHOLD', '10000'))
-    AIKGS_EARLY_MAX_BONUS: float = float(os.getenv('AIKGS_EARLY_MAX_BONUS', '5.0'))
+    AIKGS_EARLY_MAX_BONUS: float = float(os.getenv('AIKGS_EARLY_MAX_BONUS', '2.0'))
     AIKGS_QUALITY_WEIGHT: float = float(os.getenv('AIKGS_QUALITY_WEIGHT', '0.6'))
     AIKGS_NOVELTY_WEIGHT: float = float(os.getenv('AIKGS_NOVELTY_WEIGHT', '0.4'))
     AIKGS_L1_COMMISSION_RATE: float = float(os.getenv('AIKGS_L1_COMMISSION_RATE', '0.10'))
@@ -439,7 +441,7 @@ class Config:
     AIKGS_MAX_DAILY_SUBMISSIONS: int = int(os.getenv('AIKGS_MAX_DAILY_SUBMISSIONS', '50'))
     AIKGS_AETHER_FEE_PERCENT: float = float(os.getenv('AIKGS_AETHER_FEE_PERCENT', '0.10'))
     AIKGS_EXCHANGE_FEE_PERCENT: float = float(os.getenv('AIKGS_EXCHANGE_FEE_PERCENT', '0.05'))
-    AIKGS_DEFAULT_BOUNTY_REWARD: float = float(os.getenv('AIKGS_DEFAULT_BOUNTY_REWARD', '10.0'))
+    AIKGS_DEFAULT_BOUNTY_REWARD: float = float(os.getenv('AIKGS_DEFAULT_BOUNTY_REWARD', '0.25'))
     AIKGS_DEFAULT_BOUNTY_DURATION_DAYS: int = int(os.getenv('AIKGS_DEFAULT_BOUNTY_DURATION_DAYS', '30'))
     AIKGS_CURATION_REQUIRED_VOTES: int = int(os.getenv('AIKGS_CURATION_REQUIRED_VOTES', '3'))
 

@@ -1,6 +1,6 @@
 {
   "project": "Qubitcoin Cross-Chain Tokens",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "tokens": {
     "wQBC": {
       "contract": "src/qubitcoin/contracts/solidity/tokens/wQBC.sol",
@@ -96,10 +96,20 @@
       "confirmations": 10
     }
   },
+  "solana": {
+    "cluster": "mainnet-beta",
+    "programs": {
+      "wqbc": "deployment/solana/wqbc",
+      "wqusd": "deployment/solana/wqusd"
+    },
+    "tokens": ["wQBC", "wQUSD"],
+    "confirmations": 32
+  },
   "qbcSourceChain": {
     "chainId": 3301,
     "name": "Qubitcoin Mainnet",
     "rpc": "http://localhost:5000",
     "confirmations": 6
-  }
+  },
+  "deployScript": "scripts/deploy/deploy_bridge.py"
 }
