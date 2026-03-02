@@ -77,7 +77,7 @@ class BountyManager:
     MAX_SEASONS = 100
 
     def __init__(self, reward_engine: object = None) -> None:
-        self._default_reward = float(getattr(Config, 'AIKGS_DEFAULT_BOUNTY_REWARD', 50.0))
+        self._default_reward = float(getattr(Config, 'AIKGS_DEFAULT_BOUNTY_REWARD', 0.25))
         self._default_duration = int(getattr(Config, 'AIKGS_DEFAULT_BOUNTY_DURATION_DAYS', 7))
         self._reward_engine = reward_engine  # For pool deductions
 
