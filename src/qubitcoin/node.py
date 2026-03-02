@@ -235,17 +235,10 @@ class QubitcoinNode:
             logger.error(f"[7/22] Aether Engine failed: {e}", exc_info=True)
             raise
 
-        # Component 7c: AIKGS — initialized after MiningEngine (Component 20)
-        # because ContributionManager needs mining.queue_reward_output.
-        self.aikgs_contribution_manager = None
-        self.aikgs_affiliate_manager = None
-        self.aikgs_reward_engine = None
-        self.aikgs_bounty_manager = None
-        self.aikgs_curation_engine = None
-        self.aikgs_progressive_unlocks = None
-        self.aikgs_api_key_vault = None
-        self.aikgs_knowledge_scorer = None
-        self.aikgs_telegram_bot = None
+        # Component 7c: AIKGS — now runs as a Rust sidecar (gRPC client).
+        # The 8 Python AIKGS modules have been replaced by a single gRPC client.
+        self.aikgs_client = None
+        self.aikgs_telegram_bot = None  # Telegram bot still runs in Python
 
         # Component 7b: LLM Adapters + Knowledge Seeder (optional)
         self.llm_manager = None
@@ -580,56 +573,32 @@ class QubitcoinNode:
             logger.error(f"[20/22] MiningEngine failed: {e}", exc_info=True)
             raise
 
-        # Component 20b: AIKGS (Aether Incentivized Knowledge Growth System)
-        # Deferred from 7c because ContributionManager needs self.mining
-        if Config.AIKGS_ENABLED:
+        # Component 20b: AIKGS — Rust sidecar client (replaces 8 Python modules)
+        if Config.AIKGS_ENABLED and Config.AIKGS_USE_RUST_SIDECAR:
             try:
-                from .aether.knowledge_scorer import KnowledgeScorer
-                from .aether.api_key_vault import APIKeyVault
-                from .aether.reward_engine import RewardEngine
-                from .aether.affiliate_manager import AffiliateManager
-                from .aether.contribution_manager import ContributionManager
-                from .aether.bounty_manager import BountyManager
-                from .aether.curation_engine import CurationEngine
-                from .aether.progressive_unlocks import ProgressiveUnlocks
-                from .aether.telegram_bot import TelegramBot
-
-                self.aikgs_knowledge_scorer = KnowledgeScorer(
-                    vector_index=getattr(self.knowledge_graph, 'vector_index', None)
-                )
-                self.aikgs_api_key_vault = APIKeyVault(
-                    master_secret=Config.API_KEY_VAULT_SECRET
-                )
-                self.aikgs_reward_engine = RewardEngine()
-                self.aikgs_affiliate_manager = AffiliateManager(
-                    reward_engine=self.aikgs_reward_engine,
-                )
-                self.aikgs_progressive_unlocks = ProgressiveUnlocks()
-                self.aikgs_bounty_manager = BountyManager(
-                    reward_engine=self.aikgs_reward_engine,
-                )
-                self.aikgs_curation_engine = CurationEngine()
-                self.aikgs_contribution_manager = ContributionManager(
-                    knowledge_graph=self.knowledge_graph,
-                    knowledge_scorer=self.aikgs_knowledge_scorer,
-                    reward_engine=self.aikgs_reward_engine,
-                    affiliate_manager=self.aikgs_affiliate_manager,
-                    bounty_manager=self.aikgs_bounty_manager,
-                    progressive_unlocks=self.aikgs_progressive_unlocks,
-                    curation_engine=self.aikgs_curation_engine,
-                    on_chain=getattr(self, 'on_chain', None),
-                    block_height_fn=self.db.get_current_height,
-                    queue_reward_fn=self.mining.queue_reward_output,
-                )
-                self.aikgs_telegram_bot = TelegramBot(
-                    contribution_manager=self.aikgs_contribution_manager,
-                    affiliate_manager=self.aikgs_affiliate_manager,
-                    reward_engine=self.aikgs_reward_engine,
-                    progressive_unlocks=self.aikgs_progressive_unlocks,
-                )
-                logger.info("[20b/22] AIKGS initialized (ContributionManager + RewardEngine + Affiliate + Bounties + Curation + Unlocks + Vault + Telegram)")
+                from .aether.aikgs_client import AikgsClient
+                grpc_addr = f"{Config.AIKGS_GRPC_ADDR}:{Config.AIKGS_GRPC_PORT}"
+                self.aikgs_client = AikgsClient(grpc_addr)
+                # Connection happens async in on_startup
+                logger.info(f"[20b/22] AIKGS sidecar client created (will connect to {grpc_addr})")
             except Exception as e:
-                logger.warning(f"[20b/22] AIKGS init failed (non-critical): {e}", exc_info=True)
+                logger.warning(f"[20b/22] AIKGS sidecar client init failed (non-critical): {e}", exc_info=True)
+        elif Config.AIKGS_ENABLED:
+            logger.warning("[20b/22] AIKGS_USE_RUST_SIDECAR=false — AIKGS disabled (Python modules removed)")
+
+        # Telegram bot (still Python — bridges to sidecar via aikgs_client)
+        if Config.AIKGS_ENABLED and Config.TELEGRAM_BOT_TOKEN:
+            try:
+                from .aether.telegram_bot import TelegramBot
+                self.aikgs_telegram_bot = TelegramBot(
+                    contribution_manager=None,  # Not used — bot will use aikgs_client
+                    affiliate_manager=None,
+                    reward_engine=None,
+                    progressive_unlocks=None,
+                )
+                logger.info("[20b/22] Telegram bot initialized")
+            except Exception as e:
+                logger.debug(f"[20b/22] Telegram bot init skipped: {e}")
 
         # Component 21: Contract Executor (legacy template contracts)
         logger.info("[21/22] Initializing ContractExecutor...")
@@ -690,15 +659,8 @@ class QubitcoinNode:
                 neural_reasoner=self.neural_reasoner,
                 exchange_engine=self.exchange_engine,
                 higgs_field=self.higgs_field,
-                # AIKGS
-                aikgs_contribution_manager=self.aikgs_contribution_manager,
-                aikgs_affiliate_manager=self.aikgs_affiliate_manager,
-                aikgs_reward_engine=self.aikgs_reward_engine,
-                aikgs_bounty_manager=self.aikgs_bounty_manager,
-                aikgs_curation_engine=self.aikgs_curation_engine,
-                aikgs_progressive_unlocks=self.aikgs_progressive_unlocks,
-                aikgs_api_key_vault=self.aikgs_api_key_vault,
-                aikgs_knowledge_scorer=self.aikgs_knowledge_scorer,
+                # AIKGS (Rust sidecar gRPC client)
+                aikgs_client=self.aikgs_client,
                 aikgs_telegram_bot=self.aikgs_telegram_bot,
             )
             self.app.node = self
@@ -1216,37 +1178,17 @@ class QubitcoinNode:
             subsystem_privacy_up.set(1)
 
             # ============================================================
-            # AIKGS METRICS
+            # AIKGS METRICS (via Rust sidecar gRPC)
             # ============================================================
-            if self.aikgs_contribution_manager:
+            if self.aikgs_client and self.aikgs_client.connected:
                 try:
-                    cm = self.aikgs_contribution_manager
-                    cm_stats = cm.get_stats()
-                    aikgs_total_contributions.set(cm_stats['total_contributions'])
-                    aikgs_unique_contributors.set(cm_stats['unique_contributors'])
-                    tier_dist = cm_stats.get('tier_distribution', {})
-                    aikgs_tier_bronze.set(tier_dist.get('bronze', 0))
-                    aikgs_tier_silver.set(tier_dist.get('silver', 0))
-                    aikgs_tier_gold.set(tier_dist.get('gold', 0))
-                    aikgs_tier_diamond.set(tier_dist.get('diamond', 0))
-                    if self.aikgs_reward_engine:
-                        re_stats = self.aikgs_reward_engine.get_stats()
-                        aikgs_total_rewards_distributed.set(re_stats['total_distributed'])
-                        aikgs_pool_balance.set(re_stats['pool_balance'])
-                    if self.aikgs_affiliate_manager:
-                        am_stats = self.aikgs_affiliate_manager.get_stats()
-                        aikgs_affiliates_total.set(am_stats['total_affiliates'])
-                        aikgs_commissions_total.set(am_stats['total_commissions'])
-                    if self.aikgs_bounty_manager:
-                        bm_stats = self.aikgs_bounty_manager.get_stats()
-                        aikgs_bounties_active.set(bm_stats.get('status_distribution', {}).get('open', 0))
-                    if self.aikgs_curation_engine:
-                        ce_stats = self.aikgs_curation_engine.get_stats()
-                        aikgs_curation_pending.set(ce_stats.get('status_distribution', {}).get('pending', 0))
-                    if self.aikgs_api_key_vault:
-                        vault_stats = self.aikgs_api_key_vault.get_stats()
-                        aikgs_api_keys_active.set(vault_stats['active_keys'])
-                        aikgs_shared_keys_pool.set(vault_stats['shared_pool_size'])
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Schedule the async call — metrics will update next cycle
+                        asyncio.ensure_future(self._update_aikgs_metrics())
+                    else:
+                        loop.run_until_complete(self._update_aikgs_metrics())
                 except Exception as e:
                     logger.debug(f"Metrics update error (AIKGS): {e}")
 
@@ -1350,6 +1292,14 @@ class QubitcoinNode:
             except Exception as e:
                 logger.debug(f"Capability seeding: {e}")
 
+        # Connect to AIKGS Rust sidecar
+        if self.aikgs_client:
+            connected = await self.aikgs_client.connect()
+            if connected:
+                logger.info("AIKGS Rust sidecar connected")
+            else:
+                logger.warning("AIKGS Rust sidecar not reachable — AIKGS features unavailable")
+
         # Start mining
         if Config.AUTO_MINE:
             self.mining.start()
@@ -1379,6 +1329,13 @@ class QubitcoinNode:
             self.knowledge_seeder.stop()
 
         self.mining.stop()
+
+        # Close AIKGS sidecar client
+        if self.aikgs_client:
+            try:
+                await self.aikgs_client.close()
+            except Exception as e:
+                logger.debug(f"AIKGS client close: {e}")
 
         # Shutdown bridges
         if self.bridge_manager:
@@ -1418,6 +1375,35 @@ class QubitcoinNode:
             border_style="yellow"
         ))
         logger.info("Node shutdown complete")
+
+    async def _update_aikgs_metrics(self) -> None:
+        """Fetch AIKGS stats from the Rust sidecar and update Prometheus gauges."""
+        try:
+            stats = await self.aikgs_client.get_full_stats()
+            c = stats.get('contributions', {})
+            aikgs_total_contributions.set(c.get('total_contributions', 0))
+            aikgs_unique_contributors.set(c.get('unique_contributors', 0))
+            tier_dist = c.get('tier_distribution', {})
+            aikgs_tier_bronze.set(tier_dist.get('bronze', 0))
+            aikgs_tier_silver.set(tier_dist.get('silver', 0))
+            aikgs_tier_gold.set(tier_dist.get('gold', 0))
+            aikgs_tier_diamond.set(tier_dist.get('diamond', 0))
+            r = stats.get('rewards', {})
+            aikgs_total_rewards_distributed.set(r.get('total_distributed', 0))
+            aikgs_pool_balance.set(r.get('pool_balance', 0))
+            a = stats.get('affiliates', {})
+            aikgs_affiliates_total.set(a.get('total_affiliates', 0))
+            aikgs_commissions_total.set(
+                a.get('total_l1_commissions', 0) + a.get('total_l2_commissions', 0)
+            )
+            b = stats.get('bounties', {})
+            aikgs_bounties_active.set(b.get('open_bounties', 0))
+            cu = stats.get('curation', {})
+            aikgs_curation_pending.set(
+                cu.get('status_distribution', {}).get('pending', 0)
+            )
+        except Exception as e:
+            logger.debug(f"AIKGS metrics update error: {e}")
 
     async def _on_p2p_block_received(self, block_data: dict) -> None:
         """Handle a block received from the Rust P2P stream."""

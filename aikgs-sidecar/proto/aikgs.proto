@@ -1,0 +1,390 @@
+syntax = "proto3";
+package aikgs;
+
+// ─────────────────── Common Messages ───────────────────
+
+message Empty {}
+
+message StatusResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+// ─────────────────── Contributions ───────────────────
+
+message ContributeRequest {
+  string contributor_address = 1;
+  string content = 2;
+  map<string, string> metadata = 3;
+  int64 bounty_id = 4;   // 0 = no bounty
+}
+
+message ContributionRecord {
+  int64 contribution_id = 1;
+  string contributor_address = 2;
+  string content_hash = 3;
+  int64 knowledge_node_id = 4;
+  double quality_score = 5;
+  double novelty_score = 6;
+  double combined_score = 7;
+  string tier = 8;
+  string domain = 9;
+  double reward_amount = 10;
+  double affiliate_l1_amount = 11;
+  double affiliate_l2_amount = 12;
+  bool is_bounty_fulfillment = 13;
+  int64 bounty_id = 14;
+  repeated string badges_earned = 15;
+  int64 block_height = 16;
+  double timestamp = 17;
+  string status = 18;
+}
+
+message GetContributionRequest { int64 contribution_id = 1; }
+message ContributorHistoryRequest { string address = 1; int32 limit = 2; }
+message RecentContributionsRequest { int32 limit = 1; }
+message ContributionListResponse { repeated ContributionRecord contributions = 1; }
+
+message LeaderboardRequest { int32 limit = 1; }
+message LeaderboardEntry {
+  string address = 1;
+  double total_reward = 2;
+  int32 contribution_count = 3;
+  double avg_quality = 4;
+  string best_tier = 5;
+}
+message LeaderboardResponse { repeated LeaderboardEntry entries = 1; }
+
+message ContributionStats {
+  int64 total_contributions = 1;
+  int64 unique_contributors = 2;
+  double total_rewards_distributed = 3;
+  map<string, int64> tier_distribution = 4;
+  int64 bounty_fulfillments = 5;
+}
+
+// ─────────────────── Rewards ───────────────────
+
+message RewardStats {
+  double pool_balance = 1;
+  double total_distributed = 2;
+  int64 distribution_count = 3;
+  int64 total_contributions = 4;
+  double base_reward = 5;
+  double max_reward = 6;
+  int64 early_threshold = 7;
+  int64 contributors_with_streaks = 8;
+}
+
+message StreakRequest { string address = 1; }
+message StreakInfo {
+  int32 streak_days = 1;
+  double multiplier = 2;
+  int32 next_milestone = 3;
+}
+
+message FundPoolRequest { double amount = 1; }
+message PoolBalance { double balance = 1; }
+
+// ─────────────────── Affiliates ───────────────────
+
+message RegisterAffiliateRequest {
+  string address = 1;
+  string referrer_address = 2;
+  string referral_code = 3;
+}
+
+message AffiliateInfo {
+  string address = 1;
+  string referrer_address = 2;
+  string referral_code = 3;
+  int32 l1_referrals = 4;
+  int32 l2_referrals = 5;
+  double total_l1_commission = 6;
+  double total_l2_commission = 7;
+  bool is_active = 8;
+}
+
+message AffiliateLinkRequest { string address = 1; }
+message AffiliateLinkResponse {
+  string referral_link = 1;
+  string referral_code = 2;
+}
+
+message GetAffiliateRequest { string address = 1; }
+
+message AffiliateStats {
+  int64 total_affiliates = 1;
+  double total_l1_commissions = 2;
+  double total_l2_commissions = 3;
+}
+
+// ─────────────────── Bounties ───────────────────
+
+message CreateBountyRequest {
+  string domain = 1;
+  string description = 2;
+  string gap_hash = 3;
+  double reward_amount = 4;
+  int64 duration_secs = 5;
+  double boost_multiplier = 6;
+}
+
+message BountyInfo {
+  int64 bounty_id = 1;
+  string domain = 2;
+  string description = 3;
+  string gap_hash = 4;
+  double reward_amount = 5;
+  double boost_multiplier = 6;
+  string status = 7;
+  string claimer_address = 8;
+  int64 contribution_id = 9;
+  double created_at = 10;
+  double expires_at = 11;
+}
+
+message ListBountiesRequest {
+  string domain = 1;
+  string status = 2;
+  int32 limit = 3;
+}
+message ListBountiesResponse { repeated BountyInfo bounties = 1; }
+
+message ClaimBountyRequest {
+  int64 bounty_id = 1;
+  string claimer_address = 2;
+}
+
+message FulfillBountyRequest {
+  int64 bounty_id = 1;
+  int64 contribution_id = 2;
+  string contributor_address = 3;
+}
+message FulfillBountyResponse { double reward_amount = 1; }
+
+message BountyStats {
+  int64 total_bounties = 1;
+  int64 open_bounties = 2;
+  int64 fulfilled_bounties = 3;
+  double total_reward_pool = 4;
+}
+
+// ─────────────────── Progressive Unlocks / Profiles ───────────────────
+
+message ProfileRequest { string address = 1; }
+message ContributorProfile {
+  string address = 1;
+  double reputation_points = 2;
+  int32 level = 3;
+  string level_name = 4;
+  int32 total_contributions = 5;
+  int32 best_streak = 6;
+  int32 current_streak = 7;
+  int32 gold_count = 8;
+  int32 diamond_count = 9;
+  int32 bounties_fulfilled = 10;
+  int32 referrals = 11;
+  repeated string badges = 12;
+  repeated string unlocked_features = 13;
+  double last_contribution_at = 14;
+}
+
+message HasFeatureRequest {
+  string address = 1;
+  string feature = 2;
+}
+message HasFeatureResponse { bool has_feature = 1; }
+
+message UnlocksLeaderboardRequest { int32 limit = 1; }
+message UnlocksLeaderboardResponse { repeated ContributorProfile profiles = 1; }
+
+message UnlocksStats {
+  int64 total_profiles = 1;
+  int64 global_contributions = 2;
+  map<string, int64> level_distribution = 3;
+  int64 total_badges_awarded = 4;
+}
+
+// ─────────────────── Curation ───────────────────
+
+message SubmitForCurationRequest { int64 contribution_id = 1; }
+
+message CurationReview {
+  string curator_address = 1;
+  int64 contribution_id = 2;
+  bool vote = 3;
+  string comment = 4;
+  double timestamp = 5;
+}
+
+message CurationRound {
+  int64 contribution_id = 1;
+  int32 required_votes = 2;
+  int32 votes_for = 3;
+  int32 votes_against = 4;
+  repeated CurationReview reviews = 5;
+  string status = 6;
+  double finalized_at = 7;
+}
+
+message SubmitReviewRequest {
+  int64 contribution_id = 1;
+  string curator_address = 2;
+  bool vote = 3;
+  string comment = 4;
+}
+
+message PendingReviewsRequest { string curator_address = 1; }
+message PendingReviewsResponse { repeated CurationRound rounds = 1; }
+
+message GetCurationRoundRequest { int64 contribution_id = 1; }
+
+message CuratorStatsRequest { string address = 1; }
+message CuratorStats {
+  string address = 1;
+  double reputation = 2;
+  int32 total_reviews = 3;
+  int32 correct_votes = 4;
+  double accuracy = 5;
+}
+
+message CurationStats {
+  int64 total_rounds = 1;
+  map<string, int64> status_distribution = 2;
+  int64 total_curators = 3;
+  double avg_reputation = 4;
+}
+
+// ─────────────────── API Key Vault ───────────────────
+
+message StoreKeyRequest {
+  string provider = 1;
+  string api_key = 2;
+  string owner_address = 3;
+  string model = 4;
+  bool is_shared = 5;
+  int32 shared_reward_bps = 6;
+  string label = 7;
+}
+
+message KeyInfo {
+  string key_id = 1;
+  string provider = 2;
+  string model = 3;
+  string owner_address = 4;
+  bool is_shared = 5;
+  int32 shared_reward_bps = 6;
+  string label = 7;
+  int32 use_count = 8;
+  bool is_active = 9;
+}
+
+message StoreKeyResponse {
+  KeyInfo key_info = 1;
+}
+
+message GetKeyRequest { string key_id = 1; }
+message DecryptedKeyResponse {
+  string key_id = 1;
+  string provider = 2;
+  string api_key = 3;
+}
+
+message ListKeysRequest { string owner_address = 1; }
+message ListKeysResponse { repeated KeyInfo keys = 1; }
+
+message RevokeKeyRequest {
+  string key_id = 1;
+  string owner_address = 2;
+}
+
+message SharedPoolRequest { string provider = 1; }
+message SharedPoolResponse { repeated KeyInfo keys = 1; }
+
+// ─────────────────── Treasury ───────────────────
+
+message DisburseRequest {
+  string recipient_address = 1;
+  double amount = 2;
+  string reason = 3;
+}
+message DisburseResponse {
+  bool success = 1;
+  string txid = 2;
+  string error = 3;
+}
+
+message PendingDisbursementsResponse {
+  int32 count = 1;
+  double total_amount = 2;
+}
+
+// ─────────────────── Aggregate Stats ───────────────────
+
+message AikgsFullStats {
+  ContributionStats contributions = 1;
+  RewardStats rewards = 2;
+  AffiliateStats affiliates = 3;
+  BountyStats bounties = 4;
+  UnlocksStats unlocks = 5;
+  CurationStats curation = 6;
+}
+
+// ═══════════════════ Service Definition ═══════════════════
+
+service AikgsService {
+  // Contributions
+  rpc ProcessContribution(ContributeRequest) returns (ContributionRecord);
+  rpc GetContribution(GetContributionRequest) returns (ContributionRecord);
+  rpc GetContributorHistory(ContributorHistoryRequest) returns (ContributionListResponse);
+  rpc GetRecentContributions(RecentContributionsRequest) returns (ContributionListResponse);
+  rpc GetContributionLeaderboard(LeaderboardRequest) returns (LeaderboardResponse);
+  rpc GetContributionStats(Empty) returns (ContributionStats);
+
+  // Rewards
+  rpc GetRewardStats(Empty) returns (RewardStats);
+  rpc GetContributorStreak(StreakRequest) returns (StreakInfo);
+  rpc FundPool(FundPoolRequest) returns (PoolBalance);
+
+  // Affiliates
+  rpc RegisterAffiliate(RegisterAffiliateRequest) returns (AffiliateInfo);
+  rpc GetAffiliateLink(AffiliateLinkRequest) returns (AffiliateLinkResponse);
+  rpc GetAffiliate(GetAffiliateRequest) returns (AffiliateInfo);
+  rpc GetAffiliateStats(Empty) returns (AffiliateStats);
+
+  // Bounties
+  rpc CreateBounty(CreateBountyRequest) returns (BountyInfo);
+  rpc ListBounties(ListBountiesRequest) returns (ListBountiesResponse);
+  rpc ClaimBounty(ClaimBountyRequest) returns (BountyInfo);
+  rpc FulfillBounty(FulfillBountyRequest) returns (FulfillBountyResponse);
+  rpc GetBountyStats(Empty) returns (BountyStats);
+
+  // Profiles / Progressive Unlocks
+  rpc GetProfile(ProfileRequest) returns (ContributorProfile);
+  rpc HasFeature(HasFeatureRequest) returns (HasFeatureResponse);
+  rpc GetUnlocksLeaderboard(UnlocksLeaderboardRequest) returns (UnlocksLeaderboardResponse);
+  rpc GetUnlocksStats(Empty) returns (UnlocksStats);
+
+  // Curation
+  rpc SubmitForCuration(SubmitForCurationRequest) returns (CurationRound);
+  rpc SubmitReview(SubmitReviewRequest) returns (CurationRound);
+  rpc GetPendingReviews(PendingReviewsRequest) returns (PendingReviewsResponse);
+  rpc GetCurationRound(GetCurationRoundRequest) returns (CurationRound);
+  rpc GetCuratorStats(CuratorStatsRequest) returns (CuratorStats);
+  rpc GetCurationStats(Empty) returns (CurationStats);
+
+  // API Key Vault
+  rpc StoreApiKey(StoreKeyRequest) returns (StoreKeyResponse);
+  rpc GetApiKey(GetKeyRequest) returns (DecryptedKeyResponse);
+  rpc ListApiKeys(ListKeysRequest) returns (ListKeysResponse);
+  rpc RevokeApiKey(RevokeKeyRequest) returns (StatusResponse);
+  rpc GetSharedKeyPool(SharedPoolRequest) returns (SharedPoolResponse);
+
+  // Treasury
+  rpc Disburse(DisburseRequest) returns (DisburseResponse);
+  rpc GetPendingDisbursements(Empty) returns (PendingDisbursementsResponse);
+
+  // Aggregate
+  rpc GetFullStats(Empty) returns (AikgsFullStats);
+}

@@ -115,6 +115,8 @@ services:
       - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
       - IPFS_API=/ip4/ipfs/tcp/5001/http
       - IPFS_GATEWAY_PORT=8080
+      - AIKGS_GRPC_ADDR=aikgs-sidecar
+      - AIKGS_GRPC_PORT=50052
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -125,6 +127,30 @@ services:
     volumes:
       - node-data:/app/data
       - node-logs:/app/logs
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── AIKGS Rust Sidecar ──────────────────────────────────────────────
+  aikgs-sidecar:
+    build:
+      context: ./aikgs-sidecar
+      dockerfile: Dockerfile
+    container_name: qbc-aikgs-sidecar
+    ports:
+      - "50052:50052"   # gRPC
+    environment:
+      - AIKGS_GRPC_PORT=50052
+      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
+      - NODE_RPC_URL=http://qbc-node:5000
+      - AIKGS_TREASURY_ADDRESS=${AIKGS_TREASURY_ADDRESS:-}
+      - AIKGS_VAULT_MASTER_KEY=${AIKGS_VAULT_MASTER_KEY:-}
+      - RUST_LOG=info
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      qbc-node:
+        condition: service_started
     networks:
       - qbc-net
     restart: unless-stopped

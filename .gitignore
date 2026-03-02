@@ -18,6 +18,9 @@ env/
 # ---- Rust ----
 rust-p2p/target/
 rust-p2p/Cargo.lock
+aikgs-sidecar/target/
+substrate-node/target/
+aether-core/target/
 
 # ---- Node / Frontend ----
 frontend/node_modules/

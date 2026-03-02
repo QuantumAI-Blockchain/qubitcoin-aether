@@ -49,14 +49,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    exchange_engine=None,
                    stratum_pool=None,
                    higgs_field=None,
-                   aikgs_contribution_manager=None,
-                   aikgs_affiliate_manager=None,
-                   aikgs_reward_engine=None,
-                   aikgs_bounty_manager=None,
-                   aikgs_curation_engine=None,
-                   aikgs_progressive_unlocks=None,
-                   aikgs_api_key_vault=None,
-                   aikgs_knowledge_scorer=None,
+                   aikgs_client=None,
                    aikgs_telegram_bot=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
@@ -5656,73 +5649,63 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             return True
         return False
 
+    # ========================================================================
+    # AIKGS ENDPOINTS (proxied to Rust sidecar via gRPC)
+    # ========================================================================
+
     @app.post("/aikgs/contribute")
     async def aikgs_contribute(body: dict):
-        if not aikgs_contribution_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
         addr = body.get("contributor_address", "")
         content = body.get("content", "")
-        domain = body.get("domain")
         if not addr or len(content) < 20:
             raise HTTPException(status_code=400, detail="Address required and content must be >= 20 chars")
         if len(content) > 100000:
             raise HTTPException(status_code=400, detail="Content too long (max 100KB)")
-        metadata = {"domain": domain} if domain else None
-        bounty_id = body.get("bounty_id")
-        bounty_id = int(bounty_id) if bounty_id else None
+        metadata = {}
+        domain = body.get("domain")
+        if domain:
+            metadata["domain"] = domain
+        bounty_id = int(body.get("bounty_id", 0) or 0)
         try:
-            result = aikgs_contribution_manager.process_contribution(addr, content, metadata, bounty_id=bounty_id)
-        except ValueError as e:
-            raise HTTPException(status_code=429, detail=str(e))
+            result = await aikgs_client.process_contribution(addr, content, metadata, bounty_id)
         except Exception as e:
             logger.error(f"Contribution processing error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Internal error processing contribution")
-        return result.to_dict() if hasattr(result, 'to_dict') else vars(result) if result else {"status": "rejected"}
+        return result
 
     @app.get("/aikgs/profile/{address}")
     async def aikgs_profile(address: str):
-        if not aikgs_progressive_unlocks:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        profile = aikgs_progressive_unlocks.get_profile(address)
-        return {
-            "address": profile.address,
-            "reputation_points": profile.reputation_points,
-            "level": profile.level,
-            "level_name": profile.level_name,
-            "total_contributions": profile.total_contributions,
-            "best_streak": profile.best_streak,
-            "current_streak": profile.current_streak,
-            "gold_count": profile.gold_count,
-            "diamond_count": profile.diamond_count,
-            "bounties_fulfilled": profile.bounties_fulfilled,
-            "referrals": profile.referrals,
-            "badges": profile.badges,
-            "unlocked_features": profile.unlocked_features,
-        }
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        profile = await aikgs_client.get_profile(address)
+        if not profile:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        return profile
 
     @app.get("/aikgs/contributions/{address}")
     async def aikgs_contributions(address: str, limit: int = 20):
-        if not aikgs_contribution_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        history = aikgs_contribution_manager.get_contributor_history(address, limit)
-        return {"contributions": [c.to_dict() for c in history]}
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        history = await aikgs_client.get_contributor_history(address, limit)
+        return {"contributions": history}
 
     @app.get("/aikgs/reward/{contribution_id}")
     async def aikgs_reward(contribution_id: int):
-        if not aikgs_contribution_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        # Look up contribution by ID and return its reward data
-        record = aikgs_contribution_manager.get_contribution(contribution_id)
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        record = await aikgs_client.get_contribution(contribution_id)
         if not record:
             raise HTTPException(status_code=404, detail="Contribution not found")
-        return record.to_dict()
+        return record
 
     @app.get("/aikgs/pool/stats")
     async def aikgs_pool_stats():
-        if not aikgs_reward_engine:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        re_stats = aikgs_reward_engine.get_stats()
-        cm_stats = aikgs_contribution_manager.get_stats() if aikgs_contribution_manager else {}
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        re_stats = await aikgs_client.get_reward_stats()
+        cm_stats = await aikgs_client.get_contribution_stats()
         return {
             "pool_balance": re_stats['pool_balance'],
             "total_distributed": re_stats['total_distributed'],
@@ -5733,99 +5716,96 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.get("/aikgs/leaderboard")
     async def aikgs_leaderboard(limit: int = 20):
-        if not aikgs_contribution_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        lb = aikgs_contribution_manager.get_leaderboard(limit)
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        lb = await aikgs_client.get_leaderboard(limit)
         return {"leaderboard": lb}
 
     @app.get("/aikgs/streak/{address}")
     async def aikgs_streak(address: str):
-        if not aikgs_reward_engine:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        info = aikgs_reward_engine.get_contributor_streak(address)
-        return info
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        return await aikgs_client.get_contributor_streak(address)
 
     @app.post("/aikgs/affiliate/register")
     async def aikgs_affiliate_register(body: dict):
-        if not aikgs_affiliate_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
         addr = body.get("address", "")
-        code = body.get("referral_code")
+        code = body.get("referral_code", "")
         if not addr:
             raise HTTPException(status_code=400, detail="Address required")
-        result = aikgs_affiliate_manager.register(addr, code)
-        return {"referral_code": result.referral_code, "referrer": result.referrer_address}
+        result = await aikgs_client.register_affiliate(addr, referral_code=code)
+        return {"referral_code": result.get('referral_code', ''), "referrer": result.get('referrer_address', '')}
 
     # NOTE: /aikgs/affiliate/link/{address} MUST be registered BEFORE
     # /aikgs/affiliate/{address} to avoid FastAPI route shadowing.
     @app.get("/aikgs/affiliate/link/{address}")
     async def aikgs_affiliate_link(address: str):
-        if not aikgs_affiliate_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        aff = aikgs_affiliate_manager.get_affiliate(address)
-        if not aff:
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        link_data = await aikgs_client.get_affiliate_link(address)
+        if not link_data:
             raise HTTPException(status_code=404, detail="Not registered")
         bot_username = Config.TELEGRAM_BOT_USERNAME or "AetherTreeBot"
         return {
-            "referral_code": aff.referral_code,
-            "link": f"https://qbc.network/rewards?ref={aff.referral_code}",
-            "telegram_link": f"https://t.me/{bot_username}?start={aff.referral_code}",
+            "referral_code": link_data.get('referral_code', ''),
+            "link": link_data.get('referral_link', f"https://qbc.network/rewards?ref={link_data.get('referral_code', '')}"),
+            "telegram_link": f"https://t.me/{bot_username}?start={link_data.get('referral_code', '')}",
         }
 
     @app.get("/aikgs/affiliate/{address}")
     async def aikgs_affiliate(address: str):
-        if not aikgs_affiliate_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        aff = aikgs_affiliate_manager.get_affiliate(address)
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        aff = await aikgs_client.get_affiliate(address)
         if not aff:
             raise HTTPException(status_code=404, detail="Not registered")
-        return aff.to_dict()
+        return aff
 
     @app.get("/aikgs/bounties")
     async def aikgs_bounties(status: str = "open"):
-        if not aikgs_bounty_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        bounties = aikgs_bounty_manager.get_bounties(status=status)
-        return {"bounties": [b.to_dict() for b in bounties]}
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        bounties = await aikgs_client.list_bounties(status=status)
+        return {"bounties": bounties}
 
     @app.post("/aikgs/bounty/claim")
     async def aikgs_bounty_claim(body: dict):
-        if not aikgs_bounty_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
         bounty_id = body.get("bounty_id")
         addr = body.get("contributor_address", "")
         if not bounty_id or not addr:
             raise HTTPException(status_code=400, detail="bounty_id and contributor_address required")
-        result = aikgs_bounty_manager.claim_bounty(int(bounty_id), addr)
-        return {"status": "claimed" if result else "failed"}
+        result = await aikgs_client.claim_bounty(int(bounty_id), addr)
+        return {"status": "claimed", "bounty": result}
 
     @app.post("/aikgs/bounty/fulfill")
     async def aikgs_bounty_fulfill(body: dict):
-        if not aikgs_bounty_manager:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
         bounty_id = body.get("bounty_id")
         contribution_id = body.get("contribution_id")
         contributor_address = body.get("contributor_address", "")
         if not bounty_id or not contribution_id or not contributor_address:
             raise HTTPException(status_code=400, detail="bounty_id, contribution_id, and contributor_address required")
-        result = aikgs_bounty_manager.fulfill_bounty(int(bounty_id), int(contribution_id), contributor_address)
-        return {"status": "fulfilled" if result else "failed", "reward_amount": result if isinstance(result, (int, float)) else 0}
+        result = await aikgs_client.fulfill_bounty(int(bounty_id), int(contribution_id), contributor_address)
+        return {"status": "fulfilled", "reward_amount": result.get('reward_amount', 0)}
 
     @app.post("/aikgs/keys/store")
     async def aikgs_key_store(body: dict):
-        if not aikgs_api_key_vault:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
         owner_address = body.get("owner_address", "")
         if not owner_address or len(owner_address) < 8 or len(owner_address) > 128:
             raise HTTPException(status_code=400, detail="Valid owner_address required (8-128 chars)")
         api_key = body.get("api_key", "")
         if not api_key:
             raise HTTPException(status_code=400, detail="API key required")
+        # Signature verification — MANDATORY for key storage
         signature_hex = body.get("signature_hex", "")
         public_key_hex = body.get("public_key_hex", "")
-        # Signature verification is MANDATORY for key storage.
-        # Accepts both Dilithium2 signatures (production) and HMAC-SHA256
-        # signatures (browser placeholder until Dilithium WASM is available).
         if not signature_hex or not public_key_hex:
             raise HTTPException(status_code=401, detail="Signature and public key required for key storage")
         import json as _json
@@ -5840,46 +5820,41 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         sign_data = {'owner_address': owner_address, 'provider': body.get("provider", ""), 'action': 'store_key'}
         msg = _json.dumps(sign_data, sort_keys=True).encode()
         sig = bytes.fromhex(signature_hex)
-        # Try Dilithium2 first, fall back to HMAC-SHA256 verification
         if not _verify_signature_flexible(pk, msg, sig):
             raise HTTPException(status_code=400, detail="Invalid signature")
-        stored_key = aikgs_api_key_vault.store_key(
+        result = await aikgs_client.store_api_key(
             owner_address=owner_address,
             provider=body.get("provider", ""),
             api_key=api_key,
             model=body.get("model", ""),
-            label=body.get("label", ""),
             is_shared=body.get("is_shared", False),
+            label=body.get("label", ""),
         )
-        return {"key_id": stored_key.key_id, "status": "stored"}
+        return {"key_id": result.get('key_id', ''), "status": "stored"}
 
     # NOTE: /aikgs/keys/shared-pool MUST be registered BEFORE
     # /aikgs/keys/{address} to avoid FastAPI route shadowing.
     @app.get("/aikgs/keys/shared-pool")
     async def aikgs_shared_pool():
-        if not aikgs_api_key_vault:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        vault_stats = aikgs_api_key_vault.get_stats()
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        keys = await aikgs_client.get_shared_key_pool()
         return {
-            "pool_size": vault_stats['shared_pool_size'],
-            "providers": aikgs_api_key_vault.get_shared_pool_counts(),
+            "pool_size": len(keys),
+            "keys": keys,
         }
 
     @app.get("/aikgs/keys/{address}")
     async def aikgs_keys(address: str, request: Request):
         """Get stored keys for an address.
-
-        H2 FIX: Requires admin key OR signature proving address ownership
-        to prevent unauthenticated enumeration of key metadata.
+        Requires admin key OR signature proving address ownership.
         """
-        if not aikgs_api_key_vault:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        # Allow admin key to list any address
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
         admin_key = getattr(Config, 'ADMIN_API_KEY', '')
         x_admin = request.headers.get('X-Admin-Key', '')
         is_admin = admin_key and x_admin and hmac.compare_digest(x_admin, admin_key)
         if not is_admin:
-            # Require signature for non-admin access (query param)
             sig_hex = request.query_params.get('signature_hex', '')
             pk_hex = request.query_params.get('public_key_hex', '')
             if not sig_hex or not pk_hex:
@@ -5899,20 +5874,19 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 raise
             except Exception:
                 raise HTTPException(status_code=400, detail="Invalid credentials")
-        keys = aikgs_api_key_vault.get_owner_keys(address)
-        return {"keys": [k.to_dict() for k in keys]}
+        keys = await aikgs_client.list_api_keys(address)
+        return {"keys": keys}
 
     @app.post("/aikgs/keys/revoke")
     async def aikgs_key_revoke(body: dict):
-        if not aikgs_api_key_vault:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
         owner_address = body.get("owner_address", "")
         key_id = body.get("key_id", "")
         if not owner_address or not key_id:
             raise HTTPException(status_code=400, detail="owner_address and key_id required")
         signature_hex = body.get("signature_hex", "")
         public_key_hex = body.get("public_key_hex", "")
-        # Signature verification is MANDATORY for key revocation
         if not signature_hex or not public_key_hex:
             raise HTTPException(status_code=401, detail="Signature and public key required for key revocation")
         import json as _json
@@ -5927,23 +5901,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         sign_data = {'owner_address': owner_address, 'key_id': key_id, 'action': 'revoke_key'}
         msg = _json.dumps(sign_data, sort_keys=True).encode()
         sig = bytes.fromhex(signature_hex)
-        # Try Dilithium2 first, fall back to HMAC-SHA256 verification
         if not _verify_signature_flexible(pk, msg, sig):
             raise HTTPException(status_code=400, detail="Invalid signature")
-        result = aikgs_api_key_vault.revoke_key(key_id, owner_address)
+        result = await aikgs_client.revoke_api_key(key_id, owner_address)
         return {"status": "revoked" if result else "failed"}
 
     @app.get("/aikgs/curation/pending")
     async def aikgs_curation_pending():
-        if not aikgs_curation_engine:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
-        rounds = aikgs_curation_engine.get_pending_reviews()
-        return {"rounds": [r.to_dict() for r in rounds]}
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        rounds = await aikgs_client.get_pending_reviews()
+        return {"rounds": rounds}
 
     @app.post("/aikgs/curation/vote")
     async def aikgs_curation_vote(body: dict):
-        if not aikgs_curation_engine:
-            raise HTTPException(status_code=503, detail="AIKGS not enabled")
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
         try:
             contribution_id = int(body.get("round_id", body.get("contribution_id", 0)))
         except (ValueError, TypeError):
@@ -5951,21 +5924,97 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         curator_address = body.get("curator_address", "")
         if not curator_address:
             raise HTTPException(status_code=400, detail="curator_address required")
-        # Prevent self-voting: check if curator is the contributor
-        if aikgs_contribution_manager:
-            contrib = aikgs_contribution_manager.get_contribution(contribution_id)
-            if contrib and contrib.contributor_address == curator_address:
-                raise HTTPException(status_code=400, detail="Cannot vote on your own contribution")
+        # Self-voting check: get the contribution and compare
+        contrib = await aikgs_client.get_contribution(contribution_id)
+        if contrib and contrib.get('contributor_address') == curator_address:
+            raise HTTPException(status_code=400, detail="Cannot vote on your own contribution")
         try:
-            result = aikgs_curation_engine.submit_review(
-                contribution_id,
-                curator_address,
+            result = await aikgs_client.submit_review(
+                contribution_id, curator_address,
                 body.get("approved", False),
                 body.get("comment", ""),
             )
-        except PermissionError as e:
-            raise HTTPException(status_code=403, detail=str(e))
-        return {"status": "voted" if result else "failed"}
+        except Exception as e:
+            if "permission" in str(e).lower() or "reputation" in str(e).lower():
+                raise HTTPException(status_code=403, detail=str(e))
+            raise
+        return {"status": "voted", "round": result}
+
+    @app.get("/aikgs/stats")
+    async def aikgs_full_stats():
+        if not aikgs_client or not aikgs_client.connected:
+            raise HTTPException(status_code=503, detail="AIKGS sidecar not connected")
+        return await aikgs_client.get_full_stats()
+
+    # ========================================================================
+    # INTERNAL: AIKGS TREASURY DISBURSEMENT
+    # Called by the Rust sidecar to create reward transactions on-chain.
+    # ========================================================================
+
+    @app.post("/internal/aikgs/disburse")
+    async def internal_aikgs_disburse(body: dict):
+        """Create and broadcast a treasury transaction for AIKGS reward disbursement.
+
+        Called by the Rust AIKGS sidecar. Authenticated via internal network only.
+        """
+        recipient = body.get("recipient_address", "")
+        amount = float(body.get("amount", 0))
+        reason = body.get("reason", "aikgs_reward")
+        if not recipient or amount <= 0:
+            raise HTTPException(status_code=400, detail="recipient_address and positive amount required")
+        treasury_addr = Config.AIKGS_TREASURY_ADDRESS or Config.ADDRESS
+        try:
+            from decimal import Decimal
+            # Get UTXOs for treasury address
+            utxos = db_manager.get_utxos(treasury_addr)
+            if not utxos:
+                return {"success": False, "txid": "", "error": "No UTXOs for treasury address"}
+            # Select UTXOs to cover amount
+            amount_dec = Decimal(str(amount))
+            selected = []
+            total_input = Decimal(0)
+            for utxo in utxos:
+                selected.append(utxo)
+                total_input += Decimal(str(utxo['amount']))
+                if total_input >= amount_dec:
+                    break
+            if total_input < amount_dec:
+                return {"success": False, "txid": "", "error": "Insufficient treasury balance"}
+            # Build outputs
+            outputs = [{'address': recipient, 'amount': amount_dec}]
+            change = total_input - amount_dec
+            if change > 0:
+                outputs.append({'address': treasury_addr, 'amount': change})
+            # Create transaction
+            import hashlib, time
+            from ..database.models import Transaction
+            txid = hashlib.sha256(
+                f"aikgs-disburse-{recipient}-{amount}-{time.time()}".encode()
+            ).hexdigest()
+            tx = Transaction(
+                txid=txid,
+                inputs=[{'txid': u['txid'], 'vout': u['vout']} for u in selected],
+                outputs=outputs,
+                fee=Decimal(0),
+                signature='',
+                public_key=Config.PUBLIC_KEY_HEX,
+                timestamp=time.time(),
+                status='pending',
+            )
+            # Sign with node key
+            from ..quantum.crypto import Dilithium2
+            pk = bytes.fromhex(Config.PUBLIC_KEY_HEX)
+            sk = bytes.fromhex(Config.PRIVATE_KEY_HEX)
+            import json as _json
+            msg = _json.dumps(tx.to_dict(), sort_keys=True, default=str).encode()
+            tx.signature = Dilithium2.sign(sk, msg).hex()
+            # Add to mempool
+            db_manager.add_to_mempool(tx)
+            logger.info(f"AIKGS treasury disbursement: {amount:.8f} QBC → {recipient[:12]}... ({reason})")
+            return {"success": True, "txid": txid, "error": ""}
+        except Exception as e:
+            logger.error(f"AIKGS disbursement failed: {e}", exc_info=True)
+            return {"success": False, "txid": "", "error": str(e)}
 
     # ========================================================================
     # TELEGRAM BOT WEBHOOK
@@ -6011,6 +6060,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     from .admin_api import router as admin_router
     app.include_router(admin_router)
 
-    logger.info("RPC endpoints configured (v2.2 with P2P + QVM + Aether + AIKGS + Telegram + Admin)")
+    logger.info("RPC endpoints configured (v2.3 with P2P + QVM + Aether + AIKGS-sidecar + Telegram + Admin)")
 
     return app

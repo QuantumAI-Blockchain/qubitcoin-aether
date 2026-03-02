@@ -292,25 +292,8 @@ class ConsensusEngine:
             # Genesis block includes the premine allocation
             if block.height == 0 and Config.GENESIS_PREMINE > 0:
                 expected_coinbase += Config.GENESIS_PREMINE
-            # AIKGS reward outputs are additional coinbase outputs funded from
-            # the AIKGS reward pool (pre-allocated from premine). They are tagged
-            # in the block metadata so validators can verify them independently.
-            aikgs_reward_total = Decimal(0)
-            try:
-                aikgs_meta = getattr(block, 'aikgs_rewards_total', None)
-                if aikgs_meta is not None:
-                    aikgs_reward_total = Decimal(str(aikgs_meta))
-                else:
-                    # Fallback: check block metadata dict
-                    meta = getattr(block, 'metadata', None) or {}
-                    if isinstance(meta, dict) and 'aikgs_rewards_total' in meta:
-                        aikgs_reward_total = Decimal(str(meta['aikgs_rewards_total']))
-            except Exception:
-                aikgs_reward_total = Decimal(0)
-            # C2 FIX: Reject NaN/Infinity — these bypass all Decimal comparisons
-            if not aikgs_reward_total.is_finite() or aikgs_reward_total < 0:
-                return False, f"Invalid AIKGS reward total: {aikgs_reward_total}"
-            expected_coinbase += aikgs_reward_total
+            # AIKGS rewards are now disbursed as treasury transactions by the
+            # Rust sidecar, not included in coinbase. No AIKGS metadata to validate.
             if coinbase_amount > expected_coinbase:
                 return False, f"Excessive coinbase: {coinbase_amount} > {expected_coinbase}"
 

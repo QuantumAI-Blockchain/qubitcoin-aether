@@ -430,6 +430,12 @@ class Config:
     AIKGS_DEFAULT_BOUNTY_DURATION_DAYS: int = int(os.getenv('AIKGS_DEFAULT_BOUNTY_DURATION_DAYS', '30'))
     AIKGS_CURATION_REQUIRED_VOTES: int = int(os.getenv('AIKGS_CURATION_REQUIRED_VOTES', '3'))
 
+    # AIKGS Rust Sidecar
+    AIKGS_USE_RUST_SIDECAR: bool = os.getenv('AIKGS_USE_RUST_SIDECAR', 'true').lower() == 'true'
+    AIKGS_GRPC_PORT: int = int(os.getenv('AIKGS_GRPC_PORT', '50052'))
+    AIKGS_GRPC_ADDR: str = os.getenv('AIKGS_GRPC_ADDR', '127.0.0.1')
+    AIKGS_TREASURY_ADDRESS: str = os.getenv('AIKGS_TREASURY_ADDRESS', '')
+
     # AIKGS Contract Addresses (set after deployment)
     AIKGS_REWARD_POOL_ADDRESS: str = os.getenv('AIKGS_REWARD_POOL_ADDRESS', '')
     AIKGS_AFFILIATE_REGISTRY_ADDRESS: str = os.getenv('AIKGS_AFFILIATE_REGISTRY_ADDRESS', '')
