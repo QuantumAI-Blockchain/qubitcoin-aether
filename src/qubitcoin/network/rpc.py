@@ -2796,8 +2796,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         # to prevent TOCTOU race between balance check and UTXO spending.
         # Without this, concurrent requests could double-spend the same UTXOs.
         import hashlib
-        import time as _time
-        tx_hash = hashlib.sha256(f"stake:{req.address}:{req.node_id}:{amount}:{_time.time()}".encode()).hexdigest()
 
         with db_manager.get_session() as session:
             from sqlalchemy import text as sa_text
@@ -2830,12 +2828,18 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                     break
             change = total - amount
 
+            # Deterministic txid from UTXO inputs
+            _input_nonce = ":".join(f"{r[0]}:{r[1]}" for r in selected_rows)
+            tx_hash = hashlib.sha256(f"stake:{req.address}:{req.node_id}:{amount}:{_input_nonce}".encode()).hexdigest()
+
             # Spend selected UTXOs and create change — all within same transaction
             for r in selected_rows:
-                session.execute(
+                result = session.execute(
                     sa_text("UPDATE utxos SET spent = true, spent_by = :txid WHERE txid = :utxid AND vout = :vout AND spent = false"),
                     {'txid': tx_hash, 'utxid': r[0], 'vout': r[1]}
                 )
+                if result.rowcount == 0:
+                    raise HTTPException(status_code=409, detail=f"UTXO already spent: {r[0]}:{r[1]}")
             if change > 0:
                 session.execute(
                     sa_text("INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent) VALUES (:txid, 0, :amt, :addr, '{}', :h, false)"),
@@ -2941,8 +2945,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if claimed <= 0:
             return {'claimed_amount': '0', 'tx_hash': None}
 
-        # Create UTXO for claimed rewards
-        tx_hash = hashlib.sha256(f"claim:{req.address}:{claimed}:{_time.time()}".encode()).hexdigest()
+        # Create UTXO for claimed rewards (deterministic: address + amount + block height)
+        _claim_height = db_manager.get_current_height()
+        tx_hash = hashlib.sha256(f"claim:{req.address}:{claimed}:{_claim_height}".encode()).hexdigest()
         with db_manager.get_session() as session:
             from sqlalchemy import text as sa_text
             session.execute(

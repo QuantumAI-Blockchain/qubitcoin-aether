@@ -64,11 +64,13 @@ class TestPruneLowConfidence:
         kg.add_node = KnowledgeGraph_add_node_no_db(kg)
         n1 = kg.add_node('observation', {}, 0.05, 0)
         n2 = kg.add_node('observation', {}, 0.9, 1)
-        # Add edge manually
+        # Add edge manually (including adjacency indices used by prune)
         edge = KeterEdge(from_node_id=n1.node_id, to_node_id=n2.node_id)
         kg.edges.append(edge)
         kg.nodes[n1.node_id].edges_out.append(n2.node_id)
         kg.nodes[n2.node_id].edges_in.append(n1.node_id)
+        kg._adj_out.setdefault(n1.node_id, []).append(edge)
+        kg._adj_in.setdefault(n2.node_id, []).append(edge)
 
         kg.prune_low_confidence(threshold=0.1)
         assert len(kg.edges) == 0

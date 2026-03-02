@@ -154,7 +154,7 @@ function BridgeApp() {
       <WalletModal />
       <PreFlightModal />
       <SettingsPanel />
-      <DevTools />
+      {process.env.NODE_ENV !== "production" && <DevTools />}
       <ToastContainer />
     </div>
   );

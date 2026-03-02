@@ -1144,6 +1144,17 @@ class StablecoinEngine:
     # FLASH LOANS
     # ========================================================================
 
+    def _cleanup_expired_flash_loans(self) -> None:
+        """Remove expired flash loans (TTL = 30s) from the active pool."""
+        FLASH_LOAN_TTL = 30  # seconds
+        now = time.time()
+        expired = [lid for lid, loan in self._active_flash_loans.items()
+                   if not loan.repaid and (now - loan.timestamp) > FLASH_LOAN_TTL]
+        for lid in expired:
+            loan = self._active_flash_loans.pop(lid)
+            self._flash_loan_total_borrowed -= loan.amount
+            logger.warning(f"Flash loan {lid} expired (borrower={loan.borrower})")
+
     def initiate_flash_loan(self, borrower: str, amount: Decimal) -> FlashLoan:
         """Initiate a flash loan — borrow QUSD with zero collateral.
 
@@ -1161,8 +1172,6 @@ class StablecoinEngine:
             ValueError: If flash loans are disabled, amount is invalid,
                 exceeds maximum, or borrower already has an active loan.
         """
-        FLASH_LOAN_TTL = 30  # seconds - flash loans must complete within one block
-
         if not self._flash_loan_enabled:
             raise ValueError("Flash loans are currently disabled")
 
@@ -1175,14 +1184,7 @@ class StablecoinEngine:
                 f"{self._flash_loan_max_amount} QUSD"
             )
 
-        # Clean up expired flash loans
-        now = time.time()
-        expired = [lid for lid, loan in self._active_flash_loans.items()
-                   if not loan.repaid and (now - loan.timestamp) > FLASH_LOAN_TTL]
-        for lid in expired:
-            loan = self._active_flash_loans.pop(lid)
-            self._flash_loan_total_borrowed -= loan.amount
-            logger.warning(f"Flash loan {lid} expired (borrower={loan.borrower})")
+        self._cleanup_expired_flash_loans()
 
         # Check if borrower already has an active flash loan
         for loan in self._active_flash_loans.values():
@@ -1317,6 +1319,8 @@ class StablecoinEngine:
             )
             return False
 
+        self._cleanup_expired_flash_loans()
+
         loan.repaid = True
         loan.repay_amount = repay_amount
         loan.repay_timestamp = time.time()
@@ -1324,6 +1328,7 @@ class StablecoinEngine:
         # Move from active to completed
         del self._active_flash_loans[loan_id]
         self._completed_flash_loans.append(loan)
+        self._flash_loan_total_borrowed -= loan.amount
 
         # Cap completed history to prevent unbounded growth
         if len(self._completed_flash_loans) > 10000:
@@ -1345,6 +1350,7 @@ class StablecoinEngine:
             Dict with total loans, active count, completed count,
             total borrowed, total fees, fee rate, and recent history.
         """
+        self._cleanup_expired_flash_loans()
         total_loans = len(self._active_flash_loans) + len(self._completed_flash_loans)
         recent = [
             {

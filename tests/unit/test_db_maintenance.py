@@ -115,9 +115,12 @@ class TestKGPruningDBDelete:
 
         kg.nodes[1] = KeterNode(node_id=1, node_type='observation', confidence=0.05, content={})
         kg.nodes[2] = KeterNode(node_id=2, node_type='assertion', confidence=0.9, content={})
-        kg.edges.append(KeterEdge(from_node_id=1, to_node_id=2, edge_type='supports'))
+        edge = KeterEdge(from_node_id=1, to_node_id=2, edge_type='supports')
+        kg.edges.append(edge)
         kg.nodes[2].edges_in.append(1)
         kg.nodes[1].edges_out.append(2)
+        kg._adj_out.setdefault(1, []).append(edge)
+        kg._adj_in.setdefault(2, []).append(edge)
 
         delete_result = MagicMock()
         delete_result.rowcount = 1

@@ -28,7 +28,7 @@ export function KnowledgeSeeder() {
   const [result, setResult] = useState<SeedResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Load saved key from localStorage when wallet changes
+  // Load saved key from sessionStorage when wallet changes
   useEffect(() => {
     if (address) {
       const saved = sessionStorage.getItem(storageKey(address));

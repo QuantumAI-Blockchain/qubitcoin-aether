@@ -1084,9 +1084,14 @@ class QVM:
                 # Input: k * 192 bytes: (x1,y1,x2_im,x2_re,y2_im,y2_re) each 32 bytes
                 # Output: 32 bytes (0x01 if pairing check passes, 0x00 otherwise)
                 k = len(data) // 192
+                _MAX_PAIRING_PAIRS = 8  # Cap to prevent pure-Python DoS
                 base_gas = 45000
                 per_pair_gas = 34000
                 result.gas_used = base_gas + k * per_pair_gas
+                if k > _MAX_PAIRING_PAIRS:
+                    result.success = False
+                    result.revert_reason = f"ecPairing: too many pairs ({k} > {_MAX_PAIRING_PAIRS})"
+                    return result
                 if len(data) % 192 != 0:
                     result.success = False
                     result.revert_reason = "ecPairing: invalid input length"

@@ -478,22 +478,26 @@ class KnowledgeGraph:
             e for e in self.edges
             if e.from_node_id not in remove_set and e.to_node_id not in remove_set
         ]
-        # Clean adjacency indices and node cross-references in one pass
+        # Clean adjacency indices and node cross-references in one pass.
+        # Uses adj index to update only affected neighbors: O(degree) per node
+        # instead of the old O(N) scan of all nodes per removed node.
         for nid in remove_set:
             for edge in self._adj_out.get(nid, []):
                 adj_list = self._adj_in.get(edge.to_node_id, [])
                 self._adj_in[edge.to_node_id] = [e for e in adj_list if e.from_node_id != nid]
+                # Also clean the neighbor's edges_in list
+                neighbor = self.nodes.get(edge.to_node_id)
+                if neighbor and nid in neighbor.edges_in:
+                    neighbor.edges_in.remove(nid)
             for edge in self._adj_in.get(nid, []):
                 adj_list = self._adj_out.get(edge.from_node_id, [])
                 self._adj_out[edge.from_node_id] = [e for e in adj_list if e.to_node_id != nid]
+                # Also clean the neighbor's edges_out list
+                neighbor = self.nodes.get(edge.from_node_id)
+                if neighbor and nid in neighbor.edges_out:
+                    neighbor.edges_out.remove(nid)
             self._adj_out.pop(nid, None)
             self._adj_in.pop(nid, None)
-        for nid in remove_set:
-            for other_node in self.nodes.values():
-                if nid in other_node.edges_out:
-                    other_node.edges_out.remove(nid)
-                if nid in other_node.edges_in:
-                    other_node.edges_in.remove(nid)
             del self.nodes[nid]
         self._merkle_dirty = True
 

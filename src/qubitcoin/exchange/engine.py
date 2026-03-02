@@ -1115,6 +1115,11 @@ class ExchangeEngine:
         if address not in self._user_balances:
             return
         bal = self._user_balances[address].get(asset, ZERO)
+        if amount > bal:
+            logger.warning(
+                "Overdraft: %s %s debit from %s exceeds balance %s (capped at zero)",
+                amount, asset, address[:16], bal,
+            )
         self._user_balances[address][asset] = max(ZERO, bal - amount)
 
     def _credit_balance(self, address: str, asset: str, amount: Decimal) -> None:
@@ -1148,13 +1153,24 @@ class ExchangeEngine:
                 d_size = Decimal(str(size))
                 d_price = Decimal(str(price)) if price > 0 else ZERO
                 if side == "buy":
-                    # Buyer needs quote asset (e.g. QUSD). For market orders use a
-                    # conservative estimate — require full size * best-ask or 0 if no asks.
                     if order_type == "market":
+                        # Market buy: estimate cost by summing ask levels up to
+                        # the requested size (worst-case actual cost).
                         best_ask = book.best_ask()
                         if best_ask <= ZERO:
                             raise ValueError(f"No asks available for market buy on {pair}")
-                        required = d_size * best_ask
+                        # Walk the ask book to compute the true worst-case cost
+                        remaining_est = d_size
+                        required = ZERO
+                        for ask_order in book.asks:
+                            if remaining_est <= EPSILON:
+                                break
+                            chunk = min(remaining_est, ask_order.remaining)
+                            required += chunk * ask_order.price
+                            remaining_est -= chunk
+                        # If asks are insufficient, remaining_est > 0; the market
+                        # order will be partially filled, but we still need funds
+                        # for the portion that CAN fill.
                     else:
                         required = d_size * d_price
                     if required > ZERO:
@@ -1199,18 +1215,26 @@ class ExchangeEngine:
                     fill.taker_fee = notional * self._taker_fee
                     self._total_fees_collected += fill.maker_fee + fill.taker_fee
 
-            # Debit/credit user balances for each fill
+            # Debit/credit user balances for each fill.
+            # IMPORTANT: use fill.side (taker side) and fill.taker_address /
+            # fill.maker_address — NOT order.side / order.address — because
+            # triggered stop-order fills have different takers than the
+            # original order that caused the trigger.
             for fill in fills:
                 base, quote = pair.split("_", 1) if "_" in pair else (pair, "QUSD")
                 fill_value = fill.price * fill.size
-                if order.side == "buy":
-                    self._debit_balance(order.address, quote, fill_value + fill.taker_fee)
-                    self._credit_balance(order.address, base, fill.size)
+                if fill.side == Side.BUY:
+                    # Taker bought base: taker pays quote + fee, receives base
+                    self._debit_balance(fill.taker_address, quote, fill_value + fill.taker_fee)
+                    self._credit_balance(fill.taker_address, base, fill.size)
+                    # Maker sold base: maker gives base, receives quote - fee
                     self._debit_balance(fill.maker_address, base, fill.size)
                     self._credit_balance(fill.maker_address, quote, fill_value - fill.maker_fee)
                 else:
-                    self._debit_balance(order.address, base, fill.size)
-                    self._credit_balance(order.address, quote, fill_value - fill.taker_fee)
+                    # Taker sold base: taker gives base, receives quote - fee
+                    self._debit_balance(fill.taker_address, base, fill.size)
+                    self._credit_balance(fill.taker_address, quote, fill_value - fill.taker_fee)
+                    # Maker bought base: maker pays quote + fee, receives base
                     self._debit_balance(fill.maker_address, quote, fill_value + fill.maker_fee)
                     self._credit_balance(fill.maker_address, base, fill.size)
                 if self._fee_treasury:

@@ -166,7 +166,9 @@ class BridgeManager:
             logger.error(f"Bridge {chain.value} is paused")
             return None
 
-        # Submit proof to proof store for cryptographic verification
+        # Submit proof to proof store for cryptographic verification.
+        # Proof is created in PENDING status; full Merkle verification
+        # happens later when the bridge relayer populates state_root.
         try:
             proof = self.proof_store.submit_proof(
                 source_chain_id=3301,  # QBC mainnet
@@ -180,10 +182,18 @@ class BridgeManager:
                 state_root="",  # populated by bridge relayer
                 merkle_proof=[],
             )
-            if not self.proof_store.verify_proof(proof.proof_id):
-                logger.warning(f"Bridge proof verification pending for {qbc_txid[:16]}…")
+            if proof is None:
+                logger.warning(f"Bridge proof rejected (replay): {qbc_txid[:16]}...")
+            else:
+                # Defer Merkle verification — state_root and merkle_proof
+                # are empty at deposit time and will be filled by the
+                # bridge relayer before calling verify_proof.
+                logger.debug(
+                    f"Bridge proof created: {proof.proof_id[:16]}... "
+                    f"(PENDING, awaiting relayer Merkle data)"
+                )
         except Exception as e:
-            logger.warning(f"Proof submission skipped (non-fatal): {e}")
+            logger.warning(f"Proof submission failed (non-fatal): {e}")
 
         return await bridge.process_deposit(
             qbc_txid, qbc_address, target_address, amount

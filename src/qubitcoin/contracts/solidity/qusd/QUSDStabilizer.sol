@@ -22,6 +22,15 @@ contract QUSDStabilizer is Initializable {
     uint256 public floorPrice;    // $0.99
     uint256 public ceilingPrice;  // $1.01
 
+    // ─── Reentrancy Guard ──────────────────────────────────────────────
+    bool private _locked;
+    modifier nonReentrant() {
+        require(!_locked, "QUSDStabilizer: reentrant call");
+        _locked = true;
+        _;
+        _locked = false;
+    }
+
     // ─── State ───────────────────────────────────────────────────────────
     address public owner;
     address public governance;
@@ -102,7 +111,7 @@ contract QUSDStabilizer is Initializable {
     /// @notice Buy QUSD when price is below floor ($0.99) — floor defense.
     ///         Mints QUSD to the stabilizer's holdings via the QUSD token contract.
     /// @param qusdAmount Amount of QUSD to buy
-    function buyQUSD(uint256 qusdAmount) external onlyOwner whenNotPaused {
+    function buyQUSD(uint256 qusdAmount) external onlyOwner whenNotPaused nonReentrant {
         uint256 currentPrice = getOraclePrice();
         require(currentPrice < floorPrice, "Stabilizer: price above floor");
         require(qusdAmount > 0, "Stabilizer: zero amount");
@@ -127,7 +136,7 @@ contract QUSDStabilizer is Initializable {
     /// @notice Sell QUSD when price is above ceiling ($1.01) — ceiling defense.
     ///         Burns QUSD from the stabilizer's holdings via the QUSD token contract.
     /// @param qusdAmount Amount of QUSD to sell
-    function sellQUSD(uint256 qusdAmount) external onlyOwner whenNotPaused {
+    function sellQUSD(uint256 qusdAmount) external onlyOwner whenNotPaused nonReentrant {
         uint256 currentPrice = getOraclePrice();
         require(currentPrice > ceilingPrice, "Stabilizer: price below ceiling");
         require(qusdHeld >= qusdAmount, "Stabilizer: insufficient QUSD");
@@ -149,7 +158,7 @@ contract QUSDStabilizer is Initializable {
 
     /// @notice Auto-rebalance check — can be called by anyone (e.g., keeper bot)
     /// @param amount Amount to buy or sell
-    function triggerRebalance(uint256 amount) external whenNotPaused {
+    function triggerRebalance(uint256 amount) external whenNotPaused nonReentrant {
         require(autoRebalanceEnabled, "Stabilizer: auto-rebalance disabled");
         uint256 currentPrice = getOraclePrice();
         require(amount > 0, "Stabilizer: zero amount");

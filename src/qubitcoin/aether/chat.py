@@ -669,12 +669,11 @@ class AetherChat:
                     node = self.engine.kg.nodes.get(ref_id)
                     if not node:
                         continue
-                    # Check edges to other referenced nodes
-                    for target_id in node.edges_out:
-                        if target_id in knowledge_refs:
-                            edge = next((e for e in self.engine.kg.edges
-                                         if e.from_node_id == ref_id and e.to_node_id == target_id), None)
-                            if edge:
+                    # Check edges to other referenced nodes (O(degree) via adj index)
+                    ref_set = set(knowledge_refs)
+                    for edge in self.engine.kg.get_edges_from(ref_id):
+                        target_id = edge.to_node_id
+                        if target_id in ref_set:
                                 target = self.engine.kg.nodes.get(target_id)
                                 if target:
                                     src_text = node.content.get('text', '')[:50]

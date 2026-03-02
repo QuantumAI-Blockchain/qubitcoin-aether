@@ -621,3 +621,130 @@ class TestMEVProtection:
         engine = ExchangeEngine(mev_protection=False)
         commit_hash = engine.commit_order({"pair": "QBC_QUSD", "side": "buy"})
         assert commit_hash is None
+
+
+# ---------------------------------------------------------------------------
+# Audit Run #15 — regression tests for H1, H2, M3
+# ---------------------------------------------------------------------------
+
+class TestAuditRun15:
+    """Tests for findings from audit Run #15 (Exchange + Bridge)."""
+
+    def test_h1_triggered_stop_fills_use_correct_addresses(self):
+        """H1: Triggered stop-order fills must debit/credit the stop order
+        owner's address, not the original order's address."""
+        engine = ExchangeEngine()
+        # Alice places a resting sell at 0.30
+        engine.deposit("aliceaaa", "QBC", 10000)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "aliceaaa")
+
+        # Bob places a stop-loss sell that triggers at 0.29
+        engine.deposit("bob12345", "QBC", 10000)
+        engine.place_order(
+            "QBC_QUSD", "sell", "stop_loss", 0, 100, "bob12345",
+            trigger_price=0.29,
+        )
+
+        # Charlie places a resting bid at 0.28 (to absorb Bob's stop-loss sell)
+        engine.deposit("charlie1", "QUSD", 10000)
+        engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 200, "charlie1")
+
+        # Dave buys at market — fills Alice's ask at 0.30, which triggers
+        # Bob's stop-loss sell (price 0.30 >= 0.29 is wrong direction for
+        # sell-stop... but 0.30 crosses 0.29 for buy-stops).
+        #
+        # Actually sell-stop triggers when price <= trigger. Let's set it up
+        # so a sell trade pushes price down.
+
+        # Reset and try a simpler scenario:
+        engine2 = ExchangeEngine()
+        # Maker: resting ask at 0.30
+        engine2.deposit("maker123", "QBC", 10000)
+        engine2.place_order("QBC_QUSD", "sell", "limit", 0.30, 100, "maker123")
+
+        # Stop owner: stop-loss sell triggers at price <= 0.30
+        engine2.deposit("stopowner", "QBC", 10000)
+        engine2.place_order(
+            "QBC_QUSD", "sell", "stop_loss", 0, 50, "stopowner",
+            trigger_price=0.30,
+        )
+
+        # Buyer: resting bid at 0.29 (to catch stop-loss market sell)
+        engine2.deposit("buyeraaa", "QUSD", 10000)
+        engine2.place_order("QBC_QUSD", "buy", "limit", 0.29, 200, "buyeraaa")
+
+        # Taker buy triggers a trade at 0.30, which triggers stop-loss
+        engine2.deposit("takerxxx", "QUSD", 10000)
+        result = engine2.place_order("QBC_QUSD", "buy", "market", 0, 100, "takerxxx")
+
+        # The taker's direct fill was against maker123 at 0.30
+        # The triggered stop-loss sell from stopowner should fill against buyeraaa at 0.29
+        fills = result["fills"]
+        assert len(fills) >= 1  # At least the direct fill
+
+        # Verify stopowner's QBC balance decreased (they sold via stop-loss)
+        stop_bal = engine2.get_user_balance("stopowner")
+        stop_qbc = {b["asset"]: Decimal(b["total"]) for b in stop_bal["balances"]}
+        # stopowner deposited 10000 QBC, sold 50 via stop-loss
+        assert stop_qbc.get("QBC", Decimal(0)) < Decimal("10000"), \
+            "Stop-loss owner should have sold QBC"
+
+        # Verify takerxxx got credited base asset (QBC) for their buy
+        taker_bal = engine2.get_user_balance("takerxxx")
+        taker_qbc = {b["asset"]: Decimal(b["total"]) for b in taker_bal["balances"]}
+        assert taker_qbc.get("QBC", Decimal(0)) > Decimal(0), \
+            "Taker should have received QBC from their buy"
+
+    def test_h2_market_buy_multilevel_balance_check(self):
+        """H2: Market buy across multiple ask levels should require the actual
+        total cost, not just best_ask * size."""
+        engine = ExchangeEngine()
+        # Place asks at ascending prices
+        engine.deposit("seller_1", "QBC", 10000)
+        engine.deposit("seller_2", "QBC", 10000)
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.30, 50, "seller_1")
+        engine.place_order("QBC_QUSD", "sell", "limit", 0.50, 50, "seller_2")
+
+        # Actual cost to buy 100: 50*0.30 + 50*0.50 = 15 + 25 = 40 QUSD
+        # Old code estimated: 100 * 0.30 = 30 QUSD (underfunded)
+        # Deposit only 35 QUSD — should be rejected with the fixed estimator
+        engine.deposit("buyerxxx", "QUSD", 35)
+        with pytest.raises(ValueError, match="Insufficient"):
+            engine.place_order("QBC_QUSD", "buy", "market", 0, 100, "buyerxxx")
+
+        # Deposit enough (40 QUSD) — should succeed
+        engine.deposit("buyerxxx", "QUSD", 5)  # now has 35+5=40 total
+        result = engine.place_order("QBC_QUSD", "buy", "market", 0, 100, "buyerxxx")
+        assert result["fillCount"] == 2
+        assert result["order"]["status"] == "filled"
+
+    def test_m3_debit_overdraft_caps_at_zero(self):
+        """M3: _debit_balance caps balance at zero on overdraft (no negative)."""
+        engine = ExchangeEngine()
+        engine.deposit("testaddr", "QBC", 10)
+
+        # Debit more than available — should NOT go negative
+        engine._debit_balance("testaddr", "QBC", Decimal("20"))
+        bal = engine._user_balances["testaddr"]["QBC"]
+        assert bal == Decimal("0"), "Balance should be capped at zero, not negative"
+
+    def test_m3_debit_unknown_address_is_noop(self):
+        """M3: _debit_balance for unknown address is a no-op."""
+        engine = ExchangeEngine()
+        # Address not in _user_balances — debit should silently do nothing
+        engine._debit_balance("unknown1", "QBC", Decimal("100"))
+        assert "unknown1" not in engine._user_balances
+
+    def test_balance_check_not_bypassed_when_user_balances_empty(self):
+        """Verify balance check runs correctly when _user_balances is empty."""
+        engine = ExchangeEngine()
+        # Don't deposit — user has no entry in _user_balances
+        with pytest.raises(ValueError, match="Insufficient"):
+            engine.place_order("QBC_QUSD", "buy", "limit", 0.28, 100, "nobalance")
+
+    def test_market_buy_rejected_when_no_asks(self):
+        """Market buy on empty book is rejected."""
+        engine = ExchangeEngine()
+        engine.deposit("buyerxxx", "QUSD", 100000)
+        with pytest.raises(ValueError, match="No asks available"):
+            engine.place_order("QBC_QUSD", "buy", "market", 0, 100, "buyerxxx")

@@ -115,6 +115,7 @@ contract wQBC is Initializable {
     function approve(address spender, uint256 amount)
         external returns (bool)
     {
+        require(amount == 0 || _allowances[msg.sender][spender] == 0, "wQBC: set allowance to 0 first");
         _allowances[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;

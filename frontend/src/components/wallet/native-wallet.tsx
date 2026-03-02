@@ -619,6 +619,7 @@ function PrivacyPanel() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showPrivKeys, setShowPrivKeys] = useState(false);
 
   const handleGenerate = useCallback(async () => {
     setGenerating(true);
@@ -712,15 +713,24 @@ function PrivacyPanel() {
 
           {/* Private keys (secret) */}
           <div className="rounded-lg bg-bg-deep p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
-              Secret — do not share
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+                Secret — do not share
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowPrivKeys(!showPrivKeys)}
+                className="rounded px-1.5 py-0.5 text-[10px] text-text-secondary hover:text-amber-400"
+              >
+                {showPrivKeys ? "Hide" : "Reveal"}
+              </button>
+            </div>
             <div className="mt-2 space-y-2">
               <div>
                 <p className="text-[10px] text-text-secondary">Spend Private Key</p>
                 <div className="flex items-center gap-1">
                   <code className="flex-1 break-all font-[family-name:var(--font-code)] text-[10px] text-amber-300">
-                    {stealthKeys.spend_privkey}
+                    {showPrivKeys ? stealthKeys.spend_privkey : "••••••••"}
                   </code>
                   <button
                     onClick={() =>
@@ -736,7 +746,7 @@ function PrivacyPanel() {
                 <p className="text-[10px] text-text-secondary">View Private Key</p>
                 <div className="flex items-center gap-1">
                   <code className="flex-1 break-all font-[family-name:var(--font-code)] text-[10px] text-amber-300">
-                    {stealthKeys.view_privkey}
+                    {showPrivKeys ? stealthKeys.view_privkey : "••••••••"}
                   </code>
                   <button
                     onClick={() =>

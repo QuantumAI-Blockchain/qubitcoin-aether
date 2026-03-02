@@ -1251,10 +1251,16 @@ class AetherEngine:
                 from .sephirot import SephirahRole
                 seph = self.pineal.sephirot
                 # Normalize energy relative to baseline (1.0)
-                chochmah_e = seph.nodes[SephirahRole.CHOCHMAH].energy
-                binah_e = seph.nodes[SephirahRole.BINAH].energy
-                chesed_e = seph.nodes[SephirahRole.CHESED].energy
-                gevurah_e = seph.nodes[SephirahRole.GEVURAH].energy
+                chochmah_n = seph.nodes.get(SephirahRole.CHOCHMAH)
+                binah_n = seph.nodes.get(SephirahRole.BINAH)
+                chesed_n = seph.nodes.get(SephirahRole.CHESED)
+                gevurah_n = seph.nodes.get(SephirahRole.GEVURAH)
+                if not all([chochmah_n, binah_n, chesed_n, gevurah_n]):
+                    raise KeyError("Missing required Sephirot node(s)")
+                chochmah_e = chochmah_n.energy
+                binah_e = binah_n.energy
+                chesed_e = chesed_n.energy
+                gevurah_e = gevurah_n.energy
 
                 # High Chochmah → more pattern discovery (inductive)
                 weights['inductive'] *= (0.5 + 0.5 * chochmah_e)

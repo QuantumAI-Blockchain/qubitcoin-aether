@@ -523,7 +523,7 @@ class JsonRpcHandler:
 
         tx_type = 'contract_call' if to_addr else 'contract_deploy'
         tx_hash = keccak256(
-            (from_addr + to_addr + data_hex + str(time.time())).encode()
+            (from_addr + to_addr + data_hex + str(nonce) + str(value)).encode()
         ).hex()
 
         value_qbc = parse_wei_to_qbc(value) if value else Decimal(0)
