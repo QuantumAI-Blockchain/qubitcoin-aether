@@ -139,7 +139,7 @@ contract wQUSD is IQBC20, Initializable {
     }
 
     /// @notice Bridge operator burns wQUSD for cross-chain transfer
-    function bridgeBurn(address sender, uint256 amount, uint256 destChainId) external onlyBridge {
+    function bridgeBurn(address sender, uint256 amount, uint256 destChainId) external onlyBridge whenNotPaused {
         require(_balances[sender] >= amount, "wQUSD: insufficient balance");
         _balances[sender] -= amount;
         totalSupply       -= amount;
@@ -158,6 +158,7 @@ contract wQUSD is IQBC20, Initializable {
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
+        require(amount == 0 || _allowances[msg.sender][spender] == 0, "wQUSD: set allowance to 0 first");
         _allowances[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;
@@ -195,6 +196,7 @@ contract wQUSD is IQBC20, Initializable {
 
     // ─── Admin ───────────────────────────────────────────────────────────
     function setBridgeOperator(address newBridge) external onlyOwner {
+        require(newBridge != address(0), "wQUSD: zero address");
         emit BridgeOperatorUpdated(bridgeOperator, newBridge);
         bridgeOperator = newBridge;
     }

@@ -572,7 +572,7 @@ class TestTransferEndpoint:
 
     def test_transfer_no_utxos(self, app_and_client):
         _, client, ctx = app_and_client
-        ctx['db'].get_utxos.return_value = []
+        # Session.execute().fetchall() returns [] by default → "No UTXOs available"
         resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '10'},
                            headers=self._admin_headers)
         assert resp.status_code == 400
@@ -580,11 +580,27 @@ class TestTransferEndpoint:
 
     def test_transfer_success(self, app_and_client):
         _, client, ctx = app_and_client
-        utxo = MagicMock()
-        utxo.amount = Decimal('100')
-        utxo.txid = 'tx001'
-        utxo.vout = 0
-        ctx['db'].get_utxos.return_value = [utxo]
+        # The endpoint now uses SELECT FOR UPDATE via session.execute(),
+        # not db_manager.get_utxos().  Set up session mock accordingly.
+        utxo_row = ('tx001', 0, '100')  # (txid, vout, amount) tuple
+        call_count = [0]
+        original_execute = ctx['db'].get_session().__enter__().execute
+
+        def _execute_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            result = MagicMock()
+            if call_count[0] == 1:
+                # First call: SELECT FOR UPDATE → return UTXO rows
+                result.fetchall = MagicMock(return_value=[utxo_row])
+            else:
+                # Subsequent calls: UPDATE/INSERT → need rowcount=1
+                result.rowcount = 1
+                result.fetchall = MagicMock(return_value=[])
+            return result
+
+        with ctx['db'].get_session() as session:
+            session.execute = MagicMock(side_effect=_execute_side_effect)
+
         resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '10'},
                            headers=self._admin_headers)
         assert resp.status_code == 200
@@ -594,20 +610,39 @@ class TestTransferEndpoint:
         assert 'to' in data
         assert 'amount' in data
         assert 'change' in data
-        ctx['db'].get_utxos.return_value = []  # restore
+        # Restore default execute behavior
+        with ctx['db'].get_session() as session:
+            exec_result = MagicMock()
+            exec_result.scalar = MagicMock(return_value=0)
+            exec_result.fetchall = MagicMock(return_value=[])
+            exec_result.fetchone = MagicMock(return_value=None)
+            session.execute = MagicMock(return_value=exec_result)
 
     def test_transfer_insufficient_balance(self, app_and_client):
         _, client, ctx = app_and_client
-        utxo = MagicMock()
-        utxo.amount = Decimal('5')
-        utxo.txid = 'tx001'
-        utxo.vout = 0
-        ctx['db'].get_utxos.return_value = [utxo]
+        # Return a UTXO with amount=5, but request 100 → "Insufficient"
+        utxo_row = ('tx001', 0, '5')  # (txid, vout, amount) tuple
+
+        def _execute_side_effect(*args, **kwargs):
+            result = MagicMock()
+            result.fetchall = MagicMock(return_value=[utxo_row])
+            result.rowcount = 1
+            return result
+
+        with ctx['db'].get_session() as session:
+            session.execute = MagicMock(side_effect=_execute_side_effect)
+
         resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '100'},
                            headers=self._admin_headers)
         assert resp.status_code == 400
         assert 'Insufficient' in resp.json().get('detail', '')
-        ctx['db'].get_utxos.return_value = []  # restore
+        # Restore default execute behavior
+        with ctx['db'].get_session() as session:
+            exec_result = MagicMock()
+            exec_result.scalar = MagicMock(return_value=0)
+            exec_result.fetchall = MagicMock(return_value=[])
+            exec_result.fetchone = MagicMock(return_value=None)
+            session.execute = MagicMock(return_value=exec_result)
 
 
 class TestWalletEndpoints:

@@ -1197,9 +1197,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             if not result.success:
                 raise HTTPException(status_code=400, detail=f"Transfer failed: {result.revert_reason or 'execution reverted'}")
 
-            # Generate a pseudo tx hash from the call
+            # Generate a deterministic tx hash from the call.
+            # M-1 fix: use gas_used instead of id(result) — id() is a
+            # non-deterministic memory address that changes across runs.
             tx_hash = _hl.sha256(
-                f"{req.from_address}:{req.token_address}:{req.to_address}:{req.amount}:{id(result)}".encode()
+                f"{req.from_address}:{req.token_address}:{req.to_address}:{req.amount}:{result.gas_used}".encode()
             ).hexdigest()
 
             return {
@@ -2345,44 +2347,67 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         _require_admin_key(x_admin_key)
         import hashlib
         import time as _time
+        import json as _json
 
         to_addr = req.to.replace('0x', '')
-        amount = Decimal(req.amount)
-        if amount <= 0:
-            raise HTTPException(status_code=400, detail="Amount must be positive")
+        try:
+            amount = Decimal(req.amount)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid amount")
+        if not amount.is_finite() or amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be a finite positive number")
 
         miner_addr = Config.ADDRESS
-        utxos = db_manager.get_utxos(miner_addr)
-        if not utxos:
-            raise HTTPException(status_code=400, detail="No UTXOs available")
 
-        # Greedy largest-first selection
-        utxos.sort(key=lambda u: u.amount, reverse=True)
-        selected = []
-        total = Decimal(0)
-        for u in utxos:
-            selected.append(u)
-            total += u.amount
-            if total >= amount:
-                break
-        if total < amount:
-            raise HTTPException(status_code=400, detail=f"Insufficient UTXO balance: have {total}, need {amount}")
-
-        change = total - amount
-        # Deterministic txid: hash inputs (UTXOs) + outputs instead of wall-clock time
-        _input_nonce = ":".join(f"{u.txid}:{u.vout}" for u in selected)
-        tx_hash = hashlib.sha256(
-            f"{miner_addr}:{to_addr}:{amount}:{_input_nonce}".encode()
-        ).hexdigest()
-
+        # Use a single DB transaction with SELECT FOR UPDATE to prevent
+        # TOCTOU race between UTXO selection and spending (H-1 fix).
         with db_manager.get_session() as session:
             from sqlalchemy import text as sa_text
-            # Mark selected UTXOs as spent
-            for u in selected:
-                session.execute(
+
+            # Lock unspent UTXOs atomically
+            rows = session.execute(
+                sa_text("""
+                    SELECT txid, vout, amount FROM utxos
+                    WHERE address = :addr AND spent = false
+                    ORDER BY amount DESC
+                    FOR UPDATE
+                """),
+                {'addr': miner_addr}
+            ).fetchall()
+
+            if not rows:
+                raise HTTPException(status_code=400, detail="No UTXOs available")
+
+            # Check balance under lock
+            available = sum(Decimal(str(r[2])) for r in rows)
+            if available < amount:
+                raise HTTPException(status_code=400, detail=f"Insufficient UTXO balance: have {available}, need {amount}")
+
+            # Greedy largest-first selection (already sorted DESC)
+            selected_rows = []
+            total = Decimal(0)
+            for r in rows:
+                selected_rows.append(r)
+                total += Decimal(str(r[2]))
+                if total >= amount:
+                    break
+
+            change = total - amount
+
+            # Deterministic txid from UTXO inputs
+            _input_nonce = ":".join(f"{r[0]}:{r[1]}" for r in selected_rows)
+            tx_hash = hashlib.sha256(
+                f"{miner_addr}:{to_addr}:{amount}:{_input_nonce}".encode()
+            ).hexdigest()
+
+            # Mark selected UTXOs as spent with rowcount check
+            for r in selected_rows:
+                result = session.execute(
                     sa_text("UPDATE utxos SET spent = true, spent_by = :txid WHERE txid = :utxid AND vout = :vout AND spent = false"),
-                    {'txid': tx_hash, 'utxid': u.txid, 'vout': u.vout}
+                    {'txid': tx_hash, 'utxid': r[0], 'vout': r[1]}
                 )
+                if result.rowcount == 0:
+                    raise HTTPException(status_code=409, detail=f"UTXO already spent: {r[0]}:{r[1]}")
             # Create change UTXO if needed
             if change > 0:
                 session.execute(
@@ -2405,7 +2430,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             outputs = [{'address': to_addr, 'amount': str(amount)}]
             if change > 0:
                 outputs.append({'address': miner_addr, 'amount': str(change)})
-            import json as _json
             session.execute(
                 sa_text("""
                     INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
@@ -2416,7 +2440,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 """),
                 {
                     'txid': tx_hash,
-                    'inputs': _json.dumps([{'txid': u.txid, 'vout': u.vout} for u in selected]),
+                    'inputs': _json.dumps([{'txid': r[0], 'vout': r[1]} for r in selected_rows]),
                     'outputs': _json.dumps(outputs),
                     'ts': _time.time(), 'to_addr': to_addr,
                 }
@@ -2489,9 +2513,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         import time as _time
         from ..quantum.crypto import Dilithium2
 
-        amount = Decimal(req.amount)
-        if amount <= 0:
-            raise HTTPException(status_code=400, detail="Amount must be positive")
+        try:
+            amount = Decimal(req.amount)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid amount")
+        if not amount.is_finite() or amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be a finite positive number")
 
         strategy = req.utxo_strategy
         if strategy not in ('largest_first', 'smallest_first', 'exact_match'):
@@ -2510,52 +2537,75 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not Dilithium2.verify(pk, msg, sig):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
-        # Select UTXOs using requested strategy
-        utxos = db_manager.get_utxos(req.from_address)
-
-        if strategy == 'exact_match':
-            # Try to find a single UTXO that exactly covers the amount
-            exact = [u for u in utxos if u.amount == amount]
-            if exact:
-                selected = [exact[0]]
-                total = exact[0].amount
-            else:
-                # Fall back to smallest_first
-                strategy = 'smallest_first'
-
-        if strategy == 'smallest_first':
-            utxos.sort(key=lambda u: u.amount)
-        elif strategy == 'largest_first':
-            utxos.sort(key=lambda u: u.amount, reverse=True)
-
-        if strategy != 'exact_match':
-            selected = []
-            total = Decimal(0)
-            for u in utxos:
-                selected.append(u)
-                total += u.amount
-                if total >= amount:
-                    break
-        if total < amount:
-            raise HTTPException(status_code=400, detail=f"Insufficient balance: have {total}, need {amount}")
-
-        change = total - amount
-        # Deterministic txid: hash inputs (UTXOs) + outputs instead of wall-clock time
-        _input_nonce = ":".join(f"{u.txid}:{u.vout}" for u in selected)
-        tx_hash = hashlib.sha256(
-            f"{req.from_address}:{req.to_address}:{amount}:{_input_nonce}".encode()
-        ).hexdigest()
-
         to_addr = req.to_address.replace('0x', '')
 
+        # Use a single DB transaction with SELECT FOR UPDATE to prevent
+        # TOCTOU race between UTXO selection and spending (H-2 fix).
         with db_manager.get_session() as session:
             from sqlalchemy import text as sa_text
-            # Spend inputs
-            for u in selected:
-                session.execute(
+
+            # Determine sort order for the SQL query
+            sort_order = "ASC" if strategy == 'smallest_first' else "DESC"
+            rows = session.execute(
+                sa_text(f"""
+                    SELECT txid, vout, amount FROM utxos
+                    WHERE address = :addr AND spent = false
+                    ORDER BY amount {sort_order}
+                    FOR UPDATE
+                """),
+                {'addr': req.from_address}
+            ).fetchall()
+
+            if not rows:
+                raise HTTPException(status_code=400, detail="No UTXOs available")
+
+            # Check balance under lock
+            available = sum(Decimal(str(r[2])) for r in rows)
+            if available < amount:
+                raise HTTPException(status_code=400, detail=f"Insufficient balance: have {available}, need {amount}")
+
+            # Select UTXOs using requested strategy
+            if strategy == 'exact_match':
+                exact = [r for r in rows if Decimal(str(r[2])) == amount]
+                if exact:
+                    selected_rows = [exact[0]]
+                    total = Decimal(str(exact[0][2]))
+                else:
+                    # Fall back to smallest_first — re-sort rows ascending
+                    rows_sorted = sorted(rows, key=lambda r: Decimal(str(r[2])))
+                    selected_rows = []
+                    total = Decimal(0)
+                    for r in rows_sorted:
+                        selected_rows.append(r)
+                        total += Decimal(str(r[2]))
+                        if total >= amount:
+                            break
+            else:
+                # largest_first or smallest_first — rows already sorted by SQL
+                selected_rows = []
+                total = Decimal(0)
+                for r in rows:
+                    selected_rows.append(r)
+                    total += Decimal(str(r[2]))
+                    if total >= amount:
+                        break
+
+            change = total - amount
+
+            # Deterministic txid from UTXO inputs
+            _input_nonce = ":".join(f"{r[0]}:{r[1]}" for r in selected_rows)
+            tx_hash = hashlib.sha256(
+                f"{req.from_address}:{req.to_address}:{amount}:{_input_nonce}".encode()
+            ).hexdigest()
+
+            # Spend inputs with rowcount check
+            for r in selected_rows:
+                result = session.execute(
                     sa_text("UPDATE utxos SET spent = true, spent_by = :txid WHERE txid = :utxid AND vout = :vout AND spent = false"),
-                    {'txid': tx_hash, 'utxid': u.txid, 'vout': u.vout}
+                    {'txid': tx_hash, 'utxid': r[0], 'vout': r[1]}
                 )
+                if result.rowcount == 0:
+                    raise HTTPException(status_code=409, detail=f"UTXO already spent: {r[0]}:{r[1]}")
             # Create outputs
             outputs = []
             vout = 0
@@ -2604,7 +2654,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 """),
                 {
                     'txid': tx_hash,
-                    'inputs': _json.dumps([{'txid': u.txid, 'vout': u.vout} for u in selected]),
+                    'inputs': _json.dumps([{'txid': r[0], 'vout': r[1]} for r in selected_rows]),
                     'outputs': _json.dumps(outputs),
                     'sig': req.signature_hex[:128], 'pk': req.public_key_hex[:128],
                     'ts': _time.time(), 'to_addr': to_addr,
@@ -2749,7 +2799,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         from ..quantum.crypto import Dilithium2
         import json as _json
 
-        amount = Decimal(req.amount)
+        try:
+            amount = Decimal(req.amount)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid amount")
+        if not amount.is_finite() or amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be a finite positive number")
         if req.node_id < 0 or req.node_id > 9:
             raise HTTPException(status_code=400, detail="node_id must be 0-9")
         min_stake = SEPHIROT_NODES[req.node_id]['min_stake']
@@ -2945,9 +3000,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if claimed <= 0:
             return {'claimed_amount': '0', 'tx_hash': None}
 
-        # Create UTXO for claimed rewards (deterministic: address + amount + block height)
+        # Create UTXO for claimed rewards.
+        # H-3 fix: include time_ns nonce to prevent txid collision when two
+        # claims happen at the same height with the same amount.
+        import time as _time
         _claim_height = db_manager.get_current_height()
-        tx_hash = hashlib.sha256(f"claim:{req.address}:{claimed}:{_claim_height}".encode()).hexdigest()
+        _claim_nonce = _time.time_ns()
+        tx_hash = hashlib.sha256(f"claim:{req.address}:{claimed}:{_claim_height}:{_claim_nonce}".encode()).hexdigest()
         with db_manager.get_session() as session:
             from sqlalchemy import text as sa_text
             session.execute(

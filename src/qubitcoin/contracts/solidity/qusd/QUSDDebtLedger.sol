@@ -197,10 +197,12 @@ contract QUSDDebtLedger is Initializable {
 
     // ─── Admin ───────────────────────────────────────────────────────────
     function setQUSDToken(address _qusd) external onlyOwner {
+        require(_qusd != address(0), "DebtLedger: zero address");
         qusdToken = _qusd;
     }
 
     function setReservePool(address _reserve) external onlyOwner {
+        require(_reserve != address(0), "DebtLedger: zero address");
         reservePool = _reserve;
     }
 

@@ -53,6 +53,7 @@ contract wQBC is IQBC20, Initializable {
     event BridgeOperatorUpdated(address indexed prev, address indexed next);
     event FeeRecipientUpdated(address indexed prev, address indexed next);
     event FeeBpsUpdated(uint256 prev, uint256 next);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
 
@@ -164,6 +165,7 @@ contract wQBC is IQBC20, Initializable {
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
+        require(amount == 0 || _allowances[msg.sender][spender] == 0, "wQBC: set allowance to 0 first");
         _allowances[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;
@@ -231,6 +233,7 @@ contract wQBC is IQBC20, Initializable {
 
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "wQBC: zero address");
+        emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
     }
 }

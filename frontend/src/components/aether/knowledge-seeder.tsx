@@ -39,7 +39,7 @@ export function KnowledgeSeeder() {
     }
   }, [address]);
 
-  // Persist key to localStorage when it changes
+  // Persist key to sessionStorage when it changes
   const handleKeyChange = useCallback(
     (value: string) => {
       setApiKey(value);

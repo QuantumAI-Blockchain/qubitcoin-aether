@@ -160,6 +160,7 @@ contract ConstitutionalAI is Initializable {
 
     // ─── Admin ───────────────────────────────────────────────────────────
     function setGevurahNode(address newGevurah) external onlyOwner {
+        require(newGevurah != address(0), "Constitution: zero address");
         emit GevurahNodeUpdated(gevurahNode, newGevurah);
         gevurahNode = newGevurah;
     }

@@ -227,10 +227,12 @@ contract QUSDStabilizer is Initializable {
     }
 
     function setGovernance(address newGov) external onlyOwner {
+        require(newGov != address(0), "Stabilizer: zero address");
         governance = newGov;
     }
 
     function setOracle(address newOracle) external onlyOwner {
+        require(newOracle != address(0), "Stabilizer: zero address");
         oracleAddress = newOracle;
     }
 
