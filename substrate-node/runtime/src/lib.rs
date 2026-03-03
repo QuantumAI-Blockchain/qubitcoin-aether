@@ -108,7 +108,7 @@ parameter_types! {
             5 * 1024 * 1024,  // 5 MB max block size
             NORMAL_DISPATCH_RATIO,
         );
-    pub const SS58Prefix: u8 = 42;  // Generic Substrate prefix
+    pub const SS58Prefix: u8 = 88;  // Custom QBC prefix
 }
 
 // ═══════════════════════════════════════════════════════════════════════

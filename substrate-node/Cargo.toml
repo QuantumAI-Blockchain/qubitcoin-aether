@@ -83,6 +83,10 @@ sha3 = "0.10"
 # Serialization
 codec = { version = "3.7", package = "parity-scale-codec", default-features = false, features = ["derive"] }
 scale-info = { version = "2.11", default-features = false, features = ["derive"] }
+# NOTE: serde >= 1.0.218 introduces serde_core which fails in WASM no_std.
+# parity-scale-codec 3.7.5 requires serde >= 1.0.219, so we can't pin older.
+# WASM build is blocked upstream. Use SKIP_WASM_BUILD=1 for native builds.
+# Track: https://github.com/serde-rs/serde/issues — serde_core no_std fix
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
 serde_json = "1.0"
 

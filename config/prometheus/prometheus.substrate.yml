@@ -1,0 +1,41 @@
+# ============================================================================
+# Prometheus Configuration — Qubitcoin Substrate Stack
+# Scrapes: Substrate Node, API Gateway, CockroachDB
+# ============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # Substrate Node — native Prometheus endpoint
+  - job_name: 'substrate-node'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['substrate-node:9615']
+        labels:
+          instance: 'validator-1'
+          chain: 'mainnet'
+          chain_id: '3301'
+
+  # API Gateway — application metrics
+  - job_name: 'api-gateway'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api-gateway:5000']
+        labels:
+          instance: 'gateway-1'
+
+  # CockroachDB — database health
+  - job_name: 'cockroachdb'
+    metrics_path: '/_status/vars'
+    static_configs:
+      - targets: ['cockroachdb:8080']
+        labels:
+          instance: 'crdb-1'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

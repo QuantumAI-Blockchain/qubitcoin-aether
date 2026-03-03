@@ -1,0 +1,18 @@
+# Qubitcoin VQE Mining Client Dependencies
+#
+# Install: pip install -r requirements.txt
+# Python: 3.12+
+
+# Quantum computing (VQE optimization)
+qiskit>=1.3.0
+qiskit-aer>=0.15.0           # Optional: GPU/CPU Aer simulator
+
+# Scientific computing
+numpy>=1.26.0
+scipy>=1.12.0
+
+# Substrate RPC client
+substrate-interface>=1.7.0
+
+# WebSocket (required by substrate-interface)
+websocket-client>=1.7.0

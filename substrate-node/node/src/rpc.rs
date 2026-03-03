@@ -17,7 +17,7 @@ use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_core::storage::StorageKey;
-use sp_runtime::traits::Block as BlockT;
+
 
 // ═══════════════════════════════════════════════════════════════════════
 // Storage key helpers — compute Substrate storage keys from pallet/item names

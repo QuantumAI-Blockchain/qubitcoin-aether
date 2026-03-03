@@ -21,6 +21,8 @@ rust-p2p/Cargo.lock
 aikgs-sidecar/target/
 substrate-node/target/
 aether-core/target/
+indexer/target/
+api-gateway/target/
 
 # ---- Node / Frontend ----
 frontend/node_modules/
@@ -39,6 +41,7 @@ secure_key.env
 *.key
 private_keys/
 certs/
+substrate-node/keys/
 
 # ---- Data & Storage ----
 data/
