@@ -5,6 +5,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
 pub mod poseidon2;
 
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
@@ -67,7 +70,7 @@ pub type TxId = H256;
 #[derive(
     Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug, Default,
 )]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Address(pub [u8; 32]);
 
 impl From<[u8; 32]> for Address {
@@ -90,7 +93,7 @@ impl AsRef<[u8]> for Address {
 
 /// A single unspent transaction output.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Utxo {
     /// Transaction that created this output.
     pub txid: TxId,
@@ -108,7 +111,7 @@ pub struct Utxo {
 
 /// Transaction input — references a UTXO to spend.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct TransactionInput {
     /// Transaction ID of the UTXO being spent.
     pub prev_txid: TxId,
@@ -118,7 +121,7 @@ pub struct TransactionInput {
 
 /// Transaction output — creates a new UTXO.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct TransactionOutput {
     /// Recipient address.
     pub address: Address,
@@ -134,7 +137,7 @@ pub const MAX_DILITHIUM_PK_SIZE: u32 = 1_536;
 
 /// VQE mining parameters — the solution submitted by miners.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct VqeProof {
     /// Optimized VQE circuit parameters (angles as fixed-point i64 * 10^12).
     pub params: sp_runtime::BoundedVec<i64, sp_runtime::traits::ConstU32<32>>,
@@ -155,7 +158,7 @@ pub const INITIAL_DIFFICULTY: Difficulty = 1_000_000;
 
 /// Phi measurement stored per block.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct PhiMeasurement {
     /// Block height of this measurement.
     pub block_height: u64,

@@ -33,17 +33,21 @@ COPY pallets/qbc-dilithium/Cargo.toml pallets/qbc-dilithium/Cargo.toml
 COPY pallets/qbc-economics/Cargo.toml pallets/qbc-economics/Cargo.toml
 COPY pallets/qbc-qvm-anchor/Cargo.toml pallets/qbc-qvm-anchor/Cargo.toml
 COPY pallets/qbc-aether-anchor/Cargo.toml pallets/qbc-aether-anchor/Cargo.toml
+COPY pallets/qbc-reversibility/Cargo.toml pallets/qbc-reversibility/Cargo.toml
+COPY crypto/kyber-transport/Cargo.toml crypto/kyber-transport/Cargo.toml
 
 # Create dummy source files for dependency caching
 RUN mkdir -p node/src runtime/src primitives/src \
     pallets/qbc-utxo/src pallets/qbc-consensus/src pallets/qbc-dilithium/src \
     pallets/qbc-economics/src pallets/qbc-qvm-anchor/src pallets/qbc-aether-anchor/src \
+    pallets/qbc-reversibility/src crypto/kyber-transport/src \
     && echo "fn main() {}" > node/src/main.rs \
     && echo "" > runtime/src/lib.rs \
     && echo "" > primitives/src/lib.rs \
-    && for p in qbc-utxo qbc-consensus qbc-dilithium qbc-economics qbc-qvm-anchor qbc-aether-anchor; do \
+    && for p in qbc-utxo qbc-consensus qbc-dilithium qbc-economics qbc-qvm-anchor qbc-aether-anchor qbc-reversibility; do \
          echo "" > pallets/$p/src/lib.rs; \
-       done
+       done \
+    && echo "" > crypto/kyber-transport/src/lib.rs
 
 # Build dependencies only (cached unless Cargo.toml changes)
 RUN SKIP_WASM_BUILD=1 cargo build --release 2>/dev/null || true
@@ -54,8 +58,8 @@ COPY . .
 # Touch source files to invalidate cached builds of our crates only
 RUN find node runtime primitives pallets -name "*.rs" -exec touch {} +
 
-# Build the node binary
-RUN cargo build --release
+# Build the node binary (WASM build deferred — serde_core no_std conflict)
+RUN SKIP_WASM_BUILD=1 cargo build --release
 
 # ═══════════════════════════════════════════════════════════════
 # Stage 2: Runtime image

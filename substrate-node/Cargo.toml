@@ -83,12 +83,12 @@ sha3 = "0.10"
 # Serialization
 codec = { version = "3.7", package = "parity-scale-codec", default-features = false, features = ["derive"] }
 scale-info = { version = "2.11", default-features = false, features = ["derive"] }
-# NOTE: serde >= 1.0.218 introduces serde_core which fails in WASM no_std.
-# parity-scale-codec 3.7.5 requires serde >= 1.0.219, so we can't pin older.
-# WASM build is blocked upstream. Use SKIP_WASM_BUILD=1 for native builds.
-# Track: https://github.com/serde-rs/serde/issues — serde_core no_std fix
+# NOTE: serde >= 1.0.218 uses serde_core internally. serde_core's default features
+# include "std" which breaks WASM no_std builds. Fix: explicitly depend on serde_core
+# with default-features = false, and gate std behind the std feature.
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
-serde_json = "1.0"
+serde_core = { version = "1.0", default-features = false, features = ["alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 # Async
 jsonrpsee = { version = "0.24", features = ["server", "macros"] }
@@ -118,6 +118,12 @@ qbc-kyber-transport = { path = "crypto/kyber-transport" }
 # Qubitcoin runtime
 qbc-runtime = { path = "runtime" }
 
+
+# Patch serde_core to fix WASM no_std build.
+# The upstream crate uses `pub use core::*` inside `mod core {}` which causes
+# self-reference on wasm32-unknown-unknown. Patched to use `pub use ::core::*`.
+[patch.crates-io]
+serde_core = { path = "patches/serde_core" }
 
 [profile.release]
 panic = "unwind"

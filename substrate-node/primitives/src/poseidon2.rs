@@ -26,6 +26,9 @@
 //! - Poseidon2 paper: Grassi et al., "Poseidon2: A Faster Version of the Poseidon Hash Function"
 //! - Original Poseidon: Grassi et al., USENIX Security 2021
 
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 

@@ -11,7 +11,7 @@ scale-info = { workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
-serde = { workspace = true, optional = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 qbc-kyber-transport = { path = "../crypto/kyber-transport" }
@@ -24,6 +24,5 @@ std = [
     "sp-core/std",
     "sp-runtime/std",
     "sp-std/std",
-    "serde",
     "serde/std",
 ]

@@ -41,7 +41,7 @@ services:
     environment:
       - CHAIN=${CHAIN:-dev}
     command: >
-      qbc-substrate-node
+      qbc-node
       --chain ${CHAIN:-dev}
       --base-path /data
       --rpc-external
