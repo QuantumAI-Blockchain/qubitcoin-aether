@@ -21,6 +21,10 @@ rust-p2p/Cargo.lock
 aikgs-sidecar/target/
 substrate-node/target/
 aether-core/target/
+security-core/target/
+security-core/Cargo.lock
+stratum-server/target/
+stratum-server/Cargo.lock
 indexer/target/
 api-gateway/target/
 
