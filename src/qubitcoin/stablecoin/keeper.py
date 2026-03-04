@@ -91,6 +91,7 @@ class KeeperConfig:
     min_fund_warning: Decimal = Decimal("100000")  # Warn when fund < this
     aggressive_multiplier: Decimal = Decimal("2.0")
     cooldown_blocks: int = 10             # Match QUSDStabilizer.REBALANCE_COOLDOWN
+    role: str = "primary"                 # primary|observer — observer nodes only scan
 
 
 # ---------------------------------------------------------------------------
@@ -374,12 +375,29 @@ class QUSDKeeper:
 
     def _execute_actions(self, signals: List[KeeperSignal],
                          block_height: int) -> None:
-        """Execute stabilization actions based on detected signals."""
+        """Execute stabilization actions based on detected signals.
+
+        Multi-instance safety (Option A + B):
+          - Option B: Observer-role nodes never execute (only scan/log).
+          - Option A: Before executing, read lastRebalanceBlock from
+            QUSDStabilizer on-chain to ensure no other node already
+            acted within the cooldown window.
+        """
         if not signals:
             return
 
-        # Cooldown check
+        # Option B: observer nodes never execute
+        if self.config.role == "observer":
+            logger.debug("QUSDKeeper: observer role — skipping execution")
+            return
+
+        # Local cooldown check
         if block_height - self._last_rebalance_block < self.config.cooldown_blocks:
+            return
+
+        # Option A: on-chain pre-flight — read lastRebalanceBlock from
+        # QUSDStabilizer to prevent duplicate interventions across nodes
+        if not self._preflight_on_chain_cooldown(block_height):
             return
 
         mode = self.config.mode
@@ -391,6 +409,46 @@ class QUSDKeeper:
                 self._handle_ceiling_depeg(signal, block_height, mode)
             # Cross-chain arb is logged but NOT auto-executed
             # (requires holding assets on multiple chains — manual decision)
+
+    def _preflight_on_chain_cooldown(self, block_height: int) -> bool:
+        """Read lastRebalanceBlock from QUSDStabilizer on-chain (Option A).
+
+        Returns True if we are clear to execute (no recent rebalance by
+        any node), False if another node already acted within cooldown.
+        """
+        stabilizer_addr = getattr(Config, "QUSD_STABILIZER_ADDRESS", "")
+        if not stabilizer_addr or self._qvm is None:
+            # No stabilizer deployed or no QVM — rely on local cooldown only
+            return True
+
+        try:
+            import hashlib
+            # lastRebalanceBlock() selector: keccak256("lastRebalanceBlock()")[:4]
+            selector = hashlib.sha3_256(b"lastRebalanceBlock()").hexdigest()[:8]
+            result = self._qvm.qvm.static_call(
+                sender="0x0000000000000000000000000000000000000000",
+                to=stabilizer_addr,
+                data=bytes.fromhex(selector),
+            )
+            if isinstance(result, (bytes, bytearray)) and len(result) >= 32:
+                on_chain_last = int.from_bytes(result[:32], "big")
+            elif isinstance(result, int):
+                on_chain_last = result
+            else:
+                # Couldn't parse — allow execution (fail-open for local-only nodes)
+                return True
+
+            if block_height - on_chain_last < self.config.cooldown_blocks:
+                logger.info(
+                    f"QUSDKeeper: on-chain cooldown active "
+                    f"(lastRebalanceBlock={on_chain_last}, "
+                    f"current={block_height}, cooldown={self.config.cooldown_blocks})"
+                )
+                return False
+            return True
+        except Exception as e:
+            logger.debug(f"QUSDKeeper: pre-flight check failed (allowing): {e}")
+            return True  # Fail-open: local cooldown still protects
 
     def _handle_floor_depeg(self, signal: KeeperSignal, block_height: int,
                             mode: KeeperMode) -> None:
@@ -548,6 +606,7 @@ class QUSDKeeper:
         return {
             "mode": self.config.mode.name.lower(),
             "mode_value": int(self.config.mode),
+            "role": self.config.role,
             "running": self._running,
             "paused": self._paused,
             "last_check_block": self._last_check_block,

@@ -292,6 +292,7 @@ class Config:
     KEEPER_FLOOR_PRICE: float = float(os.getenv('KEEPER_FLOOR_PRICE', '0.99'))
     KEEPER_CEILING_PRICE: float = float(os.getenv('KEEPER_CEILING_PRICE', '1.01'))
     KEEPER_COOLDOWN_BLOCKS: int = int(os.getenv('KEEPER_COOLDOWN_BLOCKS', '10'))
+    KEEPER_ROLE: str = os.getenv('KEEPER_ROLE', 'primary')  # primary|observer — observer nodes only scan, never execute
     QUSD_STABILIZER_ADDRESS: str = os.getenv('QUSD_STABILIZER_ADDRESS', '')
 
     # ============================================================================

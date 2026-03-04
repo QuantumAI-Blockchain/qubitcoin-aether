@@ -484,8 +484,14 @@ class QubitcoinNode:
                     'aggressive': KeeperMode.AGGRESSIVE,
                 }
                 default_mode = mode_map.get(Config.KEEPER_DEFAULT_MODE.lower(), KeeperMode.SCAN)
+                # Set role from config (primary executes, observer only scans)
+                keeper_role = getattr(Config, 'KEEPER_ROLE', 'primary').lower()
+                self.qusd_keeper.config.role = keeper_role
+                # Observer nodes are forced to scan mode regardless of config
+                if keeper_role == "observer":
+                    default_mode = KeeperMode.SCAN
                 self.qusd_keeper.start(default_mode)
-                logger.info(f"[14b/22] QUSDKeeper initialized (mode={default_mode.name})")
+                logger.info(f"[14b/22] QUSDKeeper initialized (mode={default_mode.name}, role={keeper_role})")
             except Exception as e:
                 logger.warning(f"[14b/22] QUSDKeeper init failed (non-fatal): {e}")
 
