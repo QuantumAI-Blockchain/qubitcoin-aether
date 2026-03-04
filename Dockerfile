@@ -1,11 +1,11 @@
 # ============================================================================
 # Qubitcoin Multi-Stage Docker Build
-# Stage 1: Rust P2P daemon build
-# Stage 2: Aether Core Rust/PyO3 module build
-# Stage 3: Python node with compiled Rust binaries + aether_core
+# Stage 1: Rust P2P daemon + Stratum Server build
+# Stage 2: Aether Core + Security Core Rust/PyO3 module build
+# Stage 3: Python node with compiled Rust binaries + modules
 # ============================================================================
 
-# ── Stage 1: Build Rust P2P daemon ──────────────────────────────────────
+# ── Stage 1: Build Rust binaries (P2P + Stratum) ─────────────────────
 FROM rust:1.85-slim-bookworm AS rust-builder
 
 RUN apt-get update && apt-get install -y \
@@ -16,11 +16,15 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /build
 COPY rust-p2p/ ./rust-p2p/
+COPY stratum-server/ ./stratum-server/
 
 WORKDIR /build/rust-p2p
 RUN cargo build --release
 
-# ── Stage 2: Build Aether Core Rust module (PyO3) ─────────────────────
+WORKDIR /build/stratum-server
+RUN cargo build --release
+
+# ── Stage 2: Build PyO3 modules (Aether Core + Security Core) ────────
 FROM rust:1.85-slim-bookworm AS aether-builder
 
 RUN apt-get update && apt-get install -y \
@@ -34,8 +38,12 @@ RUN pip install --break-system-packages maturin>=1.7
 
 WORKDIR /build
 COPY aether-core/ ./aether-core/
+COPY security-core/ ./security-core/
 
 WORKDIR /build/aether-core
+RUN maturin build --release --features extension-module --out /build/wheels
+
+WORKDIR /build/security-core
 RUN maturin build --release --features extension-module --out /build/wheels
 
 # ── Stage 3: Python application ─────────────────────────────────────────
@@ -65,9 +73,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY --from=aether-builder /build/wheels/*.whl /tmp/wheels/
 RUN pip install --no-cache-dir /tmp/wheels/*.whl && rm -rf /tmp/wheels
 
-# Copy Rust P2P binary from builder
+# Copy Rust binaries from builder
 COPY --from=rust-builder /build/rust-p2p/target/release/qubitcoin-p2p /usr/local/bin/qubitcoin-p2p
-RUN chmod +x /usr/local/bin/qubitcoin-p2p
+COPY --from=rust-builder /build/stratum-server/target/release/stratum-server /usr/local/bin/qbc-stratum
+RUN chmod +x /usr/local/bin/qubitcoin-p2p /usr/local/bin/qbc-stratum
 
 # Copy source code
 COPY src/ ./src/
@@ -86,8 +95,8 @@ RUN mkdir -p /app/data /app/logs && \
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
-# Expose ports: RPC, P2P, gRPC
-EXPOSE 5000 4001 50051
+# Expose ports: RPC, P2P, gRPC, Stratum
+EXPOSE 5000 4001 50051 3333
 
 # Switch to non-root user
 USER qbc

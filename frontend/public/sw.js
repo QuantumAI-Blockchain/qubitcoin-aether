@@ -238,6 +238,59 @@ function isStaticAsset(url) {
 }
 
 // -----------------------------------------------------------------------
+// Background Sync: retry offline transactions when back online
+// -----------------------------------------------------------------------
+self.addEventListener("sync", (event) => {
+  if (event.tag === "qbc-offline-tx-sync") {
+    event.waitUntil(syncOfflineTransactions());
+  }
+});
+
+async function syncOfflineTransactions() {
+  // Notify all clients to broadcast pending transactions
+  const clients = await self.clients.matchAll({ type: "window" });
+  for (const client of clients) {
+    client.postMessage({ type: "SYNC_OFFLINE_TX" });
+  }
+}
+
+// -----------------------------------------------------------------------
+// Push Notification handler
+// -----------------------------------------------------------------------
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+
+  try {
+    const payload = event.data.json();
+    const title = payload.title || "Qubitcoin";
+    const options = {
+      body: payload.body || "",
+      icon: "/icons/icon-192x192.png",
+      badge: "/icons/icon-192x192.png",
+      tag: payload.type || "qbc-notification",
+      data: payload.data || {},
+      vibrate: [100, 50, 100],
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch {
+    // Non-JSON push — ignore
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((clients) => {
+      if (clients.length > 0) {
+        clients[0].focus();
+      } else {
+        self.clients.openWindow("/");
+      }
+    })
+  );
+});
+
+// -----------------------------------------------------------------------
 // Message handler: allows the app to communicate with the SW
 // -----------------------------------------------------------------------
 self.addEventListener("message", (event) => {

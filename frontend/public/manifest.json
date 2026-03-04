@@ -8,6 +8,30 @@
   "theme_color": "#00ff88",
   "orientation": "portrait-primary",
   "categories": ["finance", "blockchain"],
+  "prefer_related_applications": false,
+  "scope": "/",
+  "lang": "en",
+  "dir": "ltr",
+  "shortcuts": [
+    {
+      "name": "Wallet",
+      "short_name": "Wallet",
+      "url": "/wallet",
+      "description": "Open Qubitcoin Wallet"
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard",
+      "description": "View blockchain dashboard"
+    },
+    {
+      "name": "Aether Chat",
+      "short_name": "Aether",
+      "url": "/aether",
+      "description": "Talk to Aether Tree AGI"
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-192x192.png",

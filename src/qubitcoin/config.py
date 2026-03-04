@@ -529,6 +529,47 @@ class Config:
     REVERSAL_GUARDIAN_THRESHOLD: int = int(os.getenv('REVERSAL_GUARDIAN_THRESHOLD', '2'))
 
     # ============================================================================
+    # INHERITANCE PROTOCOL
+    # ============================================================================
+    INHERITANCE_ENABLED: bool = os.getenv('INHERITANCE_ENABLED', 'true').lower() == 'true'
+    INHERITANCE_DEFAULT_INACTIVITY: int = int(os.getenv('INHERITANCE_DEFAULT_INACTIVITY', '2618200'))  # ~100 days
+    INHERITANCE_MIN_INACTIVITY: int = int(os.getenv('INHERITANCE_MIN_INACTIVITY', '26182'))  # ~24h
+    INHERITANCE_MAX_INACTIVITY: int = int(os.getenv('INHERITANCE_MAX_INACTIVITY', '95636360'))  # ~10 years
+    INHERITANCE_GRACE_PERIOD: int = int(os.getenv('INHERITANCE_GRACE_PERIOD', '78546'))  # ~3 days
+
+    # ============================================================================
+    # HIGH-SECURITY ACCOUNTS
+    # ============================================================================
+    SECURITY_POLICY_ENABLED: bool = os.getenv('SECURITY_POLICY_ENABLED', 'true').lower() == 'true'
+    SECURITY_DAILY_LIMIT_WINDOW: int = int(os.getenv('SECURITY_DAILY_LIMIT_WINDOW', '26182'))  # ~24h in blocks
+    SECURITY_MAX_WHITELIST_SIZE: int = int(os.getenv('SECURITY_MAX_WHITELIST_SIZE', '100'))
+    SECURITY_MAX_TIME_LOCK: int = int(os.getenv('SECURITY_MAX_TIME_LOCK', '26182'))  # ~24h
+
+    # ============================================================================
+    # STRATUM MINING SERVER
+    # ============================================================================
+    STRATUM_ENABLED: bool = os.getenv('STRATUM_ENABLED', 'false').lower() == 'true'
+    STRATUM_PORT: int = int(os.getenv('STRATUM_PORT', '3333'))
+    STRATUM_HOST: str = os.getenv('STRATUM_HOST', '0.0.0.0')
+    STRATUM_MAX_WORKERS: int = int(os.getenv('STRATUM_MAX_WORKERS', '100'))
+    STRATUM_GRPC_PORT: int = int(os.getenv('STRATUM_GRPC_PORT', '50053'))
+
+    # ============================================================================
+    # DENIABLE RPCs (Privacy)
+    # ============================================================================
+    DENIABLE_RPC_ENABLED: bool = os.getenv('DENIABLE_RPC_ENABLED', 'true').lower() == 'true'
+    DENIABLE_RPC_MAX_BATCH: int = int(os.getenv('DENIABLE_RPC_MAX_BATCH', '100'))
+    DENIABLE_RPC_BLOOM_MAX_SIZE: int = int(os.getenv('DENIABLE_RPC_BLOOM_MAX_SIZE', '65536'))
+
+    # ============================================================================
+    # BFT FINALITY GADGET
+    # ============================================================================
+    FINALITY_ENABLED: bool = os.getenv('FINALITY_ENABLED', 'true').lower() == 'true'
+    FINALITY_MIN_STAKE: float = float(os.getenv('FINALITY_MIN_STAKE', '100.0'))
+    FINALITY_THRESHOLD: float = float(os.getenv('FINALITY_THRESHOLD', '0.667'))
+    FINALITY_VOTE_EXPIRY_BLOCKS: int = int(os.getenv('FINALITY_VOTE_EXPIRY_BLOCKS', '1000'))
+
+    # ============================================================================
     # LOGGING & MONITORING
     # ============================================================================
     DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'

@@ -13,6 +13,10 @@ import { TokenManager } from "@/components/wallet/token-manager";
 import { NFTGallery } from "@/components/wallet/nft-gallery";
 import { NativeWalletPanel } from "@/components/wallet/native-wallet";
 import { SephirotLauncher } from "@/components/wallet/sephirot-launcher";
+import { OfflineTxQueue } from "@/components/wallet/offline-tx-queue";
+import { PushNotificationSetup } from "@/components/wallet/push-notification-setup";
+import { OfflineIndicator } from "@/components/wallet/offline-indicator";
+import { InstallPromptBanner } from "@/components/wallet/install-prompt-banner";
 import Link from "next/link";
 
 const TABS = [
@@ -26,6 +30,8 @@ export default function WalletPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 pt-20 pb-12">
+      <OfflineIndicator />
+      <InstallPromptBanner />
       <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">
         Wallet
       </h1>
@@ -77,6 +83,16 @@ export default function WalletPage() {
         </div>
         <span className="text-2xl text-quantum-violet">&#8594;</span>
       </Link>
+
+      {/* PWA Features */}
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <ErrorBoundary>
+          <OfflineTxQueue />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <PushNotificationSetup />
+        </ErrorBoundary>
+      </div>
     </div>
   );
 }

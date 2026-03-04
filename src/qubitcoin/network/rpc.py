@@ -56,7 +56,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    qusd_keeper=None,
                    dex_price_reader=None,
                    arb_calculator=None,
-                   reversibility_manager=None) -> FastAPI:
+                   reversibility_manager=None,
+                   inheritance_manager=None,
+                   high_security_manager=None,
+                   stratum_bridge_service=None,
+                   deniable_rpc=None,
+                   finality_gadget=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -504,6 +509,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 "finalized_height": substrate_info.get("finalized_height", 0),
                 "syncing": substrate_info.get("health", {}).get("isSyncing", False),
             }
+        if finality_gadget:
+            result["finalized_height"] = finality_gadget.get_last_finalized()
         return result
 
     @app.get("/chain/tip")
@@ -6566,6 +6573,255 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 raise HTTPException(status_code=400, detail=str(e))
 
     # ========================================================================
+    # INHERITANCE PROTOCOL
+    # ========================================================================
+
+    if inheritance_manager:
+        @app.post("/inheritance/set-beneficiary")
+        async def inheritance_set_beneficiary(req: dict):
+            """Set or update the inheritance beneficiary for an address."""
+            owner = req.get('owner_address', '')
+            beneficiary = req.get('beneficiary_address', '')
+            inactivity = int(req.get('inactivity_blocks', 0))
+            if not owner or not beneficiary:
+                raise HTTPException(status_code=400, detail="owner_address and beneficiary_address required")
+            if inactivity <= 0:
+                inactivity = inheritance_manager._default_inactivity
+            current_height = db_manager.get_current_height()
+            try:
+                plan = inheritance_manager.set_beneficiary(owner, beneficiary, inactivity, current_height)
+                return {
+                    'owner_address': plan.owner_address,
+                    'beneficiary_address': plan.beneficiary_address,
+                    'inactivity_blocks': plan.inactivity_blocks,
+                    'last_heartbeat_block': plan.last_heartbeat_block,
+                    'active': plan.active,
+                }
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        @app.post("/inheritance/heartbeat")
+        async def inheritance_heartbeat(req: dict):
+            """Record a heartbeat for the owner address (prove alive)."""
+            owner = req.get('owner_address', '')
+            if not owner:
+                raise HTTPException(status_code=400, detail="owner_address required")
+            current_height = db_manager.get_current_height()
+            result = inheritance_manager.heartbeat(owner, current_height)
+            return {'success': result, 'block_height': current_height}
+
+        @app.post("/inheritance/claim")
+        async def inheritance_claim(req: dict):
+            """Initiate an inheritance claim as beneficiary."""
+            owner = req.get('owner_address', '')
+            beneficiary = req.get('beneficiary_address', '')
+            if not owner or not beneficiary:
+                raise HTTPException(status_code=400, detail="owner_address and beneficiary_address required")
+            current_height = db_manager.get_current_height()
+            try:
+                claim = inheritance_manager.claim_inheritance(owner, beneficiary, current_height)
+                return {
+                    'claim_id': claim.claim_id,
+                    'owner_address': claim.owner_address,
+                    'beneficiary_address': claim.beneficiary_address,
+                    'grace_expires_block': claim.grace_expires_block,
+                    'status': claim.status,
+                }
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        @app.get("/inheritance/status/{address}")
+        async def inheritance_status(address: str):
+            """Get inheritance status for an address."""
+            current_height = db_manager.get_current_height()
+            status = inheritance_manager.get_status(address, current_height)
+            if not status:
+                return {'exists': False}
+            return {'exists': True, **status}
+
+    # ========================================================================
+    # DENIABLE RPCs (Privacy)
+    # ========================================================================
+
+    if deniable_rpc:
+        @app.post("/privacy/batch-balance")
+        async def privacy_batch_balance(req: dict):
+            """Privacy-preserving batch balance query."""
+            addresses = req.get('addresses', [])
+            if not addresses:
+                raise HTTPException(status_code=400, detail="addresses required")
+            return deniable_rpc.batch_balance(addresses)
+
+        @app.post("/privacy/bloom-utxos")
+        async def privacy_bloom_utxos(req: dict):
+            """Get Bloom filter of UTXOs for an address."""
+            address = req.get('address', '')
+            if not address:
+                raise HTTPException(status_code=400, detail="address required")
+            bloom_size = int(req.get('bloom_size', 1024))
+            hash_count = int(req.get('hash_count', 7))
+            data = deniable_rpc.bloom_utxos(address, bloom_size, hash_count)
+            import base64
+            return {'bloom_filter': base64.b64encode(data).decode(), 'size': len(data)}
+
+        @app.post("/privacy/batch-blocks")
+        async def privacy_batch_blocks(req: dict):
+            """Privacy-preserving batch block query."""
+            heights = req.get('heights', [])
+            if not heights:
+                raise HTTPException(status_code=400, detail="heights required")
+            results = deniable_rpc.batch_blocks([int(h) for h in heights])
+            return {str(k): v for k, v in results.items()}
+
+        @app.post("/privacy/batch-tx")
+        async def privacy_batch_tx(req: dict):
+            """Privacy-preserving batch transaction query."""
+            txids = req.get('txids', [])
+            if not txids:
+                raise HTTPException(status_code=400, detail="txids required")
+            return deniable_rpc.batch_tx(txids)
+
+    # ========================================================================
+    # STRATUM MINING SERVER
+    # ========================================================================
+
+    if stratum_bridge_service:
+        @app.get("/stratum/info")
+        async def stratum_info():
+            """Get stratum bridge info."""
+            return {
+                'enabled': True,
+                'grpc_port': Config.STRATUM_GRPC_PORT,
+                'stratum_port': Config.STRATUM_PORT,
+                **stratum_bridge_service.get_stats(),
+            }
+
+        @app.get("/stratum/stats")
+        async def stratum_stats():
+            """Get stratum pool statistics."""
+            return stratum_bridge_service.get_stats()
+
+        @app.get("/stratum/work")
+        async def stratum_work():
+            """Get current work unit."""
+            return stratum_bridge_service.get_work_unit()
+
+    # ========================================================================
+    # HIGH-SECURITY ACCOUNTS
+    # ========================================================================
+
+    if high_security_manager:
+        @app.post("/security/policy/set")
+        async def security_policy_set(req: dict):
+            """Set or update security policy for an address."""
+            address = req.get('address', '')
+            if not address:
+                raise HTTPException(status_code=400, detail="address required")
+            try:
+                policy = high_security_manager.set_policy(
+                    address=address,
+                    daily_limit_qbc=float(req.get('daily_limit_qbc', 0)),
+                    require_whitelist=bool(req.get('require_whitelist', False)),
+                    whitelist=req.get('whitelist', []),
+                    time_lock_blocks=int(req.get('time_lock_blocks', 0)),
+                    time_lock_threshold_qbc=float(req.get('time_lock_threshold_qbc', 0)),
+                )
+                return {
+                    'address': policy.address,
+                    'daily_limit_qbc': policy.daily_limit_qbc,
+                    'require_whitelist': policy.require_whitelist,
+                    'whitelist': policy.whitelist,
+                    'time_lock_blocks': policy.time_lock_blocks,
+                    'time_lock_threshold_qbc': policy.time_lock_threshold_qbc,
+                    'active': policy.active,
+                }
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        @app.get("/security/policy/{address}")
+        async def security_policy_get(address: str):
+            """Get security policy for an address."""
+            policy = high_security_manager.get_policy(address)
+            if not policy:
+                return {'exists': False}
+            return {
+                'exists': True,
+                'address': policy.address,
+                'daily_limit_qbc': policy.daily_limit_qbc,
+                'require_whitelist': policy.require_whitelist,
+                'whitelist': policy.whitelist,
+                'time_lock_blocks': policy.time_lock_blocks,
+                'time_lock_threshold_qbc': policy.time_lock_threshold_qbc,
+                'active': policy.active,
+            }
+
+        @app.delete("/security/policy/{address}")
+        async def security_policy_remove(address: str):
+            """Remove security policy for an address."""
+            result = high_security_manager.remove_policy(address)
+            return {'success': result}
+
+    # ========================================================================
+    # BFT FINALITY GADGET
+    # ========================================================================
+
+    if finality_gadget:
+        @app.get("/finality/status")
+        async def finality_status():
+            """Get current finality status."""
+            current_height = db_manager.get_current_height() if db_manager else 0
+            status = finality_gadget.get_finality_status(current_height)
+            return {
+                'enabled': True,
+                'last_finalized_height': status.last_finalized_height,
+                'current_height': current_height,
+                'is_current_finalized': status.is_finalized,
+                'voted_stake': status.voted_stake,
+                'total_stake': status.total_stake,
+                'vote_ratio': status.vote_ratio,
+                'threshold': status.threshold,
+                'voter_count': status.voter_count,
+                'validator_count': finality_gadget.get_validator_count(),
+            }
+
+        @app.post("/finality/vote")
+        async def finality_vote(request: Request):
+            """Submit a finality vote."""
+            body = await request.json()
+            voter = body.get('voter', '')
+            block_height = body.get('block_height', 0)
+            block_hash = body.get('block_hash', '')
+            signature = body.get('signature')
+
+            if not voter or not block_height or not block_hash:
+                return {'error': 'voter, block_height, and block_hash required'}
+
+            accepted = finality_gadget.submit_vote(voter, block_height, block_hash, signature)
+            return {
+                'accepted': accepted,
+                'is_finalized': finality_gadget.check_finality(block_height),
+                'last_finalized': finality_gadget.get_last_finalized(),
+            }
+
+        @app.post("/finality/register-validator")
+        async def finality_register_validator(request: Request):
+            """Register as a finality validator."""
+            body = await request.json()
+            address = body.get('address', '')
+            stake = float(body.get('stake', 0))
+
+            if not address or stake <= 0:
+                return {'error': 'address and positive stake required'}
+
+            current_height = db_manager.get_current_height() if db_manager else 0
+            success = finality_gadget.register_validator(address, stake, current_height)
+            return {
+                'registered': success,
+                'validator_count': finality_gadget.get_validator_count(),
+                'total_stake': finality_gadget.get_total_stake(),
+            }
+
+    # ========================================================================
     # CRYPTO INFO
     # ========================================================================
 
@@ -6577,6 +6833,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         info = CryptoManager.get_key_info(level)
         return info
 
-    logger.info("RPC endpoints configured (v2.4 with P2P + QVM + Aether + Reversibility + Multi-level Dilithium)")
+    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality)")
 
     return app

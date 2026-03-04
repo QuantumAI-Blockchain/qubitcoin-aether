@@ -27,6 +27,7 @@ class ConsensusEngine:
         self.p2p = p2p_network
         self.state_manager = None  # Injected by node after StateManager init
         self.aether = None  # Injected by node after AetherEngine init
+        self.finality_gadget = None  # Injected by node if FINALITY_ENABLED
         self.difficulty_cache: Dict[int, float] = {}
         self._difficulty_cache_max: int = Config.DIFFICULTY_WINDOW * 3  # 432 entries max
         logger.info("Consensus engine initialized (SUSY Economics + QVM + Aether)")
@@ -742,6 +743,16 @@ class ConsensusEngine:
         current_height = self.db.get_current_height()
         if new_block.height <= current_height:
             return
+
+        # Enforce finality — reject reorgs past finalized height
+        if self.finality_gadget:
+            finalized = self.finality_gadget.get_last_finalized()
+            if finalized > 0 and current_height <= finalized:
+                logger.warning(
+                    f"Rejecting fork from peer {sender_id}: would reorg past "
+                    f"finalized height {finalized}"
+                )
+                return
 
         # Enforce maximum reorg depth to prevent long-range attacks
         reorg_depth = new_block.height - current_height

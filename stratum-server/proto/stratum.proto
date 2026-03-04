@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package stratum;
+
+// StratumBridge: gRPC service between Rust stratum server and Python node.
+// The Python node runs the gRPC server; Rust stratum is the client.
+service StratumBridge {
+    // Get the current work unit (block template) for miners
+    rpc GetWorkUnit(Empty) returns (WorkUnit);
+
+    // Submit a mining solution found by a worker
+    rpc SubmitSolution(Solution) returns (SubmitResult);
+
+    // Stream new block notifications (server-streaming)
+    rpc StreamNewBlocks(Empty) returns (stream NewBlockNotify);
+
+    // Get the current mining difficulty
+    rpc GetDifficulty(HeightRequest) returns (DifficultyResponse);
+}
+
+message Empty {}
+
+message WorkUnit {
+    string job_id = 1;
+    string prev_block_hash = 2;
+    uint64 height = 3;
+    double difficulty = 4;
+    string hamiltonian_seed = 5;
+    uint64 timestamp = 6;
+    string merkle_root = 7;
+    bytes extra_data = 8;
+}
+
+message Solution {
+    string job_id = 1;
+    string worker_id = 2;
+    string worker_address = 3;
+    repeated double vqe_params = 4;
+    double ground_state_energy = 5;
+    uint64 nonce = 6;
+}
+
+message SubmitResult {
+    bool accepted = 1;
+    bool block_found = 2;
+    string reason = 3;
+    string block_hash = 4;
+}
+
+message NewBlockNotify {
+    uint64 height = 1;
+    string block_hash = 2;
+    double difficulty = 3;
+    string prev_hash = 4;
+}
+
+message HeightRequest {
+    uint64 height = 1;
+}
+
+message DifficultyResponse {
+    double difficulty = 1;
+    uint64 height = 2;
+}

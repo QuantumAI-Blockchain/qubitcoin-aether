@@ -217,6 +217,49 @@ active_guardians = Gauge('qbc_active_guardians', 'Active security guardians')
 reversible_transactions = Gauge('qbc_reversible_transactions', 'Transactions with active reversal windows')
 dilithium_security_level = Gauge('qbc_dilithium_security_level', 'Current Dilithium security level (2/3/5)')
 
+# ============================================================================
+# INHERITANCE PROTOCOL METRICS
+# ============================================================================
+inheritance_active_plans = Gauge('qbc_inheritance_active_plans', 'Active inheritance plans')
+inheritance_pending_claims = Gauge('qbc_inheritance_pending_claims', 'Pending inheritance claims')
+inheritance_executed_claims = Counter('qbc_inheritance_executed_claims_total', 'Total executed inheritance claims')
+inheritance_cancelled_claims = Counter('qbc_inheritance_cancelled_claims_total', 'Total cancelled inheritance claims')
+
+# ============================================================================
+# HIGH-SECURITY ACCOUNT METRICS
+# ============================================================================
+security_active_policies = Gauge('qbc_security_active_policies', 'Active high-security policies')
+security_blocked_txs = Counter('qbc_security_blocked_txs_total', 'Transactions blocked by security policies')
+security_time_locked_txs = Counter('qbc_security_time_locked_txs_total', 'Transactions time-locked by security policies')
+
+# ============================================================================
+# STRATUM MINING METRICS
+# ============================================================================
+stratum_workers_connected = Gauge('qbc_stratum_workers_connected', 'Connected stratum workers')
+stratum_shares_submitted = Counter('qbc_stratum_shares_submitted_total', 'Total shares submitted')
+stratum_shares_accepted = Counter('qbc_stratum_shares_accepted_total', 'Total shares accepted')
+stratum_shares_rejected = Counter('qbc_stratum_shares_rejected_total', 'Total shares rejected')
+stratum_blocks_found = Counter('qbc_stratum_blocks_found_total', 'Total blocks found via stratum')
+
+# ============================================================================
+# DENIABLE RPC METRICS
+# ============================================================================
+deniable_batch_queries = Counter('qbc_deniable_batch_queries_total', 'Total deniable batch queries')
+deniable_bloom_queries = Counter('qbc_deniable_bloom_queries_total', 'Total deniable bloom queries')
+deniable_avg_batch_size = Gauge('qbc_deniable_avg_batch_size', 'Average deniable batch size')
+
+# ============================================================================
+# FINALITY METRICS
+# ============================================================================
+finality_last_finalized = Gauge('qbc_finality_last_finalized_height', 'Last finalized block height')
+finality_validator_count = Gauge('qbc_finality_validator_count', 'Number of registered finality validators')
+finality_total_stake = Gauge('qbc_finality_total_stake', 'Total stake of finality validators')
+finality_votes_cast = Counter('qbc_finality_votes_cast_total', 'Total finality votes cast')
+finality_checkpoints = Counter('qbc_finality_checkpoints_total', 'Total finality checkpoints recorded')
+finality_vote_ratio = Gauge('qbc_finality_vote_ratio', 'Current vote ratio for latest block')
+finality_reorgs_blocked = Counter('qbc_finality_reorgs_blocked_total', 'Reorgs blocked by finality')
+finality_enabled = Gauge('qbc_finality_enabled', 'Whether finality gadget is enabled')
+
 def setup_metrics(app) -> None:
     """Setup Prometheus metrics for FastAPI app"""
     instrumentator = Instrumentator().instrument(app).expose(app)
@@ -295,6 +338,20 @@ __all__ = [
     # Reversibility
     'reversal_requests_total', 'reversal_executed_total', 'active_guardians',
     'reversible_transactions', 'dilithium_security_level',
+    # Inheritance
+    'inheritance_active_plans', 'inheritance_pending_claims',
+    'inheritance_executed_claims', 'inheritance_cancelled_claims',
+    # High-Security
+    'security_active_policies', 'security_blocked_txs', 'security_time_locked_txs',
+    # Stratum
+    'stratum_workers_connected', 'stratum_shares_submitted',
+    'stratum_shares_accepted', 'stratum_shares_rejected', 'stratum_blocks_found',
+    # Deniable RPC
+    'deniable_batch_queries', 'deniable_bloom_queries', 'deniable_avg_batch_size',
+    # Finality
+    'finality_last_finalized', 'finality_validator_count', 'finality_total_stake',
+    'finality_votes_cast', 'finality_checkpoints', 'finality_vote_ratio',
+    'finality_reorgs_blocked', 'finality_enabled',
     # Setup
     'setup_metrics', 'generate_latest', 'CONTENT_TYPE_LATEST',
 ]

@@ -628,6 +628,61 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"[19c/22] ReversibilityManager init: {e}")
 
+        # Component 19e: Inheritance Manager
+        self.inheritance_manager = None
+        if Config.INHERITANCE_ENABLED:
+            try:
+                from .reversibility.inheritance import InheritanceManager
+                self.inheritance_manager = InheritanceManager(self.db)
+                logger.info("[19e/22] InheritanceManager initialized")
+            except Exception as e:
+                logger.debug(f"[19e/22] InheritanceManager init: {e}")
+
+        # Component 19h: Deniable RPC Handler
+        self.deniable_rpc = None
+        if Config.DENIABLE_RPC_ENABLED:
+            try:
+                from .privacy.deniable_rpc import DeniableRPCHandler
+                self.deniable_rpc = DeniableRPCHandler(self.db)
+                logger.info("[19h/22] DeniableRPCHandler initialized")
+            except Exception as e:
+                logger.debug(f"[19h/22] DeniableRPCHandler init: {e}")
+
+        # Component 19g: Stratum Bridge
+        self.stratum_bridge = None
+        if Config.STRATUM_ENABLED:
+            try:
+                from .mining.stratum_bridge import StratumBridgeService
+                self.stratum_bridge = StratumBridgeService(
+                    mining_engine=self.mining,
+                    consensus_engine=self.consensus,
+                    db_manager=self.db,
+                )
+                logger.info("[19g/22] StratumBridge initialized")
+            except Exception as e:
+                logger.debug(f"[19g/22] StratumBridge init: {e}")
+
+        # Component 19f: High-Security Manager
+        self.high_security_manager = None
+        if Config.SECURITY_POLICY_ENABLED:
+            try:
+                from .reversibility.high_security import HighSecurityManager
+                self.high_security_manager = HighSecurityManager(self.db)
+                logger.info("[19f/22] HighSecurityManager initialized")
+            except Exception as e:
+                logger.debug(f"[19f/22] HighSecurityManager init: {e}")
+
+        # Component 19i: BFT Finality Gadget
+        self.finality_gadget = None
+        if Config.FINALITY_ENABLED:
+            try:
+                from .consensus.finality import FinalityGadget
+                self.finality_gadget = FinalityGadget(self.db)
+                self.consensus.finality_gadget = self.finality_gadget
+                logger.info("[19i/22] FinalityGadget initialized")
+            except Exception as e:
+                logger.debug(f"[19i/22] FinalityGadget init: {e}")
+
         # Component 19d: FIPS 204 KAT Self-Test
         try:
             from .quantum.fips204_kat import run_kat_tests
@@ -751,6 +806,11 @@ class QubitcoinNode:
                 dex_price_reader=self.dex_price_reader,
                 arb_calculator=self.arb_calculator,
                 reversibility_manager=self.reversibility_manager,
+                inheritance_manager=self.inheritance_manager,
+                high_security_manager=self.high_security_manager,
+                stratum_bridge_service=self.stratum_bridge,
+                deniable_rpc=self.deniable_rpc,
+                finality_gadget=self.finality_gadget,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)

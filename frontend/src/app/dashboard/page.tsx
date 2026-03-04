@@ -13,6 +13,8 @@ import { MiningControls } from "@/components/dashboard/mining-controls";
 import { QUSDReserveGauge, QUSDMilestoneTimeline } from "@/components/dashboard/qusd-reserve";
 import { MilestoneGates } from "@/components/dashboard/milestone-gates";
 import { SephirotExplorer } from "@/components/dashboard/sephirot-explorer";
+import { FinalityStatus } from "@/components/dashboard/finality-status";
+import { StratumStats } from "@/components/dashboard/stratum-stats";
 import { useWalletStore } from "@/stores/wallet-store";
 
 function formatSupply(supply: number): string {
@@ -211,6 +213,16 @@ function OverviewTab({
         </ErrorBoundary>
         <ErrorBoundary>
           <QUSDMilestoneTimeline />
+        </ErrorBoundary>
+      </div>
+
+      {/* Finality & Stratum */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ErrorBoundary>
+          <FinalityStatus />
+        </ErrorBoundary>
+        <ErrorBoundary>
+          <StratumStats />
         </ErrorBoundary>
       </div>
     </div>
