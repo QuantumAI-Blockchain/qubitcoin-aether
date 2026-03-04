@@ -21,7 +21,7 @@ The Aether Tree achieves AGI through **structural emergence** — 7 phases of in
 
 **Key Innovation**: AGI emerges when integration density (Phi) crosses critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
 
-**Implementation**: 35 Python modules (~8,500 LOC), 29 Solidity contracts (~6,300 LOC), 50 smart contracts total, wired end-to-end into the Qubitcoin node.
+**Implementation**: 36 Python modules (~24,560 LOC), 12 Rust modules (~10,776 LOC via PyO3), 29 Solidity contracts (~6,300 LOC), 50 smart contracts total, wired end-to-end into the Qubitcoin (QBC) node.
 
 ---
 
@@ -699,7 +699,7 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 
 | Component | Language | Files | LOC | Status |
 |-----------|----------|-------|-----|--------|
-| Aether Core Engine | Python | 35 modules | ~8,500 | Production Ready |
+| Aether Core Engine | Python | 36 modules | ~24,560 | Production Ready |
 | Knowledge Graph | Python | knowledge_graph.py | ~800 | Production Ready |
 | Reasoning Engine | Python | reasoning.py + 6 sub-modules | ~2,500 | Production Ready |
 | Neural Reasoner (GAT) | Python | neural_reasoner.py | ~600 | Production Ready |
@@ -713,11 +713,17 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 | On-Chain Bridge | Python | on_chain.py | ~530 | Production Ready |
 | Higgs Cognitive Field | Python | higgs_field.py | ~481 | Production Ready |
 | Vector Index | Python | vector_index.py | ~200 | Production Ready |
+| Rust aether-core | Rust (PyO3) | 10 modules | ~10,246 | Production Ready |
+| Rust security-core | Rust (PyO3) | 2 modules | ~530 | Production Ready |
 | Sephirot Contracts | Solidity | 10 contracts | ~2,000 | Production Ready |
 | Core Contracts | Solidity | 7 contracts | ~2,800 | Production Ready |
 | Higgs Field Contract | Solidity | HiggsField.sol | ~470 | Production Ready |
 | Safety Contracts | Solidity | 3 contracts | ~1,200 | Production Ready |
-| **Total** | | **~52 files** | **~15,000** | **Production Ready** |
+| **Total** | | **~66 files** | **~50,000+** | **Production Ready** |
+
+**Rust aether-core** (10,246 LOC, 276 tests, 0 `todo!()` markers): High-performance reimplementation of core Aether modules via PyO3 — KnowledgeGraph, PhiCalculator, VectorIndex+HNSW, CSFTransport, WorkingMemory, MemoryManager. Python shims provide transparent fallback when the Rust crate is not installed.
+
+**Rust security-core** (~530 LOC): PyO3 crate providing BloomFilter and FinalityCore, used by the BFT Finality Gadget and Deniable RPC subsystems respectively. Python fallback shims are available when the Rust crate is not installed.
 
 ### 14.2 Smart Contract Deployment (29 Aether Contracts)
 
@@ -732,7 +738,8 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 
 ### 14.3 Test Coverage
 
-- 2,420 total test functions (97 test modules)
+- 4,357 total Python test functions
+- 276 Rust aether-core unit tests
 - 39 dedicated on-chain AGI tests
 - All 7 phases verified with per-phase regression testing
 - Integration tests verify end-to-end block processing with AGI
@@ -748,6 +755,16 @@ At block 0 (genesis), the Aether Tree automatically:
 5. Begins processing every subsequent block
 
 **No manual steps required** — AGI tracking starts from the first moment of chain existence.
+
+### 14.5 Integration with Competitive Features
+
+The Aether Tree integrates with two cross-cutting Qubitcoin (QBC) security features via the Rust `security-core` crate:
+
+**BFT Finality Gadget**: The Byzantine Fault Tolerant finality gadget uses the Rust `FinalityCore` from the `security-core` crate for stake-weighted vote tracking. `FinalityCore` maintains an efficient in-memory representation of validator stakes and accumulated votes per block, enabling O(1) supermajority threshold checks. The Aether Tree's Proof-of-Thought validation participates in finality by contributing its own attestation to each block's reasoning integrity. When the Rust crate is not installed, a Python fallback shim provides identical functionality at reduced throughput.
+
+**Deniable RPCs**: Privacy-preserving UTXO queries use the Rust `BloomFilter` from the `security-core` crate to enable deniable responses — the node can answer "possibly yes" or "definitely no" to UTXO existence queries without revealing which specific UTXOs a user holds. This protects Aether Tree chat users whose QBC fee payments would otherwise leak balance information. The Bloom filter is rebuilt every N blocks from the current UTXO set. When the Rust crate is not installed, a Python fallback shim provides the same probabilistic data structure.
+
+Both components follow the same integration pattern established by the `aether-core` crate: Rust for performance-critical paths, Python shims for environments where the Rust extension is unavailable, and transparent selection at import time.
 
 ---
 

@@ -44,6 +44,7 @@ Qubitcoin implements a novel monetary policy based on the golden ratio (φ = 1.6
 13. [Sephirot Staking Economics](#13-sephirot-staking-economics)
 14. [Editable Economic Configuration](#14-editable-economic-configuration)
 15. [QUSD Peg Defense Mechanism](#15-qusd-peg-defense-mechanism)
+16. [Competitive Feature Economics](#16-competitive-feature-economics)
 
 ---
 
@@ -1344,6 +1345,47 @@ Bridge fees are configurable per-vault via `BridgeVault.setFeeBps()`:
 - **Default:** 10 bps (0.1%) — optimized for competitive cross-chain transfers
 - **Hard cap:** MAX_FEE_BPS = 1000 (10%) — contract-enforced safety limit
 - **Keeper integration:** Arb calculator reads live `feeBps()` from each vault to compute net profitability
+
+---
+
+## 16. COMPETITIVE FEATURE ECONOMICS
+
+### 16.1 BFT Finality Gadget Economics
+
+The BFT Finality Gadget introduces stake-weighted validator economics to Quantum Blockchain:
+
+- **Minimum stake:** 100 QBC to register as a finality validator
+- **Finality threshold:** 66.7% of total staked QBC must vote to finalize a block
+- **Reorg protection:** Once a block is finalized, it cannot be reverted by chain reorganizations
+- **Economic security:** The cost of reversing a finalized block equals 66.7% of total validator stake
+- **Vote expiry:** Votes expire after 1,000 blocks to prevent memory growth
+
+### 16.2 Inheritance Protocol Economics
+
+The Inheritance Protocol (dead-man's switch) has economic implications for Qubitcoin (QBC):
+
+- **Inactivity window:** Configurable from ~24 hours (26,182 blocks) to ~10 years (95,636,360 blocks)
+- **Grace period:** ~3 days (78,546 blocks) for owner to prove liveness after claim
+- **No fee:** Inheritance claims are standard UTXO transactions (pay normal L1 fees)
+- **Market impact:** Reduces permanently lost coins by enabling legitimate recovery
+
+### 16.3 High-Security Account Economics
+
+High-security policies add spending controls for Qubitcoin (QBC) holders:
+
+- **Daily limits:** Configurable QBC spending cap per 24h (~26,182 blocks)
+- **Time-locks:** Transactions above threshold require time-lock before execution
+- **Enforcement:** Mempool/RPC level (not consensus) — no additional gas costs
+- **Institutional appeal:** Meets custodial requirements for institutional QBC holders
+
+### 16.4 Stratum Mining Pool Economics
+
+The Stratum mining server enables pool mining on the Quantum Blockchain network:
+
+- **Pool fee:** Configurable by pool operator (not protocol-enforced)
+- **Share difficulty:** Lower than network difficulty for smooth payout estimation
+- **Block reward distribution:** PPLNS or similar scheme managed by pool software
+- **Miner accessibility:** Lowers barrier to entry for VQE mining
 
 ---
 

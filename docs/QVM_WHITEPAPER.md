@@ -637,11 +637,12 @@ We assume an adversary with:
 
 #### 7.2.1 Post-Quantum Signatures
 
-**Dilithium3** (NIST PQC Round 3 winner):
-- Public key: 1952 bytes
-- Secret key: 4000 bytes
-- Signature size: 2420 bytes
-- Security: ~128 bits against quantum adversary
+**CRYSTALS-Dilithium ML-DSA-44/65/87** (multi-level, configurable — NIST PQC standard):
+- Security levels: ML-DSA-44 (NIST 2), ML-DSA-65 (NIST 3), ML-DSA-87 (NIST 5)
+- Public key: 1312 / 1952 / 2592 bytes (by level)
+- Secret key: 2560 / 4000 / 4896 bytes (by level)
+- Signature size: 2420 / 3293 / 4595 bytes (by level)
+- Default: ML-DSA-65 (~128 bits against quantum adversary)
 
 #### 7.2.2 Post-Quantum Encryption
 
@@ -921,7 +922,7 @@ qubitcoin-qvm/
 
 ### B.1 Go Production Build (qubitcoin-qvm/)
 
-The Go production implementation is complete with 32 source files across 9 packages:
+The Go production implementation is complete with 34 source files across 9 packages:
 
 | Package | Files | Description |
 |---------|-------|-------------|
@@ -940,8 +941,8 @@ The Go production implementation is complete with 32 source files across 9 packa
 
 ### B.2 Test Suite
 
-- **Python QVM tests:** 2,420 test functions (unit + integration + fuzz + load + security)
-- **Go EVM compatibility tests:** 30+ test vectors covering arithmetic, bitwise, memory, storage, control flow, precompiles, gas accounting
+- **Python test suite:** 4,357 tests passing (unit + integration + fuzz + load + security)
+- **Go EVM compatibility tests:** 30 tests passing covering arithmetic, bitwise, memory, storage, control flow, precompiles, gas accounting
 - **Go benchmarks:** 35 benchmarks covering EVM operations, quantum state operations, StateDB, cryptographic functions, compliance checks, stack/memory primitives
 - **Solidity contracts:** 49 contracts across tokens, QUSD, Aether, bridge, and extension categories
 
@@ -949,8 +950,9 @@ The Go production implementation is complete with 32 source files across 9 packa
 
 | Metric | Value |
 |--------|-------|
+| Go source files | 34 |
 | Total QVM files (Python + Go) | 57 |
-| Total QVM LOC | ~15,000 |
+| Total project LOC (all languages) | 200,000+ |
 | EVM opcodes implemented | 155 (standard) + 10 (quantum) + 2 (AGI) = 167 |
 | Solidity contracts | 49 |
 | Database tables | 55 |
@@ -969,4 +971,5 @@ The Go production implementation is complete with 32 source files across 9 packa
 | [SDK Guide](SDK.md) | REST, JSON-RPC, WebSocket API reference |
 | [Smart Contracts Guide](SMART_CONTRACTS.md) | QVM contract development |
 | [Plugin SDK](PLUGIN_SDK.md) | QVM plugin architecture |
+| [Competitive Features](COMPETITIVE_FEATURES.md) | Inheritance, finality, deniable RPCs, stratum mining, security core |
 - Configuration: ~15 files

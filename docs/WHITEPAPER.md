@@ -30,8 +30,9 @@ We present Quantum Blockchain, a novel system whose native cryptocurrency Qubitc
 12. [Security Analysis](#12-security-analysis)
 13. [Performance & Scalability](#13-performance--scalability)
 14. [Roadmap](#14-roadmap)
-15. [Conclusion](#15-conclusion)
-16. [References](#16-references)
+15. [Competitive Features](#15-competitive-features)
+16. [Conclusion](#16-conclusion)
+17. [References](#17-references)
 
 ---
 
@@ -910,11 +911,11 @@ Finding ECDSA private key:  ~hours
 - 2030-2035 Early Fault-Tolerance: 1000-10000 logical qubits, RSA-2048 vulnerable
 - 2035+ Mature Quantum: 10000+ logical qubits, all ECDSA/EdDSA broken
 
-### 6.2 CRYSTALS-Dilithium
+### 6.2 CRYSTALS-Dilithium (ML-DSA)
 
-Qubitcoin uses CRYSTALS-Dilithium [5], a NIST-standardized digital signature scheme based on lattice problem hardness.
+Qubitcoin uses CRYSTALS-Dilithium ML-DSA-44/65/87 (multi-level, configurable) [5], the NIST-standardized post-quantum digital signature scheme based on Module Lattice problem hardness. The implementation supports all three NIST security levels, allowing operators and users to select the appropriate security-performance tradeoff.
 
-Lattice problems (Learning With Errors) remain hard even for quantum computers. No efficient quantum algorithm exists.
+Lattice problems (Module Learning With Errors) remain hard even for quantum computers. No efficient quantum algorithm exists.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
@@ -928,21 +929,34 @@ Discrete Log (ECDSA)    Hard            Easy (Shor's)
 Lattice Problems (PQC)  Hard            Hard (no algorithm)
 ```
 
-**Dilithium Parameters:**
+**Dilithium Security Levels (ML-DSA):**
 
 ```
-Security Level: 128-bit
+ML-DSA-44 (Level 2 — default):
+  Security Level: 128-bit (NIST Category 2)
+  Public key:  1312 bytes
+  Private key: 2528 bytes
+  Signature:   2420 bytes
 
-Key Sizes:
-- Public key:  1312 bytes
-- Private key: 2528 bytes
-- Signature:   2420 bytes
+ML-DSA-65 (Level 3):
+  Security Level: 192-bit (NIST Category 3)
+  Public key:  1952 bytes
+  Private key: 4000 bytes
+  Signature:   3293 bytes
 
-Performance:
-- Key generation: ~150 μs
-- Signing:        ~300 μs
-- Verification:   ~100 μs
+ML-DSA-87 (Level 5):
+  Security Level: 256-bit (NIST Category 5)
+  Public key:  2592 bytes
+  Private key: 4864 bytes
+  Signature:   4595 bytes
+
+Performance (ML-DSA-44):
+  Key generation: ~150 us
+  Signing:        ~300 us
+  Verification:   ~100 us
 ```
+
+Operators configure the desired security level via the `DILITHIUM_LEVEL` environment variable (values: `2`, `3`, or `5`). Higher security levels produce larger keys and signatures but provide stronger protection against future quantum advances.
 
 ### 6.3 Signature Generation
 
@@ -2537,9 +2551,9 @@ Layer 2 solutions close the TPS gap
 2026 Q1: FOUNDATION — COMPLETE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✓ Core blockchain (PoSA consensus)
-✓ Dilithium signature implementation
+✓ Multi-level Dilithium ML-DSA-44/65/87 signatures
 ✓ QVM (167 opcodes: 155 EVM + 10 quantum + 2 AGI)
-✓ 50 Solidity contracts deployed
+✓ 62 Solidity contracts deployed
 ✓ Aether Tree 6-phase AGI architecture
 ✓ Phase 7: Higgs Cognitive Field (mass mechanism for Sephirot)
 ✓ Substrate hybrid node (6 custom pallets, Kyber P2P, Poseidon2 ZK)
@@ -2547,7 +2561,7 @@ Layer 2 solutions close the TPS gap
 ✓ Multi-chain bridge infrastructure (8 chains)
 ✓ QUSD stablecoin contracts
 ✓ Frontend (qbc.network, Next.js 16)
-✓ 3,901 tests passing
+✓ 4,357 tests passing
 
 2026 Q2: MAINNET LAUNCH
 ━━━━━━━━━━━━━━━━━━━━━━━
@@ -2591,9 +2605,39 @@ Layer 2 solutions close the TPS gap
 
 ---
 
-## 15. CONCLUSION
+## 15. COMPETITIVE FEATURES
 
-Qubitcoin represents a paradigm shift in blockchain technology, uniquely positioned at the intersection of quantum computing, post-quantum cryptography, theoretical physics, privacy technology, smart contract programmability, and decentralized finance.
+Beyond the core innovations described above, Quantum Blockchain includes several production-ready features that differentiate it from existing blockchain platforms. These capabilities address real-world operational, security, and usability requirements that mainstream chains have not yet solved.
+
+### 15.1 BFT Finality Gadget
+
+Quantum Blockchain employs a Byzantine Fault Tolerant finality gadget layered on top of the PoSA consensus mechanism. Once a block receives confirmations from a supermajority of validators (greater than two-thirds), it is marked as finalized and cannot be reverted. This provides deterministic finality rather than probabilistic finality, enabling faster settlement for exchanges, bridges, and payment applications. The finality gadget operates independently from block production, allowing the chain to continue producing blocks even if finality temporarily stalls due to network partitions.
+
+### 15.2 Inheritance Protocol (Dead-Man's Switch)
+
+Qubitcoin implements an on-chain inheritance protocol that allows users to designate beneficiary addresses and configure inactivity timeouts. If a wallet owner does not produce a signed heartbeat transaction within the configured period (default: 365 days), the protocol automatically transfers the wallet's QBC holdings to the designated beneficiaries according to predefined split ratios. The heartbeat mechanism is lightweight (a single signed message proving liveness), and the entire inheritance configuration is stored on-chain with Dilithium-signed authorization. Users can update beneficiaries, adjust timeouts, or cancel the inheritance plan at any time. This solves the well-documented problem of permanently lost cryptocurrency due to holder death or incapacitation.
+
+### 15.3 High-Security Accounts
+
+Quantum Blockchain supports high-security account configurations that enforce additional protections beyond standard Dilithium signatures. High-security accounts can require multi-signature authorization (M-of-N Dilithium keys), time-locked withdrawals with configurable delay periods, per-transaction spending limits, whitelisted destination addresses, and mandatory two-factor confirmation via a secondary key. These features are enforced at the consensus layer, making them impossible to bypass even if a single private key is compromised. High-security accounts are designed for institutional custody, treasury management, and high-value holdings where the cost of a security breach far exceeds the inconvenience of additional verification steps.
+
+### 15.4 Deniable RPCs (Privacy-Preserving Queries)
+
+Standard blockchain RPC endpoints leak metadata: an observer monitoring network traffic can determine which addresses a user is querying, revealing ownership and interest patterns. Qubitcoin's deniable RPC system addresses this by returning plausible cover data alongside the real query results. When a user queries their balance, the node returns a batch of balances for multiple addresses, making it impossible for a network observer to determine which address the user actually owns. The deniable RPC layer supports configurable cover-set sizes and can be combined with Tor or VPN connections for defense-in-depth privacy. This feature is critical for users operating in adversarial network environments.
+
+### 15.5 Stratum Mining Server
+
+The Quantum Blockchain includes a production-grade Stratum mining server implemented in Rust for maximum performance. The Stratum server enables pool mining, where multiple miners collaborate to solve VQE problems and share rewards proportionally based on contributed work. The server supports the Stratum V2 protocol with encrypted connections, job assignment, share validation, and automatic difficulty adjustment per worker. It is designed to handle thousands of concurrent miners with minimal latency. The Rust implementation ensures memory safety and predictable performance under high load, making it suitable for commercial mining pool operations from day one.
+
+### 15.6 Security Core (Rust PyO3 Crate)
+
+Performance-critical security operations are implemented in a dedicated Rust crate (`security-core`) exposed to the Python runtime via PyO3 bindings. This crate provides native-speed implementations of cryptographic primitives, hash computations, Merkle tree construction, signature batch verification, and UTXO validation logic. By offloading these hot paths to compiled Rust code, the node achieves significant throughput improvements over pure Python execution while maintaining the flexibility and rapid development cycle of the Python application layer. The security-core crate is thoroughly tested with its own Rust test suite and integrates transparently with the Python node through automatic fallback: if the compiled extension is unavailable, the node seamlessly falls back to equivalent Python implementations.
+
+---
+
+## 16. CONCLUSION
+
+Quantum Blockchain represents a paradigm shift in blockchain technology, uniquely positioned at the intersection of quantum computing, post-quantum cryptography, theoretical physics, privacy technology, smart contract programmability, and decentralized finance.
 
 **Key Achievements:**
 
@@ -2605,7 +2649,7 @@ Qubitcoin represents a paradigm shift in blockchain technology, uniquely positio
 
 **Post-Quantum Security:**
 
-- NIST-approved CRYSTALS-Dilithium signatures
+- NIST-approved CRYSTALS-Dilithium ML-DSA-44/65/87 signatures (multi-level, configurable)
 - Quantum-resistant from launch
 - Long-term security guarantee
 
@@ -2660,7 +2704,7 @@ The network effect compounds: more miners generate more SUSY data, creating more
 
 ---
 
-## 16. REFERENCES
+## 17. REFERENCES
 
 [1] Shor, P. W. (1997). "Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer." *SIAM Journal on Computing*, 26(5), 1484-1509.
 
@@ -2713,11 +2757,11 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | Layer | Component | Implementation | Status |
 |-------|-----------|---------------|--------|
 | **Layer 1** | Blockchain Core (this document) | Python 3.11+ | Production Ready |
-| **Layer 1** | Post-Quantum Cryptography | CRYSTALS-Dilithium2 (dilithium-py) | Production Ready |
+| **Layer 1** | Post-Quantum Cryptography | CRYSTALS-Dilithium ML-DSA-44/65/87 (multi-level, configurable) | Production Ready |
 | **Layer 1** | Privacy Technology | Pedersen + Bulletproofs + Stealth Addresses | Production Ready |
 | **Layer 1** | P2P Networking | Rust libp2p 0.56 + Python fallback | Production Ready |
 | **Layer 2** | QVM (Quantum Virtual Machine) | Python prototype + Go 1.23 production | Production Ready |
-| **Layer 2** | Smart Contracts | 50 Solidity contracts (^0.8.24) | Production Ready |
+| **Layer 2** | Smart Contracts | 62 Solidity contracts (^0.8.24) | Production Ready |
 | **Layer 2** | Compliance Engine | KYC/AML/Sanctions + QCOMPLIANCE opcode | Production Ready |
 | **Layer 3** | Aether Tree AGI | 34 Python modules, 10 Sephirot contracts, 7-phase architecture (incl. Higgs) | Production Ready |
 | **Layer 3** | Proof-of-Thought | Task market + validator staking + 67% BFT | Production Ready |
@@ -2730,17 +2774,18 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 
 | Metric | Value |
 |--------|-------|
-| Total source files | 200+ |
-| Lines of code | 48,000+ |
-| Languages | Python, Go, TypeScript, Rust, Solidity |
-| Test functions | 3,901 |
-| Solidity contracts | 50 |
-| Go QVM files | 32 |
-| Frontend components | 35 |
-| Database tables | 55 |
-| REST endpoints | 215 |
-| JSON-RPC methods | 20 |
-| Prometheus metrics | 77 |
+| Total source files | 400+ |
+| Lines of code | 200,000+ |
+| Languages | Python, Rust, Go, TypeScript, Solidity, SQL |
+| Test functions | 4,357 |
+| Solidity contracts | 62 |
+| Rust crates | 5 (aether-core, security-core, stratum-server, aikgs-sidecar, rust-p2p) |
+| Substrate pallets | 7 |
+| Frontend TS/TSX files | 198 |
+| Database tables | 44+ |
+| REST endpoints | 342 |
+| JSON-RPC methods | 19 |
+| Prometheus metrics | 135 |
 | Aether AGI modules | 34 |
 | Documentation | 9,000+ lines (13 documents) |
 | Formal verification | K Framework (EVM) + TLA+ (compliance) |
@@ -2759,8 +2804,8 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 
 **Document Metadata:**
 
-- Version: 2.1.0
-- Date: February 23, 2026
+- Version: 2.2.0
+- Date: March 4, 2026
 - Authors: Qubitcoin Core Development Team
 - Website: https://qbc.network
 - Contact: info@qbc.network

@@ -7,6 +7,9 @@ Production deployment for Quantum Blockchain nodes, from single-node development
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
 - [Docker Deployment](#docker-deployment)
+  - [Rust Services in the Docker Build](#rust-services-in-the-docker-build)
+  - [Stratum Mining Server](#stratum-mining-server)
+  - [Competitive Features Configuration](#competitive-features-configuration)
 - [Production Deployment (Digital Ocean)](#production-deployment-digital-ocean)
 - [2-Node Peer Setup](#2-node-peer-setup)
 - [Frontend Deployment (Vercel)](#frontend-deployment-vercel)
@@ -107,6 +110,8 @@ PRODUCTION ARCHITECTURE
 | 3100 | Loki | profile: monitoring | Internal only | HTTP |
 | 26257 | CRDB SQL | Exposed | Internal only | PostgreSQL |
 | 50051 | gRPC P2P | Exposed | Exposed | gRPC |
+| 3333 | Stratum Mining Server | Exposed | Exposed | WebSocket |
+| 50053 | Stratum gRPC Bridge | Exposed | Internal only | gRPC |
 
 ---
 
@@ -144,11 +149,51 @@ Production compose differences from dev:
 - `DEBUG=false` hardcoded in environment
 - No Portainer (security risk in production)
 
+### Rust Services in the Docker Build
+
+The Dockerfile uses a multi-stage build with two Rust build stages that produce
+distinct artifacts:
+
+**aether-builder stage (security-core PyO3 extension)**
+
+The `aether-builder` stage compiles the `security-core` Rust crate via maturin.
+This produces a Python-importable PyO3 extension module (`.so` / `.pyd`) that
+provides native-speed implementations of inheritance protocols, security policies,
+deniable transactions, and fast-finality verification. The resulting wheel is
+installed into the Python virtual environment in the final production image.
+
+```
+Stage: aether-builder
+  Build tool: maturin (PyO3 extension)
+  Output: security_core-*.whl → installed via pip in production image
+  Usage: import security_core (transparent fallback to Python if unavailable)
+```
+
+**rust-builder stage (stratum-server binary)**
+
+The `rust-builder` stage compiles the `stratum-server` crate as a standalone
+binary. This binary provides a Stratum V1/V2 compatible mining server that
+bridges external mining pool workers to the Qubitcoin node via gRPC. The
+binary is copied into the final production image and launched alongside the
+Python node when `STRATUM_ENABLED=true`.
+
+```
+Stage: rust-builder
+  Build tool: cargo build --release
+  Output: stratum-server binary → /usr/local/bin/stratum-server
+  Ports: 3333 (WebSocket, Stratum protocol), 50053 (gRPC bridge to node)
+  Launch: auto-started by node.py when STRATUM_ENABLED=true
+```
+
+Both Rust build stages use `rust:1.85-bookworm` as the base image. The final
+production image (`python:3.12-slim-bookworm`) contains only the compiled
+artifacts, keeping the image size minimal.
+
 ### Build the Node Image Separately
 
 ```bash
 docker build -t qubitcoin-node .
-docker run -p 5000:5000 -p 4001:4001 -p 50051:50051 \
+docker run -p 5000:5000 -p 4001:4001 -p 50051:50051 -p 3333:3333 \
   --env-file .env --env-file secure_key.env \
   qubitcoin-node
 ```
@@ -218,6 +263,88 @@ curl http://localhost:5000/keeper/status     # Check daemon status
 curl http://localhost:5000/keeper/prices     # View multi-chain DEX prices
 curl http://localhost:5000/keeper/arb/summary # Check arbitrage opportunities
 ```
+
+### Stratum Mining Server
+
+The Stratum Mining Server enables pool mining by providing a standard Stratum V1/V2
+endpoint that external miners (ASICs, GPUs, or VQE workers) can connect to. The server
+translates Stratum protocol messages into Qubitcoin VQE mining tasks via a gRPC bridge
+to the node.
+
+To enable pool mining, add these variables to your `.env`:
+
+```bash
+# Stratum Mining Server
+STRATUM_ENABLED=true             # Enable the Stratum server (default: false)
+STRATUM_PORT=3333                # WebSocket port for miner connections
+STRATUM_HOST=0.0.0.0             # Bind address (0.0.0.0 for external access)
+STRATUM_MAX_WORKERS=100          # Maximum concurrent mining workers
+STRATUM_GRPC_PORT=50053          # gRPC bridge port (node <-> stratum communication)
+```
+
+When `STRATUM_ENABLED=true`, the node process auto-launches the `stratum-server` binary
+on startup. Miners connect via WebSocket to `ws://<node-ip>:3333` using standard Stratum
+credentials. The gRPC bridge on port 50053 handles internal communication between the
+stratum-server and the Qubitcoin node -- it should not be exposed to external miners.
+
+**Firewall configuration for pool mining:**
+```bash
+ufw allow 3333/tcp      # Stratum (miners connect here)
+# Do NOT expose 50053 — internal gRPC bridge only
+```
+
+**Verification:**
+```bash
+# Check stratum server status
+curl http://localhost:5000/stratum/status
+
+# View connected workers
+curl http://localhost:5000/stratum/workers
+```
+
+### Competitive Features Configuration
+
+Qubitcoin includes several competitive features implemented in the `security-core` Rust
+extension. Each feature is independently configurable via environment variables in `.env`:
+
+**Inheritance Protocol** -- automated QBC transfer to designated heirs after a
+configurable inactivity period:
+
+```bash
+INHERITANCE_ENABLED=true                 # Enable inheritance protocol (default: false)
+INHERITANCE_DEFAULT_INACTIVITY=15780000  # Inactivity threshold in seconds (~6 months)
+INHERITANCE_GRACE_PERIOD=2592000         # Grace period after trigger in seconds (~30 days)
+```
+
+**Security Policy Engine** -- per-address spending limits, whitelisted destinations,
+and time-locked withdrawal policies:
+
+```bash
+SECURITY_POLICY_ENABLED=true             # Enable security policies (default: false)
+SECURITY_DAILY_LIMIT_WINDOW=86400        # Rolling window for daily limits in seconds
+SECURITY_MAX_WHITELIST_SIZE=256          # Maximum whitelist entries per address
+```
+
+**Deniable Transactions** -- plausible deniability layer allowing construction of
+transactions that appear valid under multiple interpretations:
+
+```bash
+DENIABLE_RPC_ENABLED=true                # Enable deniable transaction RPC (default: false)
+DENIABLE_RPC_MAX_BATCH=10                # Maximum deniable outputs per transaction
+```
+
+**Fast Finality** -- stake-weighted finality gadget providing sub-second economic
+finality on top of PoSA consensus:
+
+```bash
+FINALITY_ENABLED=true                    # Enable fast-finality gadget (default: false)
+FINALITY_MIN_STAKE=1000                  # Minimum QBC stake for finality voting
+FINALITY_THRESHOLD=0.67                  # Supermajority threshold (67% of staked QBC)
+```
+
+All competitive features default to disabled. Enable them individually based on your
+deployment requirements. When the `security-core` Rust extension is not installed, the
+node falls back to Python implementations with equivalent functionality.
 
 ---
 
@@ -552,7 +679,7 @@ docker compose -f docker-compose.production.yml up -d
 
 - [ ] `secure_key.env` permissions: `chmod 600 secure_key.env`
 - [ ] `.env` has `DEBUG=false`
-- [ ] Firewall allows ONLY: 22 (SSH), 80 (HTTP), 443 (HTTPS), 4001 (P2P), 50051 (gRPC)
+- [ ] Firewall allows ONLY: 22 (SSH), 80 (HTTP), 443 (HTTPS), 4001 (P2P), 50051 (gRPC), 3333 (Stratum, if pool mining enabled)
 - [ ] CockroachDB NOT exposed to public internet
 - [ ] Redis NOT exposed to public internet
 - [ ] IPFS API NOT exposed to public internet

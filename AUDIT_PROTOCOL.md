@@ -1,7 +1,7 @@
 # QUANTUM BLOCKCHAIN GOVERNMENT-GRADE PROJECT AUDIT
 # Master Audit & Continuous Improvement Protocol
-# Version: 7.1 — Military/Government-Grade Edition (100% Target — No Exceptions)
-# Last Verified: 2026-03-02
+# Version: 8.0 — Military/Government-Grade Edition (100% Target — No Exceptions)
+# Last Verified: 2026-03-04
 
 ---
 
@@ -28,6 +28,11 @@ for sovereign-level financial infrastructure. This means:
 - Substrate hybrid node production-ready with all 7 pallets fully functional
 - Higgs Cognitive Field physics model mathematically correct (Standard Model sourced)
 - Post-quantum P2P encryption (Kyber/ML-KEM-768) and ZK-friendly hashing (Poseidon2)
+- BFT Finality Gadget with stake-weighted voting and reorg protection
+- Competitive features: inheritance protocol, high-security accounts, deniable RPCs, stratum mining
+- Security Core Rust crate: PyO3 BloomFilter + FinalityCore with Python fallback shims
+- Stratum Mining Server: standalone Rust binary with WebSocket + gRPC bridge to Python node
+- PWA: offline transaction queue, push notifications, biometric auth, service worker
 
 ### END GOAL 2: True AGI Emergence via Aether Tree
 
@@ -51,23 +56,28 @@ Neither is complete without the other.
 
 ---
 
-## EXACT CODEBASE INVENTORY (Master Branch — March 2, 2026)
+## EXACT CODEBASE INVENTORY (Master Branch — March 4, 2026)
 
 **Verified via automated scan against actual source files.**
 The audit MUST confirm these numbers are still accurate. Flag any drift.
 
 | Category | Count | Location | LOC |
 |----------|-------|----------|-----|
-| **Python L1 modules** | 92 files | `src/qubitcoin/` | 68,055 |
+| **Python L1 modules** | 160 files | `src/qubitcoin/` | 82,566 |
 | **AIKGS Rust Sidecar** | 18 files (14 src + proto + build + Cargo + Dockerfile) | `aikgs-sidecar/` | ~4,500 |
 | **AIKGS Python Client** | 4 files (client + proto stubs) | `src/qubitcoin/aether/aikgs_client.py` + `aikgs_pb/` | ~600 |
 | **Aether AGI modules** | 36 files | `src/qubitcoin/aether/` | 24,560 |
 | **QVM Python modules** | 28 files | `src/qubitcoin/qvm/` | 12,301 |
 | **Bridge modules** | 12 files | `src/qubitcoin/bridge/` | 4,247 |
 | **Stablecoin modules** | 7 files | `src/qubitcoin/stablecoin/` | 3,392 |
-| **Privacy modules** | 5 files | `src/qubitcoin/privacy/` | 1,051 |
+| **Privacy modules** | 6 files | `src/qubitcoin/privacy/` | 1,294 (incl. deniable_rpc.py 243 LOC) |
+| **Reversibility modules** | 4 files | `src/qubitcoin/reversibility/` | 832 (inheritance.py 499 + high_security.py 303 + models + init) |
+| **Consensus/Finality** | 3 files | `src/qubitcoin/consensus/` | finality.py 437 LOC |
+| **Mining/Stratum** | 2 files | `src/qubitcoin/mining/` | stratum_bridge.py 157 LOC |
 | **Exchange modules** | 2 files | `src/qubitcoin/exchange/` | 1,073 |
 | **Rust aether-core** | 6 modules, 9 files | `aether-core/src/` | 10,246 (276 tests, 0 todo!()) |
+| **Rust security-core** | 3 files | `security-core/src/` | ~530 (bloom.rs + finality.rs + lib.rs) |
+| **Rust stratum-server** | 7 files | `stratum-server/src/` | ~1,030 (pool, protocol, worker, bridge, config, main, lib) |
 | **Substrate pallets** | 7 pallets | `substrate-node/pallets/` | 2,837 |
 | **Substrate runtime** | 1 file | `substrate-node/runtime/src/lib.rs` | 468 |
 | **Substrate node** | 5 files | `substrate-node/node/src/` | 746 |
@@ -75,17 +85,18 @@ The audit MUST confirm these numbers are still accurate. Flag any drift.
 | **Kyber P2P transport** | 5 files | `substrate-node/crypto/kyber-transport/` | 1,180 |
 | **Go QVM (Production)** | 34 files (31 source + 3 test) | `qubitcoin-qvm/` | 8,732 source / 10,955 total |
 | **Rust P2P** | 4 files | `rust-p2p/src/` | 789 |
-| **Solidity contracts** | 57 contracts | `src/qubitcoin/contracts/solidity/` | 9,461 |
-| **REST endpoints** | 276 routes | `network/rpc.py` | 5,589 |
+| **Solidity contracts** | 62 contracts | `src/qubitcoin/contracts/solidity/` | ~10,000 |
+| **REST endpoints** | 342 routes | `network/rpc.py` | ~6,500 |
 | **JSON-RPC methods** | 19 methods | `network/jsonrpc.py` | 769 |
-| **Prometheus metrics** | 82 metrics | `utils/metrics.py` | 247 |
-| **Python tests** | 3,901 functions | `tests/` (156 files) | ~51,581 |
-| **SQL schema files** | 26 files | `sql_new/` (41 tables across 7 domains) | 1,682 |
+| **Prometheus metrics** | 135 metrics | `utils/metrics.py` | ~400 |
+| **Python tests** | 4,357 functions | `tests/` (175 files) | ~58,000 |
+| **SQL schema files** | 31 files | `sql_new/` (44+ tables across 7 domains + finality + inheritance + security) | ~1,900 |
 | **Frontend pages** | 15 pages + 8 TWA pages | `frontend/src/app/` | — |
-| **Frontend TS/TSX** | 167+ files | `frontend/src/` | 43,103+ |
-| **Frontend API libs** | 7 files + telegram.ts | `frontend/src/lib/` (with fetch/API) | — |
+| **Frontend TS/TSX** | 198 files | `frontend/src/` | 48,000+ |
+| **Frontend API libs** | 10 files (7 + telegram + offline-tx + push-notifications + biometric) | `frontend/src/lib/` | — |
 | **Frontend stores** | 3 files + telegram-store.ts + aikgs-store.ts | `frontend/src/stores/` | — |
 | **Frontend hooks** | 3 files | `frontend/src/hooks/` | — |
+| **Frontend PWA** | 7 new components | `frontend/src/components/wallet/` + `dashboard/` | ~700 |
 | **TWA pages** | 8 pages (7 routes + layout) | `frontend/src/app/twa/` | ~1,080 |
 | **TWA components (AIKGS)** | 5 components | `frontend/src/components/aikgs/` | ~968 |
 | **TWA types** | 1 file (10 interfaces) | `frontend/src/types/aikgs.ts` | 102 |
@@ -93,12 +104,12 @@ The audit MUST confirm these numbers are still accurate. Flag any drift.
 | **Telegram Bot backend** | 1 file | `src/qubitcoin/aether/telegram_bot.py` | 395 |
 | **Docker services** | 24 (dev) / 22 (prod) | `docker-compose.yml` / `.production.yml` | — |
 | **CI workflows** | 4 | `.github/workflows/` | — |
-| **Documentation** | 13 files | `docs/` | — |
+| **Documentation** | 15 files | `docs/` | — |
 | **Scripts** | 22 files | `scripts/` (incl. `deploy_bridge.py`) | — |
-| **Config attributes** | ~125 | `config.py` | 632 |
-| **Node components** | 22 | `node.py` | 1,411 |
+| **Config attributes** | ~155 | `config.py` | 859 |
+| **Node components** | 24 (22 + stratum + finality) | `node.py` | 1,881 |
 | **Data models** | 7 dataclasses | `database/models.py` | 266 |
-| **Total LOC** | | Python + Rust + Go + Solidity + TS + SQL | **~180,000+** |
+| **Total LOC** | | Python + Rust + Go + Solidity + TS + SQL | **~200,000+** |
 
 ---
 
@@ -117,24 +128,28 @@ continuous improvement engine that runs until both end goals are achieved.
 
 ---
 
-## THE 12 COMPONENTS
+## THE 16 COMPONENTS
 
-Every audit run evaluates all 12 components. No component is optional.
+Every audit run evaluates all 16 components. No component is optional.
 
 | # | Component | Source Location | Key Counts |
 |---|-----------|----------------|------------|
-| 1 | **Frontend** (qbc.network) | `frontend/` | 15 pages, 167 TS/TSX files, 7 API libs, 3 stores, 3 hooks |
-| 2 | **Blockchain Core** (L1) — Python | `src/qubitcoin/` | 276 REST endpoints, 19 JSON-RPC methods, 82 Prometheus metrics |
-| 3 | **Substrate Hybrid Node** (L1) — Rust | `substrate-node/` | 7 pallets (2,512 LOC), runtime (468 LOC), primitives (916 LOC), Kyber (1,180 LOC) |
+| 1 | **Frontend** (qbc.network) | `frontend/` | 15 pages, 198 TS/TSX files, 10 API libs, 5 stores, 3 hooks |
+| 2 | **Blockchain Core** (L1) — Python | `src/qubitcoin/` | 342 REST endpoints, 19 JSON-RPC methods, 135 Prometheus metrics |
+| 3 | **Substrate Hybrid Node** (L1) — Rust | `substrate-node/` | 7 pallets (2,837 LOC), runtime (468 LOC), primitives (916 LOC), Kyber (1,180 LOC) |
 | 4 | **QVM** (L2) — Python + Go (Production) | `src/qubitcoin/qvm/` (12,301 LOC) + `qubitcoin-qvm/` (8,732 LOC) | 167 opcodes, 31 Go source files, real crypto, full EVM |
 | 5 | **Aether Tree** (L3) — Python + Rust | `src/qubitcoin/aether/` (24,560 LOC) + `aether-core/` (10,246 LOC) | 36 Python modules, 6 Rust modules |
 | 6 | **QBC Economics & Bridges** | `bridge/` (12 files), emission, fees, config | phi-halving, 8-chain bridges, fee collector, QUSD oracle |
 | 7 | **QUSD Stablecoin** | `stablecoin/` (7 files) + `contracts/solidity/qusd/` (10 .sol) | CDP, savings, reserves, flash loans, governance |
 | 8 | **Exchange** | `exchange/engine.py` (1,065 LOC) + frontend exchange (28 files) | CLOB, WebSocket, MEV protection |
 | 9 | **Launchpad** | `contracts/engine.py` + frontend launchpad (10 files) | Deploy wizard, templates, verification |
-| 10 | **Smart Contracts** | `contracts/solidity/` (57 .sol, 9,071 LOC) | Aether(29), QUSD(10), tokens(6), bridge(2), proxy(3), interfaces(7) |
+| 10 | **Smart Contracts** | `contracts/solidity/` (62 .sol, ~10,000 LOC) | Aether(29), QUSD(10), tokens(6), bridge(2), proxy(3), interfaces(7), AIKGS(5) |
 | 11 | **AIKGS Rust Sidecar** | `aikgs-sidecar/` (~4,500 LOC) + `aether/aikgs_client.py` (~600 LOC) | 35 gRPC RPCs, 14 Rust src files, AES-256-GCM vault, reward engine |
 | 12 | **Telegram Mini App (TWA)** | `frontend/src/app/twa/` + `frontend/src/components/aikgs/` + `aether/telegram_bot.py` | 8 pages (~1,080 LOC), 5 components (~968 LOC), 2 stores, Telegram SDK, bot backend (395 LOC) |
+| 13 | **Competitive Features** (Inheritance + High-Security + Deniable RPCs + BFT Finality) | `reversibility/`, `privacy/deniable_rpc.py`, `consensus/finality.py` | 4 features, ~1,639 Python LOC, 193 tests, 6 SQL tables |
+| 14 | **Security Core** (Rust PyO3 Crate) | `security-core/src/` (3 files, ~530 LOC) | BloomFilter + FinalityCore in Rust, PyO3 0.23, Python fallback shims |
+| 15 | **Stratum Mining Server** (Rust Binary) | `stratum-server/src/` (7 files, ~1,030 LOC) + `mining/stratum_bridge.py` (157 LOC) | WebSocket + gRPC, DashMap workers, Stratum v1 protocol |
+| 16 | **PWA Enhancements** | `frontend/src/lib/` (3 new libs) + `frontend/src/components/wallet/` (7 new components) | Offline tx queue, push notifications, biometric auth, service worker, install prompt |
 
 ---
 
@@ -181,7 +196,7 @@ For every Python, Rust, Go, TypeScript, and Solidity file:
 - SQLAlchemy models (`database/models.py`) must match SQL schemas (`sql_new/` — 41 tables across 26 files)
 - RPC endpoint implementations (276 routes) must match CLAUDE.md API documentation
 - Frontend API calls (7 libs) must target endpoints that actually exist in the backend
-- Test coverage (3,788 tests across 145 files) must exist for every critical code path
+- Test coverage (4,357 tests across 175 files) must exist for every critical code path
 - Prometheus metrics (82) referenced in Grafana dashboards must be emitted by code
 - Rust aether-core PyO3 bindings must match Python class signatures exactly
 - Go QVM opcode behavior (34 files) must match Python QVM opcode behavior exactly
@@ -207,7 +222,7 @@ Read `network/rpc.py` (5,589 LOC, 276 routes) and `network/jsonrpc.py` line by l
 5. Frontend actually calls this endpoint (check 7 API libs + 3 hooks)
 6. At least one test exists for this endpoint
 
-**REST Endpoints — Verify ALL 276 routes organized by category:**
+**REST Endpoints — Verify ALL 342 routes organized by category:**
 
 - **Node Info (5+):** `/`, `/health`, `/info`, `/chain/info`, `/chain/tip`
 - **Blockchain (15+):** `/block/{height}`, `/block/hash/{hash}`, `/balance/{address}`, `/utxos/{address}`, `/transaction/{txid}`, `/mempool`, `/mempool/stats`, `POST /transaction`, `/transaction/estimate-fee`, `/transaction/validate`
@@ -223,11 +238,15 @@ Read `network/rpc.py` (5,589 LOC, 276 routes) and `network/jsonrpc.py` line by l
 - **Exchange (8+):** `/exchange/markets`, `/exchange/orderbook/{pair}`, `POST /exchange/order`, `DELETE /exchange/order/{id}`, `/exchange/orders/{address}`, `/exchange/trades/{pair}`, `/exchange/ticker/{pair}`, `/exchange/stats`, `/exchange/depth/{pair}`, `/exchange/candles/{pair}`
 - **Launchpad (7+):** `/launchpad/templates`, `POST /launchpad/deploy`, `/launchpad/deployments/{address}`, `POST /launchpad/verify`, `/launchpad/fees`, `/launchpad/registry`
 - **Admin (15+):** `/admin/config`, `/admin/economics`, `PUT /admin/aether/fees`, `PUT /admin/contract/fees`, `PUT /admin/treasury`, `/admin/economics/history`
-- **Privacy (10+):** `/susy-database`, `/privacy/stealth/*`, `/privacy/commitment/*`, `/privacy/range-proof/*`, `/privacy/tx/*`
+- **Privacy / Deniable RPCs (14+):** `/susy-database`, `/privacy/stealth/*`, `/privacy/commitment/*`, `/privacy/range-proof/*`, `/privacy/tx/*`, `POST /privacy/batch-balance`, `POST /privacy/bloom-utxos`, `POST /privacy/batch-blocks`, `POST /privacy/batch-tx`
+- **Inheritance (4):** `POST /inheritance/set-beneficiary`, `POST /inheritance/heartbeat`, `POST /inheritance/claim`, `GET /inheritance/status/{address}`
+- **High-Security (3):** `POST /security/policy/set`, `GET /security/policy/{address}`, `DELETE /security/policy/{address}`
+- **BFT Finality (3):** `GET /finality/status`, `POST /finality/vote`, `POST /finality/register-validator`
+- **Stratum Mining (3+):** `GET /stratum/info`, `GET /stratum/stats`, `GET /stratum/workers`
 - **Cognitive (7+):** `/aether/cognitive/sephirot`, `/aether/cognitive/csf/*`, `/aether/cognitive/pineal/*`, `/aether/cognitive/safety/*`
 - **Compliance (10+):** `/qvm/compliance/kyc/*`, `/qvm/compliance/aml/*`, `/qvm/compliance/sanctions/*`, `/qvm/compliance/reports/*`, `/qvm/compliance/policies`
 - **Plugins (8+):** `/qvm/plugins`, `/qvm/plugins/{name}/*`, `/qvm/plugins/governance/*`
-- **Metrics:** `/metrics` — all 82 Prometheus metrics exposed
+- **Metrics:** `/metrics` — all 135 Prometheus metrics exposed
 
 **JSON-RPC Methods — Verify ALL 19 implementations:**
 
@@ -771,6 +790,271 @@ The TWA pages must compile without errors. Verify:
 
 ---
 
+### 1Q. Competitive Features Audit (4 Features, ~1,639 Python LOC, 193 Tests)
+
+**NEW COMPONENT #13 — First introduced in v8.0 (March 4, 2026)**
+
+Four opt-in, backward-compatible competitive features added as part of the Military-Grade
+Competitive Feature Upgrade. All features controlled via environment variables and can be
+enabled/disabled independently.
+
+#### Inheritance Protocol (Dead-Man's Switch)
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `reversibility/inheritance.py` | 499 | InheritanceManager: set_beneficiary, heartbeat, claim, cancel, execute_matured_claims |
+| `sql_new/qbc/07_inheritance.sql` | ~30 | inheritance_plans, inheritance_claims tables with indexes |
+| `tests/unit/test_inheritance.py` | ~250 | 41 tests covering all lifecycle states |
+| `tests/unit/test_inheritance_endpoints.py` | ~150 | 14 endpoint-level tests |
+
+**Per-Method Verification:**
+
+- `set_beneficiary()` — validates address, inactivity_blocks within MIN/MAX bounds, stores plan
+- `heartbeat()` — resets last_heartbeat to current_height, callable by owner only
+- `update_heartbeat_from_tx()` — auto-heartbeat on any outgoing transaction
+- `check_inactivity()` — `current_height - last_heartbeat > threshold` triggers claimable state
+- `claim_inheritance()` — only beneficiary can claim, creates pending claim with grace period
+- `cancel_claim()` — owner can cancel during grace period (proves liveness)
+- `execute_matured_claims()` — after grace, transfers assets; called by block processor
+- Config: `INHERITANCE_ENABLED`, `INHERITANCE_DEFAULT_INACTIVITY=2618200`, `INHERITANCE_GRACE_PERIOD=78546`
+
+#### High-Security Accounts
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `reversibility/high_security.py` | 303 | HighSecurityManager: set_policy, validate_outgoing_tx, get_daily_spent |
+| `sql_new/qbc/08_security_policies.sql` | ~35 | security_policies, security_spending tables |
+| `tests/unit/test_high_security.py` | ~250 | 24 tests |
+| `tests/unit/test_high_security_endpoints.py` | ~150 | 10 endpoint-level tests |
+
+**Per-Method Verification:**
+
+- `set_policy()` — daily_limit_qbc, time_lock_blocks, whitelist addresses
+- `validate_outgoing_tx()` — checks daily limit, time-lock, whitelist; returns allow/deny
+- `get_daily_spent()` — sliding window over last `SECURITY_DAILY_LIMIT_WINDOW` blocks
+- Enforcement: mempool/RPC level (standardness rules), NOT consensus hard fork
+- Config: `SECURITY_POLICY_ENABLED`, `SECURITY_DAILY_LIMIT_WINDOW=26182`, `SECURITY_MAX_WHITELIST_SIZE=100`
+
+#### Deniable RPCs (Privacy-Preserving Queries)
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `privacy/deniable_rpc.py` | 243 | DeniableRPCHandler + PythonBloomFilter fallback |
+| `tests/unit/test_deniable_rpc.py` | ~200 | 15 tests (Bloom filter + handler) |
+| `tests/unit/test_deniable_rpc_endpoints.py` | ~150 | 6 endpoint tests |
+
+**Per-Method Verification:**
+
+- `batch_balance()` — constant-time, no short-circuit, no content logging
+- `bloom_utxos()` — returns Bloom filter of UTXOs (plausible deniability)
+- `batch_blocks()` — fetch multiple blocks in one request
+- `batch_tx()` — fetch multiple transactions in one request
+- Uses Rust `BloomFilter` from security-core with pure-Python `PythonBloomFilter` fallback
+- Config: `DENIABLE_RPC_ENABLED`, `DENIABLE_RPC_MAX_BATCH=100`, `DENIABLE_RPC_BLOOM_MAX_SIZE=65536`
+
+#### BFT Finality Gadget
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `consensus/finality.py` | 437 | FinalityGadget with _PythonFinalityCore fallback |
+| `sql_new/qbc/09_finality.sql` | ~40 | finality_validators, finality_votes, finality_checkpoints |
+| `tests/unit/test_finality.py` | ~300 | 30 tests |
+| `tests/unit/test_finality_integration.py` | ~150 | 9 integration tests |
+
+**Per-Method Verification:**
+
+- `register_validator()` — minimum stake check (`FINALITY_MIN_STAKE=100.0`), persists to DB + Rust core
+- `submit_vote()` — validates voter is registered, records vote in Rust core, persists to DB
+- `check_finality()` — voted stake > `FINALITY_THRESHOLD=0.667` of total → block finalized
+- `get_last_finalized()` — returns highest finalized block height
+- `is_reorg_allowed()` — rejects reorgs below finalized height (integrated in `consensus/engine.py`)
+- `process_block()` — auto-vote if node is validator, prune old votes
+- Uses Rust `FinalityCore` from security-core with `_PythonFinalityCore` fallback
+- Consensus integration: `resolve_fork()` in ConsensusEngine rejects reorgs past finalized height
+
+**Cross-System Verification:**
+
+| Check | Source | Target | Must Match |
+|-------|--------|--------|------------|
+| Inheritance endpoints | `rpc.py` 4 routes | `inheritance.py` methods | All 4 wired |
+| Security endpoints | `rpc.py` 3 routes | `high_security.py` methods | All 3 wired |
+| Deniable endpoints | `rpc.py` 4 routes | `deniable_rpc.py` methods | All 4 wired |
+| Finality endpoints | `rpc.py` 3 routes | `finality.py` methods | All 3 wired |
+| Finality reorg | `consensus/engine.py` resolve_fork() | `finality.py` is_reorg_allowed() | Reorg blocked if below finalized |
+| Node components | `node.py` 19h + 19i | inheritance + finality gadgets | Both initialized when enabled |
+| Config vars | `.env.example` competitive section | `config.py` Config class | All 20+ vars loaded |
+| Metrics | `utils/metrics.py` | All 4 features | 20+ new metrics defined and emitted |
+| SQL schemas | `sql_new/qbc/07,08,09` | `database/models.py` or sqlalchemy.text() | Tables created and queried |
+
+---
+
+### 1R. Security Core Rust Crate Audit (3 Files, ~530 LOC — PyO3 Extension)
+
+**NEW COMPONENT #14 — First introduced in v8.0 (March 4, 2026)**
+
+**Pattern:** PyO3 extension (like `aether-core/`). Contains Bloom filter + finality vote
+verification in Rust, exposed to Python.
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `security-core/Cargo.toml` | ~40 | pyo3 0.23, sha2, parking_lot, serde, rand |
+| `security-core/src/lib.rs` | ~30 | PyO3 module registration |
+| `security-core/src/bloom.rs` | ~200 | BloomFilter: SHA-256 double-hashing, bit-array |
+| `security-core/src/finality.rs` | ~300 | FinalityCore: stake-weighted BFT, parking_lot::RwLock |
+
+**BloomFilter Verification:**
+
+- `new(size, hash_count)` — allocates bit array
+- `insert(item)` — SHA-256 double-hashing: `h(i) = h1 + i * h2`
+- `check(item)` — membership test, false positive rate acceptable
+- `to_bytes()` / `from_bytes()` — serialization round-trip
+- `union(other)` — merge two filters
+- Zero `todo!()` or `unimplemented!()` macros
+
+**FinalityCore Verification:**
+
+- `add_validator(address, stake)` — registers validator
+- `remove_validator(address)` — deregisters
+- `record_vote(voter, block_height, block_hash)` — records vote, returns success
+- `check_finality(block_height)` — voted stake > threshold → finalized
+- `get_last_finalized()` — highest finalized height
+- `calculate_vote_weight(block_height)` — returns (voted_stake, total_stake)
+- `prune_votes(before_height)` — prevents memory growth
+- Thread safety: `parking_lot::RwLock` for concurrent access
+
+**Python Fallback Shims:**
+
+- `deniable_rpc.py`: `try: from security_core import BloomFilter; except: use PythonBloomFilter`
+- `finality.py`: `try: from security_core import FinalityCore; except: use _PythonFinalityCore`
+- Fallback behavior MUST be identical to Rust (same API, same results)
+
+**Build Verification:**
+
+```bash
+cd security-core && cargo test
+cd security-core && maturin build --release --features extension-module
+```
+
+---
+
+### 1S. Stratum Mining Server Audit (7 Rust Files, ~1,030 LOC — Standalone Binary)
+
+**NEW COMPONENT #15 — First introduced in v8.0 (March 4, 2026)**
+
+**Pattern:** Standalone Rust binary (like `rust-p2p/`), communicates with Python node via gRPC.
+
+```
+Miners ──WebSocket──> stratum-server (Rust, port 3333)
+                          │
+                      gRPC (port 50053)
+                          │
+                      Python node (stratum_bridge.py)
+```
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `stratum-server/Cargo.toml` | ~50 | tokio, tonic 0.12, prost 0.13, tokio-tungstenite 0.26, dashmap, sha2, uuid |
+| `stratum-server/proto/stratum.proto` | ~80 | GetWorkUnit, SubmitSolution, StreamNewBlocks, GetDifficulty |
+| `stratum-server/src/main.rs` | ~200 | Tokio runtime, WebSocket server, gRPC client |
+| `stratum-server/src/config.rs` | ~60 | Env config: STRATUM_PORT, STRATUM_HOST, STRATUM_MAX_WORKERS |
+| `stratum-server/src/worker.rs` | ~150 | StratumWorker struct, shares tracking |
+| `stratum-server/src/protocol.rs` | ~200 | Stratum v1 JSON: mining.subscribe/authorize/submit/notify/set_difficulty |
+| `stratum-server/src/pool.rs` | ~250 | MiningPool: DashMap workers, work distribution, share validation |
+| `stratum-server/src/bridge.rs` | ~150 | gRPC client to Python node |
+
+**Python Bridge** (`mining/stratum_bridge.py`, 157 LOC):
+
+- Python gRPC server (port 50053) that Rust stratum connects to
+- Exposes `GetWorkUnit`, `SubmitSolution`, `StreamNewBlocks`, `GetDifficulty`
+- Calls into `MiningEngine` and `ConsensusEngine` for real work units
+
+**Per-Component Verification:**
+
+1. WebSocket server handles concurrent miner connections (tokio spawn per connection)
+2. Stratum v1 protocol: mining.subscribe returns (subscription_id, extranonce1, extranonce2_size)
+3. Share validation: SHA-256 hash of block header + nonce < share_difficulty
+4. DashMap: no mutex contention on worker map operations
+5. gRPC client: reconnects on failure, exponential backoff
+6. Config loaded from environment variables via dotenvy
+
+**Build Verification:**
+
+```bash
+cd stratum-server && cargo build --release && cargo test
+```
+
+**Docker Integration:**
+
+```dockerfile
+# In Dockerfile rust-builder stage:
+WORKDIR /build/stratum-server
+RUN cargo build --release
+# Binary copied as /usr/local/bin/qbc-stratum
+```
+
+---
+
+### 1T. PWA Enhancements Audit (3 Libs + 7 Components)
+
+**NEW COMPONENT #16 — First introduced in v8.0 (March 4, 2026)**
+
+Progressive Web App enhancements for the wallet and dashboard.
+
+**New Library Files:**
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `frontend/src/lib/offline-tx.ts` | ~150 | IndexedDB-based offline tx queue, auto-broadcast on reconnect |
+| `frontend/src/lib/push-notifications.ts` | ~100 | Web Push API, VAPID key support, notification presets |
+| `frontend/src/lib/biometric.ts` | ~120 | WebAuthn/FIDO2 for tx signing approval and key export |
+
+**New Components:**
+
+| File | LOC | Key Verification |
+|------|-----|-----------------|
+| `frontend/src/components/wallet/install-prompt-banner.tsx` | ~80 | PWA install prompt with dismiss persistence |
+| `frontend/src/components/wallet/offline-indicator.tsx` | ~40 | Offline status banner |
+| `frontend/src/components/wallet/offline-tx-queue.tsx` | ~120 | UI for pending offline transactions |
+| `frontend/src/components/wallet/push-notification-setup.tsx` | ~80 | Notification enable/disable panel |
+| `frontend/src/components/wallet/inheritance-panel.tsx` | ~150 | Set beneficiary, send heartbeat, view status |
+| `frontend/src/components/wallet/security-policy-panel.tsx` | ~150 | Configure spending limits, time-locks, whitelists |
+| `frontend/src/components/dashboard/finality-status.tsx` | ~80 | BFT finality metrics with progress bar |
+| `frontend/src/components/dashboard/stratum-stats.tsx` | ~100 | Pool mining statistics panel |
+
+**Service Worker** (`frontend/public/sw.js`):
+
+- Background sync for offline transactions
+- Push notification handler with action buttons
+- Notification click → navigate to relevant page
+
+**Manifest** (`frontend/public/manifest.json`):
+
+- PWA shortcuts (Wallet, Dashboard, Aether)
+- `prefer_related_applications: false`
+- `scope`, `lang`, `display: standalone`
+
+**Per-Feature Verification:**
+
+1. **Offline TX Queue**: IndexedDB operations correct (open, put, getAll, delete), auto-sync on `online` event
+2. **Push Notifications**: VAPID key registration, ServiceWorkerRegistration.pushManager.subscribe()
+3. **Biometric Auth**: navigator.credentials.create() with `publicKey` options, authenticatorAttachment: "platform"
+4. **Install Prompt**: `beforeinstallprompt` event captured, `localStorage` dismiss persistence
+5. **Offline Indicator**: `navigator.onLine` + `online`/`offline` event listeners, cleanup on unmount
+6. **Inheritance Panel**: Fetches from `/inheritance/status/{address}`, posts to `/inheritance/set-beneficiary`
+7. **Security Panel**: Fetches from `/security/policy/{address}`, posts to `/security/policy/set`
+8. **Finality Status**: Fetches from `/finality/status`, displays validator count, stake, finalized height
+9. **Stratum Stats**: Fetches from `/stratum/stats`, displays workers, hashrate, blocks found
+
+**Frontend Build Verification:**
+
+```bash
+cd frontend && pnpm build
+```
+
+All new components must compile without TypeScript errors. Verify no `any` types, all imports resolve.
+
+---
+
 ### 1H. Exchange Deep Audit (1,065 LOC Engine + 28 Frontend Files)
 
 **Backend** (`exchange/engine.py`, 1,065 LOC):
@@ -809,11 +1093,11 @@ Current: `const USE_MOCK = process.env.NEXT_PUBLIC_EXCHANGE_MOCK === "true"` —
 
 ---
 
-### 1J. Database Schema Audit (41 Tables, 26 Files)
+### 1J. Database Schema Audit (44+ Tables, 31 Files)
 
 | Domain | Files | Key Tables | Verify |
 |--------|-------|-----------|--------|
-| qbc/ (6 files) | blocks, transactions, utxo_set, addresses, balances, chain_state, mempool, genesis_block | Schema matches data models |
+| qbc/ (9 files) | blocks, transactions, utxo_set, addresses, balances, chain_state, mempool, genesis_block, **inheritance_plans, inheritance_claims** (07), **security_policies, security_spending** (08), **finality_validators, finality_votes, finality_checkpoints** (09) | Schema matches data models, competitive feature tables present |
 | agi/ (6 files) | knowledge_nodes, knowledge_edges, reasoning_operations, training_data, phi_measurements, consciousness_events, sephirot_state, higgs_field_state, higgs_node_masses, higgs_excitations | Higgs tables present and correct |
 | qvm/ (4 files) | contracts_core, execution_engine, state_storage, gas_metering | Matches Go QVM state |
 | research/ (3 files) | hamiltonians, vqe_circuits, susy_solutions | SUSY database populated |
@@ -843,7 +1127,7 @@ Current: `const USE_MOCK = process.env.NEXT_PUBLIC_EXCHANGE_MOCK === "true"` —
 
 **CI/CD (4 workflows):**
 
-- `ci.yml`: Python tests (3,901 tests must pass)
+- `ci.yml`: Python tests (4,357 tests must pass)
 - `qvm-ci.yml`: Go QVM tests
 - `claude.yml`: Claude Code integration
 - `contract-deploy.yml`: Solidity deployment pipeline
@@ -913,9 +1197,9 @@ Flag EVERY instance of:
 
 ---
 
-## PHASE 2: IMPROVEMENT PLAN (3 Per Component = 36 Total)
+## PHASE 2: IMPROVEMENT PLAN (3 Per Component = 48 Total)
 
-Produce 3 specific, high-impact improvements for EACH of the 12 components.
+Produce 3 specific, high-impact improvements for EACH of the 16 components.
 
 **Every improvement MUST include:**
 
@@ -943,7 +1227,7 @@ Produce 3 specific, high-impact improvements for EACH of the 12 components.
 ### File 1: REVIEW.md
 
 ```
-# QUBITCOIN PROJECT REVIEW — Production-Grade Edition (v6.0)
+# QUBITCOIN PROJECT REVIEW — Production-Grade Edition (v8.0)
 # Date: [DATE] | Run #[N]
 
 ## EXECUTIVE SUMMARY
@@ -952,22 +1236,26 @@ Produce 3 specific, high-impact improvements for EACH of the 12 components.
 - Top 5 Critical Findings
 - Top 5 Strengths
 
-## COMPONENT READINESS MATRIX (12 components)
+## COMPONENT READINESS MATRIX (16 components)
 | # | Component | Score /100 | Launch Ready | Blocking Issues |
 
-## 1. SMART CONTRACT AUDIT TABLE (57 rows)
+## 1. SMART CONTRACT AUDIT TABLE (62 rows)
 ## 2. SUBSTRATE PALLET AUDIT TABLE (7 pallets + runtime + primitives + crypto)
 ## 3. OPCODE VERIFICATION TABLE (167 opcodes, Python + Go — all production-grade)
-## 4. ENDPOINT VERIFICATION TABLE (276 REST + 19 JSON-RPC = 295)
+## 4. ENDPOINT VERIFICATION TABLE (342 REST + 19 JSON-RPC = 361)
 ## 5. RUST AETHER-CORE TABLE (6 modules, todo count, parity, thread safety)
 ## 6. HIGGS FIELD PHYSICS TABLE (formulas, Python correct, Solidity correct)
-## 7. DATABASE SCHEMA TABLE (41 tables, SQL-model match, dead tables)
+## 7. DATABASE SCHEMA TABLE (44+ tables, SQL-model match, dead tables)
 ## 8. AUTHENTICITY REPORT (every fake with file:line)
-## 9. GAP ANALYSIS (11 components)
+## 9. GAP ANALYSIS (16 components)
 ## 10. DOCKER & CI VERIFICATION (24 services, 4 workflows)
 ## 11. AIKGS SIDECAR AUDIT TABLE (35 RPCs, auth, input validation, accounting)
-## 12. FILE-BY-FILE FINDINGS
-## 13. RUN HISTORY
+## 12. COMPETITIVE FEATURES TABLE (inheritance, security, deniable RPCs, finality)
+## 13. RUST SECURITY-CORE TABLE (BloomFilter + FinalityCore, PyO3 bindings, fallback shims)
+## 14. STRATUM SERVER TABLE (7 Rust files, WebSocket + gRPC, pool management)
+## 15. PWA ENHANCEMENTS TABLE (offline tx, push notifications, biometric, service worker)
+## 16. FILE-BY-FILE FINDINGS
+## 17. RUN HISTORY
 ```
 
 ### File 2: MASTERUPDATETODO.md
@@ -982,13 +1270,13 @@ Produce 3 specific, high-impact improvements for EACH of the 12 components.
 ## END GOAL STATUS
 
 ### Government-Grade: [X]% ready
-- [ ] Zero placeholder code (11 components)
-- [ ] 57 contracts Grade A/B
+- [ ] Zero placeholder code (16 components)
+- [ ] 62 contracts Grade A/B
 - [ ] 167 opcodes verified (Python + Go)
-- [ ] 295 endpoints verified (276 REST + 19 JSON-RPC)
+- [ ] 361 endpoints verified (342 REST + 19 JSON-RPC)
 - [ ] 7 Substrate pallets production-ready
-- [ ] 41 database tables schema-aligned
-- [ ] 82 Prometheus metrics emitted
+- [ ] 44+ database tables schema-aligned
+- [ ] 135 Prometheus metrics emitted
 - [ ] 24 Docker services healthy
 - [ ] 4 CI workflows passing
 - [ ] Higgs physics mathematically correct
@@ -997,6 +1285,13 @@ Produce 3 specific, high-impact improvements for EACH of the 12 components.
 - [ ] Launchpad operational
 - [ ] Poseidon2 test vectors verified
 - [ ] Kyber P2P encryption functional
+- [ ] BFT Finality Gadget: stake-weighted voting, reorg protection
+- [ ] Inheritance Protocol: dead-man's switch, grace period, claim lifecycle
+- [ ] High-Security Accounts: daily limits, time-locks, whitelists
+- [ ] Deniable RPCs: constant-time batch queries, Bloom filter plausible deniability
+- [ ] Security Core Rust crate: BloomFilter + FinalityCore, zero todo!(), Python parity
+- [ ] Stratum Mining Server: WebSocket + gRPC, DashMap concurrent workers
+- [ ] PWA: offline tx queue, push notifications, biometric auth, service worker
 
 ### AGI Emergence: [X]% ready
 - [ ] Knowledge graph from every block since genesis
@@ -1011,8 +1306,8 @@ Produce 3 specific, high-impact improvements for EACH of the 12 components.
 - [ ] CSF routing: real messages between Sephirot
 - [ ] Pineal: circadian phases modulate intensity
 
-## IMPROVEMENTS (36 total, 3 per component)
-### 5.1-5.12 (one section per component, including AIKGS sidecar + TWA)
+## IMPROVEMENTS (48 total, 3 per component)
+### 5.1-5.16 (one section per component, including competitive features + Rust crates + PWA)
 
 ## IMPLEMENTATION SEQUENCE
 ## RUN LOG
@@ -1045,18 +1340,29 @@ Each: title, novel aspect, technical description, implementation plan, competiti
 14. **Quality over quantity.** One real finding with file:line > ten vague observations.
 15. **Never "done."** Each run = measurably closer to both end goals. Track quantitatively.
 16. **Zero tolerance.** No "good enough." Every edge case, error path, failure mode.
-17. **295 endpoints verified.** 276 REST + 19 JSON-RPC. Present, functional, tested, frontend-connected.
-18. **Rust verification mandatory.** 6 modules: zero todo!(), numerical parity, thread safety.
+17. **361 endpoints verified.** 342 REST + 19 JSON-RPC. Present, functional, tested, frontend-connected.
+18. **Rust verification mandatory.** aether-core (6 modules) + security-core (2 modules) + stratum-server (7 files): zero todo!(), numerical parity, thread safety.
 19. **Substrate cross-system parity.** Python L1 == Substrate L1 for identical inputs.
-20. **57 contracts, 57 rows.** No contract skipped. No contract assumed correct unread.
+20. **62 contracts, 62 rows.** No contract skipped. No contract assumed correct unread.
 21. **mock-engine.ts is launch-blocking.** If imported in production exchange code, flag CRITICAL.
 22. **Higgs Yukawa hierarchy is tiered.** Not sequential phi^-i. Verify actual code tiers match documentation.
 23. **AIKGS sidecar is launch-blocking.** No gRPC auth = CRITICAL. Disburse without validation = CRITICAL. Fire-and-forget treasury payments = CRITICAL.
 24. **AIKGS pool accounting must be complete.** Pool balance = initial_pool - SUM(rewards + commissions + bounties). All outflows tracked.
 25. **AIKGS contribution pipeline must be transactional.** All 12 steps wrapped in a DB transaction. No partial state on failure.
-26. **12 components, 36 improvements.** No component skipped. AIKGS sidecar and TWA are the newest — give them extra scrutiny.
+26. **16 components, 48 improvements.** No component skipped. Competitive features, security-core, stratum, and PWA are the newest — give them extra scrutiny.
 27. **TWA pages must render real data.** All 8 pages fetch from live backend APIs. No hardcoded stats, no mock data.
 28. **Telegram initData is untrusted.** Frontend uses `initDataUnsafe` for UI display only. Server validates webhook HMAC-SHA-256.
 29. **TWA private keys never on server.** `/wallet/create` returns address + public_key_hex ONLY. Private key generation is client-side WASM.
 30. **TWA event listener cleanup.** All Telegram SDK callbacks (BackButton, MainButton, theme, viewport) must be cleaned up on unmount.
 31. **Bot wallet persistence.** `_user_wallets` in `telegram_bot.py` is in-memory only. Flag if no DB persistence plan documented.
+32. **BFT Finality is consensus-critical.** Reorg protection MUST block reorgs below finalized height. Verify `resolve_fork()` in `consensus/engine.py`.
+33. **Inheritance grace period is safety-critical.** Owner MUST cancel during grace period. Test: claim + cancel before grace expires = owner keeps funds.
+34. **High-Security daily limit is sliding window.** `get_daily_spent()` counts last `SECURITY_DAILY_LIMIT_WINDOW` blocks, not calendar day.
+35. **Deniable RPCs must be constant-time.** `batch_balance()` must NOT short-circuit. All queries processed identically to prevent timing attacks.
+36. **Security-core Rust/Python parity.** BloomFilter + FinalityCore results MUST be identical between Rust and Python fallback.
+37. **Stratum concurrent safety.** DashMap usage verified — no deadlocks, no stale workers after disconnect.
+38. **PWA offline queue must not lose transactions.** IndexedDB operations transactional. Queue offline → go online → broadcast → remove from queue.
+39. **Service worker must not cache API responses.** Only static assets cached. Dynamic API calls always hit network.
+40. **Finality metrics must be accurate.** `finality_total_stake`, `finality_validator_count`, `finality_last_finalized` reflect actual state.
+41. **4,357 tests must all pass.** No skipped tests in competitive features. All 193 competitive feature tests green.
+42. **Dilithium multi-level verified.** ML-DSA-44/65/87 all functional. Config: `DILITHIUM_SECURITY_LEVEL=5` default.

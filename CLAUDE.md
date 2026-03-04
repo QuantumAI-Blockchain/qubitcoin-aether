@@ -26,7 +26,7 @@
 
 ---
 
-## 1.1 CURRENT PROJECT STATUS (February 2026)
+## 1.1 CURRENT PROJECT STATUS (March 2026)
 
 **All code is written and production-ready. The project is in launch phase.**
 
@@ -34,20 +34,25 @@
 
 | Layer | Component | Files | LOC | Status |
 |-------|-----------|-------|-----|--------|
-| **L1** | Blockchain Core (Python) | 15 modules | ~7,800 | Production Ready |
+| **L1** | Blockchain Core (Python) | 160 modules | ~82,500 | Production Ready |
 | **L1** | Rust P2P (libp2p 0.56) | 4 source files | ~1,200 | Production Ready |
+| **L1** | Rust Security Core (PyO3) | 3 source files | ~530 | Production Ready |
+| **L1** | Rust Stratum Server | 7 source files | ~1,030 | Production Ready |
 | **L1** | Substrate Hybrid Node (Rust) | 7 crates, 29 files | ~17,400 | Production Ready |
+| **L1** | Competitive Features | 4 modules | ~1,640 | Production Ready |
 | **L2** | QVM Python Prototype | 8 modules | ~4,500 | Production Ready |
-| **L2** | QVM Go Production | 32 source files | ~10,000 | Production Ready |
-| **L2** | Solidity Contracts | 50 contracts | ~12,500 | Production Ready |
-| **L3** | Aether Tree (Python) | 34 modules | ~19,000 | Production Ready |
+| **L2** | QVM Go Production | 34 source files | ~10,000 | Production Ready |
+| **L2** | Solidity Contracts | 62 contracts | ~15,000 | Production Ready |
+| **L3** | Aether Tree (Python) | 36 modules | ~24,560 | Production Ready |
+| **L3** | Aether Tree Rust (PyO3) | 10 modules | ~10,246 | Production Ready |
 | **L3** | Aether Tree Higgs Field | 2 new + 11 modified | ~2,700 | Production Ready |
-| **Frontend** | React/Next.js (qbc.network) | 35 components | ~8,000 | 85-90% Ready |
+| **Frontend** | React/Next.js (qbc.network) | 198 TS/TSX files | ~12,000 | Production Ready |
+| **Frontend** | PWA Enhancements | 7 components | ~700 | Production Ready |
 | **Infra** | Docker/Monitoring/DevOps | 20+ configs | ~2,000 | Production Ready |
-| **Docs** | Whitepapers + Guides | 8 files | ~5,800 | Production Ready |
+| **Docs** | Whitepapers + Guides | 10 files | ~8,000 | Production Ready |
 | **L1** | QUSD Peg Keeper | 3 modules (dex_price, arbitrage, keeper) | ~2,100 | Production Ready |
-| **Tests** | Python pytest suite | 4,033 tests | ~34,000 | All Passing |
-| **Total** | | **300+ files** | **~100,000+** | **Production Ready** |
+| **Tests** | Python pytest suite | 4,357 tests | ~40,000 | All Passing |
+| **Total** | | **400+ files** | **~200,000+** | **Production Ready** |
 
 ### What Needs To Happen Next
 
@@ -67,7 +72,7 @@ The immediate launch sequence is:
 | `ENABLE_RUST_P2P` | Resolved | Default is now `true` — Rust libp2p is the primary P2P layer. Node auto-launches Rust binary and falls back to Python P2P if binary is missing or daemon fails to start. |
 | Frontend backend gaps | Low | Most backend API endpoints now wired. A few frontend pages may still show "---" for real-time data when node is not running. |
 | Schema-model sync | Low | Both db-init SQL and SQLAlchemy create tables. SQLAlchemy `create_all()` skips existing tables, so no conflict if SQL runs first. |
-| Smart contracts | Info | 50 Solidity contracts exist but are NOT auto-deployed at genesis. Must deploy via RPC after node is running. |
+| Smart contracts | Info | 62 Solidity contracts exist but are NOT auto-deployed at genesis. Must deploy via RPC after node is running. |
 | Substrate WASM | Low | Native build works with `SKIP_WASM_BUILD=1`. WASM build deferred due to serde_core `exchange_malloc` conflict. |
 
 ### Key Files For Launch
@@ -270,7 +275,7 @@ Qubitcoin/
 │       │   ├── manager.py            # DatabaseManager (sessions, queries)
 │       │   └── models.py             # SQLAlchemy ORM models
 │       ├── network/                  # [L1] RPC + P2P
-│       │   ├── rpc.py                # 229+ REST + JSON-RPC endpoints
+│       │   ├── rpc.py                # 342 REST + JSON-RPC endpoints
 │       │   ├── jsonrpc.py            # eth_* MetaMask compatible
 │       │   ├── p2p_network.py        # Python P2P (legacy fallback)
 │       │   └── rust_p2p_client.py    # Rust libp2p gRPC client
@@ -1217,6 +1222,23 @@ The frontend connects to the node via:
 | POST | `/keeper/resume` | Resume keeper daemon |
 | GET | `/keeper/prices` | Multi-chain DEX prices |
 | GET | `/keeper/arb/summary` | Arbitrage summary |
+| POST | `/inheritance/set-beneficiary` | Set beneficiary for dead-man's switch |
+| POST | `/inheritance/heartbeat` | Reset inactivity timer |
+| POST | `/inheritance/claim` | Beneficiary claims after inactivity threshold |
+| GET | `/inheritance/status/{address}` | Get inheritance plan status |
+| POST | `/security/policy/set` | Set spending limits, time-locks, whitelists |
+| GET | `/security/policy/{address}` | Get security policy |
+| DELETE | `/security/policy/{address}` | Remove security policy |
+| POST | `/privacy/batch-balance` | Batch balance query (constant-time, no short-circuit) |
+| POST | `/privacy/bloom-utxos` | Get UTXOs as Bloom filter (plausible deniability) |
+| POST | `/privacy/batch-blocks` | Fetch multiple blocks in one request |
+| POST | `/privacy/batch-tx` | Fetch multiple transactions in one request |
+| GET | `/finality/status` | BFT finality gadget status |
+| POST | `/finality/vote` | Submit a finality vote |
+| POST | `/finality/register-validator` | Register as finality validator (min 100 QBC stake) |
+| GET | `/stratum/info` | Stratum mining server info |
+| GET | `/stratum/stats` | Mining pool statistics |
+| GET | `/stratum/workers` | Connected Stratum workers |
 | GET | `/metrics` | Prometheus metrics |
 
 ### 11.2 JSON-RPC (MetaMask/Web3 Compatible)

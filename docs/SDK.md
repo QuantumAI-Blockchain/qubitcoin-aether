@@ -195,7 +195,360 @@ curl -X POST http://localhost:5000/mining/stop
 curl http://localhost:5000/mining/stats
 ```
 
-### 3.4 WebSocket (Real-time Updates)
+### 3.4 Inheritance Protocol (Dead-Man's Switch)
+
+Qubitcoin supports on-chain inheritance planning via a dead-man's switch mechanism.
+Account holders designate a beneficiary and must send periodic heartbeats. If the
+inactivity threshold is exceeded, the beneficiary can claim the funds.
+
+#### Set Beneficiary
+
+```bash
+curl -X POST http://localhost:5000/inheritance/set-beneficiary \
+  -H "Content-Type: application/json" \
+  -d '{
+    "owner_address": "qbc1...",
+    "beneficiary_address": "qbc1...",
+    "inactivity_threshold_days": 365,
+    "signature": "0x..."
+  }'
+```
+
+```json
+{
+  "status": "active",
+  "owner": "qbc1...",
+  "beneficiary": "qbc1...",
+  "threshold_days": 365,
+  "last_heartbeat": 1709500000,
+  "expires_at": 1741036000
+}
+```
+
+#### Send Heartbeat
+
+```bash
+curl -X POST http://localhost:5000/inheritance/heartbeat \
+  -H "Content-Type: application/json" \
+  -d '{"owner_address": "qbc1...", "signature": "0x..."}'
+```
+
+#### Claim Inheritance
+
+```bash
+curl -X POST http://localhost:5000/inheritance/claim \
+  -H "Content-Type: application/json" \
+  -d '{"beneficiary_address": "qbc1...", "owner_address": "qbc1...", "signature": "0x..."}'
+```
+
+Returns an error if the inactivity threshold has not yet been exceeded.
+
+#### Get Inheritance Status
+
+```bash
+curl http://localhost:5000/inheritance/status/qbc1abc123...
+```
+
+```json
+{
+  "owner": "qbc1...",
+  "beneficiary": "qbc1...",
+  "threshold_days": 365,
+  "last_heartbeat": 1709500000,
+  "days_since_heartbeat": 42,
+  "claimable": false,
+  "balance_qbc": 15000.0
+}
+```
+
+### 3.5 High-Security Accounts
+
+High-security accounts allow address owners to enforce spending limits, time-locks,
+and address whitelists at the protocol level. Once a security policy is set, all
+outgoing transactions from the address must comply with the policy constraints.
+
+#### Set Security Policy
+
+```bash
+curl -X POST http://localhost:5000/security/policy/set \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "qbc1...",
+    "daily_spending_limit_qbc": 1000.0,
+    "per_tx_limit_qbc": 500.0,
+    "time_lock_hours": 24,
+    "whitelist_addresses": ["qbc1aaa...", "qbc1bbb..."],
+    "require_multi_sig": false,
+    "signature": "0x..."
+  }'
+```
+
+```json
+{
+  "address": "qbc1...",
+  "policy_active": true,
+  "daily_limit_qbc": 1000.0,
+  "per_tx_limit_qbc": 500.0,
+  "time_lock_hours": 24,
+  "whitelisted": 2,
+  "created_block": 42500
+}
+```
+
+#### Get Security Policy
+
+```bash
+curl http://localhost:5000/security/policy/qbc1abc123...
+```
+
+```json
+{
+  "address": "qbc1...",
+  "policy_active": true,
+  "daily_limit_qbc": 1000.0,
+  "per_tx_limit_qbc": 500.0,
+  "time_lock_hours": 24,
+  "whitelist_addresses": ["qbc1aaa...", "qbc1bbb..."],
+  "spent_today_qbc": 250.0,
+  "remaining_daily_qbc": 750.0,
+  "require_multi_sig": false,
+  "created_block": 42500
+}
+```
+
+#### Remove Security Policy
+
+```bash
+curl -X DELETE http://localhost:5000/security/policy/qbc1abc123... \
+  -H "Content-Type: application/json" \
+  -d '{"signature": "0x..."}'
+```
+
+Removing a policy is subject to the existing time-lock (if set). The deletion
+request enters a pending state and executes after the time-lock period elapses.
+
+### 3.6 Deniable RPCs (Privacy)
+
+Deniable RPC endpoints provide privacy-preserving query mechanisms. These endpoints
+are designed to prevent timing attacks and metadata leakage by using constant-time
+operations and batch queries that provide plausible deniability about which specific
+data the caller is interested in.
+
+#### Batch Balance Query
+
+Query multiple addresses in a single constant-time request. The server processes all
+addresses without short-circuiting, preventing timing-based inference about which
+address the caller actually cares about.
+
+```bash
+curl -X POST http://localhost:5000/privacy/batch-balance \
+  -H "Content-Type: application/json" \
+  -d '{
+    "addresses": ["qbc1aaa...", "qbc1bbb...", "qbc1ccc..."],
+    "include_decoys": true
+  }'
+```
+
+```json
+{
+  "balances": {
+    "qbc1aaa...": 1500.0,
+    "qbc1bbb...": 0.0,
+    "qbc1ccc...": 42.5
+  },
+  "query_time_ms": 12,
+  "constant_time": true
+}
+```
+
+#### Bloom Filter UTXOs
+
+Returns UTXOs as a Bloom filter rather than an explicit list. The caller can test
+membership locally without revealing which specific UTXOs they own.
+
+```bash
+curl -X POST http://localhost:5000/privacy/bloom-utxos \
+  -H "Content-Type: application/json" \
+  -d '{
+    "addresses": ["qbc1aaa...", "qbc1bbb..."],
+    "false_positive_rate": 0.01
+  }'
+```
+
+```json
+{
+  "bloom_filter": "base64-encoded-filter...",
+  "filter_size_bytes": 4096,
+  "hash_count": 7,
+  "element_count": 42,
+  "false_positive_rate": 0.01
+}
+```
+
+#### Batch Block Fetch
+
+Fetch multiple blocks in a single request, preventing observers from knowing which
+specific block height the caller is interested in.
+
+```bash
+curl -X POST http://localhost:5000/privacy/batch-blocks \
+  -H "Content-Type: application/json" \
+  -d '{"block_heights": [1000, 1001, 1002, 1003, 1004]}'
+```
+
+#### Batch Transaction Fetch
+
+Fetch multiple transactions by hash in a single request with constant-time processing.
+
+```bash
+curl -X POST http://localhost:5000/privacy/batch-tx \
+  -H "Content-Type: application/json" \
+  -d '{"tx_hashes": ["0xabc...", "0xdef...", "0x123..."]}'
+```
+
+### 3.7 BFT Finality Gadget
+
+Qubitcoin uses a BFT finality gadget layered on top of the Proof-of-SUSY-Alignment
+consensus. Validators stake QBC and vote on blocks to achieve deterministic finality.
+Once a block is finalized, it cannot be reverted.
+
+#### Get Finality Status
+
+```bash
+curl http://localhost:5000/finality/status
+```
+
+```json
+{
+  "finality_enabled": true,
+  "validator_count": 21,
+  "total_stake_qbc": 210000.0,
+  "min_stake_qbc": 100.0,
+  "finalized_height": 41980,
+  "current_height": 42000,
+  "finality_lag_blocks": 20,
+  "quorum_threshold": 0.67,
+  "epoch": 420
+}
+```
+
+#### Submit Finality Vote
+
+```bash
+curl -X POST http://localhost:5000/finality/vote \
+  -H "Content-Type: application/json" \
+  -d '{
+    "validator_address": "qbc1...",
+    "block_height": 42000,
+    "block_hash": "0xabc123...",
+    "signature": "0x..."
+  }'
+```
+
+```json
+{
+  "accepted": true,
+  "block_height": 42000,
+  "votes_received": 15,
+  "votes_required": 14,
+  "finalized": true
+}
+```
+
+#### Register as Finality Validator
+
+Minimum stake: 100 QBC. Validators earn a share of block rewards proportional to their
+stake. Misbehaving validators (double-voting, inactivity) are slashed.
+
+```bash
+curl -X POST http://localhost:5000/finality/register-validator \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "qbc1...",
+    "stake_qbc": 1000.0,
+    "signature": "0x..."
+  }'
+```
+
+```json
+{
+  "registered": true,
+  "validator_address": "qbc1...",
+  "stake_qbc": 1000.0,
+  "validator_index": 22,
+  "activation_block": 42100,
+  "message": "Validator will be active after 1 epoch (~100 blocks)"
+}
+```
+
+### 3.8 Stratum Mining Protocol
+
+Qubitcoin supports the Stratum mining protocol for pool mining. The Stratum server
+runs alongside the node and distributes VQE mining work to connected workers.
+
+#### Get Stratum Server Info
+
+```bash
+curl http://localhost:5000/stratum/info
+```
+
+```json
+{
+  "stratum_enabled": true,
+  "stratum_port": 3333,
+  "protocol_version": "stratum+tcp",
+  "difficulty": 1.0,
+  "block_height": 42000,
+  "connected_workers": 8,
+  "pool_hashrate": "4.2 TH/s",
+  "reward_method": "PPLNS"
+}
+```
+
+#### Get Mining Pool Statistics
+
+```bash
+curl http://localhost:5000/stratum/stats
+```
+
+```json
+{
+  "pool_blocks_found": 156,
+  "pool_efficiency": 0.98,
+  "total_workers_ever": 42,
+  "active_workers": 8,
+  "average_share_time_ms": 3300,
+  "last_block_found": 41950,
+  "payout_threshold_qbc": 1.0,
+  "total_paid_qbc": 2380.0
+}
+```
+
+#### Get Connected Workers
+
+```bash
+curl http://localhost:5000/stratum/workers
+```
+
+```json
+{
+  "workers": [
+    {
+      "worker_id": "worker01",
+      "address": "qbc1...",
+      "connected_since": 1709400000,
+      "shares_submitted": 1200,
+      "shares_accepted": 1195,
+      "shares_rejected": 5,
+      "hashrate": "0.5 TH/s",
+      "last_share": 1709500000
+    }
+  ],
+  "total_workers": 8
+}
+```
+
+### 3.9 WebSocket (Real-time Updates)
 
 ```typescript
 const ws = new WebSocket("ws://localhost:5000/ws");
