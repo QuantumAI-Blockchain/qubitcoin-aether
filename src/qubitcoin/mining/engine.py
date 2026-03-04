@@ -21,7 +21,8 @@ class MiningEngine:
     """Manages mining operations"""
 
     def __init__(self, quantum_engine: QuantumEngine, consensus_engine: ConsensusEngine,
-                 db_manager, console, state_manager=None, aether_engine=None):
+                 db_manager, console, state_manager=None, aether_engine=None,
+                 substrate_bridge=None):
         """Initialize mining engine"""
         self.quantum = quantum_engine
         self.consensus = consensus_engine
@@ -29,6 +30,7 @@ class MiningEngine:
         self.console = console
         self.state_manager = state_manager
         self.aether = aether_engine
+        self.substrate_bridge = substrate_bridge
         self.node = None
         self.circulation_tracker = None  # Wired from node.py after RPC app creation
         # AIKGS reward outputs removed — rewards now disbursed as treasury
@@ -172,6 +174,39 @@ class MiningEngine:
             self._stop_event.wait(timeout=Config.MINING_INTERVAL)
             return
 
+        # ── SUBSTRATE MODE: submit proof as extrinsic, skip local block creation ──
+        if self.substrate_bridge:
+            try:
+                from ..substrate_codec import python_vqe_to_substrate
+                vqe_proof = python_vqe_to_substrate(
+                    params=params.tolist(),
+                    energy=float(energy),
+                    prev_hash=prev_hash,
+                    n_qubits=4,
+                )
+                # Submit mining proof from sync thread via event loop
+                import asyncio as _asyncio
+                loop = _asyncio.new_event_loop()
+                tx_hash = loop.run_until_complete(
+                    self.substrate_bridge.submit_mining_proof(vqe_proof)
+                )
+                loop.close()
+                if tx_hash:
+                    with self._lock:
+                        self.stats['blocks_found'] += 1
+                    blocks_mined.inc()
+                    logger.info(
+                        f"Mining proof submitted to Substrate: "
+                        f"energy={energy:.6f}, tx={tx_hash}"
+                    )
+                else:
+                    logger.warning("Mining proof submission returned no hash")
+            except Exception as e:
+                logger.error(f"Substrate mining proof submission failed: {e}", exc_info=True)
+            self._stop_event.wait(timeout=Config.MINING_INTERVAL)
+            return
+
+        # ── STANDALONE MODE: create block locally ──
         # Build proof with chain binding
         proof_data = self._create_proof(hamiltonian, params, energy, prev_hash, next_height)
         total_supply = self.db.get_total_supply()

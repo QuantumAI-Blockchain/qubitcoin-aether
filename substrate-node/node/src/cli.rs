@@ -10,6 +10,14 @@ pub struct Cli {
 
     #[clap(flatten)]
     pub run: RunCmd,
+
+    /// Enable VQE mining.
+    #[clap(long)]
+    pub mine: bool,
+
+    /// Number of mining threads (default: 1).
+    #[clap(long, default_value = "1")]
+    pub mining_threads: u32,
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -152,9 +160,12 @@ pub fn run() -> sc_cli::Result<()> {
             Err("Benchmarking not yet implemented".into())
         }
         None => {
+            let mine = cli.mine;
+            let mining_threads = cli.mining_threads;
             let runner = cli.create_runner(&cli.run)?;
             runner.run_node_until_exit(|config| async move {
-                crate::service::new_full(config).map_err(sc_cli::Error::Service)
+                crate::service::new_full(config, mine, mining_threads)
+                    .map_err(sc_cli::Error::Service)
             })
         }
     }

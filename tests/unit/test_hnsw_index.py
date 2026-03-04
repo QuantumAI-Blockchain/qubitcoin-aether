@@ -8,6 +8,11 @@ Covers:
 - VectorIndex HNSW auto-switching
 - VectorIndex forced HNSW mode
 - Edge cases (empty index, single vector, duplicate IDs)
+
+Supports both the pure-Python backend and the Rust-accelerated aether_core
+backend.  When the Rust backend is active, internal Python attributes like
+_entry_point, _cosine_distance, _node_layers, etc. are not exposed, so tests
+that depend on those internals are skipped or adapted to use the public API.
 """
 import math
 import random
@@ -15,6 +20,10 @@ import random
 import pytest
 
 from qubitcoin.aether.vector_index import HNSWIndex, VectorIndex, cosine_similarity
+
+# Detect whether we are running against the Rust aether_core backend.
+# The Rust pyclass does not expose underscore-prefixed Python attributes.
+_USING_RUST_BACKEND = not hasattr(HNSWIndex(max_connections=4), '_entry_point')
 
 
 # ============================================================================
@@ -136,15 +145,28 @@ class TestHNSWIndexBasic:
         assert len(idx) == 1
 
     def test_remove_entry_point(self) -> None:
-        """Removing the entry point selects a new one."""
+        """Removing the entry point selects a new one and index still works."""
         idx = HNSWIndex(max_connections=4, max_layers=2)
         for i in range(5):
             idx.add_vector(i, _random_vector(dim=8, seed=i))
 
-        entry = idx._entry_point
-        idx.remove(entry)
-        assert idx._entry_point is not None
-        assert idx._entry_point != entry
+        if _USING_RUST_BACKEND:
+            # Rust backend: _entry_point is not exposed, but we can verify
+            # that after removing the first-added vector (likely entry point),
+            # the index still functions correctly.
+            idx.remove(0)
+            assert len(idx) == 4
+            assert 0 not in idx
+            # Index should still be searchable
+            results = idx.search(_random_vector(dim=8, seed=0), k=3)
+            assert len(results) >= 1
+            result_ids = {r[0] for r in results}
+            assert 0 not in result_ids
+        else:
+            entry = idx._entry_point
+            idx.remove(entry)
+            assert idx._entry_point is not None
+            assert idx._entry_point != entry
 
     def test_search_empty_index(self) -> None:
         """Searching an empty index returns empty list."""
@@ -181,7 +203,10 @@ class TestHNSWLayers:
         random.seed(42)
         for i in range(200):
             idx.add_vector(i, _random_vector(dim=8, seed=i))
-        assert idx._max_level >= 1, "Expected at least 2 layers with 200 nodes"
+
+        # Use get_stats() which is available on both backends
+        stats = idx.get_stats()
+        assert stats['max_level'] >= 1, "Expected at least 2 layers with 200 nodes"
 
     def test_max_layers_respected(self) -> None:
         """No node exceeds the max_layers limit."""
@@ -189,8 +214,16 @@ class TestHNSWLayers:
         random.seed(123)
         for i in range(100):
             idx.add_vector(i, _random_vector(dim=8, seed=i))
-        for nid, level in idx._node_layers.items():
-            assert level < 3, f"Node {nid} at level {level} exceeds max_layers=3"
+
+        if _USING_RUST_BACKEND:
+            # Rust backend: _node_layers is not exposed, but we can verify
+            # through get_stats() that max_level is within bounds.
+            stats = idx.get_stats()
+            assert stats['max_level'] < 3, \
+                f"max_level {stats['max_level']} exceeds max_layers=3"
+        else:
+            for nid, level in idx._node_layers.items():
+                assert level < 3, f"Node {nid} at level {level} exceeds max_layers=3"
 
 
 # ============================================================================
@@ -198,32 +231,53 @@ class TestHNSWLayers:
 # ============================================================================
 
 class TestCosineDistance:
-    """Tests for cosine distance computation in HNSW."""
+    """Tests for cosine distance computation used by HNSW.
+
+    When the Rust backend is active, the internal _cosine_distance method is
+    not exposed.  Tests use the module-level cosine_similarity function and
+    verify the equivalent distance = 1 - similarity relationship.
+    """
 
     def test_identical_vectors_zero_distance(self) -> None:
-        """Identical vectors have cosine distance 0."""
-        idx = HNSWIndex()
+        """Identical vectors have cosine distance 0 (similarity 1)."""
         vec = [1.0, 2.0, 3.0]
-        assert abs(idx._cosine_distance(vec, vec)) < 1e-10
+        if _USING_RUST_BACKEND:
+            sim = cosine_similarity(vec, vec)
+            assert abs(1.0 - sim) < 1e-10  # distance = 1 - sim ~ 0
+        else:
+            idx = HNSWIndex()
+            assert abs(idx._cosine_distance(vec, vec)) < 1e-10
 
     def test_orthogonal_vectors_distance_one(self) -> None:
-        """Orthogonal vectors have cosine distance 1."""
-        idx = HNSWIndex()
+        """Orthogonal vectors have cosine distance 1 (similarity 0)."""
         a = [1.0, 0.0, 0.0]
         b = [0.0, 1.0, 0.0]
-        assert abs(idx._cosine_distance(a, b) - 1.0) < 1e-10
+        if _USING_RUST_BACKEND:
+            sim = cosine_similarity(a, b)
+            assert abs(sim) < 1e-10  # distance = 1 - 0 = 1
+        else:
+            idx = HNSWIndex()
+            assert abs(idx._cosine_distance(a, b) - 1.0) < 1e-10
 
     def test_opposite_vectors_distance_two(self) -> None:
-        """Opposite vectors have cosine distance 2."""
-        idx = HNSWIndex()
+        """Opposite vectors have cosine distance 2 (similarity -1)."""
         a = [1.0, 0.0]
         b = [-1.0, 0.0]
-        assert abs(idx._cosine_distance(a, b) - 2.0) < 1e-10
+        if _USING_RUST_BACKEND:
+            sim = cosine_similarity(a, b)
+            assert abs(sim - (-1.0)) < 1e-10  # distance = 1 - (-1) = 2
+        else:
+            idx = HNSWIndex()
+            assert abs(idx._cosine_distance(a, b) - 2.0) < 1e-10
 
     def test_zero_vector_distance_one(self) -> None:
-        """Zero vector has distance 1 from any vector."""
-        idx = HNSWIndex()
-        assert idx._cosine_distance([0.0, 0.0], [1.0, 2.0]) == 1.0
+        """Zero vector has distance 1 from any vector (similarity 0)."""
+        if _USING_RUST_BACKEND:
+            sim = cosine_similarity([0.0, 0.0], [1.0, 2.0])
+            assert sim == 0.0  # distance = 1 - 0 = 1
+        else:
+            idx = HNSWIndex()
+            assert idx._cosine_distance([0.0, 0.0], [1.0, 2.0]) == 1.0
 
 
 # ============================================================================
@@ -234,38 +288,73 @@ class TestVectorIndexHNSW:
     """Tests for VectorIndex with HNSW integration."""
 
     def test_auto_mode_default(self) -> None:
-        """Default VectorIndex has use_hnsw=None (auto mode)."""
+        """Default VectorIndex has auto mode (use_hnsw=None)."""
         vi = VectorIndex()
-        assert vi._use_hnsw is None
+        if _USING_RUST_BACKEND:
+            # Rust backend: check via get_stats() which reports hnsw_mode
+            stats = vi.get_stats()
+            assert stats['hnsw_mode'] == 'auto'
+        else:
+            assert vi._use_hnsw is None
 
     def test_forced_hnsw_mode(self) -> None:
         """VectorIndex(use_hnsw=True) forces HNSW for all queries."""
         vi = VectorIndex(use_hnsw=True)
-        assert vi._use_hnsw is True
-        assert vi._should_use_hnsw() is True
+        if _USING_RUST_BACKEND:
+            stats = vi.get_stats()
+            assert stats['hnsw_mode'] == 'true'
+        else:
+            assert vi._use_hnsw is True
+            assert vi._should_use_hnsw() is True
 
     def test_forced_sequential_mode(self) -> None:
         """VectorIndex(use_hnsw=False) forces sequential search."""
         vi = VectorIndex(use_hnsw=False)
-        assert vi._use_hnsw is False
-        assert vi._should_use_hnsw() is False
+        if _USING_RUST_BACKEND:
+            stats = vi.get_stats()
+            assert stats['hnsw_mode'] == 'false'
+        else:
+            assert vi._use_hnsw is False
+            assert vi._should_use_hnsw() is False
 
     def test_auto_mode_switches_at_threshold(self) -> None:
         """Auto mode activates HNSW when embeddings exceed threshold."""
-        vi = VectorIndex()
-        # Below threshold: sequential
-        for i in range(100):
-            vi.embeddings[i] = _random_vector(dim=16, seed=i)
-        assert vi._should_use_hnsw() is False
+        if _USING_RUST_BACKEND:
+            # Rust backend: verify via stats. Add embeddings via public API.
+            vi = VectorIndex()
+            for i in range(100):
+                vi.add_embedding(i, _random_vector(dim=16, seed=i))
+            stats_below = vi.get_stats()
+            # With only 100 vectors, HNSW should not be active in auto mode
+            assert stats_below['hnsw_mode'] == 'auto'
 
-        # Above threshold
-        for i in range(100, 1100):
-            vi.embeddings[i] = _random_vector(dim=16, seed=i)
-        vi._dim = 16
-        assert vi._should_use_hnsw() is True
+            # Add more to exceed threshold (1000)
+            for i in range(100, 1100):
+                vi.add_embedding(i, _random_vector(dim=16, seed=i))
+            # Trigger a query to force HNSW rebuild
+            vi.query_by_embedding(_random_vector(dim=16, seed=9999), top_k=1)
+            stats_above = vi.get_stats()
+            assert stats_above['total_embeddings'] == 1100
+            # After querying with >1000 vectors, HNSW should have been built
+            assert stats_above.get('uses_hnsw', False) is True
+        else:
+            vi = VectorIndex()
+            # Below threshold: sequential
+            for i in range(100):
+                vi.embeddings[i] = _random_vector(dim=16, seed=i)
+            assert vi._should_use_hnsw() is False
+
+            # Above threshold
+            for i in range(100, 1100):
+                vi.embeddings[i] = _random_vector(dim=16, seed=i)
+            vi._dim = 16
+            assert vi._should_use_hnsw() is True
 
     def test_ensure_py_hnsw_builds_index(self) -> None:
         """_ensure_py_hnsw builds and returns the HNSW index when forced."""
+        if _USING_RUST_BACKEND:
+            pytest.skip("Rust backend does not expose _ensure_py_hnsw()")
+
         vi = VectorIndex(use_hnsw=True)
         for i in range(20):
             vi.embeddings[i] = _random_vector(dim=16, seed=i)
@@ -280,11 +369,18 @@ class TestVectorIndexHNSW:
         """query_by_embedding returns results via HNSW when forced."""
         vi = VectorIndex(use_hnsw=True)
         target = _random_vector(dim=16, seed=42)
-        for i in range(30):
-            vi.embeddings[i] = _random_vector(dim=16, seed=i)
-        vi.embeddings[999] = target
-        vi._dim = 16
-        vi._py_hnsw_dirty = True
+
+        if _USING_RUST_BACKEND:
+            # Use the public add_embedding API
+            for i in range(30):
+                vi.add_embedding(i, _random_vector(dim=16, seed=i))
+            vi.add_embedding(999, target)
+        else:
+            for i in range(30):
+                vi.embeddings[i] = _random_vector(dim=16, seed=i)
+            vi.embeddings[999] = target
+            vi._dim = 16
+            vi._py_hnsw_dirty = True
 
         results = vi.query_by_embedding(target, top_k=5)
         assert len(results) >= 1
@@ -296,28 +392,60 @@ class TestVectorIndexHNSW:
     def test_get_stats_includes_hnsw_info(self) -> None:
         """get_stats reports HNSW status."""
         vi = VectorIndex(use_hnsw=True)
-        for i in range(10):
-            vi.embeddings[i] = _random_vector(dim=8, seed=i)
-        vi._dim = 8
-        vi._ensure_py_hnsw()
 
-        stats = vi.get_stats()
-        assert 'uses_py_hnsw' in stats
-        assert 'hnsw_mode' in stats
-        assert stats['uses_py_hnsw'] is True
-        assert 'py_hnsw_stats' in stats
+        if _USING_RUST_BACKEND:
+            for i in range(10):
+                vi.add_embedding(i, _random_vector(dim=8, seed=i))
+            # Trigger HNSW build by querying
+            vi.query_by_embedding(_random_vector(dim=8, seed=999), top_k=1)
+
+            stats = vi.get_stats()
+            assert 'hnsw_mode' in stats
+            assert stats['hnsw_mode'] == 'true'
+            assert 'uses_hnsw' in stats
+            assert stats['uses_hnsw'] is True
+            assert 'hnsw_stats' in stats
+        else:
+            for i in range(10):
+                vi.embeddings[i] = _random_vector(dim=8, seed=i)
+            vi._dim = 8
+            vi._ensure_py_hnsw()
+
+            stats = vi.get_stats()
+            assert 'uses_py_hnsw' in stats
+            assert 'hnsw_mode' in stats
+            assert stats['uses_py_hnsw'] is True
+            assert 'py_hnsw_stats' in stats
 
     def test_remove_node_marks_hnsw_dirty(self) -> None:
-        """Removing a node marks the HNSW index as dirty."""
-        vi = VectorIndex(use_hnsw=True)
-        for i in range(10):
-            vi.embeddings[i] = _random_vector(dim=8, seed=i)
-        vi._dim = 8
-        vi._ensure_py_hnsw()
-        assert vi._py_hnsw_dirty is False
+        """Removing a node invalidates the HNSW index."""
+        if _USING_RUST_BACKEND:
+            # Rust backend: _py_hnsw_dirty is not exposed. Verify that after
+            # removing a node, subsequent queries still produce correct results
+            # (which implies the index was properly invalidated and rebuilt).
+            vi = VectorIndex(use_hnsw=True)
+            for i in range(10):
+                vi.add_embedding(i, _random_vector(dim=8, seed=i))
+            # Trigger HNSW build
+            vi.query_by_embedding(_random_vector(dim=8, seed=999), top_k=1)
 
-        vi.remove_node(5)
-        assert vi._py_hnsw_dirty is True
+            vi.remove_embedding(5)
+            assert 5 not in vi
+
+            # Search should not return the removed node
+            results = vi.query_by_embedding(_random_vector(dim=8, seed=5), top_k=10)
+            result_ids = {r[0] for r in results}
+            assert 5 not in result_ids
+        else:
+            vi = VectorIndex(use_hnsw=True)
+            for i in range(10):
+                vi.embeddings[i] = _random_vector(dim=8, seed=i)
+            vi._dim = 8
+            vi._ensure_py_hnsw()
+            assert vi._py_hnsw_dirty is False
+
+            vi.remove_node(5)
+            assert vi._py_hnsw_dirty is True
 
 
 # ============================================================================

@@ -1,250 +1,280 @@
-# ═══════════════════════════════════════════════════════════════════════
-# Qubitcoin Substrate Stack — Full Microservice Deployment
-# ═══════════════════════════════════════════════════════════════════════
+# ============================================================================
+# Qubitcoin Substrate Hybrid Stack
+# Substrate consensus node + Python execution service + infrastructure
 #
-# Services:
-#   1. substrate-node     — L1 consensus (Aura + GRANDPA)
-#   2. vqe-miner          — VQE mining client (Qiskit)
-#   3. block-indexer       — Finalized block → CockroachDB
-#   4. api-gateway         — REST + JSON-RPC on :5000
-#   5. aether-service      — Aether Tree AGI on :5001
-#   6. aikgs-sidecar       — Knowledge rewards gRPC on :50052
-#   7. cockroachdb         — Database
-#   8. prometheus          — Metrics collection
-#   9. grafana             — Dashboards
+# Architecture:
+#   Substrate (L1 consensus: blocks, UTXO, P2P) → Python (L2/L3: QVM, Aether, RPC)
+#   Both share CockroachDB + IPFS + Redis
 #
 # Usage:
 #   docker compose -f docker-compose.substrate.yml up -d
-#   docker compose -f docker-compose.substrate.yml logs -f substrate-node
+#   docker compose -f docker-compose.substrate.yml --profile monitoring up -d
 #
 # Prerequisites:
-#   - Generate validator keys: ./scripts/setup/generate_substrate_keys.sh
 #   - Create .env from .env.example
-#   - Build substrate node: cd substrate-node && SKIP_WASM_BUILD=1 cargo build --release
-# ═══════════════════════════════════════════════════════════════════════
-
-name: qubitcoin-substrate
+#   - Generate keys: python3 scripts/setup/generate_keys.py
+# ============================================================================
 
 services:
-  # ── 1. Substrate Node (L1 Consensus) ──────────────────────────────
-  substrate-node:
-    build:
-      context: ./substrate-node
-      dockerfile: Dockerfile
-    container_name: qbc-substrate-node
-    ports:
-      - "9944:9944"     # WebSocket RPC
-      - "9933:9933"     # HTTP RPC
-      - "30333:30333"   # P2P
-    volumes:
-      - substrate-data:/data
-    environment:
-      - CHAIN=${CHAIN:-dev}
-    command: >
-      qbc-node
-      --chain ${CHAIN:-dev}
-      --base-path /data
-      --rpc-external
-      --rpc-cors all
-      --rpc-methods safe
-      --name "QBC-Validator-1"
-      --validator
-      --prometheus-external
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9933/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - qbc-net
-
-  # ── 2. VQE Mining Client ──────────────────────────────────────────
-  vqe-miner:
-    build:
-      context: .
-      dockerfile: miner/Dockerfile
-    container_name: qbc-vqe-miner
-    depends_on:
-      substrate-node:
-        condition: service_healthy
-    environment:
-      - SUBSTRATE_WS_URL=ws://substrate-node:9944
-      - MINER_SEED=${MINER_SEED:-//Alice}
-      - NUM_QUBITS=${NUM_QUBITS:-4}
-      - VQE_REPS=${VQE_REPS:-2}
-      - VQE_MAXITER=${VQE_MAXITER:-200}
-      - MAX_MINING_ATTEMPTS=${MAX_MINING_ATTEMPTS:-50}
-      - USE_GPU_AER=${USE_GPU_AER:-false}
-      - USE_SIMULATOR=${USE_SIMULATOR:-false}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    restart: unless-stopped
-    networks:
-      - qbc-net
-
-  # ── 3. Block Indexer ──────────────────────────────────────────────
-  block-indexer:
-    build:
-      context: .
-      dockerfile: indexer/Dockerfile
-    container_name: qbc-block-indexer
-    depends_on:
-      substrate-node:
-        condition: service_healthy
-      cockroachdb:
-        condition: service_healthy
-    environment:
-      - SUBSTRATE_WS_URL=ws://substrate-node:9944
-      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
-      - DB_POOL_SIZE=10
-      - START_HEIGHT=0
-      - BACKFILL=true
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    restart: unless-stopped
-    networks:
-      - qbc-net
-
-  # ── 4. API Gateway ───────────────────────────────────────────────
-  api-gateway:
-    build:
-      context: .
-      dockerfile: api-gateway/Dockerfile
-    container_name: qbc-api-gateway
-    ports:
-      - "5000:5000"
-    depends_on:
-      substrate-node:
-        condition: service_healthy
-      cockroachdb:
-        condition: service_healthy
-    environment:
-      - API_LISTEN_ADDR=0.0.0.0:5000
-      - SUBSTRATE_WS_URL=ws://substrate-node:9944
-      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
-      - AETHER_SERVICE_URL=http://aether-service:5001
-      - CHAIN_ID=${CHAIN_ID:-3301}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,https://qbc.network}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:5000/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    networks:
-      - qbc-net
-
-  # ── 5. Aether Service (AGI Engine) ───────────────────────────────
-  aether-service:
-    build:
-      context: .
-      dockerfile: aether-service/Dockerfile
-    container_name: qbc-aether-service
-    ports:
-      - "5001:5001"
-    depends_on:
-      substrate-node:
-        condition: service_healthy
-      cockroachdb:
-        condition: service_healthy
-    environment:
-      - AETHER_HOST=0.0.0.0
-      - AETHER_PORT=5001
-      - SUBSTRATE_WS_URL=ws://substrate-node:9944
-      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; r = httpx.get('http://localhost:5001/health'); assert r.status_code == 200"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    networks:
-      - qbc-net
-
-  # ── 6. AIKGS Sidecar ─────────────────────────────────────────────
-  aikgs-sidecar:
-    build:
-      context: ./aikgs-sidecar
-      dockerfile: Dockerfile
-    container_name: qbc-aikgs-sidecar
-    ports:
-      - "50052:50052"
-    depends_on:
-      cockroachdb:
-        condition: service_healthy
-    environment:
-      - AIKGS_GRPC_PORT=50052
-      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
-      - AIKGS_TREASURY_ADDRESS=${AIKGS_TREASURY_ADDRESS:-}
-    restart: unless-stopped
-    networks:
-      - qbc-net
-
-  # ── 7. CockroachDB ───────────────────────────────────────────────
+  # ── CockroachDB (single-node dev mode) ──────────────────────────────
   cockroachdb:
-    image: cockroachdb/cockroach:v24.2.0
+    image: cockroachdb/cockroach:v25.2.12
     container_name: qbc-cockroachdb
     ports:
       - "26257:26257"   # SQL
       - "8080:8080"     # Admin UI
     volumes:
       - cockroach-data:/cockroach/cockroach-data
-      - ./sql_new:/docker-entrypoint-initdb.d:ro
-    command: start-single-node --insecure
-    restart: unless-stopped
+    command: start-single-node --insecure --accept-sql-without-tls
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health?ready=1"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
     networks:
       - qbc-net
+    restart: unless-stopped
 
-  # ── 8. Prometheus ─────────────────────────────────────────────────
+  # ── Database initialization ─────────────────────────────────────────
+  db-init:
+    image: cockroachdb/cockroach:v25.2.12
+    container_name: qbc-db-init
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+    volumes:
+      - ./sql/:/sql/:ro
+      - ./sql_new/:/sql_new/:ro
+    entrypoint: >
+      /bin/sh -c "
+        echo '=== Qubitcoin DB Init: Creating database ===' &&
+        cockroach sql --insecure --host=cockroachdb:26257 -e 'CREATE DATABASE IF NOT EXISTS qbc;' &&
+        echo '=== Loading core schemas (sql_new/) ===' &&
+        for dir in qbc agi qvm research shared bridge stablecoin; do
+          if [ -d /sql_new/$$dir ]; then
+            for f in /sql_new/$$dir/*.sql; do
+              echo \"  Loading $$f\" &&
+              cockroach sql --insecure --host=cockroachdb:26257 --database=qbc < $$f || true;
+            done;
+          fi;
+        done &&
+        echo '=== Loading genesis block ===' &&
+        cockroach sql --insecure --host=cockroachdb:26257 --database=qbc < /sql/09_genesis_block.sql || true &&
+        echo '=== Qubitcoin DB Init: Complete ==='
+      "
+    networks:
+      - qbc-net
+
+  # ── IPFS (Kubo) ────────────────────────────────────────────────────
+  ipfs:
+    image: ipfs/kubo:v0.30.0
+    container_name: qbc-ipfs
+    ports:
+      - "4001:4001"     # P2P swarm
+      - "5002:5001"     # API (mapped to 5002 to avoid conflicts)
+      - "8081:8080"     # Gateway (mapped to 8081 to avoid CockroachDB)
+    volumes:
+      - ipfs-data:/data/ipfs
+    healthcheck:
+      test: ["CMD-SHELL", "ipfs id || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── Redis (caching, rate limiting) ──────────────────────────────────
+  redis:
+    image: redis:7.4-alpine
+    container_name: qbc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── Substrate Consensus Node (L1) ──────────────────────────────────
+  # Produces blocks via Aura (3.3s), finalizes via GRANDPA.
+  # Handles UTXO validation, mining proof acceptance, P2P networking.
+  qbc-substrate:
+    build:
+      context: ./substrate-node
+      dockerfile: docker/Dockerfile
+    container_name: qbc-substrate
+    ports:
+      - "9944:9944"     # WS/RPC (JSON-RPC + WebSocket)
+      - "30333:30333"   # P2P
+      - "9615:9615"     # Prometheus metrics
+    volumes:
+      - substrate-data:/qubitcoin/data
+    command: >
+      --chain dev
+      --base-path /qubitcoin/data
+      --name qubitcoin-validator
+      --rpc-cors all
+      --rpc-external
+      --rpc-methods unsafe
+      --prometheus-external
+      --alice
+    healthcheck:
+      test: >
+        curl -sf -H 'Content-Type: application/json'
+        -d '{"id":1,"jsonrpc":"2.0","method":"system_health","params":[]}'
+        http://localhost:9944
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── Python Execution Service (L2/L3) ───────────────────────────────
+  # Subscribes to finalized Substrate blocks via WebSocket.
+  # Runs QVM (167 opcodes), Aether Tree (34 modules), QUSD, Bridge,
+  # Compliance, Exchange, AIKGS. Serves 315+ RPC endpoints on port 5000.
+  # Mining: generates VQE proofs → submits to Substrate.
+  qbc-execution:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qbc-execution
+    ports:
+      - "5000:5000"     # RPC API (frontend connects here)
+    env_file:
+      - .env
+      - secure_key.env
+    environment:
+      # Substrate hybrid mode
+      - SUBSTRATE_MODE=true
+      - SUBSTRATE_WS_URL=ws://qbc-substrate:9944
+      - SUBSTRATE_HTTP_URL=http://qbc-substrate:9944
+      - SUBSTRATE_SUDO_SEED=//Alice
+      # Infrastructure
+      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
+      - IPFS_API=/ip4/ipfs/tcp/5001/http
+      - IPFS_GATEWAY_PORT=8080
+      # Disable standalone P2P (Substrate handles it)
+      - ENABLE_RUST_P2P=false
+      # AIKGS sidecar
+      - AIKGS_GRPC_ADDR=aikgs-sidecar
+      - AIKGS_GRPC_PORT=50052
+      - AIKGS_AUTH_TOKEN=${AIKGS_AUTH_TOKEN:-}
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      qbc-substrate:
+        condition: service_healthy
+      ipfs:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - node-data:/app/data
+      - node-logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── AIKGS Rust Sidecar ──────────────────────────────────────────────
+  aikgs-sidecar:
+    build:
+      context: ./aikgs-sidecar
+      dockerfile: Dockerfile
+    container_name: qbc-aikgs-sidecar
+    environment:
+      - AIKGS_GRPC_PORT=50052
+      - AIKGS_AUTH_TOKEN=${AIKGS_AUTH_TOKEN:-}
+      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
+      - AIKGS_NODE_RPC_URL=http://qbc-execution:5000
+      - AIKGS_TREASURY_ADDRESS=${AIKGS_TREASURY_ADDRESS:-}
+      - AIKGS_VAULT_MASTER_KEY=${AIKGS_VAULT_MASTER_KEY:-}
+      - AIKGS_MAX_SINGLE_DISBURSEMENT=${AIKGS_MAX_SINGLE_DISBURSEMENT:-0.5}
+      - AIKGS_MAX_DAILY_DISBURSEMENT=${AIKGS_MAX_DAILY_DISBURSEMENT:-500.0}
+      - AIKGS_MAX_DISBURSEMENTS_PER_HOUR=${AIKGS_MAX_DISBURSEMENTS_PER_HOUR:-100}
+      - RUST_LOG=info
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      qbc-execution:
+        condition: service_started
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── Prometheus (monitoring profile) ─────────────────────────────────
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.54.0
     container_name: qbc-prometheus
     ports:
       - "9090:9090"
     volumes:
-      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
-    restart: unless-stopped
+      - '--web.enable-lifecycle'
+    depends_on:
+      - qbc-execution
     networks:
       - qbc-net
+    restart: unless-stopped
+    profiles:
+      - monitoring
 
-  # ── 9. Grafana ────────────────────────────────────────────────────
+  # ── Grafana (monitoring profile) ────────────────────────────────────
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.3.0
     container_name: qbc-grafana
     ports:
       - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana-data:/var/lib/grafana
       - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    restart: unless-stopped
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
     networks:
       - qbc-net
+    restart: unless-stopped
+    profiles:
+      - monitoring
 
+# ── Named Volumes ───────────────────────────────────────────────────────
 volumes:
-  substrate-data:
   cockroach-data:
+  ipfs-data:
+  redis-data:
+  substrate-data:
+  node-data:
+  node-logs:
   prometheus-data:
   grafana-data:
 
+# ── Network ─────────────────────────────────────────────────────────────
 networks:
   qbc-net:
     driver: bridge

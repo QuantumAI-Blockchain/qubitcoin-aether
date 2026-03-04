@@ -7,9 +7,19 @@ Batch 40 tests:
   - SnapshotScheduler.restore_from_snapshot
   - Config.IPFS_GATEWAY_PORT
 """
+import json
 import time
 import unittest
 from unittest.mock import MagicMock, patch
+
+
+def _using_rust_csf() -> bool:
+    """Return True if the Rust-accelerated CSFTransport is active."""
+    try:
+        import aether_core  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
@@ -241,7 +251,7 @@ class TestQuantumEntangledChannel(unittest.TestCase):
         msg = CSFMessage(
             source=SephirahRole.CHESED,
             destination=SephirahRole.GEVURAH,
-            payload={"test": True},
+            payload='{"test": true}',
         )
         result = self.qec.deliver_entangled(msg)
         assert result.delivered
@@ -265,42 +275,74 @@ class TestCSFTransportIntegration(unittest.TestCase):
         self.transport = CSFTransport()
 
     def test_has_pressure_and_entangled(self):
-        assert hasattr(self.transport, 'pressure')
-        assert hasattr(self.transport, 'entangled')
+        if _using_rust_csf():
+            # Rust backend exposes pressure/entanglement via methods, not attributes
+            assert callable(getattr(self.transport, 'get_pressure', None))
+            assert callable(getattr(self.transport, 'is_entangled', None))
+        else:
+            assert hasattr(self.transport, 'pressure')
+            assert hasattr(self.transport, 'entangled')
 
     def test_entangled_send_bypasses_queue(self):
         """Sending between SUSY pairs should deliver instantly."""
+        payload = '{"data": "test"}' if _using_rust_csf() else {"data": "test"}
         msg = self.transport.send(
             SephirahRole.CHESED, SephirahRole.GEVURAH,
-            payload={"data": "test"}
+            payload=payload
         )
         assert msg.delivered
-        # Should NOT be in the queue
-        assert len(self.transport._queue) == 0
-        # Should be in delivered
-        assert msg in self.transport._delivered
+        if _using_rust_csf():
+            # Rust backend: verify queue is empty via method
+            assert self.transport.queue_size() == 0
+            assert self.transport.total_entangled_deliveries() >= 1
+        else:
+            # Should NOT be in the queue
+            assert len(self.transport._queue) == 0
+            # Should be in delivered
+            assert msg in self.transport._delivered
 
     def test_normal_send_uses_queue(self):
         """Non-entangled sends go through normal routing."""
+        payload = '{"data": "test"}' if _using_rust_csf() else {"data": "test"}
         msg = self.transport.send(
             SephirahRole.KETER, SephirahRole.MALKUTH,
-            payload={"data": "test"}
+            payload=payload
         )
         assert not msg.delivered
-        assert len(self.transport._queue) == 1
+        if _using_rust_csf():
+            assert self.transport.queue_size() == 1
+        else:
+            assert len(self.transport._queue) == 1
 
     def test_backpressure_deprioritizes(self):
         """Congested destination should halve message priority."""
-        # Flood Malkuth queue
-        for _ in range(50):
-            self.transport.pressure.record_enqueue(SephirahRole.MALKUTH)
+        if _using_rust_csf():
+            # Rust backend does not expose pressure attribute directly.
+            # Instead, flood the destination via normal sends to trigger
+            # internal backpressure, then verify priority is halved.
+            payload = '{"x": 1}'
+            for _ in range(50):
+                self.transport.send(
+                    SephirahRole.YESOD, SephirahRole.MALKUTH,
+                    payload=payload, priority_qbc=0.01
+                )
+            msg = self.transport.send(
+                SephirahRole.KETER, SephirahRole.MALKUTH,
+                payload=payload, priority_qbc=10.0
+            )
+            # Priority should be halved due to backpressure
+            assert msg.priority_qbc == 5.0
+        else:
+            # Flood Malkuth queue
+            for _ in range(50):
+                self.transport.pressure.record_enqueue(SephirahRole.MALKUTH)
 
-        msg = self.transport.send(
-            SephirahRole.KETER, SephirahRole.MALKUTH,
-            payload={"x": 1}, priority_qbc=10.0
-        )
-        # Priority should be halved due to backpressure
-        assert msg.priority_qbc == 5.0
+            msg = self.transport.send(
+                SephirahRole.KETER, SephirahRole.MALKUTH,
+                payload={"x": 1}, priority_qbc=10.0
+            )
+            # Priority should be halved due to backpressure
+            assert msg.priority_qbc == 5.0
 
     def test_stats_include_pressure_and_entangled(self):
         stats = self.transport.get_stats()
@@ -310,13 +352,17 @@ class TestCSFTransportIntegration(unittest.TestCase):
     def test_process_queue_updates_pressure(self):
         """Processing messages should dequeue pressure counts."""
         # Send a direct neighbor message
+        payload = '{"test": true}' if _using_rust_csf() else {"test": True}
         self.transport.send(
             SephirahRole.KETER, SephirahRole.CHOCHMAH,
-            payload={"test": True}
+            payload=payload
         )
-        # Chochmah is a neighbor of Keter — should be delivered
+        # Chochmah is a neighbor of Keter -- should be delivered
         # But only if not entangled. Keter/Chochmah are NOT a SUSY pair.
-        assert len(self.transport._queue) == 1
+        if _using_rust_csf():
+            assert self.transport.queue_size() == 1
+        else:
+            assert len(self.transport._queue) == 1
         delivered = self.transport.process_queue()
         assert len(delivered) == 1
         assert delivered[0].delivered

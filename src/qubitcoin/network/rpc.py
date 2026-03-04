@@ -4,6 +4,7 @@ FastAPI-based HTTP interface with smart contract support
 NOW WITH P2P ENDPOINTS!
 """
 
+import asyncio
 import hmac
 import json
 import time
@@ -50,7 +51,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    stratum_pool=None,
                    higgs_field=None,
                    aikgs_client=None,
-                   aikgs_telegram_bot=None) -> FastAPI:
+                   aikgs_telegram_bot=None,
+                   substrate_bridge=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -297,14 +299,18 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def health():
         """Health check endpoint"""
         p2p_status = False
+        substrate_connected = False
         if hasattr(app, 'node'):
             node = app.node
-            if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
+            if hasattr(node, 'substrate_bridge') and node.substrate_bridge:
+                substrate_connected = node.substrate_bridge.is_connected
+                p2p_status = substrate_connected  # Substrate handles P2P
+            elif hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
                 p2p_status = True
             elif hasattr(node, 'p2p') and node.p2p:
                 p2p_status = node.p2p.running
-        
-        return {
+
+        result = {
             "status": "healthy",
             "mining": mining_engine.is_mining,
             "database": True,
@@ -322,91 +328,39 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "privacy": True,
             "fee_collector": fee_collector is not None,
             "spv_verifier": spv_verifier is not None,
+            "substrate_mode": Config.SUBSTRATE_MODE,
         }
+        if Config.SUBSTRATE_MODE:
+            result["substrate_connected"] = substrate_connected
+        return result
 
     @app.get("/health/subsystems")
     async def health_subsystems():
         """Detailed subsystem health with version and diagnostics."""
-        subsystems = {}
-        # Mining
-        if mining_engine:
-            stats = mining_engine.get_stats_snapshot()
-            subsystems['mining'] = {
-                'active': mining_engine.is_mining,
-                'blocks_found': stats.get('blocks_found', 0),
-                'uptime': stats.get('uptime', 0),
-            }
-        # Database
-        try:
-            height = db_manager.get_current_height()
-            subsystems['database'] = {'active': True, 'height': height}
-        except Exception:
-            subsystems['database'] = {'active': False}
-        # Quantum
-        subsystems['quantum'] = {
-            'active': quantum_engine.estimator is not None,
-            'backend': getattr(quantum_engine, 'backend_type', 'unknown'),
+        subsystems = {
+            'mining': {'active': mining_engine is not None and getattr(mining_engine, 'is_mining', False)},
+            'database': {'active': db_manager is not None},
+            'quantum': {'active': quantum_engine is not None},
+            'aether_tree': {'active': aether_engine is not None},
+            'bridge': {'active': bridge_manager is not None},
+            'stablecoin': {'active': stablecoin_engine is not None},
+            'compliance': {'active': _compliance_engine is not None},
+            'plugins': {'active': plugin_manager is not None},
+            'cognitive': {'active': sephirot_manager is not None},
+            'qvm': {'active': state_manager is not None},
+            'p2p': {'active': False},
         }
-        # Aether Tree
-        if aether_engine:
-            subsystems['aether_tree'] = {
-                'active': True,
-                'phi': getattr(aether_engine, 'phi', 0.0),
-                'knowledge_nodes': len(aether_engine.kg.nodes) if hasattr(aether_engine, 'kg') and aether_engine.kg else 0,
-            }
-        else:
-            subsystems['aether_tree'] = {'active': False}
-        # Bridge
-        if bridge_manager:
-            try:
-                bridge_stats = await bridge_manager.get_all_stats()
-                subsystems['bridge'] = {'active': True, 'chains': len(bridge_stats.get('chains', {}))}
-            except Exception:
-                subsystems['bridge'] = {'active': True, 'chains': 0}
-        else:
-            subsystems['bridge'] = {'active': False}
-        # Stablecoin
-        if stablecoin_engine:
-            try:
-                shealth = stablecoin_engine.get_system_health()
-                subsystems['stablecoin'] = {
-                    'active': True,
-                    'total_qusd': float(shealth.get('total_qusd', 0)),
-                }
-            except Exception:
-                subsystems['stablecoin'] = {'active': True}
-        else:
-            subsystems['stablecoin'] = {'active': False}
-        # Compliance
-        subsystems['compliance'] = {'active': _compliance_engine is not None}
-        # Plugins
-        if plugin_manager:
-            subsystems['plugins'] = {
-                'active': True,
-                'count': len(plugin_manager.list_plugins()),
-            }
-        else:
-            subsystems['plugins'] = {'active': False}
-        # Cognitive
-        subsystems['cognitive'] = {'active': sephirot_manager is not None}
-        # QVM
-        subsystems['qvm'] = {'active': state_manager is not None}
-        # P2P
-        p2p_active = False
-        if hasattr(app, 'node'):
-            node = app.node
-            if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
-                p2p_active = True
-            elif hasattr(node, 'p2p') and node.p2p:
-                p2p_active = getattr(node.p2p, 'running', False)
-        subsystems['p2p'] = {'active': p2p_active}
-
+        try:
+            if db_manager:
+                subsystems['database']['height'] = db_manager.get_current_height()
+        except Exception:
+            pass
         active_count = sum(1 for s in subsystems.values() if s.get('active'))
         return {
             'subsystems': subsystems,
             'total': len(subsystems),
             'active': active_count,
-            'healthy': active_count >= 3,  # mining + database + quantum = minimum viable
+            'healthy': active_count >= 3,
         }
 
     @app.get("/info")
@@ -504,9 +458,16 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
         # Peer count
         peers = 0
+        substrate_info = None
         if hasattr(app, 'node'):
             node = app.node
-            if hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
+            if hasattr(node, 'substrate_bridge') and node.substrate_bridge and node.substrate_bridge.is_connected:
+                try:
+                    substrate_info = await node.substrate_bridge.get_chain_info()
+                    peers = substrate_info.get("health", {}).get("peers", 0)
+                except Exception:
+                    pass
+            elif hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
                 peers = node.rust_p2p.get_peer_count()
             elif hasattr(node, 'p2p') and node.p2p:
                 peers = len(node.p2p.connections)
@@ -518,7 +479,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         except Exception:
             mempool_size = 0
 
-        return {
+        result = {
             "chain_id": Config.CHAIN_ID,
             "height": emission_stats['current_height'],
             "total_supply": float(emission_stats['total_supply']),
@@ -530,7 +491,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "target_block_time": Config.TARGET_BLOCK_TIME,
             "peers": peers,
             "mempool_size": mempool_size,
+            "substrate_mode": Config.SUBSTRATE_MODE,
         }
+        if substrate_info:
+            result["substrate"] = {
+                "version": substrate_info.get("version", "unknown"),
+                "finalized_height": substrate_info.get("finalized_height", 0),
+                "syncing": substrate_info.get("health", {}).get("isSyncing", False),
+            }
+        return result
 
     @app.get("/chain/tip")
     async def chain_tip():
@@ -1657,25 +1626,56 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.get("/aether/info")
     async def aether_info():
-        """Get Aether Tree engine status"""
+        """Get Aether Tree engine status (uses cached phi to avoid slow recomputation)"""
         if not aether_engine:
             raise HTTPException(status_code=503, detail="Aether Tree not available")
-        return aether_engine.get_stats()
+        return await asyncio.to_thread(aether_engine.get_stats)  # get_stats now uses cached phi
 
     @app.get("/aether/phi")
     async def aether_phi():
-        """Compute current Phi (consciousness metric)"""
+        """Get current Phi (consciousness metric). Returns cached result if available."""
         if not aether_engine or not aether_engine.phi:
             raise HTTPException(status_code=503, detail="Phi calculator not available")
-        height = db_manager.get_current_height()
-        return aether_engine.phi.compute_phi(height)
+        # Return in-memory cached result if phi was computed recently (during block processing)
+        cached = aether_engine.phi._last_full_result
+        if cached is not None:
+            height = await asyncio.to_thread(db_manager.get_current_height)
+            result = dict(cached)
+            result['block_height'] = height
+            result['cached'] = True
+            return result
+        # Fallback: return latest stored measurement from DB (fast)
+        history = await asyncio.to_thread(aether_engine.phi.get_history, 1)
+        if history:
+            entry = history[0]
+            return {
+                'phi_value': entry.get('phi_value', 0.0),
+                'phi_threshold': entry.get('phi_threshold', 3.0),
+                'above_threshold': entry.get('phi_value', 0.0) >= 3.0,
+                'integration_score': entry.get('integration_score', 0.0),
+                'differentiation_score': entry.get('differentiation_score', 0.0),
+                'num_nodes': entry.get('num_nodes', 0),
+                'num_edges': entry.get('num_edges', 0),
+                'block_height': entry.get('block_height', 0),
+                'phi_version': 3,
+                'cached': True,
+            }
+        # Nothing stored yet — return defaults
+        return {
+            'phi_value': 0.0,
+            'phi_threshold': 3.0,
+            'above_threshold': False,
+            'block_height': 0,
+            'phi_version': 3,
+            'cached': False,
+        }
 
     @app.get("/aether/phi/history")
     async def aether_phi_history(limit: int = 50):
         """Get Phi measurement history"""
         if not aether_engine or not aether_engine.phi:
             raise HTTPException(status_code=503, detail="Phi calculator not available")
-        raw = aether_engine.phi.get_history(limit)
+        raw = await asyncio.to_thread(aether_engine.phi.get_history, limit)
         # Wrap in envelope and include frontend-expected field names
         return {
             'history': [
@@ -1697,7 +1697,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Get knowledge graph statistics"""
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
-        return aether_engine.kg.get_stats()
+        return await asyncio.to_thread(aether_engine.kg.get_stats)
 
     @app.get("/aether/knowledge/node/{node_id}")
     async def aether_knowledge_node(node_id: int):
@@ -1729,7 +1729,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Get reasoning engine statistics"""
         if not aether_engine or not aether_engine.reasoning:
             raise HTTPException(status_code=503, detail="Reasoning engine not available")
-        return aether_engine.reasoning.get_stats()
+        return await asyncio.to_thread(aether_engine.reasoning.get_stats)
 
     @app.get("/aether/consciousness")
     async def aether_consciousness():
@@ -1738,9 +1738,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=503, detail="Aether Tree not available")
         phi_data = {}
         if aether_engine.phi:
-            height = db_manager.get_current_height()
-            phi_data = aether_engine.phi.compute_phi(height)
-        kg_stats = aether_engine.kg.get_stats() if aether_engine.kg else {}
+            cached = aether_engine.phi._last_full_result
+            if cached is not None:
+                phi_data = cached
+            else:
+                # Fallback: latest stored measurement from DB
+                history = await asyncio.to_thread(aether_engine.phi.get_history, 1)
+                if history:
+                    phi_data = history[0]
+        kg_stats = (await asyncio.to_thread(aether_engine.kg.get_stats)) if aether_engine.kg else {}
         result = {
             'phi': phi_data.get('phi_value', 0.0),
             'threshold': phi_data.get('phi_threshold', 3.0),
@@ -5012,11 +5018,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             if block:
                 headers.append({
                     "height": block.height,
-                    "hash": block.hash,
+                    "hash": getattr(block, 'block_hash', '') or '',
                     "prev_hash": block.prev_hash,
-                    "merkle_root": getattr(block, 'merkle_root', ''),
+                    "merkle_root": getattr(block, 'state_root', ''),
                     "timestamp": block.timestamp,
-                    "difficulty": getattr(block, 'difficulty_target', 0),
+                    "difficulty": getattr(block, 'difficulty', 0),
                 })
         return {"headers": headers, "count": len(headers)}
 

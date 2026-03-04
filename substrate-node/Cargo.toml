@@ -12,6 +12,7 @@ members = [
     "pallets/qbc-aether-anchor",
     "pallets/qbc-reversibility",
     "crypto/kyber-transport",
+    "mining",
 ]
 
 [workspace.package]
@@ -114,6 +115,9 @@ pallet-qbc-reversibility = { path = "pallets/qbc-reversibility", default-feature
 
 # Kyber transport
 qbc-kyber-transport = { path = "crypto/kyber-transport" }
+
+# Mining engine
+qbc-mining = { path = "mining" }
 
 # Qubitcoin runtime
 qbc-runtime = { path = "runtime" }

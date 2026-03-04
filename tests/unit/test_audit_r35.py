@@ -136,6 +136,8 @@ class TestMemoryManagerSafeAccess:
     def test_replay_uses_safe_access(self) -> None:
         """_replay_episodes should use .get() not direct [] for KG nodes."""
         from qubitcoin.aether.memory_manager import MemoryManager
+        if not hasattr(MemoryManager, 'replay_episodes'):
+            pytest.skip("MemoryManager.replay_episodes not available (Rust backend)")
         source = inspect.getsource(MemoryManager.replay_episodes)
         # The reinforcement section should not have direct dict access
         # for conclusion nodes — it should use .get()

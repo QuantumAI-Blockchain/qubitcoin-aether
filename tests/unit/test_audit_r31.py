@@ -182,6 +182,8 @@ class TestBFSDeque:
         """HNSWIndex search should use heapq, not sort+pop."""
         import inspect
         from qubitcoin.aether.vector_index import HNSWIndex
+        if not hasattr(HNSWIndex, '_search_layer'):
+            pytest.skip("HNSWIndex._search_layer not available (Rust backend)")
         source = inspect.getsource(HNSWIndex._search_layer)
         assert 'heappop' in source or 'heappush' in source
         assert '.pop(0)' not in source

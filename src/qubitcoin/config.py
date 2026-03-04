@@ -390,7 +390,7 @@ class Config:
     PHI_THRESHOLD: float = float(os.getenv('PHI_THRESHOLD', '3.0'))
 
     # Phi calculator spectral bisection sampling limits
-    PHI_MAX_SAMPLE_NODES: int = int(os.getenv('PHI_MAX_SAMPLE_NODES', '5000'))
+    PHI_MAX_SAMPLE_NODES: int = int(os.getenv('PHI_MAX_SAMPLE_NODES', '200'))
     PHI_SAMPLE_SEED: int = int(os.getenv('PHI_SAMPLE_SEED', '42'))
 
     # ============================================================================
@@ -488,6 +488,14 @@ class Config:
     # If not set, a random ephemeral secret is generated at startup
     # (tokens will not persist across restarts).
     GEVURAH_SECRET: str = os.getenv('GEVURAH_SECRET', '')
+
+    # ============================================================================
+    # SUBSTRATE HYBRID MODE
+    # ============================================================================
+    SUBSTRATE_MODE: bool = os.getenv('SUBSTRATE_MODE', 'false').lower() == 'true'
+    SUBSTRATE_WS_URL: str = os.getenv('SUBSTRATE_WS_URL', 'ws://localhost:9944')
+    SUBSTRATE_HTTP_URL: str = os.getenv('SUBSTRATE_HTTP_URL', 'http://localhost:9944')
+    SUBSTRATE_SUDO_SEED: str = os.getenv('SUBSTRATE_SUDO_SEED', '//Alice')
 
     # ============================================================================
     # LOGGING & MONITORING

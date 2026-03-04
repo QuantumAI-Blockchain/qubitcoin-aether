@@ -48,6 +48,10 @@ class TestEvidenceAccumulation:
         db.get_session = MagicMock(side_effect=Exception("skip DB"))
         with patch.object(KnowledgeGraph, '_load_from_db'):
             kg = KnowledgeGraph(db)
+        # Ensure search/vector indices have the methods add_node needs,
+        # regardless of whether the Rust aether_core backend is installed.
+        kg.search_index = MagicMock()
+        kg.vector_index = MagicMock()
         return kg
 
     def test_touch_increments_reference_count(self):

@@ -176,28 +176,28 @@
     "implementation": "0xc9369163efea800fd1745abe82727a46d400bc89"
   },
   "KnowledgeRewardPool": {
-    "proxy": "",
-    "implementation": "",
-    "note": "AIKGS reward pool — deploy post-genesis"
+    "proxy": "c6db8e4710ed9a9426a111aad09c1c479f95f764",
+    "implementation": "c6db8e4710ed9a9426a111aad09c1c479f95f764",
+    "note": "AIKGS \u2014 deployed post-genesis via REST API"
   },
   "AffiliateRegistry": {
-    "proxy": "",
-    "implementation": "",
-    "note": "AIKGS 2-level affiliate system — deploy post-genesis"
+    "proxy": "127aa0289419e738018ae5d7d134853fe50bb5b0",
+    "implementation": "127aa0289419e738018ae5d7d134853fe50bb5b0",
+    "note": "AIKGS \u2014 deployed post-genesis via REST API"
   },
   "ContributionLedger": {
-    "proxy": "",
-    "implementation": "",
-    "note": "AIKGS contribution record — deploy post-genesis"
+    "proxy": "f9d8a853dd4b31cd70c069058e7ac43e41a3a6a5",
+    "implementation": "f9d8a853dd4b31cd70c069058e7ac43e41a3a6a5",
+    "note": "AIKGS \u2014 deployed post-genesis via REST API"
   },
   "KnowledgeBounty": {
-    "proxy": "",
-    "implementation": "",
-    "note": "AIKGS knowledge bounties — deploy post-genesis"
+    "proxy": "c013525beff93f372f63cbab46c0b6344f274f1d",
+    "implementation": "c013525beff93f372f63cbab46c0b6344f274f1d",
+    "note": "AIKGS \u2014 deployed post-genesis via REST API"
   },
   "ContributionNFT": {
-    "proxy": "",
-    "implementation": "",
-    "note": "AIKGS QBC-721 badge NFTs — deploy post-genesis"
+    "proxy": "f2eeecd2ed2a0b2b51449003ac1067d3a0f06571",
+    "implementation": "f2eeecd2ed2a0b2b51449003ac1067d3a0f06571",
+    "note": "AIKGS \u2014 deployed post-genesis via REST API"
   }
 }

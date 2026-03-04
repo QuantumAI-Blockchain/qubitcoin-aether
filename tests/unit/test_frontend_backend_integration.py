@@ -223,6 +223,13 @@ def _make_aether_engine():
     """Create a mock AetherEngine."""
     ae = MagicMock()
     ae.phi = MagicMock()
+    ae.phi._last_full_result = {
+        'phi_value': 0.42,
+        'phi_threshold': 3.0,
+        'above_threshold': False,
+        'integration_score': 0.3,
+        'differentiation_score': 0.5,
+    }
     ae.phi.compute_phi.return_value = {
         'phi_value': 0.42,
         'phi_threshold': 3.0,

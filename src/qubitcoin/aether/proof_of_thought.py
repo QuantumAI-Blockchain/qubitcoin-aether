@@ -335,13 +335,11 @@ class AetherEngine:
             return
 
         try:
-            # Compute Phi once per block (avoids redundant recomputation)
+            # Skip expensive Phi computation during block processing —
+            # use cached or DB value. Phi will be computed on-demand via RPC.
             block_phi_result = None
-            if self.phi:
-                try:
-                    block_phi_result = self.phi.compute_phi(block.height)
-                except Exception as e:
-                    logger.debug("Could not compute Phi for block %d: %s", block.height, e)
+            if self.phi and self.phi._last_full_result is not None:
+                block_phi_result = self.phi._last_full_result
 
             # Add block as an observation node
             block_content = {
@@ -2340,7 +2338,13 @@ class AetherEngine:
     def get_stats(self) -> dict:
         """Get comprehensive Aether engine statistics"""
         kg_stats = self.kg.get_stats() if self.kg else {}
-        phi_result = self.phi.compute_phi() if self.phi else {}
+        # Use cached phi result if available (avoids expensive recomputation)
+        phi_result = {}
+        if self.phi:
+            if self.phi._last_full_result is not None:
+                phi_result = self.phi._last_full_result
+            else:
+                phi_result = self.phi.compute_phi()
         reasoning_stats = self.reasoning.get_stats() if self.reasoning else {}
 
         stats = {

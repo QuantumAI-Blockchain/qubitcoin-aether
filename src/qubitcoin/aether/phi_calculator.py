@@ -551,7 +551,7 @@ class PhiCalculator:
         degree: List[float],
         shift: float,
         n: int,
-        max_iter: int = 50,
+        max_iter: int = 20,
     ) -> Optional[List[float]]:
         """
         Find the Fiedler vector (second-smallest eigenvector of graph Laplacian)
@@ -683,8 +683,7 @@ class PhiCalculator:
 
     def _compute_redundancy_factor(self) -> float:
         """
-        Compute redundancy penalty using near-duplicate detection
-        from VectorIndex.
+        Compute redundancy penalty using sampling-based duplicate detection.
 
         Returns a factor in [0.5, 1.0] — more duplicates = lower factor.
         """
@@ -696,19 +695,23 @@ class PhiCalculator:
             return 1.0
 
         try:
-            duplicates = self.kg.vector_index.find_near_duplicates(threshold=0.95)
+            # Use sample-based approach to avoid O(n^2) full duplicate scan
+            duplicates = self.kg.vector_index.find_near_duplicates(
+                threshold=0.95, max_pairs=100
+            )
             if not duplicates:
                 return 1.0
 
-            # Fraction of nodes involved in duplicate pairs
             dup_nodes = set()
             for a, b, _ in duplicates:
                 dup_nodes.add(a)
                 dup_nodes.add(b)
 
             dup_fraction = len(dup_nodes) / n_embeddings
-            # Factor: 1.0 at 0% duplicates, 0.5 at 100% duplicates
             return max(0.5, 1.0 - dup_fraction * 0.5)
+        except TypeError:
+            # Fallback if find_near_duplicates doesn't accept max_pairs
+            return 1.0
         except Exception:
             return 1.0
 
@@ -1142,9 +1145,11 @@ class PhiCalculator:
 
 
 # --- Rust acceleration shim ---
+# NOTE: Rust PhiCalculator has different API (no kg/db args, compute_phi takes
+# nodes/edges explicitly). Keep Python PhiCalculator for now; the expensive
+# _compute_mip is optimized by reducing PHI_MAX_SAMPLE_NODES and caching.
 try:
-    from aether_core import PhiCalculator as _RustPhiCalculator  # noqa: F811
-    PhiCalculator = _RustPhiCalculator  # type: ignore[misc]
-    logger.info("PhiCalculator: using Rust-accelerated aether_core backend")
+    import aether_core as _aether_core  # noqa: F401
+    logger.info("PhiCalculator: using pure-Python with Rust KeterNode/KeterEdge")
 except ImportError:
     logger.debug("aether_core not installed — using pure-Python PhiCalculator")

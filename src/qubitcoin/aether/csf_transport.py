@@ -20,6 +20,12 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
+def _enum_val(v: object) -> str:
+    """Get string value from SephirahRole enum or plain string."""
+    return v.value if hasattr(v, 'value') else str(v)
+
+
 # Max queue depth per node before backpressure triggers
 MAX_NODE_PRESSURE = 50
 # Pressure threshold (0-1) at which backpressure activates
@@ -165,11 +171,11 @@ class QuantumEntangledChannel:
         The message bypasses routing — it is marked as delivered immediately
         with a special 'entangled' hop marker.
         """
-        msg.hops.append(f"⟨entangled⟩→{msg.destination.value}")
+        msg.hops.append(f"⟨entangled⟩→{_enum_val(msg.destination)}")
         msg.delivered = True
         self._entangled_deliveries += 1
         logger.debug(
-            f"Quantum entangled delivery: {msg.source.value} ⟷ {msg.destination.value}"
+            f"Quantum entangled delivery: {_enum_val(msg.source)} ⟷ {_enum_val(msg.destination)}"
         )
         return msg
 
@@ -318,7 +324,7 @@ class CSFTransport:
                 self._dropped += 1
                 self.pressure.record_dequeue(msg.destination)
                 logger.debug(f"Dropping stale CSF message {msg.msg_id} "
-                             f"({msg.source.value}→{msg.destination.value}, "
+                             f"({_enum_val(msg.source)}→{_enum_val(msg.destination)}, "
                              f"age={now - msg.timestamp:.1f}s)")
                 continue
 
@@ -334,7 +340,7 @@ class CSFTransport:
                 self.pressure.record_dequeue(msg.destination)
             elif msg.destination in neighbors:
                 # Direct neighbor — deliver
-                msg.hops.append(msg.destination.value)
+                msg.hops.append(_enum_val(msg.destination))
                 msg.delivered = True
                 self._record_delivered(msg)
                 delivered.append(msg)
@@ -408,8 +414,8 @@ class CSFTransport:
             "recent_messages": [
                 {
                     "id": m.msg_id,
-                    "source": m.source.value,
-                    "destination": m.destination.value,
+                    "source": _enum_val(m.source),
+                    "destination": _enum_val(m.destination),
                     "type": m.msg_type,
                     "hops": len(m.hops),
                     "priority": m.priority_qbc,

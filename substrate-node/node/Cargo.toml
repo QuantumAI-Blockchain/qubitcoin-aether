@@ -34,6 +34,7 @@ sp-consensus-grandpa = { workspace = true, features = ["std"] }
 sp-inherents = { workspace = true, features = ["std"] }
 sp-timestamp = { workspace = true }
 sp-keyring = { workspace = true }
+sp-keystore = "0.45"
 sp-block-builder = { workspace = true, features = ["std"] }
 
 # Frame
@@ -57,6 +58,7 @@ log = { workspace = true }
 # Local
 qbc-runtime = { workspace = true }
 qbc-primitives = { workspace = true, features = ["std"] }
+qbc-mining = { workspace = true }
 
 # Pin rustix 0.38 for transitive deps (wasmtime→memfd→rustix)
 rustix = { workspace = true }

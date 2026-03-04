@@ -57,7 +57,13 @@ class TestKnowledgeGraphLock:
         session.execute.return_value = result_mock
         mock_db.get_session.return_value.__enter__ = MagicMock(return_value=session)
         mock_db.get_session.return_value.__exit__ = MagicMock(return_value=False)
-        return KnowledgeGraph(mock_db)
+        with patch.object(KnowledgeGraph, '_load_from_db'):
+            kg = KnowledgeGraph(mock_db)
+        # Ensure search/vector indices have the methods add_node needs,
+        # regardless of whether the Rust aether_core backend is installed.
+        kg.search_index = MagicMock()
+        kg.vector_index = MagicMock()
+        return kg
 
     def test_lock_exists(self) -> None:
         kg = self._make_kg()

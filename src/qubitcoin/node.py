@@ -126,29 +126,43 @@ class QubitcoinNode:
             logger.error(f"[2/22] QuantumEngine failed: {e}", exc_info=True)
             raise
 
-        # Component 3: P2P Network (Python or Rust)
-        logger.info("[3/22] Initializing P2P Network...")
-        try:
-            if Config.ENABLE_RUST_P2P:
-                logger.info("Using Rust P2P (libp2p 0.56)")
-                # Launch the Rust daemon process
-                self._start_rust_p2p_daemon()
-                self.rust_p2p = RustP2PClient(f"127.0.0.1:{Config.RUST_P2P_GRPC}")
-                self.p2p = None  # Disable Python P2P
-                logger.info("[3/22] Rust P2P client initialized")
-            else:
-                logger.info("Using Python P2P (legacy)")
-                self.p2p = P2PNetwork(
-                    port=Config.P2P_PORT,
-                    peer_id=Config.ADDRESS[:16],
-                    consensus=None,
-                    max_peers=Config.MAX_PEERS
-                )
-                self.rust_p2p = None
-                logger.info("[3/22] Python P2P initialized")
-        except Exception as e:
-            logger.error(f"[3/22] P2P initialization failed: {e}", exc_info=True)
-            raise
+        # Component 3: P2P / Substrate Bridge
+        self.substrate_bridge = None
+        if Config.SUBSTRATE_MODE:
+            # In Substrate mode, P2P is handled by Substrate node
+            logger.info("[3/22] SUBSTRATE_MODE=true — P2P handled by Substrate node")
+            self.p2p = None
+            self.rust_p2p = None
+            try:
+                from .substrate_bridge import SubstrateBridge
+                self.substrate_bridge = SubstrateBridge()
+                logger.info(f"[3/22] SubstrateBridge initialized (WS: {Config.SUBSTRATE_WS_URL})")
+            except Exception as e:
+                logger.error(f"[3/22] SubstrateBridge failed: {e}", exc_info=True)
+                raise
+        else:
+            logger.info("[3/22] Initializing P2P Network...")
+            try:
+                if Config.ENABLE_RUST_P2P:
+                    logger.info("Using Rust P2P (libp2p 0.56)")
+                    # Launch the Rust daemon process
+                    self._start_rust_p2p_daemon()
+                    self.rust_p2p = RustP2PClient(f"127.0.0.1:{Config.RUST_P2P_GRPC}")
+                    self.p2p = None  # Disable Python P2P
+                    logger.info("[3/22] Rust P2P client initialized")
+                else:
+                    logger.info("Using Python P2P (legacy)")
+                    self.p2p = P2PNetwork(
+                        port=Config.P2P_PORT,
+                        peer_id=Config.ADDRESS[:16],
+                        consensus=None,
+                        max_peers=Config.MAX_PEERS
+                    )
+                    self.rust_p2p = None
+                    logger.info("[3/22] Python P2P initialized")
+            except Exception as e:
+                logger.error(f"[3/22] P2P initialization failed: {e}", exc_info=True)
+                raise
 
         # Component 4: Consensus Engine
         logger.info("[4/22] Initializing ConsensusEngine...")
@@ -566,7 +580,8 @@ class QubitcoinNode:
         try:
             self.mining = MiningEngine(self.quantum, self.consensus, self.db, console,
                                        state_manager=self.state_manager,
-                                       aether_engine=self.aether)
+                                       aether_engine=self.aether,
+                                       substrate_bridge=self.substrate_bridge)
             self.mining.node = self
             logger.info("[20/22] MiningEngine initialized")
         except Exception as e:
@@ -662,6 +677,7 @@ class QubitcoinNode:
                 # AIKGS (Rust sidecar gRPC client)
                 aikgs_client=self.aikgs_client,
                 aikgs_telegram_bot=self.aikgs_telegram_bot,
+                substrate_bridge=self.substrate_bridge,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
@@ -791,6 +807,137 @@ class QubitcoinNode:
             if peer_address not in self.p2p.connections:
                 asyncio.create_task(self.p2p.connect_to_peer(peer_address))
 
+    # ──────────────────────────────────────────────────────────────────────
+    # Substrate block processing (SUBSTRATE_MODE)
+    # ──────────────────────────────────────────────────────────────────────
+
+    async def _on_substrate_block_finalized(
+        self,
+        block_height: int,
+        block_hash: str,
+        header: dict,
+        block_data: dict,
+    ) -> None:
+        """Process a finalized Substrate block through the Python execution pipeline.
+
+        Called by SubstrateBridge for each new finalized block.
+        Runs synchronous DB/Aether work in a thread pool to avoid blocking the event loop.
+        """
+        await asyncio.to_thread(
+            self._process_substrate_block_sync,
+            block_height, block_hash, header, block_data,
+        )
+
+    def _process_substrate_block_sync(
+        self,
+        block_height: int,
+        block_hash: str,
+        header: dict,
+        block_data: dict,
+    ) -> None:
+        """Synchronous block processing (runs in thread pool)."""
+        try:
+            from .substrate_codec import substrate_block_to_python
+            from .database.models import Block as BlockModel
+
+            logger.info(f"Processing Substrate block #{block_height} ({block_hash[:18]}...)")
+
+            # Convert Substrate block to Python format
+            py_block = substrate_block_to_python(
+                block_height, block_hash, header, block_data
+            )
+
+            # Store block in CockroachDB (for RPC queries)
+            try:
+                block_obj = BlockModel(
+                    height=py_block["height"],
+                    block_hash=py_block["block_hash"],
+                    prev_hash=py_block["prev_hash"],
+                    timestamp=py_block["timestamp"],
+                    difficulty=py_block["difficulty"],
+                    state_root=py_block.get("state_root", ""),
+                    transactions=[],
+                    proof_data={},
+                )
+
+                with self.db.get_session() as session:
+                    from sqlalchemy import text
+                    existing = session.execute(
+                        text("SELECT 1 FROM blocks WHERE height = :h"),
+                        {'h': block_height}
+                    ).first()
+                    if not existing:
+                        self.db.store_block(block_obj, session=session)
+                        session.commit()
+                        logger.debug(f"Block #{block_height} stored in CockroachDB")
+                    else:
+                        logger.debug(f"Block #{block_height} already in CockroachDB")
+            except Exception as e:
+                logger.error(f"Failed to store block #{block_height}: {e}", exc_info=True)
+
+            # Update metrics
+            current_height_metric.set(block_height)
+            blocks_received.inc()
+
+            # Process block knowledge for Aether Tree
+            if self.aether:
+                try:
+                    self.aether.process_block_knowledge(block_obj)
+                except Exception as e:
+                    logger.debug(f"Aether knowledge processing: {e}")
+
+            # Higgs Cognitive Field per-block tick
+            if getattr(self, 'higgs_field', None):
+                try:
+                    self.higgs_field.tick(block_height)
+                except Exception as e:
+                    logger.debug(f"Higgs field tick: {e}")
+
+            # Anchor Aether state back to Substrate (every N blocks)
+            # Note: anchoring is async, schedule from sync thread via event loop
+            if self.substrate_bridge and block_height % 10 == 0 and self.aether:
+                try:
+                    phi_value = self.aether.phi
+                    kg = self.aether.kg
+                    knowledge_root = kg.compute_merkle_root() if hasattr(kg, 'compute_merkle_root') else "0" * 64
+                    n_nodes = len(kg.nodes) if hasattr(kg, 'nodes') else 0
+                    n_edges = len(kg.edges) if hasattr(kg, 'edges') else 0
+
+                    loop = asyncio.get_event_loop()
+                    asyncio.run_coroutine_threadsafe(
+                        self.substrate_bridge.anchor_aether_state(
+                            block_height=block_height,
+                            phi_value=phi_value,
+                            knowledge_root=knowledge_root,
+                            knowledge_nodes=n_nodes,
+                            knowledge_edges=n_edges,
+                        ),
+                        loop,
+                    )
+                except Exception as e:
+                    logger.debug(f"Aether anchoring: {e}")
+
+            # Anchor QVM state root (every N blocks)
+            if self.substrate_bridge and block_height % 10 == 0 and self.state_manager:
+                try:
+                    state_root = self.state_manager.get_state_root()
+                    loop = asyncio.get_event_loop()
+                    asyncio.run_coroutine_threadsafe(
+                        self.substrate_bridge.anchor_qvm_state(
+                            block_height=block_height,
+                            state_root=state_root,
+                        ),
+                        loop,
+                    )
+                except Exception as e:
+                    logger.debug(f"QVM state anchoring: {e}")
+
+        except Exception as e:
+            logger.error(
+                f"Error processing Substrate block #{block_height}: {e}",
+                exc_info=True,
+            )
+
     async def _update_metrics_loop(self):
         """Periodically update Prometheus metrics from database"""
         logger.info("Metrics update loop started")
@@ -901,9 +1048,9 @@ class QubitcoinNode:
 
             # Average block time (last 100 blocks)
             block_time_row = self.db.query_one("""
-                SELECT AVG(t2.timestamp - t1.timestamp) as avg_time
-                FROM (SELECT height, timestamp FROM blocks ORDER BY height DESC LIMIT 101) t1
-                JOIN (SELECT height, timestamp FROM blocks ORDER BY height DESC LIMIT 101) t2
+                SELECT AVG(t2.created_at - t1.created_at) as avg_time
+                FROM (SELECT height, created_at FROM blocks ORDER BY height DESC LIMIT 101) t1
+                JOIN (SELECT height, created_at FROM blocks ORDER BY height DESC LIMIT 101) t2
                   ON t2.height = t1.height + 1
             """)
             if block_time_row and block_time_row.get('avg_time') is not None:
@@ -1233,8 +1380,29 @@ class QubitcoinNode:
         else:
             quantum_backend_metric.set(2)
 
-        # Start P2P network
-        if Config.ENABLE_RUST_P2P:
+        # Start networking — Substrate bridge or P2P
+        if Config.SUBSTRATE_MODE and self.substrate_bridge:
+            logger.info("SUBSTRATE_MODE: Connecting to Substrate node...")
+            connected = await self.substrate_bridge.connect()
+            if connected:
+                logger.info("Substrate bridge connected — starting block subscription")
+                # Start finalized block subscription in background
+                self._substrate_task = asyncio.create_task(
+                    self.substrate_bridge.subscribe_finalized_blocks(
+                        on_block=self._on_substrate_block_finalized
+                    )
+                )
+            else:
+                logger.error(
+                    "Failed to connect to Substrate node at "
+                    f"{Config.SUBSTRATE_WS_URL} — will retry in background"
+                )
+                self._substrate_task = asyncio.create_task(
+                    self.substrate_bridge.subscribe_finalized_blocks(
+                        on_block=self._on_substrate_block_finalized
+                    )
+                )
+        elif Config.ENABLE_RUST_P2P:
             logger.info("Connecting to Rust P2P network...")
             if self.rust_p2p.connect():
                 peer_count = self.rust_p2p.get_peer_count()
@@ -1300,8 +1468,10 @@ class QubitcoinNode:
             else:
                 logger.warning("AIKGS Rust sidecar not reachable — AIKGS features unavailable")
 
-        # Start mining
+        # Start mining (in Substrate mode, proofs are submitted as extrinsics)
         if Config.AUTO_MINE:
+            if Config.SUBSTRATE_MODE:
+                logger.info("SUBSTRATE_MODE: Mining proofs will be submitted to Substrate")
             self.mining.start()
 
         # Snapshot check
@@ -1354,6 +1524,16 @@ class QubitcoinNode:
                         logger.debug(f"Plugin stop error ({plugin_info.get('name', '?')}): {e}")
             except Exception as e:
                 logger.debug(f"Plugin shutdown: {e}")
+
+        # Disconnect Substrate bridge
+        if self.substrate_bridge:
+            await self.substrate_bridge.disconnect()
+            if hasattr(self, '_substrate_task') and self._substrate_task:
+                self._substrate_task.cancel()
+                try:
+                    await self._substrate_task
+                except asyncio.CancelledError:
+                    pass
 
         if self.rust_p2p:
             self.rust_p2p.disconnect()

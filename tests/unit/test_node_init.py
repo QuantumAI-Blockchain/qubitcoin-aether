@@ -159,6 +159,8 @@ def _mock_config(**overrides):
         PEER_SEEDS=[], RPC_HOST='0.0.0.0', RPC_PORT=5000, LOG_LEVEL='INFO',
         DEBUG=False, USE_LOCAL_ESTIMATOR=True, USE_SIMULATOR=False,
         INITIAL_DIFFICULTY=1.0, SNAPSHOT_INTERVAL=100,
+        SUBSTRATE_MODE=False, SUBSTRATE_WS_URL='ws://localhost:9944',
+        SUBSTRATE_HTTP_URL='http://localhost:9944', SUBSTRATE_SUDO_SEED='//Alice',
     )
     defaults.update(overrides)
     for k, v in defaults.items():

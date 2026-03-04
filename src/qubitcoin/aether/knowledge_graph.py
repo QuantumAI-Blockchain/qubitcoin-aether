@@ -909,16 +909,13 @@ class KnowledgeGraph:
 
 
 # --- Rust acceleration shim ---
-# If aether_core (Rust/PyO3) is installed, transparently replace Python classes
-# with the Rust equivalents for 10-50x speedup on hot-path operations.
+# aether_core Rust acceleration: data classes (KeterNode/KeterEdge) stay Python
+# because the DB-backed KnowledgeGraph serializes them with Python attributes.
+# PhiCalculator stays Python too (Rust API mismatch). The Rust crate provides
+# standalone KG/Phi for future use but isn't drop-in compatible yet.
 try:
-    from aether_core import KeterNode as _RustKeterNode  # noqa: F811
-    from aether_core import KeterEdge as _RustKeterEdge  # noqa: F811
-    from aether_core import KnowledgeGraph as _RustKnowledgeGraph  # noqa: F811
-    KeterNode = _RustKeterNode  # type: ignore[misc]
-    KeterEdge = _RustKeterEdge  # type: ignore[misc]
-    KnowledgeGraph = _RustKnowledgeGraph  # type: ignore[misc]
-    logger.info("KnowledgeGraph: using Rust-accelerated aether_core backend")
+    import aether_core as _aether_core  # noqa: F401
+    logger.info("KnowledgeGraph: aether_core available, using Python KG (DB-backed)")
 except ImportError:
     logger.debug("aether_core not installed — using pure-Python KnowledgeGraph")
 

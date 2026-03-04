@@ -322,15 +322,15 @@ fn build_genesis(
             "initialEmitted": GENESIS_PREMINE + INITIAL_REWARD,
         },
 
-        // QVM Anchor — external Go QVM service endpoint
+        // QVM Anchor — Python execution service handles QVM
         "qbcQvmAnchor": {
-            "serviceEndpoint": b"http://127.0.0.1:9944".to_vec(),
+            "serviceEndpoint": b"http://127.0.0.1:5000".to_vec(),
         },
 
-        // Aether Anchor — external Python Aether service endpoint
+        // Aether Anchor — Python execution service handles Aether Tree
         // Phi starts at 0, empty knowledge root, AGI tracked from genesis
         "qbcAetherAnchor": {
-            "serviceEndpoint": b"http://127.0.0.1:5001".to_vec(),
+            "serviceEndpoint": b"http://127.0.0.1:5000".to_vec(),
         },
     })
 }

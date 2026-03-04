@@ -502,9 +502,9 @@ class TransactionInputModel(Base):
     """UTXO spending — references a previous output"""
     __tablename__ = 'transaction_inputs'
     input_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
-    tx_hash = Column(LargeBinary, ForeignKey('transactions.tx_hash', ondelete='CASCADE'), nullable=False)
+    tx_hash = Column(String(64), ForeignKey('transactions.txid', ondelete='CASCADE'), nullable=False)
     input_index = Column(Integer, nullable=False)
-    previous_tx_hash = Column(LargeBinary, nullable=False)
+    previous_tx_hash = Column(String(64), nullable=False)
     previous_output_index = Column(Integer, nullable=False)
     script_sig = Column(LargeBinary, nullable=False)
     sequence = Column(BigInteger, nullable=False, default=4294967295)
@@ -516,13 +516,13 @@ class TransactionOutputModel(Base):
     """UTXO creation — value locked to a recipient"""
     __tablename__ = 'transaction_outputs'
     output_id = Column(String(36), primary_key=True, server_default=text("gen_random_uuid()::STRING"))
-    tx_hash = Column(LargeBinary, ForeignKey('transactions.tx_hash', ondelete='CASCADE'), nullable=False)
+    tx_hash = Column(String(64), ForeignKey('transactions.txid', ondelete='CASCADE'), nullable=False)
     output_index = Column(Integer, nullable=False)
     amount = Column(Numeric(20, 8), nullable=False)
-    recipient_address = Column(LargeBinary, nullable=False)
+    recipient_address = Column(String, nullable=False)
     script_pubkey = Column(LargeBinary, nullable=False)
     is_spent = Column(Boolean, nullable=False, default=False)
-    spent_in_tx = Column(LargeBinary, nullable=True)
+    spent_in_tx = Column(String(64), nullable=True)
     spent_at_height = Column(BigInteger, nullable=True)
     spent_at_timestamp = Column(DateTime, nullable=True)
     __table_args__ = (
