@@ -153,12 +153,52 @@ class FinalityGadget:
         else:
             self._core = _PythonFinalityCore(self._threshold, self._vote_expiry)
 
-        # Load validators from DB
+        # Ensure tables exist then load validators
+        self._ensure_tables()
         self._load_validators()
         logger.info(
             f"FinalityGadget initialized: threshold={self._threshold}, "
             f"min_stake={self._min_stake}, validators={self._core.validator_count()}"
         )
+
+    def _ensure_tables(self) -> None:
+        """Create finality tables if they don't exist."""
+        try:
+            with self._db.get_session() as session:
+                from sqlalchemy import text
+                session.execute(text("""
+                    CREATE TABLE IF NOT EXISTS finality_validators (
+                        address TEXT PRIMARY KEY,
+                        stake DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+                        registered_at_block BIGINT NOT NULL,
+                        active BOOLEAN DEFAULT true,
+                        last_vote_block BIGINT DEFAULT 0,
+                        created_at TIMESTAMPTZ DEFAULT now()
+                    )
+                """))
+                session.execute(text("""
+                    CREATE TABLE IF NOT EXISTS finality_votes (
+                        id SERIAL PRIMARY KEY,
+                        voter_address TEXT NOT NULL,
+                        block_height BIGINT NOT NULL,
+                        block_hash TEXT NOT NULL,
+                        signature TEXT,
+                        created_at TIMESTAMPTZ DEFAULT now(),
+                        UNIQUE (voter_address, block_height)
+                    )
+                """))
+                session.execute(text("""
+                    CREATE TABLE IF NOT EXISTS finality_checkpoints (
+                        block_height BIGINT PRIMARY KEY,
+                        block_hash TEXT NOT NULL,
+                        voted_stake DOUBLE PRECISION NOT NULL,
+                        total_stake DOUBLE PRECISION NOT NULL,
+                        finalized_at TIMESTAMPTZ DEFAULT now()
+                    )
+                """))
+                session.commit()
+        except Exception as e:
+            logger.debug(f"Finality table creation: {e}")
 
     def _load_validators(self) -> None:
         """Load active validators from DB into the core engine."""
