@@ -43,6 +43,7 @@ Qubitcoin implements a novel monetary policy based on the golden ratio (φ = 1.6
 12. [Contract Deployment Fees](#12-contract-deployment-fees)
 13. [Sephirot Staking Economics](#13-sephirot-staking-economics)
 14. [Editable Economic Configuration](#14-editable-economic-configuration)
+15. [QUSD Peg Defense Mechanism](#15-qusd-peg-defense-mechanism)
 
 ---
 
@@ -1281,6 +1282,7 @@ The Higgs Cognitive Field (Phase 7) adds mass-weighted inertia to the SUSY balan
 | **Gas (L2 only)** | BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE | `.env` |
 | **Sephirot Staking** | Min stake, ROI, slash penalty, unstaking delay | `.env` + Governance |
 | **AGI Parameters** | Phi threshold, gate requirements, reasoning depth | `.env` + Governance |
+| **QUSD Keeper** | Mode, check interval, floor/ceiling, max trade size, cooldown | `.env` + Admin API |
 
 ### 14.4 QUSD Failure Fallback
 
@@ -1295,9 +1297,59 @@ If QUSD loses its peg or oracle fails:
 
 ---
 
+## 15. QUSD PEG DEFENSE MECHANISM
+
+### 15.1 Overview
+
+QUSD employs a 5-layer automated peg defense system to maintain the $1.00 peg:
+
+1. **DEX Price Monitoring** — Multi-chain TWAP from 8 DEXs (Uniswap V3, Raydium, PancakeSwap, etc.)
+2. **Depeg Detection** — Configurable floor ($0.99) and ceiling ($1.01) thresholds
+3. **Arbitrage Calculation** — Floor, ceiling, and cross-chain arb with profitability checks
+4. **Automated Intervention** — Keeper daemon executes stabilization trades
+5. **Reserve Backstop** — Fractional reserve provides fundamental backing
+
+### 15.2 Multi-Chain Price Monitoring
+
+The DEX Price Reader (`stablecoin/dex_price.py`) queries wQUSD prices across 8 chains using Time-Weighted Average Prices (TWAP) from native DEX protocols. Prices are aggregated into a liquidity-weighted average to determine the true market price.
+
+**Supported DEXs:** Uniswap V3 (ETH), Raydium (SOL), PancakeSwap V3 (BNB), Trader Joe V2 (AVAX), QuickSwap V3 (MATIC), Camelot V3 (ARB), Velodrome (OP), Aerodrome (BASE).
+
+### 15.3 Arbitrage Economics
+
+The Arbitrage Calculator (`stablecoin/arbitrage.py`) detects three types of opportunities:
+
+| Type | Condition | Action | Peg Effect |
+|------|-----------|--------|------------|
+| **Floor arb** | wQUSD < $0.99 on any chain | Buy cheap wQUSD, redeem 1:1 at reserve | Pushes price up |
+| **Ceiling arb** | wQUSD > $1.01 on any chain | Mint QUSD at $1, sell above peg | Pushes price down |
+| **Cross-chain arb** | Price differs >0.5% between chains | Buy on cheap chain, bridge, sell on expensive chain | Equalizes prices |
+
+All calculations account for gas costs (per-chain estimates), bridge fees (`BridgeVault.feeBps()`, default 10 bps), and slippage to ensure net profitability before execution.
+
+### 15.4 Keeper Operating Modes
+
+| Mode | Monitoring | Execution | Use Case |
+|------|-----------|-----------|----------|
+| `off` | None | None | Maintenance |
+| `scan` | Active | Signals only | **Default** — observation |
+| `periodic` | Every N blocks | When depeg detected | Conservative production |
+| `continuous` | Real-time | Immediate | Active peg defense |
+| `aggressive` | Real-time | All profitable arbs | Emergency depeg recovery |
+
+### 15.5 Configurable Bridge Fees
+
+Bridge fees are configurable per-vault via `BridgeVault.setFeeBps()`:
+
+- **Default:** 10 bps (0.1%) — optimized for competitive cross-chain transfers
+- **Hard cap:** MAX_FEE_BPS = 1000 (10%) — contract-enforced safety limit
+- **Keeper integration:** Arb calculator reads live `feeBps()` from each vault to compute net profitability
+
+---
+
 **Document Metadata:**
-- Version: 2.0
-- Date: February 23, 2026
+- Version: 2.1
+- Date: March 4, 2026
 - Authors: Qubitcoin Economics Team
 - Contact: info@qbc.network
 - Website: [qbc.network](https://qbc.network)

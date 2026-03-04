@@ -125,8 +125,9 @@ When you run `docker compose up -d`, the following happens without any manual in
 | 4m | StablecoinEngine | QUSD fractional reserve engine | ~1s |
 | 4n | BridgeManager | Multi-chain bridge coordinator (8 chains) | ~1s |
 | 4o | Cognitive modules | Sephirot, CSF transport, Pineal orchestrator, Safety | ~2s |
+| 4o2 | QUSD Keeper | Starts peg keeper daemon (default: scan mode) | ~1s |
 | 4p | SPV Verifier | Light node verification support | ~1s |
-| 4q | RPC Server | Starts FastAPI on port 5000 (215 REST + 20 JSON-RPC endpoints) | ~2s |
+| 4q | RPC Server | Starts FastAPI on port 5000 (229 REST + 20 JSON-RPC endpoints) | ~2s |
 | 5 | **Mining starts** | `AUTO_MINE=true` → mines **block 0 (genesis)** | ~10-30s |
 | 6 | **Aether Genesis** | Creates 4 knowledge nodes + Phi baseline + system_birth event | ~1s |
 | 7+ | Monitoring | Prometheus + Grafana + Loki start (production compose) | ~15s |
@@ -792,6 +793,18 @@ curl -X POST http://localhost:5000/contracts/deploy \
 - [ ] Tier 8: Bridge infrastructure (3 contracts)
 
 **Total: 50 contracts across 9 tiers**
+
+### 10.4 QUSD Keeper Post-Deployment Verification
+
+After contracts are deployed and QUSD is live:
+
+- [ ] `curl http://localhost:5000/keeper/status` returns `enabled: true`
+- [ ] Keeper is in `scan` mode by default (no automatic trades)
+- [ ] `curl http://localhost:5000/keeper/prices` returns prices from at least 1 chain
+- [ ] `curl http://localhost:5000/keeper/arb/summary` returns valid JSON
+- [ ] Prometheus metrics at `/metrics` include `qbc_qusd_keeper_*` gauges
+- [ ] Upgrade to `periodic` mode when ready: `curl -X PUT http://localhost:5000/keeper/mode/periodic`
+- [ ] Verify floor/ceiling thresholds match production policy ($0.99/$1.01 default)
 
 ---
 

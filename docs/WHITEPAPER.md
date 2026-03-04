@@ -1947,13 +1947,16 @@ Layer 4: Social Security
 ```
 Lock-and-Mint:
 - QBC gas: ~0.01 QBC
-- Bridge fee: 0.1% of transfer
+- Bridge fee: 0.1% of transfer (configurable per-vault, max 10%)
 - Target chain gas: varies (user pays in native token)
 
 Burn-and-Unlock:
 - Source chain gas: varies
-- Bridge fee: 0.1% of transfer
+- Bridge fee: 0.1% of transfer (configurable per-vault, max 10%)
 - QBC gas: ~0.01 QBC (validators pay)
+
+Bridge fees are set via BridgeVault.setFeeBps() with a MAX_FEE_BPS=1000 hard cap.
+Default: 10 bps (0.1%). The QUSD Peg Keeper reads live fee rates for arb calculations.
 ```
 
 ---
@@ -2178,6 +2181,36 @@ Emergency Actions (if backing falls below minimum):
 ├─ Accelerate reserve building
 └─ Community governance vote on remediation
 ```
+
+### 11.6.1 Automated Peg Defense (Keeper Daemon)
+
+The QUSD Peg Keeper daemon provides automated, multi-layered peg defense:
+
+**DEX Price Monitoring:**
+The keeper reads Time-Weighted Average Prices (TWAP) from native DEX protocols across 8 chains (Uniswap V3, Raydium, PancakeSwap V3, Trader Joe V2, QuickSwap V3, Camelot V3, Velodrome, Aerodrome). Prices are aggregated into a liquidity-weighted average.
+
+**Arbitrage-Based Stabilization:**
+```
+Floor Defense (wQUSD < $0.99):
+├─ Buy cheap wQUSD on DEX
+├─ Redeem 1:1 at QUSDReserve contract
+└─ Natural price floor via arbitrage incentive
+
+Ceiling Defense (wQUSD > $1.01):
+├─ Mint QUSD at $1.00 via QUSDReserve
+├─ Sell above peg on DEX
+└─ Natural price ceiling via arbitrage incentive
+
+Cross-Chain Equalization:
+├─ Detect price discrepancies across chains
+├─ Buy on cheap chain, bridge via BridgeVault
+├─ Sell on expensive chain
+└─ Net of gas + bridge fees (default 10 bps) must be profitable
+```
+
+**Operating Modes:** off (disabled), scan (monitor only, default), periodic (check every N blocks), continuous (real-time), aggressive (pursue all profitable opportunities).
+
+**Configuration:** All parameters (floor/ceiling thresholds, max trade size, check interval, cooldown) are configurable via environment variables and the Admin API. See `CLAUDE.md` Section 25 for full reference.
 
 ### 11.7 Smart Contract Architecture
 

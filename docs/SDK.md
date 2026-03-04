@@ -585,6 +585,164 @@ curl http://localhost:5000/qusd/reserves
 curl http://localhost:5000/qusd/debt
 ```
 
+### 7.1 QUSD Peg Keeper API
+
+The peg keeper daemon monitors wQUSD prices across 8 chains and executes stabilization actions.
+
+#### Get Keeper Status
+
+```bash
+curl http://localhost:5000/keeper/status
+```
+
+```json
+{
+  "enabled": true,
+  "mode": "scan",
+  "paused": false,
+  "last_check_block": 42100,
+  "total_actions": 0,
+  "depeg_events": 0,
+  "stability_fund_qbc": 1000000.0,
+  "max_deviation": 0.003
+}
+```
+
+#### Get Multi-Chain DEX Prices
+
+```bash
+curl http://localhost:5000/keeper/prices
+```
+
+```json
+{
+  "prices": {
+    "ethereum": {"price": 1.002, "dex": "uniswap_v3", "liquidity": 5000000, "twap_window": 300},
+    "solana": {"price": 0.998, "dex": "raydium", "liquidity": 2000000, "twap_window": 300},
+    "bnb": {"price": 1.001, "dex": "pancakeswap_v3", "liquidity": 3000000, "twap_window": 300}
+  },
+  "weighted_average": 1.0003,
+  "max_deviation": 0.003,
+  "timestamp": 1709500000
+}
+```
+
+#### Change Operating Mode
+
+```bash
+# Set to continuous monitoring
+curl -X PUT http://localhost:5000/keeper/mode/continuous
+
+# Available modes: off, scan, periodic, continuous, aggressive
+```
+
+```json
+{
+  "previous_mode": "scan",
+  "new_mode": "continuous",
+  "message": "Keeper mode changed to continuous"
+}
+```
+
+#### Get Arbitrage Opportunities
+
+```bash
+curl http://localhost:5000/keeper/opportunities
+```
+
+```json
+{
+  "opportunities": [
+    {
+      "type": "floor_arb",
+      "chain": "solana",
+      "buy_price": 0.985,
+      "sell_price": 1.0,
+      "spread_bps": 150,
+      "max_size": 100000,
+      "estimated_profit_qbc": 1500.0,
+      "gas_cost_estimate": 0.5,
+      "bridge_fee_bps": 10,
+      "net_profitable": true
+    }
+  ],
+  "total_opportunities": 1
+}
+```
+
+#### Execute Keeper Action
+
+```bash
+curl -X POST http://localhost:5000/keeper/execute \
+  -H "Content-Type: application/json" \
+  -d '{"action": "floor_arb", "chain": "solana", "amount": 50000}'
+```
+
+#### Pause / Resume Keeper
+
+```bash
+# Pause the keeper daemon
+curl -X POST http://localhost:5000/keeper/pause
+
+# Resume the keeper daemon
+curl -X POST http://localhost:5000/keeper/resume
+```
+
+#### Get Keeper Configuration
+
+```bash
+curl http://localhost:5000/keeper/config
+```
+
+```json
+{
+  "enabled": true,
+  "default_mode": "scan",
+  "check_interval_blocks": 10,
+  "max_trade_size": 1000000,
+  "floor_price": 0.99,
+  "ceiling_price": 1.01,
+  "cooldown_blocks": 10
+}
+```
+
+#### Update Keeper Configuration
+
+```bash
+curl -X PUT http://localhost:5000/keeper/config \
+  -H "Content-Type: application/json" \
+  -d '{"floor_price": 0.995, "ceiling_price": 1.005, "max_trade_size": 500000}'
+```
+
+#### Get Depeg Signals
+
+```bash
+curl http://localhost:5000/keeper/signals
+```
+
+#### Get Action History
+
+```bash
+curl http://localhost:5000/keeper/history
+```
+
+#### Get Arbitrage Summary
+
+```bash
+curl http://localhost:5000/keeper/arb/summary
+```
+
+```json
+{
+  "floor_opportunities": 1,
+  "ceiling_opportunities": 0,
+  "cross_chain_opportunities": 2,
+  "total_estimated_profit_qbc": 3200.0,
+  "chains_with_depeg": ["solana"],
+  "weighted_avg_price": 1.0003
+}
+```
+
 ---
 
 ## 8. SUSY Scientific Database

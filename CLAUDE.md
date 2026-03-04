@@ -45,7 +45,8 @@
 | **Frontend** | React/Next.js (qbc.network) | 35 components | ~8,000 | 85-90% Ready |
 | **Infra** | Docker/Monitoring/DevOps | 20+ configs | ~2,000 | Production Ready |
 | **Docs** | Whitepapers + Guides | 8 files | ~5,800 | Production Ready |
-| **Tests** | Python pytest suite | 3,901 tests | ~32,000 | All Passing |
+| **L1** | QUSD Peg Keeper | 3 modules (dex_price, arbitrage, keeper) | ~2,100 | Production Ready |
+| **Tests** | Python pytest suite | 4,033 tests | ~34,000 | All Passing |
 | **Total** | | **300+ files** | **~100,000+** | **Production Ready** |
 
 ### What Needs To Happen Next
@@ -269,7 +270,7 @@ Qubitcoin/
 │       │   ├── manager.py            # DatabaseManager (sessions, queries)
 │       │   └── models.py             # SQLAlchemy ORM models
 │       ├── network/                  # [L1] RPC + P2P
-│       │   ├── rpc.py                # 215+ REST + JSON-RPC endpoints
+│       │   ├── rpc.py                # 229+ REST + JSON-RPC endpoints
 │       │   ├── jsonrpc.py            # eth_* MetaMask compatible
 │       │   ├── p2p_network.py        # Python P2P (legacy fallback)
 │       │   └── rust_p2p_client.py    # Rust libp2p gRPC client
@@ -281,7 +282,11 @@ Qubitcoin/
 │       │   └── susy_swap.py          # Confidential tx builder
 │       ├── bridge/                   # [L1] Multi-chain bridges
 │       │   ├── manager.py, base.py, ethereum.py, solana.py
-│       ├── stablecoin/engine.py      # [L1] QUSD fractional reserve
+│       ├── stablecoin/               # [L1] QUSD stablecoin
+│       │   ├── engine.py             # Fractional reserve engine
+│       │   ├── dex_price.py          # Multi-chain DEX TWAP price reader
+│       │   ├── arbitrage.py          # Cross-chain arb calculator
+│       │   └── keeper.py             # Peg keeper daemon (5 modes)
 │       ├── qvm/                      # [FUTURE: qubitcoin-qvm] Python QVM
 │       │   ├── vm.py                 # 167 opcodes (155 EVM + 10 quantum + 2 AGI)
 │       │   ├── opcodes.py, state.py, compliance.py, risk.py
@@ -367,7 +372,7 @@ Qubitcoin/
 ├── sql/                              # Legacy schemas (10 files)
 ├── sql_new/                          # Domain-separated schemas (qbc, agi, qvm, research, shared)
 │
-├── tests/                            # Test suite (3,901+ tests, 97 files)
+├── tests/                            # Test suite (4,033+ tests, 99 files)
 │   ├── unit/                         # Unit tests (83 files)
 │   ├── integration/                  # Integration tests
 │   ├── validation/                   # Pre-launch validation
@@ -1199,6 +1204,19 @@ The frontend connects to the node via:
 | GET | `/higgs/mass/{name}` | Single node mass by name |
 | GET | `/higgs/excitations` | Recent excitation events |
 | GET | `/higgs/potential` | Potential energy curve params |
+| GET | `/keeper/status` | Keeper daemon status + mode |
+| GET | `/keeper/mode` | Current operating mode |
+| PUT | `/keeper/mode/{mode}` | Set mode (off/scan/periodic/continuous/aggressive) |
+| GET | `/keeper/config` | Keeper configuration |
+| PUT | `/keeper/config` | Update keeper config |
+| GET | `/keeper/history` | Action history |
+| GET | `/keeper/opportunities` | Current arb opportunities |
+| GET | `/keeper/signals` | Active depeg signals |
+| POST | `/keeper/execute` | Execute a keeper action |
+| POST | `/keeper/pause` | Pause keeper daemon |
+| POST | `/keeper/resume` | Resume keeper daemon |
+| GET | `/keeper/prices` | Multi-chain DEX prices |
+| GET | `/keeper/arb/summary` | Arbitrage summary |
 | GET | `/metrics` | Prometheus metrics |
 
 ### 11.2 JSON-RPC (MetaMask/Web3 Compatible)
@@ -1381,6 +1399,15 @@ HIGGS_EXCITATION_THRESHOLD=0.1       # 10% deviation triggers excitation
 HIGGS_DAMPING=0.05                   # Field oscillation damping
 HIGGS_UPDATE_INTERVAL=10             # Blocks between field updates
 
+# QUSD Peg Keeper (see Section 25)
+KEEPER_ENABLED=true                  # Enable keeper daemon
+KEEPER_DEFAULT_MODE=scan             # off | scan | periodic | continuous | aggressive
+KEEPER_CHECK_INTERVAL=10             # Blocks between peg checks
+KEEPER_MAX_TRADE_SIZE=1000000        # Max QBC per stabilization trade
+KEEPER_FLOOR_PRICE=0.99              # QUSD depeg floor trigger ($)
+KEEPER_CEILING_PRICE=1.01            # QUSD depeg ceiling trigger ($)
+KEEPER_COOLDOWN_BLOCKS=10            # Min blocks between actions
+
 # Frontend
 NEXT_PUBLIC_RPC_URL=http://localhost:5000
 NEXT_PUBLIC_WS_URL=ws://localhost:5000/ws
@@ -1455,7 +1482,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **Node types** | Full (500GB+, 16GB RAM), Light (1GB, SPV), Mining (Full + VQE). |
 | **Block structure** | Header has vqe_params + ground_state_energy + hamiltonian_seed. Body has susy_data. |
 | **SUSY database** | Every mined block contributes solved Hamiltonian to public scientific database. |
-| **Bridge fees** | 0.3% of transfer amount (30 bps, configurable via `BRIDGE_FEE_BPS`). Lock-and-mint (QBC→wQBC), burn-and-unlock (wQBC→QBC). |
+| **Bridge fees** | Default 0.1% (10 bps), configurable via `BridgeVault.setFeeBps()` (MAX_FEE_BPS=1000). Lock-and-mint (QBC→wQBC), burn-and-unlock (wQBC→QBC). |
 | **Confirmations** | 1 = unconfirmed, 6 = standard, 100 = coinbase maturity. |
 | **L1 tx fees** | FEE = SIZE × FEE_RATE (QBC/byte). Miners select by fee density. No gas on L1. |
 | **QUSD** | 3.3B initial supply, fractional reserve, transparent debt tracking, 10-year path to 100% backing. |
@@ -1463,6 +1490,9 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **Substrate** | Hybrid node in `substrate-node/`. Native build: `SKIP_WASM_BUILD=1`. 7 crates, 6 pallets + reversibility. |
 | **Poseidon2** | ZK hashing only (Goldilocks field, 2^64 - 2^32 + 1). NOT replacing SHA3-256 for consensus. |
 | **Kyber** | ML-KEM-768 P2P encryption. Hybrid mode: Noise classical + Kyber PQ secret. AES-256-GCM session. |
+| **QUSD Keeper** | Peg keeper daemon with 5 modes (off/scan/periodic/continuous/aggressive). DEX TWAP prices, cross-chain arb detection, configurable floor/ceiling. |
+| **DEX prices** | Multi-chain TWAP from Uniswap V3 (ETH), Raydium (SOL), PancakeSwap (BNB), Trader Joe (AVAX). 8 chains supported. |
+| **BridgeVault fee** | Default 10 bps (0.1%), configurable via `setFeeBps()`. MAX_FEE_BPS=1000 (10% hard cap). Keeper uses vault fees in arb calculations. |
 
 ---
 
@@ -1489,7 +1519,7 @@ During audit remediation, ALL files can be modified without approval:
 
 ## 18. PROMETHEUS METRICS REFERENCE
 
-77 metrics defined in `utils/metrics.py` across 14 categories:
+85 metrics defined in `utils/metrics.py` across 15 categories:
 
 **Blockchain (5):** blocks_mined, blocks_received, current_height, total_supply, difficulty
 **Mining (3):** mining_attempts, vqe_optimization_time, alignment_score
@@ -1504,6 +1534,7 @@ During audit remediation, ALL files can be modified without approval:
 **Stablecoin (4):** qusd_supply, reserve_backing, cdp_debt, oracle_price
 **Cognitive (9):** sephirot_energy (x10), csf_messages, pineal_phase, phase_coherence, susy_violations, safety_vetoes, consciousness_state, metabolic_rate, kuramoto_order
 **Higgs (7):** higgs_field_value, higgs_vev, higgs_potential_energy, higgs_excitation_count, higgs_mass_gap, higgs_symmetry_broken, higgs_yukawa_max
+**Keeper (8):** keeper_mode, keeper_last_check_block, keeper_actions_total, keeper_depeg_events_total, keeper_stability_fund, keeper_max_deviation, keeper_paused, keeper_arb_opportunities
 **Subsystem Health (6):** bridge, compliance, plugins, cognitive, spv, ipfs_memory
 
 ---
@@ -1770,6 +1801,101 @@ The monorepo is designed for a clean 4-repo split:
 **Shared package** (`qubitcoin-common`): `database/`, `utils/`, `config.py`
 
 Repo boundaries are marked with `[L1]`, `[FUTURE REPO]`, `[SHARED]` labels in Section 5.
+
+---
+
+## 25. QUSD PEG KEEPER DAEMON
+
+### 25.1 Overview
+
+The QUSD Peg Keeper is an automated daemon that monitors wQUSD prices across 8 chains
+and executes stabilization actions when the peg deviates beyond configured thresholds.
+It combines multi-chain DEX price reading, cross-chain arbitrage detection, and
+configurable intervention strategies.
+
+```
+                    ┌─────────────────────────────┐
+                    │    QUSD Peg Keeper Daemon    │
+                    │    (stablecoin/keeper.py)    │
+                    └──────────┬──────────────────┘
+                               │
+            ┌──────────────────┼──────────────────┐
+            │                  │                  │
+   ┌────────▼────────┐ ┌──────▼──────┐ ┌────────▼────────┐
+   │ DEX Price Reader │ │  Arbitrage  │ │   Stabilizer    │
+   │ (dex_price.py)   │ │ Calculator  │ │   Actions       │
+   │                  │ │ (arbitrage. │ │ (mint/burn/     │
+   │ Uniswap V3      │ │  py)        │ │  buy/sell)      │
+   │ Raydium         │ │             │ │                 │
+   │ PancakeSwap     │ │ Floor arb   │ └─────────────────┘
+   │ Trader Joe      │ │ Ceiling arb │
+   │ + 4 more DEXs   │ │ Cross-chain │
+   └─────────────────┘ └─────────────┘
+```
+
+### 25.2 Operating Modes
+
+| Mode | Behavior | When to Use |
+|------|----------|-------------|
+| `off` | Daemon disabled, no monitoring | Maintenance |
+| `scan` | Monitor prices + emit signals, no action | **Default.** Observation only |
+| `periodic` | Check every N blocks, act if depeg detected | Conservative production |
+| `continuous` | Real-time monitoring, immediate action | Active peg defense |
+| `aggressive` | All arb opportunities pursued, max trade size | Emergency depeg |
+
+### 25.3 DEX Price Sources
+
+Multi-chain TWAP (Time-Weighted Average Price) from 8 networks:
+
+| Chain | DEX | Protocol |
+|-------|-----|----------|
+| Ethereum | Uniswap V3 | TWAP oracle |
+| Solana | Raydium | AMM pools |
+| BNB Chain | PancakeSwap V3 | TWAP oracle |
+| Avalanche | Trader Joe V2 | LB pools |
+| Polygon | QuickSwap V3 | TWAP oracle |
+| Arbitrum | Camelot V3 | TWAP oracle |
+| Optimism | Velodrome | AMM pools |
+| Base | Aerodrome | AMM pools |
+
+### 25.4 Arbitrage Types
+
+- **Floor arbitrage:** wQUSD < $0.99 → buy cheap wQUSD on DEX, redeem 1:1 at reserve
+- **Ceiling arbitrage:** wQUSD > $1.01 → mint QUSD at $1, sell above peg on DEX
+- **Cross-chain arbitrage:** wQUSD price differs across chains → buy low chain, bridge, sell high chain
+
+All arb calculations account for gas costs, bridge fees (`BridgeVault.feeBps()`), and
+slippage to ensure profitability before execution.
+
+### 25.5 Configuration Reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KEEPER_ENABLED` | `true` | Enable/disable keeper daemon |
+| `KEEPER_DEFAULT_MODE` | `scan` | Starting mode |
+| `KEEPER_CHECK_INTERVAL` | `10` | Blocks between peg checks |
+| `KEEPER_MAX_TRADE_SIZE` | `1000000` | Max QBC per stabilization trade |
+| `KEEPER_FLOOR_PRICE` | `0.99` | Below this = depeg (buy pressure) |
+| `KEEPER_CEILING_PRICE` | `1.01` | Above this = depeg (sell pressure) |
+| `KEEPER_COOLDOWN_BLOCKS` | `10` | Min blocks between actions |
+
+### 25.6 Key Files
+
+- `stablecoin/keeper.py` — Keeper daemon, mode management, action execution
+- `stablecoin/dex_price.py` — Multi-chain DEX TWAP price reader
+- `stablecoin/arbitrage.py` — Arbitrage opportunity calculator
+- `stablecoin/engine.py` — QUSD fractional reserve (existing)
+
+### 25.7 Prometheus Metrics (8)
+
+- `qusd_keeper_mode` — Current operating mode (0=off, 1=scan, ..., 4=aggressive)
+- `qusd_keeper_last_check_block` — Last block checked
+- `qusd_keeper_actions_total` — Total actions executed
+- `qusd_keeper_depeg_events_total` — Total depeg events detected
+- `qusd_keeper_stability_fund` — Stability fund balance (QBC)
+- `qusd_keeper_max_deviation` — Max wQUSD price deviation from $1
+- `qusd_keeper_paused` — Paused flag (0/1)
+- `qusd_keeper_arb_opportunities` — Current profitable arb count
 
 ---
 

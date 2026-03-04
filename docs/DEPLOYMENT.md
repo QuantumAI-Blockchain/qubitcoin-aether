@@ -191,6 +191,34 @@ When enabled, the Higgs field initializes automatically at genesis and assigns c
 masses to all 10 Sephirot nodes via Yukawa couplings. Expansion nodes couple to H_u,
 constraint nodes couple to H_d, and masses follow a golden ratio cascade.
 
+### QUSD Peg Keeper Configuration
+
+The QUSD Peg Keeper daemon monitors wQUSD prices across 8 chains and executes automated
+stabilization actions. Add these to your `.env`:
+
+```bash
+# QUSD Peg Keeper
+KEEPER_ENABLED=true                  # Enable keeper daemon
+KEEPER_DEFAULT_MODE=scan             # off | scan | periodic | continuous | aggressive
+KEEPER_CHECK_INTERVAL=10             # Blocks between peg checks
+KEEPER_MAX_TRADE_SIZE=1000000        # Max QBC per stabilization trade
+KEEPER_FLOOR_PRICE=0.99              # Depeg floor trigger ($)
+KEEPER_CEILING_PRICE=1.01            # Depeg ceiling trigger ($)
+KEEPER_COOLDOWN_BLOCKS=10            # Min blocks between actions
+```
+
+**Production recommendation:** Start with `scan` mode (default) to observe market behavior.
+Upgrade to `periodic` or `continuous` once QUSD liquidity is established on external DEXs.
+Use `aggressive` only during active depeg events. The keeper reads live bridge fees from
+`BridgeVault.feeBps()` (default 10 bps) for accurate cross-chain arb profitability calculations.
+
+**Verification:**
+```bash
+curl http://localhost:5000/keeper/status     # Check daemon status
+curl http://localhost:5000/keeper/prices     # View multi-chain DEX prices
+curl http://localhost:5000/keeper/arb/summary # Check arbitrage opportunities
+```
+
 ---
 
 ## Production Deployment (Digital Ocean)

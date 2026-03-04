@@ -9,7 +9,7 @@ Quantum Blockchain is a production-grade Layer 1 blockchain whose native currenc
 [![Go 1.23+](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
 [![Next.js 15](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
 [![Rust](https://img.shields.io/badge/rust-1.93+-orange.svg)](https://www.rust-lang.org/)
-[![Tests: 3,901](https://img.shields.io/badge/tests-3%2C901%20passing-brightgreen.svg)]()
+[![Tests: 4,033](https://img.shields.io/badge/tests-4%2C033%20passing-brightgreen.svg)]()
 [![Status: Production Ready](https://img.shields.io/badge/status-production%20ready-green.svg)]()
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
@@ -109,7 +109,7 @@ FRONTEND: qbc.network
 | **Frontend** | TypeScript | 44 files | Next.js 15, React 19, Three.js, MetaMask |
 | **Rust P2P** | Rust | libp2p daemon | Production P2P networking layer |
 | **Solana Programs** | Rust (Anchor) | 2 programs | wQBC + wQUSD SPL tokens |
-| **Tests** | Python | 3,812 tests | Unit, integration, validation |
+| **Tests** | Python | 4,033 tests | Unit, integration, validation |
 | **Documentation** | Markdown | 8 documents | 3 whitepapers + 5 guides |
 
 ---
@@ -212,6 +212,7 @@ Opt-in confidential transactions that hide amounts and addresses:
 
 - **7 Solidity contracts** -- QUSD, Reserve, DebtLedger, Oracle, Stabilizer, Allocation, Governance
 - **wQUSD** -- Wrapped cross-chain on ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE
+- **Peg Keeper Daemon** -- Automated 5-mode peg defense with multi-chain DEX TWAP monitoring and cross-chain arbitrage
 - **10-year path to 100% backing** -- Transparent debt tracking, fractional payback
 
 ---
@@ -222,12 +223,14 @@ Lock-and-mint bridges to 8 chains with federated validation:
 
 | Chain | Type | Fee |
 |-------|------|-----|
-| Ethereum | EVM (wQBC ERC-20) | 0.1% |
-| Polygon | EVM (wQBC ERC-20) | 0.1% |
-| BSC | EVM (wQBC BEP-20) | 0.1% |
-| Arbitrum / Optimism / Base | EVM L2 | 0.1% |
-| Avalanche | EVM (C-Chain) | 0.1% |
-| Solana | SPL (Anchor) | 0.1% |
+| Ethereum | EVM (wQBC ERC-20) | 0.1% (configurable) |
+| Polygon | EVM (wQBC ERC-20) | 0.1% (configurable) |
+| BSC | EVM (wQBC BEP-20) | 0.1% (configurable) |
+| Arbitrum / Optimism / Base | EVM L2 | 0.1% (configurable) |
+| Avalanche | EVM (C-Chain) | 0.1% (configurable) |
+| Solana | SPL (Anchor) | 0.1% (configurable) |
+
+Bridge fees default to 10 bps (0.1%), configurable per-vault via `BridgeVault.setFeeBps()` (max 10%).
 
 ---
 
@@ -264,7 +267,7 @@ pnpm build                  # Production build
 
 ### Testing
 ```bash
-# Full Python test suite (3,812 tests)
+# Full Python test suite (4,033 tests)
 pytest tests/ -v --tb=short
 
 # Substrate node
@@ -298,7 +301,7 @@ cd qubitcoin-qvm && go test ./...
 
 RPC server at `http://localhost:5000` (or `https://api.qbc.network` in production):
 
-**REST (215+ endpoints):** Chain info, balance, blocks, UTXOs, mining, QVM, Aether AGI, bridge, privacy, compliance, stablecoin, cognitive, plugins, fees, governance.
+**REST (229+ endpoints):** Chain info, balance, blocks, UTXOs, mining, QVM, Aether AGI, bridge, privacy, compliance, stablecoin, cognitive, plugins, fees, governance.
 
 **JSON-RPC (20 methods):** `eth_chainId`, `eth_getBalance`, `eth_blockNumber`, `eth_sendRawTransaction`, `eth_call`, `eth_estimateGas`, `net_version`, `web3_clientVersion`, and more.
 
@@ -315,14 +318,14 @@ Full API reference: [SDK.md](docs/SDK.md)
 | **Total Source Files** | 300+ |
 | **Lines of Code** | 100,000+ |
 | **Languages** | Python, Go, TypeScript, Rust, Solidity |
-| **Test Functions** | 3,812 |
+| **Test Functions** | 4,033 |
 | **Solidity Contracts** | 50 |
 | **Aether AGI Modules** | 34 |
 | **Substrate Pallets** | 6 |
 | **Frontend Components** | 35 |
 | **Database Tables** | 55 |
-| **RPC Endpoints** | 215+ REST + 20 JSON-RPC |
-| **Prometheus Metrics** | 77 |
+| **RPC Endpoints** | 229+ REST + 20 JSON-RPC |
+| **Prometheus Metrics** | 85 |
 | **Documentation** | 8 documents |
 
 ---
