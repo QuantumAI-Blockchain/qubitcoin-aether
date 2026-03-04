@@ -133,14 +133,16 @@ class TestProofCreation:
         )
 
     @patch('qubitcoin.mining.engine.Config')
-    @patch('qubitcoin.mining.engine.Dilithium2')
+    @patch('qubitcoin.mining.engine.DilithiumSigner')
     def test_proof_structure(self, mock_dilithium, mock_config):
         """Proof data contains all required fields."""
         import numpy as np
+        from qubitcoin.quantum.crypto import SecurityLevel
         mock_config.PRIVATE_KEY_HEX = 'aa' * 2528
         mock_config.PUBLIC_KEY_HEX = 'bb' * 32
         mock_config.ADDRESS = 'qbc1test'
-        mock_dilithium.sign.return_value = b'\x00' * 64
+        mock_config.get_security_level.return_value = SecurityLevel.LEVEL2
+        mock_dilithium.return_value.sign.return_value = b'\x00' * 64
 
         eng = self._make_engine()
         proof = eng._create_proof(
@@ -162,14 +164,16 @@ class TestProofCreation:
         assert proof['height'] == 10
 
     @patch('qubitcoin.mining.engine.Config')
-    @patch('qubitcoin.mining.engine.Dilithium2')
+    @patch('qubitcoin.mining.engine.DilithiumSigner')
     def test_proof_params_are_list(self, mock_dilithium, mock_config):
         """VQE params are serialized as list (not numpy array)."""
         import numpy as np
+        from qubitcoin.quantum.crypto import SecurityLevel
         mock_config.PRIVATE_KEY_HEX = 'aa' * 2528
         mock_config.PUBLIC_KEY_HEX = 'bb' * 32
         mock_config.ADDRESS = 'qbc1test'
-        mock_dilithium.sign.return_value = b'\x00' * 64
+        mock_config.get_security_level.return_value = SecurityLevel.LEVEL2
+        mock_dilithium.return_value.sign.return_value = b'\x00' * 64
 
         eng = self._make_engine()
         proof = eng._create_proof(

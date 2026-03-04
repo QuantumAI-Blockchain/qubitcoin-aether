@@ -6,6 +6,8 @@ import pytest
 
 from qubitcoin.quantum.crypto import (
     Dilithium2,
+    DilithiumSigner,
+    SecurityLevel,
     KeyRotationManager,
     RetiredKey,
     RotationRecord,
@@ -291,3 +293,44 @@ class TestDataclasses:
         )
         assert rk.public_key_hex == 'aabb'
         assert rk.grace_expires_at == 2000.0
+
+
+class TestMultiLevelRotation:
+    """Test key rotation across security levels (D2→D5 upgrade)."""
+
+    def test_rotate_d2_to_d5(self):
+        """Rotating from D2 key to D5 produces correct sizes."""
+        pk, sk = Dilithium2.keygen()
+        mgr = KeyRotationManager(pk, sk, grace_period_days=7)
+        new_pk, new_sk, record = mgr.rotate_keys(new_level=SecurityLevel.LEVEL5)
+        assert len(new_pk) == 2592  # D5 pk size
+        assert len(new_sk) == 4864  # D5 sk size
+
+    def test_rotate_d5_keeps_level(self):
+        """Rotating D5 key without specifying level stays at configured level."""
+        signer = DilithiumSigner(SecurityLevel.LEVEL5)
+        sk_secure, pk = signer.keygen()
+        sk = bytes(sk_secure)
+        sk_secure.zeroize()
+        mgr = KeyRotationManager(pk, sk, grace_period_days=7, level=SecurityLevel.LEVEL5)
+        new_pk, new_sk, _ = mgr.rotate_keys()
+        assert len(new_pk) == 2592  # D5 pk size preserved
+
+    def test_rotate_with_explicit_level(self):
+        """Rotating with explicit level produces correct sizes."""
+        pk, sk = Dilithium2.keygen()
+        mgr = KeyRotationManager(pk, sk, grace_period_days=7)
+        new_pk, new_sk, _ = mgr.rotate_keys(new_level=SecurityLevel.LEVEL3)
+        assert len(new_pk) == 1952  # D3 pk size
+        assert len(new_sk) == 4000  # D3 sk size
+
+    def test_cross_level_verify_via_manager(self):
+        """Old D2 sig verifies during grace after rotating to D5."""
+        pk2, sk2 = Dilithium2.keygen()
+        mgr = KeyRotationManager(pk2, sk2, grace_period_days=7)
+        msg = b"signed with D2"
+        sig = Dilithium2.sign(sk2, msg)
+        # Rotate to D5
+        mgr.rotate_keys(new_level=SecurityLevel.LEVEL5)
+        # Old D2 sig should still verify during grace period
+        assert mgr.verify(pk2, msg, sig)

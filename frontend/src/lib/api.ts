@@ -446,11 +446,30 @@ export const api = {
   // The server generates a keypair but only returns the address and public key.
   // Private keys must be generated client-side via Dilithium2 WASM.
   // See: https://github.com/nicoburniske/pqc-wasm for a reference WASM build.
-  createWallet: () =>
-    post<{ address: string; public_key_hex: string }>(
-      "/wallet/create",
-      {},
-    ),
+  createWallet: (level?: number) =>
+    post<{
+      address: string;
+      public_key_hex: string;
+      check_phrase: string;
+      security_level: number;
+      nist_name: string;
+    }>("/wallet/create", { level }),
+  getCheckPhrase: (address: string) =>
+    get<{ check_phrase: string; address: string }>(`/wallet/check-phrase/${address}`),
+  verifyCheckPhrase: (address: string, checkPhrase: string) =>
+    post<{ valid: boolean }>("/wallet/verify-check-phrase", {
+      address,
+      check_phrase: checkPhrase,
+    }),
+  getCryptoInfo: () =>
+    get<{
+      algorithm: string;
+      nist_name: string;
+      security_level: string;
+      pk_size: number;
+      sk_size: number;
+      sig_size: number;
+    }>("/crypto/info"),
   sendNative: (body: {
     from_address: string;
     to_address: string;
@@ -669,4 +688,58 @@ export const api = {
 
   telegramWebhook: (body: Record<string, unknown>) =>
     post<Record<string, unknown>>("/telegram/webhook", body),
+
+  // ─── Reversibility ──────────────────────────────────────────────────
+  requestReversal: (body: { txid: string; requester: string; reason: string }) =>
+    post<{ request_id: string; status: string; window_expires_block: number }>(
+      "/reversal/request",
+      body,
+    ),
+  approveReversal: (requestId: string, body: { guardian_address: string }) =>
+    post<{ approved: boolean; approvals: number; threshold: number }>(
+      `/reversal/approve/${requestId}`,
+      body,
+    ),
+  getReversalStatus: (requestId: string) =>
+    get<{
+      request_id: string;
+      txid: string;
+      status: string;
+      guardian_approvals: string[];
+      window_expires_block: number;
+    }>(`/reversal/status/${requestId}`),
+  getPendingReversals: () =>
+    get<{
+      pending: Array<{
+        request_id: string;
+        txid: string;
+        requester: string;
+        reason: string;
+        status: string;
+      }>;
+    }>("/reversal/pending"),
+  addGuardian: (body: { address: string; label: string; added_by: string }) =>
+    post<{ address: string; label: string }>("/guardian/add", body),
+  removeGuardian: (address: string, body: { removed_by: string }) =>
+    apiFetch<{ removed: boolean }>(`/guardian/remove/${address}`, {
+      method: "DELETE",
+      body: JSON.stringify(body),
+    }),
+  getGuardians: () =>
+    get<{
+      guardians: Array<{ address: string; label: string; active: boolean }>;
+    }>("/guardians"),
+  getTransactionWindow: (txid: string) =>
+    get<{ txid: string; window_blocks: number; set_by: string }>(
+      `/transaction/${txid}/window`,
+    ),
+  setTransactionWindow: (body: {
+    txid: string;
+    window_blocks: number;
+    set_by: string;
+  }) =>
+    post<{ txid: string; window_blocks: number }>(
+      "/transaction/set-window",
+      body,
+    ),
 } as const;

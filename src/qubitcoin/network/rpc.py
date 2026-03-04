@@ -55,7 +55,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    substrate_bridge=None,
                    qusd_keeper=None,
                    dex_price_reader=None,
-                   arb_calculator=None) -> FastAPI:
+                   arb_calculator=None,
+                   reversibility_manager=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -283,7 +284,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 "qvm": state_manager is not None,
                 "aether_tree": aether_engine is not None,
                 "quantum_proofs": True,
-                "post_quantum_crypto": "Dilithium2",
+                "post_quantum_crypto": f"Dilithium{Config.DILITHIUM_LEVEL}",
                 "consensus": "Proof-of-SUSY-Alignment + Proof-of-Thought",
                 "p2p_networking": True,
                 "chain_id": Config.CHAIN_ID,
@@ -2472,39 +2473,42 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.post("/wallet/create")
     async def wallet_create():
-        """Generate a new Dilithium2 quantum-secure wallet.
+        """Generate a new Dilithium quantum-secure wallet.
 
         SECURITY [FE-C1]: Private keys are NEVER returned over HTTP.  Only
         the address and public key are returned.  The private key is
         discarded server-side immediately after address derivation.
 
         This endpoint exists for backward compatibility.  Prefer client-side
-        key generation via a Dilithium2 WASM module so key material never
+        key generation via a Dilithium WASM module so key material never
         leaves the browser.
         """
-        from ..quantum.crypto import Dilithium2
-        pk, sk = Dilithium2.keygen()
-        address = Dilithium2.derive_address(pk)
+        from ..quantum.crypto import DilithiumSigner, _LEVEL_NAMES, address_to_check_phrase
+        level = Config.get_security_level()
+        signer = DilithiumSigner(level)
+        sk_secure, pk = signer.keygen()
 
-        # SECURITY [FE-C1]: Explicitly discard the private key — it must
-        # NEVER be sent over the network.  The variable is overwritten to
-        # reduce the window where it exists in memory.
-        del sk
+        address = DilithiumSigner.derive_address(pk)
+        check_phrase = address_to_check_phrase(address)
+
+        # SECURITY [FE-C1]: Explicitly zeroize the private key
+        sk_secure.zeroize()
+        del sk_secure
 
         logger.info(
-            f"/wallet/create: generated address {address[:12]}... "
+            f"/wallet/create: generated {_LEVEL_NAMES[level]} address {address[:12]}... "
             "(public key only — private key discarded server-side)"
         )
 
         return {
             'address': address,
             'public_key_hex': pk.hex(),
-            # SECURITY [FE-C1]: private_key_hex is intentionally NOT returned.
-            # Private keys must be generated client-side (Dilithium2 WASM).
+            'check_phrase': check_phrase,
+            'security_level': level.value,
+            'nist_name': _LEVEL_NAMES[level],
             '_notice': (
                 'Private key is NOT returned.  Generate and store private keys '
-                'client-side using a Dilithium2 WASM module.  This endpoint only '
-                'provides address and public key for convenience.'
+                'client-side.  This endpoint only provides address and public key.'
             ),
         }
 
@@ -2521,7 +2525,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Send QBC from a native Dilithium wallet."""
         import hashlib
         import time as _time
-        from ..quantum.crypto import Dilithium2
+        from ..quantum.crypto import DilithiumSigner
 
         try:
             amount = Decimal(req.amount)
@@ -2536,7 +2540,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
         # Verify Dilithium signature
         pk = bytes.fromhex(req.public_key_hex)
-        derived_addr = Dilithium2.derive_address(pk)
+        derived_addr = DilithiumSigner.derive_address(pk)
         if derived_addr != req.from_address:
             raise HTTPException(status_code=400, detail="Public key does not match from_address")
 
@@ -2544,7 +2548,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         import json as _json
         msg = _json.dumps(tx_data, sort_keys=True).encode()
         sig = bytes.fromhex(req.signature_hex)
-        if not Dilithium2.verify(pk, msg, sig):
+        if not DilithiumSigner.verify(pk, msg, sig):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
         to_addr = req.to_address.replace('0x', '')
@@ -2699,11 +2703,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             )
         logger.warning("DEPRECATED: /wallet/sign called — sign client-side instead")
 
-        from ..quantum.crypto import Dilithium2
+        from ..quantum.crypto import DilithiumSigner, _sk_size_to_level
         try:
             sk = bytes.fromhex(req.private_key_hex)
             msg = bytes.fromhex(req.message_hash)
-            signature = Dilithium2.sign(sk, msg)
+            # Auto-detect level from sk size
+            level = _sk_size_to_level(len(sk))
+            signature = DilithiumSigner(level).sign(sk, msg)
             return {'signature_hex': signature.hex()}
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Signing failed: {e}")
@@ -2806,7 +2812,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.post("/sephirot/stake")
     async def sephirot_stake(req: StakeRequest):
         """Stake QBC on a Sephirot node."""
-        from ..quantum.crypto import Dilithium2
+        from ..quantum.crypto import DilithiumSigner
         import json as _json
 
         try:
@@ -2823,13 +2829,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
         # Verify signature
         pk = bytes.fromhex(req.public_key_hex)
-        derived_addr = Dilithium2.derive_address(pk)
+        derived_addr = DilithiumSigner.derive_address(pk)
         if derived_addr != req.address:
             raise HTTPException(status_code=400, detail="Public key does not match address")
         tx_data = {'address': req.address, 'node_id': req.node_id, 'amount': req.amount, 'action': 'stake'}
         msg = _json.dumps(tx_data, sort_keys=True).encode()
         sig = bytes.fromhex(req.signature_hex)
-        if not Dilithium2.verify(pk, msg, sig):
+        if not DilithiumSigner.verify(pk, msg, sig):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
         # Stake cap A2: max stake per address on this node
@@ -2926,17 +2932,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.post("/sephirot/unstake")
     async def sephirot_unstake(req: UnstakeRequest):
         """Request unstaking (7-day delay)."""
-        from ..quantum.crypto import Dilithium2
+        from ..quantum.crypto import DilithiumSigner
         import json as _json
 
         pk = bytes.fromhex(req.public_key_hex)
-        derived_addr = Dilithium2.derive_address(pk)
+        derived_addr = DilithiumSigner.derive_address(pk)
         if derived_addr != req.address:
             raise HTTPException(status_code=400, detail="Public key does not match address")
         tx_data = {'address': req.address, 'stake_id': req.stake_id, 'action': 'unstake'}
         msg = _json.dumps(tx_data, sort_keys=True).encode()
         sig = bytes.fromhex(req.signature_hex)
-        if not Dilithium2.verify(pk, msg, sig):
+        if not DilithiumSigner.verify(pk, msg, sig):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
         # Verify stake belongs to address
@@ -2991,19 +2997,19 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.post("/sephirot/claim-rewards")
     async def sephirot_claim_rewards(req: ClaimRewardsRequest):
         """Claim all pending staking rewards."""
-        from ..quantum.crypto import Dilithium2
+        from ..quantum.crypto import DilithiumSigner
         import json as _json
         import hashlib
         import time as _time
 
         pk = bytes.fromhex(req.public_key_hex)
-        derived_addr = Dilithium2.derive_address(pk)
+        derived_addr = DilithiumSigner.derive_address(pk)
         if derived_addr != req.address:
             raise HTTPException(status_code=400, detail="Public key does not match address")
         tx_data = {'address': req.address, 'action': 'claim_rewards'}
         msg = _json.dumps(tx_data, sort_keys=True).encode()
         sig = bytes.fromhex(req.signature_hex)
-        if not Dilithium2.verify(pk, msg, sig):
+        if not DilithiumSigner.verify(pk, msg, sig):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
         claimed = db_manager.claim_rewards(req.address)
@@ -5965,10 +5971,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
         This is a transitional measure until Dilithium2 WASM is available.
         """
-        from ..quantum.crypto import Dilithium2
+        from ..quantum.crypto import DilithiumSigner
         # Dilithium2 signatures are ~2420 bytes; HMAC-SHA256 is 32 bytes
         if len(sig) > 64:
-            return Dilithium2.verify(pk, msg, sig)
+            return DilithiumSigner.verify(pk, msg, sig)
         # C6 FIX: Actually verify the HMAC using public key as HMAC key
         import hashlib
         import hmac as hmac_mod
@@ -6141,12 +6147,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not signature_hex or not public_key_hex:
             raise HTTPException(status_code=401, detail="Signature and public key required for key storage")
         import json as _json
-        from ..quantum.crypto import Dilithium2
+        from ..quantum.crypto import DilithiumSigner
         try:
             pk = bytes.fromhex(public_key_hex)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid public key hex")
-        derived_addr = Dilithium2.derive_address(pk)
+        derived_addr = DilithiumSigner.derive_address(pk)
         if derived_addr != owner_address:
             raise HTTPException(status_code=400, detail="Public key does not match owner address")
         sign_data = {'owner_address': owner_address, 'provider': body.get("provider", ""), 'action': 'store_key'}
@@ -6192,9 +6198,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             if not sig_hex or not pk_hex:
                 raise HTTPException(status_code=401, detail="Authentication required to list keys")
             try:
-                from ..quantum.crypto import Dilithium2
+                from ..quantum.crypto import DilithiumSigner
                 pk = bytes.fromhex(pk_hex)
-                derived = Dilithium2.derive_address(pk)
+                derived = DilithiumSigner.derive_address(pk)
                 if derived != address:
                     raise HTTPException(status_code=403, detail="Address mismatch")
                 import json as _json
@@ -6222,12 +6228,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not signature_hex or not public_key_hex:
             raise HTTPException(status_code=401, detail="Signature and public key required for key revocation")
         import json as _json
-        from ..quantum.crypto import Dilithium2
+        from ..quantum.crypto import DilithiumSigner
         try:
             pk = bytes.fromhex(public_key_hex)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid public key hex")
-        derived_addr = Dilithium2.derive_address(pk)
+        derived_addr = DilithiumSigner.derive_address(pk)
         if derived_addr != owner_address:
             raise HTTPException(status_code=400, detail="Public key does not match owner address")
         sign_data = {'owner_address': owner_address, 'key_id': key_id, 'action': 'revoke_key'}
@@ -6334,12 +6340,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 status='pending',
             )
             # Sign with node key
-            from ..quantum.crypto import Dilithium2
+            from ..quantum.crypto import DilithiumSigner
             pk = bytes.fromhex(Config.PUBLIC_KEY_HEX)
             sk = bytes.fromhex(Config.PRIVATE_KEY_HEX)
             import json as _json
             msg = _json.dumps(tx.to_dict(), sort_keys=True, default=str).encode()
-            tx.signature = Dilithium2.sign(sk, msg).hex()
+            tx.signature = DilithiumSigner(Config.get_security_level()).sign(sk, msg).hex()
             # Add to mempool
             db_manager.add_to_mempool(tx)
             logger.info(f"AIKGS treasury disbursement: {amount:.8f} QBC → {recipient[:12]}... ({reason})")
@@ -6392,6 +6398,185 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     from .admin_api import router as admin_router
     app.include_router(admin_router)
 
-    logger.info("RPC endpoints configured (v2.3 with P2P + QVM + Aether + AIKGS-sidecar + Telegram + Admin)")
+    # ========================================================================
+    # CHECK-PHRASE VERIFICATION
+    # ========================================================================
+
+    @app.get("/wallet/check-phrase/{address}")
+    async def wallet_check_phrase(address: str):
+        """Get the human-readable check-phrase for a QBC address."""
+        from ..quantum.crypto import address_to_check_phrase
+        phrase = address_to_check_phrase(address)
+        return {'address': address, 'check_phrase': phrase}
+
+    @app.post("/wallet/verify-check-phrase")
+    async def wallet_verify_check_phrase(req: dict):
+        """Verify that a check-phrase matches an address."""
+        from ..quantum.crypto import verify_check_phrase
+        address = req.get('address', '')
+        phrase = req.get('check_phrase', '')
+        if not address or not phrase:
+            raise HTTPException(status_code=400, detail="address and check_phrase required")
+        match = verify_check_phrase(address, phrase)
+        return {'address': address, 'check_phrase': phrase, 'match': match}
+
+    # ========================================================================
+    # TRANSACTION REVERSIBILITY
+    # ========================================================================
+
+    if reversibility_manager:
+        @app.post("/reversal/request")
+        async def reversal_request(req: dict):
+            """Request reversal of a transaction within its window."""
+            txid = req.get('txid', '')
+            requester = req.get('requester', '')
+            reason = req.get('reason', '')
+            if not txid or not requester:
+                raise HTTPException(status_code=400, detail="txid and requester required")
+            current_height = db_manager.get_current_height()
+            try:
+                result = reversibility_manager.request_reversal(txid, requester, reason, current_height)
+                return {
+                    'request_id': result.request_id,
+                    'txid': result.txid,
+                    'status': result.status,
+                    'window_expires_block': result.window_expires_block,
+                    'guardian_approvals': result.guardian_approvals,
+                }
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        @app.post("/reversal/approve/{request_id}")
+        async def reversal_approve(request_id: str, req: dict):
+            """Guardian approves a reversal request."""
+            guardian_address = req.get('guardian_address', '')
+            if not guardian_address:
+                raise HTTPException(status_code=400, detail="guardian_address required")
+            current_height = db_manager.get_current_height()
+            try:
+                reversibility_manager.approve_reversal(request_id, guardian_address, current_height)
+                result = reversibility_manager.get_reversal_status(request_id)
+                return {
+                    'request_id': request_id,
+                    'status': result.status if result else 'unknown',
+                    'guardian_approvals': result.guardian_approvals if result else [],
+                }
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+        @app.get("/reversal/status/{request_id}")
+        async def reversal_status(request_id: str):
+            """Check status of a reversal request."""
+            result = reversibility_manager.get_reversal_status(request_id)
+            if not result:
+                raise HTTPException(status_code=404, detail="Reversal request not found")
+            return {
+                'request_id': result.request_id,
+                'txid': result.txid,
+                'requester': result.requester,
+                'reason': result.reason,
+                'status': result.status,
+                'window_expires_block': result.window_expires_block,
+                'guardian_approvals': result.guardian_approvals,
+                'created_at': result.created_at,
+                'executed_at': result.executed_at,
+                'reversal_txid': result.reversal_txid,
+            }
+
+        @app.get("/reversal/pending")
+        async def reversal_pending():
+            """List all pending reversal requests."""
+            results = reversibility_manager.get_pending_reversals()
+            return {'pending': [
+                {
+                    'request_id': r.request_id,
+                    'txid': r.txid,
+                    'requester': r.requester,
+                    'status': r.status,
+                    'window_expires_block': r.window_expires_block,
+                    'guardian_approvals': r.guardian_approvals,
+                }
+                for r in results
+            ]}
+
+        @app.post("/guardian/add")
+        async def guardian_add(req: dict):
+            """Add a security guardian."""
+            address = req.get('address', '')
+            label = req.get('label', '')
+            added_by = req.get('added_by', '')
+            if not address or not label or not added_by:
+                raise HTTPException(status_code=400, detail="address, label, and added_by required")
+            current_height = db_manager.get_current_height()
+            guardian = reversibility_manager.add_guardian(address, label, added_by, current_height)
+            return {'address': guardian.address, 'label': guardian.label, 'active': guardian.active}
+
+        @app.delete("/guardian/remove/{address}")
+        async def guardian_remove(address: str, req: dict = {}):
+            """Remove a security guardian."""
+            removed_by = req.get('removed_by', '')
+            result = reversibility_manager.remove_guardian(address, removed_by)
+            return {'removed': result}
+
+        @app.get("/guardians")
+        async def guardians_list():
+            """List all active security guardians."""
+            guardians = reversibility_manager.list_guardians()
+            return {'guardians': [
+                {'address': g.address, 'label': g.label, 'added_at': g.added_at, 'added_by': g.added_by}
+                for g in guardians
+            ]}
+
+        @app.get("/transaction/{txid}/window")
+        async def transaction_window(txid: str):
+            """Check reversal window for a transaction."""
+            window = reversibility_manager.get_transaction_window(txid)
+            if not window:
+                return {'txid': txid, 'window_blocks': 0, 'reversible': False}
+            current_height = db_manager.get_current_height()
+            eligible = reversibility_manager.check_reversal_eligible(txid, current_height)
+            return {
+                'txid': window.txid,
+                'window_blocks': window.window_blocks,
+                'set_by': window.set_by,
+                'set_at_block': window.set_at_block,
+                'expires_at_block': window.set_at_block + window.window_blocks,
+                'reversible': eligible,
+            }
+
+        @app.post("/transaction/set-window")
+        async def transaction_set_window(req: dict):
+            """Set reversal window for a transaction (sender only, pre-broadcast)."""
+            txid = req.get('txid', '')
+            window_blocks = req.get('window_blocks', 0)
+            set_by = req.get('set_by', '')
+            if not txid or not set_by:
+                raise HTTPException(status_code=400, detail="txid and set_by required")
+            current_height = db_manager.get_current_height()
+            try:
+                window = reversibility_manager.set_transaction_window(
+                    txid, int(window_blocks), set_by, current_height
+                )
+                return {
+                    'txid': window.txid,
+                    'window_blocks': window.window_blocks,
+                    'expires_at_block': window.set_at_block + window.window_blocks,
+                }
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+    # ========================================================================
+    # CRYPTO INFO
+    # ========================================================================
+
+    @app.get("/crypto/info")
+    async def crypto_info():
+        """Get cryptographic implementation details."""
+        from ..quantum.crypto import CryptoManager, _LEVEL_NAMES
+        level = Config.get_security_level()
+        info = CryptoManager.get_key_info(level)
+        return info
+
+    logger.info("RPC endpoints configured (v2.4 with P2P + QVM + Aether + Reversibility + Multi-level Dilithium)")
 
     return app

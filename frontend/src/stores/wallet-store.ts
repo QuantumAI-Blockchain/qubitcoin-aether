@@ -6,6 +6,9 @@ export interface NativeWallet {
   publicKeyHex: string;
   label: string;
   createdAt: number;
+  securityLevel?: number; // 2, 3, or 5
+  checkPhrase?: string; // e.g. "tiger-ocean-marble"
+  nistName?: string; // e.g. "ML-DSA-87"
 }
 
 interface WalletState {

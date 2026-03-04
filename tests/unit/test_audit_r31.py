@@ -243,7 +243,7 @@ class TestCoinbaseFeeBurn:
         ce._validate_block_susy_swaps = MagicMock(return_value=(True, ''))
 
         with patch.object(Config, 'FEE_BURN_PERCENTAGE', 0.5), \
-             patch('qubitcoin.quantum.crypto.Dilithium2.verify', return_value=True):
+             patch('qubitcoin.consensus.engine.DilithiumSigner.verify', return_value=True):
             valid, reason = ce.validate_block(block, prev, db)
             assert valid is False
             assert 'excessive' in reason.lower() or 'coinbase' in reason.lower()

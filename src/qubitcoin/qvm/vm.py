@@ -1933,8 +1933,8 @@ class QVM:
                 msg = ctx.memory_read(msg_off, msg_size)
                 sig = ctx.memory_read(sig_off, sig_size)
                 try:
-                    from ..quantum.crypto import Dilithium2
-                    valid = Dilithium2.verify(pk, msg, sig)
+                    from ..quantum.crypto import DilithiumSigner
+                    valid = DilithiumSigner.verify(pk, msg, sig)
                     ctx.push(1 if valid else 0)
                 except Exception as e:
                     logger.debug(f"QDILITHIUM verify failed: {e}")

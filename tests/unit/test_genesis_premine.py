@@ -157,7 +157,7 @@ class TestPremineConsensus:
         valid, reason = eng.validate_block(block, None, db)
         assert valid is True, f"Should accept genesis premine: {reason}"
 
-    @patch('qubitcoin.quantum.crypto.Dilithium2')
+    @patch('qubitcoin.consensus.engine.DilithiumSigner')
     def test_non_genesis_premine_rejected(self, mock_dil):
         mock_dil.verify.return_value = True
         from qubitcoin.config import Config

@@ -1,99 +1,143 @@
 // ============================================================================
-// SECURITY: PLACEHOLDER — NOT REAL SIGNING
+// Dilithium Multi-Level Signing Client
 // ============================================================================
 //
-// This module uses HMAC-SHA256 with the PUBLIC KEY as the HMAC secret.
-// This is NOT cryptographic signing — anyone who knows the public key can
-// forge signatures.  It exists solely as a development placeholder until a
-// real Dilithium2 WASM signing module is integrated.
+// All signing operations are delegated to the backend (POST /wallet/sign).
+// No client-side cryptography — the backend handles Dilithium at all levels
+// (ML-DSA-44/65/87) via the Python dilithium-py library.
 //
-// BEFORE PRODUCTION you MUST replace the internals of
-// `placeholderSignTransaction()` with real Dilithium2 WASM signing
-// (e.g. compiled from liboqs via wasm-pack).  The function signature stays
-// the same — only the internal signing primitive changes.
+// This module provides:
+// 1. Type definitions for security levels
+// 2. API-backed sign/verify functions
+// 3. Check-phrase display utilities
 //
-// Reference WASM builds:
-//   - https://github.com/nicoburniske/pqc-wasm
-//   - https://github.com/nicoburniske/dilithium-wasm
-//
-// DO NOT ship this placeholder to production.
 // ============================================================================
 
+import { post, get } from "./api";
+
+/** Dilithium security levels matching NIST ML-DSA standards. */
+export enum SecurityLevel {
+  LEVEL2 = 2, // ML-DSA-44 (128-bit classical, 64-bit quantum)
+  LEVEL3 = 3, // ML-DSA-65 (192-bit classical, 96-bit quantum)
+  LEVEL5 = 5, // ML-DSA-87 (256-bit classical, 128-bit quantum)
+}
+
+/** Human-readable NIST names for each level. */
+export const LEVEL_NAMES: Record<SecurityLevel, string> = {
+  [SecurityLevel.LEVEL2]: "ML-DSA-44",
+  [SecurityLevel.LEVEL3]: "ML-DSA-65",
+  [SecurityLevel.LEVEL5]: "ML-DSA-87",
+};
+
+/** Key sizes in bytes for each security level. */
+export const KEY_SIZES: Record<
+  SecurityLevel,
+  { pk: number; sk: number; sig: number }
+> = {
+  [SecurityLevel.LEVEL2]: { pk: 1312, sk: 2528, sig: 2420 },
+  [SecurityLevel.LEVEL3]: { pk: 1952, sk: 4000, sig: 3293 },
+  [SecurityLevel.LEVEL5]: { pk: 2592, sk: 4864, sig: 4595 },
+};
+
 /**
- * PLACEHOLDER: Sign transaction data using HMAC-SHA256 (NOT real signing).
+ * Sign transaction data via backend API.
  *
- * @deprecated This is a mock implementation. Replace with Dilithium2 WASM
- *   signing before production. Anyone with the public key can forge these
- *   signatures.
- *
- * @param publicKeyHex - The user's Dilithium public key in hex.
- * @param txData - Transaction data to sign.
- * @returns Hex-encoded HMAC-SHA256 output (32 bytes). NOT a real signature.
+ * @param privateKeyHex - The Dilithium private key in hex
+ * @param txData - Transaction data to sign (serialized to JSON)
+ * @returns Hex-encoded Dilithium signature
  */
-export async function placeholderSignTransaction(
-  publicKeyHex: string,
+export async function signTransaction(
+  privateKeyHex: string,
   txData: Record<string, string | number>,
 ): Promise<string> {
-  // SECURITY: PLACEHOLDER — NOT REAL SIGNING
-  // This uses HMAC-SHA256 with the PUBLIC KEY as the HMAC secret.
-  // Anyone who knows the public key can reproduce this output.
-  // Replace with real Dilithium2 WASM signing before production.
-  if (typeof console !== "undefined") {
-    console.warn(
-      "[QBC SECURITY] placeholderSignTransaction() is NOT real signing. " +
-        "It uses HMAC-SHA256 with the public key — anyone can forge these " +
-        "signatures. Replace with Dilithium2 WASM before production.",
-    );
-  }
-
-  // 1. Deterministically serialize the transaction (sorted keys)
-  const sortedKeys = Object.keys(txData).sort();
-  const sorted: Record<string, string | number> = {};
-  for (const k of sortedKeys) {
-    sorted[k] = txData[k];
-  }
-  const message = JSON.stringify(sorted);
-  const msgBytes = new TextEncoder().encode(message);
-
-  // 2. Hash the serialised transaction data (SHA-256)
-  const hashBuffer = await crypto.subtle.digest("SHA-256", msgBytes);
-  const msgHash = new Uint8Array(hashBuffer);
-
-  // 3. PLACEHOLDER: HMAC-SHA256 using PUBLIC KEY as key.
-  //    This will be replaced by Dilithium2 WASM signing once available.
-  const keyBytes = hexToBytes(publicKeyHex);
-
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    keyBytes.buffer as ArrayBuffer,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-
-  const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgHash);
-  const signature = bufToHex(new Uint8Array(signatureBuffer));
-
-  return signature;
+  const result = await post<{ signature_hex: string }>("/wallet/sign", {
+    private_key_hex: privateKeyHex,
+    data: txData,
+  });
+  return result.signature_hex;
 }
 
 /**
- * @deprecated Use `placeholderSignTransaction` — this alias exists only for
- *   backward compatibility and will be removed.
+ * Verify a signature via backend API.
+ *
+ * Security level is auto-detected from public key size.
+ *
+ * @param publicKeyHex - The Dilithium public key in hex
+ * @param message - Original message bytes (hex-encoded)
+ * @param signatureHex - Signature to verify (hex-encoded)
+ * @returns True if signature is valid
  */
-export const signTransaction = placeholderSignTransaction;
-
-function bufToHex(buf: Uint8Array): string {
-  return Array.from(buf)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+export async function verifySignature(
+  publicKeyHex: string,
+  message: string,
+  signatureHex: string,
+): Promise<boolean> {
+  const result = await post<{ valid: boolean }>("/wallet/verify", {
+    public_key_hex: publicKeyHex,
+    message_hex: message,
+    signature_hex: signatureHex,
+  });
+  return result.valid;
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  const cleanHex = hex.startsWith("0x") ? hex.slice(2) : hex;
-  const bytes = new Uint8Array(cleanHex.length / 2);
-  for (let i = 0; i < cleanHex.length; i += 2) {
-    bytes[i / 2] = parseInt(cleanHex.substring(i, i + 2), 16);
-  }
-  return bytes;
+/**
+ * Get the check-phrase for an address.
+ *
+ * Check-phrases are 3 BIP-39 words that serve as a human-readable
+ * alias for hex addresses, making it easy to verify addresses verbally.
+ *
+ * @param address - QBC hex address (40 chars)
+ * @returns Hyphenated check-phrase (e.g., "tiger-ocean-marble")
+ */
+export async function getCheckPhrase(address: string): Promise<string> {
+  const result = await get<{ check_phrase: string }>(
+    `/wallet/check-phrase/${address}`,
+  );
+  return result.check_phrase;
+}
+
+/**
+ * Verify a check-phrase matches an address.
+ */
+export async function verifyCheckPhrase(
+  address: string,
+  phrase: string,
+): Promise<boolean> {
+  const result = await post<{ valid: boolean }>("/wallet/verify-check-phrase", {
+    address,
+    check_phrase: phrase,
+  });
+  return result.valid;
+}
+
+/**
+ * Get crypto system info from the backend.
+ */
+export async function getCryptoInfo(): Promise<{
+  algorithm: string;
+  nist_name: string;
+  security_level: string;
+  pk_size: number;
+  sk_size: number;
+  sig_size: number;
+}> {
+  return get("/crypto/info");
+}
+
+/**
+ * Format a security level for display.
+ */
+export function formatSecurityLevel(level: SecurityLevel): string {
+  return `${LEVEL_NAMES[level]} (Level ${level})`;
+}
+
+/**
+ * Detect security level from public key hex length.
+ */
+export function detectLevelFromPkHex(pkHex: string): SecurityLevel | null {
+  const byteLen = pkHex.length / 2;
+  if (byteLen === 1312) return SecurityLevel.LEVEL2;
+  if (byteLen === 1952) return SecurityLevel.LEVEL3;
+  if (byteLen === 2592) return SecurityLevel.LEVEL5;
+  return null;
 }

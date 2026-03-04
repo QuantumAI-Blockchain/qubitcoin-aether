@@ -425,8 +425,8 @@ class TestKeyImportExport:
         pk, sk = Dilithium2.keygen()
         exported = Dilithium2.export_keypair(pk, sk, fmt='pem')
         assert exported['format'] == 'pem'
-        assert '-----BEGIN DILITHIUM2 PUBLIC KEY-----' in exported['public_key']
-        assert '-----BEGIN DILITHIUM2 PRIVATE KEY-----' in exported['private_key']
+        assert '-----BEGIN ML-DSA-44 PUBLIC KEY-----' in exported['public_key']
+        assert '-----BEGIN ML-DSA-44 PRIVATE KEY-----' in exported['private_key']
 
     def test_import_pem_roundtrip(self):
         pk, sk = Dilithium2.keygen()

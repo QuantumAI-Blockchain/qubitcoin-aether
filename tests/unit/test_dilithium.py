@@ -237,10 +237,20 @@ class TestCryptoManager:
         tampered = {"amount": "999"}
         assert CryptoManager.verify_data(pk, tampered, sig_hex) is False
 
-    def test_get_key_info(self):
-        """Key info returns expected metadata."""
+    def test_get_key_info_default(self):
+        """Key info defaults to LEVEL5 (ML-DSA-87)."""
         from qubitcoin.quantum.crypto import CryptoManager
         info = CryptoManager.get_key_info()
+        assert info['algorithm'] == 'CRYSTALS-Dilithium5'
+        assert info['public_key_size'] == 2592
+        assert info['private_key_size'] == 4864
+        assert info['signature_size'] == 4595
+        assert info['security_level'] == 'NIST Level 5'
+
+    def test_get_key_info_level2(self):
+        """Key info for explicit LEVEL2 returns D2 metadata."""
+        from qubitcoin.quantum.crypto import CryptoManager, SecurityLevel
+        info = CryptoManager.get_key_info(SecurityLevel.LEVEL2)
         assert info['algorithm'] == 'CRYSTALS-Dilithium2'
         assert info['public_key_size'] == 1312
         assert info['private_key_size'] == 2528

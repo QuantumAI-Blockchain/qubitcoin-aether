@@ -1,7 +1,7 @@
-"""Tests for Dilithium2 key import/export in standard formats (Batch 13.1)."""
+"""Tests for Dilithium key import/export in standard formats (multi-level)."""
 import pytest
 
-from qubitcoin.quantum.crypto import Dilithium2
+from qubitcoin.quantum.crypto import Dilithium2, DilithiumSigner, SecurityLevel
 
 
 class TestHexExport:
@@ -50,10 +50,11 @@ class TestPemExport:
     def test_pem_has_headers(self):
         pk, sk = Dilithium2.keygen()
         result = Dilithium2.export_keypair(pk, sk, fmt='pem')
-        assert '-----BEGIN DILITHIUM2 PUBLIC KEY-----' in result['public_key']
-        assert '-----END DILITHIUM2 PUBLIC KEY-----' in result['public_key']
-        assert '-----BEGIN DILITHIUM2 PRIVATE KEY-----' in result['private_key']
-        assert '-----END DILITHIUM2 PRIVATE KEY-----' in result['private_key']
+        # PEM headers now use NIST name (ML-DSA-44 for Dilithium2/LEVEL2)
+        assert '-----BEGIN ML-DSA-44 PUBLIC KEY-----' in result['public_key']
+        assert '-----END ML-DSA-44 PUBLIC KEY-----' in result['public_key']
+        assert '-----BEGIN ML-DSA-44 PRIVATE KEY-----' in result['private_key']
+        assert '-----END ML-DSA-44 PRIVATE KEY-----' in result['private_key']
 
     def test_pem_round_trip(self):
         pk, sk = Dilithium2.keygen()
@@ -91,3 +92,60 @@ class TestExportErrors:
         pk, sk = Dilithium2.keygen()
         result = Dilithium2.export_keypair(pk, sk)
         assert result['format'] == 'hex'
+
+
+class TestMultiLevelExportImport:
+    """Test export/import at all security levels."""
+
+    @pytest.mark.parametrize("level", [SecurityLevel.LEVEL2, SecurityLevel.LEVEL3, SecurityLevel.LEVEL5])
+    def test_hex_round_trip_all_levels(self, level):
+        signer = DilithiumSigner(level)
+        sk_secure, pk = signer.keygen()
+        sk = bytes(sk_secure)
+        sk_secure.zeroize()
+        exported = DilithiumSigner.export_keypair(pk, sk, fmt='hex')
+        pk2, sk2 = DilithiumSigner.import_keypair(
+            exported['public_key'], exported['private_key'], fmt='hex'
+        )
+        assert pk2 == pk
+        assert sk2 == sk
+
+    @pytest.mark.parametrize("level", [SecurityLevel.LEVEL2, SecurityLevel.LEVEL3, SecurityLevel.LEVEL5])
+    def test_pem_round_trip_all_levels(self, level):
+        signer = DilithiumSigner(level)
+        sk_secure, pk = signer.keygen()
+        sk = bytes(sk_secure)
+        sk_secure.zeroize()
+        exported = DilithiumSigner.export_keypair(pk, sk, fmt='pem')
+        pk2, sk2 = DilithiumSigner.import_keypair(
+            exported['public_key'], exported['private_key'], fmt='pem'
+        )
+        assert pk2 == pk
+        assert sk2 == sk
+
+    @pytest.mark.parametrize("level,nist_name", [
+        (SecurityLevel.LEVEL2, "ML-DSA-44"),
+        (SecurityLevel.LEVEL3, "ML-DSA-65"),
+        (SecurityLevel.LEVEL5, "ML-DSA-87"),
+    ])
+    def test_pem_headers_per_level(self, level, nist_name):
+        signer = DilithiumSigner(level)
+        sk_secure, pk = signer.keygen()
+        sk = bytes(sk_secure)
+        sk_secure.zeroize()
+        exported = DilithiumSigner.export_keypair(pk, sk, fmt='pem')
+        assert f'-----BEGIN {nist_name} PUBLIC KEY-----' in exported['public_key']
+        assert f'-----BEGIN {nist_name} PRIVATE KEY-----' in exported['private_key']
+
+    @pytest.mark.parametrize("level", [SecurityLevel.LEVEL2, SecurityLevel.LEVEL3, SecurityLevel.LEVEL5])
+    def test_sign_verify_after_import(self, level):
+        signer = DilithiumSigner(level)
+        sk_secure, pk = signer.keygen()
+        sk = bytes(sk_secure)
+        sk_secure.zeroize()
+        exported = DilithiumSigner.export_keypair(pk, sk, fmt='hex')
+        pk2, sk2 = DilithiumSigner.import_keypair(
+            exported['public_key'], exported['private_key'], fmt='hex'
+        )
+        sig = signer.sign(sk2, b"import test")
+        assert DilithiumSigner.verify(pk2, b"import test", sig) is True

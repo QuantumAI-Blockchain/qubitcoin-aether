@@ -50,7 +50,7 @@ def _make_private_tx(
 class TestPrivateTxRouting:
     """Verify that is_private routes to the privacy validation path."""
 
-    @patch("qubitcoin.quantum.crypto.Dilithium2.verify", return_value=True)
+    @patch("qubitcoin.consensus.engine.DilithiumSigner.verify", return_value=True)
     def test_private_tx_routes_to_privacy_validator(self, mock_verify):
         engine, db = _make_consensus()
         engine._is_key_image_spent = MagicMock(return_value=False)
@@ -58,7 +58,7 @@ class TestPrivateTxRouting:
         result = engine.validate_transaction(tx, db, current_height=100)
         assert result is True
 
-    @patch("qubitcoin.quantum.crypto.Dilithium2.verify", return_value=False)
+    @patch("qubitcoin.consensus.engine.DilithiumSigner.verify", return_value=False)
     def test_private_tx_invalid_signature(self, mock_verify):
         engine, db = _make_consensus()
         tx = _make_private_tx()
@@ -69,14 +69,14 @@ class TestPrivateTxRouting:
 class TestKeyImageValidation:
     """Test key image double-spend prevention."""
 
-    @patch("qubitcoin.quantum.crypto.Dilithium2.verify", return_value=True)
+    @patch("qubitcoin.consensus.engine.DilithiumSigner.verify", return_value=True)
     def test_missing_key_image_fails(self, mock_verify):
         engine, db = _make_consensus()
         tx = _make_private_tx(inputs=[{"txid": "prev_tx", "vout": 0}])
         result = engine.validate_transaction(tx, db, current_height=100)
         assert result is False
 
-    @patch("qubitcoin.quantum.crypto.Dilithium2.verify", return_value=True)
+    @patch("qubitcoin.consensus.engine.DilithiumSigner.verify", return_value=True)
     def test_duplicate_key_image_in_same_tx_fails(self, mock_verify):
         engine, db = _make_consensus()
         ki = "ki_" + "b" * 60
@@ -89,7 +89,7 @@ class TestKeyImageValidation:
         result = engine.validate_transaction(tx, db, current_height=100)
         assert result is False
 
-    @patch("qubitcoin.quantum.crypto.Dilithium2.verify", return_value=True)
+    @patch("qubitcoin.consensus.engine.DilithiumSigner.verify", return_value=True)
     def test_already_spent_key_image_fails(self, mock_verify):
         engine, db = _make_consensus()
         engine._is_key_image_spent = MagicMock(return_value=True)
@@ -97,7 +97,7 @@ class TestKeyImageValidation:
         result = engine.validate_transaction(tx, db, current_height=100)
         assert result is False
 
-    @patch("qubitcoin.quantum.crypto.Dilithium2.verify", return_value=True)
+    @patch("qubitcoin.consensus.engine.DilithiumSigner.verify", return_value=True)
     def test_unique_key_images_pass(self, mock_verify):
         engine, db = _make_consensus()
         engine._is_key_image_spent = MagicMock(return_value=False)
@@ -114,7 +114,7 @@ class TestKeyImageValidation:
 class TestPrivateTxFee:
     """Test fee validation for private transactions."""
 
-    @patch("qubitcoin.quantum.crypto.Dilithium2.verify", return_value=True)
+    @patch("qubitcoin.consensus.engine.DilithiumSigner.verify", return_value=True)
     def test_negative_fee_rejected(self, mock_verify):
         engine, db = _make_consensus()
         engine._is_key_image_spent = MagicMock(return_value=False)
@@ -122,7 +122,7 @@ class TestPrivateTxFee:
         result = engine.validate_transaction(tx, db, current_height=100)
         assert result is False
 
-    @patch("qubitcoin.quantum.crypto.Dilithium2.verify", return_value=True)
+    @patch("qubitcoin.consensus.engine.DilithiumSigner.verify", return_value=True)
     def test_zero_fee_allowed(self, mock_verify):
         engine, db = _make_consensus()
         engine._is_key_image_spent = MagicMock(return_value=False)
@@ -170,7 +170,7 @@ class TestKeyImageDBLookup:
 class TestPublicTxUnchanged:
     """Verify public transactions are not affected by privacy changes."""
 
-    @patch("qubitcoin.quantum.crypto.Dilithium2.verify", return_value=True)
+    @patch("qubitcoin.consensus.engine.DilithiumSigner.verify", return_value=True)
     def test_public_tx_uses_standard_path(self, mock_verify):
         engine, db = _make_consensus()
         from qubitcoin.database.models import Transaction, UTXO

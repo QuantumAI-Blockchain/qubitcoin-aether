@@ -380,7 +380,7 @@ class TestBlockValidation:
         assert valid is False
         assert 'prev_hash' in reason.lower()
 
-    @patch('qubitcoin.quantum.crypto.Dilithium2')
+    @patch('qubitcoin.consensus.engine.DilithiumSigner')
     def test_no_coinbase_rejected(self, mock_dil):
         """Block without coinbase transaction is rejected."""
         mock_dil.verify.return_value = True
@@ -440,7 +440,7 @@ class TestBlockValidation:
         valid, reason = eng.validate_block(block, None, db)
         assert valid is True, f"Genesis with premine should be valid: {reason}"
 
-    @patch('qubitcoin.quantum.crypto.Dilithium2')
+    @patch('qubitcoin.consensus.engine.DilithiumSigner')
     def test_non_genesis_with_premine_rejected(self, mock_dil):
         """Non-genesis block with premine-sized coinbase is rejected."""
         mock_dil.verify.return_value = True

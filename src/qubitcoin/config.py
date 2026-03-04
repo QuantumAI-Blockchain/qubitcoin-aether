@@ -510,6 +510,25 @@ class Config:
     SUBSTRATE_SUDO_SEED: str = os.getenv('SUBSTRATE_SUDO_SEED', '//Alice')
 
     # ============================================================================
+    # DILITHIUM SECURITY LEVEL (ML-DSA)
+    # ============================================================================
+    # 2 = ML-DSA-44 (128-bit), 3 = ML-DSA-65 (192-bit), 5 = ML-DSA-87 (256-bit)
+    DILITHIUM_LEVEL: int = int(os.getenv('DILITHIUM_SECURITY_LEVEL', '5'))
+
+    @classmethod
+    def get_security_level(cls) -> 'SecurityLevel':
+        """Return the configured SecurityLevel enum value."""
+        from .quantum.crypto import SecurityLevel
+        return SecurityLevel(cls.DILITHIUM_LEVEL)
+
+    # ============================================================================
+    # TRANSACTION REVERSIBILITY
+    # ============================================================================
+    REVERSAL_DEFAULT_WINDOW: int = int(os.getenv('REVERSAL_DEFAULT_WINDOW', '0'))  # blocks (0 = irreversible)
+    REVERSAL_MAX_WINDOW: int = int(os.getenv('REVERSAL_MAX_WINDOW', '26182'))  # ~24h at 3.3s/block
+    REVERSAL_GUARDIAN_THRESHOLD: int = int(os.getenv('REVERSAL_GUARDIAN_THRESHOLD', '2'))
+
+    # ============================================================================
     # LOGGING & MONITORING
     # ============================================================================
     DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'

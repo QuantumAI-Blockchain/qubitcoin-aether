@@ -664,11 +664,14 @@ class TestWalletEndpoints:
 
     def test_wallet_sign(self, app_and_client):
         _, client, _ = app_and_client
-        with patch('qubitcoin.quantum.crypto.Dilithium2') as mock_dil:
-            mock_dil.sign.return_value = b'\xaa' * 64
+        with patch('qubitcoin.quantum.crypto.DilithiumSigner') as mock_dil_cls, \
+             patch('qubitcoin.quantum.crypto._sk_size_to_level') as mock_detect:
+            from qubitcoin.quantum.crypto import SecurityLevel
+            mock_detect.return_value = SecurityLevel.LEVEL2
+            mock_dil_cls.return_value.sign.return_value = b'\xaa' * 2420
             resp = client.post("/wallet/sign", json={
                 'message_hash': '00' * 32,
-                'private_key_hex': 'ff' * 64,
+                'private_key_hex': 'ff' * 2528,  # Valid D2 sk hex length
             })
             assert resp.status_code == 200
             data = resp.json()

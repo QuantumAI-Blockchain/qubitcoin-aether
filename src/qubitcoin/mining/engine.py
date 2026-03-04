@@ -9,7 +9,7 @@ from decimal import Decimal
 from ..config import Config
 from ..database.models import Transaction, Block
 from ..quantum.engine import QuantumEngine
-from ..quantum.crypto import Dilithium2
+from ..quantum.crypto import DilithiumSigner, _KEY_SIZES
 from ..consensus.engine import ConsensusEngine
 from ..utils.logger import get_logger
 from ..utils.metrics import blocks_mined, mining_attempts, current_height_metric, vqe_optimization_time, total_fees_burned_metric
@@ -452,11 +452,14 @@ class MiningEngine:
                       prev_hash: str, height: int) -> dict:
         """Create quantum proof data with chain binding"""
         sk_bytes = bytes.fromhex(Config.PRIVATE_KEY_HEX)
-        # Dilithium2 secret key is 2528 bytes
-        if len(sk_bytes) != 2528:
+        # Validate sk length against configured security level
+        level = Config.get_security_level()
+        expected_sk = _KEY_SIZES[level]['sk']
+        if len(sk_bytes) != expected_sk:
             raise ValueError(
-                f"Invalid Dilithium2 private key length: {len(sk_bytes)} bytes "
-                f"(expected 2528). Regenerate keys with scripts/setup/generate_keys.py"
+                f"Invalid Dilithium private key length: {len(sk_bytes)} bytes "
+                f"(expected {expected_sk} for {level.name}). "
+                f"Regenerate keys with scripts/setup/generate_keys.py --level {level.value}"
             )
         # Sign params + prev_hash + height for chain binding.
         # Uses canonical JSON serialization for params to ensure deterministic
@@ -465,7 +468,8 @@ class MiningEngine:
         msg = (_json.dumps(params.tolist(), sort_keys=True,
                            separators=(',', ':')).encode()
                + prev_hash.encode() + str(height).encode())
-        signature = Dilithium2.sign(sk_bytes, msg)
+        signer = DilithiumSigner(level)
+        signature = signer.sign(sk_bytes, msg)
         return {
             'challenge': hamiltonian,
             'params': params.tolist(),

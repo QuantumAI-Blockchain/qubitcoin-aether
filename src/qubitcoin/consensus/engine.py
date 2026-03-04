@@ -9,7 +9,7 @@ import asyncio
 from ..config import Config
 from ..database.models import Block, Transaction, UTXO
 from ..quantum.engine import QuantumEngine
-from ..quantum.crypto import CryptoManager
+from ..quantum.crypto import CryptoManager, DilithiumSigner
 from ..utils.logger import get_logger
 from ..utils.metrics import block_validation_time
 
@@ -301,8 +301,7 @@ class ConsensusEngine:
                        + block.prev_hash.encode()
                        + str(block.height).encode())
                 sig = bytes.fromhex(sig_hex)
-                from ..quantum.crypto import Dilithium2
-                if not Dilithium2.verify(pk, msg, sig):
+                if not DilithiumSigner.verify(pk, msg, sig):
                     return False, "Invalid proof signature"
 
             # Validate transactions - calculate fees BEFORE checking coinbase
@@ -421,8 +420,7 @@ class ConsensusEngine:
                 'timestamp': tx.timestamp
             }, sort_keys=True, separators=(',', ':')).encode()
             sig = bytes.fromhex(tx.signature)
-            from ..quantum.crypto import Dilithium2
-            if not Dilithium2.verify(pk, msg, sig):
+            if not DilithiumSigner.verify(pk, msg, sig):
                 return False
 
             if current_height is None:
@@ -500,8 +498,7 @@ class ConsensusEngine:
                 'timestamp': tx.timestamp
             }, sort_keys=True, separators=(',', ':')).encode()
             sig = bytes.fromhex(tx.signature)
-            from ..quantum.crypto import Dilithium2
-            if not Dilithium2.verify(pk, msg, sig):
+            if not DilithiumSigner.verify(pk, msg, sig):
                 logger.warning(f"Private tx {tx.txid}: invalid signature")
                 return False
 

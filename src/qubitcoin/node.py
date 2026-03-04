@@ -616,6 +616,34 @@ class QubitcoinNode:
         except Exception as e:
             logger.warning(f"[19b/22] ExchangeEngine failed (non-fatal): {e}")
 
+        # Component 19c: Reversibility Manager
+        self.reversibility_manager = None
+        try:
+            from .reversibility.manager import ReversibilityManager
+            self.reversibility_manager = ReversibilityManager(
+                self.db,
+                default_window=Config.REVERSAL_DEFAULT_WINDOW,
+            )
+            logger.info("[19c/22] ReversibilityManager initialized")
+        except Exception as e:
+            logger.debug(f"[19c/22] ReversibilityManager init: {e}")
+
+        # Component 19d: FIPS 204 KAT Self-Test
+        try:
+            from .quantum.fips204_kat import run_kat_tests
+            from .quantum.crypto import _LEVEL_NAMES, SecurityLevel
+            level = Config.get_security_level()
+            kat_passed = run_kat_tests()
+            if kat_passed:
+                logger.info(
+                    f"[19d/22] FIPS 204 KAT: PASSED — "
+                    f"Dilithium security level: {_LEVEL_NAMES[level]} (LEVEL{level.value})"
+                )
+            else:
+                logger.warning("[19d/22] FIPS 204 KAT: FAILED — crypto self-test errors detected")
+        except Exception as e:
+            logger.debug(f"[19d/22] FIPS 204 KAT: {e}")
+
         # Component 20: Mining Engine
         logger.info("[20/22] Initializing MiningEngine...")
         try:
@@ -722,6 +750,7 @@ class QubitcoinNode:
                 qusd_keeper=self.qusd_keeper,
                 dex_price_reader=self.dex_price_reader,
                 arb_calculator=self.arb_calculator,
+                reversibility_manager=self.reversibility_manager,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)

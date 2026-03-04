@@ -208,6 +208,15 @@ aikgs_curation_pending = Gauge('qbc_aikgs_curation_pending', 'Pending curation r
 aikgs_api_keys_active = Gauge('qbc_aikgs_api_keys_active', 'Active API keys in vault')
 aikgs_shared_keys_pool = Gauge('qbc_aikgs_shared_keys_pool', 'Keys in shared pool')
 
+# ============================================================================
+# REVERSIBILITY METRICS
+# ============================================================================
+reversal_requests_total = Gauge('qbc_reversal_requests_total', 'Total reversal requests')
+reversal_executed_total = Gauge('qbc_reversal_executed_total', 'Total executed reversals')
+active_guardians = Gauge('qbc_active_guardians', 'Active security guardians')
+reversible_transactions = Gauge('qbc_reversible_transactions', 'Transactions with active reversal windows')
+dilithium_security_level = Gauge('qbc_dilithium_security_level', 'Current Dilithium security level (2/3/5)')
+
 def setup_metrics(app) -> None:
     """Setup Prometheus metrics for FastAPI app"""
     instrumentator = Instrumentator().instrument(app).expose(app)
@@ -283,6 +292,9 @@ __all__ = [
     'aikgs_tier_gold', 'aikgs_tier_diamond', 'aikgs_affiliates_total',
     'aikgs_commissions_total', 'aikgs_bounties_active', 'aikgs_curation_pending',
     'aikgs_api_keys_active', 'aikgs_shared_keys_pool',
+    # Reversibility
+    'reversal_requests_total', 'reversal_executed_total', 'active_guardians',
+    'reversible_transactions', 'dilithium_security_level',
     # Setup
     'setup_metrics', 'generate_latest', 'CONTENT_TYPE_LATEST',
 ]
