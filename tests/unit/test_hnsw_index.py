@@ -24,6 +24,8 @@ from qubitcoin.aether.vector_index import HNSWIndex, VectorIndex, cosine_similar
 # Detect whether we are running against the Rust aether_core backend.
 # The Rust pyclass does not expose underscore-prefixed Python attributes.
 _USING_RUST_BACKEND = not hasattr(HNSWIndex(max_connections=4), '_entry_point')
+# VectorIndex is always the Python implementation (Rust shim only replaces HNSWIndex).
+_VI_USING_RUST = not hasattr(VectorIndex(), '_use_hnsw')
 
 
 # ============================================================================
@@ -290,8 +292,7 @@ class TestVectorIndexHNSW:
     def test_auto_mode_default(self) -> None:
         """Default VectorIndex has auto mode (use_hnsw=None)."""
         vi = VectorIndex()
-        if _USING_RUST_BACKEND:
-            # Rust backend: check via get_stats() which reports hnsw_mode
+        if _VI_USING_RUST:
             stats = vi.get_stats()
             assert stats['hnsw_mode'] == 'auto'
         else:
@@ -300,7 +301,7 @@ class TestVectorIndexHNSW:
     def test_forced_hnsw_mode(self) -> None:
         """VectorIndex(use_hnsw=True) forces HNSW for all queries."""
         vi = VectorIndex(use_hnsw=True)
-        if _USING_RUST_BACKEND:
+        if _VI_USING_RUST:
             stats = vi.get_stats()
             assert stats['hnsw_mode'] == 'true'
         else:
@@ -310,7 +311,7 @@ class TestVectorIndexHNSW:
     def test_forced_sequential_mode(self) -> None:
         """VectorIndex(use_hnsw=False) forces sequential search."""
         vi = VectorIndex(use_hnsw=False)
-        if _USING_RUST_BACKEND:
+        if _VI_USING_RUST:
             stats = vi.get_stats()
             assert stats['hnsw_mode'] == 'false'
         else:
@@ -319,23 +320,18 @@ class TestVectorIndexHNSW:
 
     def test_auto_mode_switches_at_threshold(self) -> None:
         """Auto mode activates HNSW when embeddings exceed threshold."""
-        if _USING_RUST_BACKEND:
-            # Rust backend: verify via stats. Add embeddings via public API.
+        if _VI_USING_RUST:
             vi = VectorIndex()
             for i in range(100):
                 vi.add_embedding(i, _random_vector(dim=16, seed=i))
             stats_below = vi.get_stats()
-            # With only 100 vectors, HNSW should not be active in auto mode
             assert stats_below['hnsw_mode'] == 'auto'
 
-            # Add more to exceed threshold (1000)
             for i in range(100, 1100):
                 vi.add_embedding(i, _random_vector(dim=16, seed=i))
-            # Trigger a query to force HNSW rebuild
             vi.query_by_embedding(_random_vector(dim=16, seed=9999), top_k=1)
             stats_above = vi.get_stats()
             assert stats_above['total_embeddings'] == 1100
-            # After querying with >1000 vectors, HNSW should have been built
             assert stats_above.get('uses_hnsw', False) is True
         else:
             vi = VectorIndex()
@@ -352,7 +348,7 @@ class TestVectorIndexHNSW:
 
     def test_ensure_py_hnsw_builds_index(self) -> None:
         """_ensure_py_hnsw builds and returns the HNSW index when forced."""
-        if _USING_RUST_BACKEND:
+        if _VI_USING_RUST:
             pytest.skip("Rust backend does not expose _ensure_py_hnsw()")
 
         vi = VectorIndex(use_hnsw=True)
@@ -370,8 +366,7 @@ class TestVectorIndexHNSW:
         vi = VectorIndex(use_hnsw=True)
         target = _random_vector(dim=16, seed=42)
 
-        if _USING_RUST_BACKEND:
-            # Use the public add_embedding API
+        if _VI_USING_RUST:
             for i in range(30):
                 vi.add_embedding(i, _random_vector(dim=16, seed=i))
             vi.add_embedding(999, target)
@@ -393,10 +388,9 @@ class TestVectorIndexHNSW:
         """get_stats reports HNSW status."""
         vi = VectorIndex(use_hnsw=True)
 
-        if _USING_RUST_BACKEND:
+        if _VI_USING_RUST:
             for i in range(10):
                 vi.add_embedding(i, _random_vector(dim=8, seed=i))
-            # Trigger HNSW build by querying
             vi.query_by_embedding(_random_vector(dim=8, seed=999), top_k=1)
 
             stats = vi.get_stats()
@@ -419,20 +413,15 @@ class TestVectorIndexHNSW:
 
     def test_remove_node_marks_hnsw_dirty(self) -> None:
         """Removing a node invalidates the HNSW index."""
-        if _USING_RUST_BACKEND:
-            # Rust backend: _py_hnsw_dirty is not exposed. Verify that after
-            # removing a node, subsequent queries still produce correct results
-            # (which implies the index was properly invalidated and rebuilt).
+        if _VI_USING_RUST:
             vi = VectorIndex(use_hnsw=True)
             for i in range(10):
                 vi.add_embedding(i, _random_vector(dim=8, seed=i))
-            # Trigger HNSW build
             vi.query_by_embedding(_random_vector(dim=8, seed=999), top_k=1)
 
             vi.remove_embedding(5)
             assert 5 not in vi
 
-            # Search should not return the removed node
             results = vi.query_by_embedding(_random_vector(dim=8, seed=5), top_k=10)
             result_ids = {r[0] for r in results}
             assert 5 not in result_ids

@@ -792,11 +792,13 @@ class VectorIndex:
 
 
 # --- Rust acceleration shim ---
+# Only replace HNSWIndex with Rust version. VectorIndex keeps the Python
+# implementation because it has add_node/add_nodes_batch/query wrappers
+# that compute embeddings from content dicts — the Rust VectorIndex only
+# exposes low-level add_embedding/query_by_embedding and lacks these.
 try:
-    from aether_core import VectorIndex as _RustVectorIndex  # noqa: F811
     from aether_core import HNSWIndex as _RustHNSWIndex  # noqa: F811
-    VectorIndex = _RustVectorIndex  # type: ignore[misc]
     HNSWIndex = _RustHNSWIndex  # type: ignore[misc]
-    logger.info("VectorIndex: using Rust-accelerated aether_core backend")
+    logger.info("VectorIndex: using Rust-accelerated HNSWIndex backend")
 except ImportError:
-    logger.debug("aether_core not installed — using pure-Python VectorIndex")
+    logger.debug("aether_core not installed — using pure-Python HNSWIndex")
