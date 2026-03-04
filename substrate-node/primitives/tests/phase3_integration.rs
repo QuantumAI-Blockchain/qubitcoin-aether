@@ -82,10 +82,10 @@ fn test_kyber_session_isolation() {
     let key1 = [0x11u8; 32];
     let key2 = [0x22u8; 32];
 
-    let mut s1_send = SecureSession::new(key1);
-    let mut s1_recv = SecureSession::new(key1);
-    let mut s2_send = SecureSession::new(key2);
-    let mut s2_recv = SecureSession::new(key2);
+    let mut s1_send = SecureSession::new(key1, true);
+    let mut s1_recv = SecureSession::new(key1, false);
+    let mut s2_send = SecureSession::new(key2, true);
+    let mut s2_recv = SecureSession::new(key2, false);
 
     let frame1 = s1_send.encrypt(b"session 1").unwrap();
     let frame2 = s2_send.encrypt(b"session 2").unwrap();
@@ -95,7 +95,7 @@ fn test_kyber_session_isolation() {
     assert_eq!(s2_recv.decrypt(&frame2).unwrap(), b"session 2");
 
     // Cross-session decryption fails (different keys)
-    let mut s1_wrong = SecureSession::new(key1);
+    let mut s1_wrong = SecureSession::new(key1, false);
     assert!(s1_wrong.decrypt(&frame2).is_err());
 }
 

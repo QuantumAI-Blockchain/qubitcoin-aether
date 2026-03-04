@@ -1,6 +1,6 @@
 # QUANTUM BLOCKCHAIN GOVERNMENT-GRADE PROJECT AUDIT
 # Master Audit & Continuous Improvement Protocol
-# Version: 8.0 — Military/Government-Grade Edition (100% Target — No Exceptions)
+# Version: 9.0 — Military/Government-Grade Edition + Live Testing (100% Target — No Exceptions)
 # Last Verified: 2026-03-04
 
 ---
@@ -1197,6 +1197,390 @@ Flag EVERY instance of:
 
 ---
 
+### 1U. Live Genesis & Node Testing (Requires Running Node)
+
+**This phase tests the LIVE system, not just code review. Start a fresh node and verify.**
+
+**GENESIS VERIFICATION:**
+
+- [ ] Wipe DB: `DROP DATABASE qbc CASCADE; CREATE DATABASE qbc;`
+- [ ] Wipe Redis: `FLUSHALL`
+- [ ] Run SQL schema init: all `sql_new/` scripts in order
+- [ ] Start node: `cd src && python3 run_node.py`
+- [ ] Genesis block mined (height=0)
+- [ ] Premine: 33,000,000 QBC at operator address
+- [ ] Mining reward: 15.27 QBC at operator address
+- [ ] Total supply at block 0: 33,000,015.27 QBC
+- [ ] Aether Tree initialized (Phi measurement at block 0)
+- [ ] Knowledge graph seeded (22 genesis KeterNodes)
+- [ ] Difficulty = INITIAL_DIFFICULTY (1.0)
+- [ ] Block hash is SHA3-256
+- [ ] Coinbase transaction has 2 outputs (reward + premine)
+- [ ] Let mine 50+ blocks for stability
+- [ ] Verify difficulty adjusting (not stuck at 1.0)
+- [ ] Verify Phi increasing (knowledge accumulating)
+- [ ] Verify blocks every ~3.3 seconds
+- [ ] Verify no exceptions in node log output
+
+**NODE HEALTH:**
+
+- [ ] `GET /health` → all subsystems green
+- [ ] `GET /chain/info` → height > 50, supply increasing
+- [ ] `GET /mining/stats` → blocks_mined > 50
+- [ ] `GET /aether/phi` → Phi > 0.0
+- [ ] `GET /aether/knowledge` → nodes > 100
+- [ ] `GET /metrics` → Prometheus scraping all 135 metrics
+- [ ] `GET /finality/status` → finality gadget active
+- [ ] `GET /higgs/status` → Higgs field initialized, VEV=174.14
+
+---
+
+### 1V. Live Endpoint Bombardment (All 342 REST + 19 JSON-RPC)
+
+**Test EVERY endpoint with real data from running node. No mock data. No skips.**
+
+**CHAIN (7+ endpoints):**
+
+- [ ] `GET /` → node info + economics, status 200
+- [ ] `GET /health` → all subsystems green, status 200
+- [ ] `GET /info` → detailed node info
+- [ ] `GET /chain/info` → height, supply, difficulty, peers
+- [ ] `GET /chain/tip` → latest block hash and height
+- [ ] `GET /crypto/info` → Dilithium params (level 2/3/5)
+- [ ] `GET /economics/emission` → emission schedule with phi-halving
+
+**BLOCKS (5+ endpoints):**
+
+- [ ] `GET /block/0` → genesis block with premine (2 coinbase outputs)
+- [ ] `GET /block/{latest_height}` → most recent block
+- [ ] `GET /mempool` → pending transactions list
+- [ ] `GET /mempool/stats` → mempool count, sizes
+
+**WALLET (4+ endpoints):**
+
+- [ ] `GET /balance/{operator_address}` → 33M+ QBC balance
+- [ ] `GET /utxos/{operator_address}` → UTXO list (at least coinbase UTXOs)
+- [ ] `GET /wallet/check-phrase/{operator_address}` → 3-word check phrase
+- [ ] `POST /wallet/verify-check-phrase` → verification result
+
+**MINING (4+ endpoints):**
+
+- [ ] `GET /mining/stats` → blocks_mined, difficulty, reward info
+- [ ] `POST /mining/stop` → mining stops (verify no new blocks)
+- [ ] `POST /mining/start` → mining resumes (verify new blocks appear)
+- [ ] `GET /stratum/info` → stratum server status
+
+**AETHER (20+ endpoints):**
+
+- [ ] `GET /aether/info` → engine stats
+- [ ] `GET /aether/phi` → current Phi value > 0.0
+- [ ] `GET /aether/phi/history` → Phi values over time
+- [ ] `GET /aether/knowledge` → knowledge graph stats (nodes, edges)
+- [ ] `GET /aether/knowledge/node/{id}` → specific KeterNode
+- [ ] `GET /aether/reasoning/stats` → reasoning operations count
+- [ ] `GET /aether/consciousness` → consciousness dashboard
+- [ ] `GET /aether/sephirot` → all 10 Sephirot states
+
+**HIGGS (5 endpoints):**
+
+- [ ] `GET /higgs/status` → field state, VEV=174.14, symmetry status
+- [ ] `GET /higgs/masses` → all node cognitive masses + Yukawa couplings
+- [ ] `GET /higgs/mass/keter` → single node mass
+- [ ] `GET /higgs/excitations` → excitation events (may be empty early)
+- [ ] `GET /higgs/potential` → potential energy curve params
+
+**INHERITANCE (4 endpoints):**
+
+- [ ] `POST /inheritance/set-beneficiary` → set inheritance plan
+- [ ] `POST /inheritance/heartbeat` → reset inactivity timer
+- [ ] `GET /inheritance/status/{address}` → plan status
+- [ ] `POST /inheritance/claim` → claim test (should fail if active)
+
+**HIGH-SECURITY (3 endpoints):**
+
+- [ ] `POST /security/policy/set` → set spending policy
+- [ ] `GET /security/policy/{address}` → get policy
+- [ ] `DELETE /security/policy/{address}` → remove policy
+
+**BFT FINALITY (3 endpoints):**
+
+- [ ] `GET /finality/status` → validator count, stake, finalized height
+- [ ] `POST /finality/register-validator` → register with stake
+- [ ] `POST /finality/vote` → submit vote
+
+**DENIABLE RPCS (4 endpoints):**
+
+- [ ] `POST /privacy/batch-balance` → constant-time multi-address balance
+- [ ] `POST /privacy/bloom-utxos` → Bloom filter response
+- [ ] `POST /privacy/batch-blocks` → multiple blocks in one request
+- [ ] `POST /privacy/batch-tx` → multiple transactions in one request
+
+**ECONOMICS (3+ endpoints):**
+
+- [ ] `GET /economics/emission` → emission schedule
+- [ ] `GET /economics/simulate` → simulation data
+- [ ] `GET /inflation` → inflation rate
+
+**P2P (3+ endpoints):**
+
+- [ ] `GET /p2p/peers` → connected peers list
+- [ ] `GET /p2p/stats` → P2P statistics
+- [ ] `POST /p2p/connect` → manual peer connect (may fail in solo mode)
+
+**QVM (8+ endpoints):**
+
+- [ ] `GET /qvm/info` → QVM engine status
+- [ ] `GET /qvm/contract/{address}` → contract info (after deployment)
+- [ ] `GET /qvm/account/{address}` → account state
+- [ ] `POST /qvm/deploy` → deploy contract bytecode
+- [ ] `POST /qvm/call` → call contract method
+
+**KEEPER (10+ endpoints):**
+
+- [ ] `GET /keeper/status` → keeper daemon status + mode
+- [ ] `GET /keeper/mode` → current operating mode
+- [ ] `PUT /keeper/mode/scan` → set to scan mode
+- [ ] `GET /keeper/config` → keeper configuration
+- [ ] `GET /keeper/history` → action history
+- [ ] `GET /keeper/opportunities` → arb opportunities
+- [ ] `GET /keeper/signals` → depeg signals
+- [ ] `GET /keeper/prices` → multi-chain DEX prices
+
+**STRATUM (3 endpoints):**
+
+- [ ] `GET /stratum/info` → stratum server info
+- [ ] `GET /stratum/stats` → pool statistics
+- [ ] `GET /stratum/workers` → connected workers
+
+**METRICS:**
+
+- [ ] `GET /metrics` → Prometheus exposition format, 135+ metrics present
+
+**JSON-RPC (19 methods via POST to /):**
+
+- [ ] `eth_chainId` → returns `0xce5` (3301)
+- [ ] `eth_blockNumber` → returns latest height in hex
+- [ ] `eth_getBalance` → returns balance for operator address
+- [ ] `eth_getBlockByNumber` → returns block details
+- [ ] `eth_getBlockByHash` → returns block by hash
+- [ ] `eth_getTransactionByHash` → returns tx (after sending one)
+- [ ] `eth_getTransactionReceipt` → returns receipt
+- [ ] `eth_sendRawTransaction` → submit raw transaction
+- [ ] `eth_call` → contract call (after deployment)
+- [ ] `eth_estimateGas` → gas estimation
+- [ ] `eth_gasPrice` → gas price
+- [ ] `eth_getCode` → contract code (after deployment)
+- [ ] `eth_getStorageAt` → storage slot
+- [ ] `eth_getTransactionCount` → nonce
+- [ ] `eth_getLogs` → event logs
+- [ ] `eth_mining` → mining status
+- [ ] `eth_hashrate` → hashrate
+- [ ] `net_version` → network version
+- [ ] `web3_clientVersion` → client version
+
+---
+
+### 1W. Multi-Address Transaction Testing
+
+**CREATE 3 TEST ADDRESSES:**
+
+- [ ] Address A = node operator (has 33M+ QBC from genesis)
+- [ ] Generate Address B via `python3 scripts/setup/generate_keys.py` or `/wallet/create`
+- [ ] Generate Address C via same method
+
+**TRANSACTION TESTS:**
+
+- [ ] A → B: Send 100 QBC via `POST /transaction` or `/wallet/send`
+- [ ] Verify B balance = 100 QBC via `GET /balance/{B}`
+- [ ] Verify A balance decreased by 100 + fee
+- [ ] Verify UTXO model: A has change output
+- [ ] Wait 6 blocks for confirmation depth
+- [ ] B → C: Send 50 QBC
+- [ ] Verify C balance = 50 QBC
+- [ ] C → A: Send 25 QBC (round-trip test)
+- [ ] Verify A received 25 QBC
+- [ ] Test insufficient balance (should fail with error, not crash)
+- [ ] Test zero amount (should reject)
+- [ ] Test self-send A → A (should work, creating new UTXOs)
+- [ ] Test maximum amount (entire balance minus fee)
+- [ ] Verify all transactions in block explorer (`GET /block/{height}`)
+- [ ] Verify Dilithium signatures valid on each tx
+
+**JSON-RPC TRANSACTION TESTS:**
+
+- [ ] `eth_sendTransaction` → send via MetaMask-compatible RPC
+- [ ] `eth_getTransactionByHash` → verify tx details match
+- [ ] `eth_getTransactionReceipt` → verify receipt fields
+- [ ] `eth_getBalance` → verify balance via JSON-RPC matches REST
+- [ ] `eth_blockNumber` → matches `GET /chain/info` height
+
+---
+
+### 1X. Contract Deployment & Proxy Verification
+
+**DEPLOY CONTRACTS:**
+
+- [ ] Deploy at least 3 representative contracts via QVM:
+  - QBC-20 token contract
+  - A simple storage contract
+  - AetherKernel (if deploy script available)
+- [ ] Verify each contract responds: `GET /qvm/contract/{address}`
+- [ ] Verify contract bytecode stored: `eth_getCode`
+- [ ] Verify contract storage: `GET /qvm/storage/{address}/{key}`
+
+**CONTRACT INTERACTION:**
+
+- [ ] Call contract read method via `POST /qvm/call`
+- [ ] Call contract write method via `POST /qvm/deploy` or `eth_sendTransaction`
+- [ ] Verify state changed after write
+- [ ] Verify gas metering: `GET /qvm/info` shows execution counts
+
+**TEMPLATE CONTRACTS:**
+
+- [ ] `GET /contracts/templates` → list available templates
+- [ ] Deploy a template contract (e.g., token template)
+- [ ] Verify template discount applied to fees
+
+---
+
+### 1Y. Bridge Deployment & Cross-Chain Testing (Dry-Run)
+
+**BRIDGE COMPILATION:**
+
+- [ ] `python3 scripts/deploy/deploy_bridge.py --dry-run` (if script exists)
+- [ ] Verify all bridge Solidity contracts compile
+- [ ] Verify BridgeVault.sol + wQBC.sol (bridge/) bytecode generated
+
+**BRIDGE STATUS:**
+
+- [ ] `GET /bridge/status` → returns supported chains list
+- [ ] `GET /bridge/chains` → returns 8 chains (ETH, BNB, SOL, MATIC, AVAX, ARB, OP, BASE)
+- [ ] `GET /bridge/transfers` → returns transfer history (may be empty)
+
+**BRIDGE QUOTE:**
+
+- [ ] `GET /bridge/quote` with test parameters → fee estimate
+- [ ] Verify default fee = 0.1% (10 bps)
+
+---
+
+### 1Z. Substrate Hybrid Mode Testing
+
+**SUBSTRATE BUILD:**
+
+- [ ] `cd substrate-node && SKIP_WASM_BUILD=1 cargo build --release` → compiles
+- [ ] Binary exists at `target/release/qbc-substrate-node`
+- [ ] `cd substrate-node && SKIP_WASM_BUILD=1 cargo test` → all pallet tests pass
+
+**PALLET TESTS BREAKDOWN:**
+
+- [ ] qbc-utxo pallet tests pass
+- [ ] qbc-consensus pallet tests pass
+- [ ] qbc-dilithium pallet tests pass
+- [ ] qbc-economics pallet tests pass
+- [ ] qbc-qvm-anchor pallet tests pass
+- [ ] qbc-aether-anchor pallet tests pass
+- [ ] qbc-reversibility pallet tests pass
+- [ ] Kyber P2P transport tests pass (25 tests)
+- [ ] Poseidon2 primitives tests pass (25 tests)
+- [ ] Integration tests pass
+
+**GENESIS PARITY:**
+
+- [ ] Substrate genesis config premine = 33,000,000 QBC
+- [ ] Substrate genesis first reward = 15.27 QBC
+- [ ] Substrate chain ID = 3301
+- [ ] Substrate block time = 3.3s (3300ms)
+
+---
+
+### 1AA. Frontend Build & Page Verification
+
+**BUILD:**
+
+- [ ] `cd frontend && pnpm install` → no errors
+- [ ] `pnpm build` → production build succeeds with 0 TypeScript errors
+- [ ] `pnpm test` → all Vitest unit tests pass (if configured)
+- [ ] Build output lists all expected routes
+
+**PAGE VERIFICATION (all routes):**
+
+- [ ] `/` → Landing page renders (check for compilation, not runtime data)
+- [ ] `/aether` → Chat interface page renders
+- [ ] `/dashboard` → Dashboard page renders
+- [ ] `/wallet` → Wallet page renders
+- [ ] `/qvm` → QVM explorer page renders
+- [ ] `/bridge` → Bridge interface renders
+- [ ] `/exchange` → Exchange interface renders
+- [ ] `/explorer` → Block explorer renders
+- [ ] `/launchpad` → Launchpad renders
+- [ ] `/docs/*` → Documentation pages render
+- [ ] `/twa/*` → All 7 TWA pages render
+- [ ] `/admin` → Admin page renders (if exists)
+
+**CRITICAL CHECKS:**
+
+- [ ] `mock-engine.ts` NOT imported in production builds (opt-in via env var only)
+- [ ] All API libs point to `NEXT_PUBLIC_RPC_URL` (not hardcoded localhost)
+- [ ] No `any` types in strict mode (TypeScript errors would fail build)
+- [ ] Service worker (`sw.js`) present in public/
+
+---
+
+### 1AB. Stress & Edge Case Testing
+
+**RAPID TRANSACTIONS:**
+
+- [ ] Send 10 rapid transactions from same address (no double-spend)
+- [ ] All 10 confirm within reasonable time
+- [ ] UTXO set consistent after all confirm
+
+**ERROR HANDLING:**
+
+- [ ] `GET /balance/nonexistent_address` → returns 0, not error
+- [ ] `GET /block/99999999` → returns 404 or empty, not crash
+- [ ] Submit invalid transaction (bad signature) → rejected with error message
+- [ ] Submit duplicate transaction → rejected
+- [ ] `POST /aether/chat/message` with empty message → handled gracefully
+
+**BOUNDARY CONDITIONS:**
+
+- [ ] Query genesis block (height=0) → valid response with premine
+- [ ] Query negative block height → proper error
+- [ ] Send 0 QBC transaction → rejected
+- [ ] Very long address string → handled (no buffer overflow)
+- [ ] Empty POST body to endpoints → proper 400 error
+
+**LONG-RUNNING STABILITY:**
+
+- [ ] Node mines 100+ blocks without crash
+- [ ] Memory usage stable (no unbounded growth visible in logs)
+- [ ] No uncaught exceptions in node output
+
+---
+
+## LIVE TESTING RULES (Rules 43-50)
+
+**These rules supplement the 42 code review rules above.**
+
+43. **Live genesis MUST produce valid block 0** with 33M premine + 15.27 mining reward = 33,000,015.27 QBC total supply. Genesis block must have 2 coinbase outputs.
+
+44. **All 342 REST endpoints MUST return valid responses** on a running node. Endpoints may return empty data (e.g., no bridge transfers yet) but must NOT return 500 errors or crash the node.
+
+45. **Multi-address transactions MUST complete full round-trip.** A → B → C → A must all succeed with correct balance changes and valid Dilithium signatures.
+
+46. **All deployed contracts MUST be queryable** via `GET /qvm/contract/{address}` and `eth_getCode` after deployment.
+
+47. **Frontend build MUST succeed with zero TypeScript errors** in strict mode. `pnpm build` must exit 0.
+
+48. **Substrate hybrid node MUST compile** with `SKIP_WASM_BUILD=1 cargo build --release` and all pallet tests must pass.
+
+49. **Bridge dry-run MUST compile** all bridge Solidity contracts successfully (if deploy script available).
+
+50. **3 consecutive 100/100 audit runs required** before launch clearance. Each run must include both code review (Phases 1A-1T) and live testing (Phases 1U-1AB).
+
+---
+
 ## PHASE 2: IMPROVEMENT PLAN (3 Per Component = 48 Total)
 
 Produce 3 specific, high-impact improvements for EACH of the 16 components.
@@ -1255,7 +1639,16 @@ Produce 3 specific, high-impact improvements for EACH of the 16 components.
 ## 14. STRATUM SERVER TABLE (7 Rust files, WebSocket + gRPC, pool management)
 ## 15. PWA ENHANCEMENTS TABLE (offline tx, push notifications, biometric, service worker)
 ## 16. FILE-BY-FILE FINDINGS
-## 17. RUN HISTORY
+## 17. LIVE TESTING RESULTS (Phases 1U-1AB)
+### 17.1 Genesis Verification (1U)
+### 17.2 Endpoint Bombardment Results (1V — 342 REST + 19 JSON-RPC)
+### 17.3 Multi-Address Transaction Log (1W)
+### 17.4 Contract Deployment Results (1X)
+### 17.5 Bridge Dry-Run Results (1Y)
+### 17.6 Substrate Build & Test Results (1Z)
+### 17.7 Frontend Build Log (1AA)
+### 17.8 Stress Test Results (1AB)
+## 18. RUN HISTORY
 ```
 
 ### File 2: MASTERUPDATETODO.md
@@ -1366,3 +1759,5 @@ Each: title, novel aspect, technical description, implementation plan, competiti
 40. **Finality metrics must be accurate.** `finality_total_stake`, `finality_validator_count`, `finality_last_finalized` reflect actual state.
 41. **4,357 tests must all pass.** No skipped tests in competitive features. All 193 competitive feature tests green.
 42. **Dilithium multi-level verified.** ML-DSA-44/65/87 all functional. Config: `DILITHIUM_SECURITY_LEVEL=5` default.
+
+**See also: Rules 43-50 (Live Testing Rules) above Phase 2.**

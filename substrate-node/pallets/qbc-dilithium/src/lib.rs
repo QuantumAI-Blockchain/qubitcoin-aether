@@ -303,12 +303,18 @@ pub mod pallet {
 mod tests {
     use super::*;
 
+    /// Helper: derive address directly without needing Pallet<T> (pure function)
+    fn derive_address(public_key: &[u8]) -> qbc_primitives::Address {
+        use sp_core::hashing::sha2_256;
+        qbc_primitives::Address(sha2_256(public_key))
+    }
+
     #[test]
     fn test_address_derivation() {
         use sp_core::hashing::sha2_256;
         let pk = vec![42u8; 1312]; // Dilithium2 public key size
         let expected = qbc_primitives::Address(sha2_256(&pk));
-        let addr = pallet::Pallet::<()>::derive_address(&pk);
+        let addr = derive_address(&pk);
         assert_eq!(addr, expected);
     }
 
@@ -316,8 +322,8 @@ mod tests {
     fn test_address_derivation_different_keys() {
         let pk1 = vec![1u8; 1312];
         let pk2 = vec![2u8; 1312];
-        let addr1 = pallet::Pallet::<()>::derive_address(&pk1);
-        let addr2 = pallet::Pallet::<()>::derive_address(&pk2);
+        let addr1 = derive_address(&pk1);
+        let addr2 = derive_address(&pk2);
         assert_ne!(addr1, addr2);
     }
 

@@ -218,7 +218,7 @@ class DeniableRPCHandler:
             from sqlalchemy import text
             with self.db.get_session() as session:
                 result = session.execute(
-                    text("SELECT hash, height, timestamp FROM blocks WHERE height = :h"),
+                    text("SELECT block_hash, height, created_at FROM blocks WHERE height = :h"),
                     {'h': height}
                 ).fetchone()
                 if result:
