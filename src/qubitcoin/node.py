@@ -71,6 +71,10 @@ from .utils.metrics import (
     fees_collected_total, fees_collected_qbc_total,
     # QUSD Oracle
     qusd_price_qbc_usd, qusd_oracle_stale,
+    # QUSD Keeper
+    qusd_keeper_mode, qusd_keeper_last_check_block,
+    qusd_keeper_stability_fund, qusd_keeper_max_deviation,
+    qusd_keeper_paused, qusd_keeper_arb_opportunities,
     # Capability
     capability_active_peers, capability_total_mining_power,
     # IPFS Memory
@@ -448,6 +452,43 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"ReserveVerifier init: {e}")
 
+        # Component 14b: QUSD Keeper (peg monitoring + stabilization)
+        self.qusd_keeper = None
+        self.dex_price_reader = None
+        self.arb_calculator = None
+        if Config.KEEPER_ENABLED:
+            try:
+                from .stablecoin.dex_price import DEXPriceReader
+                self.dex_price_reader = DEXPriceReader()
+                logger.info("[14b/22] DEXPriceReader initialized")
+            except Exception as e:
+                logger.debug(f"DEXPriceReader init: {e}")
+            try:
+                from .stablecoin.arbitrage import ArbitrageCalculator
+                self.arb_calculator = ArbitrageCalculator(self.dex_price_reader)
+                logger.info("[14b/22] ArbitrageCalculator initialized")
+            except Exception as e:
+                logger.debug(f"ArbitrageCalculator init: {e}")
+            try:
+                from .stablecoin.keeper import QUSDKeeper, KeeperMode
+                self.qusd_keeper = QUSDKeeper(
+                    stablecoin_engine=self.stablecoin_engine,
+                    qvm=self.state_manager,
+                    dex_reader=self.dex_price_reader,
+                    arb_calc=self.arb_calculator,
+                )
+                # Start in configured default mode
+                mode_map = {
+                    'off': KeeperMode.OFF, 'scan': KeeperMode.SCAN,
+                    'periodic': KeeperMode.PERIODIC, 'continuous': KeeperMode.CONTINUOUS,
+                    'aggressive': KeeperMode.AGGRESSIVE,
+                }
+                default_mode = mode_map.get(Config.KEEPER_DEFAULT_MODE.lower(), KeeperMode.SCAN)
+                self.qusd_keeper.start(default_mode)
+                logger.info(f"[14b/22] QUSDKeeper initialized (mode={default_mode.name})")
+            except Exception as e:
+                logger.warning(f"[14b/22] QUSDKeeper init failed (non-fatal): {e}")
+
         # Component 15: Bridge Manager + Liquidity Pool
         self.bridge_manager = None
         self.bridge_lp = None
@@ -678,6 +719,9 @@ class QubitcoinNode:
                 aikgs_client=self.aikgs_client,
                 aikgs_telegram_bot=self.aikgs_telegram_bot,
                 substrate_bridge=self.substrate_bridge,
+                qusd_keeper=self.qusd_keeper,
+                dex_price_reader=self.dex_price_reader,
+                arb_calculator=self.arb_calculator,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)
@@ -892,6 +936,13 @@ class QubitcoinNode:
                     self.higgs_field.tick(block_height)
                 except Exception as e:
                     logger.debug(f"Higgs field tick: {e}")
+
+            # QUSD Keeper per-block tick
+            if getattr(self, 'qusd_keeper', None):
+                try:
+                    self.qusd_keeper.on_block(block_height)
+                except Exception as e:
+                    logger.debug(f"QUSD keeper tick: {e}")
 
             # Anchor Aether state back to Substrate (every N blocks)
             # Note: anchoring is async, schedule from sync thread via event loop
@@ -1304,6 +1355,28 @@ class QubitcoinNode:
                 except Exception as e:
                     logger.debug(f"Metrics update error (QUSD oracle): {e}")
 
+            # QUSD Keeper
+            if self.qusd_keeper:
+                try:
+                    qusd_keeper_mode.set(int(self.qusd_keeper.config.mode))
+                    qusd_keeper_last_check_block.set(self.qusd_keeper._last_check_block)
+                    qusd_keeper_stability_fund.set(float(self.qusd_keeper._stability_fund_qbc))
+                    qusd_keeper_paused.set(1 if self.qusd_keeper._paused else 0)
+                    if self.qusd_keeper._dex_reader:
+                        try:
+                            dev, _, _ = self.qusd_keeper._dex_reader.get_max_wqusd_deviation()
+                            qusd_keeper_max_deviation.set(float(dev))
+                        except Exception:
+                            pass
+                    if self.qusd_keeper._arb_calc:
+                        try:
+                            opps = self.qusd_keeper._arb_calc.get_current_opportunities(profitable_only=True)
+                            qusd_keeper_arb_opportunities.set(len(opps))
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.debug(f"Metrics update error (keeper): {e}")
+
             # Capability
             if self.capability_advertiser:
                 try:
@@ -1653,6 +1726,13 @@ class QubitcoinNode:
                 logger.info(f"Block {block_height} broadcasted via Python P2P to {peer_count} peers")
             else:
                 logger.warning("No P2P network available - block not broadcasted")
+
+            # QUSD Keeper per-block tick
+            if getattr(self, 'qusd_keeper', None) and isinstance(block_height, int):
+                try:
+                    self.qusd_keeper.on_block(block_height)
+                except Exception as e:
+                    logger.debug(f"QUSD keeper tick: {e}")
 
             # Broadcast to WebSocket clients for real-time updates
             if hasattr(self.app, 'broadcast_ws'):

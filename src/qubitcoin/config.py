@@ -283,6 +283,18 @@ class Config:
     BRIDGE_RELAYER_MIN_STAKE: float = float(os.getenv('BRIDGE_RELAYER_MIN_STAKE', '100.0'))
 
     # ============================================================================
+    # QUSD KEEPER SETTINGS
+    # ============================================================================
+    KEEPER_ENABLED: bool = os.getenv('KEEPER_ENABLED', 'true').lower() == 'true'
+    KEEPER_DEFAULT_MODE: str = os.getenv('KEEPER_DEFAULT_MODE', 'scan')  # off|scan|periodic|continuous|aggressive
+    KEEPER_CHECK_INTERVAL: int = int(os.getenv('KEEPER_CHECK_INTERVAL', '10'))  # blocks
+    KEEPER_MAX_TRADE_SIZE: float = float(os.getenv('KEEPER_MAX_TRADE_SIZE', '1000000'))
+    KEEPER_FLOOR_PRICE: float = float(os.getenv('KEEPER_FLOOR_PRICE', '0.99'))
+    KEEPER_CEILING_PRICE: float = float(os.getenv('KEEPER_CEILING_PRICE', '1.01'))
+    KEEPER_COOLDOWN_BLOCKS: int = int(os.getenv('KEEPER_COOLDOWN_BLOCKS', '10'))
+    QUSD_STABILIZER_ADDRESS: str = os.getenv('QUSD_STABILIZER_ADDRESS', '')
+
+    # ============================================================================
     # ON-CHAIN AGI CONTRACT ADDRESSES (set after deployment)
     # ============================================================================
     CONSCIOUSNESS_DASHBOARD_ADDRESS: str = os.getenv('CONSCIOUSNESS_DASHBOARD_ADDRESS', '')

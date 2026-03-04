@@ -12,8 +12,9 @@ contract BridgeVault is Initializable {
     bool    public paused;
     bool    private _locked;
 
-    uint256 public constant FEE_BPS = 10;        // 0.1% = 10 basis points
+    uint256 public feeBps;                        // Configurable fee (basis points)
     uint256 public constant BPS_DENOMINATOR = 10000;
+    uint256 public constant MAX_FEE_BPS = 1000;   // 10% absolute max
     uint256 public constant MIN_DEPOSIT = 1e6;    // 0.01 QBC (8 decimals)
     uint256 public constant MAX_DEPOSIT = 1e16;   // 100M QBC daily limit
     uint256 public constant MIN_RELAYERS = 3;     // Minimum relayers for security
@@ -86,6 +87,7 @@ contract BridgeVault is Initializable {
     event RelayerAdded(address indexed relayer);
     event RelayerRemoved(address indexed relayer);
     event FeesWithdrawn(address indexed to, uint256 amount);
+    event FeeBpsUpdated(uint256 oldFeeBps, uint256 newFeeBps);
     event WithdrawalConfirmed(bytes32 indexed withdrawalId, address indexed relayer, uint256 confirmations);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
@@ -118,6 +120,7 @@ contract BridgeVault is Initializable {
         owner = msg.sender;
         feeRecipient = _feeRecipient != address(0) ? _feeRecipient : msg.sender;
         requiredConfirmations = _requiredConfirmations > 0 ? _requiredConfirmations : 1;
+        feeBps = 10; // Default 0.1% — configurable via setFeeBps()
 
         // Register default supported chains
         uint256[8] memory defaultChains = [
@@ -158,7 +161,7 @@ contract BridgeVault is Initializable {
         require(dailyVolume <= MAX_DEPOSIT, "Vault: daily limit exceeded");
 
         // Calculate fee
-        uint256 fee = (msg.value * FEE_BPS) / BPS_DENOMINATOR;
+        uint256 fee = (msg.value * feeBps) / BPS_DENOMINATOR;
         uint256 netAmount = msg.value - fee;
 
         // Generate deposit ID
@@ -303,6 +306,15 @@ contract BridgeVault is Initializable {
         (bool ok,) = feeRecipient.call{value: amount}("");
         require(ok, "Vault: fee transfer failed");
         emit FeesWithdrawn(feeRecipient, amount);
+    }
+
+    /// @notice Update the bridge fee in basis points
+    /// @param newFeeBps New fee (must be <= MAX_FEE_BPS = 1000 = 10%)
+    function setFeeBps(uint256 newFeeBps) external onlyOwner {
+        require(newFeeBps <= MAX_FEE_BPS, "Vault: fee too high");
+        uint256 old = feeBps;
+        feeBps = newFeeBps;
+        emit FeeBpsUpdated(old, newFeeBps);
     }
 
     function setFeeRecipient(address _recipient) external onlyOwner {

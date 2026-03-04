@@ -152,6 +152,18 @@ qusd_price_qbc_usd = Gauge('qbc_qusd_price_qbc_usd', 'QBC/USD price from QUSD or
 qusd_oracle_stale = Gauge('qbc_qusd_oracle_stale', 'QUSD oracle staleness flag (0/1)')
 
 # ============================================================================
+# QUSD KEEPER METRICS
+# ============================================================================
+qusd_keeper_mode = Gauge('qbc_qusd_keeper_mode', 'Keeper operating mode (0=off,1=scan,2=periodic,3=continuous,4=aggressive)')
+qusd_keeper_last_check_block = Gauge('qbc_qusd_keeper_last_check_block', 'Last block checked by keeper')
+qusd_keeper_actions_total = Counter('qbc_qusd_keeper_actions_total', 'Total keeper actions executed')
+qusd_keeper_depeg_events_total = Counter('qbc_qusd_keeper_depeg_events_total', 'Total depeg events detected')
+qusd_keeper_stability_fund = Gauge('qbc_qusd_keeper_stability_fund', 'Stability fund balance (QBC)')
+qusd_keeper_max_deviation = Gauge('qbc_qusd_keeper_max_deviation', 'Max wQUSD price deviation from $1')
+qusd_keeper_paused = Gauge('qbc_qusd_keeper_paused', 'Keeper paused flag (0/1)')
+qusd_keeper_arb_opportunities = Gauge('qbc_qusd_keeper_arb_opportunities', 'Current profitable arb opportunities')
+
+# ============================================================================
 # CAPABILITY METRICS
 # ============================================================================
 capability_active_peers = Gauge('qbc_capability_active_peers', 'Active peers with known capabilities')
@@ -251,6 +263,11 @@ __all__ = [
     'fees_collected_total', 'fees_collected_qbc_total',
     # QUSD Oracle
     'qusd_price_qbc_usd', 'qusd_oracle_stale',
+    # QUSD Keeper
+    'qusd_keeper_mode', 'qusd_keeper_last_check_block',
+    'qusd_keeper_actions_total', 'qusd_keeper_depeg_events_total',
+    'qusd_keeper_stability_fund', 'qusd_keeper_max_deviation',
+    'qusd_keeper_paused', 'qusd_keeper_arb_opportunities',
     # Capability
     'capability_active_peers', 'capability_total_mining_power',
     # IPFS Memory

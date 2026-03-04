@@ -52,7 +52,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    higgs_field=None,
                    aikgs_client=None,
                    aikgs_telegram_bot=None,
-                   substrate_bridge=None) -> FastAPI:
+                   substrate_bridge=None,
+                   qusd_keeper=None,
+                   dex_price_reader=None,
+                   arb_calculator=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -286,6 +289,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 "chain_id": Config.CHAIN_ID,
                 "bridge": bridge_manager is not None,
                 "stablecoin": stablecoin_engine is not None,
+                "qusd_keeper": qusd_keeper is not None,
                 "compliance": compliance_engine is not None or _compliance_engine is not None,
                 "plugins": plugin_manager is not None,
                 "cognitive_architecture": sephirot_manager is not None,
@@ -5373,6 +5377,160 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "repaid": loan.repaid,
             "timestamp": loan.timestamp,
         }
+
+    # ========================================================================
+    # QUSD KEEPER ENDPOINTS
+    # ========================================================================
+
+    @app.get("/keeper/status")
+    async def keeper_status():
+        """Get QUSD keeper daemon status."""
+        if not qusd_keeper:
+            return {"error": "Keeper not available", "mode": "off", "running": False}
+        return qusd_keeper.get_status()
+
+    @app.get("/keeper/mode")
+    async def keeper_get_mode():
+        """Get current keeper operating mode."""
+        if not qusd_keeper:
+            return {"mode": "off", "mode_value": 0}
+        return {"mode": qusd_keeper.config.mode.name.lower(),
+                "mode_value": int(qusd_keeper.config.mode)}
+
+    @app.put("/keeper/mode/{mode_name}")
+    async def keeper_set_mode(mode_name: str):
+        """Set keeper operating mode."""
+        if not qusd_keeper:
+            raise HTTPException(status_code=503, detail="Keeper not available")
+        from ..stablecoin.keeper import KeeperMode
+        mode_map = {
+            'off': KeeperMode.OFF, 'scan': KeeperMode.SCAN,
+            'periodic': KeeperMode.PERIODIC, 'continuous': KeeperMode.CONTINUOUS,
+            'aggressive': KeeperMode.AGGRESSIVE,
+        }
+        mode = mode_map.get(mode_name.lower())
+        if mode is None:
+            raise HTTPException(status_code=400,
+                                detail=f"Invalid mode: {mode_name}. Use: {list(mode_map.keys())}")
+        qusd_keeper.set_mode(mode)
+        return {"mode": mode.name.lower(), "mode_value": int(mode)}
+
+    @app.get("/keeper/config")
+    async def keeper_get_config():
+        """Get keeper configuration."""
+        if not qusd_keeper:
+            raise HTTPException(status_code=503, detail="Keeper not available")
+        cfg = qusd_keeper.config
+        return {
+            "mode": cfg.mode.name.lower(),
+            "check_interval_blocks": cfg.check_interval_blocks,
+            "max_trade_size": str(cfg.max_trade_size),
+            "floor_price": str(cfg.floor_price),
+            "ceiling_price": str(cfg.ceiling_price),
+            "cooldown_blocks": cfg.cooldown_blocks,
+            "min_fund_warning": str(cfg.min_fund_warning),
+            "aggressive_multiplier": str(cfg.aggressive_multiplier),
+        }
+
+    class KeeperConfigUpdate(BaseModel):
+        check_interval_blocks: Optional[int] = None
+        max_trade_size: Optional[float] = None
+        floor_price: Optional[float] = None
+        ceiling_price: Optional[float] = None
+        cooldown_blocks: Optional[int] = None
+        min_fund_warning: Optional[float] = None
+
+    @app.put("/keeper/config")
+    async def keeper_update_config(req: KeeperConfigUpdate):
+        """Update keeper configuration at runtime."""
+        if not qusd_keeper:
+            raise HTTPException(status_code=503, detail="Keeper not available")
+        from decimal import Decimal
+        updates = {}
+        if req.check_interval_blocks is not None:
+            updates['check_interval_blocks'] = req.check_interval_blocks
+        if req.max_trade_size is not None:
+            updates['max_trade_size'] = Decimal(str(req.max_trade_size))
+        if req.floor_price is not None:
+            updates['floor_price'] = Decimal(str(req.floor_price))
+        if req.ceiling_price is not None:
+            updates['ceiling_price'] = Decimal(str(req.ceiling_price))
+        if req.cooldown_blocks is not None:
+            updates['cooldown_blocks'] = req.cooldown_blocks
+        if req.min_fund_warning is not None:
+            updates['min_fund_warning'] = Decimal(str(req.min_fund_warning))
+        qusd_keeper.update_config(**updates)
+        return {"updated": list(updates.keys()), "success": True}
+
+    @app.get("/keeper/history")
+    async def keeper_history(limit: int = 100):
+        """Get keeper action history."""
+        if not qusd_keeper:
+            return {"actions": []}
+        return {"actions": qusd_keeper.get_history(limit)}
+
+    @app.get("/keeper/opportunities")
+    async def keeper_opportunities():
+        """Get current arbitrage opportunities."""
+        if not qusd_keeper:
+            return {"opportunities": [], "summary": {}}
+        return qusd_keeper.get_opportunities()
+
+    @app.get("/keeper/signals")
+    async def keeper_signals(limit: int = 100):
+        """Get recent keeper signals."""
+        if not qusd_keeper:
+            return {"signals": []}
+        return {"signals": qusd_keeper.get_signals(limit)}
+
+    class KeeperExecuteRequest(BaseModel):
+        action_type: str
+        trade_size: float
+        block_height: Optional[int] = None
+
+    @app.post("/keeper/execute")
+    async def keeper_execute(req: KeeperExecuteRequest):
+        """Manually execute a keeper action."""
+        if not qusd_keeper:
+            raise HTTPException(status_code=503, detail="Keeper not available")
+        from decimal import Decimal
+        block_height = req.block_height
+        if block_height is None:
+            block_height = qusd_keeper._last_check_block or 0
+        result = qusd_keeper.execute_manual(
+            req.action_type, Decimal(str(req.trade_size)), block_height,
+        )
+        return result
+
+    @app.post("/keeper/pause")
+    async def keeper_pause():
+        """Pause keeper execution (monitoring continues)."""
+        if not qusd_keeper:
+            raise HTTPException(status_code=503, detail="Keeper not available")
+        qusd_keeper.pause()
+        return {"paused": True}
+
+    @app.post("/keeper/resume")
+    async def keeper_resume():
+        """Resume keeper execution."""
+        if not qusd_keeper:
+            raise HTTPException(status_code=503, detail="Keeper not available")
+        qusd_keeper.resume()
+        return {"paused": False}
+
+    @app.get("/keeper/prices")
+    async def keeper_prices():
+        """Get current wQUSD prices across all chains."""
+        if not dex_price_reader:
+            return {"prices": {}, "error": "DEX price reader not available"}
+        return dex_price_reader.get_status()
+
+    @app.get("/keeper/arb/summary")
+    async def keeper_arb_summary():
+        """Get arbitrage calculator summary."""
+        if not arb_calculator:
+            return {"error": "Arbitrage calculator not available"}
+        return arb_calculator.get_summary()
 
     # ========================================================================
     # NEURAL REASONER ENDPOINTS
