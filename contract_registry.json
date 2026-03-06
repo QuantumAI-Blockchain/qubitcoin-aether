@@ -178,5 +178,32 @@
   "tokens_wQBC": {
     "proxy": "0xc40d4c0504dd1ed9e6349fa22496c17885df333e",
     "implementation": "0xa95c9685d02b41c4cfda2c7fcba97a67379427d7"
+  },
+  "_external_bridges": {
+    "BSC": {
+      "chain_id": 56,
+      "wQBC": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+      "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+      "deploy_tx": "0xf5e876dcdf31e86a45328310c4786a9c8136ff02933f825d740283d1d68e1ca2",
+      "block": 84955712,
+      "status": "deployed_initialized"
+    },
+    "ETH": {
+      "chain_id": 1,
+      "wQBC": null,
+      "status": "pending_rpc_url"
+    }
+  },
+  "HiggsField": {
+    "proxy": "0xb4807f595441cff8506daa371674d515b46bc591",
+    "implementation": "0x3a653e645f710a70237da51b47e9fbef8c83a171"
+  },
+  "MultiSigAdmin": {
+    "proxy": "0xce2062722b1da6954158bda3a908b469aae701bd",
+    "implementation": "0x3a653e645f710a70237da51b47e9fbef8c83a171"
+  },
+  "VestingSchedule": {
+    "proxy": "0x894f4814c3bca60001e9822bb97859219aba6562",
+    "implementation": "0x3a653e645f710a70237da51b47e9fbef8c83a171"
   }
 }
