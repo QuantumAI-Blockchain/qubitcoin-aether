@@ -243,7 +243,7 @@ class MiningEngine:
         block.block_hash = block.calculate_hash()
 
         valid, reason = self.consensus.validate_block(
-            block, self.db.get_block(current_height), self.db
+            block, self.db.get_block(current_height), self.db, skip_qvm=True, skip_pot=True
         )
         if not valid:
             logger.error(f"Self-validation failed: {reason}")

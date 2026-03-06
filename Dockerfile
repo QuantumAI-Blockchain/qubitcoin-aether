@@ -6,7 +6,7 @@
 # ============================================================================
 
 # ── Stage 1: Build Rust binaries (P2P + Stratum) ─────────────────────
-FROM rust:1.85-slim-bookworm AS rust-builder
+FROM rust:latest AS rust-builder
 
 RUN apt-get update && apt-get install -y \
     protobuf-compiler \
@@ -25,16 +25,21 @@ WORKDIR /build/stratum-server
 RUN cargo build --release
 
 # ── Stage 2: Build PyO3 modules (Aether Core + Security Core) ────────
-FROM rust:1.85-slim-bookworm AS aether-builder
+# Use Python 3.12 base + install Rust to ensure wheel ABI matches production stage
+FROM python:3.12-slim-bookworm AS aether-builder
 
 RUN apt-get update && apt-get install -y \
-    python3-dev \
-    python3-pip \
+    curl \
+    build-essential \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --break-system-packages maturin>=1.7
+# Install Rust toolchain
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN pip install --no-cache-dir maturin>=1.7
 
 WORKDIR /build
 COPY aether-core/ ./aether-core/
@@ -75,7 +80,7 @@ RUN pip install --no-cache-dir /tmp/wheels/*.whl && rm -rf /tmp/wheels
 
 # Copy Rust binaries from builder
 COPY --from=rust-builder /build/rust-p2p/target/release/qubitcoin-p2p /usr/local/bin/qubitcoin-p2p
-COPY --from=rust-builder /build/stratum-server/target/release/stratum-server /usr/local/bin/qbc-stratum
+COPY --from=rust-builder /build/stratum-server/target/release/qbc-stratum /usr/local/bin/qbc-stratum
 RUN chmod +x /usr/local/bin/qubitcoin-p2p /usr/local/bin/qbc-stratum
 
 # Copy source code

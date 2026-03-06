@@ -48,7 +48,10 @@ interface OctreeNode {
   children: (OctreeNode | null)[];     // 8 children (octants)
 }
 
-function octreeInsert(root: OctreeNode, idx: number, px: number, py: number, pz: number): void {
+function octreeInsert(root: OctreeNode, idx: number, px: number, py: number, pz: number, depth: number = 0): void {
+  // Prevent infinite recursion from coincident points
+  if (depth > 40) return;
+
   if (root.mass === 0) {
     // Empty leaf — place body here
     root.cx = px; root.cy = py; root.cz = pz;
@@ -63,11 +66,11 @@ function octreeInsert(root: OctreeNode, idx: number, px: number, py: number, pz:
     const ox = root.cx, oy = root.cy, oz = root.cz;
     root.body = null;
     // Re-insert old body
-    octreeInsertInternal(root, oldIdx, ox, oy, oz);
+    octreeInsertInternal(root, oldIdx, ox, oy, oz, depth + 1);
   }
 
   // Insert new body into the appropriate child
-  octreeInsertInternal(root, idx, px, py, pz);
+  octreeInsertInternal(root, idx, px, py, pz, depth + 1);
 
   // Update centre-of-mass
   const totalMass = root.mass + 1;
@@ -77,7 +80,7 @@ function octreeInsert(root: OctreeNode, idx: number, px: number, py: number, pz:
   root.mass = totalMass;
 }
 
-function octreeInsertInternal(node: OctreeNode, idx: number, px: number, py: number, pz: number): void {
+function octreeInsertInternal(node: OctreeNode, idx: number, px: number, py: number, pz: number, depth: number = 0): void {
   const halfSize = node.size / 2;
   // Determine octant: bit 0 = x, bit 1 = y, bit 2 = z
   // We use the region centre (midpoint) to pick the octant
@@ -98,7 +101,7 @@ function octreeInsertInternal(node: OctreeNode, idx: number, px: number, py: num
       children: [null, null, null, null, null, null, null, null],
     };
   }
-  octreeInsert(node.children[octant]!, idx, px, py, pz);
+  octreeInsert(node.children[octant]!, idx, px, py, pz, depth);
 }
 
 function octreeForce(
@@ -197,11 +200,11 @@ function layoutNodes(
     regularNodes.push(n);
   }
 
-  // Place regular nodes on a sphere initially
+  // Place regular nodes on a sphere initially (with jitter to prevent coincident points)
   const positions: NodePosition[] = regularNodes.map((n, i) => {
     const phi = Math.acos(1 - (2 * (i + 0.5)) / Math.max(regularNodes.length, 1));
     const theta = Math.PI * (1 + Math.sqrt(5)) * i;
-    const r = 5 + Math.random() * 0.5;
+    const r = 5 + ((n.id * 7 + i * 13) % 100) * 0.01;
     return {
       id: n.id,
       x: r * Math.sin(phi) * Math.cos(theta),
@@ -497,13 +500,26 @@ function GraphScene({
   const [hoveredNode, setHoveredNode] = useState<KnowledgeGraphNode | null>(null);
   const [labelPos, setLabelPos] = useState<[number, number, number]>([0, 0, 0]);
 
-  const { positions, posMap } = useMemo(() => {
-    const laidOut = layoutNodes(data.nodes, data.edges);
+  const { positions, posMap, visibleEdges } = useMemo(() => {
+    // Cap nodes to prevent browser crash — keep sephirot + sample of regular nodes
+    const MAX_RENDER_NODES = 500;
+    let nodes = data.nodes;
+    let edges = data.edges;
+    if (nodes.length > MAX_RENDER_NODES) {
+      const sephirot = nodes.filter((n) => n.node_type === "sephirot");
+      const regular = nodes.filter((n) => n.node_type !== "sephirot");
+      // Take most recent nodes (highest source_block)
+      regular.sort((a, b) => (b.source_block ?? 0) - (a.source_block ?? 0));
+      nodes = [...sephirot, ...regular.slice(0, MAX_RENDER_NODES - sephirot.length)];
+      const nodeIds = new Set(nodes.map((n) => n.id));
+      edges = edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+    }
+    const laidOut = layoutNodes(nodes, edges);
     const pm = new Map<number, [number, number, number]>();
     for (const p of laidOut) {
       pm.set(p.id, [p.x, p.y, p.z]);
     }
-    return { positions: laidOut, posMap: pm };
+    return { positions: laidOut, posMap: pm, visibleEdges: edges };
   }, [data]);
 
   // Determine which nodes are dimmed by the filter
@@ -547,7 +563,7 @@ function GraphScene({
       />
       <RotatingGroup>
         <GraphEdges
-          edges={data.edges}
+          edges={visibleEdges}
           posMap={posMap}
           hiddenEdgeTypes={hiddenEdgeTypes}
           dimmedNodeIds={dimmedNodeIds}

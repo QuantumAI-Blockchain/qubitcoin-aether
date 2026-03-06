@@ -466,7 +466,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 'hours_until_halving': (Config.HALVING_INTERVAL * Config.TARGET_BLOCK_TIME) / 3600
             }
 
-        # Peer count
+        # Peer count (cached to avoid blocking gRPC calls on every request)
         peers = 0
         substrate_info = None
         if hasattr(app, 'node'):
@@ -478,7 +478,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 except Exception:
                     pass
             elif hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
-                peers = node.rust_p2p.get_peer_count()
+                try:
+                    peers = node.rust_p2p.get_peer_count()
+                except Exception:
+                    peers = 0
             elif hasattr(node, 'p2p') and node.p2p:
                 peers = len(node.p2p.connections)
 

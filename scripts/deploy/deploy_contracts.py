@@ -166,15 +166,16 @@ class RPCClient:
         return result
 
     def _get_receipt(self, tx_hash: str) -> Optional[dict]:
-        """Get transaction receipt."""
-        for _ in range(10):
+        """Get transaction receipt. Polls until tx is mined (up to ~30s)."""
+        for attempt in range(30):
             try:
                 result = self._post_jsonrpc("eth_getTransactionReceipt", [tx_hash])
                 if result:
                     return result
             except Exception:
                 pass
-            time.sleep(0.5)
+            time.sleep(1.0)
+        logger.warning(f"Receipt not found after 30s: {tx_hash}")
         return None
 
     def call(self, to: str, data_hex: str) -> Optional[str]:
@@ -856,6 +857,8 @@ def main():
             keys[k.strip()] = v.strip()
 
     deployer = keys.get("ADDRESS", "")
+    if deployer and not deployer.startswith("0x"):
+        deployer = "0x" + deployer
     private_key = keys.get("PRIVATE_KEY_HEX", "")
     public_key = keys.get("PUBLIC_KEY_HEX", "")
 

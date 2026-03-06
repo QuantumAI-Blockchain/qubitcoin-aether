@@ -1,14 +1,12 @@
 -- ================================================================
 -- QUBITCOIN DATABASE INITIALIZATION
--- Production-Grade Schema v1.0.0
+-- Production-Grade Schema v2.0.0
+-- Note: CREATE USER with password is skipped in insecure mode.
+--       The qbc_app user is only needed in production (TLS mode).
 -- ================================================================
 
 CREATE DATABASE IF NOT EXISTS qubitcoin;
 SET DATABASE = qubitcoin;
-
--- Application user
-CREATE USER IF NOT EXISTS qbc_app WITH PASSWORD 'CHANGE_THIS_IN_PRODUCTION';
-GRANT ALL ON DATABASE qubitcoin TO qbc_app;
 
 -- Schema version tracking
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -20,6 +18,14 @@ CREATE TABLE IF NOT EXISTS schema_version (
     UNIQUE INDEX version_component_idx (version, component)
 );
 
+-- Supply tracking (used by genesis and node)
+CREATE TABLE IF NOT EXISTS supply (
+    id BIGINT PRIMARY KEY DEFAULT 1,
+    total_minted DECIMAL DEFAULT 0
+);
+
+INSERT INTO supply (id, total_minted) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO schema_version (version, component, description)
-VALUES ('1.0.0', 'init', 'Database initialization')
+VALUES ('2.0.0', 'init', 'Database initialization')
 ON CONFLICT DO NOTHING;

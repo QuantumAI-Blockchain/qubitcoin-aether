@@ -1,66 +1,69 @@
 SET DATABASE = qubitcoin;
 
 -- ================================================================
+-- OPCODE GAS TABLE - QVM instruction gas costs (simplified)
+-- Aligned with SQLAlchemy OpcodeGasModel (database/manager.py)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS opcode_gas (
+    opcode INT PRIMARY KEY,
+    name VARCHAR(20) NOT NULL,
+    gas_cost BIGINT NOT NULL,
+    category VARCHAR(20) DEFAULT 'arithmetic'
+);
+
+-- Initialize common opcodes
+INSERT INTO opcode_gas (opcode, name, gas_cost, category) VALUES
+(0, 'STOP', 0, 'control'),
+(1, 'ADD', 3, 'arithmetic'),
+(2, 'MUL', 5, 'arithmetic'),
+(3, 'SUB', 3, 'arithmetic'),
+(4, 'DIV', 5, 'arithmetic'),
+(84, 'SLOAD', 800, 'storage'),
+(85, 'SSTORE', 20000, 'storage'),
+(241, 'CALL', 700, 'control'),
+(240, 'CREATE', 32000, 'control')
+ON CONFLICT DO NOTHING;
+
+-- ================================================================
 -- GAS PRICE ORACLE - Dynamic gas pricing
+-- Aligned with SQLAlchemy GasPriceOracleModel (database/manager.py)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS gas_price_oracle (
-    oracle_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    oracle_id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::STRING,
     block_height BIGINT NOT NULL,
-    
-    -- Gas prices (in QBC wei)
     base_fee DECIMAL(20, 8) NOT NULL,
     priority_fee_percentile_50 DECIMAL(20, 8) NOT NULL,
     priority_fee_percentile_75 DECIMAL(20, 8) NOT NULL,
     priority_fee_percentile_90 DECIMAL(20, 8) NOT NULL,
-    
-    -- Network utilization
     gas_used BIGINT NOT NULL,
     gas_limit BIGINT NOT NULL,
     utilization_percent DECIMAL(5, 2) NOT NULL,
-    
-    -- Sample stats
     sample_size INT NOT NULL,
     timestamp TIMESTAMP NOT NULL DEFAULT now(),
-    
+
     INDEX height_idx (block_height DESC),
     INDEX timestamp_idx (timestamp DESC)
 );
 
 -- ================================================================
--- OPCODE COSTS - QVM instruction gas costs
+-- OPCODE COSTS - Production-grade QVM instruction definitions
+-- Aligned with SQLAlchemy OpcodeCostModel (database/manager.py)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS opcode_costs (
-    opcode_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    opcode_id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::STRING,
     opcode_name VARCHAR(50) NOT NULL UNIQUE,
     opcode_value INT NOT NULL,
-    
-    -- Gas costs
     base_gas_cost BIGINT NOT NULL,
     memory_gas_cost BIGINT NOT NULL DEFAULT 0,
     storage_gas_cost BIGINT NOT NULL DEFAULT 0,
-    
-    -- Metadata
-    category VARCHAR(50) NOT NULL,  -- 'arithmetic', 'storage', 'control', 'crypto'
+    category VARCHAR(50) NOT NULL,
     description TEXT,
     is_quantum_enhanced BOOL NOT NULL DEFAULT false,
-    
+
     INDEX opcode_idx (opcode_value),
     INDEX category_idx (category)
 );
 
--- Initialize common opcodes
-INSERT INTO opcode_costs (opcode_name, opcode_value, base_gas_cost, category, description) VALUES
-('STOP', 0, 0, 'control', 'Halts execution'),
-('ADD', 1, 3, 'arithmetic', '32-bit addition'),
-('MUL', 2, 5, 'arithmetic', '32-bit multiplication'),
-('SUB', 3, 3, 'arithmetic', '32-bit subtraction'),
-('DIV', 4, 5, 'arithmetic', '32-bit division'),
-('SLOAD', 54, 800, 'storage', 'Load word from storage'),
-('SSTORE', 55, 20000, 'storage', 'Save word to storage'),
-('CALL', 241, 700, 'control', 'Call another contract'),
-('CREATE', 240, 32000, 'control', 'Create new contract')
-ON CONFLICT DO NOTHING;
-
 INSERT INTO schema_version (version, component, description)
-VALUES ('1.0.0', 'qvm_gas', 'Gas metering and pricing oracle')
+VALUES ('2.0.0', 'qvm_gas', 'Gas metering — aligned with SQLAlchemy ORM')
 ON CONFLICT DO NOTHING;

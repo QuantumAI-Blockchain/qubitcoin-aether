@@ -1702,6 +1702,7 @@ class DatabaseManager:
                      contract_address, gas_used, gas_limit, status, return_data, revert_reason, state_root)
                     VALUES (:txid, :bh, :bhash, :idx, :from_addr, :to_addr,
                             :contract, :gas_used, :gas_limit, :status, :ret, :reason, :sr)
+                    ON CONFLICT (txid) DO NOTHING
                 """),
                 {
                     'txid': receipt.txid, 'bh': receipt.block_height,

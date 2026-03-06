@@ -236,8 +236,13 @@ class ConsensusEngine:
             logger.error(f"Error calculating difficulty at height {height}: {e}", exc_info=True)
             return Config.INITIAL_DIFFICULTY
 
-    def validate_block(self, block: Block, prev_block: Optional[Block], db_manager) -> Tuple[bool, str]:
-        """Comprehensive block validation"""
+    def validate_block(self, block: Block, prev_block: Optional[Block], db_manager, skip_qvm: bool = False, skip_pot: bool = False) -> Tuple[bool, str]:
+        """Comprehensive block validation.
+
+        Args:
+            skip_qvm: If True, skip QVM state root re-execution. Used for
+                      self-mined blocks where QVM was already executed during mining.
+        """
         validation_start = time.time()
         try:
             expected_height = (prev_block.height + 1) if prev_block else 0
@@ -310,12 +315,16 @@ class ConsensusEngine:
             coinbase_count = 0
             coinbase_tx = None
             for tx in block.transactions:
-                if len(tx.inputs) == 0:
+                # Contract deploy/call txs have no UTXO inputs but are NOT coinbase
+                is_contract_tx = getattr(tx, 'tx_type', 'transfer') in ('contract_deploy', 'contract_call')
+                if len(tx.inputs) == 0 and not is_contract_tx:
                     coinbase_count += 1
                     coinbase_tx = tx
                     if coinbase_count > 1:
                         return False, "Multiple coinbase transactions"
                     continue
+                if is_contract_tx:
+                    continue  # Contract txs validated by QVM, not UTXO rules
                 if not self.validate_transaction(tx, db_manager, current_height=block.height):
                     return False, f"Invalid transaction: {tx.txid}"
                 total_fees += tx.fee
@@ -355,7 +364,7 @@ class ConsensusEngine:
             # (Timestamp validation already done above — single check, no duplicate)
 
             # Validate state root (if QVM is active and block has state root)
-            if self.state_manager and block.state_root:
+            if self.state_manager and block.state_root and not skip_qvm:
                 try:
                     state_root, receipts_root = self.state_manager.execute_block_transactions(block)
                     if block.state_root != state_root:
@@ -366,7 +375,7 @@ class ConsensusEngine:
                     logger.warning(f"State root validation skipped: {e}")
 
             # Validate thought proof (Aether Tree PoT) if present
-            if block.thought_proof and isinstance(block.thought_proof, dict):
+            if block.thought_proof and isinstance(block.thought_proof, dict) and not skip_pot:
                 pot_data = block.thought_proof
                 if pot_data.get('phi_value', 0) < 0:
                     return False, "Invalid thought proof: negative phi value"

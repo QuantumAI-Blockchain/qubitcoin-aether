@@ -49,19 +49,18 @@ services:
       - ./sql_new/:/sql_new/:ro
     entrypoint: >
       /bin/sh -c "
-        echo '=== Qubitcoin DB Init: Creating database ===' &&
-        cockroach sql --insecure --host=cockroachdb:26257 -e 'CREATE DATABASE IF NOT EXISTS qbc;' &&
-        echo '=== Loading core schemas (sql_new/) ===' &&
+        echo '=== Qubitcoin DB Init ===' &&
+        echo '--- Creating databases ---' &&
+        cockroach sql --insecure --host=cockroachdb:26257 -e 'CREATE DATABASE IF NOT EXISTS qubitcoin;' &&
+        echo '--- Loading schemas (sql_new/) ---' &&
         for dir in qbc agi qvm research shared bridge stablecoin; do
           if [ -d /sql_new/$$dir ]; then
             for f in /sql_new/$$dir/*.sql; do
               echo \"  Loading $$f\" &&
-              cockroach sql --insecure --host=cockroachdb:26257 --database=qbc < $$f || true;
+              cockroach sql --insecure --host=cockroachdb:26257 --database=qubitcoin < $$f || true;
             done;
           fi;
         done &&
-        echo '=== Loading genesis block ===' &&
-        cockroach sql --insecure --host=cockroachdb:26257 --database=qbc < /sql/09_genesis_block.sql || true &&
         echo '=== Qubitcoin DB Init: Complete ==='
       "
     networks:
@@ -119,7 +118,9 @@ services:
       - .env
       - secure_key.env
     environment:
-      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
+      - RPC_HOST=0.0.0.0
+      - QBC_CORS_ORIGINS=*
+      - DATABASE_URL=postgresql://root@cockroachdb:26257/qubitcoin?sslmode=disable
       - IPFS_API=/ip4/ipfs/tcp/5001/http
       - IPFS_GATEWAY_PORT=8080
       - AIKGS_GRPC_ADDR=aikgs-sidecar
@@ -150,7 +151,7 @@ services:
     environment:
       - AIKGS_GRPC_PORT=50052
       - AIKGS_AUTH_TOKEN=${AIKGS_AUTH_TOKEN:-}
-      - DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
+      - DATABASE_URL=postgresql://root@cockroachdb:26257/qubitcoin?sslmode=disable
       - AIKGS_NODE_RPC_URL=http://qbc-node:5000
       - AIKGS_TREASURY_ADDRESS=${AIKGS_TREASURY_ADDRESS:-}
       # SECURITY [FE-H5]: Vault master key passed as env var for dev only.

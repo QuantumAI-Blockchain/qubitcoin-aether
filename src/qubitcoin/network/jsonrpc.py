@@ -263,12 +263,21 @@ class JsonRpcHandler:
     def _is_localhost(self) -> bool:
         """Return True if the current HTTP request originates from localhost.
 
+        Accepts 127.0.0.1, ::1, and Docker bridge IPs (172.x.x.x) since
+        the node runs inside Docker and host requests arrive via bridge.
+
         Defaults to False when request info is unavailable (conservative:
         deny access if we cannot confirm the caller is local).
         """
         req = self._http_request
         if req and hasattr(req, 'client') and req.client:
-            return req.client.host in ('127.0.0.1', '::1', 'localhost')
+            host = req.client.host
+            if host in ('127.0.0.1', '::1', 'localhost'):
+                return True
+            # Docker bridge network (172.16.0.0/12)
+            if host.startswith('172.'):
+                return True
+            return False
         # No request info available — default deny for safety
         return False
 

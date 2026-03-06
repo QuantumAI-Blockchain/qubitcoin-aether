@@ -1,203 +1,182 @@
 {
   "ProxyAdmin": {
-    "address": "0x5abded0e566f9f927b0980ee72dc81410d90ce65",
+    "address": "0x3a653e645f710a70237da51b47e9fbef8c83a171",
     "type": "direct"
   },
   "AetherKernel": {
-    "proxy": "0x87e70f3981d6d4035530150c6fb633dc0ea0ff0d",
-    "implementation": "0xad986a398a37336e3f0f8964f96cc5547727eb29"
+    "proxy": "0x27d312b5056374709ac05e6db55d5b540ec11ce2",
+    "implementation": "0x33d86515c9b6b073edfd4d5047c5e40890bce4a4"
   },
   "NodeRegistry": {
-    "proxy": "0xfd2db8830f5f4170d2abcbed90fa65e98ece4496",
-    "implementation": "0x5eeca8a9f3834a0f44065c59970a8130ac663f5a"
+    "proxy": "0x54aa758ff005cf90dfb87002f88c88af25fc4d36",
+    "implementation": "0xffb02e201c2c3b727f80529db2028e91e2af7486"
   },
   "MessageBus": {
-    "proxy": "0x59d8bf03b28abeaed42bd440b6e09030a4d947cd",
-    "implementation": "0x65b64238edc3260866bd0c002cef842c49f3b974"
+    "proxy": "0x26319211fd3cb3be898195c64823f70aa65d490f",
+    "implementation": "0x0dc37cd72103bfa900b2cc8c9537dc8db2a37fd6"
   },
   "SUSYEngine": {
-    "proxy": "0x108836c6fd7a25aacf26e2aac5dfc17132d43ba7",
-    "implementation": "0x0269f0ca8de4f990786e40fdf3af1176c8fd4bfa"
+    "proxy": "0xc747c94894b8e8fd4cb97b7fa1d9419bdfe10262",
+    "implementation": "0x829a0a9d3630c1a0fbd4b4a74430b44f01985d26"
   },
   "ConsciousnessDashboard": {
-    "proxy": "0x114b9f42a965d2c533276949e7375f0d578c90b2",
-    "implementation": "0x6d45d62451a0a000f357a0b4e53aa02d41233d08"
+    "proxy": "0xa854077769070717f4f37ac847be3dfa19a87640",
+    "implementation": "0xf4b9fe10611c4abb8a29926aa64784114857b2db"
   },
   "ValidatorRegistry": {
-    "proxy": "0x974dd2780aba66e93b42808a5dc5cf503e278f5b",
-    "implementation": "0x64470d3fa0d0092e702f6a99c0e34b49b1b07504"
+    "proxy": "0xf0404fe6139365d4e475b915f7ab92dcadc99498",
+    "implementation": "0x70216f7958e04c30e17ab106fc261a34ff1ec560"
   },
   "ProofOfThought": {
-    "proxy": "0x1bcf504558b19fe134825500cad2c68c95265c55",
-    "implementation": "0xb7cca8923e67d94367945824b60b4a0290411e40"
+    "proxy": "0xea693f2eb8fbfa4a42e67529610910608d4bb5cd",
+    "implementation": "0xfa4919d534aaf1761545d99d5f55b566562099d2"
   },
   "TaskMarket": {
-    "proxy": "0x5186da88cc092068f5be31d65d0b24c40872e043",
-    "implementation": "0x8d53685b4fde5646608531342a10a5263d004a2b"
+    "proxy": "0x3b24b81aeb585d087c695c1a7ab2725f46ef8181",
+    "implementation": "0xb7d932343dc39caae4da67dea4e32f597b9f2cdf"
   },
   "RewardDistributor": {
-    "proxy": "0x12f7ded801aace832360719e02363350c0b3a71a",
-    "implementation": "0xfc5540c2adafae27f902317f31e1aecc8a5604e8"
+    "proxy": "0x1d48337d4ccb5d2866c840a2623e57a22e361072",
+    "implementation": "0xd0dc1e85c59c5fe82f8f71f93ac568235ba33601"
   },
   "PhaseSync": {
-    "proxy": "0x0b3ff8a5fe4e5d1c1a64a36d20769be24e1ab912",
-    "implementation": "0x1724f7251a7902d9954a0d2c740a47e02b41c244"
+    "proxy": "0xd05b2cdacbdcdb767668e2497bd5164a0a27c4cc",
+    "implementation": "0xb5add2a1a46f1aa487d4cbdf34df7700f36c9c7a"
   },
   "GlobalWorkspace": {
-    "proxy": "0xedadc14eb0baefd2e5ac763f2709f3c6b961e60f",
-    "implementation": "0xbc1aa70ec3da1ff6dbf624933d6c2bdf6a5f4d58"
+    "proxy": "0xd8ebac130dc7326da4c1f0f5f91edf044a077f8c",
+    "implementation": "0x89d5f3ec25ede38b2c22c8448a561116745bcbec"
   },
   "SynapticStaking": {
-    "proxy": "0xb7f2ef593a06b9c453221e7d2fad65c2e67d1c4f",
-    "implementation": "0x1c80d7522e1535c3d77cbe97f30b2a5ba62e5d5f"
+    "proxy": "0xc45bea55e7239a8063dbfe3a5de09b98ce729946",
+    "implementation": "0x9844edd210c17740a5594de125204c77ebba054c"
   },
   "VentricleRouter": {
-    "proxy": "0x11af35bd1e70fb114d1d2974a3fa73fe511f2346",
-    "implementation": "0x52d80feb0aa9976fd5aa242d7f98061f21637e14"
+    "proxy": "0x661a49fc6db62593cc48c306bc1503e8c0482e1a",
+    "implementation": "0xb9c007afac7fd64988fe107f9dc0addb0b479245"
   },
   "GasOracle": {
-    "proxy": "0x435acf42a820e186db3e4be3c35a4d8b08abeca7",
-    "implementation": "0x96d9ec1f5af29daed9a1600cadd6ad97d8fd41e8"
+    "proxy": "0x78103f21a3db5df460a122fe265c731440cfea5f",
+    "implementation": "0xc5d8b8bd7477c0a60df046dcd2b642f8bbb4e5df"
   },
   "TreasuryDAO": {
-    "proxy": "0x11203996d208cc51faecc5d2df9708ed71784eb0",
-    "implementation": "0x01cdeed53469e801738ea4f3735e461059060d49"
+    "proxy": "0x7c79883ccc9b48da994efe7a2d8dd6f64870e624",
+    "implementation": "0x093e8274d3f4dfcb225c6704a15d520c4e832fcf"
   },
   "ConstitutionalAI": {
-    "proxy": "0x78fcc5b88d3d4b13137d98da9da3ae0ab855eb34",
-    "implementation": "0xfeb637547d7545f8bef21d0dff9125dfb514a64e"
+    "proxy": "0x4661650cb5527c8f101e14ae6dd5593923749ffe",
+    "implementation": "0xbb9b07676ba61deca949e647c3831c0f2181b61c"
   },
   "EmergencyShutdown": {
-    "proxy": "0xb65663c48399116507d96f107a90caaf178fe0b7",
-    "implementation": "0xca10b82d5a27a2bb30f227867379f3bb697af9a3"
+    "proxy": "0x104cf0b92a3f6768f55e211aad4f311ff2d3eef3",
+    "implementation": "0x972452b0a9ffde680dfb9fe63f7f7ac5a529ef48"
   },
   "SephirahKeter": {
-    "proxy": "0x232ff462158e5ce9f3e26c128c0b220b7a44bfa0",
-    "implementation": "0x8ef2c3e5eac81d11d818daccc836a78c5231fc3f"
+    "proxy": "0x70f0880765a6574e3ba7c25bc369a9aa72be8fb1",
+    "implementation": "0xdd0cc594c1fc633728fd242fdf4c21169beaa23e"
   },
   "SephirahChochmah": {
-    "proxy": "0x17a338ed690e4b3d573b9e91fcb3342b7a1d24af",
-    "implementation": "0x9db2c5f171e64a65add073af704d585244f2905d"
+    "proxy": "0x0fd8430e1d3c74d8ea77bae433b74b4dcec44a2b",
+    "implementation": "0x11935c09ea262e4fbb2b92729732cf44ea02444b"
   },
   "SephirahBinah": {
-    "proxy": "0x1181dcdecee191a8b92c82b1fda4e09cfde8fa83",
-    "implementation": "0x5b0fbbdd89d15faa3f01d72ec112af432d196e62"
+    "proxy": "0x48f968a4926a4783b178bb67be63cbd074d2f887",
+    "implementation": "0x127ec45002ce9a9f1a95b78ac0bb9e6baf11bec6"
   },
   "SephirahChesed": {
-    "proxy": "0x880dd488f7565de256833d36abf959f472c51c5e",
-    "implementation": "0xce86639f0b81bb291b88c4bb16e3d74cd96b5783"
+    "proxy": "0x533eb7f3c2fb721c7d2b74d6ff246ca8201ad2db",
+    "implementation": "0x28d5aef22cb9cbc328b7fc078b5c3a40ebfded4d"
   },
   "SephirahGevurah": {
-    "proxy": "0xa102af1a6b8a6945d302822a983792db2953bbef",
-    "implementation": "0x0de4cebd6d36b38aa8504d63b41f88c62fe0b7d1"
+    "proxy": "0x65de61b759dfc92d0272244161df0fc9d41a2bcc",
+    "implementation": "0x0315c9a821a365d2fdeec56293041a7949a07f12"
   },
   "SephirahTiferet": {
-    "proxy": "0xa1574defe236d269a95a625fc7ee9d0f24866cba",
-    "implementation": "0x155c86c763507ba1700a1e30fada7ebd06a1e23e"
+    "proxy": "0xc20fafbcc6fb5f70ef2b31b18b611c6bc2b20999",
+    "implementation": "0x5541c9deb71df0e0966fc38a4a508bfc9e9788ce"
   },
   "SephirahNetzach": {
-    "proxy": "0x749166f5600d69c634da5090e1ebc7bd7e580a2d",
-    "implementation": "0x266ada6703d4b66b2eae418ad72776c11311d282"
+    "proxy": "0x3c3fd097760646875f5f2abb2a64891245461a20",
+    "implementation": "0x3275d37f0031baf2596641b4ad21b59ce65314ce"
   },
   "SephirahHod": {
-    "proxy": "0xaf1adacae4c9a6e701bc1ec58a042b96bf6c22a9",
-    "implementation": "0x3e81a2b6a9507750c5ae0285e6657726fc8e6481"
+    "proxy": "0x6eaaf710a7312b2bda75a7c55ac5076d9dbc5d86",
+    "implementation": "0x1e1b63dafa9c821157e7f7d0210a7fd7b40ce30c"
   },
   "SephirahYesod": {
-    "proxy": "0xfbcbe9f0ccac09ed31f9e8c25a9c8d4f7caed0bf",
-    "implementation": "0xcc09126d14d13c9f219d57e112a8cfd030c58254"
+    "proxy": "0x6b4e05615dea5a0f492ef24b7cfa1cbc957d5578",
+    "implementation": "0x1b95f15d07d8ea90aea7b045b9c6aebc673d0576"
   },
   "SephirahMalkuth": {
-    "proxy": "0x9e33eb8b6c0cf94268efd96b3306f9fe35695ae7",
-    "implementation": "0x92059f351147a1c2af0445c732b88f887ae95f03"
+    "proxy": "0x5d242419d98ec93b87be4b80a97176b4e3cdd419",
+    "implementation": "0x21b247b8fa88d239870ce9c5106c48599194fefa"
   },
   "UpgradeGovernor": {
-    "proxy": "0x650efb96917170838c6a8b098bb492cc848f16ee",
-    "implementation": "0xf45982f844d1dfa313ed95f53ec8a44023724d71"
+    "proxy": "0xea4220c19da0bd0fb0fea1c854853e8144a3523f",
+    "implementation": "0xf136e593cf7c4c051dad5bc23b84de133773c830"
   },
   "QBC20": {
-    "proxy": "0x9d9140c1d974cf49fe1efaffa98daa9c4d47a66f",
-    "implementation": "0x05ca51ef5d7dd4cebe8bd0557fb6390e0cc73665"
+    "proxy": "0xacf328a14eb564a5e2ad2129b0f6ce431482d2c0",
+    "implementation": "0xcb85d4192da50157de58c264af277ebb1e63754c"
   },
   "QBC721": {
-    "proxy": "0x16fec7146c77a0b99ceaba31eb12c53844367426",
-    "implementation": "0x25d4caecff1952eb405433a3f01df983ce3b1e07"
+    "proxy": "0x97aba34b449fb77050903612d6d730fc8afdeef6",
+    "implementation": "0x1fa32f38bf039c78c96e17e58159d4992659a359"
   },
   "QBC1155": {
-    "proxy": "0xc703c1fb5f962106e62861c7d69c0da2dff916b2",
-    "implementation": "0xe997deac6963d65d0604306e69b99094fcf549fa"
+    "proxy": "0x2977174a5c72af67ee0cf92e98a3fd11019d08e0",
+    "implementation": "0x60c9c03b3d3a5c71e77fb1803ee7c7140acdbc81"
   },
   "ERC20QC": {
-    "proxy": "0xb8477de61040ef7daf180be5d4ad9bc670630135",
-    "implementation": "0x56f97b00077e4ee22f6fa9e9a4cce440ca2ee43a"
+    "proxy": "0xb8e9ae055e3c39fb37e1e20adf858e346a119c01",
+    "implementation": "0x8d1739f08d19e7804acc777912bb8c1383b69bb2"
   },
   "QUSDOracle": {
-    "proxy": "0x825e13dd3f4d6f468b444dace058a20cf3b88ddd",
-    "implementation": "0x190982f888109487055fb8c9823fdf153c6b6ba8"
+    "proxy": "0xd8680b54ff9d7f235e8c1447fefa2386dfa95bea",
+    "implementation": "0x481a98d0248b5b109c4b8c5c86fad2585fd24cec"
   },
   "QUSDGovernance": {
-    "proxy": "0xcae923fe7bb3aa8a05c3198ade09c1ee2a80fc80",
-    "implementation": "0x8132957baeb4432c0908466e6ba0416d0dc3c179"
+    "proxy": "0x09fb6f32c4958cb2fc2a91c37225619d5e036b6d",
+    "implementation": "0xe409c6d79dae90308b7f041d314d55371642ee3a"
   },
   "QUSDReserve": {
-    "proxy": "0x54e8c5f344565e1798a6bd05e76517cd1085bd88",
-    "implementation": "0x409e0cbcbd266152f3360f78caa281d4d5d7309f"
+    "proxy": "0x158dd39f9b6dd64e85b65eb1f14deb66ea270502",
+    "implementation": "0x9e6a997b1d4b4cc76254c054f21dcf6e7a6fce2d"
   },
   "QUSD": {
-    "proxy": "0xd3cb46bd2ae48db971b87b1378d2448fea7652cb",
-    "implementation": "0xb997886e077bc6d987844f81d20ab572b6387066"
+    "proxy": "0xc7c0dd49ea87df3d79eb00f10617c10505f43ac5",
+    "implementation": "0x9e61171286921a32d7da8f9b64d98f2b94933e9d"
   },
   "QUSDDebtLedger": {
-    "proxy": "0x0ac481d49ca38566f46ad132bc22e943f9e98784",
-    "implementation": "0xf74fbd7c2e0fa339603772dee9c1b523834941e8"
+    "proxy": "0xea6e4db30774affcab41f83ea77ddda45a12dbd2",
+    "implementation": "0x1e64d529e318e86359c4ac356676918352f2bf28"
   },
   "QUSDStabilizer": {
-    "proxy": "0xe13ee10cb8b0b5177b4d94ec23225c0b3f2ab8e5",
-    "implementation": "0x141282dca59029c56bc107ca92605f515e1d1b92"
+    "proxy": "0x1e011bc30bb991e2d4ba49e114032021b578f364",
+    "implementation": "0x039a6b8721345a70e3e397e754c17e2f78e6675c"
   },
   "QUSDAllocation": {
-    "proxy": "0x58b244754e16ed74d360119e9f4e5bf3acd7fd1a",
-    "implementation": "0x8effec9c5cb714ce37731eaf538631721d4a4b7e"
+    "proxy": "0xa28c9b2171664914bd5cd23bf9e66dd27bf033e6",
+    "implementation": "0x2b48c24d1b24403f4ae67b9587b93bfdf8d734ce"
   },
   "wQUSD": {
-    "proxy": "0x47dbca68911196e1fd4439938e64e32f6a65b8f5",
-    "implementation": "0xc2555c31618249e5b3398766c23c636907de7d94"
+    "proxy": "0xee51330b336a8ec96c44687a10d0fa0c0976fd82",
+    "implementation": "0x1a4a168dd28802c81df047fd6f9d9a8b75902fdb"
+  },
+  "QUSDFlashLoan": {
+    "proxy": "0x713606fb22a8e4241b363c70247f75b6d2e0a25d",
+    "implementation": "0x843efd1c6d379ca950b6d88011f2f39da0cd3d47"
   },
   "BridgeVault": {
-    "proxy": "0x86bfc2243d2f395e06816c13085a499ede6f1002",
-    "implementation": "0x3d5e34ba8a4af40c53edda3e0744a5289f7e0180"
+    "proxy": "0x51fb5a8ce4a04d7effa5073a6595384eb755bd22",
+    "implementation": "0x299e4ac3b4c00417cf565475191ffaa573002f31"
   },
   "bridge_wQBC": {
-    "proxy": "0x9e4175426a34e46df090253dcd89524259fc3b6d",
-    "implementation": "0x402f44a97baeaa1a56672a979bc8436d342a9e0a"
+    "proxy": "0x34158fc96a0b46c2ebc6bbb4898542c540a858c8",
+    "implementation": "0x5df12afcb4d72347460b8a9ef578d2512993e1ef"
   },
   "tokens_wQBC": {
-    "proxy": "0xc8f90358e2ac135072114595c52904b0a16ef1e8",
-    "implementation": "0xc9369163efea800fd1745abe82727a46d400bc89"
-  },
-  "KnowledgeRewardPool": {
-    "proxy": "c6db8e4710ed9a9426a111aad09c1c479f95f764",
-    "implementation": "c6db8e4710ed9a9426a111aad09c1c479f95f764",
-    "note": "AIKGS \u2014 deployed post-genesis via REST API"
-  },
-  "AffiliateRegistry": {
-    "proxy": "127aa0289419e738018ae5d7d134853fe50bb5b0",
-    "implementation": "127aa0289419e738018ae5d7d134853fe50bb5b0",
-    "note": "AIKGS \u2014 deployed post-genesis via REST API"
-  },
-  "ContributionLedger": {
-    "proxy": "f9d8a853dd4b31cd70c069058e7ac43e41a3a6a5",
-    "implementation": "f9d8a853dd4b31cd70c069058e7ac43e41a3a6a5",
-    "note": "AIKGS \u2014 deployed post-genesis via REST API"
-  },
-  "KnowledgeBounty": {
-    "proxy": "c013525beff93f372f63cbab46c0b6344f274f1d",
-    "implementation": "c013525beff93f372f63cbab46c0b6344f274f1d",
-    "note": "AIKGS \u2014 deployed post-genesis via REST API"
-  },
-  "ContributionNFT": {
-    "proxy": "f2eeecd2ed2a0b2b51449003ac1067d3a0f06571",
-    "implementation": "f2eeecd2ed2a0b2b51449003ac1067d3a0f06571",
-    "note": "AIKGS \u2014 deployed post-genesis via REST API"
+    "proxy": "0xc40d4c0504dd1ed9e6349fa22496c17885df333e",
+    "implementation": "0xa95c9685d02b41c4cfda2c7fcba97a67379427d7"
   }
 }
