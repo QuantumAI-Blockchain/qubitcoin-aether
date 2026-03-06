@@ -68,36 +68,38 @@ export const CHAINS: Record<ChainId, ChainInfo> = {
     color: "#00d4ff",
     walletType: "qbc",
   },
-  ethereum: buildChain(
-    "ethereum",
-    "Ethereum Mainnet",
-    "ETH",
-    "0x1",
-    "ETH_RPC_URL",
-    "ETH_WQBC_ADDR",
-    "ETH_WQUSD_ADDR",
-    "https://etherscan.io",
-    "/tx/",
-    "ETH",
-    12,
-    "#627eea",
-    "evm"
-  ),
-  bnb: buildChain(
-    "bnb",
-    "BNB Smart Chain",
-    "BNB",
-    "0x38",
-    "BSC_RPC_URL",
-    "BSC_WQBC_ADDR",
-    "BSC_WQUSD_ADDR",
-    "https://bscscan.com",
-    "/tx/",
-    "BNB",
-    15,
-    "#f3ba2f",
-    "evm"
-  ),
+  ethereum: {
+    id: "ethereum" as ChainId,
+    name: "Ethereum Mainnet",
+    shortName: "ETH",
+    chainIdHex: "0x1",
+    rpcUrl: env("ETH_RPC_URL") ?? "https://rpc.mevblocker.io",
+    wqbcAddr: env("ETH_WQBC_ADDR") ?? "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    wqusdAddr: env("ETH_WQUSD_ADDR") ?? "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    explorerUrl: "https://etherscan.io",
+    explorerTxPath: "/tx/",
+    nativeSymbol: "ETH",
+    available: true,
+    confirmations: 12,
+    color: "#627eea",
+    walletType: "evm" as const,
+  },
+  bnb: {
+    id: "bnb" as ChainId,
+    name: "BNB Smart Chain",
+    shortName: "BNB",
+    chainIdHex: "0x38",
+    rpcUrl: env("BSC_RPC_URL") ?? "https://bsc-dataseed1.binance.org",
+    wqbcAddr: env("BSC_WQBC_ADDR") ?? "0xA8dAB13B55D7D5f9d140D0ec7B3772D373616147",
+    wqusdAddr: env("BSC_WQUSD_ADDR") ?? "0xD137C89ed83d1D54802d07487bf1AF6e0b409BE3",
+    explorerUrl: "https://bscscan.com",
+    explorerTxPath: "/tx/",
+    nativeSymbol: "BNB",
+    available: true,
+    confirmations: 15,
+    color: "#f3ba2f",
+    walletType: "evm" as const,
+  },
   solana: buildChain(
     "solana",
     "Solana Mainnet",
@@ -222,6 +224,26 @@ export function getExplorerTxUrl(chain: ChainInfo, hash: string): string {
   if (chain.id === "qbc_mainnet") return `#/transaction/${hash}`;
   return `${chain.explorerUrl}${chain.explorerTxPath}${hash}`;
 }
+
+export function getExplorerTokenUrl(chain: ChainInfo, addr: string): string {
+  return `${chain.explorerUrl}/token/${addr}`;
+}
+
+/** Verified contract addresses for wQBC and wQUSD on each live chain */
+export const DEPLOYED_CONTRACTS = {
+  ethereum: {
+    wQBC: "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    wQUSD: "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    explorer: "https://etherscan.io",
+    dex: { name: "Uniswap V3", pair: "wQBC/wQUSD", fee: "0.3%" },
+  },
+  bnb: {
+    wQBC: "0xA8dAB13B55D7D5f9d140D0ec7B3772D373616147",
+    wQUSD: "0xD137C89ed83d1D54802d07487bf1AF6e0b409BE3",
+    explorer: "https://bscscan.com",
+    dex: { name: "PancakeSwap V2", pair: "wQBC/wQUSD", fee: "0.25%", pairAddr: "0x3927EfB12bDaf7E2d9930A3581177a0646456abd" },
+  },
+} as const;
 
 export function isEvmChain(id: ChainId): boolean {
   return (

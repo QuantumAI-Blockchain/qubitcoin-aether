@@ -4,7 +4,7 @@
  * and cache-first for static assets.
  */
 
-const CACHE_VERSION = "qbc-v1";
+const CACHE_VERSION = "qbc-v2";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 const OFFLINE_URL = "/offline.html";
@@ -18,18 +18,18 @@ const PRECACHE_URLS = [
 
 /** API path prefixes that should use stale-while-revalidate. */
 const CACHEABLE_API_PATHS = [
-  "/chain/info",
-  "/chain/tip",
-  "/balance/",
-  "/block/",
-  "/aether/phi",
-  "/aether/knowledge",
-  "/aether/consciousness",
-  "/economics/emission",
-  "/mining/stats",
-  "/qvm/info",
-  "/health",
-  "/info",
+  "/api/chain/info",
+  "/api/chain/tip",
+  "/api/balance/",
+  "/api/block/",
+  "/api/aether/phi",
+  "/api/aether/knowledge",
+  "/api/aether/consciousness",
+  "/api/economics/emission",
+  "/api/mining/stats",
+  "/api/qvm/info",
+  "/api/health",
+  "/api/info",
 ];
 
 /**

@@ -190,8 +190,10 @@
     },
     "ETH": {
       "chain_id": 1,
-      "wQBC": null,
-      "status": "pending_rpc_url"
+      "wQBC": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+      "wQUSD": "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+      "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+      "status": "deployed_initialized"
     }
   },
   "HiggsField": {
@@ -205,5 +207,31 @@
   "VestingSchedule": {
     "proxy": "0x894f4814c3bca60001e9822bb97859219aba6562",
     "implementation": "0x3a653e645f710a70237da51b47e9fbef8c83a171"
+  },
+  "external:bsc:wQBC": {
+    "address": "0xA8dAB13B55D7D5f9d140D0ec7B3772D373616147",
+    "chainId": 56,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "e77f5dbdb614bdc3b87f4bcd75f611560173b625dff51d909d030e63a311ea54",
+    "bridge": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:bsc:wQUSD": {
+    "address": "0xD137C89ed83d1D54802d07487bf1AF6e0b409BE3",
+    "chainId": 56,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "9b4dc32ece7723b4a4f987f0f3e79a9e02e0e0bcb5f7e06be60ca413dbbc81e9",
+    "bridgeOperator": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:ethereum:wQBC": {
+    "address": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "chainId": 1,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "bridge": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:ethereum:wQUSD": {
+    "address": "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    "chainId": 1,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "bridgeOperator": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
   }
 }

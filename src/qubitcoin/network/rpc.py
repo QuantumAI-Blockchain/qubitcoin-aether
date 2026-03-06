@@ -134,6 +134,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
+        allow_origin_regex=r"https://.*\.trycloudflare\.com",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -1873,8 +1874,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             nodes_out.append(node_data)
         # Inject synthetic Sephirot nodes (negative IDs to avoid collisions)
         if include_sephirot:
+            # Load contract addresses from registry
+            _seph_contracts: dict = {}
+            try:
+                import json as _json
+                _reg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'contract_registry.json')
+                if os.path.exists(_reg_path):
+                    with open(_reg_path) as _f:
+                        _reg = _json.load(_f)
+                    for s in SEPHIROT_NODES:
+                        _key = f"Sephirah{s['name']}"
+                        if _key in _reg:
+                            _seph_contracts[s['name']] = _reg[_key].get('proxy', _reg[_key].get('address', ''))
+            except Exception:
+                pass
             for s in SEPHIROT_NODES:
-                nodes_out.append({
+                snode: dict = {
                     'id': -(s['id'] + 1),  # -1 to -10
                     'content': f"{s['name']} ({s['title']}): {s['function']}",
                     'node_type': 'sephirot',
@@ -1883,7 +1898,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                     'sephirot_title': s['title'],
                     'sephirot_function': s['function'],
                     'brain_analog': s['brain_analog'],
-                })
+                }
+                if s['name'] in _seph_contracts:
+                    snode['contract_address'] = _seph_contracts[s['name']]
+                nodes_out.append(snode)
         # Filter edges to only those connecting visible nodes
         edges_out = []
         for edge in kg.edges:
@@ -6368,6 +6386,20 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # TELEGRAM BOT WEBHOOK
     # ========================================================================
 
+    # Wire Aether chat into the Telegram bot so regular messages get answered
+    # Maps telegram session keys to real AetherChat session IDs
+    _tg_session_map: dict = {}
+    if aikgs_telegram_bot and aether_engine:
+        def _tg_chat_handler(tg_session_id: str, message: str) -> dict:
+            chat, _ = _get_chat()
+            real_sid = _tg_session_map.get(tg_session_id)
+            if not real_sid or not chat.get_session(real_sid):
+                session = chat.create_session('')
+                real_sid = session.session_id
+                _tg_session_map[tg_session_id] = real_sid
+            return chat.process_message(real_sid, message)
+        aikgs_telegram_bot._chat_handler = _tg_chat_handler
+
     @app.post("/telegram/webhook")
     async def telegram_webhook(request: Request):
         if not aikgs_telegram_bot or not aikgs_telegram_bot.is_configured:
@@ -6835,6 +6867,82 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         level = Config.get_security_level()
         info = CryptoManager.get_key_info(level)
         return info
+
+    # ========================================================================
+    # USER KNOWLEDGE INGESTION (added at end to avoid route conflicts)
+    # ========================================================================
+
+    @app.post("/aether/ingest")
+    async def aether_ingest_knowledge(body: dict):
+        """Add user-contributed knowledge directly to the Aether Tree knowledge graph.
+
+        Body: {text: str, domain?: str, node_type?: str, confidence?: float, source?: str}
+
+        Creates KeterNodes with searchable text content that the chat system
+        can retrieve when users ask questions.
+        """
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+
+        text = (body.get("text") or "").strip()
+        if len(text) < 10:
+            raise HTTPException(status_code=400, detail="text must be at least 10 characters")
+        if len(text) > 100000:
+            raise HTTPException(status_code=400, detail="text must be at most 100000 characters")
+
+        allowed_types = ('assertion', 'observation', 'axiom')
+        ntype = body.get("node_type", "assertion")
+        if ntype not in allowed_types:
+            ntype = "assertion"
+        confidence = max(0.1, min(1.0, float(body.get("confidence", 0.85))))
+        source = body.get("source", "user")
+        domain = body.get("domain", "")
+        height = db_manager.get_current_height()
+
+        # Split long text into chunks of ~500 chars at sentence boundaries
+        import re as _re
+        chunks = []
+        if len(text) <= 600:
+            chunks = [text]
+        else:
+            sentences = _re.split(r'(?<=[.!?])\s+', text)
+            current_chunk = ""
+            for sentence in sentences:
+                if len(current_chunk) + len(sentence) > 500 and current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = sentence
+                else:
+                    current_chunk = (current_chunk + " " + sentence).strip()
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+
+        node_ids = []
+        for chunk in chunks:
+            content = {
+                'text': chunk,
+                'description': chunk[:200],
+                'source': source,
+            }
+            node = aether_engine.kg.add_node(
+                node_type=ntype,
+                content=content,
+                confidence=confidence,
+                source_block=height,
+                domain=domain,
+            )
+            node_ids.append(node.node_id)
+
+        # Link sequential chunks with 'derives' edges
+        for i in range(1, len(node_ids)):
+            aether_engine.kg.add_edge(node_ids[i - 1], node_ids[i], edge_type='derives')
+
+        return {
+            "status": "ok",
+            "nodes_created": len(node_ids),
+            "node_ids": node_ids,
+            "total_knowledge_nodes": len(aether_engine.kg.nodes),
+            "chunks": len(chunks),
+        }
 
     logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality)")
 

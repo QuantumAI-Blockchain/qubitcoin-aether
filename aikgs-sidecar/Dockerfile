@@ -24,7 +24,10 @@ RUN mkdir src && \
 
 # Copy actual source and rebuild
 COPY src/ src/
-RUN cargo build --release
+# Force recompilation: remove dummy binary and touch sources so cargo detects changes
+RUN rm -f target/release/aikgs-sidecar target/release/deps/aikgs_sidecar* && \
+    find src -name '*.rs' -exec touch {} + && \
+    cargo build --release
 
 # ── Stage 2: Runtime ───────────────────────────────────────────────
 FROM debian:bookworm-slim

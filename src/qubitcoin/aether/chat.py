@@ -755,7 +755,9 @@ class AetherChat:
         user_name = user_memories.get("name")
 
         # Build response based on query type and available knowledge
-        is_greeting = any(w in query_lower for w in ['hello', 'hi', 'hey', 'greetings'])
+        _greeting_words = {'hello', 'hi', 'hey', 'greetings'}
+        _query_words = set(re.findall(r'\b\w+\b', query_lower))
+        is_greeting = bool(_greeting_words & _query_words) and len(_query_words) <= 5
         is_about_self = any(w in query_lower for w in [
             'who are you', 'what are you', 'your name', 'aether',
             'consciousness', 'phi', 'aware',

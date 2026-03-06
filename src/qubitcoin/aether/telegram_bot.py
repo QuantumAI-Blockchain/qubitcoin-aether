@@ -58,7 +58,8 @@ class TelegramBot:
                  affiliate_manager: object = None,
                  reward_engine: object = None,
                  progressive_unlocks: object = None,
-                 aikgs_client: object = None) -> None:
+                 aikgs_client: object = None,
+                 chat_handler: Optional[Callable] = None) -> None:
         """
         Args:
             contribution_manager: AIKGS ContributionManager (legacy Python).
@@ -66,6 +67,7 @@ class TelegramBot:
             reward_engine: AIKGS RewardEngine (legacy Python).
             progressive_unlocks: AIKGS ProgressiveUnlocks (legacy Python).
             aikgs_client: AIKGS Rust sidecar gRPC client (preferred).
+            chat_handler: Callable(session_id, message) -> dict with Aether response.
         """
         self._token = Config.TELEGRAM_BOT_TOKEN
         self._username = Config.TELEGRAM_BOT_USERNAME
@@ -77,11 +79,14 @@ class TelegramBot:
         self._reward_engine = reward_engine
         self._unlocks = progressive_unlocks
         self._aikgs_client = aikgs_client
+        self._chat_handler = chat_handler
 
         # WARNING: In-memory wallet links — lost on process restart.
         # TODO: Persist to CockroachDB (telegram_wallet_links table) or
         # delegate to AIKGS sidecar for durable storage.
         self._user_wallets: Dict[int, str] = {}
+        # Per-user Aether chat sessions (telegram_user_id -> session_id)
+        self._user_sessions: Dict[int, str] = {}
         # Message stats
         self._messages_processed: int = 0
         self._commands_processed: int = 0
@@ -148,16 +153,43 @@ class TelegramBot:
         if text.startswith('/'):
             return await self._handle_command(msg)
 
-        # Regular message — treat as knowledge contribution if wallet linked
-        wallet = self._user_wallets.get(msg.user.id)
-        if wallet and self._contribution_manager:
-            # Process as contribution via chat
-            return self._reply(msg.chat_id,
-                "Use the Mini App to contribute knowledge and earn rewards! "
-                f"Open it here: {self._mini_app_url}")
+        # Forward regular messages to Aether chat
+        if self._chat_handler:
+            return await self._forward_to_aether(msg)
 
         return self._reply(msg.chat_id,
             "Welcome to Aether Tree! Use /start to begin, or open the Mini App to chat with the AGI.")
+
+    async def _forward_to_aether(self, msg: TelegramMessage) -> dict:
+        """Forward a user message to Aether Tree chat and return the response."""
+        try:
+            # Get or create a session for this Telegram user
+            session_id = self._user_sessions.get(msg.user.id)
+            if not session_id:
+                session_id = f"tg-{msg.user.id}"
+                self._user_sessions[msg.user.id] = session_id
+
+            result = self._chat_handler(session_id, msg.text)
+
+            response_text = result.get('response', '')
+            if not response_text:
+                return self._reply(msg.chat_id, "I couldn't process that. Please try again.")
+
+            # Build reply with optional PoT hash
+            pot_hash = result.get('proof_of_thought_hash', '')
+            phi = result.get('phi_at_response')
+
+            reply_parts = [response_text]
+            if phi is not None:
+                reply_parts.append(f"\n\n\u03a6 = {phi:.4f}")
+            if pot_hash:
+                reply_parts.append(f"PoT: {pot_hash[:16]}...")
+
+            return self._reply(msg.chat_id, '\n'.join(reply_parts))
+        except Exception as e:
+            logger.warning(f"Aether chat error for tg user {msg.user.id}: {e}")
+            return self._reply(msg.chat_id,
+                "Aether Tree is thinking... please try again in a moment.")
 
     async def _handle_command(self, msg: TelegramMessage) -> Optional[dict]:
         """Handle bot commands."""

@@ -769,12 +769,14 @@ class BridgeOrchestrator:
                 )
 
                 # Initialize wQUSD: initialize(qusdToken, bridgeOperator)
-                # qusdToken = address(0) on external chains (no native QUSD)
+                # qusdToken = deployer address as placeholder on external chains
+                # (contract requires non-zero; wrap/unwrap unused on external chains)
                 # bridgeOperator = deployer or configured operator
                 operator = bridge_operator or deployer.account.address
+                qusd_placeholder = deployer.account.address
                 init_data = (
                     function_selector("initialize(address,address)")
-                    + encode_address("0x0000000000000000000000000000000000000000")
+                    + encode_address(qusd_placeholder)
                     + encode_address(operator)
                 )
                 deployer.call_initialize(wqusd_addr, init_data)

@@ -31,6 +31,34 @@ function hasWindowProp(prop: string): boolean {
   return typeof window !== "undefined" && typeof (window as any)[prop] !== "undefined";
 }
 
+/**
+ * Find the real MetaMask provider from the providers array.
+ * Phantom wallet injects itself as window.ethereum with isMetaMask=true,
+ * so we must check the providers array and exclude Phantom/Brave imposters.
+ */
+function findMetaMaskProvider(): any | undefined {
+  if (typeof window === "undefined") return undefined;
+  const ethereum = (window as any).ethereum;
+  if (!ethereum) return undefined;
+
+  // Multi-wallet: window.ethereum.providers is an array
+  if (Array.isArray(ethereum.providers)) {
+    return ethereum.providers.find(
+      (p: any) => p.isMetaMask && !p.isPhantom && !p.isBraveWallet
+    );
+  }
+
+  // Single provider: only if genuinely MetaMask (not Phantom)
+  if (ethereum.isMetaMask && !ethereum.isPhantom) return ethereum;
+
+  return undefined;
+}
+
+function isTelegramWebApp(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!(window as any).Telegram?.WebApp;
+}
+
 const WALLET_DEFS: WalletDef[] = [
   /* QBC Native */
   {
@@ -48,7 +76,7 @@ const WALLET_DEFS: WalletDef[] = [
     icon: "M",
     category: "evm",
     downloadUrl: "https://metamask.io/download/",
-    detect: () => hasWindowProp("ethereum") && !!(window as any).ethereum?.isMetaMask,
+    detect: () => !!findMetaMaskProvider(),
   },
   {
     id: "walletconnect",
@@ -320,17 +348,39 @@ async function connectEvm(def: WalletDef): Promise<{
   address: string;
   chainId: string;
 }> {
-  const ethereum = typeof window !== "undefined" ? (window as any).ethereum : undefined;
-  if (!ethereum) {
-    throw new Error("No EVM provider found. Please install MetaMask.");
+  if (isTelegramWebApp()) {
+    throw new Error(
+      "Browser wallet extensions are not available inside Telegram. " +
+      "Open qbc.network in your mobile browser or use MetaMask's built-in browser."
+    );
   }
 
-  // For MetaMask specifically check isMetaMask
-  if (def.id === "metamask" && !ethereum.isMetaMask) {
-    throw new Error("MetaMask not detected. Please install MetaMask.");
+  let provider: any;
+
+  if (def.id === "metamask") {
+    // Use the real MetaMask provider, filtering out Phantom imposters
+    provider = findMetaMaskProvider();
+    if (!provider) {
+      throw new Error(
+        "MetaMask not detected. If you have Phantom installed, it may be hijacking the connection. " +
+        "Please install MetaMask from metamask.io or disable Phantom's EVM mode."
+      );
+    }
+  } else if (def.id === "coinbase") {
+    const ethereum = (window as any).ethereum;
+    if (Array.isArray(ethereum?.providers)) {
+      provider = ethereum.providers.find((p: any) => p.isCoinbaseWallet);
+    } else if (ethereum?.isCoinbaseWallet) {
+      provider = ethereum;
+    }
+    if (!provider) throw new Error("Coinbase Wallet not detected.");
+  } else {
+    // Generic EVM provider fallback
+    provider = (window as any).ethereum;
+    if (!provider) throw new Error("No EVM provider found. Please install a wallet.");
   }
 
-  const accounts: string[] = await ethereum.request({
+  const accounts: string[] = await provider.request({
     method: "eth_requestAccounts",
   });
 
@@ -338,7 +388,7 @@ async function connectEvm(def: WalletDef): Promise<{
     throw new Error("No accounts returned from wallet.");
   }
 
-  const chainId: string = await ethereum.request({
+  const chainId: string = await provider.request({
     method: "eth_chainId",
   });
 

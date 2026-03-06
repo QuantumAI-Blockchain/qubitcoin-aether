@@ -88,8 +88,24 @@ function adaptApiMarket(api: ApiMarket): Market {
   const cfg = MARKET_CONFIGS.find((m) => m.id === api.pair && m.enabled);
   const baseAsset = cfg?.baseAsset ?? api.pair.split("_")[0];
   const type = cfg?.type ?? "spot";
-  const basePrice = api.lastPrice;
   const vol = ASSET_VOLATILITY[baseAsset] ?? 0.05;
+
+  // Backend returns Decimal values as strings — parse to number.
+  // Fall back to reference price when no trades have occurred yet (price == 0).
+  const rawPrice = typeof api.lastPrice === "string" ? parseFloat(api.lastPrice) : api.lastPrice;
+  const rawChange = typeof api.change24h === "string" ? parseFloat(api.change24h) : api.change24h;
+  const rawVol = typeof api.volume24h === "string" ? parseFloat(api.volume24h) : api.volume24h;
+  const rawHigh = typeof api.high24h === "string" ? parseFloat(api.high24h) : api.high24h;
+  const rawLow = typeof api.low24h === "string" ? parseFloat(api.low24h) : api.low24h;
+
+  const refPrice = getBasePrice(baseAsset);
+  const lastPrice = rawPrice > 0 ? rawPrice : refPrice;
+  const change24h = rawPrice > 0 ? rawChange : 0;
+  const volume24h = rawVol || 0;
+  const high24h = rawHigh > 0 ? rawHigh : lastPrice;
+  const low24h = rawLow > 0 ? rawLow : lastPrice;
+
+  const open = change24h !== 0 ? lastPrice / (1 + change24h / 100) : lastPrice;
 
   return {
     id: api.pair as MarketId,
@@ -97,19 +113,19 @@ function adaptApiMarket(api: ApiMarket): Market {
     quoteAsset: "QUSD",
     type,
     displayName: type === "perp" ? baseAsset + "-PERP" : baseAsset + "/QUSD",
-    lastPrice: api.lastPrice,
-    indexPrice: api.lastPrice, // API does not serve index price separately
-    markPrice: api.lastPrice,
+    lastPrice,
+    indexPrice: lastPrice,
+    markPrice: lastPrice,
     fundingRate: 0,
     nextFundingTs: 0,
     openInterest: 0,
-    price24hOpen: api.lastPrice / (1 + api.change24h / 100),
-    price24hHigh: api.high24h,
-    price24hLow: api.low24h,
-    volume24h: api.volume24h,
-    volume24hUsd: api.volume24h * api.lastPrice,
-    priceChange24h: api.lastPrice - api.lastPrice / (1 + api.change24h / 100),
-    priceChangePct24h: api.change24h,
+    price24hOpen: open,
+    price24hHigh: high24h,
+    price24hLow: low24h,
+    volume24h,
+    volume24hUsd: volume24h * lastPrice,
+    priceChange24h: lastPrice - open,
+    priceChangePct24h: change24h,
     maxLeverage: cfg?.maxLeverage ?? 1,
     minOrderSize: cfg?.minOrderSize ?? 1,
     tickSize: cfg?.tickSize ?? 0.0001,
@@ -117,68 +133,76 @@ function adaptApiMarket(api: ApiMarket): Market {
     decimals: (cfg?.tickSize ?? 0.0001) < 0.001 ? 4 : 2,
     sizeDecimals: (cfg?.stepSize ?? 0.01) < 0.01 ? 4 : 2,
     baseIcon: baseAsset.charAt(0),
-    marketCap: basePrice * 1e9 * (0.5 + vol),
+    marketCap: lastPrice * 1e9 * (0.5 + vol),
   };
+}
+
+function num(v: unknown): number {
+  return typeof v === "string" ? parseFloat(v) || 0 : Number(v) || 0;
 }
 
 function adaptApiOrderBook(api: OrderBookData): OrderBook {
   const bids: OrderBookLevel[] = api.bids.map((b) => ({
-    price: b.price,
-    size: b.size,
-    total: b.total,
-    orderCount: b.orderCount,
+    price: num(b.price),
+    size: num(b.size),
+    total: num(b.total),
+    orderCount: num(b.orderCount),
     myOrderSize: 0,
   }));
   const asks: OrderBookLevel[] = api.asks.map((a) => ({
-    price: a.price,
-    size: a.size,
-    total: a.total,
-    orderCount: a.orderCount,
+    price: num(a.price),
+    size: num(a.size),
+    total: num(a.total),
+    orderCount: num(a.orderCount),
     myOrderSize: 0,
   }));
   return {
     marketId: api.pair as MarketId,
     bids,
     asks,
-    spread: api.spread,
-    spreadPct: api.spreadPct,
-    midPrice: api.midPrice,
-    updatedAt: api.updatedAt,
+    spread: num(api.spread),
+    spreadPct: num(api.spreadPct),
+    midPrice: num(api.midPrice),
+    updatedAt: num(api.updatedAt),
   };
 }
 
 function adaptApiTrade(api: TradeEntry): Trade {
+  const price = num(api.price);
+  const size = num(api.size);
   return {
     id: api.id,
     marketId: api.pair as MarketId,
-    price: api.price,
-    size: api.size,
+    price,
+    size,
     side: api.side,
-    timestamp: api.timestamp * 1000, // convert to ms
-    txHash: api.maker_order_id, // best proxy
-    isLarge: api.size > 10000,
+    timestamp: num(api.timestamp) * 1000,
+    txHash: api.maker_order_id,
+    isLarge: size > 10000,
   };
 }
 
 function adaptApiOrder(api: ApiOrderEntry): Order {
+  const price = num(api.price);
+  const filled = num(api.filled);
   return {
     id: api.id,
     marketId: api.pair as MarketId,
     side: api.side,
     type: api.type,
     status: api.status === "partial" ? "partial" : api.status,
-    price: api.price,
+    price,
     triggerPrice: null,
-    size: api.size,
-    filledSize: api.filled,
-    remainingSize: api.remaining,
-    avgFillPrice: api.filled > 0 ? api.price : null,
+    size: num(api.size),
+    filledSize: filled,
+    remainingSize: num(api.remaining),
+    avgFillPrice: filled > 0 ? price : null,
     fee: 0,
     tif: "gtc",
     reduceOnly: false,
     postOnly: false,
-    createdAt: api.timestamp * 1000,
-    updatedAt: api.timestamp * 1000,
+    createdAt: num(api.timestamp) * 1000,
+    updatedAt: num(api.timestamp) * 1000,
     txHash: "",
     dilithiumSig: "",
   };
@@ -204,7 +228,43 @@ export function useMarkets() {
     queryFn: async (): Promise<Market[]> => {
       if (USE_MOCK) return getMockEngine().getAllMarkets();
       const apiMarkets = await apiGetMarkets();
-      return apiMarkets.map(adaptApiMarket);
+      const liveMarkets = apiMarkets.map(adaptApiMarket);
+      const liveIds = new Set(liveMarkets.map((m) => m.id));
+
+      // Add configured markets that the backend doesn't serve yet (e.g. perps)
+      for (const cfg of MARKET_CONFIGS) {
+        if (!cfg.enabled || liveIds.has(cfg.id as MarketId)) continue;
+        const refPrice = getBasePrice(cfg.baseAsset);
+        liveMarkets.push({
+          id: cfg.id as MarketId,
+          baseAsset: cfg.baseAsset,
+          quoteAsset: "QUSD",
+          type: cfg.type,
+          displayName: cfg.type === "perp" ? cfg.baseAsset + "-PERP" : cfg.baseAsset + "/QUSD",
+          lastPrice: refPrice,
+          indexPrice: refPrice,
+          markPrice: refPrice,
+          fundingRate: 0,
+          nextFundingTs: 0,
+          openInterest: 0,
+          price24hOpen: refPrice,
+          price24hHigh: refPrice,
+          price24hLow: refPrice,
+          volume24h: 0,
+          volume24hUsd: 0,
+          priceChange24h: 0,
+          priceChangePct24h: 0,
+          maxLeverage: cfg.maxLeverage,
+          minOrderSize: cfg.minOrderSize,
+          tickSize: cfg.tickSize,
+          stepSize: cfg.stepSize,
+          decimals: cfg.tickSize < 0.001 ? 4 : 2,
+          sizeDecimals: cfg.stepSize < 0.01 ? 4 : 2,
+          baseIcon: cfg.baseAsset.charAt(0),
+          marketCap: refPrice * 1e9 * 0.5,
+        });
+      }
+      return liveMarkets;
     },
     staleTime: 2000,
     refetchInterval: 2000,

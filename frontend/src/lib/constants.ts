@@ -3,7 +3,7 @@
 export const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 3301);
 export const CHAIN_NAME = process.env.NEXT_PUBLIC_CHAIN_NAME ?? "Quantum Blockchain";
 export const CHAIN_SYMBOL = process.env.NEXT_PUBLIC_CHAIN_SYMBOL ?? "QBC";
-export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL ?? "http://localhost:5000";
+export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "/api";
 export const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:5000/ws";
 
 /** Golden ratio */

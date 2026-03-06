@@ -8,7 +8,7 @@ export default function HomePage() {
   return (
     <>
       <HeroSection />
-      <section className="relative z-10 -mt-16 px-4 pb-12">
+      <section className="relative z-10 mt-2 px-4 pb-12 sm:-mt-16">
         <ErrorBoundary>
           <StatsBar />
         </ErrorBoundary>

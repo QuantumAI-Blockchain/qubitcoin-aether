@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#0a0a14"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="128" cy="128" r="128" fill="url(#bg)"/>
+  <circle cx="128" cy="128" r="90" fill="url(#glow)"/>
+  <circle cx="128" cy="128" r="88" fill="none" stroke="#00d4ff" stroke-width="2" opacity="0.6"/>
+  <path d="M128 48L142 96L192 96L152 124L166 172L128 144L90 172L104 124L64 96L114 96L128 48Z" fill="#00d4ff"/>
+  <path d="M128 72L136 100H164L142 116L150 144L128 128L106 144L114 116L92 100H120L128 72Z" fill="#0a0a14"/>
+  <text x="128" y="220" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="36" fill="#ffffff" letter-spacing="4">QBC</text>
+</svg>

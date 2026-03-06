@@ -28,7 +28,7 @@ const TickerBar = memo(function TickerBar() {
     const totalOI = markets.filter((m) => m.type === "perp").reduce((s, m) => s + m.openInterest, 0);
     lines.push({ label: "EXCHANGE VOL 24H", value: formatUsd(totalVol), color: X.glowCyan });
     lines.push({ label: "OPEN INTEREST", value: formatUsd(totalOI), color: X.glowViolet });
-    lines.push({ label: "NODES", value: "DEMO MODE", color: X.glowAmber });
+    lines.push({ label: "CHAIN", value: "MAINNET", color: X.glowEmerald });
     return lines;
   }, [markets]);
 

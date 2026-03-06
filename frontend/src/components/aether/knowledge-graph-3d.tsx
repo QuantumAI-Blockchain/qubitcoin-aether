@@ -500,9 +500,9 @@ function GraphScene({
   const [hoveredNode, setHoveredNode] = useState<KnowledgeGraphNode | null>(null);
   const [labelPos, setLabelPos] = useState<[number, number, number]>([0, 0, 0]);
 
-  const { positions, posMap, visibleEdges } = useMemo(() => {
-    // Cap nodes to prevent browser crash — keep sephirot + sample of regular nodes
-    const MAX_RENDER_NODES = 500;
+  const { positions, posMap, visibleEdges, nodeMap } = useMemo(() => {
+    // Cap nodes to prevent browser freeze — keep sephirot + sample of regular nodes
+    const MAX_RENDER_NODES = 300;
     let nodes = data.nodes;
     let edges = data.edges;
     if (nodes.length > MAX_RENDER_NODES) {
@@ -514,12 +514,16 @@ function GraphScene({
       const nodeIds = new Set(nodes.map((n) => n.id));
       edges = edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
     }
+    // Build O(1) node lookup map
+    const nm = new Map<number, KnowledgeGraphNode>();
+    for (const n of nodes) nm.set(n.id, n);
+
     const laidOut = layoutNodes(nodes, edges);
     const pm = new Map<number, [number, number, number]>();
     for (const p of laidOut) {
       pm.set(p.id, [p.x, p.y, p.z]);
     }
-    return { positions: laidOut, posMap: pm, visibleEdges: edges };
+    return { positions: laidOut, posMap: pm, visibleEdges: edges, nodeMap: nm };
   }, [data]);
 
   // Determine which nodes are dimmed by the filter
@@ -569,7 +573,7 @@ function GraphScene({
           dimmedNodeIds={dimmedNodeIds}
         />
         {positions.map((p) => {
-          const node = data.nodes.find((n) => n.id === p.id);
+          const node = nodeMap.get(p.id);
           if (!node) return null;
           return (
             <GraphNode
@@ -594,7 +598,7 @@ function GraphScene({
           outlineColor="#0a0a0f"
           maxWidth={4}
         >
-          {`[${hoveredNode.node_type}] ${hoveredNode.content.slice(0, 60)}${hoveredNode.content.length > 60 ? "..." : ""}\nConf: ${(hoveredNode.confidence * 100).toFixed(0)}%${hoveredNode.source_block != null ? ` | Block #${hoveredNode.source_block}` : ""}`}
+          {`[${hoveredNode.node_type}] ${hoveredNode.content.slice(0, 60)}${hoveredNode.content.length > 60 ? "..." : ""}\nConf: ${(hoveredNode.confidence * 100).toFixed(0)}%${hoveredNode.source_block != null ? ` | Block #${hoveredNode.source_block}` : ""}${hoveredNode.contract_address ? `\nContract: ${hoveredNode.contract_address.slice(0, 10)}...${hoveredNode.contract_address.slice(-6)}` : ""}`}
         </Text>
       )}
     </>
@@ -652,7 +656,7 @@ export function KnowledgeGraph3D() {
     queryKey: ["knowledgeGraph"],
     queryFn: () => api.getKnowledgeGraph(),
     refetchInterval: 15_000,
-    retry: false,
+    retry: 2,
   });
 
   // Count nodes by category for filter badges
@@ -744,7 +748,14 @@ export function KnowledgeGraph3D() {
           </div>
         )}
         {data && data.nodes.length > 0 && (
-          <Canvas camera={{ position: [0, 0, 12], fov: 50 }}>
+          <Canvas
+            camera={{ position: [0, 0, 12], fov: 50 }}
+            fallback={
+              <div className="flex h-full items-center justify-center text-sm text-text-secondary">
+                <p>WebGL not available. Knowledge graph requires a WebGL-capable browser.</p>
+              </div>
+            }
+          >
             <GraphScene
               data={data}
               activeNodeFilter={activeNodeFilter}

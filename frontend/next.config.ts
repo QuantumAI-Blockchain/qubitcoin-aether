@@ -26,6 +26,16 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["framer-motion", "three", "@react-three/fiber", "@react-three/drei", "ethers"],
   },
   poweredByHeader: false,
+  async rewrites() {
+    // Proxy /api/* requests to the RPC backend — avoids CORS issues entirely
+    const rpcDest = process.env.RPC_BACKEND_URL || "http://localhost:5000";
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${rpcDest}/:path*`,
+      },
+    ];
+  },
   async headers() {
     return [
       // TWA routes — allow Telegram to embed in iframe/WebView + load SDK script

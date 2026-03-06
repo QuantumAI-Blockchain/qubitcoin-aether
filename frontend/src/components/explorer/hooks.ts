@@ -90,14 +90,18 @@ export function useNetworkStats() {
     queryKey: ["explorer", "networkStats"],
     queryFn: async () => {
       if (USE_MOCK) return engine().getNetworkStats();
-      const [chain, phi] = await Promise.all([
+      const [chain, phi, qvm] = await Promise.all([
         get<Record<string, unknown>>("/chain/info"),
         get<Record<string, unknown>>("/aether/consciousness").catch(() => null),
+        get<Record<string, unknown>>("/qvm/info").catch(() => null),
       ]);
       const stats = mapChainInfoToStats(chain);
       if (phi) {
         stats.phi = (phi.phi as number) ?? 0;
         stats.knowledgeNodes = (phi.knowledge_nodes as number) ?? 0;
+      }
+      if (qvm) {
+        stats.totalContracts = (qvm.total_contracts as number) ?? 0;
       }
       return stats;
     },

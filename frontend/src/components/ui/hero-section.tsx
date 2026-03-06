@@ -14,7 +14,7 @@ export function HeroSection() {
   const t = useTranslations("hero");
 
   return (
-    <section className="relative flex min-h-[85vh] items-center justify-center overflow-hidden pt-16">
+    <section className="relative flex min-h-[85vh] items-center justify-center overflow-hidden pb-24 pt-16 sm:pb-16">
       <ParticleField />
 
       <div className="relative z-10 mx-auto max-w-4xl px-4 text-center">
@@ -44,28 +44,30 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.3 }}
-          className="mt-10 flex flex-wrap items-center justify-center gap-4"
+          className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4"
         >
           <Link
             href="/aether"
-            className="rounded-xl bg-glow-cyan px-6 py-3 font-[family-name:var(--font-display)] text-sm font-semibold text-bg-deep transition hover:bg-glow-cyan/80"
+            className="w-full rounded-xl bg-glow-cyan px-6 py-3 text-center font-[family-name:var(--font-display)] text-sm font-semibold text-bg-deep transition hover:bg-glow-cyan/80 sm:w-auto"
             style={{ boxShadow: "0 0 20px rgba(0,212,255,0.3), 0 0 60px rgba(0,212,255,0.1)" }}
           >
             {t("talkToAether")}
           </Link>
-          <Link
-            href="/dashboard"
-            className="rounded-xl border border-quantum-violet/50 bg-quantum-violet/10 px-6 py-3 font-[family-name:var(--font-display)] text-sm font-semibold text-quantum-violet transition hover:bg-quantum-violet/20"
-            style={{ boxShadow: "0 0 15px rgba(124,58,237,0.2)" }}
-          >
-            {t("openDashboard")}
-          </Link>
-          <Link
-            href="/wallet"
-            className="rounded-xl border border-border-subtle px-6 py-3 font-[family-name:var(--font-display)] text-sm font-semibold text-text-secondary transition hover:border-glow-cyan/30 hover:text-glow-cyan"
-          >
-            {t("connectWallet")}
-          </Link>
+          <div className="flex w-full gap-3 sm:w-auto">
+            <Link
+              href="/dashboard"
+              className="flex-1 rounded-xl border border-quantum-violet/50 bg-quantum-violet/10 px-6 py-3 text-center font-[family-name:var(--font-display)] text-sm font-semibold text-quantum-violet transition hover:bg-quantum-violet/20 sm:flex-none"
+              style={{ boxShadow: "0 0 15px rgba(124,58,237,0.2)" }}
+            >
+              {t("openDashboard")}
+            </Link>
+            <Link
+              href="/wallet"
+              className="flex-1 rounded-xl border border-border-subtle px-6 py-3 text-center font-[family-name:var(--font-display)] text-sm font-semibold text-text-secondary transition hover:border-glow-cyan/30 hover:text-glow-cyan sm:flex-none"
+            >
+              {t("connectWallet")}
+            </Link>
+          </div>
         </motion.div>
       </div>
     </section>

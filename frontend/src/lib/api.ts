@@ -159,6 +159,7 @@ export interface KnowledgeGraphNode {
   sephirot_title?: string;
   sephirot_function?: string;
   brain_analog?: string;
+  contract_address?: string;
 }
 
 export interface KnowledgeGraphEdge {
