@@ -153,12 +153,12 @@ export default function WhitepaperPage() {
           <p className="text-sm" style={{ color: C.textMuted }}>
             For the complete technical specification, see the full whitepaper at{" "}
             <a
-              href="https://github.com/BlockArtica/Qubitcoin"
+              href="https://github.com/QuantumAI-Blockchain"
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: C.primary }}
             >
-              github.com/BlockArtica/Qubitcoin
+              github.com/QuantumAI-Blockchain
             </a>
           </p>
         </div>

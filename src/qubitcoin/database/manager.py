@@ -1649,6 +1649,15 @@ class DatabaseManager:
             ).scalar()
             return Decimal(str(result)) if result else Decimal(0)
 
+    def get_utxo_count(self, address: str) -> int:
+        """Get count of unspent UTXOs for an address."""
+        with self.get_session() as session:
+            result = session.execute(
+                text("SELECT COUNT(*) FROM utxos WHERE address = :addr AND spent = false"),
+                {'addr': address}
+            ).scalar()
+            return int(result) if result else 0
+
     # ========================================================================
     # CONTRACT STORAGE (QVM)
     # ========================================================================

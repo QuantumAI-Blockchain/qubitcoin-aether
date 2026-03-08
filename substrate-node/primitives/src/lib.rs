@@ -129,11 +129,11 @@ pub struct TransactionOutput {
     pub amount: QbcBalance,
 }
 
-/// Dilithium2 signature (variable length, ~2420 bytes).
+/// Dilithium5 signature (variable length, ~4627 bytes).
 /// Stored as bounded vector for on-chain use.
-pub const MAX_DILITHIUM_SIG_SIZE: u32 = 2_560;
-/// Dilithium2 public key size (~1312 bytes).
-pub const MAX_DILITHIUM_PK_SIZE: u32 = 1_536;
+pub const MAX_DILITHIUM_SIG_SIZE: u32 = 4_800;
+/// Dilithium5 public key size (~2592 bytes).
+pub const MAX_DILITHIUM_PK_SIZE: u32 = 2_720;
 
 /// VQE mining parameters — the solution submitted by miners.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, DecodeWithMemTracking, MaxEncodedLen, TypeInfo, RuntimeDebug)]

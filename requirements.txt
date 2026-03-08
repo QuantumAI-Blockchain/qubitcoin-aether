@@ -64,6 +64,10 @@ redis>=5.2.0
 # Web3 (bridge deployment to EVM chains)
 web3>=7.0.0
 
+# Solana (bridge to Solana)
+solana>=0.34.0
+solders>=0.21.0
+
 # Solidity compiler (bridge contract compilation)
 py-solc-x>=2.0.0
 

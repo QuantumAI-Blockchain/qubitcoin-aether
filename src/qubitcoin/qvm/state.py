@@ -222,6 +222,11 @@ class StateManager:
         if tx.tx_type == 'contract_call':
             return self._call_contract(tx, block_height, block_hash, tx_index)
 
+        if tx.tx_type in ('l2_deposit', 'l2_withdraw'):
+            # Bridge transactions are handled atomically by L1L2Bridge
+            # and already recorded in the database — no QVM execution needed
+            return None
+
         return None
 
     def _check_compliance(self, from_addr: str, tx: Transaction,

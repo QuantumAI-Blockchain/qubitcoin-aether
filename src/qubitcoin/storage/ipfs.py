@@ -31,7 +31,22 @@ class IPFSManager:
     def _connect(self):
         """Connect to IPFS daemon"""
         try:
-            self.client = ipfshttpclient.connect(Config.IPFS_API)
+            api_addr = Config.IPFS_API
+            # ipfshttpclient requires numeric IP in multiaddr /ip4/ — resolve hostnames
+            # e.g. /ip4/ipfs/tcp/5001/http → /ip4/172.18.0.2/tcp/5001/http
+            if api_addr.startswith('/ip4/'):
+                parts = api_addr.split('/')
+                if len(parts) >= 3 and not parts[2].replace('.', '').isdigit():
+                    import socket
+                    try:
+                        resolved_ip = socket.gethostbyname(parts[2])
+                        parts[2] = resolved_ip
+                        api_addr = '/'.join(parts)
+                        logger.info(f"Resolved IPFS host '{Config.IPFS_API}' → '{api_addr}'")
+                    except socket.gaierror:
+                        logger.warning(f"Cannot resolve IPFS hostname '{parts[2]}', using as-is")
+
+            self.client = ipfshttpclient.connect(api_addr)
 
             # Test connection
             version = self.client.version()

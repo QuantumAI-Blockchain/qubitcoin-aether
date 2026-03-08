@@ -1,6 +1,6 @@
 //! Pallet QBC Dilithium — Post-quantum signature verification for Qubitcoin.
 //!
-//! Provides CRYSTALS-Dilithium2 signature verification as a Substrate pallet.
+//! Provides CRYSTALS-Dilithium5 (NIST Level 5) signature verification as a Substrate pallet.
 //! Addresses are derived from SHA2-256(public_key).
 //!
 //! Signature verification strategy:
@@ -13,27 +13,27 @@
 pub use pallet::*;
 
 // ═══════════════════════════════════════════════════════════════════════
-// Host function interface for Dilithium2 verification in WASM
+// Host function interface for Dilithium5 verification in WASM
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Dilithium2 signature verification.
+/// Dilithium5 signature verification.
 ///
 /// In native (`std`): calls pqcrypto-dilithium directly.
 /// In WASM (`no_std`): always returns `false` (fail-closed). No bypass.
 pub mod dilithium_verify {
-    /// Verify a Dilithium2 detached signature.
+    /// Verify a Dilithium5 detached signature.
     ///
     /// Returns `true` if the signature is valid for the given message and public key.
     ///
-    /// Dilithium2 parameters:
-    /// - Public key: 1312 bytes
-    /// - Signature: 2420 bytes
-    /// - Security level: NIST Level 2
+    /// Dilithium5 parameters:
+    /// - Public key: 2592 bytes
+    /// - Signature: 4627 bytes
+    /// - Security level: NIST Level 5 (highest)
     ///
     /// ## Security Model
     ///
     /// - **Native (`std`) builds**: Uses `pqcrypto-dilithium` for full cryptographic
-    ///   Dilithium2 signature verification.
+    ///   Dilithium5 signature verification.
     /// - **WASM (`no_std`) builds**: **Always returns `false`** (fail-closed). The
     ///   `pqcrypto-dilithium` crate is not available in `no_std`, so rather than
     ///   implementing a bypass or partial check, we reject all signatures. This is
@@ -41,15 +41,15 @@ pub mod dilithium_verify {
     ///   first. If WASM-only execution is ever attempted, the failure is loud and
     ///   obvious rather than silently accepting forged signatures.
     pub fn verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> bool {
-        // Dilithium2 signature sizes
-        const DILITHIUM2_PK_SIZE: usize = 1312;
-        const DILITHIUM2_SIG_SIZE: usize = 2420;
+        // Dilithium5 signature sizes
+        const DILITHIUM5_PK_SIZE: usize = 2592;
+        const DILITHIUM5_SIG_SIZE: usize = 4627;
 
         // Validate sizes — these checks apply to BOTH std and no_std builds
-        if public_key.len() != DILITHIUM2_PK_SIZE {
+        if public_key.len() != DILITHIUM5_PK_SIZE {
             return false;
         }
-        if signature.len() != DILITHIUM2_SIG_SIZE {
+        if signature.len() != DILITHIUM5_SIG_SIZE {
             return false;
         }
         if message.is_empty() {
@@ -59,26 +59,26 @@ pub mod dilithium_verify {
         #[cfg(feature = "std")]
         {
             // Native build: use pqcrypto-dilithium for real verification
-            use pqcrypto_dilithium::dilithium2;
+            use pqcrypto_dilithium::dilithium5;
             use pqcrypto_traits::sign::DetachedSignature;
             use pqcrypto_traits::sign::PublicKey as PqPublicKey;
 
-            let pk = match dilithium2::PublicKey::from_bytes(public_key) {
+            let pk = match dilithium5::PublicKey::from_bytes(public_key) {
                 Ok(pk) => pk,
                 Err(_) => return false,
             };
-            let sig = match dilithium2::DetachedSignature::from_bytes(signature) {
+            let sig = match dilithium5::DetachedSignature::from_bytes(signature) {
                 Ok(sig) => sig,
                 Err(_) => return false,
             };
-            dilithium2::verify_detached_signature(&sig, message, &pk).is_ok()
+            dilithium5::verify_detached_signature(&sig, message, &pk).is_ok()
         }
 
         #[cfg(not(feature = "std"))]
         {
             // WASM build: ALWAYS REJECT — fail closed.
             //
-            // Dilithium2 cryptographic verification requires the `pqcrypto-dilithium`
+            // Dilithium5 cryptographic verification requires the `pqcrypto-dilithium`
             // crate which is only available in native (`std`) builds. Rather than
             // implementing a partial/bypass check that could be exploited, we
             // unconditionally reject all signatures in WASM.
@@ -97,7 +97,7 @@ pub mod dilithium_verify {
             //    rejected rather than silently accepted. This makes the failure
             //    mode obvious and auditable.
             //
-            // When a pure-Rust `no_std`-compatible Dilithium2 implementation
+            // When a pure-Rust `no_std`-compatible Dilithium5 implementation
             // becomes available (e.g., via `pqc-dilithium` or `ml-dsa`), replace
             // this block with real verification.
 
@@ -117,10 +117,10 @@ pub mod pallet {
     use qbc_primitives::{Address, MAX_DILITHIUM_PK_SIZE, MAX_DILITHIUM_SIG_SIZE};
     use sp_runtime::BoundedVec;
 
-    /// Dilithium2 public key size (1312 bytes).
-    pub const DILITHIUM2_PK_SIZE: u32 = 1312;
-    /// Dilithium2 signature size (2420 bytes).
-    pub const DILITHIUM2_SIG_SIZE: u32 = 2420;
+    /// Dilithium5 public key size (2592 bytes).
+    pub const DILITHIUM5_PK_SIZE: u32 = 2592;
+    /// Dilithium5 signature size (4627 bytes).
+    pub const DILITHIUM5_SIG_SIZE: u32 = 4627;
 
     #[pallet::pallet]
     pub struct Pallet<T>(_);
@@ -130,7 +130,7 @@ pub mod pallet {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
     }
 
-    /// Mapping from address to Dilithium2 public key.
+    /// Mapping from address to Dilithium5 public key.
     #[pallet::storage]
     #[pallet::getter(fn public_keys)]
     pub type PublicKeys<T: Config> = StorageMap<
@@ -182,23 +182,23 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Register a Dilithium2 public key for an address.
+        /// Register a Dilithium5 public key for an address.
         /// The address is derived from SHA2-256(public_key).
         #[pallet::call_index(0)]
         // Analytical weight: SHA2-256 hash (10µs) + 1 storage read (25µs) + 1 write (25µs)
-        // + Dilithium2 key validation (~100µs for 1312-byte key) = ~160µs ≈ 160_000
+        // + Dilithium5 key validation (~200µs for 2592-byte key) = ~260µs ≈ 260_000
         // NOTE: These are analytical estimates and should be replaced with
         // benchmarked weights before mainnet.
-        #[pallet::weight(160_000)]
+        #[pallet::weight(260_000)]
         pub fn register_key(
             origin: OriginFor<T>,
             public_key: BoundedVec<u8, ConstU32<MAX_DILITHIUM_PK_SIZE>>,
         ) -> DispatchResult {
             ensure_signed(origin)?;
 
-            // Validate key size (must be exactly Dilithium2 public key size)
+            // Validate key size (must be exactly Dilithium5 public key size)
             ensure!(
-                public_key.len() == DILITHIUM2_PK_SIZE as usize,
+                public_key.len() == DILITHIUM5_PK_SIZE as usize,
                 Error::<T>::InvalidPublicKey
             );
 
@@ -225,16 +225,16 @@ pub mod pallet {
             Ok(())
         }
 
-        /// Revoke a Dilithium2 public key.
+        /// Revoke a Dilithium5 public key.
         ///
         /// The caller must prove ownership by providing a valid signature
         /// over a revocation message using the key being revoked.
         /// Once revoked, the key cannot be re-registered.
         #[pallet::call_index(1)]
-        // Analytical weight: 1 Dilithium verify (500µs) + 3 storage ops (75µs) = ~575µs
+        // Analytical weight: 1 Dilithium5 verify (800µs) + 3 storage ops (75µs) = ~875µs
         // NOTE: These are analytical estimates and should be replaced with
         // benchmarked weights before mainnet.
-        #[pallet::weight(575_000)]
+        #[pallet::weight(875_000)]
         pub fn revoke_key(
             origin: OriginFor<T>,
             address: Address,
@@ -278,7 +278,7 @@ pub mod pallet {
             Address(hash)
         }
 
-        /// Verify a Dilithium2 signature against a public key and message.
+        /// Verify a Dilithium5 signature against a public key and message.
         ///
         /// Uses real pqcrypto-dilithium verification in native (std) builds.
         /// In WASM (no_std), always returns `false` (fail-closed).
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn test_address_derivation() {
         use sp_core::hashing::sha2_256;
-        let pk = vec![42u8; 1312]; // Dilithium2 public key size
+        let pk = vec![42u8; 2592]; // Dilithium5 public key size
         let expected = qbc_primitives::Address(sha2_256(&pk));
         let addr = derive_address(&pk);
         assert_eq!(addr, expected);
@@ -320,8 +320,8 @@ mod tests {
 
     #[test]
     fn test_address_derivation_different_keys() {
-        let pk1 = vec![1u8; 1312];
-        let pk2 = vec![2u8; 1312];
+        let pk1 = vec![1u8; 2592];
+        let pk2 = vec![2u8; 2592];
         let addr1 = derive_address(&pk1);
         let addr2 = derive_address(&pk2);
         assert_ne!(addr1, addr2);
@@ -331,13 +331,13 @@ mod tests {
     fn test_verify_signature_rejects_wrong_pk_size() {
         let pk = vec![42u8; 100]; // Wrong size
         let msg = b"test message";
-        let sig = vec![0u8; 2420];
+        let sig = vec![0u8; 4627];
         assert!(!dilithium_verify::verify(&pk, msg, &sig));
     }
 
     #[test]
     fn test_verify_signature_rejects_wrong_sig_size() {
-        let pk = vec![42u8; 1312];
+        let pk = vec![42u8; 2592];
         let msg = b"test message";
         let sig = vec![0u8; 100]; // Wrong size
         assert!(!dilithium_verify::verify(&pk, msg, &sig));
@@ -345,25 +345,25 @@ mod tests {
 
     #[test]
     fn test_verify_signature_rejects_empty_message() {
-        let pk = vec![42u8; 1312];
+        let pk = vec![42u8; 2592];
         let msg = b"";
-        let sig = vec![0u8; 2420];
+        let sig = vec![0u8; 4627];
         assert!(!dilithium_verify::verify(&pk, msg, &sig));
     }
 
     #[test]
     fn test_verify_signature_rejects_all_zero_sig() {
-        let pk = vec![42u8; 1312];
+        let pk = vec![42u8; 2592];
         let msg = b"test message";
-        let sig = vec![0u8; 2420]; // All zeros
+        let sig = vec![0u8; 4627]; // All zeros
         assert!(!dilithium_verify::verify(&pk, msg, &sig));
     }
 
     #[test]
     fn test_verify_signature_rejects_all_zero_pk() {
-        let pk = vec![0u8; 1312]; // All zeros
+        let pk = vec![0u8; 2592]; // All zeros
         let msg = b"test message";
-        let sig = vec![42u8; 2420];
+        let sig = vec![42u8; 4627];
         assert!(!dilithium_verify::verify(&pk, msg, &sig));
     }
 
@@ -371,9 +371,18 @@ mod tests {
     fn test_verify_rejects_random_signature() {
         // In std builds: real Dilithium verification rejects invalid signatures.
         // In no_std builds: fail-closed — always returns false.
-        let pk = vec![42u8; 1312];
+        let pk = vec![42u8; 2592];
         let msg = b"test message";
-        let sig = vec![0xAB; 2420]; // Random bytes, not a valid Dilithium2 signature
+        let sig = vec![0xAB; 4627]; // Random bytes, not a valid Dilithium5 signature
+        assert!(!dilithium_verify::verify(&pk, msg, &sig));
+    }
+
+    #[test]
+    fn test_verify_rejects_dilithium2_sizes() {
+        // Ensure old Dilithium2 sizes are rejected
+        let pk = vec![42u8; 1312]; // Dilithium2 PK size — should be rejected
+        let msg = b"test message";
+        let sig = vec![0u8; 2420]; // Dilithium2 sig size — should be rejected
         assert!(!dilithium_verify::verify(&pk, msg, &sig));
     }
 }

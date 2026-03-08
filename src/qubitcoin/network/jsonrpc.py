@@ -331,7 +331,7 @@ class JsonRpcHandler:
         if not params:
             raise ValueError("eth_getBalance requires an address parameter")
         validate_hex(params[0], "address", max_len=42)
-        address = params[0].replace('0x', '') if params else ''
+        address = params[0].replace('0x', '').lower() if params else ''
         # Sum both account balance (QVM/MetaMask) and UTXO balance
         account_bal = self.db.get_account_balance(address)
         utxo_bal = self.db.get_balance(address)
@@ -342,7 +342,7 @@ class JsonRpcHandler:
         if not params:
             raise ValueError("eth_getTransactionCount requires an address parameter")
         validate_hex(params[0], "address", max_len=42)
-        address = params[0].replace('0x', '') if params else ''
+        address = params[0].replace('0x', '').lower() if params else ''
         account = self.db.get_account(address)
         nonce = account.nonce if account else 0
         return hex_int(nonce)

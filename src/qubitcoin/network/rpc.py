@@ -61,7 +61,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    high_security_manager=None,
                    stratum_bridge_service=None,
                    deniable_rpc=None,
-                   finality_gadget=None) -> FastAPI:
+                   finality_gadget=None,
+                   l1l2_bridge=None) -> FastAPI:
     """
     Create FastAPI application with all endpoints including smart contracts, QVM, and Aether
 
@@ -6944,6 +6945,82 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "chunks": len(chunks),
         }
 
-    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality)")
+    # ── L1 ↔ L2 Internal Bridge ────────────────────────────────────────
+
+    class L1L2DepositRequest(BaseModel):
+        from_address: str = Field(..., description="L1 Dilithium address (UTXO owner)")
+        to_address: str = Field(..., description="L2 EVM address (0x-prefixed)")
+        amount: str = Field(..., description="QBC amount to deposit")
+        public_key_hex: str = Field(..., description="Dilithium public key hex")
+        signature_hex: str = Field(..., description="Dilithium signature hex")
+        utxo_strategy: str = Field("largest_first", description="UTXO selection strategy")
+
+    class L1L2WithdrawRequest(BaseModel):
+        from_address: str = Field(..., description="L2 EVM address (QVM account)")
+        to_address: str = Field(..., description="L1 Dilithium address for UTXOs")
+        amount: str = Field(..., description="QBC amount to withdraw")
+
+    @app.post("/bridge/l1l2/deposit")
+    async def l1l2_deposit(req: L1L2DepositRequest):
+        """Deposit QBC from L1 UTXOs into an L2 QVM account (MetaMask-visible)."""
+        if not l1l2_bridge:
+            raise HTTPException(status_code=503, detail="L1L2 bridge not available")
+        try:
+            result = l1l2_bridge.deposit(
+                from_address=req.from_address,
+                to_address=req.to_address,
+                amount=Decimal(req.amount),
+                public_key_hex=req.public_key_hex,
+                signature_hex=req.signature_hex,
+                utxo_strategy=req.utxo_strategy,
+            )
+            return result
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.error(f"L1L2 deposit error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/bridge/l1l2/withdraw")
+    async def l1l2_withdraw(req: L1L2WithdrawRequest):
+        """Withdraw QBC from L2 QVM account to L1 UTXOs."""
+        if not l1l2_bridge:
+            raise HTTPException(status_code=503, detail="L1L2 bridge not available")
+        try:
+            result = l1l2_bridge.withdraw(
+                from_address=req.from_address,
+                to_address=req.to_address,
+                amount=Decimal(req.amount),
+            )
+            return result
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.error(f"L1L2 withdraw error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/bridge/l1l2/balance/{address}")
+    async def l1l2_balance(address: str):
+        """Get combined L1 (UTXO) + L2 (QVM account) balance for an address."""
+        if not l1l2_bridge:
+            raise HTTPException(status_code=503, detail="L1L2 bridge not available")
+        try:
+            return l1l2_bridge.get_combined_balance(address)
+        except Exception as e:
+            logger.error(f"L1L2 balance error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/bridge/l1l2/status")
+    async def l1l2_status():
+        """Get L1↔L2 bridge statistics — deposit/withdrawal counts, volumes, recent ops."""
+        if not l1l2_bridge:
+            raise HTTPException(status_code=503, detail="L1L2 bridge not available")
+        try:
+            return l1l2_bridge.get_status()
+        except Exception as e:
+            logger.error(f"L1L2 status error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
+    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality + L1L2 Bridge)")
 
     return app

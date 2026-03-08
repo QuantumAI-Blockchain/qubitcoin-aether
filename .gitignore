@@ -81,7 +81,7 @@ backups/
 monitoring/
 migrations/
 my-safe-directory/
-contracts/
+/contracts/
 
 # ---- IDE ----
 .vscode/

@@ -316,7 +316,7 @@ class ConsensusEngine:
             coinbase_tx = None
             for tx in block.transactions:
                 # Contract deploy/call txs have no UTXO inputs but are NOT coinbase
-                is_contract_tx = getattr(tx, 'tx_type', 'transfer') in ('contract_deploy', 'contract_call')
+                is_contract_tx = getattr(tx, 'tx_type', 'transfer') in ('contract_deploy', 'contract_call', 'l2_deposit', 'l2_withdraw')
                 if len(tx.inputs) == 0 and not is_contract_tx:
                     coinbase_count += 1
                     coinbase_tx = tx

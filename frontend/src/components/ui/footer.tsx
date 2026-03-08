@@ -17,9 +17,9 @@ const resourceLinks = [
 ];
 
 const socialLinks = [
-  { href: "https://github.com/BlockArtica/Qubitcoin", label: "GitHub", icon: "github" },
+  { href: "https://github.com/QuantumAI-Blockchain", label: "GitHub", icon: "github" },
   { href: "https://x.com/qubitcoin", label: "X / Twitter", icon: "x" },
-  { href: "https://t.me/Q_Blockchain", label: "Telegram", icon: "telegram" },
+  { href: "https://t.me/QuantumAI_Blockchain", label: "Telegram", icon: "telegram" },
 ];
 
 function SocialIcon({ icon }: { icon: string }) {
@@ -182,7 +182,7 @@ export function Footer() {
             &copy; 2026 Quantum Blockchain. MIT License.
           </p>
           <p className="font-[family-name:var(--font-code)] text-[10px] tracking-wide text-text-secondary">
-            Proof-of-SUSY-Alignment &middot; Dilithium2 &middot; QVM (167 Opcodes) &middot; Aether Tree AGI &middot; Multi-Chain Bridge
+            Proof-of-SUSY-Alignment &middot; Dilithium5 &middot; QVM (167 Opcodes) &middot; Aether Tree AGI &middot; Multi-Chain Bridge
           </p>
         </div>
       </div>

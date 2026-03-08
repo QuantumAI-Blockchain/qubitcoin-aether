@@ -754,6 +754,15 @@ class QubitcoinNode:
             logger.error(f"[21/22] ContractExecutor failed: {e}", exc_info=True)
             raise
 
+        # Component 21b: L1↔L2 Internal Bridge
+        try:
+            from .l2_bridge import L1L2Bridge
+            self.l1l2_bridge = L1L2Bridge(self.db)
+            logger.info("L1L2Bridge initialized (deposit/withdraw between UTXO and QVM accounts)")
+        except Exception as e:
+            self.l1l2_bridge = None
+            logger.warning(f"L1L2Bridge init skipped: {e}")
+
         # Component 22: RPC & Handlers
         logger.info("[22/22] Initializing RPC and handlers...")
         try:
@@ -817,6 +826,7 @@ class QubitcoinNode:
                 stratum_bridge_service=self.stratum_bridge,
                 deniable_rpc=self.deniable_rpc,
                 finality_gadget=self.finality_gadget,
+                l1l2_bridge=self.l1l2_bridge,
             )
             self.app.node = self
             self.app.on_event("startup")(self.on_startup)

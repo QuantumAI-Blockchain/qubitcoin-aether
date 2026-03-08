@@ -285,6 +285,7 @@ Qubitcoin/
 │       │   ├── range_proofs.py       # Bulletproofs
 │       │   ├── stealth.py            # Stealth addresses
 │       │   └── susy_swap.py          # Confidential tx builder
+│       ├── l2_bridge.py               # [L1] L1↔L2 internal bridge (UTXO↔QVM accounts)
 │       ├── bridge/                   # [L1] Multi-chain bridges
 │       │   ├── manager.py, base.py, ethereum.py, solana.py
 │       ├── stablecoin/               # [L1] QUSD stablecoin
@@ -1141,6 +1142,7 @@ The frontend connects to the node via:
 - `03_addresses_balances.sql` — Address tracking
 - `04_chain_state.sql` — Chain state metadata
 - `05_mempool.sql` — Transaction mempool
+- `10_l1l2_bridge.sql` — L1↔L2 bridge log
 
 **agi/** — Aether Tree:
 - `00_knowledge_graph.sql` — knowledge_nodes, knowledge_edges
@@ -1236,6 +1238,10 @@ The frontend connects to the node via:
 | GET | `/finality/status` | BFT finality gadget status |
 | POST | `/finality/vote` | Submit a finality vote |
 | POST | `/finality/register-validator` | Register as finality validator (min 100 QBC stake) |
+| POST | `/bridge/l1l2/deposit` | Deposit QBC from L1 UTXOs to L2 QVM account (MetaMask) |
+| POST | `/bridge/l1l2/withdraw` | Withdraw QBC from L2 QVM account to L1 UTXOs |
+| GET | `/bridge/l1l2/balance/{address}` | Combined L1 + L2 balance for address |
+| GET | `/bridge/l1l2/status` | L1↔L2 bridge statistics |
 | GET | `/stratum/info` | Stratum mining server info |
 | GET | `/stratum/stats` | Mining pool statistics |
 | GET | `/stratum/workers` | Connected Stratum workers |
@@ -1504,6 +1510,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **Node types** | Full (500GB+, 16GB RAM), Light (1GB, SPV), Mining (Full + VQE). |
 | **Block structure** | Header has vqe_params + ground_state_energy + hamiltonian_seed. Body has susy_data. |
 | **SUSY database** | Every mined block contributes solved Hamiltonian to public scientific database. |
+| **L1↔L2 Bridge** | Internal bridge between UTXO (L1) and QVM accounts (L2/MetaMask). Deposit: consume UTXOs + credit L2 account. Withdraw: debit L2 + create UTXO. Both atomic. `l2_bridge.py`. |
 | **Bridge fees** | Default 0.1% (10 bps), configurable via `BridgeVault.setFeeBps()` (MAX_FEE_BPS=1000). Lock-and-mint (QBC→wQBC), burn-and-unlock (wQBC→QBC). |
 | **Confirmations** | 1 = unconfirmed, 6 = standard, 100 = coinbase maturity. |
 | **L1 tx fees** | FEE = SIZE × FEE_RATE (QBC/byte). Miners select by fee density. No gas on L1. |
