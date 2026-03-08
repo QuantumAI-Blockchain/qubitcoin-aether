@@ -7104,6 +7104,21 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "known_peers": chain_sync._known_peers,
         }
 
-    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality + L1L2 Bridge + Chain Sync)")
+    @app.get("/sync/reorg-limits")
+    async def sync_reorg_limits():
+        """Get chain reorg protection configuration."""
+        from ..network.chain_sync import MAX_REORG_DEPTH, CHECKPOINT_INTERVAL
+        node = getattr(app, 'node', None)
+        checkpoints = {}
+        if node and hasattr(node, 'chain_sync') and node.chain_sync:
+            checkpoints = node.chain_sync._checkpoints
+        return {
+            "max_reorg_depth": MAX_REORG_DEPTH,
+            "checkpoint_interval": CHECKPOINT_INTERVAL,
+            "active_checkpoints": checkpoints,
+            "local_height": db_manager.get_current_height(),
+        }
+
+    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality + L1L2 Bridge + Chain Sync + Reorg)")
 
     return app

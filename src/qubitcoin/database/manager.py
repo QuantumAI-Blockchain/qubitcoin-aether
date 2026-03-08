@@ -1317,6 +1317,104 @@ class DatabaseManager:
             session.commit()
             logger.warning("Chain wiped: all blocks, transactions, and UTXOs deleted")
 
+    def rollback_to_height(self, target_height: int) -> dict:
+        """Roll back the chain to a specific height.
+
+        Deletes all blocks, transactions, and UTXOs above target_height.
+        Recalculates supply by summing coinbase rewards up to target_height.
+
+        Args:
+            target_height: The height to roll back to (this block is kept).
+
+        Returns:
+            dict with rollback stats (blocks_removed, txs_removed, etc.)
+        """
+        with self.get_session() as session:
+            # Count what we're removing
+            block_count = session.execute(
+                text("SELECT COUNT(*) FROM blocks WHERE height > :h"),
+                {'h': target_height}
+            ).scalar() or 0
+
+            tx_count = session.execute(
+                text("SELECT COUNT(*) FROM transactions WHERE block_height > :h"),
+                {'h': target_height}
+            ).scalar() or 0
+
+            if block_count == 0:
+                logger.info(f"Rollback: nothing to roll back (already at or below {target_height})")
+                return {"blocks_removed": 0, "txs_removed": 0, "new_height": target_height}
+
+            logger.warning(
+                f"CHAIN ROLLBACK: removing {block_count} blocks and {tx_count} txs "
+                f"above height {target_height}"
+            )
+
+            # Delete UTXOs created by removed blocks
+            session.execute(
+                text("DELETE FROM utxos WHERE block_height > :h"),
+                {'h': target_height}
+            )
+
+            # Unspend UTXOs that were spent by removed transactions
+            # (restore them to unspent state)
+            session.execute(
+                text("""
+                    UPDATE utxos SET spent = false, spent_txid = NULL
+                    WHERE spent = true
+                    AND spent_txid IN (
+                        SELECT txid FROM transactions WHERE block_height > :h
+                    )
+                """),
+                {'h': target_height}
+            )
+
+            # Delete transactions from removed blocks
+            session.execute(
+                text("DELETE FROM transactions WHERE block_height > :h"),
+                {'h': target_height}
+            )
+
+            # Delete the blocks themselves
+            session.execute(
+                text("DELETE FROM blocks WHERE height > :h"),
+                {'h': target_height}
+            )
+
+            # Recalculate total supply from remaining coinbase outputs
+            supply_result = session.execute(
+                text("""
+                    SELECT COALESCE(SUM(CAST(amount AS DECIMAL)), 0)
+                    FROM utxos
+                    WHERE block_height <= :h
+                    AND vout = 0
+                """),
+                {'h': target_height}
+            ).scalar()
+
+            try:
+                session.execute(
+                    text("UPDATE supply SET total_minted = :amt WHERE id = 1"),
+                    {'amt': str(supply_result or 0)}
+                )
+            except Exception:
+                # supply table might not exist in all setups
+                pass
+
+            session.commit()
+
+            logger.warning(
+                f"CHAIN ROLLBACK COMPLETE: rolled back to height {target_height}, "
+                f"removed {block_count} blocks, {tx_count} txs"
+            )
+
+            return {
+                "blocks_removed": block_count,
+                "txs_removed": tx_count,
+                "new_height": target_height,
+                "recalculated_supply": str(supply_result or 0),
+            }
+
     def get_block(self, height: int) -> Optional[Block]:
         """Get block by height"""
         with self.get_session() as session:
