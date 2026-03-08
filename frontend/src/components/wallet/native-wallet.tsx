@@ -82,7 +82,7 @@ function WalletSelector({
         createdAt: Date.now(),
       });
       // SECURITY [FE-C1]: Server no longer returns private_key_hex.
-      // Private key generation must happen client-side via Dilithium2 WASM.
+      // Private key generation must happen client-side via Dilithium5 WASM.
       setNewKey(null);
     } catch (e) {
       alert(`Failed to create wallet: ${e}`);
@@ -104,9 +104,9 @@ function WalletSelector({
       }
 
       // TODO: Derive public key and address from private key using
-      // Dilithium2 WASM module. Until then, import is not supported.
+      // Dilithium5 WASM module. Until then, import is not supported.
       alert(
-        "Import is not yet supported client-side. Dilithium2 WASM module required for key derivation. Please use 'Create Wallet' and fund it.",
+        "Import is not yet supported client-side. Dilithium5 WASM module required for key derivation. Please use 'Create Wallet' and fund it.",
       );
     } catch (e) {
       alert(`Import failed: ${e}`);
@@ -125,7 +125,7 @@ function WalletSelector({
             Native Quantum Wallets
           </h3>
           <span className="rounded bg-quantum-green/20 px-2 py-0.5 text-[10px] font-semibold text-quantum-green">
-            Dilithium2
+            Dilithium5
           </span>
         </div>
         <div className="flex gap-2">

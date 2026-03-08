@@ -934,7 +934,7 @@ export const OrderEntry = memo(function OrderEntry() {
             letterSpacing: "0.02em",
           }}
         >
-          Orders signed with CRYSTALS-Dilithium2 post-quantum signatures when wallet is connected
+          Orders signed with CRYSTALS-Dilithium5 post-quantum signatures when wallet is connected
         </div>
 
         {/* ── Submit Button ──────────────────────────────────────── */}

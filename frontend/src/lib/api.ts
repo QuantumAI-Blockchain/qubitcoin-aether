@@ -445,7 +445,7 @@ export const api = {
   // Native wallet
   // SECURITY [FE-C1]: /wallet/create no longer returns private_key_hex.
   // The server generates a keypair but only returns the address and public key.
-  // Private keys must be generated client-side via Dilithium2 WASM.
+  // Private keys must be generated client-side via Dilithium5 WASM.
   // See: https://github.com/nicoburniske/pqc-wasm for a reference WASM build.
   createWallet: (level?: number) =>
     post<{
@@ -532,7 +532,7 @@ export const api = {
 
   // Privacy (Susy Swaps)
   // NOTE: Server generates keypair over HTTPS. Keys are NOT stored server-side.
-  // Future: migrate to client-side Dilithium2 WASM generation.
+  // Future: migrate to client-side Dilithium5 WASM generation.
   generateStealthKeypair: () =>
     post<StealthKeyPair>("/privacy/stealth/generate-keypair", {}),
   createStealthOutput: (body: {

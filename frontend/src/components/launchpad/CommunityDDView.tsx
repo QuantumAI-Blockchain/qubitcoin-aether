@@ -381,7 +381,7 @@ export const CommunityDDView = memo(function CommunityDDView() {
                 color: L.textMuted,
               }}
             >
-              Reports will be Dilithium2-signed and stored on QVM after deployment
+              Reports will be Dilithium5-signed and stored on QVM after deployment
             </span>
           </div>
 

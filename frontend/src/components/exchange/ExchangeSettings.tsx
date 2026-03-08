@@ -626,7 +626,7 @@ const ExchangeSettings = memo(function ExchangeSettings() {
             borderTop: `1px solid ${X.borderSubtle}`,
           }}
         >
-          QBC Exchange v0.1.0 &middot; Chain 3301 &middot; Dilithium2
+          QBC Exchange v0.1.0 &middot; Chain 3301 &middot; Dilithium5
         </div>
       </div>
     </>

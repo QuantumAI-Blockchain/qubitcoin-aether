@@ -21,7 +21,7 @@ const STEPS = [
   },
   {
     title: "Create Your Wallet",
-    description: "Post-quantum secure wallet powered by Dilithium2",
+    description: "Post-quantum secure wallet powered by Dilithium5",
     emoji: "👛",
     action: true,
   },
@@ -55,13 +55,13 @@ export default function TWAOnboardPage() {
       sessionStorage.setItem(`qbc-pubkey-${res.address}`, res.public_key_hex);
 
       // SECURITY [FE-C1]: The server no longer returns private_key_hex.
-      // Private keys must be generated client-side via Dilithium2 WASM.
+      // Private keys must be generated client-side via Dilithium5 WASM.
       // The createWallet endpoint only provides address + public key.
 
       // Notify user that they need to set up client-side key management
       if (typeof window !== "undefined") {
         const webapp = (await import("@/lib/telegram")).getWebApp();
-        webapp?.showAlert("Wallet address created! Full key management (including private key generation) will be available via the Dilithium2 WASM module.");
+        webapp?.showAlert("Wallet address created! Full key management (including private key generation) will be available via the Dilithium5 WASM module.");
       }
 
       // Register affiliate if referred

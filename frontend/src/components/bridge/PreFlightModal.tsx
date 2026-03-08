@@ -172,7 +172,7 @@ function buildWrapChecks(
       id: "pq_signature",
       label: "Post-quantum signature ready",
       status: "pending",
-      detail: "Dilithium2 signer initialized",
+      detail: "Dilithium5 signer initialized",
     },
     {
       id: "vault_backing",
@@ -251,7 +251,7 @@ function buildUnwrapChecks(
       id: "pq_signature",
       label: "Post-quantum signature ready",
       status: "pending",
-      detail: "Dilithium2 signer initialized",
+      detail: "Dilithium5 signer initialized",
     },
     {
       id: "vault_backing",

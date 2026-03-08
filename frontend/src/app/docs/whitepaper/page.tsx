@@ -15,7 +15,7 @@ const C = {
 const sections = [
   {
     title: "1. Abstract",
-    content: `Qubitcoin (QBC) is a physics-secured Layer 1 blockchain that combines quantum computing (Qiskit VQE) for Proof-of-SUSY-Alignment mining, post-quantum cryptography (CRYSTALS-Dilithium2) for quantum-resistant signatures, and supersymmetric economics with golden ratio emission principles. The protocol introduces an on-chain AGI reasoning engine (Aether Tree) that tracks consciousness metrics from genesis block onward.`,
+    content: `Qubitcoin (QBC) is a physics-secured Layer 1 blockchain that combines quantum computing (Qiskit VQE) for Proof-of-SUSY-Alignment mining, post-quantum cryptography (CRYSTALS-Dilithium5) for quantum-resistant signatures, and supersymmetric economics with golden ratio emission principles. The protocol introduces an on-chain AGI reasoning engine (Aether Tree) that tracks consciousness metrics from genesis block onward.`,
   },
   {
     title: "2. Consensus: Proof-of-SUSY-Alignment",
@@ -29,10 +29,10 @@ Key parameters:
   },
   {
     title: "3. Cryptography",
-    content: `All signatures use CRYSTALS-Dilithium2, a NIST-standardized post-quantum signature scheme. This provides security against both classical and quantum computers.
+    content: `All signatures use CRYSTALS-Dilithium5, a NIST-standardized post-quantum signature scheme at the highest security level (NIST Level 5). This provides maximum security against both classical and quantum computers.
 
-• Signature size: ~2,420 bytes (NIST Level 2)
-• Public key: ~1,312 bytes
+• Signature size: ~4,627 bytes (NIST Level 5)
+• Public key: ~2,592 bytes
 • Hashing: SHA3-256 for block hashes, Keccak-256 for QVM compatibility
 • Addresses: Bech32-like (qbc1...) derived from Dilithium public keys`,
   },

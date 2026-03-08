@@ -38,8 +38,8 @@
     "blockchain": {
       "title": "Quantum Blockchain",
       "item1": "Proof-of-SUSY-Alignment mining with VQE quantum circuits",
-      "item2": "Post-quantum Dilithium2 signatures for future-proof security",
-      "item3": "Golden ratio (phi) emission: 3.3B supply over 33 years",
+      "item2": "Post-quantum Dilithium5 signatures for future-proof security",
+      "item3": "Golden ratio (phi) emission: 3.3B max supply with phi-halving",
       "item4": "3.3-second blocks with per-block difficulty adjustment"
     },
     "qvm": {

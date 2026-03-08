@@ -49,7 +49,7 @@ export default function TWAWalletPage() {
       sessionStorage.setItem(`qbc-pubkey-${res.address}`, res.public_key_hex);
 
       // SECURITY [FE-C1]: private_key_hex is no longer returned by the server.
-      // Private key generation must happen client-side via Dilithium2 WASM.
+      // Private key generation must happen client-side via Dilithium5 WASM.
 
       hapticNotification("success");
     } catch (e) {
@@ -162,7 +162,7 @@ export default function TWAWalletPage() {
           )}
 
           <p className="text-[10px] text-text-secondary/60">
-            Keys are generated using post-quantum Dilithium2 signatures
+            Keys are generated using post-quantum Dilithium5 signatures
           </p>
         </motion.div>
       )}

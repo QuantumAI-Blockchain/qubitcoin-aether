@@ -31,7 +31,7 @@ const feeStructure = [
   { action: "Deep Reasoning", fee: "~$0.01 in QBC", notes: "2× chat fee multiplier" },
   { action: "Contract Deploy", fee: "1.0 + 0.1/KB QBC", notes: "Base + per-KB of bytecode" },
   { action: "Bridge Transfer", fee: "0.1% of amount", notes: "Configurable per chain" },
-  { action: "First 100 Messages", fee: "Free", notes: "Onboarding free tier" },
+  { action: "First 5 Messages", fee: "Free", notes: "Onboarding free tier per session" },
 ];
 
 export default function EconomicsPage() {

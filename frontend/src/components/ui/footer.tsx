@@ -18,7 +18,7 @@ const resourceLinks = [
 
 const socialLinks = [
   { href: "https://github.com/QuantumAI-Blockchain", label: "GitHub", icon: "github" },
-  { href: "https://x.com/qubitcoin", label: "X / Twitter", icon: "x" },
+  { href: "https://x.com/qu_bitcoin", label: "X / Twitter", icon: "x" },
   { href: "https://t.me/QuantumAI_Blockchain", label: "Telegram", icon: "telegram" },
 ];
 

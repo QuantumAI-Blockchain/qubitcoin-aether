@@ -38,8 +38,8 @@
     "blockchain": {
       "title": "Blockchain Cu\u00e1ntica",
       "item1": "Miner\u00eda Proof-of-SUSY-Alignment con circuitos cu\u00e1nticos VQE",
-      "item2": "Firmas post-cu\u00e1nticas Dilithium2 para seguridad a prueba de futuro",
-      "item3": "Emisi\u00f3n raz\u00f3n \u00e1urea (phi): 3.3B de suministro en 33 a\u00f1os",
+      "item2": "Firmas post-cu\u00e1nticas Dilithium5 para seguridad a prueba de futuro",
+      "item3": "Emisi\u00f3n raz\u00f3n \u00e1urea (phi): 3.3B suministro m\u00e1ximo con phi-halving",
       "item4": "Bloques de 3.3 segundos con ajuste de dificultad por bloque"
     },
     "qvm": {

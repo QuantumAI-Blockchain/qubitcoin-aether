@@ -1907,7 +1907,7 @@ const StepDeploy = memo(function StepDeploy() {
           DEPLOY {symbol || "TOKEN"} TO QBC
         </div>
         <p style={{ fontFamily: FONT.body, fontSize: 12, color: L.textSecondary, textAlign: "center", maxWidth: 500 }}>
-          Your contract will be deployed to the QBC blockchain, signed with your Dilithium2
+          Your contract will be deployed to the QBC blockchain, signed with your Dilithium5
           post-quantum signature. The transaction is irreversible and will be permanently recorded.
         </p>
 
@@ -1920,7 +1920,7 @@ const StepDeploy = memo(function StepDeploy() {
             </span>
           </div>
           <p style={{ fontFamily: FONT.body, fontSize: 11, color: L.textSecondary, lineHeight: 1.4 }}>
-            Your deployment transaction will be signed with CRYSTALS-Dilithium2, a NIST-standardized
+            Your deployment transaction will be signed with CRYSTALS-Dilithium5, a NIST-standardized
             post-quantum digital signature scheme. This ensures your contract deployment is
             secure against both classical and quantum computing attacks.
           </p>
@@ -2018,7 +2018,7 @@ const StepDeploy = memo(function StepDeploy() {
               }}
             />
             <span style={{ fontFamily: FONT.mono, fontSize: 10, color: L.textMuted }}>
-              Signing with Dilithium2... Broadcasting to QBC network...
+              Signing with Dilithium5... Broadcasting to QBC network...
             </span>
           </div>
         )}

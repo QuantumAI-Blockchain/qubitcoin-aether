@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     "Manage your QBC holdings with quantum-resistant security. Send, receive, stake on Sephirot nodes, and view transaction history.",
   openGraph: {
     title: "Qubitcoin Wallet",
-    description: "Quantum-secure wallet with Dilithium2 signatures and Sephirot staking.",
+    description: "Quantum-secure wallet with Dilithium5 signatures and Sephirot staking.",
   },
 };
 

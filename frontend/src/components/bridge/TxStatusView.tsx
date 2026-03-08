@@ -68,7 +68,7 @@ const WRAP_STEPS: StepDef[] = [
   {
     label: "SIGNED",
     icon: Shield,
-    description: "Transaction signed with Dilithium2 post-quantum signature and submitted to the Qubitcoin network.",
+    description: "Transaction signed with Dilithium5 post-quantum signature and submitted to the Qubitcoin network.",
   },
   {
     label: "QBC LOCKED",
