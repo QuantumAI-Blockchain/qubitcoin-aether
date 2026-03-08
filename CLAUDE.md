@@ -222,7 +222,7 @@ PHASE 3: VALIDATE
 | **State Management** | Zustand + TanStack Query (React Query) | latest |
 | **3D / Viz** | Three.js + React Three Fiber + D3 | latest |
 | **Wallet** | ethers.js v6 (MetaMask compat) | latest |
-| **Deployment** | Vercel (frontend) + Docker (backend) | latest |
+| **Deployment** | Cloudflare Tunnel (frontend) + Docker (backend) | latest |
 | **Monitoring** | Prometheus + Grafana | latest |
 | **Package Manager** | pnpm (frontend) / pip (backend) | latest |
 | **Linting/Formatting** | ESLint 9 + Prettier + Biome | latest |
@@ -367,7 +367,7 @@ Qubitcoin/
 │   ├── src/app/                      # Next.js 15 App Router
 │   ├── src/components/               # React components
 │   ├── src/hooks/, src/lib/, src/stores/, src/styles/
-│   ├── package.json, next.config.ts, tailwind.config.ts, vercel.json
+│   ├── package.json, next.config.ts, tailwind.config.ts
 │
 ├── scripts/
 │   ├── setup/                        # Key generation, certificates
@@ -1038,10 +1038,9 @@ When the field value deviates >10% from VEV, a Higgs excitation event is recorde
 - **Package Manager:** pnpm (fast, strict)
 - **Linting:** ESLint 9 flat config + Prettier
 - **Testing:** Vitest (unit) + Playwright (E2E)
-- **Deployment:** Vercel (connected to `frontend/` directory)
-- **Domain:** qbc.network (Vercel custom domain)
-- **Edge:** Vercel Edge Functions for API proxying if needed
-- **Analytics:** Vercel Analytics + Speed Insights
+- **Deployment:** Local build + Cloudflare Tunnel to qbc.network
+- **Domain:** qbc.network (Cloudflare DNS + Tunnel)
+- **Serving:** `pnpm build && pnpm start` on droplet, Cloudflare Tunnel exposes to internet
 
 ### 9.2 Design Vision
 
@@ -1280,15 +1279,14 @@ SKIP_WASM_BUILD=1 cargo build --release
 # Note: WASM build deferred (serde_core conflict). Native build is fully functional.
 ```
 
-### 12.3 Frontend (React + Next.js → Vercel)
+### 12.3 Frontend (React + Next.js → Cloudflare Tunnel)
 ```bash
 cd frontend
 pnpm install                    # Install dependencies (pnpm required)
 pnpm dev                        # Development (localhost:3000)
-pnpm build                      # Production build (same as Vercel)
-pnpm start                      # Production server (local preview)
-# Deployment: Push to main → Vercel auto-deploys to qbc.network
-# Preview: Push to any branch → Vercel creates preview URL
+pnpm build                      # Production build
+pnpm start                      # Production server (localhost:3000)
+# Deployment: build locally, Cloudflare Tunnel exposes to qbc.network
 ```
 
 ### 12.4 Docker
@@ -1466,7 +1464,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 - **Error handling:** Try/except with structured logging; never silently swallow
 - **Quantum imports:** Lazy imports with simulator fallbacks (Qiskit is slow to import)
 - **Frontend state:** Zustand for global state, TanStack Query for server state
-- **Frontend deploy:** Vercel (auto-deploy from `frontend/` on push)
+- **Frontend deploy:** Local build + Cloudflare Tunnel (no auto-deploy — manual `pnpm build && pnpm start`)
 - **Always latest:** Check for newest stable versions of all npm packages before installing
 
 ---
@@ -1825,7 +1823,7 @@ The monorepo is designed for a clean 4-repo split:
 | **qubitcoin-core** | L1 blockchain, consensus, mining, P2P, database, privacy, bridge, stablecoin | `src/qubitcoin/` minus qvm/contracts/aether |
 | **qubitcoin-qvm** | Go production QVM, Python QVM prototype, Solidity contracts, compliance | `qubitcoin-qvm/` + `src/qubitcoin/qvm/` + `src/qubitcoin/contracts/` |
 | **qubitcoin-aether** | AGI engine, knowledge graph, reasoning, consciousness, Sephirot, Higgs field | `src/qubitcoin/aether/` (34 modules) |
-| **qubitcoin-frontend** | React/Next.js, Vercel deployment | `frontend/` |
+| **qubitcoin-frontend** | React/Next.js, Cloudflare Tunnel deployment | `frontend/` |
 
 **Shared package** (`qubitcoin-common`): `database/`, `utils/`, `config.py`
 

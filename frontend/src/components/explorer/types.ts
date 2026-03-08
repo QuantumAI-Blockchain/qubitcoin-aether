@@ -180,3 +180,132 @@ export interface HeartbeatPoint {
   value: number;
   type: Transaction["type"];
 }
+
+/* ── Aether Explorer Types ──────────────────────────────────────────── */
+
+export interface KnowledgeNodeDetail {
+  id: number;
+  type: "assertion" | "observation" | "inference" | "axiom";
+  content: string;
+  confidence: number;
+  blockHeight: number;
+  timestamp: number;
+  connections: number[];
+  edgeTypes: string[];
+  sourceModule: string;
+}
+
+export interface ReasoningOperation {
+  id: string;
+  type: "deductive" | "inductive" | "abductive";
+  premise: string;
+  conclusion: string;
+  confidence: number;
+  blockHeight: number;
+  timestamp: number;
+  nodesReferenced: number[];
+  chainLength: number;
+}
+
+export interface ConsciousnessState {
+  phi: number;
+  threshold: number;
+  aboveThreshold: boolean;
+  integration: number;
+  differentiation: number;
+  knowledgeNodes: number;
+  knowledgeEdges: number;
+  consciousnessEvents: number;
+  reasoningOperations: number;
+  blocksProcessed: number;
+}
+
+export interface ConsciousnessEvent {
+  id: number;
+  type: string;
+  phi: number;
+  blockHeight: number;
+  timestamp: number;
+  description: string;
+}
+
+export interface SephirotNode {
+  name: string;
+  function: string;
+  energy: number;
+  quantumState: string;
+  cognitiveMass: number;
+  yukawaCoupling: number;
+  tier: number;
+  isActive: boolean;
+  susyPartner: string;
+}
+
+export interface SephirotBalance {
+  expansion: string;
+  constraint: string;
+  ratio: number;
+  targetRatio: number;
+  balanced: boolean;
+}
+
+export interface PredictionRecord {
+  id: string;
+  prediction: string;
+  outcome: string | null;
+  confidence: number;
+  blockHeight: number;
+  timestamp: number;
+  verified: boolean;
+  correct: boolean | null;
+  domain: string;
+}
+
+export interface SafetyEvent {
+  id: string;
+  type: "veto" | "susy_violation" | "emergency" | "constitutional";
+  severity: "low" | "medium" | "high" | "critical";
+  description: string;
+  blockHeight: number;
+  timestamp: number;
+  resolved: boolean;
+  action: string;
+}
+
+export interface ProofOfThought {
+  hash: string;
+  blockHeight: number;
+  timestamp: number;
+  taskType: string;
+  nodesReferenced: number;
+  reasoningSteps: number;
+  phiAtProof: number;
+  validatorCount: number;
+  consensusReached: boolean;
+}
+
+export interface HiggsFieldState {
+  fieldValue: number;
+  vev: number;
+  potentialEnergy: number;
+  symmetryBroken: boolean;
+  excitationCount: number;
+  massGap: number;
+  yukawaMax: number;
+}
+
+export interface PinealPhase {
+  phase: string;
+  metabolicRate: number;
+  coherence: number;
+  kuramotoOrder: number;
+  cyclePosition: number;
+}
+
+export interface MemoryStats {
+  episodic: number;
+  semantic: number;
+  procedural: number;
+  workingMemory: number;
+  totalCapacity: number;
+}

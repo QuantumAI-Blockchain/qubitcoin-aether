@@ -47,7 +47,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Content-Security-Policy",
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws://localhost:* wss://localhost:* wss://*.qbc.network http://localhost:* https://qbc.network https://*.qbc.network https://api.qbc.network https://*.trycloudflare.com; font-src 'self' data:; frame-ancestors https://web.telegram.org https://desktop.telegram.org https://*.telegram.org",
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://telegram.org; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' ws://localhost:* wss://localhost:* wss://*.qbc.network ws://*.qbc.network http://localhost:* https://qbc.network https://*.qbc.network https://api.qbc.network https://*.trycloudflare.com; font-src 'self' data:; frame-ancestors https://web.telegram.org https://desktop.telegram.org https://*.telegram.org",
           },
           {
             key: "Permissions-Policy",
@@ -68,7 +68,7 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Content-Security-Policy",
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws://localhost:* wss://localhost:* wss://*.qbc.network http://localhost:* https://qbc.network https://*.qbc.network https://api.qbc.network https://*.trycloudflare.com; font-src 'self' data:",
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' ws://localhost:* wss://localhost:* wss://*.qbc.network ws://*.qbc.network http://localhost:* https://qbc.network https://*.qbc.network https://api.qbc.network https://*.trycloudflare.com; font-src 'self' data:",
           },
           {
             key: "Permissions-Policy",

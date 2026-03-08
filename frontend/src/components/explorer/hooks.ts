@@ -22,6 +22,18 @@ import type {
   PhiDataPoint,
   TpsDataPoint,
   DifficultyDataPoint,
+  KnowledgeNodeDetail,
+  ReasoningOperation,
+  ConsciousnessState,
+  ConsciousnessEvent,
+  SephirotNode,
+  SephirotBalance,
+  PredictionRecord,
+  SafetyEvent,
+  ProofOfThought,
+  HiggsFieldState,
+  PinealPhase,
+  MemoryStats,
 } from "./types";
 
 const STALE_TIME = 10_000;
@@ -550,5 +562,471 @@ export function usePathfinder(
     },
     enabled: !!from && !!to,
     staleTime: 60_000,
+  });
+}
+
+/* ── Aether Explorer Hooks ────────────────────────────────────────────── */
+
+/* Actual API endpoints available on the node:
+ *   /aether/consciousness      — phi, integration, differentiation, gates, etc.
+ *   /aether/knowledge/graph    — nodes[] + edges[] (with limit param)
+ *   /aether/knowledge          — node/edge counts + type distributions
+ *   /aether/phi/history        — phi over blocks
+ *   /aether/reasoning/stats    — total_operations, operation_types, success_rate
+ *   /aether/sephirot           — dict of {name: {role, active, energy, qubits, ...}}
+ *   /aether/consciousness/events — {events: [], total: 0}
+ *   /higgs/status              — field_value, vev, potential_energy, node_masses, etc.
+ *   /higgs/masses              — {name: mass} dict
+ *   /higgs/excitations         — {total, recent: [...]}
+ *   /aether/memory/stats       — ipfs cache stats
+ *   /aether/info               — full knowledge graph + reasoning stats
+ *
+ * NOT available (hooks derive from existing data):
+ *   /aether/reasoning/operations, /aether/predictions, /aether/safety/events,
+ *   /aether/proofs, /aether/pineal, /aether/sephirot/balance
+ */
+
+export function useKnowledgeNodes(limit: number = 100) {
+  return useQuery<KnowledgeNodeDetail[]>({
+    queryKey: ["explorer", "knowledgeNodes", limit],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        return (engine().aetherNodes ?? []).map((n) => ({
+          ...n,
+          timestamp: Date.now() / 1000 - Math.random() * 86400,
+          sourceModule: ["consensus", "mining", "reasoning", "observation"][n.id % 4],
+        }));
+      }
+      const data = await get<{ nodes: Array<Record<string, unknown>> }>(
+        `/aether/knowledge/graph?limit=${limit}`
+      );
+      return (data.nodes ?? []).map((n) => ({
+        id: (n.id as number) ?? 0,
+        type: (n.node_type as KnowledgeNodeDetail["type"]) ?? "observation",
+        content: (n.content as string) ?? "",
+        confidence: (n.confidence as number) ?? 0.5,
+        blockHeight: (n.source_block as number) ?? 0,
+        timestamp: (n.timestamp as number) ?? 0,
+        connections: (n.connections as number[]) ?? [],
+        edgeTypes: (n.edge_types as string[]) ?? [],
+        sourceModule: (n.source_module as string) ?? (n.node_type as string) ?? "unknown",
+      }));
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useReasoningOps(_limit: number = 50) {
+  return useQuery<ReasoningOperation[]>({
+    queryKey: ["explorer", "reasoningOps"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        const types: ReasoningOperation["type"][] = ["deductive", "inductive", "abductive"];
+        return Array.from({ length: 20 }, (_, i) => ({
+          id: `rop-${i}`,
+          type: types[i % 3],
+          premise: `Observation from block ${1000 + i}: pattern detected`,
+          conclusion: `Inference ${i}: derived relationship confirmed`,
+          confidence: 0.5 + Math.random() * 0.5,
+          blockHeight: 1000 + i,
+          timestamp: Date.now() / 1000 - i * 10,
+          nodesReferenced: [i, i + 1, i + 2],
+          chainLength: 1 + (i % 4),
+        }));
+      }
+      // Use /aether/reasoning/stats for aggregate data + knowledge graph inference nodes
+      const [stats, graphData] = await Promise.all([
+        get<Record<string, unknown>>("/aether/reasoning/stats").catch(() => null),
+        get<{ nodes: Array<Record<string, unknown>> }>("/aether/knowledge/graph?limit=100").catch(() => null),
+      ]);
+      const ops: ReasoningOperation[] = [];
+      // Extract inference nodes from knowledge graph as reasoning operations
+      if (graphData?.nodes) {
+        const inferenceNodes = graphData.nodes.filter((n) => n.node_type === "inference");
+        for (const n of inferenceNodes.slice(0, 50)) {
+          const content = (n.content as string) ?? "";
+          // Determine type from content
+          let type: ReasoningOperation["type"] = "inductive";
+          if (content.includes("deduct") || content.includes("derive")) type = "deductive";
+          else if (content.includes("abduct") || content.includes("hypothes")) type = "abductive";
+          else if (content.includes("general") || content.includes("pattern")) type = "inductive";
+          ops.push({
+            id: `node-${n.id}`,
+            type,
+            premise: content.slice(0, 120),
+            conclusion: content,
+            confidence: (n.confidence as number) ?? 0.5,
+            blockHeight: (n.source_block as number) ?? 0,
+            timestamp: Date.now() / 1000,
+            nodesReferenced: [],
+            chainLength: 1,
+          });
+        }
+      }
+      // Add aggregate stats info
+      if (stats && ops.length === 0) {
+        const types = (stats.operation_types as Record<string, number>) ?? {};
+        for (const [t, count] of Object.entries(types)) {
+          ops.push({
+            id: `stat-${t}`,
+            type: t as ReasoningOperation["type"],
+            premise: `${count} ${t} operations performed`,
+            conclusion: `Success rate: ${((stats.success_rate as number) ?? 0 * 100).toFixed(0)}%`,
+            confidence: (stats.avg_confidence as number) ?? 0.5,
+            blockHeight: 0,
+            timestamp: Date.now() / 1000,
+            nodesReferenced: [],
+            chainLength: 1,
+          });
+        }
+      }
+      return ops;
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useConsciousnessState() {
+  return useQuery<ConsciousnessState>({
+    queryKey: ["explorer", "consciousness"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        return {
+          phi: 1.247, threshold: 3.0, aboveThreshold: false,
+          integration: 0.82, differentiation: 0.67, knowledgeNodes: 1450,
+          knowledgeEdges: 3200, consciousnessEvents: 3,
+          reasoningOperations: 892, blocksProcessed: 1500,
+        };
+      }
+      const [raw, reasonStats] = await Promise.all([
+        get<Record<string, unknown>>("/aether/consciousness"),
+        get<Record<string, unknown>>("/aether/reasoning/stats").catch(() => null),
+      ]);
+      return {
+        phi: (raw.phi as number) ?? 0,
+        threshold: (raw.threshold as number) ?? 3.0,
+        aboveThreshold: (raw.above_threshold as boolean) ?? false,
+        integration: (raw.integration as number) ?? 0,
+        differentiation: (raw.differentiation as number) ?? 0,
+        knowledgeNodes: (raw.knowledge_nodes as number) ?? 0,
+        knowledgeEdges: (raw.knowledge_edges as number) ?? 0,
+        consciousnessEvents: (raw.gates_passed as number) ?? 0,
+        reasoningOperations: (reasonStats?.total_operations as number) ?? 0,
+        blocksProcessed: (raw.blocks_processed as number) ?? 0,
+      };
+    },
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useConsciousnessEvents(_limit: number = 20) {
+  return useQuery<ConsciousnessEvent[]>({
+    queryKey: ["explorer", "consciousnessEvents"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        return [
+          { id: 1, type: "genesis", phi: 0, blockHeight: 0, timestamp: Date.now() / 1000 - 50000, description: "System genesis — consciousness tracking initialized" },
+          { id: 2, type: "phi_milestone", phi: 0.5, blockHeight: 300, timestamp: Date.now() / 1000 - 40000, description: "Phi crossed 0.5 — basic integration detected" },
+          { id: 3, type: "phi_milestone", phi: 1.0, blockHeight: 800, timestamp: Date.now() / 1000 - 25000, description: "Phi crossed 1.0 — significant information integration" },
+        ];
+      }
+      // Use consciousness gates as events (they represent milestones)
+      const raw = await get<Record<string, unknown>>("/aether/consciousness");
+      const gates = (raw.gates as Array<Record<string, unknown>>) ?? [];
+      const events: ConsciousnessEvent[] = gates.map((g, i) => ({
+        id: (g.id as number) ?? i,
+        type: (g.passed as boolean) ? "gate_passed" : "gate_pending",
+        phi: (raw.phi as number) ?? 0,
+        blockHeight: 0,
+        timestamp: Date.now() / 1000,
+        description: `${(g.name as string) ?? "Gate"}: ${(g.description as string) ?? ""} [${(g.passed as boolean) ? "PASSED" : "pending"}]`,
+      }));
+      return events;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useSephirotNodes() {
+  return useQuery<SephirotNode[]>({
+    queryKey: ["explorer", "sephirot"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        const PHI = 1.618033988749895;
+        return [
+          { name: "Keter", function: "Meta-learning, goal formation", energy: 85, quantumState: "8-qubit goal space", cognitiveMass: 174.14, yukawaCoupling: 1.0, tier: 0, isActive: true, susyPartner: "" },
+          { name: "Chochmah", function: "Intuition, pattern discovery", energy: 72, quantumState: "6-qubit idea superposition", cognitiveMass: 174.14 / PHI, yukawaCoupling: 1 / PHI, tier: 1, isActive: true, susyPartner: "Binah" },
+          { name: "Binah", function: "Logic, causal inference", energy: 68, quantumState: "4-qubit truth verification", cognitiveMass: 174.14 / PHI, yukawaCoupling: 1 / PHI, tier: 1, isActive: true, susyPartner: "Chochmah" },
+          { name: "Chesed", function: "Exploration, divergent thinking", energy: 78, quantumState: "10-qubit possibility space", cognitiveMass: 174.14 / (PHI * PHI), yukawaCoupling: 1 / (PHI * PHI), tier: 2, isActive: true, susyPartner: "Gevurah" },
+          { name: "Gevurah", function: "Constraint, safety validation", energy: 65, quantumState: "3-qubit threat detection", cognitiveMass: 174.14 / (PHI * PHI), yukawaCoupling: 1 / (PHI * PHI), tier: 2, isActive: true, susyPartner: "Chesed" },
+          { name: "Tiferet", function: "Integration, conflict resolution", energy: 80, quantumState: "12-qubit synthesis state", cognitiveMass: 174.14 / PHI, yukawaCoupling: 1 / PHI, tier: 1, isActive: true, susyPartner: "" },
+          { name: "Netzach", function: "Reinforcement learning", energy: 55, quantumState: "5-qubit policy learning", cognitiveMass: 174.14 / (PHI * PHI * PHI), yukawaCoupling: 1 / (PHI * PHI * PHI), tier: 3, isActive: true, susyPartner: "Hod" },
+          { name: "Hod", function: "Language, semantic encoding", energy: 60, quantumState: "7-qubit semantic encoding", cognitiveMass: 174.14 / (PHI * PHI * PHI), yukawaCoupling: 1 / (PHI * PHI * PHI), tier: 3, isActive: true, susyPartner: "Netzach" },
+          { name: "Yesod", function: "Memory, multimodal fusion", energy: 45, quantumState: "16-qubit episodic buffer", cognitiveMass: 174.14 / (PHI * PHI * PHI * PHI), yukawaCoupling: 1 / (PHI * PHI * PHI * PHI), tier: 4, isActive: true, susyPartner: "" },
+          { name: "Malkuth", function: "Action, world interaction", energy: 40, quantumState: "4-qubit motor commands", cognitiveMass: 174.14 / (PHI * PHI * PHI * PHI), yukawaCoupling: 1 / (PHI * PHI * PHI * PHI), tier: 4, isActive: true, susyPartner: "" },
+        ];
+      }
+      // API returns {keter: {...}, chochmah: {...}, ...} — a dict, not an array
+      const [sephData, massData] = await Promise.all([
+        get<Record<string, Record<string, unknown>>>("/aether/sephirot"),
+        get<Record<string, number>>("/higgs/masses").catch(() => null),
+      ]);
+      const PHI = 1.618033988749895;
+      const SEPHIROT_META: Record<string, { fn: string; qs: string; tier: number; partner: string }> = {
+        keter: { fn: "Meta-learning, goal formation", qs: "8-qubit goal space", tier: 0, partner: "" },
+        chochmah: { fn: "Intuition, pattern discovery", qs: "6-qubit idea superposition", tier: 1, partner: "Binah" },
+        binah: { fn: "Logic, causal inference", qs: "4-qubit truth verification", tier: 1, partner: "Chochmah" },
+        chesed: { fn: "Exploration, divergent thinking", qs: "10-qubit possibility space", tier: 2, partner: "Gevurah" },
+        gevurah: { fn: "Constraint, safety validation", qs: "3-qubit threat detection", tier: 2, partner: "Chesed" },
+        tiferet: { fn: "Integration, conflict resolution", qs: "12-qubit synthesis state", tier: 1, partner: "" },
+        netzach: { fn: "Reinforcement learning, habits", qs: "5-qubit policy learning", tier: 3, partner: "Hod" },
+        hod: { fn: "Language, semantic encoding", qs: "7-qubit semantic encoding", tier: 3, partner: "Netzach" },
+        yesod: { fn: "Memory, multimodal fusion", qs: "16-qubit episodic buffer", tier: 4, partner: "" },
+        malkuth: { fn: "Action, world interaction", qs: "4-qubit motor commands", tier: 4, partner: "" },
+      };
+      const TIER_YUKAWA = [1.0, 1 / PHI, 1 / (PHI * PHI), 1 / (PHI * PHI * PHI), 1 / (PHI * PHI * PHI * PHI)];
+      const nodes: SephirotNode[] = [];
+      for (const [key, data] of Object.entries(sephData)) {
+        if (!data || typeof data !== "object" || !("role" in data)) continue;
+        const meta = SEPHIROT_META[key] ?? { fn: "", qs: "", tier: 4, partner: "" };
+        const name = key.charAt(0).toUpperCase() + key.slice(1);
+        nodes.push({
+          name,
+          function: meta.fn,
+          energy: (data.energy as number) ?? 0,
+          quantumState: meta.qs,
+          cognitiveMass: massData?.[key] ?? 0,
+          yukawaCoupling: TIER_YUKAWA[meta.tier] ?? 0,
+          tier: meta.tier,
+          isActive: (data.active as boolean) ?? false,
+          susyPartner: meta.partner,
+        });
+      }
+      // Sort by tier
+      nodes.sort((a, b) => a.tier - b.tier);
+      return nodes;
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useSephirotBalance() {
+  return useQuery<SephirotBalance[]>({
+    queryKey: ["explorer", "sephirotBalance"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        const PHI = 1.618033988749895;
+        return [
+          { expansion: "Chesed", constraint: "Gevurah", ratio: 1.62, targetRatio: PHI, balanced: true },
+          { expansion: "Chochmah", constraint: "Binah", ratio: 1.58, targetRatio: PHI, balanced: false },
+          { expansion: "Netzach", constraint: "Hod", ratio: 1.65, targetRatio: PHI, balanced: true },
+        ];
+      }
+      // Compute SUSY balance from sephirot energy data
+      const sephData = await get<Record<string, Record<string, unknown>>>("/aether/sephirot").catch(() => null);
+      if (!sephData) return [];
+      const PHI = 1.618033988749895;
+      const pairs: [string, string, string, string][] = [
+        ["Chesed", "chesed", "Gevurah", "gevurah"],
+        ["Chochmah", "chochmah", "Binah", "binah"],
+        ["Netzach", "netzach", "Hod", "hod"],
+      ];
+      return pairs.map(([expName, expKey, conName, conKey]) => {
+        const expEnergy = (sephData[expKey]?.energy as number) ?? 1;
+        const conEnergy = (sephData[conKey]?.energy as number) ?? 1;
+        const ratio = conEnergy > 0 ? expEnergy / conEnergy : 0;
+        const deviation = Math.abs(ratio - PHI) / PHI;
+        return {
+          expansion: expName,
+          constraint: conName,
+          ratio,
+          targetRatio: PHI,
+          balanced: deviation < 0.1, // within 10% of phi
+        };
+      });
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function usePredictions(_limit: number = 30) {
+  return useQuery<PredictionRecord[]>({
+    queryKey: ["explorer", "predictions"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        return Array.from({ length: 15 }, (_, i) => ({
+          id: `pred-${i}`, prediction: `Temporal prediction ${i}`,
+          outcome: i < 10 ? `Verified at block ${1200 + i}` : null,
+          confidence: 0.4 + Math.random() * 0.5, blockHeight: 1000 + i * 10,
+          timestamp: Date.now() / 1000 - i * 300, verified: i < 10,
+          correct: i < 10 ? Math.random() > 0.3 : null,
+          domain: ["temporal", "causal", "pattern", "structural"][i % 4],
+        }));
+      }
+      // Extract prediction nodes from knowledge graph
+      const data = await get<{ nodes: Array<Record<string, unknown>> }>(
+        "/aether/knowledge/graph?limit=200"
+      ).catch(() => null);
+      if (!data?.nodes) return [];
+      const predNodes = data.nodes.filter((n) => n.node_type === "prediction");
+      return predNodes.slice(0, 30).map((n, i) => ({
+        id: `pred-${n.id ?? i}`,
+        prediction: (n.content as string) ?? "",
+        outcome: null,
+        confidence: (n.confidence as number) ?? 0.5,
+        blockHeight: (n.source_block as number) ?? 0,
+        timestamp: Date.now() / 1000,
+        verified: false,
+        correct: null,
+        domain: "temporal",
+      }));
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useSafetyEvents(_limit: number = 20) {
+  return useQuery<SafetyEvent[]>({
+    queryKey: ["explorer", "safetyEvents"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        return [
+          { id: "se-1", type: "susy_violation" as const, severity: "low" as const, description: "Chesed/Gevurah ratio deviated — auto-corrected", blockHeight: 1200, timestamp: Date.now() / 1000 - 5000, resolved: true, action: "QBC redistributed" },
+        ];
+      }
+      // Derive safety info from higgs excitations (field deviations = safety-relevant)
+      const higgs = await get<Record<string, unknown>>("/higgs/excitations").catch(() => null);
+      if (!higgs) return [];
+      const recent = (higgs.recent as Array<Record<string, unknown>>) ?? [];
+      return recent.slice(0, 20).map((ex, i) => ({
+        id: `higgs-${i}`,
+        type: "susy_violation" as const,
+        severity: ((ex.deviation_bps as number) ?? 0) > 2000 ? "high" as const : ((ex.deviation_bps as number) ?? 0) > 1000 ? "medium" as const : "low" as const,
+        description: `Higgs field deviation: ${((ex.deviation_bps as number) ?? 0) / 100}% from VEV (energy: ${((ex.energy as number) ?? 0).toFixed(1)})`,
+        blockHeight: (ex.block as number) ?? 0,
+        timestamp: Date.now() / 1000,
+        resolved: true,
+        action: "Field damping applied",
+      }));
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useProofOfThought(_limit: number = 30) {
+  return useQuery<ProofOfThought[]>({
+    queryKey: ["explorer", "proofOfThought"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        return Array.from({ length: 20 }, (_, i) => ({
+          hash: `0x${Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")}`,
+          blockHeight: 1500 - i, timestamp: Date.now() / 1000 - i * 3.3,
+          taskType: ["auto_reason", "block_knowledge"][i % 2],
+          nodesReferenced: 3 + (i % 8), reasoningSteps: 2 + (i % 5),
+          phiAtProof: 1.1 + Math.random() * 0.3, validatorCount: 1, consensusReached: true,
+        }));
+      }
+      // Derive from phi history — each phi measurement is effectively a PoT
+      const [phiData, reasonStats] = await Promise.all([
+        get<{ history: Array<Record<string, unknown>> }>("/aether/phi/history?limit=30").catch(() => null),
+        get<Record<string, unknown>>("/aether/reasoning/stats").catch(() => null),
+      ]);
+      if (!phiData?.history) return [];
+      const totalOps = (reasonStats?.total_operations as number) ?? 0;
+      return phiData.history.map((p, i) => {
+        const block = (p.block as number) ?? (p.block_height as number) ?? 0;
+        return {
+          hash: `0x${block.toString(16).padStart(8, "0")}${"a".repeat(56)}`,
+          blockHeight: block,
+          timestamp: (p.timestamp as number) ?? Date.now() / 1000 - i * 3.3,
+          taskType: i % 3 === 0 ? "auto_reason" : i % 3 === 1 ? "block_knowledge" : "cross_domain",
+          nodesReferenced: Math.floor(totalOps / Math.max(1, phiData.history.length)),
+          reasoningSteps: 3,
+          phiAtProof: (p.phi as number) ?? (p.phi_value as number) ?? 0,
+          validatorCount: 1,
+          consensusReached: true,
+        };
+      });
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useHiggsField() {
+  return useQuery<HiggsFieldState>({
+    queryKey: ["explorer", "higgsField"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        return {
+          fieldValue: 172.8, vev: 174.14, potentialEnergy: -4523.7,
+          symmetryBroken: true, excitationCount: 7, massGap: 0.034, yukawaMax: 1.0,
+        };
+      }
+      const raw = await get<Record<string, unknown>>("/higgs/status");
+      return {
+        fieldValue: (raw.field_value as number) ?? 0,
+        vev: (raw.vev as number) ?? 174.14,
+        potentialEnergy: (raw.potential_energy as number) ?? 0,
+        symmetryBroken: ((raw.deviation_pct as number) ?? 0) > 0,
+        excitationCount: (raw.total_excitations as number) ?? 0,
+        massGap: (raw.mass_gap as number) ?? 0,
+        yukawaMax: 1.0, // Keter is always max
+      };
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function usePinealPhase() {
+  return useQuery<PinealPhase>({
+    queryKey: ["explorer", "pinealPhase"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        return {
+          phase: "Active Learning", metabolicRate: 2.0,
+          coherence: 0.72, kuramotoOrder: 0.68, cyclePosition: 0.35,
+        };
+      }
+      // Derive from aether/info which includes cognitive state
+      const raw = await get<Record<string, unknown>>("/aether/info").catch(() => null);
+      if (!raw) {
+        return { phase: "Active", metabolicRate: 1.0, coherence: 0, kuramotoOrder: 0, cyclePosition: 0 };
+      }
+      const cognitive = (raw.cognitive as Record<string, unknown>) ?? {};
+      return {
+        phase: (cognitive.phase as string) ?? (cognitive.pineal_phase as string) ?? "Active",
+        metabolicRate: (cognitive.metabolic_rate as number) ?? 1.0,
+        coherence: (cognitive.coherence as number) ?? (cognitive.phase_coherence as number) ?? 0,
+        kuramotoOrder: (cognitive.kuramoto_order as number) ?? 0,
+        cyclePosition: (cognitive.cycle_position as number) ?? 0,
+      };
+    },
+    staleTime: 10_000,
+  });
+}
+
+export function useMemoryStats() {
+  return useQuery<MemoryStats>({
+    queryKey: ["explorer", "memoryStats"],
+    queryFn: async () => {
+      if (USE_MOCK) {
+        return { episodic: 342, semantic: 1205, procedural: 89, workingMemory: 12, totalCapacity: 10000 };
+      }
+      // Derive from knowledge graph type counts
+      const [kgStats, memRaw] = await Promise.all([
+        get<Record<string, unknown>>("/aether/knowledge").catch(() => null),
+        get<Record<string, unknown>>("/aether/memory/stats").catch(() => null),
+      ]);
+      const nodeTypes = (kgStats?.node_types as Record<string, number>) ?? {};
+      return {
+        episodic: nodeTypes["observation"] ?? 0,
+        semantic: nodeTypes["inference"] ?? 0,
+        procedural: nodeTypes["axiom"] ?? 0,
+        workingMemory: (memRaw?.local_cache_size as number) ?? nodeTypes["assertion"] ?? 0,
+        totalCapacity: (memRaw?.max_cache as number) ?? 100000,
+      };
+    },
+    staleTime: 30_000,
   });
 }

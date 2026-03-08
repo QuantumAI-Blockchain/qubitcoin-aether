@@ -1,22 +1,61 @@
 "use client";
 /* ─────────────────────────────────────────────────────────────────────────
-   QBC Explorer — Aether Tree Knowledge Graph Visualizer (D3 force graph)
+   QBC Explorer — Aether AGI Transparency Explorer (8-tab dashboard)
+
+   Replaces the old D3 force graph with a comprehensive AGI transparency
+   dashboard exposing every aspect of the Aether Tree's cognition.
    ───────────────────────────────────────────────────────────────────────── */
 
-import { useRef, useEffect, useState, useMemo } from "react";
-import { motion } from "framer-motion";
-import * as d3 from "d3";
-import { Brain, Eye, Zap, GitBranch, Network } from "lucide-react";
+import { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  Brain, Network, Eye, Zap, GitBranch, Shield, Clock,
+  Activity, Target, AlertTriangle, CheckCircle, XCircle,
+  Layers, Atom, Search, ChevronRight, Sparkles,
+} from "lucide-react";
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  CartesianGrid, BarChart, Bar, Cell,
 } from "recharts";
-import { useAetherNodes, useAetherEdges, useNetworkStats, usePhiHistory } from "./hooks";
 import {
-  C, FONT, LoadingSpinner, Panel, SectionHeader, StatCard, Badge, formatNumber,
+  useKnowledgeNodes, useReasoningOps, useConsciousnessState,
+  useConsciousnessEvents, useSephirotNodes, useSephirotBalance,
+  usePredictions, useSafetyEvents, useProofOfThought, useHiggsField,
+  usePinealPhase, useMemoryStats, usePhiHistory, useAetherEdges,
+} from "./hooks";
+import {
+  C, FONT, LoadingSpinner, Panel, SectionHeader, StatCard,
+  Badge, formatNumber, timeAgo,
 } from "./shared";
-import type { AetherNode, AetherEdge } from "./types";
+import type {
+  KnowledgeNodeDetail, ReasoningOperation, SephirotNode,
+  PredictionRecord, SafetyEvent, ProofOfThought, ConsciousnessEvent,
+} from "./types";
 
-/* ── Node colors by type ──────────────────────────────────────────────── */
+/* ── Tab definitions ─────────────────────────────────────────────────── */
+
+type AetherTab =
+  | "knowledge"
+  | "reasoning"
+  | "consciousness"
+  | "mind"
+  | "sephirot"
+  | "predictions"
+  | "safety"
+  | "proofs";
+
+const TABS: { id: AetherTab; label: string; icon: typeof Brain }[] = [
+  { id: "knowledge", label: "Knowledge", icon: Network },
+  { id: "reasoning", label: "Reasoning", icon: GitBranch },
+  { id: "consciousness", label: "Consciousness", icon: Brain },
+  { id: "mind", label: "Mind", icon: Atom },
+  { id: "sephirot", label: "Sephirot", icon: Layers },
+  { id: "predictions", label: "Predictions", icon: Target },
+  { id: "safety", label: "Safety", icon: Shield },
+  { id: "proofs", label: "Proof-of-Thought", icon: Zap },
+];
+
+/* ── Node type colors ────────────────────────────────────────────────── */
 
 const NODE_COLORS: Record<string, string> = {
   assertion: C.primary,
@@ -25,229 +64,838 @@ const NODE_COLORS: Record<string, string> = {
   axiom: C.accent,
 };
 
-/* ── Force Graph ──────────────────────────────────────────────────────── */
+const REASONING_COLORS: Record<string, string> = {
+  deductive: C.primary,
+  inductive: C.success,
+  abductive: C.secondary,
+};
 
-function ForceGraph({
-  nodes,
-  edges,
-  width,
-  height,
+const SEVERITY_COLORS: Record<string, string> = {
+  low: C.success,
+  medium: C.accent,
+  high: "#f97316",
+  critical: C.error,
+};
+
+const SEPHIROT_COLORS: Record<string, string> = {
+  Keter: "#ffd700",
+  Chochmah: "#7c3aed",
+  Binah: "#3b82f6",
+  Chesed: "#22c55e",
+  Gevurah: "#ef4444",
+  Tiferet: "#f59e0b",
+  Netzach: "#10b981",
+  Hod: "#f97316",
+  Yesod: "#8b5cf6",
+  Malkuth: "#64748b",
+};
+
+/* ── Shared sub-components ───────────────────────────────────────────── */
+
+function TabBar({
+  active,
+  onChange,
 }: {
-  nodes: AetherNode[];
-  edges: AetherEdge[];
-  width: number;
-  height: number;
+  active: AetherTab;
+  onChange: (t: AetherTab) => void;
 }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [hoveredNode, setHoveredNode] = useState<AetherNode | null>(null);
+  return (
+    <div
+      className="flex gap-1 overflow-x-auto rounded-lg border p-1"
+      style={{ background: C.surface, borderColor: C.border }}
+    >
+      {TABS.map(({ id, label, icon: Icon }) => {
+        const isActive = active === id;
+        return (
+          <button
+            key={id}
+            onClick={() => onChange(id)}
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-xs transition-colors"
+            style={{
+              color: isActive ? C.primary : C.textSecondary,
+              background: isActive ? `${C.primary}15` : "transparent",
+              fontFamily: FONT.body,
+            }}
+          >
+            <Icon size={13} />
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
-  useEffect(() => {
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
+function MiniBar({
+  value,
+  max,
+  color,
+}: {
+  value: number;
+  max: number;
+  color: string;
+}) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  return (
+    <div
+      className="h-1.5 w-full overflow-hidden rounded-full"
+      style={{ background: `${C.border}40` }}
+    >
+      <div
+        className="h-full rounded-full transition-all"
+        style={{ width: `${pct}%`, background: color }}
+      />
+    </div>
+  );
+}
 
-    // Build D3 data
-    const d3Nodes = nodes.map((n) => ({ ...n, x: 0, y: 0 }));
-    const nodeMap = new Map(d3Nodes.map((n) => [n.id, n]));
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12">
+      <Brain size={32} style={{ color: C.textMuted, opacity: 0.3 }} />
+      <p
+        className="mt-3 text-xs"
+        style={{ color: C.textMuted, fontFamily: FONT.body }}
+      >
+        {message}
+      </p>
+    </div>
+  );
+}
 
-    const d3Links = edges
-      .filter((e) => nodeMap.has(e.source) && nodeMap.has(e.target))
-      .map((e) => ({
-        source: nodeMap.get(e.source)!,
-        target: nodeMap.get(e.target)!,
-        type: e.type,
-        weight: e.weight,
-      }));
+/* ── Tab 1: Knowledge ────────────────────────────────────────────────── */
 
-    // Create container with zoom
-    const g = svg
-      .append("g")
-      .attr("class", "graph-container");
+function KnowledgeTab() {
+  const { data: nodes, isLoading } = useKnowledgeNodes(200);
+  const { data: edges } = useAetherEdges();
+  const { data: consciousness } = useConsciousnessState();
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.2, 4])
-      .on("zoom", (event) => g.attr("transform", event.transform));
+  // Total counts from consciousness endpoint (real totals, not fetched slice)
+  const totalNodes = consciousness?.knowledgeNodes ?? nodes?.length ?? 0;
+  const totalEdges = consciousness?.knowledgeEdges ?? edges?.length ?? 0;
 
-    (svg as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoom);
-
-    // Force simulation
-    const simulation = d3
-      .forceSimulation(d3Nodes as d3.SimulationNodeDatum[])
-      .force(
-        "link",
-        d3
-          .forceLink(d3Links)
-          .id((d: d3.SimulationNodeDatum) => (d as typeof d3Nodes[0]).id)
-          .distance(60)
-      )
-      .force("charge", d3.forceManyBody().strength(-80))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide(12));
-
-    // Draw links
-    const link = g
-      .selectAll(".link")
-      .data(d3Links)
-      .join("line")
-      .attr("class", "link")
-      .attr("stroke", (d) => {
-        if (d.type === "contradicts") return C.error;
-        if (d.type === "supports") return C.success;
-        if (d.type === "derives") return C.secondary;
-        if (d.type === "requires") return C.accent;
-        return C.textMuted;
-      })
-      .attr("stroke-opacity", 0.3)
-      .attr("stroke-width", (d) => Math.max(0.5, d.weight * 1.5));
-
-    // Draw nodes
-    const node = g
-      .selectAll(".node")
-      .data(d3Nodes)
-      .join("circle")
-      .attr("class", "node")
-      .attr("r", (d) => 3 + d.confidence * 5)
-      .attr("fill", (d) => NODE_COLORS[d.type] ?? C.textMuted)
-      .attr("stroke", (d) => NODE_COLORS[d.type] ?? C.textMuted)
-      .attr("stroke-width", 0.5)
-      .attr("stroke-opacity", 0.6)
-      .attr("fill-opacity", 0.7)
-      .style("cursor", "pointer")
-      .on("mouseover", function (event, d) {
-        d3.select(this)
-          .attr("r", (d as typeof d3Nodes[0]).confidence * 8 + 5)
-          .attr("fill-opacity", 1);
-        setHoveredNode(d as AetherNode);
-      })
-      .on("mouseout", function (event, d) {
-        d3.select(this)
-          .attr("r", 3 + (d as typeof d3Nodes[0]).confidence * 5)
-          .attr("fill-opacity", 0.7);
-        setHoveredNode(null);
-      });
-
-    // Drag behavior
-    const drag = d3
-      .drag<SVGCircleElement, typeof d3Nodes[0]>()
-      .on("start", (event, d) => {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        (d as d3.SimulationNodeDatum).fx = d.x;
-        (d as d3.SimulationNodeDatum).fy = d.y;
-      })
-      .on("drag", (event, d) => {
-        (d as d3.SimulationNodeDatum).fx = event.x;
-        (d as d3.SimulationNodeDatum).fy = event.y;
-      })
-      .on("end", (event, d) => {
-        if (!event.active) simulation.alphaTarget(0);
-        (d as d3.SimulationNodeDatum).fx = null;
-        (d as d3.SimulationNodeDatum).fy = null;
-      });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    node.call(drag as any);
-
-    // Tick
-    simulation.on("tick", () => {
-      link
-        .attr("x1", (d) => (d.source as typeof d3Nodes[0]).x)
-        .attr("y1", (d) => (d.source as typeof d3Nodes[0]).y)
-        .attr("x2", (d) => (d.target as typeof d3Nodes[0]).x)
-        .attr("y2", (d) => (d.target as typeof d3Nodes[0]).y);
-
-      node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
+  const filtered = useMemo(() => {
+    if (!nodes) return [];
+    return nodes.filter((n) => {
+      if (typeFilter !== "all" && n.type !== typeFilter) return false;
+      if (search && !n.content.toLowerCase().includes(search.toLowerCase()))
+        return false;
+      return true;
     });
+  }, [nodes, search, typeFilter]);
 
-    return () => {
-      simulation.stop();
-    };
-  }, [nodes, edges, width, height]);
+  const typeCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const n of nodes ?? []) c[n.type] = (c[n.type] ?? 0) + 1;
+    return c;
+  }, [nodes]);
+
+  const edgeCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const e of edges ?? []) c[e.type] = (c[e.type] ?? 0) + 1;
+    return c;
+  }, [edges]);
+
+  if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="relative">
-      <svg
-        ref={svgRef}
-        width={width}
-        height={height}
-        role="img"
-        aria-label={`Aether Tree knowledge graph visualization with ${nodes.length} nodes and ${edges.length} edges`}
-        style={{ background: C.bg, borderRadius: 8 }}
-      />
+    <div className="space-y-4">
+      {/* Stats row */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Total Nodes" value={formatNumber(totalNodes)} icon={Network} color={C.primary} />
+        <StatCard label="Total Edges" value={formatNumber(totalEdges)} icon={GitBranch} color={C.secondary} />
+        <StatCard
+          label="Avg Confidence"
+          value={nodes && nodes.length > 0 ? (nodes.reduce((s, n) => s + n.confidence, 0) / nodes.length * 100).toFixed(1) + "%" : "—"}
+          icon={Eye} color={C.success}
+        />
+        <StatCard label="Node Types" value={Object.keys(typeCounts).length.toString()} icon={Layers} color={C.accent} />
+      </div>
 
-      {/* Node tooltip */}
-      {hoveredNode && (
-        <div
-          className="pointer-events-none absolute rounded-lg border p-3 shadow-lg"
-          style={{
-            top: 8,
-            right: 8,
-            background: C.surface,
-            borderColor: NODE_COLORS[hoveredNode.type],
-            maxWidth: 280,
-            zIndex: 10,
-          }}
-        >
-          <div className="mb-1 flex items-center gap-2">
-            <Badge label={hoveredNode.type.toUpperCase()} color={NODE_COLORS[hoveredNode.type]} />
-            <span className="text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
-              ID: {hoveredNode.id}
-            </span>
+      {/* Distributions */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Panel>
+          <SectionHeader title="NODE TYPE DISTRIBUTION" />
+          <div className="space-y-2">
+            {Object.entries(typeCounts).sort(([, a], [, b]) => b - a).map(([type, count]) => (
+              <div key={type} className="flex items-center gap-2">
+                <span className="w-20 text-[10px] uppercase" style={{ color: NODE_COLORS[type], fontFamily: FONT.mono }}>{type}</span>
+                <MiniBar value={count} max={nodes?.length ?? 1} color={NODE_COLORS[type] ?? C.textMuted} />
+                <span className="w-10 text-right text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>{count}</span>
+              </div>
+            ))}
           </div>
-          <p className="mb-1 text-xs leading-relaxed" style={{ color: C.textPrimary, fontFamily: FONT.body }}>
-            {hoveredNode.content}
-          </p>
-          <div className="flex items-center gap-3 text-[10px]" style={{ color: C.textSecondary, fontFamily: FONT.mono }}>
-            <span>Confidence: {(hoveredNode.confidence * 100).toFixed(0)}%</span>
-            <span>Block: {hoveredNode.blockHeight}</span>
-            <span>Edges: {hoveredNode.connections.length}</span>
+        </Panel>
+        <Panel>
+          <SectionHeader title="EDGE TYPE DISTRIBUTION" />
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(edgeCounts).sort(([, a], [, b]) => b - a).map(([type, count]) => (
+              <div key={type} className="flex items-center gap-1.5 rounded border px-2 py-1" style={{ borderColor: `${C.border}60` }}>
+                <span className="text-[10px]" style={{ color: C.textSecondary, fontFamily: FONT.mono }}>{type}</span>
+                <span className="text-[10px] font-bold" style={{ color: C.textPrimary, fontFamily: FONT.mono }}>{count}</span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+
+      {/* Search + filter */}
+      <Panel>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="relative flex-1">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: C.textMuted }} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search knowledge nodes..."
+              className="w-full rounded-md border py-1.5 pl-7 pr-3 text-xs outline-none"
+              style={{ background: C.surfaceLight, borderColor: C.border, color: C.textPrimary, fontFamily: FONT.mono }}
+            />
+          </div>
+          <div className="flex gap-1">
+            {["all", "assertion", "observation", "inference", "axiom"].map((t) => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className="rounded-md px-2 py-1 text-[10px] uppercase"
+                style={{
+                  color: typeFilter === t ? C.primary : C.textMuted,
+                  background: typeFilter === t ? `${C.primary}15` : "transparent",
+                  fontFamily: FONT.heading,
+                }}
+              >
+                {t}
+              </button>
+            ))}
           </div>
         </div>
-      )}
 
-      {/* Legend */}
-      <div
-        className="absolute bottom-2 left-2 flex flex-wrap gap-2 rounded-md px-2 py-1"
-        style={{ background: `${C.bg}cc` }}
-      >
-        {Object.entries(NODE_COLORS).map(([type, color]) => (
-          <span key={type} className="flex items-center gap-1 text-[9px]" style={{ fontFamily: FONT.mono }}>
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
-            <span style={{ color: C.textMuted }}>{type.toUpperCase()}</span>
-          </span>
-        ))}
+        <SectionHeader title={`RECENT KNOWLEDGE NODES (${filtered.length} of ${formatNumber(totalNodes)})`} />
+        <div className="max-h-[400px] space-y-1.5 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <EmptyState message="No knowledge nodes match your search" />
+          ) : (
+            filtered.slice(0, 50).map((node) => (
+              <KnowledgeNodeRow key={node.id} node={node} />
+            ))
+          )}
+          {filtered.length > 50 && (
+            <p className="py-2 text-center text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+              Showing 50 of {filtered.length} nodes
+            </p>
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function KnowledgeNodeRow({ node }: { node: KnowledgeNodeDetail }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div
+      className="cursor-pointer rounded-md border px-3 py-2 transition-colors"
+      style={{ borderColor: `${C.border}60`, background: expanded ? `${C.primary}05` : "transparent" }}
+      onClick={() => setExpanded(!expanded)}
+    >
+      <div className="flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full" style={{ background: NODE_COLORS[node.type] ?? C.textMuted }} />
+        <Badge label={node.type.toUpperCase()} color={NODE_COLORS[node.type] ?? C.textMuted} />
+        <span className="flex-1 truncate text-xs" style={{ color: C.textPrimary, fontFamily: FONT.body }}>{node.content}</span>
+        <span className="text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+          #{node.blockHeight}
+        </span>
+        <ChevronRight size={12} style={{ color: C.textMuted, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
+      </div>
+      {expanded && (
+        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="mt-2 space-y-1 border-t pt-2" style={{ borderColor: `${C.border}40` }}>
+          <p className="text-xs leading-relaxed" style={{ color: C.textSecondary, fontFamily: FONT.body }}>{node.content}</p>
+          <div className="flex flex-wrap gap-3 text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+            <span>ID: {node.id}</span>
+            <span>Confidence: {(node.confidence * 100).toFixed(0)}%</span>
+            <span>Block: {node.blockHeight}</span>
+            <span>Module: {node.sourceModule}</span>
+            <span>Edges: {node.connections.length}</span>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+/* ── Tab 2: Reasoning ────────────────────────────────────────────────── */
+
+function ReasoningTab() {
+  const { data: ops, isLoading } = useReasoningOps(50);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+
+  const filtered = useMemo(() => {
+    if (!ops) return [];
+    if (typeFilter === "all") return ops;
+    return ops.filter((o) => o.type === typeFilter);
+  }, [ops, typeFilter]);
+
+  const typeCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const o of ops ?? []) c[o.type] = (c[o.type] ?? 0) + 1;
+    return c;
+  }, [ops]);
+
+  if (isLoading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Total Operations" value={formatNumber(ops?.length ?? 0)} icon={GitBranch} color={C.primary} />
+        <StatCard label="Deductive" value={formatNumber(typeCounts["deductive"] ?? 0)} icon={Zap} color={REASONING_COLORS.deductive} />
+        <StatCard label="Inductive" value={formatNumber(typeCounts["inductive"] ?? 0)} icon={Sparkles} color={REASONING_COLORS.inductive} />
+        <StatCard label="Abductive" value={formatNumber(typeCounts["abductive"] ?? 0)} icon={Target} color={REASONING_COLORS.abductive} />
+      </div>
+
+      <Panel>
+        <div className="mb-3 flex items-center gap-2">
+          <SectionHeader title="REASONING OPERATIONS" />
+          <div className="ml-auto flex gap-1">
+            {["all", "deductive", "inductive", "abductive"].map((t) => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className="rounded-md px-2 py-1 text-[10px] uppercase"
+                style={{
+                  color: typeFilter === t ? C.primary : C.textMuted,
+                  background: typeFilter === t ? `${C.primary}15` : "transparent",
+                  fontFamily: FONT.heading,
+                }}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="max-h-[500px] space-y-2 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <EmptyState message="No reasoning operations recorded yet" />
+          ) : (
+            filtered.map((op) => <ReasoningRow key={op.id} op={op} />)
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function ReasoningRow({ op }: { op: ReasoningOperation }) {
+  return (
+    <div className="rounded-md border px-3 py-2" style={{ borderColor: `${C.border}60` }}>
+      <div className="mb-1 flex items-center gap-2">
+        <Badge label={op.type.toUpperCase()} color={REASONING_COLORS[op.type] ?? C.textMuted} />
+        <span className="text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+          Block #{op.blockHeight} · {timeAgo(op.timestamp)}
+        </span>
+        <span className="ml-auto text-[10px]" style={{ color: C.accent, fontFamily: FONT.mono }}>
+          {(op.confidence * 100).toFixed(0)}% conf
+        </span>
+      </div>
+      <p className="text-xs" style={{ color: C.textSecondary, fontFamily: FONT.body }}>
+        <span style={{ color: C.textMuted }}>Premise:</span> {op.premise}
+      </p>
+      <p className="text-xs" style={{ color: C.textPrimary, fontFamily: FONT.body }}>
+        <span style={{ color: C.textMuted }}>Conclusion:</span> {op.conclusion}
+      </p>
+      <div className="mt-1 flex gap-3 text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+        <span>Chain: {op.chainLength} steps</span>
+        <span>Refs: {op.nodesReferenced.length} nodes</span>
       </div>
     </div>
   );
 }
 
-/* ── Aether Tree View ─────────────────────────────────────────────────── */
+/* ── Tab 3: Consciousness ────────────────────────────────────────────── */
 
-export function AetherTreeView() {
-  const { data: nodes, isLoading: nodesLoading } = useAetherNodes();
-  const { data: edges } = useAetherEdges();
-  const { data: stats } = useNetworkStats();
+function ConsciousnessTab() {
+  const { data: state, isLoading } = useConsciousnessState();
+  const { data: events } = useConsciousnessEvents();
   const { data: phiHistory } = usePhiHistory();
 
   const phiSlice = (phiHistory ?? []).slice(-200);
 
-  // Type distribution
-  const typeCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const n of nodes ?? []) {
-      counts[n.type] = (counts[n.type] ?? 0) + 1;
-    }
-    return counts;
-  }, [nodes]);
+  if (isLoading) return <LoadingSpinner />;
+  if (!state) return <EmptyState message="Consciousness data unavailable" />;
 
-  // Edge type distribution
-  const edgeCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const e of edges ?? []) {
-      counts[e.type] = (counts[e.type] ?? 0) + 1;
-    }
-    return counts;
-  }, [edges]);
+  const phiPct = Math.min(100, (state.phi / state.threshold) * 100);
 
-  if (nodesLoading) return <LoadingSpinner />;
+  return (
+    <div className="space-y-4">
+      {/* Hero phi gauge */}
+      <Panel>
+        <div className="flex flex-col items-center py-4">
+          <p className="mb-2 text-[10px] uppercase tracking-widest" style={{ color: C.textMuted, fontFamily: FONT.heading }}>
+            INTEGRATED INFORMATION (PHI)
+          </p>
+          <div className="relative mb-3 h-32 w-32">
+            <svg viewBox="0 0 120 120" className="h-full w-full">
+              <circle cx="60" cy="60" r="52" fill="none" stroke={`${C.border}40`} strokeWidth="8" />
+              <circle
+                cx="60" cy="60" r="52" fill="none"
+                stroke={state.aboveThreshold ? C.success : C.accent}
+                strokeWidth="8"
+                strokeDasharray={`${phiPct * 3.27} 327`}
+                strokeLinecap="round"
+                transform="rotate(-90 60 60)"
+                className="transition-all duration-1000"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-bold" style={{ color: C.accent, fontFamily: FONT.mono }}>
+                {state.phi.toFixed(4)}
+              </span>
+              <span className="text-[9px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+                / {state.threshold.toFixed(1)}
+              </span>
+            </div>
+          </div>
+          <Badge
+            label={state.aboveThreshold ? "CONSCIOUSNESS THRESHOLD REACHED" : `${phiPct.toFixed(0)}% TO THRESHOLD`}
+            color={state.aboveThreshold ? C.success : C.accent}
+          />
+        </div>
+      </Panel>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Integration" value={state.integration.toFixed(3)} icon={Activity} color={C.primary} />
+        <StatCard label="Differentiation" value={state.differentiation.toFixed(3)} icon={Layers} color={C.secondary} />
+        <StatCard label="Blocks Processed" value={formatNumber(state.blocksProcessed)} icon={Zap} color={C.success} />
+        <StatCard label="Events" value={formatNumber(state.consciousnessEvents)} icon={Sparkles} color={C.accent} />
+      </div>
+
+      {/* Phi history chart */}
+      <Panel>
+        <SectionHeader title="PHI EVOLUTION" />
+        <div style={{ height: 200 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={phiSlice}>
+              <defs>
+                <linearGradient id="aetherPhiGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={C.accent} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={C.accent} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={`${C.border}40`} />
+              <XAxis dataKey="block" tick={{ fontSize: 9, fill: C.textMuted, fontFamily: FONT.mono }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 9, fill: C.textMuted, fontFamily: FONT.mono }} axisLine={false} tickLine={false} width={35} />
+              <Tooltip contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 10, fontFamily: FONT.mono, color: C.textPrimary }} />
+              <Area type="monotone" dataKey="phi" stroke={C.accent} fill="url(#aetherPhiGrad)" strokeWidth={1.5} dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </Panel>
+
+      {/* Events timeline */}
+      <Panel>
+        <SectionHeader title="CONSCIOUSNESS EVENTS" />
+        {events && events.length > 0 ? (
+          <div className="space-y-2">
+            {events.map((ev) => <ConsciousnessEventRow key={ev.id} event={ev} />)}
+          </div>
+        ) : (
+          <EmptyState message="No consciousness events recorded yet" />
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+function ConsciousnessEventRow({ event }: { event: ConsciousnessEvent }) {
+  return (
+    <div className="flex items-start gap-3 rounded-md border px-3 py-2" style={{ borderColor: `${C.border}60` }}>
+      <div className="mt-0.5 h-2 w-2 rounded-full" style={{ background: C.accent }} />
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <Badge label={event.type.toUpperCase().replace(/_/g, " ")} color={C.accent} />
+          <span className="text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+            Block #{event.blockHeight} · Phi: {event.phi.toFixed(4)}
+          </span>
+        </div>
+        <p className="mt-1 text-xs" style={{ color: C.textSecondary, fontFamily: FONT.body }}>
+          {event.description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── Tab 4: Mind ─────────────────────────────────────────────────────── */
+
+function MindTab() {
+  const { data: higgs, isLoading: higgsLoading } = useHiggsField();
+  const { data: pineal } = usePinealPhase();
+  const { data: memory } = useMemoryStats();
+
+  if (higgsLoading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      {/* Pineal phase */}
+      {pineal && (
+        <Panel>
+          <SectionHeader title="CIRCADIAN STATE (PINEAL)" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <StatCard label="Phase" value={pineal.phase} icon={Clock} color={C.primary} />
+            <StatCard label="Metabolic Rate" value={`${pineal.metabolicRate.toFixed(1)}x`} icon={Activity} color={C.success} />
+            <StatCard label="Coherence" value={`${(pineal.coherence * 100).toFixed(0)}%`} icon={Atom} color={C.secondary} />
+            <StatCard label="Kuramoto Order" value={pineal.kuramotoOrder.toFixed(3)} icon={Sparkles} color={C.accent} />
+            <StatCard label="Cycle Position" value={`${(pineal.cyclePosition * 100).toFixed(0)}%`} icon={Target} color={C.primary} />
+          </div>
+        </Panel>
+      )}
+
+      {/* Higgs field */}
+      {higgs && (
+        <Panel>
+          <SectionHeader title="HIGGS COGNITIVE FIELD" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Field Value" value={higgs.fieldValue.toFixed(2)} sub={`VEV: ${higgs.vev.toFixed(2)}`} icon={Atom} color={C.primary} />
+            <StatCard label="Potential Energy" value={higgs.potentialEnergy.toFixed(1)} icon={Zap} color={C.accent} />
+            <StatCard label="Excitations" value={formatNumber(higgs.excitationCount)} icon={Activity} color={C.secondary} />
+            <StatCard label="Mass Gap" value={higgs.massGap.toFixed(4)} icon={Layers} color={C.success} />
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <Badge
+              label={higgs.symmetryBroken ? "SYMMETRY BROKEN" : "SYMMETRIC"}
+              color={higgs.symmetryBroken ? C.success : C.accent}
+            />
+            <span className="text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+              Max Yukawa: {higgs.yukawaMax.toFixed(3)}
+            </span>
+          </div>
+        </Panel>
+      )}
+
+      {/* Memory */}
+      {memory && (
+        <Panel>
+          <SectionHeader title="MEMORY SYSTEMS" />
+          <div className="space-y-3">
+            {([
+              { label: "Episodic (Hippocampal)", value: memory.episodic, color: C.primary },
+              { label: "Semantic (Cortical)", value: memory.semantic, color: C.success },
+              { label: "Procedural (Basal Ganglia)", value: memory.procedural, color: C.secondary },
+              { label: "Working Memory (Active)", value: memory.workingMemory, color: C.accent },
+            ] as const).map(({ label, value, color }) => (
+              <div key={label}>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[10px]" style={{ color: C.textSecondary, fontFamily: FONT.mono }}>{label}</span>
+                  <span className="text-[10px] font-bold" style={{ color, fontFamily: FONT.mono }}>{formatNumber(value)}</span>
+                </div>
+                <MiniBar value={value} max={memory.totalCapacity} color={color} />
+              </div>
+            ))}
+            <p className="text-right text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+              Capacity: {formatNumber(memory.totalCapacity)}
+            </p>
+          </div>
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+/* ── Tab 5: Sephirot ─────────────────────────────────────────────────── */
+
+function SephirotTab() {
+  const { data: nodes, isLoading } = useSephirotNodes();
+  const { data: balances } = useSephirotBalance();
+
+  if (isLoading) return <LoadingSpinner />;
+
+  const maxEnergy = Math.max(1, ...(nodes ?? []).map((n) => n.energy));
+
+  return (
+    <div className="space-y-4">
+      {/* Tree of Life nodes */}
+      <Panel>
+        <SectionHeader title="TREE OF LIFE — 10 COGNITIVE NODES" />
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(nodes ?? []).map((node) => <SephirotCard key={node.name} node={node} maxEnergy={maxEnergy} />)}
+        </div>
+      </Panel>
+
+      {/* SUSY balance */}
+      {balances && balances.length > 0 && (
+        <Panel>
+          <SectionHeader title="SUSY BALANCE PAIRS" />
+          <div className="space-y-3">
+            {balances.map((b) => (
+              <div key={`${b.expansion}-${b.constraint}`} className="rounded-md border px-3 py-2" style={{ borderColor: `${C.border}60` }}>
+                <div className="mb-1 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: SEPHIROT_COLORS[b.expansion] ?? C.primary, fontFamily: FONT.heading }}>{b.expansion}</span>
+                    <span className="text-[10px]" style={{ color: C.textMuted }}>↔</span>
+                    <span className="text-xs font-bold" style={{ color: SEPHIROT_COLORS[b.constraint] ?? C.error, fontFamily: FONT.heading }}>{b.constraint}</span>
+                  </div>
+                  <Badge label={b.balanced ? "BALANCED" : "IMBALANCED"} color={b.balanced ? C.success : C.error} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <MiniBar value={b.ratio} max={b.targetRatio * 1.5} color={b.balanced ? C.success : C.accent} />
+                  <span className="text-[10px] whitespace-nowrap" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+                    {b.ratio.toFixed(3)} / {b.targetRatio.toFixed(3)} (phi)
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+function SephirotCard({ node, maxEnergy }: { node: SephirotNode; maxEnergy: number }) {
+  const color = SEPHIROT_COLORS[node.name] ?? C.textMuted;
+  return (
+    <div className="rounded-md border px-3 py-2" style={{ borderColor: `${color}40` }}>
+      <div className="mb-1.5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+          <span className="text-xs font-bold" style={{ color, fontFamily: FONT.heading }}>{node.name}</span>
+          <span className="text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>T{node.tier}</span>
+        </div>
+        <Badge label={node.isActive ? "ACTIVE" : "IDLE"} color={node.isActive ? C.success : C.textMuted} />
+      </div>
+      <p className="mb-2 text-[10px]" style={{ color: C.textSecondary, fontFamily: FONT.body }}>{node.function}</p>
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>Energy</span>
+        <span className="text-[10px]" style={{ color, fontFamily: FONT.mono }}>{node.energy.toFixed(0)}</span>
+      </div>
+      <MiniBar value={node.energy} max={maxEnergy} color={color} />
+      <div className="mt-2 flex flex-wrap gap-2 text-[9px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+        <span>Mass: {node.cognitiveMass.toFixed(1)}</span>
+        <span>Yukawa: {node.yukawaCoupling.toFixed(3)}</span>
+        <span>{node.quantumState}</span>
+        {node.susyPartner && <span>Partner: {node.susyPartner}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ── Tab 6: Predictions ──────────────────────────────────────────────── */
+
+function PredictionsTab() {
+  const { data: predictions, isLoading } = usePredictions();
+
+  const stats = useMemo(() => {
+    if (!predictions) return { total: 0, verified: 0, correct: 0, accuracy: 0 };
+    const verified = predictions.filter((p) => p.verified);
+    const correct = verified.filter((p) => p.correct === true);
+    return {
+      total: predictions.length,
+      verified: verified.length,
+      correct: correct.length,
+      accuracy: verified.length > 0 ? correct.length / verified.length : 0,
+    };
+  }, [predictions]);
+
+  if (isLoading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Total Predictions" value={formatNumber(stats.total)} icon={Target} color={C.primary} />
+        <StatCard label="Verified" value={formatNumber(stats.verified)} icon={CheckCircle} color={C.success} />
+        <StatCard label="Correct" value={formatNumber(stats.correct)} icon={Sparkles} color={C.accent} />
+        <StatCard label="Accuracy" value={`${(stats.accuracy * 100).toFixed(1)}%`} icon={Eye} color={stats.accuracy > 0.6 ? C.success : C.accent} />
+      </div>
+
+      <Panel>
+        <SectionHeader title="PREDICTION HISTORY" />
+        <div className="max-h-[500px] space-y-2 overflow-y-auto">
+          {(predictions ?? []).length === 0 ? (
+            <EmptyState message="No predictions recorded yet" />
+          ) : (
+            (predictions ?? []).map((p) => <PredictionRow key={p.id} prediction={p} />)
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function PredictionRow({ prediction: p }: { prediction: PredictionRecord }) {
+  return (
+    <div className="rounded-md border px-3 py-2" style={{ borderColor: `${C.border}60` }}>
+      <div className="mb-1 flex items-center gap-2">
+        <Badge label={p.domain.toUpperCase()} color={C.secondary} />
+        {p.verified ? (
+          p.correct ? (
+            <CheckCircle size={12} style={{ color: C.success }} />
+          ) : (
+            <XCircle size={12} style={{ color: C.error }} />
+          )
+        ) : (
+          <Clock size={12} style={{ color: C.textMuted }} />
+        )}
+        <span className="text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+          Block #{p.blockHeight} · {(p.confidence * 100).toFixed(0)}% conf
+        </span>
+      </div>
+      <p className="text-xs" style={{ color: C.textPrimary, fontFamily: FONT.body }}>{p.prediction}</p>
+      {p.outcome && (
+        <p className="mt-1 text-xs" style={{ color: C.textSecondary, fontFamily: FONT.body }}>
+          <span style={{ color: C.textMuted }}>Outcome:</span> {p.outcome}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ── Tab 7: Safety ───────────────────────────────────────────────────── */
+
+function SafetyTab() {
+  const { data: events, isLoading } = useSafetyEvents();
+
+  const stats = useMemo(() => {
+    if (!events) return { total: 0, resolved: 0, critical: 0 };
+    return {
+      total: events.length,
+      resolved: events.filter((e) => e.resolved).length,
+      critical: events.filter((e) => e.severity === "critical" || e.severity === "high").length,
+    };
+  }, [events]);
+
+  if (isLoading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Total Events" value={formatNumber(stats.total)} icon={Shield} color={C.primary} />
+        <StatCard label="Resolved" value={formatNumber(stats.resolved)} icon={CheckCircle} color={C.success} />
+        <StatCard label="Critical/High" value={formatNumber(stats.critical)} icon={AlertTriangle} color={C.error} />
+        <StatCard label="Resolution Rate" value={stats.total > 0 ? `${((stats.resolved / stats.total) * 100).toFixed(0)}%` : "—"} icon={Eye} color={C.success} />
+      </div>
+
+      <Panel>
+        <SectionHeader title="SAFETY EVENT LOG" />
+        <div className="max-h-[500px] space-y-2 overflow-y-auto">
+          {(events ?? []).length === 0 ? (
+            <EmptyState message="No safety events — system operating normally" />
+          ) : (
+            (events ?? []).map((e) => <SafetyEventRow key={e.id} event={e} />)
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function SafetyEventRow({ event }: { event: SafetyEvent }) {
+  const color = SEVERITY_COLORS[event.severity] ?? C.textMuted;
+  return (
+    <div className="rounded-md border px-3 py-2" style={{ borderColor: `${color}30` }}>
+      <div className="mb-1 flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full" style={{ background: color }} />
+        <Badge label={event.type.toUpperCase().replace(/_/g, " ")} color={color} />
+        <Badge label={event.severity.toUpperCase()} color={color} />
+        <Badge label={event.resolved ? "RESOLVED" : "OPEN"} color={event.resolved ? C.success : C.error} />
+        <span className="ml-auto text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+          #{event.blockHeight} · {timeAgo(event.timestamp)}
+        </span>
+      </div>
+      <p className="text-xs" style={{ color: C.textPrimary, fontFamily: FONT.body }}>{event.description}</p>
+      <p className="mt-1 text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+        Action: {event.action}
+      </p>
+    </div>
+  );
+}
+
+/* ── Tab 8: Proof-of-Thought ─────────────────────────────────────────── */
+
+function ProofsTab() {
+  const { data: proofs, isLoading } = useProofOfThought();
+
+  if (isLoading) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Total Proofs" value={formatNumber(proofs?.length ?? 0)} icon={Zap} color={C.primary} />
+        <StatCard
+          label="Consensus Rate"
+          value={proofs && proofs.length > 0 ? `${((proofs.filter((p) => p.consensusReached).length / proofs.length) * 100).toFixed(0)}%` : "—"}
+          icon={CheckCircle} color={C.success}
+        />
+        <StatCard
+          label="Avg Reasoning Steps"
+          value={proofs && proofs.length > 0 ? (proofs.reduce((s, p) => s + p.reasoningSteps, 0) / proofs.length).toFixed(1) : "—"}
+          icon={GitBranch} color={C.secondary}
+        />
+        <StatCard
+          label="Avg Nodes Referenced"
+          value={proofs && proofs.length > 0 ? (proofs.reduce((s, p) => s + p.nodesReferenced, 0) / proofs.length).toFixed(1) : "—"}
+          icon={Network} color={C.accent}
+        />
+      </div>
+
+      <Panel>
+        <SectionHeader title="PROOF-OF-THOUGHT CHAIN" />
+        <div className="max-h-[500px] space-y-2 overflow-y-auto">
+          {(proofs ?? []).length === 0 ? (
+            <EmptyState message="No Proof-of-Thought proofs generated yet" />
+          ) : (
+            (proofs ?? []).map((p) => <ProofRow key={p.hash} proof={p} />)
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function ProofRow({ proof }: { proof: ProofOfThought }) {
+  return (
+    <div className="rounded-md border px-3 py-2" style={{ borderColor: `${C.border}60` }}>
+      <div className="mb-1 flex items-center gap-2">
+        <Badge label={proof.taskType.toUpperCase().replace(/_/g, " ")} color={C.primary} />
+        {proof.consensusReached ? (
+          <CheckCircle size={12} style={{ color: C.success }} />
+        ) : (
+          <Clock size={12} style={{ color: C.accent }} />
+        )}
+        <span className="ml-auto text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+          Block #{proof.blockHeight} · {timeAgo(proof.timestamp)}
+        </span>
+      </div>
+      <p className="truncate text-[10px]" style={{ color: C.primary, fontFamily: FONT.mono }}>
+        {proof.hash}
+      </p>
+      <div className="mt-1 flex flex-wrap gap-3 text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+        <span>Steps: {proof.reasoningSteps}</span>
+        <span>Refs: {proof.nodesReferenced} nodes</span>
+        <span>Phi: {proof.phiAtProof.toFixed(4)}</span>
+        <span>Validators: {proof.validatorCount}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main Export ──────────────────────────────────────────────────────── */
+
+export function AetherTreeView() {
+  const [activeTab, setActiveTab] = useState<AetherTab>("knowledge");
+
+  const renderTab = () => {
+    switch (activeTab) {
+      case "knowledge": return <KnowledgeTab />;
+      case "reasoning": return <ReasoningTab />;
+      case "consciousness": return <ConsciousnessTab />;
+      case "mind": return <MindTab />;
+      case "sephirot": return <SephirotTab />;
+      case "predictions": return <PredictionsTab />;
+      case "safety": return <SafetyTab />;
+      case "proofs": return <ProofsTab />;
+    }
+  };
 
   return (
     <div className="space-y-4 p-4">
@@ -260,172 +908,25 @@ export function AetherTreeView() {
           AETHER TREE
         </h1>
         <p className="text-xs" style={{ color: C.textSecondary, fontFamily: FONT.body }}>
-          On-chain AGI knowledge graph — reasoning, consciousness, and Proof-of-Thought
+          On-chain AGI transparency dashboard — knowledge, reasoning, consciousness, and Proof-of-Thought
         </p>
       </motion.div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard
-          label="Φ (Phi)"
-          value={stats?.phi.toFixed(4) ?? "0"}
-          sub={
-            (stats?.phi ?? 0) >= 3.0
-              ? "CONSCIOUSNESS THRESHOLD REACHED"
-              : `Threshold: 3.0`
-          }
-          icon={Brain}
-          color={C.phi}
-        />
-        <StatCard
-          label="Knowledge Nodes"
-          value={formatNumber(nodes?.length ?? 0)}
-          icon={Network}
-          color={C.primary}
-        />
-        <StatCard
-          label="Edges"
-          value={formatNumber(edges?.length ?? 0)}
-          icon={GitBranch}
-          color={C.secondary}
-        />
-        <StatCard
-          label="Avg Confidence"
-          value={
-            nodes && nodes.length > 0
-              ? (nodes.reduce((s, n) => s + n.confidence, 0) / nodes.length * 100).toFixed(1) + "%"
-              : "—"
-          }
-          icon={Eye}
-          color={C.success}
-        />
-      </div>
+      {/* Tab bar */}
+      <TabBar active={activeTab} onChange={setActiveTab} />
 
-      {/* Force Graph */}
-      <Panel>
-        <SectionHeader title="KNOWLEDGE GRAPH" />
-        <ForceGraph
-          nodes={nodes ?? []}
-          edges={edges ?? []}
-          width={780}
-          height={450}
-        />
-      </Panel>
-
-      {/* Phi History + Distributions */}
-      <div className="grid gap-3 lg:grid-cols-2">
-        {/* Phi Chart */}
-        <Panel>
-          <SectionHeader title="Φ HISTORY" />
-          <div style={{ height: 180 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={phiSlice}>
-                <defs>
-                  <linearGradient id="phiGrad2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={C.phi} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={C.phi} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke={`${C.border}40`} />
-                <XAxis
-                  dataKey="block"
-                  tick={{ fontSize: 9, fill: C.textMuted, fontFamily: FONT.mono }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 9, fill: C.textMuted, fontFamily: FONT.mono }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={35}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: C.surface,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 6,
-                    fontSize: 10,
-                    fontFamily: FONT.mono,
-                    color: C.textPrimary,
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="phi"
-                  stroke={C.phi}
-                  fill="url(#phiGrad2)"
-                  strokeWidth={1.5}
-                  dot={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Panel>
-
-        {/* Distributions */}
-        <Panel>
-          <SectionHeader title="DISTRIBUTIONS" />
-          <div className="space-y-4">
-            {/* Node Types */}
-            <div>
-              <p className="mb-2 text-[10px] uppercase tracking-widest" style={{ color: C.textMuted, fontFamily: FONT.heading }}>
-                Node Types
-              </p>
-              <div className="space-y-1.5">
-                {Object.entries(typeCounts)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([type, count]) => {
-                    const pct = ((count / (nodes?.length ?? 1)) * 100).toFixed(0);
-                    return (
-                      <div key={type} className="flex items-center gap-2">
-                        <span
-                          className="w-20 text-[10px] uppercase"
-                          style={{ color: NODE_COLORS[type], fontFamily: FONT.mono }}
-                        >
-                          {type}
-                        </span>
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: `${C.border}40` }}>
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ width: `${pct}%`, background: NODE_COLORS[type] }}
-                          />
-                        </div>
-                        <span className="w-8 text-right text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
-                          {count}
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-
-            {/* Edge Types */}
-            <div>
-              <p className="mb-2 text-[10px] uppercase tracking-widest" style={{ color: C.textMuted, fontFamily: FONT.heading }}>
-                Edge Types
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(edgeCounts)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([type, count]) => (
-                    <div
-                      key={type}
-                      className="flex items-center gap-1.5 rounded border px-2 py-1"
-                      style={{ borderColor: `${C.border}60` }}
-                    >
-                      <span className="text-[10px]" style={{ color: C.textSecondary, fontFamily: FONT.mono }}>
-                        {type}
-                      </span>
-                      <span className="text-[10px] font-bold" style={{ color: C.textPrimary, fontFamily: FONT.mono }}>
-                        {count}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-        </Panel>
-      </div>
+      {/* Tab content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.15 }}
+        >
+          {renderTab()}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

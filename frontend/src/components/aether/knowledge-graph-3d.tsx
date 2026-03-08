@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useMemo, useCallback, useState, Component, type ReactNode, type ErrorInfo } from "react";
+import { useRef, useMemo, useCallback, useState, useEffect, Component, type ReactNode, type ErrorInfo } from "react";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
-import { OrbitControls, Text } from "@react-three/drei";
+import { OrbitControls, Html } from "@react-three/drei";
 import { useQuery } from "@tanstack/react-query";
 import { api, type KnowledgeGraphData, type KnowledgeGraphNode, type KnowledgeGraphEdge } from "@/lib/api";
 import { Card } from "@/components/ui/card";
@@ -242,9 +242,9 @@ function layoutNodes(
 
   const useBH = allPositions.length >= BH_MIN_NODES;
 
-  // Run 80 iterations of force simulation
-  for (let iter = 0; iter < 80; iter++) {
-    const cooling = 1 - iter / 80;
+  // Run 40 iterations of force simulation (reduced for browser performance)
+  for (let iter = 0; iter < 40; iter++) {
+    const cooling = 1 - iter / 40;
     const repulsionStrength = -0.8 * cooling;
 
     if (useBH) {
@@ -439,17 +439,11 @@ function GraphNode({
         />
       </mesh>
       {isSephirot && !dimmed && (
-        <Text
-          position={[0, size + 0.15, 0]}
-          fontSize={0.14}
-          color={color}
-          anchorX="center"
-          anchorY="bottom"
-          outlineWidth={0.008}
-          outlineColor="#0a0a0f"
-        >
-          {node.sephirot_name}
-        </Text>
+        <Html position={[0, size + 0.2, 0]} center style={{ pointerEvents: "none" }}>
+          <span className="whitespace-nowrap text-[11px] font-semibold drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" style={{ color }}>
+            {node.sephirot_name}
+          </span>
+        </Html>
       )}
     </group>
   );
@@ -537,29 +531,34 @@ function GraphScene({
   const [labelPos, setLabelPos] = useState<[number, number, number]>([0, 0, 0]);
 
   const { positions, posMap, visibleEdges, nodeMap } = useMemo(() => {
-    // Cap nodes to prevent browser freeze — keep sephirot + sample of regular nodes
-    const MAX_RENDER_NODES = 300;
-    let nodes = data.nodes;
-    let edges = data.edges;
-    if (nodes.length > MAX_RENDER_NODES) {
-      const sephirot = nodes.filter((n) => n.node_type === "sephirot");
-      const regular = nodes.filter((n) => n.node_type !== "sephirot");
-      // Take most recent nodes (highest source_block)
-      regular.sort((a, b) => (b.source_block ?? 0) - (a.source_block ?? 0));
-      nodes = [...sephirot, ...regular.slice(0, MAX_RENDER_NODES - sephirot.length)];
-      const nodeIds = new Set(nodes.map((n) => n.id));
-      edges = edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-    }
-    // Build O(1) node lookup map
-    const nm = new Map<number, KnowledgeGraphNode>();
-    for (const n of nodes) nm.set(n.id, n);
+    try {
+      // Cap nodes to prevent browser freeze — keep sephirot + sample of regular nodes
+      const MAX_RENDER_NODES = 150;
+      let nodes = data.nodes;
+      let edges = data.edges;
+      if (nodes.length > MAX_RENDER_NODES) {
+        const sephirot = nodes.filter((n) => n.node_type === "sephirot");
+        const regular = nodes.filter((n) => n.node_type !== "sephirot");
+        // Take most recent nodes (highest source_block)
+        regular.sort((a, b) => (b.source_block ?? 0) - (a.source_block ?? 0));
+        nodes = [...sephirot, ...regular.slice(0, MAX_RENDER_NODES - sephirot.length)];
+        const nodeIds = new Set(nodes.map((n) => n.id));
+        edges = edges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+      }
+      // Build O(1) node lookup map
+      const nm = new Map<number, KnowledgeGraphNode>();
+      for (const n of nodes) nm.set(n.id, n);
 
-    const laidOut = layoutNodes(nodes, edges);
-    const pm = new Map<number, [number, number, number]>();
-    for (const p of laidOut) {
-      pm.set(p.id, [p.x, p.y, p.z]);
+      const laidOut = layoutNodes(nodes, edges);
+      const pm = new Map<number, [number, number, number]>();
+      for (const p of laidOut) {
+        pm.set(p.id, [p.x, p.y, p.z]);
+      }
+      return { positions: laidOut, posMap: pm, visibleEdges: edges, nodeMap: nm };
+    } catch (err) {
+      console.error("[KnowledgeGraph3D] Layout error:", err);
+      return { positions: [] as NodePosition[], posMap: new Map<number, [number, number, number]>(), visibleEdges: [] as KnowledgeGraphEdge[], nodeMap: new Map<number, KnowledgeGraphNode>() };
     }
-    return { positions: laidOut, posMap: pm, visibleEdges: edges, nodeMap: nm };
   }, [data]);
 
   // Determine which nodes are dimmed by the filter
@@ -624,18 +623,21 @@ function GraphScene({
         })}
       </RotatingGroup>
       {hoveredNode && (
-        <Text
-          position={labelPos}
-          fontSize={0.13}
-          color="#e2e8f0"
-          anchorX="center"
-          anchorY="bottom"
-          outlineWidth={0.01}
-          outlineColor="#0a0a0f"
-          maxWidth={4}
-        >
-          {`[${hoveredNode.node_type}] ${hoveredNode.content.slice(0, 60)}${hoveredNode.content.length > 60 ? "..." : ""}\nConf: ${(hoveredNode.confidence * 100).toFixed(0)}%${hoveredNode.source_block != null ? ` | Block #${hoveredNode.source_block}` : ""}${hoveredNode.contract_address ? `\nContract: ${hoveredNode.contract_address.slice(0, 10)}...${hoveredNode.contract_address.slice(-6)}` : ""}`}
-        </Text>
+        <Html position={labelPos} center style={{ pointerEvents: "none" }}>
+          <div className="rounded-md bg-bg-deep/90 px-2.5 py-1.5 text-[11px] text-text-primary shadow-lg backdrop-blur-sm border border-border-subtle max-w-[240px]">
+            <div className="font-semibold text-quantum-green">[{hoveredNode.node_type}]</div>
+            <div className="mt-0.5 text-text-secondary break-words">{hoveredNode.content.slice(0, 80)}{hoveredNode.content.length > 80 ? "..." : ""}</div>
+            <div className="mt-0.5 text-text-secondary">
+              Conf: {(hoveredNode.confidence * 100).toFixed(0)}%
+              {hoveredNode.source_block != null ? ` | Block #${hoveredNode.source_block}` : ""}
+            </div>
+            {hoveredNode.contract_address && (
+              <div className="mt-0.5 font-[family-name:var(--font-code)] text-[10px] text-quantum-violet">
+                {hoveredNode.contract_address.slice(0, 10)}...{hoveredNode.contract_address.slice(-6)}
+              </div>
+            )}
+          </div>
+        </Html>
       )}
     </>
   );
@@ -687,14 +689,22 @@ function FilterBtn({
 export function KnowledgeGraph3D() {
   const [activeNodeFilter, setActiveNodeFilter] = useState<NodeFilter>("all");
   const [hiddenEdgeTypes, setHiddenEdgeTypes] = useState<Set<string>>(new Set());
+  const [renderReady, setRenderReady] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["knowledgeGraph"],
-    queryFn: () => api.getKnowledgeGraph(500),
+    queryFn: () => api.getKnowledgeGraph(200),
     refetchInterval: 30_000,
     retry: 1,
     staleTime: 25_000,
   });
+
+  // Defer heavy 3D rendering to next frame so the card/filters paint first
+  // This prevents the browser from thinking the tab is unresponsive
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setRenderReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   // Count nodes by category for filter badges
   const nodeCounts = useMemo(() => {
@@ -784,7 +794,7 @@ export function KnowledgeGraph3D() {
             </div>
           </div>
         )}
-        {data && data.nodes.length > 0 && (
+        {data && data.nodes.length > 0 && renderReady && (
           <CanvasErrorBoundary
             fallback={
               <div className="absolute inset-0 flex items-center justify-center text-sm text-text-secondary">

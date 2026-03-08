@@ -169,6 +169,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     _rate_limit_sweep_counter = {'count': 0}
 
+    # Endpoints exempt from rate limiting (sync, health, chain data)
+    _RATE_LIMIT_EXEMPT_PREFIXES = (
+        '/block/', '/chain/info', '/chain/tip', '/health',
+        '/snapshots/', '/sync/', '/metrics',
+    )
+
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next):
         """In-memory rate limiter — per IP, per minute, stricter for write endpoints."""
@@ -177,6 +183,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         now = _time.time()
         window = 60.0  # 1 minute window
         path = request.url.path
+
+        # Skip rate limiting for sync-critical endpoints
+        if any(path.startswith(p) for p in _RATE_LIMIT_EXEMPT_PREFIXES):
+            return await call_next(request)
 
         # Determine if this is a write (sensitive) endpoint
         is_write = any(path.startswith(p) for p in _WRITE_ENDPOINT_PREFIXES)
