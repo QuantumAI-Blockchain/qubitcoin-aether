@@ -1802,7 +1802,15 @@ class QubitcoinNode:
             logger.debug(f"AIKGS metrics update error: {e}")
 
     async def _on_p2p_block_received(self, block_data: dict) -> None:
-        """Handle a block received from the Rust P2P stream."""
+        """Handle a block received from the Rust P2P stream.
+
+        Fork resolution strategy (longest chain wins):
+        - gap > 1  → we're behind, trigger chain sync
+        - gap == 1 → next block, validate prev_hash linkage and store
+        - gap == 1 but prev_hash mismatch → peer is on a different fork 1 ahead, trigger reorg
+        - gap == 0 → competing block at same height, trigger fork check
+        - gap < 0  → peer is behind us, ignore
+        """
         try:
             height = block_data.get('height', 0)
             block_hash = block_data.get('hash', '')
@@ -1825,6 +1833,11 @@ class QubitcoinNode:
                     await self.chain_sync.auto_sync_if_behind(height)
                 return
 
+            if gap < 0:
+                # Peer is behind us — ignore
+                logger.debug(f"P2P block {height} is behind local chain (local={local_height})")
+                return
+
             if gap == 1:
                 # Next expected block — reconstruct and store directly
                 from .network.chain_sync import _block_from_peer_dict
@@ -1835,10 +1848,14 @@ class QubitcoinNode:
                     if prev_block:
                         expected_prev = prev_block.block_hash or prev_block.calculate_hash()
                         if block.prev_hash != expected_prev:
+                            # Peer has a different fork that's 1 block ahead of us.
+                            # Trigger fork resolution — the peer's chain may be
+                            # the canonical one.
                             logger.warning(
                                 f"P2P block {height} prev_hash mismatch — "
-                                f"different chain fork, ignoring"
+                                f"peer is on a different fork. Triggering fork resolution..."
                             )
+                            await self._trigger_fork_resolution(height)
                             return
 
                     # Store the block
@@ -1855,12 +1872,72 @@ class QubitcoinNode:
 
                 except Exception as e:
                     logger.error(f"Failed to store P2P block {height}: {e}")
-            else:
-                # gap <= 0 — we already have this block or are ahead
-                logger.debug(f"P2P block {height} already known (local={local_height})")
+
+            elif gap == 0:
+                # Same height — check if peer has a different block (fork)
+                local_block = self.db.get_block(local_height)
+                if local_block:
+                    local_hash = local_block.block_hash or local_block.calculate_hash()
+                    peer_hash = block_data.get('hash', '')
+                    if peer_hash and local_hash != peer_hash:
+                        logger.warning(
+                            f"P2P block {height} is at same height but different hash "
+                            f"(local={local_hash[:16]}... peer={peer_hash[:16]}...). "
+                            f"Fork detected — will resolve on next peer block."
+                        )
+                        # Don't reorg yet — wait until the peer is actually ahead.
+                        # If the peer mines the next block first, gap==1 with mismatch
+                        # will trigger resolution. This prevents unnecessary reorgs
+                        # when both nodes are at the same height.
 
         except Exception as e:
             logger.error(f"Error processing P2P block: {e}")
+
+    async def _trigger_fork_resolution(self, peer_height: int) -> None:
+        """Trigger chain sync fork resolution when we detect a fork.
+
+        Uses ChainSync.sync_from_peer() which handles:
+        1. Fork point detection via binary search
+        2. Reorg validation (depth limits, checkpoints)
+        3. Rollback of local chain to fork point
+        4. Re-sync from peer's canonical chain
+        """
+        if not hasattr(self, 'chain_sync') or not self.chain_sync:
+            logger.warning("Fork resolution: no chain_sync available")
+            return
+
+        if self.chain_sync._syncing:
+            logger.debug("Fork resolution: sync already in progress")
+            return
+
+        # Find a peer URL to sync from
+        peer_url = None
+        if self.chain_sync._known_peers:
+            peer_url = self.chain_sync._known_peers[0]
+
+        if not peer_url:
+            # Try to discover from SYNC_PEER_URL env var
+            import os
+            peer_url = os.environ.get('SYNC_PEER_URL', '').strip()
+
+        if not peer_url:
+            logger.warning(
+                f"Fork resolution: detected fork at height {peer_height} but no peer URL "
+                f"configured. Set SYNC_PEER_URL env var to enable automatic fork resolution."
+            )
+            return
+
+        local_height = self.db.get_current_height()
+        logger.info(
+            f"Fork resolution: triggering sync from {peer_url} "
+            f"(local={local_height}, peer={peer_height})"
+        )
+
+        # Run sync in background — sync_from_peer handles fork detection and reorg
+        import asyncio
+        self.chain_sync._sync_task = asyncio.create_task(
+            self.chain_sync.sync_from_peer(peer_url, target_height=peer_height)
+        )
 
     async def _on_p2p_tx_received(self, tx_data: dict) -> None:
         """Handle a transaction received from the Rust P2P stream."""
