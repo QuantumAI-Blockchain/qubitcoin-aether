@@ -1664,8 +1664,10 @@ class QubitcoinNode:
             else:
                 logger.warning("AIKGS Rust sidecar not reachable — AIKGS features unavailable")
 
-        # Auto-sync from peer on startup if SYNC_PEER_URL is set and we're behind
+        # Auto-sync from peer on startup if SYNC_PEER_URL is set and we're behind.
+        # IMPORTANT: Mining must NOT start until sync completes to prevent forks.
         sync_peer = os.environ.get('SYNC_PEER_URL', '').strip()
+        startup_sync_needed = False
         if sync_peer and hasattr(self, 'chain_sync') and self.chain_sync:
             try:
                 local_height = self.db.get_current_height()
@@ -1676,18 +1678,31 @@ class QubitcoinNode:
                     resp.raise_for_status()
                     peer_height = resp.json().get('height', 0)
                 if peer_height > local_height + 1:
+                    startup_sync_needed = True
                     logger.info(
                         f"Peer is ahead: peer={peer_height}, local={local_height}. "
                         f"Starting chain sync before mining..."
                     )
-                    result = await self.chain_sync.sync_from_peer(sync_peer, target_height=peer_height)
-                    logger.info(f"Startup sync result: {result}")
+                    # Wait for any P2P-triggered sync to finish first
+                    if self.chain_sync.is_syncing:
+                        logger.info("Waiting for in-progress P2P sync to complete...")
+                        for _ in range(300):  # max 5 min wait
+                            await asyncio.sleep(1)
+                            if not self.chain_sync.is_syncing:
+                                break
+                    # Now run our sync (gets latest peer height)
+                    if not self.chain_sync.is_syncing:
+                        result = await self.chain_sync.sync_from_peer(sync_peer)
+                        logger.info(f"Startup sync result: {result}")
+                    else:
+                        logger.warning("Startup sync: P2P sync still running after 5min, proceeding")
                 else:
                     logger.info(f"Already up to date with peer (peer={peer_height}, local={local_height})")
             except Exception as e:
                 logger.warning(f"Startup sync check failed (will mine from current state): {e}")
 
         # Start mining (in Substrate mode, proofs are submitted as extrinsics)
+        # Note: sync_from_peer will pause/resume mining automatically if needed later.
         if Config.AUTO_MINE:
             if Config.SUBSTRATE_MODE:
                 logger.info("SUBSTRATE_MODE: Mining proofs will be submitted to Substrate")
