@@ -232,7 +232,9 @@ class ChainSync:
                                     for o in coinbase.outputs
                                 )
                                 from decimal import Decimal
-                                self.db.update_supply(Decimal(str(reward)))
+                                with self.db.get_session() as session:
+                                    self.db.update_supply(Decimal(str(reward)), session)
+                                    session.commit()
 
                         # Process knowledge (lightweight — skips empty blocks now)
                         if self.aether and synced % 100 == 0:
