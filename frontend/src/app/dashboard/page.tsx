@@ -178,7 +178,7 @@ function OverviewTab({
 }) {
   const stats = [
     { label: "Block Height", value: chain?.height?.toLocaleString() ?? "---" },
-    { label: "Total Supply", value: chain?.total_supply != null ? formatSupply(chain.total_supply) : "---" },
+    { label: "Circulating Supply", value: chain?.total_supply != null ? formatSupply(chain.total_supply) : "---" },
     { label: "Difficulty", value: chain?.difficulty != null ? formatDifficulty(chain.difficulty) : "---" },
     { label: "Mempool", value: chain?.mempool_size?.toString() ?? "---" },
     { label: "Phi (\u03A6)", value: phi?.phi?.toFixed(4) ?? "---" },

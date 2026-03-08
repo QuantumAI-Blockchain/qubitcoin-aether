@@ -3,23 +3,37 @@
    QBC Explorer — Transaction Heartbeat Monitor (ECG-style SVG waveform)
    ───────────────────────────────────────────────────────────────────────── */
 
-import { useEffect, useRef, useMemo, useCallback } from "react";
+import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import { C, FONT, txTypeColor } from "./shared";
 import type { Transaction } from "./types";
 
 interface Props {
   transactions: Transaction[];
-  width?: number;
   height?: number;
 }
 
 export function HeartbeatMonitor({
   transactions,
-  width = 800,
   height = 120,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
+  const [width, setWidth] = useState(800);
+
+  // Track container width for responsive canvas
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    setWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
 
   // Take the last 60 transactions for the waveform
   const txSlice = useMemo(
@@ -172,7 +186,7 @@ export function HeartbeatMonitor({
   }, [drawFrame]);
 
   return (
-    <div className="relative overflow-hidden rounded-lg border" style={{ borderColor: C.border }}>
+    <div ref={containerRef} className="relative overflow-hidden rounded-lg border" style={{ borderColor: C.border }}>
       {/* Header */}
       <div
         className="flex items-center justify-between border-b px-3 py-1.5"
@@ -203,7 +217,7 @@ export function HeartbeatMonitor({
         role="img"
         aria-label={`Transaction heartbeat monitor showing ECG-style waveform for the last ${txSlice.length} transactions`}
         style={{
-          width,
+          width: "100%",
           height,
           display: "block",
           background: `${C.bg}`,

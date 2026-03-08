@@ -341,37 +341,76 @@ class AetherEngine:
             if self.phi and self.phi._last_full_result is not None:
                 block_phi_result = self.phi._last_full_result
 
-            # Add block as an observation node
-            block_content = {
-                'type': 'block_observation',
-                'height': block.height,
-                'difficulty': block.difficulty,
-                'tx_count': len(block.transactions),
-                'timestamp': block.timestamp,
-                'has_thought_proof': block.thought_proof is not None,
-            }
-
-            block_node = self.kg.add_node(
-                node_type='observation',
-                content=block_content,
-                confidence=0.95,  # High confidence for on-chain data
-                source_block=block.height,
+            # ── Determine if this block has meaningful knowledge ──────
+            # Only create knowledge nodes when the block contributes
+            # something beyond routine empty-block mining:
+            #  - Has real transactions (beyond the single coinbase)
+            #  - Has contract deployments or calls
+            #  - Has a thought proof attached
+            #  - Marks a significant difficulty change (>5%)
+            #  - Is a milestone block (every 1000 blocks — track chain growth)
+            real_tx_count = len(block.transactions)
+            has_real_txs = real_tx_count > 1  # More than just coinbase
+            has_contract_txs = any(
+                hasattr(tx, 'tx_type') and tx.tx_type in ('contract_deploy', 'contract_call')
+                for tx in block.transactions
             )
-            # Block metadata is ground truth from the chain itself
-            block_node.grounding_source = 'block_oracle'
+            has_thought_proof = block.thought_proof is not None
+            is_milestone = block.height > 0 and block.height % 1000 == 0
+            is_genesis = block.height == 0
 
-            # Link to previous block's observation if exists
-            if block.height > 0:
+            # Check for significant difficulty change
+            has_difficulty_shift = False
+            if block.height > 0 and hasattr(block, 'difficulty') and block.difficulty:
                 prev_nodes = [
                     n for n in self.kg.nodes.values()
                     if n.content.get('type') == 'block_observation'
-                    and n.content.get('height') == block.height - 1
+                    and n.content.get('height', -1) < block.height
                 ]
                 if prev_nodes:
-                    self.kg.add_edge(prev_nodes[0].node_id, block_node.node_id, 'derives')
+                    latest_prev = max(prev_nodes, key=lambda n: n.content.get('height', 0))
+                    prev_diff = latest_prev.content.get('difficulty', 0)
+                    if prev_diff > 0:
+                        change = abs(block.difficulty - prev_diff) / prev_diff
+                        has_difficulty_shift = change > 0.05  # >5% change
 
-            # Extract quantum proof knowledge
-            if block.proof_data and isinstance(block.proof_data, dict):
+            is_meaningful = (
+                is_genesis or has_real_txs or has_contract_txs
+                or has_thought_proof or has_difficulty_shift or is_milestone
+            )
+
+            block_node = None
+            if is_meaningful:
+                # Add block as an observation node
+                block_content = {
+                    'type': 'block_observation',
+                    'height': block.height,
+                    'difficulty': block.difficulty,
+                    'tx_count': real_tx_count,
+                    'timestamp': block.timestamp,
+                    'has_thought_proof': has_thought_proof,
+                }
+                if is_milestone:
+                    block_content['milestone'] = True
+                if has_difficulty_shift:
+                    block_content['difficulty_shift'] = True
+
+                block_node = self.kg.add_node(
+                    node_type='observation',
+                    content=block_content,
+                    confidence=0.95,  # High confidence for on-chain data
+                    source_block=block.height,
+                )
+                # Block metadata is ground truth from the chain itself
+                block_node.grounding_source = 'block_oracle'
+
+                # Link to nearest previous block observation
+                if block.height > 0 and prev_nodes:
+                    latest_prev = max(prev_nodes, key=lambda n: n.content.get('height', 0))
+                    self.kg.add_edge(latest_prev.node_id, block_node.node_id, 'derives')
+
+            # Extract quantum proof knowledge (only when block node exists)
+            if block_node and block.proof_data and isinstance(block.proof_data, dict):
                 energy = block.proof_data.get('energy', 0)
                 if energy:
                     quantum_content = {
@@ -404,10 +443,11 @@ class AetherEngine:
                         confidence=0.85,
                         source_block=block.height,
                     )
-                    self.kg.add_edge(c_node.node_id, block_node.node_id, 'supports')
+                    if block_node:
+                        self.kg.add_edge(c_node.node_id, block_node.node_id, 'supports')
 
             # Propagate confidence through the graph periodically
-            if block.height % Config.AETHER_CONFIDENCE_PROPAGATION_INTERVAL == 0:
+            if block_node and block.height % Config.AETHER_CONFIDENCE_PROPAGATION_INTERVAL == 0:
                 self.kg.propagate_confidence(block_node.node_id)
 
             # Process Proof-of-Thought protocol
@@ -532,8 +572,9 @@ class AetherEngine:
             # Phase 2.4: Memory management every block
             if self.memory_manager:
                 try:
-                    # Attend to the current block's observation node
-                    self.memory_manager.attend(block_node.node_id, boost=0.3)
+                    # Attend to the current block's observation node (if created)
+                    if block_node:
+                        self.memory_manager.attend(block_node.node_id, boost=0.3)
                     # Decay working memory relevance every block
                     self.memory_manager.decay()
                     # Consolidate periodically

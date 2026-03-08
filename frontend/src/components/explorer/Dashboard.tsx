@@ -108,7 +108,7 @@ export function Dashboard() {
 
       {/* ── Heartbeat Monitor ───────────────────────────────────── */}
       {txs && txs.length > 0 && (
-        <HeartbeatMonitor transactions={txs} width={800} height={100} />
+        <HeartbeatMonitor transactions={txs} height={100} />
       )}
 
       {/* ── Charts Row ──────────────────────────────────────────── */}

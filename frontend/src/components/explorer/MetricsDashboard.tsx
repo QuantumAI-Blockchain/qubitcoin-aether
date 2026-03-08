@@ -40,7 +40,7 @@ export function MetricsDashboard() {
   const { data: phiHistory } = usePhiHistory();
   const { data: tpsHistory } = useTpsHistory();
   const { data: diffHistory } = useDifficultyHistory();
-  const { data: blocks } = useRecentBlocks(100);
+  const { data: blocks } = useRecentBlocks(200);
 
   if (!stats) return <LoadingSpinner />;
 
@@ -48,21 +48,23 @@ export function MetricsDashboard() {
   const tpsSlice = (tpsHistory ?? []).slice(-200);
   const diffSlice = (diffHistory ?? []).slice(-200);
 
-  // Block size distribution for bar chart
-  const blockSizes = (blocks ?? []).slice(0, 50).map((b) => ({
-    height: b.height,
-    size: b.size,
-    txCount: b.txCount,
-    gasUsed: b.gasUsed,
-    gasRatio: (b.gasUsed / b.gasLimit) * 100,
-  }));
+  // Block tx count for bar chart (L1 has no gas metering — show tx throughput)
+  const blockTxData = (blocks ?? []).slice(0, 100)
+    .sort((a, b) => a.height - b.height)
+    .map((b) => ({
+      height: b.height,
+      txCount: b.txCount,
+      size: b.size,
+    }));
 
-  // Energy distribution
-  const energyData = (blocks ?? []).slice(0, 100).map((b) => ({
-    height: b.height,
-    energy: b.energy,
-    difficulty: b.difficulty,
-  }));
+  // Energy vs difficulty — use all available blocks sorted by height
+  const energyData = (blocks ?? [])
+    .sort((a, b) => a.height - b.height)
+    .map((b) => ({
+      height: b.height,
+      energy: b.energy,
+      difficulty: b.difficulty,
+    }));
 
   return (
     <div className="space-y-4 p-4">
@@ -167,17 +169,17 @@ export function MetricsDashboard() {
           </div>
         </Panel>
 
-        {/* Block Gas Usage */}
+        {/* Block Tx Count */}
         <Panel className="lg:col-span-2">
-          <SectionHeader title="BLOCK GAS UTILIZATION (%)" />
+          <SectionHeader title="TRANSACTIONS PER BLOCK" />
           <div style={{ height: 180 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={blockSizes}>
+              <BarChart data={blockTxData}>
                 <CartesianGrid stroke={`${C.border}40`} />
                 <XAxis dataKey="height" tick={{ fontSize: 9, fill: C.textMuted }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 9, fill: C.textMuted }} axisLine={false} tickLine={false} width={30} domain={[0, 100]} />
+                <YAxis tick={{ fontSize: 9, fill: C.textMuted }} axisLine={false} tickLine={false} width={30} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="gasRatio" fill={C.primary} radius={[2, 2, 0, 0]} name="Gas %" opacity={0.7} />
+                <Bar dataKey="txCount" fill={C.primary} radius={[2, 2, 0, 0]} name="Tx Count" opacity={0.7} />
               </BarChart>
             </ResponsiveContainer>
           </div>

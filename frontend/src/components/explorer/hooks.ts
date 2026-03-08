@@ -336,14 +336,19 @@ export function useMiners() {
     queryKey: ["explorer", "miners"],
     queryFn: async () => {
       if (USE_MOCK) return engine().miners;
-      const stats = await get<Record<string, unknown>>("/mining/stats");
+      const [stats, chain] = await Promise.all([
+        get<Record<string, unknown>>("/mining/stats"),
+        get<Record<string, unknown>>("/chain/info").catch(() => null),
+      ]);
       const addr = (stats.miner_address as string) ?? "qbc1genesis";
+      // Use chain height for total blocks mined (persists across restarts)
+      const totalBlocks = (chain?.height as number) ?? (stats.blocks_found as number) ?? 0;
       return [{
         address: addr,
-        blocksMined: (stats.blocks_found as number) ?? 0,
-        totalRewards: ((stats.blocks_found as number) ?? 0) * 15.27,
+        blocksMined: totalBlocks,
+        totalRewards: totalBlocks * 15.27,
         avgEnergy: (stats.best_energy as number) ?? 0,
-        lastBlock: 0,
+        lastBlock: totalBlocks,
         hashPower: 0,
         susyScore: (stats.alignment_score as number) ?? 0,
         rank: 1,
@@ -388,13 +393,13 @@ export function useWallet(address: string | undefined) {
 
 /* ── Time Series ──────────────────────────────────────────────────────── */
 
-export function usePhiHistory() {
+export function usePhiHistory(limit: number = 10000) {
   return useQuery<PhiDataPoint[]>({
-    queryKey: ["explorer", "phiHistory"],
+    queryKey: ["explorer", "phiHistory", limit],
     queryFn: async () => {
       if (USE_MOCK) return engine().phiHistory;
       const data = await get<{ history: Array<Record<string, unknown>> }>(
-        "/aether/phi/history"
+        `/aether/phi/history?limit=${limit}`
       );
       return (data.history ?? []).map((p) => ({
         block: (p.block as number) ?? (p.block_height as number) ?? 0,
@@ -410,10 +415,35 @@ export function usePhiHistory() {
 export function useTpsHistory() {
   return useQuery<TpsDataPoint[]>({
     queryKey: ["explorer", "tpsHistory"],
-    queryFn: () => {
+    queryFn: async () => {
       if (USE_MOCK) return engine().tpsHistory;
-      // No dedicated TPS history endpoint yet — return empty array
-      return [] as TpsDataPoint[];
+      // Compute TPS from recent blocks (txCount / blockTime)
+      const tip = await get<Record<string, unknown>>("/chain/tip").catch(() => null);
+      if (!tip) return [];
+      const tipHeight = (tip.height as number) ?? 0;
+      const count = Math.min(100, tipHeight);
+      const fetches = [];
+      for (let h = tipHeight; h > tipHeight - count && h >= 0; h--) {
+        fetches.push(get<Record<string, unknown>>(`/block/${h}`).catch(() => null));
+      }
+      const results = (await Promise.all(fetches)).filter(
+        (r): r is Record<string, unknown> => r !== null
+      );
+      // Compute TPS: txCount / time_since_prev_block
+      const sorted = results
+        .map(mapBlockToFrontend)
+        .sort((a, b) => a.height - b.height);
+      const tpsData: TpsDataPoint[] = [];
+      for (let i = 1; i < sorted.length; i++) {
+        const dt = sorted[i].timestamp - sorted[i - 1].timestamp;
+        const tps = dt > 0 ? sorted[i].txCount / dt : 0;
+        tpsData.push({
+          block: sorted[i].height,
+          tps: Math.round(tps * 100) / 100,
+          timestamp: sorted[i].timestamp,
+        });
+      }
+      return tpsData;
     },
     staleTime: 30_000,
   });
@@ -422,10 +452,28 @@ export function useTpsHistory() {
 export function useDifficultyHistory() {
   return useQuery<DifficultyDataPoint[]>({
     queryKey: ["explorer", "difficultyHistory"],
-    queryFn: () => {
+    queryFn: async () => {
       if (USE_MOCK) return engine().difficultyHistory;
-      // No dedicated difficulty history endpoint yet — return empty array
-      return [] as DifficultyDataPoint[];
+      // Compute difficulty from recent blocks
+      const tip = await get<Record<string, unknown>>("/chain/tip").catch(() => null);
+      if (!tip) return [];
+      const tipHeight = (tip.height as number) ?? 0;
+      const count = Math.min(200, tipHeight);
+      const fetches = [];
+      for (let h = tipHeight; h > tipHeight - count && h >= 0; h--) {
+        fetches.push(get<Record<string, unknown>>(`/block/${h}`).catch(() => null));
+      }
+      const results = (await Promise.all(fetches)).filter(
+        (r): r is Record<string, unknown> => r !== null
+      );
+      return results
+        .map(mapBlockToFrontend)
+        .sort((a, b) => a.height - b.height)
+        .map((b) => ({
+          block: b.height,
+          difficulty: b.difficulty,
+          timestamp: b.timestamp,
+        }));
     },
     staleTime: 30_000,
   });

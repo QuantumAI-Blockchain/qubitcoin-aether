@@ -254,7 +254,7 @@ function VaultColumn({
           className="text-xs font-bold"
           style={{ color: B.glowEmerald, fontFamily: FONT.mono }}
         >
-          BACKING: {(backingRatio * 100).toFixed(2)}%
+          BACKING: {((backingRatio ?? 0) * 100).toFixed(2)}%
         </span>
         <CheckCircle size={14} style={{ color: B.glowEmerald }} />
       </div>
@@ -271,8 +271,8 @@ function ChainBreakdown({ vault }: { vault: VaultState }) {
     wqusd: number;
   }> = EXTERNAL_CHAINS.map((c) => ({
     chain: c,
-    wqbc: vault.wqbcByChain[c],
-    wqusd: vault.wqusdByChain[c],
+    wqbc: vault.wqbcByChain?.[c] ?? 0,
+    wqusd: vault.wqusdByChain?.[c] ?? 0,
   }));
 
   const totalWqbc = chainRows.reduce((s, r) => s + r.wqbc, 0);
