@@ -107,7 +107,7 @@ class RustP2PClient:
                 height=height,
                 hash=block_hash
             )
-            response = self.stub.BroadcastBlock(request, timeout=0.5)
+            response = self.stub.BroadcastBlock(request, timeout=3.0)
 
             if response.success:
                 logger.info(f"Block {height} broadcasted via Rust P2P")
@@ -135,7 +135,7 @@ class RustP2PClient:
                 size=size,
                 fee=fee
             )
-            response = self.stub.BroadcastTransaction(request, timeout=0.5)
+            response = self.stub.BroadcastTransaction(request, timeout=3.0)
 
             if response.success:
                 logger.debug(f"Tx {txid[:8]} broadcasted via Rust P2P")
@@ -299,7 +299,7 @@ class RustP2PClient:
 
         try:
             request = p2p_service_pb2.PeerStatsRequest()
-            response = self.stub.GetPeerStats(request, timeout=0.5)
+            response = self.stub.GetPeerStats(request, timeout=3.0)
 
             return {
                 'peer_count': response.peer_count,
@@ -324,7 +324,7 @@ class RustP2PClient:
 
         try:
             request = p2p_service_pb2.PeerListRequest()
-            response = self.stub.GetPeerList(request, timeout=0.5)
+            response = self.stub.GetPeerList(request, timeout=3.0)
 
             return [
                 {
@@ -349,7 +349,7 @@ class RustP2PClient:
 
         try:
             request = p2p_service_pb2.HealthRequest()
-            response = self.stub.HealthCheck(request, timeout=0.5)
+            response = self.stub.HealthCheck(request, timeout=3.0)
 
             return {
                 'healthy': response.healthy,

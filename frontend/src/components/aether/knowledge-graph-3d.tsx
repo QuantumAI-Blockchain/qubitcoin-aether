@@ -1,12 +1,34 @@
 "use client";
 
-import { useRef, useMemo, useCallback, useState } from "react";
+import { useRef, useMemo, useCallback, useState, Component, type ReactNode, type ErrorInfo } from "react";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
 import { useQuery } from "@tanstack/react-query";
 import { api, type KnowledgeGraphData, type KnowledgeGraphNode, type KnowledgeGraphEdge } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import * as THREE from "three";
+
+/* --- Canvas-level error boundary (R3F errors bypass React ErrorBoundary) --- */
+
+class CanvasErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode; fallback: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[KnowledgeGraph3D] Canvas error:", error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) return this.props.fallback;
+    return this.props.children;
+  }
+}
 
 /* --- Force layout (simple spring simulation) --- */
 
@@ -444,7 +466,14 @@ function GraphEdges({
   hiddenEdgeTypes: Set<string>;
   dimmedNodeIds: Set<number>;
 }) {
+  const geoRef = useRef<THREE.BufferGeometry | null>(null);
+
   const lineSegments = useMemo(() => {
+    // Dispose previous geometry to prevent WebGL memory leaks
+    if (geoRef.current) {
+      geoRef.current.dispose();
+    }
+
     const positions: number[] = [];
     const colors: number[] = [];
 
@@ -463,9 +492,16 @@ function GraphEdges({
       colors.push(c.r * alpha, c.g * alpha, c.b * alpha, c.r * alpha, c.g * alpha, c.b * alpha);
     }
 
+    // If no edges to render, create a minimal valid geometry
+    if (positions.length === 0) {
+      positions.push(0, 0, 0, 0, 0, 0);
+      colors.push(0, 0, 0, 0, 0, 0);
+    }
+
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geoRef.current = geo;
     return geo;
   }, [edges, posMap, hiddenEdgeTypes, dimmedNodeIds]);
 
@@ -654,9 +690,10 @@ export function KnowledgeGraph3D() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["knowledgeGraph"],
-    queryFn: () => api.getKnowledgeGraph(),
-    refetchInterval: 15_000,
-    retry: 2,
+    queryFn: () => api.getKnowledgeGraph(500),
+    refetchInterval: 30_000,
+    retry: 1,
+    staleTime: 25_000,
   });
 
   // Count nodes by category for filter badges
@@ -748,20 +785,31 @@ export function KnowledgeGraph3D() {
           </div>
         )}
         {data && data.nodes.length > 0 && (
-          <Canvas
-            camera={{ position: [0, 0, 12], fov: 50 }}
+          <CanvasErrorBoundary
             fallback={
-              <div className="flex h-full items-center justify-center text-sm text-text-secondary">
-                <p>WebGL not available. Knowledge graph requires a WebGL-capable browser.</p>
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-text-secondary">
+                <div className="text-center">
+                  <p>Knowledge graph rendering error.</p>
+                  <p className="mt-1 text-xs">Try refreshing the page.</p>
+                </div>
               </div>
             }
           >
-            <GraphScene
-              data={data}
-              activeNodeFilter={activeNodeFilter}
-              hiddenEdgeTypes={hiddenEdgeTypes}
-            />
-          </Canvas>
+            <Canvas
+              camera={{ position: [0, 0, 12], fov: 50 }}
+              fallback={
+                <div className="flex h-full items-center justify-center text-sm text-text-secondary">
+                  <p>WebGL not available. Knowledge graph requires a WebGL-capable browser.</p>
+                </div>
+              }
+            >
+              <GraphScene
+                data={data}
+                activeNodeFilter={activeNodeFilter}
+                hiddenEdgeTypes={hiddenEdgeTypes}
+              />
+            </Canvas>
+          </CanvasErrorBoundary>
         )}
         {data && data.nodes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-text-secondary">

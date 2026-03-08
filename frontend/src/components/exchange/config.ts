@@ -95,11 +95,11 @@ export const CHAINS: Record<string, ChainConfig> = {
   },
 };
 
-// ─── ASSET BASE PRICES (for mock data) ──────────────────────────────────────
+// ─── ASSET BASE PRICES (fallback when backend returns 0) ─────────────────────
 
 export const BASE_PRICES: Record<string, number> = {
-  QBC: 0.2847,
-  wQBC: 0.2847,
+  QBC: 1.0,
+  wQBC: 1.0,
   QUSD: 1.0,
   wETH: 3421.0,
   ETH: 3421.0,

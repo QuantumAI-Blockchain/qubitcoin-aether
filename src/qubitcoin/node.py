@@ -149,9 +149,15 @@ class QubitcoinNode:
             try:
                 if Config.ENABLE_RUST_P2P:
                     logger.info("Using Rust P2P (libp2p 0.56)")
-                    # Launch the Rust daemon process
-                    self._start_rust_p2p_daemon()
-                    self.rust_p2p = RustP2PClient(f"127.0.0.1:{Config.RUST_P2P_GRPC}")
+                    if Config.RUST_P2P_GRPC_HOST:
+                        # Connect to external P2P daemon (separate container)
+                        grpc_target = f"{Config.RUST_P2P_GRPC_HOST}:{Config.RUST_P2P_GRPC}"
+                        logger.info(f"Connecting to external Rust P2P at {grpc_target}")
+                    else:
+                        # Launch subprocess (legacy single-container mode)
+                        self._start_rust_p2p_daemon()
+                        grpc_target = f"127.0.0.1:{Config.RUST_P2P_GRPC}"
+                    self.rust_p2p = RustP2PClient(grpc_target)
                     self.p2p = None  # Disable Python P2P
                     logger.info("[3/22] Rust P2P client initialized")
                 else:

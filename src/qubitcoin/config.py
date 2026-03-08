@@ -67,6 +67,7 @@ class Config:
     ENABLE_RUST_P2P: bool = os.getenv('ENABLE_RUST_P2P', 'true').lower() == 'true'
     RUST_P2P_PORT: int = int(os.getenv('RUST_P2P_PORT', 4001))
     RUST_P2P_GRPC: int = int(os.getenv('RUST_P2P_GRPC', 50051))
+    RUST_P2P_GRPC_HOST: str = os.getenv('RUST_P2P_GRPC_HOST', '')  # empty = spawn subprocess
     RUST_P2P_BINARY: str = os.getenv('RUST_P2P_BINARY', 'rust-p2p/target/release/qubitcoin-p2p')
     RUST_P2P_STARTUP_TIMEOUT: int = int(os.getenv('RUST_P2P_STARTUP_TIMEOUT', '10'))
     BOOTSTRAP_PEERS: str = os.getenv('BOOTSTRAP_PEERS', '')

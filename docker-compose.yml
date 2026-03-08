@@ -104,6 +104,24 @@ services:
       - qbc-net
     restart: unless-stopped
 
+  # ── Rust P2P Daemon (separate container for CPU isolation) ──────────
+  qbc-p2p:
+    build:
+      context: ./rust-p2p
+      dockerfile: Dockerfile
+    container_name: qbc-p2p
+    ports:
+      - "4002:4001"     # P2P swarm (host 4002 since IPFS uses 4001)
+      - "50051:50051"   # gRPC bridge
+    environment:
+      - P2P_PORT=4001
+      - RUST_P2P_GRPC_ADDR=0.0.0.0:50051
+      - RUST_LOG=info,qubitcoin_p2p=debug
+      - PEER_SEEDS=${PEER_SEEDS:-}
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
   # ── Qubitcoin Node ──────────────────────────────────────────────────
   qbc-node:
     build:
@@ -112,8 +130,6 @@ services:
     container_name: qbc-node
     ports:
       - "5000:5000"     # RPC API
-      - "4002:4001"     # P2P (host 4002 since IPFS uses 4001)
-      - "50051:50051"   # gRPC (Rust P2P bridge)
     env_file:
       - .env
       - secure_key.env
@@ -126,6 +142,9 @@ services:
       - AIKGS_GRPC_ADDR=aikgs-sidecar
       - AIKGS_GRPC_PORT=50052
       - AIKGS_AUTH_TOKEN=${AIKGS_AUTH_TOKEN:-}
+      # Connect to external P2P daemon (not subprocess)
+      - RUST_P2P_GRPC=50051
+      - RUST_P2P_GRPC_HOST=qbc-p2p
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -133,6 +152,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      qbc-p2p:
+        condition: service_started
     volumes:
       - node-data:/app/data
       - node-logs:/app/logs

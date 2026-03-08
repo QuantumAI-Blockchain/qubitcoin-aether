@@ -138,19 +138,22 @@ impl P2PNetwork {
     
     pub async fn run(mut self) {
         use futures::StreamExt;
-        
+
         info!("🚀 P2P network running with libp2p 0.56");
-        
+
         loop {
             tokio::select! {
-                event = self.swarm.select_next_some() => {
-                    self.handle_swarm_event(event);
-                }
+                biased;
                 Some(msg) = self.from_python_rx.recv() => {
                     debug!("📤 From Python: {}", msg);
                     self.broadcast_message(msg);
                 }
+                event = self.swarm.select_next_some() => {
+                    self.handle_swarm_event(event);
+                }
             }
+            // Yield to tokio runtime so gRPC server can process requests
+            tokio::task::yield_now().await;
         }
     }
     

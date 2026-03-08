@@ -514,7 +514,9 @@ function AetherPageContent() {
       {/* Knowledge Graph — full width below chat */}
       <div className="border-t border-border-subtle px-4 py-6">
         <div className="mx-auto max-w-6xl">
-          <KnowledgeGraph3D />
+          <ErrorBoundary>
+            <KnowledgeGraph3D />
+          </ErrorBoundary>
         </div>
       </div>
     </div>
