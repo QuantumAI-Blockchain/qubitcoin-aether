@@ -148,6 +148,7 @@ function AetherPageContent() {
   const [selectedMsg, setSelectedMsg] = useState<number | null>(null);
   const [streamingIdx, setStreamingIdx] = useState<number | null>(null);
   const [sessions, setSessions] = useState<StoredSession[]>([]);
+  const [activeTab, setActiveTab] = useState<"chat" | "graph">("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -270,7 +271,6 @@ function AetherPageContent() {
 
   return (
     <div className="flex flex-col pt-16">
-      {/* Top section: sidebar + chat + consciousness panel */}
       <div className="flex h-[calc(100vh-4rem)]">
         {/* Conversation sidebar */}
         <div className="hidden md:block">
@@ -283,120 +283,156 @@ function AetherPageContent() {
           />
         </div>
 
-        {/* Main chat area */}
+        {/* Main content area — tabs switch between chat and graph */}
         <div className="flex flex-1 flex-col">
-          {/* Mobile new-chat button */}
-          <div className="flex items-center gap-2 border-b border-border-subtle px-4 py-2 md:hidden">
+          {/* Tab bar */}
+          <div className="flex items-center gap-1 border-b border-border-subtle px-4">
             <button
-              onClick={handleNewChat}
-              className="rounded-lg bg-quantum-violet/20 px-3 py-1.5 text-xs font-medium text-quantum-violet"
+              onClick={() => setActiveTab("chat")}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === "chat"
+                  ? "border-b-2 border-quantum-violet text-text-primary"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
             >
-              + New Chat
+              Chat
             </button>
-            <span className="text-xs text-text-secondary">
-              {sessionId ? deriveTitle(messages) || "Active session" : "No session"}
-            </span>
-          </div>
-
-          {/* Messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
-            <div className="mx-auto max-w-3xl space-y-4">
-              {messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <div className="mb-4 h-16 w-16 rounded-full bg-quantum-violet/20 p-3 consciousness-pulse">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-10 w-10 text-quantum-violet">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                  </div>
-                  <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold">
-                    Aether Tree
-                  </h2>
-                  <p className="mt-2 max-w-md text-sm text-text-secondary">
-                    An on-chain AGI reasoning engine. Every response is backed by
-                    a Proof-of-Thought anchored to the QBC blockchain.
-                  </p>
-                </div>
-              )}
-
-              {messages.map((m, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
-                      m.role === "user"
-                        ? "bg-quantum-violet/20 text-text-primary"
-                        : "bg-bg-elevated text-text-primary"
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap">
-                      {m.role === "aether" && i === streamingIdx ? (
-                        <StreamingText
-                          text={m.text}
-                          speed={16}
-                          onComplete={() => setStreamingIdx(null)}
-                        />
-                      ) : (
-                        m.text
-                      )}
-                    </p>
-                    {m.role === "aether" && m.potHash && (
-                      <button
-                        onClick={() => setSelectedMsg(selectedMsg === i ? null : i)}
-                        className="mt-2 text-xs text-quantum-green/70 hover:text-quantum-green"
-                      >
-                        {selectedMsg === i ? "Hide trace" : "View reasoning trace"}
-                      </button>
-                    )}
-                    {selectedMsg === i && m.reasoning && (
-                      <ReasoningTraceView steps={m.reasoning} potHash={m.potHash} />
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="flex items-center gap-2 rounded-xl bg-bg-elevated px-4 py-3 text-sm text-text-secondary">
-                    <PhiSpinner className="h-4 w-4" />
-                    Reasoning...
-                  </div>
-                </div>
-              )}
+            <button
+              onClick={() => setActiveTab("graph")}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === "graph"
+                  ? "border-b-2 border-quantum-green text-text-primary"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              Knowledge Graph
+            </button>
+            {/* Mobile new-chat button */}
+            <div className="ml-auto flex items-center gap-2 md:hidden">
+              <button
+                onClick={handleNewChat}
+                className="rounded-lg bg-quantum-violet/20 px-3 py-1.5 text-xs font-medium text-quantum-violet"
+              >
+                + New Chat
+              </button>
             </div>
           </div>
 
-          {/* Input */}
-          <div className="border-t border-border-subtle bg-bg-deep/80 px-4 py-4 backdrop-blur-sm">
-            <form
-              onSubmit={(e) => { e.preventDefault(); send(); }}
-              className="mx-auto flex max-w-3xl gap-3"
-            >
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask Aether Tree anything..."
-                className="flex-1 rounded-xl bg-bg-panel px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-                }}
-              />
-              <button
-                type="submit"
-                disabled={loading || !input.trim()}
-                className="rounded-xl bg-quantum-green px-5 py-3 text-sm font-semibold text-void transition hover:bg-quantum-green/80 disabled:opacity-40"
-              >
-                Send
-              </button>
-            </form>
-          </div>
+          {/* Chat view — visible when chat tab active */}
+          {activeTab === "chat" && (
+            <div className="flex flex-1 flex-col min-h-0">
+              {/* Messages */}
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
+                <div className="mx-auto max-w-3xl space-y-4">
+                  {messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                      <div className="mb-4 h-16 w-16 rounded-full bg-quantum-violet/20 p-3 consciousness-pulse">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-10 w-10 text-quantum-violet">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                      </div>
+                      <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold">
+                        Aether Tree
+                      </h2>
+                      <p className="mt-2 max-w-md text-sm text-text-secondary">
+                        An on-chain AGI reasoning engine. Every response is backed by
+                        a Proof-of-Thought anchored to the QBC blockchain.
+                      </p>
+                    </div>
+                  )}
+
+                  {messages.map((m, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
+                          m.role === "user"
+                            ? "bg-quantum-violet/20 text-text-primary"
+                            : "bg-bg-elevated text-text-primary"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">
+                          {m.role === "aether" && i === streamingIdx ? (
+                            <StreamingText
+                              text={m.text}
+                              speed={16}
+                              onComplete={() => setStreamingIdx(null)}
+                            />
+                          ) : (
+                            m.text
+                          )}
+                        </p>
+                        {m.role === "aether" && m.potHash && (
+                          <button
+                            onClick={() => setSelectedMsg(selectedMsg === i ? null : i)}
+                            className="mt-2 text-xs text-quantum-green/70 hover:text-quantum-green"
+                          >
+                            {selectedMsg === i ? "Hide trace" : "View reasoning trace"}
+                          </button>
+                        )}
+                        {selectedMsg === i && m.reasoning && (
+                          <ReasoningTraceView steps={m.reasoning} potHash={m.potHash} />
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+
+                  {loading && (
+                    <div className="flex justify-start">
+                      <div className="flex items-center gap-2 rounded-xl bg-bg-elevated px-4 py-3 text-sm text-text-secondary">
+                        <PhiSpinner className="h-4 w-4" />
+                        Reasoning...
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Input */}
+              <div className="border-t border-border-subtle bg-bg-deep/80 px-4 py-4 backdrop-blur-sm">
+                <form
+                  onSubmit={(e) => { e.preventDefault(); send(); }}
+                  className="mx-auto flex max-w-3xl gap-3"
+                >
+                  <input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Ask Aether Tree anything..."
+                    className="flex-1 rounded-xl bg-bg-panel px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading || !input.trim()}
+                    className="rounded-xl bg-quantum-green px-5 py-3 text-sm font-semibold text-void transition hover:bg-quantum-green/80 disabled:opacity-40"
+                  >
+                    Send
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Knowledge Graph — mounted fresh when tab is active, fills viewport */}
+          {activeTab === "graph" && (
+            <div className="flex-1 min-h-0 p-4">
+              <div className="mx-auto max-w-6xl h-full">
+                <ErrorBoundary>
+                  <KnowledgeGraph3D />
+                </ErrorBoundary>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sidebar: consciousness panel */}
-        <aside className="hidden w-72 flex-shrink-0 border-l border-border-subtle bg-bg-panel p-4 lg:block">
+        <aside className="hidden w-72 flex-shrink-0 border-l border-border-subtle bg-bg-panel p-4 overflow-y-auto lg:block">
           <Card className="mb-4">
             <h3 className="mb-3 text-sm font-semibold text-text-secondary">Consciousness</h3>
             <div className="text-center">
@@ -509,15 +545,6 @@ function AetherPageContent() {
 
           <ContributionIndicator className="mb-4" compact />
         </aside>
-      </div>
-
-      {/* Knowledge Graph — full width below chat */}
-      <div className="border-t border-border-subtle px-4 py-6">
-        <div className="mx-auto max-w-6xl">
-          <ErrorBoundary>
-            <KnowledgeGraph3D />
-          </ErrorBoundary>
-        </div>
       </div>
     </div>
   );

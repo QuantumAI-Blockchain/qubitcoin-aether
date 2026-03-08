@@ -770,7 +770,7 @@ export function KnowledgeGraph3D() {
         ))}
       </div>
 
-      <div className="relative h-[500px] w-full overflow-hidden rounded-lg bg-bg-deep">
+      <div className="relative w-full overflow-hidden rounded-lg bg-bg-deep" style={{ height: "clamp(400px, calc(100vh - 20rem), 800px)" }}>
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-text-secondary">
             Loading knowledge graph...

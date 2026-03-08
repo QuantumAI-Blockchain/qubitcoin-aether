@@ -127,7 +127,30 @@ impl P2PNetwork {
         swarm_instance.listen_on(quic_addr)?;
         
         info!("🌐 P2P listening on TCP:{} + QUIC:{}", port, port + 1);
-        
+
+        // Dial seed peers from PEER_SEEDS env var (comma-separated multiaddrs)
+        // Example: /ip4/152.42.215.182/tcp/4002,/ip4/1.2.3.4/tcp/4002
+        if let Ok(seeds) = std::env::var("PEER_SEEDS") {
+            let seeds = seeds.trim();
+            if !seeds.is_empty() {
+                for seed in seeds.split(',') {
+                    let seed = seed.trim();
+                    if seed.is_empty() { continue; }
+                    match seed.parse::<Multiaddr>() {
+                        Ok(addr) => {
+                            info!("🌱 Dialing seed peer: {}", addr);
+                            if let Err(e) = swarm_instance.dial(addr.clone()) {
+                                warn!("Failed to dial seed {}: {}", addr, e);
+                            }
+                        }
+                        Err(e) => {
+                            warn!("Invalid seed multiaddr '{}': {}", seed, e);
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(Self {
             swarm: swarm_instance,
             peers: HashMap::new(),
