@@ -415,9 +415,40 @@ class ChainSync:
                         pass
 
             except Exception as e:
-                if 'already exists' in str(e).lower() or 'uniqueviolation' in str(e).lower():
-                    skipped += 1
-                    current += 1  # Block exists — safe to advance
+                err_str = str(e).lower()
+                if 'already exists' in err_str or 'uniqueviolation' in err_str:
+                    # Could be block duplicate OR UTXO collision (orphan data).
+                    # Only advance if the block is actually in the DB.
+                    verify = self.db.get_block(block.height)
+                    if verify is not None:
+                        skipped += 1
+                        current += 1  # Block confirmed in DB — safe to advance
+                        logger.debug(
+                            f"Chain sync: block {block.height} already exists, skipping"
+                        )
+                    else:
+                        # UTXO collision from orphan data — block was NOT stored.
+                        # Clean orphan UTXOs at this height and retry.
+                        logger.warning(
+                            f"Chain sync: UTXO collision at block {block.height} "
+                            f"(orphan data). Cleaning and retrying..."
+                        )
+                        try:
+                            with self.db.get_session() as session:
+                                from sqlalchemy import text
+                                session.execute(
+                                    text("DELETE FROM utxos WHERE block_height = :h"),
+                                    {'h': block.height}
+                                )
+                                session.commit()
+                            # Don't advance current — retry this block
+                        except Exception as cleanup_err:
+                            logger.error(
+                                f"Chain sync: orphan cleanup failed at {block.height}: "
+                                f"{cleanup_err}. Stopping."
+                            )
+                            failed += 1
+                            break
                 else:
                     logger.error(f"Chain sync: failed to store block {block.height}: {e}")
                     failed += 1
