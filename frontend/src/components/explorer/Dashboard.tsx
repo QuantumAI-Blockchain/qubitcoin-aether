@@ -296,7 +296,7 @@ export function Dashboard() {
                 ),
               },
             ]}
-            data={(txs ?? []).slice(0, 15)}
+            data={(txs ?? []).filter((t) => t.value > 0).slice(0, 15)}
             keyFn={(t) => t.txid}
             onRowClick={(t) => navigate("transaction", { id: t.txid })}
           />

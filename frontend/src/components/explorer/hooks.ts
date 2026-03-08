@@ -75,17 +75,51 @@ function mapChainInfoToStats(raw: Record<string, unknown>): NetworkStats {
 }
 
 function mapBlockToFrontend(raw: Record<string, unknown>): Block {
+  // Extract miner from coinbase tx output address
+  const txs = (raw.transactions as Array<Record<string, unknown>>) ?? [];
+  let miner = (raw.miner as string) ?? (raw.miner_address as string) ?? "";
+  let reward = (raw.reward as number) ?? (raw.actual_reward as number) ?? 0;
+  if ((!miner || !reward) && txs.length > 0) {
+    const coinbase = txs[0];
+    const outputs = (coinbase?.outputs as Array<Record<string, unknown>>) ?? [];
+    if (outputs.length > 0) {
+      if (!miner) miner = (outputs[0].address as string) ?? "";
+      if (!reward) {
+        reward = outputs.reduce((sum, o) => sum + (parseFloat(String(o.amount ?? o.value ?? 0))), 0);
+      }
+    }
+  }
+
+  // Extract energy from proof_data
+  const proofData = raw.proof_data as Record<string, unknown> | undefined;
+  let energy = (raw.ground_state_energy as number) ?? (raw.energy as number) ?? 0;
+  if (!energy && proofData) {
+    energy = (proofData.ground_state_energy as number) ?? (proofData.energy as number) ?? 0;
+    // Try to extract from thought_proof
+    if (!energy) {
+      const tp = raw.thought_proof as Record<string, unknown> | undefined;
+      const steps = (tp?.reasoning_steps as Array<Record<string, unknown>>) ?? [];
+      for (const step of steps) {
+        const content = step.content as Record<string, unknown> | undefined;
+        if (content?.energy) {
+          energy = content.energy as number;
+          break;
+        }
+      }
+    }
+  }
+
   return {
     height: (raw.height as number) ?? 0,
-    hash: (raw.hash as string) ?? "",
+    hash: (raw.block_hash as string) ?? (raw.hash as string) ?? "",
     prevHash: (raw.prev_hash as string) ?? (raw.previous_hash as string) ?? "",
     timestamp: (raw.timestamp as number) ?? 0,
-    miner: (raw.miner as string) ?? (raw.miner_address as string) ?? "",
-    txCount: (raw.tx_count as number) ?? ((raw.transactions as unknown[])?.length ?? 0),
+    miner,
+    txCount: (raw.tx_count as number) ?? txs.length,
     size: (raw.size as number) ?? 0,
-    difficulty: (raw.difficulty as number) ?? (raw.difficulty_target as number) ?? 0,
-    energy: (raw.ground_state_energy as number) ?? (raw.energy as number) ?? 0,
-    reward: (raw.reward as number) ?? (raw.actual_reward as number) ?? 0,
+    difficulty: Number(raw.difficulty ?? raw.difficulty_target) || 0,
+    energy: Number(energy) || 0,
+    reward: Number(reward) || 0,
     gasUsed: (raw.gas_used as number) ?? 0,
     gasLimit: (raw.gas_limit as number) ?? 30_000_000,
     merkleRoot: (raw.merkle_root as string) ?? "",
@@ -114,6 +148,14 @@ export function useNetworkStats() {
       }
       if (qvm) {
         stats.totalContracts = (qvm.total_contracts as number) ?? 0;
+      }
+      // If peers is 0, try the P2P stats endpoint for actual count
+      if (!stats.peers) {
+        const p2p = await get<Record<string, unknown>>("/p2p/stats").catch(() => null);
+        if (p2p) {
+          const net = p2p.network as Record<string, unknown> | undefined;
+          stats.peers = (net?.connected_peers as number) ?? (p2p.peer_count as number) ?? 0;
+        }
       }
       return stats;
     },
@@ -179,22 +221,46 @@ export function useBlockTransactions(height: number | undefined) {
 /* ── Transactions ─────────────────────────────────────────────────────── */
 
 function mapTxToFrontend(raw: Record<string, unknown>): Transaction {
+  // Compute value from outputs if not present at top level
+  let value = (raw.value as number) ?? (raw.amount as number) ?? 0;
+  const outputs = (raw.outputs as Array<Record<string, unknown>>) ?? [];
+  const inputs = (raw.inputs as Array<Record<string, unknown>>) ?? [];
+  if (!value && outputs.length > 0) {
+    value = outputs.reduce((sum, o) => sum + parseFloat(String(o.amount ?? o.value ?? 0)), 0);
+  }
+
+  // Determine type: no inputs = coinbase
+  let txType = (raw.type as Transaction["type"]) ?? (raw.tx_type as Transaction["type"]) ?? "transfer";
+  if (inputs.length === 0 && outputs.length > 0) {
+    txType = "coinbase";
+  }
+
+  // Extract from/to from inputs/outputs if not present
+  let from = (raw.from as string) ?? (raw.sender as string) ?? "";
+  let to = (raw.to as string) ?? (raw.to_address as string) ?? "";
+  if (!from && inputs.length > 0) {
+    from = (inputs[0].address as string) ?? "";
+  }
+  if (!to && outputs.length > 0) {
+    to = (outputs[0].address as string) ?? "";
+  }
+
   return {
     txid: (raw.txid as string) ?? "",
     blockHeight: (raw.block_height as number) ?? 0,
     blockHash: (raw.block_hash as string) ?? "",
     timestamp: (raw.timestamp as number) ?? 0,
-    from: (raw.from as string) ?? (raw.sender as string) ?? "",
-    to: (raw.to as string) ?? (raw.to_address as string) ?? "",
-    value: (raw.value as number) ?? (raw.amount as number) ?? 0,
-    fee: (raw.fee as number) ?? 0,
-    size: (raw.size as number) ?? 0,
-    type: (raw.type as Transaction["type"]) ?? "transfer",
+    from,
+    to,
+    value,
+    fee: Number(raw.fee) || 0,
+    size: Number(raw.size) || 0,
+    type: txType,
     status: (raw.status as Transaction["status"]) ?? "confirmed",
     confirmations: (raw.confirmations as number) ?? 0,
     isPrivate: (raw.is_private as boolean) ?? false,
-    inputs: (raw.inputs as Transaction["inputs"]) ?? [],
-    outputs: (raw.outputs as Transaction["outputs"]) ?? [],
+    inputs: inputs as unknown as Transaction["inputs"],
+    outputs: outputs as unknown as Transaction["outputs"],
     gasUsed: raw.gas_used as number | undefined,
     contractAddress: raw.contract_address as string | undefined,
     data: raw.data as string | undefined,
@@ -348,25 +414,81 @@ export function useMiners() {
     queryKey: ["explorer", "miners"],
     queryFn: async () => {
       if (USE_MOCK) return engine().miners;
-      const [stats, chain] = await Promise.all([
-        get<Record<string, unknown>>("/mining/stats"),
-        get<Record<string, unknown>>("/chain/info").catch(() => null),
-      ]);
-      const addr = (stats.miner_address as string) ?? "qbc1genesis";
-      // Use chain height for total blocks mined (persists across restarts)
-      const totalBlocks = (chain?.height as number) ?? (stats.blocks_found as number) ?? 0;
-      return [{
-        address: addr,
-        blocksMined: totalBlocks,
-        totalRewards: totalBlocks * 15.27,
-        avgEnergy: (stats.best_energy as number) ?? 0,
-        lastBlock: totalBlocks,
-        hashPower: 0,
-        susyScore: (stats.alignment_score as number) ?? 0,
-        rank: 1,
-      }];
+      const chain = await get<Record<string, unknown>>("/chain/info").catch(() => null);
+      const tipHeight = (chain?.height as number) ?? 0;
+      if (!tipHeight) return [];
+
+      // Scan last 200 blocks to build miner leaderboard
+      const scanCount = Math.min(200, tipHeight);
+      const fetches = [];
+      for (let h = tipHeight; h > tipHeight - scanCount; h--) {
+        fetches.push(get<Record<string, unknown>>(`/block/${h}`).catch(() => null));
+      }
+      const blocks = await Promise.all(fetches);
+
+      // Tally by miner address (from coinbase output)
+      const minerMap = new Map<string, { blocks: number; rewards: number; lastBlock: number; energies: number[] }>();
+      for (const b of blocks) {
+        if (!b) continue;
+        const txs = (b.transactions as Array<Record<string, unknown>>) ?? [];
+        const height = (b.height as number) ?? 0;
+        if (txs.length === 0) continue;
+        const coinbase = txs[0];
+        const outputs = (coinbase?.outputs as Array<Record<string, unknown>>) ?? [];
+        if (outputs.length === 0) continue;
+        const addr = (outputs[0].address as string) ?? "";
+        if (!addr) continue;
+        const reward = outputs.reduce((s, o) => s + (parseFloat(String(o.amount ?? o.value ?? 0))), 0);
+
+        // Extract energy from thought_proof
+        let energy = 0;
+        const tp = b.thought_proof as Record<string, unknown> | undefined;
+        const steps = (tp?.reasoning_steps as Array<Record<string, unknown>>) ?? [];
+        for (const step of steps) {
+          const content = step.content as Record<string, unknown> | undefined;
+          if (content?.energy) { energy = Number(content.energy); break; }
+        }
+
+        const existing = minerMap.get(addr);
+        if (existing) {
+          existing.blocks++;
+          existing.rewards += reward;
+          existing.lastBlock = Math.max(existing.lastBlock, height);
+          if (energy) existing.energies.push(energy);
+        } else {
+          minerMap.set(addr, { blocks: 1, rewards: reward, lastBlock: height, energies: energy ? [energy] : [] });
+        }
+      }
+
+      // Convert to sorted array
+      const miners: MinerStats[] = [];
+      for (const [addr, data] of minerMap) {
+        const avgEnergy = data.energies.length > 0
+          ? data.energies.reduce((a, b) => a + b, 0) / data.energies.length : 0;
+        miners.push({
+          address: addr,
+          blocksMined: data.blocks,
+          totalRewards: data.rewards,
+          avgEnergy,
+          lastBlock: data.lastBlock,
+          hashPower: 0,
+          susyScore: Math.abs(avgEnergy),
+          rank: 0,
+        });
+      }
+      miners.sort((a, b) => b.blocksMined - a.blocksMined);
+      miners.forEach((m, i) => { m.rank = i + 1; });
+
+      // Scale blocksMined to full chain if single miner dominates the scan
+      // (they likely mined the whole chain)
+      if (miners.length === 1 && miners[0].blocksMined === scanCount) {
+        miners[0].blocksMined = tipHeight;
+        miners[0].totalRewards = tipHeight * 15.27;
+      }
+
+      return miners;
     },
-    staleTime: STALE_TIME,
+    staleTime: 30_000,
   });
 }
 
