@@ -78,15 +78,31 @@ def _block_from_peer_dict(data: dict) -> Block:
 class ChainSync:
     """Synchronises the local chain from a peer node's REST API."""
 
-    def __init__(self, db_manager, consensus=None, aether=None):
+    def __init__(self, db_manager, consensus=None, aether=None, ipfs_manager=None):
         self.db = db_manager
         self.consensus = consensus
         self.aether = aether
+        self._ipfs_manager = ipfs_manager
         self._syncing = False
         self._peer_url: Optional[str] = None
         self._sync_task: Optional[asyncio.Task] = None
         # Track known peer URLs discovered from env or P2P
         self._known_peers: list[str] = []
+
+    async def _get_peer_snapshot_cid(self) -> Optional[str]:
+        """Fetch the latest snapshot CID from the sync peer."""
+        if not self._peer_url:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(f"{self._peer_url}/snapshots/latest")
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if 'error' not in data:
+                        return data.get('cid')
+        except Exception as e:
+            logger.debug(f"Chain sync: failed to fetch snapshot CID from peer: {e}")
+        return None
 
     @property
     def is_syncing(self) -> bool:
@@ -178,6 +194,45 @@ class ChainSync:
                     logger.debug(f"Chain sync: genesis check skipped: {e}")
 
             gap = target_height - local_height
+
+            # Try IPFS snapshot restore first if gap is large (>500 blocks)
+            if gap > 500:
+                try:
+                    snapshot_cid = await self._get_peer_snapshot_cid()
+                    if snapshot_cid:
+                        logger.info(f"Chain sync: large gap ({gap} blocks), trying IPFS snapshot restore (CID: {snapshot_cid})")
+                        from ..storage.snapshot_scheduler import SnapshotScheduler
+                        scheduler = SnapshotScheduler()
+                        # ipfs_manager is on the node — get it from the db's engine context
+                        ipfs_mgr = getattr(self, '_ipfs_manager', None)
+                        if ipfs_mgr:
+                            result = scheduler.restore_from_snapshot(
+                                cid=snapshot_cid, db_manager=self.db, ipfs_manager=ipfs_mgr,
+                            )
+                            if result.get('success'):
+                                restored_height = result.get('height', 0)
+                                logger.info(
+                                    f"Chain sync: IPFS snapshot restored to height {restored_height} "
+                                    f"({result.get('blocks_restored', 0)} blocks, "
+                                    f"{result.get('duration_s', 0)}s)"
+                                )
+                                local_height = self.db.get_current_height()
+                                gap = target_height - local_height
+                                if gap <= 0:
+                                    return {
+                                        "status": "synced_from_snapshot",
+                                        "local_height": local_height,
+                                        "peer_height": target_height,
+                                        "snapshot_cid": snapshot_cid,
+                                    }
+                                logger.info(f"Chain sync: {gap} remaining blocks after snapshot, fetching via RPC")
+                            else:
+                                logger.warning(f"Chain sync: IPFS snapshot restore failed: {result.get('errors', [])}")
+                        else:
+                            logger.debug("Chain sync: no IPFS manager available, skipping snapshot restore")
+                except Exception as e:
+                    logger.warning(f"Chain sync: IPFS snapshot restore failed ({e}), falling back to block-by-block")
+
             logger.info(
                 f"Chain sync: syncing {gap} blocks from {self._peer_url} "
                 f"(local={local_height} → target={target_height})"

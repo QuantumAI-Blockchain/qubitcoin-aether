@@ -4029,6 +4029,38 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         )
         return record.to_dict()
 
+    @app.post("/snapshots/restore")
+    async def snapshot_restore(cid: str = None):
+        """Restore blockchain from an IPFS snapshot.
+
+        If no CID provided, fetches the latest snapshot CID from the sync peer.
+        """
+        import os
+
+        # If no CID, try to get it from the sync peer
+        if not cid:
+            peer_url = os.environ.get('SYNC_PEER_URL', '')
+            if peer_url:
+                import httpx
+                try:
+                    async with httpx.AsyncClient(timeout=10) as client:
+                        resp = await client.get(f"{peer_url}/snapshots/latest")
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            cid = data.get('cid')
+                except Exception as e:
+                    return {"error": f"Failed to fetch snapshot from peer: {e}"}
+            if not cid:
+                return {"error": "No CID provided and no snapshot available from peer"}
+
+        try:
+            result = _snapshot_scheduler.restore_from_snapshot(
+                cid=cid, db_manager=db_manager, ipfs_manager=ipfs_manager,
+            )
+            return result
+        except Exception as e:
+            return {"error": str(e)}
+
     # ========================================================================
     # SUSY SOLUTION ARCHIVER
     # ========================================================================
