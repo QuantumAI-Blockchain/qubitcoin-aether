@@ -40,8 +40,9 @@ async fn main() -> Result<()> {
     let event_tx_clone = event_tx.clone();
 
     // ── Spawn P2P network ───────────────────────────────────────────
+    let stats_for_network = stats.clone();
     tokio::spawn(async move {
-        match network::P2PNetwork::new(p2p_port, to_python_tx, from_python_rx).await {
+        match network::P2PNetwork::new(p2p_port, to_python_tx, from_python_rx, stats_for_network).await {
             Ok(p2p) => {
                 p2p.run().await;
             }

@@ -6,11 +6,14 @@ use libp2p::{
     PeerId, Multiaddr,
     SwarmBuilder,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 use tracing::{info, warn, error, debug};
 
+use crate::bridge::P2PStats;
 use crate::protocol::{NetworkMessage, PeerInfo};
 
 const PROTOCOL_VERSION: &str = "/qubitcoin/1.0.0";
@@ -27,8 +30,11 @@ pub struct QubitcoinBehaviour {
 pub struct P2PNetwork {
     swarm: Swarm<QubitcoinBehaviour>,
     peers: HashMap<PeerId, PeerInfo>,
+    /// Peers subscribed to QBC gossipsub topics (actual QBC nodes)
+    qbc_peers: HashSet<PeerId>,
     to_python_tx: mpsc::UnboundedSender<NetworkMessage>,
     from_python_rx: mpsc::UnboundedReceiver<NetworkMessage>,
+    stats: Arc<P2PStats>,
 }
 
 impl P2PNetwork {
@@ -36,6 +42,7 @@ impl P2PNetwork {
         port: u16,
         to_python_tx: mpsc::UnboundedSender<NetworkMessage>,
         from_python_rx: mpsc::UnboundedReceiver<NetworkMessage>,
+        stats: Arc<P2PStats>,
     ) -> anyhow::Result<Self> {
         let local_key = libp2p::identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -154,8 +161,10 @@ impl P2PNetwork {
         Ok(Self {
             swarm: swarm_instance,
             peers: HashMap::new(),
+            qbc_peers: HashSet::new(),
             to_python_tx,
             from_python_rx,
+            stats,
         })
     }
     
@@ -235,17 +244,64 @@ impl P2PNetwork {
                 debug!("📥 Gossipsub from {}: {:?}", propagation_source, message_id);
                 self.handle_gossipsub_message(message);
             }
-            
+
+            SwarmEvent::Behaviour(QubitcoinBehaviourEvent::Gossipsub(gossipsub::Event::Subscribed {
+                peer_id,
+                topic,
+            })) => {
+                let topic_str = topic.as_str();
+                if topic_str == "qubitcoin-blocks" || topic_str == "qubitcoin-transactions" {
+                    if self.qbc_peers.insert(peer_id) {
+                        self.stats.peer_count.store(self.qbc_peers.len(), Ordering::Relaxed);
+                        info!("⛓️ QBC peer joined ({}): {} — QBC peers: {}", topic_str, peer_id, self.qbc_peers.len());
+                    }
+                }
+            }
+
+            SwarmEvent::Behaviour(QubitcoinBehaviourEvent::Gossipsub(gossipsub::Event::Unsubscribed {
+                peer_id,
+                topic,
+            })) => {
+                let topic_str = topic.as_str();
+                if topic_str == "qubitcoin-blocks" || topic_str == "qubitcoin-transactions" {
+                    // Only remove if not subscribed to ANY QBC topic
+                    let still_on_blocks = topic_str != "qubitcoin-blocks" &&
+                        self.swarm.behaviour().gossipsub.all_peers()
+                            .any(|(p, topics)| *p == peer_id && topics.iter().any(|t| t.as_str() == "qubitcoin-blocks"));
+                    let still_on_txs = topic_str != "qubitcoin-transactions" &&
+                        self.swarm.behaviour().gossipsub.all_peers()
+                            .any(|(p, topics)| *p == peer_id && topics.iter().any(|t| t.as_str() == "qubitcoin-transactions"));
+                    if !still_on_blocks && !still_on_txs {
+                        if self.qbc_peers.remove(&peer_id) {
+                            self.stats.peer_count.store(self.qbc_peers.len(), Ordering::Relaxed);
+                            info!("⛓️ QBC peer left: {} — QBC peers: {}", peer_id, self.qbc_peers.len());
+                        }
+                    }
+                }
+            }
+
             SwarmEvent::Behaviour(QubitcoinBehaviourEvent::Kad(event)) => {
                 debug!("🗂️ Kademlia: {:?}", event);
             }
-            
+
             SwarmEvent::ConnectionEstablished { peer_id, endpoint, .. } => {
                 info!("✅ Connected to {}: {}", peer_id, endpoint.get_remote_address());
+                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+                self.peers.insert(peer_id, PeerInfo {
+                    peer_id: peer_id.to_string(),
+                    address: endpoint.get_remote_address().to_string(),
+                    last_seen: now,
+                });
             }
-            
+
             SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
                 info!("❌ Disconnected from {}: {:?}", peer_id, cause);
+                self.peers.remove(&peer_id);
+                // Also remove from QBC peers if connection drops
+                if self.qbc_peers.remove(&peer_id) {
+                    self.stats.peer_count.store(self.qbc_peers.len(), Ordering::Relaxed);
+                    info!("⛓️ QBC peer disconnected: {} — QBC peers: {}", peer_id, self.qbc_peers.len());
+                }
             }
             
             _ => {}
