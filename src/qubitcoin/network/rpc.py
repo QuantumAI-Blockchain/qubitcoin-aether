@@ -7025,14 +7025,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # CHAIN SYNC ENDPOINTS
     # ========================================================================
 
-    @app.post("/sync/start")
-    async def sync_start(peer_url: str, target_height: Optional[int] = None):
-        """Start syncing the chain from a peer node's RPC API.
+    class SyncStartRequest(BaseModel):
+        peer_url: str = Field(..., description="Base URL of the peer (e.g. http://152.42.215.182:5000)")
+        target_height: Optional[int] = Field(None, description="Optional target height (defaults to peer's tip)")
 
-        Args:
-            peer_url: Base URL of the peer (e.g. http://152.42.215.182:5000)
-            target_height: Optional target height (defaults to peer's tip)
-        """
+    @app.post("/sync/start")
+    async def sync_start(req: SyncStartRequest):
+        """Start syncing the chain from a peer node's RPC API."""
+        peer_url = req.peer_url
+        target_height = req.target_height
         node = getattr(app, 'node', None)
         if not node or not hasattr(node, 'chain_sync'):
             raise HTTPException(status_code=503, detail="Chain sync not available")

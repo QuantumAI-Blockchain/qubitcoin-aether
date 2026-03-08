@@ -1661,6 +1661,29 @@ class QubitcoinNode:
             else:
                 logger.warning("AIKGS Rust sidecar not reachable — AIKGS features unavailable")
 
+        # Auto-sync from peer on startup if SYNC_PEER_URL is set and we're behind
+        sync_peer = os.environ.get('SYNC_PEER_URL', '').strip()
+        if sync_peer and hasattr(self, 'chain_sync') and self.chain_sync:
+            try:
+                local_height = self.db.get_current_height()
+                logger.info(f"Checking sync peer {sync_peer} (local height: {local_height})...")
+                import httpx
+                async with httpx.AsyncClient(timeout=10) as client:
+                    resp = await client.get(f"{sync_peer}/chain/info")
+                    resp.raise_for_status()
+                    peer_height = resp.json().get('height', 0)
+                if peer_height > local_height + 1:
+                    logger.info(
+                        f"Peer is ahead: peer={peer_height}, local={local_height}. "
+                        f"Starting chain sync before mining..."
+                    )
+                    result = await self.chain_sync.sync_from_peer(sync_peer, target_height=peer_height)
+                    logger.info(f"Startup sync result: {result}")
+                else:
+                    logger.info(f"Already up to date with peer (peer={peer_height}, local={local_height})")
+            except Exception as e:
+                logger.warning(f"Startup sync check failed (will mine from current state): {e}")
+
         # Start mining (in Substrate mode, proofs are submitted as extrinsics)
         if Config.AUTO_MINE:
             if Config.SUBSTRATE_MODE:
