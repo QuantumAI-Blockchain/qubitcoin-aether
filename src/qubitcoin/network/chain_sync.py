@@ -146,6 +146,37 @@ class ChainSync:
                     "peer_height": target_height,
                 }
 
+            # If local chain is very short, verify genesis matches the peer.
+            # If genesis hashes differ, wipe local chain and sync from block 0.
+            if local_height >= 0:
+                try:
+                    local_genesis = self.db.get_block(0)
+                    if local_genesis:
+                        async with httpx.AsyncClient(timeout=10) as client:
+                            resp = await client.get(f"{self._peer_url}/block/0")
+                            if resp.status_code == 200:
+                                peer_genesis = resp.json()
+                                peer_genesis_hash = peer_genesis.get('block_hash', peer_genesis.get('hash', ''))
+                                local_genesis_hash = local_genesis.block_hash or local_genesis.calculate_hash()
+                                if peer_genesis_hash and local_genesis_hash != peer_genesis_hash:
+                                    logger.warning(
+                                        f"Chain sync: genesis mismatch! "
+                                        f"local={local_genesis_hash[:16]}... "
+                                        f"peer={peer_genesis_hash[:16]}... "
+                                        f"Wiping local chain to sync from peer genesis."
+                                    )
+                                    # Wipe local blocks and start fresh
+                                    try:
+                                        self.db.wipe_chain()
+                                        local_height = -1
+                                        logger.info("Chain sync: local chain wiped, syncing from block 0")
+                                    except Exception as wipe_err:
+                                        # If wipe_chain doesn't exist, delete blocks manually
+                                        logger.warning(f"Chain wipe not available ({wipe_err}), syncing from block 0 with overwrites")
+                                        local_height = -1
+                except Exception as e:
+                    logger.debug(f"Chain sync: genesis check skipped: {e}")
+
             gap = target_height - local_height
             logger.info(
                 f"Chain sync: syncing {gap} blocks from {self._peer_url} "
@@ -197,7 +228,7 @@ class ChainSync:
                             coinbase = block.transactions[0]
                             if coinbase.outputs:
                                 reward = sum(
-                                    o.get('amount', 0) if isinstance(o, dict) else getattr(o, 'amount', 0)
+                                    float(o.get('amount', 0)) if isinstance(o, dict) else float(getattr(o, 'amount', 0))
                                     for o in coinbase.outputs
                                 )
                                 from decimal import Decimal

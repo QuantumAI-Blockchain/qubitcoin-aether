@@ -1302,6 +1302,21 @@ class DatabaseManager:
                 text("SELECT COALESCE(MAX(height), -1) FROM blocks")
             )
             return result.scalar()
+
+    def wipe_chain(self) -> None:
+        """Delete all blocks, transactions, and UTXOs. Used for chain sync when
+        genesis blocks differ between local and peer chains."""
+        with self.get_session() as session:
+            session.execute(text("DELETE FROM utxos"))
+            session.execute(text("DELETE FROM transactions"))
+            session.execute(text("DELETE FROM blocks"))
+            # Reset supply tracking
+            session.execute(text(
+                "UPDATE chain_state SET value = '0' WHERE key = 'total_supply'"
+            ))
+            session.commit()
+            logger.warning("Chain wiped: all blocks, transactions, and UTXOs deleted")
+
     def get_block(self, height: int) -> Optional[Block]:
         """Get block by height"""
         with self.get_session() as session:
