@@ -212,8 +212,33 @@ class IPFSManager:
 
         try:
             logger.info(f"Retrieving snapshot: {cid}")
-            snapshot = self.client.get_json(cid)
-            logger.info(f"✓ Snapshot retrieved (height: {snapshot['height']})")
+            # Use httpx directly against the IPFS HTTP API with a generous timeout.
+            # ipfshttpclient.get_json times out on large snapshots and is
+            # incompatible with Kubo >= 0.20.
+            import httpx
+            api_addr = Config.IPFS_API
+            # Parse multiaddr /ip4/<host>/tcp/<port>/http → http://<host>:<port>
+            if api_addr.startswith('/ip4/'):
+                parts = api_addr.split('/')
+                host = parts[2]
+                port = parts[4]
+                import socket
+                try:
+                    host = socket.gethostbyname(host)
+                except socket.gaierror:
+                    pass
+                api_url = f"http://{host}:{port}"
+            else:
+                api_url = api_addr
+
+            resp = httpx.post(
+                f"{api_url}/api/v0/cat",
+                params={"arg": cid},
+                timeout=300,  # 5 min for large snapshots
+            )
+            resp.raise_for_status()
+            snapshot = resp.json()
+            logger.info(f"✓ Snapshot retrieved (height: {snapshot.get('height', '?')}, {len(resp.content)} bytes)")
             return snapshot
 
         except Exception as e:
