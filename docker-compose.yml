@@ -145,6 +145,8 @@ services:
       # Connect to external P2P daemon (not subprocess)
       - RUST_P2P_GRPC=50051
       - RUST_P2P_GRPC_HOST=qbc-p2p
+      # Chain sync: peer RPC URL for catching up on blocks
+      - SYNC_PEER_URL=${SYNC_PEER_URL:-}
     depends_on:
       db-init:
         condition: service_completed_successfully

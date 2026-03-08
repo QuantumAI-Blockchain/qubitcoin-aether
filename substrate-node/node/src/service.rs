@@ -303,6 +303,8 @@ pub fn new_full(
     config: Configuration,
     mining_enabled: bool,
     mining_threads: u32,
+    p2p_bridge_addr: Option<String>,
+    sync_peer_url: Option<String>,
 ) -> Result<TaskManager, ServiceError> {
     let sc_service::PartialComponents {
         client,
@@ -551,6 +553,28 @@ pub fn new_full(
         task_manager
             .spawn_essential_handle()
             .spawn_blocking("grandpa-voter", None, grandpa);
+    }
+
+    // ── P2P Bridge ────────────────────────────────────────────────
+    // Connect to the existing Rust P2P daemon via gRPC.
+    // The bridge relays blocks and transactions between Substrate and
+    // the custom gossipsub network.
+    if let Some(ref bridge_addr) = p2p_bridge_addr {
+        log::info!(
+            target: "p2p-bridge",
+            "Spawning P2P bridge to {}",
+            bridge_addr
+        );
+
+        let _broadcaster = qbc_p2p_bridge::spawn_p2p_bridge(
+            task_manager.spawn_handle(),
+            client.clone(),
+            bridge_addr.clone(),
+            sync_peer_url,
+        );
+
+        // The broadcaster can be stored for outbound block/tx propagation.
+        // For now, inbound streaming is the primary use case.
     }
 
     Ok(task_manager)

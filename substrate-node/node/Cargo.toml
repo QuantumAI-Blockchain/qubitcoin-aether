@@ -59,6 +59,7 @@ log = { workspace = true }
 qbc-runtime = { workspace = true }
 qbc-primitives = { workspace = true, features = ["std"] }
 qbc-mining = { workspace = true }
+qbc-p2p-bridge = { workspace = true }
 
 # Pin rustix 0.38 for transitive deps (wasmtime→memfd→rustix)
 rustix = { workspace = true }

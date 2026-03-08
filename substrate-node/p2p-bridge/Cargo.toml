@@ -1,0 +1,36 @@
+[package]
+name = "qbc-p2p-bridge"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Bridge between Substrate node and Qubitcoin Rust P2P daemon via gRPC"
+
+[dependencies]
+# gRPC
+tonic = "0.12"
+prost = "0.13"
+
+# Substrate
+sc-client-api = { workspace = true }
+sc-service = { workspace = true }
+sp-runtime = { workspace = true, features = ["std"] }
+sp-core = { workspace = true, features = ["std"] }
+sp-blockchain = "43.0"
+codec = { workspace = true, features = ["std"] }
+
+# Async
+tokio = { workspace = true }
+tokio-stream = "0.1"
+futures = { workspace = true }
+
+# Logging / serialization
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["std"] }
+
+# Local
+qbc-runtime = { workspace = true }
+qbc-primitives = { workspace = true, features = ["std"] }
+
+[build-dependencies]
+tonic-build = "0.12"

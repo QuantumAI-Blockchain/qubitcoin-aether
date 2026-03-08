@@ -13,6 +13,7 @@ members = [
     "pallets/qbc-reversibility",
     "crypto/kyber-transport",
     "mining",
+    "p2p-bridge",
 ]
 
 [workspace.package]
@@ -118,6 +119,9 @@ qbc-kyber-transport = { path = "crypto/kyber-transport" }
 
 # Mining engine
 qbc-mining = { path = "mining" }
+
+# P2P bridge
+qbc-p2p-bridge = { path = "p2p-bridge" }
 
 # Qubitcoin runtime
 qbc-runtime = { path = "runtime" }

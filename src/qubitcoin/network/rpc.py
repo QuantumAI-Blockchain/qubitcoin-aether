@@ -7021,6 +7021,46 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             logger.error(f"L1L2 status error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e))
 
-    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality + L1L2 Bridge)")
+    # ========================================================================
+    # CHAIN SYNC ENDPOINTS
+    # ========================================================================
+
+    @app.post("/sync/start")
+    async def sync_start(peer_url: str, target_height: Optional[int] = None):
+        """Start syncing the chain from a peer node's RPC API.
+
+        Args:
+            peer_url: Base URL of the peer (e.g. http://152.42.215.182:5000)
+            target_height: Optional target height (defaults to peer's tip)
+        """
+        node = getattr(app, 'node', None)
+        if not node or not hasattr(node, 'chain_sync'):
+            raise HTTPException(status_code=503, detail="Chain sync not available")
+
+        chain_sync = node.chain_sync
+        if chain_sync.is_syncing:
+            return {"status": "already_syncing"}
+
+        # Register peer and start sync
+        chain_sync.add_peer_url(peer_url)
+        result = await chain_sync.sync_from_peer(peer_url, target_height=target_height)
+        return result
+
+    @app.get("/sync/status")
+    async def sync_status():
+        """Get chain sync status."""
+        node = getattr(app, 'node', None)
+        if not node or not hasattr(node, 'chain_sync'):
+            return {"syncing": False, "chain_sync": "not_available"}
+
+        chain_sync = node.chain_sync
+        local_height = db_manager.get_current_height()
+        return {
+            "syncing": chain_sync.is_syncing,
+            "local_height": local_height,
+            "known_peers": chain_sync._known_peers,
+        }
+
+    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality + L1L2 Bridge + Chain Sync)")
 
     return app

@@ -21,6 +21,7 @@ from .storage.ipfs import IPFSManager
 from .network.rpc import create_rpc_app
 from .network.p2p_network import P2PNetwork
 from .network.rust_p2p_client import RustP2PClient
+from .network.chain_sync import ChainSync
 from .contracts.executor import ContractExecutor
 from .qvm.state import StateManager
 from .aether import KnowledgeGraph, PhiCalculator, ReasoningEngine, AetherEngine
@@ -768,6 +769,14 @@ class QubitcoinNode:
         except Exception as e:
             self.l1l2_bridge = None
             logger.warning(f"L1L2Bridge init skipped: {e}")
+
+        # Chain Sync (uses db, consensus, aether — no separate component number)
+        self.chain_sync = ChainSync(self.db, self.consensus, self.aether)
+        # Register peer URL from environment if set
+        sync_peer = os.environ.get('SYNC_PEER_URL', '').strip()
+        if sync_peer:
+            self.chain_sync.add_peer_url(sync_peer)
+            logger.info(f"Chain sync peer configured: {sync_peer}")
 
         # Component 22: RPC & Handlers
         logger.info("[22/22] Initializing RPC and handlers...")
@@ -1778,16 +1787,54 @@ class QubitcoinNode:
 
             blocks_received.inc()
 
-            # Validate and add to chain via consensus
-            if self.consensus:
-                valid = self.consensus.validate_block(block_data)
-                if valid:
-                    logger.info(f"P2P block {height} validated, adding to chain")
+            # Check if we're behind and need to sync
+            local_height = self.db.get_current_height()
+            gap = height - local_height
+
+            if gap > 1:
+                # We're behind — trigger chain sync instead of trying to validate
+                # a block we can't link to our chain
+                logger.info(
+                    f"P2P block {height} is {gap} blocks ahead of local chain "
+                    f"(local={local_height}). Triggering chain sync..."
+                )
+                if hasattr(self, 'chain_sync') and self.chain_sync:
+                    await self.chain_sync.auto_sync_if_behind(height)
+                return
+
+            if gap == 1:
+                # Next expected block — reconstruct and store directly
+                from .network.chain_sync import _block_from_peer_dict
+                try:
+                    block = _block_from_peer_dict(block_data)
+                    prev_block = self.db.get_block(local_height)
+
+                    if prev_block:
+                        expected_prev = prev_block.block_hash or prev_block.calculate_hash()
+                        if block.prev_hash != expected_prev:
+                            logger.warning(
+                                f"P2P block {height} prev_hash mismatch — "
+                                f"different chain fork, ignoring"
+                            )
+                            return
+
+                    # Store the block
+                    self.db.store_block(block)
                     current_height_metric.set(height)
-                else:
-                    logger.warning(f"P2P block {height} failed validation")
+                    logger.info(f"P2P block {height} stored successfully")
+
+                    # Process for Aether knowledge
+                    if self.aether:
+                        try:
+                            self.aether.process_block_knowledge(block)
+                        except Exception:
+                            pass
+
+                except Exception as e:
+                    logger.error(f"Failed to store P2P block {height}: {e}")
             else:
-                logger.debug(f"No consensus engine — skipping P2P block {height}")
+                # gap <= 0 — we already have this block or are ahead
+                logger.debug(f"P2P block {height} already known (local={local_height})")
 
         except Exception as e:
             logger.error(f"Error processing P2P block: {e}")

@@ -18,6 +18,17 @@ pub struct Cli {
     /// Number of mining threads (default: 1).
     #[clap(long, default_value = "1")]
     pub mining_threads: u32,
+
+    /// gRPC address of the Rust P2P daemon for bridge connectivity.
+    /// Example: http://127.0.0.1:50051
+    #[clap(long)]
+    pub p2p_bridge_addr: Option<String>,
+
+    /// Optional REST URL of a peer node for chain sync fallback.
+    /// Used when the P2P bridge detects the local chain is behind.
+    /// Example: http://152.42.215.182:5000
+    #[clap(long)]
+    pub sync_peer_url: Option<String>,
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -162,10 +173,18 @@ pub fn run() -> sc_cli::Result<()> {
         None => {
             let mine = cli.mine;
             let mining_threads = cli.mining_threads;
+            let p2p_bridge_addr = cli.p2p_bridge_addr.clone();
+            let sync_peer_url = cli.sync_peer_url.clone();
             let runner = cli.create_runner(&cli.run)?;
             runner.run_node_until_exit(|config| async move {
-                crate::service::new_full(config, mine, mining_threads)
-                    .map_err(sc_cli::Error::Service)
+                crate::service::new_full(
+                    config,
+                    mine,
+                    mining_threads,
+                    p2p_bridge_addr,
+                    sync_peer_url,
+                )
+                .map_err(sc_cli::Error::Service)
             })
         }
     }
