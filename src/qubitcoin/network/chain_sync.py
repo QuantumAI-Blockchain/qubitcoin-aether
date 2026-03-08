@@ -23,12 +23,18 @@ from qubitcoin.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Maximum blocks to fetch in a single sync batch
+# Maximum blocks to fetch in a single sync batch (used for pre-fetching)
 SYNC_BATCH_SIZE = 50
-# Maximum concurrent HTTP requests
+# Maximum concurrent HTTP requests (used for pre-fetching)
 SYNC_CONCURRENCY = 10
 # Minimum height gap to trigger auto-sync
 AUTO_SYNC_THRESHOLD = 2
+# Max retries per block fetch before giving up
+SYNC_FETCH_RETRIES = 3
+# Delay between fetch retries (seconds)
+SYNC_RETRY_DELAY = 2.0
+# Max consecutive fetch failures before stopping sync
+SYNC_MAX_CONSECUTIVE_FAILURES = 5
 # Maximum reorg depth — blocks deeper than this CANNOT be rolled back.
 # Prevents 51% attacks from rewriting ancient history.
 # ~5.5 hours of blocks at 3.3s/block = ~6000 blocks
@@ -96,11 +102,13 @@ class ChainSync:
     5. Resync — fetch and store peer's blocks from fork point
     """
 
-    def __init__(self, db_manager, consensus=None, aether=None, ipfs_manager=None):
+    def __init__(self, db_manager, consensus=None, aether=None, ipfs_manager=None,
+                 mining_engine=None):
         self.db = db_manager
         self.consensus = consensus
         self.aether = aether
         self._ipfs_manager = ipfs_manager
+        self._mining = mining_engine  # Optional: pause mining during sync
         self._syncing = False
         self._peer_url: Optional[str] = None
         self._sync_task: Optional[asyncio.Task] = None
@@ -319,80 +327,104 @@ class ChainSync:
         end_height: int,
         on_progress: Optional[Callable] = None,
     ) -> dict:
-        """Fetch and store blocks in a height range from the peer."""
+        """Fetch and store blocks **sequentially** in a height range from the peer.
+
+        Key reliability guarantees:
+        - Blocks are fetched and stored ONE AT A TIME in ascending order
+        - Each block is retried up to SYNC_FETCH_RETRIES times before giving up
+        - On first failure that can't be retried, sync stops (no gaps in chain)
+        - Progress is tracked by actual stored height, not batch pointer
+        """
         start_time = time.time()
         synced = 0
         failed = 0
         skipped = 0
         gap = end_height - start_height + 1
+        consecutive_failures = 0
 
         current = start_height
         while current <= end_height:
-            batch_end = min(current + SYNC_BATCH_SIZE - 1, end_height)
-            batch_heights = list(range(current, batch_end + 1))
+            # Fetch ONE block at a time with retries — no concurrent batches
+            block = await self._fetch_block_with_retry(current)
 
-            # Fetch batch concurrently
-            blocks = await self._fetch_batch(batch_heights)
-            blocks.sort(key=lambda b: b.height)
+            if block is None:
+                consecutive_failures += 1
+                if consecutive_failures >= SYNC_MAX_CONSECUTIVE_FAILURES:
+                    logger.error(
+                        f"Chain sync: {consecutive_failures} consecutive fetch failures "
+                        f"at height {current}. Stopping sync."
+                    )
+                    failed += 1
+                    break
+                logger.warning(
+                    f"Chain sync: failed to fetch block {current} "
+                    f"(attempt {consecutive_failures}/{SYNC_MAX_CONSECUTIVE_FAILURES}), "
+                    f"will retry on next sync cycle"
+                )
+                failed += 1
+                break  # Stop — cannot leave gaps in chain
 
-            for block in blocks:
-                try:
-                    # Validate block chain linkage
-                    prev_block = self.db.get_block(block.height - 1)
-                    if prev_block is None and block.height > 0:
+            consecutive_failures = 0
+
+            try:
+                # Validate block chain linkage
+                prev_block = self.db.get_block(block.height - 1)
+                if prev_block is None and block.height > 0:
+                    logger.warning(
+                        f"Chain sync: missing prev block {block.height - 1}, "
+                        f"cannot validate block {block.height}. Stopping."
+                    )
+                    failed += 1
+                    break  # Stop — chain is broken
+
+                # Light validation — check prev_hash linkage
+                if prev_block:
+                    expected_prev = prev_block.block_hash or prev_block.calculate_hash()
+                    if block.prev_hash != expected_prev:
                         logger.warning(
-                            f"Chain sync: missing prev block {block.height - 1}, "
-                            f"cannot validate block {block.height}"
+                            f"Chain sync: block {block.height} prev_hash mismatch "
+                            f"(got {block.prev_hash[:16]}, expected {expected_prev[:16]}). "
+                            f"Possible fork — stopping sync."
                         )
                         failed += 1
-                        continue
+                        break  # Stop — fork detected mid-sync
 
-                    # Light validation — check prev_hash linkage
-                    if prev_block:
-                        expected_prev = prev_block.block_hash or prev_block.calculate_hash()
-                        if block.prev_hash != expected_prev:
-                            logger.warning(
-                                f"Chain sync: block {block.height} prev_hash mismatch "
-                                f"(got {block.prev_hash[:16]}, expected {expected_prev[:16]})"
-                            )
-                            failed += 1
-                            continue
+                # Store the block
+                self.db.store_block(block)
+                synced += 1
+                current += 1  # Only advance after successful store
 
-                    # Store the block
-                    self.db.store_block(block)
-                    synced += 1
+                # Update supply tracking
+                if block.transactions:
+                    coinbase = block.transactions[0]
+                    if coinbase.outputs:
+                        reward = sum(
+                            float(o.get('amount', 0)) if isinstance(o, dict) else float(getattr(o, 'amount', 0))
+                            for o in coinbase.outputs
+                        )
+                        from decimal import Decimal
+                        with self.db.get_session() as session:
+                            self.db.update_supply(Decimal(str(reward)), session)
+                            session.commit()
 
-                    # Update supply tracking
-                    if block.transactions:
-                        coinbase = block.transactions[0]
-                        if coinbase.outputs:
-                            reward = sum(
-                                float(o.get('amount', 0)) if isinstance(o, dict) else float(getattr(o, 'amount', 0))
-                                for o in coinbase.outputs
-                            )
-                            from decimal import Decimal
-                            with self.db.get_session() as session:
-                                self.db.update_supply(Decimal(str(reward)), session)
-                                session.commit()
+                # Process knowledge periodically
+                if self.aether and synced % 100 == 0:
+                    try:
+                        self.aether.process_block_knowledge(block)
+                    except Exception:
+                        pass
 
-                    # Process knowledge
-                    if self.aether and synced % 100 == 0:
-                        try:
-                            self.aether.process_block_knowledge(block)
-                        except Exception:
-                            pass
+            except Exception as e:
+                if 'already exists' in str(e).lower() or 'uniqueviolation' in str(e).lower():
+                    skipped += 1
+                    current += 1  # Block exists — safe to advance
+                else:
+                    logger.error(f"Chain sync: failed to store block {block.height}: {e}")
+                    failed += 1
+                    break  # Stop — don't leave gaps
 
-                except Exception as e:
-                    if 'already exists' in str(e).lower():
-                        skipped += 1
-                    else:
-                        logger.error(f"Chain sync: failed to store block {block.height}: {e}")
-                        failed += 1
-
-            current = batch_end + 1
-
-            # Progress logging
-            if gap > 0:
+            # Progress logging every 10 blocks
+            if synced > 0 and synced % 10 == 0 and gap > 0:
                 progress = (current - start_height) / gap * 100
                 elapsed = time.time() - start_time
                 bps = synced / elapsed if elapsed > 0 else 0
@@ -415,6 +447,7 @@ class ChainSync:
             "skipped": skipped,
             "from_height": start_height,
             "to_height": end_height,
+            "last_synced": current - 1,
             "elapsed_seconds": round(elapsed, 1),
             "blocks_per_second": round(synced / elapsed, 1) if elapsed > 0 else 0,
         }
@@ -451,8 +484,15 @@ class ChainSync:
         self._syncing = True
         self._peer_url = peer_url.rstrip('/')
         start_time = time.time()
+        mining_was_running = False
 
         try:
+            # Pause mining during sync to prevent fork creation
+            if self._mining and hasattr(self._mining, 'is_mining') and self._mining.is_mining:
+                mining_was_running = True
+                logger.info("Chain sync: pausing mining during sync")
+                self._mining.stop()
+
             local_height = self.db.get_current_height()
             logger.info(f"Chain sync: local height={local_height}")
 
@@ -620,9 +660,65 @@ class ChainSync:
             }
         finally:
             self._syncing = False
+            # Resume mining if it was running before sync
+            if mining_was_running and self._mining:
+                logger.info("Chain sync: resuming mining after sync")
+                try:
+                    self._mining.start()
+                except Exception as e:
+                    logger.error(f"Chain sync: failed to resume mining: {e}")
+
+    async def _fetch_block_with_retry(self, height: int) -> Optional[Block]:
+        """Fetch a single block from the peer with retries.
+
+        Returns the Block or None if all retries exhausted.
+        """
+        for attempt in range(1, SYNC_FETCH_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.get(f"{self._peer_url}/block/{height}")
+                    if resp.status_code == 200:
+                        return _block_from_peer_dict(resp.json())
+                    elif resp.status_code == 429:
+                        # Rate limited — back off
+                        delay = SYNC_RETRY_DELAY * attempt
+                        logger.warning(
+                            f"Chain sync: rate limited fetching block {height}, "
+                            f"retry {attempt}/{SYNC_FETCH_RETRIES} in {delay}s"
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    elif resp.status_code == 404:
+                        logger.debug(f"Chain sync: block {height} not found on peer (404)")
+                        return None  # Block doesn't exist — no point retrying
+                    else:
+                        logger.warning(
+                            f"Chain sync: block {height} returned HTTP {resp.status_code}, "
+                            f"retry {attempt}/{SYNC_FETCH_RETRIES}"
+                        )
+            except httpx.TimeoutException:
+                delay = SYNC_RETRY_DELAY * attempt
+                logger.warning(
+                    f"Chain sync: timeout fetching block {height}, "
+                    f"retry {attempt}/{SYNC_FETCH_RETRIES} in {delay}s"
+                )
+                await asyncio.sleep(delay)
+            except Exception as e:
+                logger.warning(
+                    f"Chain sync: error fetching block {height}: {e}, "
+                    f"retry {attempt}/{SYNC_FETCH_RETRIES}"
+                )
+                await asyncio.sleep(SYNC_RETRY_DELAY)
+
+        logger.error(f"Chain sync: failed to fetch block {height} after {SYNC_FETCH_RETRIES} retries")
+        return None
 
     async def _fetch_batch(self, heights: list[int]) -> list[Block]:
-        """Fetch a batch of blocks concurrently from the peer."""
+        """Fetch a batch of blocks concurrently from the peer.
+
+        Note: _sync_range now uses _fetch_block_with_retry (sequential).
+        This method is kept for bulk operations like IPFS gap-fill.
+        """
         sem = asyncio.Semaphore(SYNC_CONCURRENCY)
         blocks: list[Block] = []
 

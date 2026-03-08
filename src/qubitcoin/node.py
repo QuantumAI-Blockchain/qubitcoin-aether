@@ -771,7 +771,10 @@ class QubitcoinNode:
             logger.warning(f"L1L2Bridge init skipped: {e}")
 
         # Chain Sync (uses db, consensus, aether — no separate component number)
-        self.chain_sync = ChainSync(self.db, self.consensus, self.aether, ipfs_manager=self.ipfs)
+        self.chain_sync = ChainSync(
+            self.db, self.consensus, self.aether,
+            ipfs_manager=self.ipfs, mining_engine=self.mining
+        )
         # Register peer URL from environment if set
         sync_peer = os.environ.get('SYNC_PEER_URL', '').strip()
         if sync_peer:
