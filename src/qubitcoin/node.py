@@ -623,7 +623,7 @@ class QubitcoinNode:
         self.exchange_engine = None
         try:
             from .exchange.engine import ExchangeEngine
-            self.exchange_engine = ExchangeEngine()
+            self.exchange_engine = ExchangeEngine(db_manager=self.db)
             logger.info("[19b/22] ExchangeEngine initialized (%d pairs)",
                         len(self.exchange_engine.books))
         except Exception as e:

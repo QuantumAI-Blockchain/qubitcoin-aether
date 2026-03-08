@@ -1055,9 +1055,9 @@ class ExchangeEngine:
             with self._db_manager.get_session() as session:
                 session.execute(
                     text("""
-                        INSERT INTO system_config (config_key, config_value, config_type)
-                        VALUES ('exchange_balances', :val, 'json')
-                        ON CONFLICT (config_key) DO UPDATE SET config_value = :val
+                        INSERT INTO system_config (config_key, config_value, config_type, category)
+                        VALUES ('exchange_balances', :val, 'json', 'exchange')
+                        ON CONFLICT (config_key) DO UPDATE SET config_value = :val, updated_at = now()
                     """),
                     {'val': payload},
                 )
