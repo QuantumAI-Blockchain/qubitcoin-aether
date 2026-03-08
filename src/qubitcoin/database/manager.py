@@ -1360,9 +1360,10 @@ class DatabaseManager:
             # (restore them to unspent state)
             session.execute(
                 text("""
-                    UPDATE utxos SET spent = false, spent_txid = NULL
+                    UPDATE utxos SET spent = false
                     WHERE spent = true
-                    AND spent_txid IN (
+                    AND block_height <= :h
+                    AND txid IN (
                         SELECT txid FROM transactions WHERE block_height > :h
                     )
                 """),
