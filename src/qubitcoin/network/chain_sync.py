@@ -90,18 +90,29 @@ class ChainSync:
         self._known_peers: list[str] = []
 
     async def _get_peer_snapshot_cid(self) -> Optional[str]:
-        """Fetch the latest snapshot CID from the sync peer."""
-        if not self._peer_url:
-            return None
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(f"{self._peer_url}/snapshots/latest")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if 'error' not in data:
-                        return data.get('cid')
-        except Exception as e:
-            logger.debug(f"Chain sync: failed to fetch snapshot CID from peer: {e}")
+        """Fetch the latest snapshot CID from the sync peer, or fall back to env var."""
+        import os
+        # Try peer endpoint first
+        if self._peer_url:
+            try:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    resp = await client.get(f"{self._peer_url}/snapshots/latest")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if 'error' not in data:
+                            cid = data.get('cid')
+                            if cid:
+                                logger.info(f"Chain sync: got snapshot CID from peer: {cid}")
+                                return cid
+                        else:
+                            logger.debug(f"Chain sync: peer /snapshots/latest returned error: {data.get('error')}")
+            except Exception as e:
+                logger.debug(f"Chain sync: failed to fetch snapshot CID from peer: {e}")
+        # Fall back to SNAPSHOT_CID env var
+        env_cid = os.environ.get('SNAPSHOT_CID', '').strip()
+        if env_cid:
+            logger.info(f"Chain sync: using SNAPSHOT_CID from environment: {env_cid}")
+            return env_cid
         return None
 
     @property
