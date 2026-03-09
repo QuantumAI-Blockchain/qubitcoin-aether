@@ -292,16 +292,16 @@ impl P2PNetwork {
                     address: endpoint.get_remote_address().to_string(),
                     last_seen: now,
                 });
+                // Update gRPC-visible peer count from direct connections
+                self.stats.peer_count.store(self.peers.len(), Ordering::Relaxed);
             }
 
             SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
                 info!("❌ Disconnected from {}: {:?}", peer_id, cause);
                 self.peers.remove(&peer_id);
-                // Also remove from QBC peers if connection drops
-                if self.qbc_peers.remove(&peer_id) {
-                    self.stats.peer_count.store(self.qbc_peers.len(), Ordering::Relaxed);
-                    info!("⛓️ QBC peer disconnected: {} — QBC peers: {}", peer_id, self.qbc_peers.len());
-                }
+                self.qbc_peers.remove(&peer_id);
+                // Update gRPC-visible peer count from direct connections
+                self.stats.peer_count.store(self.peers.len(), Ordering::Relaxed);
             }
             
             _ => {}
