@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { ArrowLeft, FileText, Cpu, Brain, TrendingUp } from "lucide-react";
+import { ArrowLeft, FileText, Cpu, Brain, TrendingUp, DollarSign } from "lucide-react";
 
 const C = {
   bg: "#0a0a0f",
@@ -47,6 +47,14 @@ const docs = [
     description:
       "Golden ratio emission schedule, phi-halving, tail emission, QUSD stablecoin, and fee economics.",
     tags: ["Phi-Halving", "3.3B Supply", "QUSD", "Fees"],
+  },
+  {
+    title: "QUSD Stablecoin",
+    href: "/docs/qusd",
+    icon: DollarSign,
+    description:
+      "Dollar-pegged stablecoin on QVM — fractional reserve, peg keeper daemon, cross-chain wQUSD, and investor revenue share.",
+    tags: ["$1 Peg", "Fractional Reserve", "Peg Keeper", "wQUSD"],
   },
 ];
 
