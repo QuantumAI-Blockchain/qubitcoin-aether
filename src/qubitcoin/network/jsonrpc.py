@@ -788,10 +788,21 @@ class JsonRpcHandler:
 
 
 def _serialize(model):
-    """Serialize Pydantic model (compatible with v1 and v2)"""
+    """Serialize Pydantic model (compatible with v1 and v2).
+
+    Per JSON-RPC 2.0 spec: on success, omit 'error'; on error, omit 'result'.
+    MetaMask is strict about this — 'error: null' in success responses breaks it.
+    """
     if hasattr(model, 'model_dump'):
-        return model.model_dump()
-    return model.dict()
+        data = model.model_dump()
+    else:
+        data = model.dict()
+    # Strip null fields per JSON-RPC 2.0 spec
+    if data.get("error") is None:
+        data.pop("error", None)
+    if data.get("result") is None and data.get("error") is not None:
+        data.pop("result", None)
+    return data
 
 
 def create_jsonrpc_router(db, consensus=None, mining=None, quantum=None, qvm=None,

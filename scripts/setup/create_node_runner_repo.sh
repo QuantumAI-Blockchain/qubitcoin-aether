@@ -118,7 +118,7 @@ cat > "$TARGET_DIR/README.md" << 'README'
 Run a Qubitcoin (QBC) node — mine blocks, validate transactions, and participate in the
 quantum-secured blockchain network with on-chain AGI.
 
-**Chain ID:** 3301 | **Block Time:** 3.3s | **Consensus:** Proof-of-SUSY-Alignment
+**Chain ID:** 3303 | **Block Time:** 3.3s | **Consensus:** Proof-of-SUSY-Alignment
 
 ## Quick Start (Docker)
 
@@ -168,7 +168,7 @@ Edit `.env` to configure your node:
 |----------|---------|-------------|
 | `AUTO_MINE` | `true` | Start mining on boot |
 | `PEER_SEEDS` | (empty) | Comma-separated seed peer addresses |
-| `CHAIN_ID` | `3301` | Mainnet (3302 for testnet) |
+| `CHAIN_ID` | `3303` | Mainnet (3304 for testnet) |
 | `ENABLE_RUST_P2P` | `true` | Use Rust libp2p for P2P networking |
 | `RPC_PORT` | `5000` | RPC API port |
 

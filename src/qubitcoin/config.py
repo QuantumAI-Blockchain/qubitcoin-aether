@@ -176,7 +176,7 @@ class Config:
     MAX_CONTRACT_SIZE: int = 256_000  # 256KB max contract code
 
     # QVM Settings
-    CHAIN_ID: int = int(os.getenv('CHAIN_ID', 3301))  # QBC chain ID
+    CHAIN_ID: int = int(os.getenv('CHAIN_ID', 3303))  # QBC chain ID
     BLOCK_GAS_LIMIT: int = int(os.getenv('BLOCK_GAS_LIMIT', 30_000_000))
     DEFAULT_GAS_PRICE: Decimal = Decimal('0.000000001')  # 1 Gwei equivalent in QBC
 
@@ -319,6 +319,22 @@ class Config:
     HIGGS_DT: float = float(os.getenv('HIGGS_DT', '0.01'))
     HIGGS_ENABLE_MASS_REBALANCING: bool = os.getenv('HIGGS_ENABLE_MASS_REBALANCING', 'true').lower() == 'true'
     HIGGS_FIELD_UPDATE_INTERVAL: int = int(os.getenv('HIGGS_FIELD_UPDATE_INTERVAL', '1'))
+
+    # ============================================================================
+    # INVESTOR PUBLIC SALE
+    # ============================================================================
+    INVESTOR_REVENUE_SPLIT: float = float(os.getenv('INVESTOR_REVENUE_SPLIT', '0.10'))
+    INVESTOR_REVENUE_ADDRESS: str = os.getenv('INVESTOR_REVENUE_ADDRESS', '')
+    INVESTOR_SEED_ROUND_CONTRACT: str = os.getenv('INVESTOR_SEED_ROUND_CONTRACT', '')
+    INVESTOR_VESTING_CONTRACT: str = os.getenv('INVESTOR_VESTING_CONTRACT', '')
+    INVESTOR_REVENUE_CONTRACT: str = os.getenv('INVESTOR_REVENUE_CONTRACT', '')
+    INVESTOR_TREASURY_WALLET: str = os.getenv('INVESTOR_TREASURY_WALLET', '')
+    ETH_RPC_URL: str = os.getenv('ETH_RPC_URL', 'https://eth.llamarpc.com')
+    ETHERSCAN_API_KEY: str = os.getenv('ETHERSCAN_API_KEY', '')
+    SEED_ROUND_ETH_ADDRESS: str = os.getenv('SEED_ROUND_ETH_ADDRESS', '')
+    SEED_ROUND_TOKEN_PRICE: str = os.getenv('SEED_ROUND_TOKEN_PRICE', '1.0')
+    SEED_ROUND_HARD_CAP: str = os.getenv('SEED_ROUND_HARD_CAP', '10000000')
+    CHAINLINK_ETH_USD_FEED: str = os.getenv('CHAINLINK_ETH_USD_FEED', '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419')
 
     # ============================================================================
     # QUSD CONTRACT ADDRESSES (set after deployment)

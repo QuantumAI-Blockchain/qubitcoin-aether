@@ -51,7 +51,7 @@ func runBytecode(t *testing.T, code []byte, gas uint64, stateDB *state.StateDB) 
 		BlockNumber: 100,
 		Timestamp:   1700000000,
 		BaseFee:     big.NewInt(1_000_000_000),
-		ChainID:     big.NewInt(3301),
+		ChainID:     big.NewInt(3303),
 		Coinbase:    [20]byte{0x01},
 	}
 	tx := &evm.TxContext{
@@ -541,8 +541,8 @@ func TestEVM_NUMBER_TIMESTAMP_CHAINID(t *testing.T) {
 		t.Fatalf("CHAINID failed: %s", result2.Err)
 	}
 	got2 := new(big.Int).SetBytes(result2.ReturnData)
-	if got2.Cmp(big.NewInt(3301)) != 0 {
-		t.Errorf("CHAINID: got %s, want 3301", got2)
+	if got2.Cmp(big.NewInt(3303)) != 0 {
+		t.Errorf("CHAINID: got %s, want 3303", got2)
 	}
 }
 

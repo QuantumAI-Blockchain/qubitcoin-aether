@@ -7,7 +7,7 @@
 //
 // Usage:
 //
-//	qvm serve [--http :8080] [--grpc :50052] [--chain-id 3301]
+//	qvm serve [--http :8080] [--grpc :50052] [--chain-id 3303]
 //	qvm version
 package main
 
@@ -62,12 +62,12 @@ func printUsage() {
 	fmt.Println("Server flags:")
 	fmt.Println("  --http ADDR          HTTP listen address (default :8080, env QVM_HTTP_ADDR)")
 	fmt.Println("  --grpc ADDR          gRPC listen address (default :50052, env QVM_GRPC_ADDR)")
-	fmt.Println("  --chain-id ID        Chain ID (default 3301, env QVM_CHAIN_ID)")
+	fmt.Println("  --chain-id ID        Chain ID (default 3303, env QVM_CHAIN_ID)")
 	fmt.Println()
 	fmt.Println("Environment variables:")
 	fmt.Println("  QVM_HTTP_ADDR        HTTP listen address")
 	fmt.Println("  QVM_GRPC_ADDR        gRPC listen address")
-	fmt.Println("  QVM_CHAIN_ID         Chain ID (3301=mainnet, 3302=testnet)")
+	fmt.Println("  QVM_CHAIN_ID         Chain ID (3303=mainnet, 3304=testnet)")
 	fmt.Println("  QVM_CORS_ORIGINS     Comma-separated CORS origins")
 	fmt.Println("  QVM_LOG_LEVEL        Log level: debug, info, warn, error")
 }

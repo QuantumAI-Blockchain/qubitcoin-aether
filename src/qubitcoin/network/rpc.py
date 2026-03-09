@@ -2399,7 +2399,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         import time as _time
         import json as _json
 
-        to_addr = req.to.replace('0x', '')
+        to_addr = req.to.replace('0x', '').lower()
         try:
             amount = Decimal(req.amount)
         except Exception:
@@ -7319,6 +7319,513 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "local_height": db_manager.get_current_height(),
         }
 
-    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality + L1L2 Bridge + Chain Sync + Reorg)")
+    # ========================================================================
+    # INVESTOR PUBLIC SALE ENDPOINTS
+    # ========================================================================
+
+    @app.get("/investor/round/info")
+    async def investor_round_info():
+        """Get current seed round information."""
+        from sqlalchemy import text
+        try:
+            with db_manager.get_session() as session:
+                row = session.execute(
+                    text("SELECT * FROM investor_rounds WHERE active = true ORDER BY id DESC LIMIT 1")
+                ).mappings().first()
+                if not row:
+                    return {
+                        "active": False, "token_price_usd": "0", "hard_cap_usd": "0",
+                        "total_raised_usd": "0", "investors": 0, "start_time": 0,
+                        "end_time": 0, "percent_filled": 0,
+                        "contract_address": Config.INVESTOR_SEED_ROUND_CONTRACT,
+                    }
+                hard_cap = float(row['hard_cap']) if row['hard_cap'] else 1
+                raised = float(row['total_raised']) if row['total_raised'] else 0
+                return {
+                    "active": bool(row['active']),
+                    "token_price_usd": str(row['token_price']),
+                    "hard_cap_usd": str(row['hard_cap']),
+                    "total_raised_usd": str(row['total_raised']),
+                    "investors": row['total_investors'],
+                    "start_time": str(row['start_time']),
+                    "end_time": str(row['end_time']),
+                    "percent_filled": round((raised / hard_cap) * 100, 2) if hard_cap > 0 else 0,
+                    "contract_address": row.get('contract_address', '') or Config.INVESTOR_SEED_ROUND_CONTRACT,
+                }
+        except Exception as e:
+            logger.warning(f"investor_round_info error: {e}")
+            return {
+                "active": False, "token_price_usd": Config.SEED_ROUND_TOKEN_PRICE,
+                "hard_cap_usd": Config.SEED_ROUND_HARD_CAP,
+                "total_raised_usd": "0", "investors": 0,
+                "contract_address": Config.INVESTOR_SEED_ROUND_CONTRACT,
+            }
+
+    @app.get("/investor/status/{eth_address}")
+    async def investor_status(eth_address: str):
+        """Get investor allocation and status by ETH address."""
+        from sqlalchemy import text
+        eth_address = eth_address.lower()
+        try:
+            with db_manager.get_session() as session:
+                rows = session.execute(
+                    text("SELECT * FROM investor_investments WHERE LOWER(eth_address) = :addr ORDER BY created_at"),
+                    {"addr": eth_address}
+                ).mappings().all()
+                if not rows:
+                    return {"has_invested": False, "qbc_address": None, "invested_usd": "0",
+                            "qbc_allocated": "0", "investment_count": 0}
+                total_usd = sum(float(r['usd_value']) for r in rows)
+                total_qbc = sum(float(r['qbc_allocated']) for r in rows)
+                qbc_addr = rows[0]['qbc_address']
+
+                # Check vesting status
+                vesting_rows = session.execute(
+                    text("SELECT SUM(qbc_claimed) as qbc_claimed, SUM(qusd_claimed) as qusd_claimed FROM investor_vesting_claims WHERE qbc_address = :addr"),
+                    {"addr": qbc_addr}
+                ).mappings().first()
+                qbc_claimed = float(vesting_rows['qbc_claimed'] or 0) if vesting_rows else 0
+
+                # Check revenue
+                rev_rows = session.execute(
+                    text("SELECT SUM(amount) as total FROM investor_revenue WHERE qbc_address = :addr"),
+                    {"addr": qbc_addr}
+                ).mappings().first()
+                rev_claimed = float(rev_rows['total'] or 0) if rev_rows else 0
+
+                return {
+                    "has_invested": True,
+                    "qbc_address": qbc_addr,
+                    "invested_usd": str(total_usd),
+                    "qbc_allocated": str(total_qbc),
+                    "investment_count": len(rows),
+                    "vesting_claimed_qbc": str(qbc_claimed),
+                    "revenue_claimed_qbc": str(rev_claimed),
+                }
+        except Exception as e:
+            logger.warning(f"investor_status error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/investor/investments")
+    async def investor_investments(page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100)):
+        """Get paginated investment history."""
+        from sqlalchemy import text
+        offset = (page - 1) * limit
+        try:
+            with db_manager.get_session() as session:
+                total_row = session.execute(
+                    text("SELECT COUNT(*) as cnt FROM investor_investments")
+                ).mappings().first()
+                total = total_row['cnt'] if total_row else 0
+
+                rows = session.execute(
+                    text("SELECT * FROM investor_investments ORDER BY created_at DESC LIMIT :lim OFFSET :off"),
+                    {"lim": limit, "off": offset}
+                ).mappings().all()
+
+                investments = []
+                for r in rows:
+                    investments.append({
+                        "id": str(r['id']),
+                        "eth_address": r['eth_address'],
+                        "qbc_address": r['qbc_address'],
+                        "token_symbol": r['token_symbol'],
+                        "usd_value": str(r['usd_value']),
+                        "qbc_allocated": str(r['qbc_allocated']),
+                        "eth_tx_hash": r['eth_tx_hash'],
+                        "eth_block": r['eth_block'],
+                        "created_at": str(r['created_at']),
+                    })
+
+                return {
+                    "investments": investments,
+                    "total": total,
+                    "page": page,
+                    "pages": max(1, (total + limit - 1) // limit),
+                }
+        except Exception as e:
+            logger.warning(f"investor_investments error: {e}")
+            return {"investments": [], "total": 0, "page": 1, "pages": 1}
+
+    class ValidateQBCAddressRequest(BaseModel):
+        qbc_address: str
+
+    @app.post("/investor/validate-qbc-address")
+    async def investor_validate_qbc_address(req: ValidateQBCAddressRequest):
+        """Validate a QBC address format and return check-phrase."""
+        import re
+        addr = req.qbc_address.strip().lower()
+
+        # Validate 40-char hex
+        if not re.match(r'^[a-f0-9]{40}$', addr):
+            return {"valid": False, "check_phrase": None, "error": "Invalid format: must be 40 hex characters"}
+
+        # Generate check-phrase (same as /wallet/check-phrase)
+        import hashlib
+        BIP39_WORDS = ["abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract",
+                       "absurd", "abuse", "access", "accident", "account", "accuse", "achieve", "acid",
+                       "acoustic", "acquire", "across", "act", "action", "actor", "actress", "actual",
+                       "adapt", "add", "addict", "address", "adjust", "admit", "adult", "advance",
+                       "advice", "aerobic", "affair", "afford", "afraid", "again", "age", "agent",
+                       "agree", "ahead", "aim", "air", "airport", "aisle", "alarm", "album",
+                       "alcohol", "alert", "alien", "all", "alley", "allow", "almost", "alone",
+                       "alpha", "already", "also", "alter", "always", "amateur", "amazing", "among",
+                       "amount", "amused", "analyst", "anchor", "ancient", "anger", "angle", "angry",
+                       "animal", "ankle", "announce", "annual", "another", "answer", "antenna", "antique",
+                       "anxiety", "any", "apart", "apology", "appear", "apple", "approve", "april",
+                       "arch", "arctic", "area", "arena", "argue", "arm", "armed", "armor",
+                       "army", "around", "arrange", "arrest", "arrive", "arrow", "art", "artefact",
+                       "artist", "artwork", "ask", "aspect", "assault", "asset", "assist", "assume",
+                       "asthma", "athlete", "atom", "attack", "attend", "attitude", "attract", "auction",
+                       "audit", "august", "aunt", "author", "auto", "autumn", "average", "avocado",
+                       "avoid", "awake", "aware", "awesome", "awful", "awkward", "axis", "baby",
+                       "bachelor", "bacon", "badge", "bag", "balance", "balcony", "ball", "bamboo",
+                       "banana", "banner", "bar", "barely", "bargain", "barrel", "base", "basic",
+                       "basket", "battle", "beach", "bean", "beauty", "because", "become", "beef",
+                       "before", "begin", "behave", "behind", "believe", "below", "belt", "bench",
+                       "benefit", "best", "betray", "better", "between", "beyond", "bicycle", "bid",
+                       "bike", "bind", "biology", "bird", "birth", "bitter", "black", "blade",
+                       "blame", "blanket", "blast", "bleak", "bless", "blind", "blood", "blossom",
+                       "blow", "blue", "blur", "blush", "board", "boat", "body", "boil",
+                       "bomb", "bone", "bonus", "book", "boost", "border", "boring", "borrow",
+                       "boss", "bottom", "bounce", "box", "boy", "bracket", "brain", "brand",
+                       "brass", "brave", "bread", "breeze", "brick", "bridge", "brief", "bright",
+                       "bring", "brisk", "broccoli", "broken", "bronze", "broom", "brother", "brown",
+                       "brush", "bubble", "buddy", "budget", "buffalo", "build", "bulb", "bulk",
+                       "bullet", "bundle", "bunny", "burden", "burger", "burst", "bus", "business",
+                       "busy", "butter", "buyer", "buzz", "cabbage", "cabin", "cable", "cactus",
+                       "cage", "cake", "call", "calm", "camera", "camp", "can", "canal",
+                       "cancel", "candy", "cannon", "canoe", "canvas", "canyon", "capable", "capital",
+                       "captain", "car", "carbon", "card", "cargo", "carpet", "carry", "cart",
+                       "case", "cash", "casino", "castle", "casual", "cat", "catalog", "catch",
+                       "category", "cattle", "caught", "cause", "caution", "cave", "ceiling", "celery",
+                       "cement", "census", "century", "cereal", "certain", "chair", "chalk", "champion",
+                       "change", "chaos", "chapter", "charge", "chase", "cheap", "check", "cheese",
+                       "chef", "cherry", "chest", "chicken", "chief", "child", "chimney", "choice"]
+        h = hashlib.sha256(addr.encode()).digest()
+        words = []
+        for i in range(3):
+            idx = int.from_bytes(h[i*2:(i*2)+2], 'big') % len(BIP39_WORDS)
+            words.append(BIP39_WORDS[idx])
+        check_phrase = "-".join(words)
+
+        return {"valid": True, "check_phrase": check_phrase, "error": None}
+
+    @app.get("/investor/vesting/{qbc_address}")
+    async def investor_vesting(qbc_address: str):
+        """Get vesting schedule and claimable amounts for a QBC address."""
+        from sqlalchemy import text
+        qbc_address = qbc_address.strip().lower()
+        try:
+            with db_manager.get_session() as session:
+                # Get total allocation from investments
+                inv_row = session.execute(
+                    text("SELECT SUM(qbc_allocated) as total_qbc, SUM(usd_value) as total_usd FROM investor_investments WHERE qbc_address = :addr"),
+                    {"addr": qbc_address}
+                ).mappings().first()
+
+                if not inv_row or not inv_row['total_qbc']:
+                    return {"error": "No investments found for this QBC address"}
+
+                total_qbc = float(inv_row['total_qbc'])
+                total_usd = float(inv_row['total_usd'])
+
+                # Get claims
+                claims_row = session.execute(
+                    text("SELECT COALESCE(SUM(qbc_claimed), 0) as claimed_qbc, COALESCE(SUM(qusd_claimed), 0) as claimed_qusd FROM investor_vesting_claims WHERE qbc_address = :addr"),
+                    {"addr": qbc_address}
+                ).mappings().first()
+
+                claimed_qbc = float(claims_row['claimed_qbc']) if claims_row else 0
+                claimed_qusd = float(claims_row['claimed_qusd']) if claims_row else 0
+
+                # Calculate vesting (QUSD allocation = same USD value as QBC)
+                total_qusd = total_usd  # 1:1 USD value for QUSD
+
+                import time as _time
+                now = _time.time()
+                cliff_seconds = 180 * 86400  # 6 months
+                vesting_seconds = 720 * 86400  # 24 months
+
+                # Check if TGE has been set (use round start_time as proxy)
+                round_row = session.execute(
+                    text("SELECT start_time FROM investor_rounds WHERE active = true ORDER BY id DESC LIMIT 1")
+                ).mappings().first()
+
+                tge = 0
+                if round_row and round_row['start_time']:
+                    # TGE not yet set — show schedule preview
+                    tge = 0
+
+                vested_fraction = 0.0
+                if tge > 0:
+                    if now <= tge + cliff_seconds:
+                        vested_fraction = 0.0
+                    elif now >= tge + cliff_seconds + vesting_seconds:
+                        vested_fraction = 1.0
+                    else:
+                        elapsed = now - tge - cliff_seconds
+                        vested_fraction = elapsed / vesting_seconds
+
+                return {
+                    "qbc_address": qbc_address,
+                    "total_qbc": str(total_qbc),
+                    "total_qusd": str(total_qusd),
+                    "vested_qbc": str(total_qbc * vested_fraction),
+                    "vested_qusd": str(total_qusd * vested_fraction),
+                    "claimed_qbc": str(claimed_qbc),
+                    "claimed_qusd": str(claimed_qusd),
+                    "claimable_qbc": str(max(0, total_qbc * vested_fraction - claimed_qbc)),
+                    "claimable_qusd": str(max(0, total_qusd * vested_fraction - claimed_qusd)),
+                    "vested_fraction": vested_fraction,
+                    "cliff_duration_days": 180,
+                    "vesting_duration_days": 720,
+                    "tge_timestamp": tge,
+                    "tge_set": tge > 0,
+                }
+        except Exception as e:
+            logger.warning(f"investor_vesting error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/investor/revenue/{qbc_address}")
+    async def investor_revenue(qbc_address: str):
+        """Get revenue share info for a QBC address."""
+        from sqlalchemy import text
+        qbc_address = qbc_address.strip().lower()
+        try:
+            with db_manager.get_session() as session:
+                # Get investment total (share weight)
+                inv_row = session.execute(
+                    text("SELECT SUM(usd_value) as total_usd FROM investor_investments WHERE qbc_address = :addr"),
+                    {"addr": qbc_address}
+                ).mappings().first()
+
+                if not inv_row or not inv_row['total_usd']:
+                    return {"error": "No investments found"}
+
+                share = float(inv_row['total_usd'])
+
+                # Get total across all investors
+                total_row = session.execute(
+                    text("SELECT SUM(usd_value) as total FROM investor_investments")
+                ).mappings().first()
+                total_invested = float(total_row['total']) if total_row and total_row['total'] else 1
+
+                # Get claimed revenue
+                rev_row = session.execute(
+                    text("SELECT COALESCE(SUM(amount), 0) as claimed FROM investor_revenue WHERE qbc_address = :addr"),
+                    {"addr": qbc_address}
+                ).mappings().first()
+                claimed = float(rev_row['claimed']) if rev_row else 0
+
+                share_pct = (share / total_invested) * 100 if total_invested > 0 else 0
+
+                return {
+                    "qbc_address": qbc_address,
+                    "shares_usd": str(share),
+                    "share_percentage": round(share_pct, 4),
+                    "total_claimed": str(claimed),
+                    "pending": "0",  # Calculated from on-chain contract
+                }
+        except Exception as e:
+            logger.warning(f"investor_revenue error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/investor/merkle-proof/{qbc_address}")
+    async def investor_merkle_proof(qbc_address: str):
+        """Get Merkle proof for vesting claim initialization."""
+        # This will be populated by the Merkle tree generation script post-TGE
+        return {
+            "qbc_address": qbc_address,
+            "proof": [],
+            "leaf": "",
+            "qbc_amount": "0",
+            "qusd_amount": "0",
+            "status": "merkle_tree_not_generated",
+            "message": "Merkle tree will be generated after TGE. Check back after token generation event.",
+        }
+
+    # ========================================================================
+    # INVESTOR ETH TREASURY LIVE FEED
+    # ========================================================================
+
+    @app.get("/investor/treasury")
+    async def investor_treasury():
+        """Get live treasury balance (ETH + USDC + USDT + DAI) and all incoming transactions.
+
+        Queries Ethereum mainnet via public RPC + Etherscan for full transparency.
+        Calculates total raised in USD across all accepted tokens.
+        """
+        import httpx
+        eth_addr = Config.SEED_ROUND_ETH_ADDRESS
+        eth_rpc = getattr(Config, 'ETH_RPC_URL', '') or 'https://eth.llamarpc.com'
+        etherscan_key = Config.ETHERSCAN_API_KEY
+        key_param = f"&apikey={etherscan_key}" if etherscan_key else ""
+
+        if not eth_addr:
+            return {"error": "No treasury ETH address configured", "address": "",
+                    "total_raised_usd": "0", "balances": {}, "transactions": []}
+
+        if not eth_addr.startswith('0x'):
+            eth_addr = '0x' + eth_addr
+
+        # Accepted ERC-20 tokens: address → (symbol, decimals, usd_value)
+        STABLECOINS = {
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": ("USDC", 6, 1.0),
+            "0xdAC17F958D2ee523a2206206994597C13D831ec7": ("USDT", 6, 1.0),
+            "0x6B175474E89094C44Da98b954EedeAC495271d0F": ("DAI", 18, 1.0),
+        }
+        # balanceOf(address) selector = 0x70a08231 + address padded to 32 bytes
+        BALANCE_OF_SIG = "0x70a08231000000000000000000000000"
+
+        result = {
+            "address": eth_addr,
+            "etherscan_url": f"https://etherscan.io/address/{eth_addr}",
+            "total_raised_usd": "0",
+            "eth_price_usd": "0",
+            "balances": {},
+            "transactions": [],
+        }
+
+        eth_price = 0.0
+        total_usd = 0.0
+
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                # ── 1. ETH balance ──
+                bal_resp = await client.post(eth_rpc, json={
+                    "jsonrpc": "2.0", "method": "eth_getBalance",
+                    "params": [eth_addr, "latest"], "id": 1,
+                })
+                balance_wei = int(bal_resp.json().get("result", "0x0"), 16)
+                balance_eth = balance_wei / 1e18
+
+                # ── 2. ETH price from Chainlink ──
+                try:
+                    chainlink_feed = Config.CHAINLINK_ETH_USD_FEED
+                    price_resp = await client.post(eth_rpc, json={
+                        "jsonrpc": "2.0", "method": "eth_call",
+                        "params": [{"to": chainlink_feed, "data": "0xfeaf968c"}, "latest"],
+                        "id": 2,
+                    })
+                    price_hex = price_resp.json().get("result", "0x")
+                    if len(price_hex) >= 130:
+                        eth_price = int(price_hex[66:130], 16) / 1e8
+                except Exception:
+                    pass
+
+                eth_usd = balance_eth * eth_price
+                total_usd += eth_usd
+                result["eth_price_usd"] = f"{eth_price:.2f}"
+                result["balances"]["ETH"] = {
+                    "amount": f"{balance_eth:.6f}",
+                    "usd_value": f"{eth_usd:.2f}",
+                    "decimals": 18,
+                }
+
+                # ── 3. ERC-20 token balances ──
+                for token_addr, (symbol, decimals, usd_per_token) in STABLECOINS.items():
+                    try:
+                        call_data = BALANCE_OF_SIG + eth_addr[2:].lower().zfill(64)
+                        tok_resp = await client.post(eth_rpc, json={
+                            "jsonrpc": "2.0", "method": "eth_call",
+                            "params": [{"to": token_addr, "data": call_data}, "latest"],
+                            "id": 3,
+                        })
+                        tok_hex = tok_resp.json().get("result", "0x0")
+                        tok_balance = int(tok_hex, 16) / (10 ** decimals)
+                        tok_usd = tok_balance * usd_per_token
+                        total_usd += tok_usd
+                        result["balances"][symbol] = {
+                            "amount": f"{tok_balance:.2f}",
+                            "usd_value": f"{tok_usd:.2f}",
+                            "decimals": decimals,
+                            "contract": token_addr,
+                        }
+                    except Exception:
+                        result["balances"][symbol] = {
+                            "amount": "0", "usd_value": "0",
+                            "decimals": decimals, "contract": token_addr,
+                        }
+
+                result["total_raised_usd"] = f"{total_usd:.2f}"
+
+                # ── 4. Incoming ETH transactions ──
+                all_incoming = []
+                try:
+                    resp = await client.get(
+                        f"https://api.etherscan.io/v2/api?chainid=1&module=account&action=txlist"
+                        f"&address={eth_addr}&startblock=0&endblock=99999999"
+                        f"&page=1&offset=100&sort=desc{key_param}"
+                    )
+                    data = resp.json()
+                    if data.get("status") == "1":
+                        for tx in data.get("result", []):
+                            if tx.get("to", "").lower() == eth_addr.lower() and int(tx.get("value", "0")) > 0:
+                                val = int(tx["value"]) / 1e18
+                                all_incoming.append({
+                                    "hash": tx["hash"],
+                                    "from": tx["from"],
+                                    "token": "ETH",
+                                    "amount": f"{val:.6f}",
+                                    "usd_value": f"{val * eth_price:.2f}" if eth_price else "0",
+                                    "timestamp": int(tx.get("timeStamp", 0)),
+                                    "block": int(tx.get("blockNumber", 0)),
+                                    "etherscan_url": f"https://etherscan.io/tx/{tx['hash']}",
+                                })
+                except Exception:
+                    pass
+
+                # ── 5. Incoming ERC-20 token transfers ──
+                try:
+                    resp = await client.get(
+                        f"https://api.etherscan.io/v2/api?chainid=1&module=account&action=tokentx"
+                        f"&address={eth_addr}&startblock=0&endblock=99999999"
+                        f"&page=1&offset=100&sort=desc{key_param}"
+                    )
+                    data = resp.json()
+                    if data.get("status") == "1":
+                        for tx in data.get("result", []):
+                            if tx.get("to", "").lower() != eth_addr.lower():
+                                continue
+                            # Skip mints from zero address (contract deployments)
+                            if tx.get("from", "").replace("0x", "").strip("0") == "":
+                                continue
+                            contract = tx.get("contractAddress", "")
+                            # Match to our accepted tokens
+                            matched = None
+                            for tok_addr, (sym, dec, usd_rate) in STABLECOINS.items():
+                                if contract.lower() == tok_addr.lower():
+                                    matched = (sym, dec, usd_rate)
+                                    break
+                            if not matched:
+                                # Skip unknown tokens (wQBC, wQUSD mints, etc.)
+                                continue
+
+                            sym, dec, usd_rate = matched
+                            val = int(tx.get("value", "0")) / (10 ** dec)
+                            all_incoming.append({
+                                "hash": tx["hash"],
+                                "from": tx["from"],
+                                "token": sym,
+                                "amount": f"{val:.2f}",
+                                "usd_value": f"{val * usd_rate:.2f}",
+                                "timestamp": int(tx.get("timeStamp", 0)),
+                                "block": int(tx.get("blockNumber", 0)),
+                                "etherscan_url": f"https://etherscan.io/tx/{tx['hash']}",
+                            })
+                except Exception:
+                    pass
+
+                # Sort all transactions by timestamp descending
+                all_incoming.sort(key=lambda t: t["timestamp"], reverse=True)
+                result["transactions"] = all_incoming
+
+        except Exception as e:
+            logger.warning(f"investor_treasury query failed: {e}")
+
+        return result
+
+    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality + L1L2 Bridge + Chain Sync + Reorg + Investor)")
 
     return app

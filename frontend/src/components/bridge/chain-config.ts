@@ -56,7 +56,7 @@ export const CHAINS: Record<ChainId, ChainInfo> = {
     id: "qbc_mainnet",
     name: "Qubitcoin Mainnet",
     shortName: "QBC",
-    chainIdHex: "0xce5",
+    chainIdHex: "0xce7",
     rpcUrl: env("QBC_RPC_URL") ?? "http://localhost:5000",
     wqbcAddr: null,
     wqusdAddr: null,

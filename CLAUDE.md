@@ -20,7 +20,7 @@
 
 **Domain:** qbc.network
 **License:** MIT
-**Chain IDs:** Mainnet=3301, Testnet=3302
+**Chain IDs:** Mainnet=3303, Testnet=3304
 **Contact:** info@qbc.network
 **GitHub:** BlockArtica/Qubitcoin
 
@@ -413,7 +413,7 @@ TARGET_BLOCK_TIME = 3.3          # seconds
 INITIAL_REWARD = 15.27 QBC       # per block (Era 0)
 HALVING_INTERVAL = 15,474,020    # blocks (~1.618 years)
 EMISSION_PERIOD = 33             # years
-CHAIN_ID = 3301                  # Mainnet
+CHAIN_ID = 3303                  # Mainnet
 BLOCK_GAS_LIMIT = 30,000,000     # QVM gas limit per block
 ```
 
@@ -1393,7 +1393,7 @@ DATABASE_URL=postgresql://root@localhost:26257/qbc?sslmode=disable
 IPFS_API=/ip4/127.0.0.1/tcp/5002/http
 
 # Chain
-CHAIN_ID=3301                # Mainnet
+CHAIN_ID=3303                # Mainnet
 BLOCK_GAS_LIMIT=30000000
 
 # Mining
@@ -1437,7 +1437,7 @@ KEEPER_COOLDOWN_BLOCKS=10            # Min blocks between actions
 # Frontend
 NEXT_PUBLIC_RPC_URL=http://localhost:5000
 NEXT_PUBLIC_WS_URL=ws://localhost:5000/ws
-NEXT_PUBLIC_CHAIN_ID=3301
+NEXT_PUBLIC_CHAIN_ID=3303
 ```
 
 ---
@@ -1481,7 +1481,7 @@ NEXT_PUBLIC_CHAIN_ID=3301
 | **Block time** | 3.3s target. Difficulty adjusts every block (144-block window, +/-10% max). |
 | **CockroachDB** | Pin v24.2.0. Health: `curl --fail http://localhost:8080/health?ready=1` |
 | **IPFS** | Ports 4001/5001/8080. Port 8080 conflicts with CockroachDB admin UI. |
-| **Chain IDs** | Mainnet=3301, Testnet=3302. RPC at localhost:5000. |
+| **Chain IDs** | Mainnet=3303, Testnet=3304. RPC at localhost:5000. |
 | **Gas** | L1 has NO gas. Gas is QVM/L2 only. BLOCK_GAS_LIMIT=30M. |
 | **QUSD** | L2 smart contract suite. 3.3B initial mint. 7 .sol contracts (QUSD, Reserve, DebtLedger, Oracle, Stabilizer, Allocation, Governance). |
 | **wQUSD** | Wrapped QUSD for cross-chain (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, ATOM). 1:1 backed by locked QUSD. |

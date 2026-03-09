@@ -75,7 +75,7 @@ class KeeperAction:
     success: bool
     error: Optional[str] = None
     timestamp: float = 0.0
-    chain_id: int = 3301       # QBC chain by default
+    chain_id: int = 3303       # QBC chain by default
     mode: str = ""
     fund_balance_after: Decimal = Decimal("0")
 
@@ -314,7 +314,7 @@ class QUSDKeeper:
         chain_names = {
             1: "Ethereum", 56: "BSC", 137: "Polygon", 42161: "Arbitrum",
             10: "Optimism", 8453: "Base", 43114: "Avalanche", 0: "Solana",
-            3301: "QBC",
+            3303: "QBC",
         }
 
         for chain_id, price in wqusd_prices.items():
@@ -349,7 +349,7 @@ class QUSDKeeper:
             severity = "critical" if self._stability_fund_qbc < Decimal("10000") else "warning"
             signals.append(KeeperSignal(
                 signal_type=SignalType.FUND_DEPLETED,
-                chain_id=3301, chain_name="QBC", price=None,
+                chain_id=3303, chain_name="QBC", price=None,
                 details=f"Stability fund low: {self._stability_fund_qbc} QBC",
                 timestamp=now, severity=severity,
             ))
@@ -697,7 +697,7 @@ class QUSDKeeper:
         signal = KeeperSignal(
             signal_type=SignalType.DEPEG_FLOOR if "buy" in action_type
             else SignalType.DEPEG_CEILING,
-            chain_id=3301, chain_name="QBC-Manual",
+            chain_id=3303, chain_name="QBC-Manual",
             price=Decimal("0.99") if "buy" in action_type else Decimal("1.01"),
             details=f"Manual execution: {action_type}",
             timestamp=time.time(), severity="info",

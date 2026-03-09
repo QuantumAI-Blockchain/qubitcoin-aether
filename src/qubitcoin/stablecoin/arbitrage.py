@@ -229,7 +229,7 @@ class ArbitrageCalculator:
                 opp = ArbOpportunity(
                     id=f"peg_floor_{chain_id}_{int(now)}",
                     arb_type=ArbType.PEG_FLOOR,
-                    action=ArbAction.STABILIZER if chain_id == 3301 else ArbAction.BUY_WQUSD,
+                    action=ArbAction.STABILIZER if chain_id == 3303 else ArbAction.BUY_WQUSD,
                     chain_id=chain_id, chain_name=chain_name,
                     current_price=price, target_price=self.PEG_TARGET,
                     spread_bps=spread_bps,
@@ -263,7 +263,7 @@ class ArbitrageCalculator:
                 opp = ArbOpportunity(
                     id=f"peg_ceiling_{chain_id}_{int(now)}",
                     arb_type=ArbType.PEG_CEILING,
-                    action=ArbAction.STABILIZER if chain_id == 3301 else ArbAction.SELL_WQUSD,
+                    action=ArbAction.STABILIZER if chain_id == 3303 else ArbAction.SELL_WQUSD,
                     chain_id=chain_id, chain_name=chain_name,
                     current_price=price, target_price=self.PEG_TARGET,
                     spread_bps=spread_bps,

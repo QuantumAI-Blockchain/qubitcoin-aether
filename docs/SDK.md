@@ -25,7 +25,7 @@ import { JsonRpcProvider } from "ethers";
 
 const provider = new JsonRpcProvider("http://localhost:5000/jsonrpc");
 const chainId = await provider.send("eth_chainId", []);
-// "0xce5" (3301 mainnet) or "0xce6" (3302 testnet)
+// "0xce7" (3303 mainnet) or "0xce8" (3304 testnet)
 ```
 
 ### Connect via Python
@@ -55,7 +55,7 @@ print(f"Block number: {int(resp['result'], 16)}")
 
 | Parameter | Mainnet | Testnet |
 |-----------|---------|---------|
-| Chain ID | 3301 (`0xce5`) | 3302 (`0xce6`) |
+| Chain ID | 3303 (`0xce7`) | 3304 (`0xce8`) |
 | RPC URL | `https://rpc.qbc.network` | `https://testnet-rpc.qbc.network` |
 | Block Time | 3.3 seconds | 3.3 seconds |
 | Currency Symbol | QBC | tQBC |
@@ -67,7 +67,7 @@ print(f"Block number: {int(resp['result'], 16)}")
 await window.ethereum.request({
   method: "wallet_addEthereumChain",
   params: [{
-    chainId: "0xce5",
+    chainId: "0xce7",
     chainName: "Qubitcoin Mainnet",
     nativeCurrency: { name: "Qubitcoin", symbol: "QBC", decimals: 8 },
     rpcUrls: ["https://rpc.qbc.network"],
@@ -837,7 +837,7 @@ Qubitcoin has **two** separate wQBC contracts serving different purposes. Unders
 ### 6.1 tokens/wQBC.sol -- Wrapped QBC on the QBC Chain
 
 **Location:** `contracts/solidity/tokens/wQBC.sol`
-**Deployed on:** QBC L1 chain (Chain ID 3301)
+**Deployed on:** QBC L1 chain (Chain ID 3303)
 **Purpose:** DeFi protocol composability on the QBC chain itself.
 
 This is analogous to WETH on Ethereum. Native QBC cannot be used directly in QVM smart contracts that expect QBC-20 tokens (e.g., DEX liquidity pools, lending protocols, NFT marketplaces). `tokens/wQBC.sol` wraps native QBC into a QBC-20 token so it can interact with the QVM contract ecosystem.

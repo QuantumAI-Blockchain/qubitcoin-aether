@@ -40,7 +40,7 @@ def test_config_consensus_params():
 def test_config_chain_ids():
     """Chain ID defaults to mainnet."""
     from qubitcoin.config import Config
-    assert Config.CHAIN_ID == 3301
+    assert Config.CHAIN_ID == 3303
 
 
 def test_config_aether_fee_params():

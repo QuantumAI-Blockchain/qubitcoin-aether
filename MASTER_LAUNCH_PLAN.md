@@ -39,7 +39,7 @@ Print this. Check each box before launch day.
 - [ ] **Aether Treasury wallet** generated (3rd key pair — receives chat fees)
 - [ ] **Contract Treasury wallet** generated (4th key pair — receives deploy fees)
 - [ ] **Bridge Operator wallet** generated (5th key pair — stored in `secure_key.env`, NEVER `.env`)
-- [ ] **MetaMask** installed with Qubitcoin network added (Chain ID: 3301)
+- [ ] **MetaMask** installed with Qubitcoin network added (Chain ID: 3303)
 - [ ] All `secure_key.env` files backed up securely (USB/password manager, NOT cloud)
 
 ### Infrastructure
@@ -141,7 +141,7 @@ cp secure_key.env contract_treasury_keys.env.backup
 |---------|-------|
 | **Network Name** | Qubitcoin |
 | **RPC URL** | `https://api.qbc.network` (or `http://localhost:5000` for local) |
-| **Chain ID** | `3301` |
+| **Chain ID** | `3303` |
 | **Currency Symbol** | `QBC` |
 | **Block Explorer** | `https://qbc.network/explorer` |
 
@@ -618,7 +618,7 @@ These are consensus-critical. Changing them **breaks the chain** (requires full 
 | `PHI` | 1.618033988749895 | Golden ratio constant |
 | `TARGET_BLOCK_TIME` | 3.3 seconds | Block timing |
 | `GENESIS_PREMINE` | 33,000,000 QBC | Genesis block structure |
-| `CHAIN_ID` | 3301 (mainnet) | Network identity |
+| `CHAIN_ID` | 3303 (mainnet) | Network identity |
 | `INITIAL_DIFFICULTY` | 1.0 | Historical block validation |
 | `VQE_REPS` | 2 | Mining proof format |
 
@@ -1193,7 +1193,7 @@ endpoint bombardment, and 3-pass run history.
 ## QUICK REFERENCE CARD
 
 ```
-CHAIN ID:        3301 (mainnet) / 3302 (testnet)
+CHAIN ID:        3303 (mainnet) / 3304 (testnet)
 BLOCK TIME:      3.3 seconds
 MAX SUPPLY:      3,300,000,000 QBC
 GENESIS PREMINE: 33,000,000 QBC

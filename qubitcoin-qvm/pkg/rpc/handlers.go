@@ -63,7 +63,7 @@ func (h *Handlers) NodeInfo(w http.ResponseWriter, r *http.Request) {
 		version = h.services.Version
 	}
 
-	chainID := uint64(3301)
+	chainID := uint64(3303)
 	if h.services != nil && h.services.ChainID > 0 {
 		chainID = h.services.ChainID
 	}
@@ -96,7 +96,7 @@ func (h *Handlers) ChainInfo(w http.ResponseWriter, r *http.Request) {
 		blockHeight = h.services.BlockHeight()
 	}
 
-	chainID := uint64(3301)
+	chainID := uint64(3303)
 	if h.services != nil && h.services.ChainID > 0 {
 		chainID = h.services.ChainID
 	}

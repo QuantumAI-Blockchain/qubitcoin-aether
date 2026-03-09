@@ -19,7 +19,7 @@ data:
   RUST_P2P_GRPC: "50051"
 
   # Chain
-  CHAIN_ID: "3301"
+  CHAIN_ID: "3303"
   BLOCK_GAS_LIMIT: "30000000"
 
   # Quantum (local simulator for now)

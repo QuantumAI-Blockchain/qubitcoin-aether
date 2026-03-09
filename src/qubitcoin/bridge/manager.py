@@ -171,7 +171,7 @@ class BridgeManager:
         # happens later when the bridge relayer populates state_root.
         try:
             proof = self.proof_store.submit_proof(
-                source_chain_id=3301,  # QBC mainnet
+                source_chain_id=3303,  # QBC mainnet
                 dest_chain_id=DEST_CHAIN_IDS.get(chain, 0),
                 proof_type=ProofType.DEPOSIT,
                 source_tx_hash=qbc_txid,

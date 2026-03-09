@@ -1932,7 +1932,7 @@ class TestJSONRPC:
         _, client, _ = app_and_client
         data = _jsonrpc(client, 'eth_chainId')
         assert 'result' in data
-        assert data['result'] == hex(3301)
+        assert data['result'] == hex(3303)
 
     def test_eth_blockNumber(self, app_and_client):
         _, client, _ = app_and_client
@@ -1957,7 +1957,7 @@ class TestJSONRPC:
         _, client, _ = app_and_client
         data = _jsonrpc(client, 'net_version')
         assert 'result' in data
-        assert data['result'] == str(3301)
+        assert data['result'] == str(3303)
 
     def test_web3_clientVersion(self, app_and_client):
         _, client, _ = app_and_client
@@ -2110,8 +2110,8 @@ class TestFrontendResponseShapes:
         result = data['result']
         assert isinstance(result, str)
         assert result.startswith('0x')
-        # Verify it decodes to 3301
-        assert int(result, 16) == 3301
+        # Verify it decodes to 3303
+        assert int(result, 16) == 3303
 
     def test_health_has_all_subsystem_flags(self, app_and_client):
         """Frontend dashboard checks these boolean flags."""

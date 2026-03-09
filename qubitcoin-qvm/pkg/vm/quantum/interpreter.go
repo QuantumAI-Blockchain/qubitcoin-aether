@@ -378,7 +378,7 @@ func (h *Handler) opQBridgeEntangle(stack StackAccessor, caller [20]byte, blockS
 	id := h.Bridge.nextID
 	h.Bridge.records[id] = &BridgeEntanglementRecord{
 		ID:            id,
-		SourceChainID: 3301, // QBC mainnet
+		SourceChainID: 3303, // QBC mainnet
 		TargetChainID: targetChainID,
 		CallerAddr:    caller,
 		StateID:       stateID,

@@ -50,9 +50,9 @@ pub const MAX_ADJUSTMENT_FACTOR: u32 = 110;
 /// Minimum difficulty adjustment factor (0.9 = -10%).
 pub const MIN_ADJUSTMENT_FACTOR: u32 = 90;
 /// Chain ID — Mainnet.
-pub const CHAIN_ID_MAINNET: u64 = 3301;
+pub const CHAIN_ID_MAINNET: u64 = 3303;
 /// Chain ID — Testnet.
-pub const CHAIN_ID_TESTNET: u64 = 3302;
+pub const CHAIN_ID_TESTNET: u64 = 3304;
 /// Block gas limit for QVM (L2 only).
 pub const BLOCK_GAS_LIMIT: u64 = 30_000_000;
 /// Coinbase maturity — blocks before coinbase is spendable.

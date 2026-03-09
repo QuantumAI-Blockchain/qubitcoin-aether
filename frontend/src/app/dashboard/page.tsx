@@ -783,7 +783,7 @@ function NetworkTab({
         <Card>
           <h3 className="mb-3 text-sm font-semibold text-text-secondary">Chain ID</h3>
           <p className="font-[family-name:var(--font-code)] text-xl">
-            {chain?.chain_id ?? "3301"}
+            {chain?.chain_id ?? "3303"}
           </p>
         </Card>
         <Card>

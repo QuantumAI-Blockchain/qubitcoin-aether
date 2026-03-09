@@ -3,6 +3,7 @@ import { StatsBar } from "@/components/ui/stats-bar";
 import { FeatureSections } from "@/components/ui/feature-sections";
 import { ChatWidget } from "@/components/aether/chat-widget";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { NetworkInfo } from "@/components/ui/network-info";
 
 export default function HomePage() {
   return (
@@ -14,6 +15,7 @@ export default function HomePage() {
         </ErrorBoundary>
       </section>
       <FeatureSections />
+      <NetworkInfo />
       <ErrorBoundary>
         <ChatWidget />
       </ErrorBoundary>

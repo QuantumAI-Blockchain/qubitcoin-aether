@@ -71,7 +71,7 @@ export default function EconomicsPage() {
               { label: "Genesis Premine", value: "33M QBC (1%)" },
               { label: "Tail Emission", value: "0.1 QBC/block" },
               { label: "Emission Period", value: "~2,770 years" },
-              { label: "Chain ID", value: "3301" },
+              { label: "Chain ID", value: "3303" },
             ].map((c) => (
               <div key={c.label} className="rounded border p-3" style={{ borderColor: C.border, background: C.surface }}>
                 <p className="text-sm font-bold" style={{ color: C.primary }}>{c.value}</p>

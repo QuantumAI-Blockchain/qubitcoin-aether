@@ -18,6 +18,7 @@ import { PushNotificationSetup } from "@/components/wallet/push-notification-set
 import { OfflineIndicator } from "@/components/wallet/offline-indicator";
 import { InstallPromptBanner } from "@/components/wallet/install-prompt-banner";
 import Link from "next/link";
+import { AddNetwork } from "@/components/wallet/add-network";
 
 const TABS = [
   { key: "metamask" as const, label: "MetaMask" },
@@ -115,7 +116,7 @@ function MetaMaskTab() {
 
   if (!connected) {
     return (
-      <div className="flex flex-col items-center justify-center gap-6 py-16">
+      <div className="flex flex-col items-center gap-8 py-12">
         <div className="text-center">
           <p className="text-text-secondary">
             Connect your MetaMask wallet to manage QBC via the EVM-compatible
@@ -123,6 +124,9 @@ function MetaMaskTab() {
           </p>
         </div>
         <WalletButton />
+        <div className="w-full max-w-md">
+          <AddNetwork />
+        </div>
       </div>
     );
   }

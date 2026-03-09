@@ -461,3 +461,92 @@ class AIKGSApiKey:
         # Don't expose encrypted key in serialization
         d.pop('encrypted_key', None)
         return d
+
+
+# ============================================================================
+# INVESTOR PUBLIC SALE MODELS
+# ============================================================================
+
+@dataclass
+class InvestorRound:
+    """Investor sale round configuration (investor_rounds table)."""
+    id: int
+    name: str
+    token_price: Decimal
+    hard_cap: Decimal
+    total_raised: Decimal = Decimal(0)
+    total_investors: int = 0
+    start_time: float = 0.0
+    end_time: float = 0.0
+    active: bool = False
+    contract_address: Optional[str] = None
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['token_price'] = str(d['token_price'])
+        d['hard_cap'] = str(d['hard_cap'])
+        d['total_raised'] = str(d['total_raised'])
+        return d
+
+
+@dataclass
+class InvestorInvestment:
+    """Individual investment record (investor_investments table)."""
+    id: str
+    eth_address: str
+    qbc_address: str
+    token_symbol: str
+    amount_raw: Decimal
+    usd_value: Decimal
+    qbc_allocated: Decimal
+    eth_tx_hash: str
+    eth_block: int
+    round_id: Optional[int] = None
+    token_address: Optional[str] = None
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['amount_raw'] = str(d['amount_raw'])
+        d['usd_value'] = str(d['usd_value'])
+        d['qbc_allocated'] = str(d['qbc_allocated'])
+        return d
+
+
+@dataclass
+class InvestorVestingClaim:
+    """Vesting claim record (investor_vesting_claims table)."""
+    id: str
+    qbc_address: str
+    qbc_claimed: Decimal
+    qusd_claimed: Decimal
+    vested_fraction: Decimal
+    tx_hash: Optional[str] = None
+    block_height: Optional[int] = None
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['qbc_claimed'] = str(d['qbc_claimed'])
+        d['qusd_claimed'] = str(d['qusd_claimed'])
+        d['vested_fraction'] = str(d['vested_fraction'])
+        return d
+
+
+@dataclass
+class InvestorRevenue:
+    """Revenue share claim record (investor_revenue table)."""
+    id: str
+    qbc_address: str
+    amount: Decimal
+    acc_per_share: Decimal
+    tx_hash: Optional[str] = None
+    block_height: Optional[int] = None
+    created_at: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d['amount'] = str(d['amount'])
+        d['acc_per_share'] = str(d['acc_per_share'])
+        return d

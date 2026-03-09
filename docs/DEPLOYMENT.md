@@ -491,7 +491,7 @@ Nodes discover additional peers via gossip after connecting to any seed.
 |----------|-------|
 | `NEXT_PUBLIC_RPC_URL` | `https://api.qbc.network` |
 | `NEXT_PUBLIC_WS_URL` | `wss://api.qbc.network/ws` |
-| `NEXT_PUBLIC_CHAIN_ID` | `3301` |
+| `NEXT_PUBLIC_CHAIN_ID` | `3303` |
 | `NEXT_PUBLIC_CHAIN_NAME` | `Quantum Blockchain` |
 | `NEXT_PUBLIC_CHAIN_SYMBOL` | `QBC` |
 

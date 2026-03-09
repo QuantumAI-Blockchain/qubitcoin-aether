@@ -99,14 +99,14 @@ func (h *Handlers) dispatchRPC(req JSONRPCRequest) JSONRPCResponse {
 	switch req.Method {
 	// ── Chain ──────────────────────────────────────────────────────
 	case "eth_chainId":
-		chainID := uint64(3301)
+		chainID := uint64(3303)
 		if h.services != nil && h.services.ChainID > 0 {
 			chainID = h.services.ChainID
 		}
 		result = fmt.Sprintf("0x%x", chainID)
 
 	case "net_version":
-		chainID := uint64(3301)
+		chainID := uint64(3303)
 		if h.services != nil && h.services.ChainID > 0 {
 			chainID = h.services.ChainID
 		}

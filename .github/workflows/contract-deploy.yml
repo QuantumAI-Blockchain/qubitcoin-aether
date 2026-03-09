@@ -142,7 +142,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://root@localhost:26257/qbc?sslmode=disable
           AUTO_MINE: "true"
-          CHAIN_ID: "3302"
+          CHAIN_ID: "3304"
 
       - name: Deploy contracts
         run: |

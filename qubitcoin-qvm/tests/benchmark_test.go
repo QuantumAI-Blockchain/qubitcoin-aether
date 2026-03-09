@@ -546,7 +546,7 @@ func makeTestContextArgs(code []byte, gas uint64) (*evm.BlockContext, *evm.TxCon
 		BlockNumber: 100,
 		Timestamp:   1700000000,
 		BaseFee:     big.NewInt(1_000_000_000),
-		ChainID:     big.NewInt(3301),
+		ChainID:     big.NewInt(3303),
 		Coinbase:    [20]byte{0x01},
 	}
 	tx := &evm.TxContext{

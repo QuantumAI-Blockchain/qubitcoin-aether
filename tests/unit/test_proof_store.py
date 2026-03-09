@@ -54,13 +54,13 @@ class TestComputeProofId:
 
 class TestComputeEntanglementId:
     def test_deterministic(self):
-        a = compute_entanglement_id(1, 3301, "root_a", 100)
-        b = compute_entanglement_id(1, 3301, "root_a", 100)
+        a = compute_entanglement_id(1, 3303, "root_a", 100)
+        b = compute_entanglement_id(1, 3303, "root_a", 100)
         assert a == b
 
     def test_different_chains_differ(self):
-        a = compute_entanglement_id(1, 3301, "root", 0)
-        b = compute_entanglement_id(56, 3301, "root", 0)
+        a = compute_entanglement_id(1, 3303, "root", 0)
+        b = compute_entanglement_id(56, 3303, "root", 0)
         assert a != b
 
 
@@ -104,7 +104,7 @@ class TestBridgeProof:
         p = BridgeProof(
             proof_id="abc",
             source_chain_id=1,
-            dest_chain_id=3301,
+            dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0x123",
             source_block_height=100,
@@ -129,7 +129,7 @@ class TestProofStoreSubmit:
         store = ProofStore()
         leaf, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -144,7 +144,7 @@ class TestProofStoreSubmit:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -152,7 +152,7 @@ class TestProofStoreSubmit:
             merkle_proof=[], state_root=root,
         )
         dup = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -165,7 +165,7 @@ class TestProofStoreSubmit:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -174,7 +174,7 @@ class TestProofStoreSubmit:
         )
         # Same source_tx_hash but different amount → still blocked
         dup = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -193,7 +193,7 @@ class TestProofStoreVerify:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -207,7 +207,7 @@ class TestProofStoreVerify:
     def test_verify_bad_merkle(self):
         store = ProofStore()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -225,7 +225,7 @@ class TestProofStoreVerify:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -240,7 +240,7 @@ class TestProofStoreVerify:
         store = ProofStore(proof_expiry_seconds=0.0)  # instant expiry
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -261,7 +261,7 @@ class TestProofStoreExecute:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -276,7 +276,7 @@ class TestProofStoreExecute:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -299,7 +299,7 @@ class TestQVCSP:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -315,7 +315,7 @@ class TestQVCSP:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -328,7 +328,7 @@ class TestQVCSP:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -347,7 +347,7 @@ class TestQVCSP:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -370,7 +370,7 @@ class TestProofStoreQueries:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -383,7 +383,7 @@ class TestProofStoreQueries:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         proof = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -401,7 +401,7 @@ class TestProofStoreQueries:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         p = store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -416,7 +416,7 @@ class TestProofStoreQueries:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -430,7 +430,7 @@ class TestProofStoreQueries:
         store = ProofStore()
         _, root = _make_merkle_leaf_and_root()
         store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,
@@ -446,7 +446,7 @@ class TestProofStoreQueries:
         store = ProofStore(proof_expiry_seconds=0.0)
         _, root = _make_merkle_leaf_and_root()
         store.submit_proof(
-            source_chain_id=1, dest_chain_id=3301,
+            source_chain_id=1, dest_chain_id=3303,
             proof_type=ProofType.DEPOSIT,
             source_tx_hash="0xabc",
             source_block_height=500,

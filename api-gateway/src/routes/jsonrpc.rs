@@ -7,7 +7,7 @@
 //! POST /jsonrpc
 //!
 //! Request:  {"jsonrpc": "2.0", "method": "eth_chainId", "params": [], "id": 1}
-//! Response: {"jsonrpc": "2.0", "result": "0xce5", "id": 1}
+//! Response: {"jsonrpc": "2.0", "result": "0xce7", "id": 1}
 
 use axum::extract::State;
 use axum::Json;

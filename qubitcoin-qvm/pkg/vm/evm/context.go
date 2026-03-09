@@ -18,7 +18,7 @@ type BlockContext struct {
 	PrevRandao [32]byte
 	// BaseFee is the EIP-1559 base fee per gas.
 	BaseFee *big.Int
-	// ChainID is the chain identifier (3301 mainnet, 3302 testnet).
+	// ChainID is the chain identifier (3303 mainnet, 3304 testnet).
 	ChainID *big.Int
 }
 
@@ -27,7 +27,7 @@ func NewBlockContext() *BlockContext {
 	return &BlockContext{
 		GasLimit: 30_000_000,
 		BaseFee:  new(big.Int),
-		ChainID:  big.NewInt(3301),
+		ChainID:  big.NewInt(3303),
 	}
 }
 

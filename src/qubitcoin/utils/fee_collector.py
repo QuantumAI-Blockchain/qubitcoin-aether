@@ -6,9 +6,14 @@ Used by both Aether Tree chat and contract deployment systems.
 
 Fee flow:
   1. Select sufficient UTXOs from payer's address to cover fee
-  2. Create a fee transaction: inputs → [fee output to treasury, change output to payer]
-  3. Record the fee transaction in the database
-  4. Log the collection for auditing
+  2. Split fee: 90% to treasury, 10% to investor revenue pool
+  3. Create a fee transaction: inputs → [treasury output, investor output, change output]
+  4. Record the fee transaction in the database
+  5. Log the collection for auditing
+
+Revenue split (configurable via INVESTOR_REVENUE_SPLIT env var):
+  - Treasury:  90% of all protocol fees (default)
+  - Investors: 10% of all protocol fees (perpetual revenue share)
 """
 import hashlib
 import json
@@ -92,6 +97,17 @@ class FeeCollector:
         if payer_address == treasury_address:
             return True, "Payer is treasury, fee skipped", None
 
+        # Compute investor revenue split
+        investor_split = Decimal(str(Config.INVESTOR_REVENUE_SPLIT))
+        investor_address = Config.INVESTOR_REVENUE_ADDRESS
+        investor_amount = Decimal(0)
+
+        if investor_address and investor_split > 0 and investor_address != treasury_address:
+            investor_amount = (fee_amount * investor_split).quantize(Decimal('0.00000001'))
+            treasury_fee = fee_amount - investor_amount
+        else:
+            treasury_fee = fee_amount
+
         # Check balance
         balance = self._db.get_balance(payer_address)
         if balance < fee_amount:
@@ -114,7 +130,9 @@ class FeeCollector:
                                            fee_amount, fee_type)
 
         inputs = [{'txid': u.txid, 'vout': u.vout} for u in selected]
-        outputs = [{'address': treasury_address, 'amount': fee_amount}]
+        outputs = [{'address': treasury_address, 'amount': treasury_fee}]
+        if investor_amount > 0:
+            outputs.append({'address': investor_address, 'amount': investor_amount})
         if change_amount > 0:
             outputs.append({'address': payer_address, 'amount': change_amount})
 
@@ -175,9 +193,12 @@ class FeeCollector:
         )
         self._add_audit_record(record)
 
+        split_info = ""
+        if investor_amount > 0:
+            split_info = f" [treasury={treasury_fee}, investors={investor_amount}]"
         logger.info(
             f"Fee collected: {fee_amount} QBC ({fee_type}) "
-            f"from {payer_address[:16]}... -> {treasury_address[:16]}..."
+            f"from {payer_address[:16]}... -> {treasury_address[:16]}...{split_info}"
         )
         return True, "Fee collected", record
 

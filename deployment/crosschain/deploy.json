@@ -106,7 +106,7 @@
     "confirmations": 32
   },
   "qbcSourceChain": {
-    "chainId": 3301,
+    "chainId": 3303,
     "name": "Qubitcoin Mainnet",
     "rpc": "http://localhost:5000",
     "confirmations": 6

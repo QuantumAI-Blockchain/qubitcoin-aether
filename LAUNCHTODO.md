@@ -3,7 +3,7 @@
 > **Master document for bringing Quantum Blockchain live: seed node on Digital Ocean + mining node locally.**
 > Work through each phase in order. Check boxes as you go.
 
-**Website:** qbc.network | **Contact:** info@qbc.network | **Chain ID:** 3301
+**Website:** qbc.network | **Contact:** info@qbc.network | **Chain ID:** 3303
 
 ---
 
@@ -236,7 +236,7 @@ Key settings for the seed node:
 ```bash
 AUTO_MINE=true              # Start mining immediately
 USE_LOCAL_ESTIMATOR=true    # Local Qiskit simulator
-CHAIN_ID=3301               # Mainnet
+CHAIN_ID=3303               # Mainnet
 ENABLE_RUST_P2P=true        # Use Rust P2P daemon
 
 # Higgs Cognitive Field (Aether Tree mass mechanism)
@@ -497,7 +497,7 @@ PEER_SEEDS=<SEED_NODE_IP>:4001
 # Mining
 AUTO_MINE=true
 USE_LOCAL_ESTIMATOR=true
-CHAIN_ID=3301
+CHAIN_ID=3303
 
 # P2P
 ENABLE_RUST_P2P=true
@@ -620,7 +620,7 @@ cd frontend
 cat > .env.production << 'EOF'
 NEXT_PUBLIC_RPC_URL=https://api.qbc.network
 NEXT_PUBLIC_WS_URL=wss://api.qbc.network/ws
-NEXT_PUBLIC_CHAIN_ID=3301
+NEXT_PUBLIC_CHAIN_ID=3303
 NEXT_PUBLIC_CHAIN_NAME=Quantum Blockchain
 NEXT_PUBLIC_CHAIN_SYMBOL=QBC
 EOF
@@ -658,7 +658,7 @@ npx vercel --prod
 
 - [ ] `qbc.network` loads landing page
 - [ ] Stats bar shows live block height from `api.qbc.network`
-- [ ] MetaMask can connect (chain ID 3301)
+- [ ] MetaMask can connect (chain ID 3303)
 - [ ] Aether chat widget responds
 
 ---
@@ -1104,7 +1104,7 @@ MetaMask connects via the JSON-RPC interface for QVM (Layer 2) interactions.
 |---------|-------|
 | Network Name | Qubitcoin |
 | RPC URL | `https://api.qbc.network` (production) or `http://localhost:5000` (local) |
-| Chain ID | 3301 (hex: 0xCE5) |
+| Chain ID | 3303 (hex: 0xCE7) |
 | Currency Symbol | QBC |
 | Block Explorer | `https://qbc.network/explorer` |
 

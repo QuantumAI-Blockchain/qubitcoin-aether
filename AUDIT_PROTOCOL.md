@@ -257,7 +257,7 @@ Read `network/rpc.py` (5,589 LOC, 276 routes) and `network/jsonrpc.py` line by l
 
 Plus utility dispatches: `net_version`, `web3_clientVersion`, `web3_sha3`
 
-For every JSON-RPC method verify: MetaMask compatibility, hex encoding correct (0x prefix), chain ID returns 0xce5 (3301).
+For every JSON-RPC method verify: MetaMask compatibility, hex encoding correct (0x prefix), chain ID returns 0xce7 (3303).
 
 ---
 
@@ -423,7 +423,7 @@ For every JSON-RPC method verify: MetaMask compatibility, hex encoding correct (
 
 - All 7 pallets wired via `construct_runtime!`
 - Block time 3300ms configured
-- Chain ID 3301
+- Chain ID 3303
 - Genesis includes 33M premine + 15.27 first reward
 - Weights: benchmark-derived or placeholder? (flag if placeholder)
 
@@ -1145,7 +1145,7 @@ Every page must render real data, not mocks:
 | Landing | `/` | Live chain stats from `/chain/info`, not hardcoded |
 | Aether Chat | `/aether` | POST `/aether/chat/message` real responses, Phi from `/aether/phi` |
 | Dashboard | `/dashboard` | Mining stats, wallet, network — all real endpoints |
-| Wallet | `/wallet` | ethers.js + MetaMask, chain ID 3301, real balance |
+| Wallet | `/wallet` | ethers.js + MetaMask, chain ID 3303, real balance |
 | QVM Explorer | `/qvm` | Real contract queries |
 | Block Explorer | `/explorer` | Real chain data from `/block/{height}` |
 | Bridge | `/bridge` | Real bridge status from `/bridge/status` |
@@ -1163,7 +1163,7 @@ TWA Routes: `/twa`, `/twa/chat`, `/twa/earn`, `/twa/wallet`, `/twa/refer`, `/twa
 1. Is `mock-engine.ts` imported anywhere in production code (not just test)?
 2. Do all 7 API libs point to `NEXT_PUBLIC_RPC_URL` (not localhost in production)?
 3. Does `use-chain-socket.ts` receive real-time block/tx/Phi data?
-4. Does MetaMask connect with chain ID 3301 (hex 0xce5)?
+4. Does MetaMask connect with chain ID 3303 (hex 0xce7)?
 5. Are WebSocket feeds for exchange order book + trades real-time?
 6. Do all pages have `<ErrorBoundary>` wrappers?
 
@@ -1358,7 +1358,7 @@ Flag EVERY instance of:
 
 **JSON-RPC (19 methods via POST to /):**
 
-- [ ] `eth_chainId` → returns `0xce5` (3301)
+- [ ] `eth_chainId` → returns `0xce7` (3303)
 - [ ] `eth_blockNumber` → returns latest height in hex
 - [ ] `eth_getBalance` → returns balance for operator address
 - [ ] `eth_getBlockByNumber` → returns block details
@@ -1489,7 +1489,7 @@ Flag EVERY instance of:
 
 - [ ] Substrate genesis config premine = 33,000,000 QBC
 - [ ] Substrate genesis first reward = 15.27 QBC
-- [ ] Substrate chain ID = 3301
+- [ ] Substrate chain ID = 3303
 - [ ] Substrate block time = 3.3s (3300ms)
 
 ---

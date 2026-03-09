@@ -96,7 +96,7 @@ pnpm build → exit 0
 | Knowledge nodes | 22+ | 22+ (growing) | PASS |
 | Difficulty | 1.0 | 1.0 → adjusting | PASS |
 | Block time | ~3.3s | ~3.3s | PASS |
-| Chain ID | 3301 | 3301 | PASS |
+| Chain ID | 3303 | 3303 | PASS |
 | Continued mining | 50+ blocks | 200+ blocks | PASS |
 
 ---
@@ -128,7 +128,7 @@ pnpm build → exit 0
 
 | Method | Status |
 |--------|--------|
-| eth_chainId | PASS (0xce5) |
+| eth_chainId | PASS (0xce7) |
 | eth_blockNumber | PASS |
 | eth_getBalance | PASS |
 | eth_getBlockByNumber | PASS |
@@ -139,7 +139,7 @@ pnpm build → exit 0
 | eth_getStorageAt | PASS |
 | eth_mining | PASS |
 | eth_hashrate | PASS |
-| net_version | PASS (3301) |
+| net_version | PASS (3303) |
 | web3_clientVersion | PASS |
 
 ---

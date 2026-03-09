@@ -700,9 +700,9 @@ SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 # ============================================================================
 # Core consensus constants. DO NOT change these after genesis.
 #
-# CHAIN_ID: Unique network identifier (3301=mainnet, 3302=testnet)
+# CHAIN_ID: Unique network identifier (3303=mainnet, 3304=testnet)
 # BLOCK_GAS_LIMIT: Maximum gas per block for QVM (L2) execution
-CHAIN_ID=3301
+CHAIN_ID=3303
 BLOCK_GAS_LIMIT=30000000
 
 

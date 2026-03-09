@@ -37,7 +37,7 @@ For the complete launch guide (Digital Ocean + local mining node), see **[LAUNCH
 
 | Parameter | Value |
 |-----------|-------|
-| **Chain ID** | Mainnet: 3301, Testnet: 3302 |
+| **Chain ID** | Mainnet: 3303, Testnet: 3304 |
 | **RPC** | `https://api.qbc.network` (production) / `http://localhost:5000` (local) |
 | **P2P** | Port 4001 (Rust libp2p) |
 | **Stratum** | Port 3333 (Rust WebSocket mining pool) |
@@ -103,7 +103,7 @@ FRONTEND: qbc.network
 | **BIP-39 Mnemonics** | 24-word seed phrases for key derivation |
 | **P2P Encryption** | ML-KEM-768 (Kyber) + AES-256-GCM session keys |
 | **Hashing** | SHA3-256 (L1), Keccak-256 (QVM/L2), Poseidon2 (ZK circuits) |
-| **Chain IDs** | Mainnet: 3301, Testnet: 3302 |
+| **Chain IDs** | Mainnet: 3303, Testnet: 3304 |
 | **QVM Gas Limit** | 30,000,000 per block |
 | **Privacy** | Opt-in Susy Swaps (Pedersen + Bulletproofs + Stealth Addresses) |
 | **Deniable RPCs** | Privacy-preserving batch balance/UTXO/tx queries with Bloom filters |

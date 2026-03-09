@@ -83,7 +83,7 @@ fn wasm_binary() -> Result<&'static [u8], String> {
 // Network configurations
 // ═══════════════════════════════════════════════════════════════════════
 
-/// **MAINNET** chain spec — Chain ID 3301, production validators.
+/// **MAINNET** chain spec — Chain ID 3303, production validators.
 ///
 /// For launch, validator keys are injected from `generate_substrate_keys.sh`.
 /// The genesis state includes the 33M QBC premine + initial mining reward.
@@ -140,7 +140,7 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
         .build())
 }
 
-/// **TESTNET** chain spec — Chain ID 3302, 2 validators, testnet faucet.
+/// **TESTNET** chain spec — Chain ID 3304, 2 validators, testnet faucet.
 pub fn testnet_config() -> Result<ChainSpec, String> {
     let initial_authorities = vec![
         authority_keys_from_seed("Alice"),

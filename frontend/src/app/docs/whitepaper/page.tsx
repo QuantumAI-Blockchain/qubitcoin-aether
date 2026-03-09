@@ -127,7 +127,7 @@ export default function WhitepaperPage() {
           Physics-Secured Digital Assets with On-Chain AGI
         </p>
         <p className="mb-8 text-xs" style={{ color: C.textMuted }}>
-          Chain ID: 3301 (Mainnet) | License: MIT | Contact: info@qbc.network
+          Chain ID: 3303 (Mainnet) | License: MIT | Contact: info@qbc.network
         </p>
 
         <div className="space-y-8">

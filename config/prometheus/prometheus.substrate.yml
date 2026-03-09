@@ -17,7 +17,7 @@ scrape_configs:
         labels:
           instance: 'validator-1'
           chain: 'mainnet'
-          chain_id: '3301'
+          chain_id: '3303'
 
   # API Gateway — application metrics
   - job_name: 'api-gateway'

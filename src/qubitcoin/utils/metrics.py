@@ -260,6 +260,16 @@ finality_vote_ratio = Gauge('qbc_finality_vote_ratio', 'Current vote ratio for l
 finality_reorgs_blocked = Counter('qbc_finality_reorgs_blocked_total', 'Reorgs blocked by finality')
 finality_enabled = Gauge('qbc_finality_enabled', 'Whether finality gadget is enabled')
 
+# ============================================================================
+# INVESTOR PUBLIC SALE METRICS
+# ============================================================================
+investor_total_raised = Gauge('qbc_investor_total_raised_usd', 'Total USD raised in seed round')
+investor_count = Gauge('qbc_investor_count', 'Total investors in seed round')
+investor_vesting_claimed = Counter('qbc_investor_vesting_claimed_total', 'Total QBC claimed via vesting')
+investor_revenue_distributed = Counter('qbc_investor_revenue_distributed_total', 'Total QBC distributed as revenue')
+investor_revenue_pending = Gauge('qbc_investor_revenue_pending', 'Unclaimed investor revenue QBC')
+investor_round_active = Gauge('qbc_investor_round_active', 'Whether a round is currently active')
+
 def setup_metrics(app) -> None:
     """Setup Prometheus metrics for FastAPI app"""
     instrumentator = Instrumentator().instrument(app).expose(app)
@@ -352,6 +362,9 @@ __all__ = [
     'finality_last_finalized', 'finality_validator_count', 'finality_total_stake',
     'finality_votes_cast', 'finality_checkpoints', 'finality_vote_ratio',
     'finality_reorgs_blocked', 'finality_enabled',
+    # Investor
+    'investor_total_raised', 'investor_count', 'investor_vesting_claimed',
+    'investor_revenue_distributed', 'investor_revenue_pending', 'investor_round_active',
     # Setup
     'setup_metrics', 'generate_latest', 'CONTENT_TYPE_LATEST',
 ]

@@ -16,7 +16,7 @@ metadata:
   name: qvm-config
   namespace: qbc-qvm
 data:
-  CHAIN_ID: "3301"
+  CHAIN_ID: "3303"
   GRPC_ADDR: ":50052"
   HTTP_ADDR: ":8080"
   BLOCK_GAS_LIMIT: "30000000"

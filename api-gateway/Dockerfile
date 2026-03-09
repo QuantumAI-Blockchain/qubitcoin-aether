@@ -18,7 +18,7 @@ ENV API_LISTEN_ADDR=0.0.0.0:5000
 ENV SUBSTRATE_WS_URL=ws://substrate-node:9944
 ENV DATABASE_URL=postgresql://root@cockroachdb:26257/qbc?sslmode=disable
 ENV AETHER_SERVICE_URL=http://aether-service:5001
-ENV CHAIN_ID=3301
+ENV CHAIN_ID=3303
 ENV LOG_LEVEL=info
 
 EXPOSE 5000

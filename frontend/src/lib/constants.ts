@@ -1,6 +1,6 @@
 /** Quantum Blockchain chain and project constants */
 
-export const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 3301);
+export const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 3303);
 export const CHAIN_NAME = process.env.NEXT_PUBLIC_CHAIN_NAME ?? "Quantum Blockchain";
 export const CHAIN_SYMBOL = process.env.NEXT_PUBLIC_CHAIN_SYMBOL ?? "QBC";
 export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "/api";
@@ -114,4 +114,13 @@ export const API = {
   // Telegram
   telegramLinkWallet: "/telegram/link-wallet",
   telegramWallet: (uid: number) => `/telegram/wallet/${uid}`,
+  // Investor
+  investorTreasury: "/investor/treasury",
+  investorRoundInfo: "/investor/round/info",
+  investorStatus: (ethAddr: string) => `/investor/status/${ethAddr}`,
+  investorInvestments: "/investor/investments",
+  investorValidateQBC: "/investor/validate-qbc-address",
+  investorVesting: (qbcAddr: string) => `/investor/vesting/${qbcAddr}`,
+  investorRevenue: (qbcAddr: string) => `/investor/revenue/${qbcAddr}`,
+  investorMerkleProof: (qbcAddr: string) => `/investor/merkle-proof/${qbcAddr}`,
 } as const;

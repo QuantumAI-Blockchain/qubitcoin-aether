@@ -34,12 +34,12 @@ module.exports = {
   networks: {
     qubitcoin: {
       url: "http://localhost:5000/jsonrpc",
-      chainId: 3301,
+      chainId: 3303,
       accounts: [process.env.PRIVATE_KEY],
     },
     qubitcoin_testnet: {
       url: "https://testnet-rpc.qbc.network/jsonrpc",
-      chainId: 3302,
+      chainId: 3304,
       accounts: [process.env.PRIVATE_KEY],
     },
   },
@@ -366,7 +366,7 @@ Upgrades are tracked in an audit trail accessible via the admin API.
 
 1. **Use template contracts** when possible — they are pre-audited and get fee discounts
 2. **Check compliance** — use the QCOMPLIANCE opcode or ERC-20-QC standard for regulated tokens
-3. **Test on testnet first** — Chain ID 3302 is the test network
+3. **Test on testnet first** — Chain ID 3304 is the test network
 4. **Mind gas limits** — Block gas limit is 30,000,000. Quantum ops are expensive.
 5. **Reentrancy protection** — QVM enforces call depth limits and provides reentrancy guards
 6. **Integer overflow** — QVM uses 256-bit unsigned arithmetic with wrapping (same as EVM)

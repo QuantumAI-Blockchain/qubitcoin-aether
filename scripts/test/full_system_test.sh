@@ -255,9 +255,9 @@ fi
 # ── 17. JSON-RPC (ETH COMPAT) ──────────────────────────────────────────
 section "17. JSON-RPC (MetaMask Compatible)"
 
-test_post "eth_chainId" "/jsonrpc" '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "0xce5"
+test_post "eth_chainId" "/jsonrpc" '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "0xce7"
 test_post "eth_blockNumber" "/jsonrpc" '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}' "result"
-test_post "net_version" "/jsonrpc" '{"jsonrpc":"2.0","id":1,"method":"net_version","params":[]}' "3301"
+test_post "net_version" "/jsonrpc" '{"jsonrpc":"2.0","id":1,"method":"net_version","params":[]}' "3303"
 test_post "web3_clientVersion" "/jsonrpc" '{"jsonrpc":"2.0","id":1,"method":"web3_clientVersion","params":[]}' "Qubitcoin"
 
 # ── SUMMARY ──────────────────────────────────────────────────────────────

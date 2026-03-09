@@ -57,7 +57,7 @@ export const CHAINS: Record<string, ChainConfig> = {
     id: "qbc",
     name: "Qubitcoin Mainnet",
     rpcUrl: process.env.NEXT_PUBLIC_RPC_URL ?? "http://localhost:5000",
-    chainId: 3301,
+    chainId: 3303,
     explorerUrl: "",
     nativeSymbol: "QBC",
     blockTime: 3.3,

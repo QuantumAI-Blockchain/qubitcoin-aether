@@ -30,7 +30,7 @@ type ServerConfig struct {
 	GRPCAddr string
 	// HTTPAddr is the HTTP listen address (default ":8080").
 	HTTPAddr string
-	// ChainID is the chain identifier (3301 mainnet, 3302 testnet).
+	// ChainID is the chain identifier (3303 mainnet, 3304 testnet).
 	ChainID uint64
 	// ReadTimeout is the HTTP read timeout.
 	ReadTimeout time.Duration
@@ -49,7 +49,7 @@ func DefaultServerConfig() *ServerConfig {
 	return &ServerConfig{
 		GRPCAddr:       ":50052",
 		HTTPAddr:       ":8080",
-		ChainID:        3301,
+		ChainID:        3303,
 		ReadTimeout:    30 * time.Second,
 		WriteTimeout:   30 * time.Second,
 		MaxRequestSize: 5 * 1024 * 1024, // 5MB

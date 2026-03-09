@@ -28,7 +28,7 @@ scrape_configs:
         labels:
           instance: 'node-1'
           chain: 'mainnet'
-          chain_id: '3301'
+          chain_id: '3303'
 
   # CockroachDB — database health and performance
   - job_name: 'cockroachdb'

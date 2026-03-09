@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
     const rpcDest = process.env.RPC_BACKEND_URL || "http://localhost:5000";
     return [
       {
+        // MetaMask JSON-RPC endpoint — POST to /rpc proxies to node root
+        source: "/rpc",
+        destination: `${rpcDest}/`,
+      },
+      {
         source: "/api/:path*",
         destination: `${rpcDest}/:path*`,
       },

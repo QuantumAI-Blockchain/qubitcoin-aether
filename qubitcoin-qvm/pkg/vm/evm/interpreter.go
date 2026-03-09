@@ -540,7 +540,7 @@ func (interp *Interpreter) run(ctx *ExecutionContext) (retErr error) {
 			err = ctx.Stack.PushUint64(ctx.Block.GasLimit)
 
 		case op == CHAINID:
-			chainID := big.NewInt(3301) // default QBC mainnet
+			chainID := big.NewInt(3303) // default QBC mainnet
 			if ctx.Block.ChainID != nil {
 				chainID = ctx.Block.ChainID
 			}

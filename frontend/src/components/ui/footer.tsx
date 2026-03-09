@@ -117,7 +117,7 @@ export function Footer() {
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <dt className="font-[family-name:var(--font-reading)] text-text-secondary">Chain ID</dt>
-                <dd className="font-[family-name:var(--font-code)] text-text-primary">3301</dd>
+                <dd className="font-[family-name:var(--font-code)] text-text-primary">3303</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-[family-name:var(--font-reading)] text-text-secondary">Block Time</dt>

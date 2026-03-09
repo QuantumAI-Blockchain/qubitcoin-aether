@@ -44,7 +44,7 @@ pub struct Config {
     pub aether_service_url: String,
 
     /// Chain ID for JSON-RPC responses.
-    #[arg(long, env = "CHAIN_ID", default_value_t = 3301)]
+    #[arg(long, env = "CHAIN_ID", default_value_t = 3303)]
     pub chain_id: u64,
 
     /// CORS allowed origins (comma-separated).
