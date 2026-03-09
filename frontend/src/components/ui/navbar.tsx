@@ -10,13 +10,15 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { useState, useEffect } from "react";
 
+// Hidden from public nav (pages still accessible by direct URL):
+//   { href: "/launchpad", key: "launchpad" },
+//   { href: "/invest", key: "invest" },
 const navKeys = [
   { href: "/", key: "home" },
   { href: "/aether", key: "aether" },
   { href: "/dashboard", key: "dashboard" },
   { href: "/explorer", key: "explorer" },
   { href: "/exchange", key: "exchange" },
-  { href: "/launchpad", key: "launchpad" },
   { href: "/wallet", key: "wallet" },
   { href: "/qvm", key: "qvm" },
   { href: "/bridge", key: "bridge" },

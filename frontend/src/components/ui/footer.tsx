@@ -15,6 +15,7 @@ const resourceLinks = [
   { href: "/docs/aether", label: "Aether Tree Docs" },
   { href: "/docs/economics", label: "Economics" },
   { href: "/docs/qusd", label: "QUSD Stablecoin" },
+  { href: "/docs/exchange", label: "Exchange" },
 ];
 
 const socialLinks = [

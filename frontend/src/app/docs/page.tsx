@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { ArrowLeft, FileText, Cpu, Brain, TrendingUp, DollarSign } from "lucide-react";
+import { ArrowLeft, FileText, Cpu, Brain, TrendingUp, DollarSign, BarChart3 } from "lucide-react";
 
 const C = {
   bg: "#0a0a0f",
@@ -55,6 +55,14 @@ const docs = [
     description:
       "Dollar-pegged stablecoin on QVM — fractional reserve, peg keeper daemon, cross-chain wQUSD, and investor revenue share.",
     tags: ["$1 Peg", "Fractional Reserve", "Peg Keeper", "wQUSD"],
+  },
+  {
+    title: "Exchange",
+    href: "/docs/exchange",
+    icon: BarChart3,
+    description:
+      "Rust matching engine with microsecond latency — price-time priority, OHLC candles, WebSocket streaming, and CockroachDB persistence.",
+    tags: ["Rust", "Order Matching", "WebSocket", "REST API"],
   },
 ];
 

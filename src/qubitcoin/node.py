@@ -619,15 +619,9 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"CapabilityAdvertiser init: {e}")
 
-        # Component 19b: Exchange Engine (DEX order book)
+        # Component 19b: Exchange Engine — now a standalone Rust service (qbc-exchange)
         self.exchange_engine = None
-        try:
-            from .exchange.engine import ExchangeEngine
-            self.exchange_engine = ExchangeEngine(db_manager=self.db)
-            logger.info("[19b/22] ExchangeEngine initialized (%d pairs)",
-                        len(self.exchange_engine.books))
-        except Exception as e:
-            logger.warning(f"[19b/22] ExchangeEngine failed (non-fatal): {e}")
+        logger.info("[19b/22] Exchange runs as standalone Rust service (qbc-exchange)")
 
         # Component 19c: Reversibility Manager
         self.reversibility_manager = None
