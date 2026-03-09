@@ -16,6 +16,7 @@ const resourceLinks = [
   { href: "/docs/economics", label: "Economics" },
   { href: "/docs/qusd", label: "QUSD Stablecoin" },
   { href: "/docs/exchange", label: "Exchange" },
+  { href: "/docs/privacy", label: "Privacy" },
 ];
 
 const socialLinks = [

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { ArrowLeft, FileText, Cpu, Brain, TrendingUp, DollarSign, BarChart3 } from "lucide-react";
+import { ArrowLeft, FileText, Cpu, Brain, TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
 
 const C = {
   bg: "#0a0a0f",
@@ -63,6 +63,14 @@ const docs = [
     description:
       "Rust matching engine with microsecond latency — price-time priority, OHLC candles, WebSocket streaming, and CockroachDB persistence.",
     tags: ["Rust", "Order Matching", "WebSocket", "REST API"],
+  },
+  {
+    title: "Privacy & SUSY Swaps",
+    href: "/docs/privacy",
+    icon: Shield,
+    description:
+      "Opt-in confidential transactions — Pedersen commitments, Bulletproofs range proofs, stealth addresses, and deniable RPC endpoints.",
+    tags: ["Opt-In", "Pedersen", "Bulletproofs", "Stealth Addresses"],
   },
 ];
 

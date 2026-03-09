@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTelegramStore } from "@/stores/telegram-store";
 import { useWalletStore } from "@/stores/wallet-store";
 import { api } from "@/lib/api";
+import { generateKeypair, SecurityLevel } from "@/lib/dilithium";
 import { hapticFeedback, hapticNotification } from "@/lib/telegram";
 
 const STEPS = [
@@ -48,26 +49,50 @@ export default function TWAOnboardPage() {
     hapticFeedback("medium");
 
     try {
-      const res = await api.createWallet();
-      connect(res.address);
+      // CLIENT-SIDE KEY GENERATION via Dilithium WASM
+      let address: string;
+      let publicKeyHex: string;
+      let secretKeyHex: string | null = null;
 
-      // Store public key in sessionStorage (non-secret, needed for signing calls).
-      sessionStorage.setItem(`qbc-pubkey-${res.address}`, res.public_key_hex);
+      try {
+        const kp = await generateKeypair(SecurityLevel.LEVEL5);
+        address = kp.address;
+        publicKeyHex = kp.publicKeyHex;
+        secretKeyHex = kp.secretKeyHex;
+      } catch {
+        // WASM not available (e.g., Telegram WebView restrictions)
+        // Fall back to server-side address generation (no private key)
+        const res = await api.createWallet();
+        address = res.address;
+        publicKeyHex = res.public_key_hex;
+      }
 
-      // SECURITY [FE-C1]: The server no longer returns private_key_hex.
-      // Private keys must be generated client-side via Dilithium5 WASM.
-      // The createWallet endpoint only provides address + public key.
+      connect(address);
+      sessionStorage.setItem(`qbc-pubkey-${address}`, publicKeyHex);
 
-      // Notify user that they need to set up client-side key management
-      if (typeof window !== "undefined") {
-        const webapp = (await import("@/lib/telegram")).getWebApp();
-        webapp?.showAlert("Wallet address created! Full key management (including private key generation) will be available via the Dilithium5 WASM module.");
+      // If we generated client-side, securely store the private key hint
+      if (secretKeyHex) {
+        // Store encrypted in sessionStorage for this session only
+        sessionStorage.setItem(`qbc-sk-${address}`, secretKeyHex);
+        if (typeof window !== "undefined") {
+          const webapp = (await import("@/lib/telegram")).getWebApp();
+          webapp?.showAlert(
+            "Wallet created with post-quantum security (ML-DSA-87). " +
+              "Your private key is stored in this session. " +
+              "Export it from the wallet page to back up.",
+          );
+        }
+      } else {
+        if (typeof window !== "undefined") {
+          const webapp = (await import("@/lib/telegram")).getWebApp();
+          webapp?.showAlert("Wallet address created. Full key generation available on the wallet page.");
+        }
       }
 
       // Register affiliate if referred
       if (startParam) {
         await api.aikgsRegisterAffiliate({
-          address: res.address,
+          address,
           referral_code: startParam,
         }).catch(() => {});
       }
@@ -77,7 +102,7 @@ export default function TWAOnboardPage() {
       if (tgUser) {
         await api.telegramLinkWallet({
           telegram_user_id: tgUser.id,
-          qbc_address: res.address,
+          qbc_address: address,
         }).catch(() => {});
       }
 

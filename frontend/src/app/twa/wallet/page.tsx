@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { useWalletStore } from "@/stores/wallet-store";
 import { useTelegramStore } from "@/stores/telegram-store";
 import { api } from "@/lib/api";
+import { generateKeypair, SecurityLevel } from "@/lib/dilithium";
 import { showBackButton, hideBackButton, hapticFeedback, hapticNotification } from "@/lib/telegram";
 
 export default function TWAWalletPage() {
@@ -33,23 +34,35 @@ export default function TWAWalletPage() {
     hapticFeedback("medium");
 
     try {
-      const res = await api.createWallet();
-      connect(res.address);
+      // CLIENT-SIDE KEY GENERATION via Dilithium WASM
+      let walletAddress: string;
+      let publicKeyHex: string;
+
+      try {
+        const kp = await generateKeypair(SecurityLevel.LEVEL5);
+        walletAddress = kp.address;
+        publicKeyHex = kp.publicKeyHex;
+        // Store private key in sessionStorage for this session
+        sessionStorage.setItem(`qbc-sk-${kp.address}`, kp.secretKeyHex);
+      } catch {
+        // WASM fallback: server-side address only
+        const res = await api.createWallet();
+        walletAddress = res.address;
+        publicKeyHex = res.public_key_hex;
+      }
+
+      connect(walletAddress);
 
       // Link to telegram
       if (user) {
         await api.telegramLinkWallet({
           telegram_user_id: user.id,
-          qbc_address: res.address,
+          qbc_address: walletAddress,
         }).catch(() => {});
-        setLinkedWallet(res.address);
+        setLinkedWallet(walletAddress);
       }
 
-      // Store public key only — server no longer returns private keys.
-      sessionStorage.setItem(`qbc-pubkey-${res.address}`, res.public_key_hex);
-
-      // SECURITY [FE-C1]: private_key_hex is no longer returned by the server.
-      // Private key generation must happen client-side via Dilithium5 WASM.
+      sessionStorage.setItem(`qbc-pubkey-${walletAddress}`, publicKeyHex);
 
       hapticNotification("success");
     } catch (e) {

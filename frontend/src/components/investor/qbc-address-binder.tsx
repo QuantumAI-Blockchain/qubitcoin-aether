@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useInvestorStore } from "@/stores/investor-store";
 import { investorApi } from "@/lib/investor-api";
 import { api } from "@/lib/api";
+import { generateKeypair, SecurityLevel } from "@/lib/dilithium";
 
 export function QBCAddressBinder() {
   const {
@@ -25,7 +26,26 @@ export function QBCAddressBinder() {
     setLoading(true);
     setError("");
     try {
-      const result = await api.createWallet(5);
+      // Client-side key generation via WASM
+      let result: { address: string; public_key_hex: string; check_phrase: string };
+      try {
+        const kp = await generateKeypair(SecurityLevel.LEVEL5);
+        result = {
+          address: kp.address,
+          public_key_hex: kp.publicKeyHex,
+          check_phrase: kp.checkPhrase,
+        };
+        // Store private key for user to save
+        sessionStorage.setItem(`qbc-sk-${kp.address}`, kp.secretKeyHex);
+      } catch {
+        // Fallback to server-side (address + pk only)
+        const res = await api.createWallet(5);
+        result = {
+          address: res.address,
+          public_key_hex: res.public_key_hex,
+          check_phrase: res.check_phrase,
+        };
+      }
       setGeneratedKeys(result);
       setQbcAddress(result.address);
       setCheckPhrase(result.check_phrase);
