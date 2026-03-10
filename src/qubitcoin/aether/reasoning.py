@@ -264,13 +264,47 @@ class ReasoningEngine:
         # Boost confidence when observations are grounded in external truth
         inductive_conf = min(1.0, inductive_conf * self._grounding_boost(observation_ids))
 
-        # Create generalization node
+        # Create generalization node with meaningful content summary
+        # Extract actual statistics from observations
+        difficulty_values = [o.content.get('difficulty') for o in observations
+                             if o.content.get('difficulty') is not None]
+        energy_values = [o.content.get('energy') for o in observations
+                         if o.content.get('energy') is not None]
+        height_values = [o.content.get('height', o.content.get('block_height'))
+                         for o in observations
+                         if o.content.get('height') or o.content.get('block_height')]
+
+        # Build meaningful pattern description
+        pattern_parts = []
+        if height_values:
+            h_min, h_max = min(height_values), max(height_values)
+            if h_min == h_max:
+                pattern_parts.append(f"block {h_min}")
+            else:
+                pattern_parts.append(f"blocks {h_min}-{h_max}")
+        if difficulty_values:
+            avg_diff = sum(difficulty_values) / len(difficulty_values)
+            pattern_parts.append(f"avg difficulty {avg_diff:.2f}")
+        if energy_values:
+            avg_energy = sum(energy_values) / len(energy_values)
+            pattern_parts.append(f"avg energy {avg_energy:.4f}")
+        if not pattern_parts:
+            pattern_parts.append(f"{n} {dominant_type} observations")
+
         generalization = {
             'type': 'generalization',
-            'pattern': f"Generalized from {n} {dominant_type} observations",
+            'pattern': f"Pattern from {n} obs: {', '.join(pattern_parts)}",
             'observation_count': n,
             'dominant_type': dominant_type,
         }
+        if difficulty_values:
+            generalization['avg_difficulty'] = round(
+                sum(difficulty_values) / len(difficulty_values), 4
+            )
+        if energy_values:
+            generalization['avg_energy'] = round(
+                sum(energy_values) / len(energy_values), 6
+            )
 
         block_height = max(o.source_block for o in observations)
         gen_node = self.kg.add_node(

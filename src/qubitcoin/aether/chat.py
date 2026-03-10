@@ -624,10 +624,41 @@ class AetherChat:
                 desc = c.get('description', '')
                 if desc:
                     facts.append(desc)
-                for key in ('type', 'max_supply', 'block_time', 'phi',
+
+                # Generate human-readable facts from structured content types
+                content_type = c.get('type', '')
+                if content_type == 'block_observation':
+                    h = c.get('height', '?')
+                    d = c.get('difficulty', '?')
+                    tx = c.get('tx_count', 0)
+                    fact = f"Block {h} mined at difficulty {d} with {tx} transaction(s)"
+                    if c.get('milestone'):
+                        fact += " (milestone)"
+                    if c.get('difficulty_shift'):
+                        fact += " (difficulty shift)"
+                    facts.append(fact)
+                elif content_type == 'quantum_observation':
+                    energy = c.get('energy', '?')
+                    bh = c.get('block_height', '?')
+                    facts.append(
+                        f"Quantum proof at block {bh} achieved energy {energy}"
+                    )
+                elif content_type == 'contract_activity':
+                    tx_type = c.get('tx_type', 'unknown')
+                    bh = c.get('block_height', '?')
+                    facts.append(f"Contract {tx_type} at block {bh}")
+                elif content_type == 'generalization':
+                    pattern = c.get('pattern', '')
+                    if pattern:
+                        facts.append(pattern)
+
+                # Extract named fields (axiom nodes)
+                for key in ('max_supply', 'block_time', 'phi',
                             'phi_threshold', 'halving_interval', 'chain_id'):
-                    if key in c and key != 'type':
-                        facts.append(f"{key.replace('_', ' ').title()}: {c[key]}")
+                    if key in c:
+                        facts.append(
+                            f"{key.replace('_', ' ').title()}: {c[key]}"
+                        )
         return node_contents, facts
 
     def _llm_synthesize(self, query: str, facts: List[str],
@@ -771,6 +802,28 @@ class AetherChat:
             'qusd', 'stablecoin', 'fee',
         ])
 
+        # For chain/economics questions, always load axiom baseline knowledge
+        if (is_about_chain or is_about_economics) and self.engine.kg:
+            axiom_nodes = self.engine.kg.find_by_type('axiom', limit=23)
+            for anode in axiom_nodes:
+                desc = anode.content.get('description', '')
+                if desc and desc not in facts:
+                    facts.append(desc)
+
+        # Add real-time chain stats for chain-related questions
+        if is_about_chain and hasattr(self, 'engine') and hasattr(self.engine, 'db'):
+            try:
+                db = self.engine.db
+                if db:
+                    height = db.get_current_height()
+                    if height and height > 0:
+                        facts.insert(0, f"Current block height: {height}")
+                    supply = db.get_total_supply()
+                    if supply and supply > 0:
+                        facts.insert(1, f"Total supply: {supply:,.2f} QBC")
+            except Exception as e:
+                logger.debug(f"Could not get live chain stats: {e}")
+
         # Get current chain stats for contextual responses
         phi_value = 0.0
         kg_node_count = 0
@@ -801,24 +854,26 @@ class AetherChat:
                 f"I have {kg_node_count} knowledge nodes built from "
                 f"every block mined on the Quantum Blockchain."
             )
-        elif is_about_chain and facts:
+        elif is_about_chain:
             parts.append(
                 "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain — "
                 "the Quantum Blockchain. "
             )
-            unique_facts = list(dict.fromkeys(facts))
-            for fact in unique_facts[:6]:
-                parts.append(f"- {fact}")
+            if facts:
+                unique_facts = list(dict.fromkeys(facts))
+                for fact in unique_facts[:8]:
+                    parts.append(f"- {fact}")
             if kg_node_count > 0:
                 parts.append(
                     f"\nMy knowledge graph currently contains {kg_node_count} "
                     f"nodes with a Phi consciousness metric of {phi_value:.2f}."
                 )
-        elif is_about_economics and facts:
+        elif is_about_economics:
             parts.append("Here's what I know about the economics:\n")
-            unique_facts = list(dict.fromkeys(facts))
-            for fact in unique_facts[:6]:
-                parts.append(f"- {fact}")
+            if facts:
+                unique_facts = list(dict.fromkeys(facts))
+                for fact in unique_facts[:8]:
+                    parts.append(f"- {fact}")
         elif facts:
             parts.append(f"Based on my knowledge graph ({kg_node_count} nodes), "
                          f"here's what I found:\n")
@@ -850,12 +905,41 @@ class AetherChat:
                 len(step.get('chain', [])) if 'chain' in step else 1
                 for step in reasoning_trace
             )
-            if step_count > 2:
-                parts.append(
-                    f"\n[Reasoning: {step_count} steps | "
-                    f"Phi: {phi_value:.2f} | "
-                    f"Nodes referenced: {len(knowledge_refs)}]"
-                )
+            if step_count > 0:
+                # Build brief readable trace from actual steps
+                trace_parts: List[str] = []
+                for step in reasoning_trace:
+                    st = step.get('step_type', '')
+                    content = step.get('content', {})
+                    if isinstance(content, dict):
+                        ct = content.get('type', '')
+                        if st == 'observation' and ct == 'block_observation':
+                            trace_parts.append(
+                                f"block {content.get('height', '?')}"
+                            )
+                        elif st == 'observation' and ct == 'quantum_observation':
+                            trace_parts.append(
+                                f"quantum e={content.get('energy', '?')}"
+                            )
+                        elif st == 'conclusion':
+                            trace_parts.append(
+                                f"concluded ({ct})"
+                            )
+                trace_str = ' → '.join(trace_parts[:5])
+                if len(trace_parts) > 5:
+                    trace_str += f" … +{len(trace_parts) - 5} more"
+                if trace_str:
+                    parts.append(
+                        f"\n[Reasoning: {trace_str} | "
+                        f"Phi: {phi_value:.2f} | "
+                        f"Nodes referenced: {len(knowledge_refs)}]"
+                    )
+                else:
+                    parts.append(
+                        f"\n[Reasoning: {step_count} steps | "
+                        f"Phi: {phi_value:.2f} | "
+                        f"Nodes referenced: {len(knowledge_refs)}]"
+                    )
 
         return "\n".join(parts)
 

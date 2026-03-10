@@ -62,6 +62,9 @@ class FakeKG:
     def get_node(self, node_id: int):
         return self.nodes.get(node_id)
 
+    def find_by_type(self, node_type: str, limit: int = 100):
+        return [n for n in self.nodes.values() if n.node_type == node_type][:limit]
+
 
 class FakeReasoningResult:
     def __init__(self, success: bool = True, conclusion_id: Optional[int] = None):

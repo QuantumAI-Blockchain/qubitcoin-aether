@@ -374,9 +374,12 @@ class AetherEngine:
                         change = abs(block.difficulty - prev_diff) / prev_diff
                         has_difficulty_shift = change > 0.05  # >5% change
 
+            # NOTE: has_thought_proof is intentionally EXCLUDED from this gate.
+            # Every block carries a thought proof (that is routine), so including
+            # it would make EVERY block "meaningful" and create junk nodes.
             is_meaningful = (
                 is_genesis or has_real_txs or has_contract_txs
-                or has_thought_proof or has_difficulty_shift or is_milestone
+                or has_difficulty_shift or is_milestone
             )
 
             block_node = None
