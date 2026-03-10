@@ -126,7 +126,11 @@ class Config:
     # Every node MUST use the same genesis block. Mining block 0 via VQE
     # is forbidden — genesis is a fixed constant, not a mined block.
     # This prevents independent chains from forming when nodes start fresh.
-    CANONICAL_GENESIS_HASH: str = 'dde8da5cc5417e5f615d8b68061a40bfd3a23b57191d59fb5f9362d03b3ea040'
+    # The chain was bootstrapped with block_hash = all-zeros for genesis.
+    # Block 1's prev_hash references this. Both the stored hash (all-zeros)
+    # and the calculated content hash are valid identifiers for genesis.
+    CANONICAL_GENESIS_HASH: str = '0000000000000000000000000000000000000000000000000000000000000000'
+    CANONICAL_GENESIS_CONTENT_HASH: str = 'dde8da5cc5417e5f615d8b68061a40bfd3a23b57191d59fb5f9362d03b3ea040'
     CANONICAL_GENESIS_TIMESTAMP: float = 1707350400.0  # 2024-02-08T00:00:00Z
     CANONICAL_GENESIS_COINBASE_TXID: str = '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b'
 

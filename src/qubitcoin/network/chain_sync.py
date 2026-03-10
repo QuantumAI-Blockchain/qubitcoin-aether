@@ -578,11 +578,11 @@ class ChainSync:
                     f"Chain sync: GENESIS ADOPTION — empty chain, downloading "
                     f"from peer (peer height={target_height})"
                 )
-                # Validate peer's genesis against canonical
+                # Validate peer's genesis against canonical (accept stored hash or content hash)
                 peer_genesis_hash = await self._get_peer_block_hash(0)
                 from qubitcoin.config import Config as _Cfg
-                canonical = _Cfg.CANONICAL_GENESIS_HASH
-                if peer_genesis_hash and peer_genesis_hash != canonical and peer_genesis_hash != '0' * 64:
+                valid_hashes = {_Cfg.CANONICAL_GENESIS_HASH, _Cfg.CANONICAL_GENESIS_CONTENT_HASH, '0' * 64}
+                if peer_genesis_hash and peer_genesis_hash not in valid_hashes:
                     logger.error(
                         f"Chain sync: peer genesis {peer_genesis_hash[:16]}... "
                         f"does not match canonical {canonical[:16]}... "

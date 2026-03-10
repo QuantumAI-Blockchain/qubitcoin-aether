@@ -1672,9 +1672,9 @@ class QubitcoinNode:
             genesis_block = self.db.get_block(0)
             if genesis_block:
                 genesis_hash = genesis_block.block_hash or genesis_block.calculate_hash()
-                canonical = Config.CANONICAL_GENESIS_HASH
-                # Accept both the canonical hash and all-zeros (legacy droplet storage)
-                if genesis_hash != canonical and genesis_hash != '0' * 64:
+                # Accept stored hash (all-zeros) or content hash as valid genesis
+                valid_hashes = {Config.CANONICAL_GENESIS_HASH, Config.CANONICAL_GENESIS_CONTENT_HASH, '0' * 64}
+                if genesis_hash not in valid_hashes:
                     logger.critical(
                         f"GENESIS MISMATCH: local={genesis_hash[:16]}... "
                         f"canonical={canonical[:16]}... "

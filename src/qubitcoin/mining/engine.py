@@ -580,19 +580,17 @@ class MiningEngine:
             difficulty=1.0,
         )
 
-        # Verify hash matches canonical
+        # Verify content hash matches expected (sanity check)
         computed_hash = block.calculate_hash()
-        if computed_hash != Config.CANONICAL_GENESIS_HASH:
+        if computed_hash != Config.CANONICAL_GENESIS_CONTENT_HASH:
             logger.error(
-                f"GENESIS HASH MISMATCH: computed={computed_hash} "
-                f"expected={Config.CANONICAL_GENESIS_HASH}. "
+                f"GENESIS CONTENT HASH MISMATCH: computed={computed_hash} "
+                f"expected={Config.CANONICAL_GENESIS_CONTENT_HASH}. "
                 f"Genesis block definition has drifted from canonical."
             )
-            # Store it anyway but warn — the droplet's stored hash is all-zeros
-            # so we use the computed hash as the block_hash
-            logger.warning("Proceeding with computed hash (droplet stores all-zeros for genesis)")
 
-        block.block_hash = computed_hash
+        # Store with all-zeros hash (matching existing chain — block 1's prev_hash is all-zeros)
+        block.block_hash = Config.CANONICAL_GENESIS_HASH
         block.cumulative_weight = 1.0
 
         # Store genesis block
