@@ -585,16 +585,68 @@ class ChainSync:
                 if peer_genesis_hash and peer_genesis_hash not in valid_hashes:
                     logger.error(
                         f"Chain sync: peer genesis {peer_genesis_hash[:16]}... "
-                        f"does not match canonical {canonical[:16]}... "
+                        f"does not match canonical hashes. "
                         f"Refusing to sync from incompatible chain."
                     )
                     return {
                         "status": "error",
                         "error": "Peer genesis does not match canonical genesis hash",
                         "peer_genesis": peer_genesis_hash,
-                        "canonical": canonical,
+                        "valid_hashes": list(valid_hashes),
                     }
-                # Download full chain from genesis
+                # Try IPFS snapshot restore first (much faster than block-by-block)
+                if target_height > 500:
+                    try:
+                        snapshot_cid = await self._get_peer_snapshot_cid()
+                        if snapshot_cid:
+                            logger.info(
+                                f"Chain sync: genesis adoption with IPFS snapshot "
+                                f"(CID: {snapshot_cid}, {target_height+1} blocks)"
+                            )
+                            from ..storage.snapshot_scheduler import SnapshotScheduler
+                            ipfs_mgr = getattr(self, '_ipfs', None) or self.db._ipfs if hasattr(self.db, '_ipfs') else None
+                            if not ipfs_mgr:
+                                try:
+                                    from ..storage.ipfs import IPFSManager
+                                    ipfs_mgr = IPFSManager()
+                                except Exception:
+                                    pass
+                            if ipfs_mgr:
+                                scheduler = SnapshotScheduler(ipfs_manager=ipfs_mgr)
+                                snap_result = scheduler.restore_from_snapshot(
+                                    cid=snapshot_cid, db_manager=self.db, ipfs_manager=ipfs_mgr,
+                                )
+                                restored_height = snap_result.get('restored_height', -1)
+                                if restored_height > 0:
+                                    gap = target_height - restored_height
+                                    logger.info(
+                                        f"Chain sync: IPFS snapshot restored to height {restored_height}. "
+                                        f"{gap} remaining blocks to sync via RPC."
+                                    )
+                                    if gap > 0:
+                                        rpc_result = await self._sync_range(
+                                            restored_height + 1, target_height, on_progress
+                                        )
+                                    else:
+                                        rpc_result = {"synced": 0}
+                                    elapsed = time.time() - start_time
+                                    return {
+                                        "status": "synced_from_snapshot",
+                                        "snapshot_cid": snapshot_cid,
+                                        "snapshot_height": restored_height,
+                                        "rpc_synced": rpc_result.get("synced", 0),
+                                        "elapsed_seconds": round(elapsed, 1),
+                                        "genesis_adoption": True,
+                                    }
+                                else:
+                                    logger.warning(
+                                        f"Chain sync: IPFS snapshot restore failed: "
+                                        f"{snap_result.get('errors', [])}"
+                                    )
+                    except Exception as e:
+                        logger.warning(f"Chain sync: IPFS snapshot failed ({e}), falling back to block-by-block")
+
+                # Fallback: download full chain block-by-block
                 logger.info(f"Chain sync: peer genesis validated, downloading {target_height+1} blocks...")
                 result = await self._sync_range(0, target_height, on_progress)
                 elapsed = time.time() - start_time
