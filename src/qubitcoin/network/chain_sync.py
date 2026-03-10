@@ -112,6 +112,7 @@ class ChainSync:
         self._syncing = False
         self._peer_url: Optional[str] = None
         self._sync_task: Optional[asyncio.Task] = None
+        self._reorg_lock = asyncio.Lock()  # Prevents concurrent reorgs
         # Track known peer URLs discovered from env or P2P
         self._known_peers: list[str] = []
         # Hard checkpoints — heights that can NEVER be rolled back past
@@ -223,13 +224,20 @@ class ChainSync:
             return -1
         return max(self._checkpoints.keys())
 
-    def _validate_reorg(self, fork_point: int, local_height: int, peer_height: int) -> tuple[bool, str]:
+    def _validate_reorg(
+        self,
+        fork_point: int,
+        local_height: int,
+        peer_height: int,
+        peer_weight: float = 0.0,
+        peer_tip_hash: str = '',
+    ) -> tuple[bool, str]:
         """Validate that a reorg is safe to perform.
 
         Checks:
         1. Reorg depth is within MAX_REORG_DEPTH
         2. Fork point is above all checkpoints
-        3. Peer chain is actually longer (has more work)
+        3. Peer chain has more cumulative weight (or deterministic tiebreak)
 
         Returns:
             (is_valid, reason)
@@ -253,22 +261,40 @@ class ChainSync:
                 f"Cannot roll back past checkpoints. This chain fork is rejected."
             )
 
-        # Check 3: Peer must have a longer chain
-        if peer_height <= local_height:
-            return False, (
-                f"Peer chain ({peer_height}) is not longer than local ({local_height}). "
-                f"No reorg needed — local chain wins."
-            )
+        # Check 3: Peer chain must be heavier (cumulative weight) or win tiebreak
+        local_weight = self.db.get_cumulative_weight(local_height)
+        local_block = self.db.get_block(local_height)
+        local_hash = local_block.block_hash if local_block else ''
 
-        # Check 4: Peer's chain extension must be meaningful
-        # (peer must have at least 2 more blocks than we'd lose)
-        peer_extension = peer_height - fork_point
-        local_orphans = local_height - fork_point
-        if peer_extension <= local_orphans:
-            return False, (
-                f"Peer extension ({peer_extension} blocks) is not greater than "
-                f"local orphans ({local_orphans} blocks). Not adopting shorter fork."
+        if peer_weight > 0 and local_weight > 0:
+            from ..consensus.engine import ConsensusEngine
+            winner = ConsensusEngine.compare_chains(
+                local_weight, local_hash, peer_weight, peer_tip_hash
             )
+            if winner == "local":
+                return False, (
+                    f"Peer chain weight ({peer_weight:.6f}) does not exceed "
+                    f"local ({local_weight:.6f}). Local chain wins."
+                )
+            logger.info(
+                f"Reorg validated: peer weight {peer_weight:.6f} > "
+                f"local {local_weight:.6f} (or tiebreak)"
+            )
+        else:
+            # Fallback: height comparison when weights not available
+            # (e.g., syncing from a peer that hasn't computed weights yet)
+            if peer_height <= local_height:
+                return False, (
+                    f"Peer chain ({peer_height}) is not longer than local ({local_height}). "
+                    f"No reorg needed — local chain wins."
+                )
+            peer_extension = peer_height - fork_point
+            local_orphans = local_height - fork_point
+            if peer_extension <= local_orphans:
+                return False, (
+                    f"Peer extension ({peer_extension} blocks) is not greater than "
+                    f"local orphans ({local_orphans} blocks). Not adopting shorter fork."
+                )
 
         return True, "OK"
 
@@ -281,45 +307,54 @@ class ChainSync:
         """Perform a chain reorganization.
 
         1. Roll back local chain to fork_point
-        2. Fetch and store peer's blocks from fork_point+1 to target_height
+        2. Invalidate difficulty cache above fork point
+        3. Fetch and store peer's blocks from fork_point+1 to target_height
+
+        Protected by ``_reorg_lock`` to prevent concurrent reorgs.
         """
-        local_height = self.db.get_current_height()
-        orphaned_blocks = local_height - fork_point
+        async with self._reorg_lock:
+            local_height = self.db.get_current_height()
+            orphaned_blocks = local_height - fork_point
 
-        logger.warning(
-            f"CHAIN REORG: rolling back {orphaned_blocks} blocks "
-            f"(height {local_height} → {fork_point}), "
-            f"then syncing {target_height - fork_point} blocks from peer"
-        )
+            logger.warning(
+                f"CHAIN REORG: rolling back {orphaned_blocks} blocks "
+                f"(height {local_height} → {fork_point}), "
+                f"then syncing {target_height - fork_point} blocks from peer"
+            )
 
-        # Step 1: Rollback
-        rollback_result = self.db.rollback_to_height(fork_point)
-        logger.warning(
-            f"CHAIN REORG: rollback complete — removed {rollback_result['blocks_removed']} blocks, "
-            f"{rollback_result['txs_removed']} txs"
-        )
+            # Step 1: Rollback
+            rollback_result = self.db.rollback_to_height(fork_point)
+            logger.warning(
+                f"CHAIN REORG: rollback complete — removed {rollback_result['blocks_removed']} blocks, "
+                f"{rollback_result['txs_removed']} txs"
+            )
 
-        # Verify rollback worked
-        new_height = self.db.get_current_height()
-        if new_height != fork_point:
+            # Step 2: Invalidate stale difficulty cache entries
+            if self.consensus:
+                evicted = self.consensus.invalidate_difficulty_cache_above(fork_point)
+                logger.info(f"CHAIN REORG: evicted {evicted} stale difficulty cache entries")
+
+            # Verify rollback worked
+            new_height = self.db.get_current_height()
+            if new_height != fork_point:
+                return {
+                    "status": "error",
+                    "error": f"Rollback failed: expected height {fork_point}, got {new_height}",
+                    "rollback": rollback_result,
+                }
+
+            # Step 3: Sync from fork_point+1 to target_height
+            sync_result = await self._sync_range(
+                fork_point + 1, target_height, on_progress
+            )
+
             return {
-                "status": "error",
-                "error": f"Rollback failed: expected height {fork_point}, got {new_height}",
+                "status": "reorg_complete",
+                "fork_point": fork_point,
+                "orphaned_blocks": orphaned_blocks,
                 "rollback": rollback_result,
+                "sync": sync_result,
             }
-
-        # Step 2: Sync from fork_point+1 to target_height
-        sync_result = await self._sync_range(
-            fork_point + 1, target_height, on_progress
-        )
-
-        return {
-            "status": "reorg_complete",
-            "fork_point": fork_point,
-            "orphaned_blocks": orphaned_blocks,
-            "rollback": rollback_result,
-            "sync": sync_result,
-        }
 
     async def _sync_range(
         self,
@@ -605,8 +640,25 @@ class ChainSync:
                         "error": "Cannot find fork point — genesis mismatch",
                     }
 
+                # Fetch peer's cumulative weight for weight-based fork choice
+                peer_weight = 0.0
+                peer_tip_hash = ''
+                try:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        resp = await client.get(f"{self._peer_url}/block/{target_height}")
+                        if resp.status_code == 200:
+                            peer_block_data = resp.json()
+                            peer_weight = float(peer_block_data.get('cumulative_weight', 0))
+                            peer_tip_hash = peer_block_data.get('block_hash', '')
+                except Exception as e:
+                    logger.debug(f"Could not fetch peer weight: {e}")
+
                 # Validate the reorg is safe
-                valid, reason = self._validate_reorg(fork_point, local_height, target_height)
+                valid, reason = self._validate_reorg(
+                    fork_point, local_height, target_height,
+                    peer_weight=peer_weight, peer_tip_hash=peer_tip_hash,
+                )
                 if not valid:
                     logger.error(f"Chain sync: REORG REJECTED — {reason}")
                     return {

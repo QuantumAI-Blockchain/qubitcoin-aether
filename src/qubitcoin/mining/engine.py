@@ -40,6 +40,8 @@ class MiningEngine:
         self._lock = threading.Lock()
         self._mining_start_time: float | None = None
         self._stop_event = threading.Event()
+        self._abort_event = threading.Event()   # Signals: abandon current block
+        self._sync_complete = threading.Event()  # Signals: initial sync finished
         self.stats = {
             'blocks_found': 0,
             'total_attempts': 0,
@@ -75,10 +77,27 @@ class MiningEngine:
                 return
             self.is_mining = False
             self._stop_event.set()
+            self._abort_event.set()  # Also unblock any VQE wait
         # Join outside the lock to avoid deadlock with mine loop
         if self.mining_thread:
             self.mining_thread.join(timeout=5)
         logger.info("Mining stopped")
+
+    def abort_current_block(self) -> None:
+        """Signal the mining thread to abandon its current block attempt.
+
+        Called by the P2P handler when a peer block arrives at the same or
+        next height, making the current VQE computation obsolete.  The
+        ``_mine_block`` loop checks this event between VQE attempts and
+        before expensive post-solution work (QVM, Aether).
+        """
+        self._abort_event.set()
+        logger.debug("Mining abort signal sent — current block attempt will be abandoned")
+
+    def set_sync_complete(self) -> None:
+        """Signal that initial chain sync has finished and mining may begin."""
+        self._sync_complete.set()
+        logger.info("Mining sync gate opened — mining enabled")
 
     def get_stats_snapshot(self) -> dict:
         """Return a thread-safe copy of mining stats."""
@@ -91,6 +110,14 @@ class MiningEngine:
         Uses ``_stop_event`` for responsive shutdown instead of polling
         a bare boolean, preventing races between start/stop calls.
         """
+        # ── Sync gate: block mining until initial chain sync completes ──
+        if not self._sync_complete.is_set():
+            logger.info("Mining: waiting for initial sync to complete before mining...")
+            # Wait up to 5 minutes; if sync takes longer the gate will open
+            # eventually when set_sync_complete() is called.
+            if not self._sync_complete.wait(timeout=300):
+                logger.warning("Mining: sync gate timed out after 5 min — starting mining anyway")
+
         while not self._stop_event.is_set():
             try:
                 if self._mining_start_time is not None:
@@ -108,6 +135,9 @@ class MiningEngine:
 
     def _mine_block(self):
         """Attempt to mine a single block"""
+        # Clear abort event at the start of each block attempt
+        self._abort_event.clear()
+
         current_height = self.db.get_current_height()
         next_height = current_height + 1
         difficulty = self.consensus.calculate_difficulty(next_height, self.db)
@@ -136,7 +166,7 @@ class MiningEngine:
         # until we find one that converges to energy < difficulty
         max_attempts = 50
         for attempt in range(max_attempts):
-            if self._stop_event.is_set():
+            if self._stop_event.is_set() or self._abort_event.is_set():
                 return
 
             # Check if someone else found this block
@@ -207,8 +237,19 @@ class MiningEngine:
             return
 
         # ── STANDALONE MODE: create block locally ──
+
+        # ── Abort / duplicate check BEFORE expensive QVM + Aether work ──
+        if self._abort_event.is_set():
+            logger.info(f"Block {next_height} abandoned (abort signal after VQE solution)")
+            return
+        if self.db.get_block(next_height):
+            logger.info(f"Block {next_height} appeared from peer after VQE, skipping")
+            return
+
         # Build proof with chain binding
         proof_data = self._create_proof(hamiltonian, params, energy, prev_hash, next_height)
+        # Read supply and calculate reward.  This is an initial read;
+        # the value is verified atomically inside the storage lock below.
         total_supply = self.db.get_total_supply()
         reward = self.consensus.calculate_reward(next_height, total_supply)
         coinbase = self._create_coinbase(next_height, reward, pending_txs, prev_hash)
@@ -253,7 +294,7 @@ class MiningEngine:
         try:
             with self._lock:
                 with self.db.get_session() as session:
-                    # Check again under lock
+                    # Check again under lock — prevents double-insert race
                     from sqlalchemy import text
                     existing = session.execute(
                         text("SELECT 1 FROM blocks WHERE height = :h"),
@@ -262,6 +303,22 @@ class MiningEngine:
                     if existing:
                         logger.warning(f"Block {next_height} appeared during mining, skipping")
                         return
+
+                    # ── Atomic supply verification ──
+                    # Re-read supply INSIDE the lock to prevent the race
+                    # where a peer block increments supply between our
+                    # initial read and this store.
+                    locked_supply = self.db.get_total_supply()
+                    if locked_supply != total_supply:
+                        logger.warning(
+                            f"Supply changed during mining "
+                            f"({total_supply} → {locked_supply}), recalculating reward"
+                        )
+                        reward = self.consensus.calculate_reward(next_height, locked_supply)
+                        # Rebuild coinbase with corrected reward
+                        coinbase = self._create_coinbase(next_height, reward, pending_txs, prev_hash)
+                        block.transactions = [coinbase] + pending_txs
+                        block.block_hash = block.calculate_hash()
 
                     self.db.store_block(block, session=session)
                     # AIKGS rewards are NOT new supply — they come from the

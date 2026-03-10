@@ -1702,6 +1702,11 @@ class QubitcoinNode:
                 logger.info("SUBSTRATE_MODE: Mining proofs will be submitted to Substrate")
             self.mining.start()
 
+        # ── Open the sync gate so mining thread begins work ──
+        # If startup sync was needed, it completed above.
+        # If not needed, we're already at tip.  Either way, safe to mine.
+        self.mining.set_sync_complete()
+
         # Snapshot check
         if height > 0 and height % Config.SNAPSHOT_INTERVAL == 0:
             loop = asyncio.get_event_loop()
@@ -1816,12 +1821,15 @@ class QubitcoinNode:
     async def _on_p2p_block_received(self, block_data: dict) -> None:
         """Handle a block received from the Rust P2P stream.
 
-        Fork resolution strategy (longest chain wins):
+        Fork resolution strategy (heaviest chain wins):
         - gap > 1  → we're behind, trigger chain sync
-        - gap == 1 → next block, validate prev_hash linkage and store
-        - gap == 1 but prev_hash mismatch → peer is on a different fork 1 ahead, trigger reorg
-        - gap == 0 → competing block at same height, trigger fork check
+        - gap == 1 → next block, validate + store (or fork-resolve if prev_hash mismatch)
+        - gap == 0 → competing block at same height, compare cumulative weight
         - gap < 0  → peer is behind us, ignore
+
+        In all cases where a peer block at our height or next height arrives,
+        the mining abort signal is fired to prevent wasting VQE cycles on a
+        block that may already be obsolete.
         """
         try:
             height = block_data.get('height', 0)
@@ -1835,12 +1843,14 @@ class QubitcoinNode:
             gap = height - local_height
 
             if gap > 1:
-                # We're behind — trigger chain sync instead of trying to validate
-                # a block we can't link to our chain
+                # We're behind — trigger chain sync
                 logger.info(
                     f"P2P block {height} is {gap} blocks ahead of local chain "
                     f"(local={local_height}). Triggering chain sync..."
                 )
+                # Abort mining — we're behind, mining is wasted work
+                if hasattr(self, 'mining') and self.mining:
+                    self.mining.abort_current_block()
                 if hasattr(self, 'chain_sync') and self.chain_sync:
                     await self.chain_sync.auto_sync_if_behind(height)
                 return
@@ -1850,8 +1860,12 @@ class QubitcoinNode:
                 logger.debug(f"P2P block {height} is behind local chain (local={local_height})")
                 return
 
+            # ── Abort mining for gap 0 and 1 — peer has a competing block ──
+            if hasattr(self, 'mining') and self.mining:
+                self.mining.abort_current_block()
+
             if gap == 1:
-                # Next expected block — reconstruct and store directly
+                # Next expected block — reconstruct, validate, and store
                 from .network.chain_sync import _block_from_peer_dict
                 try:
                     block = _block_from_peer_dict(block_data)
@@ -1860,9 +1874,7 @@ class QubitcoinNode:
                     if prev_block:
                         expected_prev = prev_block.block_hash or prev_block.calculate_hash()
                         if block.prev_hash != expected_prev:
-                            # Peer has a different fork that's 1 block ahead of us.
-                            # Trigger fork resolution — the peer's chain may be
-                            # the canonical one.
+                            # Peer is on a different fork 1 block ahead
                             logger.warning(
                                 f"P2P block {height} prev_hash mismatch — "
                                 f"peer is on a different fork. Triggering fork resolution..."
@@ -1870,10 +1882,36 @@ class QubitcoinNode:
                             await self._trigger_fork_resolution(height)
                             return
 
-                    # Store the block
+                    # ── Validate block before storage ──
+                    valid, reason = self.consensus.validate_block(
+                        block, prev_block, self.db,
+                        skip_qvm=True, skip_pot=True,
+                    )
+                    if not valid:
+                        logger.warning(
+                            f"P2P block {height} failed validation: {reason}"
+                        )
+                        return
+
+                    # Store the validated block
                     self.db.store_block(block)
+
+                    # Update supply atomically
+                    if block.transactions:
+                        coinbase = block.transactions[0]
+                        if coinbase.outputs:
+                            from decimal import Decimal
+                            reward_total = sum(
+                                Decimal(str(o.get('amount', 0))) if isinstance(o, dict)
+                                else Decimal(str(getattr(o, 'amount', 0)))
+                                for o in coinbase.outputs
+                            )
+                            with self.db.get_session() as session:
+                                self.db.update_supply(reward_total, session)
+                                session.commit()
+
                     current_height_metric.set(height)
-                    logger.info(f"P2P block {height} stored successfully")
+                    logger.info(f"P2P block {height} stored successfully (validated)")
 
                     # Process for Aether knowledge
                     if self.aether:
@@ -1886,21 +1924,40 @@ class QubitcoinNode:
                     logger.error(f"Failed to store P2P block {height}: {e}")
 
             elif gap == 0:
-                # Same height — check if peer has a different block (fork)
+                # ── Same height — weight-based fork choice ──
                 local_block = self.db.get_block(local_height)
                 if local_block:
                     local_hash = local_block.block_hash or local_block.calculate_hash()
                     peer_hash = block_data.get('hash', '')
                     if peer_hash and local_hash != peer_hash:
-                        logger.warning(
-                            f"P2P block {height} is at same height but different hash "
-                            f"(local={local_hash[:16]}... peer={peer_hash[:16]}...). "
-                            f"Fork detected — will resolve on next peer block."
-                        )
-                        # Don't reorg yet — wait until the peer is actually ahead.
-                        # If the peer mines the next block first, gap==1 with mismatch
-                        # will trigger resolution. This prevents unnecessary reorgs
-                        # when both nodes are at the same height.
+                        # Compare cumulative weights for deterministic fork choice
+                        local_weight = self.db.get_cumulative_weight(local_height)
+                        peer_weight = float(block_data.get('cumulative_weight', 0))
+
+                        if peer_weight > 0 and local_weight > 0:
+                            from .consensus.engine import ConsensusEngine
+                            winner = ConsensusEngine.compare_chains(
+                                local_weight, local_hash, peer_weight, peer_hash,
+                            )
+                            if winner == "peer":
+                                logger.warning(
+                                    f"P2P block {height}: peer chain heavier "
+                                    f"({peer_weight:.6f} vs {local_weight:.6f}). "
+                                    f"Triggering fork resolution..."
+                                )
+                                await self._trigger_fork_resolution(height)
+                            else:
+                                logger.info(
+                                    f"P2P block {height}: local chain heavier or tiebreak wins "
+                                    f"({local_weight:.6f} vs {peer_weight:.6f}). Keeping local."
+                                )
+                        else:
+                            # No weight data — wait for next block to resolve
+                            logger.warning(
+                                f"P2P block {height} at same height, different hash "
+                                f"(local={local_hash[:16]}... peer={peer_hash[:16]}...). "
+                                f"Waiting for next block to resolve."
+                            )
 
         except Exception as e:
             logger.error(f"Error processing P2P block: {e}")
@@ -1982,13 +2039,23 @@ class QubitcoinNode:
                 alignment_score_metric.set(float(alignment))
 
             if Config.ENABLE_RUST_P2P and self.rust_p2p:
-                # Use Rust P2P for broadcasting
-                success = self.rust_p2p.broadcast_block(block_height, block_hash)
+                # Use Rust P2P — submit full block data for propagation
+                success = self.rust_p2p.submit_block(
+                    height=block_height,
+                    block_hash=str(block_hash),
+                    prev_hash=block_data.get('prev_hash', ''),
+                    timestamp=int(block_data.get('timestamp', 0)),
+                    difficulty=float(block_data.get('difficulty', 0)),
+                    nonce=int(block_data.get('nonce', 0)),
+                    miner=block_data.get('miner', ''),
+                )
                 if success:
                     peer_count = self.rust_p2p.get_peer_count()
                     logger.info(f"Block {block_height} broadcasted via Rust P2P to {peer_count} peers")
                 else:
-                    logger.warning(f"Failed to broadcast block {block_height} via Rust P2P")
+                    # Fallback to lightweight announcement
+                    self.rust_p2p.broadcast_block(block_height, str(block_hash))
+                    logger.warning(f"Full block submit failed, sent announcement for block {block_height}")
             elif self.p2p:
                 # Use Python P2P for broadcasting
                 asyncio.create_task(self.p2p.broadcast('block', block_data))

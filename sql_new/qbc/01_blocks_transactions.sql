@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS blocks (
     state_root VARCHAR(64) DEFAULT '',
     receipts_root VARCHAR(64) DEFAULT '',
     thought_proof JSONB,
+    cumulative_weight FLOAT8 DEFAULT 0,
 
     INDEX block_hash_idx (block_hash),
     INDEX height_desc_idx (height DESC)

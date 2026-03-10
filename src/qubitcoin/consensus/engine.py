@@ -32,6 +32,43 @@ class ConsensusEngine:
         self._difficulty_cache_max: int = Config.DIFFICULTY_WINDOW * 3  # 432 entries max
         logger.info("Consensus engine initialized (SUSY Economics + QVM + Aether)")
 
+    # ── Fork Choice ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def get_block_weight(difficulty: float) -> float:
+        """Compute the proof-of-work weight of a single block.
+
+        In VQE mining, energy must be BELOW the difficulty threshold.
+        Lower difficulty = harder puzzle = more work = higher weight.
+
+        Weight = 1 / difficulty.  Difficulty is always > 0 (enforced by
+        DIFFICULTY_FLOOR in calculate_difficulty).
+        """
+        if difficulty <= 0:
+            return 1e18  # impossibly hard block — max weight
+        return 1.0 / difficulty
+
+    @staticmethod
+    def compare_chains(
+        local_weight: float, local_hash: str,
+        peer_weight: float, peer_hash: str,
+    ) -> str:
+        """Deterministic fork-choice: heaviest chain wins.
+
+        Tiebreak: if cumulative weights are equal (within floating-point
+        tolerance of 1e-12), the chain whose tip has the lexicographically
+        *smaller* block hash wins.  SHA-256 hashes are uniformly distributed
+        so the probability of a genuine tie is negligible, but this rule
+        guarantees every node converges to the same chain.
+
+        Returns:
+            ``"local"`` or ``"peer"``
+        """
+        if abs(local_weight - peer_weight) > 1e-12:
+            return "peer" if peer_weight > local_weight else "local"
+        # Equal weight — deterministic tiebreak by hash
+        return "peer" if peer_hash < local_hash else "local"
+
     def invalidate_difficulty_cache_above(self, fork_height: int) -> int:
         """Invalidate all difficulty cache entries above a fork height.
 

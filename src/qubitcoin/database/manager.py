@@ -1127,6 +1127,47 @@ class DatabaseManager:
                 "INSERT INTO supply (id, total_minted) VALUES (1, 0) ON CONFLICT (id) DO NOTHING"
             ))
             session.commit()
+        # ── Schema migration: add cumulative_weight to blocks ──
+        with self.get_session() as session:
+            try:
+                session.execute(text(
+                    "ALTER TABLE blocks ADD COLUMN IF NOT EXISTS cumulative_weight FLOAT8 DEFAULT 0"
+                ))
+                session.commit()
+                logger.info("Schema migration: cumulative_weight column ensured on blocks table")
+            except Exception as e:
+                session.rollback()
+                logger.debug(f"cumulative_weight migration: {e}")
+        # ── Backfill cumulative_weight for existing blocks ──
+        with self.get_session() as session:
+            try:
+                needs_backfill = session.execute(text(
+                    "SELECT COUNT(*) FROM blocks WHERE cumulative_weight = 0 OR cumulative_weight IS NULL"
+                )).scalar()
+                if needs_backfill and needs_backfill > 0:
+                    total_blocks = session.execute(text("SELECT COUNT(*) FROM blocks")).scalar() or 0
+                    if total_blocks > 0:
+                        logger.info(f"Backfilling cumulative_weight for {needs_backfill} blocks...")
+                        # Compute weights incrementally from genesis
+                        session.execute(text("""
+                            WITH RECURSIVE weights AS (
+                                SELECT height, difficulty,
+                                       CASE WHEN difficulty > 0 THEN 1.0 / difficulty ELSE 0 END AS cumulative_weight
+                                FROM blocks WHERE height = 0
+                                UNION ALL
+                                SELECT b.height, b.difficulty,
+                                       w.cumulative_weight + CASE WHEN b.difficulty > 0 THEN 1.0 / b.difficulty ELSE 0 END
+                                FROM blocks b
+                                JOIN weights w ON b.height = w.height + 1
+                            )
+                            UPDATE blocks SET cumulative_weight = weights.cumulative_weight
+                            FROM weights WHERE blocks.height = weights.height
+                        """))
+                        session.commit()
+                        logger.info(f"Backfilled cumulative_weight for {total_blocks} blocks")
+            except Exception as e:
+                session.rollback()
+                logger.warning(f"cumulative_weight backfill: {e}")
         # Seed default stablecoin params if empty (atomic upsert per row)
         with self.get_session() as session:
             defaults = [
@@ -1356,14 +1397,14 @@ class DatabaseManager:
                 {'h': target_height}
             )
 
-            # Unspend UTXOs that were spent by removed transactions
-            # (restore them to unspent state)
+            # Unspend UTXOs that were consumed by rolled-back transactions.
+            # The ``spent_by`` column tracks which transaction spent each UTXO,
+            # so we restore any UTXO whose spender is in a rolled-back block.
             session.execute(
                 text("""
-                    UPDATE utxos SET spent = false
+                    UPDATE utxos SET spent = false, spent_by = NULL
                     WHERE spent = true
-                    AND block_height <= :h
-                    AND txid IN (
+                    AND spent_by IN (
                         SELECT txid FROM transactions WHERE block_height > :h
                     )
                 """),
@@ -1382,13 +1423,18 @@ class DatabaseManager:
                 {'h': target_height}
             )
 
-            # Recalculate total supply from remaining coinbase outputs
+            # Recalculate total supply from ALL coinbase outputs.
+            # Coinbase transactions have empty inputs (``'[]'``).  We sum
+            # every output of every coinbase tx up to ``target_height``
+            # — this correctly includes the genesis premine (vout=1)
+            # and any fee outputs on vout>0.
             supply_result = session.execute(
                 text("""
-                    SELECT COALESCE(SUM(CAST(amount AS DECIMAL)), 0)
-                    FROM utxos
-                    WHERE block_height <= :h
-                    AND vout = 0
+                    SELECT COALESCE(SUM(CAST(u.amount AS DECIMAL)), 0)
+                    FROM utxos u
+                    JOIN transactions t ON u.txid = t.txid
+                    WHERE t.block_height <= :h
+                    AND (t.inputs = '[]'::jsonb OR t.inputs IS NULL)
                 """),
                 {'h': target_height}
             ).scalar()
@@ -1398,9 +1444,8 @@ class DatabaseManager:
                     text("UPDATE supply SET total_minted = :amt WHERE id = 1"),
                     {'amt': str(supply_result or 0)}
                 )
-            except Exception:
-                # supply table might not exist in all setups
-                pass
+            except Exception as e:
+                logger.error(f"Supply table update failed during rollback: {e}")
 
             session.commit()
 
@@ -1493,12 +1538,26 @@ class DatabaseManager:
         if existing:
             logger.warning(f"Block {block.height} already exists - skipping (possible dup from P2P)")
             return
+
+        # ── Cumulative chain weight ──
+        # weight(block) = 1 / difficulty.  Lower difficulty = harder = more weight.
+        from ..consensus.engine import ConsensusEngine
+        block_weight = ConsensusEngine.get_block_weight(block.difficulty)
+        prev_weight = 0.0
+        if block.height > 0:
+            pw_row = session.execute(
+                text("SELECT cumulative_weight FROM blocks WHERE height = :h"),
+                {'h': block.height - 1}
+            ).scalar()
+            prev_weight = float(pw_row) if pw_row is not None else 0.0
+        cumulative_weight = prev_weight + block_weight
+
         # Insert block
         session.execute(
             text("""
                 INSERT INTO blocks (height, prev_hash, proof_json, difficulty, created_at, block_hash,
-                                   state_root, receipts_root, thought_proof)
-                VALUES (:h, :ph, CAST(:pj AS jsonb), :d, :ts, :bh, :sr, :rr, CAST(:tp AS jsonb))
+                                   state_root, receipts_root, thought_proof, cumulative_weight)
+                VALUES (:h, :ph, CAST(:pj AS jsonb), :d, :ts, :bh, :sr, :rr, CAST(:tp AS jsonb), :cw)
             """),
             {
                 'h': block.height,
@@ -1509,7 +1568,8 @@ class DatabaseManager:
                 'bh': block.block_hash or block.calculate_hash(),
                 'sr': block.state_root or '',
                 'rr': block.receipts_root or '',
-                'tp': json.dumps(block.thought_proof) if block.thought_proof else None
+                'tp': json.dumps(block.thought_proof) if block.thought_proof else None,
+                'cw': cumulative_weight,
             }
         )
         # Process transactions
@@ -1605,6 +1665,19 @@ class DatabaseManager:
             text("UPDATE supply SET total_minted = total_minted + :amt WHERE id = 1"),
             {'amt': str(amount)}
         )
+
+    def get_cumulative_weight(self, height: int) -> float:
+        """Get cumulative chain weight at a given block height.
+
+        Returns 0.0 if the block doesn't exist or has no weight stored.
+        """
+        with self.get_session() as session:
+            result = session.execute(
+                text("SELECT cumulative_weight FROM blocks WHERE height = :h"),
+                {'h': height}
+            ).scalar()
+            return float(result) if result is not None else 0.0
+
     # ========================================================================
     # UTXO MAINTENANCE
     # ========================================================================

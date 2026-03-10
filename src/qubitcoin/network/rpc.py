@@ -452,11 +452,14 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.get("/block/{height}")
     async def get_block(height: int):
-        """Get block by height"""
+        """Get block by height with cumulative chain weight"""
         block = db_manager.get_block(height)
         if not block:
             raise HTTPException(status_code=404, detail="Block not found")
-        return block.to_dict()
+        result = block.to_dict()
+        # Include cumulative weight for fork-choice protocol
+        result['cumulative_weight'] = db_manager.get_cumulative_weight(height)
+        return result
 
     @app.get("/chain/info")
     async def chain_info():
