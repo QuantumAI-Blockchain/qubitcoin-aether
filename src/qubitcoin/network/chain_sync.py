@@ -570,6 +570,39 @@ class ChainSync:
                     peer_info = resp.json()
                     target_height = peer_info.get('height', 0)
 
+            # ── GENESIS ADOPTION: fresh node with no blocks ──────────
+            # If local_height == -1 (empty DB), we need to download the
+            # entire chain from the peer starting from genesis.
+            if local_height < 0:
+                logger.info(
+                    f"Chain sync: GENESIS ADOPTION — empty chain, downloading "
+                    f"from peer (peer height={target_height})"
+                )
+                # Validate peer's genesis against canonical
+                peer_genesis_hash = await self._get_peer_block_hash(0)
+                from qubitcoin.config import Config as _Cfg
+                canonical = _Cfg.CANONICAL_GENESIS_HASH
+                if peer_genesis_hash and peer_genesis_hash != canonical and peer_genesis_hash != '0' * 64:
+                    logger.error(
+                        f"Chain sync: peer genesis {peer_genesis_hash[:16]}... "
+                        f"does not match canonical {canonical[:16]}... "
+                        f"Refusing to sync from incompatible chain."
+                    )
+                    return {
+                        "status": "error",
+                        "error": "Peer genesis does not match canonical genesis hash",
+                        "peer_genesis": peer_genesis_hash,
+                        "canonical": canonical,
+                    }
+                # Download full chain from genesis
+                logger.info(f"Chain sync: peer genesis validated, downloading {target_height+1} blocks...")
+                result = await self._sync_range(0, target_height, on_progress)
+                elapsed = time.time() - start_time
+                result["elapsed_seconds"] = round(elapsed, 1)
+                result["genesis_adoption"] = True
+                logger.info(f"Chain sync genesis adoption complete: {result}")
+                return result
+
             if target_height <= local_height:
                 # Check if we're on the same chain even though heights match
                 if target_height == local_height:

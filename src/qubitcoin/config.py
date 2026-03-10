@@ -122,6 +122,21 @@ class Config:
     # Genesis premine — ~1% of max supply allocated at block 0
     GENESIS_PREMINE: Decimal = Decimal(os.getenv('GENESIS_PREMINE', '33000000'))
 
+    # ── Canonical Genesis Block ──────────────────────────────────────
+    # Every node MUST use the same genesis block. Mining block 0 via VQE
+    # is forbidden — genesis is a fixed constant, not a mined block.
+    # This prevents independent chains from forming when nodes start fresh.
+    CANONICAL_GENESIS_HASH: str = 'dde8da5cc5417e5f615d8b68061a40bfd3a23b57191d59fb5f9362d03b3ea040'
+    CANONICAL_GENESIS_TIMESTAMP: float = 1707350400.0  # 2024-02-08T00:00:00Z
+    CANONICAL_GENESIS_COINBASE_TXID: str = '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b'
+
+    # If True, this node is allowed to create the genesis block (first node only).
+    # All subsequent nodes MUST sync genesis from the network.
+    ALLOW_GENESIS_MINE: bool = os.getenv('ALLOW_GENESIS_MINE', 'false').lower() == 'true'
+
+    # Default sync peer — new nodes MUST sync from an existing node before mining.
+    SYNC_PEER_URL: str = os.getenv('SYNC_PEER_URL', '')
+
     # Fee structure (micro-fees for high frequency)
     MIN_FEE: Decimal = Decimal('0.0001')
     FEE_RATE: Decimal = Decimal('0.0001')

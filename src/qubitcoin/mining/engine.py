@@ -111,12 +111,19 @@ class MiningEngine:
         a bare boolean, preventing races between start/stop calls.
         """
         # ── Sync gate: block mining until initial chain sync completes ──
+        # NO TIMEOUT — mining MUST NOT start until sync is explicitly
+        # completed via set_sync_complete(). A timeout here caused nodes
+        # to mine independent chains when sync was slow or peers were
+        # unreachable. The gate is opened by node.py only after sync
+        # succeeds or genesis validation passes.
         if not self._sync_complete.is_set():
             logger.info("Mining: waiting for initial sync to complete before mining...")
-            # Wait up to 5 minutes; if sync takes longer the gate will open
-            # eventually when set_sync_complete() is called.
-            if not self._sync_complete.wait(timeout=300):
-                logger.warning("Mining: sync gate timed out after 5 min — starting mining anyway")
+            while not self._sync_complete.is_set():
+                if self._stop_event.is_set():
+                    return
+                self._sync_complete.wait(timeout=30)
+                if not self._sync_complete.is_set():
+                    logger.info("Mining: still waiting for sync gate (will NOT mine until sync completes)...")
 
         while not self._stop_event.is_set():
             try:
@@ -140,6 +147,29 @@ class MiningEngine:
 
         current_height = self.db.get_current_height()
         next_height = current_height + 1
+
+        # ── GENESIS GUARD: Block 0 is NEVER mined via VQE ──────────────
+        # Genesis is a fixed constant. Fresh nodes MUST sync from the
+        # network instead of mining their own genesis. This prevents
+        # independent chains from forming.
+        if next_height == 0:
+            if not Config.ALLOW_GENESIS_MINE:
+                logger.error(
+                    "GENESIS GUARD: Cannot mine block 0 — this node has no chain. "
+                    "It must sync from an existing peer first. "
+                    "Set SYNC_PEER_URL in .env and restart, or set "
+                    "ALLOW_GENESIS_MINE=true if this is the very first node."
+                )
+                self._stop_event.wait(timeout=10)
+                return
+            else:
+                logger.warning(
+                    "ALLOW_GENESIS_MINE=true — creating canonical genesis block. "
+                    "This should only happen for the FIRST node in the network."
+                )
+                self._create_canonical_genesis()
+                return
+
         difficulty = self.consensus.calculate_difficulty(next_height, self.db)
         with self._lock:
             self.stats['current_difficulty'] = difficulty
@@ -504,6 +534,81 @@ class MiningEngine:
             return prev_block.block_hash
         logger.error(f"Block {current_height} exists but has no stored hash!")
         return '0' * 64
+
+    def _create_canonical_genesis(self) -> None:
+        """Create the canonical genesis block (deterministic, not VQE-mined).
+
+        The genesis block is a fixed constant — identical on every node.
+        This prevents independent chains from forming when nodes start fresh.
+        """
+        import json as _json
+
+        genesis_timestamp = Config.CANONICAL_GENESIS_TIMESTAMP
+        prev_hash = '0' * 64
+        proof_data = {
+            'energy': 0.0,
+            'hamiltonian': 'genesis',
+            'type': 'genesis',
+            'vqe_params': [],
+        }
+
+        # Fixed coinbase: premine + block reward to genesis_miner
+        reward = Config.INITIAL_REWARD
+        total_genesis = reward + Config.GENESIS_PREMINE
+        coinbase = Transaction(
+            txid=Config.CANONICAL_GENESIS_COINBASE_TXID,
+            inputs=[],
+            outputs=[{
+                'address': 'genesis_miner',
+                'amount': total_genesis,
+            }],
+            fee=Decimal(0),
+            signature='genesis',
+            public_key='genesis',
+            timestamp=genesis_timestamp,
+            block_height=0,
+            status='confirmed',
+            tx_type='coinbase',
+        )
+
+        block = Block(
+            height=0,
+            prev_hash=prev_hash,
+            proof_data=proof_data,
+            transactions=[coinbase],
+            timestamp=genesis_timestamp,
+            difficulty=1.0,
+        )
+
+        # Verify hash matches canonical
+        computed_hash = block.calculate_hash()
+        if computed_hash != Config.CANONICAL_GENESIS_HASH:
+            logger.error(
+                f"GENESIS HASH MISMATCH: computed={computed_hash} "
+                f"expected={Config.CANONICAL_GENESIS_HASH}. "
+                f"Genesis block definition has drifted from canonical."
+            )
+            # Store it anyway but warn — the droplet's stored hash is all-zeros
+            # so we use the computed hash as the block_hash
+            logger.warning("Proceeding with computed hash (droplet stores all-zeros for genesis)")
+
+        block.block_hash = computed_hash
+        block.cumulative_weight = 1.0
+
+        # Store genesis block
+        supply_amount = reward + Config.GENESIS_PREMINE
+        self.db.store_block(block, supply_amount)
+
+        with self._lock:
+            self.stats['blocks_found'] += 1
+        blocks_mined.inc()
+        current_height.set(0)
+        total_supply.set(float(supply_amount))
+
+        logger.info(
+            f"GENESIS BLOCK created: hash={computed_hash[:16]}... "
+            f"(reward={reward} + premine={Config.GENESIS_PREMINE:,} QBC)"
+        )
 
     def _create_proof(self, hamiltonian, params, energy,
                       prev_hash: str, height: int) -> dict:

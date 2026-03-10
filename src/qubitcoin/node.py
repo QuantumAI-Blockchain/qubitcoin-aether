@@ -1658,13 +1658,95 @@ class QubitcoinNode:
             else:
                 logger.warning("AIKGS Rust sidecar not reachable — AIKGS features unavailable")
 
-        # Auto-sync from peer on startup if SYNC_PEER_URL is set and we're behind.
-        # IMPORTANT: Mining must NOT start until sync completes to prevent forks.
-        sync_peer = os.environ.get('SYNC_PEER_URL', '').strip()
-        startup_sync_needed = False
-        if sync_peer and hasattr(self, 'chain_sync') and self.chain_sync:
+        # ══════════════════════════════════════════════════════════════
+        # STARTUP SYNC — MUST complete before mining gate opens.
+        # A fresh node (height=-1) MUST sync from a peer before mining.
+        # This prevents independent genesis blocks / chain forks.
+        # ══════════════════════════════════════════════════════════════
+        sync_peer = os.environ.get('SYNC_PEER_URL', Config.SYNC_PEER_URL).strip()
+        local_height = self.db.get_current_height()
+        sync_succeeded = False
+
+        # ── Genesis validation: if we have blocks, verify genesis matches canonical ──
+        if local_height >= 0:
+            genesis_block = self.db.get_block(0)
+            if genesis_block:
+                genesis_hash = genesis_block.block_hash or genesis_block.calculate_hash()
+                canonical = Config.CANONICAL_GENESIS_HASH
+                # Accept both the canonical hash and all-zeros (legacy droplet storage)
+                if genesis_hash != canonical and genesis_hash != '0' * 64:
+                    logger.critical(
+                        f"GENESIS MISMATCH: local={genesis_hash[:16]}... "
+                        f"canonical={canonical[:16]}... "
+                        f"This node is on an INCOMPATIBLE chain. "
+                        f"Wipe the database and restart to sync from the network."
+                    )
+                    # Do NOT open mining gate — refuse to mine on wrong chain
+                    if Config.AUTO_MINE:
+                        self.mining.start()  # start thread but gate stays closed
+                    logger.info("Node startup complete (MINING BLOCKED — genesis mismatch)")
+                    return
+                else:
+                    logger.info(f"Genesis block validated: {genesis_hash[:16]}...")
+                    sync_succeeded = True  # We're on the right chain
+
+        # ── Fresh node (no blocks): MUST sync from peer ──────────────
+        if local_height < 0:
+            logger.info(
+                f"FRESH NODE: no blocks in database (height={local_height}). "
+                f"Must sync from peer before mining."
+            )
+            if sync_peer and hasattr(self, 'chain_sync') and self.chain_sync:
+                for attempt in range(3):
+                    try:
+                        logger.info(f"Sync attempt {attempt+1}/3 from {sync_peer}...")
+                        import httpx
+                        async with httpx.AsyncClient(timeout=15) as client:
+                            resp = await client.get(f"{sync_peer}/chain/info")
+                            resp.raise_for_status()
+                            peer_height = resp.json().get('height', 0)
+                        logger.info(f"Peer at height {peer_height}, starting full sync...")
+                        result = await self.chain_sync.sync_from_peer(sync_peer)
+                        status = result.get('status', '')
+                        if status in ('synced', 'up_to_date', 'synced_from_snapshot'):
+                            sync_succeeded = True
+                            local_height = self.db.get_current_height()
+                            logger.info(
+                                f"Startup sync SUCCESS: synced to height {local_height} "
+                                f"from {sync_peer}"
+                            )
+                            break
+                        else:
+                            logger.warning(f"Sync attempt {attempt+1} result: {result}")
+                    except Exception as e:
+                        logger.warning(f"Sync attempt {attempt+1} failed: {e}")
+                    await asyncio.sleep(5)
+
+                if not sync_succeeded:
+                    logger.error(
+                        "FRESH NODE: All sync attempts failed. "
+                        "Mining gate will NOT open — cannot mine without a chain. "
+                        "Fix SYNC_PEER_URL and restart."
+                    )
+            elif not sync_peer:
+                logger.error(
+                    "FRESH NODE: No SYNC_PEER_URL configured. "
+                    "A fresh node MUST sync from an existing peer. "
+                    "Set SYNC_PEER_URL=http://<peer-ip>:5000 in .env and restart."
+                )
+            # Start mining thread (will be blocked by sync gate)
+            if Config.AUTO_MINE:
+                self.mining.start()
+            if not sync_succeeded and not Config.ALLOW_GENESIS_MINE:
+                logger.info("Node startup complete (MINING BLOCKED — no chain, no sync)")
+                return
+            elif not sync_succeeded and Config.ALLOW_GENESIS_MINE:
+                logger.warning("ALLOW_GENESIS_MINE=true — mining will create canonical genesis")
+                sync_succeeded = True  # Allow gate to open
+
+        # ── Existing node: check if behind peer ──────────────────────
+        elif sync_peer and hasattr(self, 'chain_sync') and self.chain_sync:
             try:
-                local_height = self.db.get_current_height()
                 logger.info(f"Checking sync peer {sync_peer} (local height: {local_height})...")
                 import httpx
                 async with httpx.AsyncClient(timeout=10) as client:
@@ -1672,45 +1754,49 @@ class QubitcoinNode:
                     resp.raise_for_status()
                     peer_height = resp.json().get('height', 0)
                 if peer_height > local_height + 1:
-                    startup_sync_needed = True
                     logger.info(
                         f"Peer is ahead: peer={peer_height}, local={local_height}. "
                         f"Starting chain sync before mining..."
                     )
-                    # Wait for any P2P-triggered sync to finish first
                     if self.chain_sync.is_syncing:
                         logger.info("Waiting for in-progress P2P sync to complete...")
-                        for _ in range(300):  # max 5 min wait
+                        for _ in range(300):
                             await asyncio.sleep(1)
                             if not self.chain_sync.is_syncing:
                                 break
-                    # Now run our sync (gets latest peer height)
                     if not self.chain_sync.is_syncing:
                         result = await self.chain_sync.sync_from_peer(sync_peer)
                         logger.info(f"Startup sync result: {result}")
-                    else:
-                        logger.warning("Startup sync: P2P sync still running after 5min, proceeding")
+                    sync_succeeded = True
                 else:
                     logger.info(f"Already up to date with peer (peer={peer_height}, local={local_height})")
+                    sync_succeeded = True
             except Exception as e:
-                logger.warning(f"Startup sync check failed (will mine from current state): {e}")
+                logger.warning(f"Startup sync check failed: {e}")
+                # We already have blocks and validated genesis — allow mining
+                sync_succeeded = True
 
         # Start mining (in Substrate mode, proofs are submitted as extrinsics)
-        # Note: sync_from_peer will pause/resume mining automatically if needed later.
-        if Config.AUTO_MINE:
+        if Config.AUTO_MINE and not self.mining.is_mining:
             if Config.SUBSTRATE_MODE:
                 logger.info("SUBSTRATE_MODE: Mining proofs will be submitted to Substrate")
             self.mining.start()
 
-        # ── Open the sync gate so mining thread begins work ──
-        # If startup sync was needed, it completed above.
-        # If not needed, we're already at tip.  Either way, safe to mine.
-        self.mining.set_sync_complete()
+        # ── Open the sync gate ONLY if sync succeeded or genesis validated ──
+        if sync_succeeded:
+            self.mining.set_sync_complete()
+            logger.info("Mining sync gate OPENED — mining enabled")
+        else:
+            logger.warning(
+                "Mining sync gate CLOSED — sync did not succeed. "
+                "Mining thread is running but blocked until sync completes."
+            )
 
         # Snapshot check
-        if height > 0 and height % Config.SNAPSHOT_INTERVAL == 0:
+        local_height = self.db.get_current_height()
+        if local_height > 0 and local_height % Config.SNAPSHOT_INTERVAL == 0:
             loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, self.ipfs.create_snapshot, self.db, height)
+            loop.run_in_executor(None, self.ipfs.create_snapshot, self.db, local_height)
 
         logger.info("Node startup complete")
 
