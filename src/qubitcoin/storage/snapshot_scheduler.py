@@ -488,29 +488,30 @@ class SnapshotScheduler:
         return count
 
     def _recalculate_supply(self, db_manager: object, errors: list) -> None:
-        """Recalculate total_minted in the supply table from coinbase txs.
+        """Recalculate total_minted from the canonical blocks table.
 
         After a snapshot restore the supply table is stale because blocks
         were bulk-inserted without calling ``update_supply`` per block.
-        This recomputes the true supply by summing all coinbase output
-        amounts (transactions with no inputs).
+        Uses blocks table (one row per height) to avoid orphan coinbase txs.
         """
+        from decimal import Decimal as D
         from sqlalchemy import text as sa_text
         try:
             with db_manager.get_session() as session:  # type: ignore[attr-defined]
-                result = session.execute(sa_text(
-                    "SELECT COALESCE(SUM(amt::DECIMAL), 0) FROM ("
-                    "  SELECT jsonb_array_elements(outputs)->>'amount' AS amt"
-                    "  FROM transactions"
-                    "  WHERE inputs IS NULL OR inputs = '[]'::jsonb"
-                    ")"
+                max_height = session.execute(sa_text(
+                    "SELECT COALESCE(MAX(height), -1) FROM blocks"
                 )).scalar()
-                session.execute(
-                    sa_text("UPDATE supply SET total_minted = :amt WHERE id = 1"),
-                    {'amt': str(result or 0)},
-                )
-                session.commit()
-                logger.info(f"Supply recalculated after snapshot restore: {result}")
+                if max_height is not None and max_height >= 0:
+                    block_count = int(max_height) + 1
+                    reward = D(str(Config.INITIAL_REWARD))
+                    premine = D(str(Config.GENESIS_PREMINE))
+                    true_supply = premine + (reward * block_count)
+                    session.execute(
+                        sa_text("UPDATE supply SET total_minted = :amt WHERE id = 1"),
+                        {'amt': str(true_supply)},
+                    )
+                    session.commit()
+                    logger.info(f"Supply recalculated after snapshot restore: {true_supply} QBC")
         except Exception as e:
             errors.append(f"Supply recalculation failed: {e}")
             logger.error(f"Failed to recalculate supply after snapshot restore: {e}")
