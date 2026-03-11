@@ -369,6 +369,11 @@ class SnapshotScheduler:
         utxos_restored = self._restore_utxos(db_manager, utxos, errors)
         txs_restored = self._restore_transactions(db_manager, transactions, errors)
 
+        # 4. Recalculate supply from coinbase transactions so it matches
+        #    the restored chain state (snapshot restore does not call
+        #    update_supply per block, so the supply table would be stale).
+        self._recalculate_supply(db_manager, errors)
+
         duration = time.monotonic() - start
         result = {
             'cid': cid,
@@ -481,6 +486,34 @@ class SnapshotScheduler:
         except Exception as e:
             errors.append(f"Transaction restore session error: {e}")
         return count
+
+    def _recalculate_supply(self, db_manager: object, errors: list) -> None:
+        """Recalculate total_minted in the supply table from coinbase txs.
+
+        After a snapshot restore the supply table is stale because blocks
+        were bulk-inserted without calling ``update_supply`` per block.
+        This recomputes the true supply by summing all coinbase output
+        amounts (transactions with no inputs).
+        """
+        from sqlalchemy import text as sa_text
+        try:
+            with db_manager.get_session() as session:  # type: ignore[attr-defined]
+                result = session.execute(sa_text(
+                    "SELECT COALESCE(SUM(amt::DECIMAL), 0) FROM ("
+                    "  SELECT jsonb_array_elements(outputs)->>'amount' AS amt"
+                    "  FROM transactions"
+                    "  WHERE inputs IS NULL OR inputs = '[]'::jsonb"
+                    ")"
+                )).scalar()
+                session.execute(
+                    sa_text("UPDATE supply SET total_minted = :amt WHERE id = 1"),
+                    {'amt': str(result or 0)},
+                )
+                session.commit()
+                logger.info(f"Supply recalculated after snapshot restore: {result}")
+        except Exception as e:
+            errors.append(f"Supply recalculation failed: {e}")
+            logger.error(f"Failed to recalculate supply after snapshot restore: {e}")
 
     # ------------------------------------------------------------------
     # Queries
