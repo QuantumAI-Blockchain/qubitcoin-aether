@@ -1207,6 +1207,28 @@ class DatabaseManager:
                     COALESCE((SELECT COUNT(*) FROM collateral_vaults WHERE NOT liquidated AND collateral_ratio < 1.5), 0) AS at_risk_vaults
             """))
             session.commit()
+        # ── Recalculate supply from actual coinbase transactions ──
+        # The supply table is an incremental counter that can drift if blocks
+        # are double-counted by multiple code paths (chain_sync, p2p, node).
+        # Recompute from scratch on every startup to guarantee accuracy.
+        with self.get_session() as session:
+            try:
+                true_supply = session.execute(text(
+                    "SELECT COALESCE(SUM(amt::DECIMAL), 0) FROM ("
+                    "  SELECT jsonb_array_elements(outputs)->>'amount' AS amt"
+                    "  FROM transactions"
+                    "  WHERE inputs IS NULL OR inputs = '[]'::jsonb"
+                    ")"
+                )).scalar()
+                session.execute(
+                    text("UPDATE supply SET total_minted = :amt WHERE id = 1"),
+                    {'amt': str(true_supply or 0)},
+                )
+                session.commit()
+                logger.info(f"Supply recalculated on startup: {true_supply} QBC")
+            except Exception as e:
+                session.rollback()
+                logger.warning(f"Supply recalculation on startup failed: {e}")
         logger.info("✅ All tables and views verified/created")
 
     def _test_connection(self):

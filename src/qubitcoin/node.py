@@ -1979,22 +1979,9 @@ class QubitcoinNode:
                         )
                         return
 
-                    # Store the validated block
+                    # Store the validated block (supply is tracked by
+                    # chain_sync and p2p_network; no duplicate update here)
                     self.db.store_block(block)
-
-                    # Update supply atomically
-                    if block.transactions:
-                        coinbase = block.transactions[0]
-                        if coinbase.outputs:
-                            from decimal import Decimal
-                            reward_total = sum(
-                                Decimal(str(o.get('amount', 0))) if isinstance(o, dict)
-                                else Decimal(str(getattr(o, 'amount', 0)))
-                                for o in coinbase.outputs
-                            )
-                            with self.db.get_session() as session:
-                                self.db.update_supply(reward_total, session)
-                                session.commit()
 
                     current_height_metric.set(height)
                     logger.info(f"P2P block {height} stored successfully (validated)")
