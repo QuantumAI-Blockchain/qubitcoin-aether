@@ -34,6 +34,8 @@ import type {
   HiggsFieldState,
   PinealPhase,
   MemoryStats,
+  HamiltonianLabData,
+  HamiltonianDetail,
 } from "./types";
 
 const STALE_TIME = 10_000;
@@ -1150,5 +1152,24 @@ export function useMemoryStats() {
       };
     },
     staleTime: 30_000,
+  });
+}
+
+/* ── Hamiltonian Lab Hooks ─────────────────────────────────────────────── */
+
+export function useHamiltonianSolutions(limit: number = 100) {
+  return useQuery<HamiltonianLabData>({
+    queryKey: ["explorer", "hamiltonians", limit],
+    queryFn: () => get<HamiltonianLabData>(`/quantum/hamiltonians?limit=${limit}`),
+    staleTime: STALE_TIME,
+  });
+}
+
+export function useHamiltonianDetail(height: number | null) {
+  return useQuery<HamiltonianDetail>({
+    queryKey: ["explorer", "hamiltonian-detail", height],
+    queryFn: () => get<HamiltonianDetail>(`/quantum/hamiltonian/${height}`),
+    enabled: height !== null,
+    staleTime: 60_000,
   });
 }

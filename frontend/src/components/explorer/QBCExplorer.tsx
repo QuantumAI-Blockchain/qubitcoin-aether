@@ -21,6 +21,7 @@ import { MetricsDashboard } from "./MetricsDashboard";
 import { SearchResults } from "./SearchResults";
 import { PathfinderView } from "./Pathfinder";
 import { SUSYLeaderboard } from "./SUSYLeaderboard";
+import { HamiltonianLab } from "./HamiltonianLab";
 import { DevToolsPanel } from "./DevTools";
 
 /* ── React Query client ───────────────────────────────────────────────── */
@@ -98,6 +99,9 @@ function ExplorerRouter() {
 
     case "leaderboard":
       return <SUSYLeaderboard />;
+
+    case "hamiltonian":
+      return <HamiltonianLab />;
 
     default:
       return <Dashboard />;

@@ -23,6 +23,7 @@ import {
   Wallet,
   Settings,
   X,
+  Atom,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { ViewType } from "./types";
@@ -114,6 +115,7 @@ const NAV_ITEMS: { view: ViewType; icon: typeof Boxes; label: string }[] = [
   { view: "qvm", icon: Cpu, label: "QVM" },
   { view: "aether", icon: Brain, label: "Aether" },
   { view: "leaderboard", icon: Trophy, label: "SUSY" },
+  { view: "hamiltonian", icon: Atom, label: "Hamiltonian" },
   { view: "metrics", icon: BarChart3, label: "Metrics" },
   { view: "pathfinder", icon: Compass, label: "Pathfinder" },
 ];

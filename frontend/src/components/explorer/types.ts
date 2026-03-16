@@ -166,7 +166,8 @@ export type ViewType =
   | "metrics"
   | "search"
   | "pathfinder"
-  | "leaderboard";
+  | "leaderboard"
+  | "hamiltonian";
 
 export interface ExplorerRoute {
   view: ViewType;
@@ -308,4 +309,32 @@ export interface MemoryStats {
   procedural: number;
   workingMemory: number;
   totalCapacity: number;
+}
+
+/* ── Hamiltonian Lab Types ────────────────────────────────────────────── */
+
+export interface HamiltonianSolution {
+  block_height: number;
+  hamiltonian: [string, number][];
+  params: number[];
+  energy: number | null;
+  miner_address: string;
+  eigenvalues: number[] | null;
+  matrix_real: number[] | null;
+  qubit_count: number;
+}
+
+export interface HamiltonianDetail extends HamiltonianSolution {
+  ipfs_cid: string | null;
+}
+
+export interface HamiltonianLabData {
+  solutions: HamiltonianSolution[];
+  count: number;
+  archive_stats: {
+    total_archives?: number;
+    total_solutions_archived?: number;
+    last_archive_height?: number;
+    cids_stored?: number;
+  };
 }

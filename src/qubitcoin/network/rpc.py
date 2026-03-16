@@ -3316,6 +3316,175 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         }
 
     # ========================================================================
+    # QUANTUM HAMILTONIAN LAB API (Live Research Visualization)
+    # ========================================================================
+
+    @app.get("/quantum/hamiltonians")
+    async def quantum_hamiltonians(
+        limit: int = 50,
+        min_height: Optional[int] = None,
+        max_height: Optional[int] = None,
+    ):
+        """Get solved Hamiltonians with computed matrix data for visualization.
+
+        Returns Pauli decomposition, eigenvalues, and energy landscape
+        data suitable for the Hamiltonian Lab frontend.
+        """
+        import numpy as np
+        from sqlalchemy import text as sa_text
+
+        conditions: list = []
+        params: dict = {"limit": min(limit, 200)}
+        if min_height is not None:
+            conditions.append("block_height >= :min_h")
+            params["min_h"] = min_height
+        if max_height is not None:
+            conditions.append("block_height <= :max_h")
+            params["max_h"] = max_height
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        query = f"""
+            SELECT id, hamiltonian, params, energy, miner_address, block_height
+            FROM solved_hamiltonians
+            {where}
+            ORDER BY block_height DESC
+            LIMIT :limit
+        """
+        solutions = []
+        with db_manager.get_session() as session:
+            rows = session.execute(sa_text(query), params).fetchall()
+            for r in rows:
+                ham_data = r[1]  # JSON list of [pauli_str, coeff] tuples
+                vqe_params = r[2]
+                energy = float(r[3]) if r[3] is not None else None
+
+                # Compute eigenvalues from Pauli decomposition
+                eigenvalues = None
+                matrix_real = None
+                if ham_data and isinstance(ham_data, list):
+                    try:
+                        pauli_map = {
+                            'I': np.eye(2, dtype=complex),
+                            'X': np.array([[0, 1], [1, 0]], dtype=complex),
+                            'Y': np.array([[0, -1j], [1j, 0]], dtype=complex),
+                            'Z': np.array([[1, 0], [0, -1]], dtype=complex),
+                        }
+                        n_qubits = len(ham_data[0][0]) if ham_data else 4
+                        dim = 2 ** n_qubits
+                        H = np.zeros((dim, dim), dtype=complex)
+                        for term in ham_data:
+                            pauli_str = term[0] if isinstance(term, (list, tuple)) else term
+                            coeff = float(term[1]) if isinstance(term, (list, tuple)) else 1.0
+                            mat = np.array([[1]], dtype=complex)
+                            for ch in pauli_str:
+                                mat = np.kron(mat, pauli_map.get(ch, np.eye(2)))
+                            H += coeff * mat
+                        eigs = np.linalg.eigvalsh(H.real).tolist()
+                        eigenvalues = [round(e, 8) for e in sorted(eigs)]
+                        # Send diagonal of density matrix for heatmap
+                        matrix_real = [round(float(H[i, j].real), 6)
+                                       for i in range(dim) for j in range(dim)]
+                    except Exception:
+                        pass
+
+                solutions.append({
+                    "block_height": r[5],
+                    "hamiltonian": ham_data,
+                    "params": vqe_params,
+                    "energy": energy,
+                    "miner_address": r[4],
+                    "eigenvalues": eigenvalues,
+                    "matrix_real": matrix_real,
+                    "qubit_count": len(ham_data[0][0]) if ham_data and isinstance(ham_data, list) and ham_data else 4,
+                })
+
+        # Get IPFS archive stats
+        archive_stats = {}
+        try:
+            if hasattr(node, 'solution_archiver') and node.solution_archiver:
+                archive_stats = node.solution_archiver.get_stats()
+        except Exception:
+            pass
+
+        return {
+            "solutions": solutions,
+            "count": len(solutions),
+            "archive_stats": archive_stats,
+        }
+
+    @app.get("/quantum/hamiltonian/{height}")
+    async def quantum_hamiltonian_detail(height: int):
+        """Get detailed Hamiltonian data for a specific block height."""
+        import numpy as np
+        from sqlalchemy import text as sa_text
+
+        with db_manager.get_session() as session:
+            row = session.execute(sa_text("""
+                SELECT id, hamiltonian, params, energy, miner_address, block_height
+                FROM solved_hamiltonians
+                WHERE block_height = :h
+                LIMIT 1
+            """), {"h": height}).fetchone()
+
+        if not row:
+            return {"error": f"No Hamiltonian found for block {height}"}
+
+        ham_data = row[1]
+        vqe_params = row[2]
+        energy = float(row[3]) if row[3] is not None else None
+
+        eigenvalues = None
+        matrix_real = None
+        pauli_map = {
+            'I': np.eye(2, dtype=complex),
+            'X': np.array([[0, 1], [1, 0]], dtype=complex),
+            'Y': np.array([[0, -1j], [1j, 0]], dtype=complex),
+            'Z': np.array([[1, 0], [0, -1]], dtype=complex),
+        }
+
+        if ham_data and isinstance(ham_data, list):
+            try:
+                n_qubits = len(ham_data[0][0]) if ham_data else 4
+                dim = 2 ** n_qubits
+                H = np.zeros((dim, dim), dtype=complex)
+                for term in ham_data:
+                    pauli_str = term[0]
+                    coeff = float(term[1])
+                    mat = np.array([[1]], dtype=complex)
+                    for ch in pauli_str:
+                        mat = np.kron(mat, pauli_map.get(ch, np.eye(2)))
+                    H += coeff * mat
+                eigs = np.linalg.eigvalsh(H.real).tolist()
+                eigenvalues = [round(e, 8) for e in sorted(eigs)]
+                matrix_real = [round(float(H[i, j].real), 6)
+                               for i in range(dim) for j in range(dim)]
+            except Exception:
+                pass
+
+        # Check if this block is in an IPFS archive
+        ipfs_cid = None
+        try:
+            if hasattr(node, 'solution_archiver') and node.solution_archiver:
+                for rec in node.solution_archiver.get_history(limit=200):
+                    if rec['from_height'] <= height <= rec['to_height'] and rec.get('cid'):
+                        ipfs_cid = rec['cid']
+                        break
+        except Exception:
+            pass
+
+        return {
+            "block_height": row[5],
+            "hamiltonian": ham_data,
+            "params": vqe_params,
+            "energy": energy,
+            "miner_address": row[4],
+            "eigenvalues": eigenvalues,
+            "matrix_real": matrix_real,
+            "qubit_count": len(ham_data[0][0]) if ham_data and isinstance(ham_data, list) and ham_data else 4,
+            "ipfs_cid": ipfs_cid,
+        }
+
+    # ========================================================================
     # UTXO STATS ENDPOINT
     # ========================================================================
 
