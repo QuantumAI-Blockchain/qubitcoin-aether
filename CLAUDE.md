@@ -642,7 +642,7 @@ TOKEN_DECIMALS = 8               # wQBC and wQUSD = 8 decimals
 
 ### 7.6 Storage
 
-- **CockroachDB v25.2.12:** 33+ tables across qbc/agi/qvm/research/shared domains
+- **CockroachDB v25.2.12:** 72 tables across qbc/agi/qvm/research/shared/bridge/stablecoin/investor domains
 - **IPFS:** Content-addressed storage for blockchain snapshots
 - **Redis:** Caching layer
 - **Schema-Model Alignment:** SQL schemas MUST match SQLAlchemy models in `database/models.py`
@@ -1092,7 +1092,7 @@ KEEPER_DEFAULT_MODE=scan
 
 ---
 
-## 19. PROMETHEUS METRICS (85 total)
+## 19. PROMETHEUS METRICS (141 total)
 
 15 categories: Blockchain (5), Mining (3), Network (2), Transactions (3), Quantum (3), QVM (2), AGI (8), Bridge (4), Privacy (3), Compliance (5), Stablecoin (4), Cognitive (9), Higgs (7), Keeper (8), Subsystem Health (6).
 

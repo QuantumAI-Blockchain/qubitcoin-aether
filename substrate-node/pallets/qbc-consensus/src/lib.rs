@@ -312,10 +312,11 @@ pub mod pallet {
             // Calculate reward and include accumulated transaction fees
             let reward = pallet_qbc_economics::Pallet::<T>::calculate_reward(block_height);
             pallet_qbc_economics::Pallet::<T>::on_block_authored(block_height);
-            let fees = pallet_qbc_utxo::Pallet::<T>::accumulated_fees();
-            let total_reward = reward.saturating_add(fees);
+            // Finalize fees with 50% burn — returns the miner's share (50%)
+            let miner_fee_share = pallet_qbc_utxo::Pallet::<T>::finalize_fees_with_burn();
+            let total_reward = reward.saturating_add(miner_fee_share);
 
-            // Create coinbase UTXO (block reward + fees)
+            // Create coinbase UTXO (block reward + miner's fee share)
             let coinbase_txid = Self::coinbase_txid(block_height);
             pallet_qbc_utxo::Pallet::<T>::create_coinbase(
                 coinbase_txid,
@@ -323,9 +324,6 @@ pub mod pallet {
                 total_reward,
                 block_height,
             );
-
-            // Reset accumulated fees after including them in the coinbase
-            pallet_qbc_utxo::Pallet::<T>::reset_accumulated_fees();
 
             // Update block height
             pallet_qbc_utxo::Pallet::<T>::set_block_height(block_height);

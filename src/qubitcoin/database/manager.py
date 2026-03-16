@@ -23,7 +23,8 @@ logger = get_logger(__name__)
 # Disable psycopg2 hstore for CockroachDB compatibility
 original_register_hstore = psycopg2.extras.register_hstore
 def patched_register_hstore(*args, **kwargs):
-    """Skip hstore registration"""
+    """Skip hstore registration — CockroachDB does not support the hstore extension,
+    so we no-op the psycopg2 registration to prevent startup errors."""
     pass
 psycopg2.extras.register_hstore = patched_register_hstore
 
@@ -1103,7 +1104,8 @@ class DatabaseManager:
                     logger.debug(f"Detected: {version}")
                     return (13, 0)
                 return original_get_version(self, connection)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"CockroachDB version detection fallback: {e}")
                 return (13, 0)
         base.PGDialect._get_server_version_info = patched_get_version
 

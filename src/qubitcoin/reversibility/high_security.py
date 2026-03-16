@@ -14,6 +14,7 @@ with this feature enabled, but do not cause a consensus hard fork.
 import hashlib
 import time
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Dict, List, Optional
 
 from ..config import Config
@@ -26,11 +27,11 @@ logger = get_logger(__name__)
 class SecurityPolicy:
     """Security policy for an account."""
     address: str
-    daily_limit_qbc: float = 0.0          # 0 = no limit
+    daily_limit_qbc: Decimal = Decimal("0")          # 0 = no limit
     require_whitelist: bool = False
     whitelist: List[str] = field(default_factory=list)
     time_lock_blocks: int = 0             # delay on large txs
-    time_lock_threshold_qbc: float = 0.0  # amount triggering time-lock
+    time_lock_threshold_qbc: Decimal = Decimal("0")  # amount triggering time-lock
     active: bool = True
 
 
@@ -39,7 +40,7 @@ class SpendingRecord:
     """Record of spending for daily limit tracking."""
     id: str
     address: str
-    amount_qbc: float
+    amount_qbc: Decimal
     recipient: str
     block_height: int
     timestamp: float = field(default_factory=time.time)
@@ -67,11 +68,11 @@ class HighSecurityManager:
 
     # ── Policy Management ───────────────────────────────────────────────
 
-    def set_policy(self, address: str, daily_limit_qbc: float = 0.0,
+    def set_policy(self, address: str, daily_limit_qbc: Decimal = Decimal("0"),
                    require_whitelist: bool = False,
                    whitelist: Optional[List[str]] = None,
                    time_lock_blocks: int = 0,
-                   time_lock_threshold_qbc: float = 0.0) -> SecurityPolicy:
+                   time_lock_threshold_qbc: Decimal = Decimal("0")) -> SecurityPolicy:
         """Set or update a security policy for an address.
 
         Args:
@@ -88,6 +89,8 @@ class HighSecurityManager:
         Raises:
             ValueError: If parameters are invalid
         """
+        daily_limit_qbc = Decimal(str(daily_limit_qbc))
+        time_lock_threshold_qbc = Decimal(str(time_lock_threshold_qbc))
         if daily_limit_qbc < 0:
             raise ValueError("Daily limit cannot be negative")
         if time_lock_blocks < 0:
@@ -142,7 +145,7 @@ class HighSecurityManager:
     # ── Transaction Validation ──────────────────────────────────────────
 
     def validate_outgoing_tx(self, sender: str, recipient: str,
-                              amount_qbc: float,
+                              amount_qbc: Decimal,
                               current_height: int) -> dict:
         """Validate an outgoing transaction against security policy.
 
@@ -155,6 +158,7 @@ class HighSecurityManager:
         Returns:
             Dict with 'allowed' bool and 'reason' if rejected
         """
+        amount_qbc = Decimal(str(amount_qbc))
         policy = self.get_policy(sender)
         if not policy:
             return {'allowed': True, 'reason': ''}
@@ -196,7 +200,7 @@ class HighSecurityManager:
 
     # ── Spending Tracking ───────────────────────────────────────────────
 
-    def get_daily_spent(self, address: str, current_height: int) -> float:
+    def get_daily_spent(self, address: str, current_height: int) -> Decimal:
         """Get total spending within the daily limit window.
 
         Args:
@@ -209,12 +213,13 @@ class HighSecurityManager:
         records = self._spending.get(address, [])
         window_start = current_height - self._daily_limit_window
         return sum(
-            r.amount_qbc for r in records
-            if r.block_height > window_start
+            (r.amount_qbc for r in records
+             if r.block_height > window_start),
+            Decimal("0"),
         )
 
     def record_spending(self, sender: str, recipient: str,
-                         amount_qbc: float, current_height: int) -> None:
+                         amount_qbc: Decimal, current_height: int) -> None:
         """Record a spending event for daily limit tracking.
 
         Args:
@@ -223,6 +228,7 @@ class HighSecurityManager:
             amount_qbc: Amount spent
             current_height: Current block height
         """
+        amount_qbc = Decimal(str(amount_qbc))
         record_id = hashlib.sha256(
             f"spend-{sender}-{recipient}-{amount_qbc}-{time.time()}".encode()
         ).hexdigest()[:32]

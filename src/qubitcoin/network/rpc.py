@@ -3344,7 +3344,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 # Keep-alive: clients can send pings, we just read and discard
                 await websocket.receive_text()
         except WebSocketDisconnect:
-            pass
+            logger.debug("WebSocket client disconnected (main feed)")
         finally:
             if websocket in _ws_clients:
                 _ws_clients.remove(websocket)
@@ -3435,9 +3435,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                         "result": rpc_resp.result, "error": rpc_resp.error,
                     }))
         except WebSocketDisconnect:
-            pass
+            logger.debug("JSON-RPC WebSocket client disconnected")
         except Exception:
-            logger.debug("jsonrpc WS client disconnected")
+            logger.debug("JSON-RPC WebSocket client error")
         finally:
             for sid in client_subs:
                 _eth_subscribers.pop(sid, None)
@@ -3504,9 +3504,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                             new_subs = set(msg['events']) & _aether_ws.VALID_EVENTS
                             _aether_ws._clients[client_id].subscriptions = new_subs
                 except Exception:
-                    pass  # Not JSON or malformed — treat as ping
+                    pass  # Not JSON or malformed — treat as ping/keepalive
         except WebSocketDisconnect:
-            pass
+            logger.debug("Aether WebSocket client disconnected")
         finally:
             _aether_ws.unregister(websocket)
 
@@ -6061,7 +6061,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             while True:
                 await websocket.receive_text()
         except WebSocketDisconnect:
-            pass
+            logger.debug("Exchange WebSocket client disconnected")
         finally:
             if websocket in _exchange_ws_clients:
                 _exchange_ws_clients.remove(websocket)
@@ -6105,7 +6105,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         try:
             height = db_manager.get_current_height()
         except Exception:
-            pass
+            logger.debug("Could not fetch block height for SUSY signal")
 
         # SUSY score oscillates between 0.3 and 0.95 based on block height
         raw = _math.sin(height * 0.01) * 0.5 + 0.5

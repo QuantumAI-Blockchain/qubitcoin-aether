@@ -9,7 +9,10 @@ import { X, Database, Activity, Gauge, ChevronDown, ChevronRight } from "lucide-
 import { useExplorerStore } from "./store";
 import { useNetworkStats } from "./hooks";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const getMockEngine = () => (require("./mock-engine") as typeof import("./mock-engine")).getMockEngine();
+const getMockEngine = () =>
+  process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
+    ? (require("./mock-engine") as typeof import("./mock-engine")).getMockEngine()
+    : null;
 import { C, FONT } from "./shared";
 
 /* ── State Tab ────────────────────────────────────────────────────────── */
@@ -25,14 +28,16 @@ function StateTab() {
       searchQuery: store.searchQuery,
       searchOpen: store.searchOpen,
       compactMode: store.compactMode,
-      mockEngine: {
-        blocks: engine.blocks.length,
-        transactions: engine.transactions.length,
-        contracts: engine.contracts.length,
-        aetherNodes: engine.aetherNodes.length,
-        aetherEdges: engine.aetherEdges.length,
-        miners: engine.miners.length,
-      },
+      mockEngine: engine
+        ? {
+            blocks: engine.blocks.length,
+            transactions: engine.transactions.length,
+            contracts: engine.contracts.length,
+            aetherNodes: engine.aetherNodes.length,
+            aetherEdges: engine.aetherEdges.length,
+            miners: engine.miners.length,
+          }
+        : null,
     }),
     [store.route, store.history.length, store.searchQuery, store.searchOpen, store.compactMode, engine]
   );

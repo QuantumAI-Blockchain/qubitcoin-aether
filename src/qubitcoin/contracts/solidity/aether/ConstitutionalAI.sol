@@ -119,9 +119,13 @@ contract ConstitutionalAI is Initializable {
         }));
         totalVetoes++;
         operationVetoed[operationHash] = true;
+        activeVetoCount[operationHash]++;
 
         emit OperationVetoed(vetoId, principleId, operationHash, reason);
     }
+
+    /// @notice Count of active (non-overridden) vetoes per operation hash
+    mapping(bytes32 => uint256) public activeVetoCount;
 
     /// @notice Override a veto (requires kernel authorization — emergency only)
     function overrideVeto(uint256 vetoId) external onlyKernel {
@@ -129,16 +133,10 @@ contract ConstitutionalAI is Initializable {
         require(!vetoes[vetoId].overridden, "Constitution: already overridden");
         vetoes[vetoId].overridden = true;
 
-        // Check if any non-overridden veto remains for this operation
+        // O(1) active veto tracking — no loop required
         bytes32 opHash = vetoes[vetoId].operationHash;
-        bool stillVetoed = false;
-        for (uint256 i = 0; i < vetoes.length; i++) {
-            if (vetoes[i].operationHash == opHash && !vetoes[i].overridden) {
-                stillVetoed = true;
-                break;
-            }
-        }
-        if (!stillVetoed) {
+        activeVetoCount[opHash]--;
+        if (activeVetoCount[opHash] == 0) {
             operationVetoed[opHash] = false;
         }
 

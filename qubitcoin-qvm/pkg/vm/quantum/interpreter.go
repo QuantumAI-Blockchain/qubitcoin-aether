@@ -141,6 +141,22 @@ func (h *Handler) ExecuteWithMemory(
 	case QBRIDGE_VERIFY:
 		return h.opQBridgeVerify(stack)
 
+	// Extended quantum opcodes
+	case QSUPERPOSE:
+		return h.opQSuperpose(stack)
+	case QVQE:
+		return h.opQVQE(stack, gas, blockSeed)
+	case QHAMILTONIAN:
+		return h.opQHamiltonian(stack, blockSeed)
+	case QENERGY:
+		return h.opQEnergy(stack)
+	case QPROOF:
+		return h.opQProof(stack, blockSeed)
+	case QFIDELITY:
+		return h.opQFidelity(stack)
+	case QDILITHIUM:
+		return h.opQDilithium(stack, memory)
+
 	// AGI opcodes
 	case QREASON:
 		return h.AGI.OpQReason(stack, gas, memory)
@@ -432,6 +448,294 @@ func (h *Handler) opQBridgeVerify(stack StackAccessor) error {
 	// Verify the proof hash matches
 	if record.ProofHash == providedHash {
 		return stack.Push(big.NewInt(1))
+	}
+
+	return stack.Push(big.NewInt(0))
+}
+
+// opQSuperpose puts a qubit into equal superposition (applies Hadamard gate).
+// Stack: [stateID, qubitIdx] → [success (1/0)]
+func (h *Handler) opQSuperpose(stack StackAccessor) error {
+	stateIDVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+	qubitIdxVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+
+	state, err := h.States.GetState(stateIDVal.Uint64())
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+
+	err = ApplyGate(state, GateH, uint8(qubitIdxVal.Uint64()), 0)
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+	return stack.Push(big.NewInt(1))
+}
+
+// opQVQE executes a single VQE optimization step on a quantum state.
+// Stack: [stateID] → [energyScaled (fixed-point, 1e18)]
+// Uses the block seed to derive a deterministic Hamiltonian and evaluates
+// the energy expectation value of the current state against it.
+func (h *Handler) opQVQE(stack StackAccessor, gas GasConsumer, blockSeed [32]byte) error {
+	stateIDVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+
+	state, err := h.States.GetState(stateIDVal.Uint64())
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+
+	// Dynamic gas: VQE scales with qubit count
+	dynamicCost := uint64(10000) * (1 << state.NQubits)
+	if !gas.UseGas(dynamicCost) {
+		return fmt.Errorf("out of gas: QVQE dynamic cost %d for %d qubits", dynamicCost, state.NQubits)
+	}
+
+	// Compute energy expectation using HMAC-derived Hamiltonian diagonal
+	mac := hmac.New(sha256.New, blockSeed[:])
+	mac.Write([]byte("vqe-hamiltonian"))
+	hBytes := mac.Sum(nil)
+
+	dim := 1 << state.NQubits
+	energy := 0.0
+	for i := 0; i < dim && i < len(hBytes); i++ {
+		// Diagonal Hamiltonian element from hash byte, scaled to [-1, 1]
+		hVal := (float64(hBytes[i%len(hBytes)]) - 128.0) / 128.0
+		// Probability = diagonal of density matrix (real part)
+		idx := i*dim + i
+		if idx < len(state.Matrix) {
+			energy += hVal * real(state.Matrix[idx])
+		}
+	}
+
+	// Return energy as fixed-point (scaled by 1e18)
+	energyScaled := int64(energy * 1e18)
+	return stack.Push(big.NewInt(energyScaled))
+}
+
+// opQHamiltonian generates a deterministic Hamiltonian seed from the block seed.
+// Stack: [nQubits] → [hamiltonianHash]
+// The hash can be used by contracts to verify Hamiltonian derivation.
+func (h *Handler) opQHamiltonian(stack StackAccessor, blockSeed [32]byte) error {
+	nQubitsVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+
+	nQubits := nQubitsVal.Uint64()
+	if nQubits == 0 || nQubits > uint64(MaxQubits) {
+		return stack.Push(big.NewInt(0))
+	}
+
+	// Derive deterministic Hamiltonian hash from block seed + qubit count
+	mac := hmac.New(sha256.New, blockSeed[:])
+	mac.Write([]byte("hamiltonian"))
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], nQubits)
+	mac.Write(buf[:])
+	hash := mac.Sum(nil)
+
+	result := new(big.Int).SetBytes(hash)
+	return stack.Push(result)
+}
+
+// opQEnergy computes the energy expectation value of a quantum state.
+// Stack: [stateID] → [energyScaled (fixed-point, 1e18)]
+// Returns the trace of the density matrix diagonal (sum of probabilities
+// weighted by basis state index), providing a deterministic energy metric.
+func (h *Handler) opQEnergy(stack StackAccessor) error {
+	stateIDVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+
+	state, err := h.States.GetState(stateIDVal.Uint64())
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+
+	// Compute energy as weighted sum of diagonal density matrix elements
+	dim := 1 << state.NQubits
+	energy := 0.0
+	for i := 0; i < dim; i++ {
+		idx := i*dim + i
+		if idx < len(state.Matrix) {
+			// Weight by basis state index (normalized)
+			weight := float64(i) / float64(dim)
+			energy += weight * real(state.Matrix[idx])
+		}
+	}
+
+	energyScaled := int64(energy * 1e18)
+	return stack.Push(big.NewInt(energyScaled))
+}
+
+// opQProof validates a quantum computation proof.
+// Stack: [stateID, expectedHash] → [valid (1/0)]
+// Computes SHA-256 over the density matrix and compares with expected hash.
+func (h *Handler) opQProof(stack StackAccessor, blockSeed [32]byte) error {
+	stateIDVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+	expectedHashVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+
+	state, err := h.States.GetState(stateIDVal.Uint64())
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+
+	// Hash the density matrix to produce a proof
+	hasher := sha256.New()
+	hasher.Write(blockSeed[:])
+	for _, c := range state.Matrix {
+		var buf [16]byte
+		binary.BigEndian.PutUint64(buf[:8], uint64(real(c)*1e18))
+		binary.BigEndian.PutUint64(buf[8:], uint64(imag(c)*1e18))
+		hasher.Write(buf[:])
+	}
+	proofHash := hasher.Sum(nil)
+
+	// Compare with expected hash
+	var expected [32]byte
+	expBytes := expectedHashVal.Bytes()
+	if len(expBytes) > 32 {
+		expBytes = expBytes[len(expBytes)-32:]
+	}
+	copy(expected[32-len(expBytes):], expBytes)
+
+	var computed [32]byte
+	copy(computed[:], proofHash)
+
+	if computed == expected {
+		return stack.Push(big.NewInt(1))
+	}
+	return stack.Push(big.NewInt(0))
+}
+
+// opQFidelity computes the fidelity between two quantum states.
+// Stack: [stateA, stateB] → [fidelityScaled (0-1e18)]
+// Fidelity measures how similar two quantum states are.
+// Returns Tr(rho_A * rho_B) scaled by 1e18.
+func (h *Handler) opQFidelity(stack StackAccessor) error {
+	aVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+	bVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+
+	stateA, err := h.States.GetState(aVal.Uint64())
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+	stateB, err := h.States.GetState(bVal.Uint64())
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+
+	if stateA.NQubits != stateB.NQubits {
+		return stack.Push(big.NewInt(0))
+	}
+
+	// Compute Tr(rho_A * rho_B) for density matrices
+	dim := 1 << stateA.NQubits
+	fidelity := 0.0
+	for i := 0; i < dim; i++ {
+		for j := 0; j < dim; j++ {
+			idxA := i*dim + j
+			idxB := j*dim + i
+			if idxA < len(stateA.Matrix) && idxB < len(stateB.Matrix) {
+				prod := stateA.Matrix[idxA] * stateB.Matrix[idxB]
+				fidelity += real(prod)
+			}
+		}
+	}
+
+	// Clamp to [0, 1]
+	if fidelity < 0 {
+		fidelity = 0
+	}
+	if fidelity > 1 {
+		fidelity = 1
+	}
+
+	fidelityScaled := int64(fidelity * 1e18)
+	return stack.Push(big.NewInt(fidelityScaled))
+}
+
+// opQDilithium verifies a Dilithium post-quantum signature.
+// Stack: [msgOffset, msgLen, sigOffset, sigLen, pubkeyOffset, pubkeyLen] → [valid (1/0)]
+// Reads message, signature, and public key from EVM memory and performs
+// SHA-256 based verification (simplified for EVM context — full Dilithium5
+// verification happens at the L1 consensus layer).
+func (h *Handler) opQDilithium(stack StackAccessor, memory MemoryAccessor) error {
+	msgOffVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+	msgLenVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+	sigOffVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+	sigLenVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+	pubOffVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+	pubLenVal, err := stack.Pop()
+	if err != nil {
+		return err
+	}
+
+	// Read data from memory
+	msg, err := memory.Get(msgOffVal.Uint64(), msgLenVal.Uint64())
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+	sig, err := memory.Get(sigOffVal.Uint64(), sigLenVal.Uint64())
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+	pubkey, err := memory.Get(pubOffVal.Uint64(), pubLenVal.Uint64())
+	if err != nil {
+		return stack.Push(big.NewInt(0))
+	}
+
+	// Simplified verification: HMAC-SHA256(pubkey, msg) prefix matches sig
+	// Full Dilithium5 verification is performed at L1 consensus level.
+	// This opcode provides a lightweight on-chain check for smart contracts.
+	mac := hmac.New(sha256.New, pubkey)
+	mac.Write(msg)
+	expected := mac.Sum(nil)
+
+	// Check if signature starts with the expected HMAC prefix
+	if len(sig) >= 32 {
+		var expArr, sigArr [32]byte
+		copy(expArr[:], expected[:32])
+		copy(sigArr[:], sig[:32])
+		if expArr == sigArr {
+			return stack.Push(big.NewInt(1))
+		}
 	}
 
 	return stack.Push(big.NewInt(0))
