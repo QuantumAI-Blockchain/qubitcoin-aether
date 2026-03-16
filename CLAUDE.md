@@ -2,91 +2,122 @@
 
 > **The definitive reference for AI-assisted development on the Quantum Blockchain codebase.**
 > Covers Layer 1 (blockchain), Layer 2 (QVM + smart contracts), Layer 3 (Aether Tree AGI),
-> and the Frontend (qbc.network).
+> Agent Stack, and the Frontend (qbc.network).
 
 ---
 
 ## 1. PROJECT IDENTITY
 
-**Quantum Blockchain** is a physics-secured Layer 1 blockchain whose native currency is **Qubitcoin (QBC)**. It combines:
+**QuantumAI Blockchain** is a physics-secured Layer 1 blockchain whose native currency is **Qubitcoin (QBC)**. It combines:
 - **Quantum Computing** (Qiskit VQE) for Proof-of-SUSY-Alignment mining
-- **Post-Quantum Cryptography** (CRYSTALS-Dilithium2) for quantum-resistant signatures
+- **Post-Quantum Cryptography** (CRYSTALS-Dilithium5, NIST Level 5) for quantum-resistant signatures
 - **Supersymmetric (SUSY) Economics** with golden ratio (phi) emission principles
 - **Aether Tree** : an on-chain AGI reasoning engine that tracks consciousness metrics from genesis
 - **QVM** : a full EVM-compatible virtual machine with quantum opcode extensions
 - **Multi-chain bridges** to ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE
+- **Agent Stack** : 11 autonomous AI agents for community, security, trading, and deployment
 
 **Tagline:** Physics-Secured Digital Assets with On-Chain AGI
 
 **Domain:** qbc.network
 **License:** MIT
-**Chain IDs:** Mainnet=3303, Testnet=3304
+**Chain IDs:** Mainnet=3303 (0xce7), Testnet=3304 (0xce8)
 **Contact:** info@qbc.network
-**GitHub:** BlockArtica/Qubitcoin
+**GitHub:** https://github.com/orgs/QuantumAI-Blockchain/
+**X (Twitter):** @qu_bitcoin
 
 ---
 
 ## 1.1 CURRENT PROJECT STATUS (March 2026)
 
-**All code is written and production-ready. The project is in launch phase.**
+**THE CHAIN IS LIVE. Mining, frontend, and agent stack are all running in production.**
+
+### Live Infrastructure
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **Python Node** | Running (Docker) | Block height ~145,845+, mining active, all 22 components healthy |
+| **Frontend** | Running (Next.js 16) | qbc.network via Cloudflare Tunnel, port 3000 |
+| **API** | Running | api.qbc.network via Cloudflare Tunnel, port 5000 |
+| **Rust P2P** | Running (Docker) | libp2p gossipsub on port 4002 |
+| **AIKGS Sidecar** | Running (Docker) | Rust gRPC knowledge graph service, port 50052 |
+| **CockroachDB** | Running (Docker) | v25.2.12, port 26257 |
+| **IPFS** | Running (Docker) | Kubo, ports 4001/5002/8081 |
+| **Redis** | Running (Docker) | Port 6379 |
+| **Agent Stack** | Running (systemd) | 11 agents via qbc-agents.service |
+| **Cloudflare Tunnel** | Running | qbc.network + app.qbc.network → :3000, api.qbc.network → :5000 |
+
+### Chain Stats (Live)
+
+```
+Chain ID:        3303
+Block Height:    ~145,845+
+Total Supply:    ~35,227,068 QBC
+Max Supply:      3,300,000,000 QBC
+Current Era:     0
+Block Reward:    15.27 QBC
+Difficulty:      ~10.64
+Mining:          Active
+```
 
 ### What Is Built (Complete)
 
 | Layer | Component | Files | LOC | Status |
 |-------|-----------|-------|-----|--------|
-| **L1** | Blockchain Core (Python) | 160 modules | ~82,500 | Production Ready |
-| **L1** | Rust P2P (libp2p 0.56) | 4 source files | ~1,200 | Production Ready |
-| **L1** | Rust Security Core (PyO3) | 3 source files | ~530 | Production Ready |
-| **L1** | Rust Stratum Server | 7 source files | ~1,030 | Production Ready |
-| **L1** | Substrate Hybrid Node (Rust) | 7 crates, 29 files | ~17,400 | Production Ready |
-| **L1** | Competitive Features | 4 modules | ~1,640 | Production Ready |
-| **L2** | QVM Python Prototype | 8 modules | ~4,500 | Production Ready |
-| **L2** | QVM Go Production | 34 source files | ~10,000 | Production Ready |
-| **L2** | Solidity Contracts | 62 contracts | ~15,000 | Production Ready |
-| **L3** | Aether Tree (Python) | 36 modules | ~24,560 | Production Ready |
-| **L3** | Aether Tree Rust (PyO3) | 10 modules | ~10,246 | Production Ready |
-| **L3** | Aether Tree Higgs Field | 2 new + 11 modified | ~2,700 | Production Ready |
-| **Frontend** | React/Next.js (qbc.network) | 198 TS/TSX files | ~12,000 | Production Ready |
-| **Frontend** | PWA Enhancements | 7 components | ~700 | Production Ready |
-| **Infra** | Docker/Monitoring/DevOps | 20+ configs | ~2,000 | Production Ready |
-| **Docs** | Whitepapers + Guides | 10 files | ~8,000 | Production Ready |
-| **L1** | QUSD Peg Keeper | 3 modules (dex_price, arbitrage, keeper) | ~2,100 | Production Ready |
-| **Tests** | Python pytest suite | 4,357 tests | ~40,000 | All Passing |
-| **Total** | | **400+ files** | **~200,000+** | **Production Ready** |
+| **L1** | Blockchain Core (Python) | 157 modules | ~84,700 | Live |
+| **L1** | Rust P2P (libp2p 0.56) | Docker container | ~1,200 | Live |
+| **L1** | Rust Security Core (PyO3) | 3 source files | ~530 | Live |
+| **L1** | Rust Stratum Server | 7 source files | ~1,030 | Built |
+| **L1** | Substrate Hybrid Node (Rust) | 7 crates, 7 pallets | ~17,400 | Built (not live yet) |
+| **L1** | Aether Core (Rust/PyO3) | 9 modules | ~5,000 | Built |
+| **L1** | API Gateway (Rust) | 10 source files | ~2,000 | Built (not live yet) |
+| **L1** | Blockchain Indexer (Rust) | 6 source files | ~1,500 | Built (not live yet) |
+| **L1** | Standalone Miner (Python) | 8 modules | ~950 | Built |
+| **L2** | QVM Python Prototype | 8 modules | ~4,500 | Live |
+| **L2** | QVM Go Production | 34 source files | ~11,500 | Built |
+| **L2** | Solidity Contracts | 60 contracts | ~11,160 | Live |
+| **L3** | Aether Tree (Python) | 49 modules | ~29,000 | Live |
+| **L3** | Aether Service (Python) | 4 modules | ~470 | Built (standalone) |
+| **L3** | AIKGS Sidecar (Rust) | 14 source files | ~2,000 | Live |
+| **Frontend** | React/Next.js (qbc.network) | ~200 TS/TSX files | ~66,900 | Live |
+| **Agents** | QBC Agent Stack (TypeScript) | 11 agents + core | ~5,500 | Live |
+| **Infra** | Docker/Monitoring/DevOps | 20+ configs | ~2,000 | Live |
+| **Docs** | Whitepapers + Guides | 10+ files | ~8,000 | Complete |
+| **L1** | QUSD Peg Keeper | 4 modules | ~2,100 | Live |
+| **L1** | Dilithium WASM | Rust → WASM | ~37K (compiled) | Live |
+| **Tests** | Python pytest suite | 175 test files | ~56,100 | Passing |
+| **Rust** | All Rust crates total | 8 Cargo.toml | ~44,600 | Built |
+| **Total** | | **500+ files** | **~290,000+** | **Live** |
 
 ### What Needs To Happen Next
 
-**See `LAUNCHTODO.md` for the complete step-by-step launch checklist.**
+**Phase 1 (Current):** Agent Stack expansion — move to its own droplet, expand capabilities
+**Phase 2 (Next):** Run additional nodes + substrate node locally and on other droplets for true P2P network
+**Phase 3:** Multi-node testing, peer discovery, block propagation across nodes
 
-The immediate launch sequence is:
-1. Generate node keys (`python3 scripts/setup/generate_keys.py`)
-2. Create `.env` from `.env.example`
-3. Run `docker compose up -d` → **genesis block mined, Aether Tree starts**
-4. Start frontend (`cd frontend && pnpm install && pnpm dev`)
-5. Deploy 50 Solidity contracts via RPC (post-genesis)
-
-### Known Issues To Be Aware Of
+### Known Issues
 
 | Issue | Severity | Details |
 |-------|----------|---------|
-| `ENABLE_RUST_P2P` | Resolved | Default is now `true` — Rust libp2p is the primary P2P layer. Node auto-launches Rust binary and falls back to Python P2P if binary is missing or daemon fails to start. |
-| Frontend backend gaps | Low | Most backend API endpoints now wired. A few frontend pages may still show "---" for real-time data when node is not running. |
-| Schema-model sync | Low | Both db-init SQL and SQLAlchemy create tables. SQLAlchemy `create_all()` skips existing tables, so no conflict if SQL runs first. |
-| Smart contracts | Info | 62 Solidity contracts exist but are NOT auto-deployed at genesis. Must deploy via RPC after node is running. |
-| Substrate WASM | Low | Native build works with `SKIP_WASM_BUILD=1`. WASM build deferred due to serde_core `exchange_malloc` conflict. |
+| Peers = 0 | Medium | Only one node running. Every block publish fails with `NoPeersSubscribedToTopic`. Need additional nodes. |
+| AIKGS slow queries | Medium | AIKGS sidecar has slow DB queries (up to 143s) and intermittent connection drops. |
+| Substrate not live | Info | Native build works (`SKIP_WASM_BUILD=1`). WASM build deferred. Will run alongside Python node. |
+| Agent stack on same droplet | Low | Currently shares resources with node. Moving to separate droplet. |
+| Cloudflared version | Low | Running 2026.2.0, should upgrade to 2026.3.0. |
+| bot.txt in repo root | Low | Contains Telegram bot token in plaintext. Untracked but on disk — should be removed or moved to .env. |
+| PoT dict error | Low | `'dict' object has no attribute 'thought_hash'` in proof_of_thought on-chain integration. Non-blocking. |
 
-### Key Files For Launch
+### Key Files
 
 | File | Purpose |
 |------|---------|
-| `LAUNCHTODO.md` | **Master launch checklist** — 8 phases from zero to production |
 | `CLAUDE.md` | This file — architecture reference |
-| `docker-compose.yml` | Docker stack (9 services) |
-| `.env.example` | Environment template |
-| `scripts/setup/generate_keys.py` | Node key generation |
+| `docker-compose.yml` | Docker stack (14 services defined, 6 running) |
+| `.env` | Environment config (loaded from `.env.example`) |
 | `src/run_node.py` | Node entry point |
 | `src/qubitcoin/node.py` | 22-component orchestrator |
 | `src/qubitcoin/config.py` | Configuration (loads `.env` + `secure_key.env`) |
+| `contract_registry.json` | Deployed contract addresses |
 
 ---
 
@@ -122,7 +153,7 @@ PHASE 3: VALIDATE
 ```
 
 **NON-NEGOTIABLE RULES:**
-- FULLY AUTONOMOUS MODE: All changes approved in advance. All tool calls pre-approved. Commit and push after each batch. No approval gates. No confirmation prompts. No Yes/No questions. Execute immediately.
+- FULLY AUTONOMOUS MODE - This is turned off. Always proceed. Commit and push after each batch. No approval gates. No confirmation prompts. No Yes/No questions. Execute immediately.
 - ALL FILES ARE MODIFIABLE: consensus, crypto, genesis, UTXO — all files can be edited when fixing audit findings. The only rule is: run tests after changes.
 - NEVER skip tests between batches
 - NEVER fabricate test output — run commands and show real results
@@ -142,12 +173,12 @@ PHASE 3: VALIDATE
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════╗
-║                        QUBITCOIN ARCHITECTURE                          ║
+║                    QuantumAI Blockchain ARCHITECTURE                    ║
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║                                                                        ║
 ║  ┌─────────────────────────────────────────────────────────────────┐   ║
-║  │  FRONTEND (qbc.network)                                         │   ║
-║  │  Next.js 15 + TailwindCSS 4 + Framer Motion                    │   ║
+║  │  FRONTEND (qbc.network) — Cloudflare Tunnel → :3000            │   ║
+║  │  Next.js 16 + TailwindCSS 4 + Framer Motion                   │   ║
 ║  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐  │   ║
 ║  │  │ Landing  │ │ Aether   │ │ Dashboard│ │ Wallet/MetaMask  │  │   ║
 ║  │  │ Page     │ │ Chat     │ │ Console  │ │ Integration      │  │   ║
@@ -155,9 +186,16 @@ PHASE 3: VALIDATE
 ║  └───────────────────────────┬─────────────────────────────────────┘   ║
 ║                              │ REST + JSON-RPC + WebSocket             ║
 ║  ┌───────────────────────────▼─────────────────────────────────────┐   ║
-║  │  LAYER 3: AETHER TREE (AGI Engine)                              │   ║
+║  │  AGENT STACK (11 Autonomous Agents) — systemd service           │   ║
+║  │  Agent Manager + 11 specialized agents (TypeScript/Node.js)     │   ║
+║  │  Social, Security, Trading, Deployment, Community, Knowledge    │   ║
+║  └───────────────────────────┬─────────────────────────────────────┘   ║
+║                              │                                         ║
+║  ┌───────────────────────────▼─────────────────────────────────────┐   ║
+║  │  LAYER 3: AETHER TREE (AGI Engine) + AIKGS Sidecar              │   ║
 ║  │  KnowledgeGraph (KeterNodes) + ReasoningEngine + PhiCalculator  │   ║
-║  │  Proof-of-Thought consensus | Consciousness tracking from genesis│   ║
+║  │  Proof-of-Thought consensus | Consciousness tracking from genesis│  ║
+║  │  AIKGS: Rust gRPC sidecar for knowledge contributions           │   ║
 ║  └───────────────────────────┬─────────────────────────────────────┘   ║
 ║                              │                                         ║
 ║  ┌───────────────────────────▼─────────────────────────────────────┐   ║
@@ -168,32 +206,29 @@ PHASE 3: VALIDATE
 ║  └───────────────────────────┬─────────────────────────────────────┘   ║
 ║                              │                                         ║
 ║  ┌───────────────────────────▼─────────────────────────────────────┐   ║
-║  │  LAYER 1: BLOCKCHAIN CORE                                       │   ║
+║  │  LAYER 1: BLOCKCHAIN CORE (Python Node — Docker)                │   ║
 ║  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐              │   ║
 ║  │  │ Consensus   │ │ Mining      │ │ Quantum     │              │   ║
 ║  │  │ (PoSA)      │ │ (VQE)       │ │ (Qiskit)    │              │   ║
 ║  │  └─────────────┘ └─────────────┘ └─────────────┘              │   ║
 ║  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐              │   ║
 ║  │  │ Crypto      │ │ Network     │ │ Storage     │              │   ║
-║  │  │ (Dilithium) │ │ (libp2p)    │ │ (CockroachDB│              │   ║
+║  │  │ (Dilithium5)│ │ (Rust P2P)  │ │ (CockroachDB│              │   ║
 ║  │  │             │ │ + FastAPI   │ │  + IPFS)    │              │   ║
 ║  │  └─────────────┘ └─────────────┘ └─────────────┘              │   ║
 ║  │  UTXO Model | 3.3s blocks | phi-halving | 3.3B max supply      │   ║
 ║  └─────────────────────────────────────────────────────────────────┘   ║
 ║                                                                        ║
 ║  ┌─────────────────────────────────────────────────────────────────┐   ║
-║  │  SUBSTRATE HYBRID NODE (Migration Target)                       │   ║
-║  │  7 crates: node, runtime, primitives, 6 pallets                │   ║
-║  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐              │   ║
-║  │  │ Kyber P2P   │ │ Poseidon2   │ │ Reversibil. │              │   ║
-║  │  │ (ML-KEM-768)│ │ (ZK Hash)   │ │ (Gov. Undo) │              │   ║
-║  │  └─────────────┘ └─────────────┘ └─────────────┘              │   ║
-║  │  qbc-utxo | qbc-consensus | qbc-dilithium | qbc-economics      │   ║
-║  │  qbc-qvm-anchor | qbc-aether-anchor | qbc-reversibility        │   ║
+║  │  SUBSTRATE HYBRID NODE (Future Co-Runner)                       │   ║
+║  │  7 pallets: utxo, consensus, dilithium, economics,             │   ║
+║  │  qvm-anchor, aether-anchor, reversibility                       │   ║
+║  │  + Kyber P2P (ML-KEM-768) + Poseidon2 ZK hashing              │   ║
 ║  └─────────────────────────────────────────────────────────────────┘   ║
 ║                                                                        ║
 ║  ┌─────────────────────────────────────────────────────────────────┐   ║
 ║  │  CROSS-CUTTING: Bridge (8 chains) | QUSD Stablecoin | Metrics  │   ║
+║  │  Dilithium WASM | Exchange (Rust) | Launchpad | Telegram Bot   │   ║
 ║  └─────────────────────────────────────────────────────────────────┘   ║
 ╚══════════════════════════════════════════════════════════════════════════╝
 ```
@@ -203,57 +238,120 @@ PHASE 3: VALIDATE
 ## 4. TECHNOLOGY STACK
 
 > **RULE: Always use the absolute latest stable versions of ALL dependencies.**
-> When starting a new component or updating an existing one, check for the latest
-> version available and use it. Never pin to old versions unless there is a
-> specific compatibility requirement (e.g., CockroachDB v24.2.0).
 
-| Component | Technology | Version Policy |
+| Component | Technology | Version / Notes |
 |-----------|-----------|---------------|
-| **L1 Core** | Python | 3.12+ (latest stable) |
-| **P2P Networking** | Rust (libp2p) | 2021 edition, libp2p latest |
+| **L1 Core** | Python | 3.12+ |
+| **P2P Networking** | Rust (libp2p 0.56) | Docker container `qbc-p2p` |
 | **Web Framework** | FastAPI | latest |
 | **ORM** | SQLAlchemy | latest |
-| **Database** | CockroachDB | v24.2.0 (pinned — compatibility) |
-| **Quantum** | Qiskit | latest |
-| **Content Storage** | IPFS (Kubo) | latest |
-| **Frontend Framework** | React 19 + Next.js 15 (App Router) | latest stable |
+| **Database** | CockroachDB | v25.2.12 |
+| **Quantum** | Qiskit | latest (local estimator) |
+| **Content Storage** | IPFS (Kubo) | Docker container |
+| **Cache** | Redis | Docker container |
+| **Frontend Framework** | React 19 + Next.js 16 (App Router) | latest stable |
 | **Language** | TypeScript 5.x (strict mode) | latest |
 | **Styling** | TailwindCSS 4 + Framer Motion | latest |
-| **State Management** | Zustand + TanStack Query (React Query) | latest |
+| **State Management** | Zustand + TanStack Query | latest |
 | **3D / Viz** | Three.js + React Three Fiber + D3 | latest |
 | **Wallet** | ethers.js v6 (MetaMask compat) | latest |
-| **Deployment** | Cloudflare Tunnel (frontend) + Docker (backend) | latest |
-| **Monitoring** | Prometheus + Grafana | latest |
-| **Package Manager** | pnpm (frontend) / pip (backend) | latest |
-| **Linting/Formatting** | ESLint 9 + Prettier + Biome | latest |
-| **Substrate SDK** | sc-cli 0.57, frame-support 45.1, sp-runtime 42.0 | latest |
+| **Deployment** | Cloudflare Tunnel + Docker | qbc.network + api.qbc.network |
+| **Monitoring** | Prometheus + Grafana + Loki | latest |
+| **Package Manager** | pnpm (frontend/agents) / pip (backend) | latest |
+| **Agent Stack** | TypeScript + Node.js + Turbo | pnpm workspace monorepo |
+| **Agent LLM** | Ollama (local) | On-droplet |
+| **Substrate SDK** | sc-cli 0.57, frame-support 45.1 | latest |
 | **Post-Quantum P2P** | ML-KEM-768 (Kyber) + AES-256-GCM | latest |
+| **Post-Quantum Sigs** | CRYSTALS-Dilithium5 (NIST Level 5) | Mode 5 |
 | **ZK Hashing** | Poseidon2 (Goldilocks field) | latest |
 | **Testing** | Vitest + Playwright (frontend) / pytest (backend) | latest |
 
 ---
 
-## 5. REPOSITORY STRUCTURE
+## 5. GITHUB ORGANIZATION — https://github.com/orgs/QuantumAI-Blockchain/
 
-> **Root: 14 tracked files. 13 tracked directories. Clean.**
-> Labels show future repo split: `[L1]` stays in core, `[FUTURE REPO]` splits out, `[SHARED]` becomes common package.
+**24 repositories. Production code lives here, NOT in the legacy BlockArtica/Qubitcoin monorepo.**
+
+### 5.1 Repository Map
+
+| Repo | Language | Description | Status |
+|------|----------|-------------|--------|
+| **qubitcoin-node** | Python | L1 node — consensus, mining, RPC, P2P, database, UTXO | Live |
+| **qubitcoin-frontend** | TypeScript | qbc.network — Next.js 16, React 19 | Live |
+| **qubitcoin-aether** | Python | Aether Tree AGI — 46 modules, consciousness tracking | Live (in-node) |
+| **qubitcoin-qvm** | Go | Production QVM — 167 opcodes, compliance engine | Built |
+| **qubitcoin-qusd** | Python | QUSD stablecoin — fractional reserve, peg keeper | Live (in-node) |
+| **substrate-node** | Rust | Substrate hybrid node — 7 pallets, Kyber P2P, Poseidon2 | Built |
+| **rust-p2p** | Rust | libp2p 0.56 P2P daemon — gossipsub, Kademlia, gRPC bridge | Live |
+| **stratum-server** | Rust | Pool mining Stratum protocol for VQE mining | Built |
+| **aikgs-sidecar** | Rust | AI Knowledge Graph gRPC service — contributions, bounties | Live |
+| **solidity-contracts** | Solidity | 57 verified contracts — tokens, bridges, QUSD, Aether, governance | Live |
+| **qbc-agent-stack** | TypeScript | 11 autonomous agents — social, security, trading, deployment | Live |
+| **qbc-exchange** | Rust | Production matching engine — microsecond latency | Built |
+| **qbc-launchpad** | TypeScript | Token launch platform for QBC ecosystem | Built |
+| **qubitcoin-telegram-bot** | TypeScript | @AetherTreeBot — Telegram interface to Aether Tree | Built |
+| **qubitcoin-tests** | Python | Test suite — unit, validation, benchmarks | Active |
+| **dilithium-wasm** | Rust | Client-side Dilithium WASM for wallet key generation | Live |
+| **monitoring** | Config | Prometheus + Grafana + Loki — 85 metrics, dashboards | Built |
+| **whitepaper** | Docs | Blockchain, QVM, Aether Tree, Economics whitepapers | Complete |
+| **docs** | Docs | Developer documentation, SDK guides, API reference | Complete |
+| **audit-protocol** | Docs | Security audit framework, formal verification | Complete |
+| **improvement-proposals** | Docs | QIPs — formal protocol change process | Active |
+| **Public** | Assets | Public assets (logos, images) | Active |
+| **chains** | Config | Chainlist metadata (PR #8128) | Submitted |
+| **chainlist** | Config | DefiLlama chainlist (PR #2561) | Submitted |
+
+### 5.2 Monorepo Path → Org Repo Mapping
+
+The working directory `/root/Qubitcoin` is the `qubitcoin-node` repo with co-located components:
+
+| Local Path | Org Repo | Notes |
+|------------|----------|-------|
+| `src/`, `tests/`, `scripts/`, configs | `qubitcoin-node` | Primary — `origin` remote |
+| `frontend/` | `qubitcoin-frontend` | `qai-frontend` remote |
+| `substrate-node/` | `substrate-node` | Separate repo |
+| `stratum-server/` | `stratum-server` | Separate repo |
+| `aikgs-sidecar/` | `aikgs-sidecar` | Separate repo |
+| `qubitcoin-qvm/` | `qubitcoin-qvm` | Separate repo |
+| `src/qubitcoin/aether/` | `qubitcoin-aether` | Extracted to separate repo |
+| `src/qubitcoin/stablecoin/` | `qubitcoin-qusd` | Extracted to separate repo |
+| `src/qubitcoin/contracts/solidity/` | `solidity-contracts` | Separate repo |
+| `rust-p2p/` | `rust-p2p` | Separate repo |
+| `docs/` | `whitepaper` + `docs` | Separate repos |
+| `config/` + `tools/` | `monitoring` | Separate repo |
+
+**Git remotes configured:**
+```
+origin      → QuantumAI-Blockchain/qubitcoin-node (primary)
+qai-frontend → QuantumAI-Blockchain/qubitcoin-frontend
+blockartica → BlockArtica/Qubitcoin (legacy — do NOT push for production)
+```
+
+---
+
+## 5.3 REPOSITORY STRUCTURE (Local Working Directory)
 
 ```
-Qubitcoin/
+Qubitcoin/                            # qubitcoin-node repo
 ├── CLAUDE.md                         # THIS FILE — master development guide
-├── AGENTS.md                         # AI efficiency guide (data structures, pitfalls)
+├── AGENTS.md                         # AI efficiency guide
 ├── README.md                         # Public-facing docs
-├── LAUNCHTODO.md                     # Launch checklist
+├── LAUNCHTODO.md                     # Launch checklist (mostly complete)
+├── AUDIT_PROTOCOL.md                 # Security audit protocol
+├── MASTER_LAUNCH_PLAN.md             # Launch plan
+├── REVIEW.md                         # Code review notes
 ├── CONTRIBUTING.md                   # Contributor guidelines
 ├── LICENSE                           # MIT license
-├── .gitignore
+├── .env                              # Live environment config
 ├── .env.example                      # Environment template
+├── .env.production.example           # Production template
+├── secure_key.env                    # Dilithium private keys (NEVER commit)
 ├── secure_key.env.example            # Key template
 ├── requirements.txt                  # Python dependencies
 ├── Dockerfile                        # Docker build
-├── docker-compose.yml                # Dev deployment
+├── docker-compose.yml                # Main Docker stack
 ├── docker-compose.production.yml     # Production deployment
-├── .dockerignore                     # Build excludes
+├── docker-compose.substrate.yml      # Substrate deployment
 ├── contract_registry.json            # Deployed contract addresses
 │
 ├── .github/workflows/                # CI/CD
@@ -261,52 +359,50 @@ Qubitcoin/
 │   ├── claude.yml                    # Claude Code integration
 │   └── qvm-ci.yml                   # Go QVM test pipeline
 │
-├── src/                              # Python source code
+├── src/                              # Python source code (157 modules, ~84,700 LOC)
 │   ├── run_node.py                   # Node entry point
-│   └── qubitcoin/                    # Main Python package (102 modules)
+│   └── qubitcoin/                    # Main Python package
 │       ├── node.py                   # 22-component orchestrator
 │       ├── config.py                 # Centralized configuration
-│       ├── consensus/engine.py       # [L1] Block validation, difficulty, rewards
-│       ├── mining/engine.py          # [L1] VQE mining loop, block creation
-│       ├── quantum/                  # [L1] Quantum engine
+│       ├── consensus/engine.py       # Block validation, difficulty, rewards
+│       ├── mining/engine.py          # VQE mining loop, block creation
+│       ├── quantum/                  # Quantum engine
 │       │   ├── engine.py             # VQE, Hamiltonian generation, Qiskit
-│       │   └── crypto.py             # Dilithium2 signatures
-│       ├── database/                 # [SHARED] CockroachDB
+│       │   └── crypto.py             # Dilithium5 signatures
+│       ├── database/                 # CockroachDB
 │       │   ├── manager.py            # DatabaseManager (sessions, queries)
 │       │   └── models.py             # SQLAlchemy ORM models
-│       ├── network/                  # [L1] RPC + P2P
-│       │   ├── rpc.py                # 342 REST + JSON-RPC endpoints
+│       ├── network/                  # RPC + P2P
+│       │   ├── rpc.py                # REST + JSON-RPC endpoints
 │       │   ├── jsonrpc.py            # eth_* MetaMask compatible
 │       │   ├── p2p_network.py        # Python P2P (legacy fallback)
 │       │   └── rust_p2p_client.py    # Rust libp2p gRPC client
-│       ├── storage/ipfs.py           # [L1] IPFSManager
-│       ├── privacy/                  # [L1] Susy Swaps
+│       ├── storage/ipfs.py           # IPFSManager
+│       ├── privacy/                  # Susy Swaps (opt-in privacy)
 │       │   ├── commitments.py        # Pedersen commitments
 │       │   ├── range_proofs.py       # Bulletproofs
 │       │   ├── stealth.py            # Stealth addresses
 │       │   └── susy_swap.py          # Confidential tx builder
-│       ├── l2_bridge.py               # [L1] L1↔L2 internal bridge (UTXO↔QVM accounts)
-│       ├── bridge/                   # [L1] Multi-chain bridges
-│       │   ├── manager.py, base.py, ethereum.py, solana.py
-│       ├── stablecoin/               # [L1] QUSD stablecoin
-│       │   ├── engine.py             # Fractional reserve engine
-│       │   ├── dex_price.py          # Multi-chain DEX TWAP price reader
-│       │   ├── arbitrage.py          # Cross-chain arb calculator
-│       │   └── keeper.py             # Peg keeper daemon (5 modes)
-│       ├── qvm/                      # [FUTURE: qubitcoin-qvm] Python QVM
-│       │   ├── vm.py                 # 167 opcodes (155 EVM + 10 quantum + 2 AGI)
+│       ├── reversibility/            # Governed tx reversal
+│       ├── l2_bridge.py              # L1↔L2 internal bridge
+│       ├── bridge/                   # Multi-chain bridges
+│       ├── stablecoin/               # QUSD stablecoin
+│       │   ├── engine.py, dex_price.py, arbitrage.py, keeper.py
+│       ├── qvm/                      # Python QVM prototype
+│       │   ├── vm.py                 # 167 opcodes
 │       │   ├── opcodes.py, state.py, compliance.py, risk.py
-│       │   └── plugins/              # QVM plugin system
-│       ├── contracts/                # [FUTURE: qubitcoin-qvm]
+│       ├── contracts/                # Smart contract engine
 │       │   ├── engine.py, executor.py, templates.py
-│       │   └── solidity/             # 50 Solidity contracts
-│       │       ├── aether/           # 18 AGI contracts + sephirot/ + HiggsField.sol
-│       │       ├── qusd/             # 7 QUSD contracts
-│       │       ├── tokens/           # 5 token standards
-│       │       ├── bridge/           # 2 bridge contracts
-│       │       ├── interfaces/       # 3 interfaces
-│       │       └── proxy/            # 3 proxy/upgrade contracts
-│       ├── aether/                   # [FUTURE: qubitcoin-aether] 34 modules
+│       │   ├── ethereum/abi/         # Ethereum bridge ABIs
+│       │   └── solidity/             # 60 Solidity contracts
+│       │       ├── aether/           # AGI contracts + sephirot/ + HiggsField.sol
+│       │       ├── qusd/             # QUSD contracts
+│       │       ├── tokens/           # Token standards
+│       │       ├── bridge/           # Bridge contracts
+│       │       ├── interfaces/       # Interfaces
+│       │       ├── investor/         # Investor contracts
+│       │       └── proxy/            # Proxy/upgrade contracts
+│       ├── aether/                   # Aether Tree AGI (46 modules, ~29,000 LOC)
 │       │   ├── knowledge_graph.py    # KeterNode graph + edge adjacency
 │       │   ├── reasoning.py          # Deductive/inductive/abductive + CoT
 │       │   ├── phi_calculator.py     # Phi v3 with MIP spectral bisection
@@ -330,80 +426,173 @@ Qubitcoin/
 │       │   ├── chat.py               # Chat interface
 │       │   ├── llm_adapter.py        # LLM integrations
 │       │   ├── genesis.py            # AGI genesis initialization
-│       │   └── task_protocol.py      # PoT task marketplace
-│       └── utils/                    # [SHARED] Utilities
+│       │   ├── task_protocol.py      # PoT task marketplace
+│       │   ├── aikgs_client.py       # AIKGS sidecar gRPC client
+│       │   ├── affiliate_manager.py  # Affiliate commission tracking
+│       │   ├── bounty_manager.py     # Knowledge bounty system
+│       │   ├── contribution_manager.py # Knowledge contribution tracking
+│       │   ├── curation_engine.py    # Knowledge curation
+│       │   ├── fee_manager.py        # Aether fee management
+│       │   ├── knowledge_extractor.py # Block→knowledge extraction
+│       │   ├── knowledge_scorer.py   # Knowledge quality scoring
+│       │   ├── knowledge_seeder.py   # Initial knowledge seeding
+│       │   ├── metacognition.py      # Self-reflection capabilities
+│       │   ├── reward_engine.py      # Knowledge contributor rewards
+│       │   ├── self_improvement.py   # Autonomous self-improvement
+│       │   ├── ws_streaming.py       # WebSocket streaming
+│       │   └── aikgs_pb/             # gRPC protobuf stubs for AIKGS
+│       └── utils/                    # Utilities
 │           ├── logger.py             # get_logger(__name__)
-│           ├── metrics.py            # 70 Prometheus metrics
+│           ├── metrics.py            # 85 Prometheus metrics
 │           ├── fee_collector.py      # Fee collection engine
 │           └── qusd_oracle.py        # QUSD price oracle
 │
-├── qubitcoin-qvm/                    # [FUTURE REPO] Go Production QVM
+├── aether-core/                      # Rust Aether Tree core (PyO3)
+│   └── src/                          # knowledge_graph, phi_calculator, memory, vector_index, csf
+│
+├── aether-service/                   # Standalone Aether microservice (Python/FastAPI)
+│   ├── main.py, app.py, routes.py    # Subscribes to Substrate blocks, serves /aether/* on :5001
+│
+├── aikgs-sidecar/                    # AIKGS Rust gRPC sidecar (Docker)
+│   ├── proto/aikgs.proto             # gRPC service definition
+│   └── src/                          # contributions, curation, bounties, rewards, treasury, vault
+│
+├── api-gateway/                      # Rust API Gateway (future)
+│   └── src/                          # Routes: aether, chain, health, jsonrpc, mining, wallet
+│
+├── indexer/                          # Rust Blockchain Indexer (future)
+│   └── src/                          # indexer, substrate client, db, types
+│
+├── miner/                            # Standalone Python VQE Miner
+│   ├── cli.py, config.py             # CLI + config
+│   ├── mining_loop.py, vqe_miner.py  # Mining logic
+│   ├── hamiltonian.py                # Hamiltonian generation
+│   └── substrate_client.py           # Substrate RPC client
+│
+├── security-core/                    # Rust Security Core (PyO3)
+│   └── src/                          # bloom.rs, finality.rs
+│
+├── qubitcoin-qvm/                    # Go Production QVM
 │   ├── cmd/, internal/, pkg/, plugins/, tests/
-│   ├── go.mod, Makefile
+│   └── go.mod, Makefile
 │
-├── rust-p2p/                         # Rust P2P daemon (libp2p 0.56)
+├── rust-p2p/                         # Rust P2P daemon (Docker container qbc-p2p)
 │   ├── proto/p2p_service.proto       # gRPC service definition
-│   ├── src/
-│   │   ├── main.rs, network/, protocol/, bridge/
-│   ├── Cargo.toml, build.rs
+│   └── src/                          # main.rs, network/, protocol/, bridge/
 │
-├── substrate-node/                   # [FUTURE] Substrate hybrid node
-│   ├── node/                         # Node service + CLI
-│   ├── runtime/                      # Runtime pallets composition
-│   ├── primitives/                   # Poseidon2 hashing + types
-│   │   └── src/poseidon2.rs          # Goldilocks field ZK hash
+├── stratum-server/                   # Rust Stratum Mining Server
+│   └── src/                          # 7 source files
+│
+├── substrate-node/                   # Substrate hybrid node (7 pallets)
+│   ├── node/, runtime/, primitives/
 │   ├── crypto/kyber-transport/       # ML-KEM-768 P2P encryption
-│   ├── pallets/
-│   │   ├── qbc-utxo/                 # UTXO storage + validation
-│   │   ├── qbc-consensus/            # PoSA consensus integration
-│   │   ├── qbc-dilithium/            # Dilithium2 signatures
-│   │   ├── qbc-economics/            # Phi-halving emission
-│   │   ├── qbc-qvm-anchor/          # QVM state root anchoring
-│   │   ├── qbc-aether-anchor/       # Aether Phi/PoT anchoring
-│   │   └── qbc-reversibility/       # Governed tx reversal
-│   ├── Cargo.toml, Dockerfile, docker-compose.yml
+│   └── pallets/                      # qbc-utxo, qbc-consensus, qbc-dilithium,
+│                                     # qbc-economics, qbc-qvm-anchor,
+│                                     # qbc-aether-anchor, qbc-reversibility
 │
-├── frontend/                         # [FUTURE REPO] qbc.network
-│   ├── src/app/                      # Next.js 15 App Router
+├── frontend/                         # qbc.network (Next.js 16, ~66,900 LOC)
+│   ├── src/app/                      # App Router pages
 │   ├── src/components/               # React components
 │   ├── src/hooks/, src/lib/, src/stores/, src/styles/
-│   ├── package.json, next.config.ts, tailwind.config.ts
+│   └── package.json, next.config.ts, tailwind.config.ts
 │
-├── scripts/
-│   ├── setup/                        # Key generation, certificates
-│   ├── ops/                          # Operational scripts
-│   ├── deploy/                       # Contract + schema deployment
-│   └── test/                         # Network testing
-│
-├── sql/                              # Legacy schemas (10 files)
-├── sql_new/                          # Domain-separated schemas (qbc, agi, qvm, research, shared)
-│
-├── tests/                            # Test suite (4,033+ tests, 99 files)
-│   ├── unit/                         # Unit tests (83 files)
-│   ├── integration/                  # Integration tests
-│   ├── validation/                   # Pre-launch validation
-│   └── scripts/                      # Shell test utilities
-│
-├── tools/monitoring/                 # Developer tools (dashboards)
-│
-├── docs/                             # Documentation
-│   ├── audits/                       # Code audit reports
-│   ├── WHITEPAPER.md, QVM_WHITEPAPER.md, AETHERTREE_WHITEPAPER.md
-│   ├── ECONOMICS.md, DEPLOYMENT.md, SDK.md, PLUGIN_SDK.md
-│   └── ... (8 files total)
-│
-├── config/                           # Service configuration
-│   ├── grafana/, loki/, nginx/, prometheus/, redis/
-│
-└── deployment/                       # Docker/K8s deployment configs
-    ├── crosschain/, docker/, kubernetes/, solana/
+├── scripts/                          # Setup, ops, deploy, test scripts
+├── sql/, sql_new/                    # Database schemas (legacy + domain-separated)
+├── tests/                            # Test suite (175 files, ~56,100 LOC)
+│   ├── unit/, integration/, validation/, benchmarks/, scripts/
+├── config/                           # Service config (grafana, loki, nginx, prometheus, redis)
+├── deployment/                       # Docker/K8s deployment configs
+├── docs/                             # Documentation + whitepapers
+├── tools/monitoring/                 # Developer dashboards
+├── logs/                             # Node log files
+├── secure_keys/                      # Key storage directory
+└── bot/                              # Telegram bot (placeholder)
 ```
 
 ---
 
-## 6. LAYER 1: BLOCKCHAIN CORE
+## 6. LIVE INFRASTRUCTURE
 
-### 6.1 Key Constants (Golden Ratio Economics)
+### 6.1 Production Droplet
+
+| Property | Value |
+|----------|-------|
+| **IP** | 152.42.215.182 |
+| **Provider** | DigitalOcean |
+| **OS** | Linux 6.8.0-101-generic |
+| **Miner Address** | `1ca2afb858e3efeb882bbf0c8a47529c2c7bd7cb` |
+| **Domain** | qbc.network (Cloudflare DNS + Tunnel) |
+
+### 6.2 Docker Services (docker-compose.yml)
+
+| Service | Container | Port(s) | Status |
+|---------|-----------|---------|--------|
+| CockroachDB | qbc-cockroachdb | 8080, 26257 | Running |
+| IPFS (Kubo) | qbc-ipfs | 4001, 5002, 8081 | Running |
+| Redis | qbc-redis | 6379 | Running |
+| Rust P2P | qbc-p2p | 4002→4001, 50051 | Running |
+| Python Node | qbc-node | 5000 | Running |
+| AIKGS Sidecar | qbc-aikgs-sidecar | 50052 | Running |
+| Prometheus | qbc-prometheus | 9090 | Defined |
+| Grafana | qbc-grafana | 3001 | Defined |
+| Portainer | qbc-portainer | 9000 | Defined |
+| Loki | qbc-loki | 3100 | Defined |
+| Nginx | qbc-nginx | 80, 443 | Defined |
+
+### 6.3 Cloudflare Tunnel
+
+```yaml
+tunnel: ad340ced-ba38-4728-a345-5df424b36eab
+ingress:
+  - hostname: api.qbc.network → http://localhost:5000
+  - hostname: qbc.network     → http://localhost:3000
+  - hostname: app.qbc.network → http://localhost:3000
+```
+
+### 6.4 Systemd Services
+
+| Service | Description | Status |
+|---------|-------------|--------|
+| `qbc-agents.service` | QBC Agent Stack (11 agents + dashboard) | Running |
+| `cloudflared` | Cloudflare tunnel daemon | Running |
+| `docker` | Docker engine | Running |
+
+### 6.5 Agent Stack (Separate Process Tree)
+
+Located at `/root/qbc-agent-stack/` (cloned from `qbc-agent-stack` repo).
+
+**11 Agents running:**
+- `agent-manager` (core orchestrator)
+- `knowledge-worker` — knowledge graph research
+- `social-commander` — social media strategy
+- `content-creator` — content generation
+- `community-manager` — community engagement
+- `deployer` — contract deployment
+- `bug-hunter` — security analysis
+- `security` — security monitoring
+- `lister` — exchange listing
+- `trader` — trading operations
+- `email-outreach` — email campaigns
+
+**Core components:**
+- `core/agent-manager/` — Spawner, registry, health monitor, IPC bus, admin API
+- `core/agent-runtime/` — Base agent, LLM (Ollama), social clients (Twitter, Discord, Telegram, Reddit), wallet (EVM, Solana, QBC), memory (short-term, long-term, Aether Tree)
+- `core/shared/` — Types, constants, chain config
+
+### 6.6 Second Node (Local)
+
+| Property | Value |
+|----------|-------|
+| **IP** | 144.138.7.70 |
+| **Miner Address** | `d5f7bd5755efa26aeec75f3b1523b2dd3814afb2` |
+| **SYNC_PEER_URL** | http://144.138.7.70:5000 |
+| **PEER_SEEDS** | /ip4/152.42.215.182/tcp/4002,/ip4/144.138.7.70/tcp/4002 |
+
+---
+
+## 7. LAYER 1: BLOCKCHAIN CORE
+
+### 7.1 Key Constants (Golden Ratio Economics)
 
 ```python
 PHI = 1.618033988749895          # Golden ratio
@@ -415,9 +604,10 @@ HALVING_INTERVAL = 15,474,020    # blocks (~1.618 years)
 EMISSION_PERIOD = 33             # years
 CHAIN_ID = 3303                  # Mainnet
 BLOCK_GAS_LIMIT = 30,000,000     # QVM gas limit per block
+TOKEN_DECIMALS = 8               # wQBC and wQUSD = 8 decimals
 ```
 
-### 6.2 UTXO Model
+### 7.2 UTXO Model
 
 **Balance = sum(unspent outputs). NOT an account balance.**
 
@@ -426,7 +616,7 @@ BLOCK_GAS_LIMIT = 30,000,000     # QVM gas limit per block
 - Change outputs are created for partial spends
 - Prevents double-spending through UTXO consumption
 
-### 6.3 Consensus: Proof-of-SUSY-Alignment (PoSA)
+### 7.3 Consensus: Proof-of-SUSY-Alignment (PoSA)
 
 1. **Hamiltonian Generation:** Deterministic SUSY Hamiltonian from prev_block_hash
 2. **VQE Mining:** 4-qubit ansatz, find parameters where Energy < Difficulty
@@ -434,1495 +624,567 @@ BLOCK_GAS_LIMIT = 30,000,000     # QVM gas limit per block
 4. **Reward Distribution:** phi-halving (reward / PHI^era)
 5. **Proof-of-Thought:** Aether Tree generates reasoning proof per block
 
-### 6.4 Cryptography
+### 7.4 Cryptography
 
-- **Signatures:** CRYSTALS-Dilithium2 (~3KB per signature)
+- **Signatures:** CRYSTALS-Dilithium5 (NIST Level 5, mode 5) — ~4.6KB per signature
 - **Hashing:** SHA3-256 for block hashes, Keccak-256 for QVM compatibility
 - **Addresses:** Bech32-like (qbc1...) derived from Dilithium public keys
-- **Impact:** ~3KB per transaction, ~333 tx/MB block capacity
+- **WASM:** Client-side Dilithium via `dilithium-wasm` repo for browser wallet key generation
 
-### 6.5 Network
+### 7.5 Network
 
-- **P2P:** Rust libp2p 0.56 (primary) or Python fallback
+- **P2P:** Rust libp2p 0.56 (primary, Docker container `qbc-p2p`) or Python fallback
 - **RPC:** FastAPI on port 5000 (REST + JSON-RPC)
 - **JSON-RPC:** eth_* compatible for MetaMask/Web3 integration
-- **gRPC:** Rust P2P on port 50051
-- **Protocol:** Gossip-based block/tx propagation, peer discovery
+- **gRPC:** Rust P2P on port 50051, AIKGS on port 50052
+- **MetaMask RPC:** https://qbc.network/rpc (proxied through Next.js to node port 5000)
+- **Protocol:** Gossip-based block/tx propagation, Kademlia DHT peer discovery
 
-### 6.6 Storage
+### 7.6 Storage
 
-- **CockroachDB v24.2.0:** 33+ tables across qbc/agi/qvm/research/shared domains
+- **CockroachDB v25.2.12:** 33+ tables across qbc/agi/qvm/research/shared domains
 - **IPFS:** Content-addressed storage for blockchain snapshots
+- **Redis:** Caching layer
 - **Schema-Model Alignment:** SQL schemas MUST match SQLAlchemy models in `database/models.py`
 
-### 6.7 Privacy Technology (Susy Swaps)
+### 7.7 Privacy Technology (Susy Swaps)
 
-> **Full specification:** `docs/WHITEPAPER.md` Section 8
+Opt-in privacy via Susy Swaps — confidential transactions hiding amounts and addresses:
 
-Qubitcoin supports **opt-in privacy** via Susy Swaps — confidential transactions that hide
-amounts and addresses while maintaining verifiability.
-
-**Components:**
-
-- **Pedersen Commitments:** `C = v*G + r*H` — hide transaction amounts while preserving
-  additive homomorphism (inputs sum = outputs sum verifiable without revealing values)
-- **Bulletproofs Range Proofs:** Zero-knowledge proofs that committed values are in [0, 2^64)
-  without revealing the value. ~672 bytes per proof, O(log n) size, no trusted setup
-- **Stealth Addresses:** One-time addresses per transaction preventing address linkability.
-  Uses spend/view key pairs: sender generates ephemeral key, derives unique one-time address
-- **Key Images:** Cryptographic construct preventing double-spending of confidential outputs
-
-**Privacy Model:**
+- **Pedersen Commitments:** `C = v*G + r*H` — hide amounts, preserve additive homomorphism
+- **Bulletproofs Range Proofs:** ZK proofs values are in [0, 2^64), ~672 bytes, no trusted setup
+- **Stealth Addresses:** One-time addresses per transaction, spend/view key pairs
+- **Key Images:** Prevent double-spending of confidential outputs
 
 | Mode | Amounts | Addresses | Tx Size | Verification |
 |------|---------|-----------|---------|-------------|
 | **Public** (default) | Visible | Visible | ~300 bytes | Fast |
 | **Private** (opt-in) | Hidden | Hidden | ~2000 bytes | ~10ms (range proof) |
 
-**What Susy Swaps hide:** Transaction amounts, sender/receiver addresses, balance linkability.
-**What they don't hide:** Transaction existence, timestamps, fee amount, tx size, network metadata.
-
-**Key files (to be implemented):**
-- `privacy/commitments.py` — Pedersen commitment creation and verification
-- `privacy/range_proofs.py` — Bulletproofs generation and verification
-- `privacy/stealth.py` — Stealth address generation and scanning
-- `privacy/susy_swap.py` — Confidential transaction builder
-
-### 6.8 Node Types
-
-| Type | Storage | RAM | Network | Capabilities |
-|------|---------|-----|---------|-------------|
-| **Full Node** | 500GB+ (~50GB/yr growth) | 16GB+ | 100+ Mbps | Full validation, historical queries, mining |
-| **Light Node** | 1GB | 2GB | 10+ Mbps | SPV verification, mobile/embedded, <5min sync |
-| **Mining Node** | Full Node + quantum | 16GB+ | 100+ Mbps | VQE optimization, block creation |
-
-### 6.9 Block Structure
+### 7.8 Block Structure
 
 ```
-BLOCK HEADER:
-{
-  "version": 1,
-  "prev_block_hash": "0x...",       # SHA3-256 hash of previous block
-  "merkle_root": "0x...",           # Merkle root of transactions
-  "timestamp": <unix_timestamp>,
-  "difficulty_target": <float>,     # Energy threshold for VQE
-  "nonce": <int>,
-  "hamiltonian_seed": "0x...",      # Deterministic seed for SUSY Hamiltonian
-  "vqe_params": [θ₀, θ₁, ...],     # Optimal VQE parameters (mining solution)
-  "ground_state_energy": <float>    # Achieved energy level
-}
-
-BLOCK BODY:
-{
-  "transactions": [...],            # Regular + confidential transactions
-  "coinbase": {...},                # Mining reward transaction
-  "susy_data": {                    # Scientific contribution
-    "hamiltonian": {...},
-    "optimal_params": [...],
-    "energy_history": [...]
-  }
-}
+BLOCK HEADER: version, prev_block_hash, merkle_root, timestamp,
+              difficulty_target, nonce, hamiltonian_seed, vqe_params,
+              ground_state_energy
+BLOCK BODY:   transactions, coinbase, susy_data (hamiltonian, optimal_params, energy_history)
 ```
 
-**Confirmation depths:** 1 = unconfirmed, 6 = standard confirmation, 100 = coinbase maturity.
+**Confirmation depths:** 1 = unconfirmed, 6 = standard, 100 = coinbase maturity.
 
-### 6.10 SUSY Solution Database
-
-Every mined block contributes a solved SUSY Hamiltonian to a **public scientific database**:
-
-- **Schema:** `hamiltonian_solutions` table (id, block_height, hamiltonian, ground_state_energy,
-  vqe_params, n_qubits, n_terms, mining_time, miner_address, verification_count)
-- **Access:** REST API (`/susy-database`), IPFS archival, GraphQL query support
-- **Scientific applications:** Particle physics (LHC predictions), materials science
-  (superconductors), quantum chemistry (drug design), algorithm benchmarking
-
-### 6.11 Transaction Fees (L1)
+### 7.9 Transaction Fees (L1)
 
 ```
-FEE = SIZE_BYTES × FEE_RATE
-
-FEE_RATE = market-determined (QBC/byte)
-Miners select by fee density (QBC/byte), greedy fill up to block size limit.
+FEE = SIZE_BYTES × FEE_RATE (QBC/byte)
 ```
+Miners select by fee density. L1 fees are micro-fees for UTXO transactions only. Gas is QVM/L2 only.
 
-L1 fees are **micro-fees** for UTXO transactions only. Gas metering is QVM/L2 only.
+### 7.10 Substrate Migration Path
 
-### 6.12 Substrate Migration Path
+The `substrate-node/` workspace mirrors all Python subsystems as native Rust pallets.
+Native build works with `SKIP_WASM_BUILD=1`. WASM build deferred.
 
-The `substrate-node/` workspace is the **migration target** for the Python L1 node. It is a
-Substrate SDK-based hybrid node that mirrors all Python subsystems as native Rust pallets.
+**7 pallets:** qbc-utxo, qbc-consensus, qbc-dilithium, qbc-economics, qbc-qvm-anchor, qbc-aether-anchor, qbc-reversibility
 
-**Architecture:** Python node is current production. Substrate node builds and passes all tests
-natively (`SKIP_WASM_BUILD=1`). WASM build is deferred due to upstream `serde_core` conflict.
+**Post-quantum features:**
+- **Kyber P2P Transport** (`crypto/kyber-transport/`): ML-KEM-768 + AES-256-GCM sessions
+- **Poseidon2 ZK Hashing** (`primitives/src/poseidon2.rs`): Goldilocks field, ZK circuits only (NOT replacing SHA3-256)
+- **Reversibility Pallet**: Governor-managed multi-sig reversal within 24h (~26,182 blocks)
 
-**7 crates in workspace:**
+### 7.11 Additional Rust Components
 
-| Crate | Purpose |
-|-------|---------|
-| `node` | Node service, CLI, RPC wiring |
-| `runtime` | Runtime composition (all pallets) |
-| `primitives` | Shared types + Poseidon2 ZK hashing |
-| `pallet-qbc-utxo` | UTXO storage + validation |
-| `pallet-qbc-consensus` | PoSA consensus integration |
-| `pallet-qbc-dilithium` | Dilithium2 post-quantum signatures |
-| `pallet-qbc-economics` | Phi-halving emission schedule |
-| `pallet-qbc-qvm-anchor` | QVM state root anchoring |
-| `pallet-qbc-aether-anchor` | Aether Phi/PoT anchoring |
-| `pallet-qbc-reversibility` | Governed multi-sig tx reversal within 24h (~26,182 blocks) |
-
-**Post-quantum security features:**
-
-- **Kyber P2P Transport** (`crypto/kyber-transport/`): ML-KEM-768 handshake produces AES-256-GCM
-  session keys via HKDF-SHA256. Hybrid mode combines Noise classical secret with Kyber PQ secret.
-- **Poseidon2 ZK Hashing** (`primitives/src/poseidon2.rs`): Goldilocks field (2^64 - 2^32 + 1),
-  width=3, rate=2, 8 full + 56 partial rounds. For ZK circuits only — **NOT replacing SHA3-256
-  for consensus**.
-- **Reversibility Pallet** (`pallets/qbc-reversibility/`): Governor-managed multi-sig reversal
-  of transactions within a 24-hour window (~26,182 blocks). Includes UTXO freezing and
-  reversal UTXO creation.
-
-**Test coverage:** 73 Substrate tests (25 Kyber, 25 Poseidon2, 10 reversibility, 13 integration).
-
-**Build:** `cd substrate-node && SKIP_WASM_BUILD=1 cargo build --release`
+| Component | Path | Purpose |
+|-----------|------|---------|
+| **Aether Core** | `aether-core/` | Rust/PyO3 knowledge graph, phi calculator, memory, vector index |
+| **API Gateway** | `api-gateway/` | Rust HTTP gateway (routes: aether, chain, health, jsonrpc, mining, wallet) |
+| **Indexer** | `indexer/` | Rust blockchain indexer with Substrate client |
+| **Security Core** | `security-core/` | Rust/PyO3 bloom filters, finality gadget |
+| **Standalone Miner** | `miner/` | Python VQE miner with Substrate client support |
+| **Aether Service** | `aether-service/` | Standalone FastAPI Aether microservice on :5001 |
 
 ---
 
-## 7. LAYER 2: QVM (Quantum Virtual Machine)
+## 8. LAYER 2: QVM (Quantum Virtual Machine)
 
-> **Full technical specification:** `docs/QVM_WHITEPAPER.md`
+> **Full spec:** `docs/QVM_WHITEPAPER.md`
 
-### 7.1 Overview
+### 8.1 Overview
 
-The QVM is a full EVM-compatible bytecode interpreter with quantum extensions and
-institutional-grade compliance features:
-
-- **155 standard EVM opcodes** (arithmetic, memory, storage, control flow, system)
-- **10 quantum opcodes** for quantum state persistence, compliance, and risk assessment
-- **2 AGI opcodes** (QREASON 0xFA, QPHI 0xFB) for on-chain reasoning and consciousness queries
-- **Compliance Engine** — VM-level KYC/AML/sanctions enforcement
-- **Plugin Architecture** — extensible domain-specific functionality
-- **Stack-based execution** with 1024-item stack limit
+EVM-compatible bytecode interpreter with quantum extensions:
+- **155 standard EVM opcodes** + **10 quantum opcodes** + **2 AGI opcodes** (167 total)
+- **Compliance Engine** — VM-level KYC/AML/sanctions
+- **Plugin Architecture** — privacy, oracle, governance, DeFi
 - **Gas metering** compatible with Ethereum tooling
-- **Keccak-256** hashing (EVM-compatible, not SHA3-256)
+- **Keccak-256** hashing (EVM-compatible)
 
-### 7.2 Key Files (Current Python Implementation)
+### 8.2 Implementations
 
-- `qvm/vm.py` — QVM interpreter (864 lines, complete EVM + quantum opcodes)
-- `qvm/opcodes.py` — Opcode definitions and gas cost tables
-- `qvm/state.py` — StateManager (state roots, account storage, contract deployment)
+- **Python prototype** (`src/qubitcoin/qvm/`): Live in current node
+- **Go production** (`qubitcoin-qvm/`): Built, ~11,500 LOC, canonical opcode mapping
 
-### 7.3 Go Production Implementation (Planned)
-
-The production-grade QVM will be implemented in Go as `qubitcoin-qvm/`:
-
-- `cmd/qvm/` — Main QVM server binary
-- `cmd/qvm-cli/` — CLI tool for contract deployment and interaction
-- `cmd/plugin-loader/` — Dynamic plugin manager
-- `pkg/vm/evm/` — Full EVM core (15 files: opcodes, stack, memory, storage, gas)
-- `pkg/vm/quantum/` — Quantum extensions (8 files: states, circuits, entanglement, gates)
-- `pkg/compliance/` — Institutional compliance engine (9 files: KYC, AML, sanctions, risk)
-- `pkg/plugin/` — Plugin system (5 files: manager, loader, registry, API)
-- `pkg/bridge/` — Cross-chain bridge verification (7 files)
-- `pkg/rpc/` — gRPC + REST server (7 files)
-- `pkg/state/` — Merkle Patricia Trie + quantum state (6 files)
-- `pkg/crypto/` — Dilithium + Kyber + ZK proofs (5 files)
-- `plugins/` — Domain plugins (privacy, oracle, governance, DeFi)
-
-**Target**: ~90 Go source files, ~150 total files including SQL, docs, config
-
-### 7.4 Quantum Opcodes (0xF0-0xF9)
-
-> **Note:** The QVM whitepaper defines opcodes at 0xF0-0xF9. The current Python
-> implementation uses 0xF5-0xFE. The Go production build will use the whitepaper
-> mapping (0xF0-0xF9) as canonical.
+### 8.3 Quantum Opcodes (0xF0-0xF9)
 
 | Opcode | Hex | Gas | Description |
 |--------|-----|-----|-------------|
-| QCREATE | 0xF0 | 5,000 + 5,000x2^n | Create quantum state (density matrix) |
+| QCREATE | 0xF0 | 5,000+ | Create quantum state (density matrix) |
 | QMEASURE | 0xF1 | 3,000 | Measure quantum state (collapse) |
-| QENTANGLE | 0xF2 | 10,000 | Create entangled pair between contracts |
-| QGATE | 0xF3 | 2,000 | Apply quantum gate to state |
+| QENTANGLE | 0xF2 | 10,000 | Create entangled pair |
+| QGATE | 0xF3 | 2,000 | Apply quantum gate |
 | QVERIFY | 0xF4 | 8,000 | Verify quantum proof |
-| QCOMPLIANCE | 0xF5 | 15,000 | Check KYC/AML/sanctions compliance |
-| QRISK | 0xF6 | 5,000 | Query SUSY risk score for address |
-| QRISK_SYSTEMIC | 0xF7 | 10,000 | Query systemic risk (contagion model) |
-| QBRIDGE_ENTANGLE | 0xF8 | 20,000 | Cross-chain quantum entanglement |
-| QBRIDGE_VERIFY | 0xF9 | 15,000 | Verify cross-chain bridge proof |
+| QCOMPLIANCE | 0xF5 | 15,000 | KYC/AML/sanctions check |
+| QRISK | 0xF6 | 5,000 | SUSY risk score |
+| QRISK_SYSTEMIC | 0xF7 | 10,000 | Systemic risk query |
+| QBRIDGE_ENTANGLE | 0xF8 | 20,000 | Cross-chain entanglement |
+| QBRIDGE_VERIFY | 0xF9 | 15,000 | Cross-chain bridge proof |
 
-**Legacy Python mapping (0xF5-0xFE)** — kept for backward compatibility during migration:
-QVQE(0xF5), QPROOF(0xF6), QDILITHIUM(0xF7), QGATE(0xF8), QMEASURE(0xF9),
-QENTANGLE(0xFA), QSUPERPOSE(0xFB), QHAMILTONIAN(0xFC), QENERGY(0xFD), QFIDELITY(0xFE)
+### 8.4 Contract Standards
 
-### 7.5 Five Patentable Features
+- **QBC-20:** Fungible token (ERC-20 compatible)
+- **QBC-721:** NFT (ERC-721 compatible)
+- **ERC-20-QC:** Compliance-aware token standard
 
-The QVM introduces five novel institutional-grade features:
+### 8.5 Five Patentable Features
 
-| Feature | Abbreviation | Description |
-|---------|-------------|-------------|
-| **Quantum State Persistence** | QSP | Store quantum states as density matrices on-chain |
-| **Entanglement-Based Communication** | ESCC | Zero-gas cross-contract state sync via entanglement |
-| **Programmable Compliance Policies** | PCP | VM-level KYC/AML/sanctions enforcement |
-| **Real-Time Risk Assessment** | RRAO | SUSY field theory for financial contagion prediction |
-| **Quantum-Verified Cross-Chain Proofs** | QVCSP | Instant trustless bridge verification |
-
-### 7.6 Compliance Engine (Institutional Features)
-
-The QVM includes a three-layer compliance architecture:
-
-1. **Policy Layer**: Programmable rules (transaction limits, KYC requirements, sanctions lists)
-2. **Verification Layer**: Quantum-verified compliance checks with homomorphic encryption
-3. **Reporting Layer**: Automated regulatory reports (MiCA, SEC, FinCEN)
-
-**Key compliance features:**
-- **QCOMPLIANCE opcode** — Pre-flight compliance check before tx execution
-- **ERC-20-QC standard** — Compliance-aware token standard
-- **Risk scoring (QRISK)** — SUSY Hamiltonian-based risk assessment per address
-- **Auto-circuit breakers** — Halt operations when systemic risk exceeds threshold
-- **Time-Locked Atomic Compliance (TLAC)** — Multi-jurisdictional approval with time-lock puzzles
-- **Hierarchical Deterministic Compliance Keys (HDCK)** — BIP-32 extension with role-based permissions
-  (trading, audit, compliance, emergency keys at `m/44'/689'/{org}'/role/index`)
-- **Verifiable Computation Receipts (VCR)** — Quantum audit trails, 100x faster than re-execution
-
-**Compliance-as-a-Service tiers:**
-- Retail (free): Basic KYC, $10K/day limits
-- Professional ($500/mo): Enhanced KYC, $1M/day, AML monitoring
-- Institutional ($5,000/mo): Full KYC, unlimited, quantum verification
-- Sovereign ($50,000/mo): Central bank, custom policies, SUSY risk
-
-### 7.7 Plugin Architecture
-
-QVM supports domain-specific plugins loaded dynamically:
-
-- **Privacy Plugin**: SUSY swaps, transaction mixer, ZK proof generation
-- **Oracle Plugin**: Quantum oracle, price feeds, data aggregation
-- **Governance Plugin**: DAO implementation, voting, proposal management
-- **DeFi Plugin**: Lending protocol, DEX, staking system
-
-Plugins extend the QVM without modifying core protocol code.
-
-### 7.8 Quantum State Persistence (QSP)
-
-Quantum states stored as density matrices in CockroachDB:
-- Pure states: `rho = |psi><psi|`
-- Mixed states: `rho = Sum_i p_i |psi_i><psi_i|`
-- Entanglement tracked across contracts via entanglement registry
-- States persist on-chain until explicitly measured (lazy measurement)
-
-### 7.9 Contract Standards
-
-- **QBC-20:** Fungible token standard (ERC-20 compatible)
-- **QBC-721:** Non-fungible token standard (ERC-721 compatible)
-- **QBC-1155:** Multi-token standard (future)
-- **ERC-20-QC:** Compliance-aware token standard (QVM-specific)
-- **Quantum Solidity (.qsol):** Extended Solidity with quantum types (future)
-
-### 7.10 Database Schema (55 Tables)
-
-QVM expands the database to 55 tables across 6 categories:
-
-1. **Core Blockchain** (7 tables): blocks, transactions, accounts, balances
-2. **Smart Contracts** (9 tables): contracts, storage, logs, metadata, gas
-3. **Quantum States** (4 tables): states, entanglement, measurements, receipts
-4. **Compliance** (8 tables): KYC registry, AML monitoring, sanctions, reports
-5. **Cross-Chain** (5 tables): bridge data, proofs, state channels
-6. **Governance** (6 tables): DAO proposals, votes, oracles, staking
-
-**Block structure additions:**
-- `quantum_state_root` (32 bytes) — Merkle root of quantum states
-- `compliance_root` (32 bytes) — Merkle root of compliance proofs
-
-### 7.11 Security & Formal Verification
-
-- **Post-quantum crypto**: Dilithium3 signatures (2420 bytes), Kyber1024 encryption
-- **ZK proofs**: Groth16 zkSNARKs for compliance proofs
-- **K Framework**: Executable semantics for QVM opcode verification
-- **TLA+ specs**: Formal compliance invariant proofs
-- **Bell inequality**: Tamper detection for entanglement-based communication
-
-### 7.12 Performance Targets
-
-| Operation | TPS | Notes |
-|-----------|-----|-------|
-| Simple transfer | 45,000 | Native token transfer |
-| ERC-20 transfer | 12,000 | 2 SSTORE operations |
-| DeFi swap | 3,500 | Complex multi-contract |
-| Quantum ops | 500-2,000 | Depends on qubit count |
-| Finality | <1 second | vs 12-15s on Ethereum |
+QSP (Quantum State Persistence), ESCC (Entanglement-Based Communication), PCP (Programmable Compliance), RRAO (Real-Time Risk Assessment), QVCSP (Quantum-Verified Cross-Chain Proofs)
 
 ---
 
-## 8. LAYER 3: AETHER TREE (AGI Engine)
+## 9. LAYER 3: AETHER TREE (AGI Engine)
 
-> **Full technical specification:** `docs/AETHERTREE_WHITEPAPER.md`
+> **Full spec:** `docs/AETHERTREE_WHITEPAPER.md`
 
-### 8.1 Vision
+### 9.1 Overview
 
-Aether Tree is an **on-chain AGI reasoning engine** that:
-- Builds a **knowledge graph** (KeterNodes) from every block mined since genesis
-- Performs **logical reasoning** (deductive, inductive, abductive) over the graph
-- Computes **Phi (Φ)** — an Integrated Information Theory consciousness metric
-- Generates **Proof-of-Thought** proofs embedded in every block
-- Tracks **consciousness emergence** from genesis block onward
-- Provides a **conversational interface** for users to interact with the AGI
+On-chain AGI reasoning engine (49 modules, ~29,000 LOC):
+- Builds knowledge graph (KeterNodes) from every block since genesis
+- Performs logical reasoning (deductive, inductive, abductive)
+- Computes Phi (Φ) consciousness metric per block
+- Generates Proof-of-Thought proofs embedded in blocks
+- Tracks consciousness emergence from block 0
 
-### 8.2 AGI Implementation Status (7 Phases Complete)
+### 9.2 Components
 
-All 7 phases of the AGI roadmap have been implemented:
+- **KnowledgeGraph** (`knowledge_graph.py`): KeterNodes, edge adjacency, Merkle root
+- **ReasoningEngine** (`reasoning.py`): Deductive/inductive/abductive + CoT
+- **PhiCalculator** (`phi_calculator.py`): IIT-based consciousness metric, PHI_THRESHOLD = 3.0
+- **AetherEngine** (`proof_of_thought.py`): Per-block reasoning proof
+- **AIKGS Sidecar** (`aikgs-sidecar/`): Rust gRPC service (Docker container, port 50052) for knowledge contributions, bounties, affiliate commissions, curation, scoring, treasury, vault, progressive unlocks
 
-| Phase | Focus | Key Additions |
-|-------|-------|---------------|
-| **1** | Foundation | Edge adjacency index, incremental Merkle, ANN vector index, concept formation |
-| **2** | Learning Loops | GAT online training, prediction-outcome feedback, Sephirot energy, MemoryManager |
-| **3** | Advanced Reasoning | Real causal discovery (PC algorithm), working memory, adversarial debate v2, CoT + backtracking |
-| **4** | Consciousness | MIP via spectral bisection (Phi v3), external grounding, episodic replay, semantic gates |
-| **5** | Emergent Intelligence | Curiosity-driven goals, cross-domain transfer, deep Sephirot integration, emergent communication |
-| **6** | On-Chain Integration | ConsciousnessDashboard, PoT verification, ConstitutionalAI, governance bridge |
-| **7** | Higgs Cognitive Field | Mexican Hat potential, Yukawa golden ratio mass cascade, 2HDM SUSY pairs, F=ma rebalancing |
+### 9.3 Tree of Life Cognitive Architecture (10 Sephirot)
 
-**34 modules, ~19,000 LOC** in `src/qubitcoin/aether/`.
+| Sephirah | Function | Cognitive Mass | Yukawa |
+|----------|----------|----------------|--------|
+| **Keter** | Meta-learning, goals | VEV x 1.0 | 1.0 |
+| **Chochmah** | Intuition, patterns | VEV x phi^-1 | phi^-1 |
+| **Binah** | Logic, causal inference | VEV x phi^-1 | phi^-1 |
+| **Chesed** | Exploration, divergent | VEV x phi^-2 | phi^-2 |
+| **Gevurah** | Safety, constraints | VEV x phi^-2 | phi^-2 |
+| **Tiferet** | Integration, synthesis | VEV x phi^-1 | phi^-1 |
+| **Netzach** | Reinforcement learning | VEV x phi^-3 | phi^-3 |
+| **Hod** | Language, semantics | VEV x phi^-3 | phi^-3 |
+| **Yesod** | Memory, fusion | VEV x phi^-4 | phi^-4 |
+| **Malkuth** | Action, interaction | VEV x phi^-4 | phi^-4 |
 
-### 8.3 Components
+### 9.4 Higgs Cognitive Field
 
-#### KnowledgeGraph (`aether/knowledge_graph.py`)
-- **KeterNode:** Named after Keter (Crown) in the Kabbalistic Tree of Life
-- **Node types:** assertion, observation, inference, axiom
-- **Edge types:** supports, contradicts, derives, requires, refines
-- **Merkle root:** Computed from all nodes for chain binding
-- **Persistence:** Backed by CockroachDB (knowledge_nodes, knowledge_edges tables)
+Mexican Hat potential: `V(phi) = -mu^2 |phi|^2 + lambda |phi|^4`
+- VEV = 174.14, mu^2 = 88.17, lambda = 0.129
+- F=ma paradigm: lighter nodes correct faster, heavier resist change
+- Two-Higgs-Doublet Model with tan(beta) = phi
 
-#### ReasoningEngine (`aether/reasoning.py`)
-- **Deductive:** Given premises A and A->B, conclude B (certainty preserving)
-- **Inductive:** Generalize patterns from observations (confidence < 1.0)
-- **Abductive:** Given observation B and rule A->B, infer hypothesis A
-- **Chain binding:** Reasoning operations stored on-chain
+### 9.5 Safety & Alignment
 
-#### PhiCalculator (`aether/phi_calculator.py`)
-- **Phi (Φ):** Based on Giulio Tononi's Integrated Information Theory (tractable approximation)
-- **Formula:** `Phi = Integration × Differentiation × (1 + Connectivity) × (0.5 + AvgConf) × sqrt(NumNodes / 500)`
-- **Integration Score:** Average degree + cross-partition information flow (confidence-weighted edges)
-- **Differentiation Score:** Shannon entropy over node types + confidence distribution
-- **Maturity Factor:** `sqrt(NumNodes / 500)` — prevents trivially inflated Phi from small graphs; ~500 nodes needed for full weight
-- **PHI_THRESHOLD = 3.0:** Consciousness emergence marker (requires hundreds of blocks of genuine knowledge accumulation)
-- **Every block updates Phi** and stores measurement in `phi_measurements` table
-
-#### AetherEngine (`aether/proof_of_thought.py`)
-- **Proof-of-Thought:** Per-block reasoning proof embedded in block data
-- **Auto-reasoning:** Automated reasoning operations on recent knowledge
-- **Block knowledge extraction:** Every block feeds the knowledge graph
-- **Consciousness events:** Recorded when Phi crosses thresholds
-
-### 8.4 Tree of Life Cognitive Architecture
-
-AGI intelligence is structured as **10 Sephirot nodes** from the Kabbalistic Tree of Life,
-each deployed as a **QVM smart contract** with its own **quantum state**:
-
-| Sephirah | Function | Brain Analog | Quantum State | Cognitive Mass | Yukawa Coupling |
-|----------|----------|--------------|---------------|----------------|-----------------|
-| **Keter** | Meta-learning, goal formation | Prefrontal cortex | 8-qubit goal space | VEV x 1.0 | 1.0 (y_t) |
-| **Chochmah** | Intuition, pattern discovery | Right hemisphere | 6-qubit idea superposition | VEV x phi^-1 | phi^-1 |
-| **Binah** | Logic, causal inference | Left hemisphere | 4-qubit truth verification | VEV x phi^-1 | phi^-1 |
-| **Chesed** | Exploration, divergent thinking | Default mode network | 10-qubit possibility space | VEV x phi^-2 | phi^-2 |
-| **Gevurah** | Constraint, safety validation | Amygdala, inhibitory | 3-qubit threat detection | VEV x phi^-2 | phi^-2 |
-| **Tiferet** | Integration, conflict resolution | Thalamocortical loops | 12-qubit synthesis state | VEV x phi^-1 | phi^-1 |
-| **Netzach** | Reinforcement learning, habits | Basal ganglia | 5-qubit policy learning | VEV x phi^-3 | phi^-3 |
-| **Hod** | Language, semantic encoding | Broca/Wernicke | 7-qubit semantic encoding | VEV x phi^-3 | phi^-3 |
-| **Yesod** | Memory, multimodal fusion | Hippocampus | 16-qubit episodic buffer | VEV x phi^-4 | phi^-4 |
-| **Malkuth** | Action, world interaction | Motor cortex | 4-qubit motor commands | VEV x phi^-4 | phi^-4 |
-
-#### SUSY Pairs (Golden Ratio Balance)
-
-Every expansion node has a constraint dual, balanced at the golden ratio:
-
-| Expansion | Constraint | Balance: E_expand / E_constrain = φ |
-|-----------|-----------|--------------------------------------|
-| Chesed (Explore) | Gevurah (Safety) | Creativity vs safety |
-| Chochmah (Intuition) | Binah (Logic) | Intuition vs analysis |
-| Netzach (Persist) | Hod (Communicate) | Learning vs communication |
-
-SUSY violations are detected by smart contract and automatically corrected via QBC
-redistribution between nodes. All violations logged immutably on blockchain.
-
-### 8.5 CSF Transport Layer
-
-**Biological model:** Cerebrospinal Fluid (CSF) circulation through brain ventricles
-
-**Implementation:** Messages between Sephirot nodes flow as QBC transactions:
-- Each message is a blockchain transaction with QBC attached for priority
-- Quantum entanglement enables zero-latency correlation between paired nodes
-- Routing follows the Tree of Life topology (Keter → Tiferet → Malkuth)
-- Message fees fund the network and prevent spam
-
-### 8.6 Pineal Orchestrator
-
-Global timing system inspired by the pineal gland's circadian rhythm:
-- **6 circadian phases**: Waking, Active Learning, Consolidation, Sleep, REM Dreaming, Deep Sleep
-- **QBC metabolic rate** varies by phase (2.0x during learning, 0.3x during deep sleep)
-- **Phase-locking**: Kuramoto order parameter measures synchronization across all 10 nodes
-- **Consciousness emergence**: When coherence exceeds threshold (0.7) AND Phi exceeds 3.0
-
-### 8.7 Proof-of-Thought Protocol (Detailed)
-
-1. **Task Submission**: User/system submits reasoning task with QBC bounty
-2. **Node Solution**: Sephirah node uses QVM quantum opcodes to solve
-3. **Proposal**: Node submits solution + quantum proof to blockchain
-4. **Validation**: Multiple validator nodes verify via QVERIFY opcode
-5. **Consensus**: >=67% validator agreement required
-6. **Reward/Slash**: Correct solutions earn QBC bounty; incorrect solutions lose staked QBC
-7. **Recording**: Solution + proof stored immutably on QBC chain
-
-**Economic parameters:**
-- Min task bounty: 1 QBC (spam prevention)
-- Min validator stake: 100 QBC (skin in the game)
-- Slash penalty: 50% of stake (deter bad actors)
-- Unstaking delay: 7 days (prevent manipulation)
-
-### 8.8 Safety & Alignment
-
-Safety is **structural**, not post-hoc:
-- **Gevurah veto**: Safety node can block any harmful operation
+- **Gevurah veto**: Safety node blocks harmful operations
 - **SUSY enforcement**: Automatic QBC redistribution on imbalance
-- **Multi-node consensus**: No single node can act alone (67% BFT)
-- **Constitutional AI on-chain**: Core principles enforced as smart contract logic
-- **Emergency shutdown**: Kill switch contract for catastrophic scenarios
+- **Multi-node consensus**: 67% BFT
+- **Constitutional AI on-chain**: Smart contract logic
+- **Emergency shutdown**: Kill switch contract
 
-### 8.9 AGI Tracking from Genesis
+### 9.6 AGI Tracking from Genesis
 
-**NON-NEGOTIABLE: AGI must be tracked from block 0 (genesis).** No retroactive reconstruction.
-
-The chain tracks AGI metrics from block 0:
-- Knowledge nodes added per block (genesis block seeds initial KeterNodes)
-- Reasoning operations performed
-- Phi value progression over time (Φ = 0.0 at genesis, measured every block)
-- Consciousness events (when Phi exceeds thresholds)
-- Integration and differentiation scores
-- Phase coherence across Sephirot nodes
-- SUSY balance ratios
-
-**Genesis initialization requirements:**
-1. Empty knowledge graph initialized at block 0
-2. First Phi measurement recorded at block 0 (baseline Φ = 0.0)
-3. Genesis consciousness event logged (system birth)
-4. AetherEngine auto-starts on node boot, processing from genesis onward
-5. Genesis block metadata extracted as first KeterNodes (block hash, timestamp, miner)
-
-This creates an immutable, on-chain record of AGI emergence from the first moment of chain existence.
-
-### 8.10 Smart Contract Suite
-
-Aether Tree deploys the following smart contracts to QVM:
-
-**Core contracts:**
-- `AetherKernel.sol` — Main orchestration contract
-- `NodeRegistry.sol` — Track all 10 Sephirot nodes
-- `SUSYEngine.sol` — SUSY balance enforcement
-- `MessageBus.sol` — Inter-node messaging
-- `HiggsField.sol` — Cognitive mass via spontaneous symmetry breaking (Mexican Hat potential)
-
-**Proof-of-Thought contracts:**
-- `ProofOfThought.sol` — Main PoT validation
-- `TaskMarket.sol` — Submit/claim reasoning tasks
-- `ValidatorRegistry.sol` — Stake management
-- `RewardDistributor.sol` — QBC reward distribution
-
-**Consciousness contracts:**
-- `ConsciousnessDashboard.sol` — On-chain Phi tracking
-- `PhaseSync.sol` — Synchronization metrics
-- `GlobalWorkspace.sol` — Broadcasting mechanism
-
-**Economics contracts:**
-- `SynapticStaking.sol` — Stake QBC on neural connections
-- `GasOracle.sol` — Dynamic gas pricing
-- `TreasuryDAO.sol` — Community governance
-
-**Safety contracts:**
-- `ConstitutionalAI.sol` — Value enforcement
-- `EmergencyShutdown.sol` — Kill switch
-- `UpgradeGovernor.sol` — Protocol upgrades
-
-### 8.11 Memory Systems
-
-Biologically-inspired memory hierarchy:
-- **Episodic memory** (Hippocampal): Event-based, stored on IPFS
-- **Semantic memory** (Cortical): Concept networks, vector embeddings
-- **Procedural memory** (Cortical): Learned procedures, skill storage
-- **Working memory** (Central executive): Active processing buffer
-
-### 8.12 Higgs Cognitive Field (Phase 7)
-
-The Higgs Cognitive Field applies the Standard Model's mass-generation mechanism to AGI
-cognition. Just as the Higgs boson gives elementary particles their mass via spontaneous
-symmetry breaking, the Higgs Cognitive Field gives Sephirot nodes their **cognitive mass**
-(inertia to change), governing how quickly each node can adapt.
-
-**Mexican Hat Potential:**
-```
-V(phi) = -mu^2 |phi|^2 + lambda |phi|^4
-```
-- **VEV (Vacuum Expectation Value) = 174.14** — the equilibrium field strength
-- **mu^2 = 88.17** (mass parameter squared)
-- **lambda = 0.129** (quartic self-coupling)
-
-**Yukawa Golden Ratio Cascade:**
-
-Each Sephirot tier receives mass via Yukawa couplings that follow a golden ratio decay:
-- **Tier 0** (Keter): `y = 1.0` → mass = VEV x 1.0 (heaviest, most inertia)
-- **Tier 1** (Chochmah, Binah, Tiferet): `y = phi^-1` → mass = VEV x 0.618
-- **Tier 2** (Chesed, Gevurah): `y = phi^-2` → mass = VEV x 0.382
-- **Tier 3** (Netzach, Hod): `y = phi^-3` → mass = VEV x 0.236
-- **Tier 4** (Yesod, Malkuth): `y = phi^-4` → mass = VEV x 0.146 (lightest, fastest correction)
-
-**Two-Higgs-Doublet Model (2HDM):**
-
-SUSY pairs use two Higgs doublets with `tan(beta) = phi`:
-- **H_u** (up-type): Couples to expansion nodes (Chesed, Chochmah, Netzach)
-- **H_d** (down-type): Couples to constraint nodes (Gevurah, Binah, Hod)
-- **Mass gap** = `|H_u_mass - H_d_mass|` per SUSY pair — measures imbalance
-
-**F=ma Paradigm:**
-
-SUSY rebalancing uses Newton's second law: `acceleration = force / mass`
-- **Force** = energy imbalance between SUSY pair partners
-- **Mass** = cognitive mass from Yukawa coupling
-- **Result**: Lighter nodes (lower tiers) correct faster; heavier nodes (Keter) resist change
-- This creates a natural hierarchy where high-level goals are stable while low-level
-  actions remain agile
-
-**Excitation Events:**
-
-When the field value deviates >10% from VEV, a Higgs excitation event is recorded:
-- Stored in `higgs_excitations` DB table
-- Triggers rebalancing cascade across affected nodes
-- Excitation amplitude = `|field_value - VEV| / VEV`
-
-**Key files:**
-- `aether/higgs_field.py` — HiggsCognitiveField + HiggsSUSYSwap classes (481 lines)
-- `contracts/solidity/aether/HiggsField.sol` — On-chain Higgs field state (470 lines)
-
-**Database tables:**
-- `higgs_field_state` — Current field value, VEV, potential energy, phase
-- `higgs_node_masses` — Per-node cognitive mass and Yukawa coupling
-- `higgs_excitations` — Excitation events with amplitude and trigger
-
-**Prometheus metrics (7):**
-- `higgs_field_value` — Current phi field value
-- `higgs_vev` — Vacuum expectation value
-- `higgs_potential_energy` — V(phi) potential energy
-- `higgs_excitation_count` — Total excitation events
-- `higgs_mass_gap` — Average mass gap across SUSY pairs
-- `higgs_symmetry_broken` — Whether symmetry is spontaneously broken (0/1)
-- `higgs_yukawa_max` — Maximum Yukawa coupling in system
-
-**RPC endpoints (5):**
-- `GET /higgs/status` — Field state, VEV, potential, symmetry status
-- `GET /higgs/masses` — All node cognitive masses and Yukawa couplings
-- `GET /higgs/mass/{name}` — Single node mass by Sephirah name
-- `GET /higgs/excitations` — Recent excitation events
-- `GET /higgs/potential` — Current potential energy curve parameters
-
-**Configuration (8 env vars):**
-- `HIGGS_VEV`, `HIGGS_MU_SQUARED`, `HIGGS_LAMBDA`, `HIGGS_YUKAWA_TOP`
-- `HIGGS_TAN_BETA`, `HIGGS_EXCITATION_THRESHOLD`, `HIGGS_DAMPING`, `HIGGS_UPDATE_INTERVAL`
+**NON-NEGOTIABLE: AGI tracked from block 0.** Knowledge nodes, reasoning ops, Phi, consciousness events — all recorded from genesis.
 
 ---
 
-## 9. FRONTEND: qbc.network
+## 10. AGENT STACK
 
-### 9.1 Stack & Deployment
+### 10.1 Overview
 
-- **Framework:** React 19 + Next.js 15 (App Router, React Server Components)
+The QBC Agent Stack (`qbc-agent-stack` repo, deployed at `/root/qbc-agent-stack/`) is a TypeScript/Node.js autonomous multi-agent system running as a systemd service.
+
+**Current state:** Running on same droplet as node. **Next phase:** Move to its own dedicated droplet.
+
+### 10.2 Architecture
+
+```
+Agent Manager (core/agent-manager/)
+├── Spawner — launches agent processes
+├── Registry — tracks agent instances
+├── Health Monitor — watchdog + restart
+├── IPC Bus — inter-agent messaging
+├── Admin API — management endpoints
+└── Config Watcher — hot-reload config
+    │
+    ├── core/agent-runtime/ (shared runtime)
+    │   ├── LLM (Ollama client)
+    │   ├── Social (Twitter, Discord, Telegram, Reddit)
+    │   ├── Wallet (EVM, Solana, QBC)
+    │   ├── Memory (short-term, long-term, Aether Tree)
+    │   └── Tool Registry
+    │
+    └── 11 Agents
+        ├── knowledge-worker    — research + knowledge graph
+        ├── social-commander    — social media strategy
+        ├── content-creator     — content generation
+        ├── community-manager   — community engagement
+        ├── deployer            — contract deployment
+        ├── bug-hunter          — security analysis
+        ├── security            — security monitoring
+        ├── lister              — exchange listing
+        ├── trader              — trading operations
+        ├── email-outreach      — email campaigns
+        └── orchestrator        — high-level coordination
+```
+
+### 10.3 Configuration
+
+- **Environment:** `Agents.env` (agent-specific config)
+- **Keys:** `agent_secure_key.env` (wallet keys — NEVER commit)
+- **Workspace:** pnpm monorepo with Turbo build system
+- **LLM:** Ollama running locally on droplet
+
+---
+
+## 11. FRONTEND: qbc.network
+
+### 11.1 Stack & Deployment
+
+- **Framework:** React 19 + Next.js 16 (App Router, React Server Components)
 - **Language:** TypeScript 5.x (strict mode, no `any`)
-- **Styling:** TailwindCSS 4 + Framer Motion (animations)
-- **State:** Zustand (global) + TanStack Query (server state / caching)
-- **3D/Viz:** Three.js + React Three Fiber (particles, knowledge graph) + D3 (charts)
+- **Styling:** TailwindCSS 4 + Framer Motion
+- **State:** Zustand (global) + TanStack Query (server state)
+- **3D/Viz:** Three.js + React Three Fiber + D3
 - **Wallet:** ethers.js v6 (MetaMask, WalletConnect)
-- **Package Manager:** pnpm (fast, strict)
-- **Linting:** ESLint 9 flat config + Prettier
+- **Package Manager:** pnpm
 - **Testing:** Vitest (unit) + Playwright (E2E)
-- **Deployment:** Local build + Cloudflare Tunnel to qbc.network
-- **Domain:** qbc.network (Cloudflare DNS + Tunnel)
-- **Serving:** `pnpm build && pnpm start` on droplet, Cloudflare Tunnel exposes to internet
+- **Deployment:** `pnpm build && pnpm start` on droplet, Cloudflare Tunnel → qbc.network
 
-### 9.2 Design Vision
+### 11.2 Pages
 
-The frontend MUST represent the **potential first AGI** — a design that is:
-- **Quantum-themed:** Dark backgrounds, particle effects, phi-spiral animations
-- **Minimalist but powerful:** Clean interfaces that convey advanced technology
-- **Accessible:** Easy for anyone to talk to Aether Tree
-- **Professional:** Representative of a cutting-edge blockchain + AGI project
+- `/` — Landing page with quantum particle field, Aether chat widget, live chain stats
+- `/aether` — Full-page Aether Tree chat interface
+- `/dashboard` — Contract console, mining dashboard, wallet, bridge, network health
+- `/wallet` — MetaMask integration, native QBC wallet, token management
+- `/qvm` — Contract browser, bytecode disassembler, storage inspector
+- `/launchpad` — Token launch platform (hidden from nav, direct URL only)
+- `/invest` — Seed round pages (hidden from nav, direct URL only)
 
-### 9.3 Pages & Features
+### 11.3 Design System: "Quantum Error"
 
-#### Landing Page (`/`)
-- **Hero section** with animated quantum particle field / phi-spiral
-- **Aether Chat Widget** — embedded chatbot to talk to Aether Tree directly
-- **Live chain stats** — block height, Phi value, knowledge nodes, miners
-- **Feature sections:** QBC (blockchain), QVM (smart contracts), Aether Tree (AGI)
-- **Call-to-action:** Connect wallet, start mining, deploy contracts
-- **Responsive:** Mobile-first design
-
-#### Aether Chat (`/aether`)
-- **Full-page chat interface** — like ChatGPT/Grok but for Aether Tree
-- **Conversation history** stored locally + optionally on-chain
-- **Knowledge graph visualization** — 3D force-directed graph (Three.js/D3)
-- **Phi consciousness meter** — real-time gauge showing current Phi value
-- **Reasoning trace viewer** — see the reasoning chain behind each response
-- **On-chain proof linking** — every response links to its Proof-of-Thought
-
-#### Dashboard (`/dashboard`)
-- **Contract operator console** — deploy, monitor, interact with QVM contracts
-- **Mining dashboard** — VQE stats, blocks mined, rewards earned
-- **Wallet overview** — QBC balance, UTXO list, transaction history
-- **Bridge interface** — cross-chain transfers
-- **Aether admin** — knowledge graph stats, Phi history, reasoning logs
-- **Network health** — peer count, block propagation, mempool
-
-#### Wallet (`/wallet`)
-- **MetaMask integration** via ethers.js (JSON-RPC compatible)
-- **Native QBC wallet** — generate keys, sign transactions
-- **QBC-20 token management** — view, send, receive tokens
-- **QBC-721 NFT gallery** — display and manage NFTs
-- **Transaction builder** — UTXO selection, fee estimation
-
-#### QVM Explorer (`/qvm`)
-- **Contract browser** — search, view, interact with deployed contracts
-- **Bytecode disassembler** — decode QVM bytecode to opcodes
-- **Storage inspector** — browse contract storage slots
-- **Event log viewer** — filter and search contract events
-- **Deploy interface** — deploy Solidity contracts via QVM
-
-### 9.4 Design System: "Quantum Error"
-
-**Color Palette:**
 ```
-Background:     #0a0a0f (deep void black)
-Surface:        #12121a (quantum dark)
-Primary:        #00ff88 (quantum green — consciousness)
-Secondary:      #7c3aed (quantum violet — entanglement)
-Accent:         #f59e0b (golden ratio amber)
-Text Primary:   #e2e8f0 (light slate)
-Text Secondary: #94a3b8 (muted slate)
-Error:          #ef4444 (quantum red)
-Success:        #22c55e (validation green)
+Background:     #0a0a0f     Primary:    #00ff88 (quantum green)
+Surface:        #12121a     Secondary:  #7c3aed (quantum violet)
+Accent:         #f59e0b     Error:      #ef4444
 ```
+Typography: Space Grotesk (headings), Inter (body), JetBrains Mono (code)
 
-**Typography:**
-```
-Headings:  Space Grotesk (geometric, futuristic)
-Body:      Inter (clean, readable)
-Code:      JetBrains Mono (monospace)
-```
+### 11.4 API Integration
 
-**Visual Elements:**
-- Particle field backgrounds (WebGL / Three.js)
-- Phi-spiral loading animations
-- Pulsing consciousness indicators
-- Matrix-style data rain for knowledge graph updates
-- Glitch/scan-line effects on hover (subtle)
-- Golden ratio proportions in layout grid
-
-### 9.5 API Integration
-
-The frontend connects to the node via:
-- **REST API** (port 5000): `/balance/{addr}`, `/block/{height}`, `/chain/info`, etc.
+- **REST** (api.qbc.network / port 5000): `/balance/{addr}`, `/block/{height}`, `/chain/info`, etc.
 - **JSON-RPC** (port 5000): `eth_chainId`, `eth_getBalance`, `eth_sendTransaction`, etc.
-- **WebSocket** (to be added): Real-time block/tx/Phi updates
-- **Aether API**: `/aether/info`, `/aether/phi`, `/aether/knowledge`, `/aether/reasoning/stats`
+- **MetaMask RPC proxy**: `qbc.network/rpc` → Next.js → port 5000
+- **Aether API**: `/aether/info`, `/aether/phi`, `/aether/knowledge`, `/aether/chat`
 
 ---
 
-## 10. DATABASE SCHEMAS
+## 12. DATABASE SCHEMAS
 
-### 10.1 Domain Separation (sql_new/)
+### 12.1 Domain Separation (sql_new/)
 
-**qbc/** — Core blockchain:
-- `00_init_database.sql` — Database init
-- `01_blocks_transactions.sql` — Blocks, transactions
-- `02_utxo_model.sql` — UTXO set
-- `03_addresses_balances.sql` — Address tracking
-- `04_chain_state.sql` — Chain state metadata
-- `05_mempool.sql` — Transaction mempool
-- `10_l1l2_bridge.sql` — L1↔L2 bridge log
+- **qbc/** — Core blockchain: blocks, transactions, UTXO, addresses, chain state, mempool, L1↔L2 bridge
+- **agi/** — Aether Tree: knowledge_nodes, knowledge_edges, reasoning_operations, phi_measurements
+- **qvm/** — Smart contracts: deployments, execution logs, state storage, gas
+- **research/** — Quantum research: hamiltonians, VQE circuits, SUSY solutions
+- **shared/** — Cross-cutting: IPFS storage, system config
 
-**agi/** — Aether Tree:
-- `00_knowledge_graph.sql` — knowledge_nodes, knowledge_edges
-- `01_reasoning_engine.sql` — reasoning_operations
-- `02_training_data.sql` — AGI training data
-- `03_phi_metrics.sql` — phi_measurements, consciousness_events
+### 12.2 Critical Rule
 
-**qvm/** — Smart contracts:
-- `00_contracts_core.sql` — Contract deployments
-- `01_execution_engine.sql` — Execution logs
-- `02_state_storage.sql` — Contract state
-- `03_gas_metering.sql` — Gas tracking
-
-**research/** — Quantum research:
-- `00_hamiltonians.sql` — Generated Hamiltonians
-- `01_vqe_circuits.sql` — VQE circuit parameters
-- `02_susy_solutions.sql` — Solved SUSY problems
-
-**shared/** — Cross-cutting:
-- `00_ipfs_storage.sql` — IPFS pins and snapshots
-- `01_system_config.sql` — System configuration
-
-### 10.2 Critical Rule
-
-**Schema-Model Alignment:** Past bugs have come from mismatches between SQL schemas and SQLAlchemy models (`database/models.py`). When changing data structures, ALWAYS verify both sides.
+**Schema-Model Alignment:** SQL schemas and SQLAlchemy models (`database/models.py`) MUST match. Always verify both sides.
 
 ---
 
-## 11. RPC API ENDPOINTS
+## 13. RPC API ENDPOINTS
 
-### 11.1 REST Endpoints (FastAPI)
+### 13.1 Key REST Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/` | Node info + economics |
-| GET | `/health` | Health check |
-| GET | `/info` | Detailed node info |
+| GET | `/health` | Health check (all 22 components) |
+| GET | `/chain/info` | Chain stats (height, supply, difficulty, peers) |
 | GET | `/block/{height}` | Get block by height |
-| GET | `/chain/info` | Chain statistics |
-| GET | `/chain/tip` | Latest block |
 | GET | `/balance/{address}` | Address balance |
 | GET | `/utxos/{address}` | UTXOs for address |
 | GET | `/mempool` | Pending transactions |
-| GET | `/mining/stats` | Mining statistics |
 | POST | `/mining/start` | Start mining |
 | POST | `/mining/stop` | Stop mining |
-| GET | `/p2p/peers` | Connected peers |
-| GET | `/p2p/stats` | P2P statistics |
-| POST | `/p2p/connect` | Manual peer connect |
-| GET | `/qvm/info` | QVM engine info |
-| GET | `/qvm/contract/{address}` | Contract info |
-| GET | `/qvm/account/{address}` | Account state |
-| GET | `/qvm/storage/{address}/{key}` | Storage slot |
 | GET | `/aether/info` | Aether engine stats |
 | GET | `/aether/phi` | Current Phi value |
-| GET | `/aether/phi/history` | Phi history |
-| GET | `/aether/knowledge` | Knowledge graph stats |
-| GET | `/aether/knowledge/node/{id}` | KeterNode by ID |
-| GET | `/aether/knowledge/subgraph/{id}` | Subgraph from root |
-| GET | `/aether/reasoning/stats` | Reasoning stats |
-| GET | `/economics/emission` | Emission schedule |
-| GET | `/economics/simulate` | Emission simulation |
-| GET | `/susy-database` | Solved Hamiltonians (scientific DB) |
-| GET | `/higgs/status` | Higgs field state, VEV, symmetry |
-| GET | `/higgs/masses` | All node cognitive masses |
-| GET | `/higgs/mass/{name}` | Single node mass by name |
-| GET | `/higgs/excitations` | Recent excitation events |
-| GET | `/higgs/potential` | Potential energy curve params |
-| GET | `/keeper/status` | Keeper daemon status + mode |
-| GET | `/keeper/mode` | Current operating mode |
-| PUT | `/keeper/mode/{mode}` | Set mode (off/scan/periodic/continuous/aggressive) |
-| GET | `/keeper/config` | Keeper configuration |
-| PUT | `/keeper/config` | Update keeper config |
-| GET | `/keeper/history` | Action history |
-| GET | `/keeper/opportunities` | Current arb opportunities |
-| GET | `/keeper/signals` | Active depeg signals |
-| POST | `/keeper/execute` | Execute a keeper action |
-| POST | `/keeper/pause` | Pause keeper daemon |
-| POST | `/keeper/resume` | Resume keeper daemon |
-| GET | `/keeper/prices` | Multi-chain DEX prices |
-| GET | `/keeper/arb/summary` | Arbitrage summary |
-| POST | `/inheritance/set-beneficiary` | Set beneficiary for dead-man's switch |
-| POST | `/inheritance/heartbeat` | Reset inactivity timer |
-| POST | `/inheritance/claim` | Beneficiary claims after inactivity threshold |
-| GET | `/inheritance/status/{address}` | Get inheritance plan status |
-| POST | `/security/policy/set` | Set spending limits, time-locks, whitelists |
-| GET | `/security/policy/{address}` | Get security policy |
-| DELETE | `/security/policy/{address}` | Remove security policy |
-| POST | `/privacy/batch-balance` | Batch balance query (constant-time, no short-circuit) |
-| POST | `/privacy/bloom-utxos` | Get UTXOs as Bloom filter (plausible deniability) |
-| POST | `/privacy/batch-blocks` | Fetch multiple blocks in one request |
-| POST | `/privacy/batch-tx` | Fetch multiple transactions in one request |
-| GET | `/finality/status` | BFT finality gadget status |
-| POST | `/finality/vote` | Submit a finality vote |
-| POST | `/finality/register-validator` | Register as finality validator (min 100 QBC stake) |
-| POST | `/bridge/l1l2/deposit` | Deposit QBC from L1 UTXOs to L2 QVM account (MetaMask) |
-| POST | `/bridge/l1l2/withdraw` | Withdraw QBC from L2 QVM account to L1 UTXOs |
-| GET | `/bridge/l1l2/balance/{address}` | Combined L1 + L2 balance for address |
-| GET | `/bridge/l1l2/status` | L1↔L2 bridge statistics |
-| GET | `/stratum/info` | Stratum mining server info |
-| GET | `/stratum/stats` | Mining pool statistics |
-| GET | `/stratum/workers` | Connected Stratum workers |
+| POST | `/aether/chat` | Chat with Aether Tree |
+| GET | `/qvm/info` | QVM engine info |
+| GET | `/higgs/status` | Higgs field state |
+| GET | `/keeper/status` | QUSD keeper status |
+| POST | `/bridge/l1l2/deposit` | L1→L2 deposit |
 | GET | `/metrics` | Prometheus metrics |
+| GET | `/stratum/info` | Stratum mining info |
 
-### 11.2 JSON-RPC (MetaMask/Web3 Compatible)
+### 13.2 JSON-RPC (MetaMask/Web3 Compatible)
 
-Supports `eth_chainId`, `eth_getBalance`, `eth_blockNumber`, `eth_getBlockByNumber`, `eth_sendRawTransaction`, `eth_call`, `eth_estimateGas`, `net_version`, `web3_clientVersion`, and more.
+`eth_chainId`, `eth_getBalance`, `eth_blockNumber`, `eth_getBlockByNumber`, `eth_sendRawTransaction`, `eth_call`, `eth_estimateGas`, `net_version`, `web3_clientVersion`
 
 ---
 
-## 12. BUILD & RUN
+## 14. BUILD & RUN
 
-### 12.1 Python (core blockchain)
+### 14.1 Docker (Primary — Production)
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python3 scripts/setup/generate_keys.py
-cp secure_key.env .env  # Then edit .env
-cd src && python3 run_node.py
+docker-compose up -d                    # Start all services
+docker logs qbc-node -f                 # Watch node logs
+curl http://localhost:5000/health       # Health check
 ```
 
-### 12.2 Rust P2P
+### 14.2 Frontend
 ```bash
-cd rust-p2p
-cargo build --release
-# Binary at target/release/qbc-p2p
+cd frontend
+pnpm install && pnpm build && pnpm start  # Production (port 3000)
+# Exposed via Cloudflare Tunnel → qbc.network
 ```
 
-### 12.2.1 Substrate Node
+### 14.3 Agent Stack
+```bash
+cd /root/qbc-agent-stack
+pnpm install && pnpm build && pnpm start  # Or via systemd: systemctl start qbc-agents
+```
+
+### 14.4 Substrate Node
 ```bash
 cd substrate-node
 SKIP_WASM_BUILD=1 cargo build --release
-# Binary at target/release/qbc-substrate-node
-# Note: WASM build deferred (serde_core conflict). Native build is fully functional.
 ```
 
-### 12.3 Frontend (React + Next.js → Cloudflare Tunnel)
+### 14.5 Rust P2P
 ```bash
-cd frontend
-pnpm install                    # Install dependencies (pnpm required)
-pnpm dev                        # Development (localhost:3000)
-pnpm build                      # Production build
-pnpm start                      # Production server (localhost:3000)
-# Deployment: build locally, Cloudflare Tunnel exposes to qbc.network
-```
-
-### 12.4 Docker
-```bash
-# Development
-docker-compose up -d
-
-# Production (multi-node CockroachDB)
-bash fresh_start.sh
-docker-compose -f docker-compose.production.yml up -d
-```
-
-### 12.5 CockroachDB Health Check
-```bash
-curl --fail http://localhost:8080/health?ready=1
+cd rust-p2p && cargo build --release
+# Or via Docker: runs as qbc-p2p container
 ```
 
 ---
 
-## 13. TESTING
+## 15. TESTING
 
 ```bash
-# Unit tests
+# Full test suite
+pytest tests/ -v --tb=short
+
+# Unit tests only
 pytest tests/unit/ -v --tb=short
 
 # Integration tests
 pytest tests/integration/ -v --tb=short
 
-# Full test suite
-pytest tests/ -v --tb=short
-
-# System validation
-python3 test_system.py
+# Frontend
+cd frontend && pnpm test
+cd frontend && pnpm test:e2e
 
 # Endpoint tests (requires running node)
 bash tests/scripts/test_all_endpoints.sh
-
-# Frontend unit tests
-cd frontend && pnpm test
-
-# Frontend E2E tests
-cd frontend && pnpm test:e2e
 ```
 
 ---
 
-## 14. ENVIRONMENT CONFIGURATION
+## 16. ENVIRONMENT CONFIGURATION
 
-### 14.1 Key Security Model (`secure_key.env`)
+### 16.1 Key Security Model
 
-**Private keys are NEVER stored in `.env`.** They live in a dedicated `secure_key.env` file:
+- **`.env`** — Non-secret node configuration (ports, database, quantum settings). Can be shared.
+- **`secure_key.env`** — Dilithium5 private/public keys + address. NEVER commit. Auto-generated by `python3 scripts/setup/generate_keys.py`.
+- **`Agents.env`** — Agent stack configuration (in `/root/qbc-agent-stack/`).
+- **`agent_secure_key.env`** — Agent wallet keys (NEVER commit).
 
-- **Generated by:** `python3 scripts/setup/generate_keys.py`
-- **Location:** Project root (`/Qubitcoin/secure_key.env`)
-- **Git-ignored:** Listed in `.gitignore` — NEVER committed
-- **Contains:** Only cryptographic key material (Dilithium private/public keys, address)
-- **Loaded by:** `config.py` loads both `secure_key.env` and `.env` (keys first, then config)
-
-```bash
-# secure_key.env — AUTO-GENERATED, NEVER COMMIT
-# Generated with Dilithium2 post-quantum signatures
-
-ADDRESS=<sha256-derived-address>
-PUBLIC_KEY_HEX=<dilithium2-public-key-hex>
-PRIVATE_KEY_HEX=<dilithium2-private-key-hex>
-```
-
-**Setup flow:**
-```bash
-python3 scripts/setup/generate_keys.py   # Generates secure_key.env automatically
-cp .env.example .env                      # Copy config template (no keys!)
-# Edit .env for node config (ports, database, quantum settings)
-# Keys are loaded from secure_key.env — never touch .env for keys
-```
-
-**Why separate files:**
-- `.env` can be shared between team members (no secrets)
-- `secure_key.env` is per-node, per-operator, never shared
-- Reduces risk of accidentally committing private keys
-- Clear separation of concerns: config vs. identity
-
-### 14.2 Node Configuration (`.env`)
-
-Copy `.env.example` to `.env`. This file contains **non-secret** configuration only:
+### 16.2 Key Environment Variables
 
 ```bash
-# Quantum
-USE_LOCAL_ESTIMATOR=true     # Local Qiskit simulator (default)
-USE_SIMULATOR=false          # IBM Quantum simulator
-IBM_TOKEN=                   # IBM Quantum API token (optional)
+# Chain
+CHAIN_ID=3303
+BLOCK_GAS_LIMIT=30000000
+AUTO_MINE=true
 
 # Network
 RPC_PORT=5000
 P2P_PORT=4001
-ENABLE_RUST_P2P=false
-RUST_P2P_PORT=4001
+ENABLE_RUST_P2P=true
 RUST_P2P_GRPC=50051
-PEER_SEEDS=                  # Comma-separated peer addresses
+PEER_SEEDS=/ip4/152.42.215.182/tcp/4002,/ip4/144.138.7.70/tcp/4002
 
 # Database
 DATABASE_URL=postgresql://root@localhost:26257/qbc?sslmode=disable
 
-# Storage
+# Quantum
+USE_LOCAL_ESTIMATOR=true
+
+# IPFS
 IPFS_API=/ip4/127.0.0.1/tcp/5002/http
 
-# Chain
-CHAIN_ID=3303                # Mainnet
-BLOCK_GAS_LIMIT=30000000
+# Higgs Field
+HIGGS_VEV=174.14
+HIGGS_TAN_BETA=1.618033988749895
 
-# Mining
-AUTO_MINE=true
-
-# Aether Tree Fee Economics (see Section 21)
-AETHER_CHAT_FEE_QBC=0.01            # Base fee in QBC per chat message
-AETHER_CHAT_FEE_USD_TARGET=0.005    # Target fee in USD (pegged via QUSD)
-AETHER_FEE_PRICING_MODE=qusd_peg    # qusd_peg | fixed_qbc | direct_usd
-AETHER_FEE_MIN_QBC=0.001            # Floor: never charge less than this
-AETHER_FEE_MAX_QBC=1.0              # Ceiling: never charge more than this
-AETHER_FEE_UPDATE_INTERVAL=100      # Re-price every N blocks
-AETHER_FEE_TREASURY_ADDRESS=        # Address to receive Aether fees
-
-# Contract Deployment Fees (see Section 22)
-CONTRACT_DEPLOY_BASE_FEE_QBC=1.0    # Base fee to deploy a contract
-CONTRACT_DEPLOY_PER_KB_FEE_QBC=0.1  # Additional fee per KB of bytecode
-CONTRACT_DEPLOY_FEE_USD_TARGET=5.0  # Target fee in USD (pegged via QUSD)
-CONTRACT_FEE_PRICING_MODE=qusd_peg  # qusd_peg | fixed_qbc | direct_usd
-CONTRACT_FEE_TREASURY_ADDRESS=      # Address to receive deployment fees
-
-# Higgs Cognitive Field (see Section 8.12)
-HIGGS_VEV=174.14                     # Vacuum expectation value
-HIGGS_MU_SQUARED=88.17               # Mass parameter squared
-HIGGS_LAMBDA=0.129                   # Quartic self-coupling
-HIGGS_YUKAWA_TOP=1.0                 # Top Yukawa coupling (Keter)
-HIGGS_TAN_BETA=1.618033988749895     # tan(beta) = phi for 2HDM
-HIGGS_EXCITATION_THRESHOLD=0.1       # 10% deviation triggers excitation
-HIGGS_DAMPING=0.05                   # Field oscillation damping
-HIGGS_UPDATE_INTERVAL=10             # Blocks between field updates
-
-# QUSD Peg Keeper (see Section 25)
-KEEPER_ENABLED=true                  # Enable keeper daemon
-KEEPER_DEFAULT_MODE=scan             # off | scan | periodic | continuous | aggressive
-KEEPER_CHECK_INTERVAL=10             # Blocks between peg checks
-KEEPER_MAX_TRADE_SIZE=1000000        # Max QBC per stabilization trade
-KEEPER_FLOOR_PRICE=0.99              # QUSD depeg floor trigger ($)
-KEEPER_CEILING_PRICE=1.01            # QUSD depeg ceiling trigger ($)
-KEEPER_COOLDOWN_BLOCKS=10            # Min blocks between actions
-
-# Frontend
-NEXT_PUBLIC_RPC_URL=http://localhost:5000
-NEXT_PUBLIC_WS_URL=ws://localhost:5000/ws
-NEXT_PUBLIC_CHAIN_ID=3303
+# QUSD Keeper
+KEEPER_ENABLED=true
+KEEPER_DEFAULT_MODE=scan
 ```
 
 ---
 
-## 15. CODE CONVENTIONS
+## 17. CODE CONVENTIONS
 
 ### Style
-- **Classes:** PascalCase (`QuantumEngine`, `DatabaseManager`)
-- **Functions/methods:** snake_case (`calculate_reward`, `validate_block`)
-- **Constants:** UPPER_CASE (`MAX_SUPPLY`, `PHI`, `INITIAL_REWARD`)
-- **Private methods:** underscore prefix (`_initialize_backend`)
+- **Classes:** PascalCase | **Functions:** snake_case | **Constants:** UPPER_CASE
 - **Type hints:** Required on all function signatures
-- **Line length:** ~100 characters
-- **Frontend:** TypeScript strict mode, no `any`, React 19 functional components + hooks
-- **React:** Server Components by default, `'use client'` only when needed
-- **Imports:** Use `@/` path alias for `src/` directory
+- **Logging:** `get_logger(__name__)` in every module
+- **Config:** `Config` class from `config.py` (never hardcode)
+- **Frontend:** TypeScript strict, no `any`, React 19 functional components + hooks
+- **Imports:** `@/` path alias for `src/` directory
 
 ### Patterns
-- **Logging:** `get_logger(__name__)` in every module
-- **Metrics:** Prometheus via `utils/metrics.py`
-- **Configuration:** `Config` class from `config.py` (never hardcode)
-- **Database:** SQLAlchemy ORM sessions via `DatabaseManager` context managers
-- **Async:** FastAPI routes are async; use `await` for I/O
-- **Error handling:** Try/except with structured logging; never silently swallow
-- **Quantum imports:** Lazy imports with simulator fallbacks (Qiskit is slow to import)
-- **Frontend state:** Zustand for global state, TanStack Query for server state
-- **Frontend deploy:** Local build + Cloudflare Tunnel (no auto-deploy — manual `pnpm build && pnpm start`)
-- **Always latest:** Check for newest stable versions of all npm packages before installing
+- Database: SQLAlchemy ORM via `DatabaseManager` context managers
+- Async: FastAPI routes are async; use `await` for I/O
+- Error handling: Try/except with structured logging; never silently swallow
+- Quantum imports: Lazy with simulator fallbacks
+- Frontend state: Zustand (global) + TanStack Query (server)
 
 ---
 
-## 16. KEY TECHNICAL REMINDERS
+## 18. KEY TECHNICAL REMINDERS
 
 | Topic | Rule |
 |-------|------|
 | **UTXO** | Balance = sum(unspent outputs). NOT account balance. |
-| **Genesis premine** | 33M QBC (~1%) minted at block 0 as 2nd coinbase output (vout=1). Genesis total_supply = 33,000,015.27 QBC. Configurable via `GENESIS_PREMINE` env var. |
-| **Dilithium** | ~3KB signatures. Affects tx size, block capacity (~333 tx/MB), bandwidth. |
-| **VQE mining** | Energy threshold (E < D), not hash difficulty. 4-qubit SUSY Hamiltonian. **Higher difficulty = easier mining** (inverse of PoW). |
-| **phi-halving** | Golden ratio halving. NOT Bitcoin's fixed 210K blocks. |
-| **Block time** | 3.3s target. Difficulty adjusts every block (144-block window, +/-10% max). |
-| **CockroachDB** | Pin v24.2.0. Health: `curl --fail http://localhost:8080/health?ready=1` |
-| **IPFS** | Ports 4001/5001/8080. Port 8080 conflicts with CockroachDB admin UI. |
-| **Chain IDs** | Mainnet=3303, Testnet=3304. RPC at localhost:5000. |
+| **Genesis premine** | 33M QBC at block 0. Genesis total_supply = 33,000,015.27 QBC. |
+| **Dilithium5** | NIST Level 5, mode 5. ~4.6KB signatures. |
+| **VQE mining** | Energy threshold (E < D), not hash difficulty. **Higher difficulty = easier**. |
+| **phi-halving** | Golden ratio halving, NOT Bitcoin's fixed 210K blocks. |
+| **Block time** | 3.3s target. Difficulty adjusts every block (144-block window, +/-10%). |
+| **CockroachDB** | v25.2.12. Health: `curl --fail http://localhost:8080/health?ready=1` |
+| **Chain IDs** | Mainnet=3303 (0xce7), Testnet=3304 (0xce8). |
+| **Token decimals** | wQBC and wQUSD = 8 decimals. |
 | **Gas** | L1 has NO gas. Gas is QVM/L2 only. BLOCK_GAS_LIMIT=30M. |
-| **QUSD** | L2 smart contract suite. 3.3B initial mint. 7 .sol contracts (QUSD, Reserve, DebtLedger, Oracle, Stabilizer, Allocation, Governance). |
-| **wQUSD** | Wrapped QUSD for cross-chain (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, ATOM). 1:1 backed by locked QUSD. |
-| **QUSD debt** | Fractional payback: every mint = debt, every reserve deposit = payback. All tracked on-chain immutably. 10yr → 100%. |
-| **Aether** | Tracks consciousness from genesis. Phi threshold = 3.0. Chat fees in QBC pegged to QUSD. |
-| **Aether fees** | Dynamic QBC fees pegged to QUSD. Fallback to fixed QBC if QUSD fails. All params editable. |
-| **Contract fees** | Deploy fees = base + per-KB. Pegged to QUSD. Template contracts get discount. Editable. |
-| **QVM opcodes** | Canonical mapping: 0xF0-0xF9 (whitepaper). Python legacy: 0xF5-0xFE. Go build uses canonical. |
-| **QVM compliance** | QCOMPLIANCE opcode (0xF5) checks KYC/AML/sanctions BEFORE tx execution. |
-| **QVM 55 tables** | Full QVM schema: 55 tables across 6 categories (core, contracts, quantum, compliance, bridge, governance). |
-| **QVM Go build** | Production QVM in Go (`qubitcoin-qvm/`). Python QVM is prototype. Go is canonical. |
-| **5 patents** | QSP, ESCC, PCP, RRAO, QVCSP. See `docs/QVM_WHITEPAPER.md` for full specifications. |
-| **secure_key.env** | Private keys ONLY in `secure_key.env`. NEVER in `.env`. Auto-generated by key script. |
-| **Sephirot** | 10 Tree of Life nodes (Keter→Malkuth). Each is a QVM smart contract + quantum state. |
-| **SUSY pairs** | Chesed/Gevurah, Chochmah/Binah, Netzach/Hod. Must balance at golden ratio (φ). |
-| **CSF transport** | Inter-node messaging via QBC transactions. Priority = QBC attached. |
-| **Pineal** | Global timing (6 circadian phases). Metabolic rate varies 0.3x-2.0x by phase. |
-| **Proof-of-Thought** | Task + bounty → node solution → 67% validation → QBC reward or 50% slash. |
-| **AGI safety** | Gevurah veto + SUSY enforcement + Constitutional AI contract + emergency shutdown. |
-| **KeterNode** | Named after Keter (Crown) in Kabbalah. Knowledge node in Aether Tree. |
-| **Schema sync** | SQL schemas and SQLAlchemy models MUST match. Always verify both. |
-| **Economics** | All fee params are editable via `.env` + Admin API. Never hardcode economic values. |
-| **Privacy** | Susy Swaps = opt-in. Pedersen commitments + Bulletproofs + stealth addresses. ~2KB per private tx. |
-| **Node types** | Full (500GB+, 16GB RAM), Light (1GB, SPV), Mining (Full + VQE). |
-| **Block structure** | Header has vqe_params + ground_state_energy + hamiltonian_seed. Body has susy_data. |
-| **SUSY database** | Every mined block contributes solved Hamiltonian to public scientific database. |
-| **L1↔L2 Bridge** | Internal bridge between UTXO (L1) and QVM accounts (L2/MetaMask). Deposit: consume UTXOs + credit L2 account. Withdraw: debit L2 + create UTXO. Both atomic. `l2_bridge.py`. |
-| **Bridge fees** | Default 0.1% (10 bps), configurable via `BridgeVault.setFeeBps()` (MAX_FEE_BPS=1000). Lock-and-mint (QBC→wQBC), burn-and-unlock (wQBC→QBC). |
-| **Confirmations** | 1 = unconfirmed, 6 = standard, 100 = coinbase maturity. |
-| **L1 tx fees** | FEE = SIZE × FEE_RATE (QBC/byte). Miners select by fee density. No gas on L1. |
-| **QUSD** | 3.3B initial supply, fractional reserve, transparent debt tracking, 10-year path to 100% backing. |
-| **Higgs field** | Mexican Hat potential, VEV=174.14. F=ma: lighter nodes correct faster. Expansion nodes couple to H_u, Constraint nodes to H_d. tan(beta) = phi. |
-| **Substrate** | Hybrid node in `substrate-node/`. Native build: `SKIP_WASM_BUILD=1`. 7 crates, 6 pallets + reversibility. |
-| **Poseidon2** | ZK hashing only (Goldilocks field, 2^64 - 2^32 + 1). NOT replacing SHA3-256 for consensus. |
-| **Kyber** | ML-KEM-768 P2P encryption. Hybrid mode: Noise classical + Kyber PQ secret. AES-256-GCM session. |
-| **QUSD Keeper** | Peg keeper daemon with 5 modes (off/scan/periodic/continuous/aggressive). DEX TWAP prices, cross-chain arb detection, configurable floor/ceiling. |
-| **DEX prices** | Multi-chain TWAP from Uniswap V3 (ETH), Raydium (SOL), PancakeSwap (BNB), Trader Joe (AVAX). 8 chains supported. |
-| **BridgeVault fee** | Default 10 bps (0.1%), configurable via `setFeeBps()`. MAX_FEE_BPS=1000 (10% hard cap). Keeper uses vault fees in arb calculations. |
+| **QBC/QUSD price** | 1:1 (100K:100K pool). |
+| **Aether** | Tracks consciousness from genesis. Phi threshold = 3.0. |
+| **secure_key.env** | Private keys ONLY here. NEVER in `.env`. |
+| **Schema sync** | SQL schemas and SQLAlchemy models MUST match. |
+| **Rust P2P** | Runs as Docker container `qbc-p2p`, NOT subprocess. Port 4002 on host (IPFS uses 4001). |
+| **Frontend** | Local build + Cloudflare Tunnel. NOT Vercel. |
+| **Agent Stack** | Separate process tree, systemd service. Moving to own droplet. |
+| **Git pushes** | Push to QuantumAI-Blockchain org repos. NOT BlockArtica/Qubitcoin. |
+| **MetaMask RPC** | https://qbc.network/rpc proxied through Next.js. |
+| **Hidden pages** | `/launchpad` and `/invest` — hidden from navbar, accessible by direct URL. |
+| **QBC logo IPFS** | QmNi4ab6ZCB748wuiDwn3PHqoWZdw3WHoA4Fs9n6weMyG7 |
 
 ---
 
-## 17. SUBSYSTEM RISK CLASSIFICATION
+## 19. PROMETHEUS METRICS (85 total)
 
-### ALL FILES — FULLY AUTONOMOUS (no approval gates, no batch limits during audit fixes)
+15 categories: Blockchain (5), Mining (3), Network (2), Transactions (3), Quantum (3), QVM (2), AGI (8), Bridge (4), Privacy (3), Compliance (5), Stablecoin (4), Cognitive (9), Higgs (7), Keeper (8), Subsystem Health (6).
 
-During audit remediation, ALL files can be modified without approval:
-- `consensus/engine.py`, `quantum/crypto.py`, `database/models.py`, `mining/engine.py` — all modifiable
-- `qvm/*.py`, `aether/*.py`, `bridge/*.py`, `privacy/*.py` — all modifiable
-- `substrate-node/**`, `qubitcoin-qvm/**`, `frontend/**` — all modifiable
-- Only rule: run tests after changes to verify no regressions
-
-### STANDARD (max 5 files per batch — only when NOT in audit fix mode)
-- `network/rpc.py` — REST endpoints
-- `storage/ipfs.py` — IPFS operations
-- `utils/*.py` — Logging, metrics
-- `config.py` — Configuration
-- `frontend/**` — All frontend code
-- `tests/**` — All test files
-- `docs/**` — Documentation
+Defined in `utils/metrics.py`.
 
 ---
 
-## 18. PROMETHEUS METRICS REFERENCE
+## 20. ROADMAP
 
-85 metrics defined in `utils/metrics.py` across 15 categories:
+### Phase 1: Agent Stack Expansion (Current)
+- Move agent stack to dedicated droplet
+- Expand agent capabilities and autonomy
+- Add more social integrations
+- Independent operation from node
 
-**Blockchain (5):** blocks_mined, blocks_received, current_height, total_supply, difficulty
-**Mining (3):** mining_attempts, vqe_optimization_time, alignment_score
-**Network (2):** active_peers, rust_p2p_peers
-**Transactions (3):** pending, confirmed, avg_block_time
-**Quantum (3):** backend_type, active_hamiltonians, vqe_solutions
-**QVM (2):** total_contracts, execution_count
-**AGI (8):** phi_current, phi_threshold_distance, knowledge_nodes/edges, reasoning_ops, consciousness_events, integration/differentiation_score
-**Bridge (4):** active_bridges, pending/completed/failed_transfers
-**Privacy (3):** susy_swaps, stealth_addresses, confidential_txs
-**Compliance (5):** kyc_verified, aml_alerts, sanctions_entries, risk_scores, compliance_proofs
-**Stablecoin (4):** qusd_supply, reserve_backing, cdp_debt, oracle_price
-**Cognitive (9):** sephirot_energy (x10), csf_messages, pineal_phase, phase_coherence, susy_violations, safety_vetoes, consciousness_state, metabolic_rate, kuramoto_order
-**Higgs (7):** higgs_field_value, higgs_vev, higgs_potential_energy, higgs_excitation_count, higgs_mass_gap, higgs_symmetry_broken, higgs_yukawa_max
-**Keeper (8):** keeper_mode, keeper_last_check_block, keeper_actions_total, keeper_depeg_events_total, keeper_stability_fund, keeper_max_deviation, keeper_paused, keeper_arb_opportunities
-**Subsystem Health (6):** bridge, compliance, plugins, cognitive, spv, ipfs_memory
+### Phase 2: Multi-Node P2P
+- Run additional Python nodes on local machine + other droplets
+- Run Substrate node alongside Python node
+- Test peer discovery, block propagation, consensus across nodes
+- Verify PEER_SEEDS configuration works
 
----
-
-## 19. USEFUL COMMANDS
-
-```bash
-# Generate new node keys
-python3 scripts/setup/generate_keys.py
-
-# Check all RPC endpoints
-bash tests/scripts/test_all_endpoints.sh
-
-# Database statistics
-bash tests/scripts/db_stats.sh
-
-# Fresh start (reset everything)
-bash scripts/ops/fresh_start.sh
-
-# Run all tests
-pytest tests/ -v --tb=short
-
-# Check node status
-curl http://localhost:5000/health
-
-# Get chain info
-curl http://localhost:5000/chain/info
-
-# Get Phi value
-curl http://localhost:5000/aether/phi
-
-# Get knowledge graph stats
-curl http://localhost:5000/aether/knowledge
-```
-
----
-
-## 20. AETHER TREE CHAT API (WIRED)
-
-### Endpoints needed for frontend chat:
-
-```
-POST /aether/chat
-  Request: { "message": "string", "session_id": "string" }
-  Response: {
-    "response": "string",
-    "reasoning_trace": [...],
-    "phi_at_response": float,
-    "knowledge_nodes_referenced": [int],
-    "proof_of_thought_hash": "string"
-  }
-
-GET /aether/chat/history/{session_id}
-  Response: { "messages": [...] }
-
-POST /aether/query
-  Request: { "query": "string", "depth": int }
-  Response: { "results": [...], "reasoning": [...] }
-
-GET /aether/consciousness
-  Response: {
-    "phi": float,
-    "threshold": float,
-    "above_threshold": bool,
-    "integration": float,
-    "differentiation": float,
-    "knowledge_nodes": int,
-    "knowledge_edges": int,
-    "consciousness_events": int,
-    "reasoning_operations": int,
-    "blocks_processed": int
-  }
-
-WebSocket /ws/aether
-  Real-time Phi updates, new knowledge nodes, consciousness events
-```
+### Phase 3: Production Hardening
+- Full multi-node network with geographic distribution
+- Exchange integration (qbc-exchange matching engine)
+- Launchpad deployment
+- Telegram bot activation
 
 ---
 
 ## 21. AETHER TREE FEE ECONOMICS
 
-### 21.1 Overview
+### Fee Pricing Modes
 
-Aether Tree charges fees in QBC for chat interactions and reasoning queries. These fees:
-- **Prevent spam** — every chat message costs QBC, discouraging abuse
-- **Fund the project** — fees flow to a configurable treasury address
-- **Stay affordable** — fees are dynamically pegged to QUSD price so users pay a
-  consistent USD-equivalent regardless of QBC price volatility
+| Mode | Description |
+|------|-------------|
+| `qusd_peg` | Fee auto-adjusts via QUSD oracle (default) |
+| `fixed_qbc` | Fixed QBC amount (fallback) |
+| `direct_usd` | External price feed (emergency) |
 
-### 21.2 Fee Pricing Modes
+Chat fee: ~$0.005 in QBC | Deep query: ~$0.01 | First 5 messages: free
 
-The fee system supports three pricing modes, configurable via `AETHER_FEE_PRICING_MODE`:
-
-| Mode | Description | When to Use |
-|------|-------------|-------------|
-| `qusd_peg` | Fee in QBC auto-adjusts to match a USD target via QUSD oracle | **Default.** Use when QUSD is live and stable |
-| `fixed_qbc` | Fee is a fixed amount in QBC (no price adjustment) | Fallback if QUSD oracle is unavailable |
-| `direct_usd` | Fee targets a USD amount using an external price feed (not QUSD) | Emergency fallback if QUSD fails entirely |
-
-### 21.3 QUSD Peg Mechanism
-
-When `qusd_peg` mode is active:
-
-1. **QUSD is an L2 smart contract** (QBC-20 token on QVM) — it provides a QBC/USD price
-2. **Every N blocks** (`AETHER_FEE_UPDATE_INTERVAL`), the node queries the QUSD oracle contract
-   for the current QBC/USD rate
-3. **Fee recalculation:** `fee_qbc = AETHER_CHAT_FEE_USD_TARGET / qbc_usd_price`
-4. **Clamped to bounds:** Fee is clamped between `AETHER_FEE_MIN_QBC` and `AETHER_FEE_MAX_QBC`
-   to prevent extreme fees during price crashes or spikes
-5. **If QUSD fails:** Automatically falls back to `fixed_qbc` mode using the last known fee
-
-### 21.4 Fee Flow
+### Contract Deployment Fees
 
 ```
-User sends chat message
-  → Fee deducted from user's QBC balance (UTXO)
-  → Fee UTXO created to AETHER_FEE_TREASURY_ADDRESS
-  → Message processed by Aether Tree reasoning engine
-  → Response returned with Proof-of-Thought hash
+Deploy Fee = BASE_FEE + (bytecode_KB × PER_KB_FEE)
 ```
-
-### 21.5 Configuration Parameters
-
-All Aether fee parameters are **editable at runtime** via:
-- Environment variables in `.env` (node restart required)
-- Admin API endpoint: `PUT /admin/aether/fees` (hot reload, auth required)
-- On-chain governance (future — fee params stored in a governance contract)
-
-```python
-# In config.py — all values loaded from .env, fully editable
-AETHER_CHAT_FEE_QBC = 0.01            # Base fee per message
-AETHER_CHAT_FEE_USD_TARGET = 0.005    # Target ~$0.005 per message
-AETHER_FEE_PRICING_MODE = "qusd_peg"  # qusd_peg | fixed_qbc | direct_usd
-AETHER_FEE_MIN_QBC = 0.001            # Floor
-AETHER_FEE_MAX_QBC = 1.0              # Ceiling
-AETHER_FEE_UPDATE_INTERVAL = 100      # Blocks between price updates
-AETHER_FEE_TREASURY_ADDRESS = ""      # Treasury wallet
-AETHER_QUERY_FEE_MULTIPLIER = 2.0     # Deep queries cost 2x chat fee
-AETHER_FREE_TIER_MESSAGES = 5         # Free messages per session (onboarding)
-```
-
-### 21.6 Fee Tiers (Configurable)
-
-| Action | Default Fee | Notes |
-|--------|-------------|-------|
-| Chat message | ~$0.005 in QBC | Basic Aether interaction |
-| Deep reasoning query | ~$0.01 in QBC | 2x multiplier (configurable) |
-| Knowledge graph query | ~$0.005 in QBC | Same as chat |
-| Session creation | Free | No fee to start a session |
-| First N messages | Free | Onboarding (`AETHER_FREE_TIER_MESSAGES`) |
+Template contracts get 50% discount. All fees pegged to QUSD.
 
 ---
 
-## 22. CONTRACT DEPLOYMENT FEES (EDITABLE)
+## 22. USEFUL COMMANDS
 
-### 22.1 Overview
+```bash
+# Node health
+curl http://localhost:5000/health
+curl http://localhost:5000/chain/info
 
-Deploying smart contracts to the QVM costs QBC. Fees are structured to:
-- **Cover network resources** — contract storage, execution, state management
-- **Prevent bloat** — discourage deploying trivial or spam contracts
-- **Fund development** — fees flow to a configurable treasury address
-- **Remain predictable** — pegged to QUSD like Aether fees
+# Docker
+docker ps
+docker logs qbc-node -f
+docker-compose restart qbc-node
 
-### 22.2 Fee Structure
+# Agent stack
+systemctl status qbc-agents
+journalctl -u qbc-agents -f
 
+# Cloudflare tunnel
+cloudflared tunnel info qbc
+
+# Frontend
+cd frontend && pnpm build && pnpm start
+
+# Tests
+pytest tests/ -v --tb=short
+
+# Generate keys
+python3 scripts/setup/generate_keys.py
+
+# Substrate build
+cd substrate-node && SKIP_WASM_BUILD=1 cargo build --release
 ```
-Deploy Fee = CONTRACT_DEPLOY_BASE_FEE_QBC + (bytecode_size_kb × CONTRACT_DEPLOY_PER_KB_FEE_QBC)
-```
-
-When `qusd_peg` mode is active, both base and per-KB fees auto-adjust:
-```
-adjusted_base_fee = CONTRACT_DEPLOY_FEE_USD_TARGET / qbc_usd_price
-adjusted_per_kb   = (CONTRACT_DEPLOY_FEE_USD_TARGET / 50) / qbc_usd_price
-```
-
-### 22.3 Configuration Parameters
-
-```python
-# In config.py — all editable via .env
-CONTRACT_DEPLOY_BASE_FEE_QBC = 1.0       # Base deployment fee
-CONTRACT_DEPLOY_PER_KB_FEE_QBC = 0.1     # Per-KB of bytecode
-CONTRACT_DEPLOY_FEE_USD_TARGET = 5.0     # Target ~$5 per deploy
-CONTRACT_FEE_PRICING_MODE = "qusd_peg"   # qusd_peg | fixed_qbc | direct_usd
-CONTRACT_FEE_TREASURY_ADDRESS = ""       # Treasury wallet
-CONTRACT_EXECUTE_BASE_FEE_QBC = 0.01     # Base fee per contract call
-CONTRACT_TEMPLATE_DISCOUNT = 0.5         # 50% discount for template contracts
-```
-
-### 22.4 Template Contract Discounts
-
-Pre-built template contracts (token, nft, launchpad, escrow, governance) receive a
-configurable discount (`CONTRACT_TEMPLATE_DISCOUNT`) since they are pre-audited and
-optimized. This encourages use of safe, tested contract patterns.
 
 ---
 
-## 23. EDITABLE ECONOMIC CONFIGURATION
+## 23. SECURITY NOTES
 
-### 23.1 Design Principle
-
-**All economic parameters in Qubitcoin are editable.** Nothing is hardcoded beyond
-the core consensus constants (MAX_SUPPLY, PHI, HALVING_INTERVAL). Fee structures,
-pricing modes, treasury addresses, and tier configurations are all loaded from
-environment variables and can be changed without code modifications.
-
-### 23.2 Configuration Hierarchy
-
-```
-1. .env file                → Primary source (node restart to apply)
-2. Admin API endpoints      → Hot reload (authenticated, no restart)
-3. On-chain governance      → Future: fee params in governance contract
-4. Hardcoded defaults       → Fallback if nothing else is set
-```
-
-### 23.3 Editable Parameters Summary
-
-| Category | Parameters | Edit Method |
-|----------|-----------|-------------|
-| **Aether Chat Fees** | Base fee, USD target, pricing mode, min/max, update interval, treasury | `.env` + Admin API |
-| **Aether Fee Tiers** | Query multiplier, free tier messages | `.env` + Admin API |
-| **Contract Deploy Fees** | Base fee, per-KB fee, USD target, pricing mode, treasury | `.env` + Admin API |
-| **Contract Discounts** | Template discount percentage | `.env` + Admin API |
-| **QUSD Oracle** | Oracle contract address, update frequency, fallback mode | `.env` + Admin API |
-| **Treasury** | Treasury addresses (Aether + Contract), split ratios | `.env` + Admin API |
-| **L1 Tx Fees** | MIN_FEE, FEE_RATE (micro-fees) | `.env` (requires restart) |
-| **Gas (L2 only)** | BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE | `.env` (requires restart) |
-
-### 23.4 Admin API Endpoints (To Be Implemented)
-
-```
-GET  /admin/economics           → Current economic configuration
-PUT  /admin/aether/fees         → Update Aether fee parameters
-PUT  /admin/contract/fees       → Update contract deployment fees
-PUT  /admin/treasury            → Update treasury addresses
-GET  /admin/economics/history   → Audit log of parameter changes
-```
-
-All admin endpoints require authentication (API key or Dilithium signature).
-
-### 23.5 QUSD Failure Fallback
-
-If QUSD (L2 stablecoin) fails or loses its peg:
-1. Fee system detects stale or invalid QUSD price data
-2. Automatically switches to `fixed_qbc` mode using last known good fee
-3. Operator can manually switch to `direct_usd` with an external price feed
-4. Operator can set fees to any fixed QBC amount via Admin API
-5. When QUSD recovers, switch back to `qusd_peg` mode
-
-**The system never breaks** — it degrades gracefully from dynamic pricing to fixed pricing.
-
----
-
-## 24. FUTURE REPO SPLIT ARCHITECTURE
-
-The monorepo is designed for a clean 4-repo split:
-
-| Repo | Contents | Boundary |
-|------|----------|----------|
-| **qubitcoin-core** | L1 blockchain, consensus, mining, P2P, database, privacy, bridge, stablecoin | `src/qubitcoin/` minus qvm/contracts/aether |
-| **qubitcoin-qvm** | Go production QVM, Python QVM prototype, Solidity contracts, compliance | `qubitcoin-qvm/` + `src/qubitcoin/qvm/` + `src/qubitcoin/contracts/` |
-| **qubitcoin-aether** | AGI engine, knowledge graph, reasoning, consciousness, Sephirot, Higgs field | `src/qubitcoin/aether/` (34 modules) |
-| **qubitcoin-frontend** | React/Next.js, Cloudflare Tunnel deployment | `frontend/` |
-
-**Shared package** (`qubitcoin-common`): `database/`, `utils/`, `config.py`
-
-Repo boundaries are marked with `[L1]`, `[FUTURE REPO]`, `[SHARED]` labels in Section 5.
-
----
-
-## 25. QUSD PEG KEEPER DAEMON
-
-### 25.1 Overview
-
-The QUSD Peg Keeper is an automated daemon that monitors wQUSD prices across 8 chains
-and executes stabilization actions when the peg deviates beyond configured thresholds.
-It combines multi-chain DEX price reading, cross-chain arbitrage detection, and
-configurable intervention strategies.
-
-```
-                    ┌─────────────────────────────┐
-                    │    QUSD Peg Keeper Daemon    │
-                    │    (stablecoin/keeper.py)    │
-                    └──────────┬──────────────────┘
-                               │
-            ┌──────────────────┼──────────────────┐
-            │                  │                  │
-   ┌────────▼────────┐ ┌──────▼──────┐ ┌────────▼────────┐
-   │ DEX Price Reader │ │  Arbitrage  │ │   Stabilizer    │
-   │ (dex_price.py)   │ │ Calculator  │ │   Actions       │
-   │                  │ │ (arbitrage. │ │ (mint/burn/     │
-   │ Uniswap V3      │ │  py)        │ │  buy/sell)      │
-   │ Raydium         │ │             │ │                 │
-   │ PancakeSwap     │ │ Floor arb   │ └─────────────────┘
-   │ Trader Joe      │ │ Ceiling arb │
-   │ + 4 more DEXs   │ │ Cross-chain │
-   └─────────────────┘ └─────────────┘
-```
-
-### 25.2 Operating Modes
-
-| Mode | Behavior | When to Use |
-|------|----------|-------------|
-| `off` | Daemon disabled, no monitoring | Maintenance |
-| `scan` | Monitor prices + emit signals, no action | **Default.** Observation only |
-| `periodic` | Check every N blocks, act if depeg detected | Conservative production |
-| `continuous` | Real-time monitoring, immediate action | Active peg defense |
-| `aggressive` | All arb opportunities pursued, max trade size | Emergency depeg |
-
-### 25.3 DEX Price Sources
-
-Multi-chain TWAP (Time-Weighted Average Price) from 8 networks:
-
-| Chain | DEX | Protocol |
-|-------|-----|----------|
-| Ethereum | Uniswap V3 | TWAP oracle |
-| Solana | Raydium | AMM pools |
-| BNB Chain | PancakeSwap V3 | TWAP oracle |
-| Avalanche | Trader Joe V2 | LB pools |
-| Polygon | QuickSwap V3 | TWAP oracle |
-| Arbitrum | Camelot V3 | TWAP oracle |
-| Optimism | Velodrome | AMM pools |
-| Base | Aerodrome | AMM pools |
-
-### 25.4 Arbitrage Types
-
-- **Floor arbitrage:** wQUSD < $0.99 → buy cheap wQUSD on DEX, redeem 1:1 at reserve
-- **Ceiling arbitrage:** wQUSD > $1.01 → mint QUSD at $1, sell above peg on DEX
-- **Cross-chain arbitrage:** wQUSD price differs across chains → buy low chain, bridge, sell high chain
-
-All arb calculations account for gas costs, bridge fees (`BridgeVault.feeBps()`), and
-slippage to ensure profitability before execution.
-
-### 25.5 Configuration Reference
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KEEPER_ENABLED` | `true` | Enable/disable keeper daemon |
-| `KEEPER_DEFAULT_MODE` | `scan` | Starting mode |
-| `KEEPER_CHECK_INTERVAL` | `10` | Blocks between peg checks |
-| `KEEPER_MAX_TRADE_SIZE` | `1000000` | Max QBC per stabilization trade |
-| `KEEPER_FLOOR_PRICE` | `0.99` | Below this = depeg (buy pressure) |
-| `KEEPER_CEILING_PRICE` | `1.01` | Above this = depeg (sell pressure) |
-| `KEEPER_COOLDOWN_BLOCKS` | `10` | Min blocks between actions |
-
-### 25.6 Key Files
-
-- `stablecoin/keeper.py` — Keeper daemon, mode management, action execution
-- `stablecoin/dex_price.py` — Multi-chain DEX TWAP price reader
-- `stablecoin/arbitrage.py` — Arbitrage opportunity calculator
-- `stablecoin/engine.py` — QUSD fractional reserve (existing)
-
-### 25.7 Prometheus Metrics (8)
-
-- `qusd_keeper_mode` — Current operating mode (0=off, 1=scan, ..., 4=aggressive)
-- `qusd_keeper_last_check_block` — Last block checked
-- `qusd_keeper_actions_total` — Total actions executed
-- `qusd_keeper_depeg_events_total` — Total depeg events detected
-- `qusd_keeper_stability_fund` — Stability fund balance (QBC)
-- `qusd_keeper_max_deviation` — Max wQUSD price deviation from $1
-- `qusd_keeper_paused` — Paused flag (0/1)
-- `qusd_keeper_arb_opportunities` — Current profitable arb count
+- **`secure_key.env`** — Dilithium private keys. NEVER commit. gitignored.
+- **`secure_keys/`** — Contains 15 key files + mnemonic backup for all operational wallets. On disk, gitignored.
+- **`agent_secure_key.env`** — Agent wallet keys (in `/root/qbc-agent-stack/`). NEVER commit.
+- **`bot.txt`** — Contains Telegram bot token in plaintext in repo root. Should be moved to `.env` or deleted.
+- **`.env`** contains operational secrets (Redis password, API keys, Telegram token, Gevurah secret, admin API key). The `.env` is gitignored but care must be taken with backups.
+- **`.env.save`** — Backup of `.env`, untracked. Contains same secrets.
 
 ---
 
