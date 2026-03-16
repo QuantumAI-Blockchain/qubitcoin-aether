@@ -18,6 +18,52 @@ use std::sync::Arc;
 /// The full client type.
 pub type FullClient = sc_service::TFullClient<Block, RuntimeApi, sc_executor::WasmExecutor<sp_io::SubstrateHostFunctions>>;
 type FullBackend = sc_service::TFullBackend<Block>;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Fork Choice Rule — Weighted Chain Selection
+// ═══════════════════════════════════════════════════════════════════════
+//
+// ## CRITICAL: Fork Choice Mismatch with Python Node
+//
+// The Python node uses a weighted fork choice rule:
+//   weight_per_block = 1.0 / difficulty
+//   chain_weight = sum(1.0 / difficulty_i for each block i)
+//   tiebreak: lexicographically smaller block hash wins
+//
+// In QBC's PoSA consensus, HIGHER difficulty = EASIER mining (the energy
+// threshold is more generous). So blocks with lower difficulty numbers
+// represent MORE work. The weight formula `1/difficulty` gives more weight
+// to harder blocks (lower difficulty number = higher weight).
+//
+// Substrate's default `LongestChain` uses block height (number) as the
+// sole criterion, which does NOT account for difficulty weighting.
+//
+// ## Why This Matters for Fork Prevention
+//
+// If two chains have the same height but different cumulative difficulty,
+// the Python node and Substrate node could disagree on which chain is
+// canonical. This would cause a persistent fork between the two node
+// types. Before running Substrate nodes alongside Python nodes in
+// production, the fork choice MUST be aligned.
+//
+// ## Current Status
+//
+// Using `LongestChain` as a temporary measure because:
+// 1. Only one node type is active in production (Python)
+// 2. Substrate node is not yet live on mainnet
+// 3. The custom weighted fork choice requires reading per-block difficulty
+//    from the QbcConsensus pallet storage, which needs runtime API support
+//
+// ## TODO: Implement Before Public Multi-Node Launch
+//
+// Implement `sc_consensus::SelectChain` with:
+// 1. Read `CurrentDifficulty` from QbcConsensus pallet for each block
+// 2. Accumulate `weight = sum(DIFFICULTY_SCALE / difficulty_i)` along chain
+// 3. Select chain with highest cumulative weight
+// 4. Tiebreak: lexicographically smaller block hash wins
+// 5. Add runtime API `fn cumulative_weight(at: Hash) -> u128` for efficient queries
+//
+// This is tracked as a Phase 2 requirement (multi-node P2P testing).
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
 // ═══════════════════════════════════════════════════════════════════════

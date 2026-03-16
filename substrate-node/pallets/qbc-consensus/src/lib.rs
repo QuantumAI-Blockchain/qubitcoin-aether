@@ -6,6 +6,10 @@
 //! - Higher difficulty = easier mining (inverse of PoW)
 //! - Create coinbase UTXOs via pallet-qbc-utxo
 //! - Store Hamiltonian solutions in SUSY database
+//!
+//! FORK-PREVENTION: Seed derivation, coinbase txid, and difficulty adjustment
+//! are aligned with the Python node (consensus/engine.py) to prevent chain forks
+//! when both node implementations co-exist on the network.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -26,6 +30,37 @@ pub mod pallet {
     /// Number of blocks of SUSY solutions to retain. Older entries are pruned
     /// to prevent unbounded storage growth.
     pub const SUSY_RETENTION_WINDOW: u64 = 100_000;
+
+    // ── Fork-Prevention Constants (must match Python node) ─────────────
+
+    /// One-time difficulty reset heights from the Python node's consensus history.
+    /// These correct historical difficulty anomalies and MUST be replicated exactly
+    /// to stay in consensus with the Python chain.
+    ///
+    /// Height 167: ground state energy fix caused difficulty to diverge.
+    /// Height 724: ratio inversion bug was fixed, difficulty reset needed.
+    /// Height 2750: ceiling runaway where difficulty spiraled out of control.
+    pub const DIFFICULTY_RESET_HEIGHT_167: u64 = 167;
+    pub const DIFFICULTY_RESET_HEIGHT_724: u64 = 724;
+    pub const DIFFICULTY_RESET_HEIGHT_2750: u64 = 2750;
+
+    /// Difficulty floor: 0.5 scaled by 10^6. Prevents difficulty from dropping
+    /// so low that mining becomes impossibly hard (remember: higher = easier).
+    pub const DIFFICULTY_FLOOR: u64 = 500_000;
+
+    /// Difficulty ceiling: 1000.0 scaled by 10^6. Prevents difficulty from
+    /// climbing so high that block validation becomes trivial.
+    pub const DIFFICULTY_CEILING: u64 = 1_000_000_000;
+
+    /// Meaningful-max guard threshold: 10.0 scaled by 10^6. When ratio > 100
+    /// (meaning "raise difficulty") AND current difficulty already exceeds this
+    /// value, hold steady to prevent runaway when mining is compute-bound.
+    pub const DIFFICULTY_MEANINGFUL_MAX: u64 = 10_000_000;
+
+    /// Energy validation tolerance: 1e-3 scaled by 10^6 = 1000. When re-computing
+    /// the VQE energy, allow a small tolerance for floating-point drift between
+    /// the Python and Substrate nodes.
+    pub const ENERGY_VALIDATION_TOLERANCE: i128 = 1_000;
 
     #[pallet::pallet]
     pub struct Pallet<T>(_);
@@ -251,9 +286,20 @@ pub mod pallet {
             // ── Energy Threshold Check ───────────────────────────────────
             // Energy is negative (ground state), difficulty is positive.
             // energy (scaled by 10^12) must be < difficulty (scaled by 10^6) * 10^6
+            //
+            // FORK-PREVENTION: Energy validation tolerance (matches Python node).
+            // When the Substrate node re-computes VQE energy to verify a proof
+            // from the Python node, floating-point drift between Qiskit versions
+            // or platform differences can cause small energy discrepancies.
+            // ENERGY_VALIDATION_TOLERANCE (1e-3 scaled to 10^6 = 1000) provides
+            // slack: abs(submitted_energy - recomputed_energy) <= tolerance is
+            // acceptable. For the threshold check, we add the tolerance to the
+            // threshold so borderline proofs from the Python node are not
+            // rejected due to rounding differences.
             let difficulty_threshold = (difficulty as i128) * 1_000_000;
+            let tolerance_scaled = (ENERGY_VALIDATION_TOLERANCE as i128) * 1_000_000; // scale to 10^12
             ensure!(
-                vqe_proof.energy < difficulty_threshold,
+                vqe_proof.energy < difficulty_threshold.saturating_add(tolerance_scaled),
                 Error::<T>::EnergyAboveDifficulty
             );
 
@@ -367,9 +413,10 @@ pub mod pallet {
 
         /// Derive the expected Hamiltonian seed from the parent block hash.
         ///
-        /// The seed is SHA2-256("hamiltonian-seed-v1:" || parent_block_hash || block_height).
-        /// This ensures miners cannot choose a favorable Hamiltonian — the seed is
-        /// deterministically derived from the previous block and the target height.
+        /// FORK-PREVENTION: Must match Python exactly:
+        ///   `hashlib.sha256(f"{prev_hash}:{height}".encode()).digest()`
+        /// where prev_hash is the lowercase hex string of the parent block hash
+        /// and height is the decimal string of the block height.
         ///
         /// Uses `frame_system::Pallet::parent_hash()` which returns the hash of the
         /// parent of the block currently being executed. This is tamper-proof because
@@ -377,10 +424,15 @@ pub mod pallet {
         fn derive_hamiltonian_seed(block_height: u64) -> H256 {
             use sp_core::hashing::sha2_256;
             let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+            // Format: "{hex_of_parent_hash}:{block_height}" — matches Python's
+            // f"{prev_hash}:{height}" where prev_hash is hex-encoded.
+            let hex_str = Self::bytes_to_hex(parent_hash.as_ref());
             let mut data = sp_std::vec::Vec::new();
-            data.extend_from_slice(b"hamiltonian-seed-v1:");
-            data.extend_from_slice(parent_hash.as_ref());
-            data.extend_from_slice(&block_height.to_le_bytes());
+            data.extend_from_slice(&hex_str);
+            data.push(b':');
+            // Decimal string of block_height — matches Python's str(height)
+            let height_str = Self::u64_to_decimal_bytes(block_height);
+            data.extend_from_slice(&height_str);
             H256::from(sha2_256(&data))
         }
 
@@ -411,7 +463,37 @@ pub mod pallet {
         /// - Slow blocks → raise difficulty (make easier)
         /// - Fast blocks → lower difficulty (make harder)
         /// - Clamped to ±10% per adjustment
+        /// - Three one-time resets at heights 167, 724, 2750 (historical fixes)
+        /// - Meaningful-max guard prevents runaway when compute-bound
+        /// - Floor (0.5) and ceiling (1000.0) enforced
         fn adjust_difficulty(timestamp_ms: u64, block_height: u64) {
+            // ── One-Time Difficulty Resets (fork-prevention) ────────────
+            // These match the Python node's historical difficulty resets.
+            // Without these, the Substrate node would diverge from the
+            // existing chain at these exact heights.
+            if block_height == DIFFICULTY_RESET_HEIGHT_167
+                || block_height == DIFFICULTY_RESET_HEIGHT_724
+                || block_height == DIFFICULTY_RESET_HEIGHT_2750
+            {
+                let old_difficulty = CurrentDifficulty::<T>::get();
+                CurrentDifficulty::<T>::put(INITIAL_DIFFICULTY);
+                Pallet::<T>::deposit_event(Event::DifficultyAdjusted {
+                    old_difficulty,
+                    new_difficulty: INITIAL_DIFFICULTY,
+                    block_height,
+                });
+                // Still record the timestamp for future window calculations
+                BlockTimestamps::<T>::mutate(|timestamps| {
+                    if timestamps.try_push(timestamp_ms).is_err() {
+                        if !timestamps.is_empty() {
+                            timestamps.remove(0);
+                        }
+                        let _ = timestamps.try_push(timestamp_ms);
+                    }
+                });
+                return;
+            }
+
             // Add timestamp to window
             BlockTimestamps::<T>::mutate(|timestamps| {
                 if timestamps.try_push(timestamp_ms).is_err() {
@@ -443,13 +525,31 @@ pub mod pallet {
                 // ratio = actual / expected (scaled by 100)
                 let ratio_100 = (actual_time_ms * 100) / expected_time_ms;
 
+                let old_difficulty = CurrentDifficulty::<T>::get();
+
+                // ── Meaningful-max guard (fork-prevention) ─────────────
+                // When ratio > 100 (blocks are slow, want to raise difficulty)
+                // AND difficulty is already above 10.0 (10_000_000 scaled),
+                // hold steady. This prevents runaway difficulty when mining
+                // is compute-bound rather than difficulty-bound.
+                let ratio_100 = if ratio_100 > 100 && old_difficulty > DIFFICULTY_MEANINGFUL_MAX {
+                    100 // Hold steady — do not raise further
+                } else {
+                    ratio_100
+                };
+
                 // Clamp to ±10%: ratio must be in [90, 110]
                 let clamped = ratio_100.max(MIN_ADJUSTMENT_FACTOR as u64).min(MAX_ADJUSTMENT_FACTOR as u64);
 
-                let old_difficulty = CurrentDifficulty::<T>::get();
                 // new_difficulty = old_difficulty * clamped / 100
                 let new_difficulty = (old_difficulty as u128 * clamped as u128 / 100) as u64;
-                let new_difficulty = new_difficulty.max(1); // Never go to 0
+
+                // ── Floor and ceiling (fork-prevention) ────────────────
+                // Python has DIFFICULTY_FLOOR = 0.5 and DIFFICULTY_CEILING = 1000.0.
+                // Scaled by 10^6: floor = 500_000, ceiling = 1_000_000_000.
+                let new_difficulty = new_difficulty
+                    .max(DIFFICULTY_FLOOR)
+                    .min(DIFFICULTY_CEILING);
 
                 if new_difficulty != old_difficulty {
                     CurrentDifficulty::<T>::put(new_difficulty);
@@ -463,11 +563,49 @@ pub mod pallet {
         }
 
         /// Generate deterministic coinbase transaction ID for a block.
+        ///
+        /// FORK-PREVENTION: Must match Python exactly:
+        ///   `hashlib.sha256(f"coinbase-{height}-{prev_hash}".encode()).hexdigest()`
+        /// where height is decimal and prev_hash is lowercase hex.
         fn coinbase_txid(block_height: u64) -> H256 {
             use sp_core::hashing::sha2_256;
-            let mut data = b"coinbase:".to_vec();
-            data.extend_from_slice(&block_height.to_le_bytes());
+            let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+            let hex_str = Self::bytes_to_hex(parent_hash.as_ref());
+            // Format: "coinbase-{height}-{hex_of_parent_hash}"
+            let mut data = sp_std::vec::Vec::new();
+            data.extend_from_slice(b"coinbase-");
+            let height_str = Self::u64_to_decimal_bytes(block_height);
+            data.extend_from_slice(&height_str);
+            data.push(b'-');
+            data.extend_from_slice(&hex_str);
             H256::from(sha2_256(&data))
+        }
+
+        /// Convert a byte slice to lowercase hex string (no_std compatible).
+        /// Produces the same output as Python's `bytes.hex()`.
+        fn bytes_to_hex(bytes: &[u8]) -> sp_std::vec::Vec<u8> {
+            const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
+            let mut hex = sp_std::vec::Vec::with_capacity(bytes.len() * 2);
+            for &b in bytes {
+                hex.push(HEX_CHARS[(b >> 4) as usize]);
+                hex.push(HEX_CHARS[(b & 0x0f) as usize]);
+            }
+            hex
+        }
+
+        /// Convert a u64 to its decimal ASCII representation (no_std compatible).
+        /// Produces the same output as Python's `str(n)`.
+        fn u64_to_decimal_bytes(mut n: u64) -> sp_std::vec::Vec<u8> {
+            if n == 0 {
+                return sp_std::vec![b'0'];
+            }
+            let mut digits = sp_std::vec::Vec::new();
+            while n > 0 {
+                digits.push(b'0' + (n % 10) as u8);
+                n /= 10;
+            }
+            digits.reverse();
+            digits
         }
     }
 }

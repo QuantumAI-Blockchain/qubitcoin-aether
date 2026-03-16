@@ -239,9 +239,29 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
 /// - Coinbase UTXO (vout=0): INITIAL_REWARD (15.27 QBC) to genesis miner
 /// - Premine UTXO (vout=1): GENESIS_PREMINE (33M QBC) to treasury
 /// - Initial difficulty: 1.0 (INITIAL_DIFFICULTY)
-/// - Initial emitted supply: GENESIS_PREMINE + INITIAL_REWARD
+/// - Initial emitted supply: GENESIS_PREMINE + INITIAL_REWARD = 33,000,015.27 QBC
 /// - Aura/GRANDPA authorities configured
 /// - QVM and Aether anchor service endpoints
+///
+/// # Genesis Alignment with Python Node
+///
+/// The genesis block MUST produce identical state to the Python node's genesis.
+/// Key alignment points:
+/// - **Coinbase txid**: Bitcoin genesis tribute hash (hardcoded, NOT computed)
+/// - **Premine txid**: SHA2-256("genesis_premine") — matches Python's `substrate_codec.py`
+/// - **Timestamp**: 1707350400 (2024-02-08T00:00:00Z) — set via Aura slot inherent
+/// - **Total emitted**: GENESIS_PREMINE + INITIAL_REWARD = 33,000,015.27 QBC
+/// - **Genesis hash**: All zeros (0x0000...0000) — Python uses this as prev_hash for block 1
+///
+/// # Fork Prevention
+///
+/// Both node types MUST agree on genesis state or they will fork immediately.
+/// Any change to genesis constants, txids, or UTXO structure requires coordinated
+/// updates across:
+/// 1. This file (Substrate chain_spec.rs)
+/// 2. Python node's config.py (CANONICAL_GENESIS_* constants)
+/// 3. Python node's substrate_codec.py (genesis txid derivation)
+/// 4. P2P bridge daemon (genesis block translation)
 fn build_genesis(
     initial_authorities: Vec<(AuraId, GrandpaId)>,
     root_key: AccountId,
@@ -252,16 +272,27 @@ fn build_genesis(
     // For mainnet, this is the treasury. For dev, a deterministic address.
     let genesis_miner = treasury_address;
 
-    // Genesis coinbase UTXO txid: SHA2-256("coinbase:" || block_height_le_bytes)
-    // This MUST match the Python node's genesis txid derivation exactly.
-    let genesis_coinbase_txid = {
-        use sp_core::hashing::sha2_256;
-        let mut data = b"coinbase:".to_vec();
-        data.extend_from_slice(&0u64.to_le_bytes());
-        H256::from(sha2_256(&data))
-    };
+    // Genesis coinbase UTXO txid: Bitcoin genesis tribute hash.
+    // This is the same hash Satoshi used in Bitcoin's genesis coinbase.
+    // It is HARDCODED, not computed — it MUST match the Python node's
+    // Config.CANONICAL_GENESIS_COINBASE_TXID exactly.
+    //
+    // Python: config.py line 135:
+    //   CANONICAL_GENESIS_COINBASE_TXID = '4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b'
+    //
+    // WARNING: Do NOT change this value. It is a consensus-critical constant.
+    // Changing it will cause an immediate fork with the Python node network.
+    let genesis_coinbase_txid = H256::from([
+        0x4a, 0x5e, 0x1e, 0x4b, 0xaa, 0xb8, 0x9f, 0x3a,
+        0x32, 0x51, 0x8a, 0x88, 0xc3, 0x1b, 0xc8, 0x7f,
+        0x61, 0x8f, 0x76, 0x67, 0x3e, 0x2c, 0xc7, 0x7a,
+        0xb2, 0x12, 0x7b, 0x7a, 0xfd, 0xed, 0xa3, 0x3b,
+    ]);
 
     // Genesis premine UTXO txid: SHA2-256("genesis_premine")
+    // This MUST match Python's substrate_codec.py: hashlib.sha256(b"genesis_premine").hexdigest()
+    //
+    // WARNING: Do NOT change this derivation. It is a consensus-critical constant.
     let genesis_premine_txid = {
         use sp_core::hashing::sha2_256;
         H256::from(sha2_256(b"genesis_premine"))
@@ -289,6 +320,16 @@ fn build_genesis(
         },
 
         // QBC UTXO genesis — two outputs at block 0
+        //
+        // Genesis timestamp: 1707350400 (2024-02-08T00:00:00Z)
+        // This is set via the Aura slot inherent data provider at node startup.
+        // The Python node uses Config.CANONICAL_GENESIS_TIMESTAMP = 1707350400.0
+        // Both nodes MUST agree on this timestamp for genesis block hash alignment.
+        //
+        // Genesis block hash: all zeros (0x0000...0000)
+        // Python's block 1 references this as prev_hash. Substrate's genesis
+        // hash is computed from the genesis state and will differ from all-zeros,
+        // but the P2P bridge maps between the two representations.
         "qbcUtxo": {
             "genesisUtxos": vec![
                 // vout=0: Mining reward (15.27 QBC)
@@ -317,7 +358,12 @@ fn build_genesis(
             "initialDifficulty": INITIAL_DIFFICULTY,
         },
 
-        // QBC Economics — initial total emitted = premine + first reward
+        // QBC Economics — initial total emitted = premine + first block reward
+        // = 33,000,000 QBC + 15.27 QBC = 33,000,015.27 QBC
+        // In smallest units: 3_300_000_000_000_000 + 1_527_000_000 = 3_300_001_527_000_000
+        //
+        // This MUST match the Python node's genesis supply calculation.
+        // Python config.py: GENESIS_PREMINE (33M) + INITIAL_REWARD (15.27)
         "qbcEconomics": {
             "initialEmitted": GENESIS_PREMINE + INITIAL_REWARD,
         },

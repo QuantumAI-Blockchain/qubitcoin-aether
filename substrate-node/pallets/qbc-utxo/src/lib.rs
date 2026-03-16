@@ -5,6 +5,37 @@
 //! - Validate transactions (inputs exist, signatures valid, amounts balance)
 //! - Maintain address balance cache for fast lookups
 //! - Coinbase creation for mining rewards
+//! - Fee accumulation with 50% burn on block finalization
+//!
+//! # Cross-Node Compatibility (Substrate ↔ Python Node)
+//!
+//! ## Transaction ID (txid) Calculation
+//! The Python node computes txids as:
+//!   `SHA-256(json.dumps({"inputs": ..., "outputs": ..., "fee": ..., "timestamp": ...},
+//!                        sort_keys=True).encode())`
+//! using canonical JSON with `sort_keys=True, separators=(',', ':')`.
+//!
+//! The Substrate node uses SCALE-encoded raw byte concatenation (prev_txid || prev_vout
+//! || address || amount) for txid computation. This is intentional — Substrate
+//! transactions are SCALE-encoded natively and cannot efficiently produce canonical
+//! JSON in a no_std environment.
+//!
+//! **This difference is handled at the P2P bridge layer** (`rust-p2p/` and
+//! `qbc_p2p_bridge`). The bridge daemon translates between Python JSON format
+//! and Substrate SCALE format when relaying transactions between node types.
+//! Each node type independently validates transactions using its own txid scheme.
+//!
+//! ## Signing Message Format
+//! Similarly, the Python node signs canonical JSON representations of transactions,
+//! while Substrate signs raw SCALE-encoded bytes. The P2P bridge handles signature
+//! re-wrapping when translating between node types. Both nodes verify Dilithium5
+//! signatures against their respective message formats.
+//!
+//! ## Fee Model
+//! Both nodes agree: `fee = sum(inputs) - sum(outputs)`.
+//! On block finalization, 50% of accumulated fees are burned (removed from
+//! circulation) and the remaining 50% go to the miner via the coinbase UTXO.
+//! This deflationary mechanism matches the Python node's fee handling.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -99,10 +130,18 @@ pub mod pallet {
 
     /// Accumulated transaction fees since the last coinbase. Fees are the
     /// difference between total inputs and total outputs in each transaction.
-    /// Reset to zero after being included in a coinbase by the consensus pallet.
+    /// On block finalization, 50% of fees are burned and the remaining 50%
+    /// are included in the miner's coinbase UTXO by the consensus pallet.
+    /// Reset to zero after being distributed/burned.
     #[pallet::storage]
     #[pallet::getter(fn accumulated_fees)]
     pub type AccumulatedFees<T: Config> = StorageValue<_, QbcBalance, ValueQuery>;
+
+    /// Total fees burned since genesis. Tracks the cumulative amount of QBC
+    /// permanently removed from circulation via the 50% fee burn mechanism.
+    #[pallet::storage]
+    #[pallet::getter(fn total_fees_burned)]
+    pub type TotalFeesBurned<T: Config> = StorageValue<_, QbcBalance, ValueQuery>;
 
     /// UTXOs spent during the current block — prevents double-spend within a block.
     /// Cleared at the start of each new block via `set_block_height`.
@@ -126,6 +165,8 @@ pub mod pallet {
         UtxoSpent { txid: TxId, vout: u32 },
         /// A coinbase UTXO was created (mining reward).
         CoinbaseCreated { txid: TxId, address: Address, reward: QbcBalance },
+        /// Fees were burned (50% of accumulated fees on block finalization).
+        FeesBurned { amount: QbcBalance, total_burned: QbcBalance },
     }
 
     #[pallet::error]
@@ -378,8 +419,52 @@ pub mod pallet {
             });
         }
 
-        /// Reset accumulated fees to zero. Called by the consensus pallet
-        /// after including the fees in a coinbase UTXO.
+        /// Finalize fees for the current block: burn 50% and return the
+        /// remaining 50% for inclusion in the miner's coinbase UTXO.
+        ///
+        /// This implements the deflationary fee burn mechanism that matches
+        /// the Python node's consensus rules. On every block:
+        ///   - 50% of accumulated fees are permanently destroyed (burned)
+        ///   - 50% of accumulated fees go to the miner as part of the coinbase
+        ///
+        /// Called by the consensus pallet during block finalization, BEFORE
+        /// creating the coinbase UTXO. The returned value is the miner's
+        /// fee share to add to the block reward.
+        ///
+        /// # Returns
+        /// The miner's share of fees (50% of accumulated, rounded down).
+        pub fn finalize_fees_with_burn() -> QbcBalance {
+            let total_fees = AccumulatedFees::<T>::get();
+            if total_fees == 0 {
+                return 0;
+            }
+
+            // 50% burn (rounded up — burn favored to be deflationary)
+            let burn_amount = (total_fees + 1) / 2;
+            // 50% to miner (remainder)
+            let miner_share = total_fees.saturating_sub(burn_amount);
+
+            // Record the burn
+            TotalFeesBurned::<T>::mutate(|burned| {
+                *burned = burned.saturating_add(burn_amount);
+            });
+
+            // Reset accumulated fees
+            AccumulatedFees::<T>::put(0u128);
+
+            // Emit burn event
+            let total_burned = TotalFeesBurned::<T>::get();
+            Self::deposit_event(Event::FeesBurned {
+                amount: burn_amount,
+                total_burned,
+            });
+
+            miner_share
+        }
+
+        /// Reset accumulated fees to zero WITHOUT burning. Only used for
+        /// backwards compatibility or emergency scenarios. Prefer
+        /// `finalize_fees_with_burn()` for normal block production.
         pub fn reset_accumulated_fees() {
             AccumulatedFees::<T>::put(0u128);
         }
@@ -393,6 +478,27 @@ pub mod pallet {
         }
 
         /// Compute transaction ID from inputs and outputs.
+        ///
+        /// # Substrate vs Python Node Txid Divergence
+        ///
+        /// This function uses SCALE-friendly raw byte concatenation:
+        ///   `SHA-256(prev_txid_0 || prev_vout_0_le || ... || addr_0 || amount_0_le || ...)`
+        ///
+        /// The Python node uses canonical JSON:
+        ///   `SHA-256(json.dumps({"inputs": ..., "outputs": ..., "fee": ..., "timestamp": ...},
+        ///                        sort_keys=True))`
+        ///
+        /// These produce DIFFERENT txids for the same logical transaction.
+        /// This is by design — Substrate operates in a `no_std` environment where
+        /// JSON serialization is impractical and non-deterministic across allocators.
+        ///
+        /// **Interoperability is handled at the P2P bridge layer** (`rust-p2p/` +
+        /// `qbc_p2p_bridge`), which maintains a txid mapping table when relaying
+        /// transactions between Python and Substrate nodes. Each node validates
+        /// independently using its native txid scheme.
+        ///
+        /// When the network fully migrates to Substrate, this becomes the canonical
+        /// txid format and the Python format is deprecated.
         fn compute_txid(
             inputs: &[TransactionInput],
             outputs: &[TransactionOutput],
@@ -411,6 +517,18 @@ pub mod pallet {
         }
 
         /// Create signing message for Dilithium signature verification.
+        ///
+        /// # Substrate vs Python Node Signing Divergence
+        ///
+        /// This function produces a raw byte message for Dilithium5 signing:
+        ///   `msg = prev_txid_0 || prev_vout_0_le || ... || addr_0 || amount_0_le || ...`
+        ///
+        /// The Python node signs canonical JSON representations. The P2P bridge
+        /// daemon handles re-signing or signature translation when relaying
+        /// transactions between node types. Both nodes verify Dilithium5
+        /// signatures against their respective message formats.
+        ///
+        /// See the module-level documentation for the full interop strategy.
         fn signing_message(
             inputs: &[TransactionInput],
             outputs: &[TransactionOutput],

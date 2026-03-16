@@ -59,6 +59,87 @@ pub const BLOCK_GAS_LIMIT: u64 = 30_000_000;
 pub const COINBASE_MATURITY: u32 = 100;
 
 // ═══════════════════════════════════════════════════════════════════════
+// One-Time Difficulty Reset Heights (fork-prevention)
+// ═══════════════════════════════════════════════════════════════════════
+// These heights record one-time difficulty resets that occurred on the live
+// chain to recover from specific issues.  The Substrate node MUST apply the
+// same resets at the same heights to produce an identical chain history.
+// Changing or removing these values would cause a consensus fork.
+
+/// Height 167: difficulty dropped below Hamiltonian ground state (0.0798 < 0.182),
+/// making mining impossible.  Reset to INITIAL_DIFFICULTY.
+pub const DIFFICULTY_GROUND_STATE_FIX_HEIGHT: u32 = 167;
+
+/// Height 724: pre-fix blocks used inverted ratio (expected/actual) which caused
+/// a death spiral — lowering difficulty when blocks were slow.  Reset + corrected
+/// ratio applied from this height onward.
+pub const DIFFICULTY_RATIO_FIX_HEIGHT: u32 = 724;
+
+/// Height 2750: difficulty ran away to ceiling (1000) because no meaningful-max
+/// clamp existed.  Reset to INITIAL_DIFFICULTY and clamp added.
+pub const DIFFICULTY_CEILING_FIX_HEIGHT: u32 = 2750;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Difficulty Bounds (scaled by 10^6 for fixed-point arithmetic)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Minimum difficulty: 0.5 (scaled by 10^6).
+pub const DIFFICULTY_FLOOR: u64 = 500_000;
+/// Maximum difficulty: 1000.0 (scaled by 10^6).
+pub const DIFFICULTY_CEILING: u64 = 1_000_000_000;
+/// Meaningful max: 10.0 (scaled by 10^6).  When difficulty exceeds this, blocks
+/// are slow due to VQE compute time, not puzzle hardness — upward adjustment is
+/// suppressed to prevent runaway.
+pub const DIFFICULTY_MEANINGFUL_MAX: u64 = 10_000_000;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Validation & Safety Constants
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Energy validation tolerance (scaled by 10^6).  Corresponds to 1e-3 in the
+/// Python node (Config.ENERGY_VALIDATION_TOLERANCE).
+pub const ENERGY_VALIDATION_TOLERANCE: i128 = 1_000;
+
+/// Maximum future block timestamp in milliseconds (120 seconds).
+/// Blocks with timestamps more than this far in the future are rejected.
+pub const MAX_FUTURE_BLOCK_TIME_MS: u64 = 120_000;
+
+/// Maximum reorg depth — forks deeper than this are rejected to prevent
+/// long-range attacks.  Matches Config.MAX_REORG_DEPTH in the Python node.
+pub const MAX_REORG_DEPTH: u32 = 100;
+
+/// Confirmation depth for finality consideration (180 blocks ≈ ~10 min at 3.3s).
+pub const CONFIRMATION_DEPTH: u32 = 180;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Fee Economics
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Percentage of transaction fees that are burned (destroyed).
+/// 50 = 50%.  Miners receive the remaining 50%.
+/// Matches Config.FEE_BURN_PERCENTAGE = 0.5 in the Python node.
+pub const FEE_BURN_PERCENTAGE: u64 = 50;
+
+/// Tail emission reward: 0.1 QBC in base units (0.1 * 10^8 = 10,000,000).
+/// When phi-halving drops the block reward below this floor, tail emission
+/// kicks in to ensure miners always receive at least this amount (until
+/// MAX_SUPPLY is reached).  Matches Config.TAIL_EMISSION_REWARD in Python.
+pub const TAIL_EMISSION_REWARD: u64 = 10_000_000;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Genesis Constants
+// ═══════════════════════════════════════════════════════════════════════
+// These values MUST match the Python node exactly to produce the same genesis
+// block.  Any mismatch causes a consensus fork from block 0.
+
+/// Canonical genesis timestamp: 2024-02-08T00:00:00Z in milliseconds.
+pub const CANONICAL_GENESIS_TIMESTAMP_MS: u64 = 1_707_350_400_000;
+
+/// Canonical genesis coinbase transaction ID (same as Bitcoin's for homage).
+pub const CANONICAL_GENESIS_COINBASE_TXID: &str =
+    "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b";
+
+// ═══════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -200,6 +281,33 @@ mod tests {
         let bytes = [42u8; 32];
         let addr = Address::from(bytes);
         assert_eq!(addr.0, bytes);
+    }
+
+    #[test]
+    fn test_difficulty_constants() {
+        // Floor < Ceiling
+        assert!(DIFFICULTY_FLOOR < DIFFICULTY_CEILING);
+        // Meaningful max is between floor and ceiling
+        assert!(DIFFICULTY_FLOOR < DIFFICULTY_MEANINGFUL_MAX);
+        assert!(DIFFICULTY_MEANINGFUL_MAX < DIFFICULTY_CEILING);
+        // Fix heights are in ascending order
+        assert!(DIFFICULTY_GROUND_STATE_FIX_HEIGHT < DIFFICULTY_RATIO_FIX_HEIGHT);
+        assert!(DIFFICULTY_RATIO_FIX_HEIGHT < DIFFICULTY_CEILING_FIX_HEIGHT);
+    }
+
+    #[test]
+    fn test_fee_and_tail_constants() {
+        assert_eq!(FEE_BURN_PERCENTAGE, 50);
+        // Tail emission = 0.1 QBC = 10_000_000 base units
+        assert_eq!(TAIL_EMISSION_REWARD, QBC_UNIT as u64 / 10);
+    }
+
+    #[test]
+    fn test_genesis_constants() {
+        // Timestamp corresponds to 2024-02-08T00:00:00Z
+        assert_eq!(CANONICAL_GENESIS_TIMESTAMP_MS, 1_707_350_400_000);
+        // Coinbase txid is 64 hex chars
+        assert_eq!(CANONICAL_GENESIS_COINBASE_TXID.len(), 64);
     }
 
     #[test]

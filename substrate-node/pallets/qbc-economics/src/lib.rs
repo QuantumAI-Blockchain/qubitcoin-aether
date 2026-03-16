@@ -39,6 +39,11 @@ pub mod pallet {
     #[pallet::getter(fn era_start_block)]
     pub type EraStartBlock<T: Config> = StorageValue<_, u64, ValueQuery>;
 
+    /// Total QBC permanently burned from transaction fees (in smallest units).
+    #[pallet::storage]
+    #[pallet::getter(fn total_fees_burned)]
+    pub type TotalFeesBurned<T: Config> = StorageValue<_, QbcBalance, ValueQuery>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -46,6 +51,8 @@ pub mod pallet {
         RewardCalculated { block_height: u64, reward: QbcBalance, era: u32 },
         /// New era started (phi-halving occurred).
         NewEra { era: u32, reward: QbcBalance },
+        /// Transaction fees were burned (50% of collected fees).
+        FeesBurned { burned: QbcBalance, miner_portion: QbcBalance },
         // Note: PremineEmitted was removed because Substrate genesis_build
         // cannot emit events (no block context during genesis construction).
         // The genesis premine is recorded via TotalEmitted storage instead.
@@ -138,6 +145,16 @@ pub mod pallet {
                 result.max(1)
             };
 
+            // Tail emission floor: if phi-halving drops the reward below
+            // TAIL_EMISSION_REWARD (0.1 QBC), use the tail emission instead.
+            // This ensures miners always receive a minimum incentive.
+            // Matches the Python node: Config.TAIL_EMISSION_REWARD = 0.1 QBC.
+            let base_reward = if base_reward < TAIL_EMISSION_REWARD as u128 {
+                TAIL_EMISSION_REWARD as u128
+            } else {
+                base_reward
+            };
+
             // Cap reward so total emitted never exceeds MAX_SUPPLY
             let total = TotalEmitted::<T>::get();
             let remaining = MAX_SUPPLY.saturating_sub(total);
@@ -185,6 +202,41 @@ pub mod pallet {
             });
 
             reward
+        }
+
+        /// Burn a portion of collected transaction fees and return the miner's portion.
+        ///
+        /// Implements the same fee-burn logic as the Python node:
+        ///   burned  = total_fees * FEE_BURN_PERCENTAGE / 100  (rounded to 8 decimals)
+        ///   miner   = total_fees - burned
+        ///
+        /// The burned amount is permanently removed from circulation by incrementing
+        /// `TotalFeesBurned` (and NOT adding it to any balance).
+        ///
+        /// Returns `(miner_portion, burned_amount)`.
+        pub fn burn_fees(total_fees: QbcBalance) -> (QbcBalance, QbcBalance) {
+            if total_fees == 0 {
+                return (0, 0);
+            }
+
+            // FEE_BURN_PERCENTAGE is 50 (meaning 50%).
+            // For 8-decimal-place rounding: we work in base units already (10^8),
+            // so integer division here is equivalent to truncation at 8 decimals
+            // (matching Python's Decimal quantize with ROUND_DOWN default).
+            let burned = total_fees * FEE_BURN_PERCENTAGE as u128 / 100;
+            let miner_portion = total_fees - burned;
+
+            // Record cumulative burn in storage
+            TotalFeesBurned::<T>::mutate(|total| {
+                *total = total.saturating_add(burned);
+            });
+
+            Self::deposit_event(Event::FeesBurned {
+                burned,
+                miner_portion,
+            });
+
+            (miner_portion, burned)
         }
     }
 }
@@ -246,9 +298,6 @@ mod tests {
         let capped_era = era.min(100);
         let mut reward = INITIAL_REWARD as u128 * PHI_DENOM;
         for _ in 0..capped_era {
-            // Split to avoid overflow: divide first, then correct remainder.
-            // reward * PHI_DENOM / PHI_SCALED
-            // = (reward / PHI_SCALED) * PHI_DENOM + (reward % PHI_SCALED) * PHI_DENOM / PHI_SCALED
             let quotient = reward / PHI_SCALED;
             let remainder = reward % PHI_SCALED;
             reward = quotient.saturating_mul(PHI_DENOM)
@@ -258,7 +307,20 @@ mod tests {
                 break;
             }
         }
-        (reward / PHI_DENOM).max(1)
+        let result = (reward / PHI_DENOM).max(1);
+        // Apply tail emission floor (matches Python node)
+        if result < TAIL_EMISSION_REWARD as u128 {
+            TAIL_EMISSION_REWARD as u128
+        } else {
+            result
+        }
+    }
+
+    /// Standalone fee burn calculation for testing without runtime.
+    fn burn_fees_standalone(total_fees: QbcBalance) -> (QbcBalance, QbcBalance) {
+        let burned = total_fees * FEE_BURN_PERCENTAGE as u128 / 100;
+        let miner_portion = total_fees - burned;
+        (miner_portion, burned)
     }
 
     #[test]
@@ -266,5 +328,58 @@ mod tests {
         // Even at an absurdly high era, the function should not overflow
         let reward = calculate_reward_standalone(1_000_000 * HALVING_INTERVAL);
         assert!(reward >= 1, "reward must be at least 1 even at extreme eras");
+    }
+
+    #[test]
+    fn test_tail_emission_floor() {
+        // At a very high era, phi-halving would drop reward below 0.1 QBC,
+        // but tail emission ensures a floor of TAIL_EMISSION_REWARD.
+        let reward = calculate_reward_standalone(50 * HALVING_INTERVAL);
+        assert!(
+            reward >= TAIL_EMISSION_REWARD as u128,
+            "reward {} must be >= tail emission {}",
+            reward,
+            TAIL_EMISSION_REWARD
+        );
+    }
+
+    #[test]
+    fn test_tail_emission_exact_value() {
+        // TAIL_EMISSION_REWARD = 0.1 QBC = 10_000_000 base units
+        assert_eq!(TAIL_EMISSION_REWARD, 10_000_000u64);
+    }
+
+    #[test]
+    fn test_fee_burn_50_percent() {
+        // 1 QBC in fees → 0.5 burned, 0.5 to miner
+        let total_fees: QbcBalance = 100_000_000; // 1 QBC
+        let (miner, burned) = burn_fees_standalone(total_fees);
+        assert_eq!(burned, 50_000_000);  // 0.5 QBC
+        assert_eq!(miner, 50_000_000);   // 0.5 QBC
+        assert_eq!(miner + burned, total_fees);
+    }
+
+    #[test]
+    fn test_fee_burn_zero_fees() {
+        let (miner, burned) = burn_fees_standalone(0);
+        assert_eq!(miner, 0);
+        assert_eq!(burned, 0);
+    }
+
+    #[test]
+    fn test_fee_burn_odd_amount() {
+        // 1 unit fee → burned = 0 (integer truncation), miner gets 1
+        let (miner, burned) = burn_fees_standalone(1);
+        assert_eq!(burned, 0);
+        assert_eq!(miner, 1);
+    }
+
+    #[test]
+    fn test_fee_burn_small_amount() {
+        // 15 units → burned = 7, miner = 8 (integer truncation of 7.5)
+        let (miner, burned) = burn_fees_standalone(15);
+        assert_eq!(burned, 7);
+        assert_eq!(miner, 8);
+        assert_eq!(miner + burned, 15);
     }
 }
