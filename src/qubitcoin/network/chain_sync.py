@@ -729,7 +729,6 @@ class ChainSync:
                 peer_weight = 0.0
                 peer_tip_hash = ''
                 try:
-                    import httpx
                     async with httpx.AsyncClient(timeout=10.0) as client:
                         resp = await client.get(f"{self._peer_url}/block/{target_height}")
                         if resp.status_code == 200:
