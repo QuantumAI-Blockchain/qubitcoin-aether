@@ -673,16 +673,34 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.get("/balance/{address}")
     async def get_balance(address: str):
-        """Get address balance"""
+        """Get address balance (UTXO + account model combined)"""
         import re
         # Basic address format validation: reject obviously invalid addresses
         if not address or len(address) > 256 or not re.fullmatch(r'[a-zA-Z0-9_]+', address):
             raise HTTPException(status_code=400, detail="Invalid address format")
-        balance = db_manager.get_balance(address)
+        utxo_balance = db_manager.get_balance(address)
         utxos = db_manager.get_utxos(address)
+
+        # Also check account-model balance (L2 / bridge transfers)
+        account_balance = Decimal(0)
+        try:
+            from sqlalchemy import text as sa_text
+            with db_manager.get_session() as session:
+                row = session.execute(
+                    sa_text("SELECT balance FROM accounts WHERE address = :addr"),
+                    {'addr': address.replace('0x', '').lower()}
+                ).fetchone()
+                if row:
+                    account_balance = Decimal(str(row[0]))
+        except Exception:
+            pass
+
+        total = utxo_balance + account_balance
         return {
             "address": address,
-            "balance": str(balance),
+            "balance": str(total),
+            "utxo_balance": str(utxo_balance),
+            "account_balance": str(account_balance),
             "utxo_count": len(utxos)
         }
 
