@@ -252,26 +252,31 @@ export const DEPLOYED_CONTRACTS = {
     wQBC: "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
     wQUSD: "0x884867d25552b6117F85428405aeAA208A8CAdB3",
     explorer: "https://polygonscan.com",
+    dex: { name: "Uniswap V3", pair: "wQBC/wQUSD", fee: "0.3%", pairAddr: "0x02a951968748c017c2e8722c864fda3ccb269621" },
   },
   avalanche: {
     wQBC: "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
     wQUSD: "0x884867d25552b6117F85428405aeAA208A8CAdB3",
     explorer: "https://snowtrace.io",
+    dex: { name: "Uniswap V3", pair: "wQBC/wQUSD", fee: "0.3%", pairAddr: "0x275d62fd3a97d5f38570dfe497aa6e48bfc93a44" },
   },
   arbitrum: {
     wQBC: "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
     wQUSD: "0x884867d25552b6117F85428405aeAA208A8CAdB3",
     explorer: "https://arbiscan.io",
+    dex: { name: "Uniswap V3", pair: "wQBC/wQUSD", fee: "0.3%", pairAddr: "0x02a951968748c017c2e8722c864fda3ccb269621" },
   },
   optimism: {
     wQBC: "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
     wQUSD: "0xA8dAB13B55D7D5f9d140D0ec7B3772D373616147",
     explorer: "https://optimistic.etherscan.io",
+    dex: { name: "Uniswap V3", pair: "wQBC/wQUSD", fee: "0.3%", pairAddr: "0x4dc9618f5f7d30ae6e62bd07d74f10dd5ef0d925" },
   },
   base: {
     wQBC: "0x14Db7C37e7284C5bb67a2d682169c9D11B7478AD",
     wQUSD: "0x1268ef87cC1DBB26428E4966A2C6C0Fb91877992",
     explorer: "https://basescan.org",
+    dex: { name: "Uniswap V3", pair: "wQBC/wQUSD", fee: "0.3%", pairAddr: "0xd2dbb264a8068f3d94570ea48f72761d1ce58063" },
   },
 } as const;
 

@@ -140,7 +140,7 @@ export function Footer() {
           {/* Live Contracts */}
           <div className="sm:col-span-2 lg:col-span-4">
             <h3 className="mb-3 font-[family-name:var(--font-display)] text-[10px] font-semibold uppercase tracking-widest text-text-secondary">Verified Contracts</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <p className="mb-1.5 font-[family-name:var(--font-display)] text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#627eea" }}>Ethereum</p>
                 <ul className="space-y-1 text-xs">
@@ -154,7 +154,7 @@ export function Footer() {
                   </li>
                   <li className="flex items-center gap-1.5">
                     <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
-                    <span className="font-[family-name:var(--font-code)] text-text-secondary">Uniswap V3 · 0.3%</span>
+                    <a href="https://etherscan.io/address/0x02a951968748c017c2e8722c864fda3ccb269621" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
                   </li>
                 </ul>
               </div>
@@ -172,6 +172,91 @@ export function Footer() {
                   <li className="flex items-center gap-1.5">
                     <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
                     <a href="https://bscscan.com/address/0x3927EfB12bDaf7E2d9930A3581177a0646456abd" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">PancakeSwap V2 · 0.25%</a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <p className="mb-1.5 font-[family-name:var(--font-display)] text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#8247e5" }}>Polygon</p>
+                <ul className="space-y-1 text-xs">
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQBC:</span>
+                    <a href="https://polygonscan.com/token/0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0xB7c8…Fa67</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQUSD:</span>
+                    <a href="https://polygonscan.com/token/0x884867d25552b6117F85428405aeAA208A8CAdB3" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0x8848…CAdB3</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
+                    <a href="https://polygonscan.com/address/0x02a951968748c017c2e8722c864fda3ccb269621" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <p className="mb-1.5 font-[family-name:var(--font-display)] text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#e84142" }}>Avalanche</p>
+                <ul className="space-y-1 text-xs">
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQBC:</span>
+                    <a href="https://snowtrace.io/token/0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0xB7c8…Fa67</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQUSD:</span>
+                    <a href="https://snowtrace.io/token/0x884867d25552b6117F85428405aeAA208A8CAdB3" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0x8848…CAdB3</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
+                    <a href="https://snowtrace.io/address/0x275d62fd3a97d5f38570dfe497aa6e48bfc93a44" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <p className="mb-1.5 font-[family-name:var(--font-display)] text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#28a0f0" }}>Arbitrum</p>
+                <ul className="space-y-1 text-xs">
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQBC:</span>
+                    <a href="https://arbiscan.io/token/0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0xB7c8…Fa67</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQUSD:</span>
+                    <a href="https://arbiscan.io/token/0x884867d25552b6117F85428405aeAA208A8CAdB3" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0x8848…CAdB3</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
+                    <a href="https://arbiscan.io/address/0x02a951968748c017c2e8722c864fda3ccb269621" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <p className="mb-1.5 font-[family-name:var(--font-display)] text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#ff0420" }}>Optimism</p>
+                <ul className="space-y-1 text-xs">
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQBC:</span>
+                    <a href="https://optimistic.etherscan.io/token/0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0xB7c8…Fa67</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQUSD:</span>
+                    <a href="https://optimistic.etherscan.io/token/0xA8dAB13B55D7D5f9d140D0ec7B3772D373616147" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0xA8dA…6147</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
+                    <a href="https://optimistic.etherscan.io/address/0x4dc9618f5f7d30ae6e62bd07d74f10dd5ef0d925" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <p className="mb-1.5 font-[family-name:var(--font-display)] text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#0052ff" }}>Base</p>
+                <ul className="space-y-1 text-xs">
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQBC:</span>
+                    <a href="https://basescan.org/token/0x14Db7C37e7284C5bb67a2d682169c9D11B7478AD" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0x14Db…78AD</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQUSD:</span>
+                    <a href="https://basescan.org/token/0x1268ef87cC1DBB26428E4966A2C6C0Fb91877992" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">0x1268…7992</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
+                    <a href="https://basescan.org/address/0xd2dbb264a8068f3d94570ea48f72761d1ce58063" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
                   </li>
                 </ul>
               </div>

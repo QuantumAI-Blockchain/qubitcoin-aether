@@ -303,5 +303,45 @@
     "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
     "txHash": "5fa4a47f8ad1192bc7333f3aa05c9d34c053fdbdcfa14be5ed1a32d22d6c052a",
     "bridgeOperator": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:base:pool:wQBC-wQUSD": {
+    "address": "0xd2dbb264a8068f3d94570ea48f72761d1ce58063",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0x1268ef87cC1DBB26428E4966A2C6C0Fb91877992",
+    "token1": "0x14Db7C37e7284C5bb67a2d682169c9D11B7478AD",
+    "deployed_at": "2026-03-20T11:44:53Z"
+  },
+  "external:polygon:pool:wQBC-wQUSD": {
+    "address": "0x02a951968748c017c2e8722c864fda3ccb269621",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    "token1": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "deployed_at": "2026-03-20T11:45:21Z"
+  },
+  "external:avalanche:pool:wQBC-wQUSD": {
+    "address": "0x275d62fd3a97d5f38570dfe497aa6e48bfc93a44",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    "token1": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "deployed_at": "2026-03-20T11:45:21Z"
+  },
+  "external:arbitrum:pool:wQBC-wQUSD": {
+    "address": "0x02a951968748c017c2e8722c864fda3ccb269621",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    "token1": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "deployed_at": "2026-03-20T11:45:21Z"
+  },
+  "external:optimism:pool:wQBC-wQUSD": {
+    "address": "0x4dc9618f5f7d30ae6e62bd07d74f10dd5ef0d925",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0xA8dAB13B55D7D5f9d140D0ec7B3772D373616147",
+    "token1": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "deployed_at": "2026-03-20T11:45:21Z"
   }
 }
