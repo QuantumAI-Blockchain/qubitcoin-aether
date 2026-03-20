@@ -2435,24 +2435,49 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         with db_manager.get_session() as session:
             from sqlalchemy import text as sa_text
 
-            # Lock unspent UTXOs atomically
+            # Two-phase UTXO selection: first estimate how many we need
+            # (without locking), then lock only those rows.  This avoids
+            # locking all 100K+ UTXOs which causes multi-minute queries.
+            estimate_rows = session.execute(
+                sa_text("""
+                    SELECT txid, vout, amount FROM utxos
+                    WHERE address = :addr AND spent = false
+                    ORDER BY amount DESC
+                    LIMIT 500
+                """),
+                {'addr': miner_addr}
+            ).fetchall()
+
+            if not estimate_rows:
+                raise HTTPException(status_code=400, detail="No UTXOs available")
+
+            # Count how many of the largest UTXOs we need
+            needed = 0
+            running = Decimal(0)
+            for r in estimate_rows:
+                needed += 1
+                running += Decimal(str(r[2]))
+                if running >= amount:
+                    break
+
+            if running < amount:
+                raise HTTPException(status_code=400, detail=f"Insufficient balance in top 500 UTXOs: have {running}, need {amount}")
+
+            # Now lock only the rows we need (+ small buffer)
+            lock_limit = min(needed + 5, len(estimate_rows))
             rows = session.execute(
                 sa_text("""
                     SELECT txid, vout, amount FROM utxos
                     WHERE address = :addr AND spent = false
                     ORDER BY amount DESC
+                    LIMIT :lim
                     FOR UPDATE
                 """),
-                {'addr': miner_addr}
+                {'addr': miner_addr, 'lim': lock_limit}
             ).fetchall()
 
             if not rows:
                 raise HTTPException(status_code=400, detail="No UTXOs available")
-
-            # Check balance under lock
-            available = sum(Decimal(str(r[2])) for r in rows)
-            if available < amount:
-                raise HTTPException(status_code=400, detail=f"Insufficient UTXO balance: have {available}, need {amount}")
 
             # Greedy largest-first selection (already sorted DESC)
             selected_rows = []
@@ -2463,6 +2488,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 if total >= amount:
                     break
 
+            if total < amount:
+                raise HTTPException(status_code=400, detail=f"Insufficient UTXO balance: have {total}, need {amount}")
+
             change = total - amount
 
             # Deterministic txid from UTXO inputs
@@ -2471,14 +2499,18 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 f"{miner_addr}:{to_addr}:{amount}:{_input_nonce}".encode()
             ).hexdigest()
 
-            # Mark selected UTXOs as spent with rowcount check
-            for r in selected_rows:
-                result = session.execute(
-                    sa_text("UPDATE utxos SET spent = true, spent_by = :txid WHERE txid = :utxid AND vout = :vout AND spent = false"),
-                    {'txid': tx_hash, 'utxid': r[0], 'vout': r[1]}
-                )
-                if result.rowcount == 0:
-                    raise HTTPException(status_code=409, detail=f"UTXO already spent: {r[0]}:{r[1]}")
+            # Mark selected UTXOs as spent in batch (single UPDATE)
+            utxo_pairs = [(r[0], r[1]) for r in selected_rows]
+            # Build WHERE clause: (txid, vout) IN ((v1,v2), ...)
+            pair_clauses = " OR ".join(
+                f"(txid = '{p[0]}' AND vout = {p[1]})" for p in utxo_pairs
+            )
+            result = session.execute(
+                sa_text(f"UPDATE utxos SET spent = true, spent_by = :txid WHERE ({pair_clauses}) AND spent = false"),
+                {'txid': tx_hash}
+            )
+            if result.rowcount != len(utxo_pairs):
+                raise HTTPException(status_code=409, detail=f"UTXO conflict: expected {len(utxo_pairs)} updates, got {result.rowcount}")
             # Create change UTXO if needed
             if change > 0:
                 session.execute(
@@ -2613,56 +2645,90 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
         to_addr = req.to_address.replace('0x', '')
 
-        # Use a single DB transaction with SELECT FOR UPDATE to prevent
-        # TOCTOU race between UTXO selection and spending (H-2 fix).
+        # Two-phase UTXO selection (Bitcoin-style): first estimate without
+        # locking, then lock only the rows we need.  Avoids locking all
+        # 150K+ miner UTXOs which causes multi-minute queries.
         with db_manager.get_session() as session:
             from sqlalchemy import text as sa_text
 
             # Determine sort order for the SQL query
             sort_order = "ASC" if strategy == 'smallest_first' else "DESC"
+
+            # Phase 1: Estimate — unlocked scan with LIMIT to find candidates
+            estimate_limit = 500
+            estimate_rows = session.execute(
+                sa_text(f"""
+                    SELECT txid, vout, amount FROM utxos
+                    WHERE address = :addr AND spent = false
+                    ORDER BY amount {sort_order}
+                    LIMIT :lim
+                """),
+                {'addr': req.from_address, 'lim': estimate_limit}
+            ).fetchall()
+
+            if not estimate_rows:
+                raise HTTPException(status_code=400, detail="No UTXOs available")
+
+            # Pre-select candidates from the estimate
+            if strategy == 'exact_match':
+                exact = [r for r in estimate_rows if Decimal(str(r[2])) == amount]
+                if exact:
+                    candidate_rows = [exact[0]]
+                    est_total = Decimal(str(exact[0][2]))
+                else:
+                    # Fall back to smallest_first for exact_match
+                    rows_sorted = sorted(estimate_rows, key=lambda r: Decimal(str(r[2])))
+                    candidate_rows = []
+                    est_total = Decimal(0)
+                    for r in rows_sorted:
+                        candidate_rows.append(r)
+                        est_total += Decimal(str(r[2]))
+                        if est_total >= amount:
+                            break
+            else:
+                candidate_rows = []
+                est_total = Decimal(0)
+                for r in estimate_rows:
+                    candidate_rows.append(r)
+                    est_total += Decimal(str(r[2]))
+                    if est_total >= amount:
+                        break
+
+            if est_total < amount:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient balance in top {estimate_limit} UTXOs: "
+                           f"have {est_total}, need {amount}. "
+                           f"Consider consolidating UTXOs first via POST /wallet/consolidate"
+                )
+
+            # Phase 2: Lock only the rows we need (+ small buffer)
+            lock_limit = min(len(candidate_rows) + 5, len(estimate_rows))
             rows = session.execute(
                 sa_text(f"""
                     SELECT txid, vout, amount FROM utxos
                     WHERE address = :addr AND spent = false
                     ORDER BY amount {sort_order}
+                    LIMIT :lim
                     FOR UPDATE
                 """),
-                {'addr': req.from_address}
+                {'addr': req.from_address, 'lim': lock_limit}
             ).fetchall()
 
             if not rows:
                 raise HTTPException(status_code=400, detail="No UTXOs available")
 
-            # Check balance under lock
-            available = sum(Decimal(str(r[2])) for r in rows)
-            if available < amount:
-                raise HTTPException(status_code=400, detail=f"Insufficient balance: have {available}, need {amount}")
+            # Final selection under lock
+            selected_rows = []
+            total = Decimal(0)
+            for r in rows:
+                selected_rows.append(r)
+                total += Decimal(str(r[2]))
+                if total >= amount:
+                    break
 
-            # Select UTXOs using requested strategy
-            if strategy == 'exact_match':
-                exact = [r for r in rows if Decimal(str(r[2])) == amount]
-                if exact:
-                    selected_rows = [exact[0]]
-                    total = Decimal(str(exact[0][2]))
-                else:
-                    # Fall back to smallest_first — re-sort rows ascending
-                    rows_sorted = sorted(rows, key=lambda r: Decimal(str(r[2])))
-                    selected_rows = []
-                    total = Decimal(0)
-                    for r in rows_sorted:
-                        selected_rows.append(r)
-                        total += Decimal(str(r[2]))
-                        if total >= amount:
-                            break
-            else:
-                # largest_first or smallest_first — rows already sorted by SQL
-                selected_rows = []
-                total = Decimal(0)
-                for r in rows:
-                    selected_rows.append(r)
-                    total += Decimal(str(r[2]))
-                    if total >= amount:
-                        break
+            if total < amount:
+                raise HTTPException(status_code=400, detail=f"Insufficient UTXO balance: have {total}, need {amount}")
 
             change = total - amount
 
@@ -2738,6 +2804,164 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
         logger.info(f"Native send: {req.from_address[:8]}→{to_addr[:8]} {amount} QBC (pending)")
         return {'tx_hash': tx_hash, 'status': 'pending'}
+
+    # ── UTXO Consolidation (Bitcoin-style dust merging) ──────────────────
+
+    class ConsolidateRequest(BaseModel):
+        address: str
+        max_inputs: int = 200  # merge up to N UTXOs per consolidation tx
+        strategy: str = 'smallest_first'  # smallest_first merges dust; largest_first merges big UTXOs
+
+    @app.post("/wallet/consolidate")
+    async def wallet_consolidate(req: ConsolidateRequest, x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key")):
+        """Consolidate many UTXOs into a single UTXO (Bitcoin-style dust merging).
+
+        This is essential for wallets with many small UTXOs (e.g. mining wallets
+        that accumulate one UTXO per block). Without consolidation, transaction
+        creation becomes slow because the DB must lock and iterate thousands of
+        rows.
+
+        Like Bitcoin Core's ``-walletbroadcast`` consolidation, this creates a
+        self-spend transaction that merges N inputs into 1 output.
+        """
+        _require_admin_key(x_admin_key)
+        import hashlib
+        import time as _time
+        import json as _json
+
+        addr = req.address.replace('0x', '').lower()
+        max_inputs = min(req.max_inputs, 1000)  # cap at 1000 per tx
+        sort_order = "ASC" if req.strategy == 'smallest_first' else "DESC"
+
+        with db_manager.get_session() as session:
+            from sqlalchemy import text as sa_text
+
+            # Phase 1: Count available UTXOs (unlocked)
+            count_row = session.execute(
+                sa_text("SELECT COUNT(*) FROM utxos WHERE address = :addr AND spent = false"),
+                {'addr': addr}
+            ).scalar()
+
+            if not count_row or count_row <= 1:
+                return {'status': 'nothing_to_consolidate', 'utxo_count': count_row or 0}
+
+            # Phase 2: Select UTXOs to merge (lock only what we need)
+            rows = session.execute(
+                sa_text(f"""
+                    SELECT txid, vout, amount FROM utxos
+                    WHERE address = :addr AND spent = false
+                    ORDER BY amount {sort_order}
+                    LIMIT :lim
+                    FOR UPDATE
+                """),
+                {'addr': addr, 'lim': max_inputs}
+            ).fetchall()
+
+            if len(rows) <= 1:
+                return {'status': 'nothing_to_consolidate', 'utxo_count': len(rows)}
+
+            # Calculate total
+            total = sum(Decimal(str(r[2])) for r in rows)
+
+            # Deterministic txid
+            _input_nonce = ":".join(f"{r[0]}:{r[1]}" for r in rows)
+            tx_hash = hashlib.sha256(
+                f"consolidate:{addr}:{total}:{_input_nonce}".encode()
+            ).hexdigest()
+
+            # Mark all selected UTXOs as spent (batch UPDATE)
+            utxo_pairs = [(r[0], r[1]) for r in rows]
+            pair_clauses = " OR ".join(
+                f"(txid = :t{i} AND vout = :v{i})" for i in range(len(utxo_pairs))
+            )
+            params: dict = {'spent_by': tx_hash}
+            for i, (txid, vout) in enumerate(utxo_pairs):
+                params[f't{i}'] = txid
+                params[f'v{i}'] = vout
+
+            result = session.execute(
+                sa_text(f"UPDATE utxos SET spent = true, spent_by = :spent_by WHERE ({pair_clauses}) AND spent = false"),
+                params
+            )
+            if result.rowcount != len(utxo_pairs):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"UTXO conflict: expected {len(utxo_pairs)} updates, got {result.rowcount}"
+                )
+
+            # Create single consolidated UTXO
+            session.execute(
+                sa_text("""
+                    INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent)
+                    VALUES (:txid, 0, :amt, :addr, '{}', :h, false)
+                """),
+                {'txid': tx_hash, 'amt': str(total), 'addr': addr, 'h': db_manager.get_current_height()}
+            )
+
+            # Record the consolidation transaction
+            session.execute(
+                sa_text("""
+                    INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
+                                              timestamp, status, tx_type, to_address, data,
+                                              gas_limit, gas_price, nonce)
+                    VALUES (:txid, CAST(:inputs AS jsonb), CAST(:outputs AS jsonb), 0, 'consolidation', 'system',
+                            :ts, 'confirmed', 'consolidation', :addr, '', 0, 0, 0)
+                """),
+                {
+                    'txid': tx_hash,
+                    'inputs': _json.dumps([{'txid': r[0], 'vout': r[1]} for r in rows]),
+                    'outputs': _json.dumps([{'address': addr, 'amount': str(total)}]),
+                    'ts': _time.time(), 'addr': addr,
+                }
+            )
+            session.commit()
+
+        remaining = (count_row or 0) - len(rows) + 1  # merged N into 1
+        logger.info(
+            f"UTXO consolidation: {addr[:12]}... merged {len(rows)} UTXOs "
+            f"({total} QBC) into 1. Remaining: ~{remaining}"
+        )
+        return {
+            'status': 'consolidated',
+            'tx_hash': tx_hash,
+            'inputs_merged': len(rows),
+            'total_amount': str(total),
+            'remaining_utxos': remaining,
+        }
+
+    @app.get("/wallet/utxo-stats/{address}")
+    async def wallet_utxo_stats(address: str):
+        """Get UTXO statistics for an address — helps diagnose fragmentation."""
+        addr = address.replace('0x', '').lower()
+        with db_manager.get_session() as session:
+            from sqlalchemy import text as sa_text
+            row = session.execute(
+                sa_text("""
+                    SELECT COUNT(*) as cnt,
+                           COALESCE(SUM(amount), 0) as total,
+                           COALESCE(MIN(amount), 0) as smallest,
+                           COALESCE(MAX(amount), 0) as largest,
+                           COALESCE(AVG(amount), 0) as avg_size
+                    FROM utxos
+                    WHERE address = :addr AND spent = false
+                """),
+                {'addr': addr}
+            ).fetchone()
+
+        if not row:
+            return {'address': addr, 'utxo_count': 0, 'total_balance': '0'}
+
+        utxo_count = row[0]
+        return {
+            'address': addr,
+            'utxo_count': utxo_count,
+            'total_balance': str(row[1]),
+            'smallest_utxo': str(row[2]),
+            'largest_utxo': str(row[3]),
+            'avg_utxo_size': str(round(Decimal(str(row[4])), 8)),
+            'needs_consolidation': utxo_count > 100,
+            'recommended_consolidation_rounds': max(0, (utxo_count - 1) // 200),
+        }
 
     class WalletSignRequest(BaseModel):
         message_hash: str

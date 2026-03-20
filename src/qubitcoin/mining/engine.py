@@ -424,6 +424,16 @@ class MiningEngine:
                 except Exception as e:
                     logger.debug(f"Staking reward distribution: {e}")
 
+            # Auto-consolidate miner UTXOs every 1000 blocks (Bitcoin-style
+            # dust merging).  Without this, each mined block creates a new UTXO
+            # and the miner accumulates 100K+ tiny UTXOs, making transactions
+            # impossible due to SELECT FOR UPDATE locking the entire table.
+            if next_height % 1000 == 0:
+                try:
+                    self._auto_consolidate_utxos(next_height)
+                except Exception as e:
+                    logger.debug(f"UTXO auto-consolidation: {e}")
+
             # Periodic DB maintenance
             if next_height % Config.PHI_DOWNSAMPLE_INTERVAL == 0 and self.aether:
                 try:
@@ -452,6 +462,97 @@ class MiningEngine:
             logger.error(f"Failed to store block: {e}", exc_info=True)
 
         self._stop_event.wait(timeout=Config.MINING_INTERVAL)
+
+    def _auto_consolidate_utxos(self, block_height: int) -> None:
+        """Auto-consolidate miner UTXOs to prevent fragmentation.
+
+        Bitcoin Core does this during wallet operations; Ethereum avoids it
+        entirely via the account model.  Since QBC uses UTXOs for mining
+        rewards, we merge up to 500 small UTXOs into 1 every 1000 blocks.
+        """
+        import hashlib
+        import json as _json
+        from sqlalchemy import text as sa_text
+
+        addr = Config.ADDRESS
+        with self.db.get_session() as session:
+            # Check how many unspent UTXOs exist
+            count = session.execute(
+                sa_text("SELECT COUNT(*) FROM utxos WHERE address = :addr AND spent = false"),
+                {'addr': addr}
+            ).scalar() or 0
+
+            if count <= 10:
+                return  # nothing to consolidate
+
+            # Lock and merge up to 500 smallest UTXOs
+            merge_limit = min(500, count - 1)  # keep at least 1
+            rows = session.execute(
+                sa_text("""
+                    SELECT txid, vout, amount FROM utxos
+                    WHERE address = :addr AND spent = false
+                    ORDER BY amount ASC
+                    LIMIT :lim
+                    FOR UPDATE
+                """),
+                {'addr': addr, 'lim': merge_limit}
+            ).fetchall()
+
+            if len(rows) <= 1:
+                return
+
+            total = sum(Decimal(str(r[2])) for r in rows)
+            _input_nonce = ":".join(f"{r[0]}:{r[1]}" for r in rows)
+            tx_hash = hashlib.sha256(
+                f"auto-consolidate:{addr}:{block_height}:{_input_nonce}".encode()
+            ).hexdigest()
+
+            # Mark spent (parameterized batch)
+            params: dict = {'spent_by': tx_hash}
+            pair_clauses = []
+            for i, r in enumerate(rows):
+                pair_clauses.append(f"(txid = :t{i} AND vout = :v{i})")
+                params[f't{i}'] = r[0]
+                params[f'v{i}'] = r[1]
+
+            session.execute(
+                sa_text(f"UPDATE utxos SET spent = true, spent_by = :spent_by "
+                        f"WHERE ({' OR '.join(pair_clauses)}) AND spent = false"),
+                params
+            )
+
+            # Create single consolidated UTXO
+            session.execute(
+                sa_text("""
+                    INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent)
+                    VALUES (:txid, 0, :amt, :addr, '{}', :h, false)
+                """),
+                {'txid': tx_hash, 'amt': str(total), 'addr': addr, 'h': block_height}
+            )
+
+            # Record consolidation tx
+            session.execute(
+                sa_text("""
+                    INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
+                                              timestamp, status, tx_type, to_address, data,
+                                              gas_limit, gas_price, nonce)
+                    VALUES (:txid, CAST(:inputs AS jsonb), CAST(:outputs AS jsonb), 0,
+                            'auto-consolidation', 'system', :ts, 'confirmed',
+                            'consolidation', :addr, '', 0, 0, 0)
+                """),
+                {
+                    'txid': tx_hash,
+                    'inputs': _json.dumps([{'txid': r[0], 'vout': r[1]} for r in rows]),
+                    'outputs': _json.dumps([{'address': addr, 'amount': str(total)}]),
+                    'ts': time.time(), 'addr': addr,
+                }
+            )
+            session.commit()
+            logger.info(
+                f"Auto-consolidated {len(rows)} UTXOs into 1 "
+                f"({total} QBC) at block {block_height}. "
+                f"Remaining: ~{count - len(rows) + 1}"
+            )
 
     def _distribute_staking_rewards(self, block_reward: Decimal, block_height: int) -> None:
         """
