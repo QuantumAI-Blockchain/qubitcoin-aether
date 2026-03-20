@@ -145,8 +145,12 @@ services:
       # Connect to external P2P daemon (not subprocess)
       - RUST_P2P_GRPC=50051
       - RUST_P2P_GRPC_HOST=qbc-p2p
+      # Rust Exchange Engine (Docker container on qbc-net)
+      - EXCHANGE_GRPC=qbc-exchange:50053
       # Chain sync: peer RPC URL for catching up on blocks
       - SYNC_PEER_URL=${SYNC_PEER_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -192,6 +196,22 @@ services:
         condition: service_completed_successfully
       qbc-node:
         condition: service_started
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── QBC Exchange Engine (Rust) ──────────────────────────────────────
+  qbc-exchange:
+    build:
+      context: ./qbc-exchange
+      dockerfile: Dockerfile
+    container_name: qbc-exchange
+    ports:
+      - "50053:50053"
+    environment:
+      - EXCHANGE_GRPC_ADDR=0.0.0.0:50053
+      - ORACLE_TTL=60
+      - RUST_LOG=info,qbc_exchange=debug
     networks:
       - qbc-net
     restart: unless-stopped

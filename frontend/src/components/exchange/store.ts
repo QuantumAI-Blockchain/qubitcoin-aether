@@ -106,10 +106,10 @@ export const useExchangeStore = create<ExchangeState>()(
       view: "trading",
       setView: (v) => set({ view: v }),
 
-      activeMarket: "QBC_QUSD",
+      activeMarket: "QBC/QUSD",
       setActiveMarket: (id) => set({ activeMarket: id, orderPrice: "", orderSize: "" }),
 
-      favourites: ["QBC_QUSD", "QBC_PERP", "ETH_PERP"],
+      favourites: ["QBC/QUSD", "sBTC/QUSD", "sETH/QUSD"],
       toggleFavourite: (id) =>
         set((s) => ({
           favourites: s.favourites.includes(id)

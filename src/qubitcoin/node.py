@@ -619,13 +619,26 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"CapabilityAdvertiser init: {e}")
 
-        # Component 19b: Exchange Engine — Python fallback (Rust qbc-exchange is primary)
+        # Component 19b: Exchange Engine — Rust primary, Python fallback
         self.exchange_engine = None
+        self.rust_exchange_client = None
+        try:
+            from .exchange.rust_exchange_client import RustExchangeClient
+            exchange_grpc = os.environ.get("EXCHANGE_GRPC", "127.0.0.1:50053")
+            self.rust_exchange_client = RustExchangeClient(exchange_grpc)
+            if self.rust_exchange_client.connect():
+                logger.info(f"[19b/22] Rust Exchange connected at {exchange_grpc}")
+            else:
+                logger.warning("[19b/22] Rust Exchange not available, using Python fallback")
+                self.rust_exchange_client = None
+        except Exception as e:
+            logger.debug(f"Rust Exchange client init: {e}")
+            self.rust_exchange_client = None
+
         try:
             from .exchange.engine import ExchangeEngine
             self.exchange_engine = ExchangeEngine()
-            # No fake liquidity — real orders only. Rust exchange will replace this.
-            logger.info("[19b/22] ExchangeEngine initialized (Python fallback, no synthetic liquidity)")
+            logger.info("[19b/22] ExchangeEngine initialized (Python fallback)")
         except Exception as e:
             logger.error(f"ExchangeEngine init failed: {e}", exc_info=True)
 
@@ -830,6 +843,7 @@ class QubitcoinNode:
                 bridge_lp=self.bridge_lp,
                 neural_reasoner=self.neural_reasoner,
                 exchange_engine=self.exchange_engine,
+                rust_exchange_client=self.rust_exchange_client,
                 higgs_field=self.higgs_field,
                 # AIKGS (Rust sidecar gRPC client)
                 aikgs_client=self.aikgs_client,

@@ -2,13 +2,33 @@
 "use client";
 
 import React, { memo, useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useMarket } from "./hooks";
 import { useExchangeStore } from "./store";
 import { X, FONT, formatPrice, formatPct, formatUsd, formatSize, formatFundingRate, countdownStr, PriceDisplay } from "./shared";
 
+const RPC_BASE = process.env.NEXT_PUBLIC_RPC_URL ?? "http://localhost:5000";
+
+function useOracleStatus() {
+  return useQuery({
+    queryKey: ["exchange", "oracle", "status"] as const,
+    queryFn: async () => {
+      const res = await fetch(`${RPC_BASE}/exchange/oracle/prices`);
+      if (!res.ok) return { connected: false, count: 0 };
+      const data = await res.json() as { prices: Record<string, number> };
+      const count = Object.keys(data.prices || {}).length;
+      return { connected: count > 0, count };
+    },
+    staleTime: 10000,
+    refetchInterval: 15000,
+    retry: 1,
+  });
+}
+
 export const MarketStatsBar = memo(function MarketStatsBar() {
   const activeMarket = useExchangeStore((s) => s.activeMarket);
   const { data: market } = useMarket(activeMarket);
+  const { data: oracle } = useOracleStatus();
   const [countdown, setCountdown] = useState("--:--:--");
 
   useEffect(() => {
@@ -40,9 +60,16 @@ export const MarketStatsBar = memo(function MarketStatsBar() {
       { label: "NEXT FUNDING", value: countdown },
       { label: "OPEN INTEREST", value: formatUsd(market.openInterest) },
     );
-  } else {
-    stats.push({ label: "MKT CAP", value: formatUsd(market.marketCap) });
+  } else if (market.indexPrice > 0 && market.indexPrice !== market.lastPrice) {
+    stats.push({ label: "ORACLE", value: formatPrice(market.indexPrice, market.decimals) });
   }
+
+  const oracleConnected = oracle?.connected ?? false;
+  const oracleCount = oracle?.count ?? 0;
+  const oracleColor = oracleConnected ? X.bid : X.glowAmber;
+  const oracleLabel = oracleConnected
+    ? `ORACLE: LIVE (${oracleCount} FEEDS)`
+    : "ORACLE: CONNECTING...";
 
   return (
     <div
@@ -86,11 +113,11 @@ export const MarketStatsBar = memo(function MarketStatsBar() {
         </div>
       ))}
 
-      {/* Oracle badge */}
+      {/* Oracle badge — live status */}
       <div style={{ marginLeft: "auto", flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
-        <div style={{ width: 6, height: 6, borderRadius: "50%", background: X.glowAmber }} />
-        <span style={{ fontFamily: FONT.display, fontSize: 9, letterSpacing: "0.08em", color: X.glowAmber }}>
-          ORACLE: AWAITING CONNECTION
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: oracleColor }} />
+        <span style={{ fontFamily: FONT.display, fontSize: 9, letterSpacing: "0.08em", color: oracleColor }}>
+          {oracleLabel}
         </span>
       </div>
     </div>

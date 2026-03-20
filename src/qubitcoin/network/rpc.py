@@ -48,6 +48,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                    bridge_lp=None,
                    neural_reasoner=None,
                    exchange_engine=None,
+                   rust_exchange_client=None,
                    stratum_pool=None,
                    higgs_field=None,
                    aikgs_client=None,
@@ -6090,6 +6091,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/exchange/markets")
     async def exchange_markets():
         """List all trading pairs with summary statistics."""
+        if rust_exchange_client:
+            markets = rust_exchange_client.get_markets()
+            if markets is not None:
+                return {"markets": markets}
         if not exchange_engine:
             raise HTTPException(status_code=503, detail="Exchange engine not available")
         return {"markets": exchange_engine.get_markets()}
@@ -6097,24 +6102,36 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/exchange/orderbook/{pair}")
     async def exchange_orderbook(pair: str, depth: int = 20):
         """Get order book for a trading pair."""
-        if not exchange_engine:
-            raise HTTPException(status_code=503, detail="Exchange engine not available")
         if depth < 1 or depth > 200:
             raise HTTPException(status_code=400, detail="Depth must be between 1 and 200")
+        if rust_exchange_client:
+            ob = rust_exchange_client.get_orderbook(pair, depth)
+            if ob is not None:
+                return ob
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
         return exchange_engine.get_orderbook(pair, depth)
 
     @app.get("/exchange/trades/{pair}")
     async def exchange_trades(pair: str, limit: int = 50):
         """Get recent trades for a trading pair."""
-        if not exchange_engine:
-            raise HTTPException(status_code=503, detail="Exchange engine not available")
         if limit < 1 or limit > 500:
             raise HTTPException(status_code=400, detail="Limit must be between 1 and 500")
+        if rust_exchange_client:
+            trades = rust_exchange_client.get_recent_trades(pair, limit)
+            if trades is not None:
+                return {"trades": trades}
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
         return {"trades": exchange_engine.get_recent_trades(pair, limit)}
 
     @app.get("/exchange/orders/{address}")
     async def exchange_user_orders(address: str):
         """Get all open orders for a user across all pairs."""
+        if rust_exchange_client:
+            orders = rust_exchange_client.get_user_orders(address)
+            if orders is not None:
+                return {"orders": orders}
         if not exchange_engine:
             raise HTTPException(status_code=503, detail="Exchange engine not available")
         return {"orders": exchange_engine.get_user_orders(address)}
@@ -6133,8 +6150,6 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
         Body: {pair, side, type, price, size, address}
         """
-        if not exchange_engine:
-            raise HTTPException(status_code=503, detail="Exchange engine not available")
         pair = req.pair
         side = req.side
         order_type = req.type
@@ -6145,6 +6160,15 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if order_type == "limit" and price <= 0:
             raise HTTPException(status_code=400, detail="price must be positive for limit orders")
 
+        if rust_exchange_client:
+            result = rust_exchange_client.place_order(pair, side, order_type, price, size, address)
+            if result is not None:
+                if "error" in result:
+                    raise HTTPException(status_code=400, detail=result["error"])
+                return result
+
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
         try:
             result = exchange_engine.place_order(pair, side, order_type, price, size, address)
             return result
@@ -6153,15 +6177,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.delete("/exchange/order/{order_id}")
     async def exchange_cancel_order(order_id: str, pair: str = "", address: str = ""):
-        """Cancel an open order.
-
-        If pair is provided, search only that book. Otherwise search all books.
-        Requires the owner address to prevent unauthorized cancellations.
-        """
-        if not exchange_engine:
-            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        """Cancel an open order."""
         if not address:
             raise HTTPException(status_code=400, detail="address is required to cancel an order")
+
+        if rust_exchange_client:
+            success = rust_exchange_client.cancel_order(pair, order_id, address)
+            if success:
+                return {"status": "cancelled", "order_id": order_id}
+
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
         if pair:
             success = exchange_engine.cancel_order(pair, order_id, owner_address=address)
         else:
@@ -6173,24 +6199,33 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/exchange/balance/{address}")
     async def exchange_user_balance(address: str):
         """Get a user's exchange balances (deposited funds)."""
+        if rust_exchange_client:
+            result = rust_exchange_client.get_balance(address)
+            if result is not None:
+                return result
         if not exchange_engine:
             raise HTTPException(status_code=503, detail="Exchange engine not available")
         return exchange_engine.get_user_balance(address)
 
     @app.post("/exchange/deposit")
     async def exchange_deposit(request: Request):
-        """Deposit funds into exchange.
-
-        Body: {address, asset, amount}
-        """
-        if not exchange_engine:
-            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        """Deposit funds into exchange."""
         body = await request.json()
         address = body.get("address", "")
         asset = body.get("asset", "")
         amount = float(body.get("amount", 0))
         if not address or not asset:
             raise HTTPException(status_code=400, detail="address and asset are required")
+
+        if rust_exchange_client:
+            result = rust_exchange_client.deposit(address, asset, amount)
+            if result is not None:
+                if "error" in result:
+                    raise HTTPException(status_code=400, detail=result["error"])
+                return result
+
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
         try:
             return exchange_engine.deposit(address, asset, amount)
         except ValueError as e:
@@ -6198,18 +6233,23 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.post("/exchange/withdraw")
     async def exchange_withdraw(request: Request):
-        """Withdraw funds from exchange.
-
-        Body: {address, asset, amount}
-        """
-        if not exchange_engine:
-            raise HTTPException(status_code=503, detail="Exchange engine not available")
+        """Withdraw funds from exchange."""
         body = await request.json()
         address = body.get("address", "")
         asset = body.get("asset", "")
         amount = float(body.get("amount", 0))
         if not address or not asset:
             raise HTTPException(status_code=400, detail="address and asset are required")
+
+        if rust_exchange_client:
+            result = rust_exchange_client.withdraw(address, asset, amount)
+            if result is not None:
+                if "error" in result:
+                    raise HTTPException(status_code=400, detail=result["error"])
+                return result
+
+        if not exchange_engine:
+            raise HTTPException(status_code=503, detail="Exchange engine not available")
         try:
             return exchange_engine.withdraw(address, asset, amount)
         except ValueError as e:
@@ -6218,9 +6258,80 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/exchange/stats")
     async def exchange_stats():
         """Get overall exchange engine statistics."""
+        if rust_exchange_client:
+            result = rust_exchange_client.get_engine_stats()
+            if result is not None:
+                return result
         if not exchange_engine:
             raise HTTPException(status_code=503, detail="Exchange engine not available")
         return exchange_engine.get_engine_stats()
+
+    # ── Synthetic + Oracle endpoints (Rust exchange only) ────────────
+
+    @app.get("/exchange/synthetic/assets")
+    async def exchange_synthetic_assets():
+        """Get all synthetic asset definitions with oracle prices."""
+        if rust_exchange_client:
+            assets = rust_exchange_client.get_synthetic_assets()
+            if assets is not None:
+                return {"assets": assets}
+        if exchange_engine:
+            return {"assets": exchange_engine.get_synthetic_assets()}
+        raise HTTPException(status_code=503, detail="Exchange engine not available")
+
+    @app.post("/exchange/synthetic/mint")
+    async def exchange_synthetic_mint(request: Request):
+        """Mint synthetic tokens by depositing QUSD collateral."""
+        if not rust_exchange_client:
+            raise HTTPException(status_code=503, detail="Rust exchange required for synthetic operations")
+        body = await request.json()
+        address = body.get("address", "")
+        symbol = body.get("symbol", "")
+        qusd_amount = float(body.get("qusd_amount", 0))
+        if not address or not symbol or qusd_amount <= 0:
+            raise HTTPException(status_code=400, detail="address, symbol, and positive qusd_amount required")
+        result = rust_exchange_client.mint_synthetic(address, symbol, qusd_amount)
+        if result is None:
+            raise HTTPException(status_code=503, detail="Exchange unavailable")
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        return result
+
+    @app.post("/exchange/synthetic/burn")
+    async def exchange_synthetic_burn(request: Request):
+        """Burn synthetic tokens and return QUSD collateral."""
+        if not rust_exchange_client:
+            raise HTTPException(status_code=503, detail="Rust exchange required for synthetic operations")
+        body = await request.json()
+        address = body.get("address", "")
+        symbol = body.get("symbol", "")
+        amount = float(body.get("amount", 0))
+        if not address or not symbol or amount <= 0:
+            raise HTTPException(status_code=400, detail="address, symbol, and positive amount required")
+        result = rust_exchange_client.burn_synthetic(address, symbol, amount)
+        if result is None:
+            raise HTTPException(status_code=503, detail="Exchange unavailable")
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        return result
+
+    @app.get("/exchange/synthetic/position/{address}")
+    async def exchange_collateral_position(address: str, symbol: str = ""):
+        """Get collateral positions for an address."""
+        if not rust_exchange_client:
+            raise HTTPException(status_code=503, detail="Rust exchange required for collateral queries")
+        positions = rust_exchange_client.get_collateral_position(address, symbol)
+        return {"positions": positions}
+
+    @app.get("/exchange/oracle/prices")
+    async def exchange_oracle_prices():
+        """Get all oracle prices from CoinGecko."""
+        if not rust_exchange_client:
+            raise HTTPException(status_code=503, detail="Rust exchange required for oracle prices")
+        result = rust_exchange_client.get_oracle_prices()
+        if result is None:
+            raise HTTPException(status_code=503, detail="Exchange unavailable")
+        return result
 
     # ========================================================================
     # EXCHANGE OHLC / CANDLES (M11)

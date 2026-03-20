@@ -1,17 +1,9 @@
 // ─── QBC EXCHANGE — TypeScript Types ─────────────────────────────────────────
 // All interfaces for the on-chain order book DEX. Strict mode. Zero `any`.
 
-export type MarketId =
-  | "QBC_QUSD"
-  | "WETH_QUSD"
-  | "WBNB_QUSD"
-  | "WSOL_QUSD"
-  | "WQBC_QUSD"
-  | "QBC_PERP"
-  | "ETH_PERP"
-  | "BNB_PERP"
-  | "SOL_PERP"
-  | "BTC_PERP";
+// MarketId accepts both static config IDs and dynamic pairs from the Rust exchange
+// (e.g. "QBC/QUSD", "sBTC/QUSD", "QBC_QUSD", "ETH_PERP")
+export type MarketId = string;
 
 export type MarketType = "spot" | "perp";
 export type OrderSide = "buy" | "sell";
@@ -25,7 +17,7 @@ export type ExchangeView = "trading" | "portfolio";
 export interface Market {
   id: MarketId;
   baseAsset: string;
-  quoteAsset: "QUSD";
+  quoteAsset: string;
   type: MarketType;
   displayName: string;
   lastPrice: number;

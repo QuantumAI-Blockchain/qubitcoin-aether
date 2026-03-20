@@ -85,21 +85,26 @@ const qk = {
 // ─── ADAPTERS: convert exchange-api types → frontend types ──────────────────
 
 function adaptApiMarket(api: ApiMarket): Market {
-  const cfg = MARKET_CONFIGS.find((m) => m.id === api.pair && m.enabled);
-  const baseAsset = cfg?.baseAsset ?? api.pair.split("_")[0];
+  // Match config by pair ID — try exact match, then underscore-normalized form
+  const normalizedId = api.pair.replace("/", "_");
+  const cfg = MARKET_CONFIGS.find((m) => (m.id === api.pair || m.id === normalizedId) && m.enabled);
+  // Use the base field from API (e.g. "sBTC", "sETH", "QBC", "wQBC")
+  const baseAsset = api.base || cfg?.baseAsset || api.pair.split("/")[0];
+  const quoteAsset = api.quote || "QUSD";
   const type = cfg?.type ?? "spot";
   const vol = ASSET_VOLATILITY[baseAsset] ?? 0.05;
 
   // Backend returns Decimal values as strings — parse to number.
-  // Fall back to reference price when no trades have occurred yet (price == 0).
   const rawPrice = typeof api.lastPrice === "string" ? parseFloat(api.lastPrice) : api.lastPrice;
   const rawChange = typeof api.change24h === "string" ? parseFloat(api.change24h) : api.change24h;
   const rawVol = typeof api.volume24h === "string" ? parseFloat(api.volume24h) : api.volume24h;
   const rawHigh = typeof api.high24h === "string" ? parseFloat(api.high24h) : api.high24h;
   const rawLow = typeof api.low24h === "string" ? parseFloat(api.low24h) : api.low24h;
+  const oraclePrice = typeof api.oraclePrice === "string" ? parseFloat(api.oraclePrice) : (api.oraclePrice || 0);
 
+  // Price priority: lastPrice (from trades) > oraclePrice (from CoinGecko) > config fallback
   const refPrice = getBasePrice(baseAsset);
-  const lastPrice = rawPrice > 0 ? rawPrice : refPrice;
+  const lastPrice = rawPrice > 0 ? rawPrice : oraclePrice > 0 ? oraclePrice : refPrice;
   const change24h = rawPrice > 0 ? rawChange : 0;
   const volume24h = rawVol || 0;
   const high24h = rawHigh > 0 ? rawHigh : lastPrice;
@@ -107,14 +112,20 @@ function adaptApiMarket(api: ApiMarket): Market {
 
   const open = change24h !== 0 ? lastPrice / (1 + change24h / 100) : lastPrice;
 
+  // Display name: "sBTC/QUSD" for synthetics, "QBC/QUSD" for spot
+  const displayName = type === "perp" ? baseAsset + "-PERP" : baseAsset + "/" + quoteAsset;
+
+  // Auto-detect decimal precision from price magnitude
+  const autoDecimals = lastPrice < 0.001 ? 8 : lastPrice < 0.1 ? 6 : lastPrice < 10 ? 4 : lastPrice < 1000 ? 2 : 2;
+
   return {
     id: api.pair as MarketId,
     baseAsset,
-    quoteAsset: "QUSD",
+    quoteAsset,
     type,
-    displayName: type === "perp" ? baseAsset + "-PERP" : baseAsset + "/QUSD",
+    displayName,
     lastPrice,
-    indexPrice: lastPrice,
+    indexPrice: oraclePrice > 0 ? oraclePrice : lastPrice,
     markPrice: lastPrice,
     fundingRate: 0,
     nextFundingTs: 0,
@@ -130,10 +141,10 @@ function adaptApiMarket(api: ApiMarket): Market {
     minOrderSize: cfg?.minOrderSize ?? 1,
     tickSize: cfg?.tickSize ?? 0.0001,
     stepSize: cfg?.stepSize ?? 0.01,
-    decimals: (cfg?.tickSize ?? 0.0001) < 0.001 ? 4 : 2,
+    decimals: cfg ? (cfg.tickSize < 0.001 ? 4 : 2) : autoDecimals,
     sizeDecimals: (cfg?.stepSize ?? 0.01) < 0.01 ? 4 : 2,
     baseIcon: baseAsset.charAt(0),
-    marketCap: lastPrice * 1e9 * (0.5 + vol),
+    marketCap: 0, // Not applicable for synthetic/exchange markets
   };
 }
 

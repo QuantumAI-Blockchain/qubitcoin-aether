@@ -92,6 +92,10 @@ COPY sql_new/ ./sql_new/
 COPY rust-p2p/src/bridge/p2p_service_pb2.py ./rust-p2p/src/bridge/
 COPY rust-p2p/src/bridge/p2p_service_pb2_grpc.py ./rust-p2p/src/bridge/
 
+# Copy generated protobuf stubs for Rust Exchange gRPC bridge
+COPY qbc-exchange/src/bridge/exchange_pb2.py ./qbc-exchange/src/bridge/
+COPY qbc-exchange/src/bridge/exchange_pb2_grpc.py ./qbc-exchange/src/bridge/
+
 # Create data directories
 RUN mkdir -p /app/data /app/logs && \
     chown -R qbc:qbc /app

@@ -1,0 +1,314 @@
+syntax = "proto3";
+
+package exchange;
+
+// ─── Exchange Service ─────────────────────────────────────────────────
+// gRPC bridge between Python blockchain node and Rust exchange engine.
+// Handles order matching, synthetic assets, oracle pricing, collateral.
+
+service Exchange {
+  // ── Order Management ─────────────────────────────────────────────
+  rpc PlaceOrder(PlaceOrderRequest) returns (PlaceOrderResponse);
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+  rpc GetOrderBook(GetOrderBookRequest) returns (OrderBookResponse);
+  rpc GetUserOrders(GetUserOrdersRequest) returns (UserOrdersResponse);
+
+  // ── Market Data ──────────────────────────────────────────────────
+  rpc GetMarkets(GetMarketsRequest) returns (MarketsResponse);
+  rpc GetRecentTrades(GetRecentTradesRequest) returns (RecentTradesResponse);
+  rpc GetMarketSummary(GetMarketSummaryRequest) returns (MarketSummaryResponse);
+
+  // ── Balance Management ───────────────────────────────────────────
+  rpc Deposit(DepositRequest) returns (BalanceResponse);
+  rpc Withdraw(WithdrawRequest) returns (BalanceResponse);
+  rpc GetBalance(GetBalanceRequest) returns (UserBalanceResponse);
+
+  // ── Synthetic Assets ─────────────────────────────────────────────
+  rpc MintSynthetic(MintSyntheticRequest) returns (MintSyntheticResponse);
+  rpc BurnSynthetic(BurnSyntheticRequest) returns (BurnSyntheticResponse);
+  rpc GetSyntheticAssets(GetSyntheticAssetsRequest) returns (SyntheticAssetsResponse);
+  rpc GetCollateralPosition(GetCollateralPositionRequest) returns (CollateralPositionResponse);
+
+  // ── Oracle ───────────────────────────────────────────────────────
+  rpc GetOraclePrices(GetOraclePricesRequest) returns (OraclePricesResponse);
+
+  // ── Engine Stats ─────────────────────────────────────────────────
+  rpc GetEngineStats(GetEngineStatsRequest) returns (EngineStatsResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────
+
+enum Side {
+  BUY = 0;
+  SELL = 1;
+}
+
+enum OrderType {
+  LIMIT = 0;
+  MARKET = 1;
+}
+
+enum OrderStatus {
+  OPEN = 0;
+  PARTIAL = 1;
+  FILLED = 2;
+  CANCELLED = 3;
+}
+
+// ─── Order Messages ───────────────────────────────────────────────────
+
+message PlaceOrderRequest {
+  string pair = 1;
+  Side side = 2;
+  OrderType order_type = 3;
+  double price = 4;       // 0 for market orders
+  double size = 5;
+  string address = 6;     // owner address
+}
+
+message PlaceOrderResponse {
+  bool success = 1;
+  string error = 2;
+  OrderInfo order = 3;
+  repeated TradeInfo fills = 4;
+  double filled_size = 5;
+  double remaining_size = 6;
+}
+
+message CancelOrderRequest {
+  string pair = 1;
+  string order_id = 2;
+  string address = 3;     // owner for verification
+}
+
+message CancelOrderResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message GetOrderBookRequest {
+  string pair = 1;
+  uint32 depth = 2;       // default 20
+}
+
+message OrderBookResponse {
+  string pair = 1;
+  repeated PriceLevel bids = 2;
+  repeated PriceLevel asks = 3;
+  double spread = 4;
+  double mid_price = 5;
+  double best_bid = 6;
+  double best_ask = 7;
+}
+
+message PriceLevel {
+  double price = 1;
+  double size = 2;
+}
+
+message GetUserOrdersRequest {
+  string address = 1;
+}
+
+message UserOrdersResponse {
+  repeated OrderInfo orders = 1;
+}
+
+message OrderInfo {
+  string id = 1;
+  string pair = 2;
+  string side = 3;
+  string order_type = 4;
+  double price = 5;
+  double size = 6;
+  double filled = 7;
+  double remaining = 8;
+  string address = 9;
+  uint64 timestamp = 10;
+  string status = 11;
+}
+
+message TradeInfo {
+  string id = 1;
+  string pair = 2;
+  double price = 3;
+  double size = 4;
+  string side = 5;
+  string maker_order_id = 6;
+  string taker_order_id = 7;
+  uint64 timestamp = 8;
+}
+
+// ─── Market Messages ──────────────────────────────────────────────────
+
+message GetMarketsRequest {}
+
+message MarketsResponse {
+  repeated MarketInfo markets = 1;
+}
+
+message MarketInfo {
+  string pair = 1;
+  string base = 2;
+  string quote = 3;
+  double last_price = 4;
+  double best_bid = 5;
+  double best_ask = 6;
+  double high_24h = 7;
+  double low_24h = 8;
+  double volume_24h = 9;
+  double change_24h = 10;
+  uint64 trades_24h = 11;
+  double oracle_price = 12;   // for synthetics
+}
+
+message GetRecentTradesRequest {
+  string pair = 1;
+  uint32 limit = 2;
+}
+
+message RecentTradesResponse {
+  repeated TradeInfo trades = 1;
+}
+
+message GetMarketSummaryRequest {
+  string pair = 1;
+}
+
+message MarketSummaryResponse {
+  MarketInfo market = 1;
+}
+
+// ─── Balance Messages ─────────────────────────────────────────────────
+
+message DepositRequest {
+  string address = 1;
+  string asset = 2;
+  double amount = 3;
+}
+
+message WithdrawRequest {
+  string address = 1;
+  string asset = 2;
+  double amount = 3;
+}
+
+message BalanceResponse {
+  bool success = 1;
+  string error = 2;
+  string address = 3;
+  string asset = 4;
+  double amount = 5;
+  double balance = 6;
+}
+
+message GetBalanceRequest {
+  string address = 1;
+}
+
+message UserBalanceResponse {
+  string address = 1;
+  map<string, double> balances = 2;
+}
+
+// ─── Synthetic Messages ───────────────────────────────────────────────
+
+message MintSyntheticRequest {
+  string address = 1;
+  string symbol = 2;      // e.g. "sBTC"
+  double qusd_amount = 3;  // QUSD collateral to deposit
+}
+
+message MintSyntheticResponse {
+  bool success = 1;
+  string error = 2;
+  string symbol = 3;
+  double minted_amount = 4;    // synthetic tokens received
+  double collateral_locked = 5; // QUSD locked
+  double oracle_price = 6;
+  double collateral_ratio = 7;
+}
+
+message BurnSyntheticRequest {
+  string address = 1;
+  string symbol = 2;
+  double amount = 3;      // synthetic tokens to burn
+}
+
+message BurnSyntheticResponse {
+  bool success = 1;
+  string error = 2;
+  string symbol = 3;
+  double burned_amount = 4;
+  double qusd_returned = 5;
+  double fee = 6;
+}
+
+message GetSyntheticAssetsRequest {}
+
+message SyntheticAssetsResponse {
+  repeated SyntheticAssetInfo assets = 1;
+}
+
+message SyntheticAssetInfo {
+  string symbol = 1;
+  string name = 2;
+  string coingecko_id = 3;
+  string pair = 4;
+  double oracle_price = 5;
+  double total_supply = 6;
+  double total_collateral = 7;
+}
+
+message GetCollateralPositionRequest {
+  string address = 1;
+  string symbol = 2;       // empty = all positions
+}
+
+message CollateralPositionResponse {
+  repeated CollateralPosition positions = 1;
+}
+
+message CollateralPosition {
+  string symbol = 1;
+  string address = 2;
+  double synthetic_amount = 3;
+  double collateral_locked = 4;
+  double collateral_ratio = 5;
+  double liquidation_price = 6;
+  bool is_liquidatable = 7;
+}
+
+// ─── Oracle Messages ──────────────────────────────────────────────────
+
+message GetOraclePricesRequest {}
+
+message OraclePricesResponse {
+  map<string, double> prices = 1;    // coingecko_id -> USD price
+  uint64 last_updated = 2;
+}
+
+// ─── Engine Messages ──────────────────────────────────────────────────
+
+message GetEngineStatsRequest {}
+
+message EngineStatsResponse {
+  uint64 total_pairs = 1;
+  uint64 total_orders = 2;
+  uint64 total_trades = 3;
+  uint64 open_orders = 4;
+  repeated string markets = 5;
+  uint64 synthetic_assets = 6;
+  double total_collateral_locked = 7;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string version = 2;
+  uint64 uptime_seconds = 3;
+  uint64 markets = 4;
+  bool oracle_active = 5;
+}

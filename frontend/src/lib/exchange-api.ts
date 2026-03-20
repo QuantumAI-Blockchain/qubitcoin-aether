@@ -22,6 +22,8 @@ const USE_MOCK = process.env.NEXT_PUBLIC_EXCHANGE_MOCK === "true";
 
 export interface Market {
   pair: string;
+  base: string;
+  quote: string;
   lastPrice: number;
   change24h: number;
   volume24h: number;
@@ -30,6 +32,10 @@ export interface Market {
   tradeCount24h: number;
   bidCount: number;
   askCount: number;
+  bestBid: number;
+  bestAsk: number;
+  trades24h: number;
+  oraclePrice: number;
 }
 
 export interface OrderBookEntry {
@@ -135,14 +141,16 @@ async function exchangeFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 function mockMarkets(): Market[] {
   const pairs = [
-    { pair: "QBC_QUSD", last: 0.2847, change: 3.42, vol: 1_284_521, high: 0.2981, low: 0.2712 },
-    { pair: "WETH_QUSD", last: 3421.0, change: -1.28, vol: 8_421_000, high: 3498.0, low: 3380.5 },
-    { pair: "WBNB_QUSD", last: 412.8, change: 0.87, vol: 2_142_300, high: 418.4, low: 408.2 },
-    { pair: "WSOL_QUSD", last: 172.4, change: 5.21, vol: 4_821_700, high: 178.9, low: 164.2 },
-    { pair: "WQBC_QUSD", last: 0.2844, change: 3.38, vol: 421_800, high: 0.2978, low: 0.2708 },
+    { pair: "QBC/QUSD", base: "QBC", last: 1.0, change: 3.42, vol: 1_284_521, high: 1.05, low: 0.95, oracle: 1.0 },
+    { pair: "wQBC/QUSD", base: "wQBC", last: 1.0, change: 3.38, vol: 421_800, high: 1.04, low: 0.96, oracle: 1.0 },
+    { pair: "sBTC/QUSD", base: "sBTC", last: 70000, change: -1.28, vol: 8_421_000, high: 71000, low: 69000, oracle: 70000 },
+    { pair: "sETH/QUSD", base: "sETH", last: 2140, change: 0.87, vol: 2_142_300, high: 2180, low: 2100, oracle: 2140 },
+    { pair: "sSOL/QUSD", base: "sSOL", last: 89, change: 5.21, vol: 4_821_700, high: 92, low: 86, oracle: 89 },
   ];
   return pairs.map((p) => ({
     pair: p.pair,
+    base: p.base,
+    quote: "QUSD",
     lastPrice: p.last,
     change24h: p.change,
     volume24h: p.vol,
@@ -151,6 +159,10 @@ function mockMarkets(): Market[] {
     tradeCount24h: Math.floor(p.vol / (p.last * 50)),
     bidCount: 30 + Math.floor(Math.random() * 20),
     askCount: 30 + Math.floor(Math.random() * 20),
+    bestBid: 0,
+    bestAsk: 0,
+    trades24h: 0,
+    oraclePrice: p.oracle,
   }));
 }
 
