@@ -233,5 +233,75 @@
     "chainId": 1,
     "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
     "bridgeOperator": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:avalanche:wQBC": {
+    "address": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "chainId": 43114,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "b682c2da9833c34807012b5f504abe5f76c8e3cfc43fbaa28005e3a113eb27ea",
+    "bridge": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:avalanche:wQUSD": {
+    "address": "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    "chainId": 43114,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "2e8133e174865ff9e8f42af79b6af1d6b107a39a1626584a734672d462707006",
+    "bridgeOperator": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:arbitrum:wQBC": {
+    "address": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "chainId": 42161,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "197f0519374e6758c587c73eacf170807ede2c59ca9416cb222a1efb5ad4f1cd",
+    "bridge": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:arbitrum:wQUSD": {
+    "address": "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    "chainId": 42161,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "9aa2e1ef0463c82c43d88c345b074e5cf425099aed304cf05aed920f6700b3b8",
+    "bridgeOperator": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:optimism:wQBC": {
+    "address": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "chainId": 10,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "e9368675090be47dfbc1801d01ba6a527a6481a62fbd44df8acabd2e470838f6",
+    "bridge": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:polygon:wQBC": {
+    "address": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "chainId": 137,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "26c7cdffb19d18774f81401efed0152da89c82df169579f362c8d3f3dc97bf06",
+    "bridge": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:polygon:wQUSD": {
+    "address": "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    "chainId": 137,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "c7d1912ab527c0c7b488db095428a11574b79cd099875413974122afaa91581a",
+    "bridgeOperator": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:optimism:wQUSD": {
+    "address": "0xA8dAB13B55D7D5f9d140D0ec7B3772D373616147",
+    "chainId": 10,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "2e25ac87105a8d5fa70d59f1cae0bf94e63fe8ca5e0fac27015acdd585406130",
+    "bridgeOperator": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:base:wQBC": {
+    "address": "0x14Db7C37e7284C5bb67a2d682169c9D11B7478AD",
+    "chainId": 8453,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "06178d301418406fe0261da9d9c788633dabf993bb5852664d73f775b9878435",
+    "bridge": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
+  },
+  "external:base:wQUSD": {
+    "address": "0x1268ef87cC1DBB26428E4966A2C6C0Fb91877992",
+    "chainId": 8453,
+    "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41",
+    "txHash": "5fa4a47f8ad1192bc7333f3aa05c9d34c053fdbdcfa14be5ed1a32d22d6c052a",
+    "bridgeOperator": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
   }
 }

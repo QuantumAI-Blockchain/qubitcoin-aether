@@ -309,14 +309,14 @@ class EVMChainDeployer:
                 f"expected {self.expected_chain_id}, got {chain_id}"
             )
 
-        # BSC returns non-standard extraData — inject POA middleware
-        if chain_id == 56:
+        # BSC and Polygon return non-standard extraData — inject POA middleware
+        if chain_id in (56, 137):
             try:
                 from web3.middleware import ExtraDataToPOAMiddleware
                 self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-                logger.info("BSC POA middleware injected")
+                logger.info(f"{self.chain_name} POA middleware injected")
             except ImportError:
-                logger.warning("ExtraDataToPOAMiddleware not available, BSC may fail")
+                logger.warning("ExtraDataToPOAMiddleware not available")
 
         self.account = self.w3.eth.account.from_key(self.private_key)
         balance = self.w3.eth.get_balance(self.account.address)
@@ -347,7 +347,7 @@ class EVMChainDeployer:
         """
         from web3 import Web3
 
-        nonce = self.w3.eth.get_transaction_count(self.account.address)
+        nonce = self.w3.eth.get_transaction_count(self.account.address, "pending")
         contract = self.w3.eth.contract(abi=abi, bytecode="0x" + bytecode)
 
         # Build deployment transaction
@@ -364,7 +364,14 @@ class EVMChainDeployer:
         if chain_cfg.get("gasStrategy") == "eip1559":
             latest = self.w3.eth.get_block("latest")
             base_fee = latest.get("baseFeePerGas", 0)
-            max_priority = self.w3.to_wei(2, "gwei")
+            # Query suggested priority fee from RPC (handles Polygon's 25 gwei minimum)
+            try:
+                max_priority = self.w3.eth.max_priority_fee
+                # Only enforce 2 gwei min on L1 chains; L2s have near-zero fees
+                if self.expected_chain_id in (1, 56, 137, 43114):
+                    max_priority = max(max_priority, self.w3.to_wei(2, "gwei"))
+            except Exception:
+                max_priority = self.w3.to_wei(30, "gwei")  # Safe fallback for L1
             tx["maxFeePerGas"] = base_fee * 2 + max_priority
             tx["maxPriorityFeePerGas"] = max_priority
         else:
@@ -402,7 +409,9 @@ class EVMChainDeployer:
         gas_limit: int = 500_000,
     ) -> str:
         """Call initialize() on a deployed contract. Returns tx hash."""
-        nonce = self.w3.eth.get_transaction_count(self.account.address)
+        # Brief wait for L2 RPC nonce propagation after deploy
+        time.sleep(3)
+        nonce = self.w3.eth.get_transaction_count(self.account.address, "pending")
 
         tx: Dict[str, Any] = {
             "from": self.account.address,
@@ -417,7 +426,11 @@ class EVMChainDeployer:
         if chain_cfg.get("gasStrategy") == "eip1559":
             latest = self.w3.eth.get_block("latest")
             base_fee = latest.get("baseFeePerGas", 0)
-            max_priority = self.w3.to_wei(2, "gwei")
+            try:
+                max_priority = self.w3.eth.max_priority_fee
+                max_priority = max(max_priority, self.w3.to_wei(2, "gwei"))
+            except Exception:
+                max_priority = self.w3.to_wei(30, "gwei")
             tx["maxFeePerGas"] = base_fee * 2 + max_priority
             tx["maxPriorityFeePerGas"] = max_priority
         else:
@@ -657,7 +670,7 @@ class BridgeOrchestrator:
         return ""
 
     def deploy_evm(self, chains: List[str]) -> Dict[str, Dict[str, str]]:
-        """Deploy wQBC + wQUSD to EVM chains.
+        """Deploy wQBC + wQUSD to EVM chains (direct, immutable).
 
         Returns dict mapping "external:{chain}:{token}" → deployment info.
         """
@@ -708,15 +721,13 @@ class BridgeOrchestrator:
             # Check if already deployed
             wqbc_key = f"external:{chain}:wQBC"
             wqusd_key = f"external:{chain}:wQUSD"
-            if wqbc_key in self.registry and wqusd_key in self.registry:
-                existing_wqbc = self.registry[wqbc_key].get("address", "")
-                existing_wqusd = self.registry[wqusd_key].get("address", "")
-                if existing_wqbc and existing_wqusd:
-                    logger.info(
-                        f"[{chain}] Already deployed: wQBC={existing_wqbc[:16]}..., "
-                        f"wQUSD={existing_wqusd[:16]}... (skipping)"
-                    )
-                    continue
+            wqbc_exists = bool(self.registry.get(wqbc_key, {}).get("address"))
+            wqusd_exists = bool(self.registry.get(wqusd_key, {}).get("address"))
+            if wqbc_exists and wqusd_exists:
+                logger.info(
+                    f"[{chain}] Already deployed: wQBC + wQUSD (skipping)"
+                )
+                continue
 
             if self.dry_run:
                 logger.info(
@@ -733,36 +744,41 @@ class BridgeOrchestrator:
                 logger.error(f"[{chain}] Connection failed: {e}")
                 continue
 
-            # Deploy wQBC
-            try:
-                wqbc_addr, wqbc_tx = deployer.deploy_contract(
-                    wqbc_bytecode, wqbc_abi, "wQBC"
-                )
+            # Deploy wQBC (skip if already deployed)
+            if wqbc_exists:
+                logger.info(f"[{chain}] wQBC already deployed, skipping")
+            else:
+                try:
+                    wqbc_addr, wqbc_tx = deployer.deploy_contract(
+                        wqbc_bytecode, wqbc_abi, "wQBC"
+                    )
 
-                # Initialize wQBC: initialize(bridge)
-                # bridge = deployer address initially (will be updated to relayer)
-                bridge_addr = bridge_operator or deployer.account.address
-                init_data = (
-                    function_selector("initialize(address)")
-                    + encode_address(bridge_addr)
-                )
-                deployer.call_initialize(wqbc_addr, init_data)
+                    bridge_addr = bridge_operator or deployer.account.address
+                    init_data = (
+                        function_selector("initialize(address)")
+                        + encode_address(bridge_addr)
+                    )
+                    deployer.call_initialize(wqbc_addr, init_data)
 
-                self.registry[wqbc_key] = {
-                    "address": wqbc_addr,
-                    "chainId": chain_id,
-                    "deployer": deployer.account.address,
-                    "txHash": wqbc_tx,
-                    "bridge": bridge_addr,
-                }
-                results[wqbc_key] = self.registry[wqbc_key]
-                save_registry(self.registry)
+                    self.registry[wqbc_key] = {
+                        "address": wqbc_addr,
+                        "chainId": chain_id,
+                        "deployer": deployer.account.address,
+                        "txHash": wqbc_tx,
+                        "bridge": bridge_addr,
+                    }
+                    results[wqbc_key] = self.registry[wqbc_key]
+                    save_registry(self.registry)
 
-            except Exception as e:
-                logger.error(f"[{chain}] wQBC deployment failed: {e}")
+                except Exception as e:
+                    logger.error(f"[{chain}] wQBC deployment failed: {e}")
+                    continue
+
+            # Deploy wQUSD (skip if already deployed)
+            if wqusd_exists:
+                logger.info(f"[{chain}] wQUSD already deployed, skipping")
                 continue
 
-            # Deploy wQUSD
             try:
                 wqusd_addr, wqusd_tx = deployer.deploy_contract(
                     wqusd_bytecode, wqusd_abi, "wQUSD"
@@ -795,9 +811,11 @@ class BridgeOrchestrator:
                 logger.error(f"[{chain}] wQUSD deployment failed: {e}")
                 continue
 
+            wqbc_final = self.registry.get(wqbc_key, {}).get("address", "N/A")
+            wqusd_final = self.registry.get(wqusd_key, {}).get("address", "N/A")
             logger.info(
                 f"[{chain}] Bridge deployment complete: "
-                f"wQBC={wqbc_addr}, wQUSD={wqusd_addr}"
+                f"wQBC={wqbc_final}, wQUSD={wqusd_final}"
             )
 
         return results
