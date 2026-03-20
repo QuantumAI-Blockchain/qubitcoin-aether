@@ -619,38 +619,13 @@ class QubitcoinNode:
         except Exception as e:
             logger.debug(f"CapabilityAdvertiser init: {e}")
 
-        # Component 19b: Exchange Engine — in-memory order book
+        # Component 19b: Exchange Engine — Python fallback (Rust qbc-exchange is primary)
         self.exchange_engine = None
         try:
             from .exchange.engine import ExchangeEngine
             self.exchange_engine = ExchangeEngine()
-            # Seed deep liquidity at target prices
-            # QBC = $0.25, QUSD = $1.00
-            # QBC/QUSD: 1 QBC = 0.25 QUSD (since QUSD=$1)
-            self.exchange_engine.seed_liquidity(
-                "QBC/QUSD", mid_price=0.25, depth_per_side=100,
-                size_per_level=10000.0, spread_bps=5.0,
-            )
-            self.exchange_engine.seed_liquidity(
-                "wQBC/QUSD", mid_price=0.25, depth_per_side=100,
-                size_per_level=10000.0, spread_bps=5.0,
-            )
-            # wETH/QUSD: ~$2500 per ETH
-            self.exchange_engine.seed_liquidity(
-                "wETH/QUSD", mid_price=2500.0, depth_per_side=50,
-                size_per_level=5.0, spread_bps=10.0,
-            )
-            # wBNB/QUSD: ~$600 per BNB
-            self.exchange_engine.seed_liquidity(
-                "wBNB/QUSD", mid_price=600.0, depth_per_side=50,
-                size_per_level=10.0, spread_bps=10.0,
-            )
-            # wSOL/QUSD: ~$150 per SOL
-            self.exchange_engine.seed_liquidity(
-                "wSOL/QUSD", mid_price=150.0, depth_per_side=50,
-                size_per_level=50.0, spread_bps=10.0,
-            )
-            logger.info("[19b/22] ExchangeEngine initialized with deep liquidity")
+            # No fake liquidity — real orders only. Rust exchange will replace this.
+            logger.info("[19b/22] ExchangeEngine initialized (Python fallback, no synthetic liquidity)")
         except Exception as e:
             logger.error(f"ExchangeEngine init failed: {e}", exc_info=True)
 

@@ -309,23 +309,90 @@ class OrderBook:
 class ExchangeEngine:
     """Multi-pair exchange engine with balance management."""
 
+    # Only markets where we control both sides (mintable assets)
+    # Synthetic pairs (sBTC, sETH, etc.) are added dynamically via add_synthetic_market()
     MARKETS = [
         MarketConfig(pair="QBC/QUSD", base="QBC", quote="QUSD", tick_size=Decimal("0.0001"), min_order=Decimal("1")),
-        MarketConfig(pair="wETH/QUSD", base="wETH", quote="QUSD", tick_size=Decimal("0.01"), min_order=Decimal("0.001")),
-        MarketConfig(pair="wBNB/QUSD", base="wBNB", quote="QUSD", tick_size=Decimal("0.01"), min_order=Decimal("0.01")),
-        MarketConfig(pair="wSOL/QUSD", base="wSOL", quote="QUSD", tick_size=Decimal("0.01"), min_order=Decimal("0.01")),
         MarketConfig(pair="wQBC/QUSD", base="wQBC", quote="QUSD", tick_size=Decimal("0.0001"), min_order=Decimal("1")),
+    ]
+
+    # Top 50 synthetic asset definitions — oracle-priced, QUSD-collateralized
+    SYNTHETIC_ASSETS: list[dict[str, Any]] = [
+        {"symbol": "sBTC",  "name": "Synthetic Bitcoin",    "coingecko_id": "bitcoin",          "decimals": 8},
+        {"symbol": "sETH",  "name": "Synthetic Ethereum",   "coingecko_id": "ethereum",         "decimals": 8},
+        {"symbol": "sBNB",  "name": "Synthetic BNB",        "coingecko_id": "binancecoin",      "decimals": 8},
+        {"symbol": "sSOL",  "name": "Synthetic Solana",     "coingecko_id": "solana",           "decimals": 8},
+        {"symbol": "sXRP",  "name": "Synthetic XRP",        "coingecko_id": "ripple",           "decimals": 8},
+        {"symbol": "sADA",  "name": "Synthetic Cardano",    "coingecko_id": "cardano",          "decimals": 8},
+        {"symbol": "sDOGE", "name": "Synthetic Dogecoin",   "coingecko_id": "dogecoin",         "decimals": 8},
+        {"symbol": "sAVAX", "name": "Synthetic Avalanche",  "coingecko_id": "avalanche-2",      "decimals": 8},
+        {"symbol": "sDOT",  "name": "Synthetic Polkadot",   "coingecko_id": "polkadot",         "decimals": 8},
+        {"symbol": "sTRX",  "name": "Synthetic Tron",       "coingecko_id": "tron",             "decimals": 8},
+        {"symbol": "sLINK", "name": "Synthetic Chainlink",  "coingecko_id": "chainlink",        "decimals": 8},
+        {"symbol": "sMATIC","name": "Synthetic Polygon",    "coingecko_id": "matic-network",    "decimals": 8},
+        {"symbol": "sSHIB", "name": "Synthetic Shiba Inu",  "coingecko_id": "shiba-inu",        "decimals": 8},
+        {"symbol": "sTON",  "name": "Synthetic Toncoin",    "coingecko_id": "the-open-network", "decimals": 8},
+        {"symbol": "sLTC",  "name": "Synthetic Litecoin",   "coingecko_id": "litecoin",         "decimals": 8},
+        {"symbol": "sBCH",  "name": "Synthetic Bitcoin Cash","coingecko_id": "bitcoin-cash",    "decimals": 8},
+        {"symbol": "sUNI",  "name": "Synthetic Uniswap",    "coingecko_id": "uniswap",          "decimals": 8},
+        {"symbol": "sATOM", "name": "Synthetic Cosmos",     "coingecko_id": "cosmos",           "decimals": 8},
+        {"symbol": "sXLM",  "name": "Synthetic Stellar",    "coingecko_id": "stellar",          "decimals": 8},
+        {"symbol": "sNEAR", "name": "Synthetic NEAR",       "coingecko_id": "near",             "decimals": 8},
+        {"symbol": "sAPT",  "name": "Synthetic Aptos",      "coingecko_id": "aptos",            "decimals": 8},
+        {"symbol": "sICP",  "name": "Synthetic ICP",        "coingecko_id": "internet-computer","decimals": 8},
+        {"symbol": "sFIL",  "name": "Synthetic Filecoin",   "coingecko_id": "filecoin",         "decimals": 8},
+        {"symbol": "sETC",  "name": "Synthetic Ethereum Classic","coingecko_id": "ethereum-classic","decimals": 8},
+        {"symbol": "sARB",  "name": "Synthetic Arbitrum",   "coingecko_id": "arbitrum",         "decimals": 8},
+        {"symbol": "sOP",   "name": "Synthetic Optimism",   "coingecko_id": "optimism",         "decimals": 8},
+        {"symbol": "sIMX",  "name": "Synthetic Immutable X","coingecko_id": "immutable-x",      "decimals": 8},
+        {"symbol": "sINJ",  "name": "Synthetic Injective",  "coingecko_id": "injective-protocol","decimals": 8},
+        {"symbol": "sVET",  "name": "Synthetic VeChain",    "coingecko_id": "vechain",          "decimals": 8},
+        {"symbol": "sHBAR", "name": "Synthetic Hedera",     "coingecko_id": "hedera-hashgraph", "decimals": 8},
+        {"symbol": "sSUI",  "name": "Synthetic Sui",        "coingecko_id": "sui",              "decimals": 8},
+        {"symbol": "sMKR",  "name": "Synthetic Maker",      "coingecko_id": "maker",            "decimals": 8},
+        {"symbol": "sAAVE", "name": "Synthetic Aave",       "coingecko_id": "aave",             "decimals": 8},
+        {"symbol": "sRENDER","name": "Synthetic Render",    "coingecko_id": "render-token",     "decimals": 8},
+        {"symbol": "sGRT",  "name": "Synthetic The Graph",  "coingecko_id": "the-graph",        "decimals": 8},
+        {"symbol": "sFTM",  "name": "Synthetic Fantom",     "coingecko_id": "fantom",           "decimals": 8},
+        {"symbol": "sALGO", "name": "Synthetic Algorand",   "coingecko_id": "algorand",         "decimals": 8},
+        {"symbol": "sTHETA","name": "Synthetic Theta",      "coingecko_id": "theta-token",      "decimals": 8},
+        {"symbol": "sFLOW", "name": "Synthetic Flow",       "coingecko_id": "flow",             "decimals": 8},
+        {"symbol": "sSAND", "name": "Synthetic Sandbox",    "coingecko_id": "the-sandbox",      "decimals": 8},
+        {"symbol": "sAXS",  "name": "Synthetic Axie Infinity","coingecko_id": "axie-infinity",  "decimals": 8},
+        {"symbol": "sMANA", "name": "Synthetic Decentraland","coingecko_id": "decentraland",    "decimals": 8},
+        {"symbol": "sSEI",  "name": "Synthetic Sei",        "coingecko_id": "sei-network",      "decimals": 8},
+        {"symbol": "sSTX",  "name": "Synthetic Stacks",     "coingecko_id": "blockstack",       "decimals": 8},
+        {"symbol": "sEGLD", "name": "Synthetic MultiversX", "coingecko_id": "elrond-erd-2",     "decimals": 8},
+        {"symbol": "sQNT",  "name": "Synthetic Quant",      "coingecko_id": "quant-network",    "decimals": 8},
+        {"symbol": "sPEPE", "name": "Synthetic Pepe",       "coingecko_id": "pepe",             "decimals": 8},
+        {"symbol": "sWLD",  "name": "Synthetic Worldcoin",  "coingecko_id": "worldcoin-wld",    "decimals": 8},
     ]
 
     def __init__(self) -> None:
         self.books: dict[str, OrderBook] = {}
         self.balances: dict[str, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
         self._order_count = 0
+        self.oracle_prices: dict[str, float] = {}  # symbol -> USD price
+        self._oracle_last_fetch: float = 0.0
+        self._synthetic_registry: dict[str, dict] = {}  # symbol -> asset info
+        self._collateral_ratio = Decimal("1.5")  # 150% collateralization for synths
 
+        # Initialize real markets (QBC/QUSD only)
         for mc in self.MARKETS:
             self.books[mc.pair] = OrderBook(mc)
 
-        logger.info(f"ExchangeEngine initialized with {len(self.books)} markets")
+        # Register all synthetic assets and create their markets
+        for asset in self.SYNTHETIC_ASSETS:
+            sym = asset["symbol"]
+            pair = f"{sym}/QUSD"
+            self._synthetic_registry[sym] = asset
+            mc = MarketConfig(
+                pair=pair, base=sym, quote="QUSD",
+                tick_size=Decimal("0.01"), min_order=Decimal("0.001"),
+            )
+            self.books[pair] = OrderBook(mc)
+
+        logger.info(f"ExchangeEngine initialized: {len(self.MARKETS)} real + {len(self.SYNTHETIC_ASSETS)} synthetic = {len(self.books)} markets")
 
     def _normalize_pair(self, pair: str) -> str:
         """Normalize pair name: QBC-QUSD -> QBC/QUSD."""
@@ -500,96 +567,13 @@ class ExchangeEngine:
             "markets": list(self.books.keys()),
         }
 
-    def seed_liquidity(self, pair: str, mid_price: float, depth_per_side: int = 50,
-                       size_per_level: float = 1000.0, spread_bps: float = 10.0,
-                       mm_address: str = "market-maker") -> int:  # noqa: PLR0913
-        """Seed an order book with market-making liquidity around a mid price.
-
-        Args:
-            pair: Trading pair
-            mid_price: Center price
-            depth_per_side: Number of price levels per side
-            size_per_level: Order size at each level
-            spread_bps: Spread in basis points between levels
-            mm_address: Market maker address
-
-        Returns:
-            Number of orders placed
-        """
-        book = self.books.get(pair)
-        if not book:
-            raise ValueError(f"Unknown pair: {pair}")
-
-        dec_mid = Decimal(str(mid_price))
-        dec_size = Decimal(str(size_per_level))
-        step = dec_mid * Decimal(str(spread_bps)) / Decimal("10000")
-        if step < book.config.tick_size:
-            step = book.config.tick_size
-
-        count = 0
-        base_asset = book.config.base
-        quote_asset = book.config.quote
-
-        # Deposit enough for all orders
-        total_base = dec_size * depth_per_side * 2  # extra buffer
-        total_quote = dec_size * dec_mid * depth_per_side * 2
-        self.balances[mm_address][base_asset] += total_base
-        self.balances[mm_address][quote_asset] += total_quote
-
-        # Place bids (below mid)
-        for i in range(1, depth_per_side + 1):
-            price = dec_mid - step * i
-            if price <= 0:
-                break
-            # Increase size further from mid for depth
-            level_size = dec_size * (Decimal("1") + Decimal(str(i)) * Decimal("0.05"))
-            order = Order(
-                id=f"mm-{pair}-bid-{i:04d}",
-                pair=pair,
-                side=Side.BUY,
-                order_type=OrderType.LIMIT,
-                price=price,
-                size=level_size,
-                address=mm_address,
-                timestamp=time.time() - i,
-            )
-            book.bids.append(order)
-            book._all_orders[order.id] = order
-            count += 1
-
-        # Place asks (above mid)
-        for i in range(1, depth_per_side + 1):
-            price = dec_mid + step * i
-            level_size = dec_size * (Decimal("1") + Decimal(str(i)) * Decimal("0.05"))
-            order = Order(
-                id=f"mm-{pair}-ask-{i:04d}",
-                pair=pair,
-                side=Side.SELL,
-                order_type=OrderType.LIMIT,
-                price=price,
-                size=level_size,
-                address=mm_address,
-                timestamp=time.time() - i,
-            )
-            book.asks.append(order)
-            book._all_orders[order.id] = order
-            count += 1
-
-        book._sort_bids()
-        book._sort_asks()
-
-        # Create initial trade at mid price to set last price
-        init_trade = Trade(
-            id=f"init-{pair}",
-            pair=pair,
-            price=dec_mid,
-            size=Decimal("100"),
-            side=Side.BUY,
-            maker_order_id="init",
-            taker_order_id="init",
-            timestamp=time.time(),
-        )
-        book._trades.append(init_trade)
-
-        logger.info(f"Seeded {count} orders for {pair} around {mid_price}")
-        return count
+    def get_synthetic_assets(self) -> list[dict[str, Any]]:
+        """Return all registered synthetic assets with current oracle prices."""
+        assets = []
+        for sym, info in self._synthetic_registry.items():
+            assets.append({
+                **info,
+                "pair": f"{sym}/QUSD",
+                "oracle_price": self.oracle_prices.get(sym, 0),
+            })
+        return assets
