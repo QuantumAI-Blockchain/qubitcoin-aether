@@ -156,6 +156,14 @@ export function Footer() {
                     <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
                     <a href="https://etherscan.io/address/0x02a951968748c017c2e8722c864fda3ccb269621" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
                   </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Buy QBC:</span>
+                    <a href="https://app.uniswap.org/explore/pools/ethereum/0x293ae431a2e99e292a7e3ba0bf33b27d6a0a1ccd" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-green-400 transition-colors hover:underline">wQBC/WETH</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">QUSD/USDC:</span>
+                    <a href="https://app.uniswap.org/explore/pools/ethereum/0xaef15b9daacb4acde11402b127c52c8894f46883" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-green-400 transition-colors hover:underline">wQUSD/USDC</a>
+                  </li>
                 </ul>
               </div>
               <div>
@@ -172,6 +180,10 @@ export function Footer() {
                   <li className="flex items-center gap-1.5">
                     <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
                     <a href="https://bscscan.com/address/0x3927EfB12bDaf7E2d9930A3581177a0646456abd" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">PancakeSwap V2 · 0.25%</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Buy QBC:</span>
+                    <a href="https://app.uniswap.org/explore/pools/bnb/0x35a922d3a2d95b9e2532db4eb6df156edd474557" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-green-400 transition-colors hover:underline">wQBC/WBNB</a>
                   </li>
                 </ul>
               </div>
@@ -207,6 +219,10 @@ export function Footer() {
                     <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
                     <a href="https://snowtrace.io/address/0x275d62fd3a97d5f38570dfe497aa6e48bfc93a44" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
                   </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Buy QBC:</span>
+                    <a href="https://app.uniswap.org/explore/pools/avalanche/0x661cd6b2df89a39883779958c94c2ad65a12fb4c" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-green-400 transition-colors hover:underline">wQBC/WAVAX</a>
+                  </li>
                 </ul>
               </div>
               <div>
@@ -223,6 +239,10 @@ export function Footer() {
                   <li className="flex items-center gap-1.5">
                     <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
                     <a href="https://arbiscan.io/address/0x02a951968748c017c2e8722c864fda3ccb269621" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Buy QBC:</span>
+                    <a href="https://app.uniswap.org/explore/pools/arbitrum/0x65f175ee6b052d459eb469ece2180e2c14eae47c" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-green-400 transition-colors hover:underline">wQBC/WETH</a>
                   </li>
                 </ul>
               </div>
@@ -241,6 +261,10 @@ export function Footer() {
                     <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
                     <a href="https://optimistic.etherscan.io/address/0x4dc9618f5f7d30ae6e62bd07d74f10dd5ef0d925" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
                   </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Buy QBC:</span>
+                    <a href="https://app.uniswap.org/explore/pools/optimism/0x009165afd67fe065cfb23a7e5096d75b3fbd7145" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-green-400 transition-colors hover:underline">wQBC/WETH</a>
+                  </li>
                 </ul>
               </div>
               <div>
@@ -257,6 +281,10 @@ export function Footer() {
                   <li className="flex items-center gap-1.5">
                     <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
                     <a href="https://basescan.org/address/0xd2dbb264a8068f3d94570ea48f72761d1ce58063" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Uniswap V3 · 0.3%</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Buy QBC:</span>
+                    <a href="https://app.uniswap.org/explore/pools/base/0xddf4f89c1bd0c753a5cd93ca5b400501ce90a9f6" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-green-400 transition-colors hover:underline">wQBC/WETH</a>
                   </li>
                 </ul>
               </div>

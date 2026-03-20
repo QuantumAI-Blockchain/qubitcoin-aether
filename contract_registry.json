@@ -343,5 +343,68 @@
     "token0": "0xA8dAB13B55D7D5f9d140D0ec7B3772D373616147",
     "token1": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
     "deployed_at": "2026-03-20T11:45:21Z"
+  },
+  "external:arbitrum:pool:wQBC-WETH": {
+    "address": "0x65f175ee6b052d459eb469ece2180e2c14eae47c",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+    "token1": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "priceTarget": "1 QBC = $0.25",
+    "deployed_at": "2026-03-20T12:10:10Z"
+  },
+  "external:optimism:pool:wQBC-WETH": {
+    "address": "0x009165afd67fe065cfb23a7e5096d75b3fbd7145",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0x4200000000000000000000000000000000000006",
+    "token1": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "priceTarget": "1 QBC = $0.25",
+    "deployed_at": "2026-03-20T12:11:10Z"
+  },
+  "external:base:pool:wQBC-WETH": {
+    "address": "0xddf4f89c1bd0c753a5cd93ca5b400501ce90a9f6",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0x14Db7C37e7284C5bb67a2d682169c9D11B7478AD",
+    "token1": "0x4200000000000000000000000000000000000006",
+    "priceTarget": "1 QBC = $0.25",
+    "deployed_at": "2026-03-20T12:11:43Z"
+  },
+  "external:bsc:pool:wQBC-WBNB": {
+    "address": "0x35a922d3a2d95b9e2532db4eb6df156edd474557",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0xA8dAB13B55D7D5f9d140D0ec7B3772D373616147",
+    "token1": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    "priceTarget": "1 QBC = $0.25",
+    "deployed_at": "2026-03-20T12:16:12Z"
+  },
+  "external:avalanche:pool:wQBC-WAVAX": {
+    "address": "0x661cd6b2df89a39883779958c94c2ad65a12fb4c",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+    "token1": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "priceTarget": "1 QBC = $0.25",
+    "deployed_at": "2026-03-20T12:16:59Z"
+  },
+  "external:ethereum:pool:wQBC-WETH": {
+    "address": "0x293ae431a2e99e292a7e3ba0bf33b27d6a0a1ccd",
+    "dex": "Uniswap V3",
+    "fee": "0.3%",
+    "token0": "0xB7c8783dDfb7f72b2C27AFBDFFD2B0206046Fa67",
+    "token1": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "priceTarget": "1 QBC = $0.25",
+    "deployed_at": "2026-03-20T12:30:00Z"
+  },
+  "external:ethereum:pool:wQUSD-USDC": {
+    "address": "0xaef15b9daacb4acde11402b127c52c8894f46883",
+    "dex": "Uniswap V3",
+    "fee": "0.05%",
+    "token0": "0x884867d25552b6117F85428405aeAA208A8CAdB3",
+    "token1": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "priceTarget": "1 QUSD = $0.10",
+    "deployed_at": "2026-03-20T12:35:00Z"
   }
 }
