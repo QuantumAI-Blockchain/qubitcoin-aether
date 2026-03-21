@@ -20,7 +20,7 @@ import {
 import {
   useKnowledgeNodes, useReasoningOps, useConsciousnessState,
   useConsciousnessEvents, useSephirotNodes, useSephirotBalance,
-  usePredictions, useSafetyEvents, useProofOfThought, useHiggsField,
+  usePredictions, useSafetyEvents, useProofOfThought, usePoTStats, useHiggsField,
   usePinealPhase, useMemoryStats, usePhiHistory, useAetherEdges,
 } from "./hooks";
 import {
@@ -814,26 +814,34 @@ function SafetyEventRow({ event }: { event: SafetyEvent }) {
 
 function ProofsTab() {
   const { data: proofs, isLoading } = useProofOfThought();
+  const { data: potStats } = usePoTStats();
 
   if (isLoading) return <LoadingSpinner />;
+
+  const totalProofs = (potStats?.total_proofs as number) ?? proofs?.length ?? 0;
+  const avgPhi = (potStats?.avg_phi as number) ?? 0;
+  const avgSteps = (potStats?.avg_reasoning_steps as number) ??
+    (proofs && proofs.length > 0 ? proofs.reduce((s, p) => s + p.reasoningSteps, 0) / proofs.length : 0);
+  const avgNodes = (potStats?.avg_knowledge_nodes as number) ??
+    (proofs && proofs.length > 0 ? proofs.reduce((s, p) => s + p.nodesReferenced, 0) / proofs.length : 0);
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Total Proofs" value={formatNumber(proofs?.length ?? 0)} icon={Zap} color={C.primary} />
+        <StatCard label="Total Proofs" value={formatNumber(totalProofs)} icon={Zap} color={C.primary} />
         <StatCard
-          label="Consensus Rate"
-          value={proofs && proofs.length > 0 ? `${((proofs.filter((p) => p.consensusReached).length / proofs.length) * 100).toFixed(0)}%` : "—"}
+          label="Avg Phi"
+          value={avgPhi > 0 ? avgPhi.toFixed(4) : "—"}
           icon={CheckCircle} color={C.success}
         />
         <StatCard
           label="Avg Reasoning Steps"
-          value={proofs && proofs.length > 0 ? (proofs.reduce((s, p) => s + p.reasoningSteps, 0) / proofs.length).toFixed(1) : "—"}
+          value={avgSteps > 0 ? avgSteps.toFixed(1) : "—"}
           icon={GitBranch} color={C.secondary}
         />
         <StatCard
-          label="Avg Nodes Referenced"
-          value={proofs && proofs.length > 0 ? (proofs.reduce((s, p) => s + p.nodesReferenced, 0) / proofs.length).toFixed(1) : "—"}
+          label="Avg Nodes Created"
+          value={avgNodes > 0 ? avgNodes.toFixed(1) : "—"}
           icon={Network} color={C.accent}
         />
       </div>

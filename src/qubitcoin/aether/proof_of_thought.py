@@ -53,6 +53,9 @@ class AetherEngine:
         # ConsciousnessDashboard — wired after RPC app creation (see node.py)
         self.consciousness_dashboard = None
 
+        # ProofOfThoughtExplorer — wired after RPC app creation (see node.py)
+        self.pot_explorer = None
+
         # --- AGI Improvement Subsystems ---
         # #2: Graph Attention Network Reasoner (critical for neural reasoning)
         self.neural_reasoner = None
@@ -345,6 +348,21 @@ class AetherEngine:
         if len(self._pot_cache) > self._pot_cache_max:
             oldest = min(self._pot_cache.keys())
             del self._pot_cache[oldest]
+
+        # Feed the PoT explorer if wired
+        if self.pot_explorer is not None:
+            try:
+                self.pot_explorer.record_block_thought(
+                    block_height=block_height,
+                    thought_hash=pot.thought_hash,
+                    phi_value=pot.phi_value,
+                    knowledge_root=pot.knowledge_root,
+                    reasoning_steps=pot.reasoning_steps,
+                    validator_address=pot.validator_address,
+                    timestamp=pot.timestamp,
+                )
+            except Exception as e:
+                logger.debug(f"PoT explorer record failed: {e}")
 
         # Feed the ConsciousnessDashboard if wired
         if self.consciousness_dashboard is not None:

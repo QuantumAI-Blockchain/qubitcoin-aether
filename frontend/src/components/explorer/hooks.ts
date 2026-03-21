@@ -1038,9 +1038,9 @@ export function useSafetyEvents(_limit: number = 20) {
   });
 }
 
-export function useProofOfThought(_limit: number = 30) {
+export function useProofOfThought(limit: number = 30) {
   return useQuery<ProofOfThought[]>({
-    queryKey: ["explorer", "proofOfThought"],
+    queryKey: ["aether", "pot", "recent", limit],
     queryFn: async () => {
       if (USE_MOCK) {
         return Array.from({ length: 20 }, (_, i) => ({
@@ -1051,29 +1051,44 @@ export function useProofOfThought(_limit: number = 30) {
           phiAtProof: 1.1 + Math.random() * 0.3, validatorCount: 1, consensusReached: true,
         }));
       }
-      // Derive from phi history — each phi measurement is effectively a PoT
-      const [phiData, reasonStats] = await Promise.all([
-        get<{ history: Array<Record<string, unknown>> }>("/aether/phi/history?limit=30").catch(() => null),
-        get<Record<string, unknown>>("/aether/reasoning/stats").catch(() => null),
-      ]);
-      if (!phiData?.history) return [];
-      const totalOps = (reasonStats?.total_operations as number) ?? 0;
-      return phiData.history.map((p, i) => {
-        const block = (p.block as number) ?? (p.block_height as number) ?? 0;
-        return {
-          hash: `0x${block.toString(16).padStart(8, "0")}${"a".repeat(56)}`,
-          blockHeight: block,
-          timestamp: (p.timestamp as number) ?? Date.now() / 1000 - i * 3.3,
-          taskType: i % 3 === 0 ? "auto_reason" : i % 3 === 1 ? "block_knowledge" : "cross_domain",
-          nodesReferenced: Math.floor(totalOps / Math.max(1, phiData.history.length)),
-          reasoningSteps: 3,
-          phiAtProof: (p.phi as number) ?? (p.phi_value as number) ?? 0,
-          validatorCount: 1,
-          consensusReached: true,
-        };
-      });
+      // Fetch real Proof-of-Thought data from the backend
+      const data = await get<{ phi_progression: Array<Record<string, unknown>> }>(
+        `/aether/pot/phi-progression?limit=${limit}`
+      ).catch(() => null);
+      if (!data?.phi_progression) return [];
+      return data.phi_progression.map((p) => ({
+        hash: (p.thought_hash as string) || "",
+        blockHeight: (p.block_height as number) || 0,
+        timestamp: (p.timestamp as number) || 0,
+        taskType: "block_reasoning",
+        nodesReferenced: (p.knowledge_nodes_created as number) || 0,
+        reasoningSteps: (p.reasoning_step_count as number) || 0,
+        phiAtProof: (p.phi_value as number) || 0,
+        validatorCount: 1,
+        consensusReached: true,
+      }));
     },
     staleTime: 15_000,
+  });
+}
+
+export function useBlockPoT(blockHeight: number | undefined) {
+  return useQuery<Record<string, unknown>>({
+    queryKey: ["aether", "pot", "block", blockHeight],
+    queryFn: async () => {
+      const data = await get<Record<string, unknown>>(`/aether/pot/${blockHeight}`);
+      return data;
+    },
+    enabled: blockHeight !== undefined && blockHeight > 0,
+    staleTime: 60_000,
+  });
+}
+
+export function usePoTStats() {
+  return useQuery<Record<string, unknown>>({
+    queryKey: ["aether", "pot", "stats"],
+    queryFn: () => get<Record<string, unknown>>("/aether/pot/stats"),
+    staleTime: 30_000,
   });
 }
 

@@ -4,8 +4,9 @@
    ───────────────────────────────────────────────────────────────────────── */
 
 import { motion } from "framer-motion";
-import { Box, ChevronLeft, ChevronRight, Clock, Cpu, Zap } from "lucide-react";
-import { useBlock, useBlockTransactions } from "./hooks";
+import { Box, Brain, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Cpu, Zap } from "lucide-react";
+import { useState } from "react";
+import { useBlock, useBlockTransactions, useBlockPoT } from "./hooks";
 import { useExplorerStore } from "./store";
 import {
   C, FONT, BackButton, Badge, CopyButton, DataTable, HashLink,
@@ -13,6 +14,201 @@ import {
   truncHash, txTypeColor, txTypeBadge,
 } from "./shared";
 import type { Transaction } from "./types";
+
+function BlockPoTSection({ height }: { height: number }) {
+  const { data: pot, isLoading } = useBlockPoT(height);
+  const [stepsExpanded, setStepsExpanded] = useState(false);
+
+  if (isLoading) {
+    return (
+      <Panel>
+        <SectionHeader title="PROOF-OF-THOUGHT" />
+        <div className="flex items-center justify-center py-6">
+          <LoadingSpinner />
+        </div>
+      </Panel>
+    );
+  }
+
+  if (!pot || Object.keys(pot).length === 0) return null;
+
+  const thoughtHash = (pot.thought_hash as string) || "";
+  const phiValue = (pot.phi_value as number) || 0;
+  const knowledgeRoot = (pot.knowledge_root as string) || "";
+  const reasoningSteps = (pot.reasoning_steps as Array<Record<string, unknown>>) || [];
+  const nodesCreated = (pot.knowledge_nodes_created as number) || 0;
+  const nodeIds = (pot.knowledge_nodes_ids as string[]) || [];
+  const validatorAddr = (pot.validator_address as string) || "";
+  const consciousnessEvent = pot.consciousness_event as Record<string, unknown> | null;
+
+  return (
+    <Panel>
+      <SectionHeader title="PROOF-OF-THOUGHT" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+        <StatCard
+          label="Reasoning Steps"
+          value={reasoningSteps.length}
+          icon={Brain}
+          color={C.secondary}
+        />
+        <StatCard
+          label="Nodes Created"
+          value={nodesCreated}
+          icon={Zap}
+          color={C.primary}
+        />
+        <StatCard
+          label="Phi Value"
+          value={phiValue.toFixed(4)}
+          color={C.phi}
+        />
+        {consciousnessEvent && (
+          <StatCard
+            label="Consciousness"
+            value="EVENT"
+            color={C.accent}
+          />
+        )}
+      </div>
+
+      <div className="space-y-2 text-xs" style={{ fontFamily: FONT.mono }}>
+        {thoughtHash && (
+          <div
+            className="flex items-start gap-3 border-b py-2"
+            style={{ borderColor: `${C.border}60` }}
+          >
+            <span
+              className="w-28 shrink-0 text-[10px] uppercase tracking-wider"
+              style={{ color: C.textMuted, fontFamily: FONT.heading }}
+            >
+              Thought Hash
+            </span>
+            <span className="min-w-0 break-all" style={{ color: C.primary }}>
+              {thoughtHash}
+            </span>
+            <CopyButton text={thoughtHash} />
+          </div>
+        )}
+
+        {knowledgeRoot && (
+          <div
+            className="flex items-start gap-3 border-b py-2"
+            style={{ borderColor: `${C.border}60` }}
+          >
+            <span
+              className="w-28 shrink-0 text-[10px] uppercase tracking-wider"
+              style={{ color: C.textMuted, fontFamily: FONT.heading }}
+            >
+              Knowledge Root
+            </span>
+            <span className="min-w-0 break-all" style={{ color: C.textPrimary }}>
+              {knowledgeRoot}
+            </span>
+            <CopyButton text={knowledgeRoot} />
+          </div>
+        )}
+
+        {validatorAddr && (
+          <div
+            className="flex items-start gap-3 border-b py-2"
+            style={{ borderColor: `${C.border}60` }}
+          >
+            <span
+              className="w-28 shrink-0 text-[10px] uppercase tracking-wider"
+              style={{ color: C.textMuted, fontFamily: FONT.heading }}
+            >
+              Validator
+            </span>
+            <span className="min-w-0 break-all" style={{ color: C.textPrimary }}>
+              {validatorAddr}
+            </span>
+            <CopyButton text={validatorAddr} />
+          </div>
+        )}
+
+        {nodeIds.length > 0 && (
+          <div
+            className="flex items-start gap-3 border-b py-2"
+            style={{ borderColor: `${C.border}60` }}
+          >
+            <span
+              className="w-28 shrink-0 text-[10px] uppercase tracking-wider"
+              style={{ color: C.textMuted, fontFamily: FONT.heading }}
+            >
+              Node IDs
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {nodeIds.map((id, i) => (
+                <span
+                  key={i}
+                  className="rounded px-1 py-0.5 text-[10px]"
+                  style={{ background: `${C.primary}15`, color: C.primary }}
+                >
+                  {id}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Expandable reasoning steps */}
+      {reasoningSteps.length > 0 && (
+        <div className="mt-3">
+          <button
+            onClick={() => setStepsExpanded(!stepsExpanded)}
+            className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors hover:opacity-80"
+            style={{
+              borderColor: `${C.secondary}40`,
+              color: C.secondary,
+              fontFamily: FONT.heading,
+              background: `${C.secondary}08`,
+            }}
+          >
+            <Brain size={14} />
+            <span className="uppercase tracking-wider">
+              Reasoning Steps ({reasoningSteps.length})
+            </span>
+            {stepsExpanded ? <ChevronUp size={14} className="ml-auto" /> : <ChevronDown size={14} className="ml-auto" />}
+          </button>
+          {stepsExpanded && (
+            <div className="mt-2 max-h-[400px] space-y-2 overflow-y-auto">
+              {reasoningSteps.map((step, i) => (
+                <div
+                  key={i}
+                  className="rounded-md border px-3 py-2"
+                  style={{ borderColor: `${C.border}40`, background: `${C.surface}80` }}
+                >
+                  <div className="mb-1 flex items-center gap-2">
+                    <span
+                      className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold"
+                      style={{ background: `${C.secondary}20`, color: C.secondary }}
+                    >
+                      {i + 1}
+                    </span>
+                    {typeof step.type === "string" && step.type && (
+                      <Badge label={step.type.toUpperCase()} color={C.secondary} />
+                    )}
+                  </div>
+                  {typeof step.description === "string" && step.description && (
+                    <p className="text-xs" style={{ color: C.textPrimary, fontFamily: FONT.body }}>
+                      {step.description}
+                    </p>
+                  )}
+                  {typeof step.result === "string" && step.result && (
+                    <p className="mt-1 text-[10px]" style={{ color: C.textMuted, fontFamily: FONT.mono }}>
+                      Result: {step.result}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Panel>
+  );
+}
 
 export function BlockDetail({ height }: { height: number }) {
   const navigate = useExplorerStore((s) => s.navigate);
@@ -185,6 +381,9 @@ export function BlockDetail({ height }: { height: number }) {
           </div>
         </div>
       </Panel>
+
+      {/* Proof-of-Thought */}
+      <BlockPoTSection height={height} />
 
       {/* Transactions Table */}
       <Panel>

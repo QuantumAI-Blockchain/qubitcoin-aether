@@ -124,15 +124,19 @@ class ProofOfThoughtExplorer:
         if self._engine and hasattr(self._engine, '_pot_cache'):
             pot = self._engine._pot_cache.get(block_height)
             if pot:
+                reasoning = pot.reasoning_steps if pot.reasoning_steps else []
                 return {
                     'block_height': block_height,
                     'thought_hash': pot.thought_hash,
                     'phi_value': pot.phi_value,
                     'knowledge_root': pot.knowledge_root,
-                    'reasoning_steps': pot.reasoning_steps,
-                    'reasoning_step_count': len(pot.reasoning_steps),
+                    'reasoning_steps': reasoning,
+                    'reasoning_step_count': len(reasoning),
+                    'knowledge_nodes_created': 0,
+                    'knowledge_nodes_ids': [],
                     'validator_address': pot.validator_address,
                     'timestamp': pot.timestamp,
+                    'consciousness_event': None,
                 }
 
         return None

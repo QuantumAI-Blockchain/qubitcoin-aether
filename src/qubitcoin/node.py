@@ -876,6 +876,8 @@ class QubitcoinNode:
             # Wire RPC-created trackers back into engines so they receive data
             if self.aether and hasattr(self.app, 'consciousness_dashboard'):
                 self.aether.consciousness_dashboard = self.app.consciousness_dashboard
+            if self.aether and hasattr(self.app, 'pot_explorer'):
+                self.aether.pot_explorer = self.app.pot_explorer
             if hasattr(self.app, 'circulation_tracker'):
                 self.mining.circulation_tracker = self.app.circulation_tracker
 

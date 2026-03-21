@@ -463,6 +463,32 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         result = block.to_dict()
         # Include cumulative weight for fork-choice protocol
         result['cumulative_weight'] = db_manager.get_cumulative_weight(height)
+
+        # Extract phi_at_block from the thought_proof embedded in the block
+        if result.get('thought_proof') and isinstance(result['thought_proof'], dict):
+            result['phi_at_block'] = result['thought_proof'].get('phi_value', 0.0)
+        else:
+            result['phi_at_block'] = 0.0
+
+        # Feed the PoT explorer so it caches data for /aether/pot/* endpoints
+        if hasattr(app, 'pot_explorer') and app.pot_explorer is not None:
+            tp = result.get('thought_proof')
+            if tp and isinstance(tp, dict):
+                try:
+                    app.pot_explorer.record_block_thought(
+                        block_height=height,
+                        thought_hash=tp.get('thought_hash', ''),
+                        phi_value=tp.get('phi_value', 0.0),
+                        knowledge_root=tp.get('knowledge_root', ''),
+                        reasoning_steps=tp.get('reasoning_steps', []),
+                        validator_address=tp.get('validator_address', ''),
+                        knowledge_node_ids=tp.get('knowledge_node_ids', []),
+                        consciousness_event=tp.get('consciousness_event'),
+                        timestamp=tp.get('timestamp', 0.0),
+                    )
+                except Exception:
+                    pass  # Non-critical; explorer is best-effort
+
         return result
 
     @app.get("/chain/info")
