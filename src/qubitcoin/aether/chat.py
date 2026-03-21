@@ -1298,8 +1298,13 @@ class AetherChat:
                              intent: str = '') -> str:
         """Synthesize a natural language response from reasoning results.
 
-        Tries LLM-enhanced synthesis first (if enabled), then falls back
-        to knowledge-graph-only synthesis.
+        The Aether Tree IS the AI. Its own reasoning engine, knowledge graph,
+        and Sephirot nodes are the PRIMARY intelligence. LLM (Ollama etc.)
+        is only a BACKUP for when the tree's own response is too thin.
+
+        Priority order:
+        1. Aether Tree reasoning (KG + Sephirot + phi) — ALWAYS runs first
+        2. LLM enhancement — ONLY if tree response is too short/generic
 
         Args:
             query: The user's message.
@@ -1314,18 +1319,25 @@ class AetherChat:
         # Gather KG context
         node_contents, facts = self._gather_kg_context(knowledge_refs)
 
-        # Try LLM-enhanced path
-        if self.llm_manager and Config.LLM_ENABLED:
-            result = self._llm_synthesize(query, facts, reasoning_trace, knowledge_refs)
-            if result:
-                return result
-
-        # Existing KG-only fallback
-        return self._kg_only_synthesize(
+        # PRIMARY: Aether Tree's own reasoning (KG + Sephirot + reasoning engine)
+        aether_response = self._kg_only_synthesize(
             query, reasoning_trace, knowledge_refs, node_contents, facts,
             user_memories=user_memories,
             intent=intent,
         )
+
+        # Only fall back to LLM if the tree's response is too thin
+        # (less than 80 chars and no facts grounded) — meaning the tree
+        # genuinely doesn't have enough knowledge to answer well
+        if (self.llm_manager and Config.LLM_ENABLED
+                and len(aether_response) < 80 and not facts):
+            llm_result = self._llm_synthesize(
+                query, facts, reasoning_trace, knowledge_refs,
+            )
+            if llm_result:
+                return llm_result
+
+        return aether_response
 
     def _gather_kg_context(self, knowledge_refs: List[int]) -> tuple:
         """Gather content and facts from referenced knowledge nodes.
