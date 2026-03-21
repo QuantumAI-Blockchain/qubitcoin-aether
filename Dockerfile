@@ -72,7 +72,8 @@ WORKDIR /app
 # Copy and install Python dependencies (cached layer)
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 # Install Rust-accelerated aether_core module
 COPY --from=aether-builder /build/wheels/*.whl /tmp/wheels/
