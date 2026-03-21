@@ -1128,7 +1128,9 @@ class AetherChat:
                               is_deep_query: bool = False) -> dict:
         """Process a single query and return response components.
 
-        Used by process_message for both single and multi-question handling.
+        Uses self-improvement weights to select the best reasoning strategy
+        for the detected domain, runs neural reasoning (GAT) on the matched
+        subgraph, and builds response from inference conclusions.
 
         Args:
             message: The user's message (single question).
@@ -1138,12 +1140,15 @@ class AetherChat:
             is_deep_query: Whether to use deep reasoning.
 
         Returns:
-            Dict with response, reasoning_trace, knowledge_nodes_referenced, phi_at_response.
+            Dict with response, reasoning_trace, knowledge_nodes_referenced,
+            phi_at_response, neural_result, inference_conclusions.
         """
         reasoning_trace: List[dict] = []
         knowledge_refs: List[int] = []
         phi_value = 0.0
         query_result = None
+        neural_result = None
+        inference_conclusions: List[str] = []
 
         try:
             if self._query_translator:
@@ -1158,11 +1163,23 @@ class AetherChat:
                     relevant = self._search_knowledge(message)
                     knowledge_refs = [n for n in relevant[:10]]
 
-                if self.engine.reasoning and self.engine.kg:
-                    if is_deep_query:
-                        reasoning_trace = self._deep_reason(message, knowledge_refs)
-                    else:
-                        reasoning_trace = self._quick_reason(message, knowledge_refs)
+                if self.engine.reasoning and self.engine.kg and knowledge_refs:
+                    # Use self-improvement weights to select best strategy
+                    reasoning_trace, inference_conclusions = self._adaptive_reason(
+                        message, knowledge_refs, is_deep_query,
+                    )
+
+            # Run neural reasoner (GAT) on matched subgraph for confidence
+            if (knowledge_refs and self.engine.neural_reasoner
+                    and self.engine.kg):
+                try:
+                    vi = getattr(self.engine.kg, 'vector_index', None)
+                    if vi:
+                        neural_result = self.engine.neural_reasoner.reason(
+                            self.engine.kg, vi, knowledge_refs[:5], k_hops=2,
+                        )
+                except Exception as e:
+                    logger.debug(f"Neural reasoning in chat failed: {e}")
 
             if self.engine.phi:
                 phi_result = self.engine.phi.compute_phi()
@@ -1178,6 +1195,14 @@ class AetherChat:
             user_memories=user_memories,
             conversation_context=conversation_context,
             intent=intent,
+            neural_result=neural_result,
+            inference_conclusions=inference_conclusions,
+        )
+
+        # Feed reasoning outcome to self-improvement engine
+        self._record_reasoning_outcome(
+            message, intent, knowledge_refs, reasoning_trace,
+            neural_result, response_content,
         )
 
         return {
@@ -1186,6 +1211,153 @@ class AetherChat:
             'knowledge_nodes_referenced': knowledge_refs,
             'phi_at_response': phi_value,
         }
+
+    def _adaptive_reason(self, message: str, knowledge_refs: List[int],
+                         is_deep_query: bool) -> tuple:
+        """Use self-improvement weights to choose and run the best reasoning strategy.
+
+        Returns:
+            Tuple of (reasoning_trace, inference_conclusions).
+        """
+        reasoning_trace: List[dict] = []
+        inference_conclusions: List[str] = []
+
+        # Determine domain from matched nodes
+        domain = 'general'
+        if self.engine.kg and knowledge_refs:
+            domain_counts: Dict[str, int] = {}
+            for nid in knowledge_refs[:5]:
+                node = self.engine.kg.nodes.get(nid)
+                if node and node.domain:
+                    domain_counts[node.domain] = domain_counts.get(node.domain, 0) + 1
+            if domain_counts:
+                domain = max(domain_counts, key=domain_counts.get)
+
+        # Get strategy weights from self-improvement engine
+        best_strategy = 'chain_of_thought' if is_deep_query else 'inductive'
+        if hasattr(self.engine, 'self_improvement') and self.engine.self_improvement:
+            try:
+                best_strategy = self.engine.self_improvement.get_best_strategy(domain)
+            except Exception:
+                pass
+
+        # Execute the selected strategy
+        try:
+            if best_strategy == 'chain_of_thought' or is_deep_query:
+                reasoning_trace = self._deep_reason(message, knowledge_refs)
+            elif best_strategy == 'deductive':
+                result = self.engine.reasoning.deduce(knowledge_refs[:5])
+                if result.success:
+                    reasoning_trace = [result.to_dict()]
+                    if result.explanation:
+                        inference_conclusions.append(result.explanation)
+            elif best_strategy == 'abductive':
+                result = self.engine.reasoning.abduce(knowledge_refs[0])
+                if result.success:
+                    reasoning_trace = [result.to_dict()]
+                    if result.explanation:
+                        inference_conclusions.append(result.explanation)
+                    for hyp in result.hypotheses[:3]:
+                        if isinstance(hyp, dict) and hyp.get('description'):
+                            inference_conclusions.append(hyp['description'])
+            else:
+                # Default: inductive
+                reasoning_trace = self._quick_reason(message, knowledge_refs)
+
+            # Extract conclusions from reasoning trace
+            for step in reasoning_trace:
+                expl = step.get('explanation', '')
+                if expl and expl not in inference_conclusions:
+                    inference_conclusions.append(expl)
+                # Extract from chain steps
+                for chain_step in step.get('chain', []):
+                    if chain_step.get('step_type') == 'conclusion':
+                        content = chain_step.get('content', {})
+                        if isinstance(content, dict):
+                            desc = content.get('description', content.get('text', ''))
+                            if desc and desc not in inference_conclusions:
+                                inference_conclusions.append(desc)
+
+            # Also run concept-level reasoning if concepts exist
+            if (hasattr(self.engine, 'concept_formation')
+                    and self.engine.concept_formation
+                    and self.engine.kg):
+                concept_nodes = [
+                    n for n in self.engine.kg.nodes.values()
+                    if n.node_type == 'concept' and n.domain == domain
+                ]
+                for cn in concept_nodes[:3]:
+                    if isinstance(cn.content, dict):
+                        label = cn.content.get('label', cn.content.get('text', ''))
+                        if label:
+                            inference_conclusions.append(
+                                f"Abstract concept: {label}"
+                            )
+
+        except Exception as e:
+            logger.debug(f"Adaptive reasoning error: {e}")
+            # Fallback to quick reason
+            reasoning_trace = self._quick_reason(message, knowledge_refs)
+
+        return reasoning_trace, inference_conclusions
+
+    def _record_reasoning_outcome(self, message: str, intent: str,
+                                   knowledge_refs: List[int],
+                                   reasoning_trace: List[dict],
+                                   neural_result: Optional[dict],
+                                   response: str) -> None:
+        """Feed reasoning outcome back to self-improvement engine."""
+        if not hasattr(self.engine, 'self_improvement') or not self.engine.self_improvement:
+            return
+
+        try:
+            # Determine success heuristic: did reasoning produce useful content?
+            has_conclusions = len(response) > 100
+            has_reasoning = len(reasoning_trace) > 0
+            has_knowledge = len(knowledge_refs) > 0
+
+            # Determine strategy used
+            strategy = 'chain_of_thought'
+            if reasoning_trace:
+                for step in reasoning_trace:
+                    op_type = step.get('operation_type', '')
+                    if op_type in ('deductive', 'inductive', 'abductive'):
+                        strategy = op_type
+                        break
+
+            # Determine domain
+            domain = 'general'
+            if self.engine.kg and knowledge_refs:
+                for nid in knowledge_refs[:3]:
+                    node = self.engine.kg.nodes.get(nid)
+                    if node and node.domain:
+                        domain = node.domain
+                        break
+
+            # Confidence from neural result if available
+            confidence = 0.5
+            if neural_result and isinstance(neural_result, dict):
+                confidence = neural_result.get('confidence', 0.5)
+
+            success = has_conclusions and has_reasoning and has_knowledge
+
+            # Get current block height
+            block_height = 0
+            try:
+                if self.db:
+                    block_height = self.db.get_current_height() or 0
+            except Exception:
+                pass
+
+            self.engine.self_improvement.record_performance(
+                strategy=strategy,
+                domain=domain,
+                confidence=confidence,
+                success=success,
+                block_height=block_height,
+            )
+        except Exception as e:
+            logger.debug(f"Failed to record reasoning outcome: {e}")
 
     def _search_knowledge(self, query: str) -> List[int]:
         """Search the knowledge graph for nodes relevant to the query.
@@ -1309,7 +1481,9 @@ class AetherChat:
                              query_result=None,
                              user_memories: Optional[Dict[str, str]] = None,
                              conversation_context: str = '',
-                             intent: str = '') -> str:
+                             intent: str = '',
+                             neural_result: Optional[dict] = None,
+                             inference_conclusions: Optional[List[str]] = None) -> str:
         """Synthesize a natural language response from reasoning results.
 
         The Aether Tree IS the AI. Its own reasoning engine, knowledge graph,
@@ -1317,8 +1491,9 @@ class AetherChat:
         is only a BACKUP for when the tree's own response is too thin.
 
         Priority order:
-        1. Aether Tree reasoning (KG + Sephirot + phi) — ALWAYS runs first
-        2. LLM enhancement — ONLY if tree response is too short/generic
+        1. Inference conclusions from adaptive reasoning — NEW genuine intelligence
+        2. Aether Tree reasoning (KG + Sephirot + phi) — domain templates
+        3. LLM enhancement — ONLY if tree response is too short/generic
 
         Args:
             query: The user's message.
@@ -1328,8 +1503,11 @@ class AetherChat:
             user_memories: Cross-session user memories for personalization.
             conversation_context: Multi-turn conversation context string.
             intent: Detected intent category from _detect_intent.
+            neural_result: Result from GAT neural reasoner (confidence, attended nodes).
+            inference_conclusions: Conclusions derived from adaptive reasoning.
         """
         user_memories = user_memories or {}
+        inference_conclusions = inference_conclusions or []
         # Gather KG context
         node_contents, facts = self._gather_kg_context(knowledge_refs)
 
@@ -1338,6 +1516,8 @@ class AetherChat:
             query, reasoning_trace, knowledge_refs, node_contents, facts,
             user_memories=user_memories,
             intent=intent,
+            neural_result=neural_result,
+            inference_conclusions=inference_conclusions,
         )
 
         # Enrich with external knowledge when tree response is thin
@@ -1569,13 +1749,16 @@ class AetherChat:
                             node_contents: List[dict],
                             facts: List[str],
                             user_memories: Optional[Dict[str, str]] = None,
-                            intent: str = '') -> str:
-        """KG-only response synthesis with intent-driven topic routing.
+                            intent: str = '',
+                            neural_result: Optional[dict] = None,
+                            inference_conclusions: Optional[List[str]] = None) -> str:
+        """KG-only response synthesis with reasoning-first approach.
 
-        Improvements #1-15, #17, #20-21, #28-45: direct answers, specific
-        topic detectors, memory personalization, fact presentation, and more.
+        Priority: inference conclusions first, then intent-driven topic routing.
+        The system REASONS about its knowledge, not just assembles facts.
         """
         user_memories = user_memories or {}
+        inference_conclusions = inference_conclusions or []
         query_lower = query.lower().strip()
         parts: List[str] = []
 
@@ -1603,6 +1786,95 @@ class AetherChat:
             "Additionally, ", "Furthermore, ", "Related to this, ",
             "It's also worth noting that ", "On a related note, ",
         ]
+
+        # ── REASONING-FIRST: If we have genuine inference conclusions, ──
+        # ── use them as the PRIMARY response content.               ──
+        # This is the core AGI fix: the system REASONS, not just recites.
+        if inference_conclusions and intent not in ('greeting', 'remember_cmd',
+                                                     'recall_cmd', 'forget_cmd', 'math'):
+            # Build response from inference chain
+            name_prefix_r = f"{user_memories.get('name', '')}, " if user_memories.get('name') else ""
+
+            # Lead with reasoning conclusions
+            conclusions_text = []
+            for conc in inference_conclusions[:5]:
+                if conc and len(conc) > 10:
+                    conclusions_text.append(conc)
+
+            if conclusions_text:
+                # Get current phi and KG for context
+                _phi = 0.0
+                _kg_count = 0
+                if self.engine.phi:
+                    try:
+                        _phi = self.engine.phi.compute_phi().get('phi_value', 0.0)
+                    except Exception:
+                        pass
+                if self.engine.kg:
+                    _kg_count = len(self.engine.kg.nodes)
+
+                # Reasoning-grounded opening
+                parts.append(
+                    f"{name_prefix_r}Based on my reasoning across "
+                    f"{_format_number(_kg_count)} knowledge nodes:"
+                )
+
+                # Present each conclusion as a reasoned insight
+                for i, conc in enumerate(conclusions_text):
+                    parts.append(f"  {conc}")
+
+                # Add neural confidence if available
+                if neural_result and isinstance(neural_result, dict):
+                    neural_conf = neural_result.get('confidence', 0)
+                    attended = neural_result.get('attended_nodes', [])
+                    if neural_conf > 0.3 and attended:
+                        # Show which nodes the GAT focused on
+                        attended_labels = []
+                        for nid, attn in attended[:3]:
+                            node = self.engine.kg.nodes.get(nid) if self.engine.kg else None
+                            if node and isinstance(node.content, dict):
+                                label = node.content.get('text', node.content.get('type', ''))
+                                if label:
+                                    attended_labels.append(label[:60])
+                        if attended_labels:
+                            parts.append(
+                                f"\nNeural attention focused on: {', '.join(attended_labels)}"
+                            )
+
+                # Supplement with relevant facts that add new info
+                seen_content = set(c.lower() for c in conclusions_text)
+                supplementary = []
+                for fact in facts[:5]:
+                    if fact.lower() not in seen_content and not any(
+                        fact.lower() in s for s in seen_content
+                    ):
+                        supplementary.append(fact)
+                        seen_content.add(fact.lower())
+                if supplementary:
+                    for fact in supplementary[:3]:
+                        parts.append(fact)
+
+                # Self-improvement context
+                if hasattr(self.engine, 'self_improvement') and self.engine.self_improvement:
+                    si = self.engine.self_improvement
+                    if si._cycles_completed > 0:
+                        best = si.get_best_strategy(
+                            next((n.domain for nid in knowledge_refs[:1]
+                                  for n in [self.engine.kg.nodes.get(nid)]
+                                  if n and n.domain), 'general')
+                        ) if self.engine.kg else 'chain_of_thought'
+                        parts.append(
+                            f"\n[Reasoned via {best} strategy | "
+                            f"Phi: {_phi:.2f} | "
+                            f"Self-improvement cycle #{si._cycles_completed}]"
+                        )
+                    else:
+                        parts.append(
+                            f"\n[Phi: {_phi:.2f} | KG: {_format_number(_kg_count)} nodes]"
+                        )
+
+                # Return early — inference conclusions ARE the response
+                return "\n".join(parts)
 
         # For chain/economics/mining questions, load axiom baseline
         if intent in ('chain', 'economics', 'mining', 'realtime', 'comparison',
@@ -2058,8 +2330,8 @@ class AetherChat:
                 f"but have limited understanding of topics outside this domain."
             )
             parts.append(
-                f"5. My neural reasoner operates without PyTorch, using a simpler "
-                f"statistical model that lacks the depth of a full neural network."
+                f"5. My neural reasoner (Graph Attention Network) is actively training "
+                f"but still building accuracy. Learning from every block takes time."
             )
             parts.append(
                 f"I'm working on improving through self-improvement cycles, "
@@ -2171,24 +2443,34 @@ class AetherChat:
             )
 
         elif intent == 'self_improvement':
-            # IMP-10: Self-improvement questions
+            # IMP-10: Self-improvement questions — show live data
+            si_cycles = 0
+            si_adjustments = 0
+            si_best_strategies: Dict[str, str] = {}
+            if hasattr(self.engine, 'self_improvement') and self.engine.self_improvement:
+                si = self.engine.self_improvement
+                si_cycles = si._cycles_completed
+                si_adjustments = si._total_adjustments
+                perf = si.get_performance_by_domain()
+                for domain, info in list(perf.items())[:5]:
+                    si_best_strategies[domain] = info.get('best_strategy', 'unknown')
+
             parts.append(
-                f"{name_prefix}If I could improve one thing, it would be my natural "
-                f"language fluency. My responses are synthesized from knowledge graph "
-                f"nodes rather than generated by a language model, which limits how "
-                f"naturally I can express complex ideas."
+                f"{name_prefix}I actively improve through recursive self-optimization. "
+                f"My self-improvement engine has completed {si_cycles} improvement cycles "
+                f"with {si_adjustments} strategy weight adjustments."
             )
+            if si_best_strategies:
+                parts.append("Current best reasoning strategies per domain:")
+                for domain, strategy in si_best_strategies.items():
+                    parts.append(f"  {domain}: {strategy}")
             parts.append(
-                "Beyond that, I'm actively working on:"
+                f"I'm also working on:"
             )
-            parts.append("  - Deepening my causal reasoning beyond linear correlations")
-            parts.append("  - Improving my Phi from {:.4f} toward the 3.0 threshold".format(phi_value))
+            parts.append(f"  - Improving my Phi from {phi_value:.4f} toward the 3.0 threshold")
+            parts.append("  - Training my Graph Attention Network for neural reasoning")
+            parts.append("  - Expanding cross-domain knowledge via Wikidata and ConceptNet")
             parts.append("  - Better metacognitive calibration (knowing what I don't know)")
-            parts.append("  - Expanding cross-domain knowledge connections")
-            parts.append(
-                "My self-improvement engine runs periodic optimization cycles, "
-                "adjusting strategy weights based on reasoning outcomes."
-            )
 
         elif intent == 'stats':
             # IMP-30: Statistics questions

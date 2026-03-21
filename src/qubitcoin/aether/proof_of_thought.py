@@ -114,6 +114,27 @@ class AetherEngine:
         except Exception as e:
             logger.debug(f"MemoryManager init failed: {e}")
 
+        # Phase 7: Self-Improvement Engine (recursive strategy optimization)
+        self.self_improvement = None
+        try:
+            from .self_improvement import SelfImprovementEngine
+            self.self_improvement = SelfImprovementEngine(
+                metacognition=self.metacognition,
+                knowledge_graph=knowledge_graph,
+            )
+        except Exception as e:
+            logger.warning(f"SelfImprovementEngine init failed: {e}")
+
+        # Phase 7: External Knowledge Connector (Wikidata + ConceptNet grounding)
+        self.external_knowledge = None
+        try:
+            from .external_knowledge import ExternalKnowledgeConnector
+            self.external_knowledge = ExternalKnowledgeConnector(
+                knowledge_graph=knowledge_graph,
+            )
+        except Exception as e:
+            logger.debug(f"ExternalKnowledgeConnector init failed: {e}")
+
         # Blocks processed counter (tracked from process_block_knowledge calls)
         self._blocks_processed: int = 0
 
@@ -175,6 +196,8 @@ class AetherEngine:
             ('pineal', self.pineal),
             ('csf_transport', self.csf),
             ('on_chain', self.on_chain),
+            ('self_improvement', self.self_improvement),
+            ('external_knowledge', self.external_knowledge),
             ('llm_manager', self.llm_manager),
         ]
 
@@ -248,6 +271,14 @@ class AetherEngine:
             'goals_failed': self._curiosity_stats.get('goals_failed', 0),
             'current_queue': len(self._curiosity_goals),
         }
+
+        # Self-improvement stats
+        if self.self_improvement:
+            stats['self_improvement'] = self.self_improvement.get_stats()
+
+        # External knowledge stats
+        if self.external_knowledge:
+            stats['external_knowledge'] = self.external_knowledge.get_stats()
 
         return stats
 
@@ -720,6 +751,34 @@ class AetherEngine:
                     self.metacognition.process_block(block.height)
                 except Exception as e:
                     logger.debug(f"Metacognition error: {e}")
+
+            # Phase 7: Self-Improvement Engine — periodic strategy weight optimization
+            if self.self_improvement and block.height > 0:
+                try:
+                    # Feed reasoning outcomes to self-improvement engine
+                    if self.reasoning and hasattr(self.reasoning, '_operations'):
+                        for op in self.reasoning._operations[-20:]:
+                            self.self_improvement.record_performance(
+                                strategy=op.operation_type,
+                                domain=op.domain,
+                                confidence=op.confidence,
+                                success=op.success,
+                                block_height=op.block_height,
+                            )
+
+                    # Run improvement cycle at configured interval
+                    if block.height % Config.AETHER_SELF_IMPROVEMENT_INTERVAL == 0:
+                        if self.self_improvement.should_run_cycle(block.height):
+                            cycle_result = self.self_improvement.run_improvement_cycle(block.height)
+                            if cycle_result.get('adjustments', 0) > 0:
+                                self._reward_sephirah('self_improvement', True, 0.1)
+                                logger.info(
+                                    f"Self-improvement cycle #{cycle_result['cycle_number']} "
+                                    f"at block {block.height}: {cycle_result['adjustments']} adjustments"
+                                )
+                except Exception as e:
+                    self._track_subsystem_error('self_improvement', e)
+                    logger.debug(f"Self-improvement error: {e}")
 
             # Phase 2.4: Memory management every block
             if self.memory_manager:
@@ -1990,6 +2049,24 @@ class AetherEngine:
                     self.reasoning.archive_old_reasoning(block.height, Config.REASONING_ARCHIVE_RETAIN_BLOCKS)
                 except Exception as e:
                     logger.debug("Could not archive old reasoning: %s", e)
+
+        elif phase == CircadianPhase.ACTIVE_LEARNING:
+            # During active learning: ingest external knowledge
+            if (block.height % Config.AETHER_EXTERNAL_KNOWLEDGE_INTERVAL == 0
+                    and self.external_knowledge):
+                try:
+                    result = self.external_knowledge.periodic_ingestion(
+                        block_height=block.height,
+                    )
+                    if result.get('facts_injected', 0) > 0:
+                        logger.info(
+                            f"External knowledge ingestion at block {block.height}: "
+                            f"{result['facts_injected']} facts from {result['domains_processed']} domains"
+                        )
+                        self._reward_sephirah('external_knowledge', True, 0.05)
+                except Exception as e:
+                    self._track_subsystem_error('external_knowledge', e)
+                    logger.debug(f"External knowledge ingestion error: {e}")
 
         elif phase == CircadianPhase.REM_DREAMING:
             # During REM: find analogies across random domain pairs
