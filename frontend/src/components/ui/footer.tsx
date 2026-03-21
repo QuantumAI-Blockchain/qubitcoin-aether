@@ -290,7 +290,6 @@ export function Footer() {
                   </li>
                 </ul>
               </div>
-            </div>
               <div>
                 <p className="mb-1.5 font-[family-name:var(--font-display)] text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#9945ff" }}>Solana</p>
                 <ul className="space-y-1 text-xs">
@@ -303,11 +302,16 @@ export function Footer() {
                     <a href="https://explorer.solana.com/address/CfipKUW1vTGt1Y9jcFwDsrafD3bvxaD9PUMD9zjRRWR3" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">Cfip…RWR3</a>
                   </li>
                   <li className="flex items-center gap-1.5">
-                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Program:</span>
-                    <span className="font-[family-name:var(--font-code)] text-text-secondary">SPL Token</span>
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Pool:</span>
+                    <a href="https://raydium.io/swap/?inputMint=sol&outputMint=Ew7o13E7gwcbYsv4aRpoZEKonTW6snAGYHerD9j3C1Kf" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-text-secondary transition-colors hover:underline">Raydium CPMM · 0.25%</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Buy QBC:</span>
+                    <a href="https://raydium.io/swap/?inputMint=sol&outputMint=Ew7o13E7gwcbYsv4aRpoZEKonTW6snAGYHerD9j3C1Kf" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-green-400 transition-colors hover:underline">wQBC/SOL</a>
                   </li>
                 </ul>
               </div>
+            </div>
           </div>
         </div>
 
