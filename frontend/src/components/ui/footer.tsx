@@ -6,6 +6,7 @@ const navLinks = [
   { href: "/explorer", label: "Block Explorer" },
   { href: "/wallet", label: "Wallet" },
   { href: "/bridge", label: "Bridge" },
+  { href: "/exchange", label: "Exchange" },
   { href: "/qvm", label: "QVM Explorer" },
 ];
 
@@ -16,6 +17,7 @@ const resourceLinks = [
   { href: "/docs/economics", label: "Economics" },
   { href: "/docs/qusd", label: "QUSD Stablecoin" },
   { href: "/docs/exchange", label: "Exchange" },
+  { href: "/docs/bridge", label: "ZK Bridge" },
   { href: "/docs/privacy", label: "Privacy" },
 ];
 
@@ -298,7 +300,7 @@ export function Footer() {
             &copy; 2026 Quantum Blockchain. MIT License.
           </p>
           <p className="font-[family-name:var(--font-code)] text-[10px] tracking-wide text-text-secondary">
-            Proof-of-SUSY-Alignment &middot; Dilithium5 &middot; QVM (167 Opcodes) &middot; Aether Tree AGI &middot; Multi-Chain Bridge
+            Proof-of-SUSY-Alignment &middot; Dilithium5 &middot; QVM (167 Opcodes) &middot; Aether Tree AGI &middot; ZK Bridge (7 Chains) &middot; 50 Markets
           </p>
         </div>
       </div>

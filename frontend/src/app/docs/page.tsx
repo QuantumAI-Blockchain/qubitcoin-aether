@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { ArrowLeft, FileText, Cpu, Brain, TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
+import { ArrowLeft, FileText, Cpu, Brain, TrendingUp, DollarSign, BarChart3, Shield, GitBranch } from "lucide-react";
 
 const C = {
   bg: "#0a0a0f",
@@ -61,8 +61,16 @@ const docs = [
     href: "/docs/exchange",
     icon: BarChart3,
     description:
-      "Rust matching engine with microsecond latency — price-time priority, OHLC candles, WebSocket streaming, and CockroachDB persistence.",
-    tags: ["Rust", "Order Matching", "WebSocket", "REST API"],
+      "Rust matching engine with microsecond latency — 50 markets, 47 CoinGecko oracle feeds, WebSocket streaming, and CockroachDB persistence.",
+    tags: ["Rust", "50 Markets", "Oracle Prices", "WebSocket"],
+  },
+  {
+    title: "ZK Bridge",
+    href: "/docs/bridge",
+    icon: GitBranch,
+    description:
+      "Quantum-secure cross-chain bridge — Poseidon2 ZK proofs, Dilithium5 signatures, lock-and-mint vaults on 7 EVM chains.",
+    tags: ["ZK Proofs", "7 Chains", "Poseidon2", "Dilithium5"],
   },
   {
     title: "Privacy & SUSY Swaps",

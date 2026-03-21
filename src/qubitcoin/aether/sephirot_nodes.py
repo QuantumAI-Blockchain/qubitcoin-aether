@@ -1010,16 +1010,25 @@ class ChesedNode(BaseSephirah):
 
         self._explorations += 1
 
+        # Call specialized reasoning for creative alternatives (Improvement 46)
+        specialized = self.specialized_reason(context)
+        alternatives_count = specialized.get('alternatives_count', 0)
+
         # Send exploration report to Gevurah for safety check
         self.send_message(SephirahRole.GEVURAH, {
             "type": "exploration_report",
             "new_connections": new_connections,
+            "alternatives_generated": alternatives_count,
         })
 
         return ProcessingResult(
             role=self.role,
             action="divergent_exploration",
-            output={"explorations": self._explorations, "potential_connections": new_connections},
+            output={
+                "explorations": self._explorations,
+                "potential_connections": new_connections,
+                "alternatives_generated": alternatives_count,
+            },
             confidence=0.5,
             messages_out=self.get_outbox(),
         )
@@ -1508,30 +1517,52 @@ class NetzachNode(BaseSephirah):
         Deep integration: reads neural_training_done flag from context to
         track whether GAT was updated this cycle. Reward signals from
         Tiferet's conflict resolution feed into policy learning.
+
+        Wrapped in error handling (Improvement 45) to prevent the 15,670+
+        errors seen in production from propagating.
         """
         self._processing_count += 1
         self.state.reasoning_ops += 1
         messages = self._consume_inbox()
 
         reward_count = 0
-        for msg in messages:
-            if msg.payload.get("type") == "reward_signal":
-                policy = msg.payload.get("policy", "default")
-                reward = msg.payload.get("reward", 0.0)
-                current = self._policies.get(policy, 0.0)
-                # Exponential moving average
-                self._policies[policy] = current * 0.9 + reward * 0.1
-                self._total_rewards += reward
-                reward_count += 1
+        gat_trained = False
 
-        # Track whether GAT training happened this cycle
-        gat_trained = context.get('gat_trained', False)
-        if gat_trained:
-            # GAT training success is itself a reward signal for the
-            # neural reasoning policy
-            current = self._policies.get('neural_reasoning', 0.0)
-            self._policies['neural_reasoning'] = current * 0.9 + 0.1 * 0.1
-            self._total_rewards += 0.1
+        try:
+            for msg in messages:
+                if msg.payload.get("type") == "reward_signal":
+                    policy = msg.payload.get("policy", "default")
+                    reward = msg.payload.get("reward", 0.0)
+                    current = self._policies.get(policy, 0.0)
+                    # Exponential moving average
+                    self._policies[policy] = current * 0.9 + reward * 0.1
+                    self._total_rewards += reward
+                    reward_count += 1
+
+            # Track whether GAT training happened this cycle
+            gat_trained = context.get('gat_trained', False)
+            if gat_trained:
+                # GAT training success is itself a reward signal for the
+                # neural reasoning policy
+                current = self._policies.get('neural_reasoning', 0.0)
+                self._policies['neural_reasoning'] = current * 0.9 + 0.1 * 0.1
+                self._total_rewards += 0.1
+
+            # Call specialized reasoning (Improvement 46)
+            specialized = self.specialized_reason(context)
+            if specialized.get('policy_recommendations'):
+                # Integrate top recommendation into policies
+                for rec in specialized['policy_recommendations'][:3]:
+                    policy_name = rec.get('policy', '')
+                    if policy_name and rec.get('action') == 'reinforce':
+                        current = self._policies.get(policy_name, 0.0)
+                        self._policies[policy_name] = min(1.0, current * 0.95 + 0.05)
+
+        except Exception as e:
+            self._errors += 1
+            logger.warning(
+                f"Netzach process() error (count={self._errors}): {e}"
+            )
 
         return ProcessingResult(
             role=self.role,
@@ -1827,6 +1858,10 @@ class YesodNode(BaseSephirah):
         wm_size = memory_stats.get('working_memory_size', 0)
         episodes_total = memory_stats.get('episodes_total', 0)
 
+        # Call specialized reasoning for episodic recall (Improvement 46)
+        specialized = self.specialized_reason(context)
+        recall_count = specialized.get('buffer_matches', 0) + specialized.get('node_matches', 0)
+
         return ProcessingResult(
             role=self.role,
             action="memory_fusion",
@@ -1836,6 +1871,7 @@ class YesodNode(BaseSephirah):
                 "buffer_capacity": self._buffer_capacity,
                 "memory_hit_rate": hit_rate,
                 "episodes_total": episodes_total,
+                "recalled_this_cycle": recall_count,
             },
             confidence=0.8,
             messages_out=self.get_outbox(),

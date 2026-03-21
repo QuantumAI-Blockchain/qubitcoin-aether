@@ -208,6 +208,9 @@ class HiggsCognitiveField:
         # Clamp to prevent overflow from extreme energy values
         self._field_value = max(-10000.0, min(10000.0, self._field_value))
 
+        # Normalize field toward VEV if deviation is extreme (Improvement 48)
+        self.normalize_to_vev()
+
         # Check for excitation events
         excitation = self._check_excitation(block_height)
 
@@ -234,6 +237,25 @@ class HiggsCognitiveField:
             }
 
         return result
+
+    def normalize_to_vev(self) -> None:
+        """Dampen field value toward VEV if deviation exceeds 200%.
+
+        The live system shows 1570% deviation. This applies exponential
+        dampening to pull the field value back toward equilibrium,
+        preventing runaway drift.
+        """
+        if self.params.vev <= 0:
+            return
+        deviation = abs(self._field_value - self.params.vev) / self.params.vev
+        if deviation > 2.0:
+            old_value = self._field_value
+            # Exponential dampening toward VEV
+            self._field_value = self.params.vev + (self._field_value - self.params.vev) * 0.5
+            logger.info(
+                f"Higgs field dampened: {self._field_value:.2f} "
+                f"(was {old_value:.2f}, {deviation * 100:.0f}% above VEV)"
+            )
 
     def _compute_field_value(self) -> float:
         """

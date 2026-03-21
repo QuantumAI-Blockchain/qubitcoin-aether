@@ -212,11 +212,76 @@ class ReasoningEngine:
                 explanation=f"Found existing conclusion node {best_id}",
             )
 
+        # Protect axiom confidence floor (Improvement 35)
+        for pid in premise_ids:
+            node = self.kg.get_node(pid)
+            if node and node.node_type == 'axiom' and node.confidence < 0.8:
+                node.confidence = 0.8
+
         self._store_operation(result)
         self._operations.append(result)
         if len(self._operations) > self._max_operations:
             self._operations = self._operations[-self._max_operations:]
         return result
+
+    def detect_conflicts(self, conclusion_id: int) -> List[int]:
+        """Detect conflicts between a new conclusion and existing high-confidence nodes.
+
+        Checks if the new conclusion contradicts existing nodes (confidence > 0.7)
+        in the same domain. If so, adds a 'contradicts' edge.
+
+        Args:
+            conclusion_id: Node ID of the new conclusion to check.
+
+        Returns:
+            List of conflicting node IDs that had 'contradicts' edges added.
+        """
+        conclusion = self.kg.get_node(conclusion_id)
+        if not conclusion:
+            return []
+
+        # Determine the conclusion's domain from its content
+        conclusion_domain = conclusion.content.get('type', '')
+        if not conclusion_domain:
+            conclusion_domain = conclusion.node_type
+
+        conflicting_ids: List[int] = []
+
+        # Check nodes in the same domain with high confidence
+        if hasattr(self.kg, 'nodes'):
+            for nid, node in self.kg.nodes.items():
+                if nid == conclusion_id:
+                    continue
+                if node.confidence <= 0.7:
+                    continue
+
+                # Same domain check
+                node_domain = node.content.get('type', '')
+                if not node_domain:
+                    node_domain = node.node_type
+                if node_domain != conclusion_domain:
+                    continue
+
+                # Check for contradictory content (opposite conclusions about same topic)
+                conclusion_content = conclusion.content
+                node_content = node.content
+
+                # Detect contradiction: both are inferences/generalizations about
+                # the same premises but with significantly different confidence
+                if (conclusion.node_type == 'inference' and node.node_type == 'inference'
+                        and abs(conclusion.confidence - node.confidence) > 0.3):
+                    # Check if they share premise lineage
+                    conclusion_neighbors = {n.node_id for n in self.kg.get_neighbors(conclusion_id, 'in')}
+                    node_neighbors = {n.node_id for n in self.kg.get_neighbors(nid, 'in')}
+                    if conclusion_neighbors & node_neighbors:
+                        self.kg.add_edge(conclusion_id, nid, 'contradicts')
+                        conflicting_ids.append(nid)
+                        logger.debug(
+                            f"Conflict detected: node {conclusion_id} contradicts "
+                            f"node {nid} (domain={conclusion_domain})"
+                        )
+
+        return conflicting_ids
 
     def induce(self, observation_ids: List[int]) -> ReasoningResult:
         """
@@ -499,7 +564,23 @@ class ReasoningEngine:
             )
 
         # Step 2: Iterative reasoning over expanding frontier
+        # Import confidence floor from Config (Improvement 37)
+        confidence_floor = 0.1
+        try:
+            from ..config import Config
+            confidence_floor = getattr(Config, 'REASONING_CONFIDENCE_FLOOR', 0.1)
+        except Exception:
+            pass
+
         for depth in range(max_depth):
+            # Stop if confidence drops below floor (prevents meaningless chains)
+            if overall_confidence < confidence_floor:
+                logger.debug(
+                    f"Chain-of-thought stopped at depth {depth}: "
+                    f"confidence {overall_confidence:.4f} < floor {confidence_floor}"
+                )
+                break
+
             next_frontier: List[int] = []
 
             # Explore neighbors of current frontier
@@ -532,7 +613,7 @@ class ReasoningEngine:
                     conclusion_id = deduction.conclusion_node_id
                     next_frontier.append(deduction.conclusion_node_id)
 
-            # Try abductive step for unexplained observations
+            # Try abductive step for unexplained observations (Improvement 40)
             unexplained = [
                 nid for nid in context_nodes
                 if self.kg.get_node(nid) and not self.kg.get_node(nid).edges_in
@@ -548,6 +629,18 @@ class ReasoningEngine:
                     ))
                     next_frontier.append(abduction.conclusion_node_id)
 
+            # Try inductive step if we have multiple observations (Improvement 40)
+            if len(context_nodes) >= 3:
+                induction = self.induce(context_nodes)
+                if induction.success and induction.conclusion_node_id:
+                    chain.append(ReasoningStep(
+                        step_type='conclusion',
+                        node_id=induction.conclusion_node_id,
+                        content={'type': 'inductive_step', 'depth': depth},
+                        confidence=induction.confidence,
+                    ))
+                    next_frontier.append(induction.conclusion_node_id)
+
             # Expand frontier for next iteration
             for nid in frontier:
                 node = self.kg.get_node(nid)
@@ -559,6 +652,14 @@ class ReasoningEngine:
             frontier = next_frontier
             if not frontier:
                 break  # No more nodes to explore
+
+        # If no conclusion found via deduction, try abduction (Improvement 40)
+        if conclusion_id is None and frontier:
+            abd_result = self.abduce(frontier[0])
+            if abd_result.success:
+                chain.extend(abd_result.chain)
+                conclusion_id = abd_result.conclusion_node_id
+                overall_confidence *= abd_result.confidence
 
         result = ReasoningResult(
             operation_type='chain_of_thought',
@@ -1301,4 +1402,125 @@ class ReasoningEngine:
             'avg_confidence': (
                 sum(op.confidence for op in self._operations) / max(1, len(self._operations))
             ),
+        }
+
+    def cross_domain_infer(self, domain_a: str, domain_b: str,
+                           max_analogies: int = 10) -> List[dict]:
+        """Find analogies between nodes in two different domains.
+
+        Searches for structurally similar nodes across domain_a and domain_b,
+        creating 'analogous_to' edges between matches. This feeds gate 5
+        (cross-domain reasoning).
+
+        Args:
+            domain_a: First domain name.
+            domain_b: Second domain name.
+            max_analogies: Maximum analogies to create.
+
+        Returns:
+            List of dicts describing created analogies.
+        """
+        if not hasattr(self.kg, 'nodes'):
+            return []
+
+        nodes_a = [n for n in self.kg.nodes.values() if n.domain == domain_a]
+        nodes_b = [n for n in self.kg.nodes.values() if n.domain == domain_b]
+
+        if not nodes_a or not nodes_b:
+            return []
+
+        analogies: List[dict] = []
+
+        for node_a in nodes_a[:50]:  # cap to prevent O(n^2) explosion
+            pattern_a = self._get_edge_pattern(node_a.node_id)
+            if not pattern_a:
+                continue
+
+            for node_b in nodes_b[:50]:
+                pattern_b = self._get_edge_pattern(node_b.node_id)
+                if not pattern_b:
+                    continue
+
+                # Jaccard similarity of edge patterns
+                common = len(pattern_a & pattern_b)
+                total = len(pattern_a | pattern_b)
+                if total == 0:
+                    continue
+                similarity = common / total
+
+                if similarity >= 0.4 and common >= 1:
+                    self.kg.add_edge(
+                        node_a.node_id, node_b.node_id, 'analogous_to',
+                        weight=similarity,
+                    )
+                    analogies.append({
+                        'source_id': node_a.node_id,
+                        'target_id': node_b.node_id,
+                        'source_domain': domain_a,
+                        'target_domain': domain_b,
+                        'similarity': round(similarity, 4),
+                        'common_edge_types': list(pattern_a & pattern_b),
+                    })
+                    if len(analogies) >= max_analogies:
+                        break
+
+            if len(analogies) >= max_analogies:
+                break
+
+        if analogies:
+            logger.info(
+                f"Cross-domain inference: {len(analogies)} analogies "
+                f"between '{domain_a}' and '{domain_b}'"
+            )
+
+        return analogies
+
+    def get_detailed_stats(self) -> dict:
+        """Get detailed reasoning statistics broken down by operation type.
+
+        Returns:
+            Dict with operations_by_type, success_rate_by_type,
+            avg_confidence_by_type, cross_domain_count, total_analogies.
+        """
+        ops_by_type: Dict[str, int] = {}
+        success_by_type: Dict[str, int] = {}
+        conf_by_type: Dict[str, float] = {}
+        cross_domain_count = 0
+        total_analogies = 0
+
+        for op in self._operations:
+            otype = op.operation_type
+            ops_by_type[otype] = ops_by_type.get(otype, 0) + 1
+            if op.success:
+                success_by_type[otype] = success_by_type.get(otype, 0) + 1
+            conf_by_type[otype] = conf_by_type.get(otype, 0.0) + op.confidence
+
+            if otype == 'analogy_detection':
+                total_analogies += 1
+                # Check if cross-domain
+                for step in op.chain:
+                    if step.content.get('type') == 'analogy':
+                        src = step.content.get('source_domain', '')
+                        tgt = step.content.get('target_domain', '')
+                        if src and tgt and src != tgt:
+                            cross_domain_count += 1
+                            break
+
+        success_rate_by_type: Dict[str, float] = {}
+        avg_conf_by_type: Dict[str, float] = {}
+        for otype, count in ops_by_type.items():
+            success_rate_by_type[otype] = round(
+                success_by_type.get(otype, 0) / count, 4
+            )
+            avg_conf_by_type[otype] = round(
+                conf_by_type.get(otype, 0.0) / count, 4
+            )
+
+        return {
+            'operations_by_type': ops_by_type,
+            'success_rate_by_type': success_rate_by_type,
+            'avg_confidence_by_type': avg_conf_by_type,
+            'cross_domain_inference_count': cross_domain_count,
+            'total_analogies': total_analogies,
+            'total_operations': len(self._operations),
         }

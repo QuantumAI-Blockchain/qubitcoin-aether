@@ -291,3 +291,38 @@ export function isEvmChain(id: ChainId): boolean {
     id === "base"
   );
 }
+
+/* ── ZK Bridge Vault Contracts (Quantum-Secure Bridge Infrastructure) ──── */
+
+export interface ZKBridgeContracts {
+  vault: string | null;          // QuantumBridgeVault — locks native tokens
+  verifier: string | null;       // ZKBridgeVerifier — Poseidon2 proof verification
+  status: "deployed" | "pending" | "not_deployed";
+}
+
+/** ZK Bridge Vault addresses per external chain */
+export const ZK_BRIDGE_VAULTS: Record<ExternalChainId, ZKBridgeContracts> = {
+  ethereum: { vault: null, verifier: null, status: "pending" },
+  bnb:       { vault: null, verifier: null, status: "pending" },
+  polygon:   { vault: null, verifier: null, status: "pending" },
+  avalanche: { vault: null, verifier: null, status: "pending" },
+  arbitrum:  { vault: null, verifier: null, status: "pending" },
+  optimism:  { vault: null, verifier: null, status: "pending" },
+  base:      { vault: null, verifier: null, status: "pending" },
+  solana:    { vault: null, verifier: null, status: "not_deployed" },
+};
+
+/** QBC-chain ZK Bridge contracts (minter + verifier) */
+export const QBC_ZK_BRIDGE = {
+  bridgeMinter: null as string | null,   // BridgeMinter — mints/burns wrapped assets
+  zkVerifier: null as string | null,     // ZKBridgeVerifier — proof verification on QBC
+  status: "pending" as "deployed" | "pending",
+};
+
+/** Wrapped asset token addresses on QBC chain (minted by BridgeMinter) */
+export const WRAPPED_ASSETS: Record<string, { name: string; symbol: string; decimals: number; address: string | null; sourceChainId: number }> = {
+  wETH:   { name: "Wrapped Ether",     symbol: "wETH",   decimals: 18, address: null, sourceChainId: 1 },
+  wBNB:   { name: "Wrapped BNB",       symbol: "wBNB",   decimals: 18, address: null, sourceChainId: 56 },
+  wMATIC: { name: "Wrapped MATIC",     symbol: "wMATIC", decimals: 18, address: null, sourceChainId: 137 },
+  wAVAX:  { name: "Wrapped AVAX",      symbol: "wAVAX",  decimals: 18, address: null, sourceChainId: 43114 },
+};

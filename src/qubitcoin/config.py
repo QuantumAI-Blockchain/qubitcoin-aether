@@ -432,6 +432,33 @@ class Config:
     AETHER_SEPHIROT_PERSIST_INTERVAL: int = int(os.getenv('AETHER_SEPHIROT_PERSIST_INTERVAL', '100'))
 
     # ============================================================================
+    # KNOWLEDGE GRAPH SETTINGS
+    # ============================================================================
+    KNOWLEDGE_GRAPH_MAX_NODES: int = int(os.getenv('KNOWLEDGE_GRAPH_MAX_NODES', '500000'))
+    KNOWLEDGE_GRAPH_AUTO_PRUNE_THRESHOLD: float = float(os.getenv('KNOWLEDGE_GRAPH_AUTO_PRUNE_THRESHOLD', '0.08'))
+    KNOWLEDGE_GRAPH_DUPLICATE_SIMILARITY: float = float(os.getenv('KNOWLEDGE_GRAPH_DUPLICATE_SIMILARITY', '0.92'))
+
+    # ============================================================================
+    # WORKING MEMORY SETTINGS
+    # ============================================================================
+    WORKING_MEMORY_DECAY_FACTOR: float = float(os.getenv('WORKING_MEMORY_DECAY_FACTOR', '0.95'))
+    WORKING_MEMORY_MIN_CAPACITY: int = int(os.getenv('WORKING_MEMORY_MIN_CAPACITY', '20'))
+    WORKING_MEMORY_MAX_CAPACITY: int = int(os.getenv('WORKING_MEMORY_MAX_CAPACITY', '200'))
+
+    # ============================================================================
+    # AETHER CHAT SETTINGS
+    # ============================================================================
+    AETHER_CHAT_RATE_LIMIT: int = int(os.getenv('AETHER_CHAT_RATE_LIMIT', '30'))
+    AETHER_CHAT_CONTEXT_WINDOW: int = int(os.getenv('AETHER_CHAT_CONTEXT_WINDOW', '10'))
+    AETHER_SESSION_TTL_SECONDS: int = int(os.getenv('AETHER_SESSION_TTL_SECONDS', '7200'))
+
+    # ============================================================================
+    # REASONING SETTINGS
+    # ============================================================================
+    REASONING_CONFIDENCE_FLOOR: float = float(os.getenv('REASONING_CONFIDENCE_FLOOR', '0.1'))
+    REASONING_CROSS_DOMAIN_INTERVAL: int = int(os.getenv('REASONING_CROSS_DOMAIN_INTERVAL', '500'))
+
+    # ============================================================================
     # PROOF-OF-THOUGHT ENFORCEMENT HEIGHTS
     # ============================================================================
     MANDATORY_POT_HEIGHT: int = int(os.getenv('MANDATORY_POT_HEIGHT', '1000'))

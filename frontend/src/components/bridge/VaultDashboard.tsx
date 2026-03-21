@@ -27,7 +27,8 @@ import {
   Legend,
 } from "recharts";
 import * as d3 from "d3";
-import { CHAINS, EXTERNAL_CHAINS, getExplorerTxUrl } from "./chain-config";
+import { CHAINS, EXTERNAL_CHAINS, getExplorerTxUrl, ZK_BRIDGE_VAULTS, QBC_ZK_BRIDGE, WRAPPED_ASSETS } from "./chain-config";
+import type { ZKBridgeContracts } from "./chain-config";
 import { useVaultState } from "./hooks";
 import {
   B,
@@ -898,6 +899,282 @@ function WqbcTreemap({ vault }: { vault: VaultState }) {
   );
 }
 
+/* ── ZK Bridge Infrastructure Panel ────────────────────────────────────── */
+
+function ZKBridgeInfrastructure() {
+  const evmChains = EXTERNAL_CHAINS.filter((c) => c !== "solana");
+
+  return (
+    <Panel
+      accent="#7c3aed"
+      style={{
+        borderWidth: 2,
+        borderColor: "#7c3aed50",
+        boxShadow: "0 0 30px #7c3aed10, inset 0 0 30px #7c3aed05",
+      }}
+    >
+      <div className="mb-4 flex items-center gap-2">
+        <Shield size={16} style={{ color: "#7c3aed" }} />
+        <span
+          className="text-xs font-bold uppercase tracking-[0.2em]"
+          style={{ color: "#7c3aed", fontFamily: FONT.display }}
+        >
+          ZK Bridge Infrastructure (Quantum-Secure)
+        </span>
+      </div>
+
+      {/* Architecture overview */}
+      <div
+        className="mb-4 rounded-lg border p-3"
+        style={{
+          borderColor: `${B.borderSubtle}40`,
+          background: `${B.bgBase}`,
+        }}
+      >
+        <div
+          className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em]"
+          style={{ color: B.textPrimary, fontFamily: FONT.display }}
+        >
+          Architecture
+        </div>
+        <div
+          className="space-y-1 text-[10px]"
+          style={{ color: B.textSecondary, fontFamily: FONT.mono }}
+        >
+          <div>Lock ETH/BNB/MATIC/AVAX → Poseidon2 ZK Proof → Mint wToken on QBC</div>
+          <div>Burn wToken on QBC → Poseidon2 ZK Proof → Unlock native on source chain</div>
+          <div className="pt-1" style={{ color: "#7c3aed" }}>
+            Dilithium5 post-quantum signatures on all proof submissions
+          </div>
+        </div>
+      </div>
+
+      {/* QBC-side contracts */}
+      <div className="mb-4">
+        <div
+          className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em]"
+          style={{ color: B.glowCyan, fontFamily: FONT.display }}
+        >
+          QBC Chain Contracts
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          <ZKContractCard
+            label="BridgeMinter"
+            description="Mints/burns wrapped assets (wETH, wBNB, wMATIC, wAVAX)"
+            address={QBC_ZK_BRIDGE.bridgeMinter}
+            status={QBC_ZK_BRIDGE.status}
+            color={B.glowCyan}
+          />
+          <ZKContractCard
+            label="ZKBridgeVerifier"
+            description="Poseidon2 proof verification on QBC"
+            address={QBC_ZK_BRIDGE.zkVerifier}
+            status={QBC_ZK_BRIDGE.status}
+            color={B.glowCyan}
+          />
+        </div>
+      </div>
+
+      {/* Wrapped assets on QBC */}
+      <div className="mb-4">
+        <div
+          className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em]"
+          style={{ color: B.glowGold, fontFamily: FONT.display }}
+        >
+          Wrapped Assets on QBC
+        </div>
+        <div className="grid gap-2 md:grid-cols-4">
+          {Object.entries(WRAPPED_ASSETS).map(([key, asset]) => (
+            <div
+              key={key}
+              className="rounded-lg border p-2"
+              style={{
+                borderColor: `${B.glowGold}25`,
+                background: `${B.glowGold}05`,
+              }}
+            >
+              <div
+                className="text-[10px] font-bold"
+                style={{ color: B.glowGold, fontFamily: FONT.display }}
+              >
+                {asset.symbol}
+              </div>
+              <div
+                className="text-[9px]"
+                style={{ color: B.textSecondary, fontFamily: FONT.mono }}
+              >
+                {asset.name}
+              </div>
+              <div
+                className="mt-1 text-[9px]"
+                style={{ color: asset.address ? B.glowEmerald : B.textSecondary, fontFamily: FONT.mono }}
+              >
+                {asset.address ? truncAddr(asset.address) : "Pending deployment"}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Per-chain vault table */}
+      <div>
+        <div
+          className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em]"
+          style={{ color: "#7c3aed", fontFamily: FONT.display }}
+        >
+          External Chain Vaults
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full" style={{ borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${B.borderSubtle}`, background: B.bgBase }}>
+                {["CHAIN", "VAULT CONTRACT", "ZK VERIFIER", "STATUS"].map((col) => (
+                  <th
+                    key={col}
+                    className="px-3 py-2 text-left text-[9px] font-bold uppercase tracking-[0.15em]"
+                    style={{ color: B.textSecondary, fontFamily: FONT.display }}
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {evmChains.map((chainId) => {
+                const chain = CHAINS[chainId];
+                const zk = ZK_BRIDGE_VAULTS[chainId];
+                const statusColor = zk.status === "deployed" ? B.glowEmerald : B.glowGold;
+                const statusLabel = zk.status === "deployed" ? "LIVE" : "PENDING";
+
+                return (
+                  <tr key={chainId} style={{ borderBottom: `1px solid ${B.borderSubtle}40` }}>
+                    <td className="px-3 py-2.5">
+                      <ChainBadge chain={chainId} showStatus />
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {zk.vault ? (
+                        <div className="flex items-center gap-1">
+                          <HashDisplay hash={zk.vault} truncLen={6} />
+                          <CopyButton text={zk.vault} size={10} />
+                          <a
+                            href={`${chain.explorerUrl}/address/${zk.vault}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: B.glowCyan }}
+                          >
+                            <ExternalLink size={10} />
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="text-[10px]" style={{ color: B.textSecondary, fontFamily: FONT.mono }}>
+                          Awaiting deployment
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {zk.verifier ? (
+                        <div className="flex items-center gap-1">
+                          <HashDisplay hash={zk.verifier} truncLen={6} />
+                          <CopyButton text={zk.verifier} size={10} />
+                          <a
+                            href={`${chain.explorerUrl}/address/${zk.verifier}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: B.glowCyan }}
+                          >
+                            <ExternalLink size={10} />
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="text-[10px]" style={{ color: B.textSecondary, fontFamily: FONT.mono }}>
+                          Awaiting deployment
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span
+                        className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold tracking-wider"
+                        style={{
+                          color: statusColor,
+                          background: `${statusColor}15`,
+                          fontFamily: FONT.display,
+                        }}
+                      >
+                        <span
+                          className="inline-block h-1.5 w-1.5 rounded-full"
+                          style={{ background: statusColor }}
+                        />
+                        {statusLabel}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function ZKContractCard({
+  label,
+  description,
+  address,
+  status,
+  color,
+}: {
+  label: string;
+  description: string;
+  address: string | null;
+  status: "deployed" | "pending";
+  color: string;
+}) {
+  return (
+    <div
+      className="rounded-lg border p-3"
+      style={{ borderColor: `${color}25`, background: `${color}05` }}
+    >
+      <div className="flex items-center justify-between">
+        <div
+          className="text-[10px] font-bold uppercase tracking-[0.1em]"
+          style={{ color, fontFamily: FONT.display }}
+        >
+          {label}
+        </div>
+        <span
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-bold"
+          style={{
+            color: status === "deployed" ? B.glowEmerald : B.glowGold,
+            background: status === "deployed" ? `${B.glowEmerald}15` : `${B.glowGold}15`,
+            fontFamily: FONT.display,
+          }}
+        >
+          <span
+            className="inline-block h-1 w-1 rounded-full"
+            style={{ background: status === "deployed" ? B.glowEmerald : B.glowGold }}
+          />
+          {status === "deployed" ? "LIVE" : "PENDING"}
+        </span>
+      </div>
+      <div className="mt-1 text-[9px]" style={{ color: B.textSecondary, fontFamily: FONT.body }}>
+        {description}
+      </div>
+      <div className="mt-2 text-[10px]" style={{ fontFamily: FONT.mono }}>
+        {address ? (
+          <div className="flex items-center gap-1">
+            <HashDisplay hash={address} truncLen={8} />
+            <CopyButton text={address} size={10} />
+          </div>
+        ) : (
+          <span style={{ color: B.textSecondary }}>Awaiting deployment</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Vault Dashboard (Main Export) ───────────────────────────────────────── */
 
 export function VaultDashboard() {
@@ -933,6 +1210,9 @@ export function VaultDashboard() {
 
       {/* Master Backing */}
       <MasterBackingPanel vault={vault} />
+
+      {/* ZK Bridge Infrastructure */}
+      <ZKBridgeInfrastructure />
 
       {/* Per-Chain Breakdown */}
       <ChainBreakdown vault={vault} />

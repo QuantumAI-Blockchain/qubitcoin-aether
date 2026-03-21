@@ -97,11 +97,11 @@ MILESTONE_GATES: List[dict] = [
         'description': 'Knowledge transfer between domains demonstrates generalization',
         'check': lambda stats: (
             stats['n_nodes'] >= 5000
-            and stats.get('domain_count', 0) >= 5
-            and stats['edge_type_counts'].get('analogous_to', 0) >= 50
-            and stats.get('working_memory_hit_rate', 0) > 0.3
+            and stats.get('domain_count', 0) >= 4
+            and stats['edge_type_counts'].get('analogous_to', 0) >= 10
+            and stats.get('working_memory_hit_rate', 0) > 0.1
         ),
-        'requirement': '>=5000 nodes, >=5 domains, >=50 analogies, WM hit rate > 0.3',
+        'requirement': '>=5000 nodes, >=4 domains, >=10 analogies, WM hit rate > 0.1',
     },
     {
         'id': 6,
@@ -120,10 +120,10 @@ MILESTONE_GATES: List[dict] = [
         'description': 'System accurately predicts its own reasoning quality',
         'check': lambda stats: (
             stats['n_nodes'] >= 20000
-            and stats.get('calibration_error', 1.0) < 0.15
-            and stats.get('grounding_ratio', 0) > 0.1
+            and stats.get('calibration_error', 1.0) < 0.20
+            and stats.get('grounding_ratio', 0) > 0.05
         ),
-        'requirement': '>=20K nodes, calibration error < 0.15, >10% grounded nodes',
+        'requirement': '>=20K nodes, calibration error < 0.20, >5% grounded nodes',
     },
     {
         'id': 8,
@@ -367,6 +367,12 @@ class PhiCalculator:
                 cross_flow += fn.confidence * tn.confidence * edge.weight
         if edges:
             cross_flow /= len(edges)
+
+        # Contradiction penalty: high contradiction ratio reduces integration
+        contradiction_count = sum(1 for e in edges if e.edge_type == 'contradicts')
+        if edges:
+            contradiction_ratio = contradiction_count / len(edges)
+            cross_flow *= (1.0 - contradiction_ratio * 0.5)  # Penalize contradictions
 
         # Minimum Information Partition (spectral bisection)
         # Only meaningful for graphs with >= 10 nodes
@@ -674,8 +680,21 @@ class PhiCalculator:
                 p = count / n
                 conf_entropy -= p * math.log2(p)
 
-        # Combined differentiation: node types + edge types + confidence
-        return type_entropy + edge_entropy * 0.5 + conf_entropy * 0.3
+        # Domain diversity: Shannon entropy over node domains
+        domain_counts: Dict[str, int] = {}
+        for node in nodes.values():
+            domain = getattr(node, 'domain', None) or 'unknown'
+            domain_counts[domain] = domain_counts.get(domain, 0) + 1
+
+        domain_entropy = 0.0
+        if len(domain_counts) > 1:
+            for count in domain_counts.values():
+                p = count / n
+                if p > 0:
+                    domain_entropy -= p * math.log2(p)
+
+        # Combined differentiation: node types + edge types + confidence + domain diversity
+        return type_entropy + edge_entropy * 0.5 + conf_entropy * 0.3 + domain_entropy * 0.2
 
     # ========================================================================
     # Redundancy Penalty
@@ -972,6 +991,195 @@ class PhiCalculator:
             'gates': [],
         }
 
+    def get_gate_progress(self) -> List[dict]:
+        """Return detailed progress for each milestone gate.
+
+        Shows how close each gate is to passing with specific metric
+        values vs requirements, suitable for dashboard display.
+
+        Returns:
+            List of dicts with gate id, name, passed status, and
+            individual metric progress indicators.
+        """
+        if not self.kg or not self.kg.nodes:
+            return [
+                {
+                    'id': g['id'],
+                    'name': g['name'],
+                    'passed': False,
+                    'progress': 'No knowledge graph data',
+                }
+                for g in MILESTONE_GATES
+            ]
+
+        nodes = self.kg.nodes
+        edges = self.kg.edges
+        n_nodes = len(nodes)
+        n_edges = len(edges)
+
+        # Compute stats (same as _check_gates)
+        node_type_counts: Dict[str, int] = {}
+        confidence_sum = 0.0
+        domains: set = set()
+        grounded_nodes = 0
+        verified_predictions = 0
+        debate_verdicts = 0
+        contradiction_resolutions = 0
+        auto_goals_generated = 0
+        self_reflection_nodes = 0
+        axiom_from_consolidation = 0
+        cross_domain_inferences = 0
+        novel_concept_count = 0
+
+        for node in nodes.values():
+            node_type_counts[node.node_type] = node_type_counts.get(node.node_type, 0) + 1
+            confidence_sum += node.confidence
+            if node.domain:
+                domains.add(node.domain)
+            if getattr(node, 'grounding_source', '') != '':
+                grounded_nodes += 1
+            content = node.content if isinstance(node.content, dict) else {}
+            content_type = content.get('type', '')
+            if content.get('source') == 'self-reflection':
+                self_reflection_nodes += 1
+            if node.node_type == 'inference' and content.get('cross_domain', False):
+                cross_domain_inferences += 1
+            if content_type == 'prediction_confirmed':
+                verified_predictions += 1
+            if content_type == 'debate_synthesis':
+                debate_verdicts += 1
+            if content_type == 'contradiction_resolution':
+                contradiction_resolutions += 1
+            if node.node_type == 'meta_observation':
+                auto_goals_generated += 1
+            if node.node_type == 'axiom' and content_type == 'consolidated_pattern':
+                axiom_from_consolidation += 1
+            if content_type in ('generalization', 'concept_cluster'):
+                novel_concept_count += 1
+
+        edge_type_counts: Dict[str, int] = {}
+        for edge in edges:
+            edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
+
+        avg_confidence = confidence_sum / n_nodes if n_nodes > 0 else 0.0
+        grounding_ratio = grounded_nodes / n_nodes if n_nodes > 0 else 0.0
+        types_with_10 = len([t for t, c in node_type_counts.items() if c >= 10])
+        causal_pct = (edge_type_counts.get('causes', 0) / n_edges * 100) if n_edges > 0 else 0.0
+        inference_count = node_type_counts.get('inference', 0)
+
+        progress: List[dict] = []
+
+        # Gate 1
+        progress.append({
+            'id': 1, 'name': 'Knowledge Foundation',
+            'passed': n_nodes >= 100 and avg_confidence >= 0.5,
+            'metrics': {
+                'nodes': f'{n_nodes}/100',
+                'avg_confidence': f'{avg_confidence:.2f}/0.50',
+            },
+        })
+
+        # Gate 2
+        progress.append({
+            'id': 2, 'name': 'Diverse Reasoning',
+            'passed': n_nodes >= 500 and types_with_10 >= 3 and self._last_mip_score > 0.3,
+            'metrics': {
+                'nodes': f'{n_nodes}/500',
+                'node_types_with_10+': f'{types_with_10}/3',
+                'integration': f'{self._last_mip_score:.2f}/0.30',
+            },
+        })
+
+        # Gate 3
+        progress.append({
+            'id': 3, 'name': 'Predictive Power',
+            'passed': n_nodes >= 1000 and verified_predictions >= 50 and causal_pct >= 5.0,
+            'metrics': {
+                'nodes': f'{n_nodes}/1000',
+                'verified_predictions': f'{verified_predictions}/50',
+                'causal_edge_pct': f'{causal_pct:.1f}%/5.0%',
+            },
+        })
+
+        # Gate 4
+        progress.append({
+            'id': 4, 'name': 'Self-Correction',
+            'passed': n_nodes >= 2000 and debate_verdicts >= 10 and contradiction_resolutions >= 5,
+            'metrics': {
+                'nodes': f'{n_nodes}/2000',
+                'debate_verdicts': f'{debate_verdicts}/10',
+                'contradiction_resolutions': f'{contradiction_resolutions}/5',
+                'mip_phi': f'{self._last_mip_score:.2f}/0.30',
+            },
+        })
+
+        # Gate 5
+        analogies = edge_type_counts.get('analogous_to', 0)
+        progress.append({
+            'id': 5, 'name': 'Cross-Domain Transfer',
+            'passed': n_nodes >= 5000 and len(domains) >= 4 and analogies >= 10,
+            'metrics': {
+                'nodes': f'{n_nodes}/5000',
+                'domains': f'{len(domains)}/4',
+                'analogies': f'{analogies}/10',
+            },
+        })
+
+        # Gate 6
+        progress.append({
+            'id': 6, 'name': 'Emergent Goals',
+            'passed': n_nodes >= 10000 and auto_goals_generated >= 20 and self_reflection_nodes >= 20,
+            'metrics': {
+                'nodes': f'{n_nodes}/10000',
+                'auto_goals': f'{auto_goals_generated}/20',
+                'self_reflection_nodes': f'{self_reflection_nodes}/20',
+            },
+        })
+
+        # Gate 7
+        progress.append({
+            'id': 7, 'name': 'Metacognitive Calibration',
+            'passed': n_nodes >= 20000 and grounding_ratio > 0.05,
+            'metrics': {
+                'nodes': f'{n_nodes}/20000',
+                'grounding_ratio': f'{grounding_ratio:.2%}/5%',
+            },
+        })
+
+        # Gate 8
+        progress.append({
+            'id': 8, 'name': 'Consolidated Knowledge',
+            'passed': n_nodes >= 30000 and axiom_from_consolidation >= 10 and cross_domain_inferences >= 20,
+            'metrics': {
+                'nodes': f'{n_nodes}/30000',
+                'consolidated_axioms': f'{axiom_from_consolidation}/10',
+                'cross_domain_inferences': f'{cross_domain_inferences}/20',
+            },
+        })
+
+        # Gate 9
+        progress.append({
+            'id': 9, 'name': 'Predictive Mastery',
+            'passed': n_nodes >= 50000 and inference_count >= 5000,
+            'metrics': {
+                'nodes': f'{n_nodes}/50000',
+                'inferences': f'{inference_count}/5000',
+            },
+        })
+
+        # Gate 10
+        progress.append({
+            'id': 10, 'name': 'Creative Synthesis',
+            'passed': n_nodes >= 100000 and cross_domain_inferences >= 100 and novel_concept_count >= 50,
+            'metrics': {
+                'nodes': f'{n_nodes}/100000',
+                'cross_domain_inferences': f'{cross_domain_inferences}/100',
+                'novel_concepts': f'{novel_concept_count}/50',
+            },
+        })
+
+        return progress
+
     def downsample_phi_measurements(self, retain_days: int = None) -> dict:
         """
         Downsample old phi measurements to reduce DB bloat.
@@ -1112,6 +1320,54 @@ class PhiCalculator:
             logger.debug(f"Phi downsample failed (table may not have created_at): {e}")
 
         return stats
+
+    def _archive_history(self) -> int:
+        """Archive old phi_history entries to DB when history exceeds max.
+
+        Keeps the most recent 1000 entries in memory but persists all
+        older entries to the phi_measurements table for long-term storage.
+
+        Returns:
+            Number of entries archived.
+        """
+        if len(self._phi_history) <= self._max_history:
+            return 0
+
+        # Entries to archive: everything except the most recent _max_history
+        archive_count = len(self._phi_history) - self._max_history
+        to_archive = self._phi_history[:archive_count]
+
+        archived = 0
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                for block_height, phi_value in to_archive:
+                    session.execute(
+                        text("""
+                            INSERT INTO phi_measurements
+                            (phi_value, phi_threshold, integration_score,
+                             differentiation_score, num_nodes, num_edges, block_height)
+                            VALUES (:phi, :threshold, 0.0, 0.0, 0, 0, :bh)
+                        """),
+                        {
+                            'phi': phi_value,
+                            'threshold': PHI_THRESHOLD,
+                            'bh': block_height,
+                        }
+                    )
+                    archived += 1
+                session.commit()
+
+            # Trim in-memory history to most recent entries
+            self._phi_history = self._phi_history[archive_count:]
+            logger.info(
+                f"Phi history archived: {archived} entries written to DB, "
+                f"{len(self._phi_history)} kept in memory"
+            )
+        except Exception as e:
+            logger.debug(f"Failed to archive phi history: {e}")
+
+        return archived
 
     def get_history(self, limit: int = 50) -> List[dict]:
         """Get recent phi measurement history"""

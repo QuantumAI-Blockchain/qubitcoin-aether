@@ -163,6 +163,7 @@ services:
     volumes:
       - node-data:/app/data
       - node-logs:/app/logs
+      - ./src:/app/src:ro
     networks:
       - qbc-net
     restart: unless-stopped

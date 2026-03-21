@@ -78,6 +78,9 @@ class MemoryManager:
         # Tier 2 replay tracking: strategy -> successful replay count
         self._strategy_replay_success: Dict[str, int] = {}
 
+        # Failed pattern tracking (Improvement 43)
+        self._failed_patterns: Dict[str, int] = {}
+
         # Stats
         self._consolidations_total: int = 0
         self._replay_total: int = 0
@@ -188,14 +191,21 @@ class MemoryManager:
         )
         return [item.node_id for item in sorted_items[:top_k]]
 
-    def decay(self, factor: float = 0.95) -> None:
+    def decay(self, factor: float = None) -> None:
         """Multiply all relevance scores by a decay factor.
 
         Items whose relevance falls below 0.01 are removed.
 
         Args:
-            factor: Multiplicative decay factor (0.0-1.0).
+            factor: Multiplicative decay factor (0.0-1.0). Defaults to
+                Config.WORKING_MEMORY_DECAY_FACTOR if available, else 0.95.
         """
+        if factor is None:
+            try:
+                from ..config import Config
+                factor = getattr(Config, 'WORKING_MEMORY_DECAY_FACTOR', 0.95)
+            except Exception:
+                factor = 0.95
         to_remove: List[int] = []
         for node_id, item in self._working_memory.items():
             item.relevance *= factor
@@ -257,9 +267,21 @@ class MemoryManager:
         self._next_episode_id += 1
         self._episodes.append(episode)
 
-        # FIFO eviction (slice instead of repeated pop(0) which is O(n) per call)
+        # Importance-weighted eviction (Improvement 42):
+        # When over capacity, remove the episode with lowest importance score
+        # instead of FIFO, keeping high-value episodes longer.
         if len(self._episodes) > self._max_episodes:
-            self._episodes = self._episodes[-self._max_episodes:]
+            now_height = block_height
+            min_importance = float('inf')
+            min_idx = 0
+            for idx, ep in enumerate(self._episodes):
+                success_weight = 1.5 if ep.success else 0.5
+                recency_weight = 1.0 / (1 + (now_height - ep.block_height) / 1000)
+                importance = success_weight * recency_weight * max(ep.confidence, 0.01)
+                if importance < min_importance:
+                    min_importance = importance
+                    min_idx = idx
+            self._episodes.pop(min_idx)
 
         return episode
 
@@ -450,6 +472,33 @@ class MemoryManager:
 
                 stats['suppressed'] += 1
 
+                # Track failed patterns (Improvement 43)
+                strategy = episode.reasoning_strategy
+                if strategy:
+                    self._failed_patterns[strategy] = (
+                        self._failed_patterns.get(strategy, 0) + 1
+                    )
+                    if self._failed_patterns[strategy] > 3:
+                        logger.warning(
+                            f"Anti-pattern detected: strategy '{strategy}' has "
+                            f"failed {self._failed_patterns[strategy]} times"
+                        )
+                        # Create meta_observation node in KG
+                        if hasattr(self._kg, 'add_node'):
+                            self._kg.add_node(
+                                node_type='meta_observation',
+                                content={
+                                    'type': 'anti_pattern',
+                                    'strategy': strategy,
+                                    'failure_count': self._failed_patterns[strategy],
+                                    'text': (f"Strategy '{strategy}' has failed "
+                                             f"{self._failed_patterns[strategy]} times — "
+                                             f"consider reducing weight"),
+                                },
+                                confidence=0.85,
+                                source_block=block_height,
+                            )
+
         # Step 3: Promote frequently-replayed successful strategies to axioms
         if has_kg and hasattr(self._kg, 'add_node'):
             for strategy, count in self._strategy_replay_success.items():
@@ -485,6 +534,46 @@ class MemoryManager:
             )
 
         return stats
+
+    # --- Auto-Tuning ---
+
+    def auto_tune_capacity(self) -> int:
+        """Auto-tune working memory capacity based on hit rate.
+
+        If hit_rate > 0.8, capacity is too large (reduce by 10%).
+        If hit_rate < 0.3, capacity is too small (increase by 20%).
+        Capacity is capped between WORKING_MEMORY_MIN_CAPACITY and
+        WORKING_MEMORY_MAX_CAPACITY from Config.
+
+        Returns:
+            The new capacity value.
+        """
+        min_cap = 20
+        max_cap = 200
+        try:
+            from ..config import Config
+            min_cap = getattr(Config, 'WORKING_MEMORY_MIN_CAPACITY', 20)
+            max_cap = getattr(Config, 'WORKING_MEMORY_MAX_CAPACITY', 200)
+        except Exception:
+            pass
+
+        hit_rate = self.get_hit_rate()
+        old_capacity = self._capacity
+
+        if hit_rate > 0.8:
+            # Too many hits — memory is oversized, reduce by 10%
+            self._capacity = max(min_cap, int(self._capacity * 0.9))
+        elif hit_rate < 0.3 and self._attend_calls > 20:
+            # Too few hits — memory is too small, increase by 20%
+            self._capacity = min(max_cap, int(self._capacity * 1.2))
+
+        if self._capacity != old_capacity:
+            logger.info(
+                f"Working memory capacity auto-tuned: {old_capacity} -> "
+                f"{self._capacity} (hit_rate={hit_rate:.3f})"
+            )
+
+        return self._capacity
 
     # --- Stats ---
 

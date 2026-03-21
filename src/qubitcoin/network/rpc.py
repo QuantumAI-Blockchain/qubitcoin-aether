@@ -171,9 +171,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     _rate_limit_sweep_counter = {'count': 0}
 
     # Endpoints exempt from rate limiting (sync, health, chain data)
+    # Aether chat endpoints are exempt from the write rate limit because
+    # the chat system has its own per-session rate limiter (30/min).
     _RATE_LIMIT_EXEMPT_PREFIXES = (
         '/block/', '/chain/info', '/chain/tip', '/health',
         '/snapshots/', '/sync/', '/metrics', '/exchange/',
+        '/aether/chat/message', '/aether/chat/session',
     )
 
     @app.middleware("http")

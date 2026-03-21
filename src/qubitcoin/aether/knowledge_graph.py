@@ -83,46 +83,169 @@ class KeterEdge:
 # Domain keyword mapping for auto-classification
 DOMAIN_KEYWORDS: Dict[str, Set[str]] = {
     'quantum_physics': {'qubit', 'quantum', 'superposition', 'entanglement', 'decoherence',
-                        'hamiltonian', 'vqe', 'qiskit', 'photon', 'wave', 'particle'},
+                        'hamiltonian', 'vqe', 'qiskit', 'photon', 'wave', 'particle',
+                        'wavefunction', 'eigenstate', 'eigenvalue', 'hilbert', 'pauli',
+                        'fermion', 'boson', 'spin', 'coherence', 'ansatz', 'hadamard',
+                        'bloch', 'measurement', 'observable', 'density_matrix'},
     'mathematics': {'theorem', 'proof', 'algebra', 'topology', 'geometry', 'calculus',
-                    'prime', 'fibonacci', 'equation', 'integral', 'matrix', 'vector'},
+                    'prime', 'fibonacci', 'equation', 'integral', 'matrix', 'vector',
+                    'polynomial', 'logarithm', 'derivative', 'differential', 'manifold',
+                    'eigenspace', 'determinant', 'convergence', 'isomorphism', 'phi',
+                    'golden_ratio', 'fractal', 'modular', 'arithmetic'},
     'computer_science': {'algorithm', 'compiler', 'database', 'hash', 'binary',
-                         'complexity', 'turing', 'sorting', 'graph_theory', 'recursion'},
+                         'complexity', 'turing', 'sorting', 'graph_theory', 'recursion',
+                         'concurrency', 'thread', 'mutex', 'cache', 'latency',
+                         'throughput', 'api', 'protocol', 'serialization', 'bandwidth'},
     'blockchain': {'block', 'transaction', 'consensus', 'mining', 'utxo', 'merkle',
-                   'ledger', 'token', 'smart_contract', 'defi', 'bridge', 'staking'},
+                   'ledger', 'token', 'smart_contract', 'defi', 'bridge', 'staking',
+                   'difficulty', 'reward', 'halving', 'fee', 'node', 'peer', 'chain',
+                   'supply', 'coinbase', 'nonce', 'hash_rate', 'proof', 'validator',
+                   'wallet', 'address', 'mempool', 'orphan', 'fork', 'finality',
+                   'gas', 'yield', 'liquidity', 'tvl', 'apy', 'amm', 'dex', 'vault',
+                   'collateral', 'governance', 'dao', 'proposal', 'vote', 'treasury',
+                   'block_height', 'block_hash', 'prev_hash', 'tx', 'txid',
+                   'confirmations', 'blocktime', 'epoch', 'era', 'emission',
+                   'miner', 'hashrate', 'propagation', 'reorg', 'sidechain',
+                   'rollup', 'layer2', 'l2', 'swap', 'pool', 'lp', 'stake'},
     'cryptography': {'encryption', 'signature', 'dilithium', 'lattice', 'zero_knowledge',
-                     'zkp', 'aes', 'rsa', 'cipher', 'post_quantum'},
+                     'zkp', 'aes', 'rsa', 'cipher', 'post_quantum',
+                     'hmac', 'sha256', 'sha3', 'keccak', 'kyber', 'kem',
+                     'nist', 'keypair', 'public_key', 'private_key', 'signing',
+                     'verification', 'digest', 'commitment', 'pedersen', 'bulletproof',
+                     'stealth', 'zk_snark', 'zk_stark', 'poseidon', 'groth16'},
     'philosophy': {'consciousness', 'qualia', 'epistemology', 'ethics', 'ontology',
-                   'kabbalah', 'sephirot', 'phenomenology', 'mind', 'metaphysics'},
+                   'kabbalah', 'sephirot', 'phenomenology', 'mind', 'metaphysics',
+                   'keter', 'chochmah', 'binah', 'chesed', 'gevurah', 'tiferet',
+                   'netzach', 'hod', 'yesod', 'malkuth', 'sephira', 'aether',
+                   'cognition', 'awareness', 'reasoning', 'thought', 'philosophy'},
     'biology': {'neuron', 'dna', 'gene', 'evolution', 'cell', 'protein',
-                'ecology', 'organism', 'neural', 'brain', 'synapse'},
+                'ecology', 'organism', 'neural', 'brain', 'synapse',
+                'genome', 'mutation', 'phenotype', 'genotype', 'mitosis'},
     'physics': {'relativity', 'gravity', 'thermodynamics', 'entropy', 'energy',
-                'electromagnetism', 'nuclear', 'optics', 'cosmology', 'dark_matter'},
+                'electromagnetism', 'nuclear', 'optics', 'cosmology', 'dark_matter',
+                'higgs', 'boson', 'susy', 'supersymmetry', 'field', 'force',
+                'momentum', 'velocity', 'acceleration', 'mass', 'potential',
+                'kinetic', 'photon', 'spectrum', 'planck'},
     'economics': {'market', 'inflation', 'monetary', 'gdp', 'trade',
-                  'supply_demand', 'fiscal', 'currency', 'game_theory'},
+                  'supply_demand', 'fiscal', 'currency', 'game_theory',
+                  'price', 'exchange', 'rate', 'peg', 'stablecoin', 'qusd',
+                  'reserve', 'arbitrage', 'oracle', 'volatility', 'hedge',
+                  'portfolio', 'risk', 'return', 'profit', 'loss'},
     'ai_ml': {'transformer', 'neural_network', 'reinforcement', 'gradient',
-              'backpropagation', 'llm', 'attention', 'embedding', 'training', 'inference'},
+              'backpropagation', 'llm', 'attention', 'embedding', 'training', 'inference',
+              'classification', 'regression', 'clustering', 'overfitting',
+              'dropout', 'batch_norm', 'convolution', 'gpt', 'bert', 'diffusion',
+              'generative', 'discriminative', 'autoencoder', 'gan', 'rl'},
+    'technology': {'software', 'hardware', 'server', 'cloud', 'docker', 'container',
+                   'kubernetes', 'microservice', 'deployment', 'devops', 'ci_cd',
+                   'linux', 'network', 'firewall', 'load_balancer', 'proxy',
+                   'http', 'tcp', 'websocket', 'grpc', 'rest', 'json', 'yaml',
+                   'git', 'version_control', 'monitoring', 'logging', 'metrics'},
+}
+
+# Bigram patterns for more accurate classification
+DOMAIN_BIGRAMS: Dict[str, Set[str]] = {
+    'blockchain': {'smart contract', 'block height', 'block hash', 'hash rate',
+                   'block reward', 'gas fee', 'gas limit', 'chain id',
+                   'block time', 'total supply', 'max supply', 'genesis block',
+                   'merkle root', 'difficulty target', 'block observation',
+                   'contract activity', 'mining pool', 'transaction fee',
+                   'liquidity pool', 'yield farming', 'flash loan',
+                   'price oracle', 'token swap', 'layer 2'},
+    'quantum_physics': {'quantum state', 'quantum gate', 'quantum circuit',
+                        'ground state', 'energy level', 'quantum computing',
+                        'quantum observation', 'bell state', 'quantum error'},
+    'cryptography': {'public key', 'private key', 'digital signature',
+                     'zero knowledge', 'post quantum', 'key exchange',
+                     'hash function', 'range proof', 'stealth address'},
+    'ai_ml': {'neural network', 'deep learning', 'machine learning',
+              'natural language', 'computer vision', 'reinforcement learning',
+              'attention mechanism', 'loss function', 'gradient descent'},
+    'economics': {'supply demand', 'game theory', 'monetary policy',
+                  'price discovery', 'market cap', 'exchange rate'},
+    'philosophy': {'tree of life', 'proof of thought', 'knowledge graph',
+                   'consciousness metric', 'cognitive field'},
+    'physics': {'dark matter', 'higgs field', 'dark energy',
+                'general relativity', 'special relativity'},
+}
+
+# Content type keys that auto-classify to a domain
+CONTENT_TYPE_DOMAIN_MAP: Dict[str, str] = {
+    'block_observation': 'blockchain',
+    'quantum_observation': 'quantum_physics',
+    'contract_activity': 'blockchain',
+    'transaction_observation': 'blockchain',
+    'mining_observation': 'blockchain',
+    'consensus_observation': 'blockchain',
+    'network_observation': 'blockchain',
+    'economic_observation': 'economics',
+    'price_observation': 'economics',
+    'stablecoin_observation': 'economics',
+    'aether_observation': 'philosophy',
+    'consciousness_observation': 'philosophy',
+    'reasoning_observation': 'philosophy',
+    'knowledge_observation': 'philosophy',
+}
+
+# Substring patterns that indicate a domain when found anywhere in text
+DOMAIN_SUBSTRINGS: Dict[str, List[str]] = {
+    'blockchain': ['blockchain', 'block_hash', 'prev_hash', 'block_height',
+                   'coinbase', 'mempool', 'utxo', 'merkle', 'hashrate',
+                   'finality', 'sidechain', 'rollup'],
+    'quantum_physics': ['quantum', 'qubit', 'superposition', 'entangle',
+                        'hamiltonian', 'eigenstate', 'wavefunction'],
+    'cryptography': ['dilithium', 'encrypt', 'decrypt', 'cipher', 'signature',
+                     'keypair', 'zkp', 'bulletproof', 'pedersen', 'poseidon'],
+    'ai_ml': ['neural_net', 'backprop', 'gradient', 'transformer',
+              'autoencoder', 'embedding'],
+    'philosophy': ['sephir', 'kabbala', 'consciousness', 'cogniti'],
 }
 
 
 def classify_domain(content: dict) -> str:
     """Classify a knowledge node's domain from its content.
 
-    Scans all text fields in the content dict against keyword sets.
-    Returns the best-matching domain or 'general' if no strong match.
+    Uses multi-strategy classification:
+    1. Content type key auto-classification
+    2. Bigram matching for multi-word terms
+    3. Substring matching for compound words
+    4. Single keyword matching
+    Returns the best-matching domain or 'general' if no match at all.
     """
-    text = ' '.join(str(v) for v in content.values()).lower()
-    # Normalize separators
-    text = text.replace('-', '_').replace('.', ' ')
-    words = set(text.split())
+    # Strategy 0: Content type auto-classification
+    content_type = content.get('type', '')
+    if isinstance(content_type, str) and content_type in CONTENT_TYPE_DOMAIN_MAP:
+        return CONTENT_TYPE_DOMAIN_MAP[content_type]
 
-    best_domain = 'general'
-    best_score = 0
+    text = ' '.join(str(v) for v in content.values()).lower()
+    # Normalize separators for keyword matching but keep original for bigrams
+    text_normalized = text.replace('-', '_').replace('.', ' ')
+    words = set(text_normalized.split())
+
+    scores: Dict[str, float] = {}
+
+    # Strategy 1: Bigram matching (weighted 2x per match)
+    for domain, bigrams in DOMAIN_BIGRAMS.items():
+        for bigram in bigrams:
+            if bigram in text:
+                scores[domain] = scores.get(domain, 0) + 2.0
+
+    # Strategy 2: Substring matching for compound words
+    for domain, substrings in DOMAIN_SUBSTRINGS.items():
+        for substr in substrings:
+            if substr in text_normalized:
+                scores[domain] = scores.get(domain, 0) + 1.5
+
+    # Strategy 3: Single keyword matching
     for domain, keywords in DOMAIN_KEYWORDS.items():
-        score = len(words & keywords)
-        if score > best_score:
-            best_score = score
-            best_domain = domain
+        matched = len(words & keywords)
+        if matched > 0:
+            scores[domain] = scores.get(domain, 0) + matched
+
+    if not scores:
+        return 'general'
+
+    best_domain = max(scores, key=lambda d: scores[d])
     return best_domain
 
 
@@ -135,7 +258,7 @@ class KnowledgeGraph:
 
     def __init__(self, db_manager):
         self.db = db_manager
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.nodes: Dict[int, KeterNode] = {}
         self.edges: List[KeterEdge] = []
         # O(1) edge adjacency index — avoids O(n) scans of self.edges
@@ -501,6 +624,11 @@ class KnowledgeGraph:
             del self.nodes[nid]
         self._merkle_dirty = True
 
+        # Cascade prune to search and vector indices
+        for nid in remove_set:
+            self.search_index.remove_node(nid)
+            self.vector_index.remove_node(nid)
+
         # Delete from database
         db_deleted_nodes = 0
         db_deleted_edges = 0
@@ -541,6 +669,9 @@ class KnowledgeGraph:
         Called periodically (e.g. every 100 blocks) to ensure that
         confidence adjustments from reasoning/propagation survive restarts.
 
+        Uses a single batch UPDATE via UNNEST for massive speedup over
+        per-row updates (1 round-trip instead of N).
+
         Returns:
             Number of rows updated.
         """
@@ -549,22 +680,37 @@ class KnowledgeGraph:
 
         try:
             from sqlalchemy import text
+            # Collect all node IDs and confidence values
+            ids = []
+            confs = []
+            for nid, node in self.nodes.items():
+                ids.append(nid)
+                confs.append(round(node.confidence, 8))
+
+            if not ids:
+                return 0
+
+            # Batch update using UNNEST — single SQL round-trip
+            BATCH_SIZE = 5000
             updated = 0
             with self.db.get_session() as session:
-                # Batch update — send all current confidences
-                for nid, node in self.nodes.items():
+                for i in range(0, len(ids), BATCH_SIZE):
+                    batch_ids = ids[i:i + BATCH_SIZE]
+                    batch_confs = confs[i:i + BATCH_SIZE]
                     result = session.execute(
                         text("""
-                            UPDATE knowledge_nodes SET confidence = :conf
-                            WHERE id = :id AND confidence != :conf
+                            UPDATE knowledge_nodes AS kn
+                            SET confidence = batch.conf
+                            FROM (SELECT UNNEST(:ids) AS id, UNNEST(:confs) AS conf) AS batch
+                            WHERE kn.id = batch.id AND kn.confidence != batch.conf
                         """),
-                        {'conf': node.confidence, 'id': nid}
+                        {'ids': batch_ids, 'confs': batch_confs}
                     )
                     updated += result.rowcount
                 session.commit()
 
             if updated > 0:
-                logger.info(f"Persisted confidence updates for {updated} nodes")
+                logger.info(f"Persisted confidence updates for {updated} nodes (batch)")
             return updated
         except Exception as e:
             logger.error(f"Failed to persist confidence updates: {e}")
@@ -771,16 +917,21 @@ class KnowledgeGraph:
         return result
 
     def reclassify_domains(self) -> int:
-        """Reclassify domains for all nodes that have no domain set.
+        """Reclassify domains for all nodes that have no domain set or are 'general'.
+
+        Uses the improved multi-strategy classifier to re-evaluate nodes
+        that were previously unclassified or defaulted to 'general'.
 
         Returns:
             Number of nodes reclassified.
         """
         count = 0
         for node in self.nodes.values():
-            if not node.domain:
-                node.domain = classify_domain(node.content)
-                count += 1
+            if not node.domain or node.domain == 'general':
+                new_domain = classify_domain(node.content)
+                if new_domain != node.domain:
+                    node.domain = new_domain
+                    count += 1
         if count:
             logger.info(f"Reclassified domains for {count} nodes")
         return count
@@ -854,6 +1005,409 @@ class KnowledgeGraph:
                 f"Detected {created} potential contradictions for node {new_node_id}"
             )
         return created
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Improvement 2: Auto-Pruning Trigger
+    # ────────────────────────────────────────────────────────────────────────
+
+    def auto_prune_if_needed(self, max_nodes: int = 200000) -> int:
+        """Auto-prune when graph exceeds max_nodes.
+
+        Uses adaptive threshold based on confidence distribution: prunes
+        the lowest-confidence nodes until the graph is back under the limit.
+        The threshold is set at the percentile that would remove enough nodes.
+
+        Args:
+            max_nodes: Maximum allowed node count before pruning triggers.
+
+        Returns:
+            Number of nodes pruned (0 if no pruning needed).
+        """
+        if len(self.nodes) <= max_nodes:
+            return 0
+
+        excess = len(self.nodes) - max_nodes
+        # Calculate adaptive threshold from confidence distribution
+        confidences = sorted(n.confidence for n in self.nodes.values())
+        # Find the confidence value at the percentile that removes enough nodes
+        # Add 10% buffer to prune a bit more than the minimum
+        prune_count = min(len(confidences) - 1, int(excess * 1.1))
+        threshold = confidences[prune_count]
+        # Ensure minimum threshold
+        threshold = max(threshold, 0.05)
+
+        logger.info(
+            f"Auto-prune triggered: {len(self.nodes)} nodes > {max_nodes} limit, "
+            f"adaptive threshold={threshold:.4f}, targeting ~{prune_count} nodes"
+        )
+        return self.prune_low_confidence(threshold=threshold)
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Improvement 5: Orphan Node Detection
+    # ────────────────────────────────────────────────────────────────────────
+
+    def find_orphan_nodes(self) -> List[int]:
+        """Find nodes with no edges (neither incoming nor outgoing).
+
+        These are disconnected knowledge nodes that contribute nothing
+        to the graph structure. They should either be connected to
+        related nodes or pruned.
+
+        Returns:
+            List of orphan node IDs.
+        """
+        orphans = []
+        for nid, node in self.nodes.items():
+            has_out = bool(self._adj_out.get(nid))
+            has_in = bool(self._adj_in.get(nid))
+            if not has_out and not has_in:
+                orphans.append(nid)
+        return orphans
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Improvement 6: Duplicate Content Detection
+    # ────────────────────────────────────────────────────────────────────────
+
+    def find_and_merge_duplicates(self, similarity_threshold: float = 0.92) -> int:
+        """Find near-duplicate nodes and merge them.
+
+        Detects duplicates via:
+        1. Exact content_hash matches (definite duplicates)
+        2. High cosine similarity from vector index (near-duplicates)
+
+        Keeps the higher-confidence node and redirects all edges from the
+        duplicate to the survivor. The duplicate is then removed.
+
+        Args:
+            similarity_threshold: Minimum cosine similarity to consider as duplicate.
+
+        Returns:
+            Number of nodes merged (removed).
+        """
+        merged = 0
+        # Phase 1: Exact content hash duplicates
+        hash_groups: Dict[str, List[int]] = {}
+        for nid, node in self.nodes.items():
+            if node.content_hash:
+                hash_groups.setdefault(node.content_hash, []).append(nid)
+
+        to_remove: Set[int] = set()
+        redirect_map: Dict[int, int] = {}  # duplicate_id -> survivor_id
+
+        for chash, nids in hash_groups.items():
+            if len(nids) < 2:
+                continue
+            # Sort by confidence descending — first is the survivor
+            nids.sort(key=lambda n: self.nodes[n].confidence, reverse=True)
+            survivor = nids[0]
+            for dup in nids[1:]:
+                if dup not in to_remove:
+                    to_remove.add(dup)
+                    redirect_map[dup] = survivor
+
+        # Phase 2: Vector similarity duplicates (only if vector index has content)
+        if hasattr(self.vector_index, 'find_similar_nodes'):
+            checked: Set[Tuple[int, int]] = set()
+            sample_ids = list(self.nodes.keys())
+            # Limit checks for performance — sample up to 1000 nodes
+            if len(sample_ids) > 1000:
+                import random
+                sample_ids = random.sample(sample_ids, 1000)
+
+            for nid in sample_ids:
+                if nid in to_remove:
+                    continue
+                try:
+                    similar = self.vector_index.find_similar_nodes(nid, top_k=5)
+                    for sim_id, sim_score in similar:
+                        if sim_id == nid or sim_id in to_remove:
+                            continue
+                        pair = (min(nid, sim_id), max(nid, sim_id))
+                        if pair in checked:
+                            continue
+                        checked.add(pair)
+                        if sim_score >= similarity_threshold:
+                            # Keep higher confidence
+                            if self.nodes[nid].confidence >= self.nodes.get(sim_id, KeterNode()).confidence:
+                                to_remove.add(sim_id)
+                                redirect_map[sim_id] = nid
+                            else:
+                                to_remove.add(nid)
+                                redirect_map[nid] = sim_id
+                                break  # nid is being removed, stop checking its neighbors
+                except Exception:
+                    continue
+
+        if not to_remove:
+            return 0
+
+        # Redirect edges from duplicates to survivors
+        with self._lock:
+            for dup_id, survivor_id in redirect_map.items():
+                # Redirect outgoing edges
+                for edge in list(self._adj_out.get(dup_id, [])):
+                    if edge.to_node_id != survivor_id and edge.to_node_id not in to_remove:
+                        self.add_edge(survivor_id, edge.to_node_id, edge.edge_type, edge.weight)
+                # Redirect incoming edges
+                for edge in list(self._adj_in.get(dup_id, [])):
+                    if edge.from_node_id != survivor_id and edge.from_node_id not in to_remove:
+                        self.add_edge(edge.from_node_id, survivor_id, edge.edge_type, edge.weight)
+
+            # Remove duplicate nodes
+            self.edges = [
+                e for e in self.edges
+                if e.from_node_id not in to_remove and e.to_node_id not in to_remove
+            ]
+            for dup_id in to_remove:
+                self._adj_out.pop(dup_id, None)
+                self._adj_in.pop(dup_id, None)
+                if dup_id in self.nodes:
+                    del self.nodes[dup_id]
+                self.search_index.remove_node(dup_id)
+                self.vector_index.remove_node(dup_id)
+                merged += 1
+            self._merkle_dirty = True
+
+        # Delete from database
+        if to_remove:
+            try:
+                from sqlalchemy import text as sa_text
+                with self.db.get_session() as session:
+                    remove_list = list(to_remove)
+                    session.execute(
+                        sa_text("DELETE FROM knowledge_edges WHERE from_node_id = ANY(:ids) OR to_node_id = ANY(:ids)"),
+                        {"ids": remove_list}
+                    )
+                    session.execute(
+                        sa_text("DELETE FROM knowledge_nodes WHERE id = ANY(:ids)"),
+                        {"ids": remove_list}
+                    )
+                    session.commit()
+            except Exception as e:
+                logger.error(f"Failed to delete merged duplicates from DB: {e}")
+
+        logger.info(f"Merged {merged} duplicate nodes")
+        return merged
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Improvement 9: Knowledge Quality Score
+    # ────────────────────────────────────────────────────────────────────────
+
+    def compute_node_quality(self, node_id: int) -> float:
+        """Compute a composite quality score for a knowledge node.
+
+        The score is a weighted combination of:
+        - Confidence (30%): Base reliability measure
+        - Edge count (20%): Connectivity indicates importance
+        - Reference count (15%): Usage in reasoning
+        - Grounding status (15%): Verified knowledge is higher quality
+        - Recency (10%): Recent nodes are more relevant
+        - Domain specificity (10%): Non-'general' domain gets bonus
+
+        Args:
+            node_id: The node to score.
+
+        Returns:
+            Quality score in [0.0, 1.0], or 0.0 if node not found.
+        """
+        node = self.nodes.get(node_id)
+        if not node:
+            return 0.0
+
+        # Confidence component (0-1)
+        conf_score = node.confidence
+
+        # Edge count component — normalized with diminishing returns
+        total_edges = len(self._adj_out.get(node_id, [])) + len(self._adj_in.get(node_id, []))
+        edge_score = min(1.0, math.log1p(total_edges) / math.log1p(20))
+
+        # Reference count component — log scale
+        ref_score = min(1.0, math.log1p(node.reference_count) / math.log1p(50))
+
+        # Grounding component — binary with partial credit
+        grounding_score = 1.0 if node.grounding_source else 0.0
+
+        # Recency component — based on source_block relative to newest
+        max_block = max((n.source_block for n in self.nodes.values()), default=0)
+        if max_block > 0:
+            recency_score = min(1.0, node.source_block / max_block)
+        else:
+            recency_score = 0.5
+
+        # Domain specificity — non-general gets bonus
+        domain_score = 0.0 if (not node.domain or node.domain == 'general') else 1.0
+
+        quality = (
+            0.30 * conf_score
+            + 0.20 * edge_score
+            + 0.15 * ref_score
+            + 0.15 * grounding_score
+            + 0.10 * recency_score
+            + 0.10 * domain_score
+        )
+        return round(min(1.0, max(0.0, quality)), 4)
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Improvement 10: Graph Health Metrics
+    # ────────────────────────────────────────────────────────────────────────
+
+    def get_health_metrics(self) -> dict:
+        """Compute comprehensive health metrics for the knowledge graph.
+
+        Returns a dict with:
+        - orphan_ratio: Fraction of nodes with no edges
+        - avg_edge_count: Mean edges per node (in + out)
+        - domain_diversity: Shannon entropy of domain distribution
+        - grounding_ratio: Fraction of grounded nodes
+        - duplicate_ratio: Estimated fraction of duplicate content hashes
+        - confidence_distribution: Quartiles (min, q25, median, q75, max)
+        """
+        total = len(self.nodes)
+        if total == 0:
+            return {
+                'orphan_ratio': 0.0,
+                'avg_edge_count': 0.0,
+                'domain_diversity': 0.0,
+                'grounding_ratio': 0.0,
+                'duplicate_ratio': 0.0,
+                'confidence_distribution': {'min': 0, 'q25': 0, 'median': 0, 'q75': 0, 'max': 0},
+            }
+
+        # Orphan ratio
+        orphan_count = 0
+        total_edge_count = 0
+        grounded_count = 0
+        domain_counts: Dict[str, int] = {}
+        hash_counts: Dict[str, int] = {}
+        confidences: List[float] = []
+
+        for nid, node in self.nodes.items():
+            edges = len(self._adj_out.get(nid, [])) + len(self._adj_in.get(nid, []))
+            if edges == 0:
+                orphan_count += 1
+            total_edge_count += edges
+
+            if node.grounding_source:
+                grounded_count += 1
+
+            d = node.domain or 'general'
+            domain_counts[d] = domain_counts.get(d, 0) + 1
+
+            if node.content_hash:
+                hash_counts[node.content_hash] = hash_counts.get(node.content_hash, 0) + 1
+
+            confidences.append(node.confidence)
+
+        # Shannon entropy for domain diversity
+        entropy = 0.0
+        for count in domain_counts.values():
+            p = count / total
+            if p > 0:
+                entropy -= p * math.log2(p)
+
+        # Duplicate ratio
+        duplicate_nodes = sum(c - 1 for c in hash_counts.values() if c > 1)
+
+        # Confidence quartiles
+        confidences.sort()
+        n = len(confidences)
+
+        def percentile(data: List[float], pct: float) -> float:
+            idx = int(pct * (len(data) - 1))
+            return round(data[idx], 4)
+
+        return {
+            'orphan_ratio': round(orphan_count / total, 4),
+            'avg_edge_count': round(total_edge_count / total, 2),
+            'domain_diversity': round(entropy, 4),
+            'grounding_ratio': round(grounded_count / total, 4),
+            'duplicate_ratio': round(duplicate_nodes / total, 4) if total > 0 else 0.0,
+            'confidence_distribution': {
+                'min': round(confidences[0], 4),
+                'q25': percentile(confidences, 0.25),
+                'median': percentile(confidences, 0.50),
+                'q75': percentile(confidences, 0.75),
+                'max': round(confidences[-1], 4),
+            },
+        }
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Improvement 11: Smart Node Aging
+    # ────────────────────────────────────────────────────────────────────────
+
+    def age_stale_nodes(self, current_block: int, max_age_blocks: int = 50000) -> int:
+        """Reduce confidence of old, unreferenced nodes.
+
+        Applies aggressive aging to nodes that:
+        - Have not been referenced recently
+        - Are not axioms or grounded
+        - Have low reference counts
+
+        This creates natural selection pressure: actively-used knowledge
+        persists while stale, unused knowledge fades.
+
+        Args:
+            current_block: Current blockchain block height.
+            max_age_blocks: Age threshold for aggressive decay.
+
+        Returns:
+            Number of nodes aged.
+        """
+        aged = 0
+        for node in self.nodes.values():
+            if node.node_type == 'axiom':
+                continue
+            if node.grounding_source:
+                continue
+
+            ref_block = node.last_referenced_block or node.source_block
+            age = current_block - ref_block
+            if age <= max_age_blocks:
+                continue
+
+            # More aggressive decay for unreferenced nodes
+            # Nodes with more references decay slower
+            ref_factor = max(0.1, 1.0 / (1.0 + math.log1p(node.reference_count)))
+            excess_age = age - max_age_blocks
+            decay = min(0.05, 0.001 * ref_factor * (excess_age / max_age_blocks))
+            new_conf = max(0.01, node.confidence - decay)
+            if new_conf < node.confidence:
+                node.confidence = new_conf
+                aged += 1
+
+        if aged:
+            logger.info(f"Aged {aged} stale nodes (current_block={current_block}, max_age={max_age_blocks})")
+        return aged
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Improvement 12: Edge Weight Normalization
+    # ────────────────────────────────────────────────────────────────────────
+
+    def normalize_edge_weights(self) -> int:
+        """Normalize outgoing edge weights per node to sum to 1.0.
+
+        Prevents weight inflation from repeated edge additions.
+        Only normalizes nodes with total outgoing weight > 1.0.
+
+        Returns:
+            Number of nodes whose edges were normalized.
+        """
+        normalized = 0
+        for nid in list(self._adj_out.keys()):
+            edges = self._adj_out.get(nid, [])
+            if not edges:
+                continue
+            total_weight = sum(abs(e.weight) for e in edges)
+            if total_weight <= 1.0 or total_weight == 0:
+                continue
+            for edge in edges:
+                edge.weight = edge.weight / total_weight
+            normalized += 1
+
+        if normalized:
+            self._merkle_dirty = True
+            logger.info(f"Normalized edge weights for {normalized} nodes")
+        return normalized
 
     def get_stats(self) -> dict:
         """Get knowledge graph statistics"""

@@ -111,6 +111,13 @@ class AetherEngine:
         except Exception as e:
             logger.debug(f"MemoryManager init failed: {e}")
 
+        # Blocks processed counter (tracked from process_block_knowledge calls)
+        self._blocks_processed: int = 0
+
+        # PoT deduplication: track seen thought hashes to reject duplicates
+        self._pot_hashes_seen: set = set()
+        self._pot_hashes_max: int = 5000  # Bound set size
+
         # Phase 5.1: Curiosity-driven goal formation
         self._curiosity_goals: List[dict] = []
         self._max_curiosity_goals: int = 500
@@ -213,6 +220,21 @@ class AetherEngine:
             timestamp=time.time(),
         )
         pot.thought_hash = pot.calculate_hash()
+
+        # Deduplication: reject if this exact thought hash was already generated
+        if pot.thought_hash in self._pot_hashes_seen:
+            logger.debug(
+                f"Duplicate PoT hash detected at block {block_height}, "
+                f"hash={pot.thought_hash[:16]}... — skipping"
+            )
+            return None
+
+        # Track the hash (with bounded set size)
+        self._pot_hashes_seen.add(pot.thought_hash)
+        if len(self._pot_hashes_seen) > self._pot_hashes_max:
+            # Evict oldest entries by discarding half
+            evict_list = list(self._pot_hashes_seen)
+            self._pot_hashes_seen = set(evict_list[len(evict_list) // 2:])
 
         # Cache (with eviction to bound memory)
         self._pot_cache[block_height] = pot
@@ -333,6 +355,8 @@ class AetherEngine:
         """
         if not self.kg:
             return
+
+        self._blocks_processed += 1
 
         try:
             # Skip expensive Phi computation during block processing —
@@ -708,6 +732,21 @@ class AetherEngine:
                     f"SUSY balance enforcement at block {block_height}: "
                     f"{corrections} correction(s) applied"
                 )
+                # Verify energy conservation after corrections
+                sephirot = self.sephirot
+                if sephirot:
+                    total_energy = sum(
+                        s.state.energy for s in sephirot.values()
+                        if hasattr(s, 'state') and hasattr(s.state, 'energy')
+                    )
+                    expected_energy = len(sephirot) * 1.0  # Expected: 10 sephirot * 1.0 each
+                    if abs(total_energy - expected_energy) > 0.01:
+                        for s in sephirot.values():
+                            if hasattr(s, 'state') and hasattr(s.state, 'energy'):
+                                s.state.energy *= expected_energy / total_energy
+                        logger.debug(
+                            f"SUSY energy normalized: {total_energy:.4f} -> {expected_energy:.1f}"
+                        )
             return corrections
         except Exception as e:
             logger.debug(f"SUSY enforcement error: {e}")
@@ -2402,6 +2441,7 @@ class AetherEngine:
             },
             'reasoning': reasoning_stats,
             'thought_proofs_generated': len(self._pot_cache),
+            'blocks_processed': self._blocks_processed,
         }
 
         # AGI subsystem stats
@@ -2451,4 +2491,101 @@ class AetherEngine:
         if self.on_chain:
             stats['on_chain'] = self.on_chain.get_stats()
 
+        # Blocks processed counter
+        stats['blocks_processed'] = self._blocks_processed
+
         return stats
+
+    def get_subsystem_health(self) -> Dict[str, dict]:
+        """Return health status of all AGI subsystems.
+
+        Provides initialized/active status and error information for
+        each subsystem, suitable for dashboard display.
+
+        Returns:
+            Dict mapping subsystem name to health info dict with keys:
+            initialized (bool), active (bool), error (str or None),
+            and subsystem-specific stats.
+        """
+        subsystems: Dict[str, dict] = {}
+
+        # Neural Reasoner (GATReasoner)
+        nr_stats: dict = {'initialized': self.neural_reasoner is not None, 'active': False, 'error': None}
+        if self.neural_reasoner:
+            try:
+                s = self.neural_reasoner.get_stats()
+                nr_stats['active'] = s.get('total_trainings', 0) > 0 or s.get('total_inferences', 0) > 0
+                nr_stats['trainings'] = s.get('total_trainings', 0)
+                nr_stats['inferences'] = s.get('total_inferences', 0)
+            except Exception as e:
+                nr_stats['error'] = str(e)
+        subsystems['neural_reasoner'] = nr_stats
+
+        # Causal Discovery Engine
+        ce_stats: dict = {'initialized': self.causal_engine is not None, 'active': False, 'error': None}
+        if self.causal_engine:
+            try:
+                s = self.causal_engine.get_stats()
+                ce_stats['active'] = s.get('discoveries', 0) > 0
+                ce_stats['discoveries'] = s.get('discoveries', 0)
+            except Exception as e:
+                ce_stats['error'] = str(e)
+        subsystems['causal_engine'] = ce_stats
+
+        # Debate Protocol
+        dp_stats: dict = {'initialized': self.debate_protocol is not None, 'active': False, 'error': None}
+        if self.debate_protocol:
+            try:
+                s = self.debate_protocol.get_stats()
+                dp_stats['active'] = s.get('debates_run', 0) > 0
+                dp_stats['debates_run'] = s.get('debates_run', 0)
+            except Exception as e:
+                dp_stats['error'] = str(e)
+        subsystems['debate_protocol'] = dp_stats
+
+        # Temporal Engine
+        te_stats: dict = {'initialized': self.temporal_engine is not None, 'active': False, 'error': None}
+        if self.temporal_engine:
+            try:
+                s = self.temporal_engine.get_stats()
+                te_stats['active'] = s.get('blocks_processed', 0) > 0
+                te_stats['predictions'] = s.get('predictions_made', 0)
+            except Exception as e:
+                te_stats['error'] = str(e)
+        subsystems['temporal_engine'] = te_stats
+
+        # Concept Formation
+        cf_stats: dict = {'initialized': self.concept_formation is not None, 'active': False, 'error': None}
+        if self.concept_formation:
+            try:
+                s = self.concept_formation.get_stats()
+                cf_stats['active'] = s.get('concepts_formed', 0) > 0
+                cf_stats['concepts_formed'] = s.get('concepts_formed', 0)
+            except Exception as e:
+                cf_stats['error'] = str(e)
+        subsystems['concept_formation'] = cf_stats
+
+        # Metacognitive Loop
+        mc_stats: dict = {'initialized': self.metacognition is not None, 'active': False, 'error': None}
+        if self.metacognition:
+            try:
+                s = self.metacognition.get_stats()
+                mc_stats['active'] = s.get('evaluations', 0) > 0
+                mc_stats['evaluations'] = s.get('evaluations', 0)
+                mc_stats['calibration_error'] = s.get('calibration_error', None)
+            except Exception as e:
+                mc_stats['error'] = str(e)
+        subsystems['metacognition'] = mc_stats
+
+        # Memory Manager
+        mm_stats: dict = {'initialized': self.memory_manager is not None, 'active': False, 'error': None}
+        if self.memory_manager:
+            try:
+                s = self.memory_manager.get_stats()
+                mm_stats['active'] = s.get('total_memories', 0) > 0
+                mm_stats['total_memories'] = s.get('total_memories', 0)
+            except Exception as e:
+                mm_stats['error'] = str(e)
+        subsystems['memory_manager'] = mm_stats
+
+        return subsystems

@@ -56,7 +56,7 @@ export default function AetherPage() {
           Aether Tree
         </h1>
         <p className="mb-8 text-sm" style={{ color: C.textMuted }}>
-          On-chain AGI reasoning engine — 33 modules, ~18,500 LOC
+          On-chain AGI reasoning engine — 49 modules, ~29,000 LOC
         </p>
 
         <section className="mb-8">

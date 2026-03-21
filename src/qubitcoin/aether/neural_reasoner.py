@@ -400,6 +400,15 @@ class GATReasoner:
 
         self._total_predictions += 1
 
+        # Ensure correct_predictions never exceeds total_predictions (Improvement 49)
+        if self._correct_predictions > self._total_predictions:
+            logger.warning(
+                f"GATReasoner counter fix: correct_predictions "
+                f"({self._correct_predictions}) > total_predictions "
+                f"({self._total_predictions}), clamping"
+            )
+            self._correct_predictions = self._total_predictions
+
         # Cache features for training data collection in record_outcome()
         self._last_embeddings = {
             'features': features,
@@ -444,6 +453,9 @@ class GATReasoner:
         """
         if prediction_correct:
             self._correct_predictions += 1
+            # Ensure correct_predictions never exceeds total_predictions (Improvement 49)
+            if self._correct_predictions > self._total_predictions:
+                self._correct_predictions = self._total_predictions
 
         if not self._layer1 or not self._layer2:
             return

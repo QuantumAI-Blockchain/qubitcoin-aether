@@ -16,10 +16,16 @@ const C = {
 
 const tradingPairs = [
   { pair: "QBC/QUSD", base: "QBC", quote: "QUSD", desc: "Native Qubitcoin against QUSD stablecoin" },
-  { pair: "wETH/QUSD", base: "wETH", quote: "QUSD", desc: "Wrapped Ethereum against QUSD" },
-  { pair: "wBNB/QUSD", base: "wBNB", quote: "QUSD", desc: "Wrapped BNB against QUSD" },
-  { pair: "wSOL/QUSD", base: "wSOL", quote: "QUSD", desc: "Wrapped Solana against QUSD" },
-  { pair: "wQBC/QUSD", base: "wQBC", quote: "QUSD", desc: "Wrapped QBC against QUSD" },
+  { pair: "sBTC/QUSD", base: "sBTC", quote: "QUSD", desc: "Synthetic Bitcoin — tracks BTC via CoinGecko oracle" },
+  { pair: "sETH/QUSD", base: "sETH", quote: "QUSD", desc: "Synthetic Ethereum — tracks ETH via CoinGecko oracle" },
+  { pair: "sBNB/QUSD", base: "sBNB", quote: "QUSD", desc: "Synthetic BNB — tracks BNB via CoinGecko oracle" },
+  { pair: "sSOL/QUSD", base: "sSOL", quote: "QUSD", desc: "Synthetic Solana — tracks SOL via CoinGecko oracle" },
+  { pair: "sAVAX/QUSD", base: "sAVAX", quote: "QUSD", desc: "Synthetic Avalanche — tracks AVAX via CoinGecko oracle" },
+  { pair: "sMATIC/QUSD", base: "sMATIC", quote: "QUSD", desc: "Synthetic Polygon — tracks MATIC via CoinGecko oracle" },
+  { pair: "sADA/QUSD", base: "sADA", quote: "QUSD", desc: "Synthetic Cardano — tracks ADA via CoinGecko oracle" },
+  { pair: "sDOT/QUSD", base: "sDOT", quote: "QUSD", desc: "Synthetic Polkadot — tracks DOT via CoinGecko oracle" },
+  { pair: "sLINK/QUSD", base: "sLINK", quote: "QUSD", desc: "Synthetic Chainlink — tracks LINK via CoinGecko oracle" },
+  { pair: "sATOM/QUSD", base: "sATOM", quote: "QUSD", desc: "Synthetic Cosmos — tracks ATOM via CoinGecko oracle" },
 ];
 
 const apiEndpoints = [
@@ -80,12 +86,14 @@ export default function ExchangePage() {
           </h2>
           <p className="text-sm leading-relaxed" style={{ color: C.textMuted }}>
             The QBC Exchange is a high-performance order matching engine written entirely in Rust.
-            It runs as a standalone binary separate from the Python node, connecting to CockroachDB
+            It runs as a standalone Docker container separate from the Python node, connecting to CockroachDB
             for balance persistence and trade history. The engine uses price-time priority (FIFO at
             each price level) for fair order matching, rust_decimal for precise arithmetic with no
             floating point errors, and a thread-safe Mutex-based single-writer design for
-            deterministic execution. All market data is streamed in real-time via WebSocket, and
-            the REST API is fully compatible with the QBC frontend.
+            deterministic execution. 50 markets are live with 47 CoinGecko oracle price feeds covering
+            major crypto assets as synthetic pairs (sBTC, sETH, sBNB, sSOL, etc.). All market data
+            is streamed in real-time via WebSocket, and the REST API is fully compatible with the
+            QBC frontend.
           </p>
         </section>
 
@@ -101,7 +109,8 @@ export default function ExchangePage() {
               { label: "Lines of Code", value: "~2,185 LOC" },
               { label: "Order Matching", value: "Microsecond" },
               { label: "API Endpoints", value: "13 routes" },
-              { label: "Trading Pairs", value: "5 default" },
+              { label: "Trading Pairs", value: "50 markets" },
+              { label: "Oracle Feeds", value: "47 CoinGecko" },
             ].map((c) => (
               <div key={c.label} className="rounded border p-3" style={{ borderColor: C.border, background: C.surface }}>
                 <p className="text-sm font-bold" style={{ color: C.accent }}>{c.value}</p>
@@ -141,8 +150,9 @@ export default function ExchangePage() {
             Trading Pairs
           </h2>
           <p className="mb-4 text-sm" style={{ color: C.textMuted }}>
-            Default markets available at launch. All pairs are quoted in QUSD. Additional pairs
-            can be configured at runtime.
+            50 markets live at launch across synthetic assets, each with live CoinGecko oracle pricing.
+            All pairs quoted in QUSD. Showing a representative subset below — the full list is available
+            on the exchange page.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm" style={{ borderColor: C.border }}>
