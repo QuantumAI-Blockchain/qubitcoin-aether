@@ -224,6 +224,15 @@ export interface MetacognitionStats {
   domain_accuracies: Record<string, number>;
 }
 
+export interface SelfImprovementStats {
+  cycles_completed: number;
+  total_adjustments: number;
+  total_records: number;
+  domains_tracked: number;
+  diversity_score: number;
+  average_weights: Record<string, number>;
+}
+
 export interface AetherInfo {
   knowledge_graph: { total_nodes: number; total_edges: number; [k: string]: unknown };
   phi: { current_value: number; threshold: number; above_threshold: boolean; version: number; gates_passed: number; [k: string]: unknown };
@@ -235,6 +244,7 @@ export interface AetherInfo {
   temporal_engine?: TemporalEngineStats;
   concept_formation?: ConceptFormationStats;
   metacognition?: MetacognitionStats;
+  self_improvement?: SelfImprovementStats;
   [k: string]: unknown;
 }
 
@@ -386,6 +396,7 @@ export const api = {
       temporal_engine: info.temporal_engine,
       concept_formation: info.concept_formation,
       metacognition: info.metacognition,
+      self_improvement: info.self_improvement,
     })),
   getKnowledge: () => get<Record<string, unknown>>("/aether/knowledge"),
   getKnowledgeGraph: (limit = 3300) => get<KnowledgeGraphData>(`/aether/knowledge/graph?limit=${limit}`),

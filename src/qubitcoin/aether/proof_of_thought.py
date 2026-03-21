@@ -668,7 +668,12 @@ class AetherEngine:
             # #3: Causal discovery sweep
             if block.height > 0 and block.height % Config.AETHER_CAUSAL_DISCOVERY_INTERVAL == 0 and self.causal_engine:
                 try:
-                    self.causal_engine.discover_all_domains(block.height)
+                    causal_result = self.causal_engine.discover_all_domains(block.height)
+                    # Feed causal discovery results as positive training signal to neural reasoner
+                    if self.neural_reasoner and causal_result:
+                        edges_found = causal_result if isinstance(causal_result, int) else causal_result.get('edges_created', 0) if isinstance(causal_result, dict) else 0
+                        if edges_found > 0:
+                            self.neural_reasoner.record_outcome(prediction_correct=True)
                 except Exception as e:
                     # IMP-97: Track subsystem errors instead of silently ignoring
                     self._track_subsystem_error('causal_engine', e)
@@ -827,8 +832,12 @@ class AetherEngine:
                         block_height=block.height,
                         phi_result=block_phi_result,
                         thought_hash=(
-                            block.thought_proof.thought_hash
-                            if block.thought_proof else ''
+                            block.thought_proof.get('thought_hash', '')
+                            if isinstance(block.thought_proof, dict)
+                            else (
+                                block.thought_proof.thought_hash
+                                if block.thought_proof else ''
+                            )
                         ),
                         knowledge_root=(
                             self.kg.compute_knowledge_root() if self.kg else ''

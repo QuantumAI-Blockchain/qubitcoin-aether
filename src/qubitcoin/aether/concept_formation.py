@@ -66,8 +66,8 @@ class ConceptFormation:
     # ------------------------------------------------------------------
 
     def form_concepts(self, domain: Optional[str] = None,
-                      similarity_threshold: float = 0.7,
-                      min_cluster_size: int = 3,
+                      similarity_threshold: float = 0.55,
+                      min_cluster_size: int = 2,
                       max_nodes: int = 500) -> dict:
         """
         Run concept formation on nodes in a domain.

@@ -315,7 +315,7 @@ class GATReasoner:
         print(reasoner.training_mode)  # 'backprop' or 'evolutionary'
     """
 
-    TRAINING_BATCH_SIZE: int = 32
+    TRAINING_BATCH_SIZE: int = 16
 
     def __init__(self, hidden_dim: int = 64, n_heads: int = 4) -> None:
         self.hidden_dim = hidden_dim
@@ -441,9 +441,12 @@ class GATReasoner:
 
         attended.sort(key=lambda x: x[1], reverse=True)
 
-        # Predict confidence (sigmoid of mean embedding magnitude)
+        # Predict confidence from top attention score + embedding coherence
+        top_attn = attended[0][1] if attended else 0.0
         magnitude = math.sqrt(sum(v * v for v in reasoning_emb))
-        confidence = 1.0 / (1.0 + math.exp(-magnitude + 2.0))  # Centered sigmoid
+        # Combine attention coherence with magnitude signal
+        raw_conf = 0.6 * max(0.0, top_attn) + 0.4 * (1.0 / (1.0 + math.exp(-magnitude + 1.5)))
+        confidence = max(0.01, min(0.99, raw_conf))
 
         # Predict edge type based on strongest attention pattern
         edge_type = self._predict_edge_type(kg, query_node_ids,
@@ -763,8 +766,13 @@ class GATReasoner:
         logits = self._torch_layer2(h)          # [B, 1]
         pred = torch.sigmoid(logits)            # [B, 1]
 
-        loss = F.mse_loss(pred, y)
+        loss = F.binary_cross_entropy(pred, y)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            list(self._torch_layer1.parameters()) +
+            list(self._torch_layer2.parameters()),
+            max_norm=1.0,
+        )
         self._optimizer.step()
 
         # Copy updated weights back to GATLayer lists

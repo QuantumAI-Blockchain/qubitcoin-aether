@@ -404,7 +404,8 @@ function AetherTab({
 function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
   const hasAny =
     info.neural_reasoner || info.causal_engine || info.debate_protocol ||
-    info.temporal_engine || info.concept_formation || info.metacognition;
+    info.temporal_engine || info.concept_formation || info.metacognition ||
+    info.self_improvement;
 
   if (!hasAny) return null;
 
@@ -543,6 +544,49 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
                 <div className="mt-1 border-t border-border-subtle/50 pt-1">
                   <p className="text-xs text-text-secondary">Strategy Weights</p>
                   {Object.entries(info.metacognition.strategy_weights).map(([k, v]) => (
+                    <div key={k} className="flex justify-between text-xs">
+                      <span className="text-text-secondary">{k}</span>
+                      <span className="font-[family-name:var(--font-code)]">{v.toFixed(3)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {info.self_improvement && (
+          <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-4">
+            <p className="text-xs font-semibold text-quantum-green">Self-Improvement</p>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Cycles</span>
+                <span className="font-[family-name:var(--font-code)]">
+                  {info.self_improvement.cycles_completed.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Adjustments</span>
+                <span className="font-[family-name:var(--font-code)]">
+                  {info.self_improvement.total_adjustments.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Diversity</span>
+                <span className="font-[family-name:var(--font-code)]">
+                  {(info.self_improvement.diversity_score * 100).toFixed(1)}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Domains</span>
+                <span className="font-[family-name:var(--font-code)]">
+                  {info.self_improvement.domains_tracked}
+                </span>
+              </div>
+              {Object.keys(info.self_improvement.average_weights).length > 0 && (
+                <div className="mt-1 border-t border-border-subtle/50 pt-1">
+                  <p className="text-xs text-text-secondary">Strategy Weights</p>
+                  {Object.entries(info.self_improvement.average_weights).map(([k, v]) => (
                     <div key={k} className="flex justify-between text-xs">
                       <span className="text-text-secondary">{k}</span>
                       <span className="font-[family-name:var(--font-code)]">{v.toFixed(3)}</span>
