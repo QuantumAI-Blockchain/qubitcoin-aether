@@ -768,6 +768,32 @@ class SelfImprovementEngine:
             ),
         }
 
+    def save_to_db(self, persistence: 'AGIPersistence', block_height: int = 0) -> bool:
+        """Persist domain weights to CockroachDB."""
+        try:
+            return persistence.save_domain_weights(self._domain_weights, block_height)
+        except Exception as e:
+            logger.warning("Failed to save domain weights: %s", e)
+            return False
+
+    def load_from_db(self, persistence: 'AGIPersistence') -> bool:
+        """Load domain weights from CockroachDB."""
+        try:
+            weights = persistence.load_domain_weights()
+            if not weights:
+                return False
+            # Merge loaded weights with defaults (in case new domains/strategies were added)
+            for domain, strategies in weights.items():
+                if domain not in self._domain_weights:
+                    self._domain_weights[domain] = {}
+                for strategy, weight in strategies.items():
+                    self._domain_weights[domain][strategy] = weight
+            logger.info("Loaded domain weights from DB: %d domains", len(weights))
+            return True
+        except Exception as e:
+            logger.warning("Failed to load domain weights: %s", e)
+            return False
+
     def get_stats(self) -> dict:
         """Get comprehensive self-improvement statistics.
 

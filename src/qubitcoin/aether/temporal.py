@@ -873,6 +873,35 @@ class TemporalEngine:
             'tracked_metrics': list(self._series.keys()),
         }
 
+    def save_to_db(self, persistence: 'AGIPersistence') -> bool:
+        """Persist time series data to CockroachDB."""
+        try:
+            saved = 0
+            for metric_name, data_points in self._series.items():
+                # Only save recent data (last 500 points)
+                recent = data_points[-500:]
+                saved += persistence.save_time_series(metric_name, recent)
+            if saved > 0:
+                logger.info("Saved %d time series data points to DB", saved)
+            return saved > 0
+        except Exception as e:
+            logger.warning("Failed to save time series: %s", e)
+            return False
+
+    def load_from_db(self, persistence: 'AGIPersistence') -> bool:
+        """Load time series data from CockroachDB."""
+        try:
+            all_series = persistence.load_all_time_series(limit_per_metric=self._max_series_length)
+            if not all_series:
+                return False
+            for metric_name, data_points in all_series.items():
+                self._series[metric_name] = data_points
+            logger.info("Loaded time series from DB: %d metrics", len(all_series))
+            return True
+        except Exception as e:
+            logger.warning("Failed to load time series: %s", e)
+            return False
+
     def get_stats(self) -> dict:
         return {
             'tracked_metrics': len(self._series),

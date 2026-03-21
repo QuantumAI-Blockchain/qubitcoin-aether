@@ -1206,6 +1206,20 @@ class AetherChat:
                     expansion, expanded_query, flags=re.IGNORECASE
                 )
 
+        # Vector semantic search (preferred over TF-IDF)
+        vi = getattr(self.engine.kg, 'vector_index', None)
+        if vi and getattr(vi, 'embeddings', None):
+            try:
+                semantic_results = vi.query(expanded_query, top_k=10)
+                if semantic_results:
+                    node_ids = [nid for nid, score in semantic_results if score > 0.3]
+                    if node_ids:
+                        for nid in node_ids:
+                            self._axiom_hit_counts[nid] = self._axiom_hit_counts.get(nid, 0) + 1
+                        return node_ids
+            except Exception as e:
+                logger.debug(f"Vector search failed, falling back to TF-IDF: {e}")
+
         # TF-IDF semantic search (preferred)
         if hasattr(self.engine.kg, 'search_index') and self.engine.kg.search_index.n_docs > 0:
             results = self.engine.kg.search(expanded_query, top_k=10)
@@ -1325,6 +1339,21 @@ class AetherChat:
             user_memories=user_memories,
             intent=intent,
         )
+
+        # Enrich with external knowledge when tree response is thin
+        if len(aether_response) < 120 and not facts:
+            try:
+                from .external_knowledge import ExternalKnowledgeConnector
+                ekc = ExternalKnowledgeConnector()
+                external_facts = ekc.enrich_query(query)
+                if external_facts:
+                    ext_texts = [f.get('text', '') for f in external_facts if f.get('text')]
+                    if ext_texts:
+                        enrichment = " ".join(ext_texts[:3])
+                        aether_response += f"\n\nRelated knowledge: {enrichment}"
+                ekc.close()
+            except Exception as e:
+                logger.debug(f"External knowledge enrichment failed: {e}")
 
         # Only fall back to LLM if the tree's response is too thin
         # (less than 80 chars and no facts grounded) — meaning the tree

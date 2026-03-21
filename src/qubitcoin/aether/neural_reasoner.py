@@ -36,63 +36,115 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 if _HAS_TORCH:
-    class TorchReasonerNetwork(nn.Module):
-        """PyTorch neural reasoner with the same architecture as the numpy
-        GATLayer stack: input -> linear -> ReLU -> linear -> sigmoid.
+    class GraphAttentionLayer(nn.Module):
+        """Single-head Graph Attention layer (Velickovic et al., 2018)."""
 
-        This wraps the two-layer GAT projection into a proper nn.Module that
-        supports standard PyTorch backpropagation via Adam.
+        def __init__(self, in_features: int, out_features: int, dropout: float = 0.1) -> None:
+            super().__init__()
+            self.W = nn.Linear(in_features, out_features, bias=False)
+            self.a_src = nn.Parameter(torch.zeros(out_features, 1))
+            self.a_dst = nn.Parameter(torch.zeros(out_features, 1))
+            nn.init.xavier_uniform_(self.W.weight)
+            nn.init.xavier_uniform_(self.a_src)
+            nn.init.xavier_uniform_(self.a_dst)
+            self.leaky_relu = nn.LeakyReLU(0.2)
+            self.dropout = nn.Dropout(dropout)
+
+        def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+            """
+            Args:
+                x: Node features [N, in_features]
+                edge_index: Edge indices [2, E] (src, dst)
+            Returns:
+                Updated node features [N, out_features]
+            """
+            Wh = self.W(x)  # [N, out_features]
+
+            # Attention coefficients
+            e_src = (Wh @ self.a_src).squeeze(-1)  # [N]
+            e_dst = (Wh @ self.a_dst).squeeze(-1)  # [N]
+
+            src, dst = edge_index[0], edge_index[1]
+            attn = self.leaky_relu(e_src[src] + e_dst[dst])  # [E]
+
+            # Sparse softmax per destination node
+            attn = attn - attn.max()
+            attn_exp = attn.exp()
+            denom = torch.zeros(x.size(0), device=x.device)
+            denom.scatter_add_(0, dst, attn_exp)
+            attn_norm = attn_exp / (denom[dst] + 1e-8)
+            attn_norm = self.dropout(attn_norm)
+
+            # Weighted message passing
+            messages = Wh[src] * attn_norm.unsqueeze(-1)  # [E, out_features]
+            out = torch.zeros_like(Wh)
+            out.scatter_add_(0, dst.unsqueeze(-1).expand_as(messages), messages)
+
+            return out
+
+    class TorchReasonerNetwork(nn.Module):
+        """2-layer Graph Attention Network for link prediction and confidence scoring.
 
         Architecture:
-            Layer1: Linear(in_dim, hidden_dim, bias=False)
-            ReLU activation
-            Layer2: Linear(hidden_dim, 1, bias=True)
-            Sigmoid output -> confidence prediction in [0, 1]
+            GAT Layer 1: in_dim -> hidden_dim (with attention)
+            ELU activation
+            GAT Layer 2: hidden_dim -> hidden_dim (with attention)
+            Readout: Linear(hidden_dim, 1) -> sigmoid for confidence
 
-        Usage:
-            net = TorchReasonerNetwork(in_dim=32, hidden_dim=64)
-            loss = net.train_batch(inputs_tensor, targets_tensor)
-            prediction = net.predict(single_input_tensor)
+        Trained via binary cross-entropy on (correct_prediction, actual_outcome) pairs.
         """
 
         def __init__(self, in_dim: int, hidden_dim: int = 64,
                      learning_rate: float = 0.001) -> None:
             super().__init__()
-            self.layer1 = nn.Linear(in_dim, hidden_dim, bias=False)
-            self.layer2 = nn.Linear(hidden_dim, 1, bias=True)
+            self.gat1 = GraphAttentionLayer(in_dim, hidden_dim)
+            self.gat2 = GraphAttentionLayer(hidden_dim, hidden_dim)
+            self.readout = nn.Linear(hidden_dim, 1)
             self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
             self._train_steps: int = 0
             self._cumulative_loss: float = 0.0
 
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            """Forward pass: linear -> ReLU -> linear -> sigmoid."""
-            h = F.relu(self.layer1(x))
-            logits = self.layer2(h)
-            return torch.sigmoid(logits)
-
-        def train_batch(self, inputs: torch.Tensor,
-                        targets: torch.Tensor) -> float:
-            """Run one training step with Adam optimizer.
-
-            Includes gradient clipping (max_norm=1.0) and L2 regularization
-            (weight_decay via optimizer) for training stability.
+        def forward(self, x: torch.Tensor, edge_index: Optional[torch.Tensor] = None) -> torch.Tensor:
+            """Forward pass through 2-layer GAT.
 
             Args:
-                inputs: Tensor of shape [batch_size, in_dim].
-                targets: Tensor of shape [batch_size, 1] with values in {0, 1}.
+                x: Node features [N, in_dim] or [batch, in_dim] for batch mode
+                edge_index: Optional [2, E] edge indices. If None, uses self-loop only (MLP mode).
+            """
+            if edge_index is None:
+                # MLP fallback: self-loop only (backwards compatible)
+                N = x.size(0)
+                edge_index = torch.stack([torch.arange(N), torch.arange(N)]).to(x.device)
 
-            Returns:
-                Loss value (float).
+            h = F.elu(self.gat1(x, edge_index))
+            h = self.gat2(h, edge_index)
+
+            # Global mean pool then readout
+            pooled = h.mean(dim=0, keepdim=True) if h.dim() == 2 else h
+            return torch.sigmoid(self.readout(pooled))
+
+        def train_batch(self, inputs: torch.Tensor,
+                        targets: torch.Tensor,
+                        edge_index: Optional[torch.Tensor] = None) -> float:
+            """Run one training step.
+
+            Args:
+                inputs: [batch_size, in_dim] or [N, in_dim] node features
+                targets: [batch_size, 1] target values
+                edge_index: Optional [2, E] edges for graph mode
             """
             self.train()
             self.optimizer.zero_grad()
-            pred = self.forward(inputs)
-            # L2 regularization term (Improvement 80)
+            pred = self.forward(inputs, edge_index)
+
+            # Handle shape mismatch between pooled output and targets
+            if pred.shape != targets.shape:
+                pred = pred.expand_as(targets)
+
             l2_lambda = 1e-4
             l2_reg = sum(p.pow(2.0).sum() for p in self.parameters())
             loss = F.binary_cross_entropy(pred, targets) + l2_lambda * l2_reg
             loss.backward()
-            # Gradient clipping for training stability (Improvement 80)
             torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
             self.optimizer.step()
             loss_val = float(loss.item())
@@ -100,26 +152,20 @@ if _HAS_TORCH:
             self._cumulative_loss += loss_val
             return loss_val
 
-        def predict(self, x: torch.Tensor) -> torch.Tensor:
-            """Inference (no gradient tracking).
-
-            Args:
-                x: Tensor of shape [1, in_dim] or [batch, in_dim].
-
-            Returns:
-                Confidence predictions of shape [batch, 1].
-            """
+        def predict(self, x: torch.Tensor,
+                    edge_index: Optional[torch.Tensor] = None) -> torch.Tensor:
+            """Inference (no gradient tracking)."""
             self.eval()
             with torch.no_grad():
-                return self.forward(x)
+                return self.forward(x, edge_index)
 
         def get_stats(self) -> dict:
-            """Return training statistics."""
             return {
                 'train_steps': self._train_steps,
                 'avg_loss': (self._cumulative_loss / self._train_steps
                              if self._train_steps > 0 else 0.0),
                 'total_params': sum(p.numel() for p in self.parameters()),
+                'architecture': 'GAT_2layer',
             }
 
         def sync_from_gat_layers(self, layer1: 'GATLayer',
@@ -127,26 +173,23 @@ if _HAS_TORCH:
             """Copy weights from numpy GATLayer lists into this module."""
             with torch.no_grad():
                 w1 = torch.tensor(layer1.W, dtype=torch.float32)
-                self.layer1.weight.copy_(w1.T)
-                w2_col = [layer2.W[i][0] if layer2.out_dim > 0 else 0.0
-                          for i in range(layer2.in_dim)]
-                self.layer2.weight.copy_(
-                    torch.tensor([w2_col], dtype=torch.float32)
-                )
+                self.gat1.W.weight.copy_(w1.T)
+                w2 = torch.tensor(layer2.W, dtype=torch.float32)
+                self.gat2.W.weight.copy_(w2.T)
 
         def sync_to_gat_layers(self, layer1: 'GATLayer',
                                 layer2: 'GATLayer') -> None:
             """Copy weights from this module back into numpy GATLayer lists."""
             with torch.no_grad():
-                updated_w1 = self.layer1.weight.T.tolist()
-                for i in range(layer1.in_dim):
-                    for j in range(layer1.out_dim):
+                updated_w1 = self.gat1.W.weight.T.tolist()
+                for i in range(min(layer1.in_dim, len(updated_w1))):
+                    for j in range(min(layer1.out_dim, len(updated_w1[i]))):
                         layer1.W[i][j] = updated_w1[i][j]
 
-                updated_w2 = self.layer2.weight[0].tolist()
-                for i in range(min(len(updated_w2), layer2.in_dim)):
-                    if layer2.out_dim > 0:
-                        layer2.W[i][0] = updated_w2[i]
+                updated_w2 = self.gat2.W.weight.T.tolist()
+                for i in range(min(layer2.in_dim, len(updated_w2))):
+                    for j in range(min(layer2.out_dim, len(updated_w2[i]))):
+                        layer2.W[i][j] = updated_w2[i][j]
 
 else:
     # Stub when PyTorch is not available
@@ -817,6 +860,69 @@ class GATReasoner:
         x = torch.tensor([input_features], dtype=torch.float32)
         pred = net.predict(x)
         return float(pred[0][0])
+
+    def save_weights(self, persistence: 'AGIPersistence', block_height: int = 0) -> bool:
+        """Save model weights to CockroachDB via persistence layer."""
+        if not self._initialized:
+            return False
+        if self.has_pytorch and self._torch_layer1 is not None:
+            # Save PyTorch model
+            model_dict = {
+                'layer1_weight': self._torch_layer1.weight.detach().cpu().tolist(),
+                'layer2_weight': self._torch_layer2.weight.detach().cpu().tolist(),
+                'layer2_bias': self._torch_layer2.bias.detach().cpu().tolist(),
+            }
+            return persistence.save_neural_weights(model_dict, 'gat_reasoner', block_height, {
+                'hidden_dim': self.hidden_dim,
+                'n_heads': self.n_heads,
+                'training_mode': self.training_mode,
+                'backprop_steps': self._backprop_steps,
+                'total_predictions': self._total_predictions,
+                'correct_predictions': self._correct_predictions,
+            })
+        else:
+            # Save numpy GATLayer weights
+            weights = {
+                'layer1_W': self._layer1.W,
+                'layer1_a': self._layer1.a,
+                'layer2_W': self._layer2.W,
+                'layer2_a': self._layer2.a,
+            }
+            return persistence.save_neural_weights(weights, 'gat_reasoner', block_height, {
+                'hidden_dim': self.hidden_dim,
+                'n_heads': self.n_heads,
+                'training_mode': 'evolutionary',
+                'evolutionary_steps': self._evolutionary_steps,
+            })
+
+    def load_weights(self, persistence: 'AGIPersistence') -> bool:
+        """Load model weights from CockroachDB."""
+        data = persistence.load_neural_weights(model_name='gat_reasoner')
+        if not data:
+            return False
+        try:
+            if 'layer1_W' in data:
+                # Numpy weights - need layers initialized first
+                if not self._initialized:
+                    in_dim = len(data['layer1_W'])
+                    self._ensure_layers(in_dim)
+                self._layer1.W = data['layer1_W']
+                self._layer1.a = data['layer1_a']
+                self._layer2.W = data['layer2_W']
+                self._layer2.a = data['layer2_a']
+                logger.info("Loaded GATReasoner numpy weights from DB")
+            elif 'layer1_weight' in data and self.has_pytorch:
+                # PyTorch weights
+                if self._torch_layer1 is not None:
+                    import torch
+                    self._torch_layer1.weight.data = torch.tensor(data['layer1_weight'], dtype=torch.float32)
+                    self._torch_layer2.weight.data = torch.tensor(data['layer2_weight'], dtype=torch.float32)
+                    self._torch_layer2.bias.data = torch.tensor(data['layer2_bias'], dtype=torch.float32)
+                    logger.info("Loaded GATReasoner PyTorch weights from DB")
+            return True
+        except Exception as e:
+            logger.warning("Failed to load GATReasoner weights: %s", e)
+            return False
 
     def _empty_result(self) -> dict:
         return {

@@ -729,6 +729,44 @@ class MemoryManager:
             'total_attend_hits': self._attend_hits,
         }
 
+    # --- Persistence ---
+
+    def save_to_db(self, persistence: 'AGIPersistence', block_height: int = 0) -> bool:
+        """Persist episodic memories to CockroachDB."""
+        try:
+            return persistence.save_episodes(self._episodes) > 0
+        except Exception as e:
+            logger.warning("Failed to save episodic memories: %s", e)
+            return False
+
+    def load_from_db(self, persistence: 'AGIPersistence') -> bool:
+        """Load episodic memories from CockroachDB."""
+        try:
+            episodes_data = persistence.load_episodes(limit=self._max_episodes)
+            if not episodes_data:
+                return False
+            self._episodes = []
+            for ep_data in episodes_data:
+                episode = Episode(
+                    episode_id=ep_data['episode_id'],
+                    block_height=ep_data['block_height'],
+                    input_node_ids=ep_data.get('input_node_ids', []),
+                    reasoning_strategy=ep_data.get('reasoning_strategy', ''),
+                    conclusion_node_id=ep_data.get('conclusion_node_id'),
+                    success=ep_data.get('success', False),
+                    confidence=ep_data.get('confidence', 0.0),
+                    timestamp=ep_data.get('timestamp', 0.0),
+                    replay_count=ep_data.get('replay_count', 0),
+                )
+                self._episodes.append(episode)
+            if self._episodes:
+                self._next_episode_id = max(ep.episode_id for ep in self._episodes) + 1
+            logger.info("Loaded %d episodic memories from DB", len(self._episodes))
+            return True
+        except Exception as e:
+            logger.warning("Failed to load episodic memories: %s", e)
+            return False
+
     # --- Stats ---
 
     def get_stats(self) -> dict:

@@ -490,6 +490,22 @@ class MetacognitiveLoop:
             'confidence_calibration': calibration,
         }
 
+    def save_to_db(self, persistence: 'AGIPersistence', block_height: int = 0) -> bool:
+        """Persist metacognition state to CockroachDB."""
+        try:
+            return persistence.save_metacognition(self, block_height)
+        except Exception as e:
+            logger.warning("Failed to save metacognition state: %s", e)
+            return False
+
+    def load_from_db(self, persistence: 'AGIPersistence') -> bool:
+        """Load metacognition state from CockroachDB."""
+        try:
+            return persistence.load_metacognition(self)
+        except Exception as e:
+            logger.warning("Failed to load metacognition state: %s", e)
+            return False
+
     def get_stats(self) -> dict:
         strategy_accuracies = {}
         for s, data in self._strategy_stats.items():

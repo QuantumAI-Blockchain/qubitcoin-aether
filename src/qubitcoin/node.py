@@ -260,6 +260,16 @@ class QubitcoinNode:
             logger.error(f"[7/22] Aether Engine failed: {e}", exc_info=True)
             raise
 
+        # Component 7a: AGI Persistence — load learned state from DB
+        self.agi_persistence = None
+        try:
+            from .aether.persistence import AGIPersistence
+            self.agi_persistence = AGIPersistence(self.db)
+            self._load_agi_state()
+            logger.info("[7a/22] AGI Persistence initialized — learned state loaded")
+        except Exception as e:
+            logger.warning(f"[7a/22] AGI Persistence failed (non-fatal): {e}")
+
         # Component 7c: AIKGS — now runs as a Rust sidecar (gRPC client).
         # The 8 Python AIKGS modules have been replaced by a single gRPC client.
         self.aikgs_client = None
@@ -1137,6 +1147,54 @@ class QubitcoinNode:
                 exc_info=True,
             )
 
+    def _load_agi_state(self) -> None:
+        """Load persisted AGI state from DB into Aether subsystems."""
+        if not self.agi_persistence or not self.aether:
+            return
+        loaded = []
+        try:
+            if self.aether.neural_reasoner:
+                if self.aether.neural_reasoner.load_weights(self.agi_persistence):
+                    loaded.append('neural_reasoner')
+            if self.aether.memory_manager:
+                if self.aether.memory_manager.load_from_db(self.agi_persistence):
+                    loaded.append('memory_manager')
+            if self.aether.metacognition:
+                if self.aether.metacognition.load_from_db(self.agi_persistence):
+                    loaded.append('metacognition')
+            if self.aether.temporal_engine:
+                if self.aether.temporal_engine.load_from_db(self.agi_persistence):
+                    loaded.append('temporal_engine')
+            if loaded:
+                logger.info("AGI state loaded from DB: %s", ', '.join(loaded))
+            else:
+                logger.info("No persisted AGI state found (fresh start)")
+        except Exception as e:
+            logger.warning("AGI state load error (non-fatal): %s", e)
+
+    def _save_agi_state(self, block_height: int) -> None:
+        """Save AGI state to DB (called every 100 blocks)."""
+        if not self.agi_persistence or not self.aether:
+            return
+        saved = []
+        try:
+            if self.aether.neural_reasoner:
+                if self.aether.neural_reasoner.save_weights(self.agi_persistence, block_height):
+                    saved.append('neural_reasoner')
+            if self.aether.memory_manager:
+                if self.aether.memory_manager.save_to_db(self.agi_persistence, block_height):
+                    saved.append('memory_manager')
+            if self.aether.metacognition:
+                if self.aether.metacognition.save_to_db(self.agi_persistence, block_height):
+                    saved.append('metacognition')
+            if self.aether.temporal_engine:
+                if self.aether.temporal_engine.save_to_db(self.agi_persistence):
+                    saved.append('temporal_engine')
+            if saved:
+                logger.info("AGI state saved at block %d: %s", block_height, ', '.join(saved))
+        except Exception as e:
+            logger.warning("AGI state save error (non-fatal): %s", e)
+
     async def _update_metrics_loop(self):
         """Periodically update Prometheus metrics from database"""
         logger.info("Metrics update loop started")
@@ -1844,6 +1902,13 @@ class QubitcoinNode:
             except asyncio.CancelledError:
                 pass
 
+        # Save AGI state before shutdown
+        try:
+            height = self.db.get_current_height()
+            self._save_agi_state(height)
+        except Exception as e:
+            logger.debug(f"AGI state save on shutdown: {e}")
+
         # Stop knowledge seeder
         if self.knowledge_seeder:
             self.knowledge_seeder.stop()
@@ -2174,6 +2239,13 @@ class QubitcoinNode:
                     self.qusd_keeper.on_block(block_height)
                 except Exception as e:
                     logger.debug(f"QUSD keeper tick: {e}")
+
+            # Periodic AGI state save (every 100 blocks)
+            if isinstance(block_height, int) and block_height % 100 == 0 and block_height > 0:
+                try:
+                    self._save_agi_state(block_height)
+                except Exception as e:
+                    logger.debug(f"AGI state save: {e}")
 
             # Broadcast to WebSocket clients for real-time updates
             if hasattr(self.app, 'broadcast_ws'):
