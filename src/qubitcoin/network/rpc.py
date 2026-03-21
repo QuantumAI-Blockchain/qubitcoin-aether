@@ -14,7 +14,7 @@ from decimal import Decimal
 from fastapi import FastAPI, Request, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -534,6 +534,51 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if finality_gadget:
             result["finalized_height"] = finality_gadget.get_last_finalized()
         return result
+
+    # ========================================================================
+    # SUPPLY ENDPOINTS (CoinGecko / CoinMarketCap compatible — plain text)
+    # ========================================================================
+
+    @app.get("/supply/total")
+    async def supply_total():
+        """Total QBC supply (circulating). Returns plain text number for CoinGecko/CMC."""
+        supply = db_manager.get_total_supply()
+        return PlainTextResponse(str(float(supply)))
+
+    @app.get("/supply/circulating")
+    async def supply_circulating():
+        """Circulating QBC supply. Returns plain text number for CoinGecko/CMC."""
+        supply = db_manager.get_total_supply()
+        return PlainTextResponse(str(float(supply)))
+
+    @app.get("/supply/max")
+    async def supply_max():
+        """Max QBC supply (hard cap). Returns plain text number."""
+        return PlainTextResponse(str(float(Config.MAX_SUPPLY)))
+
+    @app.get("/supply/qusd/total")
+    async def supply_qusd_total():
+        """Total QUSD supply. Returns plain text number for CoinGecko/CMC."""
+        if stablecoin_engine:
+            try:
+                health = stablecoin_engine.get_system_health()
+                total = health.get("total_qusd", health.get("total_supply", 0))
+                return PlainTextResponse(str(float(total)))
+            except Exception:
+                pass
+        return PlainTextResponse("0")
+
+    @app.get("/supply/qusd/circulating")
+    async def supply_qusd_circulating():
+        """Circulating QUSD supply. Returns plain text number."""
+        if stablecoin_engine:
+            try:
+                health = stablecoin_engine.get_system_health()
+                total = health.get("total_qusd", health.get("total_supply", 0))
+                return PlainTextResponse(str(float(total)))
+            except Exception:
+                pass
+        return PlainTextResponse("0")
 
     @app.get("/chain/tip")
     async def chain_tip():
