@@ -21,15 +21,20 @@ logger = get_logger(__name__)
 class SolanaBridge(BaseBridge):
     """Bridge for Solana blockchain"""
 
+    # Deployed SPL token mints on Solana mainnet
+    WQBC_MINT = "Ew7o13E7gwcbYsv4aRpoZEKonTW6snAGYHerD9j3C1Kf"
+    WQUSD_MINT = "CfipKUW1vTGt1Y9jcFwDsrafD3bvxaD9PUMD9zjRRWR3"
+
     def __init__(self, db_manager):
         """Initialize Solana bridge"""
         super().__init__(ChainType.SOLANA, db_manager)
-        
+
         self.client: Optional[AsyncClient] = None
         self.keypair: Optional[Keypair] = None
         self.token_mint: Optional[Pubkey] = None
+        self.qusd_mint: Optional[Pubkey] = None
         self.bridge_program_id: Optional[Pubkey] = None
-        
+
         # Solana confirmation requirements
         self.confirmations_required = 32  # ~13 seconds on Solana
 
@@ -58,12 +63,15 @@ class SolanaBridge(BaseBridge):
                 self.keypair = Keypair.from_bytes(private_key_bytes)
                 logger.info(f"✅ Keypair loaded: {self.keypair.pubkey()}")
             
-            # Load token mint address
-            token_mint_str = os.getenv('SOLANA_WQBC_MINT')
-            if token_mint_str:
-                self.token_mint = Pubkey.from_string(token_mint_str)
-                logger.info(f"✅ wQBC Token Mint: {self.token_mint}")
-            
+            # Load token mint addresses (env override or deployed defaults)
+            wqbc_mint_str = os.getenv('SOLANA_WQBC_MINT', self.WQBC_MINT)
+            self.token_mint = Pubkey.from_string(wqbc_mint_str)
+            logger.info(f"✅ wQBC Token Mint: {self.token_mint}")
+
+            wqusd_mint_str = os.getenv('SOLANA_WQUSD_MINT', self.WQUSD_MINT)
+            self.qusd_mint = Pubkey.from_string(wqusd_mint_str)
+            logger.info(f"✅ wQUSD Token Mint: {self.qusd_mint}")
+
             # Load bridge program ID
             program_id_str = os.getenv('SOLANA_BRIDGE_PROGRAM')
             if program_id_str:

@@ -408,6 +408,26 @@
     "deployed_at": "2026-03-20T12:35:00Z"
   },
 
+  "external:solana:wQBC": {
+    "address": "Ew7o13E7gwcbYsv4aRpoZEKonTW6snAGYHerD9j3C1Kf",
+    "chain": "solana",
+    "program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "decimals": 8,
+    "mintAuthority": "7AaFEbV6PNa6A7PKivjZ4DSSf7y5Kt4yNvYVcgLGLtuM",
+    "deployer": "7AaFEbV6PNa6A7PKivjZ4DSSf7y5Kt4yNvYVcgLGLtuM",
+    "metadataUri": "ipfs://QmdiUthk8C5vsMc4ZsYY2Ywbn7TKZUMZU8BFxGMz5WbYzR",
+    "txHash": "2EhWYcRZaipmzC8caABwTD1mQycdm8perZWJ6oQdAdhRPXNUcJmjTe1ktfFGBVjZ44KfzJ7bTHauby93pNzj6Sy5"
+  },
+  "external:solana:wQUSD": {
+    "address": "CfipKUW1vTGt1Y9jcFwDsrafD3bvxaD9PUMD9zjRRWR3",
+    "chain": "solana",
+    "program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "decimals": 8,
+    "mintAuthority": "7AaFEbV6PNa6A7PKivjZ4DSSf7y5Kt4yNvYVcgLGLtuM",
+    "deployer": "7AaFEbV6PNa6A7PKivjZ4DSSf7y5Kt4yNvYVcgLGLtuM",
+    "metadataUri": "ipfs://QmSK4JwhQ5g6gxp5gs1eT8Xn6bESZyCu3RDaT9cyLM4xtc",
+    "txHash": "4GENCK9UJRcUzBEefJR53LKAkdsN9ghbsrqRt1JQrVzPwN6GWHKPuZFXZSTu7pvG7EmnJFbeFVNyUiv5KukNpXdY"
+  },
   "_zk_bridge_infrastructure": {
     "_comment": "Quantum-Secure ZK Bridge Vaults — Poseidon2 proof verification + Dilithium5 signatures",
     "contracts": {
