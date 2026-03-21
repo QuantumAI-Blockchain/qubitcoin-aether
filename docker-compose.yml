@@ -147,6 +147,9 @@ services:
       - RUST_P2P_GRPC_HOST=qbc-p2p
       # Rust Exchange Engine (Docker container on qbc-net)
       - EXCHANGE_GRPC=qbc-exchange:50053
+      # Ollama LLM for Aether Tree reasoning
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
       # Chain sync: peer RPC URL for catching up on blocks
       - SYNC_PEER_URL=${SYNC_PEER_URL:-}
     extra_hosts:
@@ -197,6 +200,28 @@ services:
         condition: service_completed_successfully
       qbc-node:
         condition: service_started
+    networks:
+      - qbc-net
+    restart: unless-stopped
+
+  # ── Ollama (Local LLM for Aether Tree reasoning) ────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: qbc-ollama
+    ports:
+      - "11434:11434"   # Ollama API
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 8G
     networks:
       - qbc-net
     restart: unless-stopped
@@ -356,6 +381,7 @@ volumes:
   redis-data:
   node-data:
   node-logs:
+  ollama-data:
   prometheus-data:
   grafana-data:
   portainer-data:

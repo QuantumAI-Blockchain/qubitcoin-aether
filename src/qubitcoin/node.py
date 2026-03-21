@@ -272,6 +272,7 @@ class QubitcoinNode:
             try:
                 from .aether.llm_adapter import (
                     LLMAdapterManager, OpenAIAdapter, ClaudeAdapter, LocalAdapter,
+                    OllamaAdapter,
                 )
                 self.llm_manager = LLMAdapterManager(self.knowledge_graph)
 
@@ -295,6 +296,14 @@ class QubitcoinNode:
                             model=Config.CLAUDE_MODEL,
                         ),
                         10 if primary == 'claude' else 50,
+                    ))
+                if Config.OLLAMA_BASE_URL:
+                    adapters_to_register.append((
+                        OllamaAdapter(
+                            model=Config.OLLAMA_MODEL,
+                            base_url=Config.OLLAMA_BASE_URL,
+                        ),
+                        10 if primary == 'ollama' else 30,
                     ))
                 if Config.LOCAL_LLM_URL:
                     adapters_to_register.append((

@@ -190,6 +190,169 @@ class QuantumEntangledChannel:
         }
 
 
+class LatencyTracker:
+    """
+    Tracks per-route delivery latency for CSF messages.
+
+    Records delivery times for each (source, destination) pair and
+    computes rolling statistics. Used to identify slow routes and
+    optimize routing decisions.
+    """
+
+    def __init__(self, window: int = 200) -> None:
+        self._window = window
+        self._latencies: Dict[Tuple[SephirahRole, SephirahRole], deque] = {}
+        self._total_tracked: int = 0
+
+    def record(self, source: SephirahRole, destination: SephirahRole,
+               latency_s: float) -> None:
+        """Record a delivery latency for a route."""
+        key = (source, destination)
+        if key not in self._latencies:
+            self._latencies[key] = deque(maxlen=self._window)
+        self._latencies[key].append(latency_s)
+        self._total_tracked += 1
+
+    def get_avg_latency(self, source: SephirahRole,
+                        destination: SephirahRole) -> float:
+        """Get average latency for a route (0.0 if no data)."""
+        key = (source, destination)
+        samples = self._latencies.get(key)
+        if not samples:
+            return 0.0
+        return sum(samples) / len(samples)
+
+    def get_p95_latency(self, source: SephirahRole,
+                        destination: SephirahRole) -> float:
+        """Get 95th percentile latency for a route."""
+        key = (source, destination)
+        samples = self._latencies.get(key)
+        if not samples or len(samples) < 2:
+            return 0.0
+        sorted_s = sorted(samples)
+        idx = int(len(sorted_s) * 0.95)
+        return sorted_s[min(idx, len(sorted_s) - 1)]
+
+    def get_slowest_routes(self, top_n: int = 5) -> List[dict]:
+        """Get the slowest routes by average latency."""
+        route_stats = []
+        for (src, dst), samples in self._latencies.items():
+            if samples:
+                avg = sum(samples) / len(samples)
+                route_stats.append({
+                    'source': src.value,
+                    'destination': dst.value,
+                    'avg_latency_ms': round(avg * 1000, 2),
+                    'samples': len(samples),
+                })
+        route_stats.sort(key=lambda x: x['avg_latency_ms'], reverse=True)
+        return route_stats[:top_n]
+
+    def get_status(self) -> dict:
+        return {
+            'total_tracked': self._total_tracked,
+            'routes_tracked': len(self._latencies),
+            'slowest_routes': self.get_slowest_routes(3),
+        }
+
+
+class BurstDetector:
+    """
+    Detects message bursts — sudden spikes in message rate that may
+    indicate feedback loops, cascading failures, or spam.
+
+    Uses a sliding time window to count messages per second and
+    triggers alerts when the rate exceeds a threshold.
+    """
+
+    def __init__(self, window_s: float = 5.0, burst_threshold: int = 50) -> None:
+        self._window_s = window_s
+        self._burst_threshold = burst_threshold
+        self._timestamps: deque = deque()
+        self._burst_events: List[dict] = []
+        self._in_burst: bool = False
+
+    def record_message(self, source: SephirahRole,
+                       destination: SephirahRole) -> bool:
+        """Record a message send event. Returns True if burst detected."""
+        now = time.time()
+        self._timestamps.append(now)
+
+        # Trim window
+        cutoff = now - self._window_s
+        while self._timestamps and self._timestamps[0] < cutoff:
+            self._timestamps.popleft()
+
+        rate = len(self._timestamps)
+        if rate >= self._burst_threshold and not self._in_burst:
+            self._in_burst = True
+            event = {
+                'timestamp': now,
+                'rate': rate,
+                'window_s': self._window_s,
+                'trigger_route': f"{source.value}->{destination.value}",
+            }
+            self._burst_events.append(event)
+            if len(self._burst_events) > 100:
+                self._burst_events = self._burst_events[-100:]
+            logger.warning(
+                f"CSF BURST detected: {rate} msgs in {self._window_s}s "
+                f"(threshold={self._burst_threshold})"
+            )
+            return True
+        elif rate < self._burst_threshold * 0.5:
+            self._in_burst = False
+
+        return False
+
+    @property
+    def is_in_burst(self) -> bool:
+        return self._in_burst
+
+    def get_current_rate(self) -> int:
+        """Messages in current window."""
+        now = time.time()
+        cutoff = now - self._window_s
+        while self._timestamps and self._timestamps[0] < cutoff:
+            self._timestamps.popleft()
+        return len(self._timestamps)
+
+    def get_status(self) -> dict:
+        return {
+            'in_burst': self._in_burst,
+            'current_rate': self.get_current_rate(),
+            'burst_threshold': self._burst_threshold,
+            'total_burst_events': len(self._burst_events),
+            'recent_bursts': self._burst_events[-5:],
+        }
+
+
+# Content-based routing: message types mapped to preferred destination nodes
+CONTENT_ROUTING: Dict[str, List[SephirahRole]] = {
+    'safety': [SephirahRole.GEVURAH],
+    'threat': [SephirahRole.GEVURAH],
+    'veto': [SephirahRole.GEVURAH],
+    'explore': [SephirahRole.CHESED],
+    'creative': [SephirahRole.CHESED],
+    'hypothesis': [SephirahRole.CHESED, SephirahRole.CHOCHMAH],
+    'verify': [SephirahRole.BINAH],
+    'logic': [SephirahRole.BINAH],
+    'contradiction': [SephirahRole.BINAH],
+    'reward': [SephirahRole.NETZACH],
+    'policy': [SephirahRole.NETZACH],
+    'language': [SephirahRole.HOD],
+    'semantic': [SephirahRole.HOD],
+    'memory': [SephirahRole.YESOD],
+    'recall': [SephirahRole.YESOD],
+    'action': [SephirahRole.MALKUTH],
+    'execute': [SephirahRole.MALKUTH],
+    'goal': [SephirahRole.KETER],
+    'strategy': [SephirahRole.KETER],
+    'integrate': [SephirahRole.TIFERET],
+    'synthesize': [SephirahRole.TIFERET],
+}
+
+
 class CSFTransport:
     """
     Routes messages between Sephirot nodes following the Tree of Life topology.
@@ -197,10 +360,13 @@ class CSFTransport:
     Features:
     - Priority queue: higher QBC = faster processing
     - Topology-aware routing via BFS pathfinding
+    - Content-based routing: auto-route by message type keywords
     - TTL prevents infinite loops
     - Adaptive TTL based on path length
     - Max queue size prevents unbounded memory growth
     - Deadlock monitoring via stale message detection
+    - Latency tracking per route
+    - Burst detection for feedback loop prevention
     - Message history for debugging/monitoring
     """
 
@@ -217,6 +383,8 @@ class CSFTransport:
         self._stale_dropped: int = 0
         self.pressure = PressureMonitor()
         self.entangled = QuantumEntangledChannel()
+        self.latency = LatencyTracker()
+        self.burst_detector = BurstDetector()
         logger.info("CSF Transport initialized (Tree of Life topology + quantum entanglement)")
 
     def _record_delivered(self, msg: CSFMessage) -> None:
@@ -254,9 +422,19 @@ class CSFTransport:
         )
         msg.hops.append(source.value)
 
+        # Burst detection — throttle during bursts
+        is_burst = self.burst_detector.record_message(source, destination)
+        if is_burst and msg.priority_qbc < 1.0:
+            # During bursts, only high-priority messages get through
+            self._dropped += 1
+            logger.debug(f"CSF burst throttle: dropping low-priority msg "
+                         f"{source.value}→{destination.value}")
+            return msg
+
         # Check for quantum-entangled shortcut (instant delivery for SUSY pairs)
         if self.entangled.is_entangled(source, destination):
             self.entangled.deliver_entangled(msg)
+            self.latency.record(source, destination, 0.0)  # instant
             self._record_delivered(msg)
             return msg
 
@@ -335,6 +513,7 @@ class CSFTransport:
             if msg.destination == current:
                 # Already at destination
                 msg.delivered = True
+                self.latency.record(msg.source, msg.destination, now - msg.timestamp)
                 self._record_delivered(msg)
                 delivered.append(msg)
                 self.pressure.record_dequeue(msg.destination)
@@ -342,6 +521,7 @@ class CSFTransport:
                 # Direct neighbor — deliver
                 msg.hops.append(_enum_val(msg.destination))
                 msg.delivered = True
+                self.latency.record(msg.source, msg.destination, now - msg.timestamp)
                 self._record_delivered(msg)
                 delivered.append(msg)
                 self.pressure.record_dequeue(msg.destination)
@@ -401,6 +581,47 @@ class CSFTransport:
 
         return []  # No path found
 
+    def route_by_content(self, source: SephirahRole, payload: dict,
+                         msg_type: str = "signal",
+                         priority_qbc: float = 0.0) -> List[CSFMessage]:
+        """
+        Route a message to appropriate nodes based on payload content.
+
+        Analyzes the payload for keywords that map to specific Sephirot nodes
+        via CONTENT_ROUTING. Falls back to Tiferet (central hub) if no
+        content match is found.
+
+        Args:
+            source: Sending node.
+            payload: Message data — scanned for routing keywords.
+            msg_type: Message type.
+            priority_qbc: Priority in QBC.
+
+        Returns:
+            List of sent CSFMessages (one per matched destination).
+        """
+        # Scan payload for routing keywords
+        payload_text = str(payload).lower()
+        matched_destinations: List[SephirahRole] = []
+
+        for keyword, destinations in CONTENT_ROUTING.items():
+            if keyword in payload_text:
+                for dest in destinations:
+                    if dest != source and dest not in matched_destinations:
+                        matched_destinations.append(dest)
+
+        # Fallback to Tiferet if no content match
+        if not matched_destinations:
+            matched_destinations = [SephirahRole.TIFERET]
+
+        messages = []
+        for dest in matched_destinations:
+            msg = self.send(source, dest, payload, msg_type=msg_type,
+                            priority_qbc=priority_qbc)
+            messages.append(msg)
+
+        return messages
+
     def get_stats(self) -> dict:
         """Get transport statistics."""
         return {
@@ -411,6 +632,8 @@ class CSFTransport:
             "stale_dropped": self._stale_dropped,
             "pressure": self.pressure.get_status(),
             "entangled_channels": self.entangled.get_status(),
+            "latency": self.latency.get_status(),
+            "burst": self.burst_detector.get_status(),
             "recent_messages": [
                 {
                     "id": m.msg_id,

@@ -374,6 +374,8 @@ class Config:
     CLAUDE_API_KEY: str = os.getenv('CLAUDE_API_KEY', '')
     CLAUDE_MODEL: str = os.getenv('CLAUDE_MODEL', 'claude-sonnet-4-5-20250929')
     LOCAL_LLM_URL: str = os.getenv('LOCAL_LLM_URL', '')
+    OLLAMA_BASE_URL: str = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+    OLLAMA_MODEL: str = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b')
     LLM_PRIMARY_ADAPTER: str = os.getenv('LLM_PRIMARY_ADAPTER', 'openai')
     LLM_SEEDER_ENABLED: bool = os.getenv('LLM_SEEDER_ENABLED', 'false').lower() == 'true'
     LLM_SEEDER_INTERVAL_BLOCKS: int = int(os.getenv('LLM_SEEDER_INTERVAL_BLOCKS', '50'))
