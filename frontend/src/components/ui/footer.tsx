@@ -291,6 +291,23 @@ export function Footer() {
                 </ul>
               </div>
             </div>
+              <div>
+                <p className="mb-1.5 font-[family-name:var(--font-display)] text-[9px] font-semibold uppercase tracking-widest" style={{ color: "#9945ff" }}>Solana</p>
+                <ul className="space-y-1 text-xs">
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQBC:</span>
+                    <a href="https://explorer.solana.com/address/Ew7o13E7gwcbYsv4aRpoZEKonTW6snAGYHerD9j3C1Kf" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">Ew7o…C1Kf</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">wQUSD:</span>
+                    <a href="https://explorer.solana.com/address/CfipKUW1vTGt1Y9jcFwDsrafD3bvxaD9PUMD9zjRRWR3" target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-code)] text-glow-cyan transition-colors hover:underline">Cfip…RWR3</a>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="font-[family-name:var(--font-reading)] text-text-secondary">Program:</span>
+                    <span className="font-[family-name:var(--font-code)] text-text-secondary">SPL Token</span>
+                  </li>
+                </ul>
+              </div>
           </div>
         </div>
 
@@ -300,7 +317,7 @@ export function Footer() {
             &copy; 2026 Quantum Blockchain. MIT License.
           </p>
           <p className="font-[family-name:var(--font-code)] text-[10px] tracking-wide text-text-secondary">
-            Proof-of-SUSY-Alignment &middot; Dilithium5 &middot; QVM (167 Opcodes) &middot; Aether Tree AGI &middot; ZK Bridge (7 Chains) &middot; 50 Markets
+            Proof-of-SUSY-Alignment &middot; Dilithium5 &middot; QVM (167 Opcodes) &middot; Aether Tree AGI &middot; ZK Bridge (8 Chains) &middot; 50 Markets
           </p>
         </div>
       </div>
