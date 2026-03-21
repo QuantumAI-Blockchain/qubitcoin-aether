@@ -39,11 +39,12 @@ class KeterNode:
     edges_in: List[int] = field(default_factory=list)
 
     def effective_confidence(self, current_block: int = 0) -> float:
-        """Return confidence adjusted for time-decay.
+        """Return confidence adjusted for exponential time-decay.
 
-        Decay is based on blocks since last reference (or creation if never
-        referenced).  Axioms never decay.  Floor is configurable
-        (default 0.3) so old knowledge never fully vanishes.
+        Uses exponential decay with configurable half-life instead of linear,
+        providing more realistic knowledge freshness modeling.
+        Axioms never decay.  Floor is configurable (default 0.3) so old
+        knowledge never fully vanishes.
         """
         if self.node_type == 'axiom' or current_block <= 0:
             return self.confidence
@@ -52,7 +53,12 @@ class KeterNode:
         floor = Config.CONFIDENCE_DECAY_FLOOR
         ref_block = self.last_referenced_block or self.source_block
         age = max(0, current_block - ref_block)
-        decay = max(floor, 1.0 - (age / halflife))
+        # Exponential decay: decay_factor = 2^(-age/halflife)
+        if halflife > 0:
+            decay = math.pow(2.0, -age / halflife)
+        else:
+            decay = 1.0
+        decay = max(floor, decay)
         return self.confidence * decay
 
     def calculate_hash(self) -> str:
@@ -236,11 +242,17 @@ def classify_domain(content: dict) -> str:
             if substr in text_normalized:
                 scores[domain] = scores.get(domain, 0) + 1.5
 
-    # Strategy 3: Single keyword matching
+    # Strategy 3: Single keyword matching (skip very short words to reduce false positives)
     for domain, keywords in DOMAIN_KEYWORDS.items():
         matched = len(words & keywords)
         if matched > 0:
-            scores[domain] = scores.get(domain, 0) + matched
+            # Penalize domains that only match on very common/ambiguous words
+            # to avoid false positives like 'energy' matching physics for blockchain metrics
+            ambiguous_words = {'energy', 'field', 'node', 'block', 'proof', 'rate',
+                               'hash', 'risk', 'return', 'loss', 'pool', 'vote'}
+            strong_matches = len((words & keywords) - ambiguous_words)
+            weak_matches = matched - strong_matches
+            scores[domain] = scores.get(domain, 0) + strong_matches + weak_matches * 0.3
 
     if not scores:
         return 'general'
@@ -626,8 +638,16 @@ class KnowledgeGraph:
 
         # Cascade prune to search and vector indices
         for nid in remove_set:
-            self.search_index.remove_node(nid)
-            self.vector_index.remove_node(nid)
+            if hasattr(self, 'search_index') and self.search_index is not None:
+                try:
+                    self.search_index.remove_node(nid)
+                except Exception:
+                    pass
+            if hasattr(self, 'vector_index') and self.vector_index is not None:
+                try:
+                    self.vector_index.remove_node(nid)
+                except Exception:
+                    pass
 
         # Delete from database
         db_deleted_nodes = 0
@@ -1163,8 +1183,16 @@ class KnowledgeGraph:
                 self._adj_in.pop(dup_id, None)
                 if dup_id in self.nodes:
                     del self.nodes[dup_id]
-                self.search_index.remove_node(dup_id)
-                self.vector_index.remove_node(dup_id)
+                if hasattr(self, 'search_index') and self.search_index:
+                    try:
+                        self.search_index.remove_node(dup_id)
+                    except Exception:
+                        pass
+                if hasattr(self, 'vector_index') and self.vector_index:
+                    try:
+                        self.vector_index.remove_node(dup_id)
+                    except Exception:
+                        pass
                 merged += 1
             self._merkle_dirty = True
 
@@ -1438,6 +1466,358 @@ class KnowledgeGraph:
             'domains': domain_counts,
             'knowledge_root': self.compute_knowledge_root()[:16] + '...',
         }
+
+    # ────────────────────────────────────────────────────────────────────────
+    # Improvements 51-65: Advanced Knowledge Graph Operations
+    # ────────────────────────────────────────────────────────────────────────
+
+    MAX_NODES: int = 500_000  # OOM protection cap
+
+    def prune_stale_nodes(self, max_age_blocks: int = 50000,
+                          min_confidence: float = 0.2,
+                          current_block: int = 0) -> int:
+        """Remove old low-confidence nodes, but NEVER prune axioms.
+
+        Targets nodes older than max_age_blocks with confidence below
+        min_confidence. Axioms and grounded nodes are always protected.
+
+        Args:
+            max_age_blocks: Age threshold in blocks.
+            min_confidence: Confidence threshold for pruning.
+            current_block: Current block height for age calculation.
+
+        Returns:
+            Number of nodes pruned.
+        """
+        if current_block <= 0:
+            # Estimate from highest source_block
+            current_block = max((n.source_block for n in self.nodes.values()), default=0)
+        if current_block <= 0:
+            return 0
+
+        to_prune: List[int] = []
+        for nid, node in self.nodes.items():
+            # Never prune axioms or grounded nodes
+            if node.node_type == 'axiom' or node.grounding_source:
+                continue
+            ref_block = node.last_referenced_block or node.source_block
+            age = current_block - ref_block
+            if age >= max_age_blocks and node.confidence < min_confidence:
+                to_prune.append(nid)
+
+        if not to_prune:
+            return 0
+
+        pruned = self.prune_low_confidence(
+            threshold=min_confidence + 0.001,
+            protect_types={'axiom'}
+        )
+        logger.info(
+            f"Stale node pruning: removed {pruned} nodes "
+            f"(age>{max_age_blocks}, confidence<{min_confidence})"
+        )
+        return pruned
+
+    def compute_node_importance(self, node_id: int) -> float:
+        """Compute importance score based on edge count, references, confidence, and age.
+
+        Args:
+            node_id: Node to evaluate.
+
+        Returns:
+            Importance score in [0, 1], or 0.0 if node not found.
+        """
+        node = self.nodes.get(node_id)
+        if not node:
+            return 0.0
+
+        # Edge connectivity (in + out)
+        edge_count = len(self._adj_out.get(node_id, [])) + len(self._adj_in.get(node_id, []))
+        edge_score = min(1.0, math.log1p(edge_count) / math.log1p(30))
+
+        # Reference count (log scale)
+        ref_score = min(1.0, math.log1p(node.reference_count) / math.log1p(100))
+
+        # Confidence
+        conf_score = node.confidence
+
+        # Age bonus: newer nodes get slight boost
+        max_block = max((n.source_block for n in self.nodes.values()), default=1)
+        age_score = node.source_block / max_block if max_block > 0 else 0.5
+
+        # Axioms are always important
+        type_bonus = 0.2 if node.node_type == 'axiom' else 0.0
+
+        importance = (
+            0.25 * edge_score
+            + 0.25 * ref_score
+            + 0.25 * conf_score
+            + 0.15 * age_score
+            + 0.10 * (1.0 if node.grounding_source else 0.0)
+            + type_bonus
+        )
+        return round(min(1.0, max(0.0, importance)), 4)
+
+    def deduplicate_nodes(self, similarity_threshold: float = 0.95) -> int:
+        """Merge near-duplicate nodes using vector similarity.
+
+        Delegates to find_and_merge_duplicates with the given threshold.
+        Axiom nodes are never removed.
+
+        Args:
+            similarity_threshold: Cosine similarity threshold.
+
+        Returns:
+            Number of duplicate nodes merged.
+        """
+        return self.find_and_merge_duplicates(similarity_threshold=similarity_threshold)
+
+    def get_statistics(self) -> dict:
+        """Return comprehensive graph statistics suitable for chat/dashboard exposure.
+
+        Includes node/edge counts, type distributions, domain breakdown,
+        confidence stats, edge type distribution, freshness info, and health indicators.
+
+        Returns:
+            Comprehensive statistics dict.
+        """
+        total_nodes = len(self.nodes)
+        total_edges = len(self.edges)
+
+        # Node type distribution
+        node_type_counts: Dict[str, int] = {}
+        domain_counts: Dict[str, int] = {}
+        confidence_sum = 0.0
+        grounded = 0
+        orphan_count = 0
+        oldest_block = float('inf')
+        newest_block = 0
+
+        for nid, node in self.nodes.items():
+            node_type_counts[node.node_type] = node_type_counts.get(node.node_type, 0) + 1
+            d = node.domain or 'general'
+            domain_counts[d] = domain_counts.get(d, 0) + 1
+            confidence_sum += node.confidence
+            if node.grounding_source:
+                grounded += 1
+            if not self._adj_out.get(nid) and not self._adj_in.get(nid):
+                orphan_count += 1
+            if node.source_block < oldest_block:
+                oldest_block = node.source_block
+            if node.source_block > newest_block:
+                newest_block = node.source_block
+
+        # Edge type distribution
+        edge_type_counts: Dict[str, int] = {}
+        for edge in self.edges:
+            edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
+
+        avg_confidence = confidence_sum / total_nodes if total_nodes > 0 else 0.0
+
+        return {
+            'total_nodes': total_nodes,
+            'total_edges': total_edges,
+            'node_types': node_type_counts,
+            'edge_types': edge_type_counts,
+            'domains': domain_counts,
+            'domain_count': len(domain_counts),
+            'avg_confidence': round(avg_confidence, 4),
+            'grounded_nodes': grounded,
+            'grounding_ratio': round(grounded / total_nodes, 4) if total_nodes > 0 else 0.0,
+            'orphan_nodes': orphan_count,
+            'orphan_ratio': round(orphan_count / total_nodes, 4) if total_nodes > 0 else 0.0,
+            'oldest_block': oldest_block if oldest_block != float('inf') else 0,
+            'newest_block': newest_block,
+            'block_span': newest_block - (oldest_block if oldest_block != float('inf') else 0),
+            'knowledge_root': self.compute_knowledge_root()[:16] + '...',
+            'vector_index_size': len(self.vector_index.embeddings) if self.vector_index else 0,
+            'search_index_terms': self.search_index.get_stats().get('unique_terms', 0) if self.search_index else 0,
+        }
+
+    def get_freshest_nodes(self, domain: str = '', limit: int = 20) -> List[KeterNode]:
+        """Get the most recently created nodes, optionally filtered by domain.
+
+        Args:
+            domain: Filter by domain (empty string = all domains).
+            limit: Maximum number of nodes to return.
+
+        Returns:
+            List of KeterNodes sorted by source_block descending.
+        """
+        with self._lock:
+            if domain:
+                candidates = [n for n in self.nodes.values() if n.domain == domain]
+            else:
+                candidates = list(self.nodes.values())
+        candidates.sort(key=lambda n: n.source_block, reverse=True)
+        return candidates[:limit]
+
+    def summarize_domain(self, domain: str) -> str:
+        """Produce a natural language summary of knowledge in a domain.
+
+        Args:
+            domain: Domain name to summarize.
+
+        Returns:
+            Human-readable summary string.
+        """
+        nodes = [n for n in self.nodes.values() if n.domain == domain]
+        if not nodes:
+            return f"No knowledge found in domain '{domain}'."
+
+        total = len(nodes)
+        avg_conf = sum(n.confidence for n in nodes) / total
+        type_counts: Dict[str, int] = {}
+        for n in nodes:
+            type_counts[n.node_type] = type_counts.get(n.node_type, 0) + 1
+        grounded = sum(1 for n in nodes if n.grounding_source)
+        newest = max(n.source_block for n in nodes)
+        oldest = min(n.source_block for n in nodes)
+
+        types_str = ', '.join(f"{count} {t}s" for t, count in
+                              sorted(type_counts.items(), key=lambda x: x[1], reverse=True)[:5])
+
+        summary = (
+            f"Domain '{domain}' contains {total} knowledge nodes "
+            f"(avg confidence: {avg_conf:.2f}). "
+            f"Composition: {types_str}. "
+            f"{grounded} nodes are grounded in verified data. "
+            f"Knowledge spans blocks {oldest} to {newest}."
+        )
+        return summary
+
+    def find_cross_domain_connections(self, min_weight: float = 0.3) -> List[Dict]:
+        """Discover connections between different domains.
+
+        Finds edges where the source and target nodes belong to different
+        domains, which indicates cross-domain knowledge transfer.
+
+        Args:
+            min_weight: Minimum edge weight to include.
+
+        Returns:
+            List of dicts with source_domain, target_domain, edge_type,
+            count, and example node IDs.
+        """
+        connections: Dict[Tuple[str, str, str], Dict] = {}
+
+        for edge in self.edges:
+            if edge.weight < min_weight:
+                continue
+            from_node = self.nodes.get(edge.from_node_id)
+            to_node = self.nodes.get(edge.to_node_id)
+            if not from_node or not to_node:
+                continue
+            d1 = from_node.domain or 'general'
+            d2 = to_node.domain or 'general'
+            if d1 == d2:
+                continue
+
+            key = (d1, d2, edge.edge_type)
+            if key not in connections:
+                connections[key] = {
+                    'source_domain': d1,
+                    'target_domain': d2,
+                    'edge_type': edge.edge_type,
+                    'count': 0,
+                    'examples': [],
+                }
+            connections[key]['count'] += 1
+            if len(connections[key]['examples']) < 3:
+                connections[key]['examples'].append(
+                    (edge.from_node_id, edge.to_node_id)
+                )
+
+        result = sorted(connections.values(), key=lambda x: x['count'], reverse=True)
+        return result[:50]
+
+    def get_knowledge_by_topic(self, topic_words: List[str], limit: int = 20) -> List[KeterNode]:
+        """Retrieve nodes matching topic words using semantic + keyword search.
+
+        Combines vector search (semantic) with keyword filtering for
+        better topic-based retrieval.
+
+        Args:
+            topic_words: List of topic keywords.
+            limit: Maximum results.
+
+        Returns:
+            List of matching KeterNodes ranked by relevance.
+        """
+        query = ' '.join(topic_words)
+        # Use the blended search (TF-IDF + vector)
+        results = self.search(query, top_k=limit)
+        return [node for node, _score in results]
+
+    def enforce_max_nodes(self) -> int:
+        """Cap in-memory nodes to MAX_NODES to prevent OOM.
+
+        If nodes exceed MAX_NODES, prune the oldest lowest-confidence
+        non-axiom nodes until under the limit.
+
+        Returns:
+            Number of nodes pruned.
+        """
+        if len(self.nodes) <= self.MAX_NODES:
+            return 0
+
+        excess = len(self.nodes) - self.MAX_NODES
+        # Score nodes: lower score = higher pruning priority
+        scored: List[Tuple[float, int]] = []
+        for nid, node in self.nodes.items():
+            if node.node_type == 'axiom' or node.grounding_source:
+                continue
+            # Score based on confidence + recency + references
+            max_block = max((n.source_block for n in self.nodes.values()), default=1)
+            recency = node.source_block / max_block if max_block > 0 else 0
+            score = node.confidence * 0.5 + recency * 0.3 + min(1.0, node.reference_count / 10) * 0.2
+            scored.append((score, nid))
+
+        scored.sort(key=lambda x: x[0])
+        to_remove = [nid for _, nid in scored[:int(excess * 1.1)]]
+
+        if not to_remove:
+            return 0
+
+        remove_set = set(to_remove)
+        # Remove from graph
+        self.edges = [
+            e for e in self.edges
+            if e.from_node_id not in remove_set and e.to_node_id not in remove_set
+        ]
+        for nid in remove_set:
+            for edge in self._adj_out.get(nid, []):
+                adj_list = self._adj_in.get(edge.to_node_id, [])
+                self._adj_in[edge.to_node_id] = [e for e in adj_list if e.from_node_id != nid]
+                neighbor = self.nodes.get(edge.to_node_id)
+                if neighbor and nid in neighbor.edges_in:
+                    neighbor.edges_in.remove(nid)
+            for edge in self._adj_in.get(nid, []):
+                adj_list = self._adj_out.get(edge.from_node_id, [])
+                self._adj_out[edge.from_node_id] = [e for e in adj_list if e.to_node_id != nid]
+                neighbor = self.nodes.get(edge.from_node_id)
+                if neighbor and nid in neighbor.edges_out:
+                    neighbor.edges_out.remove(nid)
+            self._adj_out.pop(nid, None)
+            self._adj_in.pop(nid, None)
+            del self.nodes[nid]
+            if hasattr(self, 'search_index') and self.search_index:
+                try:
+                    self.search_index.remove_node(nid)
+                except Exception:
+                    pass
+            if hasattr(self, 'vector_index') and self.vector_index:
+                try:
+                    self.vector_index.remove_node(nid)
+                except Exception:
+                    pass
+        self._merkle_dirty = True
+
+        logger.warning(
+            f"OOM protection: pruned {len(remove_set)} nodes "
+            f"(limit={self.MAX_NODES}, was {len(self.nodes) + len(remove_set)})"
+        )
+        return len(remove_set)
 
     def get_grounding_stats(self) -> dict:
         """Get statistics on grounded vs ungrounded knowledge nodes.

@@ -5,6 +5,7 @@ Working Memory: Fixed-capacity buffer of recently-accessed nodes with attention 
 Episodic Memory: Time-stamped reasoning episodes (input -> chain -> outcome)
 Semantic Memory: The existing KnowledgeGraph (long-term conceptual storage)
 """
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -127,14 +128,24 @@ class MemoryManager:
         )
 
     def _evict_lowest(self) -> None:
-        """Remove the item with the lowest relevance from working memory."""
+        """Remove the least recently used (LRU) item from working memory.
+
+        Uses last_access time as the primary eviction criterion, with
+        relevance as a tiebreaker. This prevents recently-accessed nodes
+        from being evicted even if their relevance score is low.
+        """
         if not self._working_memory:
             return
-        lowest_id = min(
+        # LRU eviction: evict the item with the oldest last_access time.
+        # On ties, pick the one with lowest relevance.
+        lru_id = min(
             self._working_memory,
-            key=lambda nid: self._working_memory[nid].relevance,
+            key=lambda nid: (
+                self._working_memory[nid].last_access,
+                self._working_memory[nid].relevance,
+            ),
         )
-        del self._working_memory[lowest_id]
+        del self._working_memory[lru_id]
 
     def retrieve(self, top_k: int = 10,
                  query_node_id: Optional[int] = None) -> List[int]:
@@ -191,24 +202,42 @@ class MemoryManager:
         )
         return [item.node_id for item in sorted_items[:top_k]]
 
-    def decay(self, factor: float = None) -> None:
-        """Multiply all relevance scores by a decay factor.
+    def decay(self, factor: float = None, halflife_blocks: int = 1000) -> None:
+        """Apply exponential decay to relevance scores.
 
-        Items whose relevance falls below 0.01 are removed.
+        Uses exponential decay based on time since last access, with a
+        configurable half-life. Items whose relevance falls below 0.01
+        are removed.
 
         Args:
-            factor: Multiplicative decay factor (0.0-1.0). Defaults to
-                Config.WORKING_MEMORY_DECAY_FACTOR if available, else 0.95.
+            factor: Multiplicative decay factor (0.0-1.0). If provided,
+                overrides exponential decay. Defaults to
+                Config.WORKING_MEMORY_DECAY_FACTOR if available, else None.
+            halflife_blocks: Half-life in blocks for exponential decay
+                (default 1000). Only used if factor is None.
         """
         if factor is None:
             try:
                 from ..config import Config
-                factor = getattr(Config, 'WORKING_MEMORY_DECAY_FACTOR', 0.95)
+                factor = getattr(Config, 'WORKING_MEMORY_DECAY_FACTOR', None)
             except Exception:
-                factor = 0.95
+                factor = None
+
+        now = time.time()
         to_remove: List[int] = []
         for node_id, item in self._working_memory.items():
-            item.relevance *= factor
+            if factor is not None:
+                item.relevance *= factor
+            else:
+                # Exponential decay based on seconds since last access
+                # Convert halflife_blocks to approximate seconds (3.3s per block)
+                halflife_seconds = halflife_blocks * 3.3
+                age_seconds = max(0.0, now - item.last_access)
+                if halflife_seconds > 0:
+                    decay_factor = math.pow(2.0, -age_seconds / halflife_seconds)
+                else:
+                    decay_factor = 1.0
+                item.relevance *= decay_factor
             if item.relevance < 0.01:
                 to_remove.append(node_id)
 
@@ -350,12 +379,26 @@ class MemoryManager:
         """
         consolidated = 0
 
-        # Promote frequently-accessed working memory nodes to KG
+        # Promote working memory nodes based on access frequency AND recency.
+        # Nodes must be both frequently accessed and recently used to get promoted.
         if self._kg and hasattr(self._kg, 'nodes'):
+            now = time.time()
             for item in self._working_memory.values():
-                if item.access_count > 5 and item.node_id in self._kg.nodes:
+                if item.node_id not in self._kg.nodes:
+                    continue
+                # Require minimum access count
+                if item.access_count < 3:
+                    continue
+                # Compute promotion score: frequency * recency
+                recency_seconds = max(1.0, now - item.last_access)
+                recency_factor = min(1.0, 300.0 / recency_seconds)  # Full credit if accessed within 5 min
+                promotion_score = item.access_count * recency_factor
+                # Promote if combined score is high enough
+                if promotion_score > 4.0:
                     node = self._kg.nodes[item.node_id]
-                    new_conf = min(1.0, node.confidence + 0.05)
+                    # Scale boost by promotion score (max 0.08)
+                    boost = min(0.08, 0.01 * math.log1p(promotion_score))
+                    new_conf = min(1.0, node.confidence + boost)
                     if new_conf > node.confidence:
                         node.confidence = new_conf
                         consolidated += 1
@@ -575,6 +618,117 @@ class MemoryManager:
 
         return self._capacity
 
+    # --- Episodic Search & Stats ---
+
+    def get_relevant_episodes(self, query_keywords: List[str],
+                              limit: int = 10) -> List[Episode]:
+        """Retrieve past reasoning episodes relevant to query keywords.
+
+        Searches episode strategy names, input node content (if available
+        in the KG), and conclusion content for keyword matches.
+
+        Args:
+            query_keywords: List of keywords to match against.
+            limit: Maximum episodes to return.
+
+        Returns:
+            List of matching Episodes, most relevant first.
+        """
+        if not query_keywords or not self._episodes:
+            return []
+
+        keywords_lower = {kw.lower() for kw in query_keywords if len(kw) > 2}
+        if not keywords_lower:
+            return []
+
+        scored: List[tuple] = []
+        for episode in self._episodes:
+            score = 0.0
+            # Match against strategy name
+            if episode.reasoning_strategy:
+                strategy_words = set(episode.reasoning_strategy.lower().split('_'))
+                score += len(keywords_lower & strategy_words) * 2.0
+
+            # Match against input/conclusion node content if KG available
+            if self._kg and hasattr(self._kg, 'nodes'):
+                for nid in episode.input_node_ids[:5]:
+                    node = self._kg.nodes.get(nid)
+                    if node and node.content:
+                        text = str(node.content.get('text', '')).lower()
+                        for kw in keywords_lower:
+                            if kw in text:
+                                score += 1.0
+                if episode.conclusion_node_id:
+                    c_node = self._kg.nodes.get(episode.conclusion_node_id)
+                    if c_node and c_node.content:
+                        text = str(c_node.content.get('text', '')).lower()
+                        for kw in keywords_lower:
+                            if kw in text:
+                                score += 1.5
+
+            if score > 0:
+                scored.append((score, episode))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [ep for _, ep in scored[:limit]]
+
+    def search_episodes_by_strategy(self, strategy: str,
+                                     limit: int = 20) -> List[Episode]:
+        """Search episodic memory by strategy type.
+
+        Args:
+            strategy: Strategy name to search for.
+            limit: Maximum episodes to return.
+
+        Returns:
+            List of matching Episodes, most recent first.
+        """
+        results: List[Episode] = []
+        for episode in reversed(self._episodes):
+            if episode.reasoning_strategy == strategy:
+                results.append(episode)
+                if len(results) >= limit:
+                    break
+        return results
+
+    def get_working_memory_stats(self) -> dict:
+        """Get detailed working memory statistics for chat/dashboard exposure.
+
+        Returns:
+            Dict with size, capacity, hit rate, top items by relevance,
+            access distribution, and avg relevance.
+        """
+        items = list(self._working_memory.values())
+        if not items:
+            return {
+                'size': 0,
+                'capacity': self._capacity,
+                'utilization': 0.0,
+                'hit_rate': round(self.get_hit_rate(), 4),
+                'avg_relevance': 0.0,
+                'top_items': [],
+            }
+
+        avg_relevance = sum(i.relevance for i in items) / len(items)
+        sorted_items = sorted(items, key=lambda i: i.relevance, reverse=True)
+
+        return {
+            'size': len(items),
+            'capacity': self._capacity,
+            'utilization': round(len(items) / self._capacity, 4),
+            'hit_rate': round(self.get_hit_rate(), 4),
+            'avg_relevance': round(avg_relevance, 4),
+            'max_relevance': round(sorted_items[0].relevance, 4),
+            'min_relevance': round(sorted_items[-1].relevance, 4),
+            'top_items': [
+                {'node_id': i.node_id, 'relevance': round(i.relevance, 4),
+                 'access_count': i.access_count}
+                for i in sorted_items[:5]
+            ],
+            'total_attend_calls': self._attend_calls,
+            'total_attend_hits': self._attend_hits,
+        }
+
     # --- Stats ---
 
     def get_stats(self) -> dict:
@@ -584,15 +738,24 @@ class MemoryManager:
             Dict with working memory, episodic, and consolidation stats.
         """
         episodes_successful = sum(1 for ep in self._episodes if ep.success)
+        strategies_used: Dict[str, int] = {}
+        for ep in self._episodes:
+            if ep.reasoning_strategy:
+                strategies_used[ep.reasoning_strategy] = strategies_used.get(
+                    ep.reasoning_strategy, 0
+                ) + 1
         return {
             'working_memory_size': len(self._working_memory),
             'working_memory_capacity': self._capacity,
             'working_memory_hit_rate': round(self.get_hit_rate(), 4),
             'episodes_total': len(self._episodes),
             'episodes_successful': episodes_successful,
+            'episode_success_rate': round(episodes_successful / len(self._episodes), 4) if self._episodes else 0.0,
             'consolidations_total': self._consolidations_total,
             'replay_total': self._replay_total,
             'strategy_replay_success': dict(self._strategy_replay_success),
+            'failed_patterns': dict(self._failed_patterns),
+            'strategies_used': strategies_used,
         }
 
 

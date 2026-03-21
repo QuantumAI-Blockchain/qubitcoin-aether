@@ -9,12 +9,15 @@ KnowledgeDistiller.
 Adapters:
   - OpenAIAdapter: GPT-4 / ChatGPT
   - ClaudeAdapter: Anthropic Claude
+  - OllamaAdapter: Ollama local models via native /api/chat endpoint
   - LocalAdapter: Open-source models (Llama, Mistral) via local HTTP API
   - KnowledgeDistiller: Extract insights from LLM responses into KG
 """
 import hashlib
 import json
+import threading
 import time
+from collections import OrderedDict
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -189,7 +192,7 @@ class OpenAIAdapter(LLMAdapter):
 class ClaudeAdapter(LLMAdapter):
     """Adapter for Anthropic Claude models."""
 
-    def __init__(self, api_key: str = '', model: str = 'claude-sonnet-4-5-20250929',
+    def __init__(self, api_key: str = '', model: str = 'claude-sonnet-4-6',
                  base_url: str = 'https://api.anthropic.com/v1',
                  max_tokens: int = 1024, temperature: float = 0.7) -> None:
         super().__init__(model, api_key, base_url, max_tokens, temperature)
@@ -257,6 +260,95 @@ class ClaudeAdapter(LLMAdapter):
             logger.warning(f"Claude request failed: {e}")
             return LLMResponse(
                 content=f"Claude request failed: {e}",
+                model=self.model, adapter_type=self.adapter_type,
+                latency_ms=(time.time() - start) * 1000,
+                metadata={'error': str(e)},
+            )
+
+
+class OllamaAdapter(LLMAdapter):
+    """Adapter for Ollama local models via native /api/chat endpoint.
+
+    Connects to Ollama's native API format (not OpenAI-compatible) at
+    http://localhost:11434/api/chat.  The agent stack uses Ollama locally.
+    """
+
+    def __init__(self, model: str = 'llama3.1:8b',
+                 base_url: str = 'http://localhost:11434',
+                 max_tokens: int = 1024, temperature: float = 0.7) -> None:
+        super().__init__(model, '', base_url, max_tokens, temperature)
+
+    @property
+    def adapter_type(self) -> str:
+        return 'ollama'
+
+    def is_available(self) -> bool:
+        if not self.base_url:
+            return False
+        try:
+            import urllib.request
+            req = urllib.request.Request(f"{self.base_url}/api/tags")
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                return resp.status == 200
+        except Exception:
+            return False
+
+    def generate(self, prompt: str,
+                 context: Optional[List[dict]] = None,
+                 system_prompt: Optional[str] = None) -> LLMResponse:
+        """Generate via Ollama native /api/chat endpoint."""
+        messages: List[dict] = []
+        if system_prompt:
+            messages.append({'role': 'system', 'content': system_prompt})
+        if context:
+            messages.extend(context)
+        messages.append({'role': 'user', 'content': prompt})
+
+        start = time.time()
+        try:
+            import urllib.request
+            payload = json.dumps({
+                'model': self.model,
+                'messages': messages,
+                'stream': False,
+                'options': {
+                    'num_predict': self.max_tokens,
+                    'temperature': self.temperature,
+                },
+            }).encode()
+
+            req = urllib.request.Request(
+                f"{self.base_url}/api/chat",
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode())
+
+            content = data.get('message', {}).get('content', '')
+            # Ollama reports eval_count (output tokens) and prompt_eval_count
+            eval_count = data.get('eval_count', 0)
+            prompt_eval = data.get('prompt_eval_count', 0)
+            tokens = eval_count + prompt_eval
+            latency = (time.time() - start) * 1000
+
+            self._request_count += 1
+            self._total_tokens += tokens
+
+            return LLMResponse(
+                content=content, model=self.model,
+                adapter_type=self.adapter_type,
+                tokens_used=tokens, latency_ms=latency,
+                metadata={
+                    'eval_count': eval_count,
+                    'prompt_eval_count': prompt_eval,
+                    'total_duration_ns': data.get('total_duration', 0),
+                },
+            )
+        except Exception as e:
+            logger.debug(f"Ollama request failed: {e}")
+            return LLMResponse(
+                content=f"Ollama model unavailable: {e}",
                 model=self.model, adapter_type=self.adapter_type,
                 latency_ms=(time.time() - start) * 1000,
                 metadata={'error': str(e)},
@@ -909,6 +1001,7 @@ ADAPTER_REGISTRY: Dict[str, type] = {
     'grok': GrokAdapter,
     'gemini': GeminiAdapter,
     'mistral': MistralAdapter,
+    'ollama': OllamaAdapter,
     'local': LocalAdapter,
 }
 
@@ -955,11 +1048,26 @@ class LLMAdapterManager:
     the next available adapter in priority order.
     """
 
-    def __init__(self, knowledge_graph: object = None) -> None:
+    def __init__(self, knowledge_graph: object = None,
+                 cache_ttl: float = 300.0) -> None:
         self._adapters: Dict[str, LLMAdapter] = {}
         self._adapter_priorities: Dict[str, int] = {}
         self._priority: List[str] = []  # Ordered adapter type names
         self._distiller = KnowledgeDistiller(knowledge_graph)
+
+        # Response cache: prompt_hash -> (LLMResponse, expiry_timestamp)
+        self._response_cache: OrderedDict = OrderedDict()
+        self._cache_ttl: float = cache_ttl  # seconds
+        self._cache_max_entries: int = 512
+        self._cache_lock = threading.Lock()
+        self._cache_hits: int = 0
+        self._cache_misses: int = 0
+
+        # Health monitoring per adapter: adapter_type -> [success_bool, ...]
+        self._adapter_health: Dict[str, list] = {}
+        self._health_window: int = 20  # Track last N calls
+        self._auto_disable_threshold: float = 0.5  # >50% failure -> disable
+        self._disabled_adapters: set = set()
 
     def register_adapter(self, adapter: LLMAdapter,
                          priority: int = 100) -> None:
@@ -982,11 +1090,17 @@ class LLMAdapterManager:
     def generate(self, prompt: str, context: Optional[List[dict]] = None,
                  system_prompt: Optional[str] = None,
                  distill: bool = True,
-                 block_height: int = 0) -> Optional[LLMResponse]:
+                 block_height: int = 0,
+                 use_cache: bool = True) -> Optional[LLMResponse]:
         """Generate a response using the best available adapter.
 
-        Tries adapters in priority order. Optionally distills the
-        response into the knowledge graph.
+        Tries adapters in priority order.  Identical prompts (same
+        prompt + system_prompt hash) are returned from cache within
+        the configured TTL.  Optionally distills the response into
+        the knowledge graph.
+
+        Adapters with >50% failure rate in the recent window are
+        automatically skipped until they recover.
 
         Args:
             prompt: The user query.
@@ -994,25 +1108,123 @@ class LLMAdapterManager:
             system_prompt: System prompt override.
             distill: If True, extract knowledge from the response.
             block_height: Current block height for provenance.
+            use_cache: If True, check/store in response cache.
 
         Returns:
             LLMResponse or None if all adapters fail.
         """
         sys_prompt = system_prompt or AETHER_SYSTEM_PROMPT
 
+        # Check cache
+        cache_key = ''
+        if use_cache and not context:
+            # Only cache context-free prompts (context makes caching unreliable)
+            raw = f"{prompt}|{sys_prompt}"
+            cache_key = hashlib.sha256(raw.encode()).hexdigest()
+            with self._cache_lock:
+                if cache_key in self._response_cache:
+                    cached_resp, expiry = self._response_cache[cache_key]
+                    if time.time() < expiry:
+                        self._cache_hits += 1
+                        self._response_cache.move_to_end(cache_key)
+                        return cached_resp
+                    else:
+                        del self._response_cache[cache_key]
+            self._cache_misses += 1
+
         for adapter_type in self._priority:
+            # Skip auto-disabled adapters
+            if adapter_type in self._disabled_adapters:
+                continue
+
             adapter = self._adapters[adapter_type]
             if not adapter.is_available():
                 continue
 
             response = adapter.generate(prompt, context, sys_prompt)
-            if response and not response.metadata.get('error'):
+            is_success = response and not response.metadata.get('error')
+
+            # Track health
+            self._record_adapter_health(adapter_type, bool(is_success))
+
+            if is_success:
+                # Store in cache
+                if cache_key:
+                    with self._cache_lock:
+                        self._response_cache[cache_key] = (response, time.time() + self._cache_ttl)
+                        if len(self._response_cache) > self._cache_max_entries:
+                            self._response_cache.popitem(last=False)
                 # Distill knowledge from successful response
                 if distill and self._distiller.kg:
                     self._distiller.distill(response, prompt, block_height)
                 return response
 
         return None
+
+    def _record_adapter_health(self, adapter_type: str, success: bool) -> None:
+        """Record a success/failure for an adapter and auto-disable if needed."""
+        if adapter_type not in self._adapter_health:
+            self._adapter_health[adapter_type] = []
+        history = self._adapter_health[adapter_type]
+        history.append(success)
+        # Trim to window
+        if len(history) > self._health_window:
+            self._adapter_health[adapter_type] = history[-self._health_window:]
+            history = self._adapter_health[adapter_type]
+
+        # Check failure rate (only after enough samples)
+        if len(history) >= 5:
+            failure_rate = 1.0 - (sum(history) / len(history))
+            if failure_rate > self._auto_disable_threshold:
+                if adapter_type not in self._disabled_adapters:
+                    self._disabled_adapters.add(adapter_type)
+                    logger.warning(
+                        f"Auto-disabled adapter '{adapter_type}' "
+                        f"(failure rate {failure_rate:.0%} > {self._auto_disable_threshold:.0%})"
+                    )
+            elif adapter_type in self._disabled_adapters:
+                # Re-enable if recovered
+                self._disabled_adapters.discard(adapter_type)
+                logger.info(f"Re-enabled adapter '{adapter_type}' (failure rate recovered to {failure_rate:.0%})")
+
+    def re_enable_adapter(self, adapter_type: str) -> bool:
+        """Manually re-enable an auto-disabled adapter.
+
+        Args:
+            adapter_type: The adapter type name to re-enable.
+
+        Returns:
+            True if the adapter was disabled and is now re-enabled.
+        """
+        if adapter_type in self._disabled_adapters:
+            self._disabled_adapters.discard(adapter_type)
+            # Reset health history
+            self._adapter_health[adapter_type] = []
+            logger.info(f"Manually re-enabled adapter '{adapter_type}'")
+            return True
+        return False
+
+    def get_adapter_health(self) -> Dict[str, dict]:
+        """Get health status for all registered adapters.
+
+        Returns:
+            Dict mapping adapter_type to health info including
+            success_rate, call_count, disabled status.
+        """
+        result: Dict[str, dict] = {}
+        for adapter_type in self._adapters:
+            history = self._adapter_health.get(adapter_type, [])
+            if history:
+                success_rate = sum(history) / len(history)
+            else:
+                success_rate = 1.0
+            result[adapter_type] = {
+                'success_rate': round(success_rate, 4),
+                'recent_calls': len(history),
+                'disabled': adapter_type in self._disabled_adapters,
+                'available': self._adapters[adapter_type].is_available(),
+            }
+        return result
 
     def get_available_adapters(self) -> List[str]:
         """Get list of available adapter types."""
@@ -1029,5 +1241,16 @@ class LLMAdapterManager:
             },
             'priority': self._priority,
             'available': self.get_available_adapters(),
+            'disabled': sorted(self._disabled_adapters),
             'distiller': self._distiller.get_stats(),
+            'cache': {
+                'hits': self._cache_hits,
+                'misses': self._cache_misses,
+                'entries': len(self._response_cache),
+                'ttl_seconds': self._cache_ttl,
+                'hit_rate': round(
+                    self._cache_hits / max(1, self._cache_hits + self._cache_misses), 4
+                ),
+            },
+            'health': self.get_adapter_health(),
         }

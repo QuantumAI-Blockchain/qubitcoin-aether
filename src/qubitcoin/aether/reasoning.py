@@ -2,10 +2,25 @@
 Reasoning Engine - Logical Inference for Aether Tree
 Supports deductive, inductive, and abductive reasoning over the knowledge graph.
 Generates new KeterNodes from existing knowledge through logical inference.
+
+v2 enhancements (Improvements 36-50):
+- Deeper premise chain exploration (depth 4)
+- Cycle detection in reasoning chains
+- Analogical reasoning method
+- Multi-step chained reasoning (deduction -> induction -> abduction)
+- Reasoning confidence calibration via metacognition
+- Counter-argument generation via debate engine
+- Per-domain success rate tracking
+- Hypothesis generation from abductive reasoning
+- Reasoning caching for similar queries
+- Temporal context awareness (block height)
+- Natural language explanation generation
 """
+import hashlib
 import json
+import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils.logger import get_logger
 
@@ -39,6 +54,9 @@ class ReasoningResult:
     chain: List[ReasoningStep] = field(default_factory=list)
     success: bool = False
     explanation: str = ''
+    domain: str = 'general'
+    block_height: int = 0
+    hypotheses: List[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -49,6 +67,9 @@ class ReasoningResult:
             'chain': [s.to_dict() for s in self.chain],
             'success': self.success,
             'explanation': self.explanation,
+            'domain': self.domain,
+            'block_height': self.block_height,
+            'hypotheses': self.hypotheses,
         }
 
 
@@ -67,6 +88,17 @@ class ReasoningEngine:
         self.kg = knowledge_graph
         self._operations: List[ReasoningResult] = []
         self._max_operations = 10000  # Bound in-memory history to prevent unbounded growth
+        # Per-domain success rate tracking (Improvement 44)
+        self._domain_success: Dict[str, Dict[str, int]] = {}  # domain -> {attempts, successes}
+        # Reasoning cache for similar queries (Improvement 47)
+        self._reasoning_cache: Dict[str, Tuple[ReasoningResult, float]] = {}  # hash -> (result, timestamp)
+        self._cache_ttl: float = 300.0  # 5 minute TTL
+        self._cache_max_size: int = 200
+        # Metacognition and debate engine references (set externally)
+        self._metacognition: Optional[Any] = None
+        self._debate_engine: Optional[Any] = None
+        # Current block height context (updated externally)
+        self._current_block_height: int = 0
 
     def _grounding_boost(self, premise_ids: List[int]) -> float:
         """Compute a confidence boost factor based on how many premises are grounded.
@@ -120,14 +152,23 @@ class ReasoningEngine:
             )
 
         # Find common conclusions: nodes reachable from all premises
+        # Depth 4 exploration with cycle detection (Improvement 36)
         reachable_sets = []
         for premise in premises:
-            neighbors = self.kg.get_neighbors(premise.node_id, 'out')
-            reachable = {n.node_id for n in neighbors}
-            # Extend to depth 2
-            for n in neighbors:
-                for nn in self.kg.get_neighbors(n.node_id, 'out'):
-                    reachable.add(nn.node_id)
+            reachable: set = set()
+            visited_in_chain: set = {premise.node_id}  # Cycle detection
+            frontier = [premise.node_id]
+            for _depth in range(4):  # Depth 4 (was 2)
+                next_frontier: List[int] = []
+                for nid in frontier:
+                    for n in self.kg.get_neighbors(nid, 'out'):
+                        if n.node_id not in visited_in_chain:  # Cycle detection
+                            visited_in_chain.add(n.node_id)
+                            reachable.add(n.node_id)
+                            next_frontier.append(n.node_id)
+                frontier = next_frontier
+                if not frontier:
+                    break
             reachable_sets.append(reachable)
 
         # Intersection: nodes reachable from ALL premises
@@ -202,6 +243,18 @@ class ReasoningEngine:
                 confidence=conf,
             ))
 
+            # Generate meaningful explanation (Improvement 46)
+            best_text = ''
+            if best_node and best_node.content:
+                best_text = str(best_node.content.get('text', best_node.content.get('type', '')))[:100]
+            premise_texts = [str(p.content.get('text', p.content.get('type', '')))[:50] for p in premises]
+            expl = (
+                f"Deduced from {len(premises)} premises "
+                f"({', '.join(premise_texts[:3])}) -> "
+                f"conclusion: {best_text or f'node {best_id}'} "
+                f"(confidence: {conf:.4f})"
+            )
+
             result = ReasoningResult(
                 operation_type='deductive',
                 premise_ids=premise_ids,
@@ -209,7 +262,7 @@ class ReasoningEngine:
                 confidence=conf,
                 chain=chain,
                 success=True,
-                explanation=f"Found existing conclusion node {best_id}",
+                explanation=expl,
             )
 
         # Protect axiom confidence floor (Improvement 35)
@@ -313,13 +366,23 @@ class ReasoningEngine:
                 explanation='Need at least 2 observations for induction',
             )
 
-        # Find common node types among observations
+        # Find common node types and shared edge patterns among observations (Improvement 50)
         type_counts: Dict[str, int] = {}
+        domain_counts: Dict[str, int] = {}
+        shared_neighbors: Dict[int, int] = {}  # neighbor_id -> count of observations connected
         for obs in observations:
             nt = obs.node_type
             type_counts[nt] = type_counts.get(nt, 0) + 1
+            if obs.domain:
+                domain_counts[obs.domain] = domain_counts.get(obs.domain, 0) + 1
+            # Track shared neighbors for meaningful pattern detection
+            for neighbor in self.kg.get_neighbors(obs.node_id, 'out'):
+                shared_neighbors[neighbor.node_id] = shared_neighbors.get(neighbor.node_id, 0) + 1
 
         dominant_type = max(type_counts, key=type_counts.get)
+        dominant_domain = max(domain_counts, key=domain_counts.get) if domain_counts else 'general'
+        # Nodes connected by multiple observations are pattern hubs
+        pattern_hubs = [nid for nid, count in shared_neighbors.items() if count >= 2]
 
         # Confidence scales with number of observations (asymptotic to 1.0)
         n = len(observations)
@@ -361,6 +424,9 @@ class ReasoningEngine:
             'pattern': f"Pattern from {n} obs: {', '.join(pattern_parts)}",
             'observation_count': n,
             'dominant_type': dominant_type,
+            'dominant_domain': dominant_domain,
+            'pattern_hubs': pattern_hubs[:5],
+            'type_distribution': type_counts,
         }
         if difficulty_values:
             generalization['avg_difficulty'] = round(
@@ -396,7 +462,12 @@ class ReasoningEngine:
             confidence=inductive_conf,
             chain=chain,
             success=True,
-            explanation=f"Induced generalization from {n} observations (conf: {inductive_conf:.4f})",
+            explanation=(
+                f"Induced generalization from {n} {dominant_type} observations "
+                f"in {dominant_domain}: {', '.join(pattern_parts[:3])}. "
+                f"Confidence: {inductive_conf:.4f}, "
+                f"{len(pattern_hubs)} shared structural hubs found."
+            ),
         )
 
         self._store_operation(result)
@@ -1524,3 +1595,564 @@ class ReasoningEngine:
             'total_analogies': total_analogies,
             'total_operations': len(self._operations),
         }
+    # ------------------------------------------------------------------ #
+    #  v2: Advanced Reasoning Methods (Improvements 36-50)                #
+    # ------------------------------------------------------------------ #
+
+    def set_metacognition(self, metacognition: Any) -> None:
+        """Set the metacognition module for confidence calibration."""
+        self._metacognition = metacognition
+
+    def set_debate_engine(self, debate_engine: Any) -> None:
+        """Set the debate engine for counter-argument generation."""
+        self._debate_engine = debate_engine
+
+    def set_block_height(self, block_height: int) -> None:
+        """Update the current block height context for temporal awareness."""
+        self._current_block_height = block_height
+
+    def _cache_key(self, operation: str, node_ids: List[int]) -> str:
+        """Generate a cache key for a reasoning query."""
+        sorted_ids = sorted(node_ids)
+        raw = f"{operation}:{','.join(str(i) for i in sorted_ids)}"
+        return hashlib.md5(raw.encode()).hexdigest()
+
+    def _get_cached(self, cache_key: str) -> Optional[ReasoningResult]:
+        """Retrieve a cached reasoning result if still valid."""
+        if cache_key in self._reasoning_cache:
+            result, ts = self._reasoning_cache[cache_key]
+            if time.time() - ts < self._cache_ttl:
+                return result
+            else:
+                del self._reasoning_cache[cache_key]
+        return None
+
+    def _set_cached(self, cache_key: str, result: ReasoningResult) -> None:
+        """Cache a reasoning result."""
+        if len(self._reasoning_cache) >= self._cache_max_size:
+            # Evict oldest entry
+            oldest_key = min(self._reasoning_cache, key=lambda k: self._reasoning_cache[k][1])
+            del self._reasoning_cache[oldest_key]
+        self._reasoning_cache[cache_key] = (result, time.time())
+
+    def _track_domain_success(self, domain: str, success: bool) -> None:
+        """Track reasoning success rates per domain."""
+        if domain not in self._domain_success:
+            self._domain_success[domain] = {'attempts': 0, 'successes': 0}
+        self._domain_success[domain]['attempts'] += 1
+        if success:
+            self._domain_success[domain]['successes'] += 1
+
+    def get_domain_success_rates(self) -> Dict[str, float]:
+        """Get per-domain reasoning success rates."""
+        rates: Dict[str, float] = {}
+        for domain, stats in self._domain_success.items():
+            if stats['attempts'] > 0:
+                rates[domain] = round(stats['successes'] / stats['attempts'], 4)
+        return rates
+
+    def calibrate_confidence(self, raw_confidence: float) -> float:
+        """Calibrate confidence using metacognition feedback.
+
+        If metacognition module is available, uses its calibration data
+        to adjust stated confidence toward observed accuracy.
+
+        Args:
+            raw_confidence: The uncalibrated confidence value.
+
+        Returns:
+            Calibrated confidence value in [0.0, 1.0].
+        """
+        if self._metacognition and hasattr(self._metacognition, 'calibrate_confidence'):
+            return self._metacognition.calibrate_confidence(raw_confidence)
+        return raw_confidence
+
+    def reason_by_analogy(self, source_node_id: int,
+                          target_domain: str,
+                          max_results: int = 5) -> ReasoningResult:
+        """Analogical reasoning: find structural analogies and generate inferences.
+
+        Goes beyond simple pattern matching by:
+        1. Finding structurally analogous nodes in the target domain
+        2. Examining what conclusions exist for the source node
+        3. Hypothesizing that similar conclusions hold for the analogous targets
+
+        Args:
+            source_node_id: Node to reason from by analogy.
+            target_domain: Domain to find analogies in.
+            max_results: Maximum analogies to explore.
+
+        Returns:
+            ReasoningResult with analogy-based hypotheses.
+        """
+        # Check cache
+        cache_key = self._cache_key('analogy', [source_node_id])
+        cached = self._get_cached(cache_key)
+        if cached:
+            return cached
+
+        chain: List[ReasoningStep] = []
+        source = self.kg.get_node(source_node_id)
+        if not source:
+            return ReasoningResult(
+                operation_type='analogical',
+                premise_ids=[source_node_id],
+                success=False,
+                explanation='Source node not found',
+            )
+
+        chain.append(ReasoningStep(
+            step_type='premise', node_id=source_node_id,
+            content=source.content, confidence=source.confidence,
+        ))
+
+        # Step 1: Find analogies using existing method
+        analogy_result = self.find_analogies(source_node_id, target_domain, max_results)
+
+        if not analogy_result.success:
+            return ReasoningResult(
+                operation_type='analogical',
+                premise_ids=[source_node_id],
+                success=False,
+                explanation='No structural analogies found in target domain',
+            )
+
+        # Step 2: Get conclusions that exist for the source node
+        source_conclusions: List[dict] = []
+        for neighbor in self.kg.get_neighbors(source_node_id, 'out'):
+            if neighbor.node_type == 'inference':
+                source_conclusions.append({
+                    'node_id': neighbor.node_id,
+                    'content': neighbor.content,
+                    'confidence': neighbor.confidence,
+                })
+
+        # Step 3: Generate hypotheses for each analogy
+        hypotheses: List[dict] = []
+        conclusion_id: Optional[int] = None
+        best_conf = 0.0
+
+        for step in analogy_result.chain:
+            if step.step_type != 'conclusion' or not step.node_id:
+                continue
+
+            analogy_sim = step.confidence
+            target_node = self.kg.get_node(step.node_id)
+            if not target_node:
+                continue
+
+            for src_conc in source_conclusions[:3]:
+                hyp_conf = analogy_sim * src_conc['confidence'] * 0.7
+                hyp_conf = self.calibrate_confidence(hyp_conf)
+
+                hypothesis = {
+                    'type': 'analogical_hypothesis',
+                    'source_node': source_node_id,
+                    'source_conclusion': src_conc['node_id'],
+                    'target_node': step.node_id,
+                    'analogy_similarity': round(analogy_sim, 4),
+                    'hypothesis': (
+                        f"By analogy with node {source_node_id} "
+                        f"(similarity {analogy_sim:.2f}), "
+                        f"the same conclusion pattern may hold for "
+                        f"node {step.node_id} in {target_domain}"
+                    ),
+                    'confidence': round(hyp_conf, 4),
+                    'block_height': self._current_block_height,
+                }
+                hypotheses.append(hypothesis)
+
+                if hyp_conf > best_conf:
+                    best_conf = hyp_conf
+                    # Create hypothesis node in KG
+                    hyp_node = self.kg.add_node(
+                        node_type='inference',
+                        content=hypothesis,
+                        confidence=hyp_conf,
+                        source_block=self._current_block_height,
+                    )
+                    if hyp_node:
+                        conclusion_id = hyp_node.node_id
+                        self.kg.add_edge(source_node_id, hyp_node.node_id, 'derives')
+                        self.kg.add_edge(step.node_id, hyp_node.node_id, 'analogous_to')
+                        chain.append(ReasoningStep(
+                            step_type='conclusion',
+                            node_id=hyp_node.node_id,
+                            content=hypothesis,
+                            confidence=hyp_conf,
+                        ))
+
+        source_domain = source.domain or 'general'
+        self._track_domain_success(source_domain, len(hypotheses) > 0)
+
+        result = ReasoningResult(
+            operation_type='analogical',
+            premise_ids=[source_node_id],
+            conclusion_node_id=conclusion_id,
+            confidence=best_conf,
+            chain=chain,
+            success=len(hypotheses) > 0,
+            explanation=(
+                f"Analogical reasoning from node {source_node_id} to {target_domain}: "
+                f"found {len(hypotheses)} hypotheses from "
+                f"{len(source_conclusions)} source conclusions"
+            ),
+            domain=source_domain,
+            block_height=self._current_block_height,
+            hypotheses=hypotheses,
+        )
+
+        self._set_cached(cache_key, result)
+        self._store_operation(result)
+        self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
+        return result
+
+    def generate_counter_arguments(self, conclusion_node_id: int) -> Optional[dict]:
+        """Generate counter-arguments for a conclusion using the debate engine.
+
+        Args:
+            conclusion_node_id: Node ID of the conclusion to challenge.
+
+        Returns:
+            Dict with debate result and counter-arguments, or None.
+        """
+        if not self._debate_engine:
+            return None
+
+        try:
+            debate_result = self._debate_engine.debate(
+                [conclusion_node_id], max_rounds=2
+            )
+            return {
+                'verdict': debate_result.verdict,
+                'critic_confidence': debate_result.critic_final_confidence,
+                'proposer_confidence': debate_result.proposer_final_confidence,
+                'counter_arguments': [
+                    {'argument': p.argument, 'confidence': p.confidence}
+                    for p in debate_result.positions if p.role == 'critic'
+                ],
+            }
+        except Exception as e:
+            logger.debug(f"Counter-argument generation failed: {e}")
+            return None
+
+    def generate_hypotheses(self, observation_id: int,
+                            max_hypotheses: int = 3) -> List[dict]:
+        """Generate multiple hypotheses to explain an observation.
+
+        Goes beyond basic abduction by generating diverse hypotheses:
+        1. Direct causal hypothesis (what could have caused this?)
+        2. Structural analogy hypothesis (what similar patterns exist?)
+        3. Temporal hypothesis (what changed around this block height?)
+
+        Args:
+            observation_id: Node ID of the observation to explain.
+            max_hypotheses: Maximum number of hypotheses to generate.
+
+        Returns:
+            List of hypothesis dicts with confidence scores.
+        """
+        observation = self.kg.get_node(observation_id)
+        if not observation:
+            return []
+
+        hypotheses: List[dict] = []
+
+        # 1. Direct causal hypothesis via abduction
+        abd_result = self.abduce(observation_id)
+        if abd_result.success and abd_result.conclusion_node_id:
+            conc = self.kg.get_node(abd_result.conclusion_node_id)
+            hypotheses.append({
+                'type': 'causal',
+                'node_id': abd_result.conclusion_node_id,
+                'explanation': abd_result.explanation,
+                'confidence': abd_result.confidence,
+                'content': conc.content if conc else {},
+            })
+
+        # 2. Structural analogy: find similar observations and their explanations
+        if hasattr(self.kg, 'nodes'):
+            obs_domain = observation.domain or 'general'
+            similar_obs = [
+                n for n in self.kg.nodes.values()
+                if n.node_id != observation_id
+                and n.node_type == 'observation'
+                and n.domain == obs_domain
+                and n.confidence > 0.5
+            ]
+            # Find observations that already have explanations
+            for sim_obs in similar_obs[:10]:
+                explanations = self.kg.get_neighbors(sim_obs.node_id, 'in')
+                for expl_node in explanations:
+                    if expl_node.node_type == 'inference' and expl_node.confidence > 0.3:
+                        hyp_conf = expl_node.confidence * 0.5  # Discount for analogy
+                        hypotheses.append({
+                            'type': 'analogical',
+                            'node_id': expl_node.node_id,
+                            'explanation': (
+                                f"Similar observation (node {sim_obs.node_id}) was explained by "
+                                f"inference node {expl_node.node_id}"
+                            ),
+                            'confidence': hyp_conf,
+                            'source_observation': sim_obs.node_id,
+                        })
+                        if len(hypotheses) >= max_hypotheses:
+                            break
+                if len(hypotheses) >= max_hypotheses:
+                    break
+
+        # 3. Temporal hypothesis: what else happened near this block?
+        if observation.source_block > 0:
+            block_window = 10
+            nearby_events = [
+                n for n in self.kg.nodes.values()
+                if n.node_id != observation_id
+                and abs(n.source_block - observation.source_block) <= block_window
+                and n.node_type in ('observation', 'assertion')
+                and n.confidence > 0.5
+            ]
+            if nearby_events and len(hypotheses) < max_hypotheses:
+                temporal_conf = 0.3 * min(1.0, len(nearby_events) / 5.0)
+                hypotheses.append({
+                    'type': 'temporal',
+                    'explanation': (
+                        f"{len(nearby_events)} events occurred within "
+                        f"{block_window} blocks of this observation "
+                        f"(blocks {observation.source_block - block_window}-"
+                        f"{observation.source_block + block_window})"
+                    ),
+                    'confidence': temporal_conf,
+                    'nearby_event_count': len(nearby_events),
+                    'nearby_node_ids': [n.node_id for n in nearby_events[:5]],
+                })
+
+        return hypotheses[:max_hypotheses]
+
+    def multi_step_chain(self, query_node_ids: List[int],
+                         max_depth: int = 5) -> ReasoningResult:
+        """Multi-step chain-of-thought that explicitly chains deduction -> induction -> abduction.
+
+        Unlike basic chain_of_thought which tries operations opportunistically,
+        this method follows a structured pipeline:
+        1. Deduction: derive certain conclusions from premises
+        2. Induction: generalize patterns from the deduced conclusions + observations
+        3. Abduction: generate hypotheses for any unexplained observations
+
+        Each phase feeds results into the next, building a coherent reasoning chain.
+
+        Args:
+            query_node_ids: Starting node IDs.
+            max_depth: Maximum reasoning depth per phase.
+
+        Returns:
+            ReasoningResult with the full multi-step chain.
+        """
+        # Check cache
+        cache_key = self._cache_key('multi_step', query_node_ids)
+        cached = self._get_cached(cache_key)
+        if cached:
+            return cached
+
+        chain: List[ReasoningStep] = []
+        all_conclusion_ids: List[int] = []
+        overall_confidence = 1.0
+        visited: set = set()
+
+        # Load starting premises
+        premises = []
+        for nid in query_node_ids:
+            node = self.kg.get_node(nid)
+            if node:
+                premises.append(node)
+                visited.add(nid)
+                chain.append(ReasoningStep(
+                    step_type='premise', node_id=nid,
+                    content=node.content, confidence=node.confidence,
+                ))
+
+        if not premises:
+            return ReasoningResult(
+                operation_type='multi_step_chain',
+                premise_ids=query_node_ids,
+                success=False,
+                explanation='No valid starting nodes found',
+            )
+
+        # Phase 1: DEDUCTION - derive conclusions from premise pairs
+        deduced_ids: List[int] = []
+        premise_pairs = []
+        p_ids = [p.node_id for p in premises]
+        for i in range(len(p_ids)):
+            for j in range(i + 1, min(len(p_ids), i + 4)):
+                premise_pairs.append([p_ids[i], p_ids[j]])
+
+        for pair in premise_pairs[:max_depth]:
+            deduction = self.deduce(pair)
+            if deduction.success and deduction.conclusion_node_id:
+                deduced_ids.append(deduction.conclusion_node_id)
+                overall_confidence *= max(deduction.confidence, 0.1)
+                chain.append(ReasoningStep(
+                    step_type='conclusion',
+                    node_id=deduction.conclusion_node_id,
+                    content={'type': 'deductive_phase', 'source_pair': pair},
+                    confidence=deduction.confidence,
+                ))
+
+        # Phase 2: INDUCTION - generalize from deduced + observed nodes
+        induction_candidates = deduced_ids + [
+            nid for nid in query_node_ids if nid not in visited
+        ]
+        if len(induction_candidates) >= 2:
+            induction = self.induce(induction_candidates[:8])
+            if induction.success and induction.conclusion_node_id:
+                all_conclusion_ids.append(induction.conclusion_node_id)
+                overall_confidence *= max(induction.confidence, 0.1)
+                chain.append(ReasoningStep(
+                    step_type='conclusion',
+                    node_id=induction.conclusion_node_id,
+                    content={'type': 'inductive_phase'},
+                    confidence=induction.confidence,
+                ))
+
+        # Phase 3: ABDUCTION - explain unexplained observations
+        unexplained = [
+            nid for nid in query_node_ids
+            if self.kg.get_node(nid)
+            and not self.kg.get_node(nid).edges_in
+            and nid not in visited
+        ]
+        for obs_id in unexplained[:max_depth]:
+            abduction = self.abduce(obs_id)
+            if abduction.success and abduction.conclusion_node_id:
+                all_conclusion_ids.append(abduction.conclusion_node_id)
+                chain.append(ReasoningStep(
+                    step_type='conclusion',
+                    node_id=abduction.conclusion_node_id,
+                    content={'type': 'abductive_phase'},
+                    confidence=abduction.confidence,
+                ))
+
+        # Calibrate final confidence
+        final_confidence = self.calibrate_confidence(
+            max(0.0, min(1.0, overall_confidence))
+        )
+
+        conclusion_id = all_conclusion_ids[-1] if all_conclusion_ids else None
+
+        # Determine domain from premises
+        domains = [p.domain for p in premises if p.domain]
+        domain = max(set(domains), key=domains.count) if domains else 'general'
+
+        result = ReasoningResult(
+            operation_type='multi_step_chain',
+            premise_ids=query_node_ids,
+            conclusion_node_id=conclusion_id,
+            confidence=final_confidence,
+            chain=chain,
+            success=len(chain) > len(query_node_ids),
+            explanation=(
+                f"Multi-step reasoning: {len(deduced_ids)} deductions, "
+                f"{len(all_conclusion_ids)} conclusions, "
+                f"{len(unexplained)} abductions. "
+                f"Chain: {len(chain)} steps."
+            ),
+            domain=domain,
+            block_height=self._current_block_height,
+        )
+
+        self._track_domain_success(domain, result.success)
+        self._set_cached(cache_key, result)
+        self._store_operation(result)
+        self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
+        return result
+
+    def explain_reasoning(self, result: ReasoningResult) -> str:
+        """Generate a natural language explanation of a reasoning chain.
+
+        Produces a human-readable narrative describing:
+        - What premises were used
+        - What reasoning steps were taken
+        - What conclusion was reached and why
+        - How confident the system is and why
+
+        Args:
+            result: A ReasoningResult to explain.
+
+        Returns:
+            Natural language explanation string.
+        """
+        if not result.chain:
+            return f"No reasoning chain available. Operation: {result.operation_type}, success: {result.success}"
+
+        parts: List[str] = []
+
+        # Opening
+        op_names = {
+            'deductive': 'deductive reasoning (deriving conclusions from premises)',
+            'inductive': 'inductive reasoning (generalizing from observations)',
+            'abductive': 'abductive reasoning (inferring best explanations)',
+            'chain_of_thought': 'chain-of-thought reasoning (multi-step exploration)',
+            'multi_step_chain': 'multi-step chained reasoning (deduction + induction + abduction)',
+            'analogical': 'analogical reasoning (finding structural parallels)',
+            'reason_chain': 'backtracking chain reasoning (with contradiction detection)',
+            'analogy_detection': 'analogy detection (cross-domain pattern matching)',
+            'contradiction_resolution': 'contradiction resolution',
+        }
+        op_desc = op_names.get(result.operation_type, result.operation_type)
+        parts.append(f"Using {op_desc}:")
+
+        # Premises
+        premises = [s for s in result.chain if s.step_type == 'premise']
+        if premises:
+            parts.append(f"\nStarting from {len(premises)} premise(s):")
+            for i, p in enumerate(premises[:5], 1):
+                text = str(p.content.get('text', p.content.get('type', 'unknown')))[:120]
+                parts.append(f"  {i}. [{p.node_id}] {text} (confidence: {p.confidence:.2f})")
+
+        # Observations
+        observations = [s for s in result.chain if s.step_type == 'observation']
+        if observations:
+            parts.append(f"\nExamined {len(observations)} observation(s) along the way.")
+
+        # Rules applied
+        rules = [s for s in result.chain if s.step_type == 'rule']
+        if rules:
+            for r in rules[:3]:
+                op = r.content.get('operation', 'inference')
+                parts.append(f"\nApplied rule: {op}")
+
+        # Conclusions
+        conclusions = [s for s in result.chain if s.step_type == 'conclusion']
+        if conclusions:
+            parts.append(f"\nReached {len(conclusions)} conclusion(s):")
+            for c in conclusions[:3]:
+                text = str(c.content.get('text', c.content.get('type', 'derived')))[:120]
+                parts.append(f"  -> [{c.node_id}] {text} (confidence: {c.confidence:.2f})")
+
+        # Confidence assessment
+        conf = result.confidence
+        if conf >= 0.8:
+            conf_desc = "high confidence"
+        elif conf >= 0.5:
+            conf_desc = "moderate confidence"
+        elif conf >= 0.2:
+            conf_desc = "low confidence"
+        else:
+            conf_desc = "very low confidence"
+        parts.append(f"\nOverall confidence: {conf:.4f} ({conf_desc})")
+
+        # Block height context
+        if result.block_height > 0:
+            parts.append(f"Reasoning performed at block height {result.block_height}.")
+
+        # Success/failure
+        if result.success:
+            parts.append("\nReasoning completed successfully.")
+        else:
+            parts.append(f"\nReasoning did not reach a strong conclusion: {result.explanation}")
+
+        return '\n'.join(parts)

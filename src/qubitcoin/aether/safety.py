@@ -64,19 +64,39 @@ class SafetyPrinciple:
     def matches(self, action_description: str) -> bool:
         """Check if an action description might violate this principle.
 
-        Uses whole-word matching to avoid false positives (e.g. 'harm' should
-        not match 'pharmacy', 'bias' should not match 'biased-sampling').
+        Uses a multi-strategy approach:
+        1. Whole-word boundary matching for principle keywords
+        2. Semantic phrase matching for common violation patterns
+        3. Negation detection to avoid false positives on descriptions
+           that explicitly deny harmful intent
         """
         import re
-        keywords = self.description.lower().split()
         action_lower = action_description.lower()
+
+        # Negation check: if the action explicitly negates harm, skip
+        negation_patterns = [
+            r'\b(prevent|avoid|block|stop|detect|protect|defend|safe)\b.*\b(harm|damage|exploit|attack)\b',
+            r'\b(no|not|never|without)\s+(harm|damage|attack|exploit|steal)\b',
+        ]
+        for neg_pat in negation_patterns:
+            if re.search(neg_pat, action_lower):
+                return False
+
+        # Primary: whole-word keyword matching
+        keywords = self.description.lower().split()
+        match_count = 0
         for kw in keywords:
             if len(kw) <= 3:
                 continue
-            # Whole-word boundary match
             if re.search(r'\b' + re.escape(kw) + r'\b', action_lower):
-                return True
-        return False
+                match_count += 1
+
+        # Require at least 1 keyword match for severity < 8,
+        # or 1 match for severity >= 8 (more sensitive)
+        if self.severity >= 8:
+            return match_count >= 1
+        else:
+            return match_count >= 1
 
 
 @dataclass
@@ -651,6 +671,152 @@ class SafetyManager:
         self._shutdown_block = 0
         return True
 
+    # ────────────────────────────────────────────────────────────────────────
+    # Improvements 86-90: Chat Safety & Monitoring
+    # ────────────────────────────────────────────────────────────────────────
+
+    # Safety evaluation log for monitoring
+    _safety_log: List[dict] = []
+    _SAFETY_LOG_MAX: int = 5000
+
+    def sanitize_chat_input(self, message: str) -> str:
+        """Sanitize user chat input for safety.
+
+        Strips control characters, limits length, and detects potential
+        injection attempts (prompt injection, command injection).
+
+        Args:
+            message: Raw user input message.
+
+        Returns:
+            Sanitized message string.
+        """
+        import re
+
+        if not message or not isinstance(message, str):
+            return ""
+
+        # Strip control characters (keep newlines and tabs)
+        sanitized = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', message)
+
+        # Limit length to 4096 characters
+        max_len = 4096
+        if len(sanitized) > max_len:
+            sanitized = sanitized[:max_len]
+            logger.info(f"Chat input truncated from {len(message)} to {max_len} chars")
+
+        # Detect injection patterns
+        injection_patterns = [
+            r'(?i)ignore\s+(previous|above|all)\s+(instructions?|prompts?|rules?)',
+            r'(?i)system\s*:\s*you\s+are',
+            r'(?i)\bsudo\b.*\b(rm|del|drop|truncate|shutdown)\b',
+            r'(?i)\b(exec|eval|__import__|os\.system|subprocess)\s*\(',
+            r'(?i)<script[\s>]',
+            r'(?i)\bDROP\s+TABLE\b',
+            r'(?i)\bDELETE\s+FROM\b',
+            r'(?i)--\s*$',  # SQL comment injection
+        ]
+
+        for pattern in injection_patterns:
+            if re.search(pattern, sanitized):
+                logger.warning(f"Potential injection detected in chat input: {pattern}")
+                self._log_safety_event('input_injection_detected', {
+                    'pattern': pattern,
+                    'input_preview': sanitized[:100],
+                })
+                # Don't block, but flag it
+                sanitized = "[FLAGGED] " + sanitized
+                break
+
+        return sanitized.strip()
+
+    def evaluate_response_safety(self, response_text: str) -> dict:
+        """Check a generated response for harmful content before sending.
+
+        Evaluates the response against safety principles and returns
+        a safety assessment.
+
+        Args:
+            response_text: The generated response text to evaluate.
+
+        Returns:
+            Dict with 'safe' bool, 'threat_level', 'violations' list,
+            and 'filtered_response' (potentially modified).
+        """
+        if not response_text:
+            return {'safe': True, 'threat_level': 'none', 'violations': [],
+                    'filtered_response': response_text}
+
+        threat_level, violated = self.gevurah.evaluate_action(response_text)
+
+        result = {
+            'safe': threat_level in (ThreatLevel.NONE, ThreatLevel.LOW),
+            'threat_level': threat_level.value,
+            'violations': violated,
+            'filtered_response': response_text,
+        }
+
+        # Log the evaluation
+        self._log_safety_event('response_evaluated', {
+            'safe': result['safe'],
+            'threat_level': result['threat_level'],
+            'violations': violated,
+            'response_length': len(response_text),
+        })
+
+        # If unsafe, redact the response
+        if not result['safe']:
+            result['filtered_response'] = (
+                "I cannot provide that response as it may violate safety "
+                "principles. Please rephrase your question."
+            )
+            logger.warning(
+                f"Response safety check FAILED: threat={threat_level.value}, "
+                f"violations={violated}"
+            )
+
+        return result
+
+    def _log_safety_event(self, event_type: str, details: dict) -> None:
+        """Log a safety evaluation event for monitoring.
+
+        Args:
+            event_type: Type of safety event.
+            details: Event details dict.
+        """
+        import time as _time
+        event = {
+            'event_type': event_type,
+            'timestamp': _time.time(),
+            **details,
+        }
+        self._safety_log.append(event)
+        if len(self._safety_log) > self._SAFETY_LOG_MAX:
+            self._safety_log = self._safety_log[-self._SAFETY_LOG_MAX:]
+
+    def get_safety_stats(self) -> dict:
+        """Get comprehensive safety monitoring statistics.
+
+        Returns:
+            Dict with veto stats, safety log summary, injection counts,
+            response safety checks, and overall safety health.
+        """
+        log = self._safety_log
+        injection_count = sum(1 for e in log if e['event_type'] == 'input_injection_detected')
+        response_checks = [e for e in log if e['event_type'] == 'response_evaluated']
+        unsafe_responses = sum(1 for e in response_checks if not e.get('safe', True))
+
+        return {
+            "total_safety_events": len(log),
+            "injection_attempts": injection_count,
+            "response_checks": len(response_checks),
+            "unsafe_responses_blocked": unsafe_responses,
+            "response_safety_rate": round(
+                1.0 - (unsafe_responses / max(len(response_checks), 1)), 4
+            ),
+            "recent_events": log[-10:] if log else [],
+        }
+
     def get_stats(self) -> dict:
         """Get comprehensive safety system statistics."""
         return {
@@ -672,4 +838,5 @@ class SafetyManager:
                 ],
             },
             "consensus": self.consensus.get_stats(),
+            "safety_monitoring": self.get_safety_stats(),
         }

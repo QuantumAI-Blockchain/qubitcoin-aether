@@ -108,9 +108,9 @@ class AetherGenesis:
                 # --- Cryptography ---
                 {
                     'type': 'axiom_cryptographic',
-                    'description': 'CRYSTALS-Dilithium2 post-quantum signatures secure all transactions',
-                    'algorithm': 'Dilithium2',
-                    'signature_size_bytes': 3293,
+                    'description': 'CRYSTALS-Dilithium5 post-quantum signatures secure all transactions (NIST Level 5)',
+                    'algorithm': 'Dilithium5',
+                    'signature_size_bytes': 4627,
                 },
                 {
                     'type': 'axiom_hashing',
@@ -299,3 +299,175 @@ class AetherGenesis:
                 session.commit()
         except Exception as e:
             logger.debug(f"Failed to record consciousness event: {e}")
+
+    # Expected axiom types seeded at genesis
+    EXPECTED_AXIOM_TYPES = frozenset([
+        'axiom_economic', 'axiom_supply', 'axiom_premine',
+        'axiom_quantum', 'axiom_vqe', 'axiom_difficulty',
+        'axiom_cryptographic', 'axiom_hashing',
+        'axiom_utxo', 'axiom_storage',
+        'axiom_consciousness', 'axiom_reasoning', 'axiom_sephirot', 'axiom_safety',
+        'axiom_privacy', 'axiom_qvm', 'axiom_compliance',
+        'axiom_bridge', 'axiom_qusd',
+        'axiom_temporal', 'axiom_emergence', 'axiom_higgs',
+    ])
+
+    def validate_genesis(self) -> dict:
+        """Validate that all genesis axioms are present and consistent.
+
+        Checks:
+          1. system_birth consciousness event exists at block 0
+          2. Phi baseline measurement exists at block 0
+          3. All 22 expected axiom types are present in the knowledge graph
+          4. Critical axiom values are consistent with Config
+
+        Returns:
+            Dict with 'valid' (bool), 'checks' (list of check results),
+            and 'missing_axioms' (list of missing axiom type names).
+        """
+        checks: list = []
+        missing_axioms: list = []
+
+        # 1. Check genesis consciousness event
+        genesis_init = self.is_genesis_initialized()
+        checks.append({
+            'check': 'system_birth_event',
+            'passed': genesis_init,
+            'detail': 'system_birth consciousness event at block 0',
+        })
+
+        # 2. Check Phi baseline measurement
+        phi_exists = False
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                result = session.execute(
+                    text("SELECT COUNT(*) FROM phi_measurements WHERE block_height = 0")
+                ).scalar()
+                phi_exists = (result or 0) > 0
+        except Exception:
+            pass
+        checks.append({
+            'check': 'phi_baseline',
+            'passed': phi_exists,
+            'detail': 'Phi=0.0 baseline measurement at block 0',
+        })
+
+        # 3. Check all axiom types present in knowledge graph
+        if self.kg:
+            present_types: set = set()
+            for node in self.kg.nodes.values():
+                ntype = node.content.get('type', '') if hasattr(node, 'content') else ''
+                if ntype.startswith('axiom_'):
+                    present_types.add(ntype)
+            missing_axioms = sorted(self.EXPECTED_AXIOM_TYPES - present_types)
+            checks.append({
+                'check': 'axiom_completeness',
+                'passed': len(missing_axioms) == 0,
+                'detail': f'{len(present_types)}/{len(self.EXPECTED_AXIOM_TYPES)} axiom types present',
+            })
+        else:
+            missing_axioms = sorted(self.EXPECTED_AXIOM_TYPES)
+            checks.append({
+                'check': 'axiom_completeness',
+                'passed': False,
+                'detail': 'Knowledge graph not available',
+            })
+
+        # 4. Config consistency checks
+        config_consistent = True
+        config_issues: list = []
+        if self.kg:
+            for node in self.kg.nodes.values():
+                content = node.content if hasattr(node, 'content') else {}
+                ntype = content.get('type', '')
+                if ntype == 'axiom_cryptographic':
+                    if content.get('algorithm') != 'Dilithium5':
+                        config_issues.append('axiom_cryptographic.algorithm != Dilithium5')
+                        config_consistent = False
+                    if content.get('signature_size_bytes') != 4627:
+                        config_issues.append('axiom_cryptographic.signature_size_bytes != 4627')
+                        config_consistent = False
+                elif ntype == 'axiom_supply':
+                    if content.get('max_supply') != str(Config.MAX_SUPPLY):
+                        config_issues.append(f'axiom_supply.max_supply mismatch')
+                        config_consistent = False
+        checks.append({
+            'check': 'config_consistency',
+            'passed': config_consistent,
+            'detail': '; '.join(config_issues) if config_issues else 'All axiom values match Config',
+        })
+
+        all_passed = all(c['passed'] for c in checks)
+        return {
+            'valid': all_passed,
+            'checks': checks,
+            'missing_axioms': missing_axioms,
+        }
+
+    def get_genesis_summary(self) -> str:
+        """Return a human-readable summary of what was seeded at genesis.
+
+        Returns:
+            Multi-line string describing the genesis state.
+        """
+        lines: list = [
+            '=== Aether Tree Genesis Summary ===',
+            '',
+        ]
+
+        # Genesis initialization status
+        initialized = self.is_genesis_initialized()
+        lines.append(f'Genesis initialized: {"Yes" if initialized else "No"}')
+
+        # Knowledge graph stats
+        if self.kg:
+            total_nodes = len(self.kg.nodes)
+            axiom_nodes = sum(
+                1 for n in self.kg.nodes.values()
+                if (n.content.get('type', '') if hasattr(n, 'content') else '').startswith('axiom')
+            )
+            lines.append(f'Knowledge nodes: {total_nodes} total ({axiom_nodes} axioms)')
+        else:
+            lines.append('Knowledge graph: not available')
+
+        # Phi baseline
+        phi_value: float = 0.0
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                result = session.execute(
+                    text("SELECT phi_value FROM phi_measurements WHERE block_height = 0 LIMIT 1")
+                ).scalar()
+                if result is not None:
+                    phi_value = float(result)
+                    lines.append(f'Phi baseline: {phi_value}')
+                else:
+                    lines.append('Phi baseline: not recorded')
+        except Exception:
+            lines.append('Phi baseline: unknown (DB unavailable)')
+
+        # Consciousness event
+        lines.append(f'Consciousness event: system_birth at block 0')
+
+        # Chain parameters from axioms
+        lines.append('')
+        lines.append('Chain parameters seeded:')
+        lines.append(f'  Chain ID: {Config.CHAIN_ID}')
+        lines.append(f'  Max supply: {Config.MAX_SUPPLY:,.0f} QBC')
+        lines.append(f'  Genesis premine: {Config.GENESIS_PREMINE:,.0f} QBC')
+        lines.append(f'  Initial reward: {Config.INITIAL_REWARD} QBC')
+        lines.append(f'  Block time: {Config.TARGET_BLOCK_TIME}s')
+        lines.append(f'  Cryptography: CRYSTALS-Dilithium5 (NIST Level 5, ~4627-byte sigs)')
+        lines.append(f'  Phi (golden ratio): {Config.PHI}')
+
+        # Validation
+        validation = self.validate_genesis()
+        lines.append('')
+        passed = sum(1 for c in validation['checks'] if c['passed'])
+        total = len(validation['checks'])
+        lines.append(f'Validation: {passed}/{total} checks passed')
+        if validation['missing_axioms']:
+            lines.append(f'  Missing axioms: {", ".join(validation["missing_axioms"])}')
+
+        return '\n'.join(lines)

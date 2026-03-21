@@ -188,12 +188,125 @@ class AetherWSManager:
             # No event loop available (e.g., during testing)
             pass
 
+    async def heartbeat(self, interval: float = 30.0) -> None:
+        """Send periodic heartbeat pings to detect dead connections.
+
+        Should be run as a background task. Removes clients that fail
+        to respond to heartbeat within the interval.
+
+        Args:
+            interval: Seconds between heartbeat pings.
+        """
+        while True:
+            try:
+                await asyncio.sleep(interval)
+                now = time.time()
+                dead: List[int] = []
+
+                for client_id, client in self._clients.items():
+                    # If no activity for 2x interval, consider dead
+                    if now - client.last_activity > interval * 2:
+                        try:
+                            await client.websocket.send_text(
+                                json.dumps({'type': 'heartbeat', 'timestamp': now})
+                            )
+                            client.last_activity = now
+                        except Exception:
+                            dead.append(client_id)
+
+                for client_id in dead:
+                    if client_id in self._clients:
+                        del self._clients[client_id]
+
+                if dead:
+                    logger.debug(f"Aether WS heartbeat: removed {len(dead)} dead connections")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.debug(f"Heartbeat error: {e}")
+
+    def buffer_event(self, event_type: str, data: dict,
+                     session_id: Optional[str] = None) -> None:
+        """Buffer an event for later delivery.
+
+        Used when no clients are connected — events are stored and
+        replayed when clients reconnect. Maintains a bounded buffer
+        per event type.
+
+        Args:
+            event_type: Event type.
+            data: Event data.
+            session_id: Optional session scope.
+        """
+        if not hasattr(self, '_event_buffer'):
+            self._event_buffer: Dict[str, List[dict]] = {}
+
+        if event_type not in self._event_buffer:
+            self._event_buffer[event_type] = []
+
+        self._event_buffer[event_type].append({
+            'data': data,
+            'session_id': session_id,
+            'timestamp': time.time(),
+        })
+
+        # Keep buffer bounded (last 100 events per type)
+        if len(self._event_buffer[event_type]) > 100:
+            self._event_buffer[event_type] = self._event_buffer[event_type][-100:]
+
+    async def replay_buffered(self, client_id: int) -> int:
+        """Replay buffered events to a newly connected client.
+
+        Args:
+            client_id: The client to replay events to.
+
+        Returns:
+            Number of events replayed.
+        """
+        if not hasattr(self, '_event_buffer'):
+            return 0
+
+        client = self._clients.get(client_id)
+        if not client:
+            return 0
+
+        replayed = 0
+        for event_type, events in self._event_buffer.items():
+            if event_type not in client.subscriptions:
+                continue
+
+            # Only replay events from last 5 minutes
+            cutoff = time.time() - 300
+            recent = [e for e in events if e['timestamp'] > cutoff]
+
+            for event in recent[-10]:  # Max 10 per type
+                if event_type == 'aether_response' and event.get('session_id'):
+                    if client.session_id != event['session_id']:
+                        continue
+                try:
+                    await client.websocket.send_text(json.dumps({
+                        'type': event_type,
+                        'data': event['data'],
+                        'timestamp': event['timestamp'],
+                        'replayed': True,
+                    }))
+                    replayed += 1
+                except Exception:
+                    break
+
+        return replayed
+
     def get_stats(self) -> dict:
         """Get WebSocket streaming statistics."""
+        buffer_sizes = {}
+        if hasattr(self, '_event_buffer'):
+            buffer_sizes = {k: len(v) for k, v in self._event_buffer.items()}
+
         return {
             'connected_clients': len(self._clients),
             'max_clients': self._max_clients,
             'total_events_broadcast': self._total_events_broadcast,
+            'event_buffer_sizes': buffer_sizes,
             'clients': [
                 {
                     'session_id': c.session_id,

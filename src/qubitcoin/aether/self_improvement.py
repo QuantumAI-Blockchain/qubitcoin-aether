@@ -62,6 +62,10 @@ class ImprovementAction:
     reason: str
     block_height: int
     timestamp: float = field(default_factory=time.time)
+    # Outcome tracking (Improvement 91)
+    outcome_measured: bool = False
+    outcome_improved: Optional[bool] = None
+    post_adjustment_success_rate: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -72,6 +76,8 @@ class ImprovementAction:
             'reason': self.reason,
             'block_height': self.block_height,
             'timestamp': self.timestamp,
+            'outcome_measured': self.outcome_measured,
+            'outcome_improved': self.outcome_improved,
         }
 
 
@@ -147,6 +153,19 @@ class SelfImprovementEngine:
 
         # Minimum observations per (strategy, domain) before adjusting
         self._min_observations: int = 5
+
+        # Rollback mechanism (Improvement 92)
+        self._weight_snapshots: List[Tuple[int, Dict[str, Dict[str, float]]]] = []
+        self._max_snapshots: int = 10
+
+        # Performance regression detection (Improvement 94)
+        self._cycle_performance_history: List[dict] = []
+
+        # Adaptive learning rate (Improvement 95)
+        self._adaptive_alpha: Dict[str, float] = {}  # per-domain alpha
+
+        # Improvement cycle statistics for chat exposure (Improvement 95)
+        self._cycle_stats_history: List[dict] = []
 
         logger.info(
             "SelfImprovementEngine initialized: interval=%d, "
@@ -227,8 +246,19 @@ class SelfImprovementEngine:
         weak_areas: List[dict] = []
         strong_areas: List[dict] = []
 
+        # Save weight snapshot for rollback (Improvement 92)
+        import copy
+        snapshot = copy.deepcopy(self._domain_weights)
+        self._weight_snapshots.append((block_height, snapshot))
+        if len(self._weight_snapshots) > self._max_snapshots:
+            self._weight_snapshots = self._weight_snapshots[-self._max_snapshots:]
+
+        # Measure pre-cycle performance for regression detection (Improvement 94)
+        pre_cycle_stats = self._compute_performance_stats()
+        pre_cycle_success = self._compute_overall_success_rate(pre_cycle_stats)
+
         # Step 1: Compute per-domain, per-strategy success rates
-        domain_strategy_stats = self._compute_performance_stats()
+        domain_strategy_stats = pre_cycle_stats
 
         # Step 2 & 3: Adjust weights based on performance
         for domain, strategy_stats in domain_strategy_stats.items():
@@ -248,8 +278,16 @@ class SelfImprovementEngine:
                 # Map success_rate [0,1] to weight space
                 target_weight = success_rate
 
-                # EMA update
-                new_weight = old_weight * (1.0 - self._ema_alpha) + target_weight * self._ema_alpha
+                # Adaptive EMA: use domain-specific alpha (Improvement 95)
+                domain_alpha = self._adaptive_alpha.get(domain, self._ema_alpha)
+                # Adapt alpha based on data quantity: more data = more responsive
+                if stats['attempts'] > 50:
+                    domain_alpha = min(0.5, domain_alpha * 1.05)
+                elif stats['attempts'] < 10:
+                    domain_alpha = max(0.1, domain_alpha * 0.95)
+                self._adaptive_alpha[domain] = domain_alpha
+
+                new_weight = old_weight * (1.0 - domain_alpha) + target_weight * domain_alpha
 
                 # Clamp to safety bounds
                 new_weight = max(self._min_weight, min(self._max_weight, new_weight))
@@ -308,15 +346,32 @@ class SelfImprovementEngine:
 
         cycle_duration = time.time() - cycle_start
 
+        # Performance regression detection (Improvement 94)
+        post_cycle_stats = self._compute_performance_stats()
+        post_cycle_success = self._compute_overall_success_rate(post_cycle_stats)
+        regression_detected = False
+        if pre_cycle_success > 0 and post_cycle_success < pre_cycle_success * 0.9:
+            regression_detected = True
+            logger.warning(
+                "Performance regression detected after cycle #%d: "
+                "%.4f -> %.4f (%.1f%% drop). Consider rollback.",
+                self._cycles_completed + 1, pre_cycle_success, post_cycle_success,
+                (1.0 - post_cycle_success / pre_cycle_success) * 100
+            )
+
+        # Track outcome of previous cycle's adjustments (Improvement 91)
+        self._evaluate_previous_actions(post_cycle_stats)
+
         logger.info(
             "Self-improvement cycle #%d at block %d: "
-            "%d adjustments, %d weak areas, %d strong areas (%.3fs)",
+            "%d adjustments, %d weak areas, %d strong areas (%.3fs)%s",
             self._cycles_completed, block_height,
             adjustments_this_cycle, len(weak_areas), len(strong_areas),
             cycle_duration,
+            " [REGRESSION]" if regression_detected else "",
         )
 
-        return {
+        cycle_result = {
             'cycle_number': self._cycles_completed,
             'block_height': block_height,
             'adjustments': adjustments_this_cycle,
@@ -324,7 +379,17 @@ class SelfImprovementEngine:
             'strong_areas': strong_areas,
             'meta_node_id': meta_node_id,
             'duration_seconds': round(cycle_duration, 4),
+            'regression_detected': regression_detected,
+            'pre_success_rate': round(pre_cycle_success, 4),
+            'post_success_rate': round(post_cycle_success, 4),
         }
+
+        # Store for chat exposure (Improvement 95)
+        self._cycle_stats_history.append(cycle_result)
+        if len(self._cycle_stats_history) > 50:
+            self._cycle_stats_history = self._cycle_stats_history[-50:]
+
+        return cycle_result
 
     def _compute_performance_stats(self) -> Dict[str, Dict[str, dict]]:
         """Compute per-domain, per-strategy performance statistics.
@@ -564,6 +629,144 @@ class SelfImprovementEngine:
         actions = self._actions[-limit:]
         actions.reverse()
         return [a.to_dict() for a in actions]
+
+    def _compute_overall_success_rate(self, stats: Dict[str, Dict[str, dict]]) -> float:
+        """Compute overall success rate from performance stats."""
+        total_attempts = 0
+        total_correct = 0
+        for domain_stats in stats.values():
+            for strategy_stats in domain_stats.values():
+                total_attempts += strategy_stats.get('attempts', 0)
+                total_correct += strategy_stats.get('correct', 0)
+        return total_correct / max(total_attempts, 1)
+
+    def _evaluate_previous_actions(self, current_stats: Dict[str, Dict[str, dict]]) -> None:
+        """Evaluate whether previous improvement actions helped.
+
+        Marks actions as outcome_measured and determines if the
+        adjustment improved performance for that strategy+domain.
+        """
+        for action in reversed(self._actions[-20:]):
+            if action.outcome_measured:
+                continue
+            domain_stats = current_stats.get(action.domain, {})
+            strategy_stats = domain_stats.get(action.strategy, {})
+            if strategy_stats.get('attempts', 0) >= self._min_observations:
+                current_rate = strategy_stats['correct'] / strategy_stats['attempts']
+                action.outcome_measured = True
+                action.post_adjustment_success_rate = current_rate
+                # Determine if adjustment direction was correct
+                weight_increased = action.new_weight > action.old_weight
+                rate_is_good = current_rate > 0.5
+                action.outcome_improved = weight_increased == rate_is_good
+
+    def rollback_to_snapshot(self, snapshot_index: int = -1) -> bool:
+        """Rollback weights to a previous snapshot.
+
+        Args:
+            snapshot_index: Index of snapshot to restore (-1 = most recent).
+
+        Returns:
+            True if rollback was performed.
+        """
+        if not self._weight_snapshots:
+            return False
+
+        try:
+            block_height, snapshot = self._weight_snapshots[snapshot_index]
+            import copy
+            self._domain_weights = copy.deepcopy(snapshot)
+            logger.info(
+                "Rolled back weights to snapshot from block %d", block_height
+            )
+            # Push to metacognition
+            if self.metacognition is not None:
+                self._sync_to_metacognition()
+            return True
+        except (IndexError, KeyError) as e:
+            logger.debug("Rollback failed: %s", e)
+            return False
+
+    def get_domain_improvement_strategy(self, domain: str) -> dict:
+        """Get domain-specific improvement strategy recommendation.
+
+        Analyzes per-domain performance to recommend whether to explore
+        new strategies or exploit known-good ones.
+
+        Args:
+            domain: Knowledge domain name.
+
+        Returns:
+            Dict with recommendation and reasoning.
+        """
+        weights = self.get_domain_weights(domain)
+        stats = self._compute_performance_stats()
+        domain_stats = stats.get(domain, {})
+
+        total_attempts = sum(s.get('attempts', 0) for s in domain_stats.values())
+        total_correct = sum(s.get('correct', 0) for s in domain_stats.values())
+        success_rate = total_correct / max(total_attempts, 1)
+
+        # Determine if we should explore or exploit
+        if total_attempts < 30:
+            mode = 'explore'
+            reason = f"Not enough data ({total_attempts} attempts). Try diverse strategies."
+        elif success_rate > 0.7:
+            mode = 'exploit'
+            best_strategy = self.get_best_strategy(domain)
+            reason = f"Strong performance ({success_rate:.1%}). Focus on {best_strategy}."
+        elif success_rate < 0.3:
+            mode = 'explore_aggressively'
+            reason = f"Weak performance ({success_rate:.1%}). Try radically different approaches."
+        else:
+            mode = 'balanced'
+            reason = f"Moderate performance ({success_rate:.1%}). Mix exploration and exploitation."
+
+        return {
+            'domain': domain,
+            'mode': mode,
+            'reason': reason,
+            'success_rate': round(success_rate, 4),
+            'total_attempts': total_attempts,
+            'current_weights': {k: round(v, 4) for k, v in weights.items()},
+            'best_strategy': self.get_best_strategy(domain),
+        }
+
+    def get_cycle_stats_for_chat(self) -> dict:
+        """Get improvement cycle statistics formatted for chat exposure.
+
+        Returns:
+            Dict with recent cycle summaries and trends.
+        """
+        if not self._cycle_stats_history:
+            return {
+                'cycles_completed': 0,
+                'recent_cycles': [],
+                'trend': 'no_data',
+            }
+
+        recent = self._cycle_stats_history[-5:]
+        success_rates = [c.get('post_success_rate', 0) for c in recent]
+
+        if len(success_rates) >= 2:
+            if success_rates[-1] > success_rates[0]:
+                trend = 'improving'
+            elif success_rates[-1] < success_rates[0]:
+                trend = 'declining'
+            else:
+                trend = 'stable'
+        else:
+            trend = 'insufficient_data'
+
+        return {
+            'cycles_completed': self._cycles_completed,
+            'total_adjustments': self._total_adjustments,
+            'recent_cycles': recent,
+            'trend': trend,
+            'regressions_detected': sum(
+                1 for c in self._cycle_stats_history if c.get('regression_detected')
+            ),
+        }
 
     def get_stats(self) -> dict:
         """Get comprehensive self-improvement statistics.

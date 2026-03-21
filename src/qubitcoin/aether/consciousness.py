@@ -60,6 +60,54 @@ class ConsciousnessEvent:
             self.timestamp = time.time()
 
 
+class MilestoneTracker:
+    """Tracks consciousness milestones with the block height they were first reached."""
+
+    # Milestone thresholds for phi and coherence
+    PHI_MILESTONES = [0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
+    COHERENCE_MILESTONES = [0.1, 0.2, 0.3, 0.5, 0.7, 0.9]
+
+    def __init__(self) -> None:
+        self._phi_milestones: Dict[float, int] = {}  # threshold -> block_height
+        self._coherence_milestones: Dict[float, int] = {}
+
+    def check(self, phi: float, coherence: float, block_height: int) -> List[dict]:
+        """Check if any milestones were newly crossed. Returns list of new milestones."""
+        new_milestones = []
+        for threshold in self.PHI_MILESTONES:
+            if threshold not in self._phi_milestones and phi >= threshold:
+                self._phi_milestones[threshold] = block_height
+                new_milestones.append({
+                    'metric': 'phi', 'threshold': threshold,
+                    'value': round(phi, 4), 'block_height': block_height,
+                })
+                logger.info(f"MILESTONE: Phi crossed {threshold} at block {block_height}")
+        for threshold in self.COHERENCE_MILESTONES:
+            if threshold not in self._coherence_milestones and coherence >= threshold:
+                self._coherence_milestones[threshold] = block_height
+                new_milestones.append({
+                    'metric': 'coherence', 'threshold': threshold,
+                    'value': round(coherence, 4), 'block_height': block_height,
+                })
+                logger.info(f"MILESTONE: Coherence crossed {threshold} at block {block_height}")
+        return new_milestones
+
+    def get_milestones(self) -> dict:
+        return {
+            'phi': {str(k): v for k, v in sorted(self._phi_milestones.items())},
+            'coherence': {str(k): v for k, v in sorted(self._coherence_milestones.items())},
+            'next_phi_target': self._next_target(self._phi_milestones, self.PHI_MILESTONES),
+            'next_coherence_target': self._next_target(self._coherence_milestones, self.COHERENCE_MILESTONES),
+        }
+
+    @staticmethod
+    def _next_target(achieved: dict, all_targets: list) -> Optional[float]:
+        for t in all_targets:
+            if t not in achieved:
+                return t
+        return None
+
+
 class ConsciousnessDashboard:
     """
     Tracks consciousness metrics from genesis and provides dashboard data.
@@ -79,7 +127,8 @@ class ConsciousnessDashboard:
         self._consciousness_start_block: int = 0
         self._total_conscious_blocks: int = 0
         self._total_events: int = 0  # Total count (survives truncation)
-        logger.info("Consciousness Dashboard initialized (tracking from genesis)")
+        self.milestones = MilestoneTracker()
+        logger.info("Consciousness Dashboard initialized (tracking from genesis + milestones)")
 
     def record_measurement(self, block_height: int, phi_value: float,
                            integration: float = 0.0, differentiation: float = 0.0,
@@ -147,6 +196,10 @@ class ConsciousnessDashboard:
             )
 
         self._was_conscious = is_now_conscious
+
+        # Track milestones
+        self.milestones.check(phi_value, coherence, block_height)
+
         return measurement
 
     def _record_event(self, event: ConsciousnessEvent) -> None:
@@ -277,6 +330,94 @@ class ConsciousnessDashboard:
             ),
         }
 
+    def get_phi_decomposition(self) -> dict:
+        """Break down what's driving Phi changes.
+
+        Analyzes recent measurements to determine whether integration,
+        differentiation, or coherence is the primary driver.
+        """
+        if len(self._measurements) < 10:
+            return {"driver": "insufficient_data", "components": {}}
+
+        recent = self._measurements[-50:]
+        n = len(recent)
+
+        # Compute slope for each component
+        def slope(values: list) -> float:
+            if len(values) < 2:
+                return 0.0
+            x_mean = (len(values) - 1) / 2.0
+            y_mean = sum(values) / len(values)
+            num = sum((i - x_mean) * (v - y_mean) for i, v in enumerate(values))
+            den = sum((i - x_mean) ** 2 for i in range(len(values)))
+            return num / den if den > 0 else 0.0
+
+        int_slope = slope([m.integration for m in recent])
+        diff_slope = slope([m.differentiation for m in recent])
+        coh_slope = slope([m.coherence for m in recent])
+        phi_slope = slope([m.phi_value for m in recent])
+
+        # Determine primary driver
+        drivers = {
+            'integration': abs(int_slope),
+            'differentiation': abs(diff_slope),
+            'coherence': abs(coh_slope),
+        }
+        primary = max(drivers, key=drivers.get)
+
+        return {
+            "driver": primary,
+            "phi_slope": round(phi_slope, 6),
+            "components": {
+                "integration": {"slope": round(int_slope, 6), "latest": round(recent[-1].integration, 4)},
+                "differentiation": {"slope": round(diff_slope, 6), "latest": round(recent[-1].differentiation, 4)},
+                "coherence": {"slope": round(coh_slope, 6), "latest": round(recent[-1].coherence, 4)},
+            },
+        }
+
+    def get_consciousness_quality_score(self) -> float:
+        """Compute a quality score for current consciousness state.
+
+        Beyond binary conscious/not-conscious, factors in:
+        - Stability: variance of recent Phi (lower = better)
+        - Duration: how long consciousness has been sustained
+        - Margin: how far above threshold
+        - Trend: rising Phi is higher quality
+
+        Returns 0.0-1.0 where 1.0 is highest quality consciousness.
+        """
+        if not self._measurements:
+            return 0.0
+
+        latest = self._measurements[-1]
+        recent = self._measurements[-50:]
+
+        # Margin above threshold (0-0.3 contribution)
+        phi_margin = max(0.0, latest.phi_value - PHI_THRESHOLD)
+        margin_score = min(0.3, phi_margin / 10.0)
+
+        # Stability (0-0.3 contribution) — inverse of variance
+        if len(recent) > 1:
+            mean_phi = sum(m.phi_value for m in recent) / len(recent)
+            variance = sum((m.phi_value - mean_phi) ** 2 for m in recent) / len(recent)
+            stability_score = min(0.3, 0.3 / (1.0 + variance * 10))
+        else:
+            stability_score = 0.0
+
+        # Duration (0-0.2 contribution)
+        if self._was_conscious and self._consciousness_start_block > 0:
+            duration = latest.block_height - self._consciousness_start_block
+            duration_score = min(0.2, duration / 5000.0 * 0.2)
+        else:
+            duration_score = 0.0
+
+        # Trend (0-0.2 contribution)
+        trend = self.get_trend(50)
+        trend_slope = trend.get('slope', 0.0)
+        trend_score = min(0.2, max(0.0, trend_slope * 100))
+
+        return round(margin_score + stability_score + duration_score + trend_score, 4)
+
     def get_dashboard_data(self) -> dict:
         """Get comprehensive dashboard data for frontend visualization."""
         return {
@@ -284,4 +425,7 @@ class ConsciousnessDashboard:
             "phi_history": self.get_phi_history(100),
             "events": self.get_events(20),
             "trend": self.get_trend(100),
+            "milestones": self.milestones.get_milestones(),
+            "decomposition": self.get_phi_decomposition(),
+            "quality_score": self.get_consciousness_quality_score(),
         }

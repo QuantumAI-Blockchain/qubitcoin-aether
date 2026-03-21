@@ -74,6 +74,9 @@ if _HAS_TORCH:
                         targets: torch.Tensor) -> float:
             """Run one training step with Adam optimizer.
 
+            Includes gradient clipping (max_norm=1.0) and L2 regularization
+            (weight_decay via optimizer) for training stability.
+
             Args:
                 inputs: Tensor of shape [batch_size, in_dim].
                 targets: Tensor of shape [batch_size, 1] with values in {0, 1}.
@@ -84,8 +87,13 @@ if _HAS_TORCH:
             self.train()
             self.optimizer.zero_grad()
             pred = self.forward(inputs)
-            loss = F.binary_cross_entropy(pred, targets)
+            # L2 regularization term (Improvement 80)
+            l2_lambda = 1e-4
+            l2_reg = sum(p.pow(2.0).sum() for p in self.parameters())
+            loss = F.binary_cross_entropy(pred, targets) + l2_lambda * l2_reg
             loss.backward()
+            # Gradient clipping for training stability (Improvement 80)
+            torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
             self.optimizer.step()
             loss_val = float(loss.item())
             self._train_steps += 1
@@ -443,19 +451,32 @@ class GATReasoner:
             return max(edge_type_counts, key=edge_type_counts.get)
         return 'derives'
 
-    def record_outcome(self, prediction_correct: bool) -> None:
+    def record_outcome(self, prediction_correct: bool,
+                       predicted_positive: bool = True) -> None:
         """Record whether a prediction was correct and update weights.
 
         When PyTorch is available, collects training samples into a buffer
         and triggers mini-batch gradient descent when the buffer is full.
         Falls back to evolutionary strategy (perturb_weights) when PyTorch
         is not installed.
+
+        Args:
+            prediction_correct: Whether the overall prediction was correct.
+            predicted_positive: Whether the model predicted positive class.
         """
         if prediction_correct:
             self._correct_predictions += 1
             # Ensure correct_predictions never exceeds total_predictions (Improvement 49)
             if self._correct_predictions > self._total_predictions:
                 self._correct_predictions = self._total_predictions
+
+        # Track for performance metrics (Improvement 80)
+        self._prediction_history.append({
+            'predicted': predicted_positive,
+            'actual': prediction_correct if predicted_positive else not prediction_correct,
+        })
+        if len(self._prediction_history) > 500:
+            self._prediction_history = self._prediction_history[-500:]
 
         if not self._layer1 or not self._layer2:
             return
@@ -472,7 +493,12 @@ class GATReasoner:
 
         # Try backpropagation if PyTorch available and buffer full
         if self.has_pytorch and len(self._training_buffer) >= self.TRAINING_BATCH_SIZE:
-            batch = self._training_buffer[:self.TRAINING_BATCH_SIZE]
+            # Filter low-quality training samples (Improvement 78)
+            quality_batch = [
+                s for s in self._training_buffer[:self.TRAINING_BATCH_SIZE * 2]
+                if self.assess_training_quality(s) >= 0.3
+            ][:self.TRAINING_BATCH_SIZE]
+            batch = quality_batch if quality_batch else self._training_buffer[:self.TRAINING_BATCH_SIZE]
             self._training_buffer = self._training_buffer[self.TRAINING_BATCH_SIZE:]
             loss = self._train_backprop(batch)
             if loss >= 0.0:
@@ -571,9 +597,19 @@ class GATReasoner:
         logits = self._torch_layer2(h)
         pred = torch.sigmoid(logits)
 
-        # Use BCE loss for better gradient signal on binary classification
-        loss = F.binary_cross_entropy(pred, y)
+        # Use BCE loss with L2 regularization for better gradient signal
+        l2_lambda = 1e-4
+        l2_reg = sum(
+            p.pow(2.0).sum()
+            for p in list(self._torch_layer1.parameters()) + list(self._torch_layer2.parameters())
+        )
+        loss = F.binary_cross_entropy(pred, y) + l2_lambda * l2_reg
         loss.backward()
+        # Gradient clipping (Improvement 80)
+        torch.nn.utils.clip_grad_norm_(
+            list(self._torch_layer1.parameters()) + list(self._torch_layer2.parameters()),
+            max_norm=1.0
+        )
         self._optimizer.step()
 
         # Copy updated weights back to GATLayer lists
@@ -792,6 +828,224 @@ class GATReasoner:
             'method': 'gat_neural',
         }
 
+    # ------------------------------------------------------------------
+    # Feature engineering for node embeddings (Improvement 77)
+    # ------------------------------------------------------------------
+
+    def engineer_features(self, kg, node_id: int) -> List[float]:
+        """Engineer rich features for a node beyond raw embeddings.
+
+        Includes:
+        - node_type encoding (one-hot)
+        - domain encoding
+        - edge_count (in + out, log-scaled)
+        - node age (blocks since creation, log-scaled)
+        - confidence
+        - neighbor confidence statistics
+
+        Args:
+            kg: Knowledge graph instance.
+            node_id: Node to engineer features for.
+
+        Returns:
+            Feature vector of fixed dimensionality.
+        """
+        node = kg.nodes.get(node_id)
+        if not node:
+            return [0.0] * 12
+
+        # Node type one-hot (6 dims)
+        type_map = {'observation': 0, 'inference': 1, 'assertion': 2,
+                    'axiom': 3, 'prediction': 4, 'meta_observation': 5}
+        type_vec = [0.0] * 6
+        idx = type_map.get(node.node_type, 5)
+        type_vec[idx] = 1.0
+
+        # Edge counts (log-scaled)
+        out_edges = kg.get_edges_from(node_id)
+        in_edges = kg.get_edges_to(node_id)
+        edge_count = math.log1p(len(out_edges) + len(in_edges))
+
+        # Node age (log of blocks since creation)
+        current_block = getattr(self, '_current_block', 0)
+        age = math.log1p(max(0, current_block - node.source_block))
+
+        # Confidence
+        conf = node.confidence
+
+        # Neighbor confidence stats
+        neighbor_confs = []
+        for e in out_edges:
+            n = kg.nodes.get(e.to_node_id)
+            if n:
+                neighbor_confs.append(n.confidence)
+        for e in in_edges:
+            n = kg.nodes.get(e.from_node_id)
+            if n:
+                neighbor_confs.append(n.confidence)
+
+        if neighbor_confs:
+            avg_neigh_conf = sum(neighbor_confs) / len(neighbor_confs)
+            max_neigh_conf = max(neighbor_confs)
+        else:
+            avg_neigh_conf = 0.0
+            max_neigh_conf = 0.0
+
+        return type_vec + [edge_count, age, conf, avg_neigh_conf, max_neigh_conf, float(len(neighbor_confs))]
+
+    # ------------------------------------------------------------------
+    # Training data quality assessment (Improvement 78)
+    # ------------------------------------------------------------------
+
+    def assess_training_quality(self, sample: dict) -> float:
+        """Assess the quality of a training sample.
+
+        Returns a quality score in [0.0, 1.0]. Low-quality samples
+        (sparse features, ambiguous outcomes) are filtered out.
+
+        Args:
+            sample: Training sample dict with node_features and actual_outcome.
+
+        Returns:
+            Quality score. Samples below 0.3 should be filtered.
+        """
+        node_features = sample.get('node_features', {})
+        if not node_features:
+            return 0.0
+
+        # Feature density: how many nodes have non-zero features
+        non_zero_count = 0
+        for feat in node_features.values():
+            if any(abs(v) > 1e-6 for v in feat):
+                non_zero_count += 1
+
+        density = non_zero_count / max(len(node_features), 1)
+
+        # Feature variance: more varied features = more informative
+        all_vals = []
+        for feat in node_features.values():
+            all_vals.extend(feat)
+        if all_vals:
+            mean_val = sum(all_vals) / len(all_vals)
+            variance = sum((v - mean_val) ** 2 for v in all_vals) / len(all_vals)
+        else:
+            variance = 0.0
+
+        # Normalize variance (sigmoid-like)
+        variance_score = min(1.0, variance * 10.0)
+
+        # Outcome clarity: 0.0 or 1.0 outcomes are clearer than 0.5
+        outcome = sample.get('actual_outcome', 0.5)
+        clarity = abs(outcome - 0.5) * 2.0
+
+        return 0.4 * density + 0.3 * variance_score + 0.3 * clarity
+
+    # ------------------------------------------------------------------
+    # Prediction uncertainty estimation (Improvement 79)
+    # ------------------------------------------------------------------
+
+    def predict_with_uncertainty(self, kg, vector_index,
+                                  query_node_ids: List[int],
+                                  n_samples: int = 5) -> dict:
+        """Predict with uncertainty estimation using dropout-like perturbation.
+
+        Runs multiple forward passes with small random perturbations to
+        the weights, producing a distribution of predictions. The spread
+        of predictions estimates epistemic uncertainty.
+
+        Args:
+            kg: Knowledge graph.
+            vector_index: Vector index for embeddings.
+            query_node_ids: Nodes to reason about.
+            n_samples: Number of perturbed forward passes.
+
+        Returns:
+            Dict with mean_confidence, std_confidence, and uncertainty.
+        """
+        import random
+
+        predictions = []
+        for _ in range(n_samples):
+            # Small perturbation to layer weights
+            if self._layer1 and self._layer2:
+                # Save weights
+                saved_w1 = [[self._layer1.W[i][j] for j in range(self._layer1.out_dim)]
+                            for i in range(self._layer1.in_dim)]
+
+                # Perturb
+                for i in range(self._layer1.in_dim):
+                    for j in range(self._layer1.out_dim):
+                        self._layer1.W[i][j] += random.gauss(0, 0.01)
+
+                # Forward pass
+                result = self.reason(kg, vector_index, query_node_ids)
+                predictions.append(result['confidence'])
+
+                # Restore weights
+                for i in range(self._layer1.in_dim):
+                    for j in range(self._layer1.out_dim):
+                        self._layer1.W[i][j] = saved_w1[i][j]
+            else:
+                result = self.reason(kg, vector_index, query_node_ids)
+                predictions.append(result['confidence'])
+
+        if not predictions:
+            return {'mean_confidence': 0.0, 'std_confidence': 0.0, 'uncertainty': 1.0}
+
+        mean_conf = sum(predictions) / len(predictions)
+        variance = sum((p - mean_conf) ** 2 for p in predictions) / len(predictions)
+        std_conf = math.sqrt(variance)
+
+        return {
+            'mean_confidence': round(mean_conf, 4),
+            'std_confidence': round(std_conf, 4),
+            'uncertainty': round(std_conf * 2.0, 4),  # 95% CI width
+            'n_samples': n_samples,
+        }
+
+    # ------------------------------------------------------------------
+    # Model performance monitoring (Improvement 80)
+    # ------------------------------------------------------------------
+
+    def get_performance_metrics(self) -> dict:
+        """Get detailed model performance monitoring metrics.
+
+        Returns accuracy, precision, recall over recent predictions.
+        """
+        if not self._prediction_history:
+            return {
+                'accuracy': 0.0,
+                'precision': 0.0,
+                'recall': 0.0,
+                'f1': 0.0,
+                'total_predictions': 0,
+            }
+
+        # Use last 100 predictions for metrics
+        recent = self._prediction_history[-100:]
+        tp = sum(1 for p in recent if p.get('predicted', False) and p.get('actual', False))
+        fp = sum(1 for p in recent if p.get('predicted', False) and not p.get('actual', False))
+        fn = sum(1 for p in recent if not p.get('predicted', False) and p.get('actual', False))
+        tn = sum(1 for p in recent if not p.get('predicted', False) and not p.get('actual', False))
+
+        accuracy = (tp + tn) / max(len(recent), 1)
+        precision = tp / max(tp + fp, 1)
+        recall = tp / max(tp + fn, 1)
+        f1 = 2 * precision * recall / max(precision + recall, 1e-6)
+
+        return {
+            'accuracy': round(accuracy, 4),
+            'precision': round(precision, 4),
+            'recall': round(recall, 4),
+            'f1': round(f1, 4),
+            'total_predictions': len(self._prediction_history),
+            'recent_window': len(recent),
+            'true_positives': tp,
+            'false_positives': fp,
+            'false_negatives': fn,
+            'true_negatives': tn,
+        }
+
     def get_accuracy(self) -> float:
         """Return prediction accuracy."""
         if self._total_predictions == 0:
@@ -803,7 +1057,7 @@ class GATReasoner:
             self._backprop_total_loss / self._backprop_steps
             if self._backprop_steps > 0 else 0.0
         )
-        return {
+        stats = {
             'total_predictions': self._total_predictions,
             'correct_predictions': self._correct_predictions,
             'accuracy': round(self.get_accuracy(), 4),
@@ -818,3 +1072,6 @@ class GATReasoner:
             'backprop_avg_loss': round(avg_backprop_loss, 6),
             'evolutionary_steps': self._evolutionary_steps,
         }
+        # Add performance monitoring metrics (Improvement 80)
+        stats['performance_metrics'] = self.get_performance_metrics()
+        return stats

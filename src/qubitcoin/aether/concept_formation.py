@@ -72,6 +72,10 @@ class ConceptFormation:
         """
         Run concept formation on nodes in a domain.
 
+        Uses adaptive similarity threshold: starts with the provided threshold
+        and adjusts based on the distribution of similarities found. If few
+        clusters form, the threshold is lowered; if too many form, it is raised.
+
         Args:
             domain: Domain to analyze (None = all domains).
             similarity_threshold: Min cosine similarity for clustering.
@@ -102,8 +106,24 @@ class ConceptFormation:
         node_ids = [n.node_id for n in candidates]
         similarities = self._compute_similarities(node_ids)
 
+        # Adaptive similarity threshold (Improvement: adaptive threshold)
+        # If we have enough similarity scores, use the distribution to adapt
+        if similarities:
+            sim_values = sorted(similarities.values(), reverse=True)
+            # Use the median of top-quartile similarities as a reference
+            top_quartile = sim_values[:max(1, len(sim_values) // 4)]
+            median_top = top_quartile[len(top_quartile) // 2] if top_quartile else similarity_threshold
+
+            # Adaptive: move threshold toward the data distribution
+            adaptive_threshold = similarity_threshold * 0.6 + median_top * 0.4
+            # Clamp to reasonable range
+            adaptive_threshold = max(0.4, min(0.9, adaptive_threshold))
+            effective_threshold = adaptive_threshold
+        else:
+            effective_threshold = similarity_threshold
+
         # Agglomerative clustering
-        clusters = self._cluster(node_ids, similarities, similarity_threshold)
+        clusters = self._cluster(node_ids, similarities, effective_threshold)
 
         # Create concept nodes for large enough clusters
         concepts_created = 0
@@ -235,7 +255,12 @@ class ConceptFormation:
         return [list(c) for c in clusters if len(c) >= 2]
 
     def _create_concept_node(self, cluster: List[int], domain: str) -> Optional[int]:
-        """Create an abstract concept node for a cluster of similar nodes."""
+        """Create an abstract concept node for a cluster of similar nodes.
+
+        Includes a validation quality gate: concepts are only created if
+        the cluster meets minimum quality criteria (sufficient confidence
+        spread, meaningful content diversity).
+        """
         if not self.kg:
             return None
 
@@ -243,6 +268,24 @@ class ConceptFormation:
         members = [self.kg.nodes.get(nid) for nid in cluster]
         members = [m for m in members if m is not None]
         if not members:
+            return None
+
+        # Quality gate: validate concept quality before creation
+        avg_member_conf = sum(m.confidence for m in members) / len(members)
+        if avg_member_conf < 0.2:
+            logger.debug(
+                f"Concept formation rejected: avg confidence {avg_member_conf:.3f} too low "
+                f"for {len(members)} members in domain {domain}"
+            )
+            return None
+
+        # Ensure some content diversity (not all identical nodes)
+        content_set = set()
+        for m in members:
+            text = str(m.content.get('text', m.content.get('type', '')))[:50]
+            content_set.add(text)
+        if len(content_set) < 2 and len(members) > 3:
+            logger.debug("Concept formation rejected: insufficient content diversity")
             return None
 
         # Compute cluster centroid confidence
@@ -1083,13 +1126,69 @@ class ConceptFormation:
     # Stats
     # ------------------------------------------------------------------
 
+    def validate_transfer(self, hypothesis_node_id: int,
+                          block_height: int) -> dict:
+        """Validate a previously created transfer hypothesis.
+
+        Checks whether the transferred pattern has led to useful new
+        edges or knowledge growth in the target domain.
+
+        Args:
+            hypothesis_node_id: Node ID of the transfer_hypothesis node.
+            block_height: Current block height.
+
+        Returns:
+            Dict with validation result and evidence.
+        """
+        if not self.kg:
+            return {'valid': False, 'reason': 'no_kg'}
+
+        node = self.kg.nodes.get(hypothesis_node_id)
+        if not node:
+            return {'valid': False, 'reason': 'node_not_found'}
+
+        content = node.content or {}
+        if content.get('type') != 'transfer_hypothesis':
+            return {'valid': False, 'reason': 'not_a_transfer_hypothesis'}
+
+        target_domain = content.get('target_domain', '')
+        edges_created = content.get('edges_created', 0)
+
+        # Check if the transferred edges have been used (referenced by other reasoning)
+        usage_count = 0
+        for edge in self.kg.get_edges_from(hypothesis_node_id):
+            target = self.kg.nodes.get(edge.to_node_id)
+            if target:
+                # Check if target has gained new edges since transfer
+                target_edges = self.kg.get_edges_from(edge.to_node_id)
+                for te in target_edges:
+                    if te.edge_type in ('supports', 'derives', 'causes'):
+                        usage_count += 1
+
+        valid = usage_count > 0 or edges_created > 1
+        if valid:
+            # Boost hypothesis confidence since it was validated
+            node.confidence = min(1.0, node.confidence + 0.1)
+
+        return {
+            'valid': valid,
+            'usage_count': usage_count,
+            'edges_created': edges_created,
+            'target_domain': target_domain,
+            'hypothesis_confidence': round(node.confidence, 4),
+        }
+
     def get_stats(self) -> dict:
         """Return concept formation and transfer learning statistics."""
+        transfer_rate = (
+            self._transfer_successes / max(self._transfer_attempts, 1)
+        )
         return {
             'total_concepts_created': self._concepts_created,
             'total_runs': self._runs,
             'transfer_attempts': self._transfer_attempts,
             'transfer_successes': self._transfer_successes,
+            'transfer_success_rate': round(transfer_rate, 4),
             'patterns_extracted': self._patterns_extracted,
             'pattern_library_size': len(self._pattern_library),
             'concepts_refined': self._concepts_refined,

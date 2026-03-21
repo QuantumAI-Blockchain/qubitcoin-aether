@@ -438,6 +438,155 @@ class SephirotManager:
 
         return result
 
+    def route_query(self, query: str, query_type: str = 'general') -> List[SephirahRole]:
+        """Route a query to the most relevant Sephirot nodes based on content.
+
+        Each Sephirah has cognitive domains it handles. This method analyzes
+        the query and returns an ordered list of nodes that should process it,
+        weighted by relevance and current energy levels.
+
+        Args:
+            query: The input query string.
+            query_type: Hint about query type (reasoning, safety, creative, etc.)
+
+        Returns:
+            Ordered list of SephirahRole for processing (most relevant first).
+        """
+        q = query.lower()
+
+        # Domain keyword mappings for each Sephirah
+        domain_map: Dict[SephirahRole, List[str]] = {
+            SephirahRole.KETER: ['goal', 'plan', 'strategy', 'meta', 'priority', 'decide',
+                                 'what should', 'objective', 'purpose', 'mission'],
+            SephirahRole.CHOCHMAH: ['pattern', 'intuition', 'similar', 'trend', 'analogy',
+                                    'insight', 'recognize', 'discover', 'correlat'],
+            SephirahRole.BINAH: ['logic', 'reason', 'cause', 'because', 'therefore', 'prove',
+                                 'deduc', 'infer', 'if then', 'implies', 'why'],
+            SephirahRole.CHESED: ['creative', 'idea', 'brainstorm', 'imagine', 'what if',
+                                  'innovate', 'novel', 'explore', 'possibilit'],
+            SephirahRole.GEVURAH: ['safe', 'risk', 'danger', 'harm', 'limit', 'constrain',
+                                   'vulnerab', 'threat', 'protect', 'security'],
+            SephirahRole.TIFERET: ['balance', 'integrat', 'synthesize', 'combin', 'reconcile',
+                                   'both', 'conflict', 'tradeoff', 'compromise'],
+            SephirahRole.NETZACH: ['learn', 'train', 'reward', 'reinforce', 'habit',
+                                   'practice', 'improve', 'optimize', 'performance'],
+            SephirahRole.HOD: ['language', 'meaning', 'semantic', 'word', 'defin',
+                               'explain', 'communicat', 'express', 'describe', 'what is'],
+            SephirahRole.YESOD: ['remember', 'memory', 'recall', 'history', 'previous',
+                                 'past', 'store', 'retrieve', 'context', 'before'],
+            SephirahRole.MALKUTH: ['do', 'execute', 'action', 'implement', 'run', 'deploy',
+                                   'send', 'transact', 'build', 'create', 'make'],
+        }
+
+        # Score each node
+        scores: Dict[SephirahRole, float] = {}
+        for role, keywords in domain_map.items():
+            node = self.nodes[role]
+            if not node.active:
+                continue
+            keyword_score = sum(1.0 for kw in keywords if kw in q)
+            # Weight by energy (more energized nodes score higher)
+            energy_weight = min(2.0, node.energy)
+            scores[role] = keyword_score * energy_weight
+
+        # Query type hints boost specific nodes
+        type_boosts = {
+            'reasoning': [SephirahRole.BINAH, SephirahRole.CHOCHMAH],
+            'safety': [SephirahRole.GEVURAH, SephirahRole.TIFERET],
+            'creative': [SephirahRole.CHESED, SephirahRole.CHOCHMAH],
+            'memory': [SephirahRole.YESOD, SephirahRole.HOD],
+            'action': [SephirahRole.MALKUTH, SephirahRole.KETER],
+        }
+        for role in type_boosts.get(query_type, []):
+            scores[role] = scores.get(role, 0.0) + 2.0
+
+        # Always include Tiferet (integration) and Hod (language) as fallbacks
+        scores[SephirahRole.TIFERET] = scores.get(SephirahRole.TIFERET, 0.0) + 0.5
+        scores[SephirahRole.HOD] = scores.get(SephirahRole.HOD, 0.0) + 0.5
+
+        # Sort by score descending, return top nodes with score > 0
+        ranked = sorted(scores.items(), key=lambda x: -x[1])
+        result = [role for role, score in ranked if score > 0]
+
+        # Track routing for metrics
+        for role in result[:3]:
+            self.nodes[role].messages_processed += 1
+
+        return result if result else [SephirahRole.TIFERET, SephirahRole.HOD]
+
+    def get_dominant_cognitive_mode(self) -> str:
+        """Determine which cognitive mode is dominant based on node energies.
+
+        Returns a human-readable string like 'analytical' or 'creative'
+        based on which SUSY pair is most active.
+        """
+        modes = {
+            'analytical': (SephirahRole.BINAH, SephirahRole.CHOCHMAH),
+            'creative': (SephirahRole.CHESED, SephirahRole.GEVURAH),
+            'communicative': (SephirahRole.HOD, SephirahRole.NETZACH),
+        }
+        best_mode = 'balanced'
+        best_energy = 0.0
+        for mode_name, (a, b) in modes.items():
+            combined = self.nodes[a].energy + self.nodes[b].energy
+            if combined > best_energy:
+                best_energy = combined
+                best_mode = mode_name
+        return best_mode
+
+    def get_energy_distribution(self) -> Dict[str, float]:
+        """Get normalized energy distribution across all nodes.
+
+        Returns dict mapping role name to percentage of total energy.
+        """
+        total = sum(n.energy for n in self.nodes.values())
+        if total <= 0:
+            return {r.value: 10.0 for r in SephirahRole}
+        return {
+            role.value: round(node.energy / total * 100, 2)
+            for role, node in self.nodes.items()
+        }
+
+    def stimulate_node(self, role: SephirahRole, amount: float = 0.1,
+                       block_height: int = 0) -> None:
+        """Stimulate a node's energy in response to a relevant query.
+
+        Called when a query routes to this node — the act of being used
+        increases the node's energy slightly (use-it-or-lose-it dynamics).
+
+        Args:
+            role: Node to stimulate.
+            amount: Energy delta (default 0.1).
+            block_height: Current block height.
+        """
+        node = self.nodes[role]
+        node.energy = min(5.0, node.energy + amount)  # Cap at 5.0
+        node.reasoning_ops += 1
+        node.last_update_block = block_height
+
+    def decay_unused_nodes(self, block_height: int, decay_rate: float = 0.001) -> int:
+        """Apply small energy decay to nodes that haven't been used recently.
+
+        Implements use-it-or-lose-it dynamics: nodes that aren't stimulated
+        by query routing gradually lose energy, shifting the cognitive
+        balance toward active domains.
+
+        Args:
+            block_height: Current block height.
+            decay_rate: Energy decay per block of inactivity.
+
+        Returns:
+            Number of nodes decayed.
+        """
+        decayed = 0
+        for role, node in self.nodes.items():
+            if node.last_update_block > 0 and block_height - node.last_update_block > 100:
+                old_energy = node.energy
+                node.energy = max(0.1, node.energy - decay_rate)
+                if node.energy < old_energy:
+                    decayed += 1
+        return decayed
+
     def get_status(self) -> dict:
         """Get comprehensive Sephirot status for API."""
         return {
@@ -454,6 +603,8 @@ class SephirotManager:
                 for e, c in SUSY_PAIRS
             ],
             "coherence": self.get_coherence(),
+            "dominant_mode": self.get_dominant_cognitive_mode(),
+            "energy_distribution": self.get_energy_distribution(),
             "total_violations": len(self.violations),
             "total_corrections": self._total_corrections,
             "recent_violations": [

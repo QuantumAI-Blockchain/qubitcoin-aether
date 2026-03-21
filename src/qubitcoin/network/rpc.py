@@ -1908,6 +1908,20 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             return {"phase": "waking", "metabolic_rate": 1.0, "note": "Pineal not active"}
         return status
 
+    @app.get("/aether/health")
+    async def aether_subsystem_health():
+        """IMP-96: Get health status of all AGI subsystems."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        return aether_engine.get_subsystem_health()
+
+    @app.get("/aether/stats")
+    async def aether_full_stats():
+        """IMP-99: Get comprehensive Aether Engine statistics."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        return aether_engine.get_full_stats()
+
     @app.get("/aether/knowledge/domains")
     async def aether_knowledge_domains():
         """Get knowledge graph domain breakdown."""

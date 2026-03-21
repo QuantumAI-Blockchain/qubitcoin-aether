@@ -14,6 +14,8 @@ Contract suite:
   - UpgradeGovernor: Protocol upgrade governance
 """
 import hashlib
+import time
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..config import Config
@@ -68,6 +70,17 @@ class OnChainAGI:
         self._veto_checks: int = 0
         self._governance_reads: int = 0
         self._errors: int = 0
+        self._total_calls: int = 0
+
+        # Read cache: key -> (result_bytes, block_height_cached)
+        self._read_cache: OrderedDict = OrderedDict()
+        self._cache_ttl_blocks: int = 10  # Cache static_call results for N blocks
+        self._cache_max_entries: int = 256
+        self._current_block: int = 0
+
+        # Health tracking
+        self._health_window_size: int = 100
+        self._recent_results: list = []  # List of (timestamp, success_bool)
 
         addrs = sum(1 for a in [
             self._dashboard_addr, self._pot_addr, self._constitution_addr,
@@ -81,41 +94,68 @@ class OnChainAGI:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _static_call(self, contract_addr: str, calldata: bytes) -> Optional[bytes]:
+    def _static_call(self, contract_addr: str, calldata: bytes,
+                     use_cache: bool = True) -> Optional[bytes]:
         """Execute a read-only static call to a contract.
+
+        Results are cached for ``_cache_ttl_blocks`` blocks to reduce
+        QVM overhead on repeated reads of the same data.
 
         Returns raw return data bytes, or None on failure.
         """
         if not self._qvm or not contract_addr:
             return None
+
+        self._total_calls += 1
+        cache_key = f"{contract_addr}:{calldata.hex()}"
+
+        # Check cache
+        if use_cache and cache_key in self._read_cache:
+            cached_result, cached_block = self._read_cache[cache_key]
+            if self._current_block - cached_block <= self._cache_ttl_blocks:
+                # Move to end (LRU)
+                self._read_cache.move_to_end(cache_key)
+                return cached_result
+
         try:
             caller = self._kernel_addr or '0' * 40
             result = self._qvm.static_call(caller, contract_addr, calldata)
+            if result:
+                # Store in cache
+                self._read_cache[cache_key] = (result, self._current_block)
+                if len(self._read_cache) > self._cache_max_entries:
+                    self._read_cache.popitem(last=False)
+                self._recent_results.append((time.time(), True))
+                self._trim_health_window()
             return result if result else None
         except Exception as e:
             logger.debug(f"Static call failed ({contract_addr[:8]}...): {e}")
             self._errors += 1
+            self._recent_results.append((time.time(), False))
+            self._trim_health_window()
             return None
 
     def _write_call(self, contract_addr: str, calldata: bytes,
-                    block_height: int = 0) -> bool:
+                    block_height: int = 0, _retry: int = 0) -> bool:
         """Execute a state-changing call to a contract.
 
         Builds a minimal contract_call transaction and processes it
-        through the StateManager pipeline.
+        through the StateManager pipeline.  On transient failure,
+        retries once after a short backoff.
 
         Returns True if the call succeeded.
         """
         if not self._sm or not contract_addr:
             return False
+        self._total_calls += 1
         try:
-            import time
             from decimal import Decimal
             from ..database.models import Transaction
             caller = self._kernel_addr or '0' * 40
+            nonce_salt = f":{_retry}" if _retry else ""
             tx = Transaction(
                 txid=hashlib.sha256(
-                    f"{caller}:{contract_addr}:{block_height}:{calldata.hex()}"
+                    f"{caller}:{contract_addr}:{block_height}:{calldata.hex()}{nonce_salt}"
                     .encode()
                 ).hexdigest(),
                 inputs=[],
@@ -132,11 +172,34 @@ class OnChainAGI:
             )
             receipt = self._sm.process_transaction(tx, block_height, '0' * 64, 0)
             if receipt and getattr(receipt, 'status', 0) == 1:
+                self._recent_results.append((time.time(), True))
+                self._trim_health_window()
                 return True
+            # Transient failure — retry once with backoff
+            if _retry < 1:
+                backoff = 0.5 * (2 ** _retry)
+                logger.debug(
+                    f"Write call returned non-success ({contract_addr[:8]}...), "
+                    f"retrying in {backoff:.1f}s (attempt {_retry + 2}/2)"
+                )
+                time.sleep(backoff)
+                return self._write_call(contract_addr, calldata, block_height, _retry + 1)
+            self._recent_results.append((time.time(), False))
+            self._trim_health_window()
             return False
         except Exception as e:
-            logger.debug(f"Write call failed ({contract_addr[:8]}...): {e}")
+            if _retry < 1:
+                backoff = 0.5 * (2 ** _retry)
+                logger.debug(
+                    f"Write call exception ({contract_addr[:8]}...): {e}, "
+                    f"retrying in {backoff:.1f}s"
+                )
+                time.sleep(backoff)
+                return self._write_call(contract_addr, calldata, block_height, _retry + 1)
+            logger.debug(f"Write call failed after retry ({contract_addr[:8]}...): {e}")
             self._errors += 1
+            self._recent_results.append((time.time(), False))
+            self._trim_health_window()
             return False
 
     # ------------------------------------------------------------------
@@ -640,6 +703,7 @@ class OnChainAGI:
         Returns:
             Dict with write results.
         """
+        self._current_block = block_height
         results: dict = {
             'phi_written': False,
             'pot_submitted': False,
@@ -678,6 +742,143 @@ class OnChainAGI:
             )
 
         return results
+
+    # ------------------------------------------------------------------
+    # Batch Operations
+    # ------------------------------------------------------------------
+
+    def batch_process_blocks(self, start_block: int, end_block: int,
+                             block_data_fn: object) -> dict:
+        """Catch up multiple blocks of on-chain data efficiently.
+
+        Useful when the node restarts and needs to replay on-chain
+        writes for blocks that were mined while the bridge was down.
+
+        Args:
+            start_block: First block height to process (inclusive).
+            end_block: Last block height to process (inclusive).
+            block_data_fn: Callable(block_height) -> dict with keys
+                matching ``process_block()`` kwargs (phi_result,
+                thought_hash, knowledge_root, etc.).  Return None to
+                skip a block.
+
+        Returns:
+            Dict with 'blocks_processed', 'blocks_skipped',
+            'phi_writes', 'pot_submissions', 'errors'.
+        """
+        stats = {
+            'blocks_processed': 0,
+            'blocks_skipped': 0,
+            'phi_writes': 0,
+            'pot_submissions': 0,
+            'higgs_updates': 0,
+            'errors': 0,
+            'start_block': start_block,
+            'end_block': end_block,
+        }
+
+        for height in range(start_block, end_block + 1):
+            self._current_block = height
+            try:
+                data = block_data_fn(height)
+            except Exception as e:
+                logger.debug(f"batch_process_blocks: block_data_fn({height}) error: {e}")
+                stats['errors'] += 1
+                continue
+
+            if data is None:
+                stats['blocks_skipped'] += 1
+                continue
+
+            result = self.process_block(
+                block_height=height,
+                phi_result=data.get('phi_result', {}),
+                thought_hash=data.get('thought_hash', ''),
+                knowledge_root=data.get('knowledge_root', ''),
+                validator_address=data.get('validator_address', ''),
+                higgs_field_value=data.get('higgs_field_value', 0.0),
+                avg_cognitive_mass=data.get('avg_cognitive_mass', 0.0),
+            )
+
+            stats['blocks_processed'] += 1
+            if result.get('phi_written'):
+                stats['phi_writes'] += 1
+            if result.get('pot_submitted'):
+                stats['pot_submissions'] += 1
+            if result.get('higgs_updated'):
+                stats['higgs_updates'] += 1
+
+        logger.info(
+            f"Batch on-chain catchup: blocks {start_block}-{end_block}, "
+            f"{stats['blocks_processed']} processed, {stats['blocks_skipped']} skipped, "
+            f"{stats['errors']} errors"
+        )
+        return stats
+
+    # ------------------------------------------------------------------
+    # Health Check
+    # ------------------------------------------------------------------
+
+    def _trim_health_window(self) -> None:
+        """Keep only the most recent entries in the health window."""
+        if len(self._recent_results) > self._health_window_size:
+            self._recent_results = self._recent_results[-self._health_window_size:]
+
+    def is_healthy(self) -> dict:
+        """Check on-chain integration health.
+
+        Evaluates:
+          1. At least one contract address is configured
+          2. QVM is accessible (static_call doesn't crash)
+          3. Error rate in recent window is below 50%
+
+        Returns:
+            Dict with 'healthy' (bool), 'contracts_configured' (int),
+            'qvm_accessible' (bool), 'error_rate' (float 0.0-1.0),
+            'total_calls' (int), 'details' (str).
+        """
+        contracts_configured = sum(1 for a in [
+            self._dashboard_addr, self._pot_addr, self._constitution_addr,
+            self._treasury_addr, self._governor_addr, self._higgs_addr,
+            self._emergency_addr,
+        ] if a)
+
+        qvm_accessible = self._qvm is not None
+
+        # Compute error rate from recent results
+        if self._recent_results:
+            successes = sum(1 for _, ok in self._recent_results if ok)
+            error_rate = 1.0 - (successes / len(self._recent_results))
+        else:
+            error_rate = 0.0
+
+        healthy = (
+            contracts_configured > 0
+            and qvm_accessible
+            and error_rate < 0.5
+        )
+
+        if not healthy:
+            issues = []
+            if contracts_configured == 0:
+                issues.append('no contracts configured')
+            if not qvm_accessible:
+                issues.append('QVM not accessible')
+            if error_rate >= 0.5:
+                issues.append(f'error rate {error_rate:.0%} >= 50%')
+            detail = '; '.join(issues)
+        else:
+            detail = 'all checks passed'
+
+        return {
+            'healthy': healthy,
+            'contracts_configured': contracts_configured,
+            'qvm_accessible': qvm_accessible,
+            'error_rate': round(error_rate, 4),
+            'total_calls': self._total_calls,
+            'recent_window_size': len(self._recent_results),
+            'details': detail,
+        }
 
     # ------------------------------------------------------------------
     # Stats

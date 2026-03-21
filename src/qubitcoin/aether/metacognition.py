@@ -127,13 +127,38 @@ class MetacognitiveLoop:
         Adjust strategy weights based on accumulated performance data.
 
         Strategies that are more accurate get higher weights.
-        Uses exponential moving average to avoid overreacting to noise.
+        Uses exponential moving average with temporal weighting to avoid
+        overreacting to noise while favoring recent evidence.
         """
+        # Compute temporally-weighted accuracy from recent history (Improvement: temporal weighting)
+        recent_strategy_stats: Dict[str, Dict[str, float]] = {}
+        now = time.time()
+        decay_half_life = 3600.0  # 1 hour half-life for temporal weighting
+
+        for entry in self._evaluation_history:
+            strategy = entry['strategy']
+            if strategy not in recent_strategy_stats:
+                recent_strategy_stats[strategy] = {'weighted_correct': 0.0, 'weighted_total': 0.0}
+
+            # Temporal weight: recent evaluations weighted more
+            age = now - entry.get('timestamp', now)
+            temporal_weight = 0.5 ** (age / decay_half_life)
+
+            recent_strategy_stats[strategy]['weighted_total'] += temporal_weight
+            if entry['correct']:
+                recent_strategy_stats[strategy]['weighted_correct'] += temporal_weight
+
         for strategy, stats in self._strategy_stats.items():
             if stats['attempts'] < 10:
                 continue  # Not enough data
 
-            accuracy = stats['correct'] / stats['attempts']
+            # Use temporally-weighted accuracy if available, otherwise raw
+            recent = recent_strategy_stats.get(strategy)
+            if recent and recent['weighted_total'] > 3.0:
+                accuracy = recent['weighted_correct'] / recent['weighted_total']
+            else:
+                accuracy = stats['correct'] / stats['attempts']
+
             # EMA update: 70% old weight, 30% new evidence
             old_weight = self._strategy_weights.get(strategy, 1.0)
             new_evidence = accuracy * 2.0  # Scale: 0.0-2.0
@@ -141,24 +166,54 @@ class MetacognitiveLoop:
 
         return dict(self._strategy_weights)
 
-    def get_recommended_strategy(self, domain: str = 'general') -> str:
+    def get_recommended_strategy(self, domain: str = 'general',
+                                   question_type: str = 'general') -> str:
         """
-        Recommend the best reasoning strategy for a given domain.
+        Recommend the best reasoning strategy for a given domain and question type.
 
-        Returns the strategy name with the highest weight.
+        Uses both global strategy weights and domain-specific performance
+        history to recommend the most effective strategy.
+
+        Args:
+            domain: Knowledge domain (e.g., 'quantum_physics', 'blockchain').
+            question_type: Type of question ('factual', 'causal', 'predictive', 'general').
+
+        Returns:
+            Strategy name with the highest combined weight.
         """
         if not self._strategy_weights:
             return 'deductive'
 
-        # Prefer strategies that work well in this domain
+        # Question type heuristic bonus
+        question_bonus: Dict[str, float] = {}
+        if question_type == 'causal':
+            question_bonus = {'causal': 0.15, 'abductive': 0.1, 'deductive': 0.05}
+        elif question_type == 'predictive':
+            question_bonus = {'inductive': 0.15, 'neural': 0.1, 'chain_of_thought': 0.05}
+        elif question_type == 'factual':
+            question_bonus = {'deductive': 0.15, 'chain_of_thought': 0.05}
+
+        # Domain-specific performance bonus from history
         domain_bonus: Dict[str, float] = {}
         for entry in self._evaluation_history[-100:]:
             if entry['domain'] == domain and entry['correct']:
                 s = entry['strategy']
                 domain_bonus[s] = domain_bonus.get(s, 0) + 0.05
 
+        # Hard vs easy distinction: if domain has high success rate, prefer fast strategies
+        domain_data = self._domain_stats.get(domain, {'attempts': 0, 'correct': 0})
+        if domain_data['attempts'] > 20:
+            domain_accuracy = domain_data['correct'] / domain_data['attempts']
+            if domain_accuracy > 0.8:
+                # Easy domain: prefer fast deductive
+                question_bonus['deductive'] = question_bonus.get('deductive', 0) + 0.1
+            elif domain_accuracy < 0.4:
+                # Hard domain: prefer exploratory strategies
+                question_bonus['chain_of_thought'] = question_bonus.get('chain_of_thought', 0) + 0.1
+                question_bonus['abductive'] = question_bonus.get('abductive', 0) + 0.1
+
         weighted = {
-            s: w + domain_bonus.get(s, 0.0)
+            s: w + domain_bonus.get(s, 0.0) + question_bonus.get(s, 0.0)
             for s, w in self._strategy_weights.items()
         }
         return max(weighted, key=weighted.get)
@@ -339,6 +394,102 @@ class MetacognitiveLoop:
 
         return results
 
+    def get_calibration_trend(self, window: int = 50) -> List[float]:
+        """Track calibration error over time to see if it is improving.
+
+        Computes ECE for sliding windows of the evaluation history.
+
+        Args:
+            window: Size of each evaluation window.
+
+        Returns:
+            List of ECE values over time (oldest first).
+        """
+        if len(self._evaluation_history) < window:
+            return [self.get_overall_calibration_error()]
+
+        trend: List[float] = []
+        for start in range(0, len(self._evaluation_history) - window + 1, window // 2):
+            end = start + window
+            window_entries = self._evaluation_history[start:end]
+
+            # Compute ECE for this window
+            bins: Dict[int, Dict[str, int]] = {}
+            for entry in window_entries:
+                bin_idx = min(9, int(entry['confidence'] * 10))
+                if bin_idx not in bins:
+                    bins[bin_idx] = {'count': 0, 'correct': 0}
+                bins[bin_idx]['count'] += 1
+                if entry['correct']:
+                    bins[bin_idx]['correct'] += 1
+
+            total_weight = 0.0
+            weighted_error = 0.0
+            for bin_idx, data in bins.items():
+                if data['count'] == 0:
+                    continue
+                stated = (bin_idx + 0.5) / 10.0
+                actual = data['correct'] / data['count']
+                bin_weight = math.sqrt(data['count'])
+                weighted_error += bin_weight * abs(stated - actual)
+                total_weight += bin_weight
+
+            ece = weighted_error / total_weight if total_weight > 0 else 0.0
+            trend.append(round(ece, 4))
+
+        return trend
+
+    def export_metacognitive_state(self) -> dict:
+        """Export the full metacognitive state for chat responses and monitoring.
+
+        Returns a comprehensive snapshot of the system's self-knowledge
+        about its own reasoning capabilities.
+
+        Returns:
+            Dict with all metacognitive state information.
+        """
+        calibration = self.get_confidence_calibration()
+        trend = self.get_calibration_trend()
+
+        # Determine if calibration is improving
+        improving = False
+        if len(trend) >= 2:
+            recent = trend[-min(3, len(trend)):]
+            older = trend[:min(3, len(trend))]
+            improving = sum(recent) / len(recent) < sum(older) / len(older)
+
+        # Identify strongest and weakest domains
+        strongest_domain = ''
+        weakest_domain = ''
+        best_acc = -1.0
+        worst_acc = 2.0
+        for d, data in self._domain_stats.items():
+            if data['attempts'] >= 5:
+                acc = data['correct'] / data['attempts']
+                if acc > best_acc:
+                    best_acc = acc
+                    strongest_domain = d
+                if acc < worst_acc:
+                    worst_acc = acc
+                    weakest_domain = d
+
+        return {
+            'overall_accuracy': round(
+                self._total_correct / max(1, self._total_evaluations), 4
+            ),
+            'total_evaluations': self._total_evaluations,
+            'calibration_error': round(self.get_overall_calibration_error(), 4),
+            'calibration_improving': improving,
+            'calibration_trend': trend[-10:],  # Last 10 windows
+            'recommended_strategy': self.get_recommended_strategy(),
+            'strategy_weights': {
+                k: round(v, 4) for k, v in self._strategy_weights.items()
+            },
+            'strongest_domain': strongest_domain,
+            'weakest_domain': weakest_domain,
+            'confidence_calibration': calibration,
+        }
+
     def get_stats(self) -> dict:
         strategy_accuracies = {}
         for s, data in self._strategy_stats.items():
@@ -361,6 +512,10 @@ class MetacognitiveLoop:
                 self._total_correct / max(1, self._total_evaluations), 4
             ),
             'calibration_error': round(self.get_overall_calibration_error(), 4),
+            'calibration_improving': len(self.get_calibration_trend()) >= 2 and (
+                self.get_calibration_trend()[-1] < self.get_calibration_trend()[0]
+                if self.get_calibration_trend() else False
+            ),
             'strategy_accuracies': strategy_accuracies,
             'strategy_weights': {
                 k: round(v, 4) for k, v in self._strategy_weights.items()

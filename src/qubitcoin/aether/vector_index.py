@@ -73,24 +73,46 @@ _STOP_WORDS = frozenset({
 
 
 class _BoWEmbedder:
-    """Simple bag-of-words embedder as fallback when no transformer available."""
+    """TF-IDF weighted bag-of-words embedder as fallback when no transformer available.
+
+    Uses term frequency with inverse document frequency weighting for
+    better semantic representation than raw bag-of-words.
+    """
 
     def __init__(self, dim: int = 128) -> None:
         self.dim = dim
         self._vocab: Dict[str, int] = {}
         self._next_slot = 0
+        # Document frequency tracking for IDF
+        self._doc_freq: Dict[int, int] = {}  # dim_slot -> count of docs containing it
+        self._total_docs: int = 0
 
     def encode(self, texts: List[str]) -> List[List[float]]:
-        """Encode texts into dense vectors using hashed BoW."""
+        """Encode texts into dense vectors using TF-IDF weighted hashing."""
+        self._total_docs += len(texts)
         results = []
+        # First pass: compute TF and update document frequencies
         for text in texts:
             tokens = [t for t in _TOKEN_RE.findall(text.lower())
                       if t not in _STOP_WORDS and len(t) > 2]
             vec = [0.0] * self.dim
+            seen_dims: set = set()
             for token in tokens:
-                # Deterministic hash to dimension
                 h = abs(hash(token)) % self.dim
                 vec[h] += 1.0
+                if h not in seen_dims:
+                    seen_dims.add(h)
+                    self._doc_freq[h] = self._doc_freq.get(h, 0) + 1
+
+            # Apply TF-IDF: TF = log(1 + count), IDF = log(N / df)
+            total_docs = max(self._total_docs, 1)
+            for h in range(self.dim):
+                if vec[h] > 0:
+                    tf = math.log1p(vec[h])
+                    df = self._doc_freq.get(h, 1)
+                    idf = math.log(total_docs / df) if df > 0 else 0.0
+                    vec[h] = tf * idf
+
             # L2 normalize
             norm = math.sqrt(sum(v * v for v in vec))
             if norm > 0:
@@ -418,6 +440,81 @@ class HNSWIndex:
 
     def __contains__(self, node_id: int) -> bool:
         return node_id in self._vectors
+
+    def save_index(self, path: str) -> bool:
+        """Save HNSW index to disk for persistence.
+
+        Serializes vectors, graph structure, and metadata to a JSON file.
+
+        Args:
+            path: File path to save the index to.
+
+        Returns:
+            True if saved successfully, False otherwise.
+        """
+        import json as _json
+        try:
+            data = {
+                'M': self.M,
+                'M0': self.M0,
+                'ef_construction': self.ef_construction,
+                'max_layers': self.max_layers,
+                'dim': self._dim,
+                'entry_point': self._entry_point,
+                'max_level': self._max_level,
+                'vectors': {str(k): v for k, v in self._vectors.items()},
+                'node_layers': {str(k): v for k, v in self._node_layers.items()},
+                'graph': {
+                    str(layer): {
+                        str(node): list(neighbors)
+                        for node, neighbors in layer_nodes.items()
+                    }
+                    for layer, layer_nodes in self._graph.items()
+                },
+            }
+            with open(path, 'w') as f:
+                _json.dump(data, f)
+            logger.info(f"HNSW index saved to {path} ({len(self._vectors)} vectors)")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save HNSW index: {e}")
+            return False
+
+    def load_index(self, path: str) -> bool:
+        """Load HNSW index from disk.
+
+        Args:
+            path: File path to load the index from.
+
+        Returns:
+            True if loaded successfully, False otherwise.
+        """
+        import json as _json
+        import os
+        try:
+            if not os.path.exists(path):
+                return False
+            with open(path, 'r') as f:
+                data = _json.load(f)
+            self.M = data['M']
+            self.M0 = data['M0']
+            self.ef_construction = data['ef_construction']
+            self.max_layers = data['max_layers']
+            self._dim = data['dim']
+            self._entry_point = data.get('entry_point')
+            self._max_level = data.get('max_level', -1)
+            self._vectors = {int(k): v for k, v in data['vectors'].items()}
+            self._node_layers = {int(k): v for k, v in data['node_layers'].items()}
+            self._graph = defaultdict(lambda: defaultdict(set))
+            for layer_str, layer_nodes in data['graph'].items():
+                layer = int(layer_str)
+                for node_str, neighbors in layer_nodes.items():
+                    self._graph[layer][int(node_str)] = set(neighbors)
+            logger.info(f"HNSW index loaded from {path} ({len(self._vectors)} vectors)")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load HNSW index: {e}")
+            return False
 
     def get_stats(self) -> dict:
         """Return HNSW index statistics."""
@@ -774,6 +871,115 @@ class VectorIndex:
                 entropy += 0.5 * math.log(2 * math.pi * math.e * var)
 
         return max(0.0, entropy)
+
+    def save_index(self, path: str) -> bool:
+        """Save the vector index (embeddings + HNSW) to disk.
+
+        Args:
+            path: Base path for index files (will create .embeddings.json
+                  and optionally .hnsw.json).
+
+        Returns:
+            True if saved successfully.
+        """
+        import json as _json
+        try:
+            emb_path = path + '.embeddings.json'
+            data = {
+                'dim': self._dim,
+                'embeddings': {str(k): v for k, v in self.embeddings.items()},
+            }
+            with open(emb_path, 'w') as f:
+                _json.dump(data, f)
+
+            # Save HNSW if available
+            if self._py_hnsw is not None:
+                self._py_hnsw.save_index(path + '.hnsw.json')
+
+            logger.info(f"VectorIndex saved to {path} ({len(self.embeddings)} embeddings)")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save VectorIndex: {e}")
+            return False
+
+    def load_index(self, path: str) -> bool:
+        """Load vector index from disk.
+
+        Args:
+            path: Base path for index files.
+
+        Returns:
+            True if loaded successfully.
+        """
+        import json as _json
+        import os
+        try:
+            emb_path = path + '.embeddings.json'
+            if not os.path.exists(emb_path):
+                return False
+            with open(emb_path, 'r') as f:
+                data = _json.load(f)
+            self._dim = data.get('dim', 0)
+            self.embeddings = {int(k): v for k, v in data['embeddings'].items()}
+            self._hnsw_dirty = True
+            self._py_hnsw_dirty = True
+
+            # Load HNSW if available
+            hnsw_path = path + '.hnsw.json'
+            if os.path.exists(hnsw_path):
+                hnsw = HNSWIndex()
+                if hnsw.load_index(hnsw_path):
+                    self._py_hnsw = hnsw
+                    self._py_hnsw_dirty = False
+
+            logger.info(f"VectorIndex loaded from {path} ({len(self.embeddings)} embeddings)")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load VectorIndex: {e}")
+            return False
+
+    def query_diversified(self, query_text: str, top_k: int = 10,
+                          domain_map: Optional[Dict[int, str]] = None) -> List[Tuple[int, float]]:
+        """Search with result diversification across domains.
+
+        Ensures results come from multiple domains when possible,
+        not just the single most similar cluster.
+
+        Args:
+            query_text: Search query.
+            top_k: Number of results to return.
+            domain_map: Optional mapping of node_id -> domain name.
+
+        Returns:
+            List of (node_id, similarity) tuples with domain diversity.
+        """
+        # Get more candidates than needed
+        candidates = self.query(query_text, top_k=top_k * 3)
+
+        if not domain_map or len(candidates) <= top_k:
+            return candidates[:top_k]
+
+        # Greedy diversification: pick best from each unseen domain first
+        selected: List[Tuple[int, float]] = []
+        domains_seen: set = set()
+        remaining: List[Tuple[int, float]] = []
+
+        for nid, score in candidates:
+            domain = domain_map.get(nid, 'unknown')
+            if domain not in domains_seen and len(selected) < top_k:
+                selected.append((nid, score))
+                domains_seen.add(domain)
+            else:
+                remaining.append((nid, score))
+
+        # Fill remaining slots with best-scoring candidates
+        for nid, score in remaining:
+            if len(selected) >= top_k:
+                break
+            if nid not in {s[0] for s in selected}:
+                selected.append((nid, score))
+
+        return selected[:top_k]
 
     def get_stats(self) -> dict:
         """Return index statistics."""

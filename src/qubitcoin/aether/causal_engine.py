@@ -47,7 +47,7 @@ logger = get_logger(__name__)
 
 # Maximum size of conditioning sets to test.  Higher values are more accurate
 # but O(n^d) more expensive.  d=2 is tractable for <1000 nodes.
-MAX_CONDITIONING_DEPTH: int = 2
+MAX_CONDITIONING_DEPTH: int = 3
 
 # Node-type encoding for feature vectors
 _NODE_TYPE_ENCODING: Dict[str, float] = {
@@ -419,6 +419,102 @@ class CausalDiscovery:
             'total_causal_edges_found': self._causal_edges_found,
             'total_runs': self._runs,
             'last_run_block': self._last_run_block,
+            'max_conditioning_depth': MAX_CONDITIONING_DEPTH,
+        }
+
+    def discover_temporal_causal(self, domain: Optional[str] = None,
+                                  max_nodes: int = 200,
+                                  time_lag: int = 10) -> dict:
+        """Discover time-series causal relationships using temporal ordering.
+
+        Nodes that consistently appear before other nodes (by source_block)
+        and share features are candidate causes. This implements Granger-like
+        causal inference using block height as the time dimension.
+
+        Args:
+            domain: Domain to analyze (None = all).
+            max_nodes: Maximum nodes to include.
+            time_lag: Maximum block distance for temporal causality.
+
+        Returns:
+            Dict with temporal causal edges found.
+        """
+        if not self.kg or not self.kg.nodes:
+            return {'temporal_causal_edges': 0, 'nodes_analyzed': 0}
+
+        # Select candidates
+        candidates = [
+            n for n in self.kg.nodes.values()
+            if (not domain or n.domain == domain)
+            and n.node_type in ('observation', 'inference', 'assertion')
+            and n.source_block > 0
+        ]
+        candidates.sort(key=lambda n: n.source_block)
+        candidates = candidates[-max_nodes:]
+
+        if len(candidates) < 3:
+            return {'temporal_causal_edges': 0, 'nodes_analyzed': len(candidates)}
+
+        # Build feature matrix
+        node_ids = [n.node_id for n in candidates]
+        features = self._build_feature_matrix(node_ids)
+
+        # For each pair (A, B) where A.source_block < B.source_block and
+        # the difference is within time_lag, test if A's features predict B's
+        temporal_edges: List[Tuple[int, int]] = []
+        created = 0
+
+        for i, node_a in enumerate(candidates):
+            for j in range(i + 1, min(len(candidates), i + 20)):
+                node_b = candidates[j]
+                block_diff = node_b.source_block - node_a.source_block
+                if block_diff <= 0 or block_diff > time_lag:
+                    continue
+
+                # Check feature correlation
+                feat_a = features.get(node_a.node_id, [])
+                feat_b = features.get(node_b.node_id, [])
+                if not feat_a or not feat_b:
+                    continue
+
+                corr = abs(self._pearson(feat_a, feat_b))
+                if corr > 0.6:
+                    # Temporal ordering + correlation = candidate causality
+                    # Check if edge already exists
+                    existing = any(
+                        e.from_node_id == node_a.node_id
+                        and e.to_node_id == node_b.node_id
+                        and e.edge_type == 'causes'
+                        for e in self.kg.get_edges_from(node_a.node_id)
+                    )
+                    if not existing:
+                        weight = corr * (1.0 - block_diff / (time_lag + 1))
+                        edge = self.kg.add_edge(
+                            node_a.node_id, node_b.node_id, 'causes',
+                            weight=round(weight, 4)
+                        )
+                        if edge:
+                            created += 1
+                            temporal_edges.append((node_a.node_id, node_b.node_id))
+
+                if created >= 20:
+                    break
+            if created >= 20:
+                break
+
+        self._causal_edges_found += created
+
+        if created > 0:
+            logger.info(
+                f"Temporal causal discovery ({domain or 'all'}): "
+                f"{created} temporal causal edges from {len(candidates)} nodes"
+            )
+
+        return {
+            'temporal_causal_edges': created,
+            'nodes_analyzed': len(candidates),
+            'domain': domain,
+            'time_lag': time_lag,
         }
 
     # ------------------------------------------------------------------
@@ -426,11 +522,15 @@ class CausalDiscovery:
     # ------------------------------------------------------------------
 
     def _build_feature_matrix(self, node_ids: List[int]) -> Dict[int, List[float]]:
-        """Build a feature vector for each node.
+        """Build an enriched feature vector for each node.
 
-        Each node is represented by a 6-dimensional vector:
+        Each node is represented by a 10-dimensional vector:
             [confidence, source_block_normalized, node_type_encoded,
-             in_degree, out_degree, avg_neighbor_confidence]
+             in_degree, out_degree, avg_neighbor_confidence,
+             content_length, has_numeric_data, edge_type_diversity,
+             domain_encoded]
+
+        Uses content semantics (not just node_type) for richer encoding.
 
         Args:
             node_ids: Node IDs to build features for.
@@ -445,6 +545,13 @@ class CausalDiscovery:
         min_block = min(self.kg.nodes[nid].source_block for nid in node_ids)
         max_block = max(self.kg.nodes[nid].source_block for nid in node_ids)
         block_range = max_block - min_block if max_block > min_block else 1.0
+
+        # Collect all domains for encoding
+        domain_set: List[str] = sorted(set(
+            self.kg.nodes[nid].domain or 'general'
+            for nid in node_ids if nid in self.kg.nodes
+        ))
+        domain_map = {d: i / max(len(domain_set), 1) for i, d in enumerate(domain_set)}
 
         features: Dict[int, List[float]] = {}
         for nid in node_ids:
@@ -483,6 +590,33 @@ class CausalDiscovery:
             else:
                 avg_neighbor_conf = confidence  # Self-fill if isolated
 
+            # Content semantics: text length (proxy for information richness)
+            content_text = str(node.content.get('text', ''))
+            content_length = min(1.0, len(content_text) / 500.0)
+
+            # Content semantics: presence of numeric data
+            import re
+            has_numeric = 1.0 if re.search(r'\d+\.?\d*', content_text) else 0.0
+
+            # Edge type diversity (Shannon entropy of edge types)
+            edge_types: Dict[str, int] = {}
+            for e in out_edges:
+                edge_types[e.edge_type] = edge_types.get(e.edge_type, 0) + 1
+            for e in in_edges:
+                edge_types[e.edge_type] = edge_types.get(e.edge_type, 0) + 1
+            total_edges = sum(edge_types.values())
+            edge_diversity = 0.0
+            if total_edges > 0:
+                for count in edge_types.values():
+                    p = count / total_edges
+                    if p > 0:
+                        edge_diversity -= p * math.log2(p)
+                # Normalize by log2(max possible types)
+                edge_diversity = min(1.0, edge_diversity / 3.0)
+
+            # Domain encoding
+            domain_encoded = domain_map.get(node.domain or 'general', 0.5)
+
             features[nid] = [
                 confidence,
                 source_block_norm,
@@ -490,6 +624,10 @@ class CausalDiscovery:
                 in_degree,
                 out_degree,
                 avg_neighbor_conf,
+                content_length,
+                has_numeric,
+                edge_diversity,
+                domain_encoded,
             ]
 
         return features

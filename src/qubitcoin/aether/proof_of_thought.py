@@ -142,7 +142,111 @@ class AetherEngine:
         self._phi_exploration_boost: float = 1.0  # Multiplier for abductive reasoning
         self._phi_obs_window_bonus: int = 0       # Extra blocks for observation window
 
+        # IMP-96: Subsystem health monitoring
+        self._subsystem_health: Dict[str, dict] = {}
+        self._subsystem_last_check: float = 0.0
+
         logger.info("Aether Engine initialized (with AGI subsystems)")
+
+    def get_subsystem_health(self) -> Dict[str, dict]:
+        """IMP-96: Get health status of all AGI subsystems.
+
+        Returns a dict mapping subsystem name to health info:
+        {name: {active: bool, last_used: float, error_count: int, status: str}}
+        """
+        now = time.time()
+        health: Dict[str, dict] = {}
+
+        subsystems = [
+            ('knowledge_graph', self.kg),
+            ('phi_calculator', self.phi),
+            ('reasoning_engine', self.reasoning),
+            ('neural_reasoner', self.neural_reasoner),
+            ('causal_engine', self.causal_engine),
+            ('debate_protocol', self.debate_protocol),
+            ('temporal_engine', self.temporal_engine),
+            ('concept_formation', self.concept_formation),
+            ('metacognition', self.metacognition),
+            ('memory_manager', self.memory_manager),
+            ('sephirot_manager', self._sephirot_manager),
+            ('pineal', self.pineal),
+            ('csf_transport', self.csf),
+            ('on_chain', self.on_chain),
+            ('llm_manager', self.llm_manager),
+        ]
+
+        for name, subsystem in subsystems:
+            if subsystem is None:
+                health[name] = {
+                    'active': False,
+                    'status': 'not_initialized',
+                    'error_count': 0,
+                }
+            else:
+                # Check for error count if tracked
+                err_count = self._subsystem_health.get(name, {}).get('error_count', 0)
+                health[name] = {
+                    'active': True,
+                    'status': 'degraded' if err_count > 10 else 'healthy',
+                    'error_count': err_count,
+                }
+
+        self._subsystem_last_check = now
+        return health
+
+    def get_full_stats(self) -> dict:
+        """IMP-99: Comprehensive Aether Engine statistics for chat/API exposure.
+
+        Returns all stats across all subsystems in a single dict.
+        """
+        stats: Dict[str, Any] = {
+            'blocks_processed': self._blocks_processed,
+            'subsystem_health': self.get_subsystem_health(),
+        }
+
+        # Knowledge graph stats
+        if self.kg:
+            stats['knowledge_graph'] = {
+                'total_nodes': len(self.kg.nodes),
+                'total_edges': len(self.kg.edges),
+                'node_types': {},
+                'domains': {},
+            }
+            for n in self.kg.nodes.values():
+                nt = n.node_type
+                stats['knowledge_graph']['node_types'][nt] = (
+                    stats['knowledge_graph']['node_types'].get(nt, 0) + 1
+                )
+                domain = n.content.get('domain', 'general') if isinstance(n.content, dict) else 'general'
+                stats['knowledge_graph']['domains'][domain] = (
+                    stats['knowledge_graph']['domains'].get(domain, 0) + 1
+                )
+
+        # Phi stats
+        if self.phi:
+            try:
+                phi_data = self.phi.compute_phi()
+                stats['phi'] = phi_data
+            except Exception:
+                stats['phi'] = {'phi_value': 0.0, 'error': True}
+
+        # Reasoning stats
+        if self.reasoning:
+            ops = getattr(self.reasoning, '_operations', [])
+            stats['reasoning'] = {
+                'total_operations': len(ops),
+                'success_rate': sum(1 for o in ops if o.get('success', False)) / max(len(ops), 1),
+            }
+
+        # Curiosity stats
+        stats['curiosity'] = {
+            'goals_generated': self._curiosity_stats.get('goals_generated', 0),
+            'goals_completed': self._curiosity_stats.get('goals_completed', 0),
+            'goals_failed': self._curiosity_stats.get('goals_failed', 0),
+            'current_queue': len(self._curiosity_goals),
+        }
+
+        return stats
 
     def _ensure_sephirot(self) -> dict:
         """Lazily initialize the 10 Sephirot nodes and restore saved state."""
@@ -517,6 +621,8 @@ class AetherEngine:
                 try:
                     self.causal_engine.discover_all_domains(block.height)
                 except Exception as e:
+                    # IMP-97: Track subsystem errors instead of silently ignoring
+                    self._track_subsystem_error('causal_engine', e)
                     logger.debug(f"Causal discovery error: {e}")
 
             # #5: Adversarial debate on recent inferences
@@ -526,6 +632,7 @@ class AetherEngine:
                     # Reward Tiferet for successful debate facilitation
                     self._reward_sephirah('debate', True, 0.05)
                 except Exception as e:
+                    self._track_subsystem_error('debate_protocol', e)
                     logger.debug(f"Debate protocol error: {e}")
 
             # #6: Temporal reasoning every block
@@ -1442,6 +1549,27 @@ class AetherEngine:
             )
         except Exception as e:
             logger.debug(f"Sephirah reward error for {role_name}: {e}")
+
+    def _track_subsystem_error(self, subsystem_name: str, error: Exception) -> None:
+        """IMP-97: Track subsystem errors for health monitoring.
+
+        Increments the error count for a subsystem. If errors exceed threshold,
+        logs a warning so operators know a subsystem is degraded.
+        """
+        if subsystem_name not in self._subsystem_health:
+            self._subsystem_health[subsystem_name] = {'error_count': 0, 'last_error': ''}
+        self._subsystem_health[subsystem_name]['error_count'] += 1
+        self._subsystem_health[subsystem_name]['last_error'] = str(error)[:200]
+        err_count = self._subsystem_health[subsystem_name]['error_count']
+        if err_count == 10:
+            logger.warning(
+                f"AGI subsystem '{subsystem_name}' has {err_count} errors — "
+                f"may be degraded. Last error: {str(error)[:100]}"
+            )
+        elif err_count % 100 == 0:
+            logger.warning(
+                f"AGI subsystem '{subsystem_name}' has {err_count} cumulative errors"
+            )
 
     def _record_reasoning_outcome(self, strategy: str, confidence: float,
                                    success: bool, block_height: int) -> None:

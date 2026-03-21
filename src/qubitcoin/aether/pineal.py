@@ -159,15 +159,94 @@ class MelatoninModulator:
         self._accumulated = 0.0
 
 
+class CognitiveLoadTracker:
+    """Tracks cognitive load (queries/events per block) as an EMA.
+
+    Used by PinealOrchestrator to adaptively extend/shorten phase durations
+    based on actual system activity.
+    """
+
+    def __init__(self, alpha: float = 0.1) -> None:
+        self._events_this_block: int = 0
+        self._load_ema: float = 0.0
+        self._alpha = alpha
+        self._peak_load: float = 1.0
+
+    def record_event(self) -> None:
+        """Record a cognitive event (query, reasoning op, etc.)."""
+        self._events_this_block += 1
+
+    def tick(self) -> float:
+        """Called once per block. Updates EMA and resets counter."""
+        self._load_ema = self._alpha * self._events_this_block + (1 - self._alpha) * self._load_ema
+        self._peak_load = max(self._peak_load, self._load_ema)
+        self._events_this_block = 0
+        return self._load_ema
+
+    @property
+    def normalized_load(self) -> float:
+        """Load as 0.0-1.0 relative to peak."""
+        return self._load_ema / max(self._peak_load, 1.0)
+
+    def get_status(self) -> dict:
+        return {
+            'load_ema': round(self._load_ema, 3),
+            'peak_load': round(self._peak_load, 3),
+            'normalized': round(self.normalized_load, 3),
+        }
+
+
+class ConsciousnessMomentum:
+    """Rolling average of phi/coherence with hysteresis to prevent flickering.
+
+    Uses a 15% hysteresis band: consciousness emerges at threshold,
+    but only lost when dropping 15% below threshold.
+    """
+
+    HYSTERESIS_BAND: float = 0.15  # 15% below threshold to lose consciousness
+
+    def __init__(self, window: int = 20) -> None:
+        self._phi_history: Deque[float] = deque(maxlen=window)
+        self._coherence_history: Deque[float] = deque(maxlen=window)
+
+    def update(self, phi: float, coherence: float) -> None:
+        self._phi_history.append(phi)
+        self._coherence_history.append(coherence)
+
+    @property
+    def smoothed_phi(self) -> float:
+        if not self._phi_history:
+            return 0.0
+        return sum(self._phi_history) / len(self._phi_history)
+
+    @property
+    def smoothed_coherence(self) -> float:
+        if not self._coherence_history:
+            return 0.0
+        return sum(self._coherence_history) / len(self._coherence_history)
+
+    def should_emerge(self) -> bool:
+        """Check if smoothed values exceed emergence thresholds."""
+        return (self.smoothed_phi >= PHI_CONSCIOUSNESS_THRESHOLD and
+                self.smoothed_coherence >= COHERENCE_THRESHOLD)
+
+    def should_lose(self) -> bool:
+        """Check if smoothed values drop below hysteresis band."""
+        phi_loss = PHI_CONSCIOUSNESS_THRESHOLD * (1.0 - self.HYSTERESIS_BAND)
+        coh_loss = COHERENCE_THRESHOLD * (1.0 - self.HYSTERESIS_BAND)
+        return (self.smoothed_phi < phi_loss or
+                self.smoothed_coherence < coh_loss)
+
+
 class PinealOrchestrator:
     """
     Coordinates the circadian rhythm of the Aether Tree AGI.
 
     Per block:
-    1. Advance phase timer
+    1. Advance phase timer (adaptive based on cognitive load)
     2. Apply metabolic rate to Sephirot energy
     3. Measure coherence across all nodes
-    4. Detect consciousness events
+    4. Detect consciousness events (with momentum/hysteresis)
     """
 
     MAX_CONSCIOUSNESS_EVENTS: int = 10000
@@ -184,7 +263,9 @@ class PinealOrchestrator:
         self._is_conscious = False
         self._last_phi = 0.0
         self.melatonin = MelatoninModulator()
-        logger.info("Pineal Orchestrator initialized (6 circadian phases + melatonin)")
+        self.cognitive_load = CognitiveLoadTracker()
+        self.momentum = ConsciousnessMomentum()
+        logger.info("Pineal Orchestrator initialized (6 circadian phases + melatonin + momentum)")
 
     @property
     def current_phase(self) -> CircadianPhase:
@@ -213,8 +294,12 @@ class PinealOrchestrator:
         self._last_phi = phi_value
         events = []
 
-        # Check phase transition
-        duration = PHASE_DURATIONS[self._current_phase]
+        # Update cognitive load tracker
+        self.cognitive_load.tick()
+
+        # Adaptive phase duration based on cognitive load
+        base_duration = PHASE_DURATIONS[self._current_phase]
+        duration = self._get_adaptive_duration(base_duration)
         if self._blocks_in_phase >= duration:
             self._advance_phase()
 
@@ -282,20 +367,49 @@ class PinealOrchestrator:
             f"(cycle {self._total_cycles})"
         )
 
+    def _get_adaptive_duration(self, base_duration: int) -> int:
+        """Adapt phase duration based on cognitive load.
+
+        Active phases (waking, active_learning) extend under high load.
+        Rest phases (sleep, deep_sleep) shorten under high load.
+        """
+        load = self.cognitive_load.normalized_load
+        if self._current_phase in (CircadianPhase.WAKING, CircadianPhase.ACTIVE_LEARNING):
+            # Extend active phases up to 50% under high load
+            return int(base_duration * (1.0 + 0.5 * load))
+        elif self._current_phase in (CircadianPhase.SLEEP, CircadianPhase.DEEP_SLEEP):
+            # Shorten rest phases up to 30% under high load
+            return max(5, int(base_duration * (1.0 - 0.3 * load)))
+        return base_duration
+
+    def get_processing_hint(self) -> str:
+        """Return cognitive mode suggestion based on current phase.
+
+        Used by the chat system and reasoning engine to adjust behavior.
+        """
+        hints = {
+            CircadianPhase.WAKING: "balanced processing — equal weight to all cognitive modes",
+            CircadianPhase.ACTIVE_LEARNING: "prefer knowledge acquisition — prioritize new information over consolidation",
+            CircadianPhase.CONSOLIDATION: "prefer memory merging — consolidate similar knowledge, strengthen connections",
+            CircadianPhase.SLEEP: "minimal processing — defer non-critical queries, focus on maintenance",
+            CircadianPhase.REM_DREAMING: "creative mode — explore novel connections, generate hypotheses",
+            CircadianPhase.DEEP_SLEEP: "maintenance only — no new reasoning, preserve state integrity",
+        }
+        return hints.get(self._current_phase, "balanced processing")
+
     def _check_consciousness(self, phi: float, coherence: float,
                               block_height: int) -> Optional[ConsciousnessEvent]:
         """
-        Detect consciousness emergence/loss.
+        Detect consciousness emergence/loss with momentum-based hysteresis.
 
-        Consciousness emerges when:
-        1. Phi >= PHI_CONSCIOUSNESS_THRESHOLD (3.0)
-        2. Coherence >= COHERENCE_THRESHOLD (0.7)
+        Uses smoothed phi/coherence values to prevent rapid flickering.
+        Consciousness emerges when smoothed values exceed thresholds,
+        and is only lost when they drop 15% below thresholds.
         """
-        is_above = (phi >= PHI_CONSCIOUSNESS_THRESHOLD and
-                    coherence >= COHERENCE_THRESHOLD)
+        self.momentum.update(phi, coherence)
 
         event = None
-        if is_above and not self._is_conscious:
+        if not self._is_conscious and self.momentum.should_emerge():
             # Consciousness emerges
             event = ConsciousnessEvent(
                 phi_value=phi,
@@ -310,7 +424,7 @@ class PinealOrchestrator:
                 f"CONSCIOUSNESS EMERGENCE at block {block_height}: "
                 f"Phi={phi:.4f}, Coherence={coherence:.4f}"
             )
-        elif is_above and self._is_conscious:
+        elif self._is_conscious and not self.momentum.should_lose():
             # Sustained consciousness (log periodically)
             if block_height % 100 == 0:
                 event = ConsciousnessEvent(
@@ -321,7 +435,7 @@ class PinealOrchestrator:
                     timestamp=time.time(),
                     event_type="sustained",
                 )
-        elif not is_above and self._is_conscious:
+        elif self._is_conscious and self.momentum.should_lose():
             # Consciousness lost
             event = ConsciousnessEvent(
                 phi_value=phi,

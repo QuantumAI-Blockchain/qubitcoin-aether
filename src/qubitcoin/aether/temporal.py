@@ -148,10 +148,13 @@ class TemporalEngine:
                        z_threshold: float = 2.0,
                        window: int = 100) -> Optional[dict]:
         """
-        Detect anomalies using z-score deviation.
+        Detect anomalies using adaptive z-score deviation.
 
-        Returns anomaly info if the latest value is > z_threshold
-        standard deviations from the mean.
+        Uses an adaptive threshold based on recent variance: if the metric
+        has been volatile recently, the threshold is raised to avoid
+        false positives. If stable, it is kept low for sensitivity.
+
+        Returns anomaly info if the latest value exceeds the adaptive threshold.
         """
         series = self._series.get(metric, [])
         if len(series) < 20:
@@ -167,10 +170,27 @@ class TemporalEngine:
         if std == 0:
             return None
 
+        # Adaptive threshold: compute recent variance (last 20% of window)
+        # vs overall variance. If recent variance is higher, raise threshold.
+        recent_count = max(5, n // 5)
+        recent_values = values[-recent_count:]
+        recent_mean = sum(recent_values) / len(recent_values)
+        recent_var = sum((v - recent_mean) ** 2 for v in recent_values) / len(recent_values)
+        recent_std = math.sqrt(recent_var) if recent_var > 0 else 0
+
+        # Adaptive factor: if recent volatility > 1.5x overall, raise threshold
+        if std > 0 and recent_std / std > 1.5:
+            adaptive_threshold = z_threshold * 1.3
+        elif std > 0 and recent_std / std < 0.5:
+            # Very stable recently: lower threshold for sensitivity
+            adaptive_threshold = z_threshold * 0.8
+        else:
+            adaptive_threshold = z_threshold
+
         latest = values[-1]
         z_score = (latest - mean) / std
 
-        if abs(z_score) < z_threshold:
+        if abs(z_score) < adaptive_threshold:
             return None
 
         return {
@@ -181,6 +201,8 @@ class TemporalEngine:
             'std': round(std, 6),
             'direction': 'high' if z_score > 0 else 'low',
             'block': data[-1][0],
+            'adaptive_threshold': round(adaptive_threshold, 2),
+            'recent_volatility': round(recent_std / std, 3) if std > 0 else 0.0,
         }
 
     def make_prediction(self, metric: str, blocks_ahead: int = 100,
@@ -813,6 +835,44 @@ class TemporalEngine:
             history_length=n,
         )
 
+    def get_predictions_summary(self) -> dict:
+        """Get a comprehensive summary of prediction activity for chat exposure.
+
+        Returns:
+            Dict with pending predictions, validation stats, accuracy,
+            recent outcomes, and per-metric breakdown.
+        """
+        # Per-metric prediction breakdown
+        metric_stats: Dict[str, dict] = {}
+        for pred in self._predictions:
+            m = pred['metric']
+            if m not in metric_stats:
+                metric_stats[m] = {'pending': 0, 'total_predicted': 0}
+            metric_stats[m]['pending'] += 1
+            metric_stats[m]['total_predicted'] += 1
+
+        # Recent outcomes
+        recent_outcomes = self._verified_outcomes[-10:] if self._verified_outcomes else []
+
+        # Per-metric accuracy from verified outcomes
+        for outcome in self._verified_outcomes:
+            m = outcome['metric']
+            if m not in metric_stats:
+                metric_stats[m] = {'pending': 0, 'total_predicted': 0}
+            metric_stats[m]['total_predicted'] = metric_stats[m].get('total_predicted', 0) + 1
+
+        return {
+            'pending_predictions': len(self._predictions),
+            'total_validated': self._predictions_validated,
+            'total_correct': self._predictions_correct,
+            'accuracy': round(self.get_accuracy(), 4),
+            'accuracy_pct': f"{self.get_accuracy():.1%}",
+            'verified_outcomes_count': len(self._verified_outcomes),
+            'recent_outcomes': recent_outcomes,
+            'per_metric': metric_stats,
+            'tracked_metrics': list(self._series.keys()),
+        }
+
     def get_stats(self) -> dict:
         return {
             'tracked_metrics': len(self._series),
@@ -822,4 +882,5 @@ class TemporalEngine:
             'predictions_correct': self._predictions_correct,
             'accuracy': round(self.get_accuracy(), 4),
             'metrics': list(self._series.keys()),
+            'verified_outcomes': len(self._verified_outcomes),
         }

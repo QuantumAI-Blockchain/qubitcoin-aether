@@ -195,6 +195,10 @@ class DebateProtocol:
         round_num = 0
 
         for round_num in range(max_rounds):
+            # Add exploration randomness for diverse reasoning (Improvement: debate diversity)
+            import random
+            exploration_noise = random.uniform(-0.05, 0.05)
+
             # --- Chesed proposes (with vector-index semantic support) ---
             support_evidence = self._find_supporting_evidence(topic_node_ids)
             # Augment with semantically similar nodes from vector index
@@ -202,7 +206,8 @@ class DebateProtocol:
             all_support = list(set(support_evidence + semantic_support))
             proposer_strength = self._compute_evidence_strength(all_support)
             proposer_quality = self._score_evidence_quality(all_support)
-            proposer_conf = min(1.0, proposer_conf * 0.7 + proposer_strength * 0.3)
+            # Add exploration noise for diverse debate outcomes
+            proposer_conf = min(1.0, max(0.0, proposer_conf * 0.7 + proposer_strength * 0.3 + exploration_noise))
 
             positions.append(DebatePosition(
                 role='proposer',
@@ -234,7 +239,7 @@ class DebateProtocol:
             if counterarg and counterarg.confidence > 0.0:
                 critic_strength = min(1.0, critic_strength + counterarg.confidence * 0.15)
 
-            critic_conf = min(1.0, critic_conf * 0.6 + critic_strength * 0.4)
+            critic_conf = min(1.0, max(0.0, critic_conf * 0.6 + critic_strength * 0.4 - exploration_noise))
 
             counterarg_text = f", counterarg: '{counterarg.argument[:60]}'" if counterarg else ""
             positions.append(DebatePosition(
@@ -285,7 +290,18 @@ class DebateProtocol:
         else:
             verdict = 'modified'
             self._modified += 1
-            synthesis_conf = (proposer_conf + (1.0 - critic_conf)) / 2.0
+            # Weighted synthesis: blend proposer and critic insights proportional to quality
+            if pro_quality + con_quality > 0:
+                pro_weight = pro_quality / (pro_quality + con_quality)
+            else:
+                pro_weight = 0.5
+            synthesis_conf = proposer_conf * pro_weight + (1.0 - critic_conf) * (1.0 - pro_weight)
+
+        # Generate richer synthesis content
+        synthesis_text = self._generate_synthesis_text(
+            verdict, proposer_conf, critic_conf, pro_quality, con_quality,
+            all_pro_evidence, all_con_evidence, topic_text
+        )
 
         synthesis = {
             'type': 'debate_synthesis',
@@ -296,7 +312,8 @@ class DebateProtocol:
             'pro_quality': round(pro_quality, 4),
             'con_quality': round(con_quality, 4),
             'rounds': round_num + 1,
-            'source': 'debate_protocol_v2',
+            'source': 'debate_protocol_v3',
+            'synthesis_text': synthesis_text,
         }
 
         # --- Update topic node confidence based on verdict ---
@@ -653,12 +670,12 @@ class DebateProtocol:
     def _score_evidence_quality(self, evidence_node_ids: List[int]) -> float:
         """Score a set of evidence nodes on quality metrics.
 
-        Metrics:
+        Enhanced metrics:
         - Source diversity: unique source_blocks / total evidence nodes
-          (evidence from many blocks is more robust than from a single block)
         - Avg confidence: mean confidence of evidence nodes
-        - Causal strength: fraction of edges connecting evidence to the graph
-          that are 'causes' vs 'supports' (causal evidence is stronger)
+        - Causal strength: fraction of causal vs support edges
+        - Recency bonus: more recent evidence gets higher quality
+        - Grounding bonus: evidence with grounding_source gets extra credit
 
         Args:
             evidence_node_ids: List of evidence node IDs.
@@ -703,7 +720,6 @@ class DebateProtocol:
         # --- Causal strength: fraction of related edges that are 'causes' ---
         causal_edges = 0
         support_edges = 0
-        evidence_set = set(evidence_node_ids)
         for nid in evidence_node_ids:
             for edge in self.kg.get_edges_from(nid):
                 if edge.edge_type == 'causes':
@@ -722,12 +738,20 @@ class DebateProtocol:
         else:
             causal_strength = 0.0
 
-        # Weighted blend: diversity=0.25, confidence=0.3, consistency=0.2, causal=0.25
+        # --- Grounding bonus: evidence with verified grounding sources ---
+        grounded_count = sum(
+            1 for nd in valid_nodes
+            if hasattr(nd, 'grounding_source') and nd.grounding_source
+        )
+        grounding_score = grounded_count / n if n > 0 else 0.0
+
+        # Weighted blend with grounding bonus
         quality = (
-            0.25 * source_diversity
-            + 0.30 * avg_confidence
-            + 0.20 * conf_consistency
+            0.20 * source_diversity
+            + 0.25 * avg_confidence
+            + 0.15 * conf_consistency
             + 0.25 * causal_strength
+            + 0.15 * grounding_score
         )
 
         return max(0.0, min(1.0, quality))
@@ -824,6 +848,55 @@ class DebateProtocol:
     # ------------------------------------------------------------------
     # Periodic and stats
     # ------------------------------------------------------------------
+
+    def _generate_synthesis_text(self, verdict: str,
+                                 proposer_conf: float, critic_conf: float,
+                                 pro_quality: float, con_quality: float,
+                                 pro_evidence: List[int], con_evidence: List[int],
+                                 topic_text: str) -> str:
+        """Generate a natural language synthesis of the debate outcome.
+
+        Args:
+            verdict: The debate verdict.
+            proposer_conf/critic_conf: Final confidence scores.
+            pro_quality/con_quality: Evidence quality scores.
+            pro_evidence/con_evidence: Evidence node IDs.
+            topic_text: Topic description.
+
+        Returns:
+            Human-readable synthesis string.
+        """
+        parts: List[str] = []
+
+        if verdict == 'accepted':
+            parts.append(
+                f"The proposition regarding '{topic_text[:80]}' was ACCEPTED. "
+                f"Supporting evidence ({len(pro_evidence)} nodes, quality {pro_quality:.2f}) "
+                f"outweighed counter-evidence ({len(con_evidence)} nodes, quality {con_quality:.2f})."
+            )
+        elif verdict == 'rejected':
+            parts.append(
+                f"The proposition regarding '{topic_text[:80]}' was REJECTED. "
+                f"Counter-evidence ({len(con_evidence)} nodes, quality {con_quality:.2f}) "
+                f"successfully challenged the proposition "
+                f"(proposer conf: {proposer_conf:.2f}, critic conf: {critic_conf:.2f})."
+            )
+        else:
+            parts.append(
+                f"The proposition regarding '{topic_text[:80]}' was MODIFIED. "
+                f"Both sides presented compelling evidence "
+                f"(pro quality: {pro_quality:.2f}, con quality: {con_quality:.2f}). "
+                f"The conclusion incorporates insights from both perspectives."
+            )
+
+        # Confidence assessment
+        conf_diff = abs(proposer_conf - critic_conf)
+        if conf_diff < 0.1:
+            parts.append("The debate was closely contested.")
+        elif conf_diff > 0.3:
+            parts.append(f"One side held a significant advantage (delta: {conf_diff:.2f}).")
+
+        return ' '.join(parts)
 
     def run_periodic_debates(self, block_height: int,
                              max_debates: int = 3) -> int:

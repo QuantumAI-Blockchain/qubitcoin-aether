@@ -399,6 +399,122 @@ class HiggsCognitiveField:
         }
 
 
+    def adapt_yukawa_couplings(self, usage_stats: Dict[SephirahRole, int]) -> int:
+        """Dynamically adjust Yukawa couplings based on node usage patterns.
+
+        Nodes that are heavily used get slightly stronger Yukawa coupling
+        (higher mass → more inertia → more stable). Unused nodes get
+        weaker coupling (lower mass → more agile → easier to redirect).
+
+        This implements neuroplasticity: frequently-used cognitive
+        pathways become "stronger" (higher mass/inertia).
+
+        Args:
+            usage_stats: Map of role → query count since last adaptation.
+
+        Returns:
+            Number of couplings adjusted.
+        """
+        if not usage_stats:
+            return 0
+
+        max_usage = max(usage_stats.values()) if usage_stats.values() else 1
+        if max_usage <= 0:
+            return 0
+
+        adjusted = 0
+        for role, usage in usage_stats.items():
+            base_yukawa = YUKAWA_COUPLINGS.get(role, PHI ** -2)
+            # Usage factor: 0.95 to 1.05 (±5% adjustment)
+            usage_ratio = usage / max_usage
+            adaptation_factor = 0.95 + 0.10 * usage_ratio
+
+            new_yukawa = base_yukawa * adaptation_factor
+            old_yukawa = self._yukawa_couplings.get(role, base_yukawa)
+
+            if abs(new_yukawa - old_yukawa) > 0.001:
+                self._yukawa_couplings[role] = new_yukawa
+                # Recompute mass for this node
+                if role in EXPANSION_NODES:
+                    vev = self.params.v_up
+                elif role in CONSTRAINT_NODES:
+                    vev = self.params.v_down
+                else:
+                    vev = self.params.vev
+                new_mass = new_yukawa * vev
+                self._cognitive_masses[role] = new_mass
+                node = self.sephirot.nodes.get(role)
+                if node:
+                    node.cognitive_mass = new_mass
+                    node.yukawa_coupling = new_yukawa
+                adjusted += 1
+
+        if adjusted > 0:
+            self._update_mass_gap()
+            logger.debug(f"Yukawa adaptation: {adjusted} couplings adjusted")
+        return adjusted
+
+    def get_field_stability(self) -> float:
+        """Compute field stability as inverse of recent deviation variance.
+
+        Returns a score 0.0-1.0 where 1.0 is perfectly stable (no deviation)
+        and 0.0 is maximally unstable.
+        """
+        if len(self._excitations) < 2:
+            return 1.0
+
+        recent = self._excitations[-20:]
+        deviations = [e.field_deviation for e in recent]
+        mean_dev = sum(deviations) / len(deviations)
+        variance = sum((d - mean_dev) ** 2 for d in deviations) / len(deviations)
+
+        # Map variance to stability: low variance = high stability
+        stability = 1.0 / (1.0 + variance * 100)
+        return round(stability, 4)
+
+    def get_mass_hierarchy_health(self) -> dict:
+        """Check if the golden ratio mass hierarchy is maintained.
+
+        Returns a health report showing expected vs actual mass ratios
+        between SUSY pairs.
+        """
+        pairs_health = []
+        for expansion, constraint in SUSY_PAIRS:
+            m_exp = self._cognitive_masses.get(expansion, 0.0)
+            m_con = self._cognitive_masses.get(constraint, 0.0)
+
+            if m_con > 0:
+                actual_ratio = m_exp / m_con
+                # SUSY pairs share Yukawa tier so mass ratio should be v_up/v_down = phi
+                expected_ratio = self.params.v_up / max(self.params.v_down, 0.001)
+                deviation = abs(actual_ratio - expected_ratio) / max(expected_ratio, 0.001)
+                healthy = deviation < 0.1  # Within 10%
+            else:
+                actual_ratio = 0.0
+                expected_ratio = PHI
+                deviation = 1.0
+                healthy = False
+
+            pairs_health.append({
+                'expansion': expansion.value,
+                'constraint': constraint.value,
+                'm_expansion': round(m_exp, 4),
+                'm_constraint': round(m_con, 4),
+                'ratio': round(actual_ratio, 4),
+                'expected': round(expected_ratio, 4),
+                'deviation_pct': round(deviation * 100, 2),
+                'healthy': healthy,
+            })
+
+        all_healthy = all(p['healthy'] for p in pairs_health)
+        return {
+            'all_healthy': all_healthy,
+            'pairs': pairs_health,
+            'field_stability': self.get_field_stability(),
+            'mass_gap': round(self._mass_gap, 6),
+        }
+
+
 class HiggsSUSYSwap:
     """
     Mass-aware SUSY rebalancing using Higgs cognitive mechanics.

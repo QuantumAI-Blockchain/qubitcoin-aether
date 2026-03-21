@@ -359,8 +359,9 @@ class TestAetherChatFeeIntegration:
             chat.process_message(session.session_id, f"free {i}")
 
         result = chat.process_message(session.session_id, "should fail")
-        assert 'error' in result
-        assert 'Fee payment failed' in result['error']
+        # After IMP-1, fee failure returns a helpful response instead of error
+        assert 'fee_required' in result
+        assert result['fee_required'] is True
 
 
 # ---------------------------------------------------------------------------
