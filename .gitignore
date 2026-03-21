@@ -96,3 +96,4 @@ Thumbs.db
 
 # ---- Claude Code ----
 .claude/worktrees/
+scripts/solana/node_modules/
