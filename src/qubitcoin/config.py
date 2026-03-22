@@ -317,6 +317,7 @@ class Config:
 
     # ============================================================================
     # ON-CHAIN AGI CONTRACT ADDRESSES (set after deployment)
+    # Auto-populated from contract_registry.json if env vars are empty.
     # ============================================================================
     CONSCIOUSNESS_DASHBOARD_ADDRESS: str = os.getenv('CONSCIOUSNESS_DASHBOARD_ADDRESS', '')
     PROOF_OF_THOUGHT_ADDRESS: str = os.getenv('PROOF_OF_THOUGHT_ADDRESS', '')
@@ -324,6 +325,7 @@ class Config:
     TREASURY_DAO_ADDRESS: str = os.getenv('TREASURY_DAO_ADDRESS', '')
     UPGRADE_GOVERNOR_ADDRESS: str = os.getenv('UPGRADE_GOVERNOR_ADDRESS', '')
     VALIDATOR_REGISTRY_ADDRESS: str = os.getenv('VALIDATOR_REGISTRY_ADDRESS', '')
+    EMERGENCY_SHUTDOWN_ADDRESS: str = os.getenv('EMERGENCY_SHUTDOWN_ADDRESS', '')
     # Kernel address used as msg.sender for on-chain AGI calls
     AETHER_KERNEL_ADDRESS: str = os.getenv('AETHER_KERNEL_ADDRESS', '')
 
@@ -588,6 +590,58 @@ class Config:
         """Return the configured SecurityLevel enum value."""
         from .quantum.crypto import SecurityLevel
         return SecurityLevel(cls.DILITHIUM_LEVEL)
+
+    @classmethod
+    def _load_contract_registry(cls) -> None:
+        """Auto-populate empty contract addresses from contract_registry.json.
+
+        Maps registry contract names to Config class attributes.  Only
+        overwrites attributes that are currently empty strings, so env-var
+        overrides always take priority.
+        """
+        import json
+        registry_path = _project_root / 'contract_registry.json'
+        if not registry_path.exists():
+            return
+
+        try:
+            with open(registry_path) as f:
+                registry = json.load(f)
+        except Exception:
+            return
+
+        # Mapping: registry key -> Config attribute name
+        _REGISTRY_MAP = {
+            'ConsciousnessDashboard': 'CONSCIOUSNESS_DASHBOARD_ADDRESS',
+            'ProofOfThought': 'PROOF_OF_THOUGHT_ADDRESS',
+            'ConstitutionalAI': 'CONSTITUTIONAL_AI_ADDRESS',
+            'TreasuryDAO': 'TREASURY_DAO_ADDRESS',
+            'UpgradeGovernor': 'UPGRADE_GOVERNOR_ADDRESS',
+            'ValidatorRegistry': 'VALIDATOR_REGISTRY_ADDRESS',
+            'EmergencyShutdown': 'EMERGENCY_SHUTDOWN_ADDRESS',
+            'AetherKernel': 'AETHER_KERNEL_ADDRESS',
+            'HiggsField': 'HIGGS_FIELD_ADDRESS',
+            'SUSYEngine': 'SUSY_ENGINE_ADDRESS',
+            'NodeRegistry': 'NODE_REGISTRY_ADDRESS',
+        }
+
+        loaded = 0
+        for reg_name, attr_name in _REGISTRY_MAP.items():
+            current = getattr(cls, attr_name, '')
+            if current:
+                continue  # env var already set — don't override
+            entry = registry.get(reg_name)
+            if not entry:
+                continue
+            # Entries have 'proxy' (upgradeable) or 'address' (direct)
+            addr = entry.get('proxy') or entry.get('address', '')
+            if addr:
+                setattr(cls, attr_name, addr)
+                loaded += 1
+
+        if loaded > 0:
+            # Use print because logger may not be initialized yet
+            print(f"[Config] Loaded {loaded} contract addresses from contract_registry.json")
 
     # ============================================================================
     # TRANSACTION REVERSIBILITY
@@ -904,6 +958,10 @@ Expected Emission (phi-halving + tail emission):
 ╚══════════════════════════════════════════════════════════════╝
 """
 
+
+# Auto-populate contract addresses from contract_registry.json at import time.
+# Must run before validate() so addresses are available for any checks.
+Config._load_contract_registry()
 
 # Initialize and validate on import.
 # Critical validation failures (invalid economics, bad DB URL, bad consensus

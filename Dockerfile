@@ -88,6 +88,7 @@ RUN chmod +x /usr/local/bin/qubitcoin-p2p /usr/local/bin/qbc-stratum
 COPY src/ ./src/
 COPY sql/ ./sql/
 COPY sql_new/ ./sql_new/
+COPY contract_registry.json ./contract_registry.json
 
 # Copy generated protobuf stubs for Rust P2P gRPC bridge
 COPY rust-p2p/src/bridge/p2p_service_pb2.py ./rust-p2p/src/bridge/
