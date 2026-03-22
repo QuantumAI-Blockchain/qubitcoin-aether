@@ -195,9 +195,10 @@ class SephirotManager:
         """
         Enforce SUSY balance by redistributing energy between pairs.
 
-        When E_expand / E_constrain deviates from PHI by more than 20%,
-        automatically redistributes energy to bring the ratio closer to PHI.
-        Uses partial correction (50% of the deviation) to avoid oscillation.
+        Uses a dead zone (15% deviation threshold) and gradual correction
+        (25% of deviation per tick) to prevent oscillation. Previously
+        used 50% correction with no dead zone, causing 58 violations and
+        58 corrections in rapid succession.
 
         Increments the susy_corrections_total Prometheus metric for each
         correction applied.
@@ -207,9 +208,22 @@ class SephirotManager:
         violations = self.check_susy_balance(block_height)
         corrections = 0
 
+        # Dead zone: only correct if deviation exceeds 15% of PHI ratio
+        dead_zone = 0.15
+
         for v in violations:
             e_node = self.nodes[v.expansion_node]
             c_node = self.nodes[v.constraint_node]
+
+            if c_node.energy <= 0:
+                continue
+
+            ratio = e_node.energy / c_node.energy
+            deviation = abs(ratio - PHI) / PHI
+
+            # Skip if within the dead zone — prevents oscillation
+            if deviation <= dead_zone:
+                continue
 
             # Calculate the target energies for both nodes.
             # The total energy in the pair should be conserved.
@@ -219,8 +233,9 @@ class SephirotManager:
             target_constrain = total_energy / (1.0 + PHI)
             target_expand = target_constrain * PHI
 
-            # Apply partial correction (50%) to avoid oscillation
-            correction_factor = 0.5
+            # Gradual correction: only move 25% of the way to target
+            # (was 50%, causing oscillation)
+            correction_factor = 0.25
             new_expand = e_node.energy + correction_factor * (target_expand - e_node.energy)
             new_constrain = c_node.energy + correction_factor * (target_constrain - c_node.energy)
 
@@ -248,7 +263,7 @@ class SephirotManager:
 
             logger.info(
                 f"SUSY correction: {v.expansion_node.value}/{v.constraint_node.value} "
-                f"expand {delta_expand:+.4f} constrain {delta_constrain:+.4f} "
+                f"dev={deviation:.2%} expand {delta_expand:+.4f} constrain {delta_constrain:+.4f} "
                 f"new_ratio={new_expand / max(new_constrain, 0.001):.4f}"
             )
 

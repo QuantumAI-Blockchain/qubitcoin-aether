@@ -132,9 +132,9 @@ class TestSemanticGates:
         }
         assert gate['check'](stats) is False
 
-        # Fail: good calibration but low grounding
+        # Fail: good calibration but low grounding (threshold is > 0.03)
         stats['calibration_error'] = 0.1
-        stats['grounding_ratio'] = 0.05
+        stats['grounding_ratio'] = 0.02
         assert gate['check'](stats) is False
 
         # Pass: calibrated and grounded

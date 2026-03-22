@@ -279,11 +279,11 @@ class DebateProtocol:
         pro_adjusted = proposer_conf * (0.5 + 0.5 * pro_quality)
         con_adjusted = critic_conf * (0.5 + 0.5 * con_quality)
 
-        if pro_adjusted > con_adjusted + 0.15:
+        if pro_adjusted > con_adjusted + 0.05:
             verdict = 'accepted'
             self._accepted += 1
             synthesis_conf = proposer_conf * 0.8 + (1.0 - critic_conf) * 0.2
-        elif con_adjusted > pro_adjusted + 0.15:
+        elif con_adjusted > pro_adjusted + 0.05:
             verdict = 'rejected'
             self._rejected += 1
             synthesis_conf = (1.0 - proposer_conf) * 0.5

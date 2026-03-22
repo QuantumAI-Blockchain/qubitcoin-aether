@@ -916,7 +916,7 @@ class ReasoningEngine:
             total = len(source_pattern | cand_pattern)
             similarity = common / total if total > 0 else 0
 
-            if similarity >= 0.5 and common >= 2:
+            if similarity >= 0.3 and common >= 1:
                 analogies_found.append({
                     'node_id': candidate.node_id,
                     'domain': candidate.domain,

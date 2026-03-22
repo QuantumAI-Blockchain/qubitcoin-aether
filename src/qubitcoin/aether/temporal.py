@@ -451,10 +451,10 @@ class TemporalEngine:
         # Validate past predictions
         results['predictions_validated'] = self.validate_predictions(block_height)
 
-        # Make new predictions every 200 blocks
-        if block_height % 200 == 0:
+        # Make new predictions every 100 blocks
+        if block_height % 100 == 0:
             for metric in self._series:
-                pred = self.make_prediction(metric, blocks_ahead=200,
+                pred = self.make_prediction(metric, blocks_ahead=50,
                                             block_height=block_height)
                 if pred:
                     results['new_predictions'].append(pred)

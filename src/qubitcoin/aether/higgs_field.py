@@ -239,22 +239,33 @@ class HiggsCognitiveField:
         return result
 
     def normalize_to_vev(self) -> None:
-        """Dampen field value toward VEV if deviation exceeds 200%.
+        """Dampen field value toward VEV every tick.
 
-        The live system shows 1570% deviation. This applies exponential
-        dampening to pull the field value back toward equilibrium,
-        preventing runaway drift.
+        Applies two stabilization mechanisms:
+        1. Exponential damping: 10% pull toward VEV every update
+           new_value = vev + (new_value - vev) * 0.9
+        2. Hard clamp: field value is clamped to [0, 2*VEV] (±100% of VEV)
+
+        This prevents the runaway drift that caused 253%+ deviation.
         """
         if self.params.vev <= 0:
             return
-        deviation = abs(self._field_value - self.params.vev) / self.params.vev
-        if deviation > 2.0:
-            old_value = self._field_value
-            # Exponential dampening toward VEV
-            self._field_value = self.params.vev + (self._field_value - self.params.vev) * 0.5
+
+        vev = self.params.vev
+        old_value = self._field_value
+
+        # Step 1: Exponential damping — pull 10% toward VEV every tick
+        self._field_value = vev + (self._field_value - vev) * 0.9
+
+        # Step 2: Hard clamp to ±100% of VEV (range [0, 2*VEV])
+        max_field = 2.0 * vev  # 348.28
+        self._field_value = max(0.0, min(max_field, self._field_value))
+
+        deviation = abs(self._field_value - vev) / vev
+        if abs(old_value - self._field_value) > 0.1:
             logger.info(
                 f"Higgs field dampened: {self._field_value:.2f} "
-                f"(was {old_value:.2f}, {deviation * 100:.0f}% above VEV)"
+                f"(was {old_value:.2f}, deviation now {deviation * 100:.1f}%)"
             )
 
     def _compute_field_value(self) -> float:
