@@ -213,23 +213,23 @@ function computePredictionBands(
 }
 
 /**
- * Detect consciousness events: points where Phi crosses the threshold
+ * Detect threshold crossing events: points where Phi crosses the threshold
  * from below to above.
  */
-interface ConsciousnessEvent {
+interface ThresholdEvent {
   block: number;
   phi: number;
   x: number;
   y: number;
 }
 
-function detectConsciousnessEvents(
+function detectThresholdEvents(
   data: DataPoint[],
   xMin: number,
   xRange: number,
   yMax: number,
-): ConsciousnessEvent[] {
-  const events: ConsciousnessEvent[] = [];
+): ThresholdEvent[] {
+  const events: ThresholdEvent[] = [];
   for (let i = 1; i < data.length; i++) {
     const prev = data[i - 1];
     const curr = data[i];
@@ -263,7 +263,7 @@ export function PhiChart() {
     const linePath = buildLinePath(history, xMin, xRange, yMax);
     const heatmapSegments = buildHeatmapSegments(history, xMin, xRange, yMax);
     const predictionBand = computePredictionBands(history, xMin, xRange, yMax);
-    const consciousnessEvents = detectConsciousnessEvents(history, xMin, xRange, yMax);
+    const thresholdEvents = detectThresholdEvents(history, xMin, xRange, yMax);
 
     // Y-axis ticks
     const yTicks = [0, yMax * 0.25, yMax * 0.5, yMax * 0.75, yMax].map((v) => ({
@@ -279,7 +279,7 @@ export function PhiChart() {
       linePath,
       heatmapSegments,
       predictionBand,
-      consciousnessEvents,
+      thresholdEvents,
       yTicks,
     };
   }, [history]);
@@ -290,6 +290,9 @@ export function PhiChart() {
         <h3 className="mb-3 text-sm font-semibold text-text-secondary">
           Phi (&Phi;) History
         </h3>
+        <p className="mb-1 text-[10px] text-text-secondary/70">
+          Graph Integration Metric
+        </p>
         <p className="py-8 text-center text-sm text-text-secondary">
           No Phi history data available yet.
         </p>
@@ -304,30 +307,35 @@ export function PhiChart() {
     linePath,
     heatmapSegments,
     predictionBand,
-    consciousnessEvents,
+    thresholdEvents,
     yTicks,
   } = computed;
 
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text-secondary">
-          Phi (&Phi;) History
-        </h3>
+        <div>
+          <h3 className="text-sm font-semibold text-text-secondary">
+            Phi (&Phi;) History
+          </h3>
+          <p className="text-[10px] text-text-secondary/70">
+            Graph Integration Metric
+          </p>
+        </div>
         <div className="flex items-center gap-4 text-[9px] text-text-secondary">
           <span className="flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full bg-quantum-green opacity-60" />
-            &Phi; &ge; 3.0
+            &Phi; &ge; {PHI_THRESHOLD}
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full bg-golden opacity-60" />
-            1.0&ndash;3.0
+            1.0&ndash;{PHI_THRESHOLD}
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full bg-quantum-red opacity-60" />
             &lt; 1.0
           </span>
-          {consciousnessEvents.length > 0 && (
+          {thresholdEvents.length > 0 && (
             <span className="flex items-center gap-1">
               <span className="inline-block h-2.5 w-2.5 rounded-full border border-glow-cyan bg-glow-cyan/40" />
               Threshold crossed
@@ -349,8 +357,8 @@ export function PhiChart() {
             <stop offset="100%" stopColor="var(--color-quantum-violet)" stopOpacity={0.15} />
           </linearGradient>
 
-          {/* Glow filter for consciousness event dots */}
-          <filter id="consciousnessGlow" x="-50%" y="-50%" width="200%" height="200%">
+          {/* Glow filter for threshold event dots */}
+          <filter id="thresholdGlow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
@@ -383,7 +391,7 @@ export function PhiChart() {
           </g>
         ))}
 
-        {/* Threshold line at PHI = 3.0 */}
+        {/* Threshold line */}
         <line
           x1={PAD.left}
           y1={thresholdY}
@@ -402,7 +410,7 @@ export function PhiChart() {
           fontFamily="var(--font-code)"
           opacity={0.9}
         >
-          &Phi;=3.0
+          &Phi;={PHI_THRESHOLD}
         </text>
 
         {/* Heatmap overlay: colored area segments under the curve */}
@@ -463,9 +471,9 @@ export function PhiChart() {
           strokeLinejoin="round"
         />
 
-        {/* Consciousness event markers (when Phi crosses threshold upward) */}
-        {consciousnessEvents.map((evt, i) => (
-          <g key={`evt-${i}`} filter="url(#consciousnessGlow)">
+        {/* Threshold crossing markers (when Phi crosses threshold upward) */}
+        {thresholdEvents.map((evt, i) => (
+          <g key={`evt-${i}`} filter="url(#thresholdGlow)">
             <circle
               cx={evt.x}
               cy={evt.y}

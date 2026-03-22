@@ -191,10 +191,9 @@ class ReasoningEngine:
                 'rule': rule_content or {'operation': 'conjunction'},
                 'cross_domain': is_cross_domain,
             }
-            # Confidence: product of premise confidences (certainty preserving)
-            conf = 1.0
-            for p in premises:
-                conf *= p.confidence
+            # Confidence: minimum of premise confidences (prevents exponential
+            # decay that occurs with product, more honest about chain strength)
+            conf = min(p.confidence for p in premises) * 0.95
             # Boost confidence when premises are grounded in external truth
             conf *= self._grounding_boost(premise_ids)
             conf = min(1.0, conf)
@@ -269,11 +268,9 @@ class ReasoningEngine:
                 explanation=expl,
             )
 
-        # Protect axiom confidence floor (Improvement 35)
-        for pid in premise_ids:
-            node = self.kg.get_node(pid)
-            if node and node.node_type == 'axiom' and node.confidence < 0.8:
-                node.confidence = 0.8
+        # Note: axiom confidence floor removed — axioms should be falsifiable
+        # through evidence. Artificially preventing axiom confidence from
+        # dropping below 0.8 creates an unfalsifiable knowledge base.
 
         self._store_operation(result)
         self._operations.append(result)
@@ -1511,6 +1508,13 @@ class ReasoningEngine:
 
         analogies: List[dict] = []
 
+        # Check if vector_index is available for semantic similarity
+        has_vectors = (
+            hasattr(self.kg, 'vector_index')
+            and self.kg.vector_index
+            and len(self.kg.vector_index.embeddings) > 0
+        )
+
         for node_a in nodes_a[:50]:  # cap to prevent O(n^2) explosion
             pattern_a = self._get_edge_pattern(node_a.node_id)
             if not pattern_a:
@@ -1521,14 +1525,33 @@ class ReasoningEngine:
                 if not pattern_b:
                     continue
 
-                # Jaccard similarity of edge patterns
+                # Jaccard similarity of edge patterns (structural)
                 common = len(pattern_a & pattern_b)
                 total = len(pattern_a | pattern_b)
                 if total == 0:
                     continue
-                similarity = common / total
+                structural_sim = common / total
 
-                if similarity >= 0.4 and common >= 1:
+                # Embedding cosine similarity (semantic) — require both
+                # structural AND semantic similarity for robust cross-domain inference
+                semantic_sim = 0.0
+                if has_vectors:
+                    from .vector_index import cosine_similarity as _cos_sim
+                    emb_a = self.kg.vector_index.get_embedding(node_a.node_id)
+                    emb_b = self.kg.vector_index.get_embedding(node_b.node_id)
+                    if emb_a and emb_b:
+                        semantic_sim = _cos_sim(emb_a, emb_b)
+
+                # Combined similarity: require both structural and semantic
+                # (or just structural if no embeddings available)
+                if has_vectors:
+                    similarity = (structural_sim + semantic_sim) / 2.0
+                    passes = structural_sim >= 0.3 and semantic_sim >= 0.3 and common >= 1
+                else:
+                    similarity = structural_sim
+                    passes = structural_sim >= 0.4 and common >= 1
+
+                if passes:
                     self.kg.add_edge(
                         node_a.node_id, node_b.node_id, 'analogous_to',
                         weight=similarity,
@@ -1539,6 +1562,8 @@ class ReasoningEngine:
                         'source_domain': domain_a,
                         'target_domain': domain_b,
                         'similarity': round(similarity, 4),
+                        'structural_similarity': round(structural_sim, 4),
+                        'semantic_similarity': round(semantic_sim, 4),
                         'common_edge_types': list(pattern_a & pattern_b),
                     })
                     if len(analogies) >= max_analogies:
@@ -2261,14 +2286,18 @@ class ReasoningEngine:
             return 0
 
         updated = 0
+        # Reinforce edges between consecutive chain steps
+        prev_node_id = None
         for step in result.chain:
-            if hasattr(step, 'premise_id') and hasattr(step, 'conclusion_id'):
-                w = self.update_edge_weight_online(
-                    step.premise_id, step.conclusion_id,
-                    used_successfully=result.success
-                )
-                if w >= 0:
-                    updated += 1
+            if step.node_id is not None:
+                if prev_node_id is not None:
+                    w = self.update_edge_weight_online(
+                        prev_node_id, step.node_id,
+                        used_successfully=result.success
+                    )
+                    if w >= 0:
+                        updated += 1
+                prev_node_id = step.node_id
 
         # Also reinforce edges between premise nodes
         for i, pid1 in enumerate(result.premise_ids):

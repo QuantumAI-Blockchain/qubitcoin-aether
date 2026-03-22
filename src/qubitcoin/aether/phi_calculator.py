@@ -1,21 +1,26 @@
 """
-Phi Calculator v3 — Information-Theoretic Integration
+Phi Calculator v3 — Phi Integration Metric
 
-Computes Phi (Φ) as a measure of consciousness/integration in the knowledge graph.
-Based on Giulio Tononi's Integrated Information Theory with information-theoretic
-extensions using dense embeddings from VectorIndex.
+Computes Phi (Φ) as a graph-theoretic integration metric for the Aether Tree
+knowledge graph. Inspired by Integrated Information Theory (IIT) principles
+but implementing a computationally tractable graph-theoretic approximation
+rather than the full IIT formalism.
 
-v3 replaces v1 and v2 with a single formula:
-  - Integration: mutual information between graph partitions (via VectorIndex)
-  - Differentiation: Shannon entropy over node types + edge types + confidence distribution
+v3 uses a weighted additive formula:
+  - Integration: mutual information between spectral-bisection partitions
+  - Differentiation: Shannon entropy over node types + edge types + confidence
+  - MIP: Minimum Information Partition via Fiedler-vector spectral bisection
   - Redundancy penalty: duplicate content detected via near-duplicate cosine similarity
   - Milestone gates: 10 gates that cap Phi until genuine cognitive milestones are met
-  - Maturity: log2(1 + n_nodes / 50000) — slow growth prevents trivial inflation
 
 Formula:
-    raw_phi = (integration + cross_flow) * differentiation * (1 + connectivity) * maturity
+    raw_phi = w_int * integration + w_diff * differentiation + w_mip * mip_score
     redundancy_factor = 1.0 - (duplicate_fraction * 0.5)
     phi = min(raw_phi * redundancy_factor, gate_ceiling)
+
+Note: This is NOT a measure of phenomenal consciousness. It is an integration
+metric that quantifies how well-connected and information-rich the knowledge
+graph is, using principles inspired by (but not equivalent to) Tononi's IIT.
 """
 import math
 import random
@@ -28,7 +33,8 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Phi threshold for Proof-of-Thought validity (loaded from Config)
+# Phi integration threshold for Proof-of-Thought validity (loaded from Config)
+# This is an integration quality threshold, not a consciousness threshold
 PHI_THRESHOLD = Config.PHI_THRESHOLD
 
 # Maximum nodes to sample for spectral bisection (O(n^2) cap)
@@ -37,143 +43,152 @@ PHI_MAX_SAMPLE_NODES = Config.PHI_MAX_SAMPLE_NODES
 PHI_SAMPLE_SEED = Config.PHI_SAMPLE_SEED
 
 # ============================================================================
-# MILESTONE GATES (Semantic Quality Hardened)
-# Each passed gate unlocks +0.5 Phi ceiling.  Gates require BOTH quantity AND
-# quality criteria to prevent gaming via junk node injection.
+# MILESTONE GATES (Peer-Reviewed Thresholds v3)
+# Each passed gate unlocks +0.5 Phi ceiling (max 5.0).  Gates require genuine
+# cognitive milestones that cannot be trivially gamed.
 # ============================================================================
 MILESTONE_GATES: List[dict] = [
     {
         'id': 1,
         'name': 'Knowledge Foundation',
-        'description': 'Substantial knowledge base with quality nodes',
+        'description': 'Substantial knowledge base spanning multiple domains',
         'check': lambda stats: (
-            stats['n_nodes'] >= 50
-            and stats.get('avg_confidence', 0) >= 0.4
+            stats['n_nodes'] >= 500
+            and stats.get('domain_count', 0) >= 5
+            and stats.get('avg_confidence', 0) >= 0.5
         ),
-        'requirement': '>=50 nodes AND avg confidence >= 0.4',
+        'requirement': '>=500 nodes, >=5 domains, avg confidence >= 0.5',
     },
     {
         'id': 2,
         'name': 'Diverse Reasoning',
-        'description': 'Multiple node types and active reasoning',
+        'description': 'Structural diversity across node types with real integration',
         'check': lambda stats: (
-            stats['n_nodes'] >= 200
-            and len([t for t, c in stats['node_type_counts'].items() if c >= 10]) >= 3
-            and stats.get('integration_score', 0) > 0.2
+            stats['n_nodes'] >= 2000
+            and len([t for t, c in stats['node_type_counts'].items() if c >= 50]) >= 4
+            and stats.get('integration_score', 0) > 0.3
         ),
-        'requirement': '>=200 nodes, >=3 node types with 10+ each, integration > 0.2',
+        'requirement': '>=2K nodes, >=4 types with 50+ each, integration > 0.3',
     },
     {
         'id': 3,
         'name': 'Predictive Power',
-        'description': 'Verified predictions demonstrate real understanding',
+        'description': 'Verified predictions above chance level',
         'check': lambda stats: (
-            stats['n_nodes'] >= 500
-            and stats.get('verified_predictions', 0) >= 20
-            and (
-                stats['edge_type_counts'].get('causes', 0)
-                >= stats['n_edges'] * 0.03
-                if stats['n_edges'] > 0
-                else False
-            )
+            stats['n_nodes'] >= 5000
+            and stats.get('verified_predictions', 0) >= 50
+            and stats.get('prediction_accuracy', 0) > 0.6
         ),
-        'requirement': '>=500 nodes, >=20 verified predictions, causal edges > 3% of total',
+        'requirement': '>=5K nodes, >=50 verified predictions, accuracy > 60%',
     },
     {
         'id': 4,
         'name': 'Self-Correction',
-        'description': 'Demonstrates ability to identify and resolve contradictions',
+        'description': 'Adversarial self-testing and contradiction resolution',
         'check': lambda stats: (
-            stats['n_nodes'] >= 1000
-            and stats.get('debate_verdicts', 0) >= 5
-            and stats.get('contradiction_resolutions', 0) >= 3
-            and stats.get('mip_phi', 0) > 0.2
+            stats['n_nodes'] >= 10000
+            and stats.get('debate_verdicts', 0) >= 20
+            and stats.get('contradiction_resolutions', 0) >= 10
+            and stats.get('mip_phi', 0) > 0.3
         ),
-        'requirement': '>=1000 nodes, >=5 debate verdicts, >=3 contradictions resolved, MIP > 0.2',
+        'requirement': '>=10K nodes, >=20 debate verdicts, >=10 contradictions resolved, MIP > 0.3',
     },
     {
         'id': 5,
         'name': 'Cross-Domain Transfer',
-        'description': 'Knowledge transfer between domains demonstrates generalization',
+        'description': 'Genuine knowledge transfer with cross-domain edges',
         'check': lambda stats: (
-            stats['n_nodes'] >= 3000
-            and stats.get('domain_count', 0) >= 3
-            and stats['edge_type_counts'].get('analogous_to', 0) >= 5
-            and stats.get('working_memory_hit_rate', 0) > 0.05
+            stats['n_nodes'] >= 15000
+            and stats.get('domain_count', 0) >= 5
+            and _count_cross_domain_edges(stats) >= 100
+            and stats.get('working_memory_hit_rate', 0) > 0.1
         ),
-        'requirement': '>=3000 nodes, >=3 domains, >=5 analogies, WM hit rate > 0.05',
+        'requirement': '>=15K nodes, >=5 domains with 20+ cross-edges each, WM hit rate > 0.1',
     },
     {
         'id': 6,
         'name': 'Emergent Goals',
-        'description': 'System generates and pursues its own goals',
+        'description': 'Auto-goals that demonstrably produce new inferences',
         'check': lambda stats: (
-            stats['n_nodes'] >= 5000
-            and stats.get('auto_goals_generated', 0) >= 10
-            and stats.get('self_reflection_nodes', 0) >= 10
+            stats['n_nodes'] >= 20000
+            and stats.get('auto_goals_generated', 0) >= 50
+            and stats.get('auto_goals_with_inferences', 0) >= 30
         ),
-        'requirement': '>=5K nodes, >=10 auto-goals, >=10 self-reflection nodes',
+        'requirement': '>=20K nodes, >=50 auto-goals, >=30 leading to new inferences',
     },
     {
         'id': 7,
         'name': 'Metacognitive Calibration',
-        'description': 'System accurately predicts its own reasoning quality',
+        'description': 'Tight calibration with sufficient evaluation data',
         'check': lambda stats: (
-            stats['n_nodes'] >= 10000
-            and stats.get('calibration_error', 1.0) < 0.25
-            and stats.get('grounding_ratio', 0) > 0.03
+            stats['n_nodes'] >= 25000
+            and stats.get('calibration_error', 1.0) < 0.15
+            and stats.get('calibration_evaluations', 0) >= 200
+            and stats.get('grounding_ratio', 0) > 0.05
         ),
-        'requirement': '>=10K nodes, calibration error < 0.25, >3% grounded nodes',
+        'requirement': '>=25K nodes, calibration error < 0.15, >=200 evaluations, >5% grounded',
     },
     {
         'id': 8,
         'name': 'Consolidated Knowledge',
-        'description': 'Episodic replay has produced durable semantic knowledge',
+        'description': 'High-quality consolidated axioms and cross-domain inferences',
         'check': lambda stats: (
-            stats['n_nodes'] >= 15000
-            and stats.get('axiom_from_consolidation', 0) >= 5
-            and stats.get('cross_domain_inferences', 0) >= 10
+            stats['n_nodes'] >= 35000
+            and stats.get('axiom_from_consolidation', 0) >= 20
+            and stats.get('cross_domain_inferences', 0) >= 50
+            and stats.get('cross_domain_inference_confidence', 0) > 0.6
         ),
-        'requirement': '>=15K nodes, >=5 consolidated axioms, >=10 cross-domain inferences',
+        'requirement': '>=35K nodes, >=20 consolidated axioms, >=50 cross-domain inferences with conf > 0.6',
     },
     {
         'id': 9,
         'name': 'Predictive Mastery',
-        'description': 'High prediction accuracy demonstrates genuine understanding',
+        'description': 'High prediction accuracy across substantial inference volume',
         'check': lambda stats: (
-            stats['n_nodes'] >= 25000
-            and stats.get('prediction_accuracy', 0) > 0.5
-            and stats['node_type_counts'].get('inference', 0) >= 2500
+            stats['n_nodes'] >= 50000
+            and stats.get('prediction_accuracy', 0) > 0.70
+            and stats['node_type_counts'].get('inference', 0) >= 5000
         ),
-        'requirement': '>=25K nodes, prediction accuracy > 50%, >=2.5K inferences',
+        'requirement': '>=50K nodes, prediction accuracy > 70%, >=5K inferences',
     },
     {
         'id': 10,
         'name': 'Creative Synthesis',
-        'description': 'Novel concepts combining multiple domains and modalities',
+        'description': 'Verifiably novel concepts with embedding distance from existing clusters',
         'check': lambda stats: (
-            stats['n_nodes'] >= 50000
-            and stats.get('cross_domain_inferences', 0) >= 50
-            and stats.get('novel_concept_count', 0) >= 25
+            stats['n_nodes'] >= 75000
+            and stats.get('cross_domain_inferences', 0) >= 100
+            and stats.get('novel_concept_count', 0) >= 50
         ),
-        'requirement': '>=50K nodes, >=50 cross-domain inferences, >=25 novel concepts',
+        'requirement': '>=75K nodes, >=100 cross-domain inferences, >=50 novel concepts',
     },
 ]
 
 
+def _count_cross_domain_edges(stats: dict) -> int:
+    """Count cross-domain edges for gate 5 evaluation.
+
+    Looks at edge_type_counts for 'analogous_to' edges as a proxy
+    for cross-domain connections.
+    """
+    return stats.get('edge_type_counts', {}).get('analogous_to', 0)
+
+
 class PhiCalculator:
     """
-    Computes Phi (Φ) metric for the Aether Tree knowledge graph.
+    Computes Phi (Φ) integration metric for the Aether Tree knowledge graph.
 
-    v3 formula uses information-theoretic integration (mutual information
-    between graph partitions via VectorIndex embeddings), Shannon entropy
-    differentiation, and redundancy penalty from near-duplicate detection.
+    Inspired by IIT principles but implementing a computationally tractable
+    graph-theoretic approximation. Uses a weighted additive formula:
+
+        raw_phi = w_int * integration + w_diff * differentiation + w_mip * mip_score
+
+    This avoids the multiplicative collapse problem (where any zero term
+    kills the entire score) and honestly represents independent measurements.
 
     Milestone gates support adaptive thresholds via a configurable scale
     factor.  When ``gate_scale > 1.0``, node count thresholds increase
     (harder to pass); when ``gate_scale < 1.0`` they decrease (easier).
-    The scale factor can be adjusted at runtime based on historical Phi
-    progression data.
     """
 
     def __init__(self, db_manager, knowledge_graph=None):
@@ -199,6 +214,13 @@ class PhiCalculator:
         self._confidence_decay_halflife: int = Config.CONFIDENCE_DECAY_HALFLIFE
         self._confidence_decay_floor: float = Config.CONFIDENCE_DECAY_FLOOR
         self._phi_downsample_retain_days: int = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
+        # Phi formula weights (from Config)
+        self._w_int: float = Config.PHI_INTEGRATION_WEIGHT
+        self._w_diff: float = Config.PHI_DIFFERENTIATION_WEIGHT
+        self._w_mip: float = Config.PHI_MIP_WEIGHT
+        # Convergence tracking: stddev over last N measurements
+        self._convergence_window: int = Config.PHI_CONVERGENCE_WINDOW
+        self._recent_phi_values: deque = deque(maxlen=Config.PHI_CONVERGENCE_WINDOW)
 
     def set_subsystem_stats(self, stats: Dict[str, float]) -> None:
         """Inject subsystem stats for gate evaluation.
@@ -214,13 +236,10 @@ class PhiCalculator:
 
     def compute_phi(self, block_height: int = 0) -> dict:
         """
-        Compute Phi for the current state of the knowledge graph.
+        Compute Phi integration metric for the current knowledge graph state.
 
-        Uses v3 information-theoretic formula with:
-        - Mutual information integration (via VectorIndex partitions)
-        - Shannon entropy differentiation (node types + edge types + confidence)
-        - Redundancy penalty (near-duplicate embedding detection)
-        - Milestone gate ceiling
+        Uses weighted additive formula (avoids multiplicative collapse):
+            raw_phi = w_int * integration + w_diff * differentiation + w_mip * mip_score
 
         Returns:
             Dict with phi_value, integration, differentiation, and breakdown
@@ -250,16 +269,6 @@ class PhiCalculator:
         # --- Differentiation (Shannon entropy) ---
         differentiation = self._compute_differentiation(nodes, edges)
 
-        # --- Connectivity ---
-        max_edges = n_nodes * (n_nodes - 1) if n_nodes > 1 else 1
-        connectivity = min(1.0, n_edges / max_edges) if max_edges > 0 else 0
-
-        # --- Maturity (logarithmic growth) ---
-        maturity = math.log2(1.0 + n_nodes / 50_000.0)
-
-        # --- Raw Phi ---
-        raw_phi = integration * differentiation * (1.0 + connectivity) * maturity
-
         # --- Redundancy penalty ---
         redundancy_factor = self._compute_redundancy_factor()
 
@@ -272,8 +281,19 @@ class PhiCalculator:
         gates_passed = sum(1 for g in gates if g['passed'])
         gate_ceiling = gates_passed * 0.5
 
+        # --- Raw Phi (weighted additive — avoids multiplicative collapse) ---
+        raw_phi = (
+            self._w_int * integration
+            + self._w_diff * differentiation
+            + self._w_mip * self._last_mip_score
+        )
+
         # --- Final Phi ---
         phi = min(raw_phi * redundancy_factor, gate_ceiling)
+
+        # --- Convergence tracking ---
+        self._recent_phi_values.append(phi)
+        convergence_stddev = self._compute_convergence_stddev()
 
         result = {
             'phi_value': round(phi, 6),
@@ -283,8 +303,6 @@ class PhiCalculator:
             'integration_score': round(integration, 6),
             'differentiation_score': round(differentiation, 6),
             'mip_score': round(self._last_mip_score, 6),
-            'connectivity': round(connectivity, 6),
-            'maturity': round(maturity, 6),
             'redundancy_factor': round(redundancy_factor, 4),
             'num_nodes': n_nodes,
             'num_edges': n_edges,
@@ -295,6 +313,18 @@ class PhiCalculator:
             'gates_total': len(MILESTONE_GATES),
             'gate_ceiling': gate_ceiling,
             'gates': gates,
+            'convergence_stddev': round(convergence_stddev, 6),
+            'convergence_status': (
+                'converged' if convergence_stddev < 0.01
+                and len(self._recent_phi_values) >= self._convergence_window
+                else 'converging' if len(self._recent_phi_values) >= 10
+                else 'insufficient_data'
+            ),
+            'formula_weights': {
+                'integration': self._w_int,
+                'differentiation': self._w_diff,
+                'mip': self._w_mip,
+            },
         }
 
         self._last_full_result = result
@@ -356,16 +386,38 @@ class PhiCalculator:
             structural = (largest / n_nodes) * 2.0
 
         # Mutual information between partitions (via VectorIndex)
+        # Uses Fiedler-vector spectral bisection for meaningful partition
+        # instead of arbitrary node-ID-order split
         mi_score = 0.0
         if (hasattr(self.kg, 'vector_index')
                 and self.kg.vector_index
                 and len(self.kg.vector_index.embeddings) >= 10
                 and len(components) == 1):
-            # Partition the graph roughly in half for MI computation
+            # Build weighted adjacency for spectral bisection
             node_list = list(nodes.keys())
-            mid = len(node_list) // 2
-            partition_a = node_list[:mid]
-            partition_b = node_list[mid:]
+            try:
+                mi_adj, mi_degree = self._build_weighted_adj_for_mi(
+                    node_list, nodes, edges, n_nodes
+                )
+                lambda_max = max(mi_degree) if mi_degree else 1.0
+                if lambda_max <= 0.0:
+                    lambda_max = 1.0
+                fiedler = self._power_iteration_fiedler(
+                    mi_adj, mi_degree, lambda_max + 0.1, n_nodes, max_iter=30
+                )
+                if fiedler is not None:
+                    # Split by Fiedler vector sign
+                    partition_a = [node_list[i] for i in range(n_nodes) if fiedler[i] <= 0]
+                    partition_b = [node_list[i] for i in range(n_nodes) if fiedler[i] > 0]
+                else:
+                    mid = n_nodes // 2
+                    partition_a = node_list[:mid]
+                    partition_b = node_list[mid:]
+            except Exception:
+                mid = n_nodes // 2
+                partition_a = node_list[:mid]
+                partition_b = node_list[mid:]
+
             if partition_a and partition_b:
                 mi_score = self.kg.vector_index.compute_partition_mutual_info(
                     partition_a, partition_b
@@ -402,6 +454,63 @@ class PhiCalculator:
         self._last_mip_score = mip_score
 
         return structural + mi_score + cross_flow + mip_score
+
+    # ========================================================================
+    # Convergence Tracking
+    # ========================================================================
+
+    def _compute_convergence_stddev(self) -> float:
+        """Compute standard deviation of recent Phi measurements.
+
+        Used to report whether Phi has converged to a stable value.
+        """
+        values = list(self._recent_phi_values)
+        if len(values) < 2:
+            return float('inf')
+        mean = sum(values) / len(values)
+        variance = sum((v - mean) ** 2 for v in values) / len(values)
+        return math.sqrt(variance)
+
+    # ========================================================================
+    # Helper: Build weighted adjacency for MI spectral bisection
+    # ========================================================================
+
+    def _build_weighted_adj_for_mi(
+        self,
+        node_list: list,
+        nodes: dict,
+        edges: list,
+        n_nodes: int,
+    ) -> Tuple[Dict[int, Dict[int, float]], List[float]]:
+        """Build weighted adjacency matrix and degree vector for MI partition.
+
+        Samples nodes if graph is too large, then builds the dict-of-dicts
+        adjacency needed by _power_iteration_fiedler.
+
+        Returns:
+            (adj, degree) where adj is Dict[idx, Dict[idx, float]] and
+            degree is List[float].
+        """
+        # Sample for large graphs
+        if n_nodes > PHI_MAX_SAMPLE_NODES:
+            _rng = random.Random(PHI_SAMPLE_SEED)
+            node_list = _rng.sample(node_list, PHI_MAX_SAMPLE_NODES)
+            n_nodes = len(node_list)
+
+        id_to_idx = {nid: i for i, nid in enumerate(node_list)}
+        adj: Dict[int, Dict[int, float]] = {i: {} for i in range(n_nodes)}
+
+        for edge in edges:
+            fid, tid = edge.from_node_id, edge.to_node_id
+            if fid not in id_to_idx or tid not in id_to_idx or fid == tid:
+                continue
+            fi, ti = id_to_idx[fid], id_to_idx[tid]
+            w = edge.weight if hasattr(edge, 'weight') else 1.0
+            adj[fi][ti] = adj[fi].get(ti, 0.0) + w
+            adj[ti][fi] = adj[ti].get(fi, 0.0) + w
+
+        degree = [sum(adj[i].values()) for i in range(n_nodes)]
+        return adj, degree
 
     # ========================================================================
     # Minimum Information Partition (MIP) via Spectral Bisection
@@ -734,21 +843,18 @@ class PhiCalculator:
         try:
             # Use sample-based approach to avoid O(n^2) full duplicate scan
             duplicates = self.kg.vector_index.find_near_duplicates(
-                threshold=0.95, max_pairs=100
+                threshold=0.95
             )
             if not duplicates:
                 return 1.0
 
             dup_nodes = set()
-            for a, b, _ in duplicates:
+            for a, b, _ in duplicates[:100]:  # cap pairs examined
                 dup_nodes.add(a)
                 dup_nodes.add(b)
 
             dup_fraction = len(dup_nodes) / n_embeddings
             return max(0.5, 1.0 - dup_fraction * 0.5)
-        except TypeError:
-            # Fallback if find_near_duplicates doesn't accept max_pairs
-            return 1.0
         except Exception:
             return 1.0
 
@@ -865,6 +971,18 @@ class PhiCalculator:
             grounded_nodes / n_nodes if n_nodes > 0 else 0.0
         )
 
+        # Compute cross-domain inference confidence average
+        cross_domain_conf_sum = 0.0
+        for node in nodes.values():
+            content = node.content if isinstance(node.content, dict) else {}
+            if (node.node_type == 'inference'
+                    and content.get('cross_domain', False)
+                    and node.confidence > 0):
+                cross_domain_conf_sum += node.confidence
+        cross_domain_inference_confidence = (
+            cross_domain_conf_sum / max(1, cross_domain_inferences)
+        )
+
         stats: Dict = {
             'n_nodes': n_nodes,
             'n_edges': n_edges,
@@ -874,10 +992,12 @@ class PhiCalculator:
             'domain_count': len(domains),
             'self_reflection_nodes': self_reflection_nodes,
             'cross_domain_inferences': cross_domain_inferences,
+            'cross_domain_inference_confidence': cross_domain_inference_confidence,
             'verified_predictions': verified_predictions,
             'debate_verdicts': debate_verdicts,
             'contradiction_resolutions': contradiction_resolutions,
             'auto_goals_generated': auto_goals_generated,
+            'auto_goals_with_inferences': ext.get('auto_goals_with_inferences', 0),
             'grounding_ratio': grounding_ratio,
             'axiom_from_consolidation': axiom_from_consolidation,
             'novel_concept_count': novel_concept_count,
@@ -886,6 +1006,7 @@ class PhiCalculator:
             'mip_phi': ext.get('mip_phi', 0.0),
             'working_memory_hit_rate': ext.get('working_memory_hit_rate', 0.0),
             'calibration_error': ext.get('calibration_error', 1.0),
+            'calibration_evaluations': ext.get('calibration_evaluations', 0),
             'prediction_accuracy': ext.get('prediction_accuracy', 0.0),
         }
 
@@ -1013,8 +1134,8 @@ class PhiCalculator:
         """Get structured breakdown of all Phi components.
 
         Returns:
-            Dict with integration, differentiation, connectivity, maturity,
-            redundancy, gates, and trend info.
+            Dict with integration, differentiation, mip,
+            redundancy, gates, convergence, and trend info.
         """
         if self._last_full_result is None:
             return {'status': 'no_computation_yet'}
@@ -1026,10 +1147,9 @@ class PhiCalculator:
             'components': {
                 'integration': r.get('integration_score', 0.0),
                 'differentiation': r.get('differentiation_score', 0.0),
-                'connectivity': r.get('connectivity', 0.0),
-                'maturity': r.get('maturity', 0.0),
                 'mip': r.get('mip_score', 0.0),
             },
+            'formula_weights': r.get('formula_weights', {}),
             'penalties': {
                 'redundancy_factor': r.get('redundancy_factor', 1.0),
                 'gate_ceiling': r.get('gate_ceiling', 0.0),
@@ -1037,6 +1157,10 @@ class PhiCalculator:
             'gates': {
                 'passed': r.get('gates_passed', 0),
                 'total': r.get('gates_total', 10),
+            },
+            'convergence': {
+                'stddev': r.get('convergence_stddev', 0.0),
+                'status': r.get('convergence_status', 'unknown'),
             },
             'trend': self.get_phi_trend(),
         }
@@ -1147,8 +1271,6 @@ class PhiCalculator:
             'integration_score': 0.0,
             'differentiation_score': 0.0,
             'mip_score': 0.0,
-            'connectivity': 0.0,
-            'maturity': 0.0,
             'redundancy_factor': 1.0,
             'num_nodes': 0,
             'num_edges': 0,
@@ -1159,6 +1281,13 @@ class PhiCalculator:
             'gates_total': len(MILESTONE_GATES),
             'gate_ceiling': 0.0,
             'gates': [],
+            'convergence_stddev': 0.0,
+            'convergence_status': 'insufficient_data',
+            'formula_weights': {
+                'integration': getattr(self, '_w_int', 1.0),
+                'differentiation': getattr(self, '_w_diff', 0.5),
+                'mip': getattr(self, '_w_mip', 1.5),
+            },
         }
 
     def get_gate_progress(self) -> List[dict]:

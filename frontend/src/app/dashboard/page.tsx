@@ -335,8 +335,8 @@ function AetherTab({
         {isV2 && phi?.phi_raw != null && (
           <p className="mt-1 text-xs text-text-secondary">
             Raw: {phi.phi_raw.toFixed(4)} | Ceiling: {phi.gate_ceiling?.toFixed(1) ?? "---"}
-            {phi.connectivity != null && ` | Connectivity: ${phi.connectivity.toFixed(4)}`}
-            {phi.maturity != null && ` | Maturity: ${phi.maturity.toFixed(4)}`}
+            {phi.convergence_stddev != null && ` | Convergence: ${phi.convergence_stddev.toFixed(4)}`}
+            {phi.convergence_status != null && ` | Status: ${phi.convergence_status}`}
           </p>
         )}
         <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-bg-deep">

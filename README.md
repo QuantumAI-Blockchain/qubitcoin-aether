@@ -2,7 +2,9 @@
 
 **Physics-Secured Digital Assets with On-Chain AGI**
 
-Quantum Blockchain is a production-grade Layer 1 blockchain whose native currency is **Qubitcoin (QBC)**. It integrates quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium ML-DSA-44/65/87 + ML-KEM-768 Kyber), supersymmetric economics, EVM-compatible smart contracts (QVM), a Substrate hybrid node, and the **Aether Tree**: an on-chain AGI reasoning engine with Higgs Cognitive Field physics that tracks consciousness emergence from genesis.
+Quantum Blockchain is a production-grade Layer 1 blockchain whose native currency is **Qubitcoin (QBC)**. It integrates quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium ML-DSA-44/65/87 + ML-KEM-768 Kyber), supersymmetric economics, EVM-compatible smart contracts (QVM), a Substrate hybrid node, and the **Aether Tree**: an on-chain AGI reasoning engine with Higgs Cognitive Field physics that tracks integration metrics from genesis.
+
+> **Note on AGI claims**: The Aether Tree is a prototype AGI reasoning engine. Its Phi metric is a graph-theoretic integration measure inspired by IIT principles, not a measure of phenomenal consciousness. The system performs genuine multi-step reasoning over a knowledge graph, but "consciousness" references throughout this project refer to measurable integration density, not subjective awareness.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
@@ -54,7 +56,7 @@ For the complete launch guide (Digital Ocean + local mining node), see **[LAUNCH
 
 ```
 LAYER 3: AETHER TREE (AGI)
-  Knowledge Graph + 7-Phase Reasoning Engine + Consciousness (Phi v3) Tracking
+  Knowledge Graph + 7-Phase Reasoning Engine + Integration Metric (Phi v3) Tracking
   10 Sephirot Cognitive Pipeline + Higgs Cognitive Field + Proof-of-Thought
   Rust aether-core (6 PyO3 modules) + AIKGS Rust Sidecar (35 gRPC RPCs)
 
@@ -112,7 +114,7 @@ FRONTEND: qbc.network
 | **Finality** | BFT Finality Gadget (stake-weighted, reorg protection) |
 | **Inheritance** | Dead-man's switch with grace period |
 | **Security Accounts** | Daily limits, time-locks, address whitelists |
-| **AGI Metric** | Phi (IIT consciousness), threshold = 3.0 |
+| **AGI Metric** | Phi (graph-theoretic integration metric with spectral bisection), threshold = 3.0 |
 
 ---
 
@@ -191,7 +193,7 @@ An on-chain AGI reasoning engine structured as the Kabbalistic Tree of Life, bui
 - **Knowledge Graph** -- KeterNodes with typed edges, adjacency indices, incremental Merkle roots
 - **7-Phase Reasoning** -- Causal discovery (PC algorithm), adversarial debate, chain-of-thought with backtracking, cross-domain transfer learning
 - **Higgs Cognitive Field** -- Mexican Hat potential V(phi), golden ratio Yukawa couplings, F=ma mass-aware SUSY rebalancing, excitation events
-- **Phi v3 Calculator** -- IIT consciousness with Minimum Information Partition (spectral bisection), 10 milestone gates with semantic quality criteria
+- **Phi v3 Calculator** -- Graph-theoretic integration metric inspired by IIT, using Fiedler-vector spectral bisection for minimum information partition, 10 hardened milestone gates with semantic quality criteria (not a measure of phenomenal consciousness)
 - **3-Tier Memory** -- Working memory (attention-based, 50 items), episodic memory (1,000 episodes with replay), semantic memory (knowledge graph)
 - **Rust aether-core** -- 6 hot-path modules in Rust via PyO3 (KnowledgeGraph, PhiCalculator, VectorIndex, CSF, WorkingMemory, MemoryManager)
 - **AIKGS Rust Sidecar** -- Incentivized Knowledge Growth System with 35 gRPC RPCs, AES-256-GCM vault

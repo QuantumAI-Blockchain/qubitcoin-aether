@@ -18,7 +18,7 @@ class TestSemanticGates:
         assert len(MILESTONE_GATES) == 10
 
     def test_gate_1_knowledge_foundation(self):
-        """Gate 1: quantity + quality (avg confidence >= 0.5)."""
+        """Gate 1: >=500 nodes, >=5 domains, avg confidence >= 0.5."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[0]
         assert gate['id'] == 1
@@ -26,32 +26,37 @@ class TestSemanticGates:
 
         # Fail: not enough nodes
         stats = {
-            'n_nodes': 49, 'n_edges': 10,
+            'n_nodes': 499, 'n_edges': 10,
             'node_type_counts': {}, 'edge_type_counts': {},
-            'avg_confidence': 0.7,
+            'avg_confidence': 0.7, 'domain_count': 5,
         }
         assert gate['check'](stats) is False
 
-        # Fail: enough nodes but low confidence
-        stats['n_nodes'] = 100
+        # Fail: enough nodes but too few domains
+        stats['n_nodes'] = 500
+        stats['domain_count'] = 4
+        assert gate['check'](stats) is False
+
+        # Fail: enough nodes/domains but low confidence
+        stats['domain_count'] = 5
         stats['avg_confidence'] = 0.3
         assert gate['check'](stats) is False
 
-        # Pass: both quantity and quality
+        # Pass: all criteria met
         stats['avg_confidence'] = 0.5
         assert gate['check'](stats) is True
 
     def test_gate_2_diverse_reasoning(self):
-        """Gate 2: node type diversity + integration score."""
+        """Gate 2: >=2K nodes, >=4 types with 50+ each, integration > 0.3."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[1]
         assert gate['id'] == 2
         assert gate['name'] == 'Diverse Reasoning'
 
-        # Fail: not enough node types
+        # Fail: not enough node types with 50+ each
         stats = {
-            'n_nodes': 500, 'n_edges': 100,
-            'node_type_counts': {'assertion': 400, 'observation': 100},
+            'n_nodes': 2000, 'n_edges': 100,
+            'node_type_counts': {'assertion': 400, 'observation': 100, 'inference': 49},
             'edge_type_counts': {},
             'integration_score': 0.5,
         }
@@ -59,9 +64,9 @@ class TestSemanticGates:
 
         # Fail: enough types but low integration
         stats['node_type_counts'] = {
-            'assertion': 200, 'observation': 200, 'inference': 100,
+            'assertion': 200, 'observation': 200, 'inference': 100, 'axiom': 50,
         }
-        stats['integration_score'] = 0.1
+        stats['integration_score'] = 0.2
         assert gate['check'](stats) is False
 
         # Pass: diverse types and good integration
@@ -69,7 +74,7 @@ class TestSemanticGates:
         assert gate['check'](stats) is True
 
     def test_gate_3_predictive_power(self):
-        """Gate 3: verified predictions + causal edge ratio."""
+        """Gate 3: >=5K nodes, >=50 verified predictions, accuracy > 60%."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[2]
         assert gate['id'] == 3
@@ -77,40 +82,40 @@ class TestSemanticGates:
 
         # Fail: no verified predictions
         stats = {
-            'n_nodes': 1000, 'n_edges': 500,
-            'node_type_counts': {}, 'edge_type_counts': {'causes': 30},
-            'verified_predictions': 0,
+            'n_nodes': 5000, 'n_edges': 500,
+            'node_type_counts': {}, 'edge_type_counts': {},
+            'verified_predictions': 0, 'prediction_accuracy': 0.7,
         }
         assert gate['check'](stats) is False
 
-        # Fail: predictions but not enough causal edges
+        # Fail: predictions but low accuracy
         stats['verified_predictions'] = 50
-        stats['edge_type_counts']['causes'] = 10  # 10/500 = 2% < 5%
+        stats['prediction_accuracy'] = 0.5
         assert gate['check'](stats) is False
 
-        # Pass: predictions + sufficient causal edges
-        stats['edge_type_counts']['causes'] = 30  # 30/500 = 6% > 5%
+        # Pass: predictions + sufficient accuracy
+        stats['prediction_accuracy'] = 0.7
         assert gate['check'](stats) is True
 
     def test_gate_4_self_correction(self):
-        """Gate 4: debate verdicts + contradiction resolutions + MIP."""
+        """Gate 4: >=10K nodes, >=20 debate verdicts, >=10 contradictions, MIP > 0.3."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[3]
         assert gate['id'] == 4
         assert gate['name'] == 'Self-Correction'
 
-        # Fail: no debate verdicts
+        # Fail: not enough debate verdicts
         stats = {
-            'n_nodes': 2000, 'n_edges': 500,
+            'n_nodes': 10000, 'n_edges': 500,
             'node_type_counts': {}, 'edge_type_counts': {},
-            'debate_verdicts': 0, 'contradiction_resolutions': 5,
+            'debate_verdicts': 19, 'contradiction_resolutions': 10,
             'mip_phi': 0.5,
         }
         assert gate['check'](stats) is False
 
         # Fail: verdicts but low MIP
-        stats['debate_verdicts'] = 10
-        stats['mip_phi'] = 0.1
+        stats['debate_verdicts'] = 20
+        stats['mip_phi'] = 0.2
         assert gate['check'](stats) is False
 
         # Pass: all criteria met
@@ -118,7 +123,7 @@ class TestSemanticGates:
         assert gate['check'](stats) is True
 
     def test_gate_7_metacognitive_calibration(self):
-        """Gate 7: calibration error + grounding ratio."""
+        """Gate 7: >=25K nodes, calibration error < 0.15, >=200 evals, >5% grounded."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[6]
         assert gate['id'] == 7
@@ -126,23 +131,29 @@ class TestSemanticGates:
 
         # Fail: high calibration error
         stats = {
-            'n_nodes': 20000, 'n_edges': 5000,
+            'n_nodes': 25000, 'n_edges': 5000,
             'node_type_counts': {}, 'edge_type_counts': {},
             'calibration_error': 0.5, 'grounding_ratio': 0.2,
+            'calibration_evaluations': 200,
         }
         assert gate['check'](stats) is False
 
-        # Fail: good calibration but low grounding (threshold is > 0.03)
+        # Fail: good calibration but low grounding
         stats['calibration_error'] = 0.1
-        stats['grounding_ratio'] = 0.02
+        stats['grounding_ratio'] = 0.04
         assert gate['check'](stats) is False
 
-        # Pass: calibrated and grounded
+        # Fail: good calibration/grounding but not enough evaluations
         stats['grounding_ratio'] = 0.2
+        stats['calibration_evaluations'] = 199
+        assert gate['check'](stats) is False
+
+        # Pass: all criteria met
+        stats['calibration_evaluations'] = 200
         assert gate['check'](stats) is True
 
     def test_gate_9_predictive_mastery(self):
-        """Gate 9: prediction accuracy + inference count."""
+        """Gate 9: >=50K nodes, prediction accuracy > 70%, >=5K inferences."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[8]
         assert gate['id'] == 9
@@ -153,13 +164,13 @@ class TestSemanticGates:
             'n_nodes': 50000, 'n_edges': 10000,
             'node_type_counts': {'inference': 5000},
             'edge_type_counts': {},
-            'prediction_accuracy': 0.3,
+            'prediction_accuracy': 0.6,
         }
         assert gate['check'](stats) is False
 
         # Fail: good accuracy but too few inferences
-        stats['prediction_accuracy'] = 0.7
-        stats['node_type_counts']['inference'] = 1000
+        stats['prediction_accuracy'] = 0.8
+        stats['node_type_counts']['inference'] = 4999
         assert gate['check'](stats) is False
 
         # Pass: accurate and enough inferences
@@ -167,27 +178,27 @@ class TestSemanticGates:
         assert gate['check'](stats) is True
 
     def test_gate_10_creative_synthesis(self):
-        """Gate 10: cross-domain inferences + novel concepts."""
+        """Gate 10: >=75K nodes, >=100 cross-domain inferences, >=50 novel concepts."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[9]
         assert gate['id'] == 10
         assert gate['name'] == 'Creative Synthesis'
 
-        # Fail: not enough cross-domain inferences
+        # Fail: not enough nodes
         stats = {
-            'n_nodes': 100000, 'n_edges': 50000,
+            'n_nodes': 74999, 'n_edges': 50000,
             'node_type_counts': {}, 'edge_type_counts': {},
-            'cross_domain_inferences': 49,
+            'cross_domain_inferences': 100,
             'novel_concept_count': 60,
         }
         assert gate['check'](stats) is False
 
-        # Fail: enough inferences but not enough novel concepts
-        stats['cross_domain_inferences'] = 100
-        stats['novel_concept_count'] = 10
+        # Fail: enough nodes but not enough novel concepts
+        stats['n_nodes'] = 75000
+        stats['novel_concept_count'] = 49
         assert gate['check'](stats) is False
 
-        # Pass: both criteria met
+        # Pass: all criteria met
         stats['novel_concept_count'] = 50
         assert gate['check'](stats) is True
 
@@ -222,7 +233,7 @@ class TestSemanticGates:
 
         results = calc._check_gates(nodes, edges)
         assert len(results) == 10
-        # All gates should fail with only 3 nodes (gate 1 requires >= 100)
+        # All gates should fail with only 3 nodes (gate 1 requires >= 500)
         for g in results:
             assert g['passed'] is False
 
@@ -233,16 +244,19 @@ class TestSemanticGates:
         calc = PhiCalculator.__new__(PhiCalculator)
         calc.kg = MagicMock()
 
+        # Create 500 nodes across 5 domains to pass gate 1
+        domains = ['physics', 'math', 'cs', 'biology', 'chemistry']
         nodes = {
             i: KeterNode(node_id=i, node_type='assertion',
-                         content={'text': f'node {i}'}, confidence=0.7)
-            for i in range(1, 101)
+                         content={'text': f'node {i}'}, confidence=0.7,
+                         domain=domains[i % 5])
+            for i in range(1, 501)
         }
         edges = []
 
-        # Without extra_stats, gate 1 should pass (100 nodes, avg conf 0.7)
+        # Without extra_stats, gate 1 should pass (500 nodes, 5 domains, conf 0.7)
         results = calc._check_gates(nodes, edges)
-        assert results[0]['passed'] is True  # Gate 1: 100 nodes, conf 0.7
+        assert results[0]['passed'] is True  # Gate 1
 
         # With extra_stats, integration_score is injected
         results_with_extra = calc._check_gates(nodes, edges, extra_stats={

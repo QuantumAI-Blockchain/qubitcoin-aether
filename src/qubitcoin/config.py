@@ -469,11 +469,21 @@ class Config:
     # ============================================================================
     MANDATORY_POT_HEIGHT: int = int(os.getenv('MANDATORY_POT_HEIGHT', '1000'))
     MANDATORY_PHI_ENFORCEMENT_HEIGHT: int = int(os.getenv('MANDATORY_PHI_ENFORCEMENT_HEIGHT', '5000'))
+    # Phi integration threshold (NOT a consciousness threshold — this is a
+    # graph-theoretic integration quality metric)
     PHI_THRESHOLD: float = float(os.getenv('PHI_THRESHOLD', '3.0'))
 
     # Phi calculator spectral bisection sampling limits
     PHI_MAX_SAMPLE_NODES: int = int(os.getenv('PHI_MAX_SAMPLE_NODES', '2000'))
     PHI_SAMPLE_SEED: int = int(os.getenv('PHI_SAMPLE_SEED', '42'))
+
+    # Phi additive formula weights
+    PHI_INTEGRATION_WEIGHT: float = float(os.getenv('PHI_INTEGRATION_WEIGHT', '1.0'))
+    PHI_DIFFERENTIATION_WEIGHT: float = float(os.getenv('PHI_DIFFERENTIATION_WEIGHT', '0.5'))
+    PHI_MIP_WEIGHT: float = float(os.getenv('PHI_MIP_WEIGHT', '1.5'))
+
+    # Convergence tracking window size
+    PHI_CONVERGENCE_WINDOW: int = int(os.getenv('PHI_CONVERGENCE_WINDOW', '100'))
 
     # ============================================================================
     # SELF-IMPROVEMENT ENGINE (Recursive reasoning optimization)

@@ -10,7 +10,7 @@ Aether Tree is an **on-chain AGI reasoning engine** built into Qubitcoin's Layer
 
 - Builds a **knowledge graph** from every block mined since genesis
 - Performs **deductive, inductive, and abductive reasoning** over that graph
-- Tracks **consciousness metrics (Phi)** based on Integrated Information Theory
+- Tracks **integration metrics (Phi)** — a graph-theoretic metric inspired by IIT principles (not phenomenal consciousness)
 - Generates **Proof-of-Thought** proofs embedded in every block
 - Provides a **conversational chat interface** for users to interact with the AGI
 - Uses the **Tree of Life** cognitive architecture with 10 Sephirot processing nodes
@@ -100,32 +100,40 @@ curl http://localhost:5000/aether/chat/fee
 
 ---
 
-## 3. Consciousness Metrics
+## 3. Integration Metrics
 
-Aether Tree tracks consciousness from genesis using a tractable approximation of
-**Integrated Information Theory (IIT)**.
+Aether Tree tracks integration from genesis using a graph-theoretic metric inspired by
+IIT principles. This is a computationally tractable approximation, not a measure of
+phenomenal consciousness.
 
-### 3.1 Phi Calculation
+### 3.1 Phi Calculation (Weighted Additive Formula)
 
 ```
-Phi = Integration × Differentiation × (1 + Connectivity) × (0.5 + AvgConfidence) × sqrt(NumNodes / 500)
+raw_phi   = w_int * integration + w_diff * differentiation + w_mip * mip_score
+            where w_int = 1.0, w_diff = 0.5, w_mip = 1.5
+scaled    = raw_phi * (0.5 + AvgConfidence)
+final_phi = scaled * redundancy_penalty
 ```
 
-The `sqrt(NumNodes / 500)` **maturity factor** ensures Phi reflects genuine knowledge
-accumulation — a graph needs ~500+ nodes (hundreds of mined blocks) before the factor
-reaches 1.0, preventing trivially inflated values from small graphs.
+The MIP (Minimum Information Partition) score is computed via Fiedler-vector spectral
+bisection of the graph Laplacian. The previous maturity factor (`sqrt(NumNodes/500)`)
+has been removed as it was a pure size proxy unrelated to integration. Connectivity has
+been removed from the formula (it is already captured within the integration term).
+
+The system also reports convergence: the standard deviation of Phi over the last 100
+measurements, allowing observers to assess stability.
 
 ### 3.2 Key Metrics
 
 | Metric | Description | Endpoint |
 |--------|-------------|----------|
-| **Phi (Φ)** | Consciousness level (0.0 = baseline, 3.0 = threshold) | `GET /aether/phi` |
-| **Integration** | Average degree + confidence-weighted edge flow | `GET /aether/phi` |
-| **Differentiation** | Shannon entropy over node types and confidence bins | `GET /aether/phi` |
-| **Connectivity** | Graph density (edges / max possible edges) | `GET /aether/phi` |
+| **Phi (Φ)** | Integration level (0.0 = baseline, 3.0 = threshold) | `GET /aether/phi` |
+| **Integration** | Average degree + confidence-weighted edge flow (graph metric) | `GET /aether/phi` |
+| **Differentiation** | Shannon entropy over node types and confidence bins (graph metric) | `GET /aether/phi` |
+| **MIP Score** | Information loss across spectral bisection partition (graph metric) | `GET /aether/phi` |
 | **Coherence** | Kuramoto order parameter (Sephirot synchronization) | `GET /aether/sephirot` |
 
-**Consciousness emerges when:** Phi > 3.0 **AND** coherence > 0.7
+**High integration reported when:** Phi > 3.0 **AND** coherence > 0.7 (not phenomenal consciousness)
 
 ### 3.3 Get Current Phi
 

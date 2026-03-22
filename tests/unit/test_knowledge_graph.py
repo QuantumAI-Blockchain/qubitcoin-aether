@@ -115,9 +115,10 @@ class TestPhiCalculator:
         expected_keys = {
             'phi_value', 'phi_raw', 'phi_threshold', 'above_threshold',
             'integration_score', 'differentiation_score',
-            'connectivity', 'maturity', 'redundancy_factor',
+            'mip_score', 'redundancy_factor',
             'num_nodes', 'num_edges',
             'block_height', 'timestamp', 'phi_version',
+            'convergence_stddev', 'convergence_status', 'formula_weights',
         }
         assert expected_keys.issubset(set(result.keys()))
 

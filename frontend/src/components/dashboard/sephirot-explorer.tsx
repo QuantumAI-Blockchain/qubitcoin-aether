@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
-import type { SephirotNode } from "@/lib/api";
+import type { SephirotNode, SephirotCognitiveNode } from "@/lib/api";
 import type { SephirotStatusNode, SUSYPair, SephirotStatus } from "@/lib/api";
 
 /* ---- Per-node colour gradients (Tailwind classes) ---- */
@@ -73,8 +73,22 @@ export function SephirotExplorer() {
     refetchInterval: 15_000,
   });
 
+  const { data: cognitiveData } = useQuery({
+    queryKey: ["sephirotCognitiveNodes"],
+    queryFn: () => api.getSephirotCognitiveNodes().catch(() => ({ nodes: [] })),
+    refetchInterval: 15_000,
+    retry: false,
+  });
+
   const nodes = nodesData?.nodes ?? [];
+  const cognitiveNodes = cognitiveData?.nodes ?? [];
   const status = statusData as SephirotStatus | undefined;
+
+  // Build cognitive node lookup by role name
+  const cognitiveByRole: Record<string, SephirotCognitiveNode> = {};
+  for (const cn of cognitiveNodes) {
+    cognitiveByRole[cn.role] = cn;
+  }
   const susyPairs = status?.susy_pairs ?? [];
   const coherence = status?.coherence ?? 0;
   const totalViolations = status?.total_violations ?? 0;
@@ -216,6 +230,7 @@ export function SephirotExplorer() {
                   | SephirotStatusNode
                   | undefined
               }
+              cognitive={cognitiveByRole[expandedNode]}
             />
           </motion.div>
         )}
@@ -268,11 +283,13 @@ function NodeDetail({
   meta,
   staking,
   status,
+  cognitive,
 }: {
   name: string;
   meta: { title: string; brain: string; fn: string; qubits: number };
   staking?: SephirotNode;
   status?: SephirotStatusNode;
+  cognitive?: SephirotCognitiveNode;
 }) {
   return (
     <div className="mt-4 rounded-xl border border-border-subtle/50 bg-bg-deep/30 p-5">
@@ -309,6 +326,27 @@ function NodeDetail({
           value={status?.reasoning_ops?.toLocaleString() ?? "---"}
         />
       </div>
+
+      {cognitive && (
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <DetailStat
+            label="Cognitive Mass"
+            value={cognitive.cognitive_mass.toFixed(2)}
+          />
+          <DetailStat
+            label="Yukawa Coupling"
+            value={cognitive.yukawa_coupling.toFixed(4)}
+          />
+          <DetailStat
+            label="Energy"
+            value={cognitive.energy.toFixed(3)}
+          />
+          <DetailStat
+            label="QBC Stake"
+            value={cognitive.qbc_stake.toLocaleString()}
+          />
+        </div>
+      )}
 
       {staking && (
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">

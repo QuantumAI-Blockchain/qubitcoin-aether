@@ -530,15 +530,25 @@ class KnowledgeGraph:
         _dfs(from_id, to_id, [from_id], {from_id})
         return paths
 
-    def propagate_confidence(self, node_id: int, iterations: int = 3):
+    def propagate_confidence(self, node_id: int, iterations: int = 3,
+                             damping: float = 0.5, epsilon: float = 0.001):
         """
-        Propagate confidence scores through the graph.
-        Nodes supported by high-confidence parents gain confidence;
-        nodes contradicted by high-confidence parents lose it.
+        Propagate confidence scores through the graph with convergence guarantee.
+
+        Uses damping factor to prevent oscillation and early stopping when
+        max delta falls below epsilon.
+
+        Args:
+            node_id: Starting node for propagation (currently propagates
+                globally — the parameter is accepted for API compatibility).
+            iterations: Maximum iterations.
+            damping: Damping factor in (0, 1] to prevent oscillation.
+            epsilon: Convergence threshold — stop when max delta < epsilon.
         """
         with self._lock:
-            for _ in range(iterations):
+            for iteration in range(iterations):
                 updates = {}
+                max_delta = 0.0
                 for nid, node in self.nodes.items():
                     if not node.edges_in:
                         continue
@@ -556,13 +566,21 @@ class KnowledgeGraph:
                         count += 1
 
                     if count > 0:
-                        # Weighted update: support raises confidence, contradiction lowers it
-                        delta = (support_sum - contradict_sum) / count * 0.1
-                        new_conf = max(0.0, min(1.0, node.confidence + delta))
+                        # Weighted update with damping to prevent oscillation
+                        raw_delta = (support_sum - contradict_sum) / count * 0.1
+                        damped_delta = raw_delta * damping
+                        new_conf = max(0.0, min(1.0, node.confidence + damped_delta))
+                        delta = abs(new_conf - node.confidence)
+                        if delta > max_delta:
+                            max_delta = delta
                         updates[nid] = new_conf
 
                 for nid, conf in updates.items():
                     self.nodes[nid].confidence = conf
+
+                # Early stopping on convergence
+                if max_delta < epsilon:
+                    break
 
     def compute_knowledge_root(self) -> str:
         """

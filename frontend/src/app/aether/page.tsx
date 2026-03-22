@@ -504,19 +504,19 @@ function AetherPageContent() {
                   {consciousness?.differentiation?.toFixed(4) ?? "---"}
                 </span>
               </div>
-              {consciousness?.connectivity != null && (
+              {consciousness?.convergence_stddev != null && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Connectivity</span>
+                  <span className="text-text-secondary">Convergence StdDev</span>
                   <span className="font-[family-name:var(--font-code)]">
-                    {consciousness.connectivity.toFixed(4)}
+                    {consciousness.convergence_stddev.toFixed(4)}
                   </span>
                 </div>
               )}
-              {consciousness?.maturity != null && (
+              {consciousness?.convergence_status != null && (
                 <div className="flex justify-between">
-                  <span className="text-text-secondary">Maturity</span>
+                  <span className="text-text-secondary">Convergence Status</span>
                   <span className="font-[family-name:var(--font-code)]">
-                    {consciousness.maturity.toFixed(4)}
+                    {consciousness.convergence_status}
                   </span>
                 </div>
               )}

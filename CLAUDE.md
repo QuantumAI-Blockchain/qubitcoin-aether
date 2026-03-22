@@ -12,7 +12,7 @@
 - **Quantum Computing** (Qiskit VQE) for Proof-of-SUSY-Alignment mining
 - **Post-Quantum Cryptography** (CRYSTALS-Dilithium5, NIST Level 5) for quantum-resistant signatures
 - **Supersymmetric (SUSY) Economics** with golden ratio (phi) emission principles
-- **Aether Tree** : an on-chain AGI reasoning engine that tracks consciousness metrics from genesis
+- **Aether Tree** : an on-chain AGI reasoning engine that tracks integration metrics from genesis
 - **QVM** : a full EVM-compatible virtual machine with quantum opcode extensions
 - **Multi-chain bridges** to ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE
 - **Agent Stack** : 11 autonomous AI agents for community, security, trading, and deployment
@@ -758,15 +758,15 @@ QSP (Quantum State Persistence), ESCC (Entanglement-Based Communication), PCP (P
 On-chain AGI reasoning engine (49 modules, ~29,000 LOC):
 - Builds knowledge graph (KeterNodes) from every block since genesis
 - Performs logical reasoning (deductive, inductive, abductive)
-- Computes Phi (Φ) consciousness metric per block
+- Computes Phi (Φ) integration metric per block (graph-theoretic, not phenomenal consciousness)
 - Generates Proof-of-Thought proofs embedded in blocks
-- Tracks consciousness emergence from block 0
+- Tracks integration metrics from block 0
 
 ### 9.2 Components
 
 - **KnowledgeGraph** (`knowledge_graph.py`): KeterNodes, edge adjacency, Merkle root
 - **ReasoningEngine** (`reasoning.py`): Deductive/inductive/abductive + CoT
-- **PhiCalculator** (`phi_calculator.py`): IIT-based consciousness metric, PHI_THRESHOLD = 3.0
+- **PhiCalculator** (`phi_calculator.py`): Information-theoretic integration metric (weighted additive with spectral bisection MIP), PHI_THRESHOLD = 3.0
 - **AetherEngine** (`proof_of_thought.py`): Per-block reasoning proof
 - **AIKGS Sidecar** (`aikgs-sidecar/`): Rust gRPC service (Docker container, port 50052) for knowledge contributions, bounties, affiliate commissions, curation, scoring, treasury, vault, progressive unlocks
 
@@ -1079,7 +1079,7 @@ KEEPER_DEFAULT_MODE=scan
 | **Token decimals** | wQBC and wQUSD = 8 decimals. |
 | **Gas** | L1 has NO gas. Gas is QVM/L2 only. BLOCK_GAS_LIMIT=30M. |
 | **QBC/QUSD price** | 1:1 (100K:100K pool). |
-| **Aether** | Tracks consciousness from genesis. Phi threshold = 3.0. |
+| **Aether** | Tracks integration metrics from genesis. Phi is a graph-theoretic integration metric (not phenomenal consciousness). Threshold = 3.0. |
 | **secure_key.env** | Private keys ONLY here. NEVER in `.env`. |
 | **Schema sync** | SQL schemas and SQLAlchemy models MUST match. |
 | **Rust P2P** | Runs as Docker container `qbc-p2p`, NOT subprocess. Port 4002 on host (IPFS uses 4001). |

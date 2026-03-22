@@ -223,22 +223,27 @@ class HNSWIndex:
         """
         Greedy beam search on a single layer.
 
+        Uses a min-heap for candidates (closest first) and a max-heap for
+        results (farthest first for efficient pruning). This avoids the
+        O(n^2) sort-inside-loop bug from the original implementation.
+
         Returns list of (distance, node_id) sorted by distance ascending,
         up to ef candidates.
         """
         visited: Set[int] = {entry_point}
         dist = self._cosine_distance(query, self._vectors[entry_point])
+        # candidates: min-heap (closest first)
         candidates: List[Tuple[float, int]] = [(dist, entry_point)]
-        results: List[Tuple[float, int]] = [(dist, entry_point)]
+        # results: max-heap using negated distances (farthest first)
+        results: List[Tuple[float, int]] = [(-dist, entry_point)]
 
         heapq.heapify(candidates)
         while candidates:
             # Pop the closest candidate
             current_dist, current = heapq.heappop(candidates)
 
-            # If the closest candidate is farther than the farthest result, stop
-            results.sort(key=lambda x: x[0])
-            if len(results) >= ef and current_dist > results[-1][0]:
+            # If closest candidate is farther than farthest result, stop
+            if len(results) >= ef and current_dist > -results[0][0]:
                 break
 
             # Explore neighbors
@@ -253,16 +258,17 @@ class HNSWIndex:
 
                 n_dist = self._cosine_distance(query, self._vectors[neighbor])
 
-                results.sort(key=lambda x: x[0])
-                if len(results) < ef or n_dist < results[-1][0]:
+                # Check if result should be added
+                if len(results) < ef or n_dist < -results[0][0]:
                     heapq.heappush(candidates, (n_dist, neighbor))
-                    results.append((n_dist, neighbor))
+                    heapq.heappush(results, (-n_dist, neighbor))
                     if len(results) > ef:
-                        results.sort(key=lambda x: x[0])
-                        results = results[:ef]
+                        heapq.heappop(results)  # remove farthest
 
-        results.sort(key=lambda x: x[0])
-        return results[:ef]
+        # Convert max-heap back to sorted ascending list
+        final = [(-neg_dist, nid) for neg_dist, nid in results]
+        final.sort(key=lambda x: x[0])
+        return final[:ef]
 
     def _select_neighbors(self, candidates: List[Tuple[float, int]],
                           max_neighbors: int) -> List[Tuple[float, int]]:

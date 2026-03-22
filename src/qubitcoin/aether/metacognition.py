@@ -85,9 +85,10 @@ class MetacognitiveLoop:
         if outcome_correct:
             self._total_correct += 1
 
-        # Store raw confidence in bins so calibration tracking is honest.
-        # Temperature scaling is applied in calibrate_confidence() instead,
-        # which is called BEFORE confidence is used for decisions.
+        # IMPORTANT: Use RAW (pre-temperature) confidence for bin placement
+        # and ECE evaluation. This breaks the self-referential feedback loop
+        # where calibrated values train the calibrator. Temperature scaling
+        # is applied only for downstream consumers via calibrate_confidence().
 
         # Update strategy stats
         if strategy not in self._strategy_stats:
@@ -109,20 +110,20 @@ class MetacognitiveLoop:
         if outcome_correct:
             self._domain_stats[domain]['correct'] += 1
 
-        # Use calibrated confidence for bin placement so ECE reflects
-        # post-calibration quality (what the system actually uses for decisions)
-        cal_conf = self.calibrate_confidence(confidence)
-        bin_idx = min(9, int(cal_conf * 10))
+        # Use RAW confidence for bin placement — evaluating ECE against
+        # pre-temperature values prevents the self-referential loop where
+        # calibrated values train the calibrator
+        bin_idx = min(9, int(confidence * 10))
         if bin_idx not in self._confidence_bins:
             self._confidence_bins[bin_idx] = {'count': 0, 'correct': 0}
         self._confidence_bins[bin_idx]['count'] += 1
         if outcome_correct:
             self._confidence_bins[bin_idx]['correct'] += 1
 
-        # Record in history with calibrated confidence
+        # Record in history with RAW confidence (not calibrated)
         entry = {
             'strategy': strategy,
-            'confidence': round(cal_conf, 4),
+            'confidence': round(confidence, 4),
             'correct': outcome_correct,
             'domain': domain,
             'block_height': block_height,
@@ -512,9 +513,9 @@ class MetacognitiveLoop:
                     continue
                 stated = (bin_idx + 0.5) / 10.0
                 actual = data['correct'] / data['count']
-                bin_weight = math.sqrt(data['count'])
-                weighted_error += bin_weight * abs(stated - actual)
-                total_weight += bin_weight
+                # Use linear count to match standard ECE definition
+                weighted_error += data['count'] * abs(stated - actual)
+                total_weight += data['count']
 
             ece = weighted_error / total_weight if total_weight > 0 else 0.0
             trend.append(round(ece, 4))

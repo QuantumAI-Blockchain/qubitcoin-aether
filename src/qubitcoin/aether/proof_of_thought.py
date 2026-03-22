@@ -661,7 +661,7 @@ class AetherEngine:
         except Exception as e:
             logger.warning(f"SafetyVerifier init failed: {e}")
 
-        # #97: Distributed Phi (cross-node consciousness)
+        # #97: Distributed Phi (cross-node integration metric)
         self.distributed_phi = None
         try:
             from .distributed_phi import DistributedPhi
@@ -1173,7 +1173,7 @@ class AetherEngine:
         # AG8: Apply system behavior changes at Phi milestones
         self._apply_phi_milestone_effects(phi_value, block_height)
 
-        # Log consciousness event if Phi crosses threshold
+        # Log integration milestone event if Phi crosses threshold
         from .phi_calculator import PHI_THRESHOLD
         if phi_value >= PHI_THRESHOLD:
             trigger = {

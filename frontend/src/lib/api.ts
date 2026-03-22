@@ -103,9 +103,10 @@ export interface PhiData {
   gate_ceiling?: number;
   gates?: PhiGate[];
   // v3 fields
-  connectivity?: number;
-  maturity?: number;
   redundancy_factor?: number;
+  convergence_stddev?: number;
+  convergence_status?: string;
+  formula_weights?: Record<string, number>;
 }
 
 export interface ChatResponse {
@@ -260,6 +261,22 @@ export interface EmissionSchedule {
   halving_interval: number;
   blocks_per_year: number;
   phi: number;
+}
+
+export interface SephirotCognitiveNode {
+  role: string;
+  title: string;
+  function: string;
+  brain_analog: string;
+  cognitive_mass: number;
+  yukawa_coupling: number;
+  energy: number;
+  qubits: number;
+  active: boolean;
+  messages_processed: number;
+  reasoning_ops: number;
+  contract_address?: string;
+  qbc_stake: number;
 }
 
 export interface SephirotNode {
@@ -506,6 +523,10 @@ export const api = {
     get<{ nodes: SephirotNode[] }>("/sephirot/nodes"),
   getSephirotStatus: () =>
     get<SephirotStatus>("/aether/sephirot"),
+  getSephirotCognitiveNodes: () =>
+    get<{ nodes: SephirotCognitiveNode[] }>("/aether/cognitive/sephirot/nodes"),
+  getSephirotCognitiveNodeByRole: (role: string) =>
+    get<SephirotCognitiveNode>(`/aether/cognitive/sephirot/${role}`),
   stakeSephirot: (body: {
     address: string;
     node_id: number;

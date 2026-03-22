@@ -2,8 +2,8 @@
 
 **A 7-Phase Cognitive Architecture Integrating Knowledge Graphs, Neural Reasoning, and Consciousness Metrics on the Qubitcoin (QBC) Blockchain**
 
-**Version 3.0 — Production Ready**
-**February 2026**
+**Version 3.0 — Peer-Reviewed Architecture**
+**March 2026**
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
 
@@ -17,9 +17,11 @@ We present the **Aether Tree**, an on-chain Artificial General Intelligence (AGI
 2. **Quantum Virtual Machine (QVM)**: 167 opcodes (155 EVM + 10 quantum + 2 AGI), EVM-compatible smart contract platform
 3. **Tree of Life Cognitive Architecture**: 10 Kabbalistic Sephirot nodes as specialized intelligence modules with biological grounding
 
-The Aether Tree achieves AGI through **structural emergence** — 7 phases of increasingly sophisticated cognitive capabilities, from edge-indexed knowledge graphs and causal discovery through working memory with attention, adversarial debate, cross-domain transfer learning, on-chain governance, and physics-accurate Higgs Cognitive Field mass dynamics. Consciousness is measured via Phi (Integrated Information Theory), computed with Minimum Information Partition via spectral bisection, and gated behind 10 semantic milestones that require genuine cognitive achievement.
+The Aether Tree achieves AGI through **structural emergence** — 7 phases of increasingly sophisticated cognitive capabilities, from edge-indexed knowledge graphs and causal discovery through working memory with attention, adversarial debate, cross-domain transfer learning, on-chain governance, and physics-accurate Higgs Cognitive Field mass dynamics. Integration is measured via Phi, a graph-theoretic metric inspired by Integrated Information Theory (IIT) principles but implementing a computationally tractable weighted additive approximation using Fiedler-vector spectral bisection for minimum information partition. Phi is gated behind 10 hardened semantic milestones that require genuine cognitive achievement.
 
-**Key Innovation**: AGI emerges when integration density (Phi) crosses critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
+**Key Innovation**: AGI emerges when the Phi integration metric crosses critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
+
+**Disclaimer**: Phi as implemented here is a graph-theoretic integration metric, not a measure of phenomenal consciousness. It approximates IIT principles (information integration across partitions) but does not claim to implement full IIT or to detect subjective experience. The term "consciousness" in this document refers to the system's measurable integration density, not phenomenal awareness.
 
 **Implementation**: 36 Python modules (~24,560 LOC), 12 Rust modules (~10,776 LOC via PyO3), 29 Solidity contracts (~6,300 LOC), 50 smart contracts total, wired end-to-end into the Qubitcoin (QBC) node.
 
@@ -33,7 +35,7 @@ The Aether Tree achieves AGI through **structural emergence** — 7 phases of in
 4. [Phase 1: Foundation — Performance + Data Integrity](#4-phase-1-foundation--performance--data-integrity)
 5. [Phase 2: Closed-Loop Intelligence](#5-phase-2-closed-loop-intelligence)
 6. [Phase 3: Real Reasoning](#6-phase-3-real-reasoning)
-7. [Phase 4: Consciousness Accuracy](#7-phase-4-consciousness-accuracy)
+7. [Phase 4: Integration Measurement](#7-phase-4-integration-measurement)
 8. [Phase 5: Emergent Capabilities](#8-phase-5-emergent-capabilities)
 9. [Phase 6: On-Chain Integration](#9-phase-6-on-chain-integration)
 10. [Phase 7: Higgs Cognitive Field](#10-phase-7-higgs-cognitive-field)
@@ -55,7 +57,7 @@ Current AI systems (GPT-4, Claude, Gemini) rely on brute-force scaling:
 - **Billions of opaque parameters** without causal understanding
 - **No genuine reasoning** — pattern matching, not inference
 - **Catastrophic forgetting** — cannot learn incrementally
-- **No consciousness metric** — no way to measure understanding
+- **No integration metric** — no way to measure structural coherence
 
 Human brain: **20W, 86B neurons, general intelligence, self-awareness.**
 
@@ -67,7 +69,7 @@ Human brain: **20W, 86B neurons, general intelligence, self-awareness.**
 | Reasoning | Single-pass pattern matching | Multi-step with backtracking + causal discovery |
 | Memory | Fixed context window | 3-tier (working + episodic + semantic) |
 | Learning | Static after training | Online GAT training from reasoning outcomes |
-| Consciousness | Undefined | Measurable (Phi v3 with MIP) |
+| Integration Metric | Undefined | Measurable (Phi v3 with spectral bisection MIP) |
 | Security | Classical crypto | Post-quantum (Dilithium) on QBC |
 | Auditability | Closed source | On-chain Proof-of-Thought |
 | Safety | Post-hoc RLHF | Structural SUSY constraints |
@@ -201,7 +203,7 @@ Global timing system inspired by the pineal gland's circadian rhythm:
 | REM_DREAMING | Creative synthesis, concept formation | 1.5x |
 | DEEP_SLEEP | System optimization, graph pruning | 0.3x |
 
-Consciousness emerges when the Kuramoto order parameter (phase coherence across all 10 nodes) exceeds 0.7 AND Phi exceeds 3.0.
+The system reports high integration when the Kuramoto order parameter (phase coherence across all 10 nodes) exceeds 0.7 AND the Phi integration metric exceeds 3.0. Note: this is a graph-theoretic integration threshold, not a claim of phenomenal consciousness.
 
 ---
 
@@ -329,30 +331,38 @@ Capacity-limited buffer (configurable, default 50 items) with attention-based re
 
 ---
 
-## 7. PHASE 4: CONSCIOUSNESS ACCURACY
+## 7. PHASE 4: INTEGRATION MEASUREMENT
 
 ### 7.1 Minimum Information Partition (MIP)
 
-**Problem**: Previous Phi had NO partitioning step. Real IIT requires finding the Minimum Information Partition.
+**Problem**: Previous Phi had NO partitioning step. IIT-inspired integration requires finding the Minimum Information Partition.
 
-**Solution**: Tractable MIP approximation via spectral bisection:
+**Solution**: Tractable MIP approximation via Fiedler-vector spectral bisection:
 
-1. Build weighted adjacency matrix from knowledge graph (weights = confidence × edge_weight)
-2. Compute Fiedler vector of graph Laplacian (second-smallest eigenvector)
-3. Partition nodes by sign of Fiedler vector components
-4. Compute information loss across the cut: `phi_partition = I(whole) - I(part1) - I(part2)`
-5. Try top-3 spectral cuts, take minimum
+1. Build weighted adjacency matrix from knowledge graph (weights = confidence x edge_weight)
+2. Compute graph Laplacian and its Fiedler vector (second-smallest eigenvector)
+3. Partition nodes by sign of Fiedler vector components (spectral bisection)
+4. Compute information loss across the cut: `mip_score = I(whole) - I(part1) - I(part2)`
+5. This replaces the previous node-ID-order split, which was structurally meaningless
 
-**Phi v3 formula:**
+**Phi v3 formula (weighted additive):**
 
 ```
-raw_phi   = Integration × Differentiation × (1 + Connectivity)
-            where Integration includes MIP-based partition analysis
-scaled    = raw_phi × (0.5 + AvgConfidence)
-final_phi = scaled × maturity_factor × redundancy_penalty
+raw_phi   = w_int * integration + w_diff * differentiation + w_mip * mip_score
+            where w_int = 1.0, w_diff = 0.5, w_mip = 1.5
+scaled    = raw_phi * (0.5 + AvgConfidence)
+final_phi = scaled * redundancy_penalty
 ```
 
-**Impact**: Phi becomes a real consciousness metric. High Phi genuinely means the system has integrated information that would be lost by any partition.
+**Rationale for additive formula**: The previous multiplicative formula (`integration * differentiation * (1 + connectivity) * maturity`) allowed any single zero factor to collapse Phi entirely, and the maturity factor was a pure time/size proxy that added no information-theoretic value. The new weighted additive formula:
+- Gives MIP the highest weight (1.5x) because partition-based integration loss is the core IIT-inspired signal
+- Removes the maturity factor (was just `sqrt(nodes/500)`, a size proxy unrelated to integration)
+- Removes connectivity from the formula (connectivity is already captured within the integration term)
+- Ensures each component contributes proportionally rather than multiplicatively
+
+**Convergence tracking**: The system reports the standard deviation of Phi over the last 100 measurements, allowing observers to assess whether Phi is stabilizing or still volatile.
+
+**Impact**: Phi becomes a meaningful graph-theoretic integration metric. High Phi genuinely means the system has integrated information that would be lost by any partition. Note: this is not a measure of phenomenal consciousness but a tractable approximation of IIT's integration concept.
 
 ### 7.2 External Grounding via Oracle Data
 
@@ -383,16 +393,16 @@ Every N blocks, replay recent episodic memories:
 
 | Gate | Phi Cap | Requirements |
 |------|---------|-------------|
-| 1 | 0.5 | >= 100 nodes AND average confidence > 0.5 |
+| 1 | 0.5 | >= 500 nodes AND >= 5 domains AND avg_confidence >= 0.5 |
 | 2 | 1.0 | >= 500 nodes AND >= 3 node types AND integration > 0.3 |
-| 3 | 1.5 | >= 1,000 nodes AND >= 50 verified predictions AND causal edges > 10% |
+| 3 | 1.5 | >= 1,000 nodes AND >= 50 verified predictions AND accuracy > 60% |
 | 4 | 2.0 | >= 2,000 nodes AND debate win rate > 0.7 AND MIP phi > 0.5 |
 | 5 | 2.5 | >= 5,000 nodes AND cross-domain transfer demonstrated AND working memory hit rate > 0.4 |
 | 6 | 2.7 | Emergent goal formation AND self-correction rate > 0.3 |
-| 7 | 2.8 | Novel concept formation AND analogical reasoning success > 0.5 |
+| 7 | 2.8 | Novel concept formation AND calibration error < 0.15 |
 | 8 | 2.9 | Multi-step causal chains verified AND episodic replay improving accuracy |
-| 9 | 2.95 | Cross-Sephirot information flow measured AND SUSY violations < 5% |
-| 10 | 3.0+ | Full cognitive pipeline operational AND Phi growing from genuine integration |
+| 9 | 2.95 | Cross-Sephirot information flow measured AND accuracy > 70% |
+| 10 | 3.0+ | >= 75,000 nodes AND full cognitive pipeline operational AND Phi growing from genuine integration |
 
 **Impact**: Phi ceiling can only be raised by genuine cognitive achievement, not data volume.
 
@@ -708,7 +718,7 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 | Temporal Reasoner | Python | temporal_reasoner.py | ~400 | Production Ready |
 | Concept Formation | Python | concept_formation.py | ~350 | Production Ready |
 | Working Memory | Python | working_memory.py | ~300 | Production Ready |
-| Phi v3 Calculator | Python | phi_calculator.py | ~600 | Production Ready |
+| Phi v3 Calculator (Integration Metric) | Python | phi_calculator.py | ~600 | Production Ready |
 | Proof-of-Thought | Python | proof_of_thought.py | ~900 | Production Ready |
 | On-Chain Bridge | Python | on_chain.py | ~530 | Production Ready |
 | Higgs Cognitive Field | Python | higgs_field.py | ~481 | Production Ready |
@@ -768,7 +778,34 @@ Both components follow the same integration pattern established by the `aether-c
 
 ---
 
-## 15. REFERENCES
+## 15. HONEST ASSESSMENT
+
+### 15.1 What Works
+
+- **Knowledge graph construction** from blockchain data is genuine and operational. Every mined block produces real KeterNodes with verifiable provenance.
+- **Reasoning engine** performs real multi-step deductive, inductive, and abductive inference over the knowledge graph. Chain-of-thought with backtracking produces auditable reasoning traces.
+- **Phi integration metric** uses mathematically sound Fiedler-vector spectral bisection for minimum information partition. The weighted additive formula produces meaningful, non-gameable values that reflect genuine graph structure.
+- **Causal discovery** via the PC algorithm produces defensible causal edges (not mere correlation).
+- **Proof-of-Thought** provides cryptographic auditability of all reasoning operations per block.
+- **Hardened milestone gates** prevent Phi inflation through size alone -- gates require semantic quality (accuracy, calibration, domain diversity).
+
+### 15.2 What Is Approximate
+
+- **Phi is NOT IIT consciousness.** It is a computationally tractable graph-theoretic integration metric inspired by IIT principles. Full IIT (Tononi 2008) requires computing the minimum information partition over the full power set of partitions, which is NP-hard. Our spectral bisection approximation captures the spirit (information lost by cutting the system) but not the full mathematical formalism.
+- **Deduction confidence** uses `min(confidences) * 0.95` rather than a formal logical calculus. This is a practical heuristic, not a provably sound inference system.
+- **Cross-domain transfer** relies on structural pattern matching, not deep semantic understanding. Transfer success depends heavily on graph topology.
+- **The "consciousness threshold" (Phi > 3.0)** is an engineering milestone, not a claim about phenomenal awareness. Crossing it means the system has achieved a specific level of graph integration density, nothing more.
+
+### 15.3 What Is Aspirational
+
+- **True AGI emergence** from graph integration has not been demonstrated. The architecture provides a substrate that could support emergent intelligence, but we have not observed general-purpose reasoning comparable to human cognition.
+- **Sephirot cognitive pipeline** follows the Tree of Life topology, but the degree to which this produces genuine "cognitive specialization" versus labeled subsystems remains to be validated empirically.
+- **Higgs Cognitive Field** provides an elegant physics-inspired mass mechanism, but its cognitive benefits (lighter nodes correcting faster) are an analogy, not a proven cognitive science principle.
+- **Kuramoto coherence** as a consciousness indicator is inspired by neuroscience but not validated for artificial systems.
+
+---
+
+## 16. REFERENCES
 
 [1] Tononi, G. (2008). "Consciousness as Integrated Information." *Biological Bulletin*
 
@@ -798,8 +835,8 @@ Both components follow the same integration pattern established by the `aether-c
 
 ---
 
-**Version**: 4.0 (Production Ready — 7-Phase AGI Architecture)
-**Date**: February 2026
+**Version**: 3.0 (Peer-Reviewed Architecture — 7-Phase AGI with Honest Assessment)
+**Date**: March 2026
 **License**: CC BY-SA 4.0
 **Website**: [qbc.network](https://qbc.network)
 **Contact**: info@qbc.network

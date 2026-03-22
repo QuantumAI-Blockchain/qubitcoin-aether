@@ -9,7 +9,7 @@ export const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:5000/ws"
 /** Golden ratio */
 export const PHI = 1.618033988749895;
 
-/** Phi consciousness threshold */
+/** Phi integration metric threshold */
 export const PHI_THRESHOLD = 3.0;
 
 /** Max QBC supply */
@@ -94,7 +94,7 @@ export const API = {
   aetherPhi: "/aether/phi",
   aetherPhiHistory: "/aether/phi/history",
   aetherKnowledge: "/aether/knowledge",
-  aetherConsciousness: "/aether/consciousness",
+  aetherIntegration: "/aether/consciousness",
   aetherChatSession: "/aether/chat/session",
   aetherChatMessage: "/aether/chat/message",
   aetherChatFee: (sid: string) => `/aether/chat/fee?session_id=${sid}`,
