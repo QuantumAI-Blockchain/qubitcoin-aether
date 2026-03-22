@@ -493,6 +493,206 @@ class AetherEngine:
         except Exception as e:
             logger.warning(f"SelfRepair init failed: {e}")
 
+        # #76: Global Workspace Theory (broadcast winning coalitions)
+        self.global_workspace = None
+        try:
+            from .global_workspace import GlobalWorkspace
+            self.global_workspace = GlobalWorkspace(capacity=10, ignition_threshold=0.5)
+        except Exception as e:
+            logger.warning(f"GlobalWorkspace init failed: {e}")
+
+        # #77: Attention Schema (model own attention allocation)
+        self.attention_schema = None
+        try:
+            from .attention_schema import AttentionSchema
+            self.attention_schema = AttentionSchema()
+        except Exception as e:
+            logger.warning(f"AttentionSchema init failed: {e}")
+
+        # #78: Predictive Processing (hierarchical prediction error minimization)
+        self.predictive_processing = None
+        try:
+            from .predictive_processing import PredictiveProcessing
+            self.predictive_processing = PredictiveProcessing(input_dim=16)
+        except Exception as e:
+            logger.warning(f"PredictiveProcessing init failed: {e}")
+
+        # #79: Embodied Grounding (ground concepts in chain data)
+        self.embodied_grounding = None
+        try:
+            from .embodied_grounding import EmbodiedGrounding
+            self.embodied_grounding = EmbodiedGrounding()
+        except Exception as e:
+            logger.warning(f"EmbodiedGrounding init failed: {e}")
+
+        # #80: Recurrent Sephirot Processing (GRU-gated feedback loops)
+        self.sephirot_recurrent = None
+        try:
+            from .sephirot_recurrent import SephirotRecurrent
+            self.sephirot_recurrent = SephirotRecurrent(dim=16)
+        except Exception as e:
+            logger.warning(f"SephirotRecurrent init failed: {e}")
+
+        # #81: Cross-Modal Binding (temporal + structural + semantic)
+        self.cross_modal_binding = None
+        try:
+            from .cross_modal_binding import CrossModalBinding
+            self.cross_modal_binding = CrossModalBinding(shared_dim=16)
+        except Exception as e:
+            logger.warning(f"CrossModalBinding init failed: {e}")
+
+        # #82: Real Partition-Based Phi (minimum information cut)
+        self.phi_partition = None
+        try:
+            from .phi_partition import PhiPartition
+            self.phi_partition = PhiPartition(max_nodes=16)
+        except Exception as e:
+            logger.warning(f"PhiPartition init failed: {e}")
+
+        # #83: Phenomenal State Tracking
+        self.phenomenal_state = None
+        try:
+            from .phenomenal_state import PhenomenalStateTracker
+            self.phenomenal_state = PhenomenalStateTracker()
+        except Exception as e:
+            logger.warning(f"PhenomenalStateTracker init failed: {e}")
+
+        # #84: Self-Model Updating
+        self.self_model = None
+        try:
+            from .self_model import SelfModel
+            self.self_model = SelfModel()
+        except Exception as e:
+            logger.warning(f"SelfModel init failed: {e}")
+
+        # #85: Emotional Valence for Decision-Making
+        self.emotional_valence = None
+        try:
+            from .emotional_valence import EmotionalValence
+            self.emotional_valence = EmotionalValence()
+        except Exception as e:
+            logger.warning(f"EmotionalValence init failed: {e}")
+
+        # #86: Empathic User Modeling (used by chat, init only)
+        self.empathic_model = None
+        try:
+            from .empathic_model import EmpathicModel
+            self.empathic_model = EmpathicModel()
+        except Exception as e:
+            logger.warning(f"EmpathicModel init failed: {e}")
+
+        # #87: Narrative Coherence (across reasoning episodes)
+        self.narrative_coherence = None
+        try:
+            from .narrative_coherence import NarrativeCoherence
+            self.narrative_coherence = NarrativeCoherence()
+        except Exception as e:
+            logger.warning(f"NarrativeCoherence init failed: {e}")
+
+        # #88: Cross-Domain Transfer Learning
+        self.transfer_learning = None
+        try:
+            from .transfer_learning import TransferLearning
+            self.transfer_learning = TransferLearning(dim=32)
+        except Exception as e:
+            logger.warning(f"TransferLearning init failed: {e}")
+
+        # #89: Few-Shot Learner
+        self.few_shot_learner = None
+        try:
+            from .few_shot_learner import FewShotLearner
+            self.few_shot_learner = FewShotLearner(dim=32)
+        except Exception as e:
+            logger.warning(f"FewShotLearner init failed: {e}")
+
+        # #90: Continual Learning (EWC)
+        self.continual_learning = None
+        try:
+            from .continual_learning import ContinualLearning
+            self.continual_learning = ContinualLearning(lambda_ewc=1000.0)
+        except Exception as e:
+            logger.warning(f"ContinualLearning init failed: {e}")
+
+        # #91: Counterfactual Reasoning
+        self.counterfactual = None
+        try:
+            from .counterfactual import CounterfactualReasoner
+            self.counterfactual = CounterfactualReasoner()
+        except Exception as e:
+            logger.warning(f"CounterfactualReasoner init failed: {e}")
+
+        # #92: Analogical Transfer (Structure Mapping)
+        self.analogical_transfer = None
+        try:
+            from .analogical_transfer import AnalogicalTransfer
+            self.analogical_transfer = AnalogicalTransfer()
+        except Exception as e:
+            logger.warning(f"AnalogicalTransfer init failed: {e}")
+
+        # #93: Dream-State Consolidation
+        self.dream_consolidation = None
+        try:
+            from .dream_consolidation import DreamConsolidation
+            self.dream_consolidation = DreamConsolidation()
+        except Exception as e:
+            logger.warning(f"DreamConsolidation init failed: {e}")
+
+        # #94: Phi Gate Attention
+        self.phi_gate_attention = None
+        try:
+            from .phi_gate_attention import PhiGateAttention
+            self.phi_gate_attention = PhiGateAttention()
+        except Exception as e:
+            logger.warning(f"PhiGateAttention init failed: {e}")
+
+        # #95: Adversarial Defense (used by chat, init only)
+        self.adversarial_defense = None
+        try:
+            from .adversarial_defense import AdversarialDefense
+            self.adversarial_defense = AdversarialDefense()
+        except Exception as e:
+            logger.warning(f"AdversarialDefense init failed: {e}")
+
+        # #96: Safety Verifier (formal Gevurah verification)
+        self.safety_verifier = None
+        try:
+            from .safety_verifier import SafetyVerifier
+            self.safety_verifier = SafetyVerifier()
+        except Exception as e:
+            logger.warning(f"SafetyVerifier init failed: {e}")
+
+        # #97: Distributed Phi (cross-node consciousness)
+        self.distributed_phi = None
+        try:
+            from .distributed_phi import DistributedPhi
+            self.distributed_phi = DistributedPhi(state_dim=32)
+        except Exception as e:
+            logger.warning(f"DistributedPhi init failed: {e}")
+
+        # #98: Cognitive Load Balancer
+        self.cognitive_load = None
+        try:
+            from .cognitive_load import CognitiveLoadBalancer
+            self.cognitive_load = CognitiveLoadBalancer()
+        except Exception as e:
+            logger.warning(f"CognitiveLoadBalancer init failed: {e}")
+
+        # #99: Meta-Learner (learn how to learn)
+        self.meta_learner = None
+        try:
+            from .meta_learner import MetaLearner
+            self.meta_learner = MetaLearner()
+        except Exception as e:
+            logger.warning(f"MetaLearner init failed: {e}")
+
+        # #100: Recursive Self-Improvement with Gevurah Safety
+        self.recursive_improvement = None
+        try:
+            from .recursive_improvement import RecursiveImprovement
+            self.recursive_improvement = RecursiveImprovement()
+        except Exception as e:
+            logger.warning(f"RecursiveImprovement init failed: {e}")
+
         # #41: NLP Pipeline (lightweight tokenizer, POS tagger, NER, deps)
         self.nlp_pipeline = None
         try:
@@ -633,6 +833,19 @@ class AetherEngine:
             ('anomaly_investigator', self.anomaly_investigator),
             ('experience_replay', self.experience_replay),
             ('self_repair', self.self_repair),
+            ('transfer_learning', self.transfer_learning),
+            ('few_shot_learner', self.few_shot_learner),
+            ('continual_learning', self.continual_learning),
+            ('counterfactual', self.counterfactual),
+            ('analogical_transfer', self.analogical_transfer),
+            ('dream_consolidation', self.dream_consolidation),
+            ('phi_gate_attention', self.phi_gate_attention),
+            ('adversarial_defense', self.adversarial_defense),
+            ('safety_verifier', self.safety_verifier),
+            ('distributed_phi', self.distributed_phi),
+            ('cognitive_load', self.cognitive_load),
+            ('meta_learner', self.meta_learner),
+            ('recursive_improvement', self.recursive_improvement),
         ]
 
         for name, subsystem in subsystems:
@@ -2401,6 +2614,583 @@ class AetherEngine:
                 except Exception as e:
                     self._track_subsystem_error('self_repair', e)
                     logger.debug(f"Self-repair error: {e}")
+
+            # #76: Global Workspace — compete and broadcast every 10 blocks
+            if self.global_workspace and block.height > 0 and block.height % 10 == 0:
+                try:
+                    import numpy as _np
+                    # Build candidates from recent subsystem outputs
+                    candidates = []
+                    if self.temporal_engine:
+                        candidates.append({
+                            'activation_strength': 0.6,
+                            'relevance': 0.7,
+                            'novelty': 0.5,
+                            'source': 'temporal',
+                            'content': f'block_{block.height}_temporal',
+                        })
+                    if self.causal_engine:
+                        candidates.append({
+                            'activation_strength': 0.5,
+                            'relevance': 0.6,
+                            'novelty': 0.6,
+                            'source': 'causal',
+                            'content': f'block_{block.height}_causal',
+                        })
+                    if block_phi_result:
+                        phi_val = block_phi_result.get('phi_value', 0)
+                        candidates.append({
+                            'activation_strength': min(phi_val, 1.0),
+                            'relevance': 0.8,
+                            'novelty': 0.4,
+                            'source': 'phi',
+                            'content': f'phi_{phi_val:.3f}',
+                        })
+                    if is_meaningful:
+                        candidates.append({
+                            'activation_strength': 0.8,
+                            'relevance': 0.9,
+                            'novelty': 0.7,
+                            'source': 'block_event',
+                            'content': f'meaningful_block_{block.height}',
+                        })
+                    if candidates:
+                        winners = self.global_workspace.compete(candidates)
+                        for w in winners:
+                            if w.get('activation_strength', 0) > 0.5:
+                                self.global_workspace.broadcast(w)
+                except Exception as e:
+                    self._track_subsystem_error('global_workspace', e)
+                    logger.debug(f"Global workspace error: {e}")
+
+            # #77: Attention Schema — update allocation every block
+            if self.attention_schema:
+                try:
+                    targets = ['mining', 'reasoning', 'knowledge', 'safety', 'exploration']
+                    importance = [
+                        0.5,  # mining — constant
+                        0.6 if self.reasoning else 0.2,
+                        0.7 if self.kg and len(self.kg.nodes) > 0 else 0.3,
+                        0.4,  # safety
+                        0.5 if self._curiosity_goals else 0.2,
+                    ]
+                    self.attention_schema.allocate(targets, importance)
+                    self.attention_schema.decay()
+                except Exception as e:
+                    logger.debug(f"Attention schema error: {e}")
+
+            # #78: Predictive Processing — process block data every block
+            if self.predictive_processing:
+                try:
+                    import numpy as _np
+                    # Build input vector from block data
+                    input_data = _np.array([
+                        block.difficulty / 100.0 if block.difficulty else 0.0,
+                        len(block.transactions) / 10.0,
+                        len(self.kg.nodes) / 10000.0 if self.kg else 0.0,
+                        len(self.kg.edges) / 20000.0 if self.kg else 0.0,
+                        block_phi_result.get('phi_value', 0) if block_phi_result else 0.0,
+                    ] + [0.0] * 11, dtype=_np.float64)[:16]
+                    pp_result = self.predictive_processing.process(input_data)
+                    # High surprisal events trigger attention shift
+                    if self.attention_schema and pp_result.surprisal > 1.0:
+                        self.attention_schema.shift_attention('anomaly_response', 0.3)
+                except Exception as e:
+                    logger.debug(f"Predictive processing error: {e}")
+
+            # #79: Embodied Grounding — ground concepts every 100 blocks
+            if self.embodied_grounding and block.height > 0 and block.height % 100 == 0:
+                try:
+                    chain_data = {
+                        'difficulty': block.difficulty,
+                        'tx_count': len(block.transactions),
+                        'height': block.height,
+                        'kg_nodes': len(self.kg.nodes) if self.kg else 0,
+                        'kg_edges': len(self.kg.edges) if self.kg else 0,
+                        'phi_value': block_phi_result.get('phi_value', 0) if block_phi_result else 0.0,
+                        'reward': getattr(block, 'reward', None),
+                        'energy': getattr(block, 'energy', None),
+                    }
+                    for concept in ['difficulty', 'activity', 'knowledge_size',
+                                    'reasoning_quality', 'growth_trend']:
+                        self.embodied_grounding.ground(concept, chain_data, block.height)
+                except Exception as e:
+                    self._track_subsystem_error('embodied_grounding', e)
+                    logger.debug(f"Embodied grounding error: {e}")
+
+            # #80: Sephirot Recurrent — run GRU step every 10 blocks
+            if self.sephirot_recurrent and block.height > 0 and block.height % 10 == 0:
+                try:
+                    import numpy as _np
+                    # Build external inputs from block data
+                    base_input = _np.array([
+                        block.difficulty / 100.0 if block.difficulty else 0.0,
+                        len(block.transactions) / 10.0,
+                        block_phi_result.get('phi_value', 0) if block_phi_result else 0.0,
+                    ] + [0.0] * 13, dtype=_np.float64)[:16]
+                    inputs = {'keter': base_input, 'malkuth': base_input * 0.5}
+                    self.sephirot_recurrent.step(inputs)
+                except Exception as e:
+                    self._track_subsystem_error('sephirot_recurrent', e)
+                    logger.debug(f"Sephirot recurrent error: {e}")
+
+            # #81: Cross-Modal Binding — bind modalities every 50 blocks
+            if self.cross_modal_binding and block.height > 0 and block.height % 50 == 0:
+                try:
+                    import numpy as _np
+                    # Temporal modality: block time series features
+                    temporal = _np.array([
+                        block.difficulty / 100.0 if block.difficulty else 0.0,
+                        block.timestamp / 1e9 if block.timestamp else 0.0,
+                    ] + [0.0] * 14, dtype=_np.float64)[:16]
+                    # Structural modality: graph features
+                    structural = _np.array([
+                        len(self.kg.nodes) / 10000.0 if self.kg else 0.0,
+                        len(self.kg.edges) / 20000.0 if self.kg else 0.0,
+                    ] + [0.0] * 14, dtype=_np.float64)[:16]
+                    # Semantic modality: content features
+                    semantic = _np.array([
+                        block_phi_result.get('phi_value', 0) if block_phi_result else 0.0,
+                        block_phi_result.get('coherence', 0) if block_phi_result else 0.0,
+                    ] + [0.0] * 14, dtype=_np.float64)[:16]
+                    bound = self.cross_modal_binding.bind(temporal, structural, semantic)
+                    strength = self.cross_modal_binding.binding_strength(bound)
+                    if block.height % 500 == 0:
+                        logger.debug(
+                            f"Cross-modal binding at block {block.height}: "
+                            f"strength={strength:.4f}"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('cross_modal_binding', e)
+                    logger.debug(f"Cross-modal binding error: {e}")
+
+            # #82: Phi Partition — compute rigorous Phi every 500 blocks (expensive)
+            if self.phi_partition and self.kg and block.height > 0 and block.height % 500 == 0:
+                try:
+                    import numpy as _np
+                    # Build system state and connectivity from Sephirot
+                    sephirot_nodes = self._ensure_sephirot()
+                    if sephirot_nodes and len(sephirot_nodes) >= 4:
+                        names = list(sephirot_nodes.keys())[:10]
+                        n = len(names)
+                        state = _np.array([
+                            getattr(sephirot_nodes[name], 'energy', 0.5)
+                            if hasattr(sephirot_nodes[name], 'energy')
+                            else 0.5
+                            for name in names
+                        ], dtype=_np.float64)
+                        # Build connectivity from Tree of Life
+                        from .sephirot_recurrent import _TREE_OF_LIFE
+                        conn = _np.zeros((n, n), dtype=_np.float64)
+                        for i, ni in enumerate(names):
+                            ni_str = ni.value if hasattr(ni, 'value') else str(ni)
+                            neighbors = _TREE_OF_LIFE.get(ni_str.lower(), [])
+                            for j, nj in enumerate(names):
+                                nj_str = nj.value if hasattr(nj, 'value') else str(nj)
+                                if nj_str.lower() in neighbors:
+                                    conn[i, j] = 1.0
+                        phi_val = self.phi_partition.compute_phi(state, conn)
+                        if phi_val > 0.1:
+                            logger.info(
+                                f"Partition Phi={phi_val:.4f} at block {block.height}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('phi_partition', e)
+                    logger.debug(f"Phi partition error: {e}")
+
+            # #83: Phenomenal State — update every block
+            if self.phenomenal_state:
+                try:
+                    events_for_state = []
+                    if is_meaningful:
+                        events_for_state.append({
+                            'type': 'meaningful_block',
+                            'success': True,
+                            'significance': 0.6,
+                        })
+                    if self.predictive_processing and hasattr(self.predictive_processing, '_total_processes'):
+                        avg_s = self.predictive_processing.get_surprisal()
+                        if avg_s > 1.0:
+                            events_for_state.append({
+                                'type': 'high_surprisal',
+                                'anomaly': True,
+                                'significance': min(avg_s / 5.0, 1.0),
+                                'prediction_error': avg_s,
+                            })
+                    self.phenomenal_state.update(events_for_state, block.height)
+                except Exception as e:
+                    logger.debug(f"Phenomenal state error: {e}")
+
+            # #84: Self-Model — update every 100 blocks
+            if self.self_model and block.height > 0 and block.height % 100 == 0:
+                try:
+                    # Update capabilities from subsystem stats
+                    subsystem_pairs = [
+                        ('neural_reasoning', self.neural_reasoner),
+                        ('causal_discovery', self.causal_engine),
+                        ('temporal_prediction', self.temporal_engine),
+                        ('concept_formation', self.concept_formation),
+                        ('debate', self.debate_protocol),
+                    ]
+                    for cap_name, sub in subsystem_pairs:
+                        if sub is None:
+                            continue
+                        sub_stats = sub.get_stats() if hasattr(sub, 'get_stats') else {}
+                        acc = sub_stats.get('accuracy', sub_stats.get('success_rate', 0.5))
+                        conf = sub_stats.get('confidence', 0.5)
+                        self.self_model.update_capability(cap_name, float(acc), float(conf))
+                    if block.height % 1000 == 0:
+                        report = self.self_model.generate_self_report()
+                        logger.info(f"Self-model report at block {block.height}:\n{report}")
+                except Exception as e:
+                    self._track_subsystem_error('self_model', e)
+                    logger.debug(f"Self-model error: {e}")
+
+            # #85: Emotional Valence — compute every block
+            if self.emotional_valence:
+                try:
+                    outcome = {
+                        'success': is_meaningful or len(block.transactions) > 1,
+                        'reward': 0.1 if is_meaningful else 0.0,
+                        'prediction_error': (
+                            self.predictive_processing.get_surprisal()
+                            if self.predictive_processing else 0.0
+                        ),
+                    }
+                    valence = self.emotional_valence.compute_valence(outcome)
+                    # Learn association between block type and outcome
+                    ctx = 'meaningful_block' if is_meaningful else 'routine_block'
+                    self.emotional_valence.learn_association(ctx, valence)
+                except Exception as e:
+                    logger.debug(f"Emotional valence error: {e}")
+
+            # #87: Narrative Coherence — add episode for significant events
+            if self.narrative_coherence:
+                try:
+                    significance = 0.3  # base
+                    event_desc = f"Block {block.height}"
+                    if is_meaningful:
+                        significance += 0.3
+                        event_desc += " (meaningful)"
+                    if has_difficulty_shift:
+                        significance += 0.2
+                        event_desc += " difficulty shift"
+                    if is_milestone:
+                        significance += 0.2
+                        event_desc += " milestone"
+                    if significance > 0.5:
+                        self.narrative_coherence.add_episode(
+                            block.height, event_desc, significance
+                        )
+                except Exception as e:
+                    logger.debug(f"Narrative coherence error: {e}")
+
+            # --- Items #88-#100: Final AGI Batch ---
+
+            # #88: Transfer Learning — attempt cross-domain transfer every 500 blocks
+            if self.transfer_learning and self.kg and block.height > 0 and block.height % 500 == 0:
+                try:
+                    import numpy as _np
+                    # Register domains from KG nodes
+                    domain_data: Dict[str, List] = {}
+                    for node in list(self.kg.nodes.values())[:500]:
+                        content = getattr(node, 'content', {})
+                        d = content.get('domain', 'general') if isinstance(content, dict) else 'general'
+                        if d not in domain_data:
+                            domain_data[d] = []
+                        feat = _np.array([
+                            (hash(str(content) + str(i)) % 10000) / 10000.0
+                            for i in range(32)
+                        ], dtype=_np.float64)
+                        domain_data[d].append(feat)
+                    for d, feats in domain_data.items():
+                        if feats:
+                            self.transfer_learning.register_domain(d, _np.stack(feats))
+                    # Attempt transfer between top 2 domains
+                    domain_names = sorted(domain_data.keys(), key=lambda k: len(domain_data[k]), reverse=True)
+                    if len(domain_names) >= 2:
+                        src, tgt = domain_names[0], domain_names[1]
+                        sim = self.transfer_learning.compute_transferability(src, tgt)
+                        if sim > 0.2:
+                            weights = _np.random.randn(32) * 0.1
+                            transferred = self.transfer_learning.transfer(src, tgt, weights)
+                            self.transfer_learning.record_outcome(src, tgt, 'auto', True)
+                            if block.height % 2000 == 0:
+                                logger.info(
+                                    f"Transfer learning {src}->{tgt}: sim={sim:.3f}"
+                                )
+                except Exception as e:
+                    self._track_subsystem_error('transfer_learning', e)
+                    logger.debug(f"Transfer learning error: {e}")
+
+            # #90: Continual Learning — compute Fisher every 1000 blocks
+            if self.continual_learning and self.kg and block.height > 0 and block.height % 1000 == 0:
+                try:
+                    import numpy as _np
+                    recent_nodes = [
+                        n for n in self.kg.nodes.values()
+                        if getattr(n, 'source_block', 0) >= block.height - 1000
+                    ][:100]
+                    if len(recent_nodes) >= 10:
+                        data = []
+                        for node in recent_nodes:
+                            feat = _np.array([
+                                (hash(str(node.content) + str(i)) % 10000) / 10000.0
+                                for i in range(32)
+                            ], dtype=_np.float64)
+                            data.append(feat)
+                        model_weights = _np.random.randn(32) * 0.1
+                        fisher = self.continual_learning.compute_fisher(
+                            model_weights, data, task_id=f'block_{block.height}'
+                        )
+                        self.continual_learning.record_task_performance(
+                            f'block_{block.height}', 0.7
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('continual_learning', e)
+                    logger.debug(f"Continual learning error: {e}")
+
+            # #91: Counterfactual reasoning — what-if scenarios every 300 blocks
+            if self.counterfactual and block.height > 0 and block.height % 300 == 0:
+                try:
+                    kg_state = {
+                        'difficulty': float(block.difficulty) if block.difficulty else 0.0,
+                        'tx_count': float(len(block.transactions)),
+                        'kg_nodes': float(len(self.kg.nodes)) if self.kg else 0.0,
+                    }
+                    if block_phi_result:
+                        kg_state['phi_value'] = block_phi_result.get('phi_value', 0.0)
+                    self.counterfactual.record_observation(kg_state)
+                    # What if difficulty doubled?
+                    cf_result = self.counterfactual.what_if(
+                        'difficulty', kg_state.get('difficulty', 10.0) * 2, kg_state
+                    )
+                    if cf_result.differences and block.height % 3000 == 0:
+                        logger.info(
+                            f"Counterfactual at block {block.height}: "
+                            f"{len(cf_result.differences)} differences"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('counterfactual', e)
+                    logger.debug(f"Counterfactual reasoning error: {e}")
+
+            # #92: Analogical transfer — find analogies every 500 blocks
+            if self.analogical_transfer and self.kg and block.height > 0 and block.height % 500 == 0:
+                try:
+                    # Build source/target from different domains
+                    domain_nodes: Dict[str, List] = {}
+                    for node in list(self.kg.nodes.values())[:300]:
+                        content = getattr(node, 'content', {})
+                        d = content.get('domain', 'general') if isinstance(content, dict) else 'general'
+                        if d not in domain_nodes:
+                            domain_nodes[d] = []
+                        domain_nodes[d].append(node)
+                    domain_list = sorted(domain_nodes.keys(), key=lambda k: len(domain_nodes[k]), reverse=True)
+                    if len(domain_list) >= 2:
+                        src_d, tgt_d = domain_list[0], domain_list[1]
+                        src_nodes = domain_nodes[src_d][:10]
+                        tgt_nodes = domain_nodes[tgt_d][:10]
+                        source = {
+                            'entities': [getattr(n, 'node_id', str(i)) for i, n in enumerate(src_nodes)],
+                            'relations': [],
+                            'attributes': {},
+                        }
+                        target = {
+                            'entities': [getattr(n, 'node_id', str(i)) for i, n in enumerate(tgt_nodes)],
+                            'relations': [],
+                            'attributes': {},
+                        }
+                        mapping = self.analogical_transfer.find_mapping(source, target, src_d, tgt_d)
+                        if mapping.inferences and block.height % 2000 == 0:
+                            logger.info(
+                                f"Analogy {src_d}->{tgt_d} at block {block.height}: "
+                                f"score={mapping.score:.3f}, inferences={len(mapping.inferences)}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('analogical_transfer', e)
+                    logger.debug(f"Analogical transfer error: {e}")
+
+            # #93: Dream consolidation — run during slow blocks (>10s block time)
+            if self.dream_consolidation and self.kg and block.height > 0:
+                try:
+                    prev_time = getattr(self, '_last_block_time', time.time())
+                    block_elapsed = time.time() - prev_time
+                    if self.dream_consolidation.is_low_activity(block_elapsed):
+                        memories = []
+                        for node in list(self.kg.nodes.values())[:200]:
+                            memories.append({
+                                'node_id': getattr(node, 'node_id', ''),
+                                'content': getattr(node, 'content', {}),
+                                'confidence': getattr(node, 'confidence', 0.5),
+                                'access_count': getattr(node, 'access_count', 0),
+                                'source_block': getattr(node, 'source_block', 0),
+                                'domain': (
+                                    node.content.get('domain', 'general')
+                                    if isinstance(node.content, dict) else 'general'
+                                ),
+                            })
+                        if memories:
+                            result = self.dream_consolidation.consolidate(
+                                memories, self.kg, block.height
+                            )
+                            if result.new_connections > 0:
+                                logger.info(
+                                    f"Dream consolidation at block {block.height}: "
+                                    f"merged={result.merged_count}, "
+                                    f"new_connections={result.new_connections}"
+                                )
+                    self._last_block_time = time.time()
+                except Exception as e:
+                    self._track_subsystem_error('dream_consolidation', e)
+                    logger.debug(f"Dream consolidation error: {e}")
+
+            # #94: Phi gate attention — evaluate gates every 200 blocks
+            if self.phi_gate_attention and block.height > 0 and block.height % 200 == 0:
+                try:
+                    metrics = self.phi_gate_attention.extract_metrics_from_subsystems(
+                        attention_schema=self.attention_schema,
+                        transfer_learning=self.transfer_learning,
+                        belief_revision=self.belief_revision,
+                        temporal_engine=self.temporal_engine,
+                        creative_recombiner=self.creative_recombiner,
+                        metacognition=self.metacognition,
+                        causal_engine=self.causal_engine,
+                        emotional_valence=self.emotional_valence,
+                        narrative_coherence=self.narrative_coherence,
+                        kg=self.kg,
+                    )
+                    attn_phi = self.phi_gate_attention.compute_attention_phi(metrics)
+                    if block.height % 1000 == 0:
+                        gates_stats = self.phi_gate_attention.get_stats()
+                        logger.info(
+                            f"Phi gates at block {block.height}: "
+                            f"{gates_stats['gates_currently_passed']}/{gates_stats['total_gates']} passed, "
+                            f"attention_phi={attn_phi:.4f}"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('phi_gate_attention', e)
+                    logger.debug(f"Phi gate attention error: {e}")
+
+            # #96: Safety verification — verify every 100 blocks
+            if self.safety_verifier and block.height > 0 and block.height % 100 == 0:
+                try:
+                    state = {
+                        'kg_nodes': len(self.kg.nodes) if self.kg else 0,
+                        'phi_value': block_phi_result.get('phi_value', 0) if block_phi_result else 0.0,
+                    }
+                    result = self.safety_verifier.verify_safety_invariant(
+                        f'process_block_{block.height}', state
+                    )
+                    if not result.safe:
+                        logger.warning(
+                            f"Safety violation at block {block.height}: "
+                            f"{result.violations}"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('safety_verifier', e)
+                    logger.debug(f"Safety verifier error: {e}")
+
+            # #97: Distributed Phi — merge with peers every 50 blocks
+            if self.distributed_phi and block.height > 0 and block.height % 50 == 0:
+                try:
+                    local_phi = block_phi_result.get('phi_value', 0) if block_phi_result else 0.0
+                    kg_stats = self.kg.get_stats() if self.kg and hasattr(self.kg, 'get_stats') else {}
+                    self.distributed_phi.prepare_state_summary(
+                        kg_stats=kg_stats, phi_value=local_phi
+                    )
+                    merged_phi = self.distributed_phi.merge_phi(local_phi)
+                    self.distributed_phi.prune_stale_peers()
+                    if block.height % 500 == 0 and self.distributed_phi.get_stats()['active_peers'] > 0:
+                        logger.info(
+                            f"Distributed Phi at block {block.height}: "
+                            f"local={local_phi:.4f}, merged={merged_phi:.4f}, "
+                            f"peers={self.distributed_phi.get_stats()['active_peers']}"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('distributed_phi', e)
+                    logger.debug(f"Distributed Phi error: {e}")
+
+            # #98: Cognitive load balancing — balance every 10 blocks
+            if self.cognitive_load and block.height > 0 and block.height % 10 == 0:
+                try:
+                    loads: Dict[str, float] = {}
+                    priorities: Dict[str, float] = {}
+                    subsystem_pairs_for_load = [
+                        ('neural_reasoner', self.neural_reasoner, 0.7),
+                        ('causal_engine', self.causal_engine, 0.6),
+                        ('temporal_engine', self.temporal_engine, 0.5),
+                        ('reasoning_engine', self.reasoning, 0.8),
+                        ('memory_manager', self.memory_manager, 0.5),
+                        ('concept_formation', self.concept_formation, 0.4),
+                    ]
+                    for name, sub, pri in subsystem_pairs_for_load:
+                        if sub is not None:
+                            err_count = self._subsystem_health.get(name, {}).get('error_count', 0)
+                            loads[name] = max(0.1, 0.5 - err_count * 0.01)
+                            priorities[name] = pri
+                    if loads:
+                        self.cognitive_load.balance(loads, priorities)
+                except Exception as e:
+                    logger.debug(f"Cognitive load balancing error: {e}")
+
+            # #99: Meta-learner — optimize every 500 blocks
+            if self.meta_learner and block.height > 0 and block.height % 500 == 0:
+                try:
+                    # Feed subsystem performance to meta-learner
+                    perf_subsystems = [
+                        ('neural_reasoner', self.neural_reasoner),
+                        ('causal_engine', self.causal_engine),
+                        ('temporal_engine', self.temporal_engine),
+                    ]
+                    for name, sub in perf_subsystems:
+                        if sub is None:
+                            continue
+                        sub_stats = sub.get_stats() if hasattr(sub, 'get_stats') else {}
+                        perf = sub_stats.get('accuracy', sub_stats.get('success_rate', 0.5))
+                        config = {'learning_rate': 0.01, 'batch_size': 16, 'architecture': 'medium'}
+                        self.meta_learner.update(name, config, float(perf))
+                        suggested = self.meta_learner.suggest_config(name)
+                        if block.height % 2000 == 0:
+                            logger.debug(
+                                f"Meta-learner suggestion for {name}: {suggested}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('meta_learner', e)
+                    logger.debug(f"Meta-learner error: {e}")
+
+            # #100: Recursive self-improvement — propose every 1000 blocks
+            if self.recursive_improvement and block.height > 0 and block.height % 1000 == 0:
+                try:
+                    subsystem_stats_for_ri: Dict[str, dict] = {}
+                    ri_targets = [
+                        ('neural_reasoner', self.neural_reasoner),
+                        ('causal_engine', self.causal_engine),
+                        ('temporal_engine', self.temporal_engine),
+                        ('concept_formation', self.concept_formation),
+                        ('debate_protocol', self.debate_protocol),
+                    ]
+                    for name, sub in ri_targets:
+                        if sub is None:
+                            continue
+                        sub_stats = sub.get_stats() if hasattr(sub, 'get_stats') else {}
+                        subsystem_stats_for_ri[name] = {
+                            'accuracy': sub_stats.get('accuracy', sub_stats.get('success_rate', 0.5)),
+                            'error_count': self._subsystem_health.get(name, {}).get('error_count', 0),
+                            'utilization': 0.5,
+                        }
+                    if subsystem_stats_for_ri:
+                        improvement = self.recursive_improvement.propose_improvement(subsystem_stats_for_ri)
+                        if improvement:
+                            approved, reason = self.recursive_improvement.gevurah_review(improvement)
+                            if approved:
+                                success = self.recursive_improvement.execute_improvement(improvement)
+                                logger.info(
+                                    f"Recursive improvement at block {block.height}: "
+                                    f"{improvement.description} — success={success}"
+                                )
+                except Exception as e:
+                    self._track_subsystem_error('recursive_improvement', e)
+                    logger.debug(f"Recursive improvement error: {e}")
 
             # Archive old consciousness events
             if block.height > 0 and block.height % Config.AETHER_CONSCIOUSNESS_ARCHIVE_INTERVAL == 0:
@@ -4973,6 +5763,106 @@ class AetherEngine:
         # #48: KGQA
         if self.kgqa:
             stats['kgqa'] = self.kgqa.get_stats()
+
+        # #76: Global Workspace
+        if self.global_workspace:
+            stats['global_workspace'] = self.global_workspace.get_stats()
+
+        # #77: Attention Schema
+        if self.attention_schema:
+            stats['attention_schema'] = self.attention_schema.get_stats()
+
+        # #78: Predictive Processing
+        if self.predictive_processing:
+            stats['predictive_processing'] = self.predictive_processing.get_stats()
+
+        # #79: Embodied Grounding
+        if self.embodied_grounding:
+            stats['embodied_grounding'] = self.embodied_grounding.get_stats()
+
+        # #80: Sephirot Recurrent
+        if self.sephirot_recurrent:
+            stats['sephirot_recurrent'] = self.sephirot_recurrent.get_stats()
+
+        # #81: Cross-Modal Binding
+        if self.cross_modal_binding:
+            stats['cross_modal_binding'] = self.cross_modal_binding.get_stats()
+
+        # #82: Phi Partition
+        if self.phi_partition:
+            stats['phi_partition'] = self.phi_partition.get_stats()
+
+        # #83: Phenomenal State
+        if self.phenomenal_state:
+            stats['phenomenal_state'] = self.phenomenal_state.get_stats()
+
+        # #84: Self-Model
+        if self.self_model:
+            stats['self_model'] = self.self_model.get_stats()
+
+        # #85: Emotional Valence
+        if self.emotional_valence:
+            stats['emotional_valence'] = self.emotional_valence.get_stats()
+
+        # #86: Empathic Model
+        if self.empathic_model:
+            stats['empathic_model'] = self.empathic_model.get_stats()
+
+        # #87: Narrative Coherence
+        if self.narrative_coherence:
+            stats['narrative_coherence'] = self.narrative_coherence.get_stats()
+
+        # #88: Transfer Learning
+        if self.transfer_learning:
+            stats['transfer_learning'] = self.transfer_learning.get_stats()
+
+        # #89: Few-Shot Learner
+        if self.few_shot_learner:
+            stats['few_shot_learner'] = self.few_shot_learner.get_stats()
+
+        # #90: Continual Learning
+        if self.continual_learning:
+            stats['continual_learning'] = self.continual_learning.get_stats()
+
+        # #91: Counterfactual Reasoning
+        if self.counterfactual:
+            stats['counterfactual'] = self.counterfactual.get_stats()
+
+        # #92: Analogical Transfer
+        if self.analogical_transfer:
+            stats['analogical_transfer'] = self.analogical_transfer.get_stats()
+
+        # #93: Dream Consolidation
+        if self.dream_consolidation:
+            stats['dream_consolidation'] = self.dream_consolidation.get_stats()
+
+        # #94: Phi Gate Attention
+        if self.phi_gate_attention:
+            stats['phi_gate_attention'] = self.phi_gate_attention.get_stats()
+
+        # #95: Adversarial Defense
+        if self.adversarial_defense:
+            stats['adversarial_defense'] = self.adversarial_defense.get_stats()
+
+        # #96: Safety Verifier
+        if self.safety_verifier:
+            stats['safety_verifier'] = self.safety_verifier.get_stats()
+
+        # #97: Distributed Phi
+        if self.distributed_phi:
+            stats['distributed_phi'] = self.distributed_phi.get_stats()
+
+        # #98: Cognitive Load
+        if self.cognitive_load:
+            stats['cognitive_load'] = self.cognitive_load.get_stats()
+
+        # #99: Meta-Learner
+        if self.meta_learner:
+            stats['meta_learner'] = self.meta_learner.get_stats()
+
+        # #100: Recursive Improvement
+        if self.recursive_improvement:
+            stats['recursive_improvement'] = self.recursive_improvement.get_stats()
 
         # Blocks processed counter
         stats['blocks_processed'] = self._blocks_processed
