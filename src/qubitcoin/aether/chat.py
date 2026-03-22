@@ -563,6 +563,21 @@ class AetherChat:
     # Improvement 47: Intent Detection
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _is_question(text: str) -> bool:
+        """Check if a text looks like a question (#48 KGQA helper)."""
+        t = text.strip()
+        if t.endswith("?"):
+            return True
+        t_lower = t.lower()
+        question_starts = (
+            "what ", "who ", "where ", "when ", "why ", "how ",
+            "which ", "is ", "are ", "was ", "were ", "do ", "does ",
+            "did ", "can ", "could ", "will ", "would ", "should ",
+            "tell me", "describe ", "explain ", "compare ",
+        )
+        return t_lower.startswith(question_starts)
+
     def _detect_intent(self, query: str) -> str:
         """Detect the primary intent category of a query.
 
@@ -1355,6 +1370,27 @@ class AetherChat:
 
             session.fees_paid_atoms += int(Decimal(str(fee_qbc)) * 10**8)
 
+        # #54: Coreference resolution — resolve pronouns before processing
+        resolved_message = message
+        try:
+            coref = getattr(self.engine, 'coreference_resolver', None)
+            if coref and session.context_entities:
+                # Build context from session entities
+                coref_context = []
+                for etype, vals in session.context_entities.items():
+                    for v in vals[-5:]:  # Last 5 per type
+                        coref_context.append({
+                            'id': str(v), 'type': etype, 'text': str(v),
+                        })
+                if coref_context:
+                    resolved_message = coref.resolve(message, coref_context)
+                    if resolved_message != message:
+                        logger.debug(
+                            f"Coreference resolved: '{message[:80]}' -> '{resolved_message[:80]}'"
+                        )
+        except Exception as e:
+            logger.debug(f"Coreference resolution error: {e}")
+
         # Record user message
         now = time.time()
         user_msg = ChatMessage(role='user', content=message, timestamp=now)
@@ -1414,6 +1450,28 @@ class AetherChat:
                 user_memories=user_memories,
             )
 
+        # #48: KGQA fallback — if response is still short and message is a question
+        if len(response_content) < 80 and self._is_question(message):
+            try:
+                kgqa = getattr(self.engine, 'kgqa', None)
+                if kgqa:
+                    kgqa_result = kgqa.answer(message, self.engine.kg)
+                    if kgqa_result.confidence > 0.2 and kgqa_result.answer_text:
+                        response_content = kgqa_result.answer_text
+                        knowledge_refs.extend(kgqa_result.sources)
+                        reasoning_trace.append({
+                            'type': 'kgqa',
+                            'question_type': kgqa_result.question_type,
+                            'confidence': kgqa_result.confidence,
+                            'reasoning_path': kgqa_result.reasoning_path,
+                        })
+                        logger.debug(
+                            f"KGQA fallback used: type={kgqa_result.question_type}, "
+                            f"conf={kgqa_result.confidence:.3f}"
+                        )
+            except Exception as e:
+                logger.debug(f"KGQA fallback error: {e}")
+
         # Verify response against axiom nodes for factual accuracy
         axiom_flags = self._verify_against_axioms(response_content)
         if axiom_flags:
@@ -1423,6 +1481,27 @@ class AetherChat:
         quality_score = self._score_response_quality(
             response_content, message, knowledge_refs
         )
+
+        # #52: Update dialogue tracker state
+        try:
+            tracker = getattr(self.engine, 'dialogue_tracker', None)
+            if tracker:
+                tracker.update(
+                    user_message=message,
+                    system_response=response_content,
+                    entities=entities,
+                    intent=intent,
+                )
+        except Exception as e:
+            logger.debug(f"Dialogue tracker update error: {e}")
+
+        # #54: Register entities for future coreference resolution
+        try:
+            coref = getattr(self.engine, 'coreference_resolver', None)
+            if coref and entities:
+                coref.register_entities_from_turn(entities, turn=session.messages_sent)
+        except Exception as e:
+            logger.debug(f"Coreference entity registration error: {e}")
 
         # Update session topic tracking (#23, #24) and context window (#47)
         session.current_topic = intent
@@ -1544,6 +1623,31 @@ class AetherChat:
                                     elif node.content.get('block_height') == num['value']:
                                         knowledge_refs.append(nid)
 
+                # #53: Re-rank knowledge refs using relevance ranker
+                ranker = getattr(self.engine, 'relevance_ranker', None)
+                if ranker and knowledge_refs and self.engine.kg:
+                    try:
+                        candidates = []
+                        for nid in knowledge_refs[:20]:
+                            node = self.engine.kg.nodes.get(nid)
+                            if node:
+                                candidates.append({
+                                    'node_id': nid,
+                                    'content': node.content if isinstance(node.content, dict) else {'text': str(node.content)},
+                                    'confidence': getattr(node, 'confidence', 0.5),
+                                    'source_block': getattr(node, 'source_block', 0),
+                                    'domain': getattr(node, 'domain', ''),
+                                })
+                        if candidates:
+                            ranked = ranker.rank(
+                                augmented_message, candidates, top_k=10,
+                            )
+                            knowledge_refs = [
+                                item['node_id'] for item, score in ranked
+                            ]
+                    except Exception as e:
+                        logger.debug(f"Relevance ranking error: {e}")
+
                 if self.engine.reasoning and self.engine.kg and knowledge_refs:
                     # Use self-improvement weights to select best strategy
                     reasoning_trace, inference_conclusions = self._adaptive_reason(
@@ -1580,6 +1684,38 @@ class AetherChat:
             inference_conclusions=inference_conclusions,
             entities=entities,
         )
+
+        # #55: Grounded generator — enhance response with citations when evidence exists
+        grounded_gen = getattr(self.engine, 'grounded_generator', None)
+        if grounded_gen and knowledge_refs and self.engine.kg:
+            try:
+                evidence_nodes = []
+                for nid in knowledge_refs[:5]:
+                    node = self.engine.kg.nodes.get(nid)
+                    if node:
+                        evidence_nodes.append({
+                            'node_id': nid,
+                            'content': node.content,
+                            'confidence': getattr(node, 'confidence', 0.5),
+                            'source_block': getattr(node, 'source_block', 0),
+                            'domain': getattr(node, 'domain', ''),
+                            'node_type': getattr(node, 'node_type', ''),
+                        })
+                if evidence_nodes and len(response_content) < 100:
+                    # Only use grounded generator if synthesized response is short
+                    grounded = grounded_gen.generate(
+                        message, evidence_nodes, context=conversation_context,
+                    )
+                    if grounded.text and grounded.confidence > 0.2:
+                        response_content = grounded.text
+                        reasoning_trace.append({
+                            'type': 'grounded_generation',
+                            'citations': grounded.citations,
+                            'confidence': grounded.confidence,
+                            'reasoning_path': grounded.reasoning_path,
+                        })
+            except Exception as e:
+                logger.debug(f"Grounded generation error: {e}")
 
         # Feed reasoning outcome to self-improvement engine
         self._record_reasoning_outcome(

@@ -282,6 +282,104 @@ class AetherEngine:
         except Exception as e:
             logger.warning(f"ExternalDataIngestion init failed: {e}")
 
+        # #50: Time-series Pattern Detector
+        self.pattern_detector = None
+        try:
+            from .pattern_detector import PatternDetector
+            self.pattern_detector = PatternDetector()
+        except Exception as e:
+            logger.warning(f"PatternDetector init failed: {e}")
+
+        # #51: Graph Pattern Detector (multimodal understanding)
+        self.graph_pattern_detector = None
+        try:
+            from .graph_patterns import GraphPatternDetector
+            self.graph_pattern_detector = GraphPatternDetector()
+        except Exception as e:
+            logger.warning(f"GraphPatternDetector init failed: {e}")
+
+        # #52: Dialogue State Tracker (chat-time module, init only)
+        self.dialogue_tracker = None
+        try:
+            from .dialogue_tracker import DialogueTracker
+            self.dialogue_tracker = DialogueTracker()
+        except Exception as e:
+            logger.warning(f"DialogueTracker init failed: {e}")
+
+        # #53: Relevance Ranker (chat-time module, init only)
+        self.relevance_ranker = None
+        try:
+            from .relevance_ranker import RelevanceRanker
+            self.relevance_ranker = RelevanceRanker()
+        except Exception as e:
+            logger.warning(f"RelevanceRanker init failed: {e}")
+
+        # #54: Coreference Resolver (chat-time module, init only)
+        self.coreference_resolver = None
+        try:
+            from .coreference import CoreferenceResolver
+            self.coreference_resolver = CoreferenceResolver()
+        except Exception as e:
+            logger.warning(f"CoreferenceResolver init failed: {e}")
+
+        # #55: Grounded Generator (chat-time module, init only)
+        self.grounded_generator = None
+        try:
+            from .grounded_generator import GroundedGenerator
+            self.grounded_generator = GroundedGenerator()
+        except Exception as e:
+            logger.warning(f"GroundedGenerator init failed: {e}")
+
+        # #41: NLP Pipeline (lightweight tokenizer, POS tagger, NER, deps)
+        self.nlp_pipeline = None
+        try:
+            from .nlp_pipeline import NLPPipeline
+            self.nlp_pipeline = NLPPipeline()
+        except Exception as e:
+            logger.warning(f"NLPPipeline init failed: {e}")
+
+        # #43: Blockchain Entity Extractor
+        self.blockchain_entity_extractor = None
+        try:
+            from .blockchain_entity_extractor import BlockchainEntityExtractor
+            self.blockchain_entity_extractor = BlockchainEntityExtractor(
+                knowledge_graph=knowledge_graph,
+            )
+        except Exception as e:
+            logger.warning(f"BlockchainEntityExtractor init failed: {e}")
+
+        # #44: Semantic Similarity (TF-IDF)
+        self.semantic_similarity = None
+        try:
+            from .semantic_similarity import SemanticSimilarity
+            self.semantic_similarity = SemanticSimilarity(min_df=2, max_df_ratio=0.85)
+        except Exception as e:
+            logger.warning(f"SemanticSimilarity init failed: {e}")
+
+        # #45: Sentiment Analyzer (lexicon-based)
+        self.sentiment_analyzer = None
+        try:
+            from .sentiment_analyzer import SentimentAnalyzer
+            self.sentiment_analyzer = SentimentAnalyzer()
+        except Exception as e:
+            logger.warning(f"SentimentAnalyzer init failed: {e}")
+
+        # #46: KG Summarizer (template-based)
+        self.kg_summarizer = None
+        try:
+            from .summarizer import KGSummarizer
+            self.kg_summarizer = KGSummarizer()
+        except Exception as e:
+            logger.warning(f"KGSummarizer init failed: {e}")
+
+        # #48: KGQA (Knowledge Graph Question Answering)
+        self.kgqa = None
+        try:
+            from .kgqa import KGQA
+            self.kgqa = KGQA(knowledge_graph=knowledge_graph)
+        except Exception as e:
+            logger.warning(f"KGQA init failed: {e}")
+
         # Phase 6: On-chain AGI integration
         # Initialize with log-only fallback so phi writes and PoT submissions
         # are tracked even when no QVM StateManager/contracts are available.
@@ -346,6 +444,12 @@ class AetherEngine:
             ('self_improvement', self.self_improvement),
             ('external_knowledge', self.external_knowledge),
             ('llm_manager', self.llm_manager),
+            ('pattern_detector', self.pattern_detector),
+            ('graph_pattern_detector', self.graph_pattern_detector),
+            ('dialogue_tracker', self.dialogue_tracker),
+            ('relevance_ranker', self.relevance_ranker),
+            ('coreference_resolver', self.coreference_resolver),
+            ('grounded_generator', self.grounded_generator),
         ]
 
         for name, subsystem in subsystems:
@@ -427,6 +531,30 @@ class AetherEngine:
         # External knowledge stats
         if self.external_knowledge:
             stats['external_knowledge'] = self.external_knowledge.get_stats()
+
+        # #50: Pattern detector stats
+        if self.pattern_detector:
+            stats['pattern_detector'] = self.pattern_detector.get_stats()
+
+        # #51: Graph pattern detector stats
+        if self.graph_pattern_detector:
+            stats['graph_pattern_detector'] = self.graph_pattern_detector.get_stats()
+
+        # #52: Dialogue tracker stats
+        if self.dialogue_tracker:
+            stats['dialogue_tracker'] = self.dialogue_tracker.get_stats()
+
+        # #53: Relevance ranker stats
+        if self.relevance_ranker:
+            stats['relevance_ranker'] = self.relevance_ranker.get_stats()
+
+        # #54: Coreference resolver stats
+        if self.coreference_resolver:
+            stats['coreference_resolver'] = self.coreference_resolver.get_stats()
+
+        # #55: Grounded generator stats
+        if self.grounded_generator:
+            stats['grounded_generator'] = self.grounded_generator.get_stats()
 
         return stats
 
@@ -929,6 +1057,140 @@ class AetherEngine:
                     )
                 except Exception as e:
                     logger.debug(f"External ingestion error: {e}")
+
+            # #41: NLP pipeline — process block text content
+            if self.nlp_pipeline and block_node and is_meaningful:
+                try:
+                    content = getattr(block_node, 'content', {})
+                    text_parts = []
+                    if isinstance(content, dict):
+                        for val in content.values():
+                            if isinstance(val, str):
+                                text_parts.append(val)
+                    if text_parts:
+                        self.nlp_pipeline.process(" ".join(text_parts))
+                except Exception as e:
+                    logger.debug(f"NLP pipeline error: {e}")
+
+            # #43: Blockchain entity extraction from each block
+            if self.blockchain_entity_extractor:
+                try:
+                    block_data_for_extract = {
+                        'height': block.height,
+                        'difficulty': block.difficulty,
+                        'timestamp': block.timestamp,
+                        'miner_address': getattr(block, 'miner_address', None),
+                        'reward': getattr(block, 'reward', None),
+                        'energy': getattr(block, 'energy', None),
+                        'hash': getattr(block, 'hash', None) or getattr(block, 'block_hash', None),
+                    }
+                    self.blockchain_entity_extractor.extract_from_block(
+                        block_data_for_extract
+                    )
+                except Exception as e:
+                    logger.debug(f"Blockchain entity extraction error: {e}")
+
+            # #44: Semantic similarity — fit on KG texts every 500 blocks
+            if (self.semantic_similarity and self.kg
+                    and block.height > 0 and block.height % 500 == 0):
+                try:
+                    texts = []
+                    for node in list(self.kg.nodes.values())[:5000]:
+                        content = getattr(node, 'content', {})
+                        if isinstance(content, dict):
+                            for val in content.values():
+                                if isinstance(val, str) and len(val) > 5:
+                                    texts.append(val)
+                        elif isinstance(content, str) and len(content) > 5:
+                            texts.append(content)
+                    if len(texts) >= 10:
+                        self.semantic_similarity.fit(texts)
+                        logger.info(
+                            f"SemanticSimilarity fit at block {block.height}: "
+                            f"vocab={self.semantic_similarity.vocab_size}, docs={len(texts)}"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('semantic_similarity', e)
+                    logger.debug(f"Semantic similarity fit error: {e}")
+
+            # #50: Time-series pattern detection every 200 blocks
+            if (self.pattern_detector and self.temporal_engine
+                    and block.height > 0 and block.height % 200 == 0):
+                try:
+                    import numpy as _np
+                    # Collect difficulty time series from temporal engine history
+                    diff_history = getattr(self.temporal_engine, '_data_buffer', {})
+                    diff_series = diff_history.get('difficulty', [])
+                    if len(diff_series) >= 20:
+                        series_arr = _np.array(diff_series[-500:], dtype=_np.float64)
+                        patterns = self.pattern_detector.detect_patterns(series_arr)
+                        if patterns:
+                            summary = self.pattern_detector.summarize_patterns(patterns)
+                            logger.info(
+                                f"Pattern detection at block {block.height}: "
+                                f"{len(patterns)} patterns — {summary[:200]}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('pattern_detector', e)
+                    logger.debug(f"Pattern detection error: {e}")
+
+            # #51: Graph pattern detection every 500 blocks
+            if (self.graph_pattern_detector and self.kg
+                    and block.height > 0 and block.height % 500 == 0):
+                try:
+                    import numpy as _np
+                    # Build adjacency matrix from KG edges
+                    nodes_list = list(self.kg.nodes.keys())
+                    if len(nodes_list) >= 5:
+                        node_idx = {nid: i for i, nid in enumerate(nodes_list[:200])}
+                        n = len(node_idx)
+                        adj = _np.zeros((n, n), dtype=_np.float64)
+                        for edge in self.kg.edges.values():
+                            src = edge.source_id if hasattr(edge, 'source_id') else edge.get('source_id')
+                            tgt = edge.target_id if hasattr(edge, 'target_id') else edge.get('target_id')
+                            if src in node_idx and tgt in node_idx:
+                                adj[node_idx[src], node_idx[tgt]] = 1.0
+                        graph_patterns = self.graph_pattern_detector.detect_graph_patterns(adj)
+                        if graph_patterns:
+                            features = self.graph_pattern_detector.extract_features(adj)
+                            logger.info(
+                                f"Graph patterns at block {block.height}: "
+                                f"{len(graph_patterns)} patterns, "
+                                f"density={features[0]:.3f}, "
+                                f"avg_clustering={features[1]:.3f}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('graph_pattern_detector', e)
+                    logger.debug(f"Graph pattern detection error: {e}")
+
+            # #45: Sentiment analysis on new knowledge nodes
+            if self.sentiment_analyzer and block_node and is_meaningful:
+                try:
+                    content = getattr(block_node, 'content', {})
+                    result = self.sentiment_analyzer.analyze_knowledge_node(content)
+                    if result.label != 'neutral' and result.confidence > 0.4:
+                        logger.debug(
+                            f"Block {block.height} sentiment: {result.label} "
+                            f"(score={result.score:.3f}, conf={result.confidence:.3f})"
+                        )
+                except Exception as e:
+                    logger.debug(f"Sentiment analysis error: {e}")
+
+            # #46: KG summarization every 100 blocks
+            if self.kg_summarizer and self.kg and block.height > 0 and block.height % 100 == 0:
+                try:
+                    kg_data = {
+                        'difficulty': block.difficulty,
+                        'tx_count': len(block.transactions),
+                        'total_nodes': len(self.kg.nodes),
+                    }
+                    if block_phi_result:
+                        kg_data['phi_value'] = block_phi_result.get('phi_value', 0)
+                    summary = self.kg_summarizer.summarize_block(block.height, kg_data)
+                    if summary and block.height % 1000 == 0:
+                        logger.info(f"Block {block.height} summary: {summary[:200]}")
+                except Exception as e:
+                    logger.debug(f"KG summarization error: {e}")
 
             # Neural reasoner: force training from reasoning outcomes
             if self.neural_reasoner and self.kg and self.reasoning and block.height % 5 == 0:
@@ -3888,6 +4150,30 @@ class AetherEngine:
         # #39: Neural Calibrator
         if self.neural_calibrator:
             stats['neural_calibrator'] = self.neural_calibrator.get_stats()
+
+        # #41: NLP Pipeline
+        if self.nlp_pipeline:
+            stats['nlp_pipeline'] = self.nlp_pipeline.get_stats()
+
+        # #43: Blockchain Entity Extractor
+        if self.blockchain_entity_extractor:
+            stats['blockchain_entity_extractor'] = self.blockchain_entity_extractor.get_stats()
+
+        # #44: Semantic Similarity
+        if self.semantic_similarity:
+            stats['semantic_similarity'] = self.semantic_similarity.get_stats()
+
+        # #45: Sentiment Analyzer
+        if self.sentiment_analyzer:
+            stats['sentiment_analyzer'] = self.sentiment_analyzer.get_stats()
+
+        # #46: KG Summarizer
+        if self.kg_summarizer:
+            stats['kg_summarizer'] = self.kg_summarizer.get_stats()
+
+        # #48: KGQA
+        if self.kgqa:
+            stats['kgqa'] = self.kgqa.get_stats()
 
         # Blocks processed counter
         stats['blocks_processed'] = self._blocks_processed
