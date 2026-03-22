@@ -21,7 +21,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field, asdict
 
 from ..config import Config
@@ -402,7 +402,7 @@ def _split_questions(message: str) -> List[str]:
 
 @dataclass
 class ChatSession:
-    """An Aether chat session."""
+    """An Aether chat session with multi-turn context tracking (#47)."""
     session_id: str
     messages: List[ChatMessage] = field(default_factory=list)
     created_at: float = 0.0
@@ -414,6 +414,98 @@ class ChatSession:
     current_topic: str = ''           # (#23) session-level topic tracking
     recent_topics: List[str] = field(default_factory=list)  # (#24) last N topics
     response_cache: Dict[str, str] = field(default_factory=dict)  # (#48) dedup cache
+    # (#47) Multi-turn context window
+    context_entities: Dict[str, list] = field(default_factory=dict)  # accumulated entities
+    context_topics_weight: Dict[str, float] = field(default_factory=dict)  # topic → recency weight
+    _max_context_messages: int = 10  # sliding window for context
+
+    def build_context_window(self) -> Dict[str, object]:
+        """Build a context summary from recent messages (#47).
+
+        Returns a dict with:
+          - recent_messages: last N (role, text) pairs
+          - topic_distribution: weighted topic frequencies
+          - mentioned_entities: accumulated entity references
+          - conversation_flow: sequence of (intent, topic) for flow analysis
+        """
+        window = self.messages[-self._max_context_messages:]
+        recent = [(m.role, m.content[:200]) for m in window]
+
+        # Topic distribution with recency weighting
+        topic_dist: Dict[str, float] = {}
+        for i, topic in enumerate(self.recent_topics[-10:]):
+            weight = 0.5 + 0.5 * (i / max(1, len(self.recent_topics[-10:]) - 1))
+            topic_dist[topic] = topic_dist.get(topic, 0) + weight
+
+        # Normalize
+        total = sum(topic_dist.values()) or 1.0
+        topic_dist = {k: round(v / total, 3) for k, v in topic_dist.items()}
+
+        # Conversation flow
+        flow = []
+        for m in window:
+            if m.role == 'user':
+                flow.append(('user', m.content[:80]))
+            else:
+                flow.append(('assistant', m.content[:80]))
+
+        return {
+            'recent_messages': recent,
+            'topic_distribution': topic_dist,
+            'mentioned_entities': dict(self.context_entities),
+            'conversation_flow': flow,
+            'turns': len(window),
+        }
+
+    def update_context(self, intent: str, entities: Optional[Dict[str, list]] = None) -> None:
+        """Update session context after processing a message (#47)."""
+        # Track topic with recency
+        if intent:
+            self.recent_topics.append(intent)
+            if len(self.recent_topics) > 20:
+                self.recent_topics = self.recent_topics[-20:]
+            self.context_topics_weight[intent] = (
+                self.context_topics_weight.get(intent, 0) * 0.8 + 1.0
+            )
+
+        # Merge entities into session context
+        if entities:
+            for key, vals in entities.items():
+                if key not in self.context_entities:
+                    self.context_entities[key] = []
+                for v in vals:
+                    if v not in self.context_entities[key]:
+                        self.context_entities[key].append(v)
+                # Keep bounded
+                if len(self.context_entities[key]) > 20:
+                    self.context_entities[key] = self.context_entities[key][-20:]
+
+    def get_follow_up_context(self) -> str:
+        """Build a concise context string for follow-up questions (#47).
+
+        Used when intent='follow_up' to resolve references like
+        'it', 'that', 'the same', etc.
+        """
+        if not self.messages:
+            return ''
+        parts = []
+        if self.current_topic:
+            parts.append(f"Current topic: {self.current_topic}")
+        # Last user message for coreference
+        for m in reversed(self.messages[-5:]):
+            if m.role == 'user':
+                parts.append(f"Previous question: {m.content[:150]}")
+                break
+        # Last assistant response
+        for m in reversed(self.messages[-5:]):
+            if m.role == 'assistant':
+                parts.append(f"Last response: {m.content[:150]}")
+                break
+        # Recent entities
+        for etype, vals in list(self.context_entities.items())[:3]:
+            if vals:
+                parts.append(f"Referenced {etype}: {', '.join(str(v)[:30] for v in vals[-3:])}")
+        return ' | '.join(parts)
 
     def to_dict(self) -> dict:
         return {
@@ -423,6 +515,7 @@ class ChatSession:
             'last_activity': self.last_activity,
             'user_address': self.user_address,
             'messages_sent': self.messages_sent,
+            'context': self.build_context_window(),
         }
 
 
@@ -673,6 +766,267 @@ class AetherChat:
 
         return 'general'
 
+    # ------------------------------------------------------------------
+    # Improvement 10 & 42: Entity Extraction for NLU
+    # ------------------------------------------------------------------
+
+    # Compiled regex patterns for entity extraction (class-level for reuse)
+    _RE_QBC_ADDR = re.compile(r'\b(qbc1[a-z0-9]{8,62})\b', re.IGNORECASE)
+    _RE_HEX_ADDR = re.compile(r'\b(0x[0-9a-fA-F]{40})\b')
+    _RE_HEX_HASH = re.compile(r'\b(0x[0-9a-fA-F]{64})\b')
+    _RE_BLOCK_HEIGHT = re.compile(
+        r'\bblock\s*(?:#|number|height)?\s*(\d{1,10})\b', re.IGNORECASE
+    )
+    _RE_BARE_HEIGHT = re.compile(
+        r'\b(?:height|block)\s+(\d{1,10})\b', re.IGNORECASE
+    )
+    _RE_AMOUNT = re.compile(
+        r'\b(\d+(?:\.\d+)?)\s*(?:qbc|qusd|eth|btc|tokens?|coins?)\b',
+        re.IGNORECASE,
+    )
+    _RE_PERCENTAGE = re.compile(r'\b(\d+(?:\.\d+)?)\s*%')
+    _RE_PLAIN_NUMBER = re.compile(r'\b(\d{1,15}(?:\.\d+)?)\b')
+    _RE_TIME_LAST = re.compile(
+        r'\b(?:last|past|previous)\s+(\d+)?\s*(hour|hours|minute|minutes|'
+        r'day|days|week|weeks|month|months|block|blocks)\b',
+        re.IGNORECASE,
+    )
+    _RE_TIME_SINCE = re.compile(
+        r'\bsince\s+block\s+(\d+)\b', re.IGNORECASE,
+    )
+    _RE_TIME_KEYWORD = re.compile(
+        r'\b(today|yesterday|this\s+week|this\s+month|right\s+now|recently)\b',
+        re.IGNORECASE,
+    )
+    _RE_MODIFIER = re.compile(
+        r'\b(detailed|detail|summary|summarize|compare|comparison|explain|'
+        r'explanation|brief|verbose|overview|breakdown|in\s+depth)\b',
+        re.IGNORECASE,
+    )
+
+    _KNOWN_TOKENS = {
+        'qbc': 'QBC', 'qusd': 'QUSD', 'eth': 'ETH', 'btc': 'BTC',
+        'sol': 'SOL', 'matic': 'MATIC', 'bnb': 'BNB', 'avax': 'AVAX',
+        'arb': 'ARB', 'op': 'OP', 'wqbc': 'wQBC', 'wqusd': 'wQUSD',
+    }
+    _KNOWN_CONTRACTS = {
+        'higgs', 'higgsfield', 'higgs field', 'aether tree', 'aethertree',
+        'qbc-20', 'qbc-721', 'qusd keeper', 'peg keeper', 'bridge',
+        'launchpad', 'governance', 'treasury', 'vault', 'staking',
+        'fee collector', 'reversibility',
+    }
+    _PROTOCOL_TERMS = {
+        'utxo', 'mempool', 'merkle', 'genesis', 'coinbase', 'dilithium',
+        'vqe', 'hamiltonian', 'proof of thought', 'proof-of-thought',
+        'sephirot', 'phi', 'consciousness', 'knowledge graph', 'susy',
+        'gossipsub', 'kademlia', 'grpc', 'json-rpc', 'stratum',
+        'bulletproof', 'pedersen', 'stealth address', 'range proof',
+    }
+
+    def _extract_entities(self, query: str) -> Dict[str, Any]:
+        """Extract structured entities from a user query using regex.
+
+        Extracts addresses, numbers (block heights, amounts, percentages),
+        timeframes, known contract/token names, protocol terms, and query
+        modifiers. This is additive — it does NOT replace intent detection.
+
+        Args:
+            query: The raw user message.
+
+        Returns:
+            Dict with entity categories as keys. Empty lists/dicts for
+            categories with no matches. Keys:
+                addresses: List of {'type': str, 'value': str}
+                numbers: List of {'type': str, 'value': float|int, 'raw': str}
+                timeframes: List of {'type': str, 'value': str, 'quantity': int|None}
+                tokens: List of str  (normalized token symbols)
+                contracts: List of str  (matched contract names)
+                protocol_terms: List of str
+                modifiers: List of str  (e.g. 'detailed', 'compare')
+        """
+        entities: Dict[str, Any] = {
+            'addresses': [],
+            'numbers': [],
+            'timeframes': [],
+            'tokens': [],
+            'contracts': [],
+            'protocol_terms': [],
+            'modifiers': [],
+        }
+
+        q = query.strip()
+        q_lower = q.lower()
+
+        # ── Addresses ──
+        for m in self._RE_HEX_HASH.finditer(q):
+            entities['addresses'].append({'type': 'hex_hash', 'value': m.group(1)})
+        for m in self._RE_HEX_ADDR.finditer(q):
+            # Skip if already captured as a 64-char hash
+            val = m.group(1)
+            if not any(a['value'] == val for a in entities['addresses']):
+                entities['addresses'].append({'type': 'hex_address', 'value': val})
+        for m in self._RE_QBC_ADDR.finditer(q):
+            entities['addresses'].append({'type': 'qbc_address', 'value': m.group(1)})
+
+        # ── Numbers ──
+        # Block heights (explicit "block N" patterns)
+        seen_numbers: set = set()
+        for pattern in (self._RE_BLOCK_HEIGHT, self._RE_BARE_HEIGHT):
+            for m in pattern.finditer(q):
+                val = int(m.group(1))
+                if val not in seen_numbers:
+                    entities['numbers'].append({
+                        'type': 'block_height', 'value': val, 'raw': m.group(0),
+                    })
+                    seen_numbers.add(val)
+
+        # Amounts with token suffix
+        for m in self._RE_AMOUNT.finditer(q):
+            val = float(m.group(1))
+            if val not in seen_numbers:
+                entities['numbers'].append({
+                    'type': 'amount', 'value': val, 'raw': m.group(0),
+                })
+                seen_numbers.add(val)
+
+        # Percentages
+        for m in self._RE_PERCENTAGE.finditer(q):
+            val = float(m.group(1))
+            if val not in seen_numbers:
+                entities['numbers'].append({
+                    'type': 'percentage', 'value': val, 'raw': m.group(0),
+                })
+                seen_numbers.add(val)
+
+        # ── Timeframes ──
+        for m in self._RE_TIME_LAST.finditer(q):
+            qty_str = m.group(1)
+            unit = m.group(2).lower().rstrip('s')  # normalize plural
+            qty = int(qty_str) if qty_str else 1
+            entities['timeframes'].append({
+                'type': 'relative', 'value': f'last {qty} {unit}(s)',
+                'quantity': qty, 'unit': unit,
+            })
+        for m in self._RE_TIME_SINCE.finditer(q):
+            block_num = int(m.group(1))
+            entities['timeframes'].append({
+                'type': 'since_block', 'value': f'since block {block_num}',
+                'quantity': block_num, 'unit': 'block',
+            })
+        for m in self._RE_TIME_KEYWORD.finditer(q):
+            entities['timeframes'].append({
+                'type': 'keyword', 'value': m.group(1).lower().strip(),
+                'quantity': None, 'unit': None,
+            })
+
+        # ── Tokens ──
+        words_lower = set(re.findall(r'\b\w+\b', q_lower))
+        for token_key, token_name in self._KNOWN_TOKENS.items():
+            if token_key in words_lower:
+                if token_name not in entities['tokens']:
+                    entities['tokens'].append(token_name)
+
+        # ── Contracts ──
+        for contract in self._KNOWN_CONTRACTS:
+            if contract in q_lower:
+                entities['contracts'].append(contract)
+
+        # ── Protocol terms ──
+        for term in self._PROTOCOL_TERMS:
+            if term in q_lower:
+                entities['protocol_terms'].append(term)
+
+        # ── Modifiers ──
+        for m in self._RE_MODIFIER.finditer(q_lower):
+            mod = m.group(1).strip()
+            # Normalize variants
+            mod_map = {
+                'detail': 'detailed', 'summarize': 'summary',
+                'comparison': 'compare', 'explanation': 'explain',
+                'in depth': 'detailed', 'verbose': 'detailed',
+                'overview': 'summary', 'breakdown': 'detailed',
+            }
+            normalized = mod_map.get(mod, mod)
+            if normalized not in entities['modifiers']:
+                entities['modifiers'].append(normalized)
+
+        logger.debug(
+            f"Entity extraction: {sum(len(v) for v in entities.values() if isinstance(v, list))} "
+            f"entities found in query"
+        )
+        return entities
+
+    def _entities_to_search_terms(self, entities: Dict[str, Any]) -> List[str]:
+        """Convert extracted entities to additional search terms for KG lookup.
+
+        Args:
+            entities: Output from _extract_entities().
+
+        Returns:
+            List of search term strings to append to KG queries.
+        """
+        terms: List[str] = []
+
+        # Block heights become "block NNNNN" search terms
+        for num in entities.get('numbers', []):
+            if num['type'] == 'block_height':
+                terms.append(f"block {num['value']}")
+
+        # Token names
+        for token in entities.get('tokens', []):
+            terms.append(token)
+
+        # Contract names
+        for contract in entities.get('contracts', []):
+            terms.append(contract)
+
+        # Protocol terms
+        for term in entities.get('protocol_terms', []):
+            terms.append(term)
+
+        return terms
+
+    def _build_entity_context(self, entities: Dict[str, Any]) -> str:
+        """Build a human-readable context string from extracted entities.
+
+        Used to enrich response generation with entity-specific context.
+
+        Args:
+            entities: Output from _extract_entities().
+
+        Returns:
+            Context string (may be empty if no notable entities).
+        """
+        parts: List[str] = []
+
+        for addr in entities.get('addresses', []):
+            if addr['type'] == 'qbc_address':
+                parts.append(f"QBC address: {addr['value']}")
+            elif addr['type'] == 'hex_address':
+                parts.append(f"Address: {addr['value']}")
+            elif addr['type'] == 'hex_hash':
+                parts.append(f"Hash: {addr['value'][:16]}...")
+
+        for num in entities.get('numbers', []):
+            if num['type'] == 'block_height':
+                parts.append(f"Block height: {num['value']}")
+            elif num['type'] == 'amount':
+                parts.append(f"Amount: {num['raw']}")
+
+        for tf in entities.get('timeframes', []):
+            parts.append(f"Timeframe: {tf['value']}")
+
+        if entities.get('tokens'):
+            parts.append(f"Tokens: {', '.join(entities['tokens'])}")
+
+        if entities.get('contracts'):
+            parts.append(f"Contracts: {', '.join(entities['contracts'])}")
+
+        if entities.get('modifiers'):
+            parts.append(f"Mode: {', '.join(entities['modifiers'])}")
+
+        return " | ".join(parts)
+
     def _find_best_axiom(self, query: str) -> Optional[dict]:
         """Find the single most relevant axiom for a query (#9, #12).
 
@@ -802,6 +1156,10 @@ class AetherChat:
 
         # Detect intent (#47)
         intent = self._detect_intent(message)
+
+        # Extract entities (#10, #42)
+        entities = self._extract_entities(message)
+
         user_id = session.user_address or session.session_id
 
         # Load cross-session user memories for context enrichment
@@ -1016,8 +1374,10 @@ class AetherChat:
             all_reasoning: List[dict] = []
             for i, sub_q in enumerate(questions[:5]):  # Max 5 sub-questions
                 sub_intent = self._detect_intent(sub_q)
+                sub_entities = self._extract_entities(sub_q)
                 sub_response = self._process_single_query(
                     sub_q, sub_intent, session, user_memories, is_deep_query,
+                    entities=sub_entities,
                 )
                 if sub_response.get('response'):
                     combined_parts.append(sub_response['response'])
@@ -1037,6 +1397,7 @@ class AetherChat:
             # Single question — standard processing
             single_result = self._process_single_query(
                 message, intent, session, user_memories, is_deep_query,
+                entities=entities,
             )
             response_content = single_result.get('response', '')
             knowledge_refs = single_result.get('knowledge_nodes_referenced', [])
@@ -1063,11 +1424,9 @@ class AetherChat:
             response_content, message, knowledge_refs
         )
 
-        # Update session topic tracking (#23, #24)
+        # Update session topic tracking (#23, #24) and context window (#47)
         session.current_topic = intent
-        session.recent_topics.append(intent)
-        if len(session.recent_topics) > 5:
-            session.recent_topics = session.recent_topics[-5:]
+        session.update_context(intent, entities=entities)
 
         # Cache response (#48)
         session.response_cache[cache_key] = response_content
@@ -1115,6 +1474,7 @@ class AetherChat:
             'message_index': len(session.messages) - 1,
             'quality_score': quality_score,
             'streaming_chunks': streaming_chunks,
+            'entities': entities,
         }
         if axiom_flags:
             result['axiom_flags'] = axiom_flags
@@ -1125,7 +1485,8 @@ class AetherChat:
     def _process_single_query(self, message: str, intent: str,
                               session: 'ChatSession',
                               user_memories: Dict[str, str],
-                              is_deep_query: bool = False) -> dict:
+                              is_deep_query: bool = False,
+                              entities: Optional[Dict[str, Any]] = None) -> dict:
         """Process a single query and return response components.
 
         Uses self-improvement weights to select the best reasoning strategy
@@ -1138,11 +1499,13 @@ class AetherChat:
             session: The chat session.
             user_memories: Cross-session user memories.
             is_deep_query: Whether to use deep reasoning.
+            entities: Extracted entities from _extract_entities() (#10, #42).
 
         Returns:
             Dict with response, reasoning_trace, knowledge_nodes_referenced,
             phi_at_response, neural_result, inference_conclusions.
         """
+        entities = entities or {}
         reasoning_trace: List[dict] = []
         knowledge_refs: List[int] = []
         phi_value = 0.0
@@ -1150,18 +1513,36 @@ class AetherChat:
         neural_result = None
         inference_conclusions: List[str] = []
 
+        # Build entity-augmented search query (#10, #42)
+        entity_search_terms = self._entities_to_search_terms(entities)
+        augmented_message = message
+        if entity_search_terms:
+            augmented_message = message + " " + " ".join(entity_search_terms)
+
         try:
             if self._query_translator:
                 depth = 5 if is_deep_query else 3
                 query_result = self._query_translator.translate_and_execute(
-                    message, max_results=10, reasoning_depth=depth,
+                    augmented_message, max_results=10, reasoning_depth=depth,
                 )
                 knowledge_refs = query_result.matched_node_ids
                 reasoning_trace = query_result.reasoning_results
             else:
                 if self.engine.kg:
-                    relevant = self._search_knowledge(message)
+                    relevant = self._search_knowledge(augmented_message)
                     knowledge_refs = [n for n in relevant[:10]]
+
+                    # Entity-aware: also search for specific block heights
+                    for num in entities.get('numbers', []):
+                        if num['type'] == 'block_height' and self.engine.kg.nodes:
+                            for nid, node in self.engine.kg.nodes.items():
+                                if nid in knowledge_refs:
+                                    continue
+                                if isinstance(node.content, dict):
+                                    if node.content.get('height') == num['value']:
+                                        knowledge_refs.append(nid)
+                                    elif node.content.get('block_height') == num['value']:
+                                        knowledge_refs.append(nid)
 
                 if self.engine.reasoning and self.engine.kg and knowledge_refs:
                     # Use self-improvement weights to select best strategy
@@ -1197,6 +1578,7 @@ class AetherChat:
             intent=intent,
             neural_result=neural_result,
             inference_conclusions=inference_conclusions,
+            entities=entities,
         )
 
         # Feed reasoning outcome to self-improvement engine
@@ -1483,7 +1865,8 @@ class AetherChat:
                              conversation_context: str = '',
                              intent: str = '',
                              neural_result: Optional[dict] = None,
-                             inference_conclusions: Optional[List[str]] = None) -> str:
+                             inference_conclusions: Optional[List[str]] = None,
+                             entities: Optional[Dict[str, Any]] = None) -> str:
         """Synthesize a natural language response from reasoning results.
 
         The Aether Tree IS the AI. Its own reasoning engine, knowledge graph,
@@ -1505,11 +1888,19 @@ class AetherChat:
             intent: Detected intent category from _detect_intent.
             neural_result: Result from GAT neural reasoner (confidence, attended nodes).
             inference_conclusions: Conclusions derived from adaptive reasoning.
+            entities: Extracted entities from _extract_entities() (#10, #42).
         """
+        entities = entities or {}
         user_memories = user_memories or {}
         inference_conclusions = inference_conclusions or []
         # Gather KG context
         node_contents, facts = self._gather_kg_context(knowledge_refs)
+
+        # Entity-aware fact injection (#10, #42):
+        # Add entity context as supplementary facts for response generation
+        entity_context = self._build_entity_context(entities)
+        if entity_context:
+            facts.append(f"Query context: {entity_context}")
 
         # PRIMARY: Aether Tree's own reasoning (KG + Sephirot + reasoning engine)
         aether_response = self._kg_only_synthesize(
@@ -1518,6 +1909,7 @@ class AetherChat:
             intent=intent,
             neural_result=neural_result,
             inference_conclusions=inference_conclusions,
+            entities=entities,
         )
 
         # Enrich with external knowledge when tree response is thin
@@ -1751,12 +2143,26 @@ class AetherChat:
                             user_memories: Optional[Dict[str, str]] = None,
                             intent: str = '',
                             neural_result: Optional[dict] = None,
-                            inference_conclusions: Optional[List[str]] = None) -> str:
+                            inference_conclusions: Optional[List[str]] = None,
+                            entities: Optional[Dict[str, Any]] = None) -> str:
         """KG-only response synthesis with reasoning-first approach.
 
         Priority: inference conclusions first, then intent-driven topic routing.
         The system REASONS about its knowledge, not just assembles facts.
+
+        Args:
+            query: The user's message.
+            reasoning_trace: Steps from the reasoning engine.
+            knowledge_refs: Referenced knowledge node IDs.
+            node_contents: Content dicts from referenced nodes.
+            facts: Extracted fact strings.
+            user_memories: Cross-session user memories.
+            intent: Detected intent category.
+            neural_result: GAT neural reasoner output.
+            inference_conclusions: Conclusions from adaptive reasoning.
+            entities: Extracted entities from _extract_entities() (#10, #42).
         """
+        entities = entities or {}
         user_memories = user_memories or {}
         inference_conclusions = inference_conclusions or []
         query_lower = query.lower().strip()
@@ -2193,7 +2599,11 @@ class AetherChat:
                 parts.append(f"Knowledge nodes: {_format_number(kg_node_count)}")
 
         elif intent == 'follow_up':
-            # (#21) Follow-up questions - use KG context
+            # (#21, #47) Follow-up questions - use context window + KG
+            follow_ctx = session.get_follow_up_context() if session else ''
+            if follow_ctx:
+                # Use context to enhance response
+                parts.append(f"Building on our conversation ({session.current_topic}):")
             if best_axiom and best_axiom.get('description'):
                 parts.append(best_axiom['description'])
             elif facts:
@@ -2201,6 +2611,11 @@ class AetherChat:
                 for i, fact in enumerate(unique_facts):
                     prefix = _transitions[i % len(_transitions)] if i > 0 else ""
                     parts.append(f"{prefix}{fact}")
+            elif follow_ctx:
+                parts.append(
+                    f"I recall we were discussing {session.current_topic}. "
+                    "Could you elaborate on what you'd like to know more about?"
+                )
             else:
                 parts.append(
                     "Could you be more specific? I can help with topics like "
@@ -2710,6 +3125,51 @@ class AetherChat:
         suggestions = _follow_up_map.get(intent, [])
         if suggestions and len(parts) > 1:
             parts.append(f"\nYou might also ask: \"{random.choice(suggestions)}\"")
+
+        # Entity-aware response enrichment (#10, #42):
+        # If entities contain specific addresses or block heights, add context
+        if entities:
+            entity_additions: List[str] = []
+
+            # Block height context
+            for num in entities.get('numbers', []):
+                if num['type'] == 'block_height':
+                    height = num['value']
+                    # Check if we already mentioned this block in the response
+                    joined = "\n".join(parts)
+                    if str(height) not in joined:
+                        entity_additions.append(
+                            f"Regarding block {_format_number(height)}: "
+                            f"this block is part of the Qubitcoin chain "
+                            f"(era 0, reward ~15.27 QBC per block)."
+                        )
+
+            # Address context
+            for addr in entities.get('addresses', []):
+                if addr['type'] == 'qbc_address':
+                    short = addr['value'][:12] + '...' + addr['value'][-6:]
+                    entity_additions.append(
+                        f"Address {short} is a Qubitcoin address "
+                        f"(Dilithium5 post-quantum secured)."
+                    )
+                elif addr['type'] == 'hex_address':
+                    short = addr['value'][:10] + '...' + addr['value'][-4:]
+                    entity_additions.append(
+                        f"Address {short} appears to be an EVM-compatible address "
+                        f"(usable with QBC bridges or QVM contracts)."
+                    )
+
+            # Modifier-driven adjustments
+            modifiers = entities.get('modifiers', [])
+            if 'detailed' in modifiers and len(parts) <= 2:
+                entity_additions.append(
+                    "For a more detailed view, try asking about specific "
+                    "components like the Sephirot architecture, VQE mining, "
+                    "or the phi consciousness metric."
+                )
+
+            if entity_additions:
+                parts.extend(entity_additions[:2])  # Max 2 entity additions
 
         return "\n".join(parts)
 

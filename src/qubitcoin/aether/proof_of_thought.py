@@ -65,6 +65,14 @@ class AetherEngine:
         except Exception as e:
             logger.warning(f"GATReasoner init failed — neural reasoning disabled: {e}")
 
+        # #22: Link Prediction (GNN-based missing edge prediction)
+        self.link_predictor = None
+        try:
+            from .neural_reasoner import LinkPredictor
+            self.link_predictor = LinkPredictor(self.neural_reasoner)
+        except Exception as e:
+            logger.warning(f"LinkPredictor init failed — link prediction disabled: {e}")
+
         # #3: Causal Discovery Engine (critical for causal inference)
         self.causal_engine = None
         try:
@@ -150,6 +158,39 @@ class AetherEngine:
             'goals_evaluated': 0,
         }
 
+        # #38: MCTS Planner for goal decomposition & action planning
+        self.mcts_planner = None
+        try:
+            from .mcts_planner import MCTSPlanner
+            self.mcts_planner = MCTSPlanner(
+                knowledge_graph=knowledge_graph,
+                reasoning_engine=reasoning_engine,
+                max_iterations=100,
+                exploration_c=1.414,
+            )
+        except Exception as e:
+            logger.warning(f"MCTSPlanner init failed — MCTS planning disabled: {e}")
+
+        # How often (in blocks) MCTS replans the exploration batch
+        self._mcts_replan_interval: int = 200
+        self._mcts_action_queue: List[dict] = []
+
+        # #33: TransE Knowledge Graph Embeddings
+        self.kg_embeddings = None
+        try:
+            from .kg_embeddings import TransEEmbeddings
+            self.kg_embeddings = TransEEmbeddings(dim=32, lr=0.01, margin=1.0)
+        except Exception as e:
+            logger.warning(f"TransEEmbeddings init failed: {e}")
+
+        # #40: Modern Hopfield Network for Associative Memory
+        self.hopfield_memory = None
+        try:
+            from .hopfield_memory import ModernHopfield
+            self.hopfield_memory = ModernHopfield(dim=32, beta=8.0, max_patterns=5000)
+        except Exception as e:
+            logger.warning(f"ModernHopfield init failed: {e}")
+
         # Phase 5.4: Emergent communication protocol
         self._pending_digest: Optional[dict] = None
         self._seen_digests: dict = {}  # OrderedDict-like (dict preserves insertion order in 3.7+)
@@ -158,6 +199,14 @@ class AetherEngine:
         self._digests_received: int = 0
         self._nodes_from_peers: int = 0
         self._peer_consensus_boosts: int = 0
+
+        # #49: External Data Ingestion
+        self.external_ingestion = None
+        try:
+            from .external_ingestion import ExternalDataIngestion
+            self.external_ingestion = ExternalDataIngestion(knowledge_graph=knowledge_graph)
+        except Exception as e:
+            logger.warning(f"ExternalDataIngestion init failed: {e}")
 
         # Phase 6: On-chain AGI integration
         # Initialize with log-only fallback so phi writes and PoT submissions
@@ -777,22 +826,35 @@ class AetherEngine:
                         # Reward/penalize Yesod based on temporal prediction accuracy
                         self._reward_sephirah('temporal', accuracy > 0.5, accuracy * 0.1)
 
-                    # Feed verified prediction outcomes to neural_reasoner
-                    # Only feed outcomes validated THIS block to avoid duplicate feeding
-                    if self.neural_reasoner and temporal_result.get('predictions_validated', 0) > 0:
+                    # Full prediction→validation→learning pipeline
+                    # Processes validated outcomes through KG confidence updates,
+                    # neural reasoner error feedback, self-improvement recording,
+                    # and ARIMA parameter adjustment.
+                    if temporal_result.get('predictions_validated', 0) > 0:
                         try:
-                            verified = self.temporal_engine.get_verified_outcomes(
-                                since_block=block.height
+                            self._process_validation_results(
+                                block.height, temporal_result
                             )
-                            for outcome in verified:
-                                self.neural_reasoner.record_outcome(
-                                    prediction_correct=outcome.get('correct', False)
-                                )
                         except Exception as e:
-                            logger.debug(f"Neural reasoner outcome feedback error: {e}")
+                            logger.debug(f"Validation pipeline error: {e}")
 
                 except Exception as e:
                     logger.debug(f"Temporal engine error: {e}")
+
+            # #49: External data ingestion (every 30 blocks)
+            if self.external_ingestion and block.height % 30 == 0:
+                try:
+                    block_data = {
+                        'difficulty': block.difficulty,
+                        'tx_count': len(block.transactions),
+                        'reward': getattr(block, 'reward', None),
+                        'energy': getattr(block, 'energy', None),
+                    }
+                    self.external_ingestion.process_block(
+                        block.height, block_data
+                    )
+                except Exception as e:
+                    logger.debug(f"External ingestion error: {e}")
 
             # Neural reasoner: force training from reasoning outcomes
             if self.neural_reasoner and self.kg and self.reasoning and block.height % 5 == 0:
@@ -963,6 +1025,32 @@ class AetherEngine:
                     )
                 except Exception as e:
                     logger.warning(f"On-chain AGI integration error: {e}")
+
+            # Phase 7: TransE KG Embeddings training (Item #33)
+            if self.kg_embeddings and self.kg and block.height % 100 == 0:
+                try:
+                    loss = self.kg_embeddings.train_from_kg(self.kg, batch_size=64)
+                    if loss > 0 and self.kg_embeddings._train_steps % 10 == 0:
+                        logger.info(
+                            f"TransE training step {self.kg_embeddings._train_steps}: "
+                            f"loss={loss:.4f}, entities={self.kg_embeddings._entity_count}"
+                        )
+                except Exception as e:
+                    logger.debug(f"TransE training error: {e}")
+
+            # Phase 7: Modern Hopfield pattern storage (Item #40)
+            if self.hopfield_memory and self.kg and block.height % 50 == 0:
+                try:
+                    # Store recent high-confidence nodes
+                    recent_nodes = [
+                        n for n in self.kg.nodes.values()
+                        if getattr(n, 'confidence', 0) > 0.6
+                        and getattr(n, 'source_block', 0) >= block.height - 50
+                    ]
+                    for node in recent_nodes[:20]:  # Max 20 per batch
+                        self.hopfield_memory.store_kg_node(node)
+                except Exception as e:
+                    logger.debug(f"Hopfield storage error: {e}")
 
             # Archive old consciousness events
             if block.height > 0 and block.height % Config.AETHER_CONSCIOUSNESS_ARCHIVE_INTERVAL == 0:
@@ -1361,6 +1449,136 @@ class AetherEngine:
             logger.warning(f"Safety assessment error (Gevurah degraded): {e}")
             return {}
 
+    def _process_validation_results(self, block_height: int,
+                                     temporal_result: dict) -> dict:
+        """Process temporal prediction validation results through the full learning pipeline.
+
+        Closes the prediction→validation→learning feedback loop by:
+        1. Boosting KG node confidence for correct predictions
+        2. Feeding incorrect prediction errors to the neural reasoner training buffer
+        3. Recording outcomes to the self-improvement engine
+        4. Triggering ARIMA parameter adjustment in the temporal engine
+
+        Args:
+            block_height: Current block height.
+            temporal_result: Result dict from temporal_engine.process_block().
+
+        Returns:
+            Dict summarising what was processed.
+        """
+        validated_count = temporal_result.get('predictions_validated', 0)
+        if validated_count == 0 or not self.temporal_engine:
+            return {'processed': 0}
+
+        # Fetch outcomes validated at this block
+        outcomes = self.temporal_engine.get_verified_outcomes(since_block=block_height)
+        if not outcomes:
+            return {'processed': 0}
+
+        correct_count = 0
+        error_count = 0
+        nodes_boosted = 0
+        errors_fed_to_nr = 0
+
+        for outcome in outcomes:
+            is_correct = outcome.get('correct', False)
+            metric = outcome.get('metric', 'unknown')
+            error_pct = outcome.get('error_pct', 1.0)
+            pred_node_id = outcome.get('prediction_node_id')
+
+            if is_correct:
+                correct_count += 1
+                # (a) Boost confidence of related KG nodes for correct predictions
+                if pred_node_id and self.kg:
+                    node = self.kg.nodes.get(pred_node_id)
+                    if node:
+                        old_conf = node.confidence
+                        node.confidence = min(1.0, node.confidence + 0.05)
+                        nodes_boosted += 1
+                        # Also boost parent nodes connected via 'derives' edges
+                        for edge in self.kg.edges.values():
+                            if edge.to_node_id == pred_node_id and edge.edge_type == 'derives':
+                                parent = self.kg.nodes.get(edge.from_node_id)
+                                if parent:
+                                    parent.confidence = min(1.0, parent.confidence + 0.02)
+                                    nodes_boosted += 1
+            else:
+                error_count += 1
+                # (b) Feed errors to neural reasoner training buffer
+                if self.neural_reasoner:
+                    try:
+                        # Record as incorrect prediction so the reasoner adjusts weights
+                        self.neural_reasoner.record_outcome(
+                            prediction_correct=False,
+                            predicted_positive=True,
+                        )
+                        errors_fed_to_nr += 1
+
+                        # If we have embeddings context, add a negative training sample
+                        if (hasattr(self.neural_reasoner, '_training_buffer')
+                                and pred_node_id and self.kg):
+                            node = self.kg.nodes.get(pred_node_id)
+                            if node:
+                                # Penalise the KG node confidence for wrong predictions
+                                node.confidence = max(0.05, node.confidence - 0.1)
+                    except Exception as e:
+                        logger.debug("Neural reasoner error feedback failed: %s", e)
+
+            # (c) Record each outcome to self-improvement engine
+            if self.self_improvement:
+                try:
+                    self.self_improvement.record_performance(
+                        strategy='temporal_prediction',
+                        domain=metric,
+                        confidence=max(0.0, 1.0 - error_pct),
+                        success=is_correct,
+                        block_height=block_height,
+                    )
+                except Exception as e:
+                    logger.debug("Self-improvement record for temporal prediction failed: %s", e)
+
+        # (d) Trigger ARIMA parameter adjustment based on accumulated accuracy
+        arima_adj: dict = {}
+        try:
+            arima_adj = self.temporal_engine.adjust_from_accuracy(outcomes)
+        except Exception as e:
+            logger.debug("Temporal ARIMA adjustment failed: %s", e)
+
+        # Force a neural reasoner training step if we fed enough error samples
+        if (self.neural_reasoner and errors_fed_to_nr >= 4
+                and hasattr(self.neural_reasoner, 'train_step')):
+            try:
+                loss = self.neural_reasoner.train_step(batch_size=min(8, errors_fed_to_nr))
+                if loss >= 0:
+                    logger.debug(
+                        "Neural reasoner trained from %d temporal errors, loss=%.6f",
+                        errors_fed_to_nr, loss,
+                    )
+            except Exception as e:
+                logger.debug("Neural reasoner train_step after temporal errors failed: %s", e)
+
+        accuracy = self.temporal_engine.get_accuracy()
+        summary = {
+            'processed': len(outcomes),
+            'correct': correct_count,
+            'errors': error_count,
+            'accuracy': round(accuracy, 4),
+            'kg_nodes_boosted': nodes_boosted,
+            'errors_fed_to_neural_reasoner': errors_fed_to_nr,
+            'arima_adjustments': arima_adj.get('metrics_adjusted', 0),
+        }
+
+        logger.info(
+            "Prediction validation pipeline at block %d: %d outcomes "
+            "(correct=%d, errors=%d, accuracy=%.1f%%, KG nodes boosted=%d, "
+            "NR error samples=%d, ARIMA adjustments=%d)",
+            block_height, len(outcomes), correct_count, error_count,
+            accuracy * 100, nodes_boosted, errors_fed_to_nr,
+            arima_adj.get('metrics_adjusted', 0),
+        )
+
+        return summary
+
     def _try_gat_online_train(self, block_height: int) -> bool:
         """Attempt a single online GAT training step.
 
@@ -1664,6 +1882,45 @@ class AetherEngine:
                         logger.info(f"Cross-domain inference: {d1}×{d2}")
             except Exception as e:
                 logger.debug(f"Cross-domain reasoning error: {e}")
+
+            # --- Link prediction (#22): every 100 blocks, predict missing edges ---
+            if self.link_predictor and self.kg and block_height % 100 == 0:
+                try:
+                    predictions = self.link_predictor.predict_links(
+                        self.kg, top_k=20, score_threshold=0.3
+                    )
+                    added_count = 0
+                    for src_id, dst_id, score, edge_type in predictions:
+                        # Only add high-confidence predictions as weak edges
+                        # Use low weight (< 0.5) to avoid polluting the KG
+                        if score >= 0.5:
+                            weak_weight = min(0.45, score * 0.5)
+                            edge = self.kg.add_edge(
+                                src_id, dst_id,
+                                edge_type=edge_type,
+                                weight=weak_weight,
+                            )
+                            if edge is not None:
+                                added_count += 1
+                    if added_count > 0:
+                        self.link_predictor._edges_added += added_count
+                        steps.append({
+                            'step_type': 'link_prediction',
+                            'content': {
+                                'method': 'gnn_link_prediction',
+                                'candidates_scored': len(predictions),
+                                'edges_added': added_count,
+                                'block_height': block_height,
+                            },
+                            'confidence': 0.4,
+                        })
+                        logger.info(
+                            "Link prediction: scored %d candidates, "
+                            "added %d weak edges at block %d",
+                            len(predictions), added_count, block_height
+                        )
+                except Exception as e:
+                    logger.debug(f"Link prediction error: {e}")
 
         except Exception as e:
             logger.error(f"Auto-reasoning failed for block: {e}", exc_info=True)
@@ -2703,12 +2960,22 @@ class AetherEngine:
         # --- Refresh goal queue ---
         self._generate_curiosity_goals(block_height)
 
+        # --- MCTS planning: replan every N blocks ---
+        if (self.mcts_planner
+                and block_height > 0
+                and block_height % self._mcts_replan_interval == 0):
+            try:
+                self._mcts_replan(block_height)
+            except Exception as e:
+                logger.debug(f"MCTS replan error: {e}")
+
         # --- Pursue top pending goal ---
         pending = [g for g in self._curiosity_goals if g['status'] == 'pending']
         if not pending:
             return acted
 
-        goal = pending[0]
+        # If MCTS produced an action queue, use it to prioritize goals
+        goal = self._pick_mcts_aligned_goal(pending) if self._mcts_action_queue else pending[0]
         goal['status'] = 'active'
         goal_success = False
 
@@ -2826,6 +3093,89 @@ class AetherEngine:
             )
 
         return acted
+
+    def _mcts_replan(self, block_height: int) -> None:
+        """Use MCTS to plan the next batch of exploration actions.
+
+        Runs MCTS on each pending curiosity goal (up to 3) and queues the
+        resulting action plans for goal prioritisation.
+
+        Args:
+            block_height: Current block height.
+        """
+        if not self.mcts_planner or not self.kg:
+            return
+
+        pending = [g for g in self._curiosity_goals if g['status'] == 'pending'][:3]
+        if not pending:
+            return
+
+        # Build current state snapshot
+        current_state: Dict[str, Any] = {
+            'explored_node_ids': set(list(self.kg.nodes.keys())[:50]),
+            'explored_domains': set(
+                d for d in (self.kg.get_domain_stats() or {}).keys()
+            ),
+            'confidence_sum': 0.0,
+        }
+
+        best_plan: List[dict] = []
+        best_score = -1.0
+
+        for goal in pending:
+            plan = self.mcts_planner.plan(goal, current_state)
+            # Score = sum of expected confidence * priority
+            score = sum(
+                a.get('expected_confidence', 0) * a.get('priority', 0.5)
+                for a in plan
+            )
+            if score > best_score:
+                best_score = score
+                best_plan = plan
+
+        self._mcts_action_queue = best_plan
+        if best_plan:
+            logger.debug(
+                "MCTS replanned at block %d: %d actions queued (score=%.2f)",
+                block_height, len(best_plan), best_score,
+            )
+
+    def _pick_mcts_aligned_goal(self, pending: List[dict]) -> dict:
+        """Pick the pending goal best aligned with the MCTS action queue.
+
+        If the MCTS queue suggests an action type, prefer goals that match.
+        Falls back to the first pending goal if no alignment is found.
+
+        Args:
+            pending: List of pending curiosity goals.
+
+        Returns:
+            The best-aligned goal dict.
+        """
+        if not self._mcts_action_queue:
+            return pending[0]
+
+        # Pop the next planned action
+        next_action = self._mcts_action_queue.pop(0)
+        action_type = next_action.get('action_type', '')
+
+        # Map MCTS action types to curiosity goal types
+        action_to_goal_type = {
+            'explore_domain': 'explore_domain',
+            'reason_about': 'explore_domain',
+            'seek_contradiction': 'investigate_contradiction',
+            'investigate_node': 'bridge_gap',
+            'create_hypothesis': 'bridge_gap',
+            'verify_prediction': 'verify_prediction',
+        }
+
+        target_goal_type = action_to_goal_type.get(action_type)
+        if target_goal_type:
+            for goal in pending:
+                if goal.get('type') == target_goal_type:
+                    return goal
+
+        return pending[0]
 
     def _generate_curiosity_goals(self, block_height: int) -> int:
         """Generate curiosity goals based on knowledge graph state.
@@ -3173,7 +3523,12 @@ class AetherEngine:
             'pending_goals': len(
                 [g for g in self._curiosity_goals if g['status'] == 'pending']
             ),
+            'mcts_action_queue_size': len(self._mcts_action_queue),
         }
+
+        # #38: MCTS planner stats
+        if self.mcts_planner:
+            stats['mcts_planner'] = self.mcts_planner.get_stats()
 
         # Phase 5.4: Knowledge sharing stats
         stats['knowledge_sharing'] = {
@@ -3196,6 +3551,18 @@ class AetherEngine:
         # Phase 6: On-chain integration stats
         if self.on_chain:
             stats['on_chain'] = self.on_chain.get_stats()
+
+        # #49: External data ingestion
+        if self.external_ingestion:
+            stats['external_ingestion'] = self.external_ingestion.get_stats()
+
+        # Phase 7: TransE KG Embeddings (Item #33)
+        if self.kg_embeddings:
+            stats['kg_embeddings'] = self.kg_embeddings.get_stats()
+
+        # Phase 7: Hopfield Memory (Item #40)
+        if self.hopfield_memory:
+            stats['hopfield_memory'] = self.hopfield_memory.get_stats()
 
         # Blocks processed counter
         stats['blocks_processed'] = self._blocks_processed

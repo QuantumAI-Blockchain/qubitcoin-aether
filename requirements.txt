@@ -57,6 +57,8 @@ scipy>=1.14.0
 
 # AI/ML (Aether Tree AGI)
 # torch installed separately via --index-url cpu in Dockerfile
+# sentence-transformers installed after torch in Dockerfile for dense embeddings
+sentence-transformers>=3.0.0
 networkx>=3.2.0
 
 # Data Structures

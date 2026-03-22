@@ -41,6 +41,8 @@ import math
 from itertools import combinations
 from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
+import numpy as np
+
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -707,13 +709,138 @@ class CausalDiscovery:
 
         return cov / math.sqrt(var_x * var_y)
 
+    def _fisher_z_ci_test(self, node_a_id: int,
+                          node_b_id: int,
+                          conditioning_set: List[int],
+                          features: Dict[int, List[float]],
+                          alpha: float = 0.05) -> float:
+        """Test conditional independence of *node_a* and *node_b* given
+        *conditioning_set* using Fisher's z-transform of the partial
+        correlation coefficient.
+
+        The test works as follows:
+
+        1. Build a data matrix from the feature vectors of the nodes
+           involved (node_a, node_b, and every node in the conditioning
+           set).  Each row is a feature dimension (the "sample"), each
+           column is a node.
+        2. Drop any rows (feature dimensions) that contain NaN in any of
+           the involved columns so that partial correlations are computed
+           only on clean data.
+        3. Compute the partial correlation *r* between node_a and node_b
+           controlling for the conditioning set via precision-matrix
+           inversion of the correlation sub-matrix.
+        4. Apply Fisher's z-transformation::
+
+               z = 0.5 * ln((1 + r) / (1 - r))
+
+        5. Compute the test statistic::
+
+               T = sqrt(n - |Z| - 3) * |z|
+
+           where *n* is the number of (clean) samples and |Z| is the
+           size of the conditioning set.
+        6. Derive a two-sided p-value from the standard normal CDF.
+
+        Args:
+            node_a_id: First variable node ID.
+            node_b_id: Second variable node ID.
+            conditioning_set: Node IDs to condition on.
+            features: ``{node_id: feature_vector}`` mapping built by
+                :meth:`_build_feature_matrix`.
+            alpha: Significance level (default 0.05).  Not used for the
+                return value directly but documents the intended usage
+                context.
+
+        Returns:
+            A p-value in ``[0, 1]``.  Values **above** *alpha* indicate
+            that the null hypothesis of conditional independence cannot
+            be rejected (i.e.\ the nodes are likely independent given
+            the conditioning set).
+        """
+        # --- Gather involved node IDs in a deterministic order ----------
+        involved = [node_a_id, node_b_id] + list(conditioning_set)
+
+        # --- Build data matrix (rows = feature dims, cols = nodes) ------
+        vecs = [features.get(nid) for nid in involved]
+        if any(v is None or len(v) == 0 for v in vecs):
+            # Missing feature data — conservatively declare independent
+            return 1.0
+
+        data = np.array(vecs, dtype=np.float64).T  # shape (n_features, n_vars)
+
+        # --- Drop rows containing NaN in any involved column ------------
+        nan_mask = np.isnan(data).any(axis=1)
+        if nan_mask.any():
+            data = data[~nan_mask]
+
+        n_samples: int = data.shape[0]
+        n_cond: int = len(conditioning_set)
+
+        # --- Guard: need enough samples for degrees of freedom ----------
+        if n_samples < n_cond + 5:
+            # Too few effective samples — return 1.0 (independent)
+            return 1.0
+
+        # --- Compute correlation matrix of involved variables -----------
+        # Columns: [0]=node_a, [1]=node_b, [2:]=conditioning set
+        # Use numpy corrcoef (each column is a variable, each row a sample)
+        # np.corrcoef expects variables in rows by default
+        corr = np.corrcoef(data, rowvar=False)  # shape (n_vars, n_vars)
+
+        # Handle degenerate cases (zero-variance columns → NaN in corrcoef)
+        if np.isnan(corr).any():
+            # If correlation matrix has NaN, variables are degenerate
+            return 1.0
+
+        # --- Compute partial correlation via precision matrix -----------
+        if n_cond == 0:
+            # No conditioning — partial correlation is just Pearson
+            r = float(corr[0, 1])
+        else:
+            # Invert the correlation sub-matrix of all involved variables
+            # to get the precision (concentration) matrix.  The partial
+            # correlation is: r_{ij|rest} = -P[i,j] / sqrt(P[i,i]*P[j,j])
+            try:
+                precision = np.linalg.inv(corr)
+            except np.linalg.LinAlgError:
+                # Singular matrix — variables are perfectly collinear
+                return 1.0
+
+            denom = precision[0, 0] * precision[1, 1]
+            if denom <= 1e-15:
+                return 1.0
+
+            r = float(-precision[0, 1] / math.sqrt(denom))
+
+        # --- Clamp r to avoid infinities in log transform ---------------
+        r = max(-0.999, min(0.999, r))
+
+        # --- Fisher z-transformation ------------------------------------
+        z = 0.5 * math.log((1.0 + r) / (1.0 - r))
+
+        # --- Test statistic: sqrt(n - |Z| - 3) * |z| -------------------
+        dof = n_samples - n_cond - 3
+        if dof < 1:
+            return 1.0
+
+        z_stat = math.sqrt(dof) * abs(z)
+
+        # --- Two-sided p-value from standard normal ---------------------
+        # P(|Z| > z_stat) = erfc(z_stat / sqrt(2))
+        p_value = math.erfc(z_stat / math.sqrt(2.0))
+
+        return float(p_value)
+
     def _test_conditional_independence(self, node_a_id: int,
                                        node_b_id: int,
                                        conditioning_set: List[int],
                                        features: Dict[int, List[float]]) -> float:
         """Test whether node_a and node_b are conditionally independent
-        given the conditioning_set using Fisher's z-transform of the
-        partial correlation.
+        given the conditioning_set.
+
+        Delegates to :meth:`_fisher_z_ci_test` which implements the full
+        Fisher-Z conditional independence test with proper p-values.
 
         Args:
             node_a_id: First node.
@@ -722,32 +849,12 @@ class CausalDiscovery:
             features: Feature matrix.
 
         Returns:
-            A p-value-like score in [0, 1].  Higher values indicate stronger
-            evidence of conditional independence.  The score is derived from
-            Fisher's z-transform: z = 0.5 * ln((1+r)/(1-r)) * sqrt(n-|S|-3),
-            converted to a p-value approximation via the standard normal CDF.
+            A p-value in [0, 1].  Higher values indicate stronger
+            evidence of conditional independence.
         """
-        r = self._partial_correlation(features, node_a_id, node_b_id,
-                                      conditioning_set)
-
-        # Number of "samples" — use number of feature dimensions as proxy
-        # since we don't have i.i.d. samples; clamp to avoid negative dof
-        n = len(features)
-        dof = n - len(conditioning_set) - 3
-        if dof < 1:
-            # Not enough effective degrees of freedom to test
-            return 0.0
-
-        # Fisher's z-transform
-        r_clamped = max(-0.9999, min(0.9999, r))
-        z = 0.5 * math.log((1.0 + r_clamped) / (1.0 - r_clamped))
-        z_stat = abs(z) * math.sqrt(dof)
-
-        # Approximate two-sided p-value using the error function
-        # P(|Z| > z_stat) = 2 * (1 - Phi(z_stat)) = erfc(z_stat / sqrt(2))
-        p_value = math.erfc(z_stat / math.sqrt(2.0))
-
-        return p_value
+        return self._fisher_z_ci_test(
+            node_a_id, node_b_id, conditioning_set, features
+        )
 
     # ------------------------------------------------------------------
     # PC Skeleton (Phase 1 of PC algorithm)

@@ -1268,3 +1268,334 @@ class GATReasoner:
         # Add performance monitoring metrics (Improvement 80)
         stats['performance_metrics'] = self.get_performance_metrics()
         return stats
+
+
+# ---------------------------------------------------------------------------
+# LinkPredictor — GNN-based link prediction for knowledge graph (Item #22)
+# ---------------------------------------------------------------------------
+
+class LinkPredictor:
+    """GNN-based link predictor for the Aether knowledge graph.
+
+    Predicts missing edges — "which nodes should be connected that aren't?"
+    Uses node feature embeddings from the GAT module to score candidate edges.
+
+    With PyTorch: bilinear scoring + gradient-based training.
+    Without PyTorch: dot-product scoring using pure Python lists.
+
+    Usage:
+        predictor = LinkPredictor(gat_reasoner)
+        predictions = predictor.predict_links(kg, top_k=20)
+        loss = predictor.train_step(positive_edges, negative_edges)
+    """
+
+    # Valid edge types for predicted links
+    EDGE_TYPES: List[str] = [
+        'supports', 'derives', 'requires', 'refines',
+        'causes', 'abstracts', 'analogous_to',
+    ]
+
+    def __init__(self, gat_reasoner: Optional[GATReasoner] = None,
+                 embed_dim: int = 64) -> None:
+        self._gat = gat_reasoner
+        self._embed_dim = embed_dim
+        self._has_torch = _HAS_TORCH
+        # Bilinear weight matrix W for scoring: score = src^T W dst
+        # Initialized lazily on first use
+        self._bilinear_W: Optional[List[List[float]]] = None
+        self._torch_bilinear: Optional[object] = None
+        self._optimizer: Optional[object] = None
+        # Training statistics
+        self._train_steps: int = 0
+        self._total_loss: float = 0.0
+        self._predictions_made: int = 0
+        self._edges_added: int = 0
+        logger.info("LinkPredictor initialized (embed_dim=%d, torch=%s)",
+                     embed_dim, self._has_torch)
+
+    def _init_bilinear(self, dim: int) -> None:
+        """Lazily initialize the bilinear scoring matrix."""
+        if self._bilinear_W is not None:
+            return
+        self._embed_dim = dim
+        # Xavier-style initialization: scale = sqrt(2 / (dim + dim))
+        import random
+        scale = math.sqrt(2.0 / (dim + dim))
+        self._bilinear_W = [
+            [random.gauss(0, scale) for _ in range(dim)]
+            for _ in range(dim)
+        ]
+        if self._has_torch:
+            self._torch_bilinear = nn.Bilinear(dim, dim, 1, bias=False)
+            self._optimizer = torch.optim.Adam(
+                self._torch_bilinear.parameters(), lr=0.001
+            )
+
+    def _extract_node_features(self, kg: object, vector_index: object,
+                               node_ids: List[int]) -> Dict[int, List[float]]:
+        """Extract feature embeddings for a set of nodes.
+
+        Reuses VectorIndex embeddings (same source as GATReasoner).
+        Falls back to GATReasoner.engineer_features if no embedding exists.
+        """
+        features: Dict[int, List[float]] = {}
+        for nid in node_ids:
+            emb = vector_index.get_embedding(nid) if vector_index else None
+            if emb:
+                features[nid] = emb
+            elif self._gat:
+                features[nid] = self._gat.engineer_features(kg, nid)
+        return features
+
+    def _score_pair_numpy(self, src_emb: List[float],
+                          dst_emb: List[float]) -> float:
+        """Score a candidate edge using bilinear form (pure Python).
+
+        score = sigmoid(src^T W dst)
+        """
+        if self._bilinear_W is None:
+            # Fallback to simple dot product
+            dot = sum(a * b for a, b in zip(src_emb, dst_emb))
+            norm_s = math.sqrt(sum(v * v for v in src_emb)) or 1e-8
+            norm_d = math.sqrt(sum(v * v for v in dst_emb)) or 1e-8
+            cos_sim = dot / (norm_s * norm_d)
+            return 1.0 / (1.0 + math.exp(-cos_sim * 3.0))
+
+        dim = len(src_emb)
+        W = self._bilinear_W
+        # Compute W @ dst
+        w_dst = [0.0] * dim
+        for i in range(dim):
+            for j in range(min(dim, len(dst_emb))):
+                w_dst[i] += W[i][j] * dst_emb[j]
+        # src^T @ (W @ dst)
+        logit = sum(src_emb[i] * w_dst[i] for i in range(min(dim, len(src_emb))))
+        # Sigmoid
+        logit = max(-15.0, min(15.0, logit))
+        return 1.0 / (1.0 + math.exp(-logit))
+
+    def _predict_edge_type(self, kg: object, src_id: int,
+                           dst_id: int) -> str:
+        """Predict the most likely edge type for a candidate link.
+
+        Uses the dominant edge type in the local neighborhood.
+        """
+        type_counts: Dict[str, int] = {}
+        for nid in (src_id, dst_id):
+            for edge in kg.get_edges_from(nid):
+                t = edge.edge_type
+                type_counts[t] = type_counts.get(t, 0) + 1
+            for edge in kg.get_edges_to(nid):
+                t = edge.edge_type
+                type_counts[t] = type_counts.get(t, 0) + 1
+        if type_counts:
+            return max(type_counts, key=type_counts.get)
+        return 'supports'
+
+    def predict_links(self, kg: object, top_k: int = 20,
+                      score_threshold: float = 0.3) -> List[Tuple[int, int, float, str]]:
+        """Predict missing edges in the knowledge graph.
+
+        Samples candidate pairs from nodes that share neighbors but lack
+        a direct edge, then scores them.
+
+        Args:
+            kg: KnowledgeGraph instance.
+            top_k: Maximum number of predictions to return.
+            score_threshold: Minimum score to include a prediction.
+
+        Returns:
+            List of (src_id, dst_id, score, edge_type) tuples sorted by
+            score descending.
+        """
+        if not kg or not hasattr(kg, 'nodes') or len(kg.nodes) < 3:
+            return []
+
+        vector_index = getattr(kg, 'vector_index', None)
+
+        # Collect candidate pairs: nodes that share a neighbor but have no direct edge
+        import random
+        candidates: List[Tuple[int, int]] = []
+        node_ids = list(kg.nodes.keys())
+
+        # Strategy 1: shared-neighbor candidates (high quality)
+        # Sample up to 200 nodes to keep runtime bounded
+        sampled = random.sample(node_ids, min(200, len(node_ids)))
+        neighbor_map: Dict[int, set] = {}
+        for nid in sampled:
+            neighbors: set = set()
+            for edge in kg.get_edges_from(nid):
+                neighbors.add(edge.to_node_id)
+            for edge in kg.get_edges_to(nid):
+                neighbors.add(edge.from_node_id)
+            neighbor_map[nid] = neighbors
+
+        # Existing edges set for fast lookup
+        existing_edges: set = set()
+        for nid in sampled:
+            for edge in kg.get_edges_from(nid):
+                existing_edges.add((nid, edge.to_node_id))
+
+        seen_pairs: set = set()
+        for nid_a in sampled:
+            for nid_b in sampled:
+                if nid_a >= nid_b:
+                    continue
+                if (nid_a, nid_b) in existing_edges or (nid_b, nid_a) in existing_edges:
+                    continue
+                # Check if they share at least one neighbor
+                shared = neighbor_map.get(nid_a, set()) & neighbor_map.get(nid_b, set())
+                if shared:
+                    pair = (nid_a, nid_b)
+                    if pair not in seen_pairs:
+                        candidates.append(pair)
+                        seen_pairs.add(pair)
+                if len(candidates) >= top_k * 10:
+                    break
+            if len(candidates) >= top_k * 10:
+                break
+
+        # Strategy 2: random pairs (exploration) if not enough candidates
+        if len(candidates) < top_k * 3 and len(node_ids) >= 2:
+            for _ in range(min(top_k * 5, 200)):
+                a, b = random.sample(node_ids, 2)
+                pair = (min(a, b), max(a, b))
+                if pair not in seen_pairs and pair not in existing_edges:
+                    candidates.append(pair)
+                    seen_pairs.add(pair)
+
+        if not candidates:
+            return []
+
+        # Extract features for all candidate nodes
+        all_node_ids = list({nid for pair in candidates for nid in pair})
+        features = self._extract_node_features(kg, vector_index, all_node_ids)
+
+        if not features:
+            return []
+
+        # Initialize bilinear weights from first embedding dim
+        sample_dim = len(next(iter(features.values())))
+        self._init_bilinear(sample_dim)
+
+        # Score all candidates
+        scored: List[Tuple[int, int, float, str]] = []
+        for src_id, dst_id in candidates:
+            src_emb = features.get(src_id)
+            dst_emb = features.get(dst_id)
+            if not src_emb or not dst_emb:
+                continue
+            score = self._score_pair_numpy(src_emb, dst_emb)
+            if score >= score_threshold:
+                edge_type = self._predict_edge_type(kg, src_id, dst_id)
+                scored.append((src_id, dst_id, round(score, 4), edge_type))
+
+        scored.sort(key=lambda x: x[2], reverse=True)
+        self._predictions_made += len(scored[:top_k])
+        return scored[:top_k]
+
+    def train_step(self, positive_edges: List[Tuple[int, int, List[float], List[float]]],
+                   negative_edges: List[Tuple[int, int, List[float], List[float]]]) -> float:
+        """Train on known edges (positive) vs random negatives.
+
+        Each edge is (src_id, dst_id, src_embedding, dst_embedding).
+
+        Args:
+            positive_edges: Existing edges with their node embeddings.
+            negative_edges: Non-existing edges (random negatives) with embeddings.
+
+        Returns:
+            Loss value (>= 0.0) on success, -1.0 if training could not run.
+        """
+        if not positive_edges and not negative_edges:
+            return -1.0
+
+        all_pairs = [(emb_s, emb_d, 1.0) for _, _, emb_s, emb_d in positive_edges]
+        all_pairs += [(emb_s, emb_d, 0.0) for _, _, emb_s, emb_d in negative_edges]
+
+        if not all_pairs:
+            return -1.0
+
+        # Initialize bilinear if needed
+        sample_dim = len(all_pairs[0][0])
+        self._init_bilinear(sample_dim)
+
+        if self._has_torch and self._torch_bilinear is not None:
+            return self._train_step_torch(all_pairs)
+        else:
+            return self._train_step_numpy(all_pairs)
+
+    def _train_step_torch(self, pairs: List[Tuple[List[float], List[float], float]]) -> float:
+        """Train using PyTorch bilinear layer + BCE loss."""
+        src_list = [p[0] for p in pairs]
+        dst_list = [p[1] for p in pairs]
+        labels = [p[2] for p in pairs]
+
+        src_t = torch.tensor(src_list, dtype=torch.float32)
+        dst_t = torch.tensor(dst_list, dtype=torch.float32)
+        y = torch.tensor(labels, dtype=torch.float32).unsqueeze(1)
+
+        self._optimizer.zero_grad()
+        logits = self._torch_bilinear(src_t, dst_t)
+        pred = torch.sigmoid(logits)
+        loss = F.binary_cross_entropy(pred, y)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self._torch_bilinear.parameters(), max_norm=1.0)
+        self._optimizer.step()
+
+        loss_val = float(loss.item())
+        self._train_steps += 1
+        self._total_loss += loss_val
+        return loss_val
+
+    def _train_step_numpy(self, pairs: List[Tuple[List[float], List[float], float]]) -> float:
+        """Train using gradient-free perturbation (no PyTorch)."""
+        if self._bilinear_W is None:
+            return -1.0
+        import random
+
+        dim = len(self._bilinear_W)
+        lr = 0.005
+
+        # Compute current loss
+        total_loss = 0.0
+        for src_emb, dst_emb, label in pairs:
+            pred = self._score_pair_numpy(src_emb, dst_emb)
+            pred = max(1e-7, min(1.0 - 1e-7, pred))
+            total_loss += -(label * math.log(pred) + (1.0 - label) * math.log(1.0 - pred))
+        avg_loss = total_loss / max(len(pairs), 1)
+
+        # Perturb each weight and keep perturbation if loss decreases
+        for i in range(dim):
+            for j in range(dim):
+                delta = random.gauss(0, lr)
+                self._bilinear_W[i][j] += delta
+                # Recompute loss
+                new_loss = 0.0
+                for src_emb, dst_emb, label in pairs:
+                    pred = self._score_pair_numpy(src_emb, dst_emb)
+                    pred = max(1e-7, min(1.0 - 1e-7, pred))
+                    new_loss += -(label * math.log(pred) + (1.0 - label) * math.log(1.0 - pred))
+                new_avg = new_loss / max(len(pairs), 1)
+                if new_avg > avg_loss:
+                    # Revert — perturbation made things worse
+                    self._bilinear_W[i][j] -= delta
+                else:
+                    avg_loss = new_avg
+
+        self._train_steps += 1
+        self._total_loss += avg_loss
+        return avg_loss
+
+    def get_stats(self) -> dict:
+        """Return link predictor statistics."""
+        avg_loss = self._total_loss / self._train_steps if self._train_steps > 0 else 0.0
+        return {
+            'train_steps': self._train_steps,
+            'avg_loss': round(avg_loss, 6),
+            'predictions_made': self._predictions_made,
+            'edges_added': self._edges_added,
+            'embed_dim': self._embed_dim,
+            'has_torch': self._has_torch,
+            'bilinear_initialized': self._bilinear_W is not None,
+        }
