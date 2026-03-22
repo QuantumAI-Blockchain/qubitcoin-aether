@@ -1311,13 +1311,11 @@ class AetherEngine:
                         change = abs(block.difficulty - prev_diff) / prev_diff
                         has_difficulty_shift = change > 0.05  # >5% change
 
-            # NOTE: has_thought_proof is intentionally EXCLUDED from this gate.
-            # Every block carries a thought proof (that is routine), so including
-            # it would make EVERY block "meaningful" and create junk nodes.
-            is_meaningful = (
-                is_genesis or has_real_txs or has_contract_txs
-                or has_difficulty_shift or is_milestone
-            )
+            # Every block on a live chain carries meaningful data (difficulty,
+            # timing, energy) — the chain heartbeat IS the AGI's sensory input.
+            # Richer observations (tx patterns, difficulty shifts) are extracted
+            # separately. Always create at least a lightweight observation node.
+            is_meaningful = True
 
             block_node = None
             if is_meaningful:

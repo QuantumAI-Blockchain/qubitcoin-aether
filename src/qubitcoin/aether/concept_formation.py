@@ -307,6 +307,7 @@ class ConceptFormation:
 
         content = {
             'type': 'abstract_concept',
+            'type': 'concept_cluster',
             'text': f"Concept: {theme}",
             'theme_words': [w for w, _ in top_words],
             'member_count': len(members),
