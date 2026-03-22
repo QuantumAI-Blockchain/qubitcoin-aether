@@ -158,7 +158,7 @@ class TestNeuralReasonerEndpointLogic:
         from qubitcoin.aether.neural_reasoner import GATReasoner
         reasoner = GATReasoner()
         mode = reasoner.training_mode
-        assert mode in ('backprop', 'evolutionary')
+        assert mode in ('backprop', 'evolutionary', 'rust_backprop')
 
 
 class TestContractValidationEndpointLogic:

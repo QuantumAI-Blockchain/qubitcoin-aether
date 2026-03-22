@@ -535,11 +535,17 @@ class AetherEngine:
         self._blocks_processed += 1
 
         try:
-            # Skip expensive Phi computation during block processing —
-            # use cached or DB value. Phi will be computed on-demand via RPC.
+            # Use cached Phi result, but force computation every 10 blocks
+            # so on-chain recording and temporal engine get real phi data.
             block_phi_result = None
-            if self.phi and self.phi._last_full_result is not None:
-                block_phi_result = self.phi._last_full_result
+            if self.phi:
+                if self.phi._last_full_result is not None:
+                    block_phi_result = self.phi._last_full_result
+                elif block.height % 10 == 0:
+                    try:
+                        block_phi_result = self.phi.compute_phi(block.height)
+                    except Exception as e:
+                        logger.debug(f"Periodic phi computation error: {e}")
 
             # ── Determine if this block has meaningful knowledge ──────
             # Only create knowledge nodes when the block contributes
@@ -789,12 +795,14 @@ class AetherEngine:
                     if hasattr(self.reasoning, '_operations') and self.reasoning._operations:
                         recent_ops = self.reasoning._operations[-10:]
                         for op in recent_ops:
-                            if hasattr(op, 'node_ids') and op.node_ids:
+                            # ReasoningResult uses premise_ids, not node_ids
+                            op_nodes = getattr(op, 'premise_ids', None) or getattr(op, 'node_ids', None)
+                            if op_nodes:
                                 # Run neural reasoner on the same nodes
                                 vi = self.kg.vector_index if hasattr(self.kg, 'vector_index') else None
                                 if vi:
                                     nr_result = self.neural_reasoner.reason(
-                                        self.kg, vi, op.node_ids[:3], k_hops=1
+                                        self.kg, vi, op_nodes[:3], k_hops=1
                                     )
                                     # Use reasoning success as ground truth
                                     op_success = getattr(op, 'success', False)
@@ -924,7 +932,10 @@ class AetherEngine:
                     logger.debug(f"Knowledge digest creation error: {e}")
 
             # Phase 6: On-chain AGI integration
-            if self.on_chain and block_phi_result:
+            # Use empty dict fallback so log-only mode always records
+            if self.on_chain:
+                if not block_phi_result:
+                    block_phi_result = {'phi_value': 0.0, 'integration': 0.0, 'coherence': 0.0}
                 try:
                     self.on_chain.process_block(
                         block_height=block.height,

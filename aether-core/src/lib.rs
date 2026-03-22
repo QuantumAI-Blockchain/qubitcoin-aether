@@ -16,6 +16,7 @@ pub mod vector_index;
 pub mod csf_transport;
 pub mod working_memory;
 pub mod memory_manager;
+pub mod neural;
 
 /// Python module entry point.
 #[pymodule]
@@ -46,6 +47,9 @@ fn aether_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Memory Manager
     m.add_class::<memory_manager::Episode>()?;
     m.add_class::<memory_manager::MemoryManager>()?;
+
+    // Neural GAT Reasoner
+    m.add_class::<neural::python_bindings::RustGATReasoner>()?;
 
     Ok(())
 }

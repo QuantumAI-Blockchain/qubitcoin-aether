@@ -20,7 +20,17 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Try to load PyTorch
+# Try to load Rust GAT (highest priority — fastest, real backprop)
+_HAS_RUST_GAT = False
+_RustGATReasoner = None
+try:
+    from aether_core import RustGATReasoner as _RustGATReasoner
+    _HAS_RUST_GAT = True
+    logger.info("Rust GAT neural reasoner loaded (aether_core)")
+except ImportError:
+    pass
+
+# Try to load PyTorch (fallback)
 _HAS_TORCH = False
 try:
     import torch
@@ -321,6 +331,7 @@ class GATReasoner:
         self.hidden_dim = hidden_dim
         self.n_heads = n_heads
         self.has_pytorch: bool = _HAS_TORCH
+        self.has_rust_gat: bool = _HAS_RUST_GAT
         self._layer1: Optional[GATLayer] = None
         self._layer2: Optional[GATLayer] = None
         self._initialized = False
@@ -328,7 +339,7 @@ class GATReasoner:
         self._prediction_history: List[dict] = []
         self._correct_predictions: int = 0
         self._total_predictions: int = 0
-        # Mini-batch gradient descent buffer (used when PyTorch is available)
+        # Mini-batch gradient descent buffer (used when PyTorch/Rust is available)
         self._training_buffer: List[dict] = []
         # Cache features/adj from last reason() call for training data
         self._last_embeddings: Optional[Dict[str, object]] = None
@@ -340,11 +351,25 @@ class GATReasoner:
         self._backprop_steps: int = 0
         self._backprop_total_loss: float = 0.0
         self._evolutionary_steps: int = 0
+        # Rust GAT backend (highest priority)
+        self._rust_gat: Optional[object] = None
+        if self.has_rust_gat and _RustGATReasoner is not None:
+            try:
+                self._rust_gat = _RustGATReasoner(
+                    input_dim=hidden_dim, hidden_dim=hidden_dim,
+                    output_dim=hidden_dim // 2, n_heads=n_heads, n_layers=2
+                )
+                logger.info(f"Rust GAT initialized: {hidden_dim}→{hidden_dim}→{hidden_dim // 2}, {n_heads} heads")
+            except Exception as e:
+                logger.warning(f"Rust GAT init failed, falling back to Python: {e}")
+                self.has_rust_gat = False
+                self._rust_gat = None
 
     @property
     def training_mode(self) -> str:
-        """Return current training mode: 'backprop' if PyTorch is available,
-        'evolutionary' otherwise."""
+        """Return current training mode: 'rust_backprop' > 'backprop' > 'evolutionary'."""
+        if self.has_rust_gat and self._rust_gat is not None:
+            return 'rust_backprop'
         return 'backprop' if self.has_pytorch else 'evolutionary'
 
     def _ensure_layers(self, input_dim: int) -> None:
@@ -537,6 +562,23 @@ class GATReasoner:
             }
             self._training_buffer.append(sample)
 
+        # Rust GAT: delegate training to native backend
+        if self._rust_gat is not None:
+            try:
+                self._rust_gat.record_outcome(prediction_correct)
+                # Trigger training every TRAINING_BATCH_SIZE samples
+                if len(self._training_buffer) >= self.TRAINING_BATCH_SIZE:
+                    loss = self._rust_gat.train_step(self.TRAINING_BATCH_SIZE)
+                    if loss >= 0.0:
+                        self._backprop_steps += 1
+                        self._backprop_total_loss += loss
+                        self._training_buffer = self._training_buffer[self.TRAINING_BATCH_SIZE:]
+                        logger.debug("Rust GAT train_step loss=%.6f steps=%d",
+                                     loss, self._backprop_steps)
+                return
+            except Exception as e:
+                logger.debug(f"Rust GAT record_outcome error: {e}")
+
         # Try backpropagation if PyTorch available and buffer full
         if self.has_pytorch and len(self._training_buffer) >= self.TRAINING_BATCH_SIZE:
             # Filter low-quality training samples (Improvement 78)
@@ -682,20 +724,28 @@ class GATReasoner:
         return loss_val
 
     def train_step(self, batch_size: int = 32) -> float:
-        """Run one mini-batch gradient descent step using PyTorch.
+        """Run one mini-batch gradient descent step.
 
-        Converts GATLayer weights to PyTorch tensors, performs a forward pass
-        over the training buffer, computes MSE loss between predicted
-        confidence and actual outcome, backpropagates, and copies updated
-        weights back to the GATLayer lists.
+        Uses Rust GAT (if available) > PyTorch > returns -1.0.
 
         Args:
             batch_size: Number of samples to use per training step.
 
         Returns:
             Loss value (float >= 0.0) on success, -1.0 if training could
-            not run (no PyTorch, not enough samples, or layers not initialized).
+            not run.
         """
+        # Rust GAT: native training step
+        if self._rust_gat is not None:
+            try:
+                loss = self._rust_gat.train_step(batch_size)
+                if loss >= 0.0:
+                    self._backprop_steps += 1
+                    self._backprop_total_loss += loss
+                    return loss
+            except Exception as e:
+                logger.debug(f"Rust GAT train_step error: {e}")
+
         if not _HAS_TORCH:
             return -1.0
         if len(self._training_buffer) < batch_size:
@@ -1177,6 +1227,7 @@ class GATReasoner:
             'accuracy': round(self.get_accuracy(), 4),
             'has_torch': self.has_pytorch,
             'has_pytorch': self.has_pytorch,
+            'has_rust_gat': self.has_rust_gat,
             'training_mode': self.training_mode,
             'training_buffer_size': len(self._training_buffer),
             'training_batch_size': self.TRAINING_BATCH_SIZE,
@@ -1186,6 +1237,13 @@ class GATReasoner:
             'backprop_avg_loss': round(avg_backprop_loss, 6),
             'evolutionary_steps': self._evolutionary_steps,
         }
+        # Merge Rust GAT stats if available
+        if self._rust_gat is not None:
+            try:
+                rust_stats = self._rust_gat.get_stats()
+                stats['rust_gat'] = rust_stats
+            except Exception:
+                pass
         # Add performance monitoring metrics (Improvement 80)
         stats['performance_metrics'] = self.get_performance_metrics()
         return stats

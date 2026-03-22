@@ -242,11 +242,12 @@ class HiggsCognitiveField:
         """Dampen field value toward VEV every tick.
 
         Applies two stabilization mechanisms:
-        1. Exponential damping: 10% pull toward VEV every update
-           new_value = vev + (new_value - vev) * 0.9
+        1. Exponential damping: 40% pull toward VEV every update
+           new_value = vev + (new_value - vev) * 0.6
         2. Hard clamp: field value is clamped to [0, 2*VEV] (±100% of VEV)
 
-        This prevents the runaway drift that caused 253%+ deviation.
+        The 40% rate counteracts the energy recomputation from Sephirot nodes
+        which naturally pushes the field above VEV due to energy accumulation.
         """
         if self.params.vev <= 0:
             return
@@ -254,8 +255,8 @@ class HiggsCognitiveField:
         vev = self.params.vev
         old_value = self._field_value
 
-        # Step 1: Exponential damping — pull 10% toward VEV every tick
-        self._field_value = vev + (self._field_value - vev) * 0.9
+        # Step 1: Exponential damping — pull 40% toward VEV every tick
+        self._field_value = vev + (self._field_value - vev) * 0.6
 
         # Step 2: Hard clamp to ±100% of VEV (range [0, 2*VEV])
         max_field = 2.0 * vev  # 348.28

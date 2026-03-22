@@ -85,18 +85,23 @@ class TestHasPytorch:
         assert r.has_pytorch == _HAS_TORCH
 
     def test_training_mode_with_torch(self):
-        """training_mode should be 'backprop' when PyTorch is available."""
+        """training_mode should be 'backprop' or 'rust_backprop' when a backend is available."""
         from qubitcoin.aether.neural_reasoner import GATReasoner
         r = GATReasoner()
         r.has_pytorch = True
-        assert r.training_mode == 'backprop'
+        # Rust GAT takes priority over PyTorch when available
+        assert r.training_mode in ('backprop', 'rust_backprop')
 
     def test_training_mode_without_torch(self):
-        """training_mode should be 'evolutionary' when PyTorch is unavailable."""
+        """training_mode should be 'evolutionary' when no backend is available."""
         from qubitcoin.aether.neural_reasoner import GATReasoner
         r = GATReasoner()
         r.has_pytorch = False
-        assert r.training_mode == 'evolutionary'
+        # If Rust GAT is available, it should use that instead
+        if r.has_rust_gat:
+            assert r.training_mode == 'rust_backprop'
+        else:
+            assert r.training_mode == 'evolutionary'
 
     def test_has_pytorch_is_bool(self):
         """has_pytorch should be a boolean type."""
@@ -113,10 +118,11 @@ class TestEvolutionaryFallback:
     """Tests for evolutionary training when PyTorch is unavailable."""
 
     def test_evolutionary_path_when_no_pytorch(self):
-        """record_outcome should use evolutionary strategy when has_pytorch=False."""
+        """record_outcome should use evolutionary strategy when no backend available."""
         from qubitcoin.aether.neural_reasoner import GATReasoner, GATLayer
         r = GATReasoner(hidden_dim=8)
         r.has_pytorch = False
+        r._rust_gat = None  # Disable Rust GAT to test pure evolutionary path
 
         # Initialize layers manually
         r._layer1 = GATLayer(4, 8)
@@ -145,6 +151,7 @@ class TestEvolutionaryFallback:
         from qubitcoin.aether.neural_reasoner import GATReasoner, GATLayer
         r = GATReasoner(hidden_dim=4)
         r.has_pytorch = False
+        r._rust_gat = None  # Disable Rust GAT to test pure evolutionary path
         r._layer1 = GATLayer(4, 4)
         r._layer2 = GATLayer(4, 4)
         r._initialized = True
@@ -294,7 +301,7 @@ class TestTrainingStats:
         r = GATReasoner()
         stats = r.get_stats()
         assert 'training_mode' in stats
-        assert stats['training_mode'] in ('backprop', 'evolutionary')
+        assert stats['training_mode'] in ('backprop', 'evolutionary', 'rust_backprop')
 
     def test_stats_include_has_pytorch(self):
         """get_stats should include has_pytorch field."""

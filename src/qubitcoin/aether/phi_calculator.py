@@ -467,6 +467,7 @@ class PhiCalculator:
                     total_flow += w
 
         if total_flow <= 0.0:
+            logger.debug(f"MIP: total_flow=0 with {n_nodes} nodes, no weighted edges")
             return 0.0
 
         # --- Step 3: Compute degree vector for graph Laplacian ---
