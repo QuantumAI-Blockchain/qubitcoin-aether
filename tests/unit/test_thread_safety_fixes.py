@@ -68,7 +68,7 @@ class TestKnowledgeGraphLock:
     def test_lock_exists(self) -> None:
         kg = self._make_kg()
         assert hasattr(kg, '_lock')
-        assert isinstance(kg._lock, type(threading.Lock()))
+        assert isinstance(kg._lock, (type(threading.Lock()), type(threading.RLock())))
 
     def test_add_node_works(self) -> None:
         kg = self._make_kg()

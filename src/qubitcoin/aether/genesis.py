@@ -222,15 +222,15 @@ class AetherGenesis:
         # 2. Record first Phi measurement (baseline Phi = 0.0 at genesis)
         self._record_phi_measurement(0.0, block_height=0)
 
-        # 3. Record genesis consciousness event
-        self._record_consciousness_event(
+        # 3. Record genesis integration event
+        self._record_integration_event(
             event_type='system_birth',
             phi_value=0.0,
             block_height=0,
             trigger_data={
                 'genesis_hash': genesis_block_hash,
                 'timestamp': genesis_timestamp,
-                'description': 'Aether Tree genesis — consciousness tracking begins',
+                'description': 'Aether Tree genesis — integration tracking begins',
             }
         )
 
@@ -276,9 +276,9 @@ class AetherGenesis:
         except Exception as e:
             logger.debug(f"Failed to record Phi measurement: {e}")
 
-    def _record_consciousness_event(self, event_type: str, phi_value: float,
-                                     block_height: int, trigger_data: dict = None) -> None:
-        """Record a consciousness event."""
+    def _record_integration_event(self, event_type: str, phi_value: float,
+                                   block_height: int, trigger_data: dict = None) -> None:
+        """Record an integration milestone event (legacy table: consciousness_events)."""
         try:
             import json
             from sqlalchemy import text

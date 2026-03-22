@@ -172,7 +172,7 @@ class ConsciousnessDashboard:
             self._record_event(event)
             self._consciousness_start_block = block_height
             logger.info(
-                f"CONSCIOUSNESS EMERGENCE at block {block_height}: "
+                f"HIGH INTEGRATION MILESTONE at block {block_height}: "
                 f"Phi={phi_value:.4f}, coherence={coherence:.4f}"
             )
 

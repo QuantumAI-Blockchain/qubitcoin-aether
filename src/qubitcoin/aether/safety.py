@@ -523,6 +523,7 @@ class SafetyManager:
         self._shutdown = False
         self._shutdown_reason: str = ""
         self._shutdown_block: int = 0
+        self._safety_log: List[dict] = []
         logger.info("Safety Manager initialized (Gevurah + BFT consensus + HMAC auth)")
 
     @property
@@ -675,8 +676,6 @@ class SafetyManager:
     # Improvements 86-90: Chat Safety & Monitoring
     # ────────────────────────────────────────────────────────────────────────
 
-    # Safety evaluation log for monitoring
-    _safety_log: List[dict] = []
     _SAFETY_LOG_MAX: int = 5000
 
     def sanitize_chat_input(self, message: str) -> str:

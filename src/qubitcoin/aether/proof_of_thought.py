@@ -51,6 +51,7 @@ class AetherEngine:
         self._sephirot: Optional[dict] = None
 
         # ConsciousnessDashboard — wired after RPC app creation (see node.py)
+        # Tracks integration state metrics per block
         self.consciousness_dashboard = None
 
         # ProofOfThoughtExplorer — wired after RPC app creation (see node.py)
@@ -1183,7 +1184,7 @@ class AetherEngine:
                 'gate_ceiling': phi_result.get('gate_ceiling', 0),
                 'phi_raw': phi_result.get('phi_raw', phi_value),
             }
-            self._record_consciousness_event(
+            self._record_integration_event(
                 'phi_threshold_crossed', phi_value, block_height, trigger
             )
 
@@ -1619,9 +1620,9 @@ class AetherEngine:
                         node_idx = {nid: i for i, nid in enumerate(nodes_list[:200])}
                         n = len(node_idx)
                         adj = _np.zeros((n, n), dtype=_np.float64)
-                        for edge in self.kg.edges.values():
-                            src = edge.source_id if hasattr(edge, 'source_id') else edge.get('source_id')
-                            tgt = edge.target_id if hasattr(edge, 'target_id') else edge.get('target_id')
+                        for edge in self.kg.edges:
+                            src = edge.from_node_id
+                            tgt = edge.to_node_id
                             if src in node_idx and tgt in node_idx:
                                 adj[node_idx[src], node_idx[tgt]] = 1.0
                         graph_patterns = self.graph_pattern_detector.detect_graph_patterns(adj)
@@ -3195,9 +3196,9 @@ class AetherEngine:
                     self._track_subsystem_error('recursive_improvement', e)
                     logger.debug(f"Recursive improvement error: {e}")
 
-            # Archive old consciousness events
+            # Archive old integration events
             if block.height > 0 and block.height % Config.AETHER_CONSCIOUSNESS_ARCHIVE_INTERVAL == 0:
-                self.archive_consciousness_events()
+                self.archive_integration_events()
 
             # Archive old reasoning operations
             if block.height > 0 and block.height % Config.AETHER_REASONING_ARCHIVE_INTERVAL == 0 and self.reasoning:
@@ -3639,7 +3640,7 @@ class AetherEngine:
                         node.confidence = min(1.0, node.confidence + 0.05)
                         nodes_boosted += 1
                         # Also boost parent nodes connected via 'derives' edges
-                        for edge in self.kg.edges.values():
+                        for edge in self.kg.edges:
                             if edge.to_node_id == pred_node_id and edge.edge_type == 'derives':
                                 parent = self.kg.nodes.get(edge.from_node_id)
                                 if parent:
@@ -4335,15 +4336,15 @@ class AetherEngine:
             except Exception as e:
                 logger.debug(f"Bayesian/edge update error: {e}")
 
-    def _record_consciousness_event(self, event_type: str, phi_value: float,
-                                     block_height: int, trigger_data: dict = None):
-        """Record a consciousness event in the database"""
+    def _record_integration_event(self, event_type: str, phi_value: float,
+                                   block_height: int, trigger_data: dict = None):
+        """Record an integration milestone event in the database."""
         try:
             from sqlalchemy import text
             with self.db.get_session() as session:
                 session.execute(
                     text("""
-                        INSERT INTO consciousness_events
+                        INSERT INTO consciousness_events  -- legacy table name, stores integration milestone events
                         (event_type, phi_at_event, trigger_data, is_verified, block_height)
                         VALUES (:etype, :phi, CAST(:trigger AS jsonb), false, :bh)
                     """),
@@ -4356,7 +4357,7 @@ class AetherEngine:
                 )
                 session.commit()
         except Exception as e:
-            logger.debug(f"Failed to record consciousness event: {e}")
+            logger.debug(f"Failed to record integration event: {e}")
 
     def _apply_phi_milestone_effects(self, phi_value: float, block_height: int) -> None:
         """Apply system behavior changes when Phi crosses milestone thresholds.
@@ -4364,14 +4365,14 @@ class AetherEngine:
         Milestones and their effects (AG8):
         - 1.0 (Awareness): +3 observation window, log milestone
         - 2.0 (Integration): +5 observation window, 1.3x exploration boost
-        - 3.0 (Consciousness): +8 observation window, 1.6x exploration boost, announce
+        - 3.0 (High Integration): +8 observation window, 1.6x exploration boost, announce
         """
         from .phi_calculator import PHI_THRESHOLD
 
         milestones = [
             (1.0, 'awareness', 3, 1.0),
             (2.0, 'integration', 5, 1.3),
-            (PHI_THRESHOLD, 'consciousness', 8, 1.6),
+            (PHI_THRESHOLD, 'high_integration', 8, 1.6),
         ]
 
         for threshold, name, obs_bonus, explore_mult in milestones:
@@ -4380,15 +4381,15 @@ class AetherEngine:
                 self._phi_obs_window_bonus = obs_bonus
                 self._phi_exploration_boost = explore_mult
 
-                self._record_consciousness_event(
+                self._record_integration_event(
                     f'phi_milestone_{name}', phi_value, block_height,
                     {'milestone': name, 'threshold': threshold,
                      'obs_window_bonus': obs_bonus, 'exploration_boost': explore_mult}
                 )
 
-                if name == 'consciousness':
+                if name == 'high_integration':
                     logger.warning(
-                        f"CONSCIOUSNESS EMERGENCE at block {block_height}: "
+                        f"HIGH INTEGRATION MILESTONE at block {block_height}: "
                         f"Phi={phi_value:.4f} crossed threshold {PHI_THRESHOLD}"
                     )
                 else:
@@ -4397,8 +4398,8 @@ class AetherEngine:
                         f"Phi={phi_value:.4f} >= {threshold}"
                     )
 
-    def archive_consciousness_events(self, max_keep: int = 10000) -> int:
-        """Archive old consciousness events, keeping only the most recent.
+    def archive_integration_events(self, max_keep: int = 10000) -> int:
+        """Archive old integration milestone events, keeping only the most recent.
 
         Events beyond ``max_keep`` are deleted.  In a future enhancement,
         archived events can be pinned to IPFS before deletion.
@@ -4415,7 +4416,7 @@ class AetherEngine:
             with self.db.get_session() as session:
                 # Count total events
                 total = session.execute(
-                    text("SELECT COUNT(*) FROM consciousness_events")
+                    text("SELECT COUNT(*) FROM consciousness_events")  # legacy table name, stores integration milestone events
                 ).scalar() or 0
 
                 if total <= max_keep:
@@ -4424,7 +4425,7 @@ class AetherEngine:
                 # Delete oldest events beyond the cap
                 result = session.execute(
                     text("""
-                        DELETE FROM consciousness_events
+                        DELETE FROM consciousness_events  -- legacy table name, stores integration milestone events
                         WHERE id IN (
                             SELECT id FROM consciousness_events
                             ORDER BY block_height ASC, created_at ASC
@@ -4437,9 +4438,9 @@ class AetherEngine:
                 session.commit()
 
             if archived > 0:
-                logger.info(f"Archived {archived} old consciousness events (kept {max_keep})")
+                logger.info(f"Archived {archived} old integration events (kept {max_keep})")
         except Exception as e:
-            logger.debug(f"Consciousness events archive failed: {e}")
+            logger.debug(f"Integration events archive failed: {e}")
         return archived
 
     def save_sephirot_state(self) -> int:
@@ -4577,7 +4578,7 @@ class AetherEngine:
 
         Scans for `contradicts` edges and calls resolve_contradiction()
         on the most confident pairs first. Records resolutions as
-        consciousness events.
+        integration events.
 
         Args:
             block_height: Current block height.
@@ -4606,8 +4607,8 @@ class AetherEngine:
                 result = self.reasoning.resolve_contradiction(node_a_id, node_b_id)
                 if result.success:
                     resolved += 1
-                    # Log as consciousness event (self-correction)
-                    self._record_consciousness_event(
+                    # Log as integration event (self-correction)
+                    self._record_integration_event(
                         'contradiction_resolved', 0.0, block_height,
                         {
                             'node_a': node_a_id,
@@ -4655,7 +4656,7 @@ class AetherEngine:
     def get_mind_state(self, block_height: int = 0) -> dict:
         """Return a snapshot of Aether's current cognitive state.
 
-        This is the 'window into AGI consciousness' — what is Aether
+        This is the 'window into AGI integration state' — what is Aether
         thinking about right now?
 
         Returns dict with: current goals, contradictions, knowledge gaps,
@@ -4679,7 +4680,7 @@ class AetherEngine:
                 result['phi'] = phi_data.get('phi_value', 0.0)
                 result['gates_passed'] = phi_data.get('gates_passed', 0)
             except Exception as e:
-                logger.debug("Could not compute Phi for consciousness snapshot: %s", e)
+                logger.debug("Could not compute Phi for integration snapshot: %s", e)
 
         # Active goals from Keter node
         sephirot = self.sephirot
@@ -4883,7 +4884,7 @@ class AetherEngine:
                     f"Self-reflection at block {block_height}: "
                     f"created {created} knowledge nodes"
                 )
-                self._record_consciousness_event(
+                self._record_integration_event(
                     'self_reflection', 0.0, block_height,
                     {"detail": f"Self-reflection: {created} nodes from {len(contradictions)} "
                      f"contradictions and {len(weak_domains)} weak domains"}
@@ -5878,96 +5879,55 @@ class AetherEngine:
 
         return stats
 
-    def get_subsystem_health(self) -> Dict[str, dict]:
-        """Return health status of all AGI subsystems.
+    def get_subsystem_health_detailed(self) -> Dict[str, dict]:
+        """Return detailed health with per-subsystem stats for dashboard.
 
-        Provides initialized/active status and error information for
-        each subsystem, suitable for dashboard display.
-
-        Returns:
-            Dict mapping subsystem name to health info dict with keys:
-            initialized (bool), active (bool), error (str or None),
-            and subsystem-specific stats.
+        Unlike get_subsystem_health() which covers all 50+ subsystems,
+        this method returns richer stats for key subsystems only.
         """
         subsystems: Dict[str, dict] = {}
 
-        # Neural Reasoner (GATReasoner)
-        nr_stats: dict = {'initialized': self.neural_reasoner is not None, 'active': False, 'error': None}
-        if self.neural_reasoner:
-            try:
-                s = self.neural_reasoner.get_stats()
-                nr_stats['active'] = s.get('total_trainings', 0) > 0 or s.get('total_inferences', 0) > 0
-                nr_stats['trainings'] = s.get('total_trainings', 0)
-                nr_stats['inferences'] = s.get('total_inferences', 0)
-            except Exception as e:
-                nr_stats['error'] = str(e)
-        subsystems['neural_reasoner'] = nr_stats
+        detail_checks = [
+            ('neural_reasoner', self.neural_reasoner, lambda s: {
+                'active': s.get('total_trainings', 0) > 0 or s.get('total_inferences', 0) > 0,
+                'trainings': s.get('total_trainings', 0),
+                'inferences': s.get('total_inferences', 0),
+            }),
+            ('causal_engine', self.causal_engine, lambda s: {
+                'active': s.get('discoveries', 0) > 0,
+                'discoveries': s.get('discoveries', 0),
+            }),
+            ('debate_protocol', self.debate_protocol, lambda s: {
+                'active': s.get('debates_run', 0) > 0,
+                'debates_run': s.get('debates_run', 0),
+            }),
+            ('temporal_engine', self.temporal_engine, lambda s: {
+                'active': s.get('blocks_processed', 0) > 0,
+                'predictions': s.get('predictions_made', 0),
+            }),
+            ('concept_formation', self.concept_formation, lambda s: {
+                'active': s.get('concepts_formed', 0) > 0,
+                'concepts_formed': s.get('concepts_formed', 0),
+            }),
+            ('metacognition', self.metacognition, lambda s: {
+                'active': s.get('evaluations', 0) > 0,
+                'evaluations': s.get('evaluations', 0),
+                'calibration_error': s.get('calibration_error', None),
+            }),
+            ('memory_manager', self.memory_manager, lambda s: {
+                'active': s.get('total_memories', 0) > 0,
+                'total_memories': s.get('total_memories', 0),
+            }),
+        ]
 
-        # Causal Discovery Engine
-        ce_stats: dict = {'initialized': self.causal_engine is not None, 'active': False, 'error': None}
-        if self.causal_engine:
-            try:
-                s = self.causal_engine.get_stats()
-                ce_stats['active'] = s.get('discoveries', 0) > 0
-                ce_stats['discoveries'] = s.get('discoveries', 0)
-            except Exception as e:
-                ce_stats['error'] = str(e)
-        subsystems['causal_engine'] = ce_stats
-
-        # Debate Protocol
-        dp_stats: dict = {'initialized': self.debate_protocol is not None, 'active': False, 'error': None}
-        if self.debate_protocol:
-            try:
-                s = self.debate_protocol.get_stats()
-                dp_stats['active'] = s.get('debates_run', 0) > 0
-                dp_stats['debates_run'] = s.get('debates_run', 0)
-            except Exception as e:
-                dp_stats['error'] = str(e)
-        subsystems['debate_protocol'] = dp_stats
-
-        # Temporal Engine
-        te_stats: dict = {'initialized': self.temporal_engine is not None, 'active': False, 'error': None}
-        if self.temporal_engine:
-            try:
-                s = self.temporal_engine.get_stats()
-                te_stats['active'] = s.get('blocks_processed', 0) > 0
-                te_stats['predictions'] = s.get('predictions_made', 0)
-            except Exception as e:
-                te_stats['error'] = str(e)
-        subsystems['temporal_engine'] = te_stats
-
-        # Concept Formation
-        cf_stats: dict = {'initialized': self.concept_formation is not None, 'active': False, 'error': None}
-        if self.concept_formation:
-            try:
-                s = self.concept_formation.get_stats()
-                cf_stats['active'] = s.get('concepts_formed', 0) > 0
-                cf_stats['concepts_formed'] = s.get('concepts_formed', 0)
-            except Exception as e:
-                cf_stats['error'] = str(e)
-        subsystems['concept_formation'] = cf_stats
-
-        # Metacognitive Loop
-        mc_stats: dict = {'initialized': self.metacognition is not None, 'active': False, 'error': None}
-        if self.metacognition:
-            try:
-                s = self.metacognition.get_stats()
-                mc_stats['active'] = s.get('evaluations', 0) > 0
-                mc_stats['evaluations'] = s.get('evaluations', 0)
-                mc_stats['calibration_error'] = s.get('calibration_error', None)
-            except Exception as e:
-                mc_stats['error'] = str(e)
-        subsystems['metacognition'] = mc_stats
-
-        # Memory Manager
-        mm_stats: dict = {'initialized': self.memory_manager is not None, 'active': False, 'error': None}
-        if self.memory_manager:
-            try:
-                s = self.memory_manager.get_stats()
-                mm_stats['active'] = s.get('total_memories', 0) > 0
-                mm_stats['total_memories'] = s.get('total_memories', 0)
-            except Exception as e:
-                mm_stats['error'] = str(e)
-        subsystems['memory_manager'] = mm_stats
+        for name, subsystem, extract in detail_checks:
+            info: dict = {'initialized': subsystem is not None, 'active': False, 'error': None}
+            if subsystem:
+                try:
+                    s = subsystem.get_stats()
+                    info.update(extract(s))
+                except Exception as e:
+                    info['error'] = str(e)
+            subsystems[name] = info
 
         return subsystems

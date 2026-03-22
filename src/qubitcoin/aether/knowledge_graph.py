@@ -476,15 +476,17 @@ class KnowledgeGraph:
 
     def get_node(self, node_id: int) -> Optional[KeterNode]:
         """Return a KeterNode by its ID, or None if not found."""
-        return self.nodes.get(node_id)
+        with self._lock:
+            return self.nodes.get(node_id)
 
     def get_neighbors(self, node_id: int, direction: str = 'out') -> List[KeterNode]:
         """Get neighboring nodes"""
-        node = self.nodes.get(node_id)
-        if not node:
-            return []
-        ids = node.edges_out if direction == 'out' else node.edges_in
-        return [self.nodes[nid] for nid in ids if nid in self.nodes]
+        with self._lock:
+            node = self.nodes.get(node_id)
+            if not node:
+                return []
+            ids = node.edges_out if direction == 'out' else node.edges_in
+            return [self.nodes[nid] for nid in ids if nid in self.nodes]
 
     def get_subgraph(self, root_id: int, depth: int = 3) -> Dict[int, KeterNode]:
         """BFS to get subgraph up to given depth"""
@@ -561,9 +563,10 @@ class KnowledgeGraph:
                             continue
                         if edge.edge_type in ('supports', 'derives'):
                             support_sum += parent.confidence * edge.weight
+                            count += 1
                         elif edge.edge_type == 'contradicts':
                             contradict_sum += parent.confidence * edge.weight
-                        count += 1
+                            count += 1
 
                     if count > 0:
                         # Weighted update with damping to prevent oscillation
@@ -644,32 +647,33 @@ class KnowledgeGraph:
 
         # Remove from in-memory graph — single-pass over edges using a set
         remove_set = set(to_remove)
-        self.edges = [
-            e for e in self.edges
-            if e.from_node_id not in remove_set and e.to_node_id not in remove_set
-        ]
-        # Clean adjacency indices and node cross-references in one pass.
-        # Uses adj index to update only affected neighbors: O(degree) per node
-        # instead of the old O(N) scan of all nodes per removed node.
-        for nid in remove_set:
-            for edge in self._adj_out.get(nid, []):
-                adj_list = self._adj_in.get(edge.to_node_id, [])
-                self._adj_in[edge.to_node_id] = [e for e in adj_list if e.from_node_id != nid]
-                # Also clean the neighbor's edges_in list
-                neighbor = self.nodes.get(edge.to_node_id)
-                if neighbor and nid in neighbor.edges_in:
-                    neighbor.edges_in.remove(nid)
-            for edge in self._adj_in.get(nid, []):
-                adj_list = self._adj_out.get(edge.from_node_id, [])
-                self._adj_out[edge.from_node_id] = [e for e in adj_list if e.to_node_id != nid]
-                # Also clean the neighbor's edges_out list
-                neighbor = self.nodes.get(edge.from_node_id)
-                if neighbor and nid in neighbor.edges_out:
-                    neighbor.edges_out.remove(nid)
-            self._adj_out.pop(nid, None)
-            self._adj_in.pop(nid, None)
-            del self.nodes[nid]
-        self._merkle_dirty = True
+        with self._lock:
+            self.edges = [
+                e for e in self.edges
+                if e.from_node_id not in remove_set and e.to_node_id not in remove_set
+            ]
+            # Clean adjacency indices and node cross-references in one pass.
+            # Uses adj index to update only affected neighbors: O(degree) per node
+            # instead of the old O(N) scan of all nodes per removed node.
+            for nid in remove_set:
+                for edge in self._adj_out.get(nid, []):
+                    adj_list = self._adj_in.get(edge.to_node_id, [])
+                    self._adj_in[edge.to_node_id] = [e for e in adj_list if e.from_node_id != nid]
+                    # Also clean the neighbor's edges_in list
+                    neighbor = self.nodes.get(edge.to_node_id)
+                    if neighbor and nid in neighbor.edges_in:
+                        neighbor.edges_in.remove(nid)
+                for edge in self._adj_in.get(nid, []):
+                    adj_list = self._adj_out.get(edge.from_node_id, [])
+                    self._adj_out[edge.from_node_id] = [e for e in adj_list if e.to_node_id != nid]
+                    # Also clean the neighbor's edges_out list
+                    neighbor = self.nodes.get(edge.from_node_id)
+                    if neighbor and nid in neighbor.edges_out:
+                        neighbor.edges_out.remove(nid)
+                self._adj_out.pop(nid, None)
+                self._adj_in.pop(nid, None)
+                del self.nodes[nid]
+            self._merkle_dirty = True
 
         # Cascade prune to search and vector indices
         for nid in remove_set:
@@ -843,11 +847,13 @@ class KnowledgeGraph:
 
     def get_edges_from(self, node_id: int) -> List[KeterEdge]:
         """Get all outgoing edges from a node. O(1) lookup."""
-        return self._adj_out.get(node_id, [])
+        with self._lock:
+            return list(self._adj_out.get(node_id, []))
 
     def get_edges_to(self, node_id: int) -> List[KeterEdge]:
         """Get all incoming edges to a node. O(1) lookup."""
-        return self._adj_in.get(node_id, [])
+        with self._lock:
+            return list(self._adj_in.get(node_id, []))
 
     def export_json_ld(self, limit: int = 0) -> dict:
         """Export the knowledge graph in JSON-LD format.
@@ -1816,37 +1822,38 @@ class KnowledgeGraph:
 
         remove_set = set(to_remove)
         # Remove from graph
-        self.edges = [
-            e for e in self.edges
-            if e.from_node_id not in remove_set and e.to_node_id not in remove_set
-        ]
-        for nid in remove_set:
-            for edge in self._adj_out.get(nid, []):
-                adj_list = self._adj_in.get(edge.to_node_id, [])
-                self._adj_in[edge.to_node_id] = [e for e in adj_list if e.from_node_id != nid]
-                neighbor = self.nodes.get(edge.to_node_id)
-                if neighbor and nid in neighbor.edges_in:
-                    neighbor.edges_in.remove(nid)
-            for edge in self._adj_in.get(nid, []):
-                adj_list = self._adj_out.get(edge.from_node_id, [])
-                self._adj_out[edge.from_node_id] = [e for e in adj_list if e.to_node_id != nid]
-                neighbor = self.nodes.get(edge.from_node_id)
-                if neighbor and nid in neighbor.edges_out:
-                    neighbor.edges_out.remove(nid)
-            self._adj_out.pop(nid, None)
-            self._adj_in.pop(nid, None)
-            del self.nodes[nid]
-            if hasattr(self, 'search_index') and self.search_index:
-                try:
-                    self.search_index.remove_node(nid)
-                except Exception:
-                    pass
-            if hasattr(self, 'vector_index') and self.vector_index:
-                try:
-                    self.vector_index.remove_node(nid)
-                except Exception:
-                    pass
-        self._merkle_dirty = True
+        with self._lock:
+            self.edges = [
+                e for e in self.edges
+                if e.from_node_id not in remove_set and e.to_node_id not in remove_set
+            ]
+            for nid in remove_set:
+                for edge in self._adj_out.get(nid, []):
+                    adj_list = self._adj_in.get(edge.to_node_id, [])
+                    self._adj_in[edge.to_node_id] = [e for e in adj_list if e.from_node_id != nid]
+                    neighbor = self.nodes.get(edge.to_node_id)
+                    if neighbor and nid in neighbor.edges_in:
+                        neighbor.edges_in.remove(nid)
+                for edge in self._adj_in.get(nid, []):
+                    adj_list = self._adj_out.get(edge.from_node_id, [])
+                    self._adj_out[edge.from_node_id] = [e for e in adj_list if e.to_node_id != nid]
+                    neighbor = self.nodes.get(edge.from_node_id)
+                    if neighbor and nid in neighbor.edges_out:
+                        neighbor.edges_out.remove(nid)
+                self._adj_out.pop(nid, None)
+                self._adj_in.pop(nid, None)
+                del self.nodes[nid]
+                if hasattr(self, 'search_index') and self.search_index:
+                    try:
+                        self.search_index.remove_node(nid)
+                    except Exception:
+                        pass
+                if hasattr(self, 'vector_index') and self.vector_index:
+                    try:
+                        self.vector_index.remove_node(nid)
+                    except Exception:
+                        pass
+            self._merkle_dirty = True
 
         logger.warning(
             f"OOM protection: pruned {len(remove_set)} nodes "

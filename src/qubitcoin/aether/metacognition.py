@@ -605,6 +605,7 @@ class MetacognitiveLoop:
                     data['correct'] / data['attempts'], 4
                 )
 
+        cal_trend = self.get_calibration_trend()
         return {
             'total_evaluations': self._total_evaluations,
             'total_correct': self._total_correct,
@@ -613,9 +614,9 @@ class MetacognitiveLoop:
             ),
             'calibration_error': round(self.get_overall_calibration_error(), 4),
             'calibration_temperature': round(self._temperature, 4),
-            'calibration_improving': len(self.get_calibration_trend()) >= 2 and (
-                self.get_calibration_trend()[-1] < self.get_calibration_trend()[0]
-                if self.get_calibration_trend() else False
+            'calibration_improving': len(cal_trend) >= 2 and (
+                cal_trend[-1] < cal_trend[0]
+                if cal_trend else False
             ),
             'strategy_accuracies': strategy_accuracies,
             'strategy_weights': {

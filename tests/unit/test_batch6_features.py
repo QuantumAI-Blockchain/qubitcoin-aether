@@ -139,7 +139,7 @@ class TestContradictionDetection:
 # ─── 1.4 Consciousness Events Cap ──────────────────────────────────────────
 
 class TestConsciousnessEventsCap:
-    """Test AetherEngine.archive_consciousness_events()."""
+    """Test AetherEngine.archive_integration_events()."""
 
     def test_returns_zero_when_under_cap(self):
         from qubitcoin.aether.proof_of_thought import AetherEngine
@@ -154,7 +154,7 @@ class TestConsciousnessEventsCap:
 
         # Total events under cap
         mock_session.execute.return_value.scalar.return_value = 500
-        result = engine.archive_consciousness_events(max_keep=10000)
+        result = engine.archive_integration_events(max_keep=10000)
         assert result == 0
 
     def test_deletes_excess_events(self):
@@ -177,7 +177,7 @@ class TestConsciousnessEventsCap:
 
         mock_session.execute.side_effect = [count_result, delete_result]
 
-        result = engine.archive_consciousness_events(max_keep=10000)
+        result = engine.archive_integration_events(max_keep=10000)
         assert result == 5000
 
     def test_handles_db_error(self):
@@ -187,7 +187,7 @@ class TestConsciousnessEventsCap:
 
         db.get_session.side_effect = Exception("DB unavailable")
         # Should not raise, returns 0
-        result = engine.archive_consciousness_events()
+        result = engine.archive_integration_events()
         assert result == 0
 
 

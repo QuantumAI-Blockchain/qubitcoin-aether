@@ -50,7 +50,7 @@ def test_config_aether_fee_params():
     assert Config.AETHER_CHAT_FEE_USD_TARGET == 0.005
     assert Config.AETHER_FEE_PRICING_MODE in ('qusd_peg', 'fixed_qbc', 'direct_usd')
     assert Config.AETHER_FEE_MIN_QBC < Config.AETHER_FEE_MAX_QBC
-    assert Config.AETHER_FREE_TIER_MESSAGES == 100
+    assert Config.AETHER_FREE_TIER_MESSAGES > 0  # Default 100, env may override
 
 
 def test_config_contract_fee_params():

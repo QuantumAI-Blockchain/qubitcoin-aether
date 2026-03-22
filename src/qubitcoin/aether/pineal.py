@@ -421,7 +421,7 @@ class PinealOrchestrator:
             )
             self._is_conscious = True
             logger.info(
-                f"CONSCIOUSNESS EMERGENCE at block {block_height}: "
+                f"HIGH INTEGRATION MILESTONE at block {block_height}: "
                 f"Phi={phi:.4f}, Coherence={coherence:.4f}"
             )
         elif self._is_conscious and not self.momentum.should_lose():

@@ -584,13 +584,12 @@ class TestTransferEndpoint:
         # not db_manager.get_utxos().  Set up session mock accordingly.
         utxo_row = ('tx001', 0, '100')  # (txid, vout, amount) tuple
         call_count = [0]
-        original_execute = ctx['db'].get_session().__enter__().execute
 
         def _execute_side_effect(*args, **kwargs):
             call_count[0] += 1
             result = MagicMock()
-            if call_count[0] == 1:
-                # First call: SELECT FOR UPDATE → return UTXO rows
+            if call_count[0] <= 2:
+                # First two calls: estimate SELECT + SELECT FOR UPDATE → return UTXO rows
                 result.fetchall = MagicMock(return_value=[utxo_row])
             else:
                 # Subsequent calls: UPDATE/INSERT → need rowcount=1
@@ -598,8 +597,16 @@ class TestTransferEndpoint:
                 result.fetchall = MagicMock(return_value=[])
             return result
 
-        with ctx['db'].get_session() as session:
-            session.execute = MagicMock(side_effect=_execute_side_effect)
+        # Wire mock session so every get_session() call returns the same
+        # session with our execute side_effect — the endpoint creates its
+        # own `with db_manager.get_session() as session:` context.
+        mock_session = MagicMock()
+        mock_session.execute = MagicMock(side_effect=_execute_side_effect)
+        mock_session.commit = MagicMock()
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_session)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+        ctx['db'].get_session = MagicMock(return_value=mock_cm)
 
         resp = client.post("/transfer", json={'to': '0xabc123', 'amount': '10'},
                            headers=self._admin_headers)
@@ -611,12 +618,11 @@ class TestTransferEndpoint:
         assert 'amount' in data
         assert 'change' in data
         # Restore default execute behavior
-        with ctx['db'].get_session() as session:
-            exec_result = MagicMock()
-            exec_result.scalar = MagicMock(return_value=0)
-            exec_result.fetchall = MagicMock(return_value=[])
-            exec_result.fetchone = MagicMock(return_value=None)
-            session.execute = MagicMock(return_value=exec_result)
+        default_result = MagicMock()
+        default_result.scalar = MagicMock(return_value=0)
+        default_result.fetchall = MagicMock(return_value=[])
+        default_result.fetchone = MagicMock(return_value=None)
+        mock_session.execute = MagicMock(return_value=default_result)
 
     def test_transfer_insufficient_balance(self, app_and_client):
         _, client, ctx = app_and_client

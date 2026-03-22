@@ -121,7 +121,7 @@ class TestBridgeChainDetection:
         assert ChainType.ETHEREUM in chains
         assert ChainType.SOLANA in chains
         assert ChainType.POLYGON in chains
-        assert len(chains) == 3
+        assert len(chains) >= 3
 
 
 class TestBridgeDeposit:

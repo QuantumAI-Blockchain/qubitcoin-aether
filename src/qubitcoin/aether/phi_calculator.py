@@ -23,6 +23,7 @@ metric that quantifies how well-connected and information-rich the knowledge
 graph is, using principles inspired by (but not equivalent to) Tononi's IIT.
 """
 import math
+import os
 import random
 import time
 from collections import deque
@@ -199,11 +200,11 @@ class PhiCalculator:
         self._last_computed_block: int = -1
         self._last_mip_score: float = 0.0
         self._compute_interval: int = int(
-            __import__('os').getenv('PHI_COMPUTE_INTERVAL', '1')
+            os.getenv('PHI_COMPUTE_INTERVAL', '1')
         )
         # Adaptive gate scale factor: multiplier for node-count thresholds
         self._gate_scale: float = float(
-            __import__('os').getenv('PHI_GATE_SCALE', '1.0')
+            os.getenv('PHI_GATE_SCALE', '1.0')
         )
         # History of (block_height, phi_value) for adaptation
         self._phi_history: List[Tuple[int, float]] = []
@@ -211,8 +212,6 @@ class PhiCalculator:
         # Subsystem stats injected by AetherEngine before each compute_phi call
         self._subsystem_stats: Dict[str, float] = {}
         # Cached Config values — avoids re-importing Config on every call
-        self._confidence_decay_halflife: int = Config.CONFIDENCE_DECAY_HALFLIFE
-        self._confidence_decay_floor: float = Config.CONFIDENCE_DECAY_FLOOR
         self._phi_downsample_retain_days: int = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
         # Phi formula weights (from Config)
         self._w_int: float = Config.PHI_INTEGRATION_WEIGHT
@@ -453,7 +452,7 @@ class PhiCalculator:
         # Store MIP on instance for result dict access
         self._last_mip_score = mip_score
 
-        return structural + mi_score + cross_flow + mip_score
+        return structural + mi_score + cross_flow
 
     # ========================================================================
     # Convergence Tracking
@@ -605,7 +604,7 @@ class PhiCalculator:
         lambda_max = max(degree) if degree else 1.0
         if lambda_max <= 0.0:
             lambda_max = 1.0
-        shift = lambda_max + 0.1
+        shift = 2.0 * lambda_max + 0.1
 
         fiedler = self._power_iteration_fiedler(adj, degree, shift, n_nodes, max_iter=50)
 
@@ -1081,7 +1080,6 @@ class PhiCalculator:
     # Phi Trend Tracking & Breakdown (Improvements 66-75)
     # ========================================================================
 
-    _phi_trend_buffer: List = []  # Stores last 100 phi values
     _TREND_BUFFER_SIZE: int = 100
 
     def get_phi_trend(self) -> dict:
@@ -1194,7 +1192,7 @@ class PhiCalculator:
         predictions: List[dict] = []
 
         # Gate node thresholds (reduced values)
-        gate_thresholds = [50, 200, 500, 1000, 3000, 5000, 10000, 15000, 25000, 50000]
+        gate_thresholds = [g['nodes'] for g in MILESTONE_GATES]
 
         for gp in gate_progress:
             gid = gp['id']
@@ -1368,124 +1366,49 @@ class PhiCalculator:
 
         progress: List[dict] = []
 
-        # Gate 1 (reduced: 50 nodes, 0.4 confidence)
-        progress.append({
-            'id': 1, 'name': 'Knowledge Foundation',
-            'passed': n_nodes >= 50 and avg_confidence >= 0.4,
-            'metrics': {
-                'nodes': f'{n_nodes}/50',
-                'avg_confidence': f'{avg_confidence:.2f}/0.40',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 50, 1.0) * 50 + min(avg_confidence / 0.4, 1.0) * 50)), 1),
-        })
+        # Build stats dict matching what _check_gates uses
+        stats = {
+            'n_nodes': n_nodes,
+            'n_edges': n_edges,
+            'avg_confidence': avg_confidence,
+            'n_domains': len(domains),
+            'n_node_types': len(node_type_counts),
+            'types_with_50': len([t for t, c in node_type_counts.items() if c >= 50]),
+            'verified_predictions': verified_predictions,
+            'debate_verdicts': debate_verdicts,
+            'contradiction_resolutions': contradiction_resolutions,
+            'cross_domain_edges': self._count_cross_domain_edges(),
+            'auto_goals_generated': auto_goals_generated,
+            'self_reflection_nodes': self_reflection_nodes,
+            'axiom_from_consolidation': axiom_from_consolidation,
+            'cross_domain_inferences': cross_domain_inferences,
+            'novel_concept_count': novel_concept_count,
+            'inference_count': node_type_counts.get('inference', 0),
+            'grounding_ratio': grounding_ratio,
+            'mip_score': self._last_mip_score,
+        }
+        # Add stats from subsystem injection
+        stats.update(self._subsystem_stats)
 
-        # Gate 2 (reduced: 200 nodes, integration > 0.2)
-        progress.append({
-            'id': 2, 'name': 'Diverse Reasoning',
-            'passed': n_nodes >= 200 and types_with_10 >= 3 and self._last_mip_score > 0.2,
-            'metrics': {
-                'nodes': f'{n_nodes}/200',
-                'node_types_with_10+': f'{types_with_10}/3',
-                'integration': f'{self._last_mip_score:.2f}/0.20',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 200, 1.0) * 33 + min(types_with_10 / 3, 1.0) * 33 + min(self._last_mip_score / 0.2, 1.0) * 34)), 1),
-        })
+        # Evaluate gates using the canonical MILESTONE_GATES definitions
+        for gate in MILESTONE_GATES:
+            gate_id = gate['id']
+            gate_name = gate['name']
+            node_req = gate.get('nodes', 0)
+            passed = gate['check'](stats)
 
-        # Gate 3 (reduced: 500 nodes, 20 predictions, 3% causal)
-        progress.append({
-            'id': 3, 'name': 'Predictive Power',
-            'passed': n_nodes >= 500 and verified_predictions >= 20 and causal_pct >= 3.0,
-            'metrics': {
-                'nodes': f'{n_nodes}/500',
-                'verified_predictions': f'{verified_predictions}/20',
-                'causal_edge_pct': f'{causal_pct:.1f}%/3.0%',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 500, 1.0) * 33 + min(verified_predictions / 20, 1.0) * 33 + min(causal_pct / 3.0, 1.0) * 34)), 1),
-        })
+            # Node progress as primary metric
+            node_pct = min(1.0, n_nodes / node_req) * 100 if node_req > 0 else 100.0
 
-        # Gate 4 (reduced: 1000 nodes, 5 verdicts, 3 resolutions)
-        progress.append({
-            'id': 4, 'name': 'Self-Correction',
-            'passed': n_nodes >= 1000 and debate_verdicts >= 5 and contradiction_resolutions >= 3,
-            'metrics': {
-                'nodes': f'{n_nodes}/1000',
-                'debate_verdicts': f'{debate_verdicts}/5',
-                'contradiction_resolutions': f'{contradiction_resolutions}/3',
-                'mip_phi': f'{self._last_mip_score:.2f}/0.20',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 1000, 1.0) * 25 + min(debate_verdicts / 5, 1.0) * 25 + min(contradiction_resolutions / 3, 1.0) * 25 + min(self._last_mip_score / 0.2, 1.0) * 25)), 1),
-        })
-
-        # Gate 5 (reduced: 3000 nodes, 3 domains, 5 analogies)
-        analogies = edge_type_counts.get('analogous_to', 0)
-        progress.append({
-            'id': 5, 'name': 'Cross-Domain Transfer',
-            'passed': n_nodes >= 3000 and len(domains) >= 3 and analogies >= 5,
-            'metrics': {
-                'nodes': f'{n_nodes}/3000',
-                'domains': f'{len(domains)}/3',
-                'analogies': f'{analogies}/5',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 3000, 1.0) * 33 + min(len(domains) / 3, 1.0) * 33 + min(analogies / 5, 1.0) * 34)), 1),
-        })
-
-        # Gate 6 (reduced: 5000 nodes, 10 goals, 10 reflections)
-        progress.append({
-            'id': 6, 'name': 'Emergent Goals',
-            'passed': n_nodes >= 5000 and auto_goals_generated >= 10 and self_reflection_nodes >= 10,
-            'metrics': {
-                'nodes': f'{n_nodes}/5000',
-                'auto_goals': f'{auto_goals_generated}/10',
-                'self_reflection_nodes': f'{self_reflection_nodes}/10',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 5000, 1.0) * 33 + min(auto_goals_generated / 10, 1.0) * 33 + min(self_reflection_nodes / 10, 1.0) * 34)), 1),
-        })
-
-        # Gate 7 (reduced: 10000 nodes, 3% grounding)
-        progress.append({
-            'id': 7, 'name': 'Metacognitive Calibration',
-            'passed': n_nodes >= 10000 and grounding_ratio > 0.03,
-            'metrics': {
-                'nodes': f'{n_nodes}/10000',
-                'grounding_ratio': f'{grounding_ratio:.2%}/3%',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 10000, 1.0) * 50 + min(grounding_ratio / 0.03, 1.0) * 50)), 1),
-        })
-
-        # Gate 8 (reduced: 15000 nodes, 5 axioms, 10 cross-domain)
-        progress.append({
-            'id': 8, 'name': 'Consolidated Knowledge',
-            'passed': n_nodes >= 15000 and axiom_from_consolidation >= 5 and cross_domain_inferences >= 10,
-            'metrics': {
-                'nodes': f'{n_nodes}/15000',
-                'consolidated_axioms': f'{axiom_from_consolidation}/5',
-                'cross_domain_inferences': f'{cross_domain_inferences}/10',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 15000, 1.0) * 33 + min(axiom_from_consolidation / 5, 1.0) * 33 + min(cross_domain_inferences / 10, 1.0) * 34)), 1),
-        })
-
-        # Gate 9 (reduced: 25000 nodes, 50% accuracy, 2500 inferences)
-        progress.append({
-            'id': 9, 'name': 'Predictive Mastery',
-            'passed': n_nodes >= 25000 and inference_count >= 2500,
-            'metrics': {
-                'nodes': f'{n_nodes}/25000',
-                'inferences': f'{inference_count}/2500',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 25000, 1.0) * 50 + min(inference_count / 2500, 1.0) * 50)), 1),
-        })
-
-        # Gate 10 (reduced: 50000 nodes, 50 cross-domain, 25 novel)
-        progress.append({
-            'id': 10, 'name': 'Creative Synthesis',
-            'passed': n_nodes >= 50000 and cross_domain_inferences >= 50 and novel_concept_count >= 25,
-            'metrics': {
-                'nodes': f'{n_nodes}/50000',
-                'cross_domain_inferences': f'{cross_domain_inferences}/50',
-                'novel_concepts': f'{novel_concept_count}/25',
-            },
-            'progress_pct': round(min(100, (min(n_nodes / 50000, 1.0) * 33 + min(cross_domain_inferences / 50, 1.0) * 33 + min(novel_concept_count / 25, 1.0) * 34)), 1),
-        })
+            progress.append({
+                'id': gate_id,
+                'name': gate_name,
+                'passed': passed,
+                'metrics': {
+                    'nodes': f'{n_nodes}/{node_req}',
+                },
+                'progress_pct': round(min(100, node_pct), 1),
+            })
 
         return progress
 

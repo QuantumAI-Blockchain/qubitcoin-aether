@@ -193,10 +193,12 @@ class ReasoningEngine:
             }
             # Confidence: minimum of premise confidences (prevents exponential
             # decay that occurs with product, more honest about chain strength)
-            conf = min(p.confidence for p in premises) * 0.95
+            min_premise_conf = min(p.confidence for p in premises)
+            conf = min_premise_conf * 0.95
             # Boost confidence when premises are grounded in external truth
+            # but never exceed the weakest premise confidence
             conf *= self._grounding_boost(premise_ids)
-            conf = min(1.0, conf)
+            conf = min(min_premise_conf, conf)
 
             block_height = max(p.source_block for p in premises)
             conclusion = self.kg.add_node(
@@ -589,12 +591,12 @@ class ReasoningEngine:
                         'cid': result.conclusion_node_id,
                         'conf': result.confidence,
                         'chain': json.dumps([s.to_dict() for s in result.chain]),
-                        'bh': 0,
+                        'bh': result.block_height,
                     }
                 )
                 session.commit()
         except Exception as e:
-            logger.debug(f"Failed to store reasoning operation: {e}")
+            logger.warning(f"Failed to store reasoning operation: {e}")
 
     def chain_of_thought(self, query_node_ids: List[int],
                           max_depth: int = 5) -> ReasoningResult:
@@ -686,7 +688,7 @@ class ReasoningEngine:
                         content={'type': 'deductive_step', 'depth': depth},
                         confidence=deduction.confidence,
                     ))
-                    overall_confidence *= deduction.confidence
+                    overall_confidence = min(overall_confidence, deduction.confidence)
                     conclusion_id = deduction.conclusion_node_id
                     next_frontier.append(deduction.conclusion_node_id)
 
@@ -736,7 +738,7 @@ class ReasoningEngine:
             if abd_result.success:
                 chain.extend(abd_result.chain)
                 conclusion_id = abd_result.conclusion_node_id
-                overall_confidence *= abd_result.confidence
+                overall_confidence = min(overall_confidence, abd_result.confidence)
 
         result = ReasoningResult(
             operation_type='chain_of_thought',
@@ -1019,9 +1021,9 @@ class ReasoningEngine:
                         session.execute(
                             text("""
                                 INSERT INTO reasoning_operations
-                                (operation_type, confidence, block_height, premises, conclusion, is_summary)
+                                (operation_type, confidence, block_height, premise_nodes, conclusion_node_id, reasoning_chain)
                                 VALUES (:otype, :conf, :block,
-                                        CAST(:premises AS jsonb), CAST(:conclusion AS jsonb), true)
+                                        CAST(:premises AS jsonb), 0, CAST(:chain AS jsonb))
                                 ON CONFLICT DO NOTHING
                             """),
                             {
@@ -1032,7 +1034,7 @@ class ReasoningEngine:
                                     'count': row[1],
                                     'block_range': [row[3], row[4]],
                                 }),
-                                'conclusion': json.dumps({
+                                'chain': json.dumps({
                                     'archived_count': row[1],
                                     'avg_confidence': round(float(row[2] or 0), 4),
                                 }),
@@ -1044,7 +1046,7 @@ class ReasoningEngine:
                     text("""
                         DELETE FROM reasoning_operations
                         WHERE block_height < :cutoff
-                          AND (is_summary IS NULL OR is_summary = false)
+                          AND operation_type NOT LIKE 'summary_%'
                     """),
                     {'cutoff': cutoff_block}
                 )
@@ -1416,7 +1418,7 @@ class ReasoningEngine:
                 if step.node_id is not None:
                     visited.add(step.node_id)
 
-            overall_confidence *= max(result.confidence, 0.01)
+            overall_confidence = min(overall_confidence, max(result.confidence, 0.01))
             conclusion_id = result.conclusion_node_id
 
             # Advance frontier to the conclusion
@@ -2026,7 +2028,7 @@ class ReasoningEngine:
             deduction = self.deduce(pair)
             if deduction.success and deduction.conclusion_node_id:
                 deduced_ids.append(deduction.conclusion_node_id)
-                overall_confidence *= max(deduction.confidence, 0.1)
+                overall_confidence = min(overall_confidence, max(deduction.confidence, 0.1))
                 chain.append(ReasoningStep(
                     step_type='conclusion',
                     node_id=deduction.conclusion_node_id,
@@ -2042,7 +2044,7 @@ class ReasoningEngine:
             induction = self.induce(induction_candidates[:8])
             if induction.success and induction.conclusion_node_id:
                 all_conclusion_ids.append(induction.conclusion_node_id)
-                overall_confidence *= max(induction.confidence, 0.1)
+                overall_confidence = min(overall_confidence, max(induction.confidence, 0.1))
                 chain.append(ReasoningStep(
                     step_type='conclusion',
                     node_id=induction.conclusion_node_id,

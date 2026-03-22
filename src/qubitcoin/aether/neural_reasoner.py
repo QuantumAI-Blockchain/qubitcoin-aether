@@ -1,8 +1,8 @@
 """
-Graph Attention Network (GAN) Reasoner — Learned Reasoning over Knowledge Graph
+Graph Attention Network (GAT) Reasoner — Learned Reasoning over Knowledge Graph
 
 Provides a lightweight 2-layer Graph Attention Network that operates over the
-knowledge graph.  For each reasoning query, the GAN computes attention weights
+knowledge graph.  For each reasoning query, the GAT computes attention weights
 between the query node and its k-hop neighborhood, aggregates neighbor embeddings,
 and produces a "reasoning embedding" for confidence and conclusion prediction.
 
@@ -10,7 +10,7 @@ Uses PyTorch (CPU-compatible) with ~50K parameters.  Falls back to a simple
 weighted-average approach if PyTorch is not installed.
 
 This is improvement #2 in the AGI improvement stack: rule-based reasoning
-can't learn; a GAN discovers novel reasoning patterns from the system's
+can't learn; a GAT discovers novel reasoning patterns from the system's
 own reasoning history.
 """
 import math
