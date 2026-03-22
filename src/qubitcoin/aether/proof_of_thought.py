@@ -147,6 +147,7 @@ class AetherEngine:
         self._max_curiosity_goals: int = 500
         self._curiosity_stats = {
             'goals_generated': 0, 'goals_completed': 0, 'goals_failed': 0,
+            'goals_evaluated': 0,
         }
 
         # Phase 5.4: Emergent communication protocol
@@ -292,6 +293,7 @@ class AetherEngine:
             'goals_generated': self._curiosity_stats.get('goals_generated', 0),
             'goals_completed': self._curiosity_stats.get('goals_completed', 0),
             'goals_failed': self._curiosity_stats.get('goals_failed', 0),
+            'goals_evaluated': self._curiosity_stats.get('goals_evaluated', 0),
             'current_queue': len(self._curiosity_goals),
         }
 
@@ -776,10 +778,11 @@ class AetherEngine:
                         self._reward_sephirah('temporal', accuracy > 0.5, accuracy * 0.1)
 
                     # Feed verified prediction outcomes to neural_reasoner
-                    if self.neural_reasoner:
+                    # Only feed outcomes validated THIS block to avoid duplicate feeding
+                    if self.neural_reasoner and temporal_result.get('predictions_validated', 0) > 0:
                         try:
                             verified = self.temporal_engine.get_verified_outcomes(
-                                since_block=block.height - 200
+                                since_block=block.height
                             )
                             for outcome in verified:
                                 self.neural_reasoner.record_outcome(
@@ -1506,8 +1509,48 @@ class AetherEngine:
                         n for n in self.kg.nodes.values()
                         if n.node_type == 'inference' and n.confidence > 0.5
                     ]
-                    if len(inference_nodes) >= 2:
-                        inf_ids = [n.node_id for n in inference_nodes[:3]]
+                    # Item #13: Include high-confidence causal edges as
+                    # additional deductive premises.  For each causal edge
+                    # (edge_type 'causes' or 'causal') whose source and
+                    # target exist with confidence > 0.6, add the target
+                    # node to the premise set so causal knowledge feeds
+                    # into deduction.
+                    causal_premise_ids: List[int] = []
+                    if hasattr(self.kg, '_adj_out'):
+                        _seen_causal: set = set()
+                        for edges in self.kg._adj_out.values():
+                            for edge in edges:
+                                if edge.edge_type not in ('causes', 'causal'):
+                                    continue
+                                if edge.weight < 0.5:
+                                    continue
+                                src = self.kg.nodes.get(edge.from_node_id)
+                                tgt = self.kg.nodes.get(edge.to_node_id)
+                                if (src and tgt
+                                        and src.confidence > 0.6
+                                        and tgt.confidence > 0.6
+                                        and tgt.node_id not in _seen_causal):
+                                    causal_premise_ids.append(tgt.node_id)
+                                    _seen_causal.add(tgt.node_id)
+                                if len(causal_premise_ids) >= 3:
+                                    break
+                            if len(causal_premise_ids) >= 3:
+                                break
+
+                    # Merge causal premises with inference nodes
+                    inf_ids_set: set = set()
+                    combined_ids: List[int] = []
+                    for n in inference_nodes[:3]:
+                        if n.node_id not in inf_ids_set:
+                            combined_ids.append(n.node_id)
+                            inf_ids_set.add(n.node_id)
+                    for cid in causal_premise_ids:
+                        if cid not in inf_ids_set:
+                            combined_ids.append(cid)
+                            inf_ids_set.add(cid)
+
+                    if len(combined_ids) >= 2:
+                        inf_ids = combined_ids[:5]  # cap at 5 premises
                         result = self.reasoning.deduce(inf_ids)
                         if result.success:
                             self._calibrate_conclusion(result)
@@ -1836,7 +1879,7 @@ class AetherEngine:
     def _record_reasoning_outcome(self, strategy: str, confidence: float,
                                    success: bool, block_height: int,
                                    result: object = None) -> None:
-        """Feed reasoning outcome back to metacognition for adaptation."""
+        """Feed reasoning outcome back to metacognition and self-improvement."""
         if self.metacognition:
             self.metacognition.evaluate_reasoning(
                 strategy=strategy,
@@ -1856,6 +1899,28 @@ class AetherEngine:
                 success=success,
                 confidence=confidence,
             )
+        # Item #17: Feed ALL reasoning outcomes (deductive, inductive,
+        # abductive, neural, debate, causal, chain_of_thought) to the
+        # self-improvement engine immediately — not just temporal outcomes.
+        # The per-block Phase 7 integration feeds from reasoning._operations,
+        # but that misses outcomes from strategies that don't record there.
+        # This ensures every single _record_reasoning_outcome call reaches
+        # self-improvement for real-time weight adaptation.
+        if self.self_improvement:
+            try:
+                # Infer domain from result if available, else 'general'
+                domain = 'general'
+                if result is not None:
+                    domain = getattr(result, 'domain', None) or 'general'
+                self.self_improvement.record_performance(
+                    strategy=strategy,
+                    domain=domain,
+                    confidence=confidence,
+                    success=success,
+                    block_height=block_height,
+                )
+            except Exception as e:
+                logger.debug(f"Self-improvement record error: {e}")
         # Bayesian confidence update + online edge weight learning (Items #30, #31)
         if result is not None and self.reasoning:
             try:
@@ -2475,12 +2540,151 @@ class AetherEngine:
     #  Phase 5.1 — Curiosity-Driven Goal Formation                        #
     # ------------------------------------------------------------------ #
 
+    def _evaluate_curiosity_goals(self, block_height: int) -> int:
+        """Evaluate pending curiosity goals against current KG state.
+
+        Checks whether the target condition for each pending goal has been
+        satisfied by organic KG growth (without actively pursuing the goal).
+        Marks satisfied goals as 'completed' and feeds outcomes to the
+        self-improvement engine.
+
+        Args:
+            block_height: Current block height.
+
+        Returns:
+            Number of goals evaluated as completed.
+        """
+        if not self.kg:
+            return 0
+
+        evaluated = 0
+        domain_stats: Optional[dict] = None
+
+        for goal in self._curiosity_goals:
+            if goal['status'] != 'pending':
+                continue
+
+            completed = False
+
+            if goal['type'] == 'explore_domain':
+                # Goal satisfied if domain now has >= 100 nodes (the generation
+                # threshold) or enough observations for induction (>= 5).
+                domain = goal.get('target', '')
+                if domain_stats is None:
+                    domain_stats = self.kg.get_domain_stats()
+                info = domain_stats.get(domain)
+                if info and info['count'] >= 100:
+                    completed = True
+
+            elif goal['type'] == 'investigate_contradiction':
+                # Goal satisfied if one of the contradicting nodes was removed
+                # or their contradiction edge no longer exists.
+                node_ids = goal.get('target_ids', [])
+                if len(node_ids) == 2:
+                    a_id, b_id = node_ids
+                    if a_id not in self.kg.nodes or b_id not in self.kg.nodes:
+                        completed = True
+                    else:
+                        still_contradicts = any(
+                            e.edge_type == 'contradicts'
+                            and {e.from_node_id, e.to_node_id} == {a_id, b_id}
+                            for e in self.kg.edges
+                        )
+                        if not still_contradicts:
+                            completed = True
+
+            elif goal['type'] == 'bridge_gap':
+                # Goal satisfied if the orphaned node now has more connections.
+                node_ids = goal.get('target_ids', [])
+                if node_ids:
+                    node = self.kg.nodes.get(node_ids[0])
+                    if node is None:
+                        completed = True
+                    elif len(node.edges_out) + len(node.edges_in) > 1:
+                        completed = True
+
+            elif goal['type'] == 'verify_prediction':
+                # Goal satisfied if no pending predictions remain.
+                if self.temporal_engine and hasattr(
+                    self.temporal_engine, '_pending_predictions'
+                ):
+                    pending_preds = getattr(
+                        self.temporal_engine, '_pending_predictions', []
+                    )
+                    if not pending_preds:
+                        completed = True
+
+            if completed:
+                goal['status'] = 'completed'
+                goal['completed_block'] = block_height
+                self._curiosity_stats['goals_completed'] += 1
+                evaluated += 1
+                self._report_curiosity_outcome(
+                    goal, success=True, block_height=block_height,
+                )
+
+        if evaluated:
+            self._curiosity_stats['goals_evaluated'] += evaluated
+            logger.debug(
+                "Curiosity evaluation at block %d: %d goals satisfied by KG growth",
+                block_height, evaluated,
+            )
+
+        return evaluated
+
+    def _report_curiosity_outcome(self, goal: dict, success: bool,
+                                  block_height: int) -> None:
+        """Feed a curiosity goal outcome to the self-improvement engine.
+
+        Maps the goal type to a reasoning strategy and domain so the
+        self-improvement engine can adjust weights accordingly.
+
+        Args:
+            goal: The goal dict with type, target, status, etc.
+            success: Whether the goal was completed successfully.
+            block_height: Block height at which the outcome was recorded.
+        """
+        if not self.self_improvement:
+            return
+
+        strategy_map = {
+            'explore_domain': 'inductive',
+            'investigate_contradiction': 'abductive',
+            'bridge_gap': 'analogical',
+            'verify_prediction': 'temporal',
+        }
+
+        strategy = strategy_map.get(goal.get('type', ''), 'inductive')
+        domain = goal.get('target', 'general')
+
+        # Normalize domain — strip prefixes used as dedup keys
+        if domain.startswith('contra_'):
+            domain = 'contradictions'
+        elif domain.startswith('bridge_'):
+            domain = 'knowledge_gaps'
+        elif domain == 'verify_pred':
+            domain = 'predictions'
+
+        confidence = goal.get('priority', 0.5)
+
+        try:
+            self.self_improvement.record_performance(
+                strategy=strategy,
+                domain=domain,
+                confidence=confidence,
+                success=success,
+                block_height=block_height,
+            )
+        except Exception as e:
+            logger.debug("Failed to report curiosity outcome: %s", e)
+
     def _curiosity_explore(self, block_height: int) -> int:
         """Generate and pursue curiosity-driven exploration goals.
 
         Identifies under-explored areas of the knowledge graph and creates
-        self-directed goals to fill gaps.  Pursues the highest-priority
-        goal each cycle.
+        self-directed goals to fill gaps.  Evaluates existing goals first
+        (passive completion via KG growth), then pursues the highest-priority
+        pending goal each cycle.
 
         Args:
             block_height: Current block height.
@@ -2493,16 +2697,20 @@ class AetherEngine:
 
         acted = 0
 
+        # --- Evaluate pending goals against current KG state ---
+        acted += self._evaluate_curiosity_goals(block_height)
+
         # --- Refresh goal queue ---
         self._generate_curiosity_goals(block_height)
 
         # --- Pursue top pending goal ---
         pending = [g for g in self._curiosity_goals if g['status'] == 'pending']
         if not pending:
-            return 0
+            return acted
 
         goal = pending[0]
         goal['status'] = 'active'
+        goal_success = False
 
         try:
             if goal['type'] == 'explore_domain' and self.reasoning:
@@ -2519,6 +2727,7 @@ class AetherEngine:
                     if result.success:
                         goal['status'] = 'completed'
                         self._curiosity_stats['goals_completed'] += 1
+                        goal_success = True
                         acted += 1
                     else:
                         goal['status'] = 'failed'
@@ -2539,6 +2748,7 @@ class AetherEngine:
                     if seed_node:
                         goal['status'] = 'completed'
                         self._curiosity_stats['goals_completed'] += 1
+                        goal_success = True
                         acted += 1
                     else:
                         goal['status'] = 'failed'
@@ -2553,6 +2763,7 @@ class AetherEngine:
                     if result.success:
                         goal['status'] = 'completed'
                         self._curiosity_stats['goals_completed'] += 1
+                        goal_success = True
                         acted += 1
                     else:
                         goal['status'] = 'failed'
@@ -2570,6 +2781,7 @@ class AetherEngine:
                     if result.success:
                         goal['status'] = 'completed'
                         self._curiosity_stats['goals_completed'] += 1
+                        goal_success = True
                         acted += 1
                     else:
                         goal['status'] = 'failed'
@@ -2582,6 +2794,7 @@ class AetherEngine:
                 self.temporal_engine.validate_predictions(block_height)
                 goal['status'] = 'completed'
                 self._curiosity_stats['goals_completed'] += 1
+                goal_success = True
                 acted += 1
 
             else:
@@ -2593,12 +2806,18 @@ class AetherEngine:
             self._curiosity_stats['goals_failed'] += 1
             logger.debug(f"Curiosity goal failed: {e}")
 
+        # Report actively-pursued goal outcome to self-improvement engine
+        if goal['status'] in ('completed', 'failed'):
+            self._report_curiosity_outcome(
+                goal, success=goal_success, block_height=block_height,
+            )
+
         # Prune completed/failed goals older than 500 blocks
         self._curiosity_goals = [
             g for g in self._curiosity_goals
             if g['status'] == 'pending'
             or block_height - g.get('created_block', 0) < 500
-        ][:50]
+        ][:self._max_curiosity_goals]
 
         if acted:
             logger.debug(

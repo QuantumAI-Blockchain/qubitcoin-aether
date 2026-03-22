@@ -49,6 +49,12 @@ class MetacognitiveLoop:
         self._total_correct: int = 0
         self._evaluation_history: List[dict] = []
         self._max_history: int = 500
+        # Adaptive temperature scaling for confidence calibration
+        # T > 1 softens overconfident predictions, T < 1 sharpens underconfident
+        # Updated via EMA from observed accuracy vs predicted confidence
+        self._temperature: float = 1.0
+        self._temperature_ema_alpha: float = 0.15  # EMA smoothing factor
+        self._min_evals_for_temperature: int = 30  # Need this many before adapting T
         # Strategy weights (adapted over time)
         self._strategy_weights: Dict[str, float] = {
             'deductive': 1.0,
@@ -79,11 +85,9 @@ class MetacognitiveLoop:
         if outcome_correct:
             self._total_correct += 1
 
-        # Temperature scaling for better calibration (Fix #9)
-        # Temperature > 1.0 makes predictions less confident (more calibrated),
-        # reducing ECE from ~0.40 to ~0.20 by spreading confidence away from extremes
-        temperature = 1.5
-        confidence = confidence ** (1.0 / temperature)
+        # Store raw confidence in bins so calibration tracking is honest.
+        # Temperature scaling is applied in calibrate_confidence() instead,
+        # which is called BEFORE confidence is used for decisions.
 
         # Update strategy stats
         if strategy not in self._strategy_stats:
@@ -128,6 +132,66 @@ class MetacognitiveLoop:
 
         return self._strategy_stats[strategy]
 
+    def _update_temperature(self) -> None:
+        """Learn the optimal temperature from calibration bin data.
+
+        Computes the ratio of mean actual accuracy to mean stated confidence
+        across all populated bins. If the system is overconfident
+        (stated > actual), T increases to soften predictions. If
+        underconfident, T decreases to sharpen them.
+
+        Updates via EMA so the temperature changes smoothly over time.
+        """
+        if self._total_evaluations < self._min_evals_for_temperature:
+            return
+
+        # Compute mean stated confidence and mean actual accuracy across bins
+        sum_stated = 0.0
+        sum_actual = 0.0
+        total_count = 0
+
+        for bin_idx in range(10):
+            data = self._confidence_bins.get(bin_idx, {'count': 0, 'correct': 0})
+            if data['count'] < 3:
+                continue
+            stated = (bin_idx + 0.5) / 10.0
+            actual = data['correct'] / data['count']
+            sum_stated += stated * data['count']
+            sum_actual += actual * data['count']
+            total_count += data['count']
+
+        if total_count == 0 or sum_stated < 0.01:
+            return
+
+        mean_stated = sum_stated / total_count
+        mean_actual = sum_actual / total_count
+
+        # Target temperature from per-bin calibration error.
+        # We use conf^T to calibrate, so T > 1 lowers confidence (for [0,1]).
+        # Instead of solving T analytically, use a linear regression approach:
+        # Overconfident (stated > actual) → T > 1; underconfident → T < 1.
+        # Simple robust estimate: T = 1 + alpha * (mean_stated - mean_actual)
+        # where alpha scales the correction proportionally.
+        gap = mean_stated - mean_actual  # positive = overconfident
+        # Scale factor: a gap of 0.2 should produce T ≈ 1.5
+        t_target = 1.0 + gap * 2.5
+
+        # Clamp to reasonable range
+        t_target = max(0.5, min(3.0, t_target))
+
+        # EMA update
+        old_t = self._temperature
+        self._temperature = (
+            old_t * (1.0 - self._temperature_ema_alpha)
+            + t_target * self._temperature_ema_alpha
+        )
+
+        logger.debug(
+            "Temperature updated: %.3f -> %.3f (target=%.3f, "
+            "mean_stated=%.3f, mean_actual=%.3f)",
+            old_t, self._temperature, t_target, mean_stated, mean_actual,
+        )
+
     def adapt_strategy_weights(self) -> Dict[str, float]:
         """
         Adjust strategy weights based on accumulated performance data.
@@ -135,7 +199,12 @@ class MetacognitiveLoop:
         Strategies that are more accurate get higher weights.
         Uses exponential moving average with temporal weighting to avoid
         overreacting to noise while favoring recent evidence.
+
+        Also updates the adaptive temperature for confidence calibration.
         """
+        # Update temperature for confidence calibration
+        self._update_temperature()
+
         # Compute temporally-weighted accuracy from recent history (Improvement: temporal weighting)
         recent_strategy_stats: Dict[str, Dict[str, float]] = {}
         now = time.time()
@@ -247,13 +316,15 @@ class MetacognitiveLoop:
         return calibration
 
     def calibrate_confidence(self, stated_confidence: float) -> float:
-        """Apply calibration correction to a stated confidence value.
+        """Apply temperature-scaled calibration to a stated confidence value.
 
-        Uses the accumulated calibration data to map stated confidence
-        to actual observed accuracy.  If the system is overconfident
-        (stated > actual), this lowers the output; if underconfident, raises it.
+        Uses an adaptive temperature parameter learned from the ratio of
+        actual accuracy to predicted confidence across all bins.
+        T > 1 softens overconfident predictions; T < 1 sharpens underconfident.
 
-        If insufficient calibration data exists (<50 evaluations),
+        The calibrated value is: conf^T, clamped to [0.01, 1.0].
+
+        If insufficient calibration data exists (< _min_evals_for_temperature),
         returns the stated confidence unchanged.
 
         Args:
@@ -262,59 +333,47 @@ class MetacognitiveLoop:
         Returns:
             Calibrated confidence value (0.0-1.0)
         """
-        if self._total_evaluations < 50:
+        if self._total_evaluations < self._min_evals_for_temperature:
             return stated_confidence
 
-        bin_idx = min(9, int(stated_confidence * 10))
-        data = self._confidence_bins.get(bin_idx, {'count': 0, 'correct': 0})
-
-        if data['count'] < 5:
-            return stated_confidence
-
-        # Laplace-smoothed actual accuracy for more stable calibration
-        pseudocount = 2.0
-        smoothed_actual = (data['correct'] + pseudocount * stated_confidence) / (data['count'] + pseudocount)
-        # Adaptive blend: use more historical data as we accumulate evidence
-        # With few samples (5), use 80% stated / 20% actual
-        # With many samples (100+), use 50% stated / 50% actual
-        history_weight = min(0.5, 0.2 + 0.3 * (data['count'] / 100.0))
-        calibrated = stated_confidence * (1.0 - history_weight) + smoothed_actual * history_weight
+        # Apply temperature scaling: conf^T
+        # For confidence in [0, 1], raising to power T > 1 lowers the value
+        # (fixes overconfidence), while T < 1 raises it (fixes underconfidence).
+        t = max(0.5, min(3.0, self._temperature))
+        if stated_confidence <= 0.0:
+            return 0.01
+        calibrated = stated_confidence ** t
         return max(0.01, min(1.0, calibrated))
 
     def get_overall_calibration_error(self) -> float:
-        """Compute Expected Calibration Error (ECE) with smoothing.
+        """Compute Expected Calibration Error (ECE).
 
-        Uses Laplace smoothing to avoid extreme calibration errors from bins
-        with very few samples. Also applies exponential recency weighting
-        so that recent calibration data matters more than ancient data.
+        Standard ECE: weighted average of |stated_confidence - actual_accuracy|
+        across bins, weighted by bin sample count.
 
-        The unsmoothed ECE was 0.344, which blocks gate 7 (needs < 0.20).
-        Smoothing with a pseudocount of 2 and weighting by sqrt(count)
-        produces a more stable and accurate calibration estimate.
+        The adaptive temperature in calibrate_confidence() reduces ECE by
+        adjusting predictions before they are used. This method measures the
+        *current* calibration quality honestly so the temperature can adapt.
+
+        Bins with fewer than 3 samples are skipped to avoid noise.
         """
-        total_weight = 0.0
+        total_samples = 0
         weighted_error = 0.0
-        # Laplace smoothing pseudocount: prevents extreme errors from
-        # bins with very few samples (e.g., 1 sample in bin = 0% or 100%)
-        pseudocount = 2.0
 
         for bin_idx in range(10):
             data = self._confidence_bins.get(bin_idx, {'count': 0, 'correct': 0})
-            if data['count'] == 0:
+            if data['count'] < 3:
                 continue
 
             stated = (bin_idx + 0.5) / 10.0
-            # Laplace-smoothed actual accuracy
-            smoothed_actual = (data['correct'] + pseudocount * stated) / (data['count'] + pseudocount)
-            # Weight by sqrt(count) instead of raw count to reduce
-            # impact of over-represented bins
-            bin_weight = math.sqrt(data['count'])
-            weighted_error += bin_weight * abs(stated - smoothed_actual)
-            total_weight += bin_weight
+            actual = data['correct'] / data['count']
+            # Standard ECE weighting: proportional to bin count
+            weighted_error += data['count'] * abs(stated - actual)
+            total_samples += data['count']
 
-        if total_weight == 0.0:
+        if total_samples == 0:
             return 0.0
-        return weighted_error / total_weight
+        return weighted_error / total_samples
 
     def create_meta_observation(self, block_height: int) -> Optional[int]:
         """
@@ -485,6 +544,7 @@ class MetacognitiveLoop:
             ),
             'total_evaluations': self._total_evaluations,
             'calibration_error': round(self.get_overall_calibration_error(), 4),
+            'calibration_temperature': round(self._temperature, 4),
             'calibration_improving': improving,
             'calibration_trend': trend[-10:],  # Last 10 windows
             'recommended_strategy': self.get_recommended_strategy(),
@@ -534,6 +594,7 @@ class MetacognitiveLoop:
                 self._total_correct / max(1, self._total_evaluations), 4
             ),
             'calibration_error': round(self.get_overall_calibration_error(), 4),
+            'calibration_temperature': round(self._temperature, 4),
             'calibration_improving': len(self.get_calibration_trend()) >= 2 and (
                 self.get_calibration_trend()[-1] < self.get_calibration_trend()[0]
                 if self.get_calibration_trend() else False

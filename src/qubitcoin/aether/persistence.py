@@ -423,6 +423,10 @@ class AGIPersistence:
             metacog._total_evaluations = result[4] or 0
             metacog._total_correct = result[5] or 0
 
+            # Reconstruct adaptive temperature from loaded bin data
+            if hasattr(metacog, '_update_temperature'):
+                metacog._update_temperature()
+
             logger.info(
                 "Loaded metacognition state: %d evaluations",
                 metacog._total_evaluations

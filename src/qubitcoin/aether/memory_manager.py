@@ -445,6 +445,8 @@ class MemoryManager:
             'reinforced': 0,
             'suppressed': 0,
             'promoted_to_axiom': 0,
+            'recency_boosted': 0,
+            'staleness_decayed': 0,
         }
 
         if not self._episodes:
@@ -542,6 +544,43 @@ class MemoryManager:
                                 source_block=block_height,
                             )
 
+        # Item #18: Episodic replay → KG confidence updates based on access
+        # recency.  Nodes referenced by replayed episodes that are still
+        # actively accessed in working memory get a confidence boost;
+        # nodes that are stale (not in working memory or rarely accessed)
+        # get a slight confidence decay.  This mimics biological memory
+        # reconsolidation where recalled memories are strengthened or
+        # weakened based on current relevance.
+        if has_kg:
+            now = time.time()
+            replayed_node_ids: set = set()
+            for _imp, ep in selected:
+                if ep.conclusion_node_id is not None:
+                    replayed_node_ids.add(ep.conclusion_node_id)
+                for nid in ep.input_node_ids:
+                    replayed_node_ids.add(nid)
+
+            for nid in replayed_node_ids:
+                kg_node = self._kg.nodes.get(nid)
+                if kg_node is None:
+                    continue
+                wm_item = self._working_memory.get(nid)
+                if wm_item is not None and wm_item.access_count >= 2:
+                    # Node is still actively accessed — recency boost
+                    recency_sec = max(1.0, now - wm_item.last_access)
+                    # Full boost (0.03) if accessed within last 5 min,
+                    # diminishing to 0 beyond 30 min
+                    boost = 0.03 * min(1.0, 300.0 / recency_sec)
+                    if boost > 0.005:
+                        kg_node.confidence = min(1.0, kg_node.confidence + boost)
+                        stats['recency_boosted'] += 1
+                else:
+                    # Node is not in working memory or barely accessed — stale
+                    # Apply a small confidence decay (floor at 0.05)
+                    decay = 0.01
+                    kg_node.confidence = max(0.05, kg_node.confidence - decay)
+                    stats['staleness_decayed'] += 1
+
         # Step 3: Promote frequently-replayed successful strategies to axioms
         if has_kg and hasattr(self._kg, 'add_node'):
             for strategy, count in self._strategy_replay_success.items():
@@ -573,7 +612,9 @@ class MemoryManager:
                 f"replayed={stats['episodes_replayed']}, "
                 f"reinforced={stats['reinforced']}, "
                 f"suppressed={stats['suppressed']}, "
-                f"promoted={stats['promoted_to_axiom']}"
+                f"promoted={stats['promoted_to_axiom']}, "
+                f"recency_boosted={stats['recency_boosted']}, "
+                f"staleness_decayed={stats['staleness_decayed']}"
             )
 
         return stats

@@ -208,8 +208,9 @@ class SephirotManager:
         violations = self.check_susy_balance(block_height)
         corrections = 0
 
-        # Dead zone: only correct if deviation exceeds 15% of PHI ratio
-        dead_zone = 0.15
+        # Dead zone: only correct if deviation exceeds 20% of PHI ratio
+        # (was 15%, causing too-frequent corrections)
+        dead_zone = 0.20
 
         for v in violations:
             e_node = self.nodes[v.expansion_node]
