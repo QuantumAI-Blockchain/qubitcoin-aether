@@ -330,6 +330,89 @@ class AetherEngine:
         except Exception as e:
             logger.warning(f"GroundedGenerator init failed: {e}")
 
+        # #56: HTN Planner (Hierarchical Task Network)
+        self.htn_planner = None
+        try:
+            from .htn_planner import HTNPlanner
+            self.htn_planner = HTNPlanner()
+        except Exception as e:
+            logger.warning(f"HTNPlanner init failed: {e}")
+
+        # #57: Goal Prioritizer (utility-based ranking)
+        self.goal_prioritizer = None
+        try:
+            from .goal_prioritizer import GoalPrioritizer
+            self.goal_prioritizer = GoalPrioritizer()
+        except Exception as e:
+            logger.warning(f"GoalPrioritizer init failed: {e}")
+
+        # #58: World Model (model-based planning)
+        self.world_model = None
+        self._world_model_prev_state = None
+        self._world_model_prev_action: Optional[str] = None
+        try:
+            from .world_model import WorldModel
+            self.world_model = WorldModel()
+        except Exception as e:
+            logger.warning(f"WorldModel init failed: {e}")
+
+        # #59: Knowledge Gap Detector
+        self.gap_detector = None
+        try:
+            from .gap_detector import GapDetector
+            self.gap_detector = GapDetector()
+        except Exception as e:
+            logger.warning(f"GapDetector init failed: {e}")
+
+        # #60: Active Learner (training data selection)
+        self.active_learner = None
+        try:
+            from .active_learner import ActiveLearner
+            self.active_learner = ActiveLearner()
+        except Exception as e:
+            logger.warning(f"ActiveLearner init failed: {e}")
+
+        # #61: Architecture Search (NAS-lite)
+        self.architecture_search = None
+        try:
+            from .architecture_search import ArchitectureSearch
+            self.architecture_search = ArchitectureSearch()
+        except Exception as e:
+            logger.warning(f"ArchitectureSearch init failed: {e}")
+
+        # #62: Causal Intervention (do-calculus)
+        self.causal_intervention = None
+        try:
+            from .causal_intervention import CausalIntervention
+            self.causal_intervention = CausalIntervention()
+        except Exception as e:
+            logger.warning(f"CausalIntervention init failed: {e}")
+
+        # #63: Theory Engine (hypothesis generation & testing)
+        self.theory_engine = None
+        try:
+            from .theory_engine import TheoryEngine
+            self.theory_engine = TheoryEngine()
+        except Exception as e:
+            logger.warning(f"TheoryEngine init failed: {e}")
+
+        # #64: Belief Revision (AGM-style)
+        self.belief_revision = None
+        self._belief_set: set = set()
+        try:
+            from .belief_revision import BeliefRevision
+            self.belief_revision = BeliefRevision()
+        except Exception as e:
+            logger.warning(f"BeliefRevision init failed: {e}")
+
+        # #65: Metacognitive Monitor (auto strategy switching)
+        self.meta_monitor = None
+        try:
+            from .meta_monitor import MetaMonitor
+            self.meta_monitor = MetaMonitor()
+        except Exception as e:
+            logger.warning(f"MetaMonitor init failed: {e}")
+
         # #41: NLP Pipeline (lightweight tokenizer, POS tagger, NER, deps)
         self.nlp_pipeline = None
         try:
@@ -450,6 +533,16 @@ class AetherEngine:
             ('relevance_ranker', self.relevance_ranker),
             ('coreference_resolver', self.coreference_resolver),
             ('grounded_generator', self.grounded_generator),
+            ('htn_planner', self.htn_planner),
+            ('goal_prioritizer', self.goal_prioritizer),
+            ('world_model', self.world_model),
+            ('gap_detector', self.gap_detector),
+            ('active_learner', self.active_learner),
+            ('architecture_search', self.architecture_search),
+            ('causal_intervention', self.causal_intervention),
+            ('theory_engine', self.theory_engine),
+            ('belief_revision', self.belief_revision),
+            ('meta_monitor', self.meta_monitor),
         ]
 
         for name, subsystem in subsystems:
@@ -555,6 +648,46 @@ class AetherEngine:
         # #55: Grounded generator stats
         if self.grounded_generator:
             stats['grounded_generator'] = self.grounded_generator.get_stats()
+
+        # #56: HTN planner stats
+        if self.htn_planner:
+            stats['htn_planner'] = self.htn_planner.get_stats()
+
+        # #57: Goal prioritizer stats
+        if self.goal_prioritizer:
+            stats['goal_prioritizer'] = self.goal_prioritizer.get_stats()
+
+        # #58: World model stats
+        if self.world_model:
+            stats['world_model'] = self.world_model.get_stats()
+
+        # #59: Gap detector stats
+        if self.gap_detector:
+            stats['gap_detector'] = self.gap_detector.get_stats()
+
+        # #60: Active learner stats
+        if self.active_learner:
+            stats['active_learner'] = self.active_learner.get_stats()
+
+        # #61: Architecture search stats
+        if self.architecture_search:
+            stats['architecture_search'] = self.architecture_search.get_stats()
+
+        # #62: Causal intervention stats
+        if self.causal_intervention:
+            stats['causal_intervention'] = self.causal_intervention.get_stats()
+
+        # #63: Theory engine stats
+        if self.theory_engine:
+            stats['theory_engine'] = self.theory_engine.get_stats()
+
+        # #64: Belief revision stats
+        if self.belief_revision:
+            stats['belief_revision'] = self.belief_revision.get_stats()
+
+        # #65: Meta monitor stats
+        if self.meta_monitor:
+            stats['meta_monitor'] = self.meta_monitor.get_stats()
 
         return stats
 
@@ -1602,6 +1735,329 @@ class AetherEngine:
                         )
                 except Exception as e:
                     logger.debug(f"Attention memory consolidation error: {e}")
+
+            # #56: HTN Planner — decompose active goals every 100 blocks
+            if self.htn_planner and block.height > 0 and block.height % 100 == 0:
+                try:
+                    # Decompose curiosity goals via HTN
+                    for goal in self._curiosity_goals[:5]:
+                        goal_name = goal.get('type', 'investigate_anomaly')
+                        world_state = {
+                            'kg_size': len(self.kg.nodes) if self.kg else 0,
+                            'data_available': True,
+                            'blocks_processed': self._blocks_processed,
+                        }
+                        plan = self.htn_planner.decompose(goal_name, world_state)
+                        if plan:
+                            logger.debug(
+                                f"HTN decomposed '{goal_name}' into {len(plan)} steps "
+                                f"at block {block.height}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('htn_planner', e)
+                    logger.debug(f"HTN planner error: {e}")
+
+            # #57: Goal Prioritizer — reprioritize every 200 blocks
+            if self.goal_prioritizer and block.height > 0 and block.height % 200 == 0:
+                try:
+                    if self._curiosity_goals:
+                        ranked = self.goal_prioritizer.prioritize(self._curiosity_goals[:50])
+                        if ranked:
+                            # Reorder curiosity goals by utility
+                            reordered = [g for g, _ in ranked]
+                            remaining = [g for g in self._curiosity_goals[50:]]
+                            self._curiosity_goals = reordered + remaining
+                            logger.debug(
+                                f"Goal prioritizer ranked {len(ranked)} goals "
+                                f"at block {block.height}, top_utility={ranked[0][1]:.4f}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('goal_prioritizer', e)
+                    logger.debug(f"Goal prioritizer error: {e}")
+
+            # #58: World Model — update with state transitions every block,
+            #      simulate plans every 200 blocks
+            if self.world_model and self.kg:
+                try:
+                    from .world_model import WorldState
+                    current_state = WorldState.from_dict({
+                        'kg_size': len(self.kg.nodes),
+                        'confidence_avg': sum(
+                            getattr(n, 'confidence', 0.5) for n in list(self.kg.nodes.values())[:500]
+                        ) / max(len(self.kg.nodes), 1),
+                        'phi': block_phi_result.get('phi_value', 0) if block_phi_result else 0,
+                        'active_goals': len(self._curiosity_goals),
+                        'edge_count': len(self.kg.edges),
+                    })
+                    # Online model update from previous state
+                    if self._world_model_prev_state is not None and self._world_model_prev_action:
+                        error = self.world_model.update_model(
+                            self._world_model_prev_state,
+                            self._world_model_prev_action,
+                            current_state,
+                        )
+                        if block.height % 500 == 0 and error > 0:
+                            logger.debug(f"World model update error={error:.4f}")
+                    self._world_model_prev_state = current_state
+                    # Pick action based on RL planner or default
+                    self._world_model_prev_action = (
+                        self._rl_prev_action if self._rl_prev_action else 'explore'
+                    )
+
+                    # Simulate plans every 200 blocks
+                    if block.height > 0 and block.height % 200 == 0:
+                        actions = ['explore', 'reason', 'consolidate']
+                        trajectory = self.world_model.simulate_plan(current_state, actions)
+                        score = self.world_model.evaluate_plan(current_state, trajectory)
+                        if block.height % 1000 == 0:
+                            logger.info(
+                                f"World model simulation at block {block.height}: "
+                                f"plan_score={score:.4f}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('world_model', e)
+                    logger.debug(f"World model error: {e}")
+
+            # #59: Knowledge Gap Detector — detect gaps every 500 blocks
+            if self.gap_detector and self.kg and block.height > 0 and block.height % 500 == 0:
+                try:
+                    gaps = self.gap_detector.detect_gaps(self.kg, block.height)
+                    if gaps:
+                        prioritized = self.gap_detector.prioritize_gaps(gaps)
+                        top_gap = prioritized[0]
+                        queries = self.gap_detector.generate_exploration_queries(top_gap)
+                        logger.info(
+                            f"Gap detector at block {block.height}: "
+                            f"{len(gaps)} gaps, top={top_gap.gap_type} "
+                            f"(severity={top_gap.severity:.3f})"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('gap_detector', e)
+                    logger.debug(f"Gap detector error: {e}")
+
+            # #60: Active Learner — select training samples every 100 blocks
+            if self.active_learner and self.kg and block.height > 0 and block.height % 100 == 0:
+                try:
+                    import numpy as _np
+                    recent_nodes = [
+                        n for n in self.kg.nodes.values()
+                        if getattr(n, 'source_block', 0) >= block.height - 100
+                    ][:100]
+                    if len(recent_nodes) >= 5:
+                        candidates = []
+                        confidences = []
+                        for node in recent_nodes:
+                            content_str = str(getattr(node, 'content', ''))
+                            feat = _np.array([
+                                (hash(content_str + str(i)) % 10000) / 10000.0
+                                for i in range(32)
+                            ], dtype=_np.float64)
+                            candidates.append(feat)
+                            confidences.append(getattr(node, 'confidence', 0.5))
+                        selected = self.active_learner.select_samples(
+                            candidates, confidences, n=min(10, len(candidates))
+                        )
+                        if selected and block.height % 500 == 0:
+                            logger.debug(
+                                f"Active learner selected {len(selected)} samples "
+                                f"at block {block.height}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('active_learner', e)
+                    logger.debug(f"Active learner error: {e}")
+
+            # #61: Architecture Search — evaluate components every 1000 blocks
+            if self.architecture_search and block.height > 0 and block.height % 1000 == 0:
+                try:
+                    components_metrics = {}
+                    subsystem_pairs = [
+                        ('neural_reasoner', self.neural_reasoner),
+                        ('causal_engine', self.causal_engine),
+                        ('temporal_engine', self.temporal_engine),
+                        ('concept_formation', self.concept_formation),
+                        ('debate_protocol', self.debate_protocol),
+                    ]
+                    for name, sub in subsystem_pairs:
+                        if sub is not None:
+                            sub_stats = sub.get_stats() if hasattr(sub, 'get_stats') else {}
+                            components_metrics[name] = {
+                                'accuracy': sub_stats.get('accuracy', sub_stats.get('success_rate', 0.5)),
+                                'utilization': 0.5,
+                                'error_count': self._subsystem_health.get(name, {}).get('error_count', 0),
+                                'blocks_active': self._blocks_processed,
+                            }
+                    if components_metrics:
+                        for name, metrics in components_metrics.items():
+                            self.architecture_search.evaluate_component(name, metrics)
+                        mods = self.architecture_search.suggest_modification(components_metrics)
+                        if mods:
+                            logger.info(
+                                f"Architecture search at block {block.height}: "
+                                f"{len(mods)} modifications suggested"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('architecture_search', e)
+                    logger.debug(f"Architecture search error: {e}")
+
+            # #62: Causal Intervention — compute ATEs every 500 blocks
+            if (self.causal_intervention and self.causal_engine
+                    and self.kg and block.height > 0 and block.height % 500 == 0):
+                try:
+                    import numpy as _np
+                    # Build causal graph from causal engine edges
+                    causal_graph: Dict[str, List[str]] = {}
+                    if hasattr(self.causal_engine, '_causal_edges'):
+                        for edge in self.causal_engine._causal_edges:
+                            src = edge.get('source', edge.get('from', ''))
+                            tgt = edge.get('target', edge.get('to', ''))
+                            if src and tgt:
+                                if src not in causal_graph:
+                                    causal_graph[src] = []
+                                causal_graph[src].append(tgt)
+
+                    if causal_graph:
+                        # Collect observational data from temporal engine
+                        data: Dict[str, _np.ndarray] = {}
+                        if self.temporal_engine and hasattr(self.temporal_engine, '_data_buffer'):
+                            for var, vals in self.temporal_engine._data_buffer.items():
+                                if vals and len(vals) >= 20:
+                                    data[var] = _np.array(vals[-200:], dtype=_np.float64)
+
+                        if data and len(data) >= 2:
+                            var_names = list(data.keys())
+                            for i in range(min(3, len(var_names))):
+                                for j in range(i + 1, min(4, len(var_names))):
+                                    ate = self.causal_intervention.compute_ate(
+                                        var_names[i], var_names[j],
+                                        data, causal_graph,
+                                    )
+                                    if abs(ate) > 0.1 and block.height % 2000 == 0:
+                                        logger.info(
+                                            f"Causal ATE({var_names[i]}->{var_names[j]})="
+                                            f"{ate:.4f} at block {block.height}"
+                                        )
+                except Exception as e:
+                    self._track_subsystem_error('causal_intervention', e)
+                    logger.debug(f"Causal intervention error: {e}")
+
+            # #63: Theory Engine — generate and test hypotheses every 300 blocks
+            if self.theory_engine and block.height > 0:
+                try:
+                    # Record observations every block
+                    obs = {
+                        'difficulty': block.difficulty,
+                        'tx_count': len(block.transactions),
+                        'kg_nodes': len(self.kg.nodes) if self.kg else 0,
+                        'kg_edges': len(self.kg.edges) if self.kg else 0,
+                    }
+                    if block_phi_result:
+                        obs['phi_value'] = block_phi_result.get('phi_value', 0)
+                    self.theory_engine.record_observation(obs)
+
+                    # Generate & test every 300 blocks
+                    if block.height % 300 == 0:
+                        import numpy as _np
+                        new_h = self.theory_engine.generate_hypotheses()
+                        # Test existing hypotheses
+                        tested = 0
+                        for h in self.theory_engine._hypotheses[:10]:
+                            data_dict: Dict[str, _np.ndarray] = {}
+                            for var in h.variables:
+                                vals = [
+                                    ob.get(var) for ob in self.theory_engine._observations
+                                    if ob.get(var) is not None
+                                ]
+                                if vals:
+                                    data_dict[var] = _np.array(vals, dtype=_np.float64)
+                            if len(data_dict) >= len(h.variables):
+                                result = self.theory_engine.test_hypothesis(h, data_dict)
+                                tested += 1
+                        # Consolidate periodically
+                        if block.height % 900 == 0:
+                            merges = self.theory_engine.consolidate_theories()
+                        if new_h and block.height % 1000 == 0:
+                            logger.info(
+                                f"Theory engine at block {block.height}: "
+                                f"{len(new_h)} new hypotheses, "
+                                f"{tested} tested, "
+                                f"{len(self.theory_engine._hypotheses)} total"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('theory_engine', e)
+                    logger.debug(f"Theory engine error: {e}")
+
+            # #64: Belief Revision — check for contradictions every 100 blocks
+            if self.belief_revision and self.kg and block.height > 0 and block.height % 100 == 0:
+                try:
+                    # Add recent high-confidence observations as beliefs
+                    recent_nodes = [
+                        n for n in self.kg.nodes.values()
+                        if getattr(n, 'source_block', 0) >= block.height - 100
+                        and getattr(n, 'confidence', 0) > 0.6
+                    ][:20]
+                    for node in recent_nodes:
+                        content = getattr(node, 'content', {})
+                        if isinstance(content, dict):
+                            belief_str = str(content.get('type', '')) + ': ' + str(content)
+                            if len(belief_str) > 10:
+                                conf = getattr(node, 'confidence', 0.5)
+                                self._belief_set = self.belief_revision.expand(
+                                    self._belief_set, belief_str[:200], conf
+                                )
+
+                    # Check for contradictions
+                    contradiction = self.belief_revision.detect_contradiction(self._belief_set)
+                    if contradiction:
+                        a, b = contradiction
+                        # Revise by removing the less entrenched belief
+                        ent_a = self.belief_revision.get_entrenchment(a)
+                        ent_b = self.belief_revision.get_entrenchment(b)
+                        winner = a if ent_a >= ent_b else b
+                        self._belief_set = self.belief_revision.revise(
+                            self._belief_set, winner,
+                            max(ent_a, ent_b),
+                        )
+                        logger.debug(
+                            f"Belief revision resolved contradiction at block {block.height}"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('belief_revision', e)
+                    logger.debug(f"Belief revision error: {e}")
+
+            # #65: Meta Monitor — monitor all subsystems every 50 blocks
+            if self.meta_monitor and block.height > 0 and block.height % 50 == 0:
+                try:
+                    monitored = [
+                        ('neural_reasoner', self.neural_reasoner),
+                        ('causal_engine', self.causal_engine),
+                        ('temporal_engine', self.temporal_engine),
+                        ('reasoning_engine', self.reasoning),
+                        ('memory_manager', self.memory_manager),
+                    ]
+                    for sub_name, sub in monitored:
+                        if sub is None:
+                            continue
+                        sub_stats = sub.get_stats() if hasattr(sub, 'get_stats') else {}
+                        metrics = {
+                            'accuracy': sub_stats.get('accuracy', sub_stats.get('success_rate', 0.5)),
+                            'error_count': self._subsystem_health.get(sub_name, {}).get('error_count', 0),
+                            'utilization': 0.5,
+                            'blocks_active': self._blocks_processed,
+                        }
+                        result = self.meta_monitor.monitor(sub_name, metrics)
+                        if result.status == 'failing':
+                            logger.warning(
+                                f"Meta-monitor: {sub_name} is FAILING — "
+                                f"{result.recommendation}"
+                            )
+                            if result.strategy_switch:
+                                logger.info(
+                                    f"Meta-monitor switched strategy to "
+                                    f"'{result.strategy_switch}' for {sub_name}"
+                                )
+                except Exception as e:
+                    self._track_subsystem_error('meta_monitor', e)
+                    logger.debug(f"Meta monitor error: {e}")
 
             # Archive old consciousness events
             if block.height > 0 and block.height % Config.AETHER_CONSCIOUSNESS_ARCHIVE_INTERVAL == 0:
