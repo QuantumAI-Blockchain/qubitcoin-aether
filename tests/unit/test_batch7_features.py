@@ -26,7 +26,7 @@ class TestSemanticGates:
 
         # Fail: not enough nodes
         stats = {
-            'n_nodes': 50, 'n_edges': 10,
+            'n_nodes': 49, 'n_edges': 10,
             'node_type_counts': {}, 'edge_type_counts': {},
             'avg_confidence': 0.7,
         }
@@ -177,7 +177,7 @@ class TestSemanticGates:
         stats = {
             'n_nodes': 100000, 'n_edges': 50000,
             'node_type_counts': {}, 'edge_type_counts': {},
-            'cross_domain_inferences': 50,
+            'cross_domain_inferences': 49,
             'novel_concept_count': 60,
         }
         assert gate['check'](stats) is False

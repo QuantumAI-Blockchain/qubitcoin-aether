@@ -29,13 +29,13 @@ class TestKnowledgeDecay:
 
     def test_decay_after_halflife(self):
         node = self._make_node(source_block=100, last_referenced_block=100, confidence=1.0)
-        # At exactly halflife blocks later, decay = max(0.3, 1.0 - 1.0) = 0.3
+        # At exactly halflife blocks later, exponential decay = 2^(-1) = 0.5
         with patch('qubitcoin.config.Config') as mock_config:
             mock_config.CONFIDENCE_DECAY_HALFLIFE = 100000
             mock_config.CONFIDENCE_DECAY_FLOOR = 0.3
             eff = node.effective_confidence(current_block=100100)
-            # age=100000, decay = max(0.3, 1.0 - 100000/100000) = max(0.3, 0.0) = 0.3
-            assert eff == pytest.approx(0.3, abs=0.01)
+            # age=100000, decay = max(0.3, 2^(-1)) = max(0.3, 0.5) = 0.5
+            assert eff == pytest.approx(0.5, abs=0.01)
 
     def test_decay_partial(self):
         node = self._make_node(source_block=100, last_referenced_block=100, confidence=1.0)
@@ -43,8 +43,8 @@ class TestKnowledgeDecay:
             mock_config.CONFIDENCE_DECAY_HALFLIFE = 100000
             mock_config.CONFIDENCE_DECAY_FLOOR = 0.3
             eff = node.effective_confidence(current_block=50100)
-            # age=50000, decay = max(0.3, 1.0 - 0.5) = 0.5
-            assert eff == pytest.approx(0.5, abs=0.01)
+            # age=50000, decay = max(0.3, 2^(-0.5)) = max(0.3, 0.707) = 0.707
+            assert eff == pytest.approx(0.707, abs=0.01)
 
     def test_axioms_never_decay(self):
         node = self._make_node(node_type='axiom', confidence=0.95, source_block=0)

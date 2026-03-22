@@ -345,13 +345,30 @@ class KnowledgeGraph:
                         f"continuing with partial data"
                     )
 
-            # Build TF-IDF index and auto-classify domains for loaded nodes
+            # Build TF-IDF index, auto-classify domains and grounding for loaded nodes
             unclassified = 0
+            grounded_count = 0
             for nid, node in self.nodes.items():
                 self.search_index.add_node(nid, node.content)
                 if not node.domain:
                     node.domain = classify_domain(node.content)
                     unclassified += 1
+                # Retroactively classify grounding_source for DB-loaded nodes
+                if not node.grounding_source:
+                    content = node.content if isinstance(node.content, dict) else {}
+                    content_type = content.get('type', '')
+                    if node.node_type == 'observation' and content.get('block_height'):
+                        node.grounding_source = 'block_oracle'
+                        grounded_count += 1
+                    elif node.node_type == 'axiom' and node.source_block == 0:
+                        node.grounding_source = 'genesis_seed'
+                        grounded_count += 1
+                    elif content_type in ('quantum_observation', 'contract_activity'):
+                        node.grounding_source = 'block_oracle'
+                        grounded_count += 1
+                    elif content_type == 'prediction_confirmed':
+                        node.grounding_source = 'prediction_verified'
+                        grounded_count += 1
 
             # Batch-build vector embeddings for loaded nodes
             if self.nodes:
@@ -367,7 +384,7 @@ class KnowledgeGraph:
 
             logger.info(f"Knowledge graph loaded: {len(self.nodes)} nodes, {len(self.edges)} edges, "
                          f"{self.search_index.get_stats()['unique_terms']} indexed terms, "
-                         f"{len(domain_counts)} domains"
+                         f"{len(domain_counts)} domains, {grounded_count} retroactively grounded"
                          + (f" ({unclassified} auto-classified)" if unclassified else ''))
         except Exception as e:
             logger.warning(

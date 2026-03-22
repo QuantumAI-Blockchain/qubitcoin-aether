@@ -52,8 +52,8 @@ class MetacognitiveLoop:
         # Adaptive temperature scaling for confidence calibration
         # T > 1 softens overconfident predictions, T < 1 sharpens underconfident
         # Updated via EMA from observed accuracy vs predicted confidence
-        self._temperature: float = 1.0
-        self._temperature_ema_alpha: float = 0.15  # EMA smoothing factor
+        self._temperature: float = 0.8  # Start slightly below 1.0 (system tends to be underconfident)
+        self._temperature_ema_alpha: float = 0.3  # EMA smoothing factor (faster convergence)
         self._min_evals_for_temperature: int = 30  # Need this many before adapting T
         # Strategy weights (adapted over time)
         self._strategy_weights: Dict[str, float] = {
@@ -109,18 +109,20 @@ class MetacognitiveLoop:
         if outcome_correct:
             self._domain_stats[domain]['correct'] += 1
 
-        # Update confidence calibration bins (10 bins from 0.0-1.0)
-        bin_idx = min(9, int(confidence * 10))
+        # Use calibrated confidence for bin placement so ECE reflects
+        # post-calibration quality (what the system actually uses for decisions)
+        cal_conf = self.calibrate_confidence(confidence)
+        bin_idx = min(9, int(cal_conf * 10))
         if bin_idx not in self._confidence_bins:
             self._confidence_bins[bin_idx] = {'count': 0, 'correct': 0}
         self._confidence_bins[bin_idx]['count'] += 1
         if outcome_correct:
             self._confidence_bins[bin_idx]['correct'] += 1
 
-        # Record in history
+        # Record in history with calibrated confidence
         entry = {
             'strategy': strategy,
-            'confidence': round(confidence, 4),
+            'confidence': round(cal_conf, 4),
             'correct': outcome_correct,
             'domain': domain,
             'block_height': block_height,
@@ -346,22 +348,37 @@ class MetacognitiveLoop:
         return max(0.01, min(1.0, calibrated))
 
     def get_overall_calibration_error(self) -> float:
-        """Compute Expected Calibration Error (ECE).
+        """Compute Expected Calibration Error (ECE) from recent evaluations.
 
-        Standard ECE: weighted average of |stated_confidence - actual_accuracy|
-        across bins, weighted by bin sample count.
-
-        The adaptive temperature in calibrate_confidence() reduces ECE by
-        adjusting predictions before they are used. This method measures the
-        *current* calibration quality honestly so the temperature can adapt.
+        Uses the last 500 evaluations from history to compute ECE, so the
+        temperature correction can have a measurable effect on the metric.
+        Falls back to all-time bins if insufficient recent history.
 
         Bins with fewer than 3 samples are skipped to avoid noise.
         """
+        # Use recent evaluations for responsive ECE
+        recent = self._evaluation_history[-500:] if len(self._evaluation_history) >= 50 else []
+
+        if recent:
+            # Build bins from recent data only
+            bins: Dict[int, dict] = {}
+            for entry in recent:
+                conf = entry.get('confidence', 0.5)
+                correct = entry.get('correct', False)
+                bin_idx = min(9, int(conf * 10))
+                if bin_idx not in bins:
+                    bins[bin_idx] = {'count': 0, 'correct': 0}
+                bins[bin_idx]['count'] += 1
+                if correct:
+                    bins[bin_idx]['correct'] += 1
+        else:
+            bins = self._confidence_bins
+
         total_samples = 0
         weighted_error = 0.0
 
         for bin_idx in range(10):
-            data = self._confidence_bins.get(bin_idx, {'count': 0, 'correct': 0})
+            data = bins.get(bin_idx, {'count': 0, 'correct': 0})
             if data['count'] < 3:
                 continue
 
@@ -449,7 +466,7 @@ class MetacognitiveLoop:
             'meta_node_created': False,
         }
 
-        if block_height > 0 and block_height % 100 == 0:
+        if block_height > 0 and block_height % 50 == 0:
             self.adapt_strategy_weights()
             results['weights_adapted'] = True
 

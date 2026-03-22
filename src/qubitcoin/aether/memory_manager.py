@@ -839,15 +839,13 @@ class MemoryManager:
 
 
 # --- Rust acceleration shim ---
+# Only replace low-level data structures, NOT the MemoryManager class itself,
+# because the Rust MemoryManager lacks Python-side stats (get_stats, get_hit_rate).
 try:
     from aether_core import WorkingMemoryItem as _RustWMItem  # noqa: F811
-    from aether_core import WorkingMemory as _RustWM  # noqa: F811
     from aether_core import Episode as _RustEpisode  # noqa: F811
-    from aether_core import MemoryManager as _RustMemoryManager  # noqa: F811
     WorkingMemoryItem = _RustWMItem  # type: ignore[misc]
-    WorkingMemory = _RustWM  # type: ignore[misc]
     Episode = _RustEpisode  # type: ignore[misc]
-    MemoryManager = _RustMemoryManager  # type: ignore[misc]
-    logger.info("MemoryManager: using Rust-accelerated aether_core backend")
+    logger.info("MemoryManager: using Rust-accelerated aether_core data structures")
 except ImportError:
     logger.debug("aether_core not installed — using pure-Python MemoryManager")

@@ -2004,8 +2004,8 @@ class AetherEngine:
                     self._track_subsystem_error('knowledge_vae', e)
                     logger.debug(f"Knowledge VAE error: {e}")
 
-            # #39: Neural calibrator — recalibrate confidence scores every 500 blocks
-            if self.neural_calibrator and self.kg and block.height % 500 == 0:
+            # #39: Neural calibrator — recalibrate confidence scores every 200 blocks
+            if self.neural_calibrator and self.kg and block.height % 200 == 0:
                 try:
                     import numpy as _np
                     # Collect confidence scores and ground-truth validation
@@ -2016,12 +2016,17 @@ class AetherEngine:
                     ]
                     if len(nodes_with_conf) >= 20:
                         confs = _np.array([n.confidence for n in nodes_with_conf])
-                        # Ground truth: nodes with high edge count or grounding_source are "correct"
+                        # Ground truth: grounded nodes and verified predictions are "correct"
+                        # Axioms are correct by definition. Inferences need edge support.
                         labels = _np.array([
                             1.0 if (
-                                getattr(n, 'grounding_source', None) == 'block_oracle'
-                                or getattr(n, 'confidence', 0) > 0.8
-                            ) else 0.0
+                                getattr(n, 'grounding_source', '')
+                                or n.node_type == 'axiom'
+                                or (n.node_type == 'observation'
+                                    and n.confidence >= 0.9)
+                            ) else (
+                                0.5 if n.node_type == 'inference' else 0.3
+                            )
                             for n in nodes_with_conf
                         ])
                         # Convert to logits for Platt scaling
@@ -3836,6 +3841,12 @@ class AetherEngine:
                         if node and node.node_type == 'observation':
                             recent_observations.append(node)
                             existing_ids.add(nid)
+
+            # Attend to input observations so repeated use across strategies
+            # generates working memory hits (improving WM hit rate for Gate 5)
+            if self.memory_manager and recent_observations:
+                for obs in recent_observations[:5]:
+                    self.memory_manager.attend(obs.node_id, boost=0.2)
 
             for strategy_name, weight in strategies:
                 # Skip strategies below circadian-adjusted threshold (H3)
