@@ -2156,3 +2156,116 @@ class ReasoningEngine:
             parts.append(f"\nReasoning did not reach a strong conclusion: {result.explanation}")
 
         return '\n'.join(parts)
+
+    # ─── Bayesian Confidence Updates (Item #30) ───────────────────────────
+    def bayesian_update(self, node_id: int, evidence_positive: bool,
+                        likelihood_ratio: float = 2.0) -> float:
+        """Apply Bayes rule to update a node's confidence given new evidence.
+
+        P(H|E) = P(E|H) * P(H) / P(E)
+        Using likelihood ratio form:
+          If evidence_positive: posterior = prior * LR / (prior * LR + (1-prior))
+          If evidence_negative: posterior = prior / (prior + (1-prior) * LR)
+
+        Args:
+            node_id: Node to update.
+            evidence_positive: Whether the evidence supports the hypothesis.
+            likelihood_ratio: How much more likely the evidence is if hypothesis
+                is true vs false. Default 2.0 (mild evidence).
+
+        Returns:
+            New confidence value, or -1.0 if node not found.
+        """
+        node = self.kg.get_node(node_id) if self.kg else None
+        if not node:
+            return -1.0
+
+        prior = node.confidence
+        lr = max(likelihood_ratio, 1.01)  # Prevent degenerate ratios
+
+        if evidence_positive:
+            posterior = (prior * lr) / (prior * lr + (1.0 - prior))
+        else:
+            posterior = prior / (prior + (1.0 - prior) * lr)
+
+        # Clamp to [0.01, 0.99] to prevent certainty lock
+        posterior = max(0.01, min(0.99, posterior))
+        node.confidence = posterior
+        return posterior
+
+    def bayesian_update_from_reasoning(self, result: 'ReasoningResult') -> None:
+        """Update premise confidences based on reasoning outcome.
+
+        If reasoning succeeded with high confidence, strengthen premises.
+        If it failed or had low confidence, weaken premises proportionally.
+        """
+        if not result or not self.kg:
+            return
+
+        for pid in result.premise_ids:
+            if result.success and result.confidence > 0.6:
+                # Evidence supports these premises
+                lr = 1.0 + result.confidence  # 1.6 - 2.0 range
+                self.bayesian_update(pid, evidence_positive=True, likelihood_ratio=lr)
+            elif not result.success:
+                # Mild negative evidence
+                self.bayesian_update(pid, evidence_positive=False, likelihood_ratio=1.3)
+
+    # ─── Online Edge Weight Learning (Item #31) ──────────────────────────
+    def update_edge_weight_online(self, from_id: int, to_id: int,
+                                  used_successfully: bool,
+                                  learning_rate: float = 0.05) -> float:
+        """Update edge weight based on whether it was useful in reasoning.
+
+        Edges that participate in successful reasoning get reinforced.
+        Edges in failed reasoning get weakened. This is a simple online
+        learning rule: w_new = w_old + lr * (reward - baseline).
+
+        Args:
+            from_id: Source node ID.
+            to_id: Target node ID.
+            used_successfully: Whether the edge contributed to correct reasoning.
+            learning_rate: Step size for weight update.
+
+        Returns:
+            New edge weight, or -1.0 if edge not found.
+        """
+        if not self.kg:
+            return -1.0
+
+        edges = self.kg.get_edges_from(from_id)
+        for edge in edges:
+            if edge.to_node_id == to_id:
+                reward = 1.0 if used_successfully else -0.5
+                delta = learning_rate * reward
+                edge.weight = max(0.1, min(5.0, edge.weight + delta))
+                return edge.weight
+
+        return -1.0
+
+    def reinforce_reasoning_edges(self, result: 'ReasoningResult') -> int:
+        """Reinforce all edges used in a reasoning chain based on outcome.
+
+        Returns number of edges updated.
+        """
+        if not result or not self.kg:
+            return 0
+
+        updated = 0
+        for step in result.chain:
+            if hasattr(step, 'premise_id') and hasattr(step, 'conclusion_id'):
+                w = self.update_edge_weight_online(
+                    step.premise_id, step.conclusion_id,
+                    used_successfully=result.success
+                )
+                if w >= 0:
+                    updated += 1
+
+        # Also reinforce edges between premise nodes
+        for i, pid1 in enumerate(result.premise_ids):
+            for pid2 in result.premise_ids[i+1:]:
+                self.update_edge_weight_online(pid1, pid2, result.success, 0.02)
+                self.update_edge_weight_online(pid2, pid1, result.success, 0.02)
+                updated += 2
+
+        return updated

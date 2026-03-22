@@ -787,6 +787,44 @@ impl GATReasoner {
         }
     }
 
+    /// Predict whether an edge should exist between two nodes.
+    ///
+    /// Constructs a minimal 2-node graph from the provided feature vectors,
+    /// runs forward passes to obtain embeddings, then computes a dot-product
+    /// similarity score passed through sigmoid to yield a probability.
+    ///
+    /// - `node_a_features`: Feature vector for node A (length = input_dim).
+    /// - `node_b_features`: Feature vector for node B (length = input_dim).
+    ///
+    /// Returns probability in [0, 1] that an edge should exist between them.
+    pub fn predict_link(&self, node_a_features: &[f64], node_b_features: &[f64]) -> f64 {
+        let input_dim = node_a_features.len();
+        assert_eq!(
+            input_dim,
+            node_b_features.len(),
+            "Feature vectors must have the same dimension"
+        );
+
+        // Build a 2-node graph with bidirectional edges + self-loops.
+        let mut flat = Vec::with_capacity(2 * input_dim);
+        flat.extend_from_slice(node_a_features);
+        flat.extend_from_slice(node_b_features);
+        let features = DMatrix::from_row_slice(2, input_dim, &flat);
+        let adj: Vec<(usize, usize)> = vec![(0, 1), (1, 0), (0, 0), (1, 1)];
+
+        // Forward pass for node A (index 0) — inference mode (no dropout).
+        let (_, cache_a) = self.forward(&features, &adj, 0, false);
+        // Forward pass for node B (index 1).
+        let (_, cache_b) = self.forward(&features, &adj, 1, false);
+
+        // Dot-product similarity between the two node embeddings.
+        let emb_a = &cache_a.final_features;
+        let emb_b = &cache_b.final_features;
+        let similarity: f64 = emb_a.dot(emb_b);
+
+        sigmoid(similarity)
+    }
+
     /// Serialize weights to JSON bytes.
     pub fn save_weights(&self) -> Result<Vec<u8>, String> {
         serde_json::to_vec(self).map_err(|e| format!("Serialization error: {}", e))

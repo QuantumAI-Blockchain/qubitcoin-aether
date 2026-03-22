@@ -241,6 +241,40 @@ impl RustGATReasoner {
         Ok(())
     }
 
+    /// Predict link probability between two nodes.
+    ///
+    /// Computes GAT embeddings for both nodes in a minimal 2-node graph,
+    /// then returns sigmoid(dot(emb_a, emb_b)) as the link probability.
+    ///
+    /// Args:
+    ///     node_a_features: Feature vector for node A (length = input_dim).
+    ///     node_b_features: Feature vector for node B (length = input_dim).
+    ///
+    /// Returns:
+    ///     Probability in [0, 1] that an edge should exist between the nodes.
+    #[pyo3(signature = (node_a_features, node_b_features))]
+    fn predict_link(
+        &self,
+        node_a_features: Vec<f64>,
+        node_b_features: Vec<f64>,
+    ) -> PyResult<f64> {
+        if node_a_features.len() != self.input_dim {
+            return Err(PyValueError::new_err(format!(
+                "node_a_features length {} != input_dim {}",
+                node_a_features.len(),
+                self.input_dim
+            )));
+        }
+        if node_b_features.len() != self.input_dim {
+            return Err(PyValueError::new_err(format!(
+                "node_b_features length {} != input_dim {}",
+                node_b_features.len(),
+                self.input_dim
+            )));
+        }
+        Ok(self.trainer.predict_link(&node_a_features, &node_b_features))
+    }
+
     /// String representation.
     fn __repr__(&self) -> String {
         format!(

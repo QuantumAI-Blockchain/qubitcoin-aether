@@ -327,6 +327,19 @@ impl GATTrainer {
         Ok(())
     }
 
+    /// Predict link probability between two nodes given their feature vectors.
+    ///
+    /// Thread-safe wrapper around `GATReasoner::predict_link`.
+    ///
+    /// - `node_a_features`: Feature vector for node A.
+    /// - `node_b_features`: Feature vector for node B.
+    ///
+    /// Returns probability in [0, 1] that an edge should exist.
+    pub fn predict_link(&self, node_a_features: &[f64], node_b_features: &[f64]) -> f64 {
+        let model = self.model.lock();
+        model.predict_link(node_a_features, node_b_features)
+    }
+
     /// Get the number of samples in the training buffer.
     pub fn buffer_size(&self) -> usize {
         self.buffer.lock().len()

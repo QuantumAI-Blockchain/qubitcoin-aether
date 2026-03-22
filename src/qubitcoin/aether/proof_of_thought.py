@@ -1460,7 +1460,8 @@ class AetherEngine:
                         self._calibrate_conclusion(result)
                         steps.extend([s.to_dict() for s in result.chain])
                         self._record_reasoning_outcome(
-                            'inductive', result.confidence, True, block_height
+                            'inductive', result.confidence, True, block_height,
+                            result=result
                         )
                         # Put conclusion into working memory
                         if self.memory_manager and result.conclusion_node_id:
@@ -1484,7 +1485,8 @@ class AetherEngine:
                             self._calibrate_conclusion(result)
                             steps.extend([s.to_dict() for s in result.chain])
                             self._record_reasoning_outcome(
-                                'deductive', result.confidence, True, block_height
+                                'deductive', result.confidence, True, block_height,
+                                result=result
                             )
                             # Put conclusion into working memory
                             if self.memory_manager and result.conclusion_node_id:
@@ -1507,7 +1509,8 @@ class AetherEngine:
                             self._calibrate_conclusion(result)
                             steps.extend([s.to_dict() for s in result.chain])
                             self._record_reasoning_outcome(
-                                'abductive', result.confidence, True, block_height
+                                'abductive', result.confidence, True, block_height,
+                                result=result
                             )
                             # Put conclusion into working memory
                             if self.memory_manager and result.conclusion_node_id:
@@ -1767,7 +1770,8 @@ class AetherEngine:
             )
 
     def _record_reasoning_outcome(self, strategy: str, confidence: float,
-                                   success: bool, block_height: int) -> None:
+                                   success: bool, block_height: int,
+                                   result: object = None) -> None:
         """Feed reasoning outcome back to metacognition for adaptation."""
         if self.metacognition:
             self.metacognition.evaluate_reasoning(
@@ -1788,6 +1792,13 @@ class AetherEngine:
                 success=success,
                 confidence=confidence,
             )
+        # Bayesian confidence update + online edge weight learning (Items #30, #31)
+        if result is not None and self.reasoning:
+            try:
+                self.reasoning.bayesian_update_from_reasoning(result)
+                self.reasoning.reinforce_reasoning_edges(result)
+            except Exception as e:
+                logger.debug(f"Bayesian/edge update error: {e}")
 
     def _record_consciousness_event(self, event_type: str, phi_value: float,
                                      block_height: int, trigger_data: dict = None):

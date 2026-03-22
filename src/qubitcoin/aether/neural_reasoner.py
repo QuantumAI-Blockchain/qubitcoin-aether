@@ -581,10 +581,11 @@ class GATReasoner:
 
         # Try backpropagation if PyTorch available and buffer full
         if self.has_pytorch and len(self._training_buffer) >= self.TRAINING_BATCH_SIZE:
-            # Filter low-quality training samples (Improvement 78)
+            # Curriculum learning: dynamic quality threshold (Items #37, #78)
+            threshold = self.curriculum_quality_threshold()
             quality_batch = [
                 s for s in self._training_buffer[:self.TRAINING_BATCH_SIZE * 2]
-                if self.assess_training_quality(s) >= 0.3
+                if self.assess_training_quality(s) >= threshold
             ][:self.TRAINING_BATCH_SIZE]
             batch = quality_batch if quality_batch else self._training_buffer[:self.TRAINING_BATCH_SIZE]
             self._training_buffer = self._training_buffer[self.TRAINING_BATCH_SIZE:]
@@ -1103,6 +1104,26 @@ class GATReasoner:
         clarity = abs(outcome - 0.5) * 2.0
 
         return 0.4 * density + 0.3 * variance_score + 0.3 * clarity
+
+    def curriculum_quality_threshold(self) -> float:
+        """Dynamic quality threshold for curriculum learning (Item #37).
+
+        Early training (< 50 steps): Accept only high-quality samples (>0.6)
+        so the model learns clear patterns first. As training progresses,
+        gradually lower the threshold to include harder examples.
+
+        Returns:
+            Quality threshold in [0.15, 0.6].
+        """
+        steps = self._backprop_steps + self._evolutionary_steps
+        if steps < 50:
+            return 0.6  # Easy examples only
+        elif steps < 200:
+            # Linear decay from 0.6 to 0.3 over steps 50-200
+            progress = (steps - 50) / 150.0
+            return 0.6 - progress * 0.3
+        else:
+            return 0.15  # Accept harder examples
 
     # ------------------------------------------------------------------
     # Prediction uncertainty estimation (Improvement 79)
