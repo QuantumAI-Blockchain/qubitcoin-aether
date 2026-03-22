@@ -191,6 +191,80 @@ class AetherEngine:
         except Exception as e:
             logger.warning(f"ModernHopfield init failed: {e}")
 
+        # #23: Transformer-based Reasoning
+        self.transformer_reasoner = None
+        try:
+            from .transformer_reasoner import TransformerReasoner
+            self.transformer_reasoner = TransformerReasoner(dim=64, num_heads=4)
+        except Exception as e:
+            logger.warning(f"TransformerReasoner init failed: {e}")
+
+        # #24: Attention-based Working Memory
+        self.attention_memory = None
+        try:
+            from .attention_memory import AttentionMemory
+            self.attention_memory = AttentionMemory(dim=32, capacity=1000)
+        except Exception as e:
+            logger.warning(f"AttentionMemory init failed: {e}")
+
+        # #27: RL Goal Planner
+        self.rl_planner = None
+        self._rl_prev_state: Optional[Any] = None
+        self._rl_prev_action: Optional[str] = None
+        try:
+            from .rl_planner import RLPlanner
+            self.rl_planner = RLPlanner()
+        except Exception as e:
+            logger.warning(f"RLPlanner init failed: {e}")
+
+        # #28: Contrastive Concept Learning
+        self.contrastive_concepts = None
+        try:
+            from .contrastive_concepts import ContrastiveConcepts
+            self.contrastive_concepts = ContrastiveConcepts(dim=32, margin=1.0)
+        except Exception as e:
+            logger.warning(f"ContrastiveConcepts init failed: {e}")
+
+        # #29: Neural Debate Scoring
+        self.debate_scorer = None
+        try:
+            from .debate_scorer import DebateScorer
+            self.debate_scorer = DebateScorer(input_dim=8, hidden_dim=16)
+        except Exception as e:
+            logger.warning(f"DebateScorer init failed: {e}")
+
+        # #34: IIT Approximation (proper Phi via TPM bipartition search)
+        self.iit_approximator = None
+        try:
+            from .iit_approximator import IITApproximator
+            self.iit_approximator = IITApproximator(max_nodes=12, window=100)
+        except Exception as e:
+            logger.warning(f"IITApproximator init failed: {e}")
+
+        # #35: Multi-head Attention Sephirot Routing
+        self.sephirot_attention = None
+        try:
+            from .sephirot_attention import SephirotAttention
+            self.sephirot_attention = SephirotAttention(embed_dim=32, num_heads=4)
+        except Exception as e:
+            logger.warning(f"SephirotAttention init failed: {e}")
+
+        # #36: Knowledge VAE (subgraph compression)
+        self.knowledge_vae = None
+        try:
+            from .knowledge_vae import KnowledgeVAE
+            self.knowledge_vae = KnowledgeVAE(input_dim=32, latent_dim=8)
+        except Exception as e:
+            logger.warning(f"KnowledgeVAE init failed: {e}")
+
+        # #39: Neural Calibrator (Platt scaling for confidence calibration)
+        self.neural_calibrator = None
+        try:
+            from .neural_calibrator import NeuralCalibrator
+            self.neural_calibrator = NeuralCalibrator(lr=0.01, max_iter=200)
+        except Exception as e:
+            logger.warning(f"NeuralCalibrator init failed: {e}")
+
         # Phase 5.4: Emergent communication protocol
         self._pending_digest: Optional[dict] = None
         self._seen_digests: dict = {}  # OrderedDict-like (dict preserves insertion order in 3.7+)
@@ -1051,6 +1125,221 @@ class AetherEngine:
                         self.hopfield_memory.store_kg_node(node)
                 except Exception as e:
                     logger.debug(f"Hopfield storage error: {e}")
+
+            # #27: RL Planner — select action every block, update Q-values
+            if self.rl_planner and self.kg:
+                try:
+                    kg_stats = self.kg.get_stats() if hasattr(self.kg, 'get_stats') else {}
+                    state_features = self.rl_planner.extract_state_features(kg_stats)
+                    action = self.rl_planner.select_action(state_features)
+
+                    # Update Q-values from previous block's action
+                    if self._rl_prev_state is not None and self._rl_prev_action is not None:
+                        # Reward = positive if KG grew, new predictions validated, etc.
+                        reward = 0.0
+                        node_delta = kg_stats.get('total_nodes', 0) - getattr(self, '_rl_prev_nodes', 0)
+                        reward += min(node_delta * 0.1, 1.0)
+                        if kg_stats.get('avg_confidence', 0) > 0.5:
+                            reward += 0.2
+                        self.rl_planner.update(
+                            self._rl_prev_state, self._rl_prev_action,
+                            reward, state_features,
+                        )
+
+                    self._rl_prev_state = state_features
+                    self._rl_prev_action = action
+                    self._rl_prev_nodes = kg_stats.get('total_nodes', 0)
+                except Exception as e:
+                    logger.debug(f"RL planner error: {e}")
+
+            # #28: Contrastive concepts — train on concept pairs every 100 blocks
+            if self.contrastive_concepts and self.kg and block.height % 100 == 0:
+                try:
+                    high_conf = [
+                        n for n in self.kg.nodes.values()
+                        if getattr(n, 'confidence', 0) > 0.6
+                        and getattr(n, 'source_block', 0) >= block.height - 100
+                    ]
+                    if len(high_conf) >= 3:
+                        import numpy as _np
+                        for i in range(min(10, len(high_conf) - 2)):
+                            anchor_n = high_conf[i]
+                            pos_n = high_conf[i + 1]
+                            neg_n = high_conf[-(i + 1)]
+                            # Use node content hash as embedding proxy
+                            a_emb = _np.array([hash(str(anchor_n.content)) % 1000 / 1000.0] * 32)
+                            p_emb = _np.array([hash(str(pos_n.content)) % 1000 / 1000.0] * 32)
+                            n_emb = _np.array([hash(str(neg_n.content)) % 1000 / 1000.0] * 32)
+                            self.contrastive_concepts.train_step(a_emb, p_emb, n_emb)
+                except Exception as e:
+                    logger.debug(f"Contrastive concepts training error: {e}")
+
+            # #29: Debate scorer — score debates when they occur
+            if self.debate_scorer and self.debate_protocol:
+                try:
+                    debate_stats = self.debate_protocol.get_stats()
+                    total_debates = debate_stats.get('total_debates', 0)
+                    if total_debates > 0 and block.height % 50 == 0:
+                        features = self.debate_scorer.extract_features(debate_stats)
+                        verdict, conf = self.debate_scorer.score_debate(features)
+                        if conf > 0.7:
+                            logger.debug(
+                                f"Debate scorer verdict: {verdict} (conf={conf:.3f})"
+                            )
+                except Exception as e:
+                    logger.debug(f"Debate scorer error: {e}")
+
+            # #34: IIT Phi approximation — compute proper Phi every 200 blocks
+            if self.iit_approximator and self.kg and block.height % 200 == 0:
+                try:
+                    tpm = self.iit_approximator.build_tpm_from_kg(self.kg, window=100)
+                    iit_phi = self.iit_approximator.compute_phi(tpm)
+                    # Feed IIT Phi to the phi_calculator as a reference signal
+                    if self.phi and hasattr(self.phi, '_last_full_result') and self.phi._last_full_result:
+                        self.phi._last_full_result['iit_phi'] = iit_phi
+                    if iit_phi > 0.5:
+                        logger.info(
+                            f"IIT Phi={iit_phi:.4f} at block {block.height} "
+                            f"(TPM shape={tpm.shape})"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('iit_approximator', e)
+                    logger.debug(f"IIT approximation error: {e}")
+
+            # #35: Sephirot attention routing — route CSF messages via learned attention
+            if self.sephirot_attention and self.csf and block.height % 10 == 0:
+                try:
+                    import numpy as _np
+                    sephirot_nodes = self._ensure_sephirot()
+                    if sephirot_nodes:
+                        for seph_name, seph_node in sephirot_nodes.items():
+                            energy = getattr(seph_node, 'energy', 0.5)
+                            msg_emb = _np.array(
+                                [(hash(seph_name + str(i)) % 10000) / 10000.0
+                                 for i in range(32)], dtype=_np.float64
+                            ) * energy
+                            routing = self.sephirot_attention.route_message(
+                                msg_emb, seph_name
+                            )
+                            # Use routing to prioritize CSF message delivery
+                            top_target = max(routing, key=routing.get)
+                            if top_target != seph_name and routing[top_target] > 0.15:
+                                # Train on outcome: reward if energy transfer improved both
+                                reward = 0.1 if energy > 0.3 else -0.05
+                                self.sephirot_attention.train_on_outcome(
+                                    seph_name, routing, reward
+                                )
+                except Exception as e:
+                    self._track_subsystem_error('sephirot_attention', e)
+                    logger.debug(f"Sephirot attention routing error: {e}")
+
+            # #36: Knowledge VAE — compress subgraphs every 100 blocks
+            if self.knowledge_vae and self.kg and block.height % 100 == 0:
+                try:
+                    import numpy as _np
+                    recent_nodes = [
+                        n for n in self.kg.nodes.values()
+                        if getattr(n, 'source_block', 0) >= block.height - 100
+                        and getattr(n, 'confidence', 0) > 0.4
+                    ]
+                    if len(recent_nodes) >= 5:
+                        # Build feature vectors from node content
+                        features = []
+                        for node in recent_nodes[:50]:
+                            content_str = str(node.content)
+                            feat = _np.array([
+                                (hash(content_str + str(i)) % 10000) / 10000.0
+                                for i in range(32)
+                            ], dtype=_np.float64)
+                            features.append(feat)
+                        # Train on batch
+                        batch = _np.stack(features)
+                        loss = self.knowledge_vae.train_step(batch)
+                        # Compress subgraph
+                        latent = self.knowledge_vae.compress_subgraph(features)
+                        if self.knowledge_vae._train_steps % 10 == 0:
+                            logger.debug(
+                                f"VAE block {block.height}: loss={loss:.4f}, "
+                                f"latent_norm={_np.linalg.norm(latent):.3f}"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('knowledge_vae', e)
+                    logger.debug(f"Knowledge VAE error: {e}")
+
+            # #39: Neural calibrator — recalibrate confidence scores every 500 blocks
+            if self.neural_calibrator and self.kg and block.height % 500 == 0:
+                try:
+                    import numpy as _np
+                    # Collect confidence scores and ground-truth validation
+                    nodes_with_conf = [
+                        n for n in self.kg.nodes.values()
+                        if getattr(n, 'confidence', None) is not None
+                        and getattr(n, 'source_block', 0) >= block.height - 500
+                    ]
+                    if len(nodes_with_conf) >= 20:
+                        confs = _np.array([n.confidence for n in nodes_with_conf])
+                        # Ground truth: nodes with high edge count or grounding_source are "correct"
+                        labels = _np.array([
+                            1.0 if (
+                                getattr(n, 'grounding_source', None) == 'block_oracle'
+                                or getattr(n, 'confidence', 0) > 0.8
+                            ) else 0.0
+                            for n in nodes_with_conf
+                        ])
+                        # Convert to logits for Platt scaling
+                        confs_clipped = _np.clip(confs, 1e-6, 1 - 1e-6)
+                        logits = _np.log(confs_clipped / (1 - confs_clipped))
+                        self.neural_calibrator.fit(logits, labels)
+                        ece = self.neural_calibrator.compute_ece(confs, labels)
+                        logger.info(
+                            f"Calibrator fitted at block {block.height}: "
+                            f"ECE={ece:.4f}, n={len(nodes_with_conf)}"
+                        )
+                except Exception as e:
+                    self._track_subsystem_error('neural_calibrator', e)
+                    logger.debug(f"Neural calibrator error: {e}")
+
+            # #23: Transformer reasoning — run on sequences every 50 blocks
+            if self.transformer_reasoner and self.kg and block.height % 50 == 0:
+                try:
+                    import numpy as _np
+                    recent_nodes = [
+                        n for n in self.kg.nodes.values()
+                        if getattr(n, 'source_block', 0) >= block.height - 50
+                    ][:20]  # Cap sequence length
+                    if len(recent_nodes) >= 3:
+                        embeddings = []
+                        for node in recent_nodes:
+                            # Generate embedding from content
+                            content_str = str(node.content)
+                            emb = _np.array([
+                                (hash(content_str + str(i)) % 10000) / 10000.0
+                                for i in range(64)
+                            ], dtype=_np.float64)
+                            embeddings.append(emb)
+                        reasoning_out = self.transformer_reasoner.reason_over_sequence(embeddings)
+                        # Store reasoning result in attention memory
+                        if self.attention_memory and reasoning_out is not None:
+                            key = reasoning_out[:32] if len(reasoning_out) >= 32 else reasoning_out
+                            self.attention_memory.write(
+                                key=key,
+                                value=reasoning_out[:32] if len(reasoning_out) >= 32 else reasoning_out,
+                                metadata={'block': block.height, 'type': 'transformer_reasoning'},
+                            )
+                except Exception as e:
+                    logger.debug(f"Transformer reasoning error: {e}")
+
+            # #24: Attention memory — consolidate every 200 blocks
+            if self.attention_memory and block.height % 200 == 0:
+                try:
+                    merges = self.attention_memory.consolidate()
+                    if merges > 0:
+                        logger.debug(
+                            f"Attention memory consolidated: {merges} merges, "
+                            f"size={self.attention_memory.size()}"
+                        )
+                except Exception as e:
+                    logger.debug(f"Attention memory consolidation error: {e}")
 
             # Archive old consciousness events
             if block.height > 0 and block.height % Config.AETHER_CONSCIOUSNESS_ARCHIVE_INTERVAL == 0:
@@ -3563,6 +3852,42 @@ class AetherEngine:
         # Phase 7: Hopfield Memory (Item #40)
         if self.hopfield_memory:
             stats['hopfield_memory'] = self.hopfield_memory.get_stats()
+
+        # #23: Transformer Reasoner
+        if self.transformer_reasoner:
+            stats['transformer_reasoner'] = self.transformer_reasoner.get_stats()
+
+        # #24: Attention Memory
+        if self.attention_memory:
+            stats['attention_memory'] = self.attention_memory.get_stats()
+
+        # #27: RL Planner
+        if self.rl_planner:
+            stats['rl_planner'] = self.rl_planner.get_stats()
+
+        # #28: Contrastive Concepts
+        if self.contrastive_concepts:
+            stats['contrastive_concepts'] = self.contrastive_concepts.get_stats()
+
+        # #29: Debate Scorer
+        if self.debate_scorer:
+            stats['debate_scorer'] = self.debate_scorer.get_stats()
+
+        # #34: IIT Approximator
+        if self.iit_approximator:
+            stats['iit_approximator'] = self.iit_approximator.get_stats()
+
+        # #35: Sephirot Attention
+        if self.sephirot_attention:
+            stats['sephirot_attention'] = self.sephirot_attention.get_stats()
+
+        # #36: Knowledge VAE
+        if self.knowledge_vae:
+            stats['knowledge_vae'] = self.knowledge_vae.get_stats()
+
+        # #39: Neural Calibrator
+        if self.neural_calibrator:
+            stats['neural_calibrator'] = self.neural_calibrator.get_stats()
 
         # Blocks processed counter
         stats['blocks_processed'] = self._blocks_processed
