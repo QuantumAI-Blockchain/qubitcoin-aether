@@ -193,10 +193,24 @@ class PhiCalculator:
         # History of (block_height, phi_value) for adaptation
         self._phi_history: List[Tuple[int, float]] = []
         self._max_history: int = 1000
+        # Subsystem stats injected by AetherEngine before each compute_phi call
+        self._subsystem_stats: Dict[str, float] = {}
         # Cached Config values — avoids re-importing Config on every call
         self._confidence_decay_halflife: int = Config.CONFIDENCE_DECAY_HALFLIFE
         self._confidence_decay_floor: float = Config.CONFIDENCE_DECAY_FLOOR
         self._phi_downsample_retain_days: int = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
+
+    def set_subsystem_stats(self, stats: Dict[str, float]) -> None:
+        """Inject subsystem stats for gate evaluation.
+
+        Called by AetherEngine before compute_phi to provide live metrics
+        from metacognition, memory, neural reasoner, etc.
+
+        Args:
+            stats: Dict with keys like working_memory_hit_rate,
+                calibration_error, prediction_accuracy.
+        """
+        self._subsystem_stats = stats
 
     def compute_phi(self, block_height: int = 0) -> dict:
         """
@@ -250,10 +264,11 @@ class PhiCalculator:
         redundancy_factor = self._compute_redundancy_factor()
 
         # --- Milestone gates ---
-        gates = self._check_gates(nodes, edges, extra_stats={
-            'integration_score': integration,
-            'mip_phi': self._last_mip_score,
-        })
+        # Merge subsystem stats (injected by AetherEngine) with computed stats
+        extra = dict(self._subsystem_stats)
+        extra['integration_score'] = integration
+        extra['mip_phi'] = self._last_mip_score
+        gates = self._check_gates(nodes, edges, extra_stats=extra)
         gates_passed = sum(1 for g in gates if g['passed'])
         gate_ceiling = gates_passed * 0.5
 
@@ -374,11 +389,14 @@ class PhiCalculator:
             contradiction_ratio = contradiction_count / len(edges)
             cross_flow *= (1.0 - contradiction_ratio * 0.5)  # Penalize contradictions
 
-        # Minimum Information Partition (spectral bisection)
-        # Only meaningful for graphs with >= 10 nodes
+        # Minimum Information Partition (algebraic connectivity + spectral cut)
         mip_score = 0.0
         if n_nodes >= 10:
-            mip_score = self._compute_mip(nodes, edges)
+            try:
+                mip_score = self._compute_mip(nodes, edges)
+            except Exception as e:
+                logger.warning(f"MIP error: {e}")
+                mip_score = 0.0
 
         # Store MIP on instance for result dict access
         self._last_mip_score = mip_score
@@ -391,20 +409,14 @@ class PhiCalculator:
 
     def _compute_mip(self, nodes: dict, edges: list) -> float:
         """
-        Compute Minimum Information Partition using spectral bisection.
+        Compute integration metric using algebraic connectivity + normalized cut.
 
-        Real IIT requires finding the partition that *minimizes* integrated
-        information — the cut where the system loses the least information
-        when split.  This is the MIP.
+        Uses the Fiedler value (second-smallest eigenvalue of graph Laplacian)
+        as a direct measure of graph integration, supplemented by the
+        normalized cut ratio from spectral bisection.
 
-        Algorithm:
-        1. Build weighted adjacency matrix (sparse, dict-of-dicts).
-        2. Compute graph Laplacian L = D - A.
-        3. Find the Fiedler vector (second-smallest eigenvector of L) via
-           power iteration on the shifted Laplacian.
-        4. Try 3 spectral cuts (n/3, n/2, 2n/3) on nodes sorted by Fiedler
-           value and pick the one that minimizes information loss.
-        5. Return normalized phi_partition = (I_whole - I_A - I_B) / I_whole.
+        For large graphs, samples PHI_MAX_SAMPLE_NODES nodes and their
+        induced subgraph.
 
         Args:
             nodes: Dict[int, KeterNode] — knowledge graph nodes
@@ -417,24 +429,38 @@ class PhiCalculator:
         if n_nodes < 10:
             return 0.0
 
-        # --- Cap computation: sample nodes for large graphs ---
+        # --- Sample nodes for large graphs via BFS expansion ---
+        # Random sampling destroys edge density. BFS preserves local structure.
         node_ids = list(nodes.keys())
-        sampled = False
         if n_nodes > PHI_MAX_SAMPLE_NODES:
-            sampled = True
-            _phi_rng = random.Random(PHI_SAMPLE_SEED)  # local RNG for reproducibility
-            sampled_ids: Set[int] = set(_phi_rng.sample(node_ids, PHI_MAX_SAMPLE_NODES))
+            _phi_rng = random.Random(PHI_SAMPLE_SEED)
+            # Pick a few random seeds and BFS-expand to get connected subgraph
+            seeds = _phi_rng.sample(node_ids, min(10, n_nodes))
+            sampled_ids: Set[int] = set()
+            bfs_queue = deque(seeds)
+            # Build quick adjacency from edges for BFS
+            _adj_list: Dict[int, List[int]] = {}
+            for edge in edges:
+                _adj_list.setdefault(edge.from_node_id, []).append(edge.to_node_id)
+                _adj_list.setdefault(edge.to_node_id, []).append(edge.from_node_id)
+            while bfs_queue and len(sampled_ids) < PHI_MAX_SAMPLE_NODES:
+                nid = bfs_queue.popleft()
+                if nid in sampled_ids or nid not in nodes:
+                    continue
+                sampled_ids.add(nid)
+                for neighbor in _adj_list.get(nid, []):
+                    if neighbor not in sampled_ids:
+                        bfs_queue.append(neighbor)
             node_ids = list(sampled_ids)
-            n_nodes = PHI_MAX_SAMPLE_NODES
+            n_nodes = len(node_ids)
         else:
             sampled_ids = set(node_ids)
 
-        # Create index mapping: node_id -> matrix index
+        # Create index mapping
         id_to_idx: Dict[int, int] = {nid: i for i, nid in enumerate(node_ids)}
 
-        # --- Step 1: Build weighted adjacency matrix (sparse dict-of-dicts) ---
+        # --- Build weighted adjacency ---
         adj: Dict[int, Dict[int, float]] = {i: {} for i in range(n_nodes)}
-
         for edge in edges:
             fid = edge.from_node_id
             tid = edge.to_node_id
@@ -442,115 +468,83 @@ class PhiCalculator:
                 continue
             if fid == tid:
                 continue
-
             fi = id_to_idx[fid]
             ti = id_to_idx[tid]
-
             fn = nodes.get(fid)
             tn = nodes.get(tid)
             if fn is None or tn is None:
                 continue
-
             w = fn.confidence * tn.confidence * edge.weight
             if w <= 0.0:
                 continue
-
-            # Undirected: add both directions, accumulate if multiple edges
             adj[fi][ti] = adj[fi].get(ti, 0.0) + w
             adj[ti][fi] = adj[ti].get(fi, 0.0) + w
 
-        # --- Step 2: Compute total information flow (sum of all edge weights) ---
-        total_flow = 0.0
-        for i in range(n_nodes):
-            for j, w in adj[i].items():
-                if j > i:  # count each edge once
-                    total_flow += w
-
-        if total_flow <= 0.0:
-            logger.debug(f"MIP: total_flow=0 with {n_nodes} nodes, no weighted edges")
+        # Count edges in sample
+        n_sample_edges = sum(len(v) for v in adj.values()) // 2
+        if n_sample_edges < 5:
             return 0.0
 
-        # --- Step 3: Compute degree vector for graph Laplacian ---
-        # L = D - A.  We don't build L explicitly; we implement L*v as a function.
+        # --- Degree vector ---
         degree: List[float] = [0.0] * n_nodes
         for i in range(n_nodes):
             degree[i] = sum(adj[i].values())
 
-        # --- Step 4: Find Fiedler vector via power iteration ---
-        # We want the second-smallest eigenvector of L.
-        # Strategy: power iteration on (lambda_max * I - L) gives the largest
-        # eigenvector of the complement.  We project out the trivial (constant)
-        # eigenvector at each step to converge to the Fiedler vector.
-
-        # Estimate lambda_max (Gershgorin bound: max degree is an upper bound)
+        # --- Algebraic connectivity via inverse power iteration ---
+        # The Fiedler value (lambda_2 of Laplacian) directly measures integration.
+        # Higher lambda_2 = harder to disconnect = more integrated.
         lambda_max = max(degree) if degree else 1.0
         if lambda_max <= 0.0:
             lambda_max = 1.0
-        # Add small margin to ensure positive definite shift
         shift = lambda_max + 0.1
 
-        fiedler = self._power_iteration_fiedler(adj, degree, shift, n_nodes)
+        fiedler = self._power_iteration_fiedler(adj, degree, shift, n_nodes, max_iter=50)
 
         if fiedler is None:
-            return 0.0
+            # Graph likely disconnected — use connectivity ratio
+            connected = sum(1 for d in degree if d > 0)
+            return 0.1 * connected / n_nodes
 
-        # --- Step 5: Try top-3 spectral cuts for robustness ---
-        # Sort nodes by Fiedler value
-        sorted_indices: List[Tuple[float, int]] = sorted(
-            (fiedler[i], i) for i in range(n_nodes)
-        )
-        sorted_node_indices: List[int] = [idx for _, idx in sorted_indices]
+        # Estimate Fiedler value (lambda_2) from the Rayleigh quotient:
+        # lambda_2 = v^T L v / v^T v  (v is Fiedler vector, already normalized)
+        # L*v[i] = degree[i]*v[i] - sum(adj[i][j]*v[j])
+        lv = [0.0] * n_nodes
+        for i in range(n_nodes):
+            lv[i] = degree[i] * fiedler[i]
+            for j, w in adj[i].items():
+                lv[i] -= w * fiedler[j]
+        rayleigh = sum(fiedler[i] * lv[i] for i in range(n_nodes))
+        # rayleigh ≈ lambda_2 since fiedler is normalized
 
-        # Try cuts at n/3, n/2, 2n/3
-        cut_positions = [n_nodes // 3, n_nodes // 2, (2 * n_nodes) // 3]
-        # Ensure valid and unique cut positions
-        cut_positions = [
-            c for c in cut_positions
-            if 0 < c < n_nodes
-        ]
-        if not cut_positions:
-            cut_positions = [n_nodes // 2]
+        # Also compute normalized cut for the spectral bisection
+        sorted_indices = sorted(range(n_nodes), key=lambda i: fiedler[i])
+        mid = n_nodes // 2
+        part_a = set(sorted_indices[:mid])
 
-        min_phi_partition = float('inf')
+        cut_weight = 0.0
+        total_flow = 0.0
+        for i in range(n_nodes):
+            for j, w in adj[i].items():
+                if j > i:
+                    total_flow += w
+                    if (i in part_a) != (j in part_a):
+                        cut_weight += w
 
-        for cut_pos in cut_positions:
-            part_a: Set[int] = set(sorted_node_indices[:cut_pos])
-            part_b: Set[int] = set(sorted_node_indices[cut_pos:])
+        # Normalized cut ratio: fraction of edge weight crossing the partition
+        ncut = cut_weight / total_flow if total_flow > 0 else 0.0
 
-            if not part_a or not part_b:
-                continue
+        # Integration score: combine algebraic connectivity with normalized cut
+        # Higher algebraic connectivity and higher cut ratio = more integrated
+        # Scale algebraic connectivity to [0, 0.5] range
+        avg_degree = sum(degree) / n_nodes if n_nodes > 0 else 1.0
+        alg_conn_normalized = min(0.5, rayleigh / max(avg_degree, 0.01))
 
-            # Compute information within each partition
-            info_a = 0.0
-            info_b = 0.0
-            for i in range(n_nodes):
-                for j, w in adj[i].items():
-                    if j <= i:
-                        continue  # count each edge once
-                    if i in part_a and j in part_a:
-                        info_a += w
-                    elif i in part_b and j in part_b:
-                        info_b += w
+        # ncut in [0, 0.5] typically; scale to [0, 0.5]
+        ncut_contribution = min(0.5, ncut)
 
-            # Information lost by partitioning
-            phi_partition = total_flow - info_a - info_b
-
-            if phi_partition < min_phi_partition:
-                min_phi_partition = phi_partition
-
-        if min_phi_partition == float('inf') or min_phi_partition < 0.0:
-            return 0.0
-
-        # Normalize by total flow so result is in [0, 1] range,
-        # then scale to make it a meaningful contribution to integration score
-        normalized = min_phi_partition / total_flow
-
-        if sampled:
-            logger.debug(
-                f"MIP computed on 5000-node sample: normalized={normalized:.4f}"
-            )
-
-        return normalized
+        mip_score = alg_conn_normalized + ncut_contribution
+        logger.info(f"MIP={mip_score:.3f} (ac={rayleigh:.3f} ncut={ncut:.3f})")
+        return mip_score
 
     def _power_iteration_fiedler(
         self,

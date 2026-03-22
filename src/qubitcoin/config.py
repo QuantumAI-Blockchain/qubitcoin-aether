@@ -425,8 +425,8 @@ class Config:
     AETHER_SELF_REFLECT_INTERVAL: int = int(os.getenv('AETHER_SELF_REFLECT_INTERVAL', '200'))
     AETHER_DREAM_ANALOGIES_INTERVAL: int = int(os.getenv('AETHER_DREAM_ANALOGIES_INTERVAL', '500'))
     AETHER_CAUSAL_DISCOVERY_INTERVAL: int = int(os.getenv('AETHER_CAUSAL_DISCOVERY_INTERVAL', '200'))
-    AETHER_DEBATE_INTERVAL: int = int(os.getenv('AETHER_DEBATE_INTERVAL', '100'))
-    AETHER_CONCEPT_FORMATION_INTERVAL: int = int(os.getenv('AETHER_CONCEPT_FORMATION_INTERVAL', '200'))
+    AETHER_DEBATE_INTERVAL: int = int(os.getenv('AETHER_DEBATE_INTERVAL', '25'))
+    AETHER_CONCEPT_FORMATION_INTERVAL: int = int(os.getenv('AETHER_CONCEPT_FORMATION_INTERVAL', '50'))
     AETHER_MEMORY_CONSOLIDATE_INTERVAL: int = int(os.getenv('AETHER_MEMORY_CONSOLIDATE_INTERVAL', '100'))
     AETHER_EPISODIC_REPLAY_INTERVAL: int = int(os.getenv('AETHER_EPISODIC_REPLAY_INTERVAL', '200'))
     AETHER_CURIOSITY_INTERVAL: int = int(os.getenv('AETHER_CURIOSITY_INTERVAL', '50'))
@@ -472,7 +472,7 @@ class Config:
     PHI_THRESHOLD: float = float(os.getenv('PHI_THRESHOLD', '3.0'))
 
     # Phi calculator spectral bisection sampling limits
-    PHI_MAX_SAMPLE_NODES: int = int(os.getenv('PHI_MAX_SAMPLE_NODES', '200'))
+    PHI_MAX_SAMPLE_NODES: int = int(os.getenv('PHI_MAX_SAMPLE_NODES', '2000'))
     PHI_SAMPLE_SEED: int = int(os.getenv('PHI_SAMPLE_SEED', '42'))
 
     # ============================================================================

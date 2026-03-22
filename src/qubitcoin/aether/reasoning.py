@@ -182,10 +182,14 @@ class ReasoningEngine:
         if not common:
             # No common conclusion — create a new inference node
             # Combine premise content into a deductive conclusion
+            # Detect cross-domain inference (premises from different domains)
+            premise_domains = set(getattr(p, 'domain', '') or 'general' for p in premises)
+            is_cross_domain = len(premise_domains) > 1
             combined = {
                 'type': 'deduction',
                 'from_premises': [p.content for p in premises],
                 'rule': rule_content or {'operation': 'conjunction'},
+                'cross_domain': is_cross_domain,
             }
             # Confidence: product of premise confidences (certainty preserving)
             conf = 1.0
@@ -419,6 +423,9 @@ class ReasoningEngine:
         if not pattern_parts:
             pattern_parts.append(f"{n} {dominant_type} observations")
 
+        # Detect cross-domain generalization
+        obs_domains = set(getattr(o, 'domain', '') or 'general' for o in observations)
+        is_cross_domain = len(obs_domains) > 1
         generalization = {
             'type': 'generalization',
             'pattern': f"Pattern from {n} obs: {', '.join(pattern_parts)}",
@@ -427,6 +434,7 @@ class ReasoningEngine:
             'dominant_domain': dominant_domain,
             'pattern_hubs': pattern_hubs[:5],
             'type_distribution': type_counts,
+            'cross_domain': is_cross_domain,
         }
         if difficulty_values:
             generalization['avg_difficulty'] = round(
@@ -511,6 +519,7 @@ class ReasoningEngine:
                 'type': 'hypothesis',
                 'explains': observation.content,
                 'method': 'abductive_inference',
+                'cross_domain': False,
             }
             hyp_conf = min(1.0, 0.3 * grounding_factor)
             hyp_node = self.kg.add_node(

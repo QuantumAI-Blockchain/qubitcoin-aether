@@ -334,6 +334,73 @@ class ConceptFormation:
         return None
 
     # ------------------------------------------------------------------
+    # Knowledge Consolidation — promote strong patterns to axioms
+    # ------------------------------------------------------------------
+
+    def consolidate_to_axioms(self, block_height: int = 0,
+                               min_member_count: int = 3,
+                               min_confidence: float = 0.5) -> int:
+        """Promote well-supported concept clusters to consolidated axiom nodes.
+
+        Scans existing concept nodes (type='abstract_concept') and promotes
+        those with sufficient members and confidence to axiom nodes with
+        content type 'consolidated_pattern'.
+
+        Args:
+            block_height: Current block height for source_block.
+            min_member_count: Minimum cluster members to qualify.
+            min_confidence: Minimum average confidence to qualify.
+
+        Returns:
+            Number of axioms created.
+        """
+        if not self.kg:
+            return 0
+
+        axioms_created = 0
+        promoted_ids: set = getattr(self, '_promoted_concept_ids', set())
+
+        for node in list(self.kg.nodes.values()):
+            if node.node_id in promoted_ids:
+                continue
+            content = node.content if isinstance(node.content, dict) else {}
+            if content.get('type') != 'abstract_concept':
+                continue
+            if content.get('member_count', 0) < min_member_count:
+                continue
+            if node.confidence < min_confidence:
+                continue
+
+            # Create consolidated axiom
+            axiom_content = {
+                'type': 'consolidated_pattern',
+                'text': content.get('text', 'Consolidated pattern'),
+                'theme_words': content.get('theme_words', []),
+                'member_count': content.get('member_count', 0),
+                'domain': content.get('domain', 'general'),
+                'source_concept_id': node.node_id,
+                'source': 'knowledge_consolidation',
+            }
+            axiom_node = self.kg.add_node(
+                node_type='axiom',
+                content=axiom_content,
+                confidence=min(0.95, node.confidence * 1.1),
+                source_block=block_height or node.source_block,
+                domain=node.domain,
+            )
+            if axiom_node:
+                self.kg.add_edge(node.node_id, axiom_node.node_id, 'consolidates')
+                axioms_created += 1
+                promoted_ids.add(node.node_id)
+
+        self._promoted_concept_ids = promoted_ids
+
+        if axioms_created > 0:
+            logger.info(f"Knowledge consolidation: {axioms_created} axioms from concepts")
+
+        return axioms_created
+
+    # ------------------------------------------------------------------
     # Phase 5.2: Cross-Domain Transfer Learning
     # ------------------------------------------------------------------
 

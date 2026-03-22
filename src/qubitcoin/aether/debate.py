@@ -136,6 +136,7 @@ class DebateProtocol:
         self._accepted: int = 0
         self._rejected: int = 0
         self._modified: int = 0
+        self._debate_log: List[dict] = []
 
     def debate(self, topic_node_ids: List[int],
                max_rounds: int = 3,
@@ -170,6 +171,8 @@ class DebateProtocol:
             )
 
         self._debates_run += 1
+        for tid in topic_node_ids:
+            self._debate_log.append({'topic_id': tid})
 
         # Gather topic context
         topic_nodes = [self.kg.nodes.get(nid) for nid in topic_node_ids]
@@ -321,7 +324,7 @@ class DebateProtocol:
 
         # Create conclusion node in knowledge graph
         conclusion_id = None
-        if self.kg and verdict != 'rejected':
+        if self.kg:
             block = max((n.source_block for n in topic_nodes), default=0)
             conclusion = self.kg.add_node(
                 node_type='inference',
@@ -333,6 +336,23 @@ class DebateProtocol:
                 conclusion_id = conclusion.node_id
                 for nid in topic_node_ids:
                     self.kg.add_edge(nid, conclusion.node_id, 'derives')
+
+            # When verdict modifies or rejects, record a contradiction resolution
+            if verdict in ('modified', 'rejected'):
+                resolution = self.kg.add_node(
+                    node_type='inference',
+                    content={
+                        'type': 'contradiction_resolution',
+                        'original_topic': topic_text[:200],
+                        'verdict': verdict,
+                        'resolution': synthesis_text[:300],
+                    },
+                    confidence=max(0.3, synthesis_conf),
+                    source_block=block,
+                )
+                if resolution:
+                    for nid in topic_node_ids:
+                        self.kg.add_edge(nid, resolution.node_id, 'contradicts')
 
         result = DebateResult(
             topic=topic_text[:200],
@@ -915,12 +935,19 @@ class DebateProtocol:
         if not self.kg:
             return 0
 
-        # Find recent inference nodes with moderate-to-high confidence
+        # Find inference nodes with moderate-to-high confidence that haven't
+        # been debated yet.  Prefer recent nodes but fall back to older ones
+        # so that debates always have candidates.
+        debated_ids = {
+            d.get('topic_id')
+            for d in getattr(self, '_debate_log', [])
+            if isinstance(d, dict)
+        }
         candidates = [
             n for n in self.kg.nodes.values()
             if n.node_type == 'inference'
             and n.confidence >= 0.5
-            and n.source_block >= block_height - 500
+            and n.node_id not in debated_ids
         ]
         candidates.sort(key=lambda n: n.source_block, reverse=True)
 

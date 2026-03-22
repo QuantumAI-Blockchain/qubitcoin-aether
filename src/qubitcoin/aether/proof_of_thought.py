@@ -363,7 +363,8 @@ class AetherEngine:
         # Step 1: Perform automated reasoning on the graph
         reasoning_steps = self._auto_reason(block_height)
 
-        # Step 2: Compute Phi
+        # Step 2: Inject subsystem stats and compute Phi
+        self.phi.set_subsystem_stats(self._collect_subsystem_stats())
         phi_result = self.phi.compute_phi(block_height)
         phi_value = phi_result['phi_value']
 
@@ -543,6 +544,7 @@ class AetherEngine:
                     block_phi_result = self.phi._last_full_result
                 elif block.height % 10 == 0:
                     try:
+                        self.phi.set_subsystem_stats(self._collect_subsystem_stats())
                         block_phi_result = self.phi.compute_phi(block.height)
                     except Exception as e:
                         logger.debug(f"Periodic phi computation error: {e}")
@@ -667,6 +669,7 @@ class AetherEngine:
                         source_block=block.height,
                         domain='blockchain',
                     )
+                    c_node.grounding_source = 'block_oracle'
                     if block_node:
                         self.kg.add_edge(c_node.node_id, block_node.node_id, 'supports')
 
@@ -822,6 +825,8 @@ class AetherEngine:
             if block.height > 0 and block.height % Config.AETHER_CONCEPT_FORMATION_INTERVAL == 0 and self.concept_formation:
                 try:
                     self.concept_formation.form_concepts_all_domains(block.height)
+                    # Consolidate strong concepts to axioms
+                    self.concept_formation.consolidate_to_axioms(block.height)
                     # Cross-domain transfer learning (Phase 5.2)
                     transfer_result = self.concept_formation.run_transfer_cycle(
                         block_height=block.height
@@ -1376,6 +1381,29 @@ class AetherEngine:
             logger.debug(f"GAT online training error: {e}")
             return False
 
+    def _collect_subsystem_stats(self) -> Dict[str, float]:
+        """Collect live stats from subsystems for Phi gate evaluation."""
+        stats: Dict[str, float] = {}
+        try:
+            if self.memory_manager:
+                stats['working_memory_hit_rate'] = self.memory_manager.get_hit_rate()
+        except Exception:
+            pass
+        try:
+            if self.metacognition:
+                stats['calibration_error'] = self.metacognition.get_overall_calibration_error()
+        except Exception:
+            pass
+        try:
+            if self.neural_reasoner:
+                nr_stats = self.neural_reasoner.get_stats() if hasattr(self.neural_reasoner, 'get_stats') else {}
+                acc = nr_stats.get('accuracy', 0.0)
+                if acc > 0:
+                    stats['prediction_accuracy'] = acc
+        except Exception:
+            pass
+        return stats
+
     def _auto_reason(self, block_height: int) -> List[dict]:
         """
         Perform automated reasoning operations on recent knowledge.
@@ -1557,6 +1585,42 @@ class AetherEngine:
                                     )
                         except Exception as e:
                             logger.debug(f"Neural reasoning error: {e}")
+
+            # --- Cross-domain reasoning (runs every block) ---
+            # Pick inference nodes from two different domains and deduce
+            # to generate cross_domain=True tagged conclusions.
+            try:
+                import random as _rng
+                from collections import defaultdict
+                domain_buckets: Dict[str, list] = defaultdict(list)
+                for n in self.kg.nodes.values():
+                    if n.node_type == 'inference' and n.confidence > 0.4 and n.domain:
+                        domain_buckets[n.domain].append(n)
+                # Pick two different domains (rotate pair each block)
+                domain_list = [d for d in domain_buckets if len(domain_buckets[d]) >= 3]
+                if len(domain_list) >= 2:
+                    # Use block_height to rotate through domain pairs
+                    pair_idx = block_height % (len(domain_list) * (len(domain_list) - 1) // 2)
+                    pairs = [(domain_list[i], domain_list[j])
+                             for i in range(len(domain_list))
+                             for j in range(i + 1, len(domain_list))]
+                    d1, d2 = pairs[pair_idx % len(pairs)]
+                    # Pick a random node from each domain (not always max)
+                    pool1 = sorted(domain_buckets[d1], key=lambda n: n.confidence, reverse=True)[:10]
+                    pool2 = sorted(domain_buckets[d2], key=lambda n: n.confidence, reverse=True)[:10]
+                    n1 = _rng.choice(pool1)
+                    n2 = _rng.choice(pool2)
+                    xd_result = self.reasoning.deduce([n1.node_id, n2.node_id])
+                    if xd_result.success:
+                        self._calibrate_conclusion(xd_result)
+                        steps.extend([s.to_dict() for s in xd_result.chain])
+                        self._record_reasoning_outcome(
+                            'deductive', xd_result.confidence, True, block_height,
+                            result=xd_result
+                        )
+                        logger.info(f"Cross-domain inference: {d1}×{d2}")
+            except Exception as e:
+                logger.debug(f"Cross-domain reasoning error: {e}")
 
         except Exception as e:
             logger.error(f"Auto-reasoning failed for block: {e}", exc_info=True)
