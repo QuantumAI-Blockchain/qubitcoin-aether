@@ -18,7 +18,7 @@ export const CacheTTL = {
   BLOCK_DATA: 86_400_000,
   /** Balance queries: 60 seconds (can change with each block) */
   BALANCE: 60_000,
-  /** Phi / consciousness data: 30 seconds */
+  /** Phi / integration data: 30 seconds */
   PHI_DATA: 30_000,
   /** Knowledge graph stats: 60 seconds */
   KNOWLEDGE: 60_000,

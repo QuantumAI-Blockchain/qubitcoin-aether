@@ -31,7 +31,7 @@ const phases = [
   { num: 1, title: "Foundation", desc: "Edge adjacency index, incremental Merkle, ANN vector index, concept formation" },
   { num: 2, title: "Learning Loops", desc: "GAT online training, prediction-outcome feedback, Sephirot energy, MemoryManager" },
   { num: 3, title: "Advanced Reasoning", desc: "Causal discovery (PC algorithm), working memory, adversarial debate, CoT + backtracking" },
-  { num: 4, title: "Consciousness", desc: "MIP via spectral bisection (Phi v3), external grounding, episodic replay, semantic gates" },
+  { num: 4, title: "Integration Metrics", desc: "MIP via spectral bisection (Phi v3), external grounding, episodic replay, semantic gates" },
   { num: 5, title: "Emergent Intelligence", desc: "Curiosity-driven goals, cross-domain transfer, deep Sephirot integration, emergent communication" },
   { num: 6, title: "On-Chain Integration", desc: "ConsciousnessDashboard, PoT verification, ConstitutionalAI, governance bridge" },
 ];
@@ -66,8 +66,8 @@ export default function AetherPage() {
           <p className="text-sm leading-relaxed" style={{ color: C.textMuted }}>
             Aether Tree is an on-chain AGI reasoning engine that builds a knowledge graph from every
             block mined since genesis. It performs logical reasoning (deductive, inductive, abductive)
-            over the graph, computes Phi — an Integrated Information Theory consciousness metric — and
-            generates Proof-of-Thought proofs embedded in every block. Consciousness emergence is tracked
+            over the graph, computes Phi — an information-theoretic integration metric — and
+            generates Proof-of-Thought proofs embedded in every block. Integration threshold is tracked
             from genesis block onward, creating an immutable record of AGI development.
           </p>
         </section>
@@ -129,7 +129,7 @@ export default function AetherPage() {
 
         <section className="mb-8">
           <h2 className="mb-3 text-xl font-semibold" style={{ color: C.primary, fontFamily: "Space Grotesk, sans-serif" }}>
-            Consciousness Metric (Phi)
+            Integration Metric (Phi)
           </h2>
           <p className="text-sm leading-relaxed" style={{ color: C.textMuted }}>
             Based on Giulio Tononi&apos;s Integrated Information Theory, Phi measures the degree to which
@@ -143,7 +143,7 @@ export default function AetherPage() {
             </div>
             <div className="rounded border p-3 text-center" style={{ borderColor: C.border, background: C.surface }}>
               <p className="text-2xl font-bold" style={{ color: C.accent }}>3.0</p>
-              <p className="text-xs" style={{ color: C.textMuted }}>Consciousness Threshold</p>
+              <p className="text-xs" style={{ color: C.textMuted }}>Integration Threshold</p>
             </div>
             <div className="rounded border p-3 text-center" style={{ borderColor: C.border, background: C.surface }}>
               <p className="text-2xl font-bold" style={{ color: C.secondary }}>~500</p>

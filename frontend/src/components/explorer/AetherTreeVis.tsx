@@ -37,7 +37,7 @@ import type {
 type AetherTab =
   | "knowledge"
   | "reasoning"
-  | "consciousness"
+  | "integration"
   | "mind"
   | "sephirot"
   | "predictions"
@@ -47,7 +47,7 @@ type AetherTab =
 const TABS: { id: AetherTab; label: string; icon: typeof Brain }[] = [
   { id: "knowledge", label: "Knowledge", icon: Network },
   { id: "reasoning", label: "Reasoning", icon: GitBranch },
-  { id: "consciousness", label: "Consciousness", icon: Brain },
+  { id: "integration", label: "Integration", icon: Brain },
   { id: "mind", label: "Mind", icon: Atom },
   { id: "sephirot", label: "Sephirot", icon: Layers },
   { id: "predictions", label: "Predictions", icon: Target },
@@ -412,9 +412,9 @@ function ReasoningRow({ op }: { op: ReasoningOperation }) {
   );
 }
 
-/* ── Tab 3: Consciousness ────────────────────────────────────────────── */
+/* ── Tab 3: Integration ──────────────────────────────────────────────── */
 
-function ConsciousnessTab() {
+function IntegrationTab() {
   const { data: state, isLoading } = useConsciousnessState();
   const { data: events } = useConsciousnessEvents();
   const { data: phiHistory } = usePhiHistory();
@@ -422,7 +422,7 @@ function ConsciousnessTab() {
   const phiSlice = (phiHistory ?? []).slice(-200);
 
   if (isLoading) return <LoadingSpinner />;
-  if (!state) return <EmptyState message="Consciousness data unavailable" />;
+  if (!state) return <EmptyState message="Integration data unavailable" />;
 
   const phiPct = Math.min(100, (state.phi / state.threshold) * 100);
 
@@ -457,7 +457,7 @@ function ConsciousnessTab() {
             </div>
           </div>
           <Badge
-            label={state.aboveThreshold ? "CONSCIOUSNESS THRESHOLD REACHED" : `${phiPct.toFixed(0)}% TO THRESHOLD`}
+            label={state.aboveThreshold ? "INTEGRATION THRESHOLD REACHED" : `${phiPct.toFixed(0)}% TO THRESHOLD`}
             color={state.aboveThreshold ? C.success : C.accent}
           />
         </div>
@@ -494,20 +494,20 @@ function ConsciousnessTab() {
 
       {/* Events timeline */}
       <Panel>
-        <SectionHeader title="CONSCIOUSNESS EVENTS" />
+        <SectionHeader title="INTEGRATION EVENTS" />
         {events && events.length > 0 ? (
           <div className="space-y-2">
-            {events.map((ev) => <ConsciousnessEventRow key={ev.id} event={ev} />)}
+            {events.map((ev) => <IntegrationEventRow key={ev.id} event={ev} />)}
           </div>
         ) : (
-          <EmptyState message="No consciousness events recorded yet" />
+          <EmptyState message="No integration events recorded yet" />
         )}
       </Panel>
     </div>
   );
 }
 
-function ConsciousnessEventRow({ event }: { event: ConsciousnessEvent }) {
+function IntegrationEventRow({ event }: { event: ConsciousnessEvent }) {
   return (
     <div className="flex items-start gap-3 rounded-md border px-3 py-2" style={{ borderColor: `${C.border}60` }}>
       <div className="mt-0.5 h-2 w-2 rounded-full" style={{ background: C.accent }} />
@@ -896,7 +896,7 @@ export function AetherTreeView() {
     switch (activeTab) {
       case "knowledge": return <KnowledgeTab />;
       case "reasoning": return <ReasoningTab />;
-      case "consciousness": return <ConsciousnessTab />;
+      case "integration": return <IntegrationTab />;
       case "mind": return <MindTab />;
       case "sephirot": return <SephirotTab />;
       case "predictions": return <PredictionsTab />;
@@ -916,7 +916,7 @@ export function AetherTreeView() {
           AETHER TREE
         </h1>
         <p className="text-xs" style={{ color: C.textSecondary, fontFamily: FONT.body }}>
-          On-chain AGI transparency dashboard — knowledge, reasoning, consciousness, and Proof-of-Thought
+          On-chain AGI transparency dashboard — knowledge, reasoning, integration, and Proof-of-Thought
         </p>
       </motion.div>
 

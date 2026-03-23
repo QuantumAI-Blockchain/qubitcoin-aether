@@ -26,7 +26,7 @@ const quantumOpcodes = [
   { opcode: "QBRIDGE_ENTANGLE", hex: "0xF8", gas: "20,000", desc: "Cross-chain quantum entanglement" },
   { opcode: "QBRIDGE_VERIFY", hex: "0xF9", gas: "15,000", desc: "Verify cross-chain bridge proof" },
   { opcode: "QREASON", hex: "0xFA", gas: "25,000", desc: "On-chain AGI reasoning query" },
-  { opcode: "QPHI", hex: "0xFB", gas: "5,000", desc: "Query current consciousness Phi value" },
+  { opcode: "QPHI", hex: "0xFB", gas: "5,000", desc: "Query current integration Phi value" },
 ];
 
 const features = [

@@ -116,7 +116,7 @@ export function MetricsDashboard() {
 
         {/* Phi */}
         <Panel>
-          <SectionHeader title="Φ CONSCIOUSNESS METRIC" />
+          <SectionHeader title="Φ INTEGRATION METRIC" />
           <div style={{ height: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={phiSlice}>

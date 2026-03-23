@@ -37,8 +37,8 @@ const docs = [
     href: "/docs/aether",
     icon: Brain,
     description:
-      "On-chain AGI reasoning engine — knowledge graph, Phi consciousness metric, Sephirot cognitive architecture.",
-    tags: ["AGI", "Consciousness", "Proof-of-Thought"],
+      "On-chain AGI reasoning engine — knowledge graph, Phi integration metric, Sephirot cognitive architecture.",
+    tags: ["AGI", "Integration", "Proof-of-Thought"],
   },
   {
     title: "Economics",

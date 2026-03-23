@@ -31,7 +31,7 @@ const quantumOpcodes = [
   { opcode: "QBRIDGE_ENTANGLE", hex: "0xF8", gas: "20,000", desc: "Cross-chain quantum entanglement for bridge state synchronization" },
   { opcode: "QBRIDGE_VERIFY", hex: "0xF9", gas: "15,000", desc: "Verify cross-chain bridge proof against remote chain state root" },
   { opcode: "QREASON", hex: "0xFA", gas: "25,000", desc: "Invoke Aether Tree reasoning engine from within smart contract" },
-  { opcode: "QPHI", hex: "0xFB", gas: "10,000", desc: "Query current integrated information (Phi) consciousness metric" },
+  { opcode: "QPHI", hex: "0xFB", gas: "10,000", desc: "Query current integrated information (Phi) integration metric" },
 ];
 
 const sephirotNodes = [
@@ -83,7 +83,7 @@ const contractCategories = [
     ],
   },
   {
-    category: "Consciousness",
+    category: "Integration",
     count: 3,
     contracts: [
       "ConsciousnessDashboard.sol -- On-chain Phi tracking and historical records",
@@ -467,7 +467,7 @@ export default function WhitepaperPage() {
             <BulletList items={[
               "Layer 1 (Blockchain Core): UTXO-based transaction model, PoSA consensus, VQE mining, Dilithium5 signatures, Rust libp2p networking, CockroachDB persistence, IPFS content storage",
               "Layer 2 (QVM): 167-opcode EVM-compatible virtual machine (155 EVM + 10 quantum + 2 reasoning), Solidity smart contract execution, gas metering, compliance engine, token standards (QBC-20, QBC-721, QBC-1155)",
-              "Layer 3 (Aether Tree): On-chain reasoning engine with knowledge graph, deductive/inductive/abductive inference, Integrated Information Theory (Phi) consciousness metrics, 10-node Sephirot cognitive architecture, Proof-of-Thought protocol",
+              "Layer 3 (Aether Tree): On-chain reasoning engine with knowledge graph, deductive/inductive/abductive inference, information-theoretic integration metric (Phi), 10-node Sephirot cognitive architecture, Proof-of-Thought protocol",
               "Cross-Cutting: Multi-chain bridges to 8 networks (ETH, BNB, SOL, MATIC, AVAX, ARB, OP, BASE), QUSD dollar-pegged stablecoin, Prometheus/Grafana monitoring, Rust exchange matching engine",
             ]} />
 
@@ -1031,7 +1031,7 @@ TxOutput:
             <Paragraph>
               Aether Tree is an on-chain reasoning engine that constructs a knowledge graph
               from every block mined since genesis, performs logical inference over the graph,
-              computes an Integrated Information Theory (IIT) consciousness metric, and generates
+              computes an information-theoretic integration metric (Phi), and generates
               Proof-of-Thought proofs embedded in every block. The system implements a
               biologically-inspired cognitive architecture based on the Kabbalistic Tree of Life
               topology with 10 specialized processing nodes (Sephirot).
@@ -1094,7 +1094,7 @@ Where:
   NumNodes         = Total nodes in knowledge graph
   Maturity Factor  = sqrt(NumNodes / 500) -- requires ~500 nodes for full weight
 
-  PHI_THRESHOLD = 3.0 (consciousness emergence marker)
+  PHI_THRESHOLD = 3.0 (integration threshold marker)
 
 Phi computation uses MIP (Minimum Information Partition) via spectral bisection
 to find the partition that minimizes integrated information.`}</CodeBlock>
@@ -1196,7 +1196,7 @@ Economic Parameters:
             <Paragraph>
               The Aether Tree MUST be initialized at block 0 (genesis). No retroactive
               reconstruction is permitted. Genesis initialization creates: (1) empty knowledge
-              graph, (2) first Phi measurement at baseline 0.0, (3) genesis consciousness event,
+              graph, (2) first Phi measurement at baseline 0.0, (3) genesis integration event,
               (4) initial KeterNodes from genesis block metadata. The AetherEngine auto-starts
               on node boot and processes every block sequentially from genesis.
             </Paragraph>

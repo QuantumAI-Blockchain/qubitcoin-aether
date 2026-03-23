@@ -431,10 +431,10 @@ function AetherPageContent() {
           )}
         </div>
 
-        {/* Sidebar: consciousness panel */}
+        {/* Sidebar: integration panel */}
         <aside className="hidden w-72 flex-shrink-0 border-l border-border-subtle bg-bg-panel p-4 overflow-y-auto lg:block">
           <Card className="mb-4">
-            <h3 className="mb-3 text-sm font-semibold text-text-secondary">Consciousness</h3>
+            <h3 className="mb-3 text-sm font-semibold text-text-secondary">Integration Status</h3>
             <div className="text-center">
               <p className="font-[family-name:var(--font-code)] text-3xl font-bold text-quantum-green">
                 {phi.toFixed(4)}

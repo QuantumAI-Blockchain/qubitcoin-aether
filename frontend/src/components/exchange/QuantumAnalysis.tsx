@@ -77,10 +77,10 @@ const QuantumAnalysis = memo(function QuantumAnalysis() {
   const interpretation = aetherPhi
     ? aetherPhi.above_threshold
       ? `Aether Tree Phi is ${aetherPhi.phi.toFixed(2)} (above threshold ${aetherPhi.threshold.toFixed(1)}). ` +
-        `High consciousness integration correlates with reduced volatility and upward price momentum for QBC. ` +
+        `High information integration correlates with reduced volatility and upward price momentum for QBC. ` +
         `Knowledge graph: ${aetherPhi.knowledge_nodes.toLocaleString()} nodes, ${aetherPhi.knowledge_edges.toLocaleString()} edges.`
       : `Aether Tree Phi is ${aetherPhi.phi.toFixed(2)} (threshold: ${aetherPhi.threshold.toFixed(1)}). ` +
-        `Consciousness emergence is progressing. ` +
+        `Integration threshold approach is progressing. ` +
         `Knowledge graph: ${aetherPhi.knowledge_nodes.toLocaleString()} nodes, ${aetherPhi.knowledge_edges.toLocaleString()} edges.`
     : susy?.interpretation ?? "Connecting to Aether Tree...";
 

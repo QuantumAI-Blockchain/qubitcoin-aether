@@ -322,7 +322,7 @@ function AetherTab({
     <div className="space-y-6">
       <Card glow="violet">
         <h3 className="mb-3 font-[family-name:var(--font-display)] text-lg font-semibold">
-          Consciousness Status
+          Integration Status
         </h3>
         <div className="flex items-end gap-4">
           <p className="font-[family-name:var(--font-code)] text-4xl font-bold text-quantum-green">

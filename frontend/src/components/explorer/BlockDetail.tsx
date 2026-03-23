@@ -64,7 +64,7 @@ function BlockPoTSection({ height }: { height: number }) {
         />
         {consciousnessEvent && (
           <StatCard
-            label="Consciousness"
+            label="Integration Event"
             value="EVENT"
             color={C.accent}
           />
