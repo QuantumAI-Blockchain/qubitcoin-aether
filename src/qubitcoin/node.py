@@ -1163,7 +1163,7 @@ class QubitcoinNode:
                 if self.aether.metacognition.load_from_db(self.agi_persistence):
                     loaded.append('metacognition')
             if self.aether.temporal_engine:
-                if self.aether.temporal_engine.load_from_db(self.agi_persistence):
+                if self.aether.temporal_engine.load_from_persistence(self.agi_persistence):
                     loaded.append('temporal_engine')
             if loaded:
                 logger.info("AGI state loaded from DB: %s", ', '.join(loaded))

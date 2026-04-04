@@ -1053,8 +1053,8 @@ class TemporalEngine:
             logger.warning("Failed to save time series: %s", e)
             return False
 
-    def load_from_db(self, persistence: 'AGIPersistence') -> bool:
-        """Load time series data from CockroachDB."""
+    def load_from_persistence(self, persistence: 'AGIPersistence') -> bool:
+        """Load time series data from CockroachDB via AGIPersistence."""
         try:
             all_series = persistence.load_all_time_series(limit_per_metric=self._max_series_length)
             if not all_series:
@@ -1064,7 +1064,7 @@ class TemporalEngine:
             logger.info("Loaded time series from DB: %d metrics", len(all_series))
             return True
         except Exception as e:
-            logger.warning("Failed to load time series: %s", e)
+            logger.warning("Failed to load time series via persistence: %s", e)
             return False
 
     def get_stats(self) -> dict:

@@ -148,8 +148,21 @@ services:
       # Rust Exchange Engine (Docker container on qbc-net)
       - EXCHANGE_GRPC=qbc-exchange:50053
       # Ollama LLM for Aether Tree reasoning
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - OLLAMA_BASE_URL=http://qbc-ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:3b}
+      - LLM_ENABLED=true
+      - LLM_PRIMARY_ADAPTER=ollama
+      - LLM_SEEDER_ENABLED=true
+      - LLM_SEEDER_INTERVAL_BLOCKS=100
+      - LLM_SEEDER_RATE_LIMIT_PER_HOUR=15
+      - LLM_SEEDER_COOLDOWN_SECONDS=30
+      # Phi MIP spectral bisection is expensive — compute every 5 blocks instead of every 1
+      - PHI_COMPUTE_INTERVAL=5
+      # AGI operation intervals — reduce CPU load, keep system responsive
+      - AETHER_DEBATE_INTERVAL=200
+      - AETHER_CAUSAL_DISCOVERY_INTERVAL=300
+      - AETHER_DREAM_ANALOGIES_INTERVAL=200
+      - AETHER_SELF_REFLECT_INTERVAL=500
       # Chain sync: peer RPC URL for catching up on blocks
       - SYNC_PEER_URL=${SYNC_PEER_URL:-}
     extra_hosts:
