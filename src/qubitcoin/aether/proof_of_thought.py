@@ -1706,17 +1706,25 @@ class AetherEngine:
             # #8: Concept formation + cross-domain transfer
             if block.height > 0 and block.height % Config.AETHER_CONCEPT_FORMATION_INTERVAL == 0 and self.concept_formation:
                 try:
-                    self.concept_formation.form_concepts_all_domains(block.height)
-                    # Consolidate strong concepts to axioms
-                    self.concept_formation.consolidate_to_axioms(block.height)
-                    # Cross-domain transfer learning (Phase 5.2)
-                    transfer_result = self.concept_formation.run_transfer_cycle(
-                        block_height=block.height
-                    )
+                    import concurrent.futures as _cf
+                    import functools as _ft
+
+                    def _run_cf(height: int) -> dict:
+                        self.concept_formation.form_concepts_all_domains(height)
+                        self.concept_formation.consolidate_to_axioms(height)
+                        return self.concept_formation.run_transfer_cycle(block_height=height)
+
+                    with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
+                        _fut = _ex.submit(_ft.partial(_run_cf, block.height))
+                        try:
+                            transfer_result = _fut.result(timeout=10)
+                        except _cf.TimeoutError:
+                            logger.warning(f"Concept formation timed out at block {block.height}, skipping transfer cycle")
+                            transfer_result = {}
+
                     if transfer_result.get('transfers_attempted', 0) > 0:
                         self._reward_sephirah('concept_formation', True, 0.08)
                     else:
-                        # Reward concept formation even without transfer
                         self._reward_sephirah('concept_formation', True, 0.05)
                 except Exception as e:
                     logger.debug(f"Concept formation error: {e}")
