@@ -665,31 +665,35 @@ class VectorIndex:
             self._py_hnsw_dirty = True
 
     def add_nodes_batch(self, nodes: Dict[int, dict]) -> int:
-        """Batch-embed multiple nodes at once (faster than individual adds)."""
+        """Batch-embed multiple nodes at once (faster than individual adds).
+
+        Embedding computation is done OUTSIDE the lock.
+        """
+        ids = []
+        texts = []
+        for nid, content in nodes.items():
+            text = _extract_text(content)
+            if text.strip():
+                ids.append(nid)
+                texts.append(text)
+
+        if not texts:
+            return 0
+
+        try:
+            embs = _compute_embeddings_batch(texts)  # expensive — outside lock
+        except Exception as e:
+            logger.debug(f"VectorIndex: batch embed failed: {e}")
+            return 0
+
         with self._lock:
-            ids = []
-            texts = []
-            for nid, content in nodes.items():
-                text = _extract_text(content)
-                if text.strip():
-                    ids.append(nid)
-                    texts.append(text)
-
-            if not texts:
-                return 0
-
-            try:
-                embs = _compute_embeddings_batch(texts)
-                for nid, emb in zip(ids, embs):
-                    self.embeddings[nid] = emb
-                if not self._dim and embs:
-                    self._dim = len(embs[0])
-                self._hnsw_dirty = True
-                self._py_hnsw_dirty = True
-                return len(embs)
-            except Exception as e:
-                logger.debug(f"VectorIndex: batch embed failed: {e}")
-                return 0
+            for nid, emb in zip(ids, embs):
+                self.embeddings[nid] = emb
+            if not self._dim and embs:
+                self._dim = len(embs[0])
+            self._hnsw_dirty = True
+            self._py_hnsw_dirty = True
+        return len(embs)
 
     def remove_node(self, node_id: int) -> None:
         """Remove a node's embedding."""
@@ -703,55 +707,79 @@ class VectorIndex:
         Search by semantic similarity. Uses hnswlib O(log n) when available,
         falls back to brute-force O(n).
 
-        Query embedding is computed OUTSIDE the lock so add_node() is never
-        serialised behind a model.encode() call.
+        Both the query embedding and any HNSW index rebuild are done OUTSIDE
+        the lock so add_node() is never serialised behind long-running ops.
 
         Returns:
             List of (node_id, cosine_similarity) tuples, highest first.
         """
+        # Step 1: quick check under lock
         with self._lock:
             if not self.embeddings:
                 return []
+            # Use cached hnswlib index if clean
+            if self._ensure_hnsw():
+                hnsw_cache = self._hnsw
+                id_map = dict(self._hnsw_label_to_id)
+            else:
+                hnsw_cache = None
+                id_map = {}
+            # Check if py_hnsw is ready
+            py_hnsw_ready = (self._py_hnsw is not None and not self._py_hnsw_dirty
+                             and self._should_use_hnsw())
+            if py_hnsw_ready:
+                py_hnsw_snap = self._py_hnsw
+            else:
+                py_hnsw_snap = None
+            # Snapshot for brute-force fallback
+            embs_snapshot = list(self.embeddings.items())
+            need_rebuild = (py_hnsw_snap is None and self._should_use_hnsw()
+                            and not hnsw_cache)
 
-        # Compute embedding outside the lock — expensive model.encode()
+        # Step 2: compute query embedding outside the lock
         try:
             query_emb = _compute_embedding(query_text)
         except Exception:
             return []
 
-        with self._lock:
-            if not self.embeddings:
-                return []
+        # Step 3: try hnswlib
+        if hnsw_cache is not None:
+            try:
+                import numpy as np
+                k = min(top_k, len(embs_snapshot))
+                labels, distances = hnsw_cache.knn_query(
+                    np.array([query_emb], dtype=np.float32), k=k
+                )
+                results = []
+                for label, dist in zip(labels[0], distances[0]):
+                    nid = id_map.get(int(label))
+                    if nid is not None:
+                        results.append((nid, 1.0 - float(dist)))
+                return results
+            except Exception:
+                pass  # fall through
 
-            # Try hnswlib ANN search first (external C++ library)
-            if self._ensure_hnsw():
-                try:
-                    import numpy as np
-                    k = min(top_k, len(self.embeddings))
-                    labels, distances = self._hnsw.knn_query(
-                        np.array([query_emb], dtype=np.float32), k=k
-                    )
-                    results = []
-                    for label, dist in zip(labels[0], distances[0]):
-                        nid = self._hnsw_label_to_id.get(int(label))
-                        if nid is not None:
-                            # hnswlib cosine distance = 1 - cosine_similarity
-                            results.append((nid, 1.0 - float(dist)))
-                    return results
-                except Exception:
-                    pass  # fall through to pure-Python HNSW
+        # Step 4: rebuild pure-Python HNSW outside the lock if needed
+        if need_rebuild and embs_snapshot:
+            new_hnsw = HNSWIndex(max_connections=16, ef_construction=200, max_layers=4)
+            for nid, emb in embs_snapshot:
+                new_hnsw.add_vector(nid, emb)
+            # Store under lock (brief)
+            with self._lock:
+                if self._py_hnsw_dirty:  # only swap if still dirty
+                    self._py_hnsw = new_hnsw
+                    self._py_hnsw_dirty = False
+                py_hnsw_snap = self._py_hnsw
+            logger.debug(f"VectorIndex: rebuilt pure-Python HNSW ({len(embs_snapshot)} vectors)")
 
-            # Try pure-Python HNSW (no external deps)
-            py_hnsw = self._ensure_py_hnsw()
-            if py_hnsw is not None:
-                try:
-                    return py_hnsw.search(query_emb, k=top_k)
-                except Exception:
-                    pass  # fall through to brute-force
+        # Step 5: use py_hnsw if available
+        if py_hnsw_snap is not None:
+            try:
+                return py_hnsw_snap.search(query_emb, k=top_k)
+            except Exception:
+                pass  # fall through to brute-force
 
-            # Brute-force fallback — snapshot to avoid dict-changed errors
-            embs_snapshot = list(self.embeddings.items())
-
+        # Step 6: brute-force on snapshot
         scores = []
         for nid, emb in embs_snapshot:
             sim = cosine_similarity(query_emb, emb)
@@ -760,37 +788,46 @@ class VectorIndex:
         return scores[:top_k]
 
     def query_by_embedding(self, query_emb: List[float], top_k: int = 10) -> List[Tuple[int, float]]:
-        """Search by pre-computed embedding vector."""
+        """Search by pre-computed embedding vector.
+
+        Same lock-minimizing pattern as query() — all expensive operations
+        done outside the lock.
+        """
         with self._lock:
             if not self.embeddings:
                 return []
-
             if self._ensure_hnsw():
-                try:
-                    import numpy as np
-                    k = min(top_k, len(self.embeddings))
-                    labels, distances = self._hnsw.knn_query(
-                        np.array([query_emb], dtype=np.float32), k=k
-                    )
-                    results = []
-                    for label, dist in zip(labels[0], distances[0]):
-                        nid = self._hnsw_label_to_id.get(int(label))
-                        if nid is not None:
-                            results.append((nid, 1.0 - float(dist)))
-                    return results
-                except Exception as e:
-                    logger.debug("hnswlib search failed, falling back: %s", e)
-
-            # Try pure-Python HNSW
-            py_hnsw = self._ensure_py_hnsw()
-            if py_hnsw is not None:
-                try:
-                    return py_hnsw.search(query_emb, k=top_k)
-                except Exception as e:
-                    logger.debug("Pure-Python HNSW search failed, falling back to brute-force: %s", e)
-
-            # Brute-force: snapshot to avoid dict-changed errors
+                hnsw_cache = self._hnsw
+                id_map = dict(self._hnsw_label_to_id)
+            else:
+                hnsw_cache = None
+                id_map = {}
+            py_hnsw_ready = (self._py_hnsw is not None and not self._py_hnsw_dirty
+                             and self._should_use_hnsw())
+            py_hnsw_snap = self._py_hnsw if py_hnsw_ready else None
             embs_snapshot = list(self.embeddings.items())
+
+        if hnsw_cache is not None:
+            try:
+                import numpy as np
+                k = min(top_k, len(embs_snapshot))
+                labels, distances = hnsw_cache.knn_query(
+                    np.array([query_emb], dtype=np.float32), k=k
+                )
+                results = []
+                for label, dist in zip(labels[0], distances[0]):
+                    nid = id_map.get(int(label))
+                    if nid is not None:
+                        results.append((nid, 1.0 - float(dist)))
+                return results
+            except Exception as e:
+                logger.debug("hnswlib search failed, falling back: %s", e)
+
+        if py_hnsw_snap is not None:
+            try:
+                return py_hnsw_snap.search(query_emb, k=top_k)
+            except Exception as e:
+                logger.debug("Pure-Python HNSW search failed, falling back to brute-force: %s", e)
 
         scores = []
         for nid, emb in embs_snapshot:
@@ -809,52 +846,68 @@ class VectorIndex:
         Uses hnswlib k-NN per node when available (O(n*k log n)),
         falls back to brute-force O(n^2) with sampling for large graphs.
 
+        All computation runs OUTSIDE the lock using a snapshot so
+        concurrent add_node() calls are never blocked.
+
         Returns:
             List of (node_a, node_b, similarity) tuples.
         """
+        # Snapshot under lock — brief
         with self._lock:
+            if not self.embeddings:
+                return []
             ids = list(self.embeddings.keys())
-            duplicates = []
+            embs_snap = {nid: self.embeddings[nid] for nid in ids}
+            hnsw_cache = self._hnsw if (self._hnsw_available and self._hnsw is not None
+                                        and not self._hnsw_dirty) else None
+            id_map = dict(self._hnsw_label_to_id) if hnsw_cache else {}
 
-            # Use hnswlib for efficient duplicate detection
-            if self._ensure_hnsw() and len(ids) > 100:
-                try:
-                    import numpy as np
-                    seen_pairs: set = set()
-                    for nid in ids:
-                        emb = self.embeddings[nid]
-                        k = min(10, len(ids))  # check top-10 neighbors
-                        labels, distances = self._hnsw.knn_query(
-                            np.array([emb], dtype=np.float32), k=k
-                        )
-                        for label, dist in zip(labels[0], distances[0]):
-                            other_nid = self._hnsw_label_to_id.get(int(label))
-                            if other_nid is None or other_nid == nid:
-                                continue
-                            sim = 1.0 - float(dist)
-                            if sim >= threshold:
-                                pair = (min(nid, other_nid), max(nid, other_nid))
-                                if pair not in seen_pairs:
-                                    seen_pairs.add(pair)
-                                    duplicates.append((pair[0], pair[1], sim))
-                    return duplicates
-                except Exception:
-                    pass  # fall through to brute-force
+        duplicates = []
 
-            # Brute-force fallback with sampling
-            if len(ids) > 5000:
-                rng = random.Random(42)
-                ids = rng.sample(ids, 5000)
-
-            for i in range(len(ids)):
-                for j in range(i + 1, len(ids)):
-                    sim = cosine_similarity(
-                        self.embeddings[ids[i]],
-                        self.embeddings[ids[j]]
+        # Use hnswlib for efficient duplicate detection (outside lock)
+        if hnsw_cache is not None and len(ids) > 100:
+            try:
+                import numpy as np
+                seen_pairs: set = set()
+                k = min(10, len(ids))
+                for nid in ids:
+                    emb = embs_snap.get(nid)
+                    if emb is None:
+                        continue
+                    labels, distances = hnsw_cache.knn_query(
+                        np.array([emb], dtype=np.float32), k=k
                     )
-                    if sim >= threshold:
-                        duplicates.append((ids[i], ids[j], sim))
-            return duplicates
+                    for label, dist in zip(labels[0], distances[0]):
+                        other_nid = id_map.get(int(label))
+                        if other_nid is None or other_nid == nid:
+                            continue
+                        sim = 1.0 - float(dist)
+                        if sim >= threshold:
+                            pair = (min(nid, other_nid), max(nid, other_nid))
+                            if pair not in seen_pairs:
+                                seen_pairs.add(pair)
+                                duplicates.append((pair[0], pair[1], sim))
+                return duplicates
+            except Exception:
+                pass  # fall through to brute-force
+
+        # Brute-force fallback with sampling (outside lock)
+        if len(ids) > 5000:
+            rng = random.Random(42)
+            ids = rng.sample(ids, 5000)
+
+        for i in range(len(ids)):
+            emb_i = embs_snap.get(ids[i])
+            if emb_i is None:
+                continue
+            for j in range(i + 1, len(ids)):
+                emb_j = embs_snap.get(ids[j])
+                if emb_j is None:
+                    continue
+                sim = cosine_similarity(emb_i, emb_j)
+                if sim >= threshold:
+                    duplicates.append((ids[i], ids[j], sim))
+        return duplicates
 
     def compute_partition_mutual_info(self, partition_a: List[int],
                                        partition_b: List[int]) -> float:
