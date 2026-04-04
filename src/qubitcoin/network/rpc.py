@@ -2312,11 +2312,27 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not aether_engine:
             raise HTTPException(status_code=503, detail="Aether Tree not available")
         chat, _ = _get_chat()
-        result = chat.process_message(
-            request.session_id, request.message, request.is_deep_query
+        import asyncio
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: chat.process_message(
+                request.session_id, request.message, request.is_deep_query
+            )
         )
         if 'error' in result:
             raise HTTPException(status_code=400, detail=result['error'])
+        # Sanitize non-JSON-compliant floats (inf/nan → null)
+        import math as _math
+        def _sanitize(obj):
+            if isinstance(obj, float) and not _math.isfinite(obj):
+                return None
+            if isinstance(obj, dict):
+                return {k: _sanitize(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_sanitize(v) for v in obj]
+            return obj
+        result = _sanitize(result)
         # Convert reasoning_trace dicts to human-readable strings for frontend
         raw_trace = result.get('reasoning_trace', [])
         readable_trace: list[str] = []
@@ -7753,7 +7769,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         confidence = max(0.1, min(1.0, float(body.get("confidence", 0.85))))
         source = body.get("source", "user")
         domain = body.get("domain", "")
-        height = db_manager.get_current_height()
+        # Use cached height to avoid blocking the event loop
+        height = getattr(aether_engine, '_last_block_height', 0) or 0
 
         # Split long text into chunks of ~500 chars at sentence boundaries
         import re as _re
@@ -7772,25 +7789,30 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             if current_chunk:
                 chunks.append(current_chunk.strip())
 
-        node_ids = []
-        for chunk in chunks:
-            content = {
-                'text': chunk,
-                'description': chunk[:200],
-                'source': source,
-            }
-            node = aether_engine.kg.add_node(
-                node_type=ntype,
-                content=content,
-                confidence=confidence,
-                source_block=height,
-                domain=domain,
-            )
-            node_ids.append(node.node_id)
+        import asyncio as _asyncio
 
-        # Link sequential chunks with 'derives' edges
-        for i in range(1, len(node_ids)):
-            aether_engine.kg.add_edge(node_ids[i - 1], node_ids[i], edge_type='derives')
+        def _do_ingest():
+            nids = []
+            for chunk in chunks:
+                content = {
+                    'text': chunk,
+                    'description': chunk[:200],
+                    'source': source,
+                }
+                node = aether_engine.kg.add_node(
+                    node_type=ntype,
+                    content=content,
+                    confidence=confidence,
+                    source_block=height,
+                    domain=domain,
+                )
+                nids.append(node.node_id)
+            for i in range(1, len(nids)):
+                aether_engine.kg.add_edge(nids[i - 1], nids[i], edge_type='derives')
+            return nids
+
+        _loop = _asyncio.get_event_loop()
+        node_ids = await _loop.run_in_executor(None, _do_ingest)
 
         return {
             "status": "ok",

@@ -257,8 +257,9 @@ class PhiCalculator:
             cached['cached'] = True
             return cached
 
-        nodes = self.kg.nodes
-        edges = self.kg.edges
+        # Snapshot to avoid RuntimeError from concurrent node/edge modifications
+        nodes = dict(self.kg.nodes)
+        edges = list(self.kg.edges)
         n_nodes = len(nodes)
         n_edges = len(edges)
 
@@ -331,6 +332,35 @@ class PhiCalculator:
 
         self._store_measurement(result)
         return result
+
+    def get_cached(self) -> dict:
+        """Return the last computed Phi result without triggering a recompute.
+
+        Safe to call from latency-sensitive paths (e.g., chat, response synthesis).
+        Returns sensible defaults if no cached result exists yet — never blocks.
+        """
+        if self._last_full_result is not None:
+            result = dict(self._last_full_result)
+            result['cached'] = True
+            return result
+        # No cache yet — return defaults rather than blocking on a full compute
+        return {
+            'phi_value': 0.0,
+            'phi_raw': 0.0,
+            'phi_threshold': PHI_THRESHOLD,
+            'above_threshold': False,
+            'integration_score': 0.0,
+            'differentiation_score': 0.0,
+            'mip_score': 0.0,
+            'redundancy_factor': 1.0,
+            'num_nodes': len(self.kg.nodes) if self.kg else 0,
+            'num_edges': len(self.kg.edges) if self.kg else 0,
+            'block_height': 0,
+            'phi_version': 3,
+            'gates_passed': 0,
+            'gates_total': len(MILESTONE_GATES),
+            'cached': True,
+        }
 
     # ========================================================================
     # Integration: Mutual Information + Cross-flow
@@ -465,7 +495,7 @@ class PhiCalculator:
         """
         values = list(self._recent_phi_values)
         if len(values) < 2:
-            return float('inf')
+            return 999.0  # sentinel for "not yet converged" — JSON-serializable
         mean = sum(values) / len(values)
         variance = sum((v - mean) ** 2 for v in values) / len(values)
         return math.sqrt(variance)

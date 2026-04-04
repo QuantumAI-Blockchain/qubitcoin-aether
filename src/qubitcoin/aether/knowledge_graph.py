@@ -590,37 +590,45 @@ class KnowledgeGraph:
         Compute Merkle root hash of the entire knowledge graph.
         Used in Proof-of-Thought for chain binding.
         Cached — only recomputes when graph is mutated.
+
+        Takes a snapshot under the lock, then computes the Merkle tree
+        outside the lock so add_node() is never blocked.
         """
         with self._lock:
             if not self.nodes:
                 return hashlib.sha256(b'empty_knowledge').hexdigest()
-
             if not self._merkle_dirty and self._merkle_cache:
                 return self._merkle_cache
+            # Snapshot: only the data needed for hashing (brief, O(n) alloc)
+            snapshot = [
+                (nid, self.nodes[nid].content_hash, self.nodes[nid].confidence)
+                for nid in sorted(self.nodes.keys())
+            ]
 
-            leaves = []
-            for nid in sorted(self.nodes.keys()):
-                node = self.nodes[nid]
-                leaf = hashlib.sha256(
-                    f"{nid}:{node.content_hash}:{node.confidence:.6f}".encode()
+        # Merkle computation outside the lock — add_node() can proceed freely
+        leaves = [
+            hashlib.sha256(
+                f"{nid}:{ch}:{conf:.6f}".encode()
+            ).hexdigest()
+            for nid, ch, conf in snapshot
+        ]
+
+        while len(leaves) > 1:
+            if len(leaves) % 2 == 1:
+                leaves.append(leaves[-1])
+            new_leaves = []
+            for i in range(0, len(leaves), 2):
+                combined = hashlib.sha256(
+                    (leaves[i] + leaves[i + 1]).encode()
                 ).hexdigest()
-                leaves.append(leaf)
+                new_leaves.append(combined)
+            leaves = new_leaves
 
-            # Merkle tree
-            while len(leaves) > 1:
-                if len(leaves) % 2 == 1:
-                    leaves.append(leaves[-1])
-                new_leaves = []
-                for i in range(0, len(leaves), 2):
-                    combined = hashlib.sha256(
-                        (leaves[i] + leaves[i + 1]).encode()
-                    ).hexdigest()
-                    new_leaves.append(combined)
-                leaves = new_leaves
-
-            self._merkle_cache = leaves[0]
+        root = leaves[0]
+        with self._lock:
+            self._merkle_cache = root
             self._merkle_dirty = False
-            return self._merkle_cache
+        return root
 
     def prune_low_confidence(self, threshold: float = 0.1, protect_types: Optional[Set[str]] = None) -> int:
         """

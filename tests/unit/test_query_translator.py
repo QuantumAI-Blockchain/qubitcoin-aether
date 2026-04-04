@@ -262,15 +262,17 @@ class TestReasoningStrategy:
         qt._apply_reasoning(intent, [4, 5], depth=3)
         reasoning.induce.assert_called()
 
-    def test_factual_uses_chain_of_thought(self):
+    def test_factual_skips_reasoning(self):
+        """Factual queries skip reasoning to avoid DB write accumulation."""
         kg = _make_populated_kg()
         reasoning = MagicMock()
-        reasoning.chain_of_thought.return_value = FakeReasoningResult(success=True)
         qt = QueryTranslator(kg, reasoning)
 
         intent = QueryIntent(INTENT_FACTUAL, ['block', 'height'], "what is block height?")
-        qt._apply_reasoning(intent, [1], depth=3)
-        reasoning.chain_of_thought.assert_called()
+        results = qt._apply_reasoning(intent, [1], depth=3)
+        assert results == []
+        reasoning.chain_of_thought.assert_not_called()
+        reasoning.deduce.assert_not_called()
 
     def test_no_reasoning_engine(self):
         kg = _make_populated_kg()
@@ -311,14 +313,16 @@ class TestTranslateAndExecute:
         assert len(result.explanation) > 0
 
     def test_reasoning_depth_respected(self):
+        """Causal queries use abduce() with reasoning depth applied."""
         kg = _make_populated_kg()
         reasoning = MagicMock()
-        reasoning.chain_of_thought.return_value = FakeReasoningResult(success=True)
+        reasoning.abduce.return_value = FakeReasoningResult(success=True)
         qt = QueryTranslator(kg, reasoning)
 
-        qt.translate_and_execute("What is block height?", reasoning_depth=7)
-        call_args = reasoning.chain_of_thought.call_args
-        assert call_args[1]['max_depth'] == 7 or call_args[0][1] == 7
+        # "why" triggers CAUSAL intent which calls abduce()
+        qt.translate_and_execute("Why does mining difficulty increase?", reasoning_depth=7)
+        # abduce() should have been called for CAUSAL intent
+        assert reasoning.abduce.called
 
     def test_query_result_serializable(self):
         kg = _make_populated_kg()

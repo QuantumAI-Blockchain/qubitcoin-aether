@@ -1425,7 +1425,7 @@ class AetherChat:
             phi_value = 0.0
             if self.engine.phi:
                 try:
-                    phi_result = self.engine.phi.compute_phi()
+                    phi_result = self.engine.phi.get_cached()
                     phi_value = phi_result.get('phi_value', 0.0)
                 except Exception:
                     pass
@@ -1655,19 +1655,28 @@ class AetherChat:
                     )
 
             # Run neural reasoner (GAT) on matched subgraph for confidence
+            # Hard 3-second budget — neural reasoner can be slow with large KG
             if (knowledge_refs and self.engine.neural_reasoner
                     and self.engine.kg):
                 try:
                     vi = getattr(self.engine.kg, 'vector_index', None)
                     if vi:
-                        neural_result = self.engine.neural_reasoner.reason(
-                            self.engine.kg, vi, knowledge_refs[:5], k_hops=2,
+                        import concurrent.futures as _cf2
+                        _nr_ex = _cf2.ThreadPoolExecutor(max_workers=1)
+                        _nr_fut = _nr_ex.submit(
+                            self.engine.neural_reasoner.reason,
+                            self.engine.kg, vi, knowledge_refs[:5], k_hops=1,
                         )
+                        _nr_ex.shutdown(wait=False)
+                        try:
+                            neural_result = _nr_fut.result(timeout=3.0)
+                        except _cf2.TimeoutError:
+                            logger.debug("Neural reasoner timed out in chat (3s)")
                 except Exception as e:
                     logger.debug(f"Neural reasoning in chat failed: {e}")
 
             if self.engine.phi:
-                phi_result = self.engine.phi.compute_phi()
+                phi_result = self.engine.phi.get_cached()
                 phi_value = phi_result.get('phi_value', 0.0)
 
         except Exception as e:
@@ -2049,10 +2058,11 @@ class AetherChat:
         )
 
         # Enrich with external knowledge when tree response is thin
+        # Timeout kept very short (2s) to avoid blocking the chat response
         if len(aether_response) < 120 and not facts:
             try:
                 from .external_knowledge import ExternalKnowledgeConnector
-                ekc = ExternalKnowledgeConnector()
+                ekc = ExternalKnowledgeConnector(timeout=2.0)
                 external_facts = ekc.enrich_query(query)
                 if external_facts:
                     ext_texts = [f.get('text', '') for f in external_facts if f.get('text')]
@@ -2176,7 +2186,7 @@ class AetherChat:
             kg_node_count = 0
             if self.engine.phi:
                 try:
-                    phi_result = self.engine.phi.compute_phi()
+                    phi_result = self.engine.phi.get_cached()
                     phi_value = phi_result.get('phi_value', 0.0)
                 except Exception as e:
                     logger.debug("Could not compute Phi for chat context: %s", e)
@@ -2349,7 +2359,7 @@ class AetherChat:
                 _kg_count = 0
                 if self.engine.phi:
                     try:
-                        _phi = self.engine.phi.compute_phi().get('phi_value', 0.0)
+                        _phi = self.engine.phi.get_cached().get('phi_value', 0.0)
                     except Exception:
                         pass
                 if self.engine.kg:
@@ -2448,7 +2458,7 @@ class AetherChat:
         kg_node_count = 0
         if self.engine.phi:
             try:
-                phi_result = self.engine.phi.compute_phi()
+                phi_result = self.engine.phi.get_cached()
                 phi_value = phi_result.get('phi_value', 0.0)
             except Exception as e:
                 logger.debug("Could not compute Phi for context: %s", e)
@@ -2767,7 +2777,7 @@ class AetherChat:
             debate_count = 0
             try:
                 if self.engine.phi:
-                    phi_data = self.engine.phi.compute_phi()
+                    phi_data = self.engine.phi.get_cached()
                     gates_passed = phi_data.get('gates_passed', 0)
                 if self.engine.reasoning:
                     reasoning_ops = len(getattr(self.engine.reasoning, '_operations', []))

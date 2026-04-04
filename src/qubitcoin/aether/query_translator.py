@@ -217,44 +217,56 @@ class QueryTranslator:
 
     def _apply_reasoning(self, intent: QueryIntent, node_ids: List[int],
                           depth: int) -> List[dict]:
-        """Apply the appropriate reasoning strategy based on intent type."""
-        results: List[dict] = []
+        """Apply the appropriate reasoning strategy based on intent type.
 
+        Only runs for causal/relational/analytical intents — these benefit from
+        reasoning. Factual/exploratory/temporal skip reasoning entirely to avoid
+        DB write accumulation and background thread buildup.
+        """
         if not self.reasoning:
-            return results
+            return []
 
+        # Fast path: skip reasoning for intents that don't need it
+        if intent.intent_type not in (INTENT_CAUSAL, INTENT_RELATIONAL, INTENT_ANALYTICAL):
+            return []
+
+        import concurrent.futures as _cf
+        import threading as _threading
+        cancel = _threading.Event()
+
+        def _run_with_cancel() -> List[dict]:
+            out: List[dict] = []
+            try:
+                if intent.intent_type == INTENT_CAUSAL:
+                    for nid in node_ids[:3]:
+                        if cancel.is_set():
+                            break
+                        r = self.reasoning.abduce(nid)
+                        if r.success:
+                            out.append(r.to_dict())
+                elif intent.intent_type == INTENT_RELATIONAL:
+                    if len(node_ids) >= 2 and not cancel.is_set():
+                        r = self.reasoning.deduce(node_ids[:5])
+                        if r.success:
+                            out.append(r.to_dict())
+                elif intent.intent_type == INTENT_ANALYTICAL:
+                    if len(node_ids) >= 2 and not cancel.is_set():
+                        r = self.reasoning.induce(node_ids[:5])
+                        if r.success:
+                            out.append(r.to_dict())
+            except Exception as e:
+                logger.debug(f"Reasoning failed for intent {intent.intent_type}: {e}")
+            return out
+
+        ex = _cf.ThreadPoolExecutor(max_workers=1)
+        fut = ex.submit(_run_with_cancel)
+        ex.shutdown(wait=False)
         try:
-            if intent.intent_type == INTENT_CAUSAL:
-                # Causal queries → abductive reasoning (infer causes)
-                for nid in node_ids[:3]:
-                    result = self.reasoning.abduce(nid)
-                    if result.success:
-                        results.append(result.to_dict())
-
-            elif intent.intent_type == INTENT_RELATIONAL:
-                # Relational queries → deductive reasoning over connected nodes
-                if len(node_ids) >= 2:
-                    result = self.reasoning.deduce(node_ids[:5])
-                    if result.success:
-                        results.append(result.to_dict())
-
-            elif intent.intent_type == INTENT_ANALYTICAL:
-                # Analytical queries → inductive reasoning (patterns)
-                if len(node_ids) >= 2:
-                    result = self.reasoning.induce(node_ids[:5])
-                    if result.success:
-                        results.append(result.to_dict())
-
-            elif intent.intent_type in (INTENT_FACTUAL, INTENT_EXPLORATORY, INTENT_TEMPORAL):
-                # General queries → chain-of-thought over matched nodes
-                result = self.reasoning.chain_of_thought(node_ids[:5], max_depth=depth)
-                if result.success:
-                    results.append(result.to_dict())
-
-        except Exception as e:
-            logger.debug(f"Reasoning failed for intent {intent.intent_type}: {e}")
-
-        return results
+            return fut.result(timeout=5.0)
+        except _cf.TimeoutError:
+            cancel.set()
+            logger.warning(f"Reasoning timed out after 5s for intent={intent.intent_type}")
+            return []
 
     def _collect_answers(self, matched_ids: List[int],
                           reasoning_results: List[dict]) -> List[dict]:

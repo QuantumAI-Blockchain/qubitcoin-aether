@@ -152,15 +152,15 @@ class ReasoningEngine:
             )
 
         # Find common conclusions: nodes reachable from all premises
-        # Depth 4 exploration with cycle detection (Improvement 36)
+        # Depth 2 exploration (was 4 — reduced to cap O(n²) blowup); max 5 premises
         reachable_sets = []
-        for premise in premises:
+        for premise in premises[:5]:
             reachable: set = set()
             visited_in_chain: set = {premise.node_id}  # Cycle detection
             frontier = [premise.node_id]
-            for _depth in range(4):  # Depth 4 (was 2)
+            for _depth in range(2):  # Depth 2 (was 4)
                 next_frontier: List[int] = []
-                for nid in frontier:
+                for nid in frontier[:30]:  # cap breadth per step
                     for n in self.kg.get_neighbors(nid, 'out'):
                         if n.node_id not in visited_in_chain:  # Cycle detection
                             visited_in_chain.add(n.node_id)
@@ -651,7 +651,15 @@ class ReasoningEngine:
         except Exception:
             pass
 
+        import time as _cot_time
+        _cot_deadline = _cot_time.time() + 4.0  # hard 4-second budget for CoT
+
         for depth in range(max_depth):
+            # Hard time-budget guard — never spend more than 4s total in CoT
+            if _cot_time.time() > _cot_deadline:
+                logger.debug(f"Chain-of-thought budget exceeded at depth {depth}, returning early")
+                break
+
             # Stop if confidence drops below floor (prevents meaningless chains)
             if overall_confidence < confidence_floor:
                 logger.debug(
@@ -662,9 +670,9 @@ class ReasoningEngine:
 
             next_frontier: List[int] = []
 
-            # Explore neighbors of current frontier
+            # Explore neighbors of current frontier — cap at 10 to prevent O(n²) blowup
             context_nodes: List[int] = []
-            for nid in frontier:
+            for nid in frontier[:10]:
                 if nid in visited:
                     continue
                 visited.add(nid)
@@ -678,9 +686,12 @@ class ReasoningEngine:
                         confidence=node.confidence,
                     ))
 
+            # Limit reasoning inputs to 5 nodes — deduce does O(n) BFS per premise
+            _sample = context_nodes[:5]
+
             # Try deductive step if we have enough context
-            if len(context_nodes) >= 2:
-                deduction = self.deduce(context_nodes)
+            if len(_sample) >= 2:
+                deduction = self.deduce(_sample)
                 if deduction.success and deduction.conclusion_node_id:
                     chain.append(ReasoningStep(
                         step_type='conclusion',
@@ -694,7 +705,7 @@ class ReasoningEngine:
 
             # Try abductive step for unexplained observations (Improvement 40)
             unexplained = [
-                nid for nid in context_nodes
+                nid for nid in _sample
                 if self.kg.get_node(nid) and not self.kg.get_node(nid).edges_in
             ]
             if unexplained:
@@ -709,8 +720,8 @@ class ReasoningEngine:
                     next_frontier.append(abduction.conclusion_node_id)
 
             # Try inductive step if we have multiple observations (Improvement 40)
-            if len(context_nodes) >= 3:
-                induction = self.induce(context_nodes)
+            if len(_sample) >= 3:
+                induction = self.induce(_sample)
                 if induction.success and induction.conclusion_node_id:
                     chain.append(ReasoningStep(
                         step_type='conclusion',
@@ -720,13 +731,17 @@ class ReasoningEngine:
                     ))
                     next_frontier.append(induction.conclusion_node_id)
 
-            # Expand frontier for next iteration
+            # Expand frontier for next iteration — cap at 20 new nodes
+            added = 0
             for nid in frontier:
+                if added >= 20:
+                    break
                 node = self.kg.get_node(nid)
                 if node:
                     for neighbor_id in node.edges_out:
-                        if neighbor_id not in visited:
+                        if neighbor_id not in visited and added < 20:
                             next_frontier.append(neighbor_id)
+                            added += 1
 
             frontier = next_frontier
             if not frontier:
