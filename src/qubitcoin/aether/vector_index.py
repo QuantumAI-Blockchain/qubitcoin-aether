@@ -892,9 +892,12 @@ class VectorIndex:
                 pass  # fall through to brute-force
 
         # Brute-force fallback with sampling (outside lock)
-        if len(ids) > 5000:
+        # Hard cap at 200 nodes: O(200^2)=40K ops vs O(1661^2)=2.76M ops
+        # This keeps the call under 100ms even without hnswlib
+        MAX_BRUTE_FORCE = 200
+        if len(ids) > MAX_BRUTE_FORCE:
             rng = random.Random(42)
-            ids = rng.sample(ids, 5000)
+            ids = rng.sample(ids, MAX_BRUTE_FORCE)
 
         for i in range(len(ids)):
             emb_i = embs_snap.get(ids[i])

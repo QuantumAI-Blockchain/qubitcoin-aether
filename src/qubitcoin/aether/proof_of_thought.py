@@ -5630,10 +5630,8 @@ class AetherEngine:
         # Use cached phi result if available (avoids expensive recomputation)
         phi_result = {}
         if self.phi:
-            if self.phi._last_full_result is not None:
-                phi_result = self.phi._last_full_result
-            else:
-                phi_result = self.phi.compute_phi()
+            # Use cached result — never trigger a blocking full recompute here
+            phi_result = self.phi.get_cached()
         reasoning_stats = self.reasoning.get_stats() if self.reasoning else {}
 
         stats = {
