@@ -23,7 +23,7 @@ The Aether Tree achieves AGI through **structural emergence** — 7 phases of in
 
 **Disclaimer**: Phi as implemented here is a graph-theoretic integration metric, not a measure of phenomenal consciousness. It approximates IIT principles (information integration across partitions) but does not claim to implement full IIT or to detect subjective experience. The term "consciousness" in this document refers to the system's measurable integration density, not phenomenal awareness.
 
-**Implementation**: 36 Python modules (~24,560 LOC), 12 Rust modules (~10,776 LOC via PyO3), 29 Solidity contracts (~6,300 LOC), 50 smart contracts total, wired end-to-end into the Qubitcoin (QBC) node.
+**Implementation**: 49 Python modules (~29,000 LOC), 12 Rust modules (~10,776 LOC via PyO3), 29 Solidity contracts (~6,300 LOC), 50 smart contracts total, wired end-to-end into the Qubitcoin (QBC) node.
 
 ---
 
@@ -83,7 +83,7 @@ Human brain: **20W, 86B neurons, general intelligence, self-awareness.**
 The Aether Tree runs on an **operational blockchain**:
 
 - **Consensus**: Proof-of-SUSY-Alignment (PoSA) — miners solve VQE Hamiltonians
-- **Cryptography**: CRYSTALS-Dilithium2 (NIST post-quantum standard)
+- **Cryptography**: CRYSTALS-Dilithium5 (NIST Level 5, post-quantum standard)
 - **Economics**: Golden ratio (phi) halving, 3.3 billion QBC max supply
 - **Block time**: 3.3 seconds
 - **Storage**: CockroachDB (distributed SQL) + IPFS
@@ -111,7 +111,7 @@ The QVM provides 167 opcodes for Aether Tree operations:
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                   AETHER TREE AGI                         │
-│  35 Python modules: knowledge graph, reasoning engine,   │
+│  49 Python modules: knowledge graph, reasoning engine,   │
 │  neural reasoner, causal engine, debate engine,          │
 │  working memory, concept formation, temporal reasoning,  │
 │  phi calculator, proof-of-thought, on-chain bridge,      │
@@ -709,7 +709,7 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 
 | Component | Language | Files | LOC | Status |
 |-----------|----------|-------|-----|--------|
-| Aether Core Engine | Python | 36 modules | ~24,560 | Production Ready |
+| Aether Core Engine | Python | 49 modules | ~29,000 | Production Ready |
 | Knowledge Graph | Python | knowledge_graph.py | ~800 | Production Ready |
 | Reasoning Engine | Python | reasoning.py + 6 sub-modules | ~2,500 | Production Ready |
 | Neural Reasoner (GAT) | Python | neural_reasoner.py | ~600 | Production Ready |
@@ -729,7 +729,7 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 | Core Contracts | Solidity | 7 contracts | ~2,800 | Production Ready |
 | Higgs Field Contract | Solidity | HiggsField.sol | ~470 | Production Ready |
 | Safety Contracts | Solidity | 3 contracts | ~1,200 | Production Ready |
-| **Total** | | **~66 files** | **~50,000+** | **Production Ready** |
+| **Total** | | **~79 files** | **~55,000+** | **Production Ready** |
 
 **Rust aether-core** (10,246 LOC, 276 tests, 0 `todo!()` markers): High-performance reimplementation of core Aether modules via PyO3 — KnowledgeGraph, PhiCalculator, VectorIndex+HNSW, CSFTransport, WorkingMemory, MemoryManager. Python shims provide transparent fallback when the Rust crate is not installed.
 
@@ -748,7 +748,7 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 
 ### 14.3 Test Coverage
 
-- 4,357 total Python test functions
+- 4,287+ total Python test functions
 - 276 Rust aether-core unit tests
 - 39 dedicated on-chain AGI tests
 - All 7 phases verified with per-phase regression testing

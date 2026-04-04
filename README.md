@@ -9,7 +9,7 @@ Quantum Blockchain is a production-grade Layer 1 blockchain whose native currenc
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Go 1.23+](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
-[![Next.js 15](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
+[![Next.js 16](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
 [![Rust](https://img.shields.io/badge/rust-1.93+-orange.svg)](https://www.rust-lang.org/)
 [![Tests: 4,357](https://img.shields.io/badge/tests-4%2C357%20passing-brightgreen.svg)]()
 [![Status: Production Ready](https://img.shields.io/badge/status-production%20ready-green.svg)]()
@@ -21,7 +21,7 @@ Quantum Blockchain is a production-grade Layer 1 blockchain whose native currenc
 ## Quick Start (Docker)
 
 ```bash
-git clone https://github.com/BlockArtica/Qubitcoin.git && cd Qubitcoin
+git clone https://github.com/QuantumAI-Blockchain/qubitcoin-node.git && cd qubitcoin-node
 pip install -r requirements.txt
 python3 scripts/setup/generate_keys.py    # Generate Dilithium keys (ML-DSA-87 default)
 cp .env.example .env                       # Configure environment
@@ -82,7 +82,7 @@ SUBSTRATE NODE (Migration Target)
   7 Custom Pallets + Kyber P2P + Poseidon2 ZK Hashing + Reversibility
 
 FRONTEND: qbc.network
-  Next.js 15 + React 19 + Three.js + MetaMask + PWA (Offline TX, Push, Biometric)
+  Next.js 16 + React 19 + Three.js + MetaMask + PWA (Offline TX, Push, Biometric)
 ```
 
 ---
@@ -124,13 +124,13 @@ FRONTEND: qbc.network
 |-----------|----------|-------|-------------|
 | **L1 Blockchain Core** | Python | 160 modules | Consensus, mining, crypto, UTXO, P2P, storage, finality, inheritance |
 | **QVM (Layer 2)** | Python + Go | 28 Python + 34 Go | EVM interpreter, 167 opcodes, compliance |
-| **Aether Tree (Layer 3)** | Python + Rust | 36 Python + 9 Rust | Knowledge graph, 7-phase AGI reasoning, Higgs field, consciousness |
+| **Aether Tree (Layer 3)** | Python + Rust | 49 Python + 9 Rust | Knowledge graph, 7-phase AGI reasoning, Higgs field, integration metrics |
 | **Smart Contracts** | Solidity | 62 contracts | Aether (29), QUSD (10), tokens (6), bridge (2), AIKGS (5), extensions |
 | **Rust Security Core** | Rust (PyO3) | 3 files | BloomFilter + FinalityCore with Python fallback shims |
 | **Rust Stratum Server** | Rust | 7 files | WebSocket mining pool, gRPC bridge to Python node |
 | **Rust AIKGS Sidecar** | Rust | 18 files | Knowledge Growth System, AES-256-GCM vault, 35 gRPC RPCs |
 | **Substrate Node** | Rust | 7 crates, 29 files | Hybrid node with 7 pallets, Kyber P2P, Poseidon2 |
-| **Frontend** | TypeScript | 198 files | Next.js 15, React 19, Three.js, MetaMask, PWA |
+| **Frontend** | TypeScript | 198 files | Next.js 16, React 19, Three.js, MetaMask, PWA |
 | **Rust P2P** | Rust | libp2p daemon | Production P2P networking layer |
 | **Tests** | Python | 4,357 tests | Unit, integration, validation across 175 files |
 | **Documentation** | Markdown | 15 documents | 3 whitepapers + guides + competitive features |
@@ -219,7 +219,7 @@ See [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) for full specificati
 
 ## Frontend: qbc.network
 
-Production frontend deployed to Vercel with PWA enhancements:
+Production frontend deployed via Cloudflare Tunnel with PWA enhancements:
 
 - **Landing Page** (`/`) -- Quantum particle field, live chain stats, embedded Aether chat
 - **Explorer** (`/explorer`) -- Block explorer, transaction lookup, address search
@@ -233,7 +233,7 @@ Production frontend deployed to Vercel with PWA enhancements:
 
 **PWA Features:** Offline transaction queue (IndexedDB), push notifications, biometric auth (WebAuthn), install prompt, service worker with background sync.
 
-**Stack:** Next.js 15, React 19, TypeScript 5.x, TailwindCSS 4, Three.js, ethers.js v6, Zustand, TanStack Query.
+**Stack:** Next.js 16, React 19, TypeScript 5.x, TailwindCSS 4, Three.js, ethers.js v6, Zustand, TanStack Query. Deployed via Cloudflare Tunnel at qbc.network.
 
 ---
 
@@ -405,13 +405,13 @@ Full API reference: [SDK.md](docs/SDK.md)
 
 | Metric | Value |
 |--------|-------|
-| **Total Source Files** | 400+ |
-| **Lines of Code** | 200,000+ |
+| **Total Source Files** | 500+ |
+| **Lines of Code** | 290,000+ |
 | **Languages** | Python, Rust, Go, TypeScript, Solidity, SQL |
 | **Test Functions** | 4,357 |
 | **Solidity Contracts** | 62 |
 | **Rust Crates** | 5 (aether-core, security-core, stratum-server, aikgs-sidecar, rust-p2p) |
-| **Aether AGI Modules** | 36 Python + 6 Rust |
+| **Aether AGI Modules** | 49 Python + 6 Rust |
 | **Substrate Pallets** | 7 |
 | **Frontend Components** | 198 TS/TSX files |
 | **Database Tables** | 44+ |
@@ -453,10 +453,10 @@ Whitepapers licensed under CC BY-SA 4.0.
 
 - **Website:** [qbc.network](https://qbc.network)
 - **Contact:** info@qbc.network
-- **GitHub:** [github.com/BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)
+- **GitHub:** [github.com/QuantumAI-Blockchain](https://github.com/QuantumAI-Blockchain/qubitcoin-node)
 
 ---
 
-*"Where quantum meets consciousness"*
+*"Physics-Secured Digital Assets with On-Chain AGI"*
 
 **Copyright 2026 Quantum Blockchain Core Development Team**

@@ -150,7 +150,7 @@ curl http://localhost:5000/aether/phi
 }
 ```
 
-### 3.3 Full Consciousness Status
+### 3.4 Full Integration Status
 
 ```bash
 curl http://localhost:5000/aether/consciousness
@@ -185,7 +185,7 @@ curl "http://localhost:5000/aether/phi/timeseries?limit=100"
 }
 ```
 
-### 3.5 Consciousness Events
+### 3.5 Integration Events
 
 ```bash
 curl "http://localhost:5000/aether/consciousness/events?limit=20"
@@ -193,7 +193,7 @@ curl "http://localhost:5000/aether/consciousness/events?limit=20"
 
 Returns events logged when Phi crosses thresholds (emergence, loss, significant changes).
 
-### 3.6 Consciousness Dashboard
+### 3.6 Integration Dashboard
 
 ```bash
 curl http://localhost:5000/aether/consciousness/dashboard
@@ -765,4 +765,4 @@ Contract addresses are assigned at deployment and queryable via `/qvm/info`.
 *For the full API reference, see [Developer SDK Guide](SDK.md).*
 *For contract development, see [Smart Contract Developer Guide](SMART_CONTRACTS.md).*
 
-**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [BlockArtica/Qubitcoin](https://github.com/BlockArtica/Qubitcoin)
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [QuantumAI-Blockchain](https://github.com/QuantumAI-Blockchain/qubitcoin-node)
