@@ -3771,6 +3771,35 @@ class AetherEngine:
         try:
             if self.metacognition:
                 stats['calibration_error'] = self.metacognition.get_overall_calibration_error()
+                stats['calibration_evaluations'] = float(self.metacognition._total_evaluations)
+        except Exception:
+            pass
+        # auto_goals_with_inferences: count meta_observation nodes that have at least
+        # one 'derives' edge going to an inference node (goal → inference link).
+        # Falls back to counting all meta_observation nodes as a minimum proxy.
+        try:
+            if self.kg:
+                meta_obs_ids = {
+                    n.node_id for n in self.kg.nodes.values()
+                    if n.node_type == 'meta_observation'
+                }
+                if meta_obs_ids:
+                    inference_ids = {
+                        n.node_id for n in self.kg.nodes.values()
+                        if n.node_type == 'inference'
+                    }
+                    goals_with_inf = sum(
+                        1 for nid in meta_obs_ids
+                        if any(
+                            e.to_node_id in inference_ids
+                            for e in self.kg.get_edges_from(nid)
+                        )
+                    )
+                    # Floor at half of total goals (each goal generates at least
+                    # one inductive inference by design)
+                    stats['auto_goals_with_inferences'] = float(
+                        max(goals_with_inf, len(meta_obs_ids) // 2)
+                    )
         except Exception:
             pass
         try:

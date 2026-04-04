@@ -365,9 +365,14 @@ class ConceptFormation:
             if node.node_id in promoted_ids:
                 continue
             content = node.content if isinstance(node.content, dict) else {}
-            if content.get('type') != 'abstract_concept':
+            # Accept abstract_concept, concept_cluster, and generalization nodes
+            if content.get('type') not in ('abstract_concept', 'concept_cluster', 'generalization'):
                 continue
-            if content.get('member_count', 0) < min_member_count:
+            # For concept_cluster, use 'size' or 'member_count'; generalizations always qualify
+            member_count = content.get('member_count', content.get('size', min_member_count))
+            if content.get('type') == 'generalization':
+                member_count = min_member_count  # generalizations always qualify on size
+            if member_count < min_member_count:
                 continue
             if node.confidence < min_confidence:
                 continue
