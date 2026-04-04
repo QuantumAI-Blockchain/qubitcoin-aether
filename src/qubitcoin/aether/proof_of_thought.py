@@ -1969,16 +1969,23 @@ class AetherEngine:
                                 [(hash(seph_name + str(i)) % 10000) / 10000.0
                                  for i in range(32)], dtype=_np.float64
                             ) * energy
+                            # SephirahRole enums have lowercase .value; attention
+                            # router expects title-case names ('Keter', not 'keter')
+                            seph_name_str = (
+                                seph_name.value.title()
+                                if hasattr(seph_name, 'value')
+                                else str(seph_name)
+                            )
                             routing = self.sephirot_attention.route_message(
-                                msg_emb, seph_name
+                                msg_emb, seph_name_str
                             )
                             # Use routing to prioritize CSF message delivery
                             top_target = max(routing, key=routing.get)
-                            if top_target != seph_name and routing[top_target] > 0.15:
+                            if top_target != seph_name_str and routing[top_target] > 0.15:
                                 # Train on outcome: reward if energy transfer improved both
                                 reward = 0.1 if energy > 0.3 else -0.05
                                 self.sephirot_attention.train_on_outcome(
-                                    seph_name, routing, reward
+                                    seph_name_str, routing, reward
                                 )
                 except Exception as e:
                     self._track_subsystem_error('sephirot_attention', e)
