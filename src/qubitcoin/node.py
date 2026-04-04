@@ -1718,8 +1718,8 @@ class QubitcoinNode:
         if self.knowledge_seeder:
             # Wire knowledge graph reference for domain-weighted prompt selection
             # and internet worker direct injection
-            if self.aether_engine and getattr(self.aether_engine, 'kg', None):
-                self.knowledge_seeder._kg = self.aether_engine.kg
+            if hasattr(self, 'aether') and self.aether and getattr(self.aether, 'kg', None):
+                self.knowledge_seeder._kg = self.aether.kg
             self.knowledge_seeder.start()
             logger.info("Knowledge seeder started")
 
