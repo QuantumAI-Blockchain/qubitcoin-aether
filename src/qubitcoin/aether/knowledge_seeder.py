@@ -954,29 +954,28 @@ class KnowledgeSeeder:
         - Parse into sentences and inject as observation/inference nodes
         - Respect a separate, gentler rate limit (8s cooldown)
         """
-        # Stagger worker starts
+        # Stagger worker starts so they don't all hit APIs simultaneously
         if worker_id > 0:
-            self._stop_event.wait(timeout=worker_id * 3.0)
+            self._stop_event.wait(timeout=worker_id * 2.5)
 
-        # Alternate between Wikipedia and ArXiv
+        # Alternate between Wikipedia and ArXiv (per-worker, independent cooldown)
         sources = ['wikipedia', 'arxiv']
         source_idx = worker_id % len(sources)
+        last_call: float = 0.0
 
         while not self._stop_event.is_set():
-            source_to_fetch = None
             try:
-                with self._internet_lock:
-                    now = time.time()
-                    if now - getattr(self, '_internet_last_call', 0) >= self._INTERNET_COOLDOWN:
-                        self._internet_last_call = now
-                        source_to_fetch = sources[source_idx % len(sources)]
-                        source_idx += 1
+                now = time.time()
+                if now - last_call >= self._INTERNET_COOLDOWN:
+                    last_call = now
+                    source = sources[source_idx % len(sources)]
+                    source_idx += 1
 
-                if source_to_fetch is not None:
-                    if source_to_fetch == 'wikipedia':
+                    if source == 'wikipedia':
                         created = self._mine_wikipedia(worker_id)
                     else:
                         created = self._mine_arxiv(worker_id)
+
                     if created > 0:
                         with self._internet_lock:
                             self._internet_nodes_created = getattr(
@@ -985,7 +984,7 @@ class KnowledgeSeeder:
             except Exception as e:
                 logger.debug(f"Internet worker-{worker_id} error: {e}")
 
-            self._stop_event.wait(timeout=5.0)
+            self._stop_event.wait(timeout=4.0)
 
     def _mine_wikipedia(self, worker_id: int) -> int:
         """Fetch a Wikipedia article and inject sentences as KG nodes."""
@@ -1096,7 +1095,7 @@ class KnowledgeSeeder:
 
         try:
             params = urllib.parse.urlencode({
-                'search_query': f'all:{urllib.parse.quote(term)} AND cat:{cat}',
+                'search_query': f'all:{term} AND cat:{cat}',
                 'start': '0',
                 'max_results': '5',
                 'sortBy': 'lastUpdatedDate',
