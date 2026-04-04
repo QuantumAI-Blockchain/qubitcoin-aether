@@ -158,11 +158,18 @@ services:
       - LLM_SEEDER_COOLDOWN_SECONDS=5
       # Phi MIP spectral bisection is expensive — compute every 5 blocks instead of every 1
       - PHI_COMPUTE_INTERVAL=5
-      # AGI operation intervals — prime numbers prevent simultaneous firing
+      # AGI operation intervals — all primes, none share common factors → never collide
       - AETHER_DEBATE_INTERVAL=211
       - AETHER_CAUSAL_DISCOVERY_INTERVAL=307
       - AETHER_DREAM_ANALOGIES_INTERVAL=251
       - AETHER_SELF_REFLECT_INTERVAL=503
+      - AETHER_CONCEPT_FORMATION_INTERVAL=541
+      - AETHER_MEMORY_CONSOLIDATE_INTERVAL=547
+      - AETHER_EPISODIC_REPLAY_INTERVAL=557
+      - AETHER_CURIOSITY_INTERVAL=563
+      - AETHER_KNOWLEDGE_DIGEST_INTERVAL=601
+      - AETHER_SELF_IMPROVEMENT_INTERVAL=607
+      - AETHER_SEPHIROT_PERSIST_INTERVAL=613
       # Chain sync: peer RPC URL for catching up on blocks
       - SYNC_PEER_URL=${SYNC_PEER_URL:-}
     extra_hosts:
