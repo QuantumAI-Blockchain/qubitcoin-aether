@@ -32,6 +32,15 @@ from typing import Dict, List, Optional, Set, Tuple
 from ..config import Config
 from ..utils.logger import get_logger
 
+# Golden ratio for HMS-Phi formula
+_PHI_RATIO: float = 1.618033988749895
+# Exponents: 1/φ, 1/φ², 1/φ³
+_HMS_EXP_MICRO: float = 1.0 / _PHI_RATIO          # ≈ 0.618
+_HMS_EXP_MESO:  float = 1.0 / (_PHI_RATIO ** 2)   # ≈ 0.382
+_HMS_EXP_MACRO: float = 1.0 / (_PHI_RATIO ** 3)   # ≈ 0.236
+# Scale so perfect HMS integration (=1.0) exceeds max gate ceiling (5.0)
+_HMS_SCALE: float = 8.0
+
 logger = get_logger(__name__)
 
 # Phi integration threshold for Proof-of-Thought validity (loaded from Config)
@@ -214,13 +223,25 @@ class PhiCalculator:
         self._subsystem_stats: Dict[str, float] = {}
         # Cached Config values — avoids re-importing Config on every call
         self._phi_downsample_retain_days: int = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
-        # Phi formula weights (from Config)
+        # Phi formula weights (from Config) — used in additive fallback
         self._w_int: float = Config.PHI_INTEGRATION_WEIGHT
         self._w_diff: float = Config.PHI_DIFFERENTIATION_WEIGHT
         self._w_mip: float = Config.PHI_MIP_WEIGHT
         # Convergence tracking: stddev over last N measurements
         self._convergence_window: int = Config.PHI_CONVERGENCE_WINDOW
         self._recent_phi_values: deque = deque(maxlen=Config.PHI_CONVERGENCE_WINDOW)
+
+        # ── HMS-Phi: IIT 3.0 micro-level ────────────────────────────────────
+        # Lazy-imported to avoid numpy overhead on startup if not needed.
+        self._iit_approximator: Optional[object] = None
+        self._iit_phi_cache: float = 0.0          # cached phi_micro
+        self._iit_last_time: float = 0.0           # wall-time of last IIT run
+        # Recompute IIT every 15 seconds (expensive O(16^3) exhaustive search)
+        self._IIT_CACHE_SECONDS: float = float(
+            os.getenv('HMS_IIT_CACHE_SECONDS', '15')
+        )
+        # Minimum nodes before HMS-Phi is used (additive fallback below)
+        self._HMS_MIN_NODES: int = 500
 
     def set_subsystem_stats(self, stats: Dict[str, float]) -> None:
         """Inject subsystem stats for gate evaluation.
@@ -236,13 +257,22 @@ class PhiCalculator:
 
     def compute_phi(self, block_height: int = 0) -> dict:
         """
-        Compute Phi integration metric for the current knowledge graph state.
+        Compute Phi integration metric using HMS-Phi v4 (Hierarchical Multi-Scale Phi).
 
-        Uses weighted additive formula (avoids multiplicative collapse):
-            raw_phi = w_int * integration + w_diff * differentiation + w_mip * mip_score
+        HMS-Phi uses three independent levels of analysis, multiplicatively combined:
+            phi_micro: IIT 3.0 approximation on elite 16-node subgraph samples
+            phi_meso:  Spectral MIP (Fiedler bisection) on full knowledge graph
+            phi_macro: Graph-theoretic integration (connectivity + mutual info)
+
+            hms_raw   = phi_micro^(1/φ) × phi_meso^(1/φ²) × phi_macro^(1/φ³)
+            raw_phi   = hms_raw × 8.0   (scale so hms_raw=1 > max gate ceiling)
+            phi       = min(raw_phi × redundancy, gate_ceiling)
+
+        Multiplicative structure means zero in any level → zero phi (ungameable).
+        Falls back to weighted additive when n_nodes < 500 or IIT is unavailable.
 
         Returns:
-            Dict with phi_value, integration, differentiation, and breakdown
+            Dict with phi_value, hms components, gates breakdown.
         """
         if not self.kg or not self.kg.nodes:
             return self._empty_result(block_height)
@@ -264,17 +294,17 @@ class PhiCalculator:
         n_nodes = len(nodes)
         n_edges = len(edges)
 
-        # --- Integration (information-theoretic) ---
+        # --- Level 2 (Macro): Graph-theoretic integration ---
         integration = self._compute_integration(nodes, edges, n_nodes)
+        # _compute_integration also populates self._last_mip_score (Level 1 meso)
 
-        # --- Differentiation (Shannon entropy) ---
+        # --- Differentiation (Shannon entropy — used in additive fallback) ---
         differentiation = self._compute_differentiation(nodes, edges)
 
         # --- Redundancy penalty ---
         redundancy_factor = self._compute_redundancy_factor()
 
         # --- Milestone gates ---
-        # Merge subsystem stats (injected by AetherEngine) with computed stats
         extra = dict(self._subsystem_stats)
         extra['integration_score'] = integration
         extra['mip_phi'] = self._last_mip_score
@@ -282,12 +312,36 @@ class PhiCalculator:
         gates_passed = sum(1 for g in gates if g['passed'])
         gate_ceiling = gates_passed * 0.5
 
-        # --- Raw Phi (weighted additive — avoids multiplicative collapse) ---
-        raw_phi = (
-            self._w_int * integration
-            + self._w_diff * differentiation
-            + self._w_mip * self._last_mip_score
-        )
+        # ── HMS-Phi v4 ────────────────────────────────────────────────────────
+        phi_micro: float = 0.0
+        phi_meso:  float = max(0.0, min(1.0, self._last_mip_score))
+        # Normalize integration (structural max=5 + MI max=3 + flow max≈1 → cap 9)
+        phi_macro: float = max(0.0, min(1.0, integration / 9.0))
+
+        hms_raw: float = 0.0
+        using_hms: bool = False
+
+        if n_nodes >= self._HMS_MIN_NODES and phi_meso > 0 and phi_macro > 0:
+            # Level 0 (Micro): IIT 3.0 on elite 16-node subgraphs (5 samples, median)
+            phi_micro = self._compute_iit_micro()
+
+            if phi_micro > 0:
+                # True multiplicative HMS-Phi
+                hms_raw = (
+                    math.pow(phi_micro, _HMS_EXP_MICRO)
+                    * math.pow(phi_meso,  _HMS_EXP_MESO)
+                    * math.pow(phi_macro, _HMS_EXP_MACRO)
+                )
+                raw_phi = hms_raw * _HMS_SCALE
+                using_hms = True
+
+        if not using_hms:
+            # Additive fallback: original v3 formula
+            raw_phi = (
+                self._w_int * integration
+                + self._w_diff * differentiation
+                + self._w_mip * self._last_mip_score
+            )
 
         # --- Final Phi ---
         phi = min(raw_phi * redundancy_factor, gate_ceiling)
@@ -305,11 +359,17 @@ class PhiCalculator:
             'differentiation_score': round(differentiation, 6),
             'mip_score': round(self._last_mip_score, 6),
             'redundancy_factor': round(redundancy_factor, 4),
+            # HMS-Phi components
+            'phi_micro': round(phi_micro, 6),
+            'phi_meso': round(phi_meso, 6),
+            'phi_macro': round(phi_macro, 6),
+            'hms_phi_raw': round(hms_raw, 6),
+            'phi_formula': 'hms_v4' if using_hms else 'additive_v3',
             'num_nodes': n_nodes,
             'num_edges': n_edges,
             'block_height': block_height,
             'timestamp': time.time(),
-            'phi_version': 3,
+            'phi_version': 4,
             'gates_passed': gates_passed,
             'gates_total': len(MILESTONE_GATES),
             'gate_ceiling': gate_ceiling,
@@ -326,6 +386,7 @@ class PhiCalculator:
                 'integration': self._w_int,
                 'differentiation': self._w_diff,
                 'mip': self._w_mip,
+                'hms_scale': _HMS_SCALE if using_hms else None,
             },
         }
 
@@ -334,6 +395,61 @@ class PhiCalculator:
 
         self._store_measurement(result)
         return result
+
+    def _compute_iit_micro(self) -> float:
+        """Compute IIT 3.0 micro-level Phi via 5 independent 16-node samples.
+
+        Runs the IITApproximator on 5 randomly sampled elite subgraphs and
+        returns the median. Result is normalized to [0, 1] and cached for
+        _IIT_CACHE_SECONDS to avoid repeated O(16^3) computation.
+
+        Returns:
+            Normalized phi_micro in [0, 1], or cached value if within interval.
+        """
+        now = time.time()
+        if now - self._iit_last_time < self._IIT_CACHE_SECONDS:
+            return self._iit_phi_cache
+
+        if not self.kg or len(self.kg.nodes) < 16:
+            return 0.0
+
+        # Lazy import — only pay for numpy when actually needed
+        if self._iit_approximator is None:
+            try:
+                from .iit_approximator import IITApproximator
+                self._iit_approximator = IITApproximator(max_nodes=16)
+            except Exception as e:
+                logger.warning(f"IITApproximator import failed: {e}")
+                self._iit_last_time = now
+                return 0.0
+
+        phis: List[float] = []
+        for sample_idx in range(5):
+            try:
+                tpm = self._iit_approximator.build_tpm_from_kg(self.kg)
+                phi_val = self._iit_approximator.compute_phi(tpm)
+                if phi_val > 0:
+                    phis.append(phi_val)
+            except Exception as e:
+                logger.debug(f"IIT sample {sample_idx} failed: {e}")
+
+        if phis:
+            # Median of samples (robust to outliers)
+            phis.sort()
+            n = len(phis)
+            median_val = phis[n // 2] if n % 2 != 0 else (phis[n//2 - 1] + phis[n//2]) / 2.0
+            # Normalize: IIT information-loss values can exceed 1.0; cap at 1.0
+            self._iit_phi_cache = min(1.0, median_val)
+            logger.debug(
+                f"HMS micro phi_micro={self._iit_phi_cache:.4f} "
+                f"(samples={phis}, median={median_val:.4f})"
+            )
+        else:
+            # All samples failed — keep previous cache to avoid sudden drop
+            pass
+
+        self._iit_last_time = now
+        return self._iit_phi_cache
 
     def get_cached(self) -> dict:
         """Return the last computed Phi result without triggering a recompute.
@@ -1335,11 +1451,16 @@ class PhiCalculator:
             'differentiation_score': 0.0,
             'mip_score': 0.0,
             'redundancy_factor': 1.0,
+            'phi_micro': 0.0,
+            'phi_meso': 0.0,
+            'phi_macro': 0.0,
+            'hms_phi_raw': 0.0,
+            'phi_formula': 'additive_v3',
             'num_nodes': 0,
             'num_edges': 0,
             'block_height': block_height,
             'timestamp': time.time(),
-            'phi_version': 3,
+            'phi_version': 4,
             'gates_passed': 0,
             'gates_total': len(MILESTONE_GATES),
             'gate_ceiling': 0.0,
