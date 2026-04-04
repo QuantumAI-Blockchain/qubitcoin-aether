@@ -105,6 +105,7 @@ class KnowledgeExtractor:
             confidence=0.95,
             source_block=block_height,
         )
+        node.grounding_source = 'block_oracle'
 
         # Update sliding windows
         self._difficulties.append(difficulty)
@@ -172,6 +173,7 @@ class KnowledgeExtractor:
                 confidence=0.9,
                 source_block=block_height,
             )
+            tx_node.grounding_source = 'block_oracle'
             nodes_created += 1
 
             if parent_node_id:
@@ -222,6 +224,7 @@ class KnowledgeExtractor:
                 confidence=0.9,
                 source_block=block_height,
             )
+            q_node.grounding_source = 'block_oracle'
             nodes_created += 1
 
             if parent_node_id:

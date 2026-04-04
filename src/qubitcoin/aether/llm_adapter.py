@@ -494,6 +494,7 @@ class KnowledgeDistiller:
                     confidence=base_confidence,
                     source_block=block_height,
                 )
+                node.grounding_source = 'llm_distilled'
                 node_ids.append(node.node_id)
             except Exception as e:
                 logger.debug(f"Failed to add distilled node: {e}")

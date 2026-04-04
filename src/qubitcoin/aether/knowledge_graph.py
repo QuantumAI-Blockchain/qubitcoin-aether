@@ -357,17 +357,25 @@ class KnowledgeGraph:
                 if not node.grounding_source:
                     content = node.content if isinstance(node.content, dict) else {}
                     content_type = content.get('type', '')
-                    if node.node_type == 'observation' and content.get('block_height'):
+                    # block_height or height — both indicate blockchain provenance
+                    has_block_ref = bool(content.get('block_height') or content.get('height'))
+                    if node.node_type == 'observation' and has_block_ref:
                         node.grounding_source = 'block_oracle'
                         grounded_count += 1
                     elif node.node_type == 'axiom' and node.source_block == 0:
                         node.grounding_source = 'genesis_seed'
                         grounded_count += 1
-                    elif content_type in ('quantum_observation', 'contract_activity'):
+                    elif content_type in ('quantum_observation', 'contract_activity',
+                                         'temporal_pattern', 'difficulty_trend',
+                                         'network_growth_inference', 'transaction_pattern',
+                                         'activity_inference'):
                         node.grounding_source = 'block_oracle'
                         grounded_count += 1
                     elif content_type == 'prediction_confirmed':
                         node.grounding_source = 'prediction_verified'
+                        grounded_count += 1
+                    elif content.get('source', '').startswith('llm:'):
+                        node.grounding_source = 'llm_distilled'
                         grounded_count += 1
 
             # Batch-build vector embeddings for loaded nodes
