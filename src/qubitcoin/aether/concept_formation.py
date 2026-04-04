@@ -359,6 +359,7 @@ class ConceptFormation:
             return 0
 
         axioms_created = 0
+        max_per_run = 30  # Cap per invocation to avoid KG bloat
         promoted_ids: set = getattr(self, '_promoted_concept_ids', set())
 
         for node in list(self.kg.nodes.values()):
@@ -398,6 +399,8 @@ class ConceptFormation:
                 self.kg.add_edge(node.node_id, axiom_node.node_id, 'consolidates')
                 axioms_created += 1
                 promoted_ids.add(node.node_id)
+                if axioms_created >= max_per_run:
+                    break
 
         self._promoted_concept_ids = promoted_ids
 
