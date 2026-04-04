@@ -483,10 +483,10 @@ export default function WhitepaperPage() {
                 ["L2", "QVM (Python prototype)", "Python", "8 modules", "~4,500"],
                 ["L2", "QVM (Production)", "Go", "34 source files", "~10,000"],
                 ["L2", "Solidity Contracts", "Solidity 0.8.24+", "65 contracts", "~15,000"],
-                ["L3", "Aether Tree (Python)", "Python", "36 modules", "~24,560"],
+                ["L3", "Aether Tree (Python)", "Python", "49 modules", "~29,000"],
                 ["L3", "Aether Tree (Rust)", "Rust (PyO3)", "10 modules", "~10,246"],
                 ["L3", "Higgs Cognitive Field", "Python + Solidity", "13 files", "~2,700"],
-                ["Frontend", "qbc.network", "TypeScript/React/Next.js 15", "198 files", "~12,000"],
+                ["Frontend", "qbc.network", "TypeScript/React/Next.js 16", "200 files", "~66,900"],
                 ["Infra", "Docker/Monitoring/DevOps", "YAML/Shell", "20+ configs", "~2,000"],
                 ["Tests", "pytest suite", "Python", "4,357 tests", "~40,000"],
               ]}
