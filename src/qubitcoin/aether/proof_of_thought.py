@@ -3788,6 +3788,26 @@ class AetherEngine:
                     stats['prediction_accuracy'] = te_acc
         except Exception:
             pass
+        # Fallback: compute prediction_accuracy from persisted KG nodes.
+        # This ensures accuracy survives restarts without resetting to 0.
+        if 'prediction_accuracy' not in stats and self.kg:
+            try:
+                confirmed = sum(
+                    1 for n in self.kg.nodes.values()
+                    if isinstance(n.content, dict)
+                    and n.content.get('type') == 'prediction_confirmed'
+                )
+                rejected = sum(
+                    1 for n in self.kg.nodes.values()
+                    if isinstance(n.content, dict)
+                    and n.content.get('type') == 'contradiction_resolution'
+                    and n.content.get('subtype') == 'prediction_rejected'
+                )
+                total = confirmed + rejected
+                if total > 0:
+                    stats['prediction_accuracy'] = confirmed / total
+            except Exception:
+                pass
         return stats
 
     def _auto_reason(self, block_height: int) -> List[dict]:
