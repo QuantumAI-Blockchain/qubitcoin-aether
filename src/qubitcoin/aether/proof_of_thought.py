@@ -4640,13 +4640,11 @@ class AetherEngine:
                     if edge.from_node_id in self.kg.nodes and edge.to_node_id in self.kg.nodes:
                         contradiction_pairs.append((edge.from_node_id, edge.to_node_id))
 
-            # If no edge-based contradictions, detect semantic ones:
-            # Find pairs of assertion nodes with the same 'metric' field but
-            # opposite 'type' (one prediction_confirmed, one prediction_rejected)
-            # or inference nodes with opposite trends in the same domain.
+            # If no edge-based contradictions, detect semantic ones.
             if not contradiction_pairs:
                 confirmed_metrics: dict = {}
                 rejected_metrics: dict = {}
+                # Scan 1: prediction_confirmed vs prediction_rejected for same metric
                 for node in self.kg.nodes.values():
                     content = node.content if isinstance(node.content, dict) else {}
                     ct = content.get('type', '')
@@ -4656,13 +4654,32 @@ class AetherEngine:
                             confirmed_metrics.setdefault(metric, []).append(node.node_id)
                         elif ct == 'contradiction_resolution' and content.get('subtype') == 'prediction_rejected':
                             rejected_metrics.setdefault(metric, []).append(node.node_id)
-                # Pair confirmed vs rejected for same metric → genuine contradiction
                 for metric, conf_ids in confirmed_metrics.items():
                     rej_ids = rejected_metrics.get(metric, [])
                     if conf_ids and rej_ids:
                         contradiction_pairs.append((conf_ids[0], rej_ids[0]))
                         if len(contradiction_pairs) >= 5:
                             break
+
+            # Scan 2: opposing trend inferences (e.g., difficulty_trend 'rising' vs 'falling')
+            if len(contradiction_pairs) < 5:
+                try:
+                    trend_nodes: dict = {}
+                    for node in self.kg.nodes.values():
+                        content = node.content if isinstance(node.content, dict) else {}
+                        ct = content.get('type', '')
+                        trend = content.get('trend', '')
+                        if ct == 'difficulty_trend' and trend:
+                            trend_nodes.setdefault(trend, []).append(node.node_id)
+                    rising = trend_nodes.get('rising', [])
+                    falling = trend_nodes.get('falling', [])
+                    if rising and falling:
+                        contradiction_pairs.append((rising[0], falling[0]))
+                    stable = trend_nodes.get('stable', [])
+                    if rising and stable:
+                        contradiction_pairs.append((rising[-1], stable[0]))
+                except Exception:
+                    pass
 
             if not contradiction_pairs:
                 return 0
