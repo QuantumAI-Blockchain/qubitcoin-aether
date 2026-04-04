@@ -377,7 +377,8 @@ class TemporalEngine:
                         verification_confidence = min(1.0, pred_confidence + 0.2)
                     else:
                         verification_content = {
-                            'type': 'prediction_rejected',
+                            'type': 'contradiction_resolution',
+                            'subtype': 'prediction_rejected',
                             'metric': metric,
                             'predicted': round(predicted, 6),
                             'actual': round(actual, 6),
