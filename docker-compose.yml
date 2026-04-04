@@ -153,9 +153,9 @@ services:
       - LLM_ENABLED=true
       - LLM_PRIMARY_ADAPTER=ollama
       - LLM_SEEDER_ENABLED=true
-      - LLM_SEEDER_INTERVAL_BLOCKS=20
-      - LLM_SEEDER_RATE_LIMIT_PER_HOUR=60
-      - LLM_SEEDER_COOLDOWN_SECONDS=5
+      - LLM_SEEDER_INTERVAL_BLOCKS=3
+      - LLM_SEEDER_RATE_LIMIT_PER_HOUR=1200
+      - LLM_SEEDER_COOLDOWN_SECONDS=2
       # Phi MIP spectral bisection is expensive — compute every 5 blocks instead of every 1
       - PHI_COMPUTE_INTERVAL=5
       # AGI operation intervals — all primes, none share common factors → never collide

@@ -655,18 +655,33 @@ class KnowledgeDistiller:
 
     @staticmethod
     def _split_sentences(text: str) -> List[str]:
-        """Split text into sentences (simple heuristic)."""
-        # Split on sentence-ending punctuation followed by space or end
-        sentences: List[str] = []
-        current: List[str] = []
-        for char in text:
-            current.append(char)
-            if char in '.!?' and len(current) > 10:
-                sentences.append(''.join(current))
-                current = []
-        if current:
-            sentences.append(''.join(current))
-        return sentences
+        """Split text into sentences optimised for numbered-list LLM output.
+
+        Priority: split on newlines (numbered lists), then fall back to
+        period-based sentence splitting with abbreviation protection.
+        """
+        import re
+
+        # Strip markdown headers/bullets and numbered list prefixes
+        lines = text.split('\n')
+        cleaned: List[str] = []
+        for line in lines:
+            # Remove leading list markers: "1.", "- ", "* ", "• "
+            stripped = re.sub(r'^\s*(\d+\.|[-*•])\s+', '', line).strip()
+            if stripped:
+                cleaned.append(stripped)
+
+        # If the response is already line-based (numbered list), use those lines
+        if len(cleaned) >= 5:
+            return cleaned
+
+        # Fallback: sentence splitting with better period handling
+        # Don't split on: numbers (3.14), abbreviations (e.g., U.S.), ellipsis (...)
+        sentences = re.split(
+            r'(?<!\w\.\w)(?<![A-Z][a-z]\.)(?<=\.|\?|!)\s+(?=[A-Z0-9])',
+            text
+        )
+        return [s.strip() for s in sentences if s.strip()]
 
     @staticmethod
     def _classify_sentence(sentence: str) -> str:

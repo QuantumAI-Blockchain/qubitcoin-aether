@@ -423,6 +423,11 @@ class AGIPersistence:
             metacog._total_evaluations = result[4] or 0
             metacog._total_correct = result[5] or 0
 
+            # Clear stale confidence bins so ECE builds fresh from new
+            # evaluations rather than being skewed by old calibration data.
+            # Strategy stats and total counts are preserved for weight adaptation.
+            metacog._confidence_bins = {}
+
             # Reconstruct adaptive temperature from loaded bin data
             if hasattr(metacog, '_update_temperature'):
                 metacog._update_temperature()

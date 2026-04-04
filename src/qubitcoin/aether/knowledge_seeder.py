@@ -452,12 +452,17 @@ class KnowledgeSeeder:
 
         # Round-robin index into MASTER_PROMPTS
         self._prompt_index: int = 0
+        self._prompt_lock: threading.Lock = threading.Lock()
 
-        # Rate limiting state
+        # Rate limiting state (shared across all workers)
         self._calls_this_hour: int = 0
         self._hour_window_start: float = time.time()
         self._last_call_time: float = 0.0
         self._backoff_until: float = 0.0
+        self._rate_lock: threading.Lock = threading.Lock()
+
+        # Per-worker height tracking so workers don't block on same interval
+        self._worker_last_heights: dict = {}  # worker_id -> last_seed_height
 
         # History for monitoring
         self._history: List[Dict] = []
@@ -476,29 +481,41 @@ class KnowledgeSeeder:
     # Public API
     # ------------------------------------------------------------------
 
+    # Number of parallel seeder threads — each picks different domain prompts
+    # to maximise Ollama throughput without overlapping topics.
+    _NUM_WORKERS: int = 3
+
     def start(self) -> None:
-        """Start the background seeder daemon thread."""
+        """Start background seeder daemon threads (3 parallel workers)."""
         if self._thread and self._thread.is_alive():
             logger.warning("Knowledge seeder already running")
             return
         self._stop_event.clear()
-        self._thread = threading.Thread(
-            target=self._run_loop, name="knowledge-seeder", daemon=True,
-        )
-        self._thread.start()
+        # Launch multiple worker threads for parallel LLM seeding
+        self._worker_threads: List[threading.Thread] = []
+        for i in range(self._NUM_WORKERS):
+            t = threading.Thread(
+                target=self._run_worker, args=(i,),
+                name=f"knowledge-seeder-{i}", daemon=True,
+            )
+            t.start()
+            self._worker_threads.append(t)
+        # Keep _thread pointing at first worker for backwards-compat
+        self._thread = self._worker_threads[0]
         logger.info(
-            f"Knowledge seeder started "
-            f"(interval={Config.LLM_SEEDER_INTERVAL_BLOCKS} blocks, "
+            f"Knowledge seeder started ({self._NUM_WORKERS} workers, "
+            f"interval={Config.LLM_SEEDER_INTERVAL_BLOCKS} blocks, "
             f"rate_limit={Config.LLM_SEEDER_RATE_LIMIT_PER_HOUR}/hr, "
             f"cooldown={Config.LLM_SEEDER_COOLDOWN_SECONDS}s)"
         )
 
     def stop(self) -> None:
-        """Stop the background seeder."""
+        """Stop all background seeder threads."""
         self._stop_event.set()
-        if self._thread:
-            self._thread.join(timeout=10)
-            self._thread = None
+        for t in getattr(self, '_worker_threads', []):
+            t.join(timeout=5)
+        self._worker_threads = []
+        self._thread = None
         logger.info("Knowledge seeder stopped")
 
     def seed_once(self, domain: Optional[str] = None) -> Optional[Dict]:
@@ -518,8 +535,12 @@ class KnowledgeSeeder:
 
     def get_stats(self) -> Dict:
         """Get seeder statistics for monitoring."""
+        workers = getattr(self, '_worker_threads', [])
         return {
-            "running": self._thread is not None and self._thread.is_alive(),
+            "running": any(t.is_alive() for t in workers) if workers else (
+                self._thread is not None and self._thread.is_alive()
+            ),
+            "num_workers": len(workers),
             "prompt_index": self._prompt_index,
             "total_prompts": len(MASTER_PROMPTS),
             "calls_this_hour": self._calls_this_hour,
@@ -536,13 +557,20 @@ class KnowledgeSeeder:
     # ------------------------------------------------------------------
 
     def _run_loop(self) -> None:
-        """Main background loop — polls every 10s, seeds on interval."""
+        """Main background loop — polls every 3s, seeds on interval."""
+        self._run_worker(0)
+
+    def _run_worker(self, worker_id: int) -> None:
+        """Worker loop — each worker independently queries a domain offset."""
+        # Stagger worker starts so they hit different prompt indices
+        if worker_id > 0:
+            self._stop_event.wait(timeout=worker_id * 2.0)
         while not self._stop_event.is_set():
             try:
-                self._maybe_seed()
+                self._maybe_seed_worker(worker_id)
             except Exception as e:
-                logger.error(f"Knowledge seeder error: {e}", exc_info=True)
-            self._stop_event.wait(timeout=10)
+                logger.error(f"Seeder worker-{worker_id} error: {e}", exc_info=True)
+            self._stop_event.wait(timeout=3)
 
     def _maybe_seed(self) -> None:
         """Check if it's time to seed and do so if rate limits allow."""
@@ -583,6 +611,48 @@ class KnowledgeSeeder:
         if result:
             self._last_seed_height = current_height
 
+    def _maybe_seed_worker(self, worker_id: int) -> None:
+        """Thread-safe seed check for parallel workers.
+
+        Each worker tracks its own last-seed height so they don't all
+        wait for the same interval and can seed in parallel.
+        """
+        try:
+            current_height = self.db.get_current_height()
+        except Exception:
+            return
+
+        interval = Config.LLM_SEEDER_INTERVAL_BLOCKS
+        if interval <= 0:
+            return
+
+        last_h = self._worker_last_heights.get(worker_id, -1)
+        if last_h >= 0 and (current_height - last_h) < interval:
+            return
+
+        with self._rate_lock:
+            now = time.time()
+            if now - self._hour_window_start >= 3600:
+                self._calls_this_hour = 0
+                self._hour_window_start = now
+            if self._calls_this_hour >= Config.LLM_SEEDER_RATE_LIMIT_PER_HOUR:
+                return
+            if now - self._last_call_time < Config.LLM_SEEDER_COOLDOWN_SECONDS:
+                return
+            if now < self._backoff_until:
+                return
+            # Reserve the slot before releasing lock so workers don't double-call
+            self._last_call_time = now
+            self._calls_this_hour += 1
+
+        prompt_entry = self._pick_prompt()
+        if not prompt_entry:
+            return
+
+        result = self._execute_seed_no_ratelimit(prompt_entry, current_height)
+        if result:
+            self._worker_last_heights[worker_id] = current_height
+
     # ------------------------------------------------------------------
     # Core seeding logic
     # ------------------------------------------------------------------
@@ -610,9 +680,10 @@ class KnowledgeSeeder:
             except Exception as e:
                 logger.debug("Could not get domain stats for prompt selection: %s", e)
 
-        # Fallback: round-robin
-        prompt = MASTER_PROMPTS[self._prompt_index % len(MASTER_PROMPTS)]
-        self._prompt_index = (self._prompt_index + 1) % len(MASTER_PROMPTS)
+        # Fallback: round-robin (thread-safe)
+        with self._prompt_lock:
+            prompt = MASTER_PROMPTS[self._prompt_index % len(MASTER_PROMPTS)]
+            self._prompt_index = (self._prompt_index + 1) % len(MASTER_PROMPTS)
         return prompt
 
     def _pick_weighted_prompt(self, domain_stats: Dict) -> Optional[Dict[str, str]]:
@@ -644,16 +715,17 @@ class KnowledgeSeeder:
 
     def _execute_seed(self, prompt_entry: Dict[str, str],
                       block_height: int = 0) -> Optional[Dict]:
-        """Execute a single seed: query LLM, distill into KG."""
+        """Execute a single seed: query LLM, distill into KG (also handles rate-limit tracking)."""
         domain = prompt_entry["domain"]
         prompt = prompt_entry["prompt"]
 
         # Build the system prompt with Aether context
         system_prompt = (
             "You are a knowledge source for the Aether Tree AGI. "
-            "Give exactly 10-15 key facts, each as a separate short sentence. "
+            "Give exactly 25-35 key facts, each as a separate short sentence. "
             "Every sentence must be a standalone factual assertion. No elaboration. "
-            "Facts must be precise and information-dense."
+            "Facts must be precise, unique, and information-dense. "
+            "Cover different sub-topics within the domain for maximum diversity."
         )
 
         self._last_call_time = time.time()
@@ -674,7 +746,6 @@ class KnowledgeSeeder:
             return None
 
         if not response or response.metadata.get("error"):
-            # Check for rate limit in error metadata
             error_msg = str(response.metadata.get("error", "")) if response else ""
             if "429" in error_msg or "rate" in error_msg.lower():
                 self._backoff_until = time.time() + 60
@@ -682,6 +753,52 @@ class KnowledgeSeeder:
             return None
 
         self._calls_this_hour += 1
+        return self._record_seed_result(domain, response, block_height)
+
+    def _execute_seed_no_ratelimit(self, prompt_entry: Dict[str, str],
+                                   block_height: int = 0) -> Optional[Dict]:
+        """Execute a seed without updating rate-limit counters (worker already did)."""
+        domain = prompt_entry["domain"]
+        prompt = prompt_entry["prompt"]
+
+        system_prompt = (
+            "You are a knowledge source for the Aether Tree AGI. "
+            "Give exactly 25-35 key facts, each as a separate short sentence. "
+            "Every sentence must be a standalone factual assertion. No elaboration. "
+            "Facts must be precise, unique, and information-dense. "
+            "Cover different sub-topics within the domain for maximum diversity."
+        )
+
+        try:
+            response = self.llm_manager.generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                distill=True,
+                block_height=block_height,
+            )
+        except Exception as e:
+            error_str = str(e).lower()
+            if "429" in error_str or "rate" in error_str:
+                with self._rate_lock:
+                    self._backoff_until = time.time() + 60
+                logger.warning(f"Seeder worker rate-limited, backing off 60s: {e}")
+            else:
+                logger.warning(f"Seeder worker LLM call failed: {e}")
+            return None
+
+        if not response or response.metadata.get("error"):
+            error_msg = str(response.metadata.get("error", "")) if response else ""
+            if "429" in error_msg or "rate" in error_msg.lower():
+                with self._rate_lock:
+                    self._backoff_until = time.time() + 60
+                logger.warning(f"Seeder worker rate-limited via response, backing off 60s")
+            return None
+
+        return self._record_seed_result(domain, response, block_height)
+
+    def _record_seed_result(self, domain: str, response: object,
+                            block_height: int) -> Dict:
+        """Record a successful seed result and return the record dict."""
         self._total_tokens_used += response.tokens_used
 
         # Count distilled nodes (distiller already ran inside generate())

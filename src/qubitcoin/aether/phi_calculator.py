@@ -199,6 +199,7 @@ class PhiCalculator:
         self._last_full_result: Optional[dict] = None
         self._last_computed_block: int = -1
         self._last_mip_score: float = 0.0
+        self._last_gate_stats: dict = {}
         self._compute_interval: int = int(
             os.getenv('PHI_COMPUTE_INTERVAL', '1')
         )
@@ -313,6 +314,7 @@ class PhiCalculator:
             'gates_total': len(MILESTONE_GATES),
             'gate_ceiling': gate_ceiling,
             'gates': gates,
+            'gate_stats': getattr(self, '_last_gate_stats', {}),
             'convergence_stddev': round(convergence_stddev, 6),
             'convergence_status': (
                 'converged' if convergence_stddev < 0.01
@@ -1039,6 +1041,22 @@ class PhiCalculator:
             'prediction_accuracy': ext.get('prediction_accuracy', 0.0),
         }
 
+        # Log gate stat summary for diagnostics
+        logger.debug(
+            "Gate stats: nodes=%d debate_verdicts=%d contradiction_resolutions=%d "
+            "verified_predictions=%d mip_phi=%.3f auto_goals=%d axioms=%d "
+            "novel_concepts=%d cross_domain_inf=%d",
+            stats['n_nodes'],
+            debate_verdicts,
+            contradiction_resolutions,
+            verified_predictions,
+            stats.get('mip_phi', 0.0),
+            auto_goals_generated,
+            axiom_from_consolidation,
+            novel_concept_count,
+            cross_domain_inferences,
+        )
+
         # Apply adaptive gate scaling: multiply n_nodes threshold by _gate_scale.
         # This is achieved by dividing the actual n_nodes by _gate_scale before
         # passing to the gate check, so a scale of 1.5 makes gates 50% harder
@@ -1049,6 +1067,23 @@ class PhiCalculator:
             scaled_stats['n_nodes'] = int(stats['n_nodes'] / gate_scale)
         else:
             scaled_stats = stats
+
+        # Store computed stats for external inspection (e.g., API debug)
+        self._last_gate_stats = {
+            'debate_verdicts': debate_verdicts,
+            'contradiction_resolutions': contradiction_resolutions,
+            'verified_predictions': verified_predictions,
+            'auto_goals_generated': auto_goals_generated,
+            'axiom_from_consolidation': axiom_from_consolidation,
+            'novel_concept_count': novel_concept_count,
+            'cross_domain_inferences': cross_domain_inferences,
+            'grounding_ratio': round(grounding_ratio, 4),
+            'mip_phi': stats.get('mip_phi', 0.0),
+            'prediction_accuracy': stats.get('prediction_accuracy', 0.0),
+            'calibration_error': stats.get('calibration_error', 1.0),
+            'calibration_evaluations': stats.get('calibration_evaluations', 0),
+            'auto_goals_with_inferences': stats.get('auto_goals_with_inferences', 0),
+        }
 
         results: List[dict] = []
         for gate in MILESTONE_GATES:

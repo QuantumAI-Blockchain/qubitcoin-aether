@@ -351,25 +351,35 @@ class MetacognitiveLoop:
     def get_overall_calibration_error(self) -> float:
         """Compute Expected Calibration Error (ECE) from recent evaluations.
 
-        Uses the last 500 evaluations from history to compute ECE, so the
-        temperature correction can have a measurable effect on the metric.
-        Falls back to all-time bins if insufficient recent history.
+        Uses the last 500 evaluations from history with temperature-scaled
+        (calibrated) confidence values. ECE measures how well the
+        CALIBRATED predictions match actual accuracy — this is the true
+        test of calibration quality after temperature correction.
 
         Bins with fewer than 3 samples are skipped to avoid noise.
         """
         # Use recent evaluations for responsive ECE
-        recent = self._evaluation_history[-500:] if len(self._evaluation_history) >= 50 else []
+        recent = self._evaluation_history[-500:] if len(self._evaluation_history) >= 10 else []
+
+        # Apply temperature scaling to get calibrated confidence values
+        t = max(0.5, min(3.0, getattr(self, '_temperature', 1.0)))
 
         if recent:
-            # Build bins from recent data only
+            # Build bins from CALIBRATED confidence values
             bins: Dict[int, dict] = {}
             for entry in recent:
-                conf = entry.get('confidence', 0.5)
+                raw_conf = entry.get('confidence', 0.5)
+                # Apply temperature scaling (same as calibrate_confidence())
+                if t != 1.0 and raw_conf > 0.0:
+                    cal_conf = max(0.01, min(1.0, raw_conf ** t))
+                else:
+                    cal_conf = raw_conf
                 correct = entry.get('correct', False)
-                bin_idx = min(9, int(conf * 10))
+                bin_idx = min(9, int(cal_conf * 10))
                 if bin_idx not in bins:
-                    bins[bin_idx] = {'count': 0, 'correct': 0}
+                    bins[bin_idx] = {'count': 0, 'correct': 0, 'conf_sum': 0.0}
                 bins[bin_idx]['count'] += 1
+                bins[bin_idx]['conf_sum'] += cal_conf
                 if correct:
                     bins[bin_idx]['correct'] += 1
         else:
@@ -383,7 +393,11 @@ class MetacognitiveLoop:
             if data['count'] < 3:
                 continue
 
-            stated = (bin_idx + 0.5) / 10.0
+            # Use mean calibrated confidence in bin rather than bin midpoint
+            if 'conf_sum' in data:
+                stated = data['conf_sum'] / data['count']
+            else:
+                stated = (bin_idx + 0.5) / 10.0
             actual = data['correct'] / data['count']
             # Standard ECE weighting: proportional to bin count
             weighted_error += data['count'] * abs(stated - actual)

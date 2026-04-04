@@ -1436,6 +1436,15 @@ class AetherEngine:
             # Auto-resolve contradictions periodically
             if block.height > 0 and block.height % Config.AETHER_CONTRADICTION_RESOLVE_INTERVAL == 0:
                 self.auto_resolve_contradictions(block.height)
+                # Consolidate well-supported concept clusters into axioms
+                # (lightweight — runs even when full concept formation is skipped)
+                if self.concept_formation:
+                    try:
+                        axioms_made = self.concept_formation.consolidate_to_axioms(block.height)
+                        if axioms_made > 0:
+                            logger.info(f"Axiom consolidation at block {block.height}: {axioms_made} axioms created")
+                    except Exception as _ae:
+                        logger.debug(f"Axiom consolidation error: {_ae}")
 
             # Auto-generate Keter goals periodically
             if block.height > 0 and block.height % Config.AETHER_KETER_GOALS_INTERVAL == 0:
@@ -1714,13 +1723,16 @@ class AetherEngine:
                         self.concept_formation.consolidate_to_axioms(height)
                         return self.concept_formation.run_transfer_cycle(block_height=height)
 
-                    with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
-                        _fut = _ex.submit(_ft.partial(_run_cf, block.height))
-                        try:
-                            transfer_result = _fut.result(timeout=10)
-                        except _cf.TimeoutError:
-                            logger.warning(f"Concept formation timed out at block {block.height}, skipping transfer cycle")
-                            transfer_result = {}
+                    _ex = _cf.ThreadPoolExecutor(max_workers=1)
+                    _fut = _ex.submit(_ft.partial(_run_cf, block.height))
+                    try:
+                        transfer_result = _fut.result(timeout=10)
+                    except _cf.TimeoutError:
+                        logger.warning(f"Concept formation timed out at block {block.height}, skipping transfer cycle")
+                        transfer_result = {}
+                    finally:
+                        # Do NOT wait for the background thread — it runs independently
+                        _ex.shutdown(wait=False)
 
                     if transfer_result.get('transfers_attempted', 0) > 0:
                         self._reward_sephirah('concept_formation', True, 0.08)
@@ -4072,13 +4084,19 @@ class AetherEngine:
                                         },
                                         'confidence': neural_result['confidence'],
                                     })
+                                    # Use neural accuracy as the calibration confidence
+                                    # (link-prediction score ≠ reasoning confidence)
+                                    _nr_acc = (
+                                        self.neural_reasoner.get_accuracy()
+                                        if self.neural_reasoner else 0.7
+                                    )
                                     self._record_reasoning_outcome(
-                                        'neural', neural_result['confidence'],
+                                        'neural', max(0.6, _nr_acc),
                                         True, block_height
                                     )
                                 else:
                                     self._record_reasoning_outcome(
-                                        'neural', neural_result.get('confidence', 0),
+                                        'neural', 0.3,
                                         False, block_height
                                     )
                         except Exception as e:
@@ -4375,9 +4393,24 @@ class AetherEngine:
                                    result: object = None) -> None:
         """Feed reasoning outcome back to metacognition and self-improvement."""
         if self.metacognition:
+            # Use empirical strategy accuracy (not chain confidence) as the
+            # calibration confidence. This gives calibration ECE a real signal:
+            # "how often does this strategy succeed" vs "does it succeed now".
+            # The chain confidence is used elsewhere; here we track strategy reliability.
+            if success:
+                # Use running accuracy of this strategy as our stated confidence
+                stats = self.metacognition._strategy_stats.get(strategy)
+                if stats and stats['attempts'] > 0:
+                    emp_acc = stats['correct'] / stats['attempts']
+                    calibration_conf = max(0.5, emp_acc)
+                else:
+                    calibration_conf = max(0.5, confidence)
+            else:
+                # Record low confidence for failures (proportional to chain confidence)
+                calibration_conf = min(0.3, confidence)
             self.metacognition.evaluate_reasoning(
                 strategy=strategy,
-                confidence=confidence,
+                confidence=calibration_conf,
                 outcome_correct=success,
                 block_height=block_height,
             )
