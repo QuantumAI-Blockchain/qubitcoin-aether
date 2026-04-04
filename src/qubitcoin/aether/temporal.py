@@ -343,7 +343,7 @@ class TemporalEngine:
             else:
                 error_pct = abs(predicted - actual)
 
-            correct = error_pct < 0.2  # Within 20% = correct
+            correct = error_pct < 0.1  # Within 10% = correct (tighter threshold for better calibration)
             if correct:
                 self._predictions_correct += 1
 
