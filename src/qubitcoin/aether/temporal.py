@@ -468,8 +468,8 @@ class TemporalEngine:
                     except Exception as e:
                         logger.debug(f"LSTM train error for {metric}: {e}")
 
-        # Make new predictions every 100 blocks (ARIMA + LSTM ensemble)
-        if block_height % 100 == 0:
+        # Make new predictions every 20 blocks (ARIMA + LSTM ensemble)
+        if block_height % 20 == 0:
             for metric in self._series:
                 pred = self.make_prediction(metric, blocks_ahead=50,
                                             block_height=block_height)

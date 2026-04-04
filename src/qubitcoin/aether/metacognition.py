@@ -471,7 +471,7 @@ class MetacognitiveLoop:
             self.adapt_strategy_weights()
             results['weights_adapted'] = True
 
-        if block_height > 0 and block_height % 500 == 0:
+        if block_height > 0 and block_height % 100 == 0:
             node_id = self.create_meta_observation(block_height)
             results['meta_node_created'] = node_id is not None
 
