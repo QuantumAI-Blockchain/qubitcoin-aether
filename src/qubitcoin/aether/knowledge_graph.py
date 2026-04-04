@@ -6,6 +6,7 @@ Each node (KeterNode) represents a piece of verified knowledge; edges represent 
 import hashlib
 import json
 import math
+import queue
 import threading
 import time
 from collections import deque
@@ -286,6 +287,16 @@ class KnowledgeGraph:
         # Dense embedding vector index (semantic similarity)
         from .vector_index import VectorIndex
         self.vector_index = VectorIndex()
+
+        # Async write queue — node/edge DB persistence is non-blocking.
+        # In-memory state is always consistent; DB is written asynchronously.
+        self._write_queue: queue.Queue = queue.Queue(maxsize=10000)
+        self._writer_stop = threading.Event()
+        self._writer_thread = threading.Thread(
+            target=self._async_writer, name="kg-db-writer", daemon=True
+        )
+        self._writer_thread.start()
+
         self._load_from_db()
 
     def _load_from_db(self):
@@ -399,6 +410,94 @@ class KnowledgeGraph:
                 f"Knowledge graph DB load failed ({nodes_loaded} nodes, {edges_loaded} edges recovered): {e}"
             )
 
+    def _async_writer(self) -> None:
+        """Background thread: drain write queue and batch-commit to DB."""
+        from sqlalchemy import text
+        BATCH_SIZE = 50
+        FLUSH_INTERVAL = 0.5  # seconds
+
+        while not self._writer_stop.is_set():
+            batch = []
+            deadline = time.monotonic() + FLUSH_INTERVAL
+            # Collect items until batch full or timeout
+            while len(batch) < BATCH_SIZE:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                try:
+                    item = self._write_queue.get(timeout=min(remaining, FLUSH_INTERVAL))
+                    batch.append(item)
+                except queue.Empty:
+                    break
+
+            if not batch:
+                continue
+
+            # Write batch in a single transaction
+            try:
+                with self.db.get_session() as session:
+                    for item in batch:
+                        if item[0] == 'node':
+                            _, node_id, ntype, chash, content_json, conf, sb = item
+                            session.execute(
+                                text("""
+                                    INSERT INTO knowledge_nodes (id, node_type, content_hash, content, confidence, source_block)
+                                    VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf, :sb)
+                                    ON CONFLICT (id) DO NOTHING
+                                """),
+                                {'id': node_id, 'ntype': ntype, 'chash': chash,
+                                 'content': content_json, 'conf': conf, 'sb': sb}
+                            )
+                        elif item[0] == 'edge':
+                            _, fid, tid, etype, w = item
+                            session.execute(
+                                text("""
+                                    INSERT INTO knowledge_edges (from_node_id, to_node_id, edge_type, weight)
+                                    VALUES (:fid, :tid, :etype, :w)
+                                    ON CONFLICT (from_node_id, to_node_id, edge_type) DO UPDATE SET weight = :w
+                                """),
+                                {'fid': fid, 'tid': tid, 'etype': etype, 'w': w}
+                            )
+                    session.commit()
+            except Exception as e:
+                logger.error(f"Async KG writer batch failed ({len(batch)} items): {e}")
+
+        # Drain remaining items on shutdown
+        remaining_items = []
+        while not self._write_queue.empty():
+            try:
+                remaining_items.append(self._write_queue.get_nowait())
+            except queue.Empty:
+                break
+        if remaining_items:
+            try:
+                with self.db.get_session() as session:
+                    for item in remaining_items:
+                        if item[0] == 'node':
+                            _, node_id, ntype, chash, content_json, conf, sb = item
+                            session.execute(
+                                text("""
+                                    INSERT INTO knowledge_nodes (id, node_type, content_hash, content, confidence, source_block)
+                                    VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf, :sb)
+                                    ON CONFLICT (id) DO NOTHING
+                                """),
+                                {'id': node_id, 'ntype': ntype, 'chash': chash,
+                                 'content': content_json, 'conf': conf, 'sb': sb}
+                            )
+                        elif item[0] == 'edge':
+                            _, fid, tid, etype, w = item
+                            session.execute(
+                                text("""
+                                    INSERT INTO knowledge_edges (from_node_id, to_node_id, edge_type, weight)
+                                    VALUES (:fid, :tid, :etype, :w)
+                                    ON CONFLICT (from_node_id, to_node_id, edge_type) DO UPDATE SET weight = :w
+                                """),
+                                {'fid': fid, 'tid': tid, 'etype': etype, 'w': w}
+                            )
+                    session.commit()
+            except Exception as e:
+                logger.error(f"Async KG writer shutdown flush failed: {e}")
+
     def add_node(self, node_type: str, content: dict, confidence: float,
                  source_block: int, domain: str = '') -> KeterNode:
         """Add a new knowledge node"""
@@ -422,25 +521,14 @@ class KnowledgeGraph:
         self.search_index.add_node(node.node_id, content)
         self.vector_index.add_node(node.node_id, content)
 
-        # Persist
+        # Persist asynchronously via write queue (non-blocking)
         try:
-            from sqlalchemy import text
-            with self.db.get_session() as session:
-                session.execute(
-                    text("""
-                        INSERT INTO knowledge_nodes (id, node_type, content_hash, content, confidence, source_block)
-                        VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf, :sb)
-                    """),
-                    {
-                        'id': node.node_id, 'ntype': node.node_type,
-                        'chash': node.content_hash,
-                        'content': json.dumps(node.content),
-                        'conf': node.confidence, 'sb': source_block,
-                    }
-                )
-                session.commit()
-        except Exception as e:
-            logger.error(f"Failed to persist knowledge node: {e}")
+            self._write_queue.put_nowait((
+                'node', node.node_id, node.node_type, node.content_hash,
+                json.dumps(node.content), node.confidence, source_block
+            ))
+        except queue.Full:
+            logger.warning("KG write queue full — dropping node persist for id=%d", node.node_id)
 
         return node
 
@@ -464,21 +552,11 @@ class KnowledgeGraph:
             self.nodes[from_id].edges_out.append(to_id)
             self.nodes[to_id].edges_in.append(from_id)
 
-        # Persist
+        # Persist asynchronously via write queue (non-blocking)
         try:
-            from sqlalchemy import text
-            with self.db.get_session() as session:
-                session.execute(
-                    text("""
-                        INSERT INTO knowledge_edges (from_node_id, to_node_id, edge_type, weight)
-                        VALUES (:fid, :tid, :etype, :w)
-                        ON CONFLICT (from_node_id, to_node_id, edge_type) DO UPDATE SET weight = :w
-                    """),
-                    {'fid': from_id, 'tid': to_id, 'etype': edge_type, 'w': weight}
-                )
-                session.commit()
-        except Exception as e:
-            logger.error(f"Failed to persist knowledge edge: {e}")
+            self._write_queue.put_nowait(('edge', from_id, to_id, edge_type, weight))
+        except queue.Full:
+            logger.warning("KG write queue full — dropping edge persist %d→%d", from_id, to_id)
 
         return edge
 

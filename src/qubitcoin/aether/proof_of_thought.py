@@ -769,6 +769,10 @@ class AetherEngine:
         self._subsystem_health: Dict[str, dict] = {}
         self._subsystem_last_check: float = 0.0
 
+        # Domain bucket cache for cross-domain reasoning (avoid O(n) every block)
+        self._xd_domain_cache: Dict[str, list] = {}  # domain -> [node_id, ...]
+        self._xd_cache_block: int = -1  # block when cache was last built
+
         # Genesis Knowledge Seeding — inject real facts across all domains
         if self.kg:
             try:
@@ -4102,39 +4106,70 @@ class AetherEngine:
                         except Exception as e:
                             logger.debug(f"Neural reasoning error: {e}")
 
-            # --- Cross-domain reasoning (runs every block) ---
-            # Pick inference nodes from two different domains and deduce
-            # to generate cross_domain=True tagged conclusions.
+            # --- Cross-domain reasoning (cached, 3 deductive + 1 inductive per block) ---
+            # Domain bucket is rebuilt every 50 blocks (O(n) amortised over 50 calls)
+            # instead of every block. This keeps per-block overhead O(1).
             try:
                 import random as _rng
-                from collections import defaultdict
-                domain_buckets: Dict[str, list] = defaultdict(list)
-                for n in self.kg.nodes.values():
-                    if n.node_type == 'inference' and n.confidence > 0.4 and n.domain:
-                        domain_buckets[n.domain].append(n)
-                # Pick two different domains (rotate pair each block)
-                domain_list = [d for d in domain_buckets if len(domain_buckets[d]) >= 3]
+                _CACHE_INTERVAL = 50
+                if (block_height - self._xd_cache_block) >= _CACHE_INTERVAL or not self._xd_domain_cache:
+                    from collections import defaultdict as _dd_xd
+                    _new_cache: Dict[str, list] = _dd_xd(list)
+                    for _n in self.kg.nodes.values():
+                        if (_n.node_type in ('inference', 'assertion', 'observation')
+                                and _n.confidence > 0.4 and _n.domain):
+                            _new_cache[_n.domain].append(_n.node_id)
+                    # Keep max 50 node_ids per domain (high-confidence preference not possible
+                    # without sorting, but random sample is unbiased and O(1) per domain)
+                    self._xd_domain_cache = {
+                        d: ids for d, ids in _new_cache.items() if len(ids) >= 3
+                    }
+                    self._xd_cache_block = block_height
+
+                xd_cache = self._xd_domain_cache
+                domain_list = list(xd_cache.keys())
                 if len(domain_list) >= 2:
-                    # Use block_height to rotate through domain pairs
-                    pair_idx = block_height % (len(domain_list) * (len(domain_list) - 1) // 2)
-                    pairs = [(domain_list[i], domain_list[j])
-                             for i in range(len(domain_list))
-                             for j in range(i + 1, len(domain_list))]
-                    d1, d2 = pairs[pair_idx % len(pairs)]
-                    # Pick a random node from each domain (not always max)
-                    pool1 = sorted(domain_buckets[d1], key=lambda n: n.confidence, reverse=True)[:10]
-                    pool2 = sorted(domain_buckets[d2], key=lambda n: n.confidence, reverse=True)[:10]
-                    n1 = _rng.choice(pool1)
-                    n2 = _rng.choice(pool2)
-                    xd_result = self.reasoning.deduce([n1.node_id, n2.node_id])
-                    if xd_result.success:
-                        self._calibrate_conclusion(xd_result)
-                        steps.extend([s.to_dict() for s in xd_result.chain])
-                        self._record_reasoning_outcome(
-                            'deductive', xd_result.confidence, True, block_height,
-                            result=xd_result
-                        )
-                        logger.info(f"Cross-domain inference: {d1}×{d2}")
+                    all_pairs = [(domain_list[i], domain_list[j])
+                                 for i in range(len(domain_list))
+                                 for j in range(i + 1, len(domain_list))]
+                    _rng.shuffle(all_pairs)
+                    _xd_done = 0
+                    for d1, d2 in all_pairs[:6]:
+                        if _xd_done >= 3:
+                            break
+                        n1_id = _rng.choice(xd_cache[d1])
+                        n2_id = _rng.choice(xd_cache[d2])
+                        n1 = self.kg.nodes.get(n1_id)
+                        n2 = self.kg.nodes.get(n2_id)
+                        if not n1 or not n2:
+                            continue
+                        xd_result = self.reasoning.deduce([n1.node_id, n2.node_id])
+                        if xd_result.success:
+                            self._calibrate_conclusion(xd_result)
+                            steps.extend([s.to_dict() for s in xd_result.chain])
+                            self._record_reasoning_outcome(
+                                'deductive', xd_result.confidence, True, block_height,
+                                result=xd_result
+                            )
+                            logger.info(f"Cross-domain inference: {d1}×{d2}")
+                            _xd_done += 1
+
+                    # Inductive generalization every 3 blocks (uses same cache)
+                    if block_height % 3 == 0 and len(domain_list) >= 2:
+                        d1, d2 = _rng.sample(domain_list, 2)
+                        obs_ids = [
+                            _rng.choice(xd_cache[d1]),
+                            _rng.choice(xd_cache[d1]),
+                            _rng.choice(xd_cache[d2]),
+                        ]
+                        ind_result = self.reasoning.induce(obs_ids)
+                        if ind_result.success:
+                            self._calibrate_conclusion(ind_result)
+                            steps.extend([s.to_dict() for s in ind_result.chain])
+                            self._record_reasoning_outcome(
+                                'inductive', ind_result.confidence, True, block_height,
+                                result=ind_result
+                            )
             except Exception as e:
                 logger.debug(f"Cross-domain reasoning error: {e}")
 
