@@ -1878,7 +1878,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             'differentiation': phi_data.get('differentiation_score', 0.0),
             'knowledge_nodes': kg_stats.get('total_nodes', 0),
             'knowledge_edges': kg_stats.get('total_edges', 0),
-            'blocks_processed': kg_stats.get('blocks_processed', 0),
+            'blocks_processed': getattr(aether_engine, '_blocks_processed', 0),
         }
         # v2+ gate data (post-fork)
         if phi_data.get('phi_version', 0) >= 2:
@@ -1891,6 +1891,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             result['connectivity'] = phi_data.get('connectivity', 0.0)
             result['maturity'] = phi_data.get('maturity', 0.0)
             result['redundancy_factor'] = phi_data.get('redundancy_factor', 1.0)
+        # v3 convergence fields
+        if phi_data.get('convergence_status'):
+            result['convergence_status'] = phi_data.get('convergence_status', 'converging')
+            result['convergence_stddev'] = phi_data.get('convergence_stddev', 0.0)
+            result['formula_weights'] = phi_data.get('formula_weights', {})
         return result
 
     @app.get("/aether/consciousness/gates")

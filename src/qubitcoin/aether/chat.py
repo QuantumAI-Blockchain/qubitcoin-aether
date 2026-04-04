@@ -2073,16 +2073,24 @@ class AetherChat:
             except Exception as e:
                 logger.debug(f"External knowledge enrichment failed: {e}")
 
-        # Only fall back to LLM if the tree's response is too thin
-        # (less than 80 chars and no facts grounded) — meaning the tree
-        # genuinely doesn't have enough knowledge to answer well
-        if (self.llm_manager and Config.LLM_ENABLED
-                and len(aether_response) < 80 and not facts):
-            llm_result = self._llm_synthesize(
-                query, facts, reasoning_trace, knowledge_refs,
+        # When an LLM is connected, use it as the primary synthesis engine
+        # (KG facts above are passed as grounding context).
+        # Wrapped in a 15s timeout so a slow/cold Ollama model doesn't block chat.
+        if self.llm_manager and Config.LLM_ENABLED:
+            import concurrent.futures as _cf_llm
+            _llm_ex = _cf_llm.ThreadPoolExecutor(max_workers=1)
+            _llm_fut = _llm_ex.submit(
+                self._llm_synthesize, query, facts, reasoning_trace, knowledge_refs
             )
-            if llm_result:
-                return llm_result
+            _llm_ex.shutdown(wait=False)
+            try:
+                llm_result = _llm_fut.result(timeout=15.0)
+                if llm_result:
+                    return llm_result
+            except _cf_llm.TimeoutError:
+                logger.debug("LLM synthesis timed out (15s), using KG-only response")
+            except Exception as e:
+                logger.debug("LLM synthesis error, using KG-only response: %s", e)
 
         return aether_response
 

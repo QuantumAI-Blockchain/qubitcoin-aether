@@ -90,6 +90,48 @@ class TemporalEngine:
         self._verified_outcomes: List[dict] = []
         self._max_verified_outcomes: int = 500
 
+    def load_from_db(self, db_manager, max_per_metric: int = 500) -> int:
+        """Warm-start from persisted time-series data so predictions work immediately.
+
+        Without this, every node restart clears the in-memory series and the
+        temporal engine can't make predictions until it accumulates enough live data.
+
+        Args:
+            db_manager: DatabaseManager with get_session() context manager.
+            max_per_metric: How many recent data points to load per metric.
+
+        Returns:
+            Total data points loaded.
+        """
+        loaded = 0
+        METRICS = ['difficulty', 'knowledge_nodes', 'knowledge_edges', 'phi_value', 'tx_count']
+        try:
+            import sqlalchemy as sa
+            with db_manager.get_session() as session:
+                for metric_name in METRICS:
+                    rows = session.execute(
+                        sa.text(
+                            "SELECT block_height, value FROM agi_time_series "
+                            "WHERE metric_name = :m "
+                            "ORDER BY block_height DESC LIMIT :lim"
+                        ),
+                        {'m': metric_name, 'lim': max_per_metric},
+                    ).fetchall()
+                    if rows:
+                        # Reverse to chronological order
+                        points = [(int(r[0]), float(r[1])) for r in reversed(rows)]
+                        self._series[metric_name] = points
+                        loaded += len(points)
+            if loaded:
+                logger.info(
+                    "TemporalEngine: loaded %d historical data points from DB "
+                    "(%d metrics, up to %d each)",
+                    loaded, len(METRICS), max_per_metric,
+                )
+        except Exception as e:
+            logger.debug("TemporalEngine: could not load from DB: %s", e)
+        return loaded
+
     def record_metric(self, metric: str, block_height: int, value: float) -> None:
         """Record a time-series data point."""
         if metric not in self._series:

@@ -95,6 +95,12 @@ class AetherEngine:
         try:
             from .temporal import TemporalEngine
             self.temporal_engine = TemporalEngine(knowledge_graph)
+            # Warm-start from DB so predictions work immediately after restart
+            if db_manager is not None:
+                try:
+                    self.temporal_engine.load_from_db(db_manager)
+                except Exception as _te:
+                    logger.debug("TemporalEngine DB warmup failed: %s", _te)
         except Exception as e:
             logger.debug(f"TemporalEngine init failed: {e}")
 
