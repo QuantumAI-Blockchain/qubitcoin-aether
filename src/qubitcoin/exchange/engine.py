@@ -368,7 +368,7 @@ class ExchangeEngine:
         {"symbol": "sWLD",  "name": "Synthetic Worldcoin",  "coingecko_id": "worldcoin-wld",    "decimals": 8},
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, db_manager: Any = None) -> None:
         self.books: dict[str, OrderBook] = {}
         self.balances: dict[str, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
         self._order_count = 0
@@ -376,6 +376,7 @@ class ExchangeEngine:
         self._oracle_last_fetch: float = 0.0
         self._synthetic_registry: dict[str, dict] = {}  # symbol -> asset info
         self._collateral_ratio = Decimal("1.5")  # 150% collateralization for synths
+        self._db: Any = db_manager  # DatabaseManager — used for on-chain balance verification
 
         # Initialize real markets (QBC/QUSD only)
         for mc in self.MARKETS:
@@ -401,9 +402,35 @@ class ExchangeEngine:
         return pair
 
     def deposit(self, address: str, asset: str, amount: float) -> dict[str, Any]:
+        """Credit exchange balance after verifying sufficient on-chain balance.
+
+        For QBC deposits: verifies the depositor holds at least `amount` QBC on the
+        L1 UTXO/account layer before crediting their exchange balance.  This prevents
+        phantom deposits where a user claims more balance than they own on-chain.
+
+        The custodial model still requires the user to first send QBC to the exchange
+        treasury address (node's miner address) on-chain.  This check ensures the
+        deposited amount does not exceed their actual on-chain holdings at call time.
+        """
         if amount <= 0:
             raise ValueError("Amount must be positive")
         dec_amount = Decimal(str(amount))
+
+        # On-chain balance verification for QBC (real L1 asset)
+        if asset == "QBC" and self._db is not None:
+            try:
+                on_chain = self._db.get_balance(address)
+                if on_chain < dec_amount:
+                    raise ValueError(
+                        f"Insufficient on-chain QBC balance: address has {on_chain} QBC, "
+                        f"attempted deposit of {dec_amount} QBC"
+                    )
+            except Exception as e:
+                # Re-raise value errors (insufficient balance); log other DB errors
+                if isinstance(e, ValueError):
+                    raise
+                logger.warning(f"Exchange deposit: on-chain balance check failed for {address[:12]}...: {e}")
+
         self.balances[address][asset] += dec_amount
         logger.info(f"Exchange deposit: {address[:12]}... +{amount} {asset}")
         return {
@@ -415,19 +442,197 @@ class ExchangeEngine:
         }
 
     def withdraw(self, address: str, asset: str, amount: float) -> dict[str, Any]:
+        """Deduct exchange balance and, for QBC withdrawals, create a real on-chain UTXO tx.
+
+        For QBC withdrawals: after deducting the exchange balance, calls
+        `_send_qbc_on_chain` which selects UTXOs from the node treasury (miner address),
+        marks them spent, creates a change UTXO, and records the transaction in the DB.
+        This makes withdrawals real — funds actually move on-chain.
+
+        For non-QBC assets (QUSD, synthetic tokens): balance-only update (these assets
+        settle through their own smart-contract mechanisms).
+        """
         if amount <= 0:
             raise ValueError("Amount must be positive")
         dec_amount = Decimal(str(amount))
         if self.balances[address][asset] < dec_amount:
-            raise ValueError(f"Insufficient balance: have {self.balances[address][asset]}, need {dec_amount}")
+            raise ValueError(f"Insufficient exchange balance: have {self.balances[address][asset]}, need {dec_amount}")
+
         self.balances[address][asset] -= dec_amount
-        return {
+
+        tx_hash: str | None = None
+        if asset == "QBC" and self._db is not None:
+            try:
+                tx_hash = self._send_qbc_on_chain(to_address=address, amount=dec_amount)
+            except Exception as e:
+                # Rollback exchange balance deduction on tx failure
+                self.balances[address][asset] += dec_amount
+                raise ValueError(f"On-chain QBC transfer failed: {e}") from e
+
+        result: dict[str, Any] = {
             "status": "withdrawn",
             "address": address,
             "asset": asset,
             "amount": amount,
             "balance": float(self.balances[address][asset]),
         }
+        if tx_hash:
+            result["tx_hash"] = tx_hash
+        return result
+
+    def _send_qbc_on_chain(self, to_address: str, amount: Decimal) -> str:
+        """Create and commit a real L1 UTXO transaction from the node treasury to `to_address`.
+
+        Selects UTXOs belonging to the node's miner address (Config.ADDRESS), marks them
+        spent in a single DB transaction (SELECT FOR UPDATE to prevent TOCTOU races),
+        creates a change UTXO if needed, and records the transaction row.
+
+        Returns the deterministic tx_hash (sha256 of inputs+outputs).
+        Raises ValueError if the treasury has insufficient UTXOs.
+        """
+        import hashlib
+        import json as _json
+        import time as _time
+        from sqlalchemy import text as sa_text
+        from ..config import Config
+
+        treasury = Config.ADDRESS
+        if not treasury:
+            raise ValueError("Exchange treasury address (Config.ADDRESS) is not configured")
+
+        to_addr = to_address.replace("0x", "").lower()
+
+        with self._db.get_session() as session:
+            # Two-phase UTXO selection: estimate first (no lock), then lock only what we need
+            estimate_rows = session.execute(
+                sa_text("""
+                    SELECT txid, vout, amount FROM utxos
+                    WHERE address = :addr AND spent = false
+                    ORDER BY amount DESC
+                    LIMIT 500
+                """),
+                {"addr": treasury},
+            ).fetchall()
+
+            if not estimate_rows:
+                raise ValueError("Exchange treasury has no UTXOs available for withdrawal")
+
+            needed = 0
+            running = Decimal("0")
+            for r in estimate_rows:
+                needed += 1
+                running += Decimal(str(r[2]))
+                if running >= amount:
+                    break
+
+            if running < amount:
+                raise ValueError(
+                    f"Exchange treasury has insufficient UTXOs: have {running} QBC in top-500, need {amount}"
+                )
+
+            lock_limit = min(needed + 5, len(estimate_rows))
+            rows = session.execute(
+                sa_text("""
+                    SELECT txid, vout, amount FROM utxos
+                    WHERE address = :addr AND spent = false
+                    ORDER BY amount DESC
+                    LIMIT :lim
+                    FOR UPDATE
+                """),
+                {"addr": treasury, "lim": lock_limit},
+            ).fetchall()
+
+            selected: list[tuple] = []
+            total = Decimal("0")
+            for r in rows:
+                selected.append(r)
+                total += Decimal(str(r[2]))
+                if total >= amount:
+                    break
+
+            if total < amount:
+                raise ValueError(f"Exchange treasury insufficient after lock: have {total}, need {amount}")
+
+            change = total - amount
+
+            # Deterministic txid
+            input_nonce = ":".join(f"{r[0]}:{r[1]}" for r in selected)
+            tx_hash = hashlib.sha256(
+                f"{treasury}:{to_addr}:{amount}:{input_nonce}".encode()
+            ).hexdigest()
+
+            # Mark UTXOs spent (batch UPDATE)
+            pair_clauses = " OR ".join(
+                f"(txid = '{r[0]}' AND vout = {r[1]})" for r in selected
+            )
+            result = session.execute(
+                sa_text(
+                    f"UPDATE utxos SET spent = true, spent_by = :txid "
+                    f"WHERE ({pair_clauses}) AND spent = false"
+                ),
+                {"txid": tx_hash},
+            )
+            if result.rowcount != len(selected):
+                raise ValueError(
+                    f"UTXO conflict during withdrawal: expected {len(selected)} updates, got {result.rowcount}"
+                )
+
+            # Change UTXO back to treasury
+            if change > 0:
+                session.execute(
+                    sa_text("""
+                        INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent)
+                        VALUES (:txid, 0, :amt, :addr, '{}', :h, false)
+                    """),
+                    {
+                        "txid": tx_hash,
+                        "amt": str(change),
+                        "addr": treasury,
+                        "h": self._db.get_current_height(),
+                    },
+                )
+
+            # Create recipient UTXO
+            session.execute(
+                sa_text("""
+                    INSERT INTO utxos (txid, vout, amount, address, proof, block_height, spent)
+                    VALUES (:txid, 1, :amt, :addr, '{}', :h, false)
+                """),
+                {
+                    "txid": tx_hash,
+                    "amt": str(amount),
+                    "addr": to_addr,
+                    "h": self._db.get_current_height(),
+                },
+            )
+
+            # Record transaction
+            outputs = [{"address": to_addr, "amount": str(amount)}]
+            if change > 0:
+                outputs.append({"address": treasury, "amount": str(change)})
+            session.execute(
+                sa_text("""
+                    INSERT INTO transactions (txid, inputs, outputs, fee, signature, public_key,
+                                              timestamp, status, tx_type, to_address, data,
+                                              gas_limit, gas_price, nonce)
+                    VALUES (:txid, CAST(:inputs AS jsonb), CAST(:outputs AS jsonb), 0, '', '',
+                            :ts, 'confirmed', 'exchange_withdrawal', :to_addr, '', 0, 0, 0)
+                    ON CONFLICT (txid) DO NOTHING
+                """),
+                {
+                    "txid": tx_hash,
+                    "inputs": _json.dumps([{"txid": r[0], "vout": r[1]} for r in selected]),
+                    "outputs": _json.dumps(outputs),
+                    "ts": _time.time(),
+                    "to_addr": to_addr,
+                },
+            )
+            session.commit()
+
+        logger.info(
+            f"Exchange withdrawal: treasury→{to_addr[:12]}... {amount} QBC (tx={tx_hash[:12]})"
+        )
+        return tx_hash
 
     def get_user_balance(self, address: str) -> dict[str, Any]:
         bals = {k: float(v) for k, v in self.balances[address].items() if v > 0}

@@ -433,34 +433,47 @@ class KnowledgeGraph:
             if not batch:
                 continue
 
-            # Write batch in a single transaction
-            try:
-                with self.db.get_session() as session:
-                    for item in batch:
-                        if item[0] == 'node':
-                            _, node_id, ntype, chash, content_json, conf, sb = item
-                            session.execute(
-                                text("""
-                                    INSERT INTO knowledge_nodes (id, node_type, content_hash, content, confidence, source_block)
-                                    VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf, :sb)
-                                    ON CONFLICT (id) DO NOTHING
-                                """),
-                                {'id': node_id, 'ntype': ntype, 'chash': chash,
-                                 'content': content_json, 'conf': conf, 'sb': sb}
-                            )
-                        elif item[0] == 'edge':
-                            _, fid, tid, etype, w = item
-                            session.execute(
-                                text("""
-                                    INSERT INTO knowledge_edges (from_node_id, to_node_id, edge_type, weight)
-                                    VALUES (:fid, :tid, :etype, :w)
-                                    ON CONFLICT (from_node_id, to_node_id, edge_type) DO UPDATE SET weight = :w
-                                """),
-                                {'fid': fid, 'tid': tid, 'etype': etype, 'w': w}
-                            )
-                    session.commit()
-            except Exception as e:
-                logger.error(f"Async KG writer batch failed ({len(batch)} items): {e}")
+            # Separate DB items from vector items
+            db_items = [i for i in batch if i[0] in ('node', 'edge')]
+            vec_items = [i for i in batch if i[0] == 'vec']
+
+            # Write DB batch in a single transaction
+            if db_items:
+                try:
+                    with self.db.get_session() as session:
+                        for item in db_items:
+                            if item[0] == 'node':
+                                _, node_id, ntype, chash, content_json, conf, sb = item
+                                session.execute(
+                                    text("""
+                                        INSERT INTO knowledge_nodes (id, node_type, content_hash, content, confidence, source_block)
+                                        VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf, :sb)
+                                        ON CONFLICT (id) DO NOTHING
+                                    """),
+                                    {'id': node_id, 'ntype': ntype, 'chash': chash,
+                                     'content': content_json, 'conf': conf, 'sb': sb}
+                                )
+                            elif item[0] == 'edge':
+                                _, fid, tid, etype, w = item
+                                session.execute(
+                                    text("""
+                                        INSERT INTO knowledge_edges (from_node_id, to_node_id, edge_type, weight)
+                                        VALUES (:fid, :tid, :etype, :w)
+                                        ON CONFLICT (from_node_id, to_node_id, edge_type) DO UPDATE SET weight = :w
+                                    """),
+                                    {'fid': fid, 'tid': tid, 'etype': etype, 'w': w}
+                                )
+                        session.commit()
+                except Exception as e:
+                    logger.error(f"Async KG writer DB batch failed ({len(db_items)} items): {e}")
+
+            # Process vector embeddings (model.encode — expensive but off critical path)
+            for item in vec_items:
+                try:
+                    _, node_id, content = item
+                    self.vector_index.add_node(node_id, content)
+                except Exception as e:
+                    logger.debug(f"Async vector embed failed for node {item[1]}: {e}")
 
         # Drain remaining items on shutdown
         remaining_items = []
@@ -470,33 +483,35 @@ class KnowledgeGraph:
             except queue.Empty:
                 break
         if remaining_items:
-            try:
-                with self.db.get_session() as session:
-                    for item in remaining_items:
-                        if item[0] == 'node':
-                            _, node_id, ntype, chash, content_json, conf, sb = item
-                            session.execute(
-                                text("""
-                                    INSERT INTO knowledge_nodes (id, node_type, content_hash, content, confidence, source_block)
-                                    VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf, :sb)
-                                    ON CONFLICT (id) DO NOTHING
-                                """),
-                                {'id': node_id, 'ntype': ntype, 'chash': chash,
-                                 'content': content_json, 'conf': conf, 'sb': sb}
-                            )
-                        elif item[0] == 'edge':
-                            _, fid, tid, etype, w = item
-                            session.execute(
-                                text("""
-                                    INSERT INTO knowledge_edges (from_node_id, to_node_id, edge_type, weight)
-                                    VALUES (:fid, :tid, :etype, :w)
-                                    ON CONFLICT (from_node_id, to_node_id, edge_type) DO UPDATE SET weight = :w
-                                """),
-                                {'fid': fid, 'tid': tid, 'etype': etype, 'w': w}
-                            )
-                    session.commit()
-            except Exception as e:
-                logger.error(f"Async KG writer shutdown flush failed: {e}")
+            db_rem = [i for i in remaining_items if i[0] in ('node', 'edge')]
+            if db_rem:
+                try:
+                    with self.db.get_session() as session:
+                        for item in db_rem:
+                            if item[0] == 'node':
+                                _, node_id, ntype, chash, content_json, conf, sb = item
+                                session.execute(
+                                    text("""
+                                        INSERT INTO knowledge_nodes (id, node_type, content_hash, content, confidence, source_block)
+                                        VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf, :sb)
+                                        ON CONFLICT (id) DO NOTHING
+                                    """),
+                                    {'id': node_id, 'ntype': ntype, 'chash': chash,
+                                     'content': content_json, 'conf': conf, 'sb': sb}
+                                )
+                            elif item[0] == 'edge':
+                                _, fid, tid, etype, w = item
+                                session.execute(
+                                    text("""
+                                        INSERT INTO knowledge_edges (from_node_id, to_node_id, edge_type, weight)
+                                        VALUES (:fid, :tid, :etype, :w)
+                                        ON CONFLICT (from_node_id, to_node_id, edge_type) DO UPDATE SET weight = :w
+                                    """),
+                                    {'fid': fid, 'tid': tid, 'etype': etype, 'w': w}
+                                )
+                        session.commit()
+                except Exception as e:
+                    logger.error(f"Async KG writer shutdown flush failed: {e}")
 
     def add_node(self, node_type: str, content: dict, confidence: float,
                  source_block: int, domain: str = '') -> KeterNode:
@@ -517,18 +532,24 @@ class KnowledgeGraph:
             self.nodes[node.node_id] = node
             self._merkle_dirty = True
 
-        # Update search indices (outside lock — no shared state mutation)
+        # Update TF-IDF index synchronously (fast — no model inference)
         self.search_index.add_node(node.node_id, content)
-        self.vector_index.add_node(node.node_id, content)
 
-        # Persist asynchronously via write queue (non-blocking)
-        try:
-            self._write_queue.put_nowait((
-                'node', node.node_id, node.node_type, node.content_hash,
-                json.dumps(node.content), node.confidence, source_block
-            ))
-        except queue.Full:
-            logger.warning("KG write queue full — dropping node persist for id=%d", node.node_id)
+        # Vector embedding is async — enqueued alongside DB write to avoid
+        # blocking on sentence-transformer model.encode() per node.
+        # Persist asynchronously via write queue (non-blocking).
+        # Guard with hasattr: tests may instantiate KnowledgeGraph via __new__
+        # without calling __init__, so _write_queue may not exist.
+        if hasattr(self, '_write_queue'):
+            try:
+                self._write_queue.put_nowait((
+                    'node', node.node_id, node.node_type, node.content_hash,
+                    json.dumps(node.content), node.confidence, source_block
+                ))
+                # Queue vector embedding update (the sentence-transformer model call)
+                self._write_queue.put_nowait(('vec', node.node_id, content))
+            except queue.Full:
+                logger.warning("KG write queue full — dropping node persist for id=%d", node.node_id)
 
         return node
 
@@ -553,10 +574,11 @@ class KnowledgeGraph:
             self.nodes[to_id].edges_in.append(from_id)
 
         # Persist asynchronously via write queue (non-blocking)
-        try:
-            self._write_queue.put_nowait(('edge', from_id, to_id, edge_type, weight))
-        except queue.Full:
-            logger.warning("KG write queue full — dropping edge persist %d→%d", from_id, to_id)
+        if hasattr(self, '_write_queue'):
+            try:
+                self._write_queue.put_nowait(('edge', from_id, to_id, edge_type, weight))
+            except queue.Full:
+                logger.warning("KG write queue full — dropping edge persist %d→%d", from_id, to_id)
 
         return edge
 

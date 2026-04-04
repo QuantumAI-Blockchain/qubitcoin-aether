@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
+import "./Poseidon2.sol";
 
 /// @title ZKBridgeVerifier — Poseidon2 ZK Proof Verification for Quantum Bridge
 /// @notice Deployed on BOTH QBC chain and external chains. Verifies ZK proofs of
@@ -216,9 +217,25 @@ contract ZKBridgeVerifier is Initializable {
 
     // ── Internal Verification ─────────────────────────────────────────
 
-    /// @dev Verify the ZK proof against the commitment and state root.
-    ///      In production, this performs Poseidon2 hash verification and
-    ///      Merkle inclusion proof against the state root.
+    /// @dev Verify a ZK bridge commitment using Poseidon2 (Goldilocks field).
+    ///
+    ///      Proof layout (48 bytes minimum):
+    ///        [0 :32]  preimageHash  — keccak256(abi.encodePacked(sender, sourceChainId, destChainId))
+    ///                                Compresses non-numeric metadata into a single 32-byte seed.
+    ///        [32:40]  amount_u64    — token amount as big-endian uint64 (QBC amounts fit in u64)
+    ///        [40:48]  nonce_u64     — uniqueness nonce as big-endian uint64
+    ///
+    ///      Commitment derivation (must match the off-chain relay):
+    ///        lo   = uint64(preimageHash[0:8])   // top 8 bytes
+    ///        hi   = uint64(preimageHash[8:16])  // next 8 bytes
+    ///        commitment = Poseidon2.hashFour(lo % P, hi % P, amount_u64, nonce_u64)
+    ///
+    ///      This matches substrate-node/primitives/src/poseidon2.rs exactly:
+    ///        same Goldilocks field, same MDS, same round constants.
+    ///
+    ///      Merkle inclusion (optional — enforced only when stateRoot is set):
+    ///        Each sibling entry in stateWitness is 9 bytes: 1-byte direction + 8-byte u64.
+    ///        Tree is a Poseidon2 binary Merkle tree (same field/parameters as above).
     function _verifyZKProof(
         bytes32 commitment,
         uint256 amount,
@@ -226,61 +243,42 @@ contract ZKBridgeVerifier is Initializable {
         bytes calldata zkProof,
         bytes calldata stateWitness
     ) internal view returns (bool) {
-        // Extract proof components
-        // The proof encodes: Poseidon2(sender, amount, nonce, chainId) = commitment
-        // Plus a Merkle path proving the Lock/Burn event exists in the source state
+        // Minimum proof length: 32 (preimageHash) + 8 (amount_u64) + 8 (nonce_u64)
+        if (zkProof.length < 48) return false;
 
-        // Verify proof length (minimum: 32 bytes hash + 32 bytes nonce + witness)
-        if (zkProof.length < 64) return false;
+        // ── Decode proof fields ───────────────────────────────────────────
+        bytes32 preimageHash = bytes32(zkProof[0:32]);
+        uint64  amount_u64   = uint64(bytes8(zkProof[32:40]));
+        uint64  nonce_u64    = uint64(bytes8(zkProof[40:48]));
 
-        // Extract the claimed Poseidon2 hash from the proof
-        bytes32 claimedHash = bytes32(zkProof[0:32]);
-        uint256 claimedNonce = uint256(bytes32(zkProof[32:64]));
+        // Amount sanity: the on-chain amount must equal the u64-encoded amount in the proof
+        // (QBC amounts are 8-decimal fixed-point and always fit in uint64)
+        if (uint256(amount_u64) != amount) return false;
 
-        // Verify the commitment matches the proof's claim
-        // In the full ZK circuit: Poseidon2(sender, amount, nonce, chainId) == commitment
-        // On-chain we verify: keccak256(claimedHash, amount, nonce, chainId) is consistent
-        bytes32 derivedCommitment = keccak256(abi.encodePacked(
-            claimedHash,
-            amount,
-            claimedNonce,
-            sourceChainId
-        ));
+        // ── Derive commitment using Poseidon2 ────────────────────────────
+        // Split the 32-byte preimage hash into two u64 Goldilocks field elements
+        uint256 v = uint256(preimageHash);
+        uint64 lo = uint64(v >> 192);          // top 8 bytes (big-endian)
+        uint64 hi = uint64(v >> 128);          // next 8 bytes
 
-        // The commitment from the source chain event must match
+        // Reduce into Goldilocks field (both values are already < 2^64 < P is NOT guaranteed,
+        // so we must reduce mod P to ensure they are valid field elements)
+        uint64 P = Poseidon2.P;
+        if (lo >= P) lo -= P;
+        if (hi >= P) hi -= P;
+
+        bytes32 derivedCommitment = Poseidon2.hashFour(lo, hi, amount_u64, nonce_u64);
+
         if (derivedCommitment != commitment) return false;
 
-        // Verify Merkle inclusion against state root (if state root is set)
-        if (stateRoot != bytes32(0) && stateWitness.length >= 32) {
-            bytes32 leaf = keccak256(abi.encodePacked(commitment, amount, sourceChainId));
-            if (!_verifyMerkleProof(stateWitness, stateRoot, leaf)) return false;
+        // ── Merkle inclusion proof (optional) ────────────────────────────
+        if (stateRoot != bytes32(0) && stateWitness.length >= 9) {
+            // Leaf = Poseidon2 hash of the commitment (converts bytes32 → Goldilocks leaf)
+            bytes32 leaf = Poseidon2.hashLeaf(commitment);
+            if (!Poseidon2.verifyMerkleProof(stateWitness, stateRoot, leaf)) return false;
         }
 
         return true;
-    }
-
-    /// @dev Verify a Merkle proof (simplified binary tree proof)
-    function _verifyMerkleProof(
-        bytes calldata proof,
-        bytes32 root,
-        bytes32 leaf
-    ) internal pure returns (bool) {
-        bytes32 computedHash = leaf;
-        uint256 proofLength = proof.length / 33; // 1 byte direction + 32 bytes hash
-
-        for (uint256 i = 0; i < proofLength; i++) {
-            uint256 offset = i * 33;
-            uint8 direction = uint8(proof[offset]);
-            bytes32 sibling = bytes32(proof[offset + 1:offset + 33]);
-
-            if (direction == 0) {
-                computedHash = keccak256(abi.encodePacked(computedHash, sibling));
-            } else {
-                computedHash = keccak256(abi.encodePacked(sibling, computedHash));
-            }
-        }
-
-        return computedHash == root;
     }
 
     /// @dev Execute a verified proof — call the appropriate contract

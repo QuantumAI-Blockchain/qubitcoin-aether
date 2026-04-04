@@ -657,8 +657,8 @@ class QubitcoinNode:
 
         try:
             from .exchange.engine import ExchangeEngine
-            self.exchange_engine = ExchangeEngine()
-            logger.info("[19b/22] ExchangeEngine initialized (Python fallback)")
+            self.exchange_engine = ExchangeEngine(db_manager=self.db)
+            logger.info("[19b/22] ExchangeEngine initialized (Python fallback, db_manager wired)")
         except Exception as e:
             logger.error(f"ExchangeEngine init failed: {e}", exc_info=True)
 

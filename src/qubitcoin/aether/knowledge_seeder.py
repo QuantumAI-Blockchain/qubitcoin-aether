@@ -681,9 +681,14 @@ class KnowledgeSeeder:
                 logger.debug("Could not get domain stats for prompt selection: %s", e)
 
         # Fallback: round-robin (thread-safe)
-        with self._prompt_lock:
-            prompt = MASTER_PROMPTS[self._prompt_index % len(MASTER_PROMPTS)]
-            self._prompt_index = (self._prompt_index + 1) % len(MASTER_PROMPTS)
+        lock = getattr(self, '_prompt_lock', None)
+        if lock is not None:
+            with lock:
+                prompt = MASTER_PROMPTS[self._prompt_index % len(MASTER_PROMPTS)]
+                self._prompt_index = (self._prompt_index + 1) % len(MASTER_PROMPTS)
+        else:
+            idx = getattr(self, '_prompt_index', 0)
+            prompt = MASTER_PROMPTS[idx % len(MASTER_PROMPTS)]
         return prompt
 
     def _pick_weighted_prompt(self, domain_stats: Dict) -> Optional[Dict[str, str]]:

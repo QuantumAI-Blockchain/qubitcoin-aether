@@ -270,6 +270,7 @@ def _make_aether_engine():
     }
     ae.sephirot = {}
     ae._sephirot = {}
+    ae._blocks_processed = 0
     return ae
 
 
@@ -298,6 +299,7 @@ def _make_fee_collector():
         {'fee_type': 'aether_chat', 'amount': '0.01', 'timestamp': time.time()},
     ]
     fc.get_total_fees_collected.return_value = Decimal('0.05')
+    fc.collect_fee.return_value = (True, "fee collected", {})
     return fc
 
 

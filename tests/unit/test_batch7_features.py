@@ -551,10 +551,13 @@ class TestCircadianPhases:
         engine = AetherEngine(db, knowledge_graph=kg, pineal=pineal)
         engine._sephirot = None
 
-        # Block divisible by 50 should trigger extra pruning
+        # Patch Config so the test is environment-agnostic: interval=50, height=150 (150%50==0)
         block = MagicMock()
         block.height = 150
-        engine._apply_circadian_behavior(block)
+        with patch("qubitcoin.aether.proof_of_thought.Config") as mock_cfg:
+            mock_cfg.AETHER_CURIOSITY_INTERVAL = 50
+            mock_cfg.AETHER_DEBATE_INTERVAL = 541
+            engine._apply_circadian_behavior(block)
         kg.prune_low_confidence.assert_called_once()
 
     def test_apply_circadian_rem_dreaming(self):
