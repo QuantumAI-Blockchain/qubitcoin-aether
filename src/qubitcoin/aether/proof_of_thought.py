@@ -3773,6 +3773,13 @@ class AetherEngine:
                     stats['prediction_accuracy'] = acc
         except Exception:
             pass
+        try:
+            if self.temporal_engine and 'prediction_accuracy' not in stats:
+                te_acc = self.temporal_engine.get_accuracy()
+                if te_acc > 0:
+                    stats['prediction_accuracy'] = te_acc
+        except Exception:
+            pass
         return stats
 
     def _auto_reason(self, block_height: int) -> List[dict]:
