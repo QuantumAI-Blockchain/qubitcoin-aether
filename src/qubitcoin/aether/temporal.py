@@ -511,11 +511,11 @@ class TemporalEngine:
                     except Exception as e:
                         logger.debug(f"LSTM train error for {metric}: {e}")
 
-        # Make new predictions every 20 blocks (ARIMA + LSTM ensemble)
-        # blocks_ahead=20 means validation in ~66s — faster gate-3 accumulation
-        if block_height % 20 == 0:
+        # Make new predictions every 10 blocks (ARIMA + LSTM ensemble)
+        # blocks_ahead=10 means validation in ~33s — faster gate-3 accumulation
+        if block_height % 10 == 0:
             for metric in self._series:
-                pred = self.make_prediction(metric, blocks_ahead=20,
+                pred = self.make_prediction(metric, blocks_ahead=10,
                                             block_height=block_height)
                 if pred:
                     results['new_predictions'].append(pred)
