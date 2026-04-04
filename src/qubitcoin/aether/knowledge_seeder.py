@@ -651,9 +651,8 @@ class KnowledgeSeeder:
         # Build the system prompt with Aether context
         system_prompt = (
             "You are a knowledge source for the Aether Tree AGI. "
-            "Provide clear, factual, and educational explanations. "
-            "Structure your response with distinct, self-contained sentences "
-            "that can each stand as individual knowledge assertions."
+            "Be VERY BRIEF — 3-5 key facts only, each as a separate short sentence. "
+            "Every sentence must be a standalone factual assertion. No elaboration."
         )
 
         self._last_call_time = time.time()

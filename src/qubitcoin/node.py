@@ -312,6 +312,7 @@ class QubitcoinNode:
                         OllamaAdapter(
                             model=Config.OLLAMA_MODEL,
                             base_url=Config.OLLAMA_BASE_URL,
+                            max_tokens=150,  # Short for CPU inference; seeder distills multiple nodes from each
                         ),
                         10 if primary == 'ollama' else 30,
                     ))
