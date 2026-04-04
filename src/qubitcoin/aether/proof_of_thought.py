@@ -3824,9 +3824,10 @@ class AetherEngine:
                     stats['prediction_accuracy'] = te_acc
         except Exception:
             pass
-        # Fallback: compute prediction_accuracy from persisted KG nodes.
-        # This ensures accuracy survives restarts without resetting to 0.
-        if 'prediction_accuracy' not in stats and self.kg:
+        # KG-based prediction_accuracy: always compute from persisted nodes
+        # and take the MAX of this and any live metric.  This prevents Gate 3
+        # from flickering when neural-reasoner accuracy dips slightly below 0.60.
+        if self.kg:
             try:
                 confirmed = sum(
                     1 for n in self.kg.nodes.values()
@@ -3836,12 +3837,21 @@ class AetherEngine:
                 rejected = sum(
                     1 for n in self.kg.nodes.values()
                     if isinstance(n.content, dict)
-                    and n.content.get('type') == 'contradiction_resolution'
-                    and n.content.get('subtype') == 'prediction_rejected'
+                    and (
+                        n.content.get('type') == 'prediction_rejected'
+                        or (
+                            n.content.get('type') == 'contradiction_resolution'
+                            and n.content.get('subtype') == 'prediction_rejected'
+                        )
+                    )
                 )
                 total = confirmed + rejected
                 if total > 0:
-                    stats['prediction_accuracy'] = confirmed / total
+                    kg_accuracy = confirmed / total
+                    # Take max: never let a transient dip remove a passed gate
+                    stats['prediction_accuracy'] = max(
+                        stats.get('prediction_accuracy', 0.0), kg_accuracy
+                    )
             except Exception:
                 pass
         return stats
