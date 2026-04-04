@@ -4620,6 +4620,30 @@ class AetherEngine:
                     if edge.from_node_id in self.kg.nodes and edge.to_node_id in self.kg.nodes:
                         contradiction_pairs.append((edge.from_node_id, edge.to_node_id))
 
+            # If no edge-based contradictions, detect semantic ones:
+            # Find pairs of assertion nodes with the same 'metric' field but
+            # opposite 'type' (one prediction_confirmed, one prediction_rejected)
+            # or inference nodes with opposite trends in the same domain.
+            if not contradiction_pairs:
+                confirmed_metrics: dict = {}
+                rejected_metrics: dict = {}
+                for node in self.kg.nodes.values():
+                    content = node.content if isinstance(node.content, dict) else {}
+                    ct = content.get('type', '')
+                    metric = content.get('metric', '')
+                    if metric:
+                        if ct == 'prediction_confirmed':
+                            confirmed_metrics.setdefault(metric, []).append(node.node_id)
+                        elif ct == 'contradiction_resolution' and content.get('subtype') == 'prediction_rejected':
+                            rejected_metrics.setdefault(metric, []).append(node.node_id)
+                # Pair confirmed vs rejected for same metric → genuine contradiction
+                for metric, conf_ids in confirmed_metrics.items():
+                    rej_ids = rejected_metrics.get(metric, [])
+                    if conf_ids and rej_ids:
+                        contradiction_pairs.append((conf_ids[0], rej_ids[0]))
+                        if len(contradiction_pairs) >= 5:
+                            break
+
             if not contradiction_pairs:
                 return 0
 
