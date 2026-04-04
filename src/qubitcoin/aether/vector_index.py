@@ -644,20 +644,25 @@ class VectorIndex:
         return self._py_hnsw
 
     def add_node(self, node_id: int, content: dict) -> None:
-        """Compute and store embedding for a node."""
+        """Compute and store embedding for a node.
+
+        Embedding is computed OUTSIDE the lock so concurrent queries/adds
+        are never serialised behind a model.encode() call.
+        """
+        text = _extract_text(content)
+        if not text.strip():
+            return
+        try:
+            emb = _compute_embedding(text)  # expensive — done outside lock
+        except Exception as e:
+            logger.debug(f"VectorIndex: failed to embed node {node_id}: {e}")
+            return
         with self._lock:
-            text = _extract_text(content)
-            if not text.strip():
-                return
-            try:
-                emb = _compute_embedding(text)
-                self.embeddings[node_id] = emb
-                if not self._dim:
-                    self._dim = len(emb)
-                self._hnsw_dirty = True
-                self._py_hnsw_dirty = True
-            except Exception as e:
-                logger.debug(f"VectorIndex: failed to embed node {node_id}: {e}")
+            self.embeddings[node_id] = emb
+            if not self._dim:
+                self._dim = len(emb)
+            self._hnsw_dirty = True
+            self._py_hnsw_dirty = True
 
     def add_nodes_batch(self, nodes: Dict[int, dict]) -> int:
         """Batch-embed multiple nodes at once (faster than individual adds)."""
@@ -698,6 +703,9 @@ class VectorIndex:
         Search by semantic similarity. Uses hnswlib O(log n) when available,
         falls back to brute-force O(n).
 
+        Query embedding is computed OUTSIDE the lock so add_node() is never
+        serialised behind a model.encode() call.
+
         Returns:
             List of (node_id, cosine_similarity) tuples, highest first.
         """
@@ -705,9 +713,14 @@ class VectorIndex:
             if not self.embeddings:
                 return []
 
-            try:
-                query_emb = _compute_embedding(query_text)
-            except Exception:
+        # Compute embedding outside the lock — expensive model.encode()
+        try:
+            query_emb = _compute_embedding(query_text)
+        except Exception:
+            return []
+
+        with self._lock:
+            if not self.embeddings:
                 return []
 
             # Try hnswlib ANN search first (external C++ library)
@@ -736,14 +749,15 @@ class VectorIndex:
                 except Exception:
                     pass  # fall through to brute-force
 
-            # Brute-force fallback
-            scores = []
-            for nid, emb in self.embeddings.items():
-                sim = cosine_similarity(query_emb, emb)
-                scores.append((nid, sim))
+            # Brute-force fallback — snapshot to avoid dict-changed errors
+            embs_snapshot = list(self.embeddings.items())
 
-            scores.sort(key=lambda x: x[1], reverse=True)
-            return scores[:top_k]
+        scores = []
+        for nid, emb in embs_snapshot:
+            sim = cosine_similarity(query_emb, emb)
+            scores.append((nid, sim))
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return scores[:top_k]
 
     def query_by_embedding(self, query_emb: List[float], top_k: int = 10) -> List[Tuple[int, float]]:
         """Search by pre-computed embedding vector."""
@@ -775,12 +789,15 @@ class VectorIndex:
                 except Exception as e:
                     logger.debug("Pure-Python HNSW search failed, falling back to brute-force: %s", e)
 
-            scores = []
-            for nid, emb in self.embeddings.items():
-                sim = cosine_similarity(query_emb, emb)
-                scores.append((nid, sim))
-            scores.sort(key=lambda x: x[1], reverse=True)
-            return scores[:top_k]
+            # Brute-force: snapshot to avoid dict-changed errors
+            embs_snapshot = list(self.embeddings.items())
+
+        scores = []
+        for nid, emb in embs_snapshot:
+            sim = cosine_similarity(query_emb, emb)
+            scores.append((nid, sim))
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return scores[:top_k]
 
     def get_embedding(self, node_id: int) -> Optional[List[float]]:
         """Get the embedding vector for a node."""
