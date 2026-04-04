@@ -511,9 +511,10 @@ class TemporalEngine:
                         logger.debug(f"LSTM train error for {metric}: {e}")
 
         # Make new predictions every 20 blocks (ARIMA + LSTM ensemble)
+        # blocks_ahead=20 means validation in ~66s — faster gate-3 accumulation
         if block_height % 20 == 0:
             for metric in self._series:
-                pred = self.make_prediction(metric, blocks_ahead=50,
+                pred = self.make_prediction(metric, blocks_ahead=20,
                                             block_height=block_height)
                 if pred:
                     results['new_predictions'].append(pred)
