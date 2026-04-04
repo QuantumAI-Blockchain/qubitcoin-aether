@@ -44,7 +44,7 @@
 | **CockroachDB** | Running (Docker) | v25.2.12, port 26257 |
 | **IPFS** | Running (Docker) | Kubo, ports 4001/5002/8081 |
 | **Redis** | Running (Docker) | Port 6379 |
-| **Agent Stack** | Running (systemd) | 11 agents via qbc-agents.service |
+| **Agent Stack** | Running (separate machine) | Rust agents on 100.80.115.96 (ash's machine, WSL2), NOT on this droplet |
 | **Cloudflare Tunnel** | Running | qbc.network + app.qbc.network → :3000, api.qbc.network → :5000 |
 
 ### Chain Stats (Live)
@@ -80,7 +80,7 @@ Mining:          Active
 | **L3** | Aether Service (Python) | 4 modules | ~470 | Built (standalone) |
 | **L3** | AIKGS Sidecar (Rust) | 14 source files | ~2,000 | Live |
 | **Frontend** | React/Next.js (qbc.network) | ~200 TS/TSX files | ~66,900 | Live |
-| **Agents** | QBC Agent Stack (TypeScript) | 11 agents + core | ~5,500 | Live |
+| **Agents** | QBC Agent Stack (Rust) | Rust agents + crates | ~25,000+ | Live (separate machine) |
 | **Infra** | Docker/Monitoring/DevOps | 20+ configs | ~2,000 | Live |
 | **Docs** | Whitepapers + Guides | 10+ files | ~8,000 | Complete |
 | **L1** | QUSD Peg Keeper | 4 modules | ~2,100 | Live |
@@ -91,8 +91,8 @@ Mining:          Active
 
 ### What Needs To Happen Next
 
-**Phase 1 (Current):** Agent Stack expansion — move to its own droplet, expand capabilities
-**Phase 2 (Next):** Run additional nodes + substrate node locally and on other droplets for true P2P network
+**Phase 1 (Complete):** Agent Stack moved to dedicated machine (100.80.115.96). Rust-based, independent of node.
+**Phase 2 (Current):** Run additional nodes + substrate node locally and on other droplets for true P2P network
 **Phase 3:** Multi-node testing, peer discovery, block propagation across nodes
 
 ### Known Issues
@@ -102,7 +102,7 @@ Mining:          Active
 | Peers = 0 | Medium | Only one node running. Every block publish fails with `NoPeersSubscribedToTopic`. Need additional nodes. |
 | AIKGS slow queries | Medium | AIKGS sidecar has slow DB queries (up to 143s) and intermittent connection drops. |
 | Substrate not live | Info | Native build works (`SKIP_WASM_BUILD=1`). WASM build deferred. Will run alongside Python node. |
-| Agent stack on same droplet | Low | Currently shares resources with node. Moving to separate droplet. |
+| Agent stack | Resolved | Moved to dedicated machine (100.80.115.96). Rust stack runs independently. |
 | Cloudflared version | Low | Running 2026.2.0, should upgrade to 2026.3.0. |
 | bot.txt in repo root | Low | Contains Telegram bot token in plaintext. Untracked but on disk — should be removed or moved to .env. |
 | PoT dict error | Low | `'dict' object has no attribute 'thought_hash'` in proof_of_thought on-chain integration. Non-blocking. |
@@ -553,7 +553,7 @@ ingress:
 
 | Service | Description | Status |
 |---------|-------------|--------|
-| `qbc-agents.service` | QBC Agent Stack (11 agents + dashboard) | Running |
+| ~~`qbc-agents.service`~~ | Agent Stack — **removed from this node** (runs on 100.80.115.96) | Removed |
 | `cloudflared` | Cloudflare tunnel daemon | Running |
 | `docker` | Docker engine | Running |
 
@@ -810,48 +810,44 @@ Mexican Hat potential: `V(phi) = -mu^2 |phi|^2 + lambda |phi|^4`
 
 ### 10.1 Overview
 
-The QBC Agent Stack (`qbc-agent-stack` repo, deployed at `/root/qbc-agent-stack/`) is a TypeScript/Node.js autonomous multi-agent system running as a systemd service.
+The QBC Agent Stack (`qbc-agent-stack` repo) is a **Rust**-based autonomous multi-agent system running on a **dedicated separate machine** — NOT on this node droplet.
 
-**Current state:** Running on same droplet as node. **Next phase:** Move to its own dedicated droplet.
+- **Machine:** 100.80.115.96 (ash's machine, WSL2, GTX 1070, i5-3570K, 10GB RAM)
+- **Path:** `~/qbc-agent-stack/`
+- **Binary:** `~/qbc-agent-stack/target/release/qbc-agent-stack`
+- **Gateway:** port 3100 | Dashboard: port 3200
+- **LLM:** Ollama on localhost:11434 (qwen2.5:3b, deepseek-r1:14b)
+- **Config:** `Agents.toml` (TOML), `agent_secure_key.env` (wallet keys — NEVER commit)
+- **This node's role:** Pure blockchain node. No agent processes run here.
 
-### 10.2 Architecture
+### 10.2 Architecture (Rust)
 
 ```
-Agent Manager (core/agent-manager/)
-├── Spawner — launches agent processes
-├── Registry — tracks agent instances
-├── Health Monitor — watchdog + restart
-├── IPC Bus — inter-agent messaging
-├── Admin API — management endpoints
-└── Config Watcher — hot-reload config
-    │
-    ├── core/agent-runtime/ (shared runtime)
-    │   ├── LLM (Ollama client)
-    │   ├── Social (Twitter, Discord, Telegram, Reddit)
-    │   ├── Wallet (EVM, Solana, QBC)
-    │   ├── Memory (short-term, long-term, Aether Tree)
-    │   └── Tool Registry
-    │
-    └── 11 Agents
-        ├── knowledge-worker    — research + knowledge graph
-        ├── social-commander    — social media strategy
-        ├── content-creator     — content generation
-        ├── community-manager   — community engagement
-        ├── deployer            — contract deployment
-        ├── bug-hunter          — security analysis
-        ├── security            — security monitoring
-        ├── lister              — exchange listing
-        ├── trader              — trading operations
-        ├── email-outreach      — email campaigns
-        └── orchestrator        — high-level coordination
+qbc-agent-stack (Rust workspace)
+├── Gateway (Axum, :3100) — 70+ API endpoints
+├── Dashboard (Vite React, :3200) — 21 pages
+├── crates/
+│   ├── qbc-agent         — base agent trait + runtime
+│   ├── aether-tree       — Aether Tree integration
+│   ├── qbc-automation    — automation engine
+│   ├── qbc-channels      — MoltBook, task delegation
+│   └── qbc-contracts     — contract interactions
+└── agents/ (20+ Rust agent crates)
+    ├── rust-trader        — multi-chain arbitrage (enabled, 3s tick)
+    ├── rust-flash-loan    — flash loan strategies (enabled, 4s tick)
+    ├── rust-orchestrator  — coordination (enabled, 60s tick)
+    ├── rust-knowledge-worker — Aether Tree seeding
+    ├── rust-social-commander — Twitter/@qu_bitcoin
+    ├── rust-security      — threat monitoring
+    ├── rust-bridge-guardian — ETH+BNB bridge monitoring
+    └── ... 13 more agents
 ```
 
-### 10.3 Configuration
+### 10.3 Connecting to This Node
 
-- **Environment:** `Agents.env` (agent-specific config)
-- **Keys:** `agent_secure_key.env` (wallet keys — NEVER commit)
-- **Workspace:** pnpm monorepo with Turbo build system
-- **LLM:** Ollama running locally on droplet
+The agent stack connects to this node via Tailscale:
+- **QBC Node RPC:** `http://100.112.247.95:5000` (Tailscale IP of 152.42.215.182)
+- **Aether Tree endpoint:** `http://152.42.215.182:5000`
 
 ---
 
