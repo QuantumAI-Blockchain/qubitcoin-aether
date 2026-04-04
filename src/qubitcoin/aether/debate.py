@@ -192,7 +192,9 @@ class DebateProtocol:
 
         # Initial proposer confidence = average of topic node confidences
         proposer_conf = sum(n.confidence for n in topic_nodes) / len(topic_nodes)
-        critic_conf = 1.0 - proposer_conf  # Start as adversary
+        # Critic starts as adversary, but with a minimum of 0.35 to ensure
+        # competitive debates even when topic confidence is very high.
+        critic_conf = max(0.35, 1.0 - proposer_conf)
 
         positions: List[DebatePosition] = []
         round_num = 0
@@ -560,6 +562,38 @@ class DebateProtocol:
                         weak_count += 1
                 if weak_count >= 5:
                     break
+
+        counter -= topic_set
+
+        # --- 4. Temporal diversity: alternative perspectives from different epochs ---
+        # When no direct counter-evidence found, use nodes from the same domain at
+        # very different source_blocks as "epistemic humility" evidence.  The critic's
+        # argument: "the system reasoned differently about this domain at other times,
+        # so the current inference may not generalise."
+        if not counter and topic_node_ids:
+            topic_domains_td: Set[str] = set()
+            topic_blocks_td: List[int] = []
+            for nid in topic_node_ids:
+                node = self.kg.nodes.get(nid)
+                if node:
+                    if node.domain:
+                        topic_domains_td.add(node.domain)
+                    topic_blocks_td.append(node.source_block)
+
+            if topic_domains_td and topic_blocks_td:
+                max_block = max(topic_blocks_td)
+                temporal_found = 0
+                for candidate in self.kg.nodes.values():
+                    if candidate.node_id in topic_set:
+                        continue
+                    if candidate.domain not in topic_domains_td:
+                        continue
+                    # Significantly older node (at least 5000 blocks earlier) = different epoch
+                    if max_block - candidate.source_block >= 5000:
+                        counter.add(candidate.node_id)
+                        temporal_found += 1
+                    if temporal_found >= 5:
+                        break
 
         counter -= topic_set
         return list(counter)

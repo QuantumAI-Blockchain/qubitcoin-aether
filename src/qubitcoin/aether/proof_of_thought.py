@@ -4644,7 +4644,7 @@ class AetherEngine:
             if not contradiction_pairs:
                 confirmed_metrics: dict = {}
                 rejected_metrics: dict = {}
-                # Scan 1: prediction_confirmed vs prediction_rejected for same metric
+                # Scan 1: prediction_confirmed vs prediction_rejected (any format) for same metric
                 for node in self.kg.nodes.values():
                     content = node.content if isinstance(node.content, dict) else {}
                     ct = content.get('type', '')
@@ -4652,7 +4652,9 @@ class AetherEngine:
                     if metric:
                         if ct == 'prediction_confirmed':
                             confirmed_metrics.setdefault(metric, []).append(node.node_id)
-                        elif ct == 'contradiction_resolution' and content.get('subtype') == 'prediction_rejected':
+                        elif ct in ('prediction_rejected',) or (
+                            ct == 'contradiction_resolution' and content.get('subtype') == 'prediction_rejected'
+                        ):
                             rejected_metrics.setdefault(metric, []).append(node.node_id)
                 for metric, conf_ids in confirmed_metrics.items():
                     rej_ids = rejected_metrics.get(metric, [])
@@ -4660,6 +4662,30 @@ class AetherEngine:
                         contradiction_pairs.append((conf_ids[0], rej_ids[0]))
                         if len(contradiction_pairs) >= 5:
                             break
+
+            # Scan 3: high-confidence inference vs low-confidence inference in same domain
+            # These represent genuine epistemic tensions the system should resolve.
+            if len(contradiction_pairs) < 5:
+                try:
+                    domain_high: dict = {}
+                    domain_low: dict = {}
+                    for node in self.kg.nodes.values():
+                        if node.node_type != 'inference':
+                            continue
+                        if not node.domain:
+                            continue
+                        if node.confidence >= 0.85:
+                            domain_high.setdefault(node.domain, []).append(node.node_id)
+                        elif node.confidence <= 0.4:
+                            domain_low.setdefault(node.domain, []).append(node.node_id)
+                    for domain, high_ids in domain_high.items():
+                        low_ids = domain_low.get(domain, [])
+                        if high_ids and low_ids:
+                            contradiction_pairs.append((high_ids[0], low_ids[0]))
+                            if len(contradiction_pairs) >= 5:
+                                break
+                except Exception:
+                    pass
 
             # Scan 2: opposing trend inferences (e.g., difficulty_trend 'rising' vs 'falling')
             if len(contradiction_pairs) < 5:
@@ -4684,8 +4710,8 @@ class AetherEngine:
             if not contradiction_pairs:
                 return 0
 
-            # Resolve up to 5 contradictions per cycle
-            for node_a_id, node_b_id in contradiction_pairs[:5]:
+            # Resolve up to 10 contradictions per cycle
+            for node_a_id, node_b_id in contradiction_pairs[:10]:
                 result = self.reasoning.resolve_contradiction(node_a_id, node_b_id)
                 if result.success:
                     resolved += 1
