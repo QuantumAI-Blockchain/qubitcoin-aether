@@ -153,16 +153,16 @@ services:
       - LLM_ENABLED=true
       - LLM_PRIMARY_ADAPTER=ollama
       - LLM_SEEDER_ENABLED=true
-      - LLM_SEEDER_INTERVAL_BLOCKS=100
-      - LLM_SEEDER_RATE_LIMIT_PER_HOUR=15
-      - LLM_SEEDER_COOLDOWN_SECONDS=30
+      - LLM_SEEDER_INTERVAL_BLOCKS=20
+      - LLM_SEEDER_RATE_LIMIT_PER_HOUR=60
+      - LLM_SEEDER_COOLDOWN_SECONDS=5
       # Phi MIP spectral bisection is expensive — compute every 5 blocks instead of every 1
       - PHI_COMPUTE_INTERVAL=5
-      # AGI operation intervals — reduce CPU load, keep system responsive
-      - AETHER_DEBATE_INTERVAL=200
-      - AETHER_CAUSAL_DISCOVERY_INTERVAL=300
-      - AETHER_DREAM_ANALOGIES_INTERVAL=200
-      - AETHER_SELF_REFLECT_INTERVAL=500
+      # AGI operation intervals — prime numbers prevent simultaneous firing
+      - AETHER_DEBATE_INTERVAL=211
+      - AETHER_CAUSAL_DISCOVERY_INTERVAL=307
+      - AETHER_DREAM_ANALOGIES_INTERVAL=251
+      - AETHER_SELF_REFLECT_INTERVAL=503
       # Chain sync: peer RPC URL for catching up on blocks
       - SYNC_PEER_URL=${SYNC_PEER_URL:-}
     extra_hosts:
