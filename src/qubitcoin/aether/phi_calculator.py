@@ -423,10 +423,40 @@ class PhiCalculator:
                 self._iit_last_time = now
                 return 0.0
 
+        # Build an adapter that maps KeterEdge (from_node_id/to_node_id) to
+        # what IITApproximator expects (source_id/target_id, dict of edges).
+        # KnowledgeGraph.edges is a list; IITApproximator.build_tpm_from_kg
+        # calls edges.values() expecting a dict.
+        class _KGAdapter:
+            """Thin adapter: maps KeterEdge attrs to IITApproximator API."""
+            __slots__ = ('nodes', 'edges')
+            def __init__(self, nodes, edges_list):
+                self.nodes = nodes
+                self.edges = {
+                    i: _EdgeAdapter(e) for i, e in enumerate(edges_list)
+                }
+
+        class _EdgeAdapter:
+            __slots__ = ('source_id', 'target_id', 'weight')
+            def __init__(self, e):
+                # KeterEdge uses from_node_id / to_node_id
+                self.source_id = getattr(e, 'from_node_id', None)
+                self.target_id = getattr(e, 'to_node_id', None)
+                self.weight = getattr(e, 'weight', 0.5)
+
+        try:
+            kg_nodes = dict(self.kg.nodes)
+            kg_edges = list(self.kg.edges)
+        except Exception as e:
+            logger.debug(f"IIT KG snapshot failed: {e}")
+            return self._iit_phi_cache
+
+        adapter = _KGAdapter(kg_nodes, kg_edges)
+
         phis: List[float] = []
         for sample_idx in range(5):
             try:
-                tpm = self._iit_approximator.build_tpm_from_kg(self.kg)
+                tpm = self._iit_approximator.build_tpm_from_kg(adapter)
                 phi_val = self._iit_approximator.compute_phi(tpm)
                 if phi_val > 0:
                     phis.append(phi_val)
@@ -440,13 +470,13 @@ class PhiCalculator:
             median_val = phis[n // 2] if n % 2 != 0 else (phis[n//2 - 1] + phis[n//2]) / 2.0
             # Normalize: IIT information-loss values can exceed 1.0; cap at 1.0
             self._iit_phi_cache = min(1.0, median_val)
-            logger.debug(
-                f"HMS micro phi_micro={self._iit_phi_cache:.4f} "
-                f"(samples={phis}, median={median_val:.4f})"
+            logger.info(
+                f"HMS phi_micro={self._iit_phi_cache:.4f} "
+                f"(5 IIT samples: {[round(p,3) for p in phis]}, median={median_val:.4f})"
             )
         else:
             # All samples failed — keep previous cache to avoid sudden drop
-            pass
+            logger.debug("IIT: all 5 samples failed, keeping cached phi_micro")
 
         self._iit_last_time = now
         return self._iit_phi_cache
