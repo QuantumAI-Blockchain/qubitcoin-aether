@@ -94,6 +94,11 @@ contract BridgeMinter is Initializable {
         _locked = false;
     }
 
+    // ── Constructor — disables direct initialization of implementation ─
+    /// @dev Prevents attackers from initializing the bare implementation contract.
+    ///      The proxy's storage is separate; this only affects the implementation address.
+    constructor() { _disableInitializers(); }
+
     // ── Initializer ───────────────────────────────────────────────────
     function initialize(address _zkVerifier) external initializer {
         require(_zkVerifier != address(0), "BM: zero verifier");
@@ -208,11 +213,33 @@ contract BridgeMinter is Initializable {
         emit WrappedTokenUpdated(chainId, old, newToken);
     }
 
-    function setZKVerifier(address _verifier) external onlyOwner {
+    // ── ZK Verifier change timelock (48 hours) ─────────────────────────
+    uint256 public constant VERIFIER_CHANGE_DELAY = 48 hours;
+
+    struct PendingVerifierChange {
+        address newVerifier;
+        uint256 scheduledAt;
+        bool    exists;
+    }
+    PendingVerifierChange public pendingVerifier;
+
+    event ZKVerifierChangeScheduled(address indexed newVerifier, uint256 executeAfter);
+
+    /// @notice Schedule a ZK verifier change with a 48-hour delay.
+    function scheduleZKVerifierChange(address _verifier) external onlyOwner {
         require(_verifier != address(0), "BM: zero verifier");
+        pendingVerifier = PendingVerifierChange(_verifier, block.timestamp, true);
+        emit ZKVerifierChangeScheduled(_verifier, block.timestamp + VERIFIER_CHANGE_DELAY);
+    }
+
+    /// @notice Execute a previously scheduled ZK verifier change after the 48-hour delay.
+    function executeZKVerifierChange() external onlyOwner {
+        require(pendingVerifier.exists, "BM: no pending change");
+        require(block.timestamp >= pendingVerifier.scheduledAt + VERIFIER_CHANGE_DELAY, "BM: delay not elapsed");
         address old = zkVerifier;
-        zkVerifier = _verifier;
-        emit ZKVerifierUpdated(old, _verifier);
+        zkVerifier = pendingVerifier.newVerifier;
+        delete pendingVerifier;
+        emit ZKVerifierUpdated(old, zkVerifier);
     }
 
     function pause() external onlyOwner {

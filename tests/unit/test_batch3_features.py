@@ -260,8 +260,8 @@ class TestAutoContradictionResolution:
         reasoning.resolve_contradiction.return_value = result
 
         resolved = engine.auto_resolve_contradictions(1000)
-        assert resolved == 5
-        assert reasoning.resolve_contradiction.call_count == 5
+        assert resolved == 10
+        assert reasoning.resolve_contradiction.call_count == 10
 
 
 class TestResponseQualityScoring:

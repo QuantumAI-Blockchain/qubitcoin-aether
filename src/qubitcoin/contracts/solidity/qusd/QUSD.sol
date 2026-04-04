@@ -35,6 +35,8 @@ contract QUSD is IQBC20, Initializable {
 
     mapping(address => uint256)                     private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
+    /// @dev Addresses exempt from the transfer fee (e.g., flash loan pool).
+    mapping(address => bool)                         public feeExempt;
 
     // ─── Events ──────────────────────────────────────────────────────────
     event Mint(address indexed to, uint256 amount);
@@ -45,6 +47,7 @@ contract QUSD is IQBC20, Initializable {
     event OwnershipTransferred(address indexed prev, address indexed next);
     event ReserveAddressUpdated(address indexed prev, address indexed next);
     event FeeBpsUpdated(uint256 prev, uint256 next);
+    event FeeExemptUpdated(address indexed account, bool exempt);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
     modifier onlyOwner() {
@@ -64,6 +67,23 @@ contract QUSD is IQBC20, Initializable {
         );
         _;
     }
+
+    // ─── Stabilizer Mint Cap ─────────────────────────────────────────────
+    /// @notice Maximum QUSD the stabilizer may mint per day (resets at UTC midnight equivalent).
+    uint256 public stabilizerDailyMintCap;
+    uint256 public stabilizerMintedToday;
+    uint256 public stabilizerMintDayStart;
+
+    event StabilizerDailyCapUpdated(uint256 oldCap, uint256 newCap);
+
+    /// @notice Update the stabilizer daily mint cap. Set to 0 to disable the cap.
+    function setStabilizerDailyMintCap(uint256 cap) external onlyOwner {
+        emit StabilizerDailyCapUpdated(stabilizerDailyMintCap, cap);
+        stabilizerDailyMintCap = cap;
+    }
+
+    // ─── Constructor — disables direct initialization of implementation ──
+    constructor() { _disableInitializers(); }
 
     // ─── Initializer ────────────────────────────────────────────────────
     /// @param _reserveAddress Address that receives transfer fees
@@ -114,8 +134,24 @@ contract QUSD is IQBC20, Initializable {
     // ─── Mint / Burn ─────────────────────────────────────────────────────
     /// @notice Mint new QUSD. Every mint increases outstanding debt.
     ///         Callable by owner or stabilizer. Automatically records debt in DebtLedger.
+    ///         Stabilizer mints are subject to a daily cap (see stabilizerDailyMintCap).
     function mint(address to, uint256 amount) external onlyMinter whenNotPaused {
         require(to != address(0), "QUSD: mint to zero");
+
+        // Enforce daily cap for stabilizer mints (not for owner mints)
+        if (msg.sender == stabilizer && stabilizerDailyMintCap > 0) {
+            uint256 dayStart = (block.timestamp / 1 days) * 1 days;
+            if (dayStart > stabilizerMintDayStart) {
+                stabilizerMintedToday = 0;
+                stabilizerMintDayStart = dayStart;
+            }
+            require(
+                stabilizerMintedToday + amount <= stabilizerDailyMintCap,
+                "QUSD: stabilizer daily cap exceeded"
+            );
+            stabilizerMintedToday += amount;
+        }
+
         totalSupply   += amount;
         totalMinted   += amount;
         _balances[to] += amount;
@@ -182,10 +218,26 @@ contract QUSD is IQBC20, Initializable {
     }
 
     // ─── Internal ────────────────────────────────────────────────────────
+    /// @notice Grant or revoke fee exemption for an address (e.g., flash loan pool).
+    /// @dev Exempt addresses send and receive full amounts with no fee deducted.
+    function setFeeExempt(address account, bool exempt) external onlyOwner {
+        require(account != address(0), "QUSD: zero account");
+        feeExempt[account] = exempt;
+        emit FeeExemptUpdated(account, exempt);
+    }
+
     function _transferWithFee(address from, address to, uint256 amount) internal returns (bool) {
         require(from != address(0), "QUSD: from zero");
         require(to   != address(0), "QUSD: to zero");
         require(_balances[from] >= amount, "QUSD: insufficient balance");
+
+        // Fee exempt addresses (e.g., flash loan pool) pay no transfer fee
+        if (feeExempt[from] || feeExempt[to]) {
+            _balances[from] -= amount;
+            _balances[to]   += amount;
+            emit Transfer(from, to, amount);
+            return true;
+        }
 
         uint256 fee       = (amount * feeBps) / BPS_DENOM;
         uint256 netAmount = amount - fee;

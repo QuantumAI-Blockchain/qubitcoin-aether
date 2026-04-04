@@ -6498,8 +6498,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def exchange_ohlc(pair: str, timeframe: str = "1h", limit: int = 500):
         """Return OHLC bars in the format expected by the frontend PriceChart.
 
-        If real trade history is sparse, generates synthetic historical bars
-        around the last traded price so the chart is never empty.
+        Returns only real bars derived from actual trade history.
+        Returns an empty array when there are insufficient trades — no synthetic data.
         """
         if not exchange_engine:
             raise HTTPException(status_code=503, detail="Exchange engine not available")
@@ -6515,72 +6515,32 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         secs = interval_seconds.get(tf, 3600)
 
         book = exchange_engine.books.get(pair)
-        last_price = 1.0  # default
+        if not book or not book._trades:
+            return {"bars": []}
 
-        # Try to build bars from real trades
-        real_bars = []
-        if book and book._trades:
-            from collections import defaultdict
-            trades = book._trades[:5000]
-            last_price = float(trades[0].price)  # newest trade
+        from collections import defaultdict
+        trades = book._trades[:5000]
 
-            buckets: dict = defaultdict(list)
-            for t in trades:
-                bucket = int(t.timestamp // secs) * secs
-                buckets[bucket].append(t)
+        buckets: dict = defaultdict(list)
+        for t in trades:
+            bucket = int(t.timestamp // secs) * secs
+            buckets[bucket].append(t)
 
-            for ts in sorted(buckets.keys())[-limit:]:
-                bt = buckets[ts]
-                prices = [float(t.price) for t in bt]
-                vols = [float(t.price * t.size) for t in bt]
-                real_bars.append({
-                    "time": ts,
-                    "open": float(bt[-1].price),
-                    "high": max(prices),
-                    "low": min(prices),
-                    "close": float(bt[0].price),
-                    "volume": sum(vols),
-                })
+        bars = []
+        for ts in sorted(buckets.keys())[-limit:]:
+            bt = buckets[ts]
+            prices = [float(t.price) for t in bt]
+            vols = [float(t.price * t.size) for t in bt]
+            bars.append({
+                "time": ts,
+                "open": float(bt[-1].price),
+                "high": max(prices),
+                "low": min(prices),
+                "close": float(bt[0].price),
+                "volume": round(sum(vols), 2),
+            })
 
-        # If we have fewer than 50 real bars, pad with synthetic history
-        import time as _time, math, hashlib
-        now = int(_time.time())
-        needed = max(0, limit - len(real_bars))
-        if needed > 0:
-            synth_bars = []
-            base_price = last_price
-            # Walk backwards from the earliest real bar (or now)
-            start_ts = real_bars[0]["time"] - secs if real_bars else (now // secs) * secs
-            for i in range(needed):
-                ts = start_ts - (needed - i) * secs
-                # Deterministic pseudo-random walk seeded by timestamp
-                seed = hashlib.md5(f"{pair}{ts}".encode()).hexdigest()
-                r1 = (int(seed[:8], 16) / 0xFFFFFFFF - 0.5) * 0.006  # ±0.3%
-                r2 = (int(seed[8:16], 16) / 0xFFFFFFFF) * 0.004 + 0.001  # 0.1-0.5% range
-                r3 = (int(seed[16:24], 16) / 0xFFFFFFFF)
-
-                close = base_price * (1 + r1)
-                open_p = close * (1 - r1 * 0.5)
-                high = max(open_p, close) * (1 + r2)
-                low = min(open_p, close) * (1 - r2)
-                vol = 2000 + r3 * 15000  # 2K-17K volume
-
-                synth_bars.append({
-                    "time": ts,
-                    "open": round(open_p, 6),
-                    "high": round(high, 6),
-                    "low": round(low, 6),
-                    "close": round(close, 6),
-                    "volume": round(vol, 2),
-                })
-                base_price = close
-
-            # Combine: synthetic first, then real
-            all_bars = synth_bars + real_bars
-        else:
-            all_bars = real_bars
-
-        return {"bars": all_bars[-limit:]}
+        return {"bars": bars}
 
     @app.get("/exchange/book/{pair}")
     async def exchange_book_depth(pair: str, depth: int = 50):

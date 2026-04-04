@@ -55,8 +55,12 @@ contract ProxyAdmin {
     }
 
     // ─── Constructor ─────────────────────────────────────────────────────
-    constructor() {
+    /// @notice Deploy ProxyAdmin.
+    /// @param _minimumDelay Minimum timelock delay for scheduled upgrades (seconds).
+    ///        Recommended: 172800 (48 hours) for production, 0 only for local testing.
+    constructor(uint256 _minimumDelay) {
         owner = msg.sender;
+        minimumDelay = _minimumDelay;
         emit OwnershipTransferred(address(0), msg.sender);
     }
 

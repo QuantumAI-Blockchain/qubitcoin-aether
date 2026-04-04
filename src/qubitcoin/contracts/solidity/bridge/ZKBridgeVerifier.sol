@@ -118,6 +118,10 @@ contract ZKBridgeVerifier is Initializable {
         _;
     }
 
+    // ── Constructor — disables direct initialization of implementation ─
+    /// @dev Prevents attackers from initializing the bare implementation contract.
+    constructor() { _disableInitializers(); }
+
     // ── Initializer ───────────────────────────────────────────────────
     function initialize(uint256 _requiredConfirmations) external initializer {
         owner = msg.sender;
@@ -348,16 +352,52 @@ contract ZKBridgeVerifier is Initializable {
         requiredProverConfirmations = _required;
     }
 
-    function setBridgeMinter(address _minter) external onlyOwner {
-        address old = bridgeMinter;
-        bridgeMinter = _minter;
-        emit BridgeMinterUpdated(old, _minter);
+    // ── Pending address changes (48-hour timelock) ──────────────────────
+    uint256 public constant ADDRESS_CHANGE_DELAY = 48 hours;
+
+    struct PendingAddressChange {
+        address newAddress;
+        uint256 scheduledAt;
+        bool    exists;
+    }
+    PendingAddressChange public pendingBridgeMinter;
+    PendingAddressChange public pendingBridgeVault;
+
+    event BridgeMinterChangeScheduled(address indexed newMinter, uint256 executeAfter);
+    event BridgeVaultChangeScheduled(address indexed newVault, uint256 executeAfter);
+
+    /// @notice Schedule a bridgeMinter change with a 48-hour delay.
+    function scheduleBridgeMinterChange(address _minter) external onlyOwner {
+        require(_minter != address(0), "ZKV: zero minter");
+        pendingBridgeMinter = PendingAddressChange(_minter, block.timestamp, true);
+        emit BridgeMinterChangeScheduled(_minter, block.timestamp + ADDRESS_CHANGE_DELAY);
     }
 
-    function setBridgeVault(address _vault) external onlyOwner {
+    /// @notice Execute a previously scheduled bridgeMinter change after the 48-hour delay.
+    function executeBridgeMinterChange() external onlyOwner {
+        require(pendingBridgeMinter.exists, "ZKV: no pending change");
+        require(block.timestamp >= pendingBridgeMinter.scheduledAt + ADDRESS_CHANGE_DELAY, "ZKV: delay not elapsed");
+        address old = bridgeMinter;
+        bridgeMinter = pendingBridgeMinter.newAddress;
+        delete pendingBridgeMinter;
+        emit BridgeMinterUpdated(old, bridgeMinter);
+    }
+
+    /// @notice Schedule a bridgeVault change with a 48-hour delay.
+    function scheduleBridgeVaultChange(address _vault) external onlyOwner {
+        require(_vault != address(0), "ZKV: zero vault");
+        pendingBridgeVault = PendingAddressChange(_vault, block.timestamp, true);
+        emit BridgeVaultChangeScheduled(_vault, block.timestamp + ADDRESS_CHANGE_DELAY);
+    }
+
+    /// @notice Execute a previously scheduled bridgeVault change after the 48-hour delay.
+    function executeBridgeVaultChange() external onlyOwner {
+        require(pendingBridgeVault.exists, "ZKV: no pending change");
+        require(block.timestamp >= pendingBridgeVault.scheduledAt + ADDRESS_CHANGE_DELAY, "ZKV: delay not elapsed");
         address old = bridgeVault;
-        bridgeVault = _vault;
-        emit BridgeVaultUpdated(old, _vault);
+        bridgeVault = pendingBridgeVault.newAddress;
+        delete pendingBridgeVault;
+        emit BridgeVaultUpdated(old, bridgeVault);
     }
 
     function addChain(uint256 chainId) external onlyOwner {
