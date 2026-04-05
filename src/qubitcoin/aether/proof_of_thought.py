@@ -5577,6 +5577,35 @@ class AetherEngine:
             self._curiosity_stats['goals_failed'] += 1
             logger.debug(f"Curiosity goal failed: {e}")
 
+        # Record meta_observation node for completed goals so that
+        # auto_goals_with_inferences tracks curiosity→inference links
+        if goal_success and self.kg:
+            try:
+                meta_node = self.kg.add_node(
+                    node_type='meta_observation',
+                    content={
+                        'type': 'curiosity_goal_result',
+                        'goal_type': goal.get('type', ''),
+                        'target': goal.get('target', ''),
+                        'text': f"Curiosity goal completed: {goal.get('type', '')} on {goal.get('target', '')}",
+                    },
+                    confidence=0.7,
+                    source_block=block_height,
+                    domain=goal.get('target', 'general') if goal.get('type') == 'explore_domain' else 'general',
+                )
+                # Link meta_observation → inference (if reasoning produced one)
+                if meta_node and self.reasoning:
+                    # Find most recent inference node (created by the goal pursuit)
+                    recent_inferences = [
+                        n for n in list(self.kg.nodes.values())[-50:]
+                        if n.node_type == 'inference'
+                        and n.source_block >= block_height - 1
+                    ]
+                    for inf_node in recent_inferences[-1:]:
+                        self.kg.add_edge(meta_node.node_id, inf_node.node_id, 'derives')
+            except Exception as e:
+                logger.debug(f"Failed to create curiosity meta_observation: {e}")
+
         # Report actively-pursued goal outcome to self-improvement engine
         if goal['status'] in ('completed', 'failed'):
             self._report_curiosity_outcome(
