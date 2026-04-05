@@ -414,15 +414,19 @@ class PhiCalculator:
                 phi_meso, phi_macro, n_nodes,
             )
 
-            if phi_micro > 0:
-                # True multiplicative HMS-Phi
-                hms_raw = (
-                    math.pow(phi_micro, _HMS_EXP_MICRO)
-                    * math.pow(phi_meso,  _HMS_EXP_MESO)
-                    * math.pow(phi_macro, _HMS_EXP_MACRO)
-                )
-                raw_phi = hms_raw * _HMS_SCALE
-                using_hms = True
+        # HMS-Phi: if IIT micro computed a positive value AND meso/macro are
+        # both positive, use the true multiplicative HMS formula.
+        # This MUST be outside the if/elif above — the if branch computes
+        # phi_micro, and this block uses it.
+        if phi_micro > 0 and phi_meso > 0 and phi_macro > 0:
+            # True multiplicative HMS-Phi
+            hms_raw = (
+                math.pow(phi_micro, _HMS_EXP_MICRO)
+                * math.pow(phi_meso,  _HMS_EXP_MESO)
+                * math.pow(phi_macro, _HMS_EXP_MACRO)
+            )
+            raw_phi = hms_raw * _HMS_SCALE
+            using_hms = True
 
         if not using_hms:
             # Additive fallback: original v3 formula

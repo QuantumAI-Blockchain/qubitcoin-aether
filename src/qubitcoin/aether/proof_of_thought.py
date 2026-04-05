@@ -1740,6 +1740,22 @@ class AetherEngine:
                     self._track_subsystem_error('neural_reasoner', e)
                     logger.debug(f"Neural reasoner training error: {e}")
 
+            # Autonomous reasoning: proactive inference cycle every N blocks
+            # This is the KEY activation that feeds ALL downstream subsystems:
+            # - Creates new inference/deduction nodes in the KG
+            # - Populates reasoning._operations for neural_reasoner training
+            # - Feeds metacognition with evaluation data
+            # - Feeds self_improvement with performance records
+            # - Creates cross-domain edges for gate 5 progress
+            if (block.height > 0
+                    and block.height % Config.AETHER_AUTONOMOUS_REASONING_INTERVAL == 0
+                    and self.reasoning and self.kg):
+                try:
+                    self._run_autonomous_reasoning(block.height)
+                except Exception as e:
+                    self._track_subsystem_error('autonomous_reasoning', e)
+                    logger.debug(f"Autonomous reasoning error: {e}")
+
             # #8: Concept formation + cross-domain transfer
             if block.height > 0 and block.height % Config.AETHER_CONCEPT_FORMATION_INTERVAL == 0 and self.concept_formation:
                 try:
@@ -5438,6 +5454,151 @@ class AetherEngine:
             )
         except Exception as e:
             logger.debug("Failed to report curiosity outcome: %s", e)
+
+    # ── Autonomous Reasoning ─────────────────────────────────────────────
+
+    def _run_autonomous_reasoning(self, block_height: int) -> None:
+        """Proactive reasoning cycle that runs every N blocks.
+
+        Picks recent high-confidence nodes from the KG and runs deductive,
+        inductive, abductive, and cross-domain inferences.  Results feed
+        every downstream subsystem (neural_reasoner, metacognition,
+        self_improvement, curiosity_engine).
+
+        This is the critical activation that makes the AGI *think* between
+        user interactions — without it, reasoning only fires during chat.
+        """
+        import random as _rng
+
+        kg = self.kg
+        reasoning = self.reasoning
+        n_nodes = len(kg.nodes)
+        if n_nodes < 10:
+            return  # Too few nodes for meaningful reasoning
+
+        # Sample recent high-confidence nodes for reasoning premises
+        all_nodes = list(kg.nodes.values())
+        # Prefer recent, high-confidence nodes
+        candidates = sorted(
+            all_nodes,
+            key=lambda n: (getattr(n, 'confidence', 0.5) * 0.6
+                           + min(1.0, (getattr(n, 'source_block', 0) or 0) / max(block_height, 1)) * 0.4),
+            reverse=True,
+        )[:200]  # Top 200 candidates
+
+        inferences_created = 0
+        max_inferences = 5  # Cap per cycle to keep block processing fast
+
+        # --- Deductive reasoning: pick 2-3 connected nodes ---
+        for _ in range(min(3, max_inferences)):
+            if inferences_created >= max_inferences:
+                break
+            seed = _rng.choice(candidates)
+            neighbors = kg.get_neighbors(seed.node_id, 'out')
+            if not neighbors:
+                neighbors = kg.get_neighbors(seed.node_id, 'in')
+            if neighbors:
+                partner = _rng.choice(neighbors[:10])
+                result = reasoning.deduce([seed.node_id, partner.node_id])
+                if result.success:
+                    inferences_created += 1
+                # Feed outcome to metacognition
+                if self.metacognition:
+                    self.metacognition.evaluate_reasoning(
+                        strategy='deductive',
+                        confidence=result.confidence,
+                        outcome_correct=result.success,
+                        domain=getattr(seed, 'domain', 'general'),
+                        block_height=block_height,
+                    )
+
+        # --- Inductive reasoning: pick 3+ nodes from same domain ---
+        if inferences_created < max_inferences:
+            domains = {}
+            for n in candidates[:100]:
+                d = getattr(n, 'domain', 'general') or 'general'
+                domains.setdefault(d, []).append(n)
+            # Pick domain with most nodes
+            for domain_name in sorted(domains, key=lambda d: len(domains[d]), reverse=True)[:3]:
+                if inferences_created >= max_inferences:
+                    break
+                domain_nodes = domains[domain_name]
+                if len(domain_nodes) >= 3:
+                    sample = _rng.sample(domain_nodes[:30], min(5, len(domain_nodes)))
+                    premise_ids = [n.node_id for n in sample]
+                    result = reasoning.induce(premise_ids)
+                    if result.success:
+                        inferences_created += 1
+                    if self.metacognition:
+                        self.metacognition.evaluate_reasoning(
+                            strategy='inductive',
+                            confidence=result.confidence,
+                            outcome_correct=result.success,
+                            domain=domain_name,
+                            block_height=block_height,
+                        )
+
+        # --- Abductive reasoning: pick observation and hypothesize ---
+        if inferences_created < max_inferences:
+            observations = [n for n in candidates if getattr(n, 'node_type', '') == 'observation']
+            if observations:
+                obs = _rng.choice(observations[:30])
+                # Find a rule-like node connected to this observation
+                neighbors = kg.get_neighbors(obs.node_id, 'in')
+                if neighbors:
+                    rule_node = _rng.choice(neighbors[:5])
+                    result = reasoning.abduce(obs.node_id, [rule_node.node_id])
+                    if result.success:
+                        inferences_created += 1
+                    if self.metacognition:
+                        self.metacognition.evaluate_reasoning(
+                            strategy='abductive',
+                            confidence=result.confidence,
+                            outcome_correct=result.success,
+                            domain=getattr(obs, 'domain', 'general'),
+                            block_height=block_height,
+                        )
+
+        # --- Cross-domain inference (every 5th reasoning cycle) ---
+        domains_with_nodes: dict = {}
+        if block_height % (Config.AETHER_AUTONOMOUS_REASONING_INTERVAL * 5) == 0:
+            for n in all_nodes:
+                d = getattr(n, 'domain', 'general') or 'general'
+                domains_with_nodes.setdefault(d, []).append(n)
+            domain_list = [d for d, ns in domains_with_nodes.items() if len(ns) >= 5]
+            if len(domain_list) >= 2:
+                pair = _rng.sample(domain_list, 2)
+                try:
+                    analogies = reasoning.cross_domain_infer(pair[0], pair[1], max_analogies=5)
+                    if analogies:
+                        inferences_created += len(analogies)
+                        logger.info(
+                            "Cross-domain reasoning %s↔%s: %d analogies at block %d",
+                            pair[0], pair[1], len(analogies), block_height,
+                        )
+                except Exception as e:
+                    logger.debug(f"Cross-domain inference error: {e}")
+
+        # --- Feed curiosity engine with prediction errors ---
+        if self.curiosity_engine and self.temporal_engine and domains_with_nodes:
+            try:
+                accuracy = self.temporal_engine.get_accuracy()
+                if accuracy > 0:
+                    for d in domains_with_nodes:
+                        self.curiosity_engine.record_prediction_outcome(
+                            domain=d,
+                            predicted=accuracy,
+                            actual=1.0,
+                            topic=f'block_{block_height}_reasoning',
+                        )
+            except Exception:
+                pass  # Non-critical
+
+        if inferences_created > 0:
+            logger.info(
+                "Autonomous reasoning at block %d: %d inferences created",
+                block_height, inferences_created,
+            )
 
     def _curiosity_explore(self, block_height: int) -> int:
         """Generate and pursue curiosity-driven exploration goals.
