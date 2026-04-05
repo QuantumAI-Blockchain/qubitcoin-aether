@@ -290,7 +290,7 @@ class KnowledgeGraph:
 
         # Async write queue — node/edge DB persistence is non-blocking.
         # In-memory state is always consistent; DB is written asynchronously.
-        self._write_queue: queue.Queue = queue.Queue(maxsize=10000)
+        self._write_queue: queue.Queue = queue.Queue(maxsize=50000)
         self._writer_stop = threading.Event()
         self._writer_thread = threading.Thread(
             target=self._async_writer, name="kg-db-writer", daemon=True
@@ -413,8 +413,8 @@ class KnowledgeGraph:
     def _async_writer(self) -> None:
         """Background thread: drain write queue and batch-commit to DB."""
         from sqlalchemy import text
-        BATCH_SIZE = 50
-        FLUSH_INTERVAL = 0.5  # seconds
+        BATCH_SIZE = 200
+        FLUSH_INTERVAL = 0.25  # seconds
 
         while not self._writer_stop.is_set():
             batch = []
