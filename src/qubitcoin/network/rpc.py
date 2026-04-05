@@ -2267,8 +2267,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         }
 
     # ========================================================================
-    # AETHER CHAT ENDPOINTS
+    # AETHER CHAT ENDPOINTS (with auth + per-wallet rate limiting)
     # ========================================================================
+
+    from .auth import optional_verify_token, TokenPayload
+    from .rate_limiter import check_rate_limit, get_tier_for_wallet
 
     from pydantic import BaseModel as _PydanticBaseModel
 
@@ -2312,10 +2315,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         }
 
     @app.post("/aether/chat/message")
-    async def send_chat_message(request: _ChatMessageRequest):
-        """Send a message to Aether Tree and get a response."""
+    async def send_chat_message(
+        request: _ChatMessageRequest,
+        authorization: Optional[str] = Header(None, alias="Authorization"),
+    ):
+        """Send a message to Aether Tree and get a response.
+
+        Anonymous callers get Free tier limits (5 chat/day).
+        Authenticated callers get tier-based limits via JWT Bearer token.
+        """
         if not aether_engine:
             raise HTTPException(status_code=503, detail="Aether Tree not available")
+        # Auth + rate limit
+        caller = optional_verify_token(authorization)
+        wallet = caller.sub if caller else None
+        tier = get_tier_for_wallet(wallet)
+        check_rate_limit(wallet, "chat", tier)
         chat, _ = _get_chat()
         import asyncio
         loop = asyncio.get_event_loop()
@@ -7710,16 +7725,23 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
 
     @app.post("/aether/ingest")
-    async def aether_ingest_knowledge(body: dict):
+    async def aether_ingest_knowledge(
+        body: dict,
+        authorization: Optional[str] = Header(None, alias="Authorization"),
+    ):
         """Add user-contributed knowledge directly to the Aether Tree knowledge graph.
 
         Body: {text: str, domain?: str, node_type?: str, confidence?: float, source?: str}
 
-        Creates KeterNodes with searchable text content that the chat system
-        can retrieve when users ask questions.
+        Requires authentication (Developer tier or above).
         """
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        # Auth required for ingest
+        from .auth import verify_token
+        caller = verify_token(authorization)
+        tier = get_tier_for_wallet(caller.sub)
+        check_rate_limit(caller.sub, "ingest", tier)
 
         text = (body.get("text") or "").strip()
         if len(text) < 10:
@@ -7788,15 +7810,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         }
 
     @app.post("/aether/ingest/batch")
-    async def aether_ingest_batch(body: dict):
+    async def aether_ingest_batch(
+        body: dict,
+        authorization: Optional[str] = Header(None, alias="Authorization"),
+    ):
         """Batch-add knowledge nodes for agent stack integration.
 
         Body: {nodes: [{text, domain?, node_type?, confidence?, source?}, ...]}
-        Max 100 nodes per batch. Agents should use this endpoint for bulk
-        knowledge submission instead of per-block seeding.
+        Max 100 nodes per batch. Requires authentication (Developer tier or above).
         """
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        # Auth required for batch ingest
+        from .auth import verify_token
+        caller = verify_token(authorization)
+        tier = get_tier_for_wallet(caller.sub)
+        check_rate_limit(caller.sub, "ingest", tier)
 
         nodes_data = body.get("nodes", [])
         if not isinstance(nodes_data, list) or len(nodes_data) == 0:
