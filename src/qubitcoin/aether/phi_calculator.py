@@ -407,6 +407,12 @@ class PhiCalculator:
         if n_nodes >= self._HMS_MIN_NODES and phi_meso > 0 and phi_macro > 0:
             # Level 0 (Micro): IIT 3.0 on elite 16-node subgraphs (5 samples, median)
             phi_micro = self._compute_iit_micro()
+        elif n_nodes >= self._HMS_MIN_NODES:
+            logger.debug(
+                "HMS-Phi skipped: phi_meso=%.4f phi_macro=%.4f "
+                "(need both > 0, n_nodes=%d)",
+                phi_meso, phi_macro, n_nodes,
+            )
 
             if phi_micro > 0:
                 # True multiplicative HMS-Phi
