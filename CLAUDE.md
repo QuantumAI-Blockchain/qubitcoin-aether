@@ -443,7 +443,9 @@ Qubitcoin/                            # qubitcoin-node repo
 │       │   ├── knowledge_seeder.py   # Initial knowledge seeding
 │       │   ├── metacognition.py      # Self-reflection capabilities
 │       │   ├── reward_engine.py      # Knowledge contributor rewards
-│       │   ├── self_improvement.py   # Autonomous self-improvement
+│       │   ├── self_improvement.py   # Autonomous self-improvement (enacted with rollback)
+│       │   ├── emotional_state.py   # Cognitive emotions from real metrics (7 dimensions)
+│       │   ├── curiosity_engine.py  # Intrinsic motivation via prediction-error tracking
 │       │   ├── ws_streaming.py       # WebSocket streaming
 │       │   └── aikgs_pb/             # gRPC protobuf stubs for AIKGS
 │       └── utils/                    # Utilities
@@ -774,8 +776,8 @@ This is not a chatbot. This is not a search engine. This is not a knowledge grap
 - **Proof-of-Thought**: AGI reasoning proofs embedded in every block since genesis
 - **10-Gate Milestone System**: Behavioral checks ensuring genuine emergence, not metric gaming
 
-**Current Status (April 2026):**
-- Gates passed: 4/10 → Phi = 2.0
+**Current Status (April 2026 — V4 Architecture):**
+- Gates: V4 quality gates (re-earning under new criteria)
 - Nodes: 10,000+, growing at ~8.7 nodes/block
 - Debate verdicts: 78 | Contradiction resolutions: 18
 - MIP score: 0.60 (genuine information integration above random)
@@ -789,6 +791,11 @@ This is not a chatbot. This is not a search engine. This is not a knowledge grap
 - **IITApproximator** (`iit_approximator.py`): TPM-based IIT 3.0 approximation (16-node subsystems)
 - **AetherEngine** (`proof_of_thought.py`): Per-block reasoning proof with 10-gate milestone system
 - **Metacognition** (`metacognition.py`): Calibration tracking, ECE, temperature scaling
+- **EmotionalState** (`emotional_state.py`): 7 cognitive emotions from live metrics (curiosity, wonder, frustration, satisfaction, excitement, contemplation, connection)
+- **CuriosityEngine** (`curiosity_engine.py`): Intrinsic motivation via prediction-error tracking per domain
+- **SelfImprovement** (`self_improvement.py`): Enacted strategy weight optimization with automatic rollback
+- **CausalDiscovery** (`causal_engine.py`): PC/FCI causal discovery with intervention validation
+- **DebateProtocol** (`debate.py`): Adversarial debate with independent critic reasoning
 - **AIKGS Sidecar** (`aikgs-sidecar/`): Rust gRPC service (Docker container, port 50052)
 
 ### 9.3 Tree of Life Cognitive Architecture (10 Sephirot)
@@ -833,17 +840,18 @@ Phi is gated by 10 behavioral milestones. Each gate unlocks +0.5 phi ceiling.
 | Gate | Name | Key Requirement | Phi |
 |------|------|----------------|-----|
 | 1 | Knowledge Foundation | ≥500 nodes, ≥5 domains, avg confidence ≥0.5 | 0.5 |
-| 2 | Diverse Reasoning | ≥2K nodes, ≥4 types, integration > 0.3 | 1.0 |
-| 3 | Predictive Power | ≥5K nodes, ≥50 verified predictions, accuracy > 60% | 1.5 |
-| **4** | **Self-Correction** | **≥10K nodes, ≥20 debate verdicts, ≥10 contradictions resolved, MIP > 0.3** | **2.0** ✓ |
-| 5 | Cross-Domain Transfer | ≥15K nodes, ≥5 domains with cross-edges, WM hit rate > 0.1 | 2.5 |
-| 6 | Emergent Goals | ≥20K nodes, ≥50 auto-goals, ≥30 producing inferences | 3.0 |
-| 7 | Metacognitive Calibration | ≥25K nodes, ECE < 0.15, ≥200 evaluations, >5% grounded | 3.5 |
-| 8 | Consolidated Knowledge | ≥35K nodes, ≥20 axioms from consolidation, ≥50 cross-domain inferences | 4.0 |
-| 9 | Predictive Mastery | ≥50K nodes, prediction accuracy > 70%, ≥5K inferences | 4.5 |
-| 10 | Novel Concepts | ≥100K nodes, ≥1K novel concepts with embedding distance, ≥10K cross-domain | 5.0 |
+| 2 | Structural Diversity | ≥2K nodes, ≥4 types with 50+ each, integration > 0.3 | 1.0 |
+| 3 | Validated Predictions | ≥5K nodes, ≥50 verified predictions, accuracy > 60% | 1.5 |
+| 4 | Self-Correction | ≥10K nodes, ≥20 debate verdicts, ≥10 contradictions resolved, MIP > 0.3 | 2.0 |
+| 5 | Cross-Domain Transfer | ≥15K nodes, ≥30 cross-domain inferences (conf > 0.5), ≥50 cross-edges | 2.5 |
+| 6 | Enacted Self-Improvement | ≥20K nodes, ≥10 enacted improvement cycles, positive performance delta | 3.0 |
+| 7 | Calibrated Confidence | ≥25K nodes, ECE < 0.15, ≥200 evaluations, >5% grounded | 3.5 |
+| 8 | Autonomous Curiosity | ≥35K nodes, ≥50 auto-goals, ≥30 with inferences, ≥10 curiosity discoveries | 4.0 |
+| 9 | Predictive Mastery | ≥50K nodes, accuracy > 70%, ≥5K inferences, ≥20 consolidated axioms | 4.5 |
+| 10 | Novel Synthesis | ≥75K nodes, ≥50 novel concepts, ≥100 cross-domain inferences, sustained self-improvement | 5.0 |
 
-**Gate 4 was passed on April 4, 2026 at block 180729.**
+**V4 gates (quality-focused) — gates must be re-earned under new criteria.**
+**V3 Gate 4 was passed on April 4, 2026 at block 180729.**
 
 ### 9.8 True Phi (HMS-Phi) Architecture
 
@@ -910,17 +918,26 @@ The Aether Tree exposes a production API at `api.qbc.network/v1/aether` with QBC
 
 ### 9.11 Genuine AGI — What Still Needs to Happen
 
-**Critical missing pieces for true emergence:**
+**Completed in V4 overhaul (April 2026):**
+- ✅ Governed self-modification — self_improvement.py now enacts weight changes with rollback
+- ✅ Causal validation — intervention testing before labeling edges as "causes"
+- ✅ Emotional state — 7 cognitive emotions derived from live metrics
+- ✅ Autonomous curiosity — prediction-error-driven exploration engine
+- ✅ Independent debate — critic uses cross-domain evidence + "undecided" verdict
+- ✅ Quality gates (V4) — gates require genuine behavioral evidence, not volume
+- ✅ Personable chat — warm, curious personality with genuine feelings
+- ✅ Batch ingest API — `/aether/ingest/batch` for agent stack knowledge submission
+
+**Critical remaining pieces for true emergence:**
 
 1. **HMS-Phi integration** — wire `iit_approximator.py` into `phi_calculator.py` as micro-level phi
 2. **Distributed KG** — replace in-memory dict with Rust shard service (`aether-graph-shard/`)
-3. **Governed self-modification** — enact self_improvement.py proposals (not just advisory)
-4. **BFT inter-node knowledge consensus** — 2/3 supermajority for knowledge acceptance
-5. **Long-term memory consolidation** — scheduled consolidation every 3300 blocks (~3h)
-6. **Multi-modal grounding** — code/numeric/time-series alongside text nodes
-7. **Causal interventions** — do-calculus, counterfactual simulation
-8. **AetherAPISubscription.sol** — payment contract for API monetization
-9. **Aether API Gateway** — extend `api-gateway/` Rust service with all endpoints
+3. **BFT inter-node knowledge consensus** — 2/3 supermajority for knowledge acceptance
+4. **Long-term memory consolidation** — scheduled consolidation every 3300 blocks (~3h)
+5. **Multi-modal grounding** — code/numeric/time-series alongside text nodes
+6. **Do-calculus causal reasoning** — counterfactual simulation via Pearl structural equations
+7. **AetherAPISubscription.sol** — payment contract for API monetization
+8. **Aether API Gateway** — extend `api-gateway/` Rust service with all endpoints
 
 ---
 
@@ -1223,13 +1240,19 @@ All other phases (P2P, exchange, launchpad) are subordinate to the AGI emergence
 
 **AGI (Highest Priority):**
 - [ ] Wire `iit_approximator.py` into `phi_calculator.py` as HMS-Phi micro-level
-- [ ] Gate 5: 15K nodes (auto at ~10min from Gate 4)
-- [ ] Gate 6: 20K nodes + auto-goals (auto at ~20min from Gate 5)
+- [ ] Gate 5: 15K nodes + cross-domain inferences (V4 quality gate)
+- [ ] Gate 6: 20K nodes + enacted self-improvement cycles (V4)
 - [ ] Gate 7: 25K nodes + ECE < 0.15 (calibration fix in progress)
-- [ ] Gate 8: 35K nodes + consolidated axioms (concept formation every 541 blocks)
-- [ ] Gates 9-10: 50K/100K nodes (auto with growth)
+- [ ] Gate 8: 35K nodes + curiosity-driven discoveries (V4)
+- [ ] Gates 9-10: 50K/75K nodes + novel synthesis (V4)
 - [ ] Long-term memory consolidation scheduler (every 3300 blocks)
-- [ ] Governed self-modification (enact self_improvement.py proposals)
+- [x] Governed self-modification (enacted with rollback — V4)
+- [x] Emotional state system (7 cognitive emotions from live metrics)
+- [x] Autonomous curiosity engine (prediction-error intrinsic motivation)
+- [x] V4 quality gates (replaced quantity-based auto-pass gates)
+- [x] Personable chat personality (warm, curious, self-reflective)
+- [x] Causal validation + independent debate
+- [x] Batch ingest API for agent stack
 
 **API + Monetization:**
 - [ ] `AetherAPISubscription.sol` smart contract (prepaid balance, subscription NFT)
