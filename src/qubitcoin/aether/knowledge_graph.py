@@ -400,7 +400,9 @@ class KnowledgeGraph:
                 if embedded:
                     logger.info(f"Vector index: embedded {embedded} nodes")
             else:
-                logger.info(f"Skipping bulk vector embedding for {_total} nodes (will build incrementally)")
+                logger.info(f"Skipping bulk vector embedding for {_total} nodes (background rebuild starting)")
+                # Start background thread to slowly embed existing nodes
+                self._start_background_vector_rebuild()
 
             domain_counts = {}
             for node in self.nodes.values():
@@ -415,6 +417,40 @@ class KnowledgeGraph:
             logger.warning(
                 f"Knowledge graph DB load failed ({nodes_loaded} nodes, {edges_loaded} edges recovered): {e}"
             )
+
+    def _start_background_vector_rebuild(self) -> None:
+        """Start a low-priority background thread to embed existing nodes.
+
+        Processes nodes in small batches with sleep between batches to avoid
+        saturating CPU. Embeds ~500 nodes/sec on CPU-only (sentence-transformers).
+        """
+        import threading
+
+        def _rebuild_worker():
+            BATCH = 200
+            SLEEP = 0.5  # seconds between batches — keep CPU available for mining
+            total = 0
+            try:
+                node_items = list(self.nodes.items())
+                for i in range(0, len(node_items), BATCH):
+                    if self._writer_stop.is_set():
+                        break
+                    batch = {nid: node.content for nid, node in node_items[i:i + BATCH]}
+                    try:
+                        embedded = self.vector_index.add_nodes_batch(batch)
+                        if embedded:
+                            total += embedded
+                    except Exception as e:
+                        logger.debug(f"Background vector batch failed: {e}")
+                    if i > 0 and i % (BATCH * 50) == 0:
+                        logger.info(f"Background vector rebuild: {total} / {len(node_items)} embedded")
+                    time.sleep(SLEEP)
+                logger.info(f"Background vector rebuild complete: {total} nodes embedded")
+            except Exception as e:
+                logger.warning(f"Background vector rebuild failed: {e}")
+
+        t = threading.Thread(target=_rebuild_worker, daemon=True, name='kg-vector-rebuild')
+        t.start()
 
     def _async_writer(self) -> None:
         """Background thread: drain write queue and batch-commit to DB."""
