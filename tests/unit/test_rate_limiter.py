@@ -32,8 +32,8 @@ def test_tier_limits_defined():
 
 def test_free_tier_limits():
     limits = TIER_LIMITS[Tier.FREE]
-    assert limits.chat_per_day == 5
-    assert limits.query_per_day == 10
+    assert limits.chat_per_day >= 5  # env-configurable, defaults to 5
+    assert limits.query_per_day >= 10
     assert limits.ingest_per_day == 0
 
 
@@ -46,14 +46,16 @@ def test_developer_tier_limits():
 # ── Rate limit checks ────────────────────────────────────────────────────
 
 def test_free_tier_allows_within_limit():
-    """Free tier allows 5 chat messages."""
-    for _ in range(5):
+    """Free tier allows up to configured chat limit."""
+    limit = TIER_LIMITS[Tier.FREE].chat_per_day
+    for _ in range(limit):
         check_rate_limit(None, "chat", Tier.FREE)
 
 
 def test_free_tier_blocks_over_limit():
-    """Free tier blocks on the 6th chat message."""
-    for _ in range(5):
+    """Free tier blocks after exceeding configured chat limit."""
+    limit = TIER_LIMITS[Tier.FREE].chat_per_day
+    for _ in range(limit):
         check_rate_limit(None, "chat", Tier.FREE)
     with pytest.raises(HTTPException) as exc_info:
         check_rate_limit(None, "chat", Tier.FREE)
@@ -87,7 +89,8 @@ def test_different_wallets_independent():
     """Rate limits are per-wallet."""
     wallet_a = "a" * 40
     wallet_b = "b" * 40
-    for _ in range(5):
+    limit = TIER_LIMITS[Tier.FREE].chat_per_day
+    for _ in range(limit):
         check_rate_limit(wallet_a, "chat", Tier.FREE)
     # wallet_a exhausted
     with pytest.raises(HTTPException):
@@ -98,7 +101,8 @@ def test_different_wallets_independent():
 
 def test_different_actions_independent():
     """Chat and query limits are independent."""
-    for _ in range(5):
+    limit = TIER_LIMITS[Tier.FREE].chat_per_day
+    for _ in range(limit):
         check_rate_limit(None, "chat", Tier.FREE)
     # Chat exhausted, but query still works
     check_rate_limit(None, "query", Tier.FREE)

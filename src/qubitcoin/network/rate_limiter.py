@@ -34,8 +34,14 @@ class TierLimits:
     ingest_per_day: int
 
 
+import os as _os
+
 TIER_LIMITS: Dict[Tier, TierLimits] = {
-    Tier.FREE:          TierLimits(chat_per_day=5,     query_per_day=10,    ingest_per_day=0),
+    Tier.FREE:          TierLimits(
+        chat_per_day=int(_os.getenv('AETHER_FREE_CHAT_PER_DAY', '5')),
+        query_per_day=int(_os.getenv('AETHER_FREE_QUERY_PER_DAY', '10')),
+        ingest_per_day=0,
+    ),
     Tier.DEVELOPER:     TierLimits(chat_per_day=1_000, query_per_day=500,   ingest_per_day=50),
     Tier.PROFESSIONAL:  TierLimits(chat_per_day=10_000, query_per_day=5_000, ingest_per_day=500),
     Tier.INSTITUTIONAL: TierLimits(chat_per_day=0,     query_per_day=0,     ingest_per_day=0),  # 0 = unlimited
