@@ -123,11 +123,17 @@ class TestSnapshotRetrieval:
         with patch('qubitcoin.storage.ipfs.ipfshttpclient') as mock_ipfs:
             mock_client = MagicMock()
             mock_client.version.return_value = {'Version': '0.20.0'}
-            mock_client.get_json.return_value = {'height': 100, 'blocks': []}
             mock_ipfs.connect.return_value = mock_client
             from qubitcoin.storage.ipfs import IPFSManager
             mgr = IPFSManager()
-        snapshot = mgr.retrieve_snapshot('QmTestCID')
+        # retrieve_snapshot uses httpx.post directly (inline import),
+        # so we patch it at the httpx module level
+        mock_response = MagicMock()
+        mock_response.json.return_value = {'height': 100, 'blocks': []}
+        mock_response.content = b'{"height": 100, "blocks": []}'
+        mock_response.raise_for_status.return_value = None
+        with patch('httpx.post', return_value=mock_response):
+            snapshot = mgr.retrieve_snapshot('QmTestCID')
         assert snapshot is not None
         assert snapshot['height'] == 100
 
