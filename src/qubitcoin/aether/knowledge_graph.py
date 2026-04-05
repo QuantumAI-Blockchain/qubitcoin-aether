@@ -359,7 +359,9 @@ class KnowledgeGraph:
             # Build TF-IDF index, auto-classify domains and grounding for loaded nodes
             unclassified = 0
             grounded_count = 0
-            for nid, node in self.nodes.items():
+            _total = len(self.nodes)
+            _progress_interval = max(1, _total // 10)  # log every 10%
+            for _idx, (nid, node) in enumerate(self.nodes.items()):
                 self.search_index.add_node(nid, node.content)
                 if not node.domain:
                     node.domain = classify_domain(node.content)
@@ -368,7 +370,6 @@ class KnowledgeGraph:
                 if not node.grounding_source:
                     content = node.content if isinstance(node.content, dict) else {}
                     content_type = content.get('type', '')
-                    # block_height or height — both indicate blockchain provenance
                     has_block_ref = bool(content.get('block_height') or content.get('height'))
                     if node.node_type == 'observation' and has_block_ref:
                         node.grounding_source = 'block_oracle'
@@ -388,13 +389,18 @@ class KnowledgeGraph:
                     elif content.get('source', '').startswith('llm:'):
                         node.grounding_source = 'llm_distilled'
                         grounded_count += 1
+                if (_idx + 1) % _progress_interval == 0:
+                    logger.info(f"KG load progress: {_idx + 1}/{_total} nodes indexed ({(_idx + 1) * 100 // _total}%%)")
 
-            # Batch-build vector embeddings for loaded nodes
-            if self.nodes:
+            # Skip bulk vector embedding at startup — too slow for 100K+ nodes.
+            # Vectors are built incrementally as new nodes are added via _async_writer.
+            if _total <= 10000:
                 batch = {nid: node.content for nid, node in self.nodes.items()}
                 embedded = self.vector_index.add_nodes_batch(batch)
                 if embedded:
                     logger.info(f"Vector index: embedded {embedded} nodes")
+            else:
+                logger.info(f"Skipping bulk vector embedding for {_total} nodes (will build incrementally)")
 
             domain_counts = {}
             for node in self.nodes.values():
