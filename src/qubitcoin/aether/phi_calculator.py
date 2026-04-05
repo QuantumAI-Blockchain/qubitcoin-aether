@@ -27,7 +27,7 @@ import os
 import random
 import time
 from collections import deque
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -465,11 +465,25 @@ class PhiCalculator:
             logger.debug(f"IIT KG snapshot failed: {e}")
             return self._iit_phi_cache
 
-        adapter = _KGAdapter(kg_nodes, kg_edges)
+        # Sample 5 DIFFERENT 16-node subgraphs for diversity.
+        # Each sample picks a random subset of nodes and their induced edges.
+        all_node_ids = list(kg_nodes.keys())
+        n_total = len(all_node_ids)
 
         phis: List[float] = []
         for sample_idx in range(5):
             try:
+                # Random subgraph: sample 16-64 nodes (IITApproximator picks top 16)
+                sample_size = min(n_total, max(16, min(64, n_total // 5)))
+                rng = random.Random(sample_idx * 7919 + int(time.time()) % 10000)
+                sampled_ids = set(rng.sample(all_node_ids, sample_size))
+                sub_nodes = {nid: kg_nodes[nid] for nid in sampled_ids}
+                sub_edges = [
+                    e for e in kg_edges
+                    if getattr(e, 'from_node_id', None) in sampled_ids
+                    and getattr(e, 'to_node_id', None) in sampled_ids
+                ]
+                adapter = _KGAdapter(sub_nodes, sub_edges)
                 tpm = self._iit_approximator.build_tpm_from_kg(adapter)
                 phi_val = self._iit_approximator.compute_phi(tpm)
                 if phi_val > 0:
@@ -1263,6 +1277,84 @@ class PhiCalculator:
                 'passed': passed,
             })
         return results
+
+    def log_gate_progress(self, block_height: int) -> Dict[str, Any]:
+        """Log detailed gate progress: what's passed, what's next, what's needed.
+
+        Called periodically (e.g., every 100 blocks) to track V4 gate re-earning.
+
+        Args:
+            block_height: Current block height.
+
+        Returns:
+            Dict with gate progress summary.
+        """
+        if not self._last_full_result:
+            return {'block_height': block_height, 'gates_passed': 0, 'next_gate': None}
+
+        gates = self._last_full_result.get('gates', [])
+        gate_stats = self._last_gate_stats
+        passed_ids = [g['id'] for g in gates if g.get('passed')]
+        failed = [g for g in gates if not g.get('passed')]
+
+        next_gate = failed[0] if failed else None
+        n_nodes = self._last_full_result.get('num_nodes', 0)
+
+        progress = {
+            'block_height': block_height,
+            'gates_passed': len(passed_ids),
+            'gates_total': len(gates),
+            'passed_gates': passed_ids,
+            'phi_value': self._last_full_result.get('phi_value', 0.0),
+            'phi_formula': self._last_full_result.get('phi_formula', 'unknown'),
+            'phi_micro': self._last_full_result.get('phi_micro', 0.0),
+        }
+
+        if next_gate:
+            gate_id = next_gate['id']
+            gate_def = MILESTONE_GATES[gate_id - 1] if gate_id <= len(MILESTONE_GATES) else None
+            needed_nodes = gate_def['nodes'] if gate_def else 0
+            progress['next_gate'] = {
+                'id': gate_id,
+                'name': next_gate['name'],
+                'requirement': next_gate['requirement'],
+                'nodes_have': n_nodes,
+                'nodes_need': needed_nodes,
+                'nodes_remaining': max(0, needed_nodes - n_nodes),
+            }
+            # Add relevant metric gaps for the next gate
+            if gate_id == 4:
+                progress['next_gate']['debate_verdicts'] = gate_stats.get('debate_verdicts', 0)
+                progress['next_gate']['contradiction_resolutions'] = gate_stats.get('contradiction_resolutions', 0)
+                progress['next_gate']['mip_phi'] = gate_stats.get('mip_phi', 0)
+            elif gate_id == 5:
+                progress['next_gate']['cross_domain_inferences'] = gate_stats.get('cross_domain_inferences', 0)
+            elif gate_id == 6:
+                progress['next_gate']['improvement_cycles_enacted'] = gate_stats.get('improvement_cycles_enacted', 0)
+            elif gate_id == 7:
+                progress['next_gate']['calibration_error'] = gate_stats.get('calibration_error', 1.0)
+                progress['next_gate']['calibration_evaluations'] = gate_stats.get('calibration_evaluations', 0)
+
+            logger.info(
+                "GATE PROGRESS [block %d] %d/%d passed | phi=%.4f (%s) | "
+                "next: Gate %d '%s' — need %d more nodes + %s",
+                block_height,
+                len(passed_ids),
+                len(gates),
+                progress['phi_value'],
+                progress['phi_formula'],
+                gate_id,
+                next_gate['name'],
+                max(0, needed_nodes - n_nodes),
+                next_gate['requirement'],
+            )
+        else:
+            logger.info(
+                "GATE PROGRESS [block %d] ALL %d GATES PASSED | phi=%.4f",
+                block_height, len(gates), progress['phi_value'],
+            )
+
+        return progress
 
     def adapt_gate_scale(self, block_height: int, phi_value: float) -> None:
         """Record Phi progression and adapt gate scale based on growth rate.

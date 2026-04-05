@@ -1305,6 +1305,14 @@ class AetherEngine:
                     except Exception as e:
                         logger.debug(f"Periodic phi computation error: {e}")
 
+            # ── Gate progress monitoring (every 100 blocks) ──────
+            if (self.phi and block.height > 0 and block.height % 100 == 0
+                    and hasattr(self.phi, 'log_gate_progress')):
+                try:
+                    self.phi.log_gate_progress(block.height)
+                except Exception as e:
+                    logger.debug(f"Gate progress logging error: {e}")
+
             # ── Determine if this block has meaningful knowledge ──────
             # Only create knowledge nodes when the block contributes
             # something beyond routine empty-block mining:
@@ -1850,6 +1858,10 @@ class AetherEngine:
                                 f"suppressed={replay_result['suppressed']}, "
                                 f"promoted={replay_result['promoted_to_axiom']}"
                             )
+                    # Long-term deep consolidation every ~3 hours
+                    if (block.height > 0
+                            and block.height % Config.AETHER_LONG_TERM_CONSOLIDATION_INTERVAL == 0):
+                        self.memory_manager.consolidate_long_term(block.height)
                 except Exception as e:
                     logger.debug(f"MemoryManager error: {e}")
 

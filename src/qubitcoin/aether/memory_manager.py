@@ -421,6 +421,117 @@ class MemoryManager:
 
         return consolidated
 
+    # --- Long-Term Consolidation ---
+
+    def consolidate_long_term(self, block_height: int) -> dict:
+        """Deep long-term memory consolidation (~every 3300 blocks / ~3 hours).
+
+        Performs thorough cleanup beyond the short-term consolidation:
+        1. Prune low-confidence KG nodes that haven't been accessed recently
+        2. Promote high-replay-count strategies to permanent axioms
+        3. Compact episodic memory: merge similar episodes
+        4. Decay stale working memory items aggressively
+        5. Auto-tune working memory capacity
+
+        Args:
+            block_height: Current block height.
+
+        Returns:
+            Dict with consolidation statistics.
+        """
+        stats = {
+            'block_height': block_height,
+            'nodes_pruned': 0,
+            'episodes_compacted': 0,
+            'axioms_promoted': 0,
+            'wm_items_decayed': 0,
+            'new_capacity': self._capacity,
+        }
+
+        has_kg = self._kg is not None and hasattr(self._kg, 'nodes')
+
+        # 1. Prune KG nodes with very low confidence AND no recent access
+        if has_kg and hasattr(self._kg, 'remove_node'):
+            now = time.time()
+            to_prune: List[int] = []
+            for nid, node in list(self._kg.nodes.items()):
+                # Never prune axioms, observations, or recent nodes
+                if node.node_type in ('axiom', 'observation', 'genesis'):
+                    continue
+                sb = getattr(node, 'source_block', 0) or 0
+                if block_height - sb < 5000:
+                    continue  # Too recent
+                if node.confidence < 0.08:
+                    # Check if in working memory (recently relevant)
+                    if nid not in self._working_memory:
+                        to_prune.append(nid)
+            # Cap pruning to avoid removing too much at once
+            prune_limit = min(len(to_prune), 100)
+            for nid in to_prune[:prune_limit]:
+                try:
+                    self._kg.remove_node(nid)
+                    stats['nodes_pruned'] += 1
+                except Exception:
+                    pass
+
+        # 2. Promote strategies with high replay success to axioms
+        if has_kg and hasattr(self._kg, 'add_node'):
+            for strategy, count in list(self._strategy_replay_success.items()):
+                if count >= 8:
+                    self._kg.add_node(
+                        node_type='axiom',
+                        content={
+                            'type': 'consolidated_pattern',
+                            'strategy': strategy,
+                            'replay_count': count,
+                            'long_term': True,
+                        },
+                        confidence=0.9,
+                        source_block=block_height,
+                    )
+                    stats['axioms_promoted'] += 1
+                    self._strategy_replay_success[strategy] = 0
+
+        # 3. Compact episodic memory: remove duplicate strategy episodes
+        if len(self._episodes) > 200:
+            seen_strategies: dict = {}
+            compacted: List[Episode] = []
+            for ep in reversed(self._episodes):
+                key = (ep.reasoning_strategy, ep.success)
+                seen_strategies[key] = seen_strategies.get(key, 0) + 1
+                # Keep max 10 episodes per (strategy, success) combo
+                if seen_strategies[key] <= 10:
+                    compacted.append(ep)
+            compacted.reverse()
+            stats['episodes_compacted'] = len(self._episodes) - len(compacted)
+            self._episodes = compacted
+
+        # 4. Aggressive decay on stale working memory
+        stale_cutoff = time.time() - 3600  # 1 hour
+        to_remove: List[int] = []
+        for nid, item in self._working_memory.items():
+            if item.last_access < stale_cutoff and item.relevance < 0.1:
+                to_remove.append(nid)
+        for nid in to_remove:
+            del self._working_memory[nid]
+            stats['wm_items_decayed'] += 1
+
+        # 5. Auto-tune capacity
+        stats['new_capacity'] = self.auto_tune_capacity()
+
+        logger.info(
+            "LONG-TERM CONSOLIDATION [block %d] pruned=%d axioms=%d "
+            "episodes_compacted=%d wm_decayed=%d capacity=%d",
+            block_height,
+            stats['nodes_pruned'],
+            stats['axioms_promoted'],
+            stats['episodes_compacted'],
+            stats['wm_items_decayed'],
+            stats['new_capacity'],
+        )
+
+        return stats
+
     # --- Episodic Replay ---
 
     def replay_episodes(self, block_height: int, top_k: int = 10) -> dict:
