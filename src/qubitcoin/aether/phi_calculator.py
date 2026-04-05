@@ -257,6 +257,75 @@ class PhiCalculator:
         # Minimum nodes before HMS-Phi is used (additive fallback below)
         self._HMS_MIN_NODES: int = 500
 
+        # Restore last phi measurement from DB so get_cached() returns
+        # non-zero values immediately after restart
+        self._restore_from_db()
+
+    def _restore_from_db(self) -> None:
+        """Load the latest phi measurement from DB to warm the cache on startup.
+
+        This ensures get_cached() returns the last known phi value instead of
+        0.0 after a node restart. Gates are recomputed on the next compute_phi
+        call using current KG state.
+        """
+        if not self.db:
+            return
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                row = session.execute(
+                    text("""
+                        SELECT phi_value, phi_threshold, integration_score,
+                               differentiation_score, num_nodes, num_edges,
+                               block_height
+                        FROM phi_measurements
+                        ORDER BY block_height DESC
+                        LIMIT 1
+                    """)
+                ).fetchone()
+                if row and isinstance(row[0], (int, float)):
+                    phi_val = float(row[0])
+                    restored = {
+                        'phi_value': phi_val,
+                        'phi_raw': phi_val,
+                        'phi_threshold': float(row[1]),
+                        'above_threshold': phi_val >= float(row[1]),
+                        'integration_score': float(row[2]),
+                        'differentiation_score': float(row[3]),
+                        'mip_score': 0.0,
+                        'redundancy_factor': 1.0,
+                        'phi_micro': 0.0,
+                        'phi_meso': 0.0,
+                        'phi_macro': 0.0,
+                        'hms_phi_raw': 0.0,
+                        'phi_formula': 'restored',
+                        'num_nodes': int(row[4]),
+                        'num_edges': int(row[5]),
+                        'block_height': int(row[6]),
+                        'timestamp': time.time(),
+                        'phi_version': 4,
+                        'gates_passed': 0,  # recomputed on next compute_phi
+                        'gates_total': len(MILESTONE_GATES),
+                        'gate_ceiling': 0.0,
+                        'gates': [],
+                        'convergence_stddev': 0.0,
+                        'convergence_status': 'restored',
+                        'formula_weights': {
+                            'integration': self._w_int,
+                            'differentiation': self._w_diff,
+                            'mip': self._w_mip,
+                        },
+                    }
+                    self._last_full_result = restored
+                    self._last_computed_block = int(row[6])
+                    self._recent_phi_values.append(phi_val)
+                    logger.info(
+                        f"Phi restored from DB: {phi_val:.4f} at block {int(row[6])} "
+                        f"({int(row[4])} nodes, {int(row[5])} edges)"
+                    )
+        except Exception as e:
+            logger.debug(f"Could not restore phi from DB: {e}")
+
     def set_subsystem_stats(self, stats: Dict[str, float]) -> None:
         """Inject subsystem stats for gate evaluation.
 
