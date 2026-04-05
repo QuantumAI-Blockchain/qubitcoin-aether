@@ -172,7 +172,8 @@ class TestChainOfThought:
         steps = chat._deep_reason("test query", [1, 2])
 
         engine.reasoning.chain_of_thought.assert_called_once()
-        assert len(steps) == 2
+        # Returns 1 result dict (with embedded chain) for conclusion extraction
+        assert len(steps) == 1
 
     def test_deep_reason_fallback_without_chain_of_thought(self):
         from qubitcoin.aether.chat import AetherChat

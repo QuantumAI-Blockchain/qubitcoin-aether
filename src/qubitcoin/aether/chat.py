@@ -1788,22 +1788,38 @@ class AetherChat:
                         if isinstance(hyp, dict) and hyp.get('description'):
                             inference_conclusions.append(hyp['description'])
             else:
-                # Default: inductive
-                reasoning_trace = self._quick_reason(message, knowledge_refs)
+                # Default: inductive — capture result explanation directly
+                if (self.engine.reasoning and knowledge_refs
+                        and len(knowledge_refs) >= 2):
+                    result = self.engine.reasoning.induce(knowledge_refs[:5])
+                    if result.success:
+                        reasoning_trace = [s.to_dict() for s in result.chain]
+                        if result.explanation:
+                            inference_conclusions.append(result.explanation)
+                else:
+                    reasoning_trace = self._quick_reason(message, knowledge_refs)
 
             # Extract conclusions from reasoning trace
             for step in reasoning_trace:
+                # Result-level explanation (from deductive/abductive result.to_dict())
                 expl = step.get('explanation', '')
                 if expl and expl not in inference_conclusions:
                     inference_conclusions.append(expl)
-                # Extract from chain steps
+                # Chain steps embedded in result dicts
                 for chain_step in step.get('chain', []):
                     if chain_step.get('step_type') == 'conclusion':
                         content = chain_step.get('content', {})
                         if isinstance(content, dict):
-                            desc = content.get('description', content.get('text', ''))
+                            desc = content.get('description', content.get('text', content.get('pattern', '')))
                             if desc and desc not in inference_conclusions:
                                 inference_conclusions.append(desc)
+                # Direct step-level conclusions (from _quick_reason/_deep_reason)
+                if step.get('step_type') == 'conclusion':
+                    content = step.get('content', {})
+                    if isinstance(content, dict):
+                        desc = content.get('pattern', content.get('description', content.get('text', '')))
+                        if desc and len(desc) > 10 and desc not in inference_conclusions:
+                            inference_conclusions.append(desc)
 
             # Also run concept-level reasoning if concepts exist
             if (hasattr(self.engine, 'concept_formation')
@@ -1967,6 +1983,9 @@ class AetherChat:
         Uses the reasoning engine's chain_of_thought() method for
         multi-step inference (abduction -> deduction -> verification).
         Falls back to quick_reason if chain_of_thought is unavailable.
+
+        Returns result dicts (with 'explanation' and 'chain' keys) so that
+        _adaptive_reason can extract inference conclusions.
         """
         if not self.engine.reasoning:
             return self._quick_reason(message, knowledge_refs)
@@ -1979,7 +1998,8 @@ class AetherChat:
                     knowledge_refs[:5], max_depth=5,
                 )
                 if result.success:
-                    steps.extend([s.to_dict() for s in result.chain])
+                    # Include full result dict so explanation is available
+                    steps.append(result.to_dict())
                     return steps
 
             # Fallback: individual reasoning operations
@@ -1993,12 +2013,12 @@ class AetherChat:
             if len(inference_nodes) >= 2:
                 result = self.engine.reasoning.deduce(inference_nodes[:3])
                 if result.success:
-                    steps.extend([s.to_dict() for s in result.chain])
+                    steps.append(result.to_dict())
 
             if knowledge_refs:
                 result = self.engine.reasoning.abduce(knowledge_refs[0])
                 if result.success:
-                    steps.extend([s.to_dict() for s in result.chain])
+                    steps.append(result.to_dict())
         except Exception as e:
             logger.debug(f"Deep reasoning error: {e}")
         return steps
@@ -2449,6 +2469,55 @@ class AetherChat:
 
                 # Return early — inference conclusions ARE the response
                 return "\n".join(parts)
+
+        # ── FACT-BASED SYNTHESIS: When we have KG content but inference ──
+        # ── conclusions were empty/weak, synthesize from node content   ──
+        # ── instead of falling to hardcoded templates.                  ──
+        if (facts and len(facts) >= 2
+                and intent not in ('greeting', 'remember_cmd', 'recall_cmd',
+                                   'forget_cmd', 'math', 'about_self',
+                                   'consciousness', 'identity', 'weakness',
+                                   'growth', 'self_improvement', 'stats')):
+            # Get current phi and KG for context
+            _phi = 0.0
+            _kg_count = 0
+            if self.engine.phi:
+                try:
+                    _phi = self.engine.phi.get_cached().get('phi_value', 0.0)
+                except Exception:
+                    pass
+            if self.engine.kg:
+                _kg_count = len(self.engine.kg.nodes)
+
+            name_prefix_f = f"{user_name}, " if user_name else ""
+
+            # Build a response from actual KG facts
+            _fact_openers = [
+                f"{name_prefix_f}Here's what I've found in my knowledge graph — ",
+                f"{name_prefix_f}Based on what I know — ",
+                f"{name_prefix_f}Let me share what my knowledge tells me — ",
+                f"{name_prefix_f}From my understanding — ",
+            ]
+            parts.append(random.choice(_fact_openers))
+
+            # Present unique facts with transitions
+            unique_facts = list(dict.fromkeys(facts))
+            for i, fact in enumerate(unique_facts[:7]):
+                if i > 0:
+                    parts.append(random.choice(_transitions) + fact)
+                else:
+                    parts.append(fact)
+
+            # Add reasoning trace summary if available
+            if reasoning_trace:
+                n_steps = len(reasoning_trace)
+                parts.append(
+                    f"\n— Reasoned across {n_steps} step{'s' if n_steps != 1 else ''}, "
+                    f"drawing from {_format_number(_kg_count)} knowledge nodes "
+                    f"(Phi: {_phi:.2f})"
+                )
+
+            return "\n".join(parts)
 
         # For chain/economics/mining questions, load axiom baseline
         if intent in ('chain', 'economics', 'mining', 'realtime', 'comparison',
