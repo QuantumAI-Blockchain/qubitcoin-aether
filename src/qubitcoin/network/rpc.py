@@ -8484,6 +8484,33 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
         return result
 
-    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality + L1L2 Bridge + Chain Sync + Reorg + Investor)")
+    # ========================================================================
+    # AUTHENTICATION ENDPOINTS (Dilithium5 → JWT)
+    # ========================================================================
+    from .auth import (
+        ChallengeResponse, AuthenticateRequest, AuthenticateResponse,
+        create_challenge, authenticate as auth_authenticate,
+    )
+
+    @app.get("/auth/challenge", response_model=ChallengeResponse, tags=["auth"])
+    async def get_challenge(address: str = Query(..., description="40-char hex QBC address")):
+        """Request a challenge nonce to sign with your Dilithium5 key."""
+        return create_challenge(address)
+
+    @app.post("/auth/authenticate", response_model=AuthenticateResponse, tags=["auth"])
+    async def post_authenticate(req: AuthenticateRequest):
+        """Submit signed challenge to receive a JWT bearer token (24h expiry)."""
+        return auth_authenticate(req)
+
+    @app.get("/auth/verify", tags=["auth"])
+    async def verify_my_token(
+        authorization: Optional[str] = Header(None, alias="Authorization"),
+    ):
+        """Check whether a bearer token is valid and return the wallet address."""
+        from .auth import verify_token
+        payload = verify_token(authorization)
+        return {"valid": True, "address": payload.sub, "expires_at": payload.exp}
+
+    logger.info("RPC endpoints configured (v2.5 with P2P + QVM + Aether + Reversibility + Finality + L1L2 Bridge + Chain Sync + Reorg + Investor + Auth)")
 
     return app

@@ -509,6 +509,14 @@ class Config:
     MEV_REVEAL_WINDOW_BLOCKS: int = int(os.getenv('MEV_REVEAL_WINDOW_BLOCKS', '10'))
 
     # ============================================================================
+    # JWT AUTHENTICATION (Dilithium5 → JWT for Aether API)
+    # ============================================================================
+    # Generate with: openssl rand -hex 32
+    # If not set, an ephemeral secret is used (tokens don't survive restarts).
+    JWT_SECRET: str = os.getenv('JWT_SECRET', '')
+    JWT_TOKEN_EXPIRY_SECONDS: int = int(os.getenv('JWT_TOKEN_EXPIRY_SECONDS', '86400'))  # 24h
+
+    # ============================================================================
     # ADMIN API
     # ============================================================================
     ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')
