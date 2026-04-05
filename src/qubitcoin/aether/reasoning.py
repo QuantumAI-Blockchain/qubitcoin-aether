@@ -1268,14 +1268,16 @@ class ReasoningEngine:
         return None
 
     def reason_chain(self, query_node_ids: List[int], max_depth: int = 5,
-                     max_backtrack: int = 3) -> ReasoningResult:
+                     max_backtrack: int = 3,
+                     strategy_weights: Optional[Dict[str, float]] = None) -> ReasoningResult:
         """Chain-of-thought reasoning with contradiction-driven backtracking.
 
         Builds a reasoning chain step-by-step from the query nodes.  At each
         depth level the method:
 
         1. Gathers context nodes from the current frontier.
-        2. Selects the best reasoning operation for the context:
+        2. Selects the best reasoning operation for the context, biased by
+           strategy_weights from self-improvement if provided:
            - 2+ observation nodes → try inductive first
            - 2+ inference/assertion nodes → try deductive first
            - isolated observation → try abductive
@@ -1354,12 +1356,31 @@ class ReasoningEngine:
                     inf_count += 1
 
             # ---- 2. Determine operation priority order ----
+            # Start with context-based defaults
             if obs_count >= 2:
                 op_order = ['inductive', 'deductive', 'abductive']
             elif inf_count >= 2:
                 op_order = ['deductive', 'inductive', 'abductive']
             else:
                 op_order = ['abductive', 'inductive', 'deductive']
+
+            # If strategy_weights provided by self-improvement engine,
+            # re-sort operation order by weight (highest first) while
+            # still respecting context feasibility as a tiebreaker
+            if strategy_weights:
+                # Build a score: weight * context_bonus
+                context_bonus = {
+                    'inductive': 1.5 if obs_count >= 2 else 0.8,
+                    'deductive': 1.5 if inf_count >= 2 else 0.8,
+                    'abductive': 1.2 if obs_count < 2 and inf_count < 2 else 0.8,
+                }
+                scored = []
+                for op in op_order:
+                    w = strategy_weights.get(op, 1.0)
+                    bonus = context_bonus.get(op, 1.0)
+                    scored.append((op, w * bonus))
+                scored.sort(key=lambda x: x[1], reverse=True)
+                op_order = [op for op, _ in scored]
 
             # ---- 3. Try operations in priority order ----
             result: Optional[ReasoningResult] = None

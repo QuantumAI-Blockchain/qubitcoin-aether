@@ -7787,6 +7787,64 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "chunks": len(chunks),
         }
 
+    @app.post("/aether/ingest/batch")
+    async def aether_ingest_batch(body: dict):
+        """Batch-add knowledge nodes for agent stack integration.
+
+        Body: {nodes: [{text, domain?, node_type?, confidence?, source?}, ...]}
+        Max 100 nodes per batch. Agents should use this endpoint for bulk
+        knowledge submission instead of per-block seeding.
+        """
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+
+        nodes_data = body.get("nodes", [])
+        if not isinstance(nodes_data, list) or len(nodes_data) == 0:
+            raise HTTPException(status_code=400, detail="nodes must be a non-empty list")
+        if len(nodes_data) > 100:
+            raise HTTPException(status_code=400, detail="Max 100 nodes per batch")
+
+        import asyncio as _asyncio
+        allowed_types = ('assertion', 'observation', 'axiom', 'inference')
+        height = getattr(aether_engine, '_last_block_height', 0) or 0
+
+        def _do_batch():
+            created = []
+            for item in nodes_data:
+                text = (item.get("text") or "").strip()
+                if len(text) < 10 or len(text) > 100000:
+                    continue
+                ntype = item.get("node_type", "assertion")
+                if ntype not in allowed_types:
+                    ntype = "assertion"
+                confidence = max(0.1, min(1.0, float(item.get("confidence", 0.85))))
+                source = item.get("source", "agent")
+                domain = item.get("domain", "")
+                content = {
+                    'text': text,
+                    'description': text[:200],
+                    'source': source,
+                }
+                node = aether_engine.kg.add_node(
+                    node_type=ntype,
+                    content=content,
+                    confidence=confidence,
+                    source_block=height,
+                    domain=domain,
+                )
+                created.append(node.node_id)
+            return created
+
+        _loop = _asyncio.get_event_loop()
+        node_ids = await _loop.run_in_executor(None, _do_batch)
+
+        return {
+            "status": "ok",
+            "nodes_created": len(node_ids),
+            "nodes_submitted": len(nodes_data),
+            "total_knowledge_nodes": len(aether_engine.kg.nodes),
+        }
+
     # ── L1 ↔ L2 Internal Bridge ────────────────────────────────────────
 
     class L1L2DepositRequest(BaseModel):

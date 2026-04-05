@@ -51,7 +51,7 @@ class TestSemanticGates:
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[1]
         assert gate['id'] == 2
-        assert gate['name'] == 'Diverse Reasoning'
+        assert gate['name'] == 'Structural Diversity'
 
         # Fail: not enough node types with 50+ each
         stats = {
@@ -78,7 +78,7 @@ class TestSemanticGates:
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[2]
         assert gate['id'] == 3
-        assert gate['name'] == 'Predictive Power'
+        assert gate['name'] == 'Validated Predictions'
 
         # Fail: no verified predictions
         stats = {
@@ -127,7 +127,7 @@ class TestSemanticGates:
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[6]
         assert gate['id'] == 7
-        assert gate['name'] == 'Metacognitive Calibration'
+        assert gate['name'] == 'Calibrated Confidence'
 
         # Fail: high calibration error
         stats = {
@@ -153,7 +153,7 @@ class TestSemanticGates:
         assert gate['check'](stats) is True
 
     def test_gate_9_predictive_mastery(self):
-        """Gate 9: >=50K nodes, prediction accuracy > 70%, >=5K inferences."""
+        """Gate 9: >=50K nodes, accuracy > 70%, >=5K inferences, >=20 axioms."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[8]
         assert gate['id'] == 9
@@ -165,6 +165,7 @@ class TestSemanticGates:
             'node_type_counts': {'inference': 5000},
             'edge_type_counts': {},
             'prediction_accuracy': 0.6,
+            'axiom_from_consolidation': 20,
         }
         assert gate['check'](stats) is False
 
@@ -173,16 +174,16 @@ class TestSemanticGates:
         stats['node_type_counts']['inference'] = 4999
         assert gate['check'](stats) is False
 
-        # Pass: accurate and enough inferences
+        # Pass: accurate, enough inferences, and consolidated axioms
         stats['node_type_counts']['inference'] = 5000
         assert gate['check'](stats) is True
 
-    def test_gate_10_creative_synthesis(self):
-        """Gate 10: >=75K nodes, >=100 cross-domain inferences, >=50 novel concepts."""
+    def test_gate_10_novel_synthesis(self):
+        """Gate 10: >=75K nodes, >=50 novel concepts, >=100 cross-domain, sustained improvement."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[9]
         assert gate['id'] == 10
-        assert gate['name'] == 'Creative Synthesis'
+        assert gate['name'] == 'Novel Synthesis'
 
         # Fail: not enough nodes
         stats = {
@@ -190,6 +191,7 @@ class TestSemanticGates:
             'node_type_counts': {}, 'edge_type_counts': {},
             'cross_domain_inferences': 100,
             'novel_concept_count': 60,
+            'improvement_performance_delta': 0.1,
         }
         assert gate['check'](stats) is False
 
@@ -614,9 +616,10 @@ class TestCircadianPhases:
         pineal.current_phase = MagicMock(value='waking')
 
         engine = AetherEngine(db, knowledge_graph=kg, pineal=pineal)
+        engine._sephirot = {}  # Disable sephirot to avoid real node processing
 
         block = MagicMock()
-        block.height = 10
+        block.height = 7  # Use coprime-to-5 height to skip interval-based phases
         block.block_hash = 'hash123'
         block.difficulty_target = 1.0
         block.timestamp = 1234567890

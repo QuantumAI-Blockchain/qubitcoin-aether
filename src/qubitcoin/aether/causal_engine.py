@@ -306,6 +306,70 @@ class CausalDiscovery:
         self._sep_sets: Dict[FrozenSet[int], Set[int]] = {}
 
     # ------------------------------------------------------------------
+    # Causal validation via intervention test
+    # ------------------------------------------------------------------
+
+    def _intervention_test(self, source_id: int, target_id: int) -> dict:
+        """Simple intervention test: check if B's support depends on A.
+
+        Counts nodes connected to target (B) that are also connected to
+        source (A) vs those that are not.  If removing A-connected evidence
+        doesn't significantly reduce B's support, the link is correlational.
+
+        Returns:
+            Dict with validated (bool), a_connected, independent, ratio.
+        """
+        if not self.kg or source_id not in self.kg.nodes or target_id not in self.kg.nodes:
+            return {'validated': False, 'a_connected': 0, 'independent': 0, 'ratio': 0.0}
+
+        # Gather all neighbours of B (target)
+        target_neighbours: Set[int] = set()
+        for e in self.kg.get_edges_to(target_id):
+            if e.from_node_id != source_id:
+                target_neighbours.add(e.from_node_id)
+        for e in self.kg.get_edges_from(target_id):
+            if e.to_node_id != source_id:
+                target_neighbours.add(e.to_node_id)
+
+        if not target_neighbours:
+            # No other evidence for B — causal link is trivially valid
+            return {'validated': True, 'a_connected': 0, 'independent': 0, 'ratio': 1.0}
+
+        # Which of B's neighbours are also connected to A?
+        source_neighbour_ids: Set[int] = set()
+        for e in self.kg.get_edges_from(source_id):
+            source_neighbour_ids.add(e.to_node_id)
+        for e in self.kg.get_edges_to(source_id):
+            source_neighbour_ids.add(e.from_node_id)
+
+        a_connected = len(target_neighbours & source_neighbour_ids)
+        independent = len(target_neighbours - source_neighbour_ids)
+        total = a_connected + independent
+
+        # Ratio of A-connected support.  High ratio => B depends on A => causal.
+        ratio = a_connected / max(1, total)
+        validated = ratio >= 0.3  # At least 30% of B's support flows through A
+
+        return {
+            'validated': validated,
+            'a_connected': a_connected,
+            'independent': independent,
+            'ratio': round(ratio, 4),
+        }
+
+    def validate_causal_edge(self, source_id: int, target_id: int) -> dict:
+        """Public API: perform intervention test on an existing or candidate edge.
+
+        Args:
+            source_id: Candidate cause node.
+            target_id: Candidate effect node.
+
+        Returns:
+            Dict with validated, a_connected, independent, ratio.
+        """
+        return self._intervention_test(source_id, target_id)
+
+    # ------------------------------------------------------------------
     # Public API (signatures preserved for backward compatibility)
     # ------------------------------------------------------------------
 
@@ -353,18 +417,20 @@ class CausalDiscovery:
         # Step 3: Orient edges (v-structures + Meek's rules + heuristics)
         directed = self._orient_edges(node_ids, skeleton, adj, features)
 
-        # Step 4: Create 'causes' edges in the knowledge graph
+        # Step 4: Validate and create edges in the knowledge graph
         created = 0
         for from_id, to_id in directed:
             if from_id in self.kg.nodes and to_id in self.kg.nodes:
                 # O(degree) check via adjacency index instead of O(|E|) scan
                 exists = any(
                     e.from_node_id == from_id and e.to_node_id == to_id
-                    and e.edge_type == 'causes'
+                    and e.edge_type in ('causes', 'correlates')
                     for e in self.kg.get_edges_from(from_id)
                 )
                 if not exists:
-                    edge = self.kg.add_edge(from_id, to_id, 'causes', weight=0.8)
+                    iv = self._intervention_test(from_id, to_id)
+                    etype = 'causes' if iv['validated'] else 'correlates'
+                    edge = self.kg.add_edge(from_id, to_id, etype, weight=0.8)
                     if edge:
                         created += 1
 
@@ -486,13 +552,15 @@ class CausalDiscovery:
                     existing = any(
                         e.from_node_id == node_a.node_id
                         and e.to_node_id == node_b.node_id
-                        and e.edge_type == 'causes'
+                        and e.edge_type in ('causes', 'correlates')
                         for e in self.kg.get_edges_from(node_a.node_id)
                     )
                     if not existing:
+                        iv = self._intervention_test(node_a.node_id, node_b.node_id)
+                        etype = 'causes' if iv['validated'] else 'correlates'
                         weight = corr * (1.0 - block_diff / (time_lag + 1))
                         edge = self.kg.add_edge(
-                            node_a.node_id, node_b.node_id, 'causes',
+                            node_a.node_id, node_b.node_id, etype,
                             weight=round(weight, 4)
                         )
                         if edge:
@@ -1345,11 +1413,13 @@ class CausalDiscovery:
             if from_id in self.kg.nodes and to_id in self.kg.nodes:
                 exists = any(
                     e.from_node_id == from_id and e.to_node_id == to_id
-                    and e.edge_type == 'causes'
+                    and e.edge_type in ('causes', 'correlates')
                     for e in self.kg.get_edges_from(from_id)
                 )
                 if not exists:
-                    kg_edge = self.kg.add_edge(from_id, to_id, 'causes', weight=0.85)
+                    iv = self._intervention_test(from_id, to_id)
+                    etype = 'causes' if iv['validated'] else 'correlates'
+                    kg_edge = self.kg.add_edge(from_id, to_id, etype, weight=0.85)
                     if kg_edge:
                         created += 1
 

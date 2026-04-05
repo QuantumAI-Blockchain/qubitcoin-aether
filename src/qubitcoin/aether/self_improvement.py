@@ -794,6 +794,111 @@ class SelfImprovementEngine:
             logger.warning("Failed to load domain weights: %s", e)
             return False
 
+    def get_enacted_weights(self, domain: str) -> Dict[str, float]:
+        """Get the current enacted strategy weights for a specific domain.
+
+        Unlike get_domain_weights() which returns a copy, this returns the
+        live weights that are actively being used for strategy selection.
+        These weights reflect all enacted improvement cycles.
+
+        Args:
+            domain: Knowledge domain name.
+
+        Returns:
+            Dict mapping strategy names to enacted weights. Returns uniform
+            weights for unknown domains.
+        """
+        if domain in self._domain_weights:
+            return dict(self._domain_weights[domain])
+
+        # Return uniform weights for unknown domains
+        n = len(REASONING_MODES)
+        return {s: 1.0 / n for s in REASONING_MODES}
+
+    def enact_improvements(self, block_height: int) -> Dict[str, int]:
+        """Apply pending improvement actions and perform automatic rollback
+        if performance regresses beyond threshold.
+
+        This is the critical method that makes self-improvement REAL.
+        It ensures that weight adjustments computed by run_improvement_cycle()
+        are actually reflected in strategy selection, and monitors for
+        performance regression to trigger automatic rollback.
+
+        The method:
+        1. Verifies weights have been updated (run_improvement_cycle already
+           writes to _domain_weights, so this syncs downstream consumers)
+        2. Pushes enacted weights to metacognition for global strategy selection
+        3. Checks for performance regression over a rolling window
+        4. If regression > 10% over 100 blocks, rolls back to best snapshot
+
+        Args:
+            block_height: Current block height for tracking.
+
+        Returns:
+            Dict with enactment summary: enacted_count, rollback_performed, etc.
+        """
+        enacted_count = 0
+        rollback_performed = False
+
+        # Count actions that have been applied since last enactment
+        recent_actions = [
+            a for a in self._actions
+            if a.block_height == block_height or
+            (self._last_cycle_block > 0 and a.block_height >= self._last_cycle_block)
+        ]
+        enacted_count = len(recent_actions)
+
+        # Sync enacted weights to metacognition
+        if self.metacognition is not None:
+            self._sync_to_metacognition()
+
+        # Performance regression detection with automatic rollback
+        # Check rolling window of last 100 blocks worth of records
+        if len(self._records) >= 20:
+            recent_records = self._records[-100:]
+            recent_success = sum(1 for r in recent_records if r.success)
+            recent_rate = recent_success / len(recent_records)
+
+            # Compare against historical baseline (older records)
+            if len(self._records) > 200:
+                baseline_records = self._records[-300:-100]
+                baseline_success = sum(1 for r in baseline_records if r.success)
+                baseline_rate = baseline_success / len(baseline_records) if baseline_records else 0.0
+
+                # Regression threshold: >10% drop from baseline
+                if baseline_rate > 0 and recent_rate < baseline_rate * 0.9:
+                    logger.warning(
+                        "Performance regression detected at block %d: "
+                        "baseline=%.4f, current=%.4f (%.1f%% drop). "
+                        "Rolling back to previous snapshot.",
+                        block_height, baseline_rate, recent_rate,
+                        (1.0 - recent_rate / baseline_rate) * 100,
+                    )
+                    # Find the best snapshot (highest performance era)
+                    if self._weight_snapshots and len(self._weight_snapshots) >= 2:
+                        # Roll back to second-most-recent (before the bad cycle)
+                        rollback_performed = self.rollback_to_snapshot(-2)
+                        if rollback_performed:
+                            logger.info(
+                                "Automatic rollback completed at block %d. "
+                                "Reverted to snapshot index -2.",
+                                block_height,
+                            )
+
+        if enacted_count > 0:
+            logger.info(
+                "Enacted %d improvement actions at block %d%s",
+                enacted_count, block_height,
+                " (with rollback)" if rollback_performed else "",
+            )
+
+        return {
+            'enacted_count': enacted_count,
+            'rollback_performed': rollback_performed,
+            'block_height': block_height,
+            'domains_updated': len(self._domain_weights),
+        }
+
     def get_stats(self) -> dict:
         """Get comprehensive self-improvement statistics.
 

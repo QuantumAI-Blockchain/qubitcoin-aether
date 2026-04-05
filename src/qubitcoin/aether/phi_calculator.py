@@ -53,15 +53,18 @@ PHI_MAX_SAMPLE_NODES = Config.PHI_MAX_SAMPLE_NODES
 PHI_SAMPLE_SEED = Config.PHI_SAMPLE_SEED
 
 # ============================================================================
-# MILESTONE GATES (Peer-Reviewed Thresholds v3)
+# MILESTONE GATES (Peer-Reviewed Thresholds v4)
 # Each passed gate unlocks +0.5 Phi ceiling (max 5.0).  Gates require genuine
-# cognitive milestones that cannot be trivially gamed.
+# cognitive milestones emphasizing QUALITY over quantity.  Volume alone cannot
+# pass higher gates — they require validated predictions, genuine cross-domain
+# transfer, enacted self-improvement, and novel concept synthesis.
 # ============================================================================
 MILESTONE_GATES: List[dict] = [
     {
         'id': 1,
         'name': 'Knowledge Foundation',
-        'description': 'Substantial knowledge base spanning multiple domains',
+        'description': 'Broad knowledge base with diverse domains',
+        'nodes': 500,
         'check': lambda stats: (
             stats['n_nodes'] >= 500
             and stats.get('domain_count', 0) >= 5
@@ -71,8 +74,9 @@ MILESTONE_GATES: List[dict] = [
     },
     {
         'id': 2,
-        'name': 'Diverse Reasoning',
-        'description': 'Structural diversity across node types with real integration',
+        'name': 'Structural Diversity',
+        'description': 'Multiple reasoning types with real graph integration',
+        'nodes': 2000,
         'check': lambda stats: (
             stats['n_nodes'] >= 2000
             and len([t for t, c in stats['node_type_counts'].items() if c >= 50]) >= 4
@@ -82,8 +86,9 @@ MILESTONE_GATES: List[dict] = [
     },
     {
         'id': 3,
-        'name': 'Predictive Power',
-        'description': 'Verified predictions above chance level',
+        'name': 'Validated Predictions',
+        'description': 'Predictions verified against actual outcomes — not self-reported',
+        'nodes': 5000,
         'check': lambda stats: (
             stats['n_nodes'] >= 5000
             and stats.get('verified_predictions', 0) >= 50
@@ -94,89 +99,98 @@ MILESTONE_GATES: List[dict] = [
     {
         'id': 4,
         'name': 'Self-Correction',
-        'description': 'Adversarial self-testing and contradiction resolution',
+        'description': 'Genuine adversarial debate with contradiction resolution',
+        'nodes': 10000,
         'check': lambda stats: (
             stats['n_nodes'] >= 10000
             and stats.get('debate_verdicts', 0) >= 20
             and stats.get('contradiction_resolutions', 0) >= 10
             and stats.get('mip_phi', 0) > 0.3
         ),
-        'requirement': '>=10K nodes, >=20 debate verdicts, >=10 contradictions resolved, MIP > 0.3',
+        'requirement': '>=10K nodes, >=20 debates, >=10 contradictions resolved, MIP > 0.3',
     },
     {
         'id': 5,
         'name': 'Cross-Domain Transfer',
-        'description': 'Genuine knowledge transfer with cross-domain edges',
+        'description': 'Genuine knowledge transfer: inferences using evidence from 2+ domains',
+        'nodes': 15000,
         'check': lambda stats: (
             stats['n_nodes'] >= 15000
-            and stats.get('domain_count', 0) >= 5
-            and _count_cross_domain_edges(stats) >= 100
-            and stats.get('working_memory_hit_rate', 0) > 0.1
+            and stats.get('cross_domain_inferences', 0) >= 30
+            and stats.get('cross_domain_inference_confidence', 0) > 0.5
+            and _count_cross_domain_edges(stats) >= 50
         ),
-        'requirement': '>=15K nodes, >=5 domains with 20+ cross-edges each, WM hit rate > 0.1',
+        'requirement': '>=15K nodes, >=30 cross-domain inferences with conf > 0.5, >=50 cross-edges',
     },
     {
         'id': 6,
-        'name': 'Emergent Goals',
-        'description': 'Auto-goals that demonstrably produce new inferences',
+        'name': 'Enacted Self-Improvement',
+        'description': 'Self-improvement actions enacted AND producing measurable gains',
+        'nodes': 20000,
         'check': lambda stats: (
             stats['n_nodes'] >= 20000
-            and stats.get('auto_goals_generated', 0) >= 50
-            and stats.get('auto_goals_with_inferences', 0) >= 30
+            and stats.get('improvement_cycles_enacted', 0) >= 10
+            and stats.get('improvement_performance_delta', 0) > 0.0
         ),
-        'requirement': '>=20K nodes, >=50 auto-goals, >=30 leading to new inferences',
+        'requirement': '>=20K nodes, >=10 enacted improvement cycles, positive performance delta',
     },
     {
         'id': 7,
-        'name': 'Metacognitive Calibration',
-        'description': 'Tight calibration with sufficient evaluation data',
+        'name': 'Calibrated Confidence',
+        'description': 'System knows what it knows — calibration error below threshold',
+        'nodes': 25000,
         'check': lambda stats: (
             stats['n_nodes'] >= 25000
             and stats.get('calibration_error', 1.0) < 0.15
             and stats.get('calibration_evaluations', 0) >= 200
             and stats.get('grounding_ratio', 0) > 0.05
         ),
-        'requirement': '>=25K nodes, calibration error < 0.15, >=200 evaluations, >5% grounded',
+        'requirement': '>=25K nodes, ECE < 0.15, >=200 evaluations, >5% grounded',
     },
     {
         'id': 8,
-        'name': 'Consolidated Knowledge',
-        'description': 'High-quality consolidated axioms and cross-domain inferences',
+        'name': 'Autonomous Curiosity',
+        'description': 'System generates its own research goals that produce novel knowledge',
+        'nodes': 35000,
         'check': lambda stats: (
             stats['n_nodes'] >= 35000
-            and stats.get('axiom_from_consolidation', 0) >= 20
-            and stats.get('cross_domain_inferences', 0) >= 50
-            and stats.get('cross_domain_inference_confidence', 0) > 0.6
+            and stats.get('auto_goals_generated', 0) >= 50
+            and stats.get('auto_goals_with_inferences', 0) >= 30
+            and stats.get('curiosity_driven_discoveries', 0) >= 10
         ),
-        'requirement': '>=35K nodes, >=20 consolidated axioms, >=50 cross-domain inferences with conf > 0.6',
+        'requirement': '>=35K nodes, >=50 auto-goals, >=30 producing inferences, >=10 curiosity discoveries',
     },
     {
         'id': 9,
         'name': 'Predictive Mastery',
-        'description': 'High prediction accuracy across substantial inference volume',
+        'description': 'Sustained high accuracy across domains with large inference volume',
+        'nodes': 50000,
         'check': lambda stats: (
             stats['n_nodes'] >= 50000
             and stats.get('prediction_accuracy', 0) > 0.70
             and stats['node_type_counts'].get('inference', 0) >= 5000
+            and stats.get('axiom_from_consolidation', 0) >= 20
         ),
-        'requirement': '>=50K nodes, prediction accuracy > 70%, >=5K inferences',
+        'requirement': '>=50K nodes, accuracy > 70%, >=5K inferences, >=20 consolidated axioms',
     },
     {
         'id': 10,
-        'name': 'Creative Synthesis',
-        'description': 'Verifiably novel concepts with embedding distance from existing clusters',
+        'name': 'Novel Synthesis',
+        'description': 'Genuine novel concepts not in training data — verified by embedding distance',
+        'nodes': 75000,
         'check': lambda stats: (
             stats['n_nodes'] >= 75000
-            and stats.get('cross_domain_inferences', 0) >= 100
             and stats.get('novel_concept_count', 0) >= 50
+            and stats.get('cross_domain_inferences', 0) >= 100
+            and stats.get('improvement_performance_delta', 0) > 0.05
         ),
-        'requirement': '>=75K nodes, >=100 cross-domain inferences, >=50 novel concepts',
+        'requirement': '>=75K nodes, >=50 novel concepts, >=100 cross-domain inferences, sustained self-improvement',
     },
 ]
 
 
 def _count_cross_domain_edges(stats: dict) -> int:
-    """Count cross-domain edges for gate 5 evaluation.
+    """Count cross-domain edges for gate evaluation.
 
     Looks at edge_type_counts for 'analogous_to' edges as a proxy
     for cross-domain connections.
@@ -1185,6 +1199,10 @@ class PhiCalculator:
             'calibration_error': ext.get('calibration_error', 1.0),
             'calibration_evaluations': ext.get('calibration_evaluations', 0),
             'prediction_accuracy': ext.get('prediction_accuracy', 0.0),
+            # v4 gate stats — self-improvement and curiosity
+            'improvement_cycles_enacted': ext.get('improvement_cycles_enacted', 0),
+            'improvement_performance_delta': ext.get('improvement_performance_delta', 0.0),
+            'curiosity_driven_discoveries': ext.get('curiosity_driven_discoveries', 0),
         }
 
         # Log gate stat summary for diagnostics

@@ -84,7 +84,7 @@ class DebateResult:
     rounds: int
     proposer_final_confidence: float
     critic_final_confidence: float
-    verdict: str  # 'accepted', 'rejected', 'modified'
+    verdict: str  # 'accepted', 'rejected', 'modified', 'undecided'
     synthesis: dict = field(default_factory=dict)
     positions: List[DebatePosition] = field(default_factory=list)
     conclusion_node_id: Optional[int] = None
@@ -136,6 +136,7 @@ class DebateProtocol:
         self._accepted: int = 0
         self._rejected: int = 0
         self._modified: int = 0
+        self._undecided: int = 0
         self._debate_log: List[dict] = []
 
     def debate(self, topic_node_ids: List[int],
@@ -224,8 +225,11 @@ class DebateProtocol:
                 round_num=round_num,
             ))
 
-            # --- Gevurah critiques (enhanced adversarial search) ---
+            # --- Gevurah critiques (independent adversarial search) ---
             counter_evidence = self._find_counter_evidence(topic_node_ids)
+            # Cross-domain evidence: look in domains the proposer did NOT use
+            cross_domain = self._find_cross_domain_counter(topic_node_ids, set(all_support))
+            counter_evidence = list(set(counter_evidence + cross_domain))
             # Generate counterarguments: temporal contradictions, weakened support
             counterarg = self._generate_counterargument(topic_node_ids)
             if counterarg:
@@ -284,7 +288,17 @@ class DebateProtocol:
         pro_adjusted = proposer_conf * (0.5 + 0.5 * pro_quality)
         con_adjusted = critic_conf * (0.5 + 0.5 * con_quality)
 
-        if pro_adjusted > con_adjusted + 0.02:
+        # Compute debate independence: how different are evidence sources?
+        independence_score = self._compute_independence_score(
+            all_pro_evidence, all_con_evidence
+        )
+
+        if abs(proposer_conf - critic_conf) <= 0.05 and abs(pro_adjusted - con_adjusted) <= 0.02:
+            # Genuinely balanced evidence — neither side wins
+            verdict = 'undecided'
+            self._undecided += 1
+            synthesis_conf = (proposer_conf + critic_conf) / 2.0
+        elif pro_adjusted > con_adjusted + 0.02:
             verdict = 'accepted'
             self._accepted += 1
             synthesis_conf = proposer_conf * 0.8 + (1.0 - critic_conf) * 0.2
@@ -316,6 +330,7 @@ class DebateProtocol:
             'critic_final': round(critic_conf, 4),
             'pro_quality': round(pro_quality, 4),
             'con_quality': round(con_quality, 4),
+            'debate_independence_score': round(independence_score, 4),
             'rounds': round_num + 1,
             'source': 'debate_protocol_v3',
             'synthesis_text': synthesis_text,
@@ -597,6 +612,99 @@ class DebateProtocol:
 
         counter -= topic_set
         return list(counter)
+
+    def _find_cross_domain_counter(self, topic_node_ids: List[int],
+                                       proposer_ids: Set[int],
+                                       max_results: int = 10) -> List[int]:
+        """Find counter-evidence from domains NOT used by the proposer.
+
+        Ensures Gevurah reasons independently by sourcing evidence from
+        different knowledge domains than Chesed used.
+
+        Args:
+            topic_node_ids: Nodes defining the topic.
+            proposer_ids: Node IDs already used by the proposer.
+            max_results: Maximum nodes to return.
+
+        Returns:
+            List of cross-domain counter-evidence node IDs.
+        """
+        if not self.kg:
+            return []
+
+        # Determine domains used by proposer
+        proposer_domains: Set[str] = set()
+        for nid in proposer_ids:
+            node = self.kg.nodes.get(nid)
+            if node and node.domain:
+                proposer_domains.add(node.domain)
+        for nid in topic_node_ids:
+            node = self.kg.nodes.get(nid)
+            if node and node.domain:
+                proposer_domains.add(node.domain)
+
+        if not proposer_domains:
+            return []
+
+        # Find nodes in OTHER domains with low confidence or contradicting edges
+        cross: List[int] = []
+        exclude = set(topic_node_ids) | proposer_ids
+        for candidate in self.kg.nodes.values():
+            if candidate.node_id in exclude:
+                continue
+            if candidate.domain in proposer_domains or not candidate.domain:
+                continue
+            # Prefer low-confidence cross-domain nodes (different perspective)
+            if candidate.confidence < 0.5:
+                cross.append(candidate.node_id)
+            if len(cross) >= max_results:
+                break
+        return cross
+
+    def _compute_independence_score(self, pro_ids: List[int],
+                                    con_ids: List[int]) -> float:
+        """Compute how independent the proposer and critic evidence sources are.
+
+        Score of 1.0 = completely different sources (high independence).
+        Score of 0.0 = identical sources (no independence).
+
+        Args:
+            pro_ids: Proposer evidence node IDs.
+            con_ids: Critic evidence node IDs.
+
+        Returns:
+            Float in [0, 1] measuring evidence source independence.
+        """
+        if not pro_ids and not con_ids:
+            return 0.0
+        pro_set = set(pro_ids)
+        con_set = set(con_ids)
+        union = pro_set | con_set
+        if not union:
+            return 0.0
+        overlap = pro_set & con_set
+        # Jaccard distance: 1 - (intersection / union)
+        independence = 1.0 - len(overlap) / len(union)
+
+        # Boost if domains are different
+        if self.kg:
+            pro_domains: Set[str] = set()
+            con_domains: Set[str] = set()
+            for nid in pro_ids:
+                node = self.kg.nodes.get(nid)
+                if node and node.domain:
+                    pro_domains.add(node.domain)
+            for nid in con_ids:
+                node = self.kg.nodes.get(nid)
+                if node and node.domain:
+                    con_domains.add(node.domain)
+            if pro_domains and con_domains:
+                domain_overlap = pro_domains & con_domains
+                domain_union = pro_domains | con_domains
+                domain_independence = 1.0 - len(domain_overlap) / len(domain_union)
+                independence = independence * 0.6 + domain_independence * 0.4
+
+        return round(independence, 4)
 
     def _generate_counterargument(self, topic_node_ids: List[int]) -> Optional[DebatePosition]:
         """Generate an active counterargument against the topic.
@@ -998,6 +1106,7 @@ class DebateProtocol:
             'accepted': self._accepted,
             'rejected': self._rejected,
             'modified': self._modified,
+            'undecided': self._undecided,
             'acceptance_rate': round(
                 self._accepted / max(1, self._debates_run), 4
             ),

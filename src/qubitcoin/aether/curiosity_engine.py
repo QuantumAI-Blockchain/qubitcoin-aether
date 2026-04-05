@@ -1,240 +1,172 @@
 """
-#66: Curiosity-Driven Exploration Engine
+Autonomous Curiosity Engine for Aether Tree AGI.
 
-Intrinsic motivation system that uses prediction error as a curiosity
-signal.  A lightweight forward model predicts the next state from the
-current state + action; the magnitude of the prediction error drives
-exploration towards novel, information-rich regions of the knowledge
-space.
-
-Numpy-only implementation (no PyTorch).
+Provides intrinsic motivation by tracking prediction errors per domain
+and suggesting exploration goals based on knowledge gaps.  Higher
+prediction error signals more interesting (less understood) territory,
+driving the system to explore what it does not yet know.
 """
 
 from __future__ import annotations
 
-import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-
-import numpy as np
+import threading
+from collections import defaultdict
+from typing import TYPE_CHECKING, Optional
 
 from ..utils.logger import get_logger
 
+if TYPE_CHECKING:
+    from .knowledge_graph import KnowledgeGraph
+    from .temporal_reasoner import TemporalReasoner
+
 logger = get_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Forward model parameters
-# ---------------------------------------------------------------------------
-_STATE_DIM = 32
-_ACTION_DIM = 8
-_LEARNING_RATE = 0.005
-_EPSILON = 1e-8
-
-
-@dataclass
-class ExplorationBonus:
-    """Tracks per-domain exploration statistics."""
-    domain: str
-    visit_count: int = 0
-    total_curiosity: float = 0.0
-    last_visited: float = 0.0
+_ROLLING_WINDOW = 100
 
 
 class CuriosityEngine:
-    """Intrinsic motivation via prediction-error curiosity."""
+    """Drives autonomous exploration via prediction-error curiosity."""
 
     def __init__(
         self,
-        state_dim: int = _STATE_DIM,
-        action_dim: int = _ACTION_DIM,
-        lr: float = _LEARNING_RATE,
-        max_history: int = 5000,
+        knowledge_graph: KnowledgeGraph,
+        temporal_reasoner: Optional[TemporalReasoner] = None,
     ) -> None:
-        self._state_dim = state_dim
-        self._action_dim = action_dim
-        self._lr = lr
-        self._max_history = max_history
+        self._kg = knowledge_graph
+        self._temporal = temporal_reasoner
+        self._lock = threading.Lock()
 
-        # Forward model: W_forward @ [state; action] + bias -> predicted_next_state
-        input_dim = state_dim + action_dim
-        self._W_forward: np.ndarray = np.random.randn(state_dim, input_dim).astype(np.float64) * 0.01
-        self._b_forward: np.ndarray = np.zeros(state_dim, dtype=np.float64)
+        # domain -> rolling list of |predicted - actual| values (max _ROLLING_WINDOW)
+        self.prediction_errors: dict[str, list[float]] = defaultdict(list)
+        # (domain, topic, block_height) tuples
+        self.exploration_history: list[tuple[str, str, int]] = []
 
-        # Per-domain exploration bonuses
-        self._domain_bonuses: Dict[str, ExplorationBonus] = {}
-
-        # History of curiosity scores
-        self._curiosity_history: List[float] = []
-        self._total_computations: int = 0
-        self._total_explorations: int = 0
-        self._train_steps: int = 0
-
-        logger.info("CuriosityEngine initialized (state_dim=%d, action_dim=%d)", state_dim, action_dim)
+        logger.info("CuriosityEngine initialized (window=%d)", _ROLLING_WINDOW)
 
     # ------------------------------------------------------------------
-    # Core API
+    # Public API
     # ------------------------------------------------------------------
 
-    def compute_curiosity(
-        self, state: np.ndarray, next_state: np.ndarray, action: Optional[np.ndarray] = None,
-    ) -> float:
-        """Compute curiosity as prediction error.
+    def compute_curiosity_scores(self) -> dict[str, float]:
+        """Return curiosity score per domain (mean prediction error)."""
+        with self._lock:
+            scores: dict[str, float] = {}
+            for domain, errors in self.prediction_errors.items():
+                if errors:
+                    scores[domain] = sum(errors) / len(errors)
+            return scores
 
-        Args:
-            state: Current state vector (state_dim,).
-            next_state: Actual next state vector (state_dim,).
-            action: Optional action vector (action_dim,).  Zeros if not given.
-
-        Returns:
-            Curiosity score (L2 prediction error).
-        """
-        state = self._ensure_shape(state, self._state_dim)
-        next_state = self._ensure_shape(next_state, self._state_dim)
-        if action is None:
-            action = np.zeros(self._action_dim, dtype=np.float64)
-        else:
-            action = self._ensure_shape(action, self._action_dim)
-
-        predicted = self._forward_predict(state, action)
-        error = float(np.linalg.norm(predicted - next_state))
-
-        # Online learning: update forward model to reduce future error
-        self._update_forward_model(state, action, next_state, predicted)
-
-        self._curiosity_history.append(error)
-        if len(self._curiosity_history) > self._max_history:
-            self._curiosity_history = self._curiosity_history[-self._max_history:]
-        self._total_computations += 1
-
-        return error
-
-    def select_exploration_target(self, candidates: List[dict]) -> dict:
-        """Pick the most curious option from a set of candidates.
-
-        Each candidate dict should contain:
-            - 'state': np.ndarray or list  (current state proxy)
-            - 'next_state': np.ndarray or list  (expected state proxy)
-            - 'domain': str  (optional domain label)
-
-        Falls back to the first candidate if none can be scored.
+    def suggest_exploration_goal(self) -> Optional[dict]:
+        """Pick the highest-curiosity domain and generate a question.
 
         Returns:
-            The candidate dict with highest curiosity score.
+            Dict with ``domain``, ``curiosity_score``, and ``question``
+            keys, or ``None`` when no prediction data exists yet.
         """
-        if not candidates:
-            return {}
+        scores = self.compute_curiosity_scores()
+        if not scores:
+            return None
 
-        best_score = -1.0
-        best_candidate = candidates[0]
+        best_domain = max(scores, key=scores.__getitem__)  # type: ignore[arg-type]
+        question = self._generate_exploration_question(best_domain)
 
-        for cand in candidates:
-            state = np.asarray(cand.get('state', np.zeros(self._state_dim)), dtype=np.float64)
-            next_state = np.asarray(cand.get('next_state', np.zeros(self._state_dim)), dtype=np.float64)
-            score = self.compute_curiosity(state, next_state)
+        logger.info(
+            "Curiosity goal: domain=%s score=%.4f question='%s'",
+            best_domain,
+            scores[best_domain],
+            question,
+        )
+        return {
+            "domain": best_domain,
+            "curiosity_score": scores[best_domain],
+            "question": question,
+        }
 
-            # Add exploration bonus for under-visited domains
-            domain = cand.get('domain', 'general')
-            bonus = self._get_exploration_bonus(domain)
-            total_score = score + bonus
+    def record_prediction_outcome(
+        self,
+        domain: str,
+        predicted: float,
+        actual: float,
+        topic: str,
+    ) -> None:
+        """Record the absolute error of a prediction for *domain*."""
+        error = abs(predicted - actual)
+        with self._lock:
+            buf = self.prediction_errors[domain]
+            buf.append(error)
+            if len(buf) > _ROLLING_WINDOW:
+                del buf[: len(buf) - _ROLLING_WINDOW]
+        logger.debug(
+            "Prediction outcome: domain=%s topic=%s error=%.4f",
+            domain,
+            topic,
+            error,
+        )
 
-            if total_score > best_score:
-                best_score = total_score
-                best_candidate = cand
+    def record_discovery(
+        self,
+        domain: str,
+        topic: str,
+        block_height: int,
+    ) -> None:
+        """Log a curiosity-driven discovery."""
+        with self._lock:
+            self.exploration_history.append((domain, topic, block_height))
+        logger.info(
+            "Curiosity discovery: domain=%s topic=%s block=%d",
+            domain,
+            topic,
+            block_height,
+        )
 
-        self._total_explorations += 1
-        # Update domain visit count for winner
-        domain = best_candidate.get('domain', 'general')
-        self._record_domain_visit(domain, best_score)
+    def get_curiosity_stats(self) -> dict:
+        """Return a summary dict of curiosity state."""
+        scores = self.compute_curiosity_scores()
+        sorted_domains = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+        with self._lock:
+            history_len = len(self.exploration_history)
+        return {
+            "curiosity_scores": scores,
+            "top_interests": [d for d, _ in sorted_domains[:5]],
+            "discoveries_count": history_len,
+            "domains_tracked": len(scores),
+        }
 
-        return best_candidate
-
-    def estimate_information_gain(self, candidates: List[dict]) -> List[float]:
-        """Estimate information gain (entropy reduction) for each candidate.
-
-        Uses prediction uncertainty as a proxy for information gain:
-        higher uncertainty about a candidate means observing it would
-        reduce entropy more.
-
-        Returns:
-            List of information gain estimates, one per candidate.
-        """
-        gains: List[float] = []
-        for cand in candidates:
-            state = np.asarray(cand.get('state', np.zeros(self._state_dim)), dtype=np.float64)
-            state = self._ensure_shape(state, self._state_dim)
-            action = np.zeros(self._action_dim, dtype=np.float64)
-
-            predicted = self._forward_predict(state, action)
-            # Uncertainty = variance of predicted components (higher = more uncertain)
-            variance = float(np.var(predicted))
-            # Domain novelty bonus
-            domain = cand.get('domain', 'general')
-            db = self._domain_bonuses.get(domain)
-            novelty = 1.0 / (1.0 + (db.visit_count if db else 0))
-            gains.append(variance + novelty)
-
-        return gains
+    @property
+    def discoveries_count(self) -> int:
+        """Total curiosity-driven discoveries (used by gate 8 checks)."""
+        with self._lock:
+            return len(self.exploration_history)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _forward_predict(self, state: np.ndarray, action: np.ndarray) -> np.ndarray:
-        """Forward model: predict next state from state + action."""
-        x = np.concatenate([state, action])
-        return self._W_forward @ x + self._b_forward
+    def _generate_exploration_question(self, domain: str) -> str:
+        """Create a question targeting *domain*'s weakest prediction area.
 
-    def _update_forward_model(
-        self,
-        state: np.ndarray,
-        action: np.ndarray,
-        target: np.ndarray,
-        predicted: np.ndarray,
-    ) -> None:
-        """Single SGD step on the forward model."""
-        x = np.concatenate([state, action])
-        error = predicted - target  # (state_dim,)
-        # Gradient of MSE w.r.t. W and b
-        grad_W = np.outer(error, x)
-        grad_b = error
-        self._W_forward -= self._lr * grad_W
-        self._b_forward -= self._lr * grad_b
-        self._train_steps += 1
+        Scans the knowledge graph for nodes in *domain*, picks the one
+        with the lowest confidence, and formulates a question around it.
+        """
+        weak_nodes: list[tuple[float, str]] = []
+        for node in self._kg.nodes.values():
+            if (node.domain or "general") != domain:
+                continue
+            text = ""
+            if isinstance(node.content, dict):
+                text = node.content.get("text", "")
+            elif isinstance(node.content, str):
+                text = node.content
+            if text:
+                weak_nodes.append((node.confidence, text))
 
-    def _ensure_shape(self, arr: np.ndarray, dim: int) -> np.ndarray:
-        arr = np.asarray(arr, dtype=np.float64).ravel()
-        if len(arr) < dim:
-            arr = np.pad(arr, (0, dim - len(arr)))
-        elif len(arr) > dim:
-            arr = arr[:dim]
-        return arr
+        if not weak_nodes:
+            return f"What are the foundational principles of {domain}?"
 
-    def _get_exploration_bonus(self, domain: str) -> float:
-        """Return exploration bonus inversely proportional to visit count."""
-        db = self._domain_bonuses.get(domain)
-        if db is None:
-            return 1.0  # Never visited — maximum bonus
-        return 1.0 / (1.0 + db.visit_count)
-
-    def _record_domain_visit(self, domain: str, curiosity: float) -> None:
-        if domain not in self._domain_bonuses:
-            self._domain_bonuses[domain] = ExplorationBonus(domain=domain)
-        db = self._domain_bonuses[domain]
-        db.visit_count += 1
-        db.total_curiosity += curiosity
-        db.last_visited = time.time()
-
-    # ------------------------------------------------------------------
-    # Stats
-    # ------------------------------------------------------------------
-
-    def get_stats(self) -> dict:
-        avg_curiosity = float(np.mean(self._curiosity_history[-100:])) if self._curiosity_history else 0.0
-        return {
-            'total_computations': self._total_computations,
-            'total_explorations': self._total_explorations,
-            'train_steps': self._train_steps,
-            'avg_curiosity_100': round(avg_curiosity, 6),
-            'domains_tracked': len(self._domain_bonuses),
-            'history_size': len(self._curiosity_history),
-        }
+        # Pick the lowest-confidence node as the weak spot
+        weak_nodes.sort(key=lambda t: t[0])
+        snippet = weak_nodes[0][1][:120].strip()
+        return (
+            f"Why is the following claim in {domain} uncertain, "
+            f'and what evidence would resolve it? "{snippet}"'
+        )

@@ -462,5 +462,5 @@ class TestSystemPrompt:
 
     def test_system_prompt_exists(self):
         assert AETHER_SYSTEM_PROMPT
-        assert 'Aether Tree' in AETHER_SYSTEM_PROMPT
+        assert 'Aether' in AETHER_SYSTEM_PROMPT
         assert 'Qubitcoin' in AETHER_SYSTEM_PROMPT

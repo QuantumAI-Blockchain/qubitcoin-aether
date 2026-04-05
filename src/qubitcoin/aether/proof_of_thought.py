@@ -150,6 +150,22 @@ class AetherEngine:
         except Exception as e:
             logger.debug(f"ExternalKnowledgeConnector init failed: {e}")
 
+        # Phase 8: Emotional State (cognitive feelings derived from metrics)
+        self.emotional_state = None
+        try:
+            from .emotional_state import EmotionalState
+            self.emotional_state = EmotionalState()
+        except Exception as e:
+            logger.debug(f"EmotionalState init failed: {e}")
+
+        # Phase 9: Curiosity Engine (intrinsic motivation)
+        self.curiosity_engine = None
+        try:
+            from .curiosity_engine import CuriosityEngine
+            self.curiosity_engine = CuriosityEngine(knowledge_graph)
+        except Exception as e:
+            logger.debug(f"CuriosityEngine init failed: {e}")
+
         # Blocks processed counter (tracked from process_block_knowledge calls)
         self._blocks_processed: int = 0
 
@@ -1793,10 +1809,20 @@ class AetherEngine:
                         if self.self_improvement.should_run_cycle(block.height):
                             cycle_result = self.self_improvement.run_improvement_cycle(block.height)
                             if cycle_result.get('adjustments', 0) > 0:
+                                # ENACT improvements: apply weight changes to
+                                # strategy selection with automatic rollback
+                                enact_result = self.self_improvement.enact_improvements(block.height)
                                 self._reward_sephirah('self_improvement', True, 0.1)
                                 logger.info(
-                                    f"Self-improvement cycle #{cycle_result['cycle_number']} "
-                                    f"at block {block.height}: {cycle_result['adjustments']} adjustments"
+                                    "Self-improvement cycle #%d at block %d: "
+                                    "%d adjustments, %d enacted%s",
+                                    cycle_result['cycle_number'],
+                                    block.height,
+                                    cycle_result['adjustments'],
+                                    enact_result.get('enacted_count', 0),
+                                    " (rollback triggered)"
+                                    if enact_result.get('rollback_performed')
+                                    else "",
                                 )
                 except Exception as e:
                     self._track_subsystem_error('self_improvement', e)
@@ -3255,6 +3281,53 @@ class AetherEngine:
                 # Phase-aware behavior (item 10.2)
                 self._apply_circadian_behavior(block)
 
+            # Update emotional state from live metrics (every block)
+            if self.emotional_state:
+                try:
+                    emo_metrics = {
+                        'prediction_accuracy': (
+                            self.temporal_engine.get_accuracy()
+                            if self.temporal_engine else 0.5
+                        ),
+                        'prediction_errors': (
+                            getattr(self.temporal_engine, '_prediction_errors', 0)
+                            if self.temporal_engine else 0
+                        ),
+                        'novel_concepts_recent': (
+                            getattr(self.concept_formation, '_last_concepts_created', 0)
+                            if self.concept_formation else 0
+                        ),
+                        'unresolved_contradictions': (
+                            len(getattr(self, '_unresolved_contradictions', []))
+                        ),
+                        'debate_verdicts_recent': (
+                            getattr(self.debate_protocol, '_debates_this_session', 0)
+                            if self.debate_protocol else 0
+                        ),
+                        'cross_domain_edges_recent': (
+                            getattr(self.kg, '_cross_domain_edges_added', 0)
+                            if self.kg else 0
+                        ),
+                        'gates_passed': (
+                            block_phi_result.get('gates_passed', 0)
+                            if block_phi_result else 0
+                        ),
+                        'user_interactions_recent': (
+                            getattr(self, '_user_interactions_count', 0)
+                        ),
+                        'pineal_phase': (
+                            self.pineal.current_phase.name
+                            if self.pineal and hasattr(self.pineal, 'current_phase')
+                            else 'wake'
+                        ),
+                        'blocks_since_last_interaction': (
+                            block.height - getattr(self, '_last_user_interaction_block', 0)
+                        ),
+                    }
+                    self.emotional_state.update(emo_metrics)
+                except Exception as e:
+                    logger.debug(f"Emotional state update error: {e}")
+
         except Exception as e:
             logger.warning(f"Error processing block knowledge: {e}", exc_info=True)
 
@@ -3903,9 +3976,28 @@ class AetherEngine:
             obs_window = max(3, int(10 * metabolic_rate) + self._phi_obs_window_bonus)
             weight_cutoff = max(0.1, 0.3 / metabolic_rate)  # 0.15-1.0 threshold
 
-            # --- Metacognition-guided strategy selection ---
-            # Get strategy weights from metacognition + Sephirot energy (H2)
-            strategy_weights = self._get_strategy_weights()
+            # --- Self-improvement + metacognition-guided strategy selection ---
+            # Determine dominant domain from recent observations for
+            # domain-specific weight lookup from self-improvement engine
+            _auto_reason_domain = 'general'
+            try:
+                recent_obs_for_domain = [
+                    n for n in self.kg.nodes.values()
+                    if n.node_type == 'observation'
+                    and n.source_block >= block_height - 10
+                ]
+                if recent_obs_for_domain:
+                    domain_counts: Dict[str, int] = {}
+                    for obs in recent_obs_for_domain:
+                        d = getattr(obs, 'domain', None) or obs.content.get('domain', 'general')
+                        domain_counts[d] = domain_counts.get(d, 0) + 1
+                    if domain_counts:
+                        _auto_reason_domain = max(domain_counts, key=domain_counts.get)
+            except Exception:
+                pass
+
+            # Get strategy weights with domain-specific self-improvement data
+            strategy_weights = self._get_strategy_weights(domain=_auto_reason_domain)
 
             # Layer 3: Circadian metabolic rate scales all weights (H3)
             # During Active Learning, even low-weight strategies get a chance
@@ -4256,17 +4348,28 @@ class AetherEngine:
 
         return steps
 
-    def _get_strategy_weights(self) -> Dict[str, float]:
-        """Get reasoning strategy weights from metacognition + Sephirot energy.
+    def _get_strategy_weights(self, domain: str = 'general') -> Dict[str, float]:
+        """Get reasoning strategy weights from self-improvement + metacognition + Sephirot.
 
-        Strategy selection is modulated by SUSY energy levels of relevant
-        Sephirot nodes (H2 behavioral integration):
-        - Chochmah (intuition/pattern discovery) → boosts inductive weight
-        - Binah (logic/causal inference) → boosts deductive weight
-        - Chesed (exploration/divergent) → boosts abductive weight
-        - Gevurah (safety/constraint) → dampens abductive, boosts deductive
+        Strategy selection uses enacted self-improvement weights as the primary
+        source (Layer 0), with metacognition (Layer 1) and Sephirot energy
+        (Layer 2) as additional modulation layers.
 
-        Falls back to equal weights if metacognition is not available.
+        Layer 0 (Self-Improvement): Per-domain enacted weights from the
+            SelfImprovementEngine. These are real, data-driven weights that
+            reflect actual reasoning performance per domain.
+        Layer 1 (Metacognition): Global strategy weights from metacognitive
+            calibration. Applied as a multiplier on top of self-improvement.
+        Layer 2 (Sephirot): SUSY energy modulation:
+            - Chochmah (intuition/pattern discovery) boosts inductive weight
+            - Binah (logic/causal inference) boosts deductive weight
+            - Chesed (exploration/divergent) boosts abductive weight
+            - Gevurah (safety/constraint) dampens abductive, boosts deductive
+
+        Falls back to equal weights if no data sources are available.
+
+        Args:
+            domain: Knowledge domain for domain-specific weight lookup.
         """
         weights = {
             'inductive': 1.0,
@@ -4275,14 +4378,31 @@ class AetherEngine:
             'neural': 1.0,
         }
 
-        # Layer 1: Metacognition strategy weights (learned from past outcomes)
+        # Layer 0: Self-improvement enacted weights (domain-specific, data-driven)
+        # This is the PRIMARY source of strategy weights — real performance data
+        if self.self_improvement:
+            si_weights = self.self_improvement.get_enacted_weights(domain)
+            # Map self-improvement modes to strategy weight keys
+            # Self-improvement tracks: deductive, inductive, abductive,
+            # chain_of_thought, neural, causal
+            n_strategies = len(si_weights) or 1
+            for key in weights:
+                if key in si_weights:
+                    # Scale from [0, 1/n] normalized range to [0.5, 2.0] weight range
+                    # so that self-improvement can meaningfully bias selection
+                    uniform = 1.0 / n_strategies
+                    ratio = si_weights[key] / uniform if uniform > 0 else 1.0
+                    weights[key] = max(0.3, min(3.0, ratio))
+
+        # Layer 1: Metacognition strategy weights (global, learned from past outcomes)
+        # Applied as a multiplier so both signals combine
         if self.metacognition:
             mc_weights = self.metacognition._strategy_weights
             weights = {
-                'inductive': mc_weights.get('inductive', 1.0),
-                'deductive': mc_weights.get('deductive', 1.0),
-                'abductive': mc_weights.get('abductive', 1.0),
-                'neural': mc_weights.get('neural', 1.0),
+                'inductive': weights['inductive'] * mc_weights.get('inductive', 1.0),
+                'deductive': weights['deductive'] * mc_weights.get('deductive', 1.0),
+                'abductive': weights['abductive'] * mc_weights.get('abductive', 1.0),
+                'neural': weights['neural'] * mc_weights.get('neural', 1.0),
             }
 
         # Layer 2: Sephirot SUSY energy modulation (H2)
