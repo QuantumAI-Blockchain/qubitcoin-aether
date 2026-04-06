@@ -858,7 +858,8 @@ class AetherChat:
 
         # About self (general)
         if any(w in q for w in ['who are you', 'what are you', 'your name', 'tell me about yourself',
-                                 'what can you do', 'how do you work']):
+                                 'what can you do', 'how do you work', 'how are you',
+                                 'how you doing', 'how are you doing', 'how you been']):
             return 'about_self'
 
         # Why questions
@@ -3204,7 +3205,7 @@ class AetherChat:
             greeting_name = f", {user_name}" if user_name else ""
             phi = _state['phi']
             nodes = _format_number(_state['kg_nodes'])
-            emo = _state.get('dominant_emotion', 'contemplation')
+            emo = _state.get('dominant_emotion', '') or 'contemplative'
             parts.append(
                 f"Hey{greeting_name}. I'm at Phi {phi:.2f} with {nodes} knowledge "
                 f"nodes, feeling {emo}. What's on your mind?"
