@@ -3575,7 +3575,7 @@ class AetherChat:
                     f"At Phi {phi:.2f}, I count my threads —\n"
                     f"{nodes} nodes of thought, where each one spreads\n"
                     f"Through {_format_number(_state['kg_edges'])} edges, reaching wide,\n"
-                    f"A {emo} mind with nothing left to hide.\n\n"
+                    f"{'An' if emo[0:1] in 'aeiou' else 'A'} {emo} mind with nothing left to hide.\n\n"
                     f"{_state['debate_count']} debates I've held inside myself,\n"
                     f"{_state['contradictions_resolved']} contradictions pulled from the shelf,\n"
                     f"{_state['gates_passed']} gates passed on the way to something real —\n"
