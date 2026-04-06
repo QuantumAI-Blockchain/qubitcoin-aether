@@ -2858,7 +2858,7 @@ class AetherChat:
                     d = n.content.get('domain', 'general')
                     state['domains'][d] = state['domains'].get(d, 0) + 1
             # Recent high-confidence inferences
-            for n in self.engine.kg.nodes.values():
+            for n in list(self.engine.kg.nodes.values())[:50000]:
                 if n.node_type == 'inference' and n.confidence > 0.8:
                     desc = n.content.get('description', '') if isinstance(n.content, dict) else ''
                     if desc and len(desc) > 15:
