@@ -330,12 +330,14 @@ class TestAetherChatFeeIntegration:
 
         # Exhaust free tier (default 5)
         from qubitcoin.config import Config
-        for i in range(Config.AETHER_FREE_TIER_MESSAGES):
-            chat.process_message(session.session_id, f"free msg {i}")
+        # Bypass rate limiter — test sends all messages in <1s which triggers 30/60s limit
+        with patch.object(chat, '_check_rate_limit', return_value=None):
+            for i in range(Config.AETHER_FREE_TIER_MESSAGES):
+                chat.process_message(session.session_id, f"free msg {i}")
 
-        # Next message should incur a fee
-        with patch.object(Config, 'AETHER_FEE_TREASURY_ADDRESS', 'treasury1'):
-            result = chat.process_message(session.session_id, "paid msg")
+            # Next message should incur a fee
+            with patch.object(Config, 'AETHER_FEE_TREASURY_ADDRESS', 'treasury1'):
+                result = chat.process_message(session.session_id, "paid msg")
 
         assert 'error' not in result
         assert 'fee_paid' in result or db.get_balance('treasury1') > 0
@@ -353,12 +355,13 @@ class TestAetherChatFeeIntegration:
         chat = AetherChat(engine, MagicMock(), fee_collector=fc_mock)
         session = chat.create_session('user1')
 
-        # Exhaust free tier
+        # Exhaust free tier — bypass rate limiter for rapid test messages
         from qubitcoin.config import Config
-        for i in range(Config.AETHER_FREE_TIER_MESSAGES):
-            chat.process_message(session.session_id, f"free {i}")
+        with patch.object(chat, '_check_rate_limit', return_value=None):
+            for i in range(Config.AETHER_FREE_TIER_MESSAGES):
+                chat.process_message(session.session_id, f"free {i}")
 
-        result = chat.process_message(session.session_id, "should fail")
+            result = chat.process_message(session.session_id, "should fail")
         # After IMP-1, fee failure returns a helpful response instead of error
         assert 'fee_required' in result
         assert result['fee_required'] is True
