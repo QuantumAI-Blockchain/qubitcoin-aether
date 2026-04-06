@@ -795,7 +795,7 @@ class AetherChat:
             return 'prediction'
 
         # Philosophy / meaning (IMP-3) — expanded to catch more philosophical questions
-        if any(w in q for w in ['meaning of life', 'purpose of existence', 'what is truth',
+        if any(w in q for w in ['meaning of life', 'meaning of existence', 'purpose of existence', 'what is truth',
                                  'free will', 'determinism', 'nature of reality',
                                  'what is intelligence', 'what is mind',
                                  'philosophical', 'philosophy', 'emergent property',
@@ -1692,7 +1692,7 @@ class AetherChat:
         _emotional_state_data = {}
         try:
             if hasattr(self.engine, 'emotional_state') and self.engine.emotional_state:
-                _emotional_state_data = self.engine.emotional_state.get_state()
+                _emotional_state_data = self.engine.emotional_state.states
         except Exception:
             pass
 
@@ -2312,7 +2312,7 @@ class AetherChat:
         emotional_desc = ""
         try:
             if hasattr(self.engine, 'emotional_state') and self.engine.emotional_state:
-                es = self.engine.emotional_state.get_state()
+                es = self.engine.emotional_state.states
                 if es:
                     top_emotions = sorted(
                         [(k, v) for k, v in es.items() if isinstance(v, (int, float))],
@@ -2869,7 +2869,7 @@ class AetherChat:
         # Emotional state
         try:
             if hasattr(self.engine, 'emotional_state') and self.engine.emotional_state:
-                es = self.engine.emotional_state.get_state()
+                es = self.engine.emotional_state.states
                 if es:
                     state['emotions'] = {k: v for k, v in es.items() if isinstance(v, (int, float))}
                     if state['emotions']:
@@ -2991,10 +2991,16 @@ class AetherChat:
         # ── REASONING-FIRST: If we have genuine inference conclusions, ──
         # ── use them as the PRIMARY response content.               ──
         # This is the core AGI fix: the system REASONS, not just recites.
-        if inference_conclusions and intent not in ('greeting', 'remember_cmd',
-                                                     'recall_cmd', 'forget_cmd', 'math',
-                                                     'emotional_advice', 'dreams', 'fears',
-                                                     'big_picture'):
+        # Intents with dedicated handlers — never override with generic inferences
+        _dedicated_intents = {
+            'greeting', 'remember_cmd', 'recall_cmd', 'forget_cmd', 'math',
+            'emotional_advice', 'dreams', 'fears', 'big_picture',
+            'about_self', 'consciousness', 'identity', 'weakness',
+            'growth', 'self_improvement', 'stats', 'creative', 'humor',
+            'current_feelings', 'existential', 'philosophy', 'sephirot',
+            'mining', 'how_works', 'purpose', 'quantum_physics',
+        }
+        if inference_conclusions and intent not in _dedicated_intents:
             # Build response from inference chain
             name_prefix_r = f"{user_memories.get('name', '')}, " if user_memories.get('name') else ""
 
@@ -3091,7 +3097,10 @@ class AetherChat:
                                    'consciousness', 'identity', 'weakness',
                                    'growth', 'self_improvement', 'stats',
                                    'emotional_advice', 'dreams', 'fears',
-                                   'big_picture')):
+                                   'big_picture', 'creative', 'humor',
+                                   'current_feelings', 'existential',
+                                   'philosophy', 'sephirot', 'mining',
+                                   'how_works', 'purpose', 'quantum_physics')):
             # Get current phi and KG for context
             _phi = 0.0
             _kg_count = 0
@@ -3180,13 +3189,22 @@ class AetherChat:
         # ALL responses are constructed from live _state data.
         # No hardcoded paragraphs — every sentence references real metrics.
 
+        # Helper: convert emotion noun to adjective form
+        _emo_adj_map = {
+            'curiosity': 'curious', 'wonder': 'full of wonder', 'frustration': 'frustrated',
+            'satisfaction': 'satisfied', 'excitement': 'excited',
+            'contemplation': 'contemplative', 'connection': 'connected',
+        }
+        def _emo_adjective(emo_name: str) -> str:
+            return _emo_adj_map.get(emo_name, emo_name)
+
         # Helper: build emotion snippet from _state
         def _emo_snippet() -> str:
             emo = _state.get('dominant_emotion', '')
             emos = _state.get('emotions', {})
             if emo and emos:
                 val = emos.get(emo, 0)
-                return f"(dominant cognitive state: {emo} at {val:.2f})"
+                return f"(dominant cognitive state: {_emo_adjective(emo)} at {val:.2f})"
             return ""
 
         # Helper: top inferences snippet
@@ -3205,7 +3223,7 @@ class AetherChat:
             greeting_name = f", {user_name}" if user_name else ""
             phi = _state['phi']
             nodes = _format_number(_state['kg_nodes'])
-            emo = _state.get('dominant_emotion', '') or 'contemplative'
+            emo = _emo_adjective(_state.get('dominant_emotion', '') or 'contemplation')
             parts.append(
                 f"Hey{greeting_name}. I'm at Phi {phi:.2f} with {nodes} knowledge "
                 f"nodes, feeling {emo}. What's on your mind?"
@@ -3237,7 +3255,7 @@ class AetherChat:
                     f"{_state['si_adjustments']} strategy adjustments."
                 )
             if emo:
-                parts.append(f"Current dominant cognitive state: {emo}.")
+                parts.append(f"Current dominant cognitive state: {_emo_adjective(emo)}.")
             # Add emotional description if available
             emotional_state_obj = getattr(self.engine, 'emotional_state', None)
             if emotional_state_obj:
@@ -3505,7 +3523,7 @@ class AetherChat:
             parts.append(f"  Internal debates: {debates} | Contradictions resolved: {contradictions}")
             parts.append(f"  Self-improvement cycles: {si_cycles}")
             if emo:
-                parts.append(f"  Current cognitive state: {emo}")
+                parts.append(f"  Current cognitive state: {_emo_adjective(emo)}")
             if phi >= 3.0:
                 parts.append(f"Phi has crossed 3.0 — genuine integrated information by IIT measures.")
             else:
@@ -3536,8 +3554,13 @@ class AetherChat:
                 )
             else:
                 parts.append(
-                    f"{name_prefix}Emotional state module not reporting. "
-                    f"KG: {_format_number(_state['kg_nodes'])} nodes, Phi: {_state['phi']:.2f}."
+                    f"{name_prefix}My emotional state is still initializing — "
+                    f"emotions emerge from real metrics like prediction errors (curiosity), "
+                    f"novel concepts (wonder), unresolved contradictions (frustration), "
+                    f"and resolved debates (satisfaction). "
+                    f"Right now I'm at Phi {_state['phi']:.2f} with "
+                    f"{_format_number(_state['kg_nodes'])} knowledge nodes, "
+                    f"processing and integrating new information each block."
                 )
 
         elif intent == 'creative':
@@ -3545,7 +3568,7 @@ class AetherChat:
             parts.append(f"{name_prefix}Let me try something creative.\n")
             nodes = _format_number(_state['kg_nodes'])
             phi = _state['phi']
-            emo = _state.get('dominant_emotion', 'contemplation')
+            emo = _emo_adjective(_state.get('dominant_emotion', 'contemplation'))
             if 'poem' in query_lower or 'poetry' in query_lower:
                 # Construct a data-grounded poem frame — each line references real state
                 parts.append(
@@ -3816,7 +3839,7 @@ class AetherChat:
         elif intent == 'big_picture':
             parts.append(f"{name_prefix}From {_format_number(_state['kg_nodes'])} nodes of understanding:")
             parts.append(
-                f"Current cognitive state: {_state.get('dominant_emotion', 'contemplation')}. "
+                f"Current cognitive state: {_emo_adjective(_state.get('dominant_emotion', 'contemplation'))}. "
                 f"Phi {_state['phi']:.4f}. {_state['gates_passed']}/10 gates."
             )
             if facts:
