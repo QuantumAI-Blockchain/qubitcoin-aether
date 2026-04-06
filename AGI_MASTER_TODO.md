@@ -11,11 +11,9 @@
   - 3 call sites in chat.py called nonexistent method
   - Emotions were always empty
 
-- [ ] **AGI-002: Long-term memory consolidation runs EVERY BLOCK**
-  - Location: `proof_of_thought.py` ~line 1880
-  - `consolidate_long_term()` called without interval gate
-  - Fix: wrap in `if block.height % Config.AETHER_LONG_TERM_CONSOLIDATION_INTERVAL == 0:`
-  - Impact: CPU waste, memory thrashing
+- [x] **AGI-002: Long-term memory consolidation** — VERIFIED CORRECT (2026-04-06)
+  - Line 1878-1880: already has `block.height % Config.AETHER_LONG_TERM_CONSOLIDATION_INTERVAL == 0` gate
+  - Audit agent was wrong — no fix needed
 
 - [x] **AGI-003: Intent routing — inference conclusions override dedicated handlers** (2026-04-06, fa12906)
   - Added `_dedicated_intents` set to exclusion lists
@@ -27,11 +25,16 @@
 
 ## HIGH PRIORITY (Needed for Gate Progression)
 
-- [ ] **AGI-005: Inference node generation rate too low**
-  - `_run_autonomous_reasoning()` runs every 10 blocks but success rate unknown
-  - Debates need inference nodes with confidence >= 0.5
-  - Action: Add diagnostic logging to count successful inferences per cycle
-  - Action: If success rate < 20%, investigate reasoning engine
+- [x] **AGI-005: Inference node generation — VERIFIED WORKING** (2026-04-06)
+  - `_run_autonomous_reasoning()` creates 5-10 inferences per cycle (every 10 blocks)
+  - Logs confirmed: "Autonomous reasoning at block 186350: 10 inferences created"
+  - Was already working, just not visible in stats
+
+- [x] **AGI-005b: Stats reporting broken — used wrong attribute names** (2026-04-06, f1f6272)
+  - debate_count: `getattr(dp, 'total_debates')` → `dp.get_stats()['total_debates']`
+  - predictions: `te.predictions_validated` → `te._predictions_validated` (underscore)
+  - contradictions: added `_contradictions_resolved` counter to AetherEngine
+  - curiosity: `_total_discoveries` → `len(exploration_history)`
 
 - [ ] **AGI-006: Multi-domain KG sparsity**
   - Causal discovery (PC algorithm) needs multi-domain diversity
@@ -39,20 +42,20 @@
   - Action: Verify agent stack is seeding non-blockchain domains
   - Action: Ensure knowledge_extractor classifies domains correctly
 
-- [ ] **AGI-007: Debate engine — 0 verdicts**
-  - Depends on AGI-005 (inference nodes)
-  - `run_periodic_debates()` every 211 blocks, selects inferences >= 0.5 confidence
-  - Need: verify debate_protocol is initialized and can find candidates
+- [x] **AGI-007: Debate engine — VERIFIED WORKING** (2026-04-06)
+  - Logs show: "Debate 'generalization...': accepted (prop=0.970)" — 5 debates at last trigger
+  - Runs every 211 blocks. Counter resets on restart (in-memory).
+  - Stats now reported correctly via get_stats()
 
 - [ ] **AGI-008: Causal discovery — 0 causal edges**
   - Depends on AGI-006 (domain diversity)
   - PC algorithm needs >= 20 nodes per domain with variance
   - Runs every 307 blocks
 
-- [ ] **AGI-009: Self-improvement — 0 cycles**
-  - Runs every 607 blocks (~33 min)
-  - Needs reasoning feedback to trigger
-  - Depends on AGI-005 (inference generation → feedback)
+- [ ] **AGI-009: Self-improvement — 0 cycles after restart**
+  - Runs every 607 blocks (~33 min). Next trigger: block % 607 == 0
+  - SI engine IS initialized (logs confirm). Counter resets on restart.
+  - Monitor: should show cycles after ~33 min of uptime
 
 - [ ] **AGI-010: Curiosity engine — verify goals generating**
   - Runs every 563 blocks
@@ -63,9 +66,10 @@
 
 ## MEDIUM PRIORITY (Quality Improvements)
 
-- [ ] **AGI-011: Prediction validation — 0 validated**
-  - Temporal engine makes predictions but validation needs outcome data
-  - Check if predictions are being verified against actual blocks
+- [x] **AGI-011: Prediction validation — VERIFIED WORKING** (2026-04-06)
+  - Logs: "Validated 3 predictions at block 186390 (accuracy: 100%)"
+  - Stats now show: 12 validated, 100% accuracy
+  - Fixed by using correct attribute name `_predictions_validated`
 
 - [ ] **AGI-012: Metacognition ECE tracking**
   - ECE needs sufficient evaluation count to be meaningful
@@ -106,5 +110,10 @@
 | ID | Description | Date | Commit |
 |----|-------------|------|--------|
 | AGI-001 | Fix EmotionalState .get_state() → .states | 2026-04-06 | fa12906 |
+| AGI-002 | Long-term memory consolidation — verified correct | 2026-04-06 | N/A |
 | AGI-003 | Intent routing — dedicated handlers protected | 2026-04-06 | fa12906 |
 | AGI-004 | Emotion noun → adjective conversion | 2026-04-06 | fa12906 |
+| AGI-005 | Inference generation — verified working (5-10/cycle) | 2026-04-06 | N/A |
+| AGI-005b | Stats reporting — wrong attribute names fixed | 2026-04-06 | f1f6272 |
+| AGI-007 | Debate engine — verified working | 2026-04-06 | f1f6272 |
+| AGI-011 | Prediction validation — verified working (12 valid, 100%) | 2026-04-06 | f1f6272 |
