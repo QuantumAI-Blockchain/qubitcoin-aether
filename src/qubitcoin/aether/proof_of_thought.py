@@ -57,6 +57,9 @@ class AetherEngine:
         # ProofOfThoughtExplorer — wired after RPC app creation (see node.py)
         self.pot_explorer = None
 
+        # Running counters for AGI subsystem stats
+        self._contradictions_resolved: int = 0
+
         # --- AGI Improvement Subsystems ---
         # #2: Graph Attention Network Reasoner (critical for neural reasoning)
         self.neural_reasoner = None
@@ -4988,7 +4991,8 @@ class AetherEngine:
                     )
 
             if resolved:
-                logger.info(f"Resolved {resolved}/{len(contradiction_pairs)} contradictions at block {block_height}")
+                self._contradictions_resolved += resolved
+                logger.info(f"Resolved {resolved}/{len(contradiction_pairs)} contradictions at block {block_height} (total: {self._contradictions_resolved})")
         except Exception as e:
             logger.debug(f"Auto contradiction resolution error: {e}")
         return resolved

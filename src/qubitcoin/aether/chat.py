@@ -2877,21 +2877,25 @@ class AetherChat:
         except Exception:
             pass
 
-        # Debate engine
+        # Debate engine — use get_stats() method, not direct attributes
         try:
             if hasattr(self.engine, 'debate_protocol') and self.engine.debate_protocol:
                 dp = self.engine.debate_protocol
-                state['debate_count'] = getattr(dp, 'total_debates', 0)
-                state['contradictions_resolved'] = getattr(dp, 'contradictions_resolved', 0)
+                dp_stats = dp.get_stats() if hasattr(dp, 'get_stats') else {}
+                state['debate_count'] = dp_stats.get('total_debates', 0)
+                # Contradictions tracked on the engine itself
+                state['contradictions_resolved'] = getattr(
+                    self.engine, '_contradictions_resolved', 0
+                )
         except Exception:
             pass
 
-        # Temporal predictions
+        # Temporal predictions — attributes have underscore prefix
         try:
             if hasattr(self.engine, 'temporal_engine') and self.engine.temporal_engine:
                 te = self.engine.temporal_engine
-                pv = int(getattr(te, 'predictions_validated', 0))
-                pc = int(getattr(te, 'predictions_correct', 0))
+                pv = int(getattr(te, '_predictions_validated', 0))
+                pc = int(getattr(te, '_predictions_correct', 0))
                 state['predictions_validated'] = pv
                 state['prediction_accuracy'] = pc / max(pv, 1)
         except Exception:
@@ -2919,9 +2923,8 @@ class AetherChat:
         # Curiosity discoveries
         try:
             if hasattr(self.engine, 'curiosity_engine') and self.engine.curiosity_engine:
-                state['curiosity_discoveries'] = getattr(
-                    self.engine.curiosity_engine, '_total_discoveries', 0
-                )
+                ce = self.engine.curiosity_engine
+                state['curiosity_discoveries'] = len(getattr(ce, 'exploration_history', []))
         except Exception:
             pass
 
