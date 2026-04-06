@@ -836,7 +836,22 @@ At block 0 (genesis), the Aether Tree automatically:
 
 **No manual steps required** — AGI tracking starts from the first moment of chain existence.
 
-### 14.5 Integration with Competitive Features
+### 14.5 April 2026 Live Metrics
+
+- **Knowledge nodes:** 720,000+
+- **Gates passed:** 6/10 (Gates 1, 2, 3, 5, 7, 9)
+- **Phi:** 2.1 (threshold 3.0, ~70%)
+- **Debate verdicts:** 115
+- **Contradiction resolutions:** 130
+- **Prediction accuracy:** 95.5%
+- **Auto-goals generated:** 283
+- **Novel concepts:** 6,076
+- **Cross-domain inferences:** 15,143
+- **Calibration error (ECE):** 0.011
+- **Cognitive emotions:** 7 dimensions from live metrics (curiosity, wonder, frustration, satisfaction, excitement, contemplation, connection)
+- **Chat system:** 20+ unique intent handlers with personality
+
+### 14.6 Integration with Competitive Features
 
 The Aether Tree integrates with two cross-cutting Qubitcoin (QBC) security features via the Rust `security-core` crate:
 

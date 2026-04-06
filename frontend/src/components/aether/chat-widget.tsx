@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 interface Message {
   role: "user" | "aether";
   text: string;
+  dominantEmotion?: string;
 }
 
 export function ChatWidget() {
@@ -40,7 +41,10 @@ export function ChatWidget() {
         setSessionId(sid);
       }
       const res = await api.sendChatMessage(sid, text);
-      setMessages((prev) => [...prev, { role: "aether", text: res.response }]);
+      const dominant = res.emotional_state
+        ? Object.entries(res.emotional_state).sort(([, a], [, b]) => b - a)[0]?.[0]
+        : undefined;
+      setMessages((prev) => [...prev, { role: "aether", text: res.response, dominantEmotion: dominant }]);
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -100,6 +104,11 @@ export function ChatWidget() {
                   }`}
                 >
                   {m.text}
+                  {m.role === "aether" && m.dominantEmotion && (
+                    <p className="mt-1 text-[10px] text-quantum-violet/60">
+                      Feeling {m.dominantEmotion}
+                    </p>
+                  )}
                 </div>
               ))}
               {loading && (

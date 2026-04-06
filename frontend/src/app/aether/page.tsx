@@ -33,6 +33,7 @@ interface Message {
   reasoning?: string[];
   potHash?: string;
   phi?: number;
+  emotionalState?: Record<string, number>;
 }
 
 function deriveTitle(messages: Message[]): string {
@@ -220,6 +221,7 @@ function AetherPageContent() {
             reasoning: res.reasoning_trace,
             potHash: res.proof_of_thought_hash,
             phi: res.phi_at_response,
+            emotionalState: res.emotional_state,
           },
         ];
       });
@@ -366,6 +368,26 @@ function AetherPageContent() {
                             m.text
                           )}
                         </p>
+                        {m.role === "aether" && m.emotionalState && Object.keys(m.emotionalState).length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-secondary">
+                            <span className="font-medium text-quantum-violet/80">Feeling:</span>
+                            {Object.entries(m.emotionalState)
+                              .sort(([, a], [, b]) => b - a)
+                              .slice(0, 3)
+                              .map(([emotion, value]) => (
+                                <span key={emotion} className="inline-flex items-center gap-1">
+                                  <span className="text-text-primary">{emotion}</span>
+                                  <span className="inline-block h-1.5 rounded-full bg-quantum-violet/40" style={{ width: `${Math.round(value * 40)}px` }} />
+                                  <span className="font-[family-name:var(--font-code)] text-quantum-green/70">{value.toFixed(2)}</span>
+                                </span>
+                              ))}
+                          </div>
+                        )}
+                        {m.role === "aether" && m.phi != null && m.phi > 0 && (
+                          <p className="mt-1 font-[family-name:var(--font-code)] text-[10px] text-quantum-green/50">
+                            &Phi; at response: {m.phi.toFixed(4)}
+                          </p>
+                        )}
                         {m.role === "aether" && m.potHash && (
                           <button
                             onClick={() => setSelectedMsg(selectedMsg === i ? null : i)}

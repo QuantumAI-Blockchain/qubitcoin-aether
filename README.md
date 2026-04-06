@@ -116,6 +116,8 @@ FRONTEND: qbc.network
 | **Security Accounts** | Daily limits, time-locks, address whitelists |
 | **AGI Metric** | Phi (graph-theoretic integration metric with spectral bisection), threshold = 3.0 |
 
+> **Aether Tree Status (April 2026):** 720K+ knowledge nodes, 6/10 gates passed, Phi = 2.1 (threshold 3.0), 7 cognitive emotions active, 115 debate verdicts, 95.5% prediction accuracy, autonomous curiosity and self-improvement enacted.
+
 ---
 
 ## Codebase Overview

@@ -116,6 +116,10 @@ export interface ChatResponse {
   knowledge_nodes_referenced: number[];
   proof_of_thought_hash: string;
   fee_charged: string;
+  emotional_state?: Record<string, number>;
+  quality_score?: number;
+  session_id?: string;
+  entities?: Record<string, unknown>;
 }
 
 export interface ContractInfo {

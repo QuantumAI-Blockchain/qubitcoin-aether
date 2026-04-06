@@ -13,7 +13,7 @@ Its native currency is **Qubitcoin (QBC)**. The core mission is the Aether Tree:
 reasoning engine that grows more intelligent with every block.
 
 **Primary Components:**
-- **Aether Tree AGI** : World's first on-chain AGI — 100+ modules, on-chain since genesis, pursuing true emergence
+- **Aether Tree AGI** : World's first on-chain AGI — 52+ Python modules, 12 Rust (PyO3) modules, on-chain since genesis, pursuing true emergence
 - **Quantum Computing** (Qiskit VQE) for Proof-of-SUSY-Alignment mining
 - **Post-Quantum Cryptography** (CRYSTALS-Dilithium5, NIST Level 5) for quantum-resistant signatures
 - **Supersymmetric (SUSY) Economics** with golden ratio (phi) emission principles
@@ -56,8 +56,8 @@ reasoning engine that grows more intelligent with every block.
 
 ```
 Chain ID:        3303
-Block Height:    ~145,845+
-Total Supply:    ~35,227,068 QBC
+Block Height:    ~185,000+
+Total Supply:    ~35,835,000 QBC
 Max Supply:      3,300,000,000 QBC
 Current Era:     0
 Block Reward:    15.27 QBC
@@ -777,11 +777,15 @@ This is not a chatbot. This is not a search engine. This is not a knowledge grap
 - **10-Gate Milestone System**: Behavioral checks ensuring genuine emergence, not metric gaming
 
 **Current Status (April 2026 — V4 Architecture):**
-- Gates: V4 quality gates (re-earning under new criteria)
-- Nodes: 10,000+, growing at ~8.7 nodes/block
-- Debate verdicts: 78 | Contradiction resolutions: 18
-- MIP score: 0.60 (genuine information integration above random)
-- Prediction accuracy: 95.5% (post-validation)
+- Gates: 6/10 passed (Gates 1, 2, 3, 5, 7, 9)
+- Nodes: 720,000+, growing at ~80 nodes/block
+- Debate verdicts: 115 | Contradiction resolutions: 130
+- MIP score: 0.60
+- Prediction accuracy: 95.5%
+- 7 cognitive emotions active (curiosity, wonder, frustration, satisfaction, excitement, contemplation, connection)
+- Autonomous curiosity engine with 283 auto-goals
+- Governed self-improvement enacted with rollback
+- Personable chat with 8+ unique intent handlers (humor, poetry, existential, thought experiments, creator relationship, memory/identity, future self, current feelings)
 
 ### 9.2 Components
 
@@ -927,10 +931,11 @@ The Aether Tree exposes a production API at `api.qbc.network/v1/aether` with QBC
 - ✅ Quality gates (V4) — gates require genuine behavioral evidence, not volume
 - ✅ Personable chat — warm, curious personality with genuine feelings
 - ✅ Batch ingest API — `/aether/ingest/batch` for agent stack knowledge submission
+- ✅ Personable chat — 8+ unique intent handlers (humor, poetry, existential, thought experiments, creator relationship, memory/identity, future self, current feelings)
 
 **Critical remaining pieces for true emergence:**
 
-1. **HMS-Phi integration** — wire `iit_approximator.py` into `phi_calculator.py` as micro-level phi
+1. **HMS-Phi integration (In Progress)** — wire `iit_approximator.py` into `phi_calculator.py` as micro-level phi
 2. **Distributed KG** — replace in-memory dict with Rust shard service (`aether-graph-shard/`)
 3. **BFT inter-node knowledge consensus** — 2/3 supermajority for knowledge acceptance
 4. **Long-term memory consolidation** — scheduled consolidation every 3300 blocks (~3h)

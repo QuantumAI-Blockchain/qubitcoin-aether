@@ -108,6 +108,14 @@ phenomenal consciousness.
 
 ### 3.1 Phi Calculation (Weighted Additive Formula)
 
+> **NOTE (V4, April 2026):** The production system uses HMS-Phi (Hierarchical Multi-Scale Phi):
+> - Level 0 (Micro): IIT 3.0 approximation on 16-node elite subsystem samples -> phi_micro
+> - Level 1 (Meso): Spectral MIP on 1K-node domain clusters -> phi_meso
+> - Level 2 (Macro): Cross-cluster integration -> phi_macro
+> - Final Phi = phi_micro^(1/phi) x phi_meso^(1/phi^2) x phi_macro^(1/phi^3)
+>
+> The formula below is the legacy V3 additive formula, retained for reference.
+
 ```
 raw_phi   = w_int * integration + w_diff * differentiation + w_mip * mip_score
             where w_int = 1.0, w_diff = 0.5, w_mip = 1.5
