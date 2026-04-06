@@ -407,7 +407,6 @@
     "priceTarget": "1 QUSD = $0.10",
     "deployed_at": "2026-03-20T12:35:00Z"
   },
-
   "external:solana:wQBC": {
     "address": "Ew7o13E7gwcbYsv4aRpoZEKonTW6snAGYHerD9j3C1Kf",
     "chain": "solana",
@@ -429,7 +428,7 @@
     "txHash": "4GENCK9UJRcUzBEefJR53LKAkdsN9ghbsrqRt1JQrVzPwN6GWHKPuZFXZSTu7pvG7EmnJFbeFVNyUiv5KukNpXdY"
   },
   "_zk_bridge_infrastructure": {
-    "_comment": "Quantum-Secure ZK Bridge Vaults — Poseidon2 proof verification + Dilithium5 signatures",
+    "_comment": "Quantum-Secure ZK Bridge Vaults \u2014 Poseidon2 proof verification + Dilithium5 signatures",
     "contracts": {
       "QuantumBridgeVault": "src/qubitcoin/contracts/solidity/bridge/QuantumBridgeVault.sol",
       "ZKBridgeVerifier": "src/qubitcoin/contracts/solidity/bridge/ZKBridgeVerifier.sol",
@@ -437,28 +436,93 @@
       "WrappedAsset": "src/qubitcoin/contracts/solidity/bridge/WrappedAsset.sol"
     },
     "qbc_chain": {
-      "BridgeMinter": { "address": null, "status": "pending_deployment" },
-      "ZKBridgeVerifier": { "address": null, "status": "pending_deployment" },
-      "wETH": { "address": null, "sourceChainId": 1, "decimals": 18, "status": "pending_deployment" },
-      "wBNB": { "address": null, "sourceChainId": 56, "decimals": 18, "status": "pending_deployment" },
-      "wMATIC": { "address": null, "sourceChainId": 137, "decimals": 18, "status": "pending_deployment" },
-      "wAVAX": { "address": null, "sourceChainId": 43114, "decimals": 18, "status": "pending_deployment" }
+      "BridgeMinter": {
+        "address": null,
+        "status": "pending_deployment"
+      },
+      "ZKBridgeVerifier": {
+        "address": null,
+        "status": "pending_deployment"
+      },
+      "wETH": {
+        "address": null,
+        "sourceChainId": 1,
+        "decimals": 18,
+        "status": "pending_deployment"
+      },
+      "wBNB": {
+        "address": null,
+        "sourceChainId": 56,
+        "decimals": 18,
+        "status": "pending_deployment"
+      },
+      "wMATIC": {
+        "address": null,
+        "sourceChainId": 137,
+        "decimals": 18,
+        "status": "pending_deployment"
+      },
+      "wAVAX": {
+        "address": null,
+        "sourceChainId": 43114,
+        "decimals": 18,
+        "status": "pending_deployment"
+      }
     },
     "external_vaults": {
-      "ethereum": { "chainId": 1, "vault": null, "verifier": null, "status": "pending_deployment" },
-      "bsc": { "chainId": 56, "vault": null, "verifier": null, "status": "pending_deployment" },
-      "polygon": { "chainId": 137, "vault": null, "verifier": null, "status": "pending_deployment" },
-      "arbitrum": { "chainId": 42161, "vault": null, "verifier": null, "status": "pending_deployment" },
-      "optimism": { "chainId": 10, "vault": null, "verifier": null, "status": "pending_deployment" },
-      "avalanche": { "chainId": 43114, "vault": null, "verifier": null, "status": "pending_deployment" },
-      "base": { "chainId": 8453, "vault": null, "verifier": null, "status": "pending_deployment" }
+      "ethereum": {
+        "chainId": 1,
+        "vault": null,
+        "verifier": null,
+        "status": "pending_deployment"
+      },
+      "bsc": {
+        "chainId": 56,
+        "vault": null,
+        "verifier": null,
+        "status": "pending_deployment"
+      },
+      "polygon": {
+        "chainId": 137,
+        "vault": null,
+        "verifier": null,
+        "status": "pending_deployment"
+      },
+      "arbitrum": {
+        "chainId": 42161,
+        "vault": null,
+        "verifier": null,
+        "status": "pending_deployment"
+      },
+      "optimism": {
+        "chainId": 10,
+        "vault": null,
+        "verifier": null,
+        "status": "pending_deployment"
+      },
+      "avalanche": {
+        "chainId": 43114,
+        "vault": null,
+        "verifier": null,
+        "status": "pending_deployment"
+      },
+      "base": {
+        "chainId": 8453,
+        "vault": null,
+        "verifier": null,
+        "status": "pending_deployment"
+      }
     },
     "architecture": {
-      "lock_flow": "Lock native → QuantumBridgeVault → Poseidon2 ZK proof → ZKBridgeVerifier → BridgeMinter.mint(wToken)",
-      "unlock_flow": "Burn wToken → BridgeMinter → Poseidon2 ZK proof → ZKBridgeVerifier → QuantumBridgeVault.unlock()",
+      "lock_flow": "Lock native \u2192 QuantumBridgeVault \u2192 Poseidon2 ZK proof \u2192 ZKBridgeVerifier \u2192 BridgeMinter.mint(wToken)",
+      "unlock_flow": "Burn wToken \u2192 BridgeMinter \u2192 Poseidon2 ZK proof \u2192 ZKBridgeVerifier \u2192 QuantumBridgeVault.unlock()",
       "security": "Dilithium5 post-quantum signatures on proof submissions",
       "proof_system": "Poseidon2 hash-based state proofs with Merkle inclusion",
       "deployer": "0x51D3a9b12dc4667f771B2A5cE3491631251E9D41"
     }
+  },
+  "AetherAPISubscription": {
+    "proxy": "0x686b794096953ecb9ffc44454ded2489eb00f58e",
+    "implementation": "0x3a653e645f710a70237da51b47e9fbef8c83a171"
   }
 }
