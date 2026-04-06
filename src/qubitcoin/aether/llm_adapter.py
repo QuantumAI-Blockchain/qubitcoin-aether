@@ -351,7 +351,7 @@ class OllamaAdapter(LLMAdapter):
                 data=payload,
                 headers={'Content-Type': 'application/json'},
             )
-            with urllib.request.urlopen(req, timeout=180) as resp:
+            with urllib.request.urlopen(req, timeout=60) as resp:
                 data = json.loads(resp.read().decode())
 
             content = data.get('message', {}).get('content', '')

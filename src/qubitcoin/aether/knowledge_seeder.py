@@ -564,7 +564,8 @@ class KnowledgeSeeder:
     # ------------------------------------------------------------------
 
     # LLM workers (Ollama) — share hourly rate limit
-    _NUM_WORKERS: int = 5
+    # Reduced to 1 for CPU-only Ollama — prevents chat timeouts
+    _NUM_WORKERS: int = 1
     # Internet workers (Wikipedia + ArXiv) — no Ollama, separate rate limit
     _NUM_INTERNET_WORKERS: int = 5
     # Minimum seconds between Wikipedia fetches per worker (be respectful)
