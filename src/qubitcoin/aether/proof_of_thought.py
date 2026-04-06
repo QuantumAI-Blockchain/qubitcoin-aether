@@ -60,6 +60,9 @@ class AetherEngine:
         # Running counters for AGI subsystem stats
         self._contradictions_resolved: int = 0
 
+        # Load persisted counters from DB (survive restart)
+        self._load_persisted_counters()
+
         # --- AGI Improvement Subsystems ---
         # #2: Graph Attention Network Reasoner (critical for neural reasoning)
         self.neural_reasoner = None
@@ -3359,6 +3362,69 @@ class AetherEngine:
                 except Exception as e:
                     logger.debug(f"Emotional state update error: {e}")
 
+            # Persist AGI counters to DB every 500 blocks
+            if block.height > 0 and block.height % 500 == 0:
+                self._persist_counters(block.height)
+
+            # AGI-013: Consolidated diagnostic log every 100 blocks
+            if block.height > 0 and block.height % 100 == 0:
+                try:
+                    diag_parts = [f"AGI diagnostics at block {block.height}:"]
+                    diag_parts.append(
+                        f"KG={len(self.kg.nodes) if self.kg else 0} nodes"
+                    )
+                    if block_phi_result:
+                        diag_parts.append(
+                            f"Phi={block_phi_result.get('phi_value', 0):.3f}"
+                        )
+                        diag_parts.append(
+                            f"gates={block_phi_result.get('gates_passed', 0)}/10"
+                        )
+                    if self.debate_protocol:
+                        dp_s = self.debate_protocol.get_stats()
+                        diag_parts.append(
+                            f"debates={dp_s.get('total_debates', 0)}"
+                        )
+                    diag_parts.append(
+                        f"contradictions={getattr(self, '_contradictions_resolved', 0)}"
+                    )
+                    if self.temporal_engine:
+                        pv = getattr(self.temporal_engine, '_predictions_validated', 0)
+                        pc = getattr(self.temporal_engine, '_predictions_correct', 0)
+                        acc = round(pc / max(pv, 1), 2)
+                        diag_parts.append(
+                            f"predictions={pv}(acc={acc})"
+                        )
+                    if self.self_improvement:
+                        diag_parts.append(
+                            f"SI_cycles={getattr(self.self_improvement, '_cycles_completed', 0)}"
+                        )
+                    if self.curiosity_engine:
+                        diag_parts.append(
+                            f"curiosity={len(getattr(self.curiosity_engine, 'exploration_history', []))}"
+                        )
+                    if self.emotional_state:
+                        es = self.emotional_state.states
+                        if es:
+                            dom = max(es, key=es.get)
+                            diag_parts.append(f"emotion={dom}({es[dom]:.2f})")
+                    if self.causal_engine:
+                        ce_s = self.causal_engine.get_stats()
+                        diag_parts.append(
+                            f"causal_edges={ce_s.get('total_causal_edges', ce_s.get('edges_created', 0))}"
+                        )
+                    # Domain diversity
+                    if self.kg:
+                        domains: dict = {}
+                        for n in list(self.kg.nodes.values())[:10000]:
+                            if isinstance(n.content, dict):
+                                d = n.content.get('domain', 'general')
+                                domains[d] = domains.get(d, 0) + 1
+                        diag_parts.append(f"domains={len(domains)}")
+                    logger.info(" | ".join(diag_parts))
+                except Exception:
+                    pass
+
         except Exception as e:
             logger.warning(f"Error processing block knowledge: {e}", exc_info=True)
 
@@ -6172,6 +6238,65 @@ class AetherEngine:
 
         return stats
 
+    def _load_persisted_counters(self) -> None:
+        """Load AGI subsystem counters from DB (survive restart)."""
+        if not self.db:
+            return
+        try:
+            from sqlalchemy import text
+            with self.db.session() as session:
+                rows = session.execute(
+                    text("SELECT config_key, config_value FROM system_config WHERE category = 'agi_counters'")
+                ).fetchall()
+                counters = {row[0]: int(row[1]) for row in rows}
+                self._contradictions_resolved = counters.get('contradictions_resolved', 0)
+                if self.debate_protocol and 'debates_run' in counters:
+                    self.debate_protocol._debates_run = counters['debates_run']
+                if self.temporal_engine:
+                    if 'predictions_validated' in counters:
+                        self.temporal_engine._predictions_validated = counters['predictions_validated']
+                    if 'predictions_correct' in counters:
+                        self.temporal_engine._predictions_correct = counters['predictions_correct']
+                if counters:
+                    logger.info(
+                        "Restored AGI counters from DB: %s",
+                        {k: v for k, v in counters.items()},
+                    )
+        except Exception as e:
+            logger.debug(f"Could not load persisted AGI counters: {e}")
+
+    def _persist_counters(self, block_height: int) -> None:
+        """Persist AGI subsystem counters to DB (every 500 blocks)."""
+        if not self.db:
+            return
+        try:
+            from sqlalchemy import text
+            counters = {
+                'contradictions_resolved': getattr(self, '_contradictions_resolved', 0),
+            }
+            if self.debate_protocol:
+                counters['debates_run'] = getattr(self.debate_protocol, '_debates_run', 0)
+            if self.temporal_engine:
+                counters['predictions_validated'] = getattr(
+                    self.temporal_engine, '_predictions_validated', 0
+                )
+                counters['predictions_correct'] = getattr(
+                    self.temporal_engine, '_predictions_correct', 0
+                )
+            with self.db.session() as session:
+                for key, value in counters.items():
+                    session.execute(
+                        text(
+                            "UPSERT INTO system_config "
+                            "(config_key, config_value, config_type, category, description, is_mutable) "
+                            "VALUES (:key, :val, 'integer', 'agi_counters', :desc, true)"
+                        ),
+                        {'key': key, 'val': str(value), 'desc': f'AGI counter: {key}'},
+                    )
+                session.commit()
+        except Exception as e:
+            logger.debug(f"Could not persist AGI counters: {e}")
+
     def get_stats(self) -> dict:
         """Get comprehensive Aether engine statistics"""
         kg_stats = self.kg.get_stats() if self.kg else {}
@@ -6194,7 +6319,48 @@ class AetherEngine:
             'reasoning': reasoning_stats,
             'thought_proofs_generated': len(self._pot_cache),
             'blocks_processed': self._blocks_processed,
+            'contradictions_resolved': getattr(self, '_contradictions_resolved', 0),
         }
+
+        # AGI-014: Emotional state
+        try:
+            if hasattr(self, 'emotional_state') and self.emotional_state:
+                es = self.emotional_state.states
+                if es:
+                    emotions = {k: round(v, 4) for k, v in es.items() if isinstance(v, (int, float))}
+                    dominant = max(emotions, key=emotions.get) if emotions else ''
+                    stats['emotional_state'] = {
+                        'emotions': emotions,
+                        'dominant': dominant,
+                    }
+        except Exception:
+            pass
+
+        # AGI-014: Self-improvement stats
+        try:
+            if hasattr(self, 'self_improvement') and self.self_improvement:
+                si = self.self_improvement
+                stats['self_improvement'] = {
+                    'cycles_completed': getattr(si, '_cycles_completed', 0),
+                    'total_adjustments': getattr(si, '_total_adjustments', 0),
+                    'rollbacks': getattr(si, '_rollbacks', 0),
+                }
+        except Exception:
+            pass
+
+        # AGI-014: Prediction accuracy summary
+        try:
+            if hasattr(self, 'temporal_engine') and self.temporal_engine:
+                te = self.temporal_engine
+                pv = int(getattr(te, '_predictions_validated', 0))
+                pc = int(getattr(te, '_predictions_correct', 0))
+                stats['prediction_summary'] = {
+                    'validated': pv,
+                    'correct': pc,
+                    'accuracy': round(pc / max(pv, 1), 4),
+                }
+        except Exception:
+            pass
 
         # AGI subsystem stats
         if self.neural_reasoner:

@@ -78,6 +78,12 @@ class KnowledgeExtractor:
                 trend_nodes = self._analyze_difficulty_trends(block_height, block_node_id)
                 nodes_created += trend_nodes
 
+            # 6. Cross-domain interpretations (every 50 blocks)
+            # AGI-006: Generate non-blockchain knowledge from chain data
+            if block_height > 0 and block_height % 50 == 0:
+                cross_nodes = self._extract_cross_domain(block, block_height, block_node_id)
+                nodes_created += cross_nodes
+
             self._blocks_processed += 1
 
         except Exception as e:
@@ -371,6 +377,170 @@ class KnowledgeExtractor:
                     and node.content.get('height') == prev_height):
                 self.kg.add_edge(nid, node_id, 'derives')
                 break
+
+    def _extract_cross_domain(self, block: object, block_height: int,
+                               parent_node_id: Optional[int]) -> int:
+        """AGI-006: Extract cross-domain knowledge from blockchain data.
+
+        Interprets chain metrics through non-blockchain lenses to build
+        domain diversity needed for causal discovery and cross-domain reasoning.
+        Creates nodes in physics, economics, complexity_science, and mathematics domains.
+        """
+        nodes_created = 0
+
+        try:
+            difficulty = getattr(block, 'difficulty', 0.0)
+            tx_count = len(getattr(block, 'transactions', []))
+            proof_data = getattr(block, 'proof_data', None) or {}
+            energy = proof_data.get('energy', 0)
+
+            # --- Physics: VQE as ground-state energy optimization ---
+            if energy and difficulty:
+                physics_content = {
+                    'type': 'cross_domain_observation',
+                    'domain': 'physics',
+                    'description': (
+                        f"Variational quantum eigensolver found ground state "
+                        f"energy {energy:.6f} for a {proof_data.get('n_qubits', 4)}-qubit "
+                        f"SUSY Hamiltonian. Energy landscape exploration via parameterized "
+                        f"ansatz demonstrates variational principle in quantum mechanics."
+                    ),
+                    'concepts': ['variational_principle', 'ground_state', 'hamiltonian',
+                                 'quantum_optimization', 'energy_landscape'],
+                    'energy': energy,
+                    'block_height': block_height,
+                }
+                p_node = self.kg.add_node(
+                    node_type='observation',
+                    content=physics_content,
+                    confidence=0.85,
+                    source_block=block_height,
+                )
+                p_node.grounding_source = 'block_oracle'
+                if parent_node_id:
+                    self.kg.add_edge(parent_node_id, p_node.node_id, 'supports')
+                nodes_created += 1
+
+            # --- Economics: Transaction volume as supply-demand signal ---
+            if len(self._tx_counts) >= 10:
+                recent_tx = self._tx_counts[-10:]
+                avg_tx = sum(recent_tx) / len(recent_tx)
+                if avg_tx > 0:
+                    volatility = (
+                        sum((t - avg_tx) ** 2 for t in recent_tx) / len(recent_tx)
+                    ) ** 0.5 / avg_tx
+                    econ_content = {
+                        'type': 'cross_domain_observation',
+                        'domain': 'economics',
+                        'description': (
+                            f"Network transaction volume averaging {avg_tx:.1f} tx/block "
+                            f"with coefficient of variation {volatility:.3f}. "
+                            f"Transaction fee market reflects supply-demand dynamics "
+                            f"for block space as a scarce resource."
+                        ),
+                        'concepts': ['supply_demand', 'market_dynamics', 'scarcity',
+                                     'price_discovery', 'network_effects'],
+                        'avg_tx_volume': round(avg_tx, 2),
+                        'volatility': round(volatility, 4),
+                        'block_height': block_height,
+                    }
+                    e_node = self.kg.add_node(
+                        node_type='observation',
+                        content=econ_content,
+                        confidence=0.8,
+                        source_block=block_height,
+                    )
+                    e_node.grounding_source = 'block_oracle'
+                    if parent_node_id:
+                        self.kg.add_edge(parent_node_id, e_node.node_id, 'supports')
+                    nodes_created += 1
+
+            # --- Complexity Science: Difficulty adjustment as feedback control ---
+            if len(self._difficulties) >= 20:
+                recent_d = self._difficulties[-20:]
+                d_mean = sum(recent_d) / len(recent_d)
+                d_changes = [
+                    abs(recent_d[i] - recent_d[i - 1]) / max(recent_d[i - 1], 1e-9)
+                    for i in range(1, len(recent_d))
+                ]
+                avg_change = sum(d_changes) / len(d_changes) if d_changes else 0
+
+                complexity_content = {
+                    'type': 'cross_domain_observation',
+                    'domain': 'complexity_science',
+                    'description': (
+                        f"Difficulty adjustment exhibits negative feedback control: "
+                        f"mean difficulty {d_mean:.4f}, average relative change "
+                        f"{avg_change:.4f}. System self-regulates toward 3.3s block "
+                        f"time target — an example of homeostatic equilibrium in "
+                        f"distributed systems."
+                    ),
+                    'concepts': ['feedback_control', 'homeostasis', 'self_regulation',
+                                 'emergent_behavior', 'distributed_systems'],
+                    'mean_difficulty': round(d_mean, 6),
+                    'avg_relative_change': round(avg_change, 6),
+                    'block_height': block_height,
+                }
+                c_node = self.kg.add_node(
+                    node_type='observation',
+                    content=complexity_content,
+                    confidence=0.8,
+                    source_block=block_height,
+                )
+                c_node.grounding_source = 'block_oracle'
+                if parent_node_id:
+                    self.kg.add_edge(parent_node_id, c_node.node_id, 'supports')
+                nodes_created += 1
+
+            # --- Mathematics: Block hash entropy and number theory ---
+            if block_height % 100 == 0:  # Every 100 blocks for math
+                block_hash = getattr(block, 'hash', '') or ''
+                if block_hash:
+                    # Compute byte distribution entropy
+                    hex_str = block_hash.replace('0x', '')[:64]
+                    if len(hex_str) >= 32:
+                        byte_counts: Dict[str, int] = {}
+                        for ch in hex_str:
+                            byte_counts[ch] = byte_counts.get(ch, 0) + 1
+                        total = len(hex_str)
+                        entropy = -sum(
+                            (c / total) * math.log2(c / total)
+                            for c in byte_counts.values() if c > 0
+                        )
+                        max_entropy = math.log2(16)  # 4 bits for hex
+
+                        math_content = {
+                            'type': 'cross_domain_observation',
+                            'domain': 'mathematics',
+                            'description': (
+                                f"SHA3-256 hash at block {block_height} has Shannon "
+                                f"entropy {entropy:.3f} bits/symbol (max {max_entropy:.3f}). "
+                                f"Ratio {entropy / max_entropy:.4f} measures uniformity of "
+                                f"the hash function output distribution — a key property "
+                                f"for cryptographic security."
+                            ),
+                            'concepts': ['entropy', 'information_theory', 'hash_function',
+                                         'probability_distribution', 'uniformity'],
+                            'entropy': round(entropy, 4),
+                            'max_entropy': round(max_entropy, 4),
+                            'uniformity_ratio': round(entropy / max_entropy, 4),
+                            'block_height': block_height,
+                        }
+                        m_node = self.kg.add_node(
+                            node_type='observation',
+                            content=math_content,
+                            confidence=0.85,
+                            source_block=block_height,
+                        )
+                        m_node.grounding_source = 'block_oracle'
+                        if parent_node_id:
+                            self.kg.add_edge(parent_node_id, m_node.node_id, 'supports')
+                        nodes_created += 1
+
+        except Exception as e:
+            logger.debug(f"Cross-domain extraction error at block {block_height}: {e}")
+
+        return nodes_created
 
     def get_stats(self) -> dict:
         """Get knowledge extraction statistics."""
