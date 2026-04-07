@@ -125,14 +125,15 @@ MILESTONE_GATES: List[dict] = [
     {
         'id': 6,
         'name': 'Enacted Self-Improvement',
-        'description': 'Self-improvement actions enacted AND producing measurable gains',
+        'description': 'Self-improvement actions enacted AND producing measurable gains with FEP convergence',
         'nodes': 20000,
         'check': lambda stats: (
             stats['n_nodes'] >= 20000
             and stats.get('improvement_cycles_enacted', 0) >= 10
             and stats.get('improvement_performance_delta', 0) > 0.0
+            and stats.get('fep_free_energy_decreasing', False)
         ),
-        'requirement': '>=20K nodes, >=10 enacted improvement cycles, positive performance delta',
+        'requirement': '>=20K nodes, >=10 enacted improvement cycles, positive performance delta, FEP free energy decreasing',
     },
     {
         'id': 7,
@@ -150,15 +151,16 @@ MILESTONE_GATES: List[dict] = [
     {
         'id': 8,
         'name': 'Autonomous Curiosity',
-        'description': 'System generates its own research goals that produce novel knowledge',
+        'description': 'System generates its own research goals with FEP-guided exploration across domains',
         'nodes': 35000,
         'check': lambda stats: (
             stats['n_nodes'] >= 35000
             and stats.get('auto_goals_generated', 0) >= 50
             and stats.get('auto_goals_with_inferences', 0) >= 30
             and stats.get('curiosity_driven_discoveries', 0) >= 10
+            and stats.get('fep_domain_precisions', 0) >= 3
         ),
-        'requirement': '>=35K nodes, >=50 auto-goals, >=30 producing inferences, >=10 curiosity discoveries',
+        'requirement': '>=35K nodes, >=50 auto-goals, >=30 producing inferences, >=10 curiosity discoveries, FEP precision in >=3 domains',
     },
     {
         'id': 9,
@@ -176,15 +178,16 @@ MILESTONE_GATES: List[dict] = [
     {
         'id': 10,
         'name': 'Novel Synthesis',
-        'description': 'Genuine novel concepts not in training data — verified by embedding distance',
+        'description': 'Genuine novel concepts with diverse Sephirot cognitive participation',
         'nodes': 75000,
         'check': lambda stats: (
             stats['n_nodes'] >= 75000
             and stats.get('novel_concept_count', 0) >= 50
             and stats.get('cross_domain_inferences', 0) >= 100
             and stats.get('improvement_performance_delta', 0) > 0.05
+            and stats.get('sephirot_winner_diversity', 0) >= 0.5
         ),
-        'requirement': '>=75K nodes, >=50 novel concepts, >=100 cross-domain inferences, sustained self-improvement',
+        'requirement': '>=75K nodes, >=50 novel concepts, >=100 cross-domain inferences, sustained self-improvement, Sephirot winner diversity >=0.5',
     },
 ]
 
@@ -1296,13 +1299,22 @@ class PhiCalculator:
             'improvement_cycles_enacted': ext.get('improvement_cycles_enacted', 0),
             'improvement_performance_delta': ext.get('improvement_performance_delta', 0.0),
             'curiosity_driven_discoveries': ext.get('curiosity_driven_discoveries', 0),
+            # v5 cognitive architecture stats
+            'sephirot_active_count': ext.get('sephirot_active_count', 0),
+            'sephirot_winner_diversity': ext.get('sephirot_winner_diversity', 0.0),
+            'gw_competitions_total': ext.get('gw_competitions_total', 0),
+            'fep_free_energy_decreasing': ext.get('fep_free_energy_decreasing', False),
+            'fep_total_free_energy': ext.get('fep_total_free_energy', 0.0),
+            'fep_domain_precisions': ext.get('fep_domain_precisions', 0),
+            'cognitive_cycle_count': ext.get('cognitive_cycle_count', 0),
         }
 
         # Log gate stat summary for diagnostics
         logger.debug(
             "Gate stats: nodes=%d debate_verdicts=%d contradiction_resolutions=%d "
             "verified_predictions=%d mip_phi=%.3f auto_goals=%d axioms=%d "
-            "novel_concepts=%d cross_domain_inf=%d",
+            "novel_concepts=%d cross_domain_inf=%d "
+            "sephirot_active=%d gw_competitions=%d fep_decreasing=%s winner_div=%.2f",
             stats['n_nodes'],
             debate_verdicts,
             contradiction_resolutions,
@@ -1312,6 +1324,10 @@ class PhiCalculator:
             axiom_from_consolidation,
             novel_concept_count,
             cross_domain_inferences,
+            stats.get('sephirot_active_count', 0),
+            stats.get('gw_competitions_total', 0),
+            stats.get('fep_free_energy_decreasing', False),
+            stats.get('sephirot_winner_diversity', 0.0),
         )
 
         # Apply adaptive gate scaling: multiply n_nodes threshold by _gate_scale.
@@ -1340,6 +1356,11 @@ class PhiCalculator:
             'calibration_error': stats.get('calibration_error', 1.0),
             'calibration_evaluations': stats.get('calibration_evaluations', 0),
             'auto_goals_with_inferences': stats.get('auto_goals_with_inferences', 0),
+            # v5 cognitive architecture stats
+            'sephirot_active_count': stats.get('sephirot_active_count', 0),
+            'sephirot_winner_diversity': stats.get('sephirot_winner_diversity', 0.0),
+            'gw_competitions_total': stats.get('gw_competitions_total', 0),
+            'fep_free_energy_decreasing': stats.get('fep_free_energy_decreasing', False),
         }
 
         results: List[dict] = []

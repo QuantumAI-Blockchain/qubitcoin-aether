@@ -4079,6 +4079,43 @@ class AetherEngine:
                     )
             except Exception:
                 pass
+
+        # ── v5 cognitive architecture stats ──────────────────────────────
+        # GlobalWorkspace: Sephirot activity, competition count, winner diversity
+        try:
+            if self.global_workspace:
+                gw_stats = self.global_workspace.get_stats()
+                stats['sephirot_active_count'] = float(
+                    gw_stats.get('cognitive_processors', 0)
+                )
+                stats['sephirot_winner_diversity'] = float(
+                    gw_stats.get('winner_diversity', 0.0)
+                )
+                stats['gw_competitions_total'] = float(
+                    gw_stats.get('competition_count', 0)
+                )
+                stats['cognitive_cycle_count'] = float(
+                    gw_stats.get('cognitive_cycles', 0)
+                )
+        except Exception:
+            pass
+
+        # FreeEnergyEngine: FEP metrics (free energy trend, domain precisions)
+        try:
+            if self.curiosity_engine and hasattr(self.curiosity_engine, 'compute_total_free_energy'):
+                fep_stats = self.curiosity_engine.get_curiosity_stats()
+                stats['fep_total_free_energy'] = float(
+                    fep_stats.get('total_free_energy', 0.0)
+                )
+                stats['fep_free_energy_decreasing'] = float(
+                    1.0 if fep_stats.get('free_energy_decreasing', False) else 0.0
+                )
+                stats['fep_domain_precisions'] = float(
+                    len(fep_stats.get('domain_precisions', {}))
+                )
+        except Exception:
+            pass
+
         return stats
 
     def _auto_reason(self, block_height: int) -> List[dict]:

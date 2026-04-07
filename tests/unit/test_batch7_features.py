@@ -179,7 +179,7 @@ class TestSemanticGates:
         assert gate['check'](stats) is True
 
     def test_gate_10_novel_synthesis(self):
-        """Gate 10: >=75K nodes, >=50 novel concepts, >=100 cross-domain, sustained improvement."""
+        """Gate 10: >=75K nodes, >=50 novel concepts, >=100 cross-domain, sustained improvement, Sephirot diversity."""
         from qubitcoin.aether.phi_calculator import MILESTONE_GATES
         gate = MILESTONE_GATES[9]
         assert gate['id'] == 10
@@ -192,6 +192,7 @@ class TestSemanticGates:
             'cross_domain_inferences': 100,
             'novel_concept_count': 60,
             'improvement_performance_delta': 0.1,
+            'sephirot_winner_diversity': 0.6,
         }
         assert gate['check'](stats) is False
 
@@ -200,8 +201,13 @@ class TestSemanticGates:
         stats['novel_concept_count'] = 49
         assert gate['check'](stats) is False
 
-        # Pass: all criteria met
+        # Fail: all v4 criteria met but Sephirot diversity too low
         stats['novel_concept_count'] = 50
+        stats['sephirot_winner_diversity'] = 0.4
+        assert gate['check'](stats) is False
+
+        # Pass: all criteria met including v5 Sephirot diversity
+        stats['sephirot_winner_diversity'] = 0.5
         assert gate['check'](stats) is True
 
     def test_max_ceiling_is_5(self):

@@ -75,6 +75,7 @@ class GlobalWorkspace:
         self._ignition_failures: int = 0
         self._cognitive_cycles: int = 0
         self._veto_count: int = 0
+        self._winner_roles_seen: set = set()  # v5: track unique Sephirot that have won
 
     # ==================================================================
     # v5 API: Cognitive Processor Management
@@ -356,6 +357,10 @@ class GlobalWorkspace:
             except Exception:
                 pass
 
+        # Track winner diversity (v5 gate metric)
+        for w in winners:
+            self._winner_roles_seen.add(w.source_role)
+
         # Update workspace
         self._workspace = winners
         return winners
@@ -484,12 +489,14 @@ class GlobalWorkspace:
         return list(self._workspace)
 
     def get_stats(self) -> dict:
+        n_processors = len(self._cognitive_processors)
+        n_winner_roles = len(self._winner_roles_seen)
         return {
             "capacity": self._capacity,
             "ignition_threshold": self._ignition_threshold,
             "workspace_size": len(self._workspace),
             "registered_processors": len(self._processors),
-            "cognitive_processors": len(self._cognitive_processors),
+            "cognitive_processors": n_processors,
             "cognitive_processor_roles": list(self._cognitive_processors.keys()),
             "broadcast_count": self._broadcast_count,
             "competition_count": self._competition_count,
@@ -498,6 +505,11 @@ class GlobalWorkspace:
             "cognitive_cycles": self._cognitive_cycles,
             "veto_count": self._veto_count,
             "recent_cycles": list(self._cycle_history)[-5:],
+            # v5 gate metrics
+            "winner_roles_seen": sorted(self._winner_roles_seen),
+            "winner_diversity": (
+                n_winner_roles / max(1, n_processors)
+            ),
         }
 
     @property
