@@ -64,6 +64,10 @@ class TFIDFIndex:
     Supports incremental updates — no full rebuild needed when new nodes arrive.
     """
 
+    # Refresh IDF cache every N additions instead of on every query.
+    # With 693K+ nodes and millions of terms, full IDF refresh takes 5-10s.
+    _IDF_REFRESH_INTERVAL: int = 1000
+
     def __init__(self) -> None:
         # term -> {node_id: raw term frequency}
         self.inverted_index: Dict[str, Dict[int, float]] = defaultdict(dict)
@@ -73,9 +77,10 @@ class TFIDFIndex:
         self.node_terms: Dict[int, set] = {}
         # total documents indexed
         self.n_docs: int = 0
-        # cached IDF values (invalidated on add)
+        # cached IDF values (refreshed periodically, not on every query)
         self._idf_cache: Dict[str, float] = {}
         self._idf_dirty: bool = True
+        self._adds_since_refresh: int = 0
 
     def add_node(self, node_id: int, content: dict) -> None:
         """Index a single node's content. Incremental — no rebuild needed."""
@@ -104,7 +109,14 @@ class TFIDFIndex:
 
         self.node_terms[node_id] = new_terms
         self.n_docs += 1
-        self._idf_dirty = True
+        self._adds_since_refresh += 1
+        # Amortize IDF refresh: update every N additions, not on every query.
+        # This prevents 5-10s stalls when search is called with a dirty cache.
+        if self._adds_since_refresh >= self._IDF_REFRESH_INTERVAL:
+            self._refresh_idf()
+            self._adds_since_refresh = 0
+        else:
+            self._idf_dirty = True
 
     def remove_node(self, node_id: int) -> None:
         """Remove a node from the index."""
@@ -133,7 +145,10 @@ class TFIDFIndex:
         if not tokens:
             return []
 
-        self._refresh_idf()
+        # Use stale IDF cache if available — only refresh if cache is empty.
+        # Amortized refresh happens during add_node() every N additions.
+        if not self._idf_cache:
+            self._refresh_idf()
 
         # Build query TF-IDF vector
         q_tf: Dict[str, float] = defaultdict(float)

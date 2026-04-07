@@ -378,6 +378,7 @@ class Config:
     LOCAL_LLM_URL: str = os.getenv('LOCAL_LLM_URL', '')
     OLLAMA_BASE_URL: str = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
     OLLAMA_MODEL: str = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b')
+    OLLAMA_CHAT_MODEL: str = os.getenv('OLLAMA_CHAT_MODEL', 'qwen2.5:0.5b')
     LLM_PRIMARY_ADAPTER: str = os.getenv('LLM_PRIMARY_ADAPTER', 'openai')
     LLM_SEEDER_ENABLED: bool = os.getenv('LLM_SEEDER_ENABLED', 'false').lower() == 'true'
     LLM_SEEDER_INTERVAL_BLOCKS: int = int(os.getenv('LLM_SEEDER_INTERVAL_BLOCKS', '50'))

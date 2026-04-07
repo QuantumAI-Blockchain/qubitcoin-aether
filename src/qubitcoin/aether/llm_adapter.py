@@ -304,8 +304,10 @@ class OllamaAdapter(LLMAdapter):
 
     def __init__(self, model: str = 'llama3.1:8b',
                  base_url: str = 'http://localhost:11434',
-                 max_tokens: int = 1024, temperature: float = 0.7) -> None:
+                 max_tokens: int = 1024, temperature: float = 0.7,
+                 timeout_s: float = 60.0) -> None:
         super().__init__(model, '', base_url, max_tokens, temperature)
+        self.timeout_s = timeout_s
 
     @property
     def adapter_type(self) -> str:
@@ -351,7 +353,7 @@ class OllamaAdapter(LLMAdapter):
                 data=payload,
                 headers={'Content-Type': 'application/json'},
             )
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
                 data = json.loads(resp.read().decode())
 
             content = data.get('message', {}).get('content', '')

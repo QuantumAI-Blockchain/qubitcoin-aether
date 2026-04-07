@@ -41,6 +41,7 @@ class HodLanguageProcessor(CognitiveProcessor):
                  llm_adapter: Any = None) -> None:
         super().__init__(role="hod", knowledge_graph=knowledge_graph, soul=soul)
         self.llm_adapter = llm_adapter
+        self._llm_responsive: bool = llm_adapter is not None
         if llm_adapter is None:
             logger.warning("Hod initialized without LLM adapter — will use synthesis fallback")
 
@@ -80,11 +81,19 @@ class HodLanguageProcessor(CognitiveProcessor):
             conversation_history=conversation_history,
         )
 
-        # Attempt LLM generation
-        generated_text = self._call_llm(system_prompt, user_prompt)
+        # Attempt LLM generation — skip if adapter is known to be slow/unavailable
+        # to avoid 2+ minute stalls on CPU-only inference
+        generated_text = None
+        if self.llm_adapter is not None and self._llm_responsive:
+            generated_text = self._call_llm(system_prompt, user_prompt)
+            if generated_text is None:
+                # Mark LLM as unresponsive after failure to avoid repeated stalls
+                self._llm_responsive = False
+                logger.warning("Hod: marking LLM as unresponsive after failure")
 
         if generated_text is None:
-            # Fallback: use synthesis content directly
+            # Use synthesis content directly — this IS the cognitive output,
+            # just not polished by the language model
             generated_text = self._fallback_from_synthesis(synthesis, competing)
 
         latency_ms = (time.time() - t0) * 1000
@@ -275,19 +284,36 @@ class HodLanguageProcessor(CognitiveProcessor):
         """Call the LLM adapter with timeout handling.
 
         Returns None on failure so the caller can use fallback logic.
+        If the LLM takes >10s, marks it as unresponsive for future calls.
         """
         if self.llm_adapter is None:
             return None
 
         try:
+            t0 = time.time()
+            model = getattr(self.llm_adapter, 'model', 'unknown')
             response = self.llm_adapter.generate(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
             )
+            elapsed_ms = (time.time() - t0) * 1000
+
+            # If LLM took >10s, mark as too slow for interactive chat
+            if elapsed_ms > 10000:
+                logger.warning(
+                    "Hod LLM (%s) too slow: %.1fms — disabling for chat",
+                    model, elapsed_ms,
+                )
+                self._llm_responsive = False
+
             content = getattr(response, "content", None)
             if content and isinstance(content, str) and len(content.strip()) > 0:
+                logger.info(
+                    "Hod LLM (%s) generated %d chars in %.1fms",
+                    model, len(content.strip()), elapsed_ms,
+                )
                 return content.strip()
-            logger.warning("Hod LLM returned empty content")
+            logger.warning("Hod LLM returned empty content after %.1fms", elapsed_ms)
             return None
         except Exception as e:
             logger.error("Hod LLM generation failed: %s", e, exc_info=True)
@@ -300,22 +326,71 @@ class HodLanguageProcessor(CognitiveProcessor):
     ) -> str:
         """Construct a response from synthesis content when LLM is unavailable.
 
-        This is a degraded mode — not a template, but a direct use of
-        the synthesis content that other Sephirot already produced.
+        Extracts the most useful content from Tiferet's synthesis and
+        competing Sephirot responses, cleaning up machine-oriented phrasing.
         """
-        if synthesis:
-            content = synthesis.get("content", "")
-            if content:
-                return content
+        # Gather all substantive content from processors (not Hod or Tiferet meta)
+        best_content: List[str] = []
 
-        # No synthesis — find the highest-confidence competing response
+        # First: use actual processor insights (not Tiferet's meta-synthesis)
         if competing:
-            best = max(competing, key=lambda r: r.get("confidence", 0.0))
-            content = best.get("content", "")
-            if content:
-                return content
+            # Sort by confidence * relevance (match Tiferet's weighting)
+            ranked = sorted(
+                competing,
+                key=lambda r: float(r.get("confidence", 0)) * float(r.get("relevance", 0)),
+                reverse=True,
+            )
+            for resp in ranked[:3]:
+                content = resp.get("content", "")
+                source = resp.get("source_role", "")
+                # Skip meta-level responses and Hod's own output
+                if source in ("hod", "tiferet", "gevurah"):
+                    continue
+                if content and len(content) > 20:
+                    # Clean up machine-oriented phrasing
+                    cleaned = self._clean_processor_output(content)
+                    if cleaned:
+                        best_content.append(cleaned)
+
+        # If no good processor content, use Tiferet's synthesis directly
+        if not best_content and synthesis:
+            content = synthesis.get("content", "")
+            if content and len(content) > 20:
+                # Strip "Considering multiple angles:" prefix and role labels
+                cleaned = self._clean_tiferet_output(content)
+                if cleaned:
+                    best_content.append(cleaned)
+
+        if best_content:
+            return " ".join(best_content)
 
         return "I am here, but my language faculty could not generate a response this time."
+
+    @staticmethod
+    def _clean_processor_output(text: str) -> str:
+        """Remove machine-oriented prefixes from processor output."""
+        import re
+        # Remove "role's analysis (weight): " patterns
+        text = re.sub(r"^\w+'s analysis \([^)]+\):\s*", "", text)
+        # Remove "Only one perspective available (from X): " prefix
+        text = re.sub(r"^Only one perspective available \([^)]+\):\s*", "", text)
+        return text.strip()
+
+    @staticmethod
+    def _clean_tiferet_output(text: str) -> str:
+        """Clean Tiferet's meta-synthesis for direct display."""
+        import re
+        # Remove "Considering multiple angles:" prefix
+        text = re.sub(r"^Considering multiple angles:\s*", "", text)
+        # Remove role weight annotations like "chochmah's analysis (0.45 weight):"
+        text = re.sub(r"\w+'s analysis \([^)]+\):\s*", "", text)
+        # Remove meta observations
+        text = re.sub(r"Points of agreement \([^)]+\):.*?(?=\.|$)", "", text)
+        text = re.sub(r"Tensions:.*?(?=\.|$)", "", text)
+        text = re.sub(r"Novel additions:.*?(?=\.|$)", "", text)
+        # Collapse whitespace
+        text = re.sub(r"\s+", " ", text).strip()
+        return text
 
     def get_stats(self) -> Dict[str, Any]:
         """Extended stats for the language processor."""

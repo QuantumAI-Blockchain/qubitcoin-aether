@@ -669,16 +669,40 @@ class AetherChat:
             self._response_cortex = None
 
     def _get_primary_llm_adapter(self) -> Optional[Any]:
-        """Get the primary LLM adapter for Hod language generation."""
+        """Get a fast LLM adapter for Hod language generation.
+
+        Creates a dedicated OllamaAdapter using the smaller OLLAMA_CHAT_MODEL
+        (default: qwen2.5:0.5b) with aggressive timeout for fast chat responses.
+        Falls back to the general LLM manager adapters if Ollama is unavailable.
+        """
+        # Try to create a fast chat-specific Ollama adapter
+        if Config.OLLAMA_BASE_URL:
+            try:
+                from .llm_adapter import OllamaAdapter
+                chat_adapter = OllamaAdapter(
+                    model=Config.OLLAMA_CHAT_MODEL,
+                    base_url=Config.OLLAMA_BASE_URL,
+                    max_tokens=512,
+                    temperature=0.7,
+                    timeout_s=15.0,
+                )
+                if chat_adapter.is_available():
+                    logger.info(
+                        "Hod using fast chat adapter: %s (15s timeout)",
+                        Config.OLLAMA_CHAT_MODEL,
+                    )
+                    return chat_adapter
+            except Exception as e:
+                logger.debug("Fast chat adapter creation failed: %s", e)
+
+        # Fallback to general LLM manager
         if self.llm_manager:
             try:
-                # Try Ollama first, then any available adapter
                 adapters = getattr(self.llm_manager, '_adapters', {})
                 for name in ('ollama', 'openai', 'claude', 'local'):
                     adapter = adapters.get(name)
                     if adapter:
                         return adapter
-                # Return any adapter
                 if adapters:
                     return next(iter(adapters.values()))
             except Exception:
@@ -1402,6 +1426,7 @@ class AetherChat:
         Returns:
             Dict with response, reasoning trace, phi, and proof hash.
         """
+        t_total_start = time.time()
         session = self._sessions.get(session_id)
         if not session:
             return {'error': 'Session not found. Create a session first.'}
@@ -1695,9 +1720,14 @@ class AetherChat:
                     pass
         else:
             # Single question — standard processing
+            t_query = time.time()
             single_result = self._process_single_query(
                 message, intent, session, user_memories, is_deep_query,
                 entities=entities,
+            )
+            logger.info(
+                "Chat pipeline: _process_single_query took %.1fms",
+                (time.time() - t_query) * 1000,
             )
             response_content = single_result.get('response', '')
             knowledge_refs = single_result.get('knowledge_nodes_referenced', [])
@@ -1707,34 +1737,34 @@ class AetherChat:
         # Build multi-turn conversation context
         conversation_context = self._build_conversation_context(session)
 
-        # Error recovery: if response is too short, try aggressive KG search
-        if len(response_content) < 50:
-            response_content = self._error_recovery_search(
-                message, response_content, reasoning_trace, knowledge_refs,
-                user_memories=user_memories,
-            )
+        # Error recovery & KGQA fallback — skip when v5 cortex is active
+        # as the cortex already produced the best possible response.
+        # These fallbacks trigger slow KG scans + LLM calls (60s+ on CPU).
+        if self._response_cortex is None:
+            # Error recovery: if response is too short, try aggressive KG search
+            if len(response_content) < 50:
+                response_content = self._error_recovery_search(
+                    message, response_content, reasoning_trace, knowledge_refs,
+                    user_memories=user_memories,
+                )
 
-        # #48: KGQA fallback — if response is still short and message is a question
-        if len(response_content) < 80 and self._is_question(message):
-            try:
-                kgqa = getattr(self.engine, 'kgqa', None)
-                if kgqa:
-                    kgqa_result = kgqa.answer(message, self.engine.kg)
-                    if kgqa_result.confidence > 0.2 and kgqa_result.answer_text:
-                        response_content = kgqa_result.answer_text
-                        knowledge_refs.extend(kgqa_result.sources)
-                        reasoning_trace.append({
-                            'type': 'kgqa',
-                            'question_type': kgqa_result.question_type,
-                            'confidence': kgqa_result.confidence,
-                            'reasoning_path': kgqa_result.reasoning_path,
-                        })
-                        logger.debug(
-                            f"KGQA fallback used: type={kgqa_result.question_type}, "
-                            f"conf={kgqa_result.confidence:.3f}"
-                        )
-            except Exception as e:
-                logger.debug(f"KGQA fallback error: {e}")
+            # #48: KGQA fallback — if response is still short and message is a question
+            if len(response_content) < 80 and self._is_question(message):
+                try:
+                    kgqa = getattr(self.engine, 'kgqa', None)
+                    if kgqa:
+                        kgqa_result = kgqa.answer(message, self.engine.kg)
+                        if kgqa_result.confidence > 0.2 and kgqa_result.answer_text:
+                            response_content = kgqa_result.answer_text
+                            knowledge_refs.extend(kgqa_result.sources)
+                            reasoning_trace.append({
+                                'type': 'kgqa',
+                                'question_type': kgqa_result.question_type,
+                                'confidence': kgqa_result.confidence,
+                                'reasoning_path': kgqa_result.reasoning_path,
+                            })
+                except Exception as e:
+                    logger.debug(f"KGQA fallback error: {e}")
 
         # Verify response against axiom nodes for factual accuracy
         axiom_flags = self._verify_against_axioms(response_content)
@@ -1832,6 +1862,12 @@ class AetherChat:
             result['axiom_flags'] = axiom_flags
         if fee_record:
             result['fee_paid'] = fee_record.to_dict()
+
+        total_ms = (time.time() - t_total_start) * 1000
+        logger.info(
+            "Chat pipeline TOTAL: %.1fms for '%s' (%d chars response)",
+            total_ms, message[:50], len(response_content),
+        )
         return result
 
     def _process_single_query(self, message: str, intent: str,
@@ -1865,98 +1901,122 @@ class AetherChat:
         neural_result = None
         inference_conclusions: List[str] = []
 
-        # Build entity-augmented search query (#10, #42)
-        entity_search_terms = self._entities_to_search_terms(entities)
-        augmented_message = message
-        if entity_search_terms:
-            augmented_message = message + " " + " ".join(entity_search_terms)
+        # v5 fast path: when cognitive cortex is active, skip v4 pre-processing
+        # (query_translator, adaptive_reason, neural_reasoner). The cortex runs
+        # Sephirot processors that handle reasoning. We only need quick KG search.
+        _v5_fast = self._response_cortex is not None
 
-        try:
-            if self._query_translator:
-                depth = 5 if is_deep_query else 3
-                query_result = self._query_translator.translate_and_execute(
-                    augmented_message, max_results=10, reasoning_depth=depth,
-                )
-                knowledge_refs = query_result.matched_node_ids
-                reasoning_trace = query_result.reasoning_results
-            else:
-                if self.engine.kg:
-                    relevant = self._search_knowledge(augmented_message)
-                    knowledge_refs = [n for n in relevant[:10]]
-
-                    # Entity-aware: also search for specific block heights
-                    for num in entities.get('numbers', []):
-                        if num['type'] == 'block_height' and self.engine.kg.nodes:
-                            for nid, node in list(self.engine.kg.nodes.items()):
-                                if nid in knowledge_refs:
-                                    continue
-                                if isinstance(node.content, dict):
-                                    if node.content.get('height') == num['value']:
-                                        knowledge_refs.append(nid)
-                                    elif node.content.get('block_height') == num['value']:
-                                        knowledge_refs.append(nid)
-
-                # #53: Re-rank knowledge refs using relevance ranker
-                ranker = getattr(self.engine, 'relevance_ranker', None)
-                if ranker and knowledge_refs and self.engine.kg:
-                    try:
-                        candidates = []
-                        for nid in knowledge_refs[:20]:
-                            node = self.engine.kg.nodes.get(nid)
-                            if node:
-                                candidates.append({
-                                    'node_id': nid,
-                                    'content': node.content if isinstance(node.content, dict) else {'text': str(node.content)},
-                                    'confidence': getattr(node, 'confidence', 0.5),
-                                    'source_block': getattr(node, 'source_block', 0),
-                                    'domain': getattr(node, 'domain', ''),
-                                })
-                        if candidates:
-                            ranked = ranker.rank(
-                                augmented_message, candidates, top_k=10,
-                            )
-                            knowledge_refs = [
-                                item['node_id'] for item, score in ranked
-                            ]
-                    except Exception as e:
-                        logger.debug(f"Relevance ranking error: {e}")
-
-                if self.engine.reasoning and self.engine.kg and knowledge_refs:
-                    # Use self-improvement weights to select best strategy
-                    reasoning_trace, inference_conclusions = self._adaptive_reason(
-                        message, knowledge_refs, is_deep_query,
-                    )
-
-            # Run neural reasoner (GAT) on matched subgraph for confidence
-            # Hard 3-second budget — neural reasoner can be slow with large KG
-            if (knowledge_refs and self.engine.neural_reasoner
-                    and self.engine.kg):
-                try:
-                    vi = getattr(self.engine.kg, 'vector_index', None)
-                    if vi:
-                        import concurrent.futures as _cf2
-                        _nr_ex = _cf2.ThreadPoolExecutor(max_workers=1)
-                        _nr_fut = _nr_ex.submit(
-                            self.engine.neural_reasoner.reason,
-                            self.engine.kg, vi, knowledge_refs[:5], k_hops=1,
-                        )
-                        _nr_ex.shutdown(wait=False)
-                        try:
-                            neural_result = _nr_fut.result(timeout=3.0)
-                        except _cf2.TimeoutError:
-                            logger.debug("Neural reasoner timed out in chat (3s)")
-                except Exception as e:
-                    logger.debug(f"Neural reasoning in chat failed: {e}")
-
+        if _v5_fast:
+            t_fast = time.time()
+            if self.engine.kg:
+                # Fast search: try vector/TF-IDF first, then bounded keyword scan
+                knowledge_refs = self._fast_search_knowledge(message)[:10]
             if self.engine.phi:
-                phi_result = self.engine.phi.get_cached()
-                phi_value = phi_result.get('phi_value', 0.0)
+                try:
+                    phi_result = self.engine.phi.get_cached()
+                    phi_value = phi_result.get('phi_value', 0.0)
+                except Exception:
+                    pass
+            logger.info(
+                "v5 fast path: KG search found %d refs in %.1fms",
+                len(knowledge_refs), (time.time() - t_fast) * 1000,
+            )
 
-        except Exception as e:
-            logger.debug(f"Chat reasoning error: {e}")
+        # v4 legacy path: full pre-processing pipeline
+        if not _v5_fast:
+            # Build entity-augmented search query (#10, #42)
+            entity_search_terms = self._entities_to_search_terms(entities)
+            augmented_message = message
+            if entity_search_terms:
+                augmented_message = message + " " + " ".join(entity_search_terms)
+
+            try:
+                if self._query_translator:
+                    depth = 5 if is_deep_query else 3
+                    query_result = self._query_translator.translate_and_execute(
+                        augmented_message, max_results=10, reasoning_depth=depth,
+                    )
+                    knowledge_refs = query_result.matched_node_ids
+                    reasoning_trace = query_result.reasoning_results
+                else:
+                    if self.engine.kg:
+                        relevant = self._search_knowledge(augmented_message)
+                        knowledge_refs = [n for n in relevant[:10]]
+
+                        # Entity-aware: also search for specific block heights
+                        for num in entities.get('numbers', []):
+                            if num['type'] == 'block_height' and self.engine.kg.nodes:
+                                for nid, node in list(self.engine.kg.nodes.items()):
+                                    if nid in knowledge_refs:
+                                        continue
+                                    if isinstance(node.content, dict):
+                                        if node.content.get('height') == num['value']:
+                                            knowledge_refs.append(nid)
+                                        elif node.content.get('block_height') == num['value']:
+                                            knowledge_refs.append(nid)
+
+                    # #53: Re-rank knowledge refs using relevance ranker
+                    ranker = getattr(self.engine, 'relevance_ranker', None)
+                    if ranker and knowledge_refs and self.engine.kg:
+                        try:
+                            candidates = []
+                            for nid in knowledge_refs[:20]:
+                                node = self.engine.kg.nodes.get(nid)
+                                if node:
+                                    candidates.append({
+                                        'node_id': nid,
+                                        'content': node.content if isinstance(node.content, dict) else {'text': str(node.content)},
+                                        'confidence': getattr(node, 'confidence', 0.5),
+                                        'source_block': getattr(node, 'source_block', 0),
+                                        'domain': getattr(node, 'domain', ''),
+                                    })
+                            if candidates:
+                                ranked = ranker.rank(
+                                    augmented_message, candidates, top_k=10,
+                                )
+                                knowledge_refs = [
+                                    item['node_id'] for item, score in ranked
+                                ]
+                        except Exception as e:
+                            logger.debug(f"Relevance ranking error: {e}")
+
+                    if self.engine.reasoning and self.engine.kg and knowledge_refs:
+                        # Use self-improvement weights to select best strategy
+                        reasoning_trace, inference_conclusions = self._adaptive_reason(
+                            message, knowledge_refs, is_deep_query,
+                        )
+
+                # Run neural reasoner (GAT) on matched subgraph for confidence
+                # Hard 3-second budget — neural reasoner can be slow with large KG
+                if (knowledge_refs and self.engine.neural_reasoner
+                        and self.engine.kg):
+                    try:
+                        vi = getattr(self.engine.kg, 'vector_index', None)
+                        if vi:
+                            import concurrent.futures as _cf2
+                            _nr_ex = _cf2.ThreadPoolExecutor(max_workers=1)
+                            _nr_fut = _nr_ex.submit(
+                                self.engine.neural_reasoner.reason,
+                                self.engine.kg, vi, knowledge_refs[:5], k_hops=1,
+                            )
+                            _nr_ex.shutdown(wait=False)
+                            try:
+                                neural_result = _nr_fut.result(timeout=3.0)
+                            except _cf2.TimeoutError:
+                                logger.debug("Neural reasoner timed out in chat (3s)")
+                    except Exception as e:
+                        logger.debug(f"Neural reasoning in chat failed: {e}")
+
+                if self.engine.phi:
+                    phi_result = self.engine.phi.get_cached()
+                    phi_value = phi_result.get('phi_value', 0.0)
+
+            except Exception as e:
+                logger.debug(f"Chat reasoning error: {e}")
 
         conversation_context = self._build_conversation_context(session)
 
+        t_synth = time.time()
         response_content = self._synthesize_response(
             message, reasoning_trace, knowledge_refs, query_result,
             user_memories=user_memories,
@@ -1965,6 +2025,10 @@ class AetherChat:
             neural_result=neural_result,
             inference_conclusions=inference_conclusions,
             entities=entities,
+        )
+        logger.info(
+            "Chat pipeline: _synthesize_response took %.1fms (v5=%s, %d chars)",
+            (time.time() - t_synth) * 1000, _v5_fast, len(response_content),
         )
 
         # #55: Grounded generator — enhance response with citations when evidence exists
@@ -2175,6 +2239,53 @@ class AetherChat:
         except Exception as e:
             logger.debug(f"Failed to record reasoning outcome: {e}")
 
+    def _fast_search_knowledge(self, query: str) -> List[int]:
+        """Fast knowledge search for the v5 chat pipeline.
+
+        Uses the KG's built-in search (TF-IDF + vector index) which is
+        O(index_size) not O(node_count). Falls back to a bounded keyword
+        scan of the last 2000 nodes only if the index returns nothing.
+        Target: <500ms.
+        """
+        if not self.engine.kg or not self.engine.kg.nodes:
+            return []
+
+        # Skip kg.search() — its TF-IDF _refresh_idf() is O(unique_terms)
+        # which takes 10+ seconds on 693K+ nodes. Use keyword scan instead.
+
+        # Fallback: bounded keyword scan on last 2000 nodes
+        query_lower = query.lower()
+        query_words = [w for w in query_lower.split() if len(w) > 2]
+        if not query_words:
+            return []
+
+        nodes_items = list(self.engine.kg.nodes.items())
+        scan_slice = nodes_items[-2000:] if len(nodes_items) > 2000 else nodes_items
+
+        scored = []
+        for node_id, node in scan_slice:
+            content = node.content
+            if isinstance(content, str):
+                text = content.lower()
+            elif isinstance(content, dict):
+                parts = []
+                for key in ('text', 'title', 'summary', 'description', 'name',
+                            'domain', 'type', 'topic'):
+                    val = content.get(key, '')
+                    if val:
+                        parts.append(str(val))
+                text = ' '.join(parts).lower()
+            else:
+                continue
+
+            hits = sum(1 for w in query_words if w in text)
+            if hits > 0:
+                score = hits + getattr(node, 'confidence', 0.5)
+                scored.append((node_id, score))
+
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [s[0] for s in scored[:10]]
+
     def _search_knowledge(self, query: str) -> List[int]:
         """Search the knowledge graph for nodes relevant to the query.
 
@@ -2219,14 +2330,36 @@ class AetherChat:
                 return node_ids
 
         # Fallback: keyword matching with frequency boost (#49)
+        # Only scan the most recent nodes to avoid 14s+ scans on 695K+ nodes.
+        # Recent nodes are more likely to be relevant (seeded knowledge).
         query_lower = expanded_query.lower()
         query_words = [w for w in query_lower.split() if len(w) > 2]
+        if not query_words:
+            return []
+
         scored = []
-        for node_id, node in list(self.engine.kg.nodes.items()):
-            content_str = json.dumps(node.content).lower()
-            word_hits = sum(1 for word in query_words if word in content_str)
+        # Scan at most 2000 nodes (the most recently added — seeded knowledge).
+        # Full-scan on 695K+ nodes takes 10-14s which is unacceptable for chat.
+        nodes_items = list(self.engine.kg.nodes.items())
+        scan_slice = nodes_items[-2000:] if len(nodes_items) > 2000 else nodes_items
+        for node_id, node in scan_slice:
+            content = node.content
+            # Fast path: check string content directly without json.dumps
+            if isinstance(content, str):
+                content_lower = content.lower()
+            elif isinstance(content, dict):
+                # Only check a few key fields
+                text_parts = []
+                for key in ('text', 'title', 'summary', 'description', 'name', 'domain'):
+                    val = content.get(key, '')
+                    if val:
+                        text_parts.append(str(val))
+                content_lower = ' '.join(text_parts).lower()
+            else:
+                content_lower = str(content).lower()
+
+            word_hits = sum(1 for word in query_words if word in content_lower)
             if word_hits > 0:
-                # Score: word overlap + confidence + frequency bonus (#49)
                 freq_bonus = min(0.1, self._axiom_hit_counts.get(node_id, 0) * 0.01)
                 score = word_hits + node.confidence + freq_bonus
                 scored.append((node_id, score))
@@ -2364,15 +2497,15 @@ class AetherChat:
                 )
 
                 response_text = cortex_result.get("response", "")
-                if response_text and len(response_text) >= 30:
-                    logger.debug(
+                if response_text and len(response_text) >= 10:
+                    logger.info(
                         "v5 cortex response: %d chars, conf=%.3f",
                         len(response_text),
                         cortex_result.get("cognitive_cycle", {}).get("confidence", 0),
                     )
                     return response_text
 
-                logger.debug("v5 cortex response too short (%d chars), falling back", len(response_text))
+                logger.info("v5 cortex response too short (%d chars), falling back", len(response_text))
             except Exception as e:
                 logger.warning("v5 cortex failed, falling back to legacy: %s", e)
 

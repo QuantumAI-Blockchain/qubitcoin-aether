@@ -131,6 +131,11 @@ class GlobalWorkspace:
             if required not in active_roles and required in self._cognitive_processors:
                 active_roles.append(required)
 
+        # Exclude Hod from the GW cycle — it runs post-synthesis via
+        # ResponseCortex._voice_through_hod. Running it here would trigger
+        # a redundant (and slow) LLM call before synthesis is ready.
+        active_roles = [r for r in active_roles if r != "hod"]
+
         # Step 2: Run active processors in parallel
         responses = self._parallel_process(active_roles, stimulus)
 
@@ -171,7 +176,7 @@ class GlobalWorkspace:
             "elapsed_ms": round(elapsed_ms, 1),
         })
 
-        logger.debug(
+        logger.info(
             f"GWT cycle #{self._cognitive_cycles}: "
             f"{len(responses)} responses, {len(winners)} winners, "
             f"synthesis conf={synthesis.confidence:.3f} ({elapsed_ms:.0f}ms)"
@@ -217,18 +222,8 @@ class GlobalWorkspace:
         if not active:
             return responses
 
-        # For small counts, run sequentially (thread overhead not worth it)
-        if len(active) <= 2:
-            for role, proc in active.items():
-                try:
-                    t0 = time.monotonic()
-                    resp = proc.process(stimulus)
-                    latency = (time.monotonic() - t0) * 1000
-                    proc._record_metrics(latency, resp.confidence)
-                    responses.append(resp)
-                except Exception as e:
-                    logger.debug(f"Processor {role} failed: {e}")
-            return responses
+        # Always use parallel with timeout — even for 2 processors,
+        # a slow KG search in one shouldn't block the whole cycle.
 
         # Parallel execution
         with concurrent.futures.ThreadPoolExecutor(

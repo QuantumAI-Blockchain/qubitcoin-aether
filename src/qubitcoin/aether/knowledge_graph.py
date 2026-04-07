@@ -409,6 +409,13 @@ class KnowledgeGraph:
                 d = node.domain or 'general'
                 domain_counts[d] = domain_counts.get(d, 0) + 1
 
+            # Pre-warm the TF-IDF index so first search doesn't stall 5-10s
+            if hasattr(self.search_index, '_refresh_idf'):
+                t_idf = time.time()
+                self.search_index._refresh_idf()
+                logger.info("TF-IDF IDF cache pre-warmed in %.1fms",
+                            (time.time() - t_idf) * 1000)
+
             logger.info(f"Knowledge graph loaded: {len(self.nodes)} nodes, {len(self.edges)} edges, "
                          f"{self.search_index.get_stats()['unique_terms']} indexed terms, "
                          f"{len(domain_counts)} domains, {grounded_count} retroactively grounded"
