@@ -3114,7 +3114,12 @@ class AetherChat:
                             neural_result: Optional[dict] = None,
                             inference_conclusions: Optional[List[str]] = None,
                             entities: Optional[Dict[str, Any]] = None) -> str:
-        """KG-only response synthesis with reasoning-first approach.
+        """LEGACY: Template-based response synthesis (v4).
+
+        DEPRECATED: v5 uses ResponseCortex → GlobalWorkspace → Sephirot
+        cognitive cycle. This method is the fallback when the v5 cortex
+        produces a response shorter than 30 chars or raises an exception.
+        Will be removed after live v5 validation.
 
         Priority: inference conclusions first, then intent-driven topic routing.
         The system REASONS about its knowledge, not just assembles facts.
