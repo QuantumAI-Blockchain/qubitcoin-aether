@@ -239,16 +239,24 @@ class GlobalWorkspace:
                 fut = executor.submit(self._safe_process, proc, stimulus)
                 future_to_role[fut] = role
 
-            for fut in concurrent.futures.as_completed(
-                future_to_role, timeout=PROCESSOR_TIMEOUT
-            ):
-                role = future_to_role[fut]
-                try:
-                    resp = fut.result(timeout=0.1)
-                    if resp is not None:
-                        responses.append(resp)
-                except (concurrent.futures.TimeoutError, Exception) as e:
-                    logger.debug(f"Processor {role} timed out or failed: {e}")
+            try:
+                for fut in concurrent.futures.as_completed(
+                    future_to_role, timeout=PROCESSOR_TIMEOUT
+                ):
+                    role = future_to_role[fut]
+                    try:
+                        resp = fut.result(timeout=0.1)
+                        if resp is not None:
+                            responses.append(resp)
+                    except (concurrent.futures.TimeoutError, Exception) as e:
+                        logger.debug(f"Processor {role} timed out or failed: {e}")
+            except TimeoutError:
+                # Some processors didn't finish in time — use what we have
+                done = sum(1 for f in future_to_role if f.done())
+                logger.debug(
+                    "GW timeout: %d/%d processors completed in %.1fs",
+                    done, len(future_to_role), PROCESSOR_TIMEOUT,
+                )
 
         return responses
 

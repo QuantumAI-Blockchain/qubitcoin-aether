@@ -620,7 +620,7 @@ class AetherChat:
 
             # Register all 10 Sephirot cognitive processors
             processors = {
-                "keter": KeterMetaProcessor(kg=kg, soul=soul_priors),
+                "keter": KeterMetaProcessor(knowledge_graph=kg, soul=soul_priors),
                 "chochmah": ChochmahIntuitionProcessor(
                     knowledge_graph=kg, soul=soul_priors
                 ),

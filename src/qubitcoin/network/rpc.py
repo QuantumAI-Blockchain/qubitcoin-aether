@@ -7737,11 +7737,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
-        # Auth required for ingest
-        from .auth import verify_token
-        caller = verify_token(authorization)
-        tier = get_tier_for_wallet(caller.sub)
-        check_rate_limit(caller.sub, "ingest", tier)
+        # Auth: admin key OR JWT token
+        x_admin = body.get("_admin_key", "")
+        if x_admin and hasattr(Config, "ADMIN_API_KEY") and Config.ADMIN_API_KEY:
+            import hmac
+            if not hmac.compare_digest(x_admin, Config.ADMIN_API_KEY):
+                raise HTTPException(status_code=403, detail="Invalid admin key")
+        else:
+            from .auth import verify_token
+            caller = verify_token(authorization)
+            tier = get_tier_for_wallet(caller.sub)
+            check_rate_limit(caller.sub, "ingest", tier)
 
         text = (body.get("text") or "").strip()
         if len(text) < 10:
@@ -7821,11 +7827,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
-        # Auth required for batch ingest
-        from .auth import verify_token
-        caller = verify_token(authorization)
-        tier = get_tier_for_wallet(caller.sub)
-        check_rate_limit(caller.sub, "ingest", tier)
+        # Auth: admin key OR JWT token
+        x_admin = body.get("_admin_key", "")
+        if x_admin and hasattr(Config, "ADMIN_API_KEY") and Config.ADMIN_API_KEY:
+            import hmac
+            if not hmac.compare_digest(x_admin, Config.ADMIN_API_KEY):
+                raise HTTPException(status_code=403, detail="Invalid admin key")
+        else:
+            from .auth import verify_token
+            caller = verify_token(authorization)
+            tier = get_tier_for_wallet(caller.sub)
+            check_rate_limit(caller.sub, "ingest", tier)
 
         nodes_data = body.get("nodes", [])
         if not isinstance(nodes_data, list) or len(nodes_data) == 0:
