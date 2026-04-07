@@ -164,13 +164,21 @@ class AetherEngine:
         except Exception as e:
             logger.debug(f"EmotionalState init failed: {e}")
 
-        # Phase 9: Curiosity Engine (intrinsic motivation)
+        # Phase 9: Free Energy Engine (Friston FEP — replaces CuriosityEngine)
         self.curiosity_engine = None
         try:
-            from .curiosity_engine import CuriosityEngine
-            self.curiosity_engine = CuriosityEngine(knowledge_graph)
+            from .free_energy_engine import FreeEnergyEngine
+            self.curiosity_engine = FreeEnergyEngine(
+                knowledge_graph=knowledge_graph,
+                temporal_reasoner=getattr(self, 'temporal_engine', None),
+            )
         except Exception as e:
-            logger.debug(f"CuriosityEngine init failed: {e}")
+            logger.debug(f"FreeEnergyEngine init failed, trying CuriosityEngine: {e}")
+            try:
+                from .curiosity_engine import CuriosityEngine
+                self.curiosity_engine = CuriosityEngine(knowledge_graph)
+            except Exception as e2:
+                logger.debug(f"CuriosityEngine init also failed: {e2}")
 
         # Blocks processed counter (tracked from process_block_knowledge calls)
         self._blocks_processed: int = 0
@@ -442,13 +450,14 @@ class AetherEngine:
         except Exception as e:
             logger.warning(f"MetaMonitor init failed: {e}")
 
-        # #66: Curiosity-Driven Exploration Engine
-        self.curiosity_engine = None
-        try:
-            from .curiosity_engine import CuriosityEngine
-            self.curiosity_engine = CuriosityEngine()
-        except Exception as e:
-            logger.warning(f"CuriosityEngine init failed: {e}")
+        # #66: Free Energy Engine (FEP — replaces CuriosityEngine)
+        # NOTE: Only set if not already initialized in Phase 9 above
+        if self.curiosity_engine is None:
+            try:
+                from .free_energy_engine import FreeEnergyEngine
+                self.curiosity_engine = FreeEnergyEngine()
+            except Exception as e:
+                logger.warning(f"FreeEnergyEngine init failed: {e}")
 
         # #67: Theory of Mind (social modeling)
         self.theory_of_mind = None
@@ -1025,9 +1034,17 @@ class AetherEngine:
         if self.meta_monitor:
             stats['meta_monitor'] = self.meta_monitor.get_stats()
 
-        # #66: Curiosity engine stats
+        # #66: Free Energy / Curiosity engine stats
         if self.curiosity_engine:
-            stats['curiosity_engine'] = self.curiosity_engine.get_stats()
+            curiosity_stats = self.curiosity_engine.get_curiosity_stats()
+            stats['curiosity_engine'] = curiosity_stats
+            # FEP-specific stats (available if using FreeEnergyEngine)
+            if hasattr(self.curiosity_engine, 'compute_total_free_energy'):
+                stats['free_energy'] = {
+                    'total': curiosity_stats.get('total_free_energy', 0),
+                    'decreasing': curiosity_stats.get('free_energy_decreasing', False),
+                    'domain_precisions': curiosity_stats.get('domain_precisions', {}),
+                }
 
         # #67: Theory of mind stats
         if self.theory_of_mind:
@@ -2716,50 +2733,65 @@ class AetherEngine:
                     self._track_subsystem_error('self_repair', e)
                     logger.debug(f"Self-repair error: {e}")
 
-            # #76: Global Workspace — compete and broadcast every 10 blocks
+            # #76: Global Workspace — process block data every 10 blocks
             if self.global_workspace and block.height > 0 and block.height % 10 == 0:
                 try:
-                    import numpy as _np
-                    # Build candidates from recent subsystem outputs
-                    candidates = []
-                    if self.temporal_engine:
-                        candidates.append({
-                            'activation_strength': 0.6,
-                            'relevance': 0.7,
-                            'novelty': 0.5,
-                            'source': 'temporal',
-                            'content': f'block_{block.height}_temporal',
-                        })
-                    if self.causal_engine:
-                        candidates.append({
-                            'activation_strength': 0.5,
-                            'relevance': 0.6,
-                            'novelty': 0.6,
-                            'source': 'causal',
-                            'content': f'block_{block.height}_causal',
-                        })
-                    if block_phi_result:
-                        phi_val = block_phi_result.get('phi_value', 0)
-                        candidates.append({
-                            'activation_strength': min(phi_val, 1.0),
-                            'relevance': 0.8,
-                            'novelty': 0.4,
-                            'source': 'phi',
-                            'content': f'phi_{phi_val:.3f}',
-                        })
-                    if is_meaningful:
-                        candidates.append({
-                            'activation_strength': 0.8,
-                            'relevance': 0.9,
-                            'novelty': 0.7,
-                            'source': 'block_event',
-                            'content': f'meaningful_block_{block.height}',
-                        })
-                    if candidates:
-                        winners = self.global_workspace.compete(candidates)
-                        for w in winners:
-                            if w.get('activation_strength', 0) > 0.5:
-                                self.global_workspace.broadcast(w)
+                    # v5: Use cognitive cycle if processors are registered
+                    if self.global_workspace.has_cognitive_processors:
+                        from .cognitive_processor import StimulusType, WorkspaceItem
+                        block_stimulus = WorkspaceItem(
+                            stimulus_type=StimulusType.BLOCK_DATA,
+                            content=f"Block {block.height} processed",
+                            context={
+                                "block_height": block.height,
+                                "phi_value": block_phi_result.get("phi_value", 0) if block_phi_result else 0,
+                                "is_meaningful": is_meaningful,
+                                "new_nodes": new_nodes_count if 'new_nodes_count' in dir() else 0,
+                            },
+                            source="proof_of_thought",
+                        )
+                        self.global_workspace.run_cognitive_cycle(block_stimulus)
+                    else:
+                        # Legacy: dict-based compete/broadcast
+                        candidates = []
+                        if self.temporal_engine:
+                            candidates.append({
+                                'activation_strength': 0.6,
+                                'relevance': 0.7,
+                                'novelty': 0.5,
+                                'source': 'temporal',
+                                'content': f'block_{block.height}_temporal',
+                            })
+                        if self.causal_engine:
+                            candidates.append({
+                                'activation_strength': 0.5,
+                                'relevance': 0.6,
+                                'novelty': 0.6,
+                                'source': 'causal',
+                                'content': f'block_{block.height}_causal',
+                            })
+                        if block_phi_result:
+                            phi_val = block_phi_result.get('phi_value', 0)
+                            candidates.append({
+                                'activation_strength': min(phi_val, 1.0),
+                                'relevance': 0.8,
+                                'novelty': 0.4,
+                                'source': 'phi',
+                                'content': f'phi_{phi_val:.3f}',
+                            })
+                        if is_meaningful:
+                            candidates.append({
+                                'activation_strength': 0.8,
+                                'relevance': 0.9,
+                                'novelty': 0.7,
+                                'source': 'block_event',
+                                'content': f'meaningful_block_{block.height}',
+                            })
+                        if candidates:
+                            winners = self.global_workspace.compete(candidates)
+                            for w in winners:
+                                if w.get('activation_strength', 0) > 0.5:
+                                    self.global_workspace.broadcast(w)
                 except Exception as e:
                     self._track_subsystem_error('global_workspace', e)
                     logger.debug(f"Global workspace error: {e}")
