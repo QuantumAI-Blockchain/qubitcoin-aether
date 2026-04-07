@@ -133,6 +133,24 @@ class EmotionalState:
                 _mood = "neutral"
             logger.debug("Emotional state updated — mood=%s", _mood)
 
+    def update_from_fep(self, fep_emotions: Dict[str, float]) -> None:
+        """Blend FEP-derived emotions into the current state.
+
+        The Free Energy Engine derives emotions from the free energy
+        landscape (prediction error, precision, convergence). These are
+        blended with metric-based emotions using EMA so neither source
+        dominates — both contribute to a unified emotional state.
+
+        Args:
+            fep_emotions: Dict of emotion name -> intensity (0.0-1.0)
+                          from FreeEnergyEngine.derive_emotional_state().
+        """
+        with self._lock:
+            for emotion, value in fep_emotions.items():
+                if emotion in self._states:
+                    self._ema(emotion, value)
+            self._last_update = time.monotonic()
+
     def _ema(self, emotion: str, target: float) -> None:
         """Exponential moving average toward target (caller holds lock)."""
         current = self._states[emotion]

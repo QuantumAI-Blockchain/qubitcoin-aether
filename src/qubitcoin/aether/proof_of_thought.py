@@ -3391,6 +3391,13 @@ class AetherEngine:
                         ),
                     }
                     self.emotional_state.update(emo_metrics)
+
+                    # v5: Blend FEP-derived emotions (if FreeEnergyEngine available)
+                    if (self.curiosity_engine
+                            and hasattr(self.curiosity_engine, 'derive_emotional_state')
+                            and hasattr(self.emotional_state, 'update_from_fep')):
+                        fep_emotions = self.curiosity_engine.derive_emotional_state()
+                        self.emotional_state.update_from_fep(fep_emotions)
                 except Exception as e:
                     logger.debug(f"Emotional state update error: {e}")
 
