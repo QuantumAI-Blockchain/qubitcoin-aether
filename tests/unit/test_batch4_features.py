@@ -194,9 +194,11 @@ class TestKGLoadVerification:
         db.get_session.return_value = ctx_manager
 
         # Simulate DB returning 2 nodes and 1 edge
+        # Columns: id, node_type, content_hash, content, confidence,
+        #          source_block, domain, grounding_source, reference_count, last_referenced_block
         node_rows = [
-            (1, 'observation', 'hash1', '{"text": "node 1"}', 0.9, 10),
-            (2, 'inference', 'hash2', '{"text": "node 2"}', 0.8, 20),
+            (1, 'observation', 'hash1', '{"text": "node 1"}', 0.9, 10, 'blockchain', '', 0, 0),
+            (2, 'inference', 'hash2', '{"text": "node 2"}', 0.8, 20, 'ai_ml', '', 0, 0),
         ]
         edge_rows = [
             (1, 2, 'supports', 1.0),
