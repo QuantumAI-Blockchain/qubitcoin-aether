@@ -230,11 +230,11 @@ function AetherPageContent() {
 
       if (!fullResponse) throw new Error("Empty response");
 
-      // Update final message with sources
+      // Update final message with sources as reasoning trace
       if (sources.length > 0) {
         const reasoning = sources.map(
           (s) => `[Node ${s.node_id}] ${s.summary} (conf: ${s.confidence.toFixed(2)})`
-        ).join("\n");
+        );
         setMessages((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
