@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 PROCESSOR_TIMEOUT: float = 4.0
 
 # Minimum competition score to enter workspace
-MIN_SCORE_THRESHOLD: float = 0.01
+MIN_SCORE_THRESHOLD: float = 0.001  # Lowered to allow more processors through
 
 # Maximum recent cycles to keep for debugging
 MAX_CYCLE_HISTORY: int = 200

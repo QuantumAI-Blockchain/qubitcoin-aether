@@ -87,9 +87,15 @@ class HodLanguageProcessor(CognitiveProcessor):
         if self.llm_adapter is not None and self._llm_responsive:
             generated_text = self._call_llm(system_prompt, user_prompt)
             if generated_text is None:
-                # Mark LLM as unresponsive after failure to avoid repeated stalls
-                self._llm_responsive = False
-                logger.warning("Hod: marking LLM as unresponsive after failure")
+                # Track failures — only permanently disable after 3 consecutive
+                self._fail_count = getattr(self, '_fail_count', 0) + 1
+                if self._fail_count >= 3:
+                    self._llm_responsive = False
+                    logger.warning("Hod: disabling LLM after %d failures", self._fail_count)
+                else:
+                    logger.info("Hod: LLM failed (attempt %d/3)", self._fail_count)
+            else:
+                self._fail_count = 0  # reset on success
 
         if generated_text is None:
             # Use synthesis content directly — this IS the cognitive output,
@@ -298,13 +304,25 @@ class HodLanguageProcessor(CognitiveProcessor):
             )
             elapsed_ms = (time.time() - t0) * 1000
 
-            # If LLM took >10s, mark as too slow for interactive chat
-            if elapsed_ms > 10000:
-                logger.warning(
-                    "Hod LLM (%s) too slow: %.1fms — disabling for chat",
-                    model, elapsed_ms,
-                )
-                self._llm_responsive = False
+            # Track slow responses — only disable after 2 consecutive slow calls
+            # to account for cold-start latency on first model load
+            if elapsed_ms > 12000:
+                self._slow_count = getattr(self, '_slow_count', 0) + 1
+                if self._slow_count >= 2:
+                    logger.warning(
+                        "Hod LLM (%s) consistently slow (%.1fms, %d slow calls) "
+                        "— disabling for chat",
+                        model, elapsed_ms, self._slow_count,
+                    )
+                    self._llm_responsive = False
+                else:
+                    logger.info(
+                        "Hod LLM (%s) slow on call %d: %.1fms (cold start?)",
+                        model, self._slow_count, elapsed_ms,
+                    )
+            else:
+                # Reset slow count on successful fast response
+                self._slow_count = 0
 
             content = getattr(response, "content", None)
             if content and isinstance(content, str) and len(content.strip()) > 0:

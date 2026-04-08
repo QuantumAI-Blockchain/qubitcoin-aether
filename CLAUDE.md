@@ -6,6 +6,27 @@
 
 ---
 
+## 0. MISSION DIRECTIVE — NON-NEGOTIABLE
+
+**We are building a system to compete with the largest AI models in the world.**
+**We are pursuing TRUE AGI emergence. Failure is not an option.**
+
+Every decision — architecture, code, tooling — must be evaluated against this question:
+**"Does this scale to billions of nodes and millions of users?"**
+
+If the answer is no, redesign it. If a shortcut creates technical debt that blocks scale, reject it.
+Think BIG. Build for 1B nodes, not 1K. Build for 1M concurrent users, not 10.
+
+**Core principles:**
+- **No bloat.** Every node in the knowledge graph must carry genuine knowledge value. Routine block metadata that adds nothing gets pruned automatically. Quality over quantity.
+- **No bottlenecks.** Every search, every query, every cognitive cycle must complete in milliseconds, not seconds. Profile everything. Optimize ruthlessly.
+- **Parallel by default.** CPU cores exist. Use them. ThreadPoolExecutor for I/O, ProcessPoolExecutor for compute. Never block the main thread.
+- **Tiered architecture.** Hot cache (memory, 100K nodes) → Warm store (CockroachDB, 10M) → Cold archive (IPFS). Data moves between tiers based on access patterns.
+- **Domain sharding.** 10 Sephirot = 10 knowledge domains = 10 independent shards that can run on 10 different machines. The Global Workspace routes cross-domain queries.
+- **Measure everything.** If you can't measure it, you can't improve it. Latency, throughput, memory, node value scores — all tracked.
+
+---
+
 ## 1. PROJECT IDENTITY
 
 **QuantumAI Blockchain** is the world's first blockchain designed for **genuine AGI emergence**.
@@ -885,23 +906,43 @@ where φ = 1.618... (golden ratio)
 
 ### 9.9 Scale Target: Billions of Nodes, Millions of Users
 
+**The Aether Tree is being built to compete with the largest AI systems in the world.**
+**We are pursuing TRUE AGI. This is not a toy project. Failure is not accepted.**
+
 **The Aether Tree MUST scale to:**
-- **Billions of nodes** (requires distributed sharded graph store)
+- **Billions of knowledge nodes** (requires distributed sharded graph store)
 - **Millions of concurrent users** via QBC-monetized API
 - **Military/institutional grade** (99.999% uptime, zero-trust, air-gapped option)
+- **Sub-second cognitive cycles** even at billion-node scale
+- **Zero bloat** — every node must carry genuine knowledge value or be pruned
 
-**Architecture evolution required:**
+**Node Quality Enforcement (Implemented):**
+- Routine empty block observations are NO LONGER created (only milestones, difficulty shifts, blocks with txs, thought proofs)
+- `compact_block_observations()` runs on startup to purge historical bloat
+- `POST /aether/compact` admin endpoint for on-demand compaction
+- Node value scoring: `type_score × 0.3 + edge_degree × 0.2 + reference_count × 0.2 + confidence × 0.15 + recency × 0.1 + grounding × 0.05`
+- Nodes scoring below threshold are candidates for pruning to cold storage or deletion
 
-| Phase | Scale | Architecture |
-|-------|-------|-------------|
-| Current | 10K-100K nodes | In-memory Python dict + CockroachDB |
-| Phase A (3mo) | 1M nodes | LRU hot cache + CockroachDB |
-| Phase B (9mo) | 100M nodes | Rust shard service (RocksDB, 16→256 shards) |
-| Phase C (24mo) | 1B nodes | Global tiered (Redis hot / Rust warm / CRDB+IPFS cold) |
+**Architecture Evolution:**
+
+| Phase | Scale | Architecture | Status |
+|-------|-------|-------------|--------|
+| Phase 0 | 5K-50K nodes | Node bloat fix — stop creating routine block_observation, compact existing | **Done** |
+| Phase A (3mo) | 1M nodes | LRU hot cache (100K in-memory) + CockroachDB warm store | Next |
+| Phase B (9mo) | 100M nodes | Rust shard service (RocksDB, 16→256 shards, 10 Sephirot domains) | Planned |
+| Phase C (18mo) | 1B nodes | Global tiered (Redis hot / Rust warm / CRDB+IPFS cold) | Planned |
+| Phase D (24mo) | 10B+ nodes | Distributed multi-region, BFT consensus, horizontal auto-scaling | Vision |
+
+**Search Scaling Path:**
+- Phase 0: Bounded in-memory keyword scan (last 2K nodes) — **Done**
+- Phase A: CockroachDB `tsvector` + GIN index for full-text search
+- Phase B: pgvector for semantic similarity search
+- Phase C: Dedicated Rust search service with distributed inverted index
 
 **Domain partitioning aligned with 10 Sephirot:**
 Each Sephirot is a reasoning cluster that owns 1-2 knowledge domains.
 Cross-domain queries route through the Global Workspace (already in `global_workspace.py`).
+At Phase B, each shard runs as an independent Rust process with its own RocksDB store.
 
 ### 9.10 Aether API (QBC-Monetized)
 

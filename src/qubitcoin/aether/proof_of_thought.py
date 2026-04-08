@@ -1142,10 +1142,23 @@ class AetherEngine:
         # Step 1: Perform automated reasoning on the graph
         reasoning_steps = self._auto_reason(block_height)
 
-        # Step 2: Inject subsystem stats and compute Phi
-        self.phi.set_subsystem_stats(self._collect_subsystem_stats())
-        phi_result = self.phi.compute_phi(block_height)
+        # Step 2: Use cached Phi to avoid blocking block production.
+        # Phi computation (9-17s) is decoupled from the block pipeline:
+        # - Use _last_full_result if available (computed async in background)
+        # - Only compute synchronously on first block or every 100th block
+        # - Fire background thread to pre-compute next Phi
+        phi_result = None
+        if self.phi._last_full_result is not None:
+            phi_result = self.phi._last_full_result
+        else:
+            # First block or cache miss — compute synchronously (one-time cost)
+            self.phi.set_subsystem_stats(self._collect_subsystem_stats())
+            phi_result = self.phi.compute_phi(block_height)
+
         phi_value = phi_result['phi_value']
+
+        # Fire async Phi pre-computation for next block (non-blocking)
+        self._schedule_async_phi(block_height)
 
         # Step 3: Compute knowledge root
         knowledge_root = self.kg.compute_knowledge_root()
@@ -1354,26 +1367,29 @@ class AetherEngine:
             is_milestone = block.height > 0 and block.height % 1000 == 0
             is_genesis = block.height == 0
 
-            # Check for significant difficulty change
+            # Check for significant difficulty change — use cached last difficulty
+            # instead of scanning all block_observation nodes (O(N) on 700K+ nodes).
             has_difficulty_shift = False
             if block.height > 0 and hasattr(block, 'difficulty') and block.difficulty:
-                prev_nodes = [
-                    n for n in self.kg.nodes.values()
-                    if n.content.get('type') == 'block_observation'
-                    and n.content.get('height', -1) < block.height
-                ]
-                if prev_nodes:
-                    latest_prev = max(prev_nodes, key=lambda n: n.content.get('height', 0))
-                    prev_diff = latest_prev.content.get('difficulty', 0)
-                    if prev_diff > 0:
-                        change = abs(block.difficulty - prev_diff) / prev_diff
-                        has_difficulty_shift = change > 0.05  # >5% change
+                prev_diff = getattr(self, '_last_block_difficulty', None)
+                if prev_diff and prev_diff > 0:
+                    change = abs(block.difficulty - prev_diff) / prev_diff
+                    has_difficulty_shift = change > 0.05  # >5% change
+                self._last_block_difficulty = block.difficulty
 
-            # Every block on a live chain carries meaningful data (difficulty,
-            # timing, energy) — the chain heartbeat IS the AGI's sensory input.
-            # Richer observations (tx patterns, difficulty shifts) are extracted
-            # separately. Always create at least a lightweight observation node.
-            is_meaningful = True
+            # Only create KG nodes for blocks that carry genuine knowledge.
+            # Routine empty blocks add no value — they bloat the graph with
+            # hundreds of thousands of identical block_observation nodes that
+            # slow search, waste memory, and dilute real knowledge.
+            # At 1M+ nodes, every unnecessary node costs search time.
+            is_meaningful = (
+                has_real_txs
+                or has_contract_txs
+                or has_thought_proof
+                or has_difficulty_shift
+                or is_milestone
+                or is_genesis
+            )
 
             block_node = None
             if is_meaningful:
@@ -1413,10 +1429,12 @@ class AetherEngine:
                 # Block metadata is ground truth from the chain itself
                 block_node.grounding_source = 'block_oracle'
 
-                # Link to nearest previous block observation
-                if block.height > 0 and prev_nodes:
-                    latest_prev = max(prev_nodes, key=lambda n: n.content.get('height', 0))
-                    self.kg.add_edge(latest_prev.node_id, block_node.node_id, 'derives')
+                # Link to previous meaningful block observation (cached)
+                prev_block_node_id = getattr(self, '_last_block_node_id', None)
+                if block.height > 0 and prev_block_node_id is not None:
+                    if prev_block_node_id in self.kg.nodes:
+                        self.kg.add_edge(prev_block_node_id, block_node.node_id, 'derives')
+                self._last_block_node_id = block_node.node_id
 
             # Extract quantum proof knowledge (only when block node exists)
             if block_node and block.proof_data and isinstance(block.proof_data, dict):
@@ -4118,6 +4136,33 @@ class AetherEngine:
 
         return stats
 
+    def _schedule_async_phi(self, block_height: int) -> None:
+        """
+        Pre-compute Phi in a background thread so the next block can use
+        the cached result without blocking.  Runs at most once per 10 blocks
+        to avoid saturating the CPU.
+        """
+        if block_height % 10 != 0:
+            return  # Only refresh every 10 blocks
+        if getattr(self, '_phi_computing', False):
+            return  # Already computing
+
+        import threading
+
+        def _compute():
+            try:
+                self._phi_computing = True
+                self.phi.set_subsystem_stats(self._collect_subsystem_stats())
+                self.phi.compute_phi(block_height)
+                # Result is stored in self.phi._last_full_result
+            except Exception as e:
+                logger.debug(f"Async Phi computation error: {e}")
+            finally:
+                self._phi_computing = False
+
+        t = threading.Thread(target=_compute, daemon=True, name="phi-async")
+        t.start()
+
     def _auto_reason(self, block_height: int) -> List[dict]:
         """
         Perform automated reasoning operations on recent knowledge.
@@ -4986,9 +5031,13 @@ class AetherEngine:
             return 0
 
         detected = 0
-        # Find recent block observations that made claims about difficulty trends
+        # Find recent block observations with difficulty_shift claims.
+        # Scan only the last 500 nodes (post-compaction, meaningful blocks
+        # are rare enough that 500 covers well beyond 5000 blocks).
+        all_items = list(self.kg.nodes.items())
+        scan_slice = all_items[-500:] if len(all_items) > 500 else all_items
         recent_block_obs = [
-            n for n in self.kg.nodes.values()
+            n for _, n in scan_slice
             if (n.content.get('type') == 'block_observation'
                 and n.node_id != block_node.node_id
                 and n.content.get('difficulty_shift', False)

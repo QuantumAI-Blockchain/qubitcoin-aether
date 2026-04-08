@@ -684,7 +684,7 @@ class AetherChat:
                     base_url=Config.OLLAMA_BASE_URL,
                     max_tokens=512,
                     temperature=0.7,
-                    timeout_s=15.0,
+                    timeout_s=25.0,  # 25s for cold start; Hod auto-disables if >10s
                 )
                 if chat_adapter.is_available():
                     logger.info(
@@ -1737,10 +1737,16 @@ class AetherChat:
         # Build multi-turn conversation context
         conversation_context = self._build_conversation_context(session)
 
-        # Error recovery & KGQA fallback — skip when v5 cortex is active
-        # as the cortex already produced the best possible response.
-        # These fallbacks trigger slow KG scans + LLM calls (60s+ on CPU).
-        if self._response_cortex is None:
+        # Error recovery & KGQA fallback — run when response is still poor,
+        # regardless of whether v5 cortex is active. Only skip the slow
+        # _error_recovery_search when we already have decent content.
+        _needs_recovery = len(response_content) < 50 or (
+            len(response_content) < 100 and (
+                re.search(r'-?\d+\.\d{5,}', response_content)
+                or '[source:' in response_content
+            )
+        )
+        if _needs_recovery:
             # Error recovery: if response is too short, try aggressive KG search
             if len(response_content) < 50:
                 response_content = self._error_recovery_search(
@@ -2242,49 +2248,229 @@ class AetherChat:
     def _fast_search_knowledge(self, query: str) -> List[int]:
         """Fast knowledge search for the v5 chat pipeline.
 
-        Uses the KG's built-in search (TF-IDF + vector index) which is
-        O(index_size) not O(node_count). Falls back to a bounded keyword
-        scan of the last 2000 nodes only if the index returns nothing.
-        Target: <500ms.
+        Uses the TF-IDF inverted index for O(query_terms) lookup — scales to
+        millions of nodes. Falls back to a filtered keyword scan only if the
+        index is empty.
+
+        The TF-IDF index is maintained incrementally (IDF refreshes every 1000
+        additions), so queries use a stale-but-fast IDF cache.
         """
         if not self.engine.kg or not self.engine.kg.nodes:
             return []
 
-        # Skip kg.search() — its TF-IDF _refresh_idf() is O(unique_terms)
-        # which takes 10+ seconds on 693K+ nodes. Use keyword scan instead.
+        t0 = time.time()
 
-        # Fallback: bounded keyword scan on last 2000 nodes
+        # Phase 1: Use TF-IDF inverted index (O(query_terms), scales to millions)
+        si = getattr(self.engine.kg, 'search_index', None)
+        if si and si.n_docs > 0:
+            try:
+                results = si.query(query, top_k=20)
+                if results:
+                    # Filter out block_observation noise and re-rank by content quality
+                    ranked: List[tuple] = []
+                    for nid, score in results:
+                        node = self.engine.kg.nodes.get(nid)
+                        if not node:
+                            continue
+                        content = node.content
+                        if isinstance(content, dict):
+                            ctype = content.get('type', '')
+                            if ctype in ('block_observation', 'quantum_observation'):
+                                continue
+                            # Boost content with actual text
+                            text_len = len(str(content.get('text', '')))
+                            if text_len > 50:
+                                score *= 2.0  # Rich text content
+                        # Boost axioms and external facts
+                        if node.node_type in ('axiom', 'external_fact', 'assertion'):
+                            score *= 1.5
+                        ranked.append((nid, score))
+                    ranked.sort(key=lambda x: x[1], reverse=True)
+                    if ranked:
+                        elapsed = (time.time() - t0) * 1000
+                        logger.info(
+                            "TF-IDF search: %d results in %.1fms (from %d index docs)",
+                            len(ranked), elapsed, si.n_docs,
+                        )
+                        return [nid for nid, _ in ranked[:10]]
+            except Exception as e:
+                logger.debug("TF-IDF search failed: %s", e)
+
+        # Phase 2: Vector similarity search
+        vi = getattr(self.engine.kg, 'vector_index', None)
+        if vi and getattr(vi, 'embeddings', None):
+            try:
+                vec_results = vi.query(query, top_k=10)
+                if vec_results:
+                    return [nid for nid, score in vec_results if score > 0.3]
+            except Exception as e:
+                logger.debug("Vector search failed: %s", e)
+
+        # Phase 3: Fallback keyword scan on content-rich nodes only
         query_lower = query.lower()
         query_words = [w for w in query_lower.split() if len(w) > 2]
         if not query_words:
             return []
 
-        nodes_items = list(self.engine.kg.nodes.items())
-        scan_slice = nodes_items[-2000:] if len(nodes_items) > 2000 else nodes_items
-
-        scored = []
-        for node_id, node in scan_slice:
+        _content_types = {'axiom', 'assertion', 'external_fact'}
+        scored_fb: List[tuple] = []
+        for node_id, node in self.engine.kg.nodes.items():
             content = node.content
-            if isinstance(content, str):
-                text = content.lower()
-            elif isinstance(content, dict):
+            if isinstance(content, dict):
+                ctype = content.get('type', '')
+                if ctype in ('block_observation', 'quantum_observation',
+                             'anomaly_detection', 'thought_proof'):
+                    if node.node_type not in _content_types:
+                        if not content.get('text') or len(str(content.get('text', ''))) < 30:
+                            continue
                 parts = []
-                for key in ('text', 'title', 'summary', 'description', 'name',
-                            'domain', 'type', 'topic'):
+                for key in ('text', 'title', 'summary', 'description', 'name', 'topic'):
                     val = content.get(key, '')
                     if val:
                         parts.append(str(val))
                 text = ' '.join(parts).lower()
+            elif isinstance(content, str):
+                text = content.lower()
+            else:
+                continue
+            if len(text) < 10:
+                continue
+            hits = sum(1 for w in query_words if w in text)
+            if hits > 0:
+                type_boost = 2.0 if node.node_type in _content_types else 1.0
+                text_boost = min(2.0, len(text) / 200.0)
+                scored_fb.append((node_id, (hits + getattr(node, 'confidence', 0.5)) * type_boost * text_boost))
+            if len(scored_fb) >= 50:
+                break
+
+        scored_fb.sort(key=lambda x: x[1], reverse=True)
+        elapsed = (time.time() - t0) * 1000
+        logger.info("Fallback keyword search: %d results in %.1fms", len(scored_fb), elapsed)
+        return [s[0] for s in scored_fb[:10]]
+
+    def _format_kg_response(self, query: str, knowledge_refs: List[int],
+                             intent: str = '', entities: Optional[Dict[str, Any]] = None) -> str:
+        """Format a readable response from KG nodes without needing LLM.
+
+        Extracts the most informative text content from the matched nodes
+        and presents it as a coherent response. This is the fast fallback
+        when both the v5 cortex and LLM are unavailable.
+
+        Returns empty string if no useful content can be extracted.
+        """
+        if not self.engine.kg:
+            return ''
+
+        # Gather text content from matched nodes
+        facts: List[str] = []
+        domains_seen: set = set()
+        for nid in knowledge_refs[:8]:
+            node = self.engine.kg.nodes.get(nid)
+            if not node:
+                continue
+            content = node.content
+            if isinstance(content, dict):
+                # Prioritize human-readable fields
+                text = (
+                    content.get('text', '')
+                    or content.get('summary', '')
+                    or content.get('description', '')
+                    or content.get('title', '')
+                )
+                # Skip raw block data
+                if content.get('type') == 'block_observation':
+                    continue
+                domain = content.get('domain', '')
+                if domain:
+                    domains_seen.add(domain)
+            elif isinstance(content, str):
+                text = content
             else:
                 continue
 
-            hits = sum(1 for w in query_words if w in text)
-            if hits > 0:
-                score = hits + getattr(node, 'confidence', 0.5)
-                scored.append((node_id, score))
+            text = str(text).strip()
+            # Skip very short or purely numeric content
+            if len(text) < 20 or re.match(r'^[\d\.\-\s]+$', text):
+                continue
+            # Deduplicate similar facts
+            if not any(text[:50] in f for f in facts):
+                facts.append(text)
 
-        scored.sort(key=lambda x: x[1], reverse=True)
-        return [s[0] for s in scored[:10]]
+        if not facts:
+            return ''
+
+        # Build a coherent response
+        parts: List[str] = []
+
+        # Get emotional state for tone
+        mood_prefix = ''
+        try:
+            if hasattr(self.engine, 'emotional_state') and self.engine.emotional_state:
+                mood = getattr(self.engine.emotional_state, 'mood', '')
+                if mood and mood != 'neutral':
+                    mood_map = {
+                        'curious': "That's a fascinating topic! ",
+                        'excited': "Great question! ",
+                        'contemplative': "Let me share what I know. ",
+                        'satisfied': "I have some good knowledge on this. ",
+                    }
+                    mood_prefix = mood_map.get(mood, '')
+        except Exception:
+            pass
+
+        if mood_prefix:
+            parts.append(mood_prefix)
+
+        # Introductory framing based on intent
+        if intent in ('greeting', 'hello'):
+            phi_value = 0.0
+            if self.engine.phi:
+                try:
+                    phi_value = self.engine.phi.get_cached().get('phi_value', 0.0)
+                except Exception:
+                    pass
+            kg_count = len(self.engine.kg.nodes)
+            return (
+                f"Hello! I'm the Aether Tree — the world's first on-chain AGI. "
+                f"I have {kg_count:,} knowledge nodes and my cognitive integration "
+                f"(phi) is {phi_value:.2f}. Ask me about quantum computing, "
+                f"blockchain, physics, or anything in my knowledge domains!"
+            )
+
+        # Present the most relevant fact as the main answer
+        main_fact = facts[0]
+        # Trim to reasonable length
+        if len(main_fact) > 500:
+            # Find a sentence boundary
+            cutoff = main_fact[:500].rfind('. ')
+            if cutoff > 200:
+                main_fact = main_fact[:cutoff + 1]
+            else:
+                main_fact = main_fact[:500] + '...'
+
+        parts.append(main_fact)
+
+        # Add supporting facts if available
+        if len(facts) > 1:
+            supporting = []
+            for f in facts[1:3]:
+                # Avoid repeating the main fact's content
+                if f[:40] not in main_fact and main_fact[:40] not in f:
+                    snippet = f[:300]
+                    if len(f) > 300:
+                        cutoff = snippet.rfind('. ')
+                        snippet = snippet[:cutoff + 1] if cutoff > 100 else snippet + '...'
+                    supporting.append(snippet)
+            if supporting:
+                parts.append('\n\n' + '\n\n'.join(supporting))
+
+        # Add domain context
+        if domains_seen:
+            domain_str = ', '.join(sorted(domains_seen))
+            parts.append(f'\n\n[Knowledge domains: {domain_str}]')
+
+        response = ''.join(parts)
+        return response if len(response) >= 50 else ''
 
     def _search_knowledge(self, query: str) -> List[int]:
         """Search the knowledge graph for nodes relevant to the query.
@@ -2497,7 +2683,16 @@ class AetherChat:
                 )
 
                 response_text = cortex_result.get("response", "")
-                if response_text and len(response_text) >= 10:
+                # Check if cortex produced a genuinely useful response —
+                # reject raw data dumps (numbers, source refs, energy levels)
+                _is_good = (
+                    response_text
+                    and len(response_text) >= 40
+                    and not re.search(r'-?\d+\.\d{5,}', response_text)  # raw floats
+                    and '[source:' not in response_text
+                    and 'energy level is' not in response_text.lower()
+                )
+                if _is_good:
                     logger.info(
                         "v5 cortex response: %d chars, conf=%.3f",
                         len(response_text),
@@ -2505,11 +2700,25 @@ class AetherChat:
                     )
                     return response_text
 
-                logger.info("v5 cortex response too short (%d chars), falling back", len(response_text))
+                logger.info(
+                    "v5 cortex response rejected (len=%d, quality check failed), "
+                    "falling through to KG formatter",
+                    len(response_text),
+                )
             except Exception as e:
-                logger.warning("v5 cortex failed, falling back to legacy: %s", e)
+                logger.warning("v5 cortex failed, falling back: %s", e)
 
-        # ── Fallback: LLM synthesis when v5 cortex unavailable ──
+        # ── Fallback 1: Format response from found KG nodes (fast, no LLM) ──
+        if knowledge_refs and self.engine.kg:
+            kg_response = self._format_kg_response(query, knowledge_refs, intent, entities)
+            if kg_response and len(kg_response) >= 50:
+                logger.info(
+                    "KG formatter produced %d chars from %d refs",
+                    len(kg_response), len(knowledge_refs),
+                )
+                return kg_response
+
+        # ── Fallback 2: LLM synthesis ──
         if self.llm_manager and Config.LLM_ENABLED:
             try:
                 node_contents, facts = self._gather_kg_context(knowledge_refs)
@@ -2536,7 +2745,7 @@ class AetherChat:
                     reasoning_trace, knowledge_refs,
                 )
                 _llm_ex.shutdown(wait=False)
-                llm_result = _llm_fut.result(timeout=90.0)
+                llm_result = _llm_fut.result(timeout=20.0)
                 if llm_result and len(llm_result) > 30:
                     return llm_result
             except Exception as e:

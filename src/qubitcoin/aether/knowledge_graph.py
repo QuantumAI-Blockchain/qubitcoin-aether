@@ -420,6 +420,30 @@ class KnowledgeGraph:
                          f"{self.search_index.get_stats()['unique_terms']} indexed terms, "
                          f"{len(domain_counts)} domains, {grounded_count} retroactively grounded"
                          + (f" ({unclassified} auto-classified)" if unclassified else ''))
+
+            # Auto-compact routine block_observation bloat on startup.
+            # On a 185K+ block chain, ~691K of ~695K nodes are routine empty
+            # block observations that add zero knowledge value. Remove them.
+            block_obs_count = sum(
+                1 for n in self.nodes.values()
+                if isinstance(n.content, dict) and n.content.get('type') == 'block_observation'
+                and n.content.get('tx_count', 0) <= 1
+                and not n.content.get('milestone')
+                and not n.content.get('difficulty_shift')
+                and not n.content.get('has_thought_proof')
+            )
+            if block_obs_count > 1000:
+                logger.info(
+                    "Auto-compacting %d routine block_observation nodes on startup...",
+                    block_obs_count,
+                )
+                compacted = self.compact_block_observations()
+                if compacted > 0:
+                    # Refresh search index after mass removal
+                    if hasattr(self.search_index, '_refresh_idf'):
+                        self.search_index._idf_dirty = True
+                        self.search_index._refresh_idf()
+
         except Exception as e:
             logger.warning(
                 f"Knowledge graph DB load failed ({nodes_loaded} nodes, {edges_loaded} edges recovered): {e}"
@@ -1677,7 +1701,7 @@ class KnowledgeGraph:
     # Improvements 51-65: Advanced Knowledge Graph Operations
     # ────────────────────────────────────────────────────────────────────────
 
-    MAX_NODES: int = 500_000  # OOM protection cap
+    MAX_NODES: int = 2_000_000  # OOM protection cap (raised post-compaction)
 
     def prune_stale_nodes(self, max_age_blocks: int = 50000,
                           min_confidence: float = 0.2,
@@ -2048,6 +2072,127 @@ class KnowledgeGraph:
             'by_source': by_source,
         }
 
+    def compact_block_observations(self, keep_milestones: bool = True,
+                                    keep_difficulty_shifts: bool = True,
+                                    keep_every_nth: int = 1000) -> int:
+        """Remove routine block_observation nodes that add no knowledge value.
+
+        Keeps milestone blocks, difficulty shifts, blocks with transactions,
+        and every Nth block for chain continuity. Removes everything else.
+
+        This is the primary tool for eliminating node bloat. On a chain at
+        block 185K+ with 695K nodes, ~691K are routine block_observations.
+
+        Args:
+            keep_milestones: Keep blocks marked as milestones.
+            keep_difficulty_shifts: Keep blocks with difficulty_shift=True.
+            keep_every_nth: Keep every Nth block for continuity (0 = keep none).
+
+        Returns:
+            Number of nodes removed.
+        """
+        to_remove: List[int] = []
+        for nid, node in self.nodes.items():
+            content = node.content
+            if not isinstance(content, dict):
+                continue
+            if content.get('type') != 'block_observation':
+                continue
+            # Never remove axioms or grounded nodes
+            if node.node_type == 'axiom' or node.grounding_source:
+                continue
+
+            height = content.get('height', 0)
+            # Keep conditions
+            if keep_milestones and content.get('milestone'):
+                continue
+            if keep_difficulty_shifts and content.get('difficulty_shift'):
+                continue
+            if content.get('tx_count', 0) > 1:  # Has real transactions
+                continue
+            if content.get('has_thought_proof'):
+                continue
+            if keep_every_nth > 0 and height % keep_every_nth == 0:
+                continue
+            # This is a routine empty block observation — remove it
+            to_remove.append(nid)
+
+        if not to_remove:
+            logger.info("Compaction: no routine block_observations to remove")
+            return 0
+
+        logger.info(
+            "Compacting %d routine block_observation nodes (keeping milestones=%s, "
+            "difficulty_shifts=%s, every_%d)",
+            len(to_remove), keep_milestones, keep_difficulty_shifts, keep_every_nth,
+        )
+
+        # Use existing prune infrastructure for safe removal
+        remove_set = set(to_remove)
+        with self._lock:
+            self.edges = [
+                e for e in self.edges
+                if e.from_node_id not in remove_set and e.to_node_id not in remove_set
+            ]
+            for nid in remove_set:
+                for edge in self._adj_out.get(nid, []):
+                    adj_list = self._adj_in.get(edge.to_node_id, [])
+                    self._adj_in[edge.to_node_id] = [e for e in adj_list if e.from_node_id != nid]
+                    neighbor = self.nodes.get(edge.to_node_id)
+                    if neighbor and nid in neighbor.edges_in:
+                        neighbor.edges_in.remove(nid)
+                for edge in self._adj_in.get(nid, []):
+                    adj_list = self._adj_out.get(edge.from_node_id, [])
+                    self._adj_out[edge.from_node_id] = [e for e in adj_list if e.to_node_id != nid]
+                    neighbor = self.nodes.get(edge.from_node_id)
+                    if neighbor and nid in neighbor.edges_out:
+                        neighbor.edges_out.remove(nid)
+                self._adj_out.pop(nid, None)
+                self._adj_in.pop(nid, None)
+                del self.nodes[nid]
+            self._merkle_dirty = True
+
+        # Cascade to search and vector indices
+        for nid in remove_set:
+            if hasattr(self, 'search_index') and self.search_index is not None:
+                try:
+                    self.search_index.remove_node(nid)
+                except Exception:
+                    pass
+            if hasattr(self, 'vector_index') and self.vector_index is not None:
+                try:
+                    self.vector_index.remove_node(nid)
+                except Exception:
+                    pass
+
+        # Delete from database
+        if hasattr(self, 'db_manager') and self.db_manager:
+            try:
+                from ..database.manager import DatabaseManager
+                if isinstance(self.db_manager, DatabaseManager):
+                    with self.db_manager.get_session() as session:
+                        from ..database.models import KnowledgeNode, KnowledgeEdge
+                        batch_size = 500
+                        remove_list = list(remove_set)
+                        for i in range(0, len(remove_list), batch_size):
+                            batch = remove_list[i:i + batch_size]
+                            session.query(KnowledgeEdge).filter(
+                                (KnowledgeEdge.from_node_id.in_(batch))
+                                | (KnowledgeEdge.to_node_id.in_(batch))
+                            ).delete(synchronize_session=False)
+                            session.query(KnowledgeNode).filter(
+                                KnowledgeNode.node_id.in_(batch)
+                            ).delete(synchronize_session=False)
+                        session.commit()
+                    logger.info("Compaction: deleted %d nodes from database", len(remove_set))
+            except Exception as e:
+                logger.warning("Compaction DB cleanup failed: %s", e)
+
+        logger.info(
+            "Compaction complete: removed %d nodes, %d remaining",
+            len(remove_set), len(self.nodes),
+        )
+        return len(remove_set)
 
 # --- Rust acceleration shim ---
 # aether_core Rust acceleration: data classes (KeterNode/KeterEdge) stay Python
