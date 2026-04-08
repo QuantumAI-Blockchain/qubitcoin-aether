@@ -1014,6 +1014,9 @@ class KnowledgeGraph:
         """
         Semantic search blending TF-IDF keyword match + dense vector similarity.
 
+        Uses in-memory TF-IDF + vector index for speed, with DB text search
+        as supplemental source for broader coverage of 700K+ nodes.
+
         Args:
             query: Natural language search query
             top_k: Maximum results to return
@@ -1033,16 +1036,99 @@ class KnowledgeGraph:
         for nid, score in vector_results:
             scores[nid] = scores.get(nid, 0.0) + 0.6 * score
 
+        # DB text search as supplemental source (catches nodes not in memory/index)
+        try:
+            db_results = self._db_text_search(query, limit=top_k * 2)
+            for nid, score in db_results:
+                # Lower weight for DB results to not overwhelm in-memory matches
+                scores[nid] = scores.get(nid, 0.0) + 0.3 * score
+        except Exception:
+            pass  # DB search is best-effort supplemental
+
         # Sort by blended score, return top_k
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
         return [
-            (self.nodes[nid], score)
+            (self.nodes.get(nid, self._row_to_node_safe(nid)), score)
             for nid, score in ranked
-            if nid in self.nodes
+            if nid in self.nodes or self._node_exists_in_db(nid)
         ]
 
+    def _db_text_search(self, query: str, limit: int = 20) -> List[Tuple[int, float]]:
+        """Search knowledge_nodes using search_text column with LIKE.
+
+        Uses idx_kn_search_text index. Returns (node_id, relevance_score) tuples.
+        """
+        from sqlalchemy import text
+        # Split query into keywords, search with ILIKE for each
+        keywords = [w.strip().lower() for w in query.split() if len(w.strip()) >= 3]
+        if not keywords:
+            return []
+
+        # Build WHERE clause: search_text ILIKE '%keyword%' for each keyword
+        # Use the first 3 keywords to keep the query fast
+        conditions = []
+        params: dict = {'lim': limit}
+        for i, kw in enumerate(keywords[:3]):
+            conditions.append(f"search_text ILIKE :kw{i}")
+            params[f'kw{i}'] = f'%{kw}%'
+
+        where = ' AND '.join(conditions)
+        with self.db.get_session() as session:
+            rows = session.execute(
+                text(f"""SELECT id, confidence
+                         FROM knowledge_nodes
+                         WHERE {where}
+                         ORDER BY confidence DESC
+                         LIMIT :lim"""),
+                params
+            ).fetchall()
+        # Normalize confidence as relevance score
+        return [(r[0], float(r[1] or 0.5)) for r in rows]
+
+    def _row_to_node_safe(self, node_id: int) -> Optional[KeterNode]:
+        """Fetch a single node from DB by ID. Returns None on failure."""
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                r = session.execute(
+                    text("""SELECT id, node_type, content_hash, content, confidence,
+                                   source_block, domain, grounding_source,
+                                   reference_count, last_referenced_block
+                            FROM knowledge_nodes WHERE id = :nid"""),
+                    {'nid': node_id}
+                ).fetchone()
+            if r:
+                node = self._row_to_node(r)
+                # Cache it for future lookups
+                self.nodes[node.node_id] = node
+                return node
+        except Exception:
+            pass
+        return None
+
+    def _node_exists_in_db(self, node_id: int) -> bool:
+        """Quick check if a node exists in DB (for search result validation)."""
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                r = session.execute(
+                    text("SELECT 1 FROM knowledge_nodes WHERE id = :nid"),
+                    {'nid': node_id}
+                ).fetchone()
+            return r is not None
+        except Exception:
+            return False
+
     def find_by_type(self, node_type: str, limit: int = 100) -> List[KeterNode]:
-        """Find nodes by type, sorted by confidence descending."""
+        """Find nodes by type, sorted by confidence descending.
+
+        Uses CockroachDB indexed query (idx_kn_type_source_block) instead of
+        O(n) Python dict scan.  Falls back to in-memory scan if DB unavailable.
+        """
+        try:
+            return self._db_find_by_type(node_type, limit)
+        except Exception as e:
+            logger.debug("DB find_by_type fallback to memory: %s", e)
         with self._lock:
             matching = [
                 n for n in self.nodes.values()
@@ -1051,8 +1137,40 @@ class KnowledgeGraph:
         matching.sort(key=lambda n: n.confidence, reverse=True)
         return matching[:limit]
 
+    def _db_find_by_type(self, node_type: str, limit: int) -> List[KeterNode]:
+        """DB-backed find_by_type using idx_kn_type_source_block index."""
+        from sqlalchemy import text
+        with self.db.get_session() as session:
+            rows = session.execute(
+                text("""SELECT id, node_type, content_hash, content, confidence,
+                               source_block, domain, grounding_source,
+                               reference_count, last_referenced_block
+                        FROM knowledge_nodes
+                        WHERE node_type = :ntype
+                        ORDER BY confidence DESC
+                        LIMIT :lim"""),
+                {'ntype': node_type, 'lim': limit}
+            ).fetchall()
+        result = []
+        for r in rows:
+            # Check cache first, populate from DB if missing
+            cached = self.nodes.get(r[0])
+            if cached:
+                result.append(cached)
+            else:
+                result.append(self._row_to_node(r))
+        return result
+
     def find_by_content(self, key: str, value: str, limit: int = 50) -> List[KeterNode]:
-        """Find nodes whose content dict contains a matching key-value."""
+        """Find nodes whose content dict contains a matching key-value.
+
+        Uses CockroachDB JSONB inverted index (idx_kn_content_gin) instead of
+        O(n) Python dict scan.  Falls back to in-memory scan if DB unavailable.
+        """
+        try:
+            return self._db_find_by_content(key, value, limit)
+        except Exception as e:
+            logger.debug("DB find_by_content fallback to memory: %s", e)
         with self._lock:
             matching = [
                 n for n in self.nodes.values()
@@ -1061,8 +1179,41 @@ class KnowledgeGraph:
         matching.sort(key=lambda n: n.source_block, reverse=True)
         return matching[:limit]
 
+    def _db_find_by_content(self, key: str, value: str, limit: int) -> List[KeterNode]:
+        """DB-backed find_by_content using JSONB containment operator (@>)."""
+        from sqlalchemy import text
+        # CockroachDB @> containment operator uses GIN index
+        filter_json = json.dumps({key: value})
+        with self.db.get_session() as session:
+            rows = session.execute(
+                text("""SELECT id, node_type, content_hash, content, confidence,
+                               source_block, domain, grounding_source,
+                               reference_count, last_referenced_block
+                        FROM knowledge_nodes
+                        WHERE content @> :filter::jsonb
+                        ORDER BY source_block DESC
+                        LIMIT :lim"""),
+                {'filter': filter_json, 'lim': limit}
+            ).fetchall()
+        result = []
+        for r in rows:
+            cached = self.nodes.get(r[0])
+            if cached:
+                result.append(cached)
+            else:
+                result.append(self._row_to_node(r))
+        return result
+
     def find_recent(self, count: int = 20) -> List[KeterNode]:
-        """Get the most recently added nodes by source block."""
+        """Get the most recently added nodes by source block.
+
+        Uses CockroachDB indexed query (idx_kn_source_block_desc) instead of
+        O(n) Python sort.  Falls back to in-memory scan if DB unavailable.
+        """
+        try:
+            return self._db_find_recent(count)
+        except Exception as e:
+            logger.debug("DB find_recent fallback to memory: %s", e)
         with self._lock:
             nodes = sorted(
                 self.nodes.values(),
@@ -1070,6 +1221,44 @@ class KnowledgeGraph:
                 reverse=True,
             )
         return nodes[:count]
+
+    def _db_find_recent(self, count: int) -> List[KeterNode]:
+        """DB-backed find_recent using idx_kn_source_block_desc index."""
+        from sqlalchemy import text
+        with self.db.get_session() as session:
+            rows = session.execute(
+                text("""SELECT id, node_type, content_hash, content, confidence,
+                               source_block, domain, grounding_source,
+                               reference_count, last_referenced_block
+                        FROM knowledge_nodes
+                        ORDER BY source_block DESC
+                        LIMIT :lim"""),
+                {'lim': count}
+            ).fetchall()
+        result = []
+        for r in rows:
+            cached = self.nodes.get(r[0])
+            if cached:
+                result.append(cached)
+            else:
+                result.append(self._row_to_node(r))
+        return result
+
+    @staticmethod
+    def _row_to_node(r) -> KeterNode:
+        """Convert a DB row tuple to a KeterNode."""
+        return KeterNode(
+            node_id=r[0],
+            node_type=r[1],
+            content_hash=r[2],
+            content=json.loads(r[3]) if isinstance(r[3], str) else (r[3] or {}),
+            confidence=float(r[4] or 0.5),
+            source_block=r[5] or 0,
+            domain=r[6] or '',
+            grounding_source=r[7] or '',
+            reference_count=r[8] or 0,
+            last_referenced_block=r[9] or 0,
+        )
 
     def get_edge_types_for_node(self, node_id: int) -> Dict[str, List[int]]:
         """Get all edges grouped by type for a specific node. O(degree) via adjacency index."""
@@ -1195,7 +1384,15 @@ class KnowledgeGraph:
         return boosted
 
     def get_domain_stats(self) -> Dict[str, dict]:
-        """Get node counts and average confidence per domain."""
+        """Get node counts and average confidence per domain.
+
+        Uses CockroachDB GROUP BY with idx_kn_domain_confidence index.
+        Falls back to in-memory scan if DB unavailable.
+        """
+        try:
+            return self._db_get_domain_stats()
+        except Exception as e:
+            logger.debug("DB get_domain_stats fallback to memory: %s", e)
         domains: Dict[str, dict] = {}
         for node in self.nodes.values():
             d = node.domain or 'general'
@@ -1211,6 +1408,23 @@ class KnowledgeGraph:
                 'avg_confidence': round(info['total_confidence'] / info['count'], 4) if info['count'] else 0.0,
             }
         return result
+
+    def _db_get_domain_stats(self) -> Dict[str, dict]:
+        """DB-backed domain stats using GROUP BY."""
+        from sqlalchemy import text
+        with self.db.get_session() as session:
+            rows = session.execute(
+                text("""SELECT COALESCE(NULLIF(domain, ''), 'general') AS dom,
+                               COUNT(*) AS cnt,
+                               ROUND(AVG(confidence)::numeric, 4) AS avg_conf
+                        FROM knowledge_nodes
+                        GROUP BY dom
+                        ORDER BY cnt DESC""")
+            ).fetchall()
+        return {
+            r[0]: {'count': r[1], 'avg_confidence': float(r[2] or 0.0)}
+            for r in rows
+        }
 
     def reclassify_domains(self) -> int:
         """Reclassify domains for all nodes that have no domain set or are 'general'.
