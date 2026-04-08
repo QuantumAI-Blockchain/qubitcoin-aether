@@ -841,8 +841,39 @@ export const api = {
 
   /** Aether Engine health check. */
   getAetherHealth: () =>
-    fetch(`${AETHER_URL}/health`).then((r) => r.json()),
+    fetch(`${AETHER_URL}/health`).then((r) => r.json()) as Promise<AetherEngineHealth>,
+
+  /** Aether Engine info (Rust) — node count, edges, phi, emotions, gates. */
+  getAetherEngineInfo: () =>
+    fetch(`${AETHER_URL}/info`).then((r) => r.json()) as Promise<AetherEngineInfo>,
 } as const;
+
+export interface AetherEngineHealth {
+  status: string;
+  engines: {
+    graph_store: string;
+    inference: string;
+    cognitive: string;
+  };
+  uptime_seconds: number;
+}
+
+export interface AetherEngineInfo {
+  node_count: number;
+  edge_count: number;
+  phi: number;
+  gates_passed: number[];
+  inference_backend: string;
+  cognitive_cycles: number;
+  emotional_state: Record<string, number>;
+  cache_stats: {
+    capacity: number;
+    size: number;
+    hits: number;
+    misses: number;
+    hit_rate: number;
+  };
+}
 
 interface ChatSource {
   node_id: number;

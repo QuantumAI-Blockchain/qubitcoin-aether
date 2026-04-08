@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { api, type AetherInfo } from "@/lib/api";
+import { api, type AetherInfo, type AetherEngineHealth, type AetherEngineInfo } from "@/lib/api";
 import { exportData, type ExportFormat } from "@/lib/export";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
@@ -390,6 +390,9 @@ function AetherTab({
       {/* AGI Reasoning Subsystems */}
       {aetherInfo && <AGISubsystemsPanel info={aetherInfo} />}
 
+      {/* Rust Aether Engine Stats */}
+      <AetherEnginePanel />
+
       <ErrorBoundary>
         <SephirotExplorer />
       </ErrorBoundary>
@@ -398,6 +401,94 @@ function AetherTab({
         <PhiChart />
       </ErrorBoundary>
     </div>
+  );
+}
+
+function AetherEnginePanel() {
+  const { data: health } = useQuery({
+    queryKey: ["aetherEngineHealth"],
+    queryFn: api.getAetherHealth,
+    refetchInterval: 10_000,
+    retry: false,
+  });
+
+  const { data: info } = useQuery({
+    queryKey: ["aetherEngineInfo"],
+    queryFn: api.getAetherEngineInfo,
+    refetchInterval: 10_000,
+    retry: false,
+  });
+
+  if (!health && !info) return null;
+
+  const uptime = health?.uptime_seconds ?? 0;
+  const uptimeStr =
+    uptime >= 3600
+      ? `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`
+      : uptime >= 60
+        ? `${Math.floor(uptime / 60)}m ${uptime % 60}s`
+        : `${uptime}s`;
+
+  const cacheHitRate = info?.cache_stats?.hit_rate ?? 0;
+
+  return (
+    <Card>
+      <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
+        Aether Engine
+        <span className="ml-2 text-xs font-normal text-quantum-green">Rust</span>
+      </h3>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-3">
+          <p className="text-xs text-text-secondary">Status</p>
+          <p className="mt-1 font-[family-name:var(--font-code)] text-sm font-semibold">
+            {health?.status === "ok" ? (
+              <span className="text-quantum-green">Online</span>
+            ) : (
+              <span className="text-red-400">Offline</span>
+            )}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-3">
+          <p className="text-xs text-text-secondary">Inference</p>
+          <p className="mt-1 font-[family-name:var(--font-code)] text-sm font-semibold">
+            {info?.inference_backend ?? health?.engines?.inference ?? "---"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-3">
+          <p className="text-xs text-text-secondary">Uptime</p>
+          <p className="mt-1 font-[family-name:var(--font-code)] text-sm font-semibold">
+            {uptimeStr}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-3">
+          <p className="text-xs text-text-secondary">Cache Hit Rate</p>
+          <p className="mt-1 font-[family-name:var(--font-code)] text-sm font-semibold">
+            {(cacheHitRate * 100).toFixed(1)}%
+          </p>
+        </div>
+      </div>
+      {info?.emotional_state && Object.keys(info.emotional_state).length > 0 && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs text-text-secondary">Emotional State</p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(info.emotional_state)
+              .sort(([, a], [, b]) => (b as number) - (a as number))
+              .map(([emotion, value]) => (
+                <span
+                  key={emotion}
+                  className="rounded-full border border-border-subtle bg-bg-deep/50 px-2 py-0.5 text-xs"
+                  title={`${emotion}: ${((value as number) * 100).toFixed(0)}%`}
+                >
+                  {emotion}{" "}
+                  <span className="font-[family-name:var(--font-code)] text-quantum-green">
+                    {((value as number) * 100).toFixed(0)}%
+                  </span>
+                </span>
+              ))}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
