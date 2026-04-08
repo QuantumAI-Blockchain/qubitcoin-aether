@@ -21,13 +21,63 @@ CREATE TABLE IF NOT EXISTS knowledge_nodes (
     -- Blockchain anchoring
     source_block BIGINT,
 
+    -- Domain classification (Sephirot alignment)
+    domain VARCHAR(64) NOT NULL DEFAULT '',
+
+    -- Grounding source (how the node's truth was established)
+    grounding_source VARCHAR(64) NOT NULL DEFAULT '',
+
+    -- Reference tracking
+    reference_count INT NOT NULL DEFAULT 0,
+    last_referenced_block BIGINT NOT NULL DEFAULT 0,
+
+    -- Full-text search column (populated by trigger or application)
+    search_text TEXT NOT NULL DEFAULT '',
+
+    -- pgvector embedding for semantic similarity search
+    -- 384 dimensions = all-MiniLM-L6-v2 sentence-transformer
+    embedding vector(384),
+
     -- Timestamps
     created_at TIMESTAMP NOT NULL DEFAULT now(),
 
+    -- Base indexes
     INDEX type_idx (node_type),
     INDEX confidence_idx (confidence DESC),
     INDEX source_block_idx (source_block)
 );
+
+-- Performance indexes (added for DB-backed queries)
+CREATE INDEX IF NOT EXISTS idx_kn_content_gin
+    ON knowledge_nodes USING GIN (content);
+
+CREATE INDEX IF NOT EXISTS idx_kn_type_source_block
+    ON knowledge_nodes (node_type, source_block DESC);
+
+CREATE INDEX IF NOT EXISTS idx_kn_source_block_desc
+    ON knowledge_nodes (source_block DESC)
+    STORING (node_type, confidence);
+
+CREATE INDEX IF NOT EXISTS idx_kn_confidence_source
+    ON knowledge_nodes (confidence DESC, source_block DESC);
+
+CREATE INDEX IF NOT EXISTS idx_kn_domain_confidence
+    ON knowledge_nodes (domain, confidence DESC);
+
+CREATE INDEX IF NOT EXISTS idx_kn_refcount_confidence
+    ON knowledge_nodes (reference_count DESC, confidence DESC);
+
+CREATE INDEX IF NOT EXISTS idx_kn_grounded
+    ON knowledge_nodes (grounding_source, confidence DESC)
+    WHERE grounding_source != '';
+
+CREATE INDEX IF NOT EXISTS idx_kn_search_text
+    ON knowledge_nodes (search_text)
+    STORING (node_type, confidence, reference_count);
+
+-- pgvector HNSW index (requires feature.vector_index.enabled = true)
+-- CREATE INDEX IF NOT EXISTS idx_kn_embedding_hnsw
+--     ON knowledge_nodes USING hnsw (embedding vector_l2_ops);
 
 -- ================================================================
 -- KNOWLEDGE EDGES - Relationships between nodes
@@ -51,6 +101,15 @@ CREATE TABLE IF NOT EXISTS knowledge_edges (
     INDEX type_idx (edge_type)
 );
 
+-- Edge adjacency indexes for traversal
+CREATE INDEX IF NOT EXISTS idx_ke_from_type
+    ON knowledge_edges (from_node_id, edge_type)
+    STORING (to_node_id, weight);
+
+CREATE INDEX IF NOT EXISTS idx_ke_to_type
+    ON knowledge_edges (to_node_id, edge_type)
+    STORING (from_node_id, weight);
+
 INSERT INTO schema_version (version, component, description)
-VALUES ('2.1.0', 'agi_knowledge_graph', 'Knowledge graph — BY DEFAULT identity for explicit ID inserts')
+VALUES ('3.0.0', 'agi_knowledge_graph', 'Knowledge graph — metadata columns, performance indexes, pgvector embedding')
 ON CONFLICT DO NOTHING;
