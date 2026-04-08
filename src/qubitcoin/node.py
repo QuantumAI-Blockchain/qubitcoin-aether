@@ -282,13 +282,22 @@ class QubitcoinNode:
             try:
                 from .aether.llm_adapter import (
                     LLMAdapterManager, OpenAIAdapter, ClaudeAdapter, LocalAdapter,
-                    OllamaAdapter,
+                    OllamaAdapter, BitNetAdapter,
                 )
                 self.llm_manager = LLMAdapterManager(self.knowledge_graph)
 
                 # Register adapters in priority order based on LLM_PRIMARY_ADAPTER
                 primary = Config.LLM_PRIMARY_ADAPTER
                 adapters_to_register = []
+
+                # BitNet local inference (highest priority when available)
+                bitnet_url = getattr(Config, 'BITNET_BASE_URL', 'http://127.0.0.1:8178/v1')
+                bitnet_adapter = BitNetAdapter(base_url=bitnet_url)
+                if bitnet_adapter.is_available():
+                    adapters_to_register.append((
+                        bitnet_adapter,
+                        5 if primary == 'bitnet' else 15,
+                    ))
                 if Config.OPENAI_API_KEY:
                     adapters_to_register.append((
                         OpenAIAdapter(

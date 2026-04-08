@@ -28,7 +28,7 @@ from .ws_streaming import AetherWSManager, AetherWSClient
 from .circulation import CirculationTracker, CirculationSnapshot
 from .llm_adapter import (
     LLMAdapter, LLMResponse, LLMAdapterManager,
-    OpenAIAdapter, ClaudeAdapter, LocalAdapter, KnowledgeDistiller,
+    OpenAIAdapter, ClaudeAdapter, LocalAdapter, BitNetAdapter, KnowledgeDistiller,
 )
 from .knowledge_seeder import KnowledgeSeeder, MASTER_PROMPTS
 from .ipfs_memory import IPFSMemoryStore

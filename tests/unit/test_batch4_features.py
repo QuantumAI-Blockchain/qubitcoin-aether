@@ -312,3 +312,97 @@ class TestMindEndpoint:
         state = engine.get_mind_state(1000)
         assert len(state['recent_contradictions']) == 1
         assert state['recent_contradictions'][0]['node_a_id'] == 1
+
+
+class TestBoundedNodeCache:
+    """Test BoundedNodeCache LRU eviction and dict interface."""
+
+    def _make_cache(self, max_size: int = 5):
+        from qubitcoin.aether.knowledge_graph import BoundedNodeCache
+        return BoundedNodeCache(max_size=max_size)
+
+    def _make_node(self, nid: int):
+        from qubitcoin.aether.knowledge_graph import KeterNode
+        return KeterNode(node_id=nid, content={'text': f'node {nid}'})
+
+    def test_basic_set_get(self):
+        cache = self._make_cache()
+        n = self._make_node(1)
+        cache[1] = n
+        assert cache[1] is n
+        assert len(cache) == 1
+
+    def test_contains(self):
+        cache = self._make_cache()
+        cache[1] = self._make_node(1)
+        assert 1 in cache
+        assert 99 not in cache
+
+    def test_get_default(self):
+        cache = self._make_cache()
+        assert cache.get(99) is None
+        assert cache.get(99, 'fallback') == 'fallback'
+
+    def test_eviction(self):
+        cache = self._make_cache(max_size=3)
+        for i in range(5):
+            cache[i] = self._make_node(i)
+        # Only last 3 should remain
+        assert len(cache) == 3
+        assert 0 not in cache
+        assert 1 not in cache
+        assert 2 in cache
+        assert 3 in cache
+        assert 4 in cache
+        assert cache.evictions == 2
+
+    def test_lru_order(self):
+        cache = self._make_cache(max_size=3)
+        cache[1] = self._make_node(1)
+        cache[2] = self._make_node(2)
+        cache[3] = self._make_node(3)
+        # Access node 1 (makes it most recently used)
+        _ = cache[1]
+        # Add node 4 — should evict node 2 (LRU)
+        cache[4] = self._make_node(4)
+        assert 2 not in cache
+        assert 1 in cache  # Still alive due to access
+
+    def test_values_items_keys(self):
+        cache = self._make_cache()
+        cache[1] = self._make_node(1)
+        cache[2] = self._make_node(2)
+        assert len(list(cache.values())) == 2
+        assert len(list(cache.items())) == 2
+        assert set(cache.keys()) == {1, 2}
+
+    def test_delete(self):
+        cache = self._make_cache()
+        cache[1] = self._make_node(1)
+        del cache[1]
+        assert 1 not in cache
+        assert len(cache) == 0
+
+    def test_pop(self):
+        cache = self._make_cache()
+        cache[1] = self._make_node(1)
+        n = cache.pop(1)
+        assert n.node_id == 1
+        assert 1 not in cache
+
+    def test_cache_stats(self):
+        cache = self._make_cache(max_size=3)
+        cache[1] = self._make_node(1)
+        _ = cache.get(1)   # hit
+        _ = cache.get(99)  # miss
+        stats = cache.cache_stats()
+        assert stats['size'] == 1
+        assert stats['hits'] >= 1
+        assert stats['misses'] >= 1
+        assert 0 < stats['hit_rate'] < 1
+
+    def test_iter(self):
+        cache = self._make_cache()
+        cache[1] = self._make_node(1)
+        cache[2] = self._make_node(2)
+        assert set(cache) == {1, 2}

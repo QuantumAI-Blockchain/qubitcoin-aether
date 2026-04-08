@@ -9,9 +9,10 @@ import math
 import queue
 import threading
 import time
-from collections import deque
+from collections import OrderedDict, deque
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, Iterator, List, Optional, Set, Tuple
 
 from ..utils.logger import get_logger
 
@@ -262,6 +263,99 @@ def classify_domain(content: dict) -> str:
     return best_domain
 
 
+class BoundedNodeCache(MutableMapping):
+    """LRU-bounded cache for KeterNodes.
+
+    Drop-in replacement for ``Dict[int, KeterNode]``.  Implements the full
+    ``MutableMapping`` interface so every existing ``self.nodes[nid]``,
+    ``self.nodes.get(nid)``, ``len(self.nodes)``, ``for n in self.nodes.values()``
+    etc. works unchanged.
+
+    When the cache exceeds *max_size*, the least-recently-used entries are
+    evicted.  Eviction only removes the in-memory reference — the node still
+    lives in CockroachDB and can be re-fetched on cache miss.
+    """
+
+    def __init__(self, max_size: int = 100_000) -> None:
+        self._data: OrderedDict[int, 'KeterNode'] = OrderedDict()
+        self._max_size = max_size
+        self.hits: int = 0
+        self.misses: int = 0
+        self.evictions: int = 0
+
+    # --- MutableMapping required methods ---
+
+    def __getitem__(self, key: int) -> 'KeterNode':
+        try:
+            self._data.move_to_end(key)
+            self.hits += 1
+            return self._data[key]
+        except KeyError:
+            self.misses += 1
+            raise
+
+    def __setitem__(self, key: int, value: 'KeterNode') -> None:
+        if key in self._data:
+            self._data.move_to_end(key)
+        self._data[key] = value
+        self._evict()
+
+    def __delitem__(self, key: int) -> None:
+        del self._data[key]
+
+    def __iter__(self) -> Iterator[int]:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __contains__(self, key: object) -> bool:
+        return key in self._data
+
+    # --- Performance-critical overrides (avoid MutableMapping defaults) ---
+
+    def get(self, key: int, default=None):
+        try:
+            self._data.move_to_end(key)
+            self.hits += 1
+            return self._data[key]
+        except KeyError:
+            self.misses += 1
+            return default
+
+    def values(self):
+        return self._data.values()
+
+    def items(self):
+        return self._data.items()
+
+    def keys(self):
+        return self._data.keys()
+
+    def pop(self, key: int, *args):
+        return self._data.pop(key, *args)
+
+    # --- Eviction ---
+
+    def _evict(self) -> None:
+        while len(self._data) > self._max_size:
+            self._data.popitem(last=False)
+            self.evictions += 1
+
+    # --- Stats ---
+
+    def cache_stats(self) -> dict:
+        total = self.hits + self.misses
+        return {
+            'size': len(self._data),
+            'max_size': self._max_size,
+            'hits': self.hits,
+            'misses': self.misses,
+            'hit_rate': round(self.hits / max(total, 1), 4),
+            'evictions': self.evictions,
+        }
+
+
 class KnowledgeGraph:
     """
     In-memory knowledge graph backed by database persistence.
@@ -272,7 +366,7 @@ class KnowledgeGraph:
     def __init__(self, db_manager):
         self.db = db_manager
         self._lock = threading.RLock()
-        self.nodes: Dict[int, KeterNode] = {}
+        self.nodes: BoundedNodeCache = BoundedNodeCache(max_size=100_000)
         self.edges: List[KeterEdge] = []
         # O(1) edge adjacency index — avoids O(n) scans of self.edges
         self._adj_out: Dict[int, List[KeterEdge]] = {}  # node_id -> outgoing edges
@@ -697,9 +791,38 @@ class KnowledgeGraph:
         return edge
 
     def get_node(self, node_id: int) -> Optional[KeterNode]:
-        """Return a KeterNode by its ID, or None if not found."""
+        """Return a KeterNode by its ID, or None if not found.
+
+        Checks the in-memory LRU cache first; on miss, fetches from
+        CockroachDB and populates the cache.
+        """
         with self._lock:
-            return self.nodes.get(node_id)
+            cached = self.nodes.get(node_id)
+            if cached is not None:
+                return cached
+        # Cache miss — try DB
+        return self._db_get_node(node_id)
+
+    def _db_get_node(self, node_id: int) -> Optional[KeterNode]:
+        """Fetch a single node from CockroachDB by ID and populate cache."""
+        try:
+            from sqlalchemy import text
+            with self.db.get_session() as session:
+                row = session.execute(
+                    text("""SELECT id, node_type, content_hash, content, confidence,
+                                   source_block, domain, grounding_source,
+                                   reference_count, last_referenced_block
+                            FROM knowledge_nodes WHERE id = :nid"""),
+                    {'nid': node_id}
+                ).fetchone()
+            if row is None:
+                return None
+            node = self._row_to_node(row)
+            with self._lock:
+                self.nodes[node.node_id] = node
+            return node
+        except Exception:
+            return None
 
     def get_neighbors(self, node_id: int, direction: str = 'out') -> List[KeterNode]:
         """Get neighboring nodes"""
@@ -2033,6 +2156,7 @@ class KnowledgeGraph:
             'avg_confidence': round(avg_confidence, 4),
             'domains': domain_counts,
             'knowledge_root': self.compute_knowledge_root()[:16] + '...',
+            'cache': self.nodes.cache_stats() if hasattr(self.nodes, 'cache_stats') else {},
         }
 
     # ────────────────────────────────────────────────────────────────────────

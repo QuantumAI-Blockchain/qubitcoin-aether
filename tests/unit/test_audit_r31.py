@@ -99,27 +99,34 @@ class TestConsciousnessKeys:
         dashboard = ConsciousnessDashboard()
         pineal = MagicMock()
         pineal.sephirot.get_coherence.return_value = 0.85
+        pineal.metabolic_rate = 1.0
+        pineal.melatonin = None
 
-        engine = AetherEngine(
-            db_manager=MagicMock(),
-            knowledge_graph=MagicMock(),
-            phi_calculator=MagicMock(),
-            reasoning_engine=MagicMock(),
-            pineal=pineal,
-        )
-        engine.consciousness_dashboard = dashboard
-
-        # Mock phi calculator return (compute_phi is the real method name)
-        engine.phi.compute_phi.return_value = {
+        phi_calc = MagicMock()
+        phi_result = {
             'phi_value': 4.0,
             'integration_score': 2.5,
             'differentiation_score': 1.5,
             'num_nodes': 100,
             'num_edges': 200,
         }
+        phi_calc._last_full_result = phi_result
+        phi_calc.compute_phi.return_value = phi_result
+
+        engine = AetherEngine(
+            db_manager=MagicMock(),
+            knowledge_graph=MagicMock(),
+            phi_calculator=phi_calc,
+            reasoning_engine=MagicMock(),
+            pineal=pineal,
+        )
+        engine.consciousness_dashboard = dashboard
+
         # Mock knowledge graph — compute_knowledge_root is what generate_thought_proof calls
         engine.kg = MagicMock()
         engine.kg.compute_knowledge_root.return_value = 'abc123'
+        # Skip auto-reasoning (not under test here — it needs fully wired subsystems)
+        engine._auto_reason = MagicMock(return_value=[])
 
         engine.generate_thought_proof(block_height=10, validator_address='test_validator')
 

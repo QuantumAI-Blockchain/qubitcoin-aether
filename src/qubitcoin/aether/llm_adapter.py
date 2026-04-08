@@ -1040,6 +1040,84 @@ class CustomOpenAICompatibleAdapter(LLMAdapter):
             )
 
 
+class BitNetAdapter(LLMAdapter):
+    """Adapter for the local BitNet.cpp inference server (OpenAI-compatible API).
+
+    BitNet runs on localhost via ``llama-server``, providing sub-second
+    inference for the 2B-parameter ternary model.  No API key required.
+    """
+
+    def __init__(self, model: str = 'bitnet-2b',
+                 base_url: str = 'http://127.0.0.1:8178/v1',
+                 max_tokens: int = 256, temperature: float = 0.7,
+                 **kwargs) -> None:
+        super().__init__(model, '', base_url, max_tokens, temperature)
+
+    @property
+    def adapter_type(self) -> str:
+        return 'bitnet'
+
+    def is_available(self) -> bool:
+        try:
+            import urllib.request
+            url = self.base_url.replace('/v1', '/health')
+            with urllib.request.urlopen(url, timeout=2) as resp:
+                data = json.loads(resp.read().decode())
+                return data.get('status') == 'ok'
+        except Exception:
+            return False
+
+    def generate(self, prompt: str,
+                 context: Optional[List[dict]] = None,
+                 system_prompt: Optional[str] = None) -> LLMResponse:
+        """Generate via local BitNet server."""
+        messages: List[dict] = []
+        if system_prompt:
+            messages.append({'role': 'system', 'content': system_prompt})
+        if context:
+            messages.extend(context)
+        messages.append({'role': 'user', 'content': prompt})
+
+        start = time.time()
+        try:
+            import urllib.request
+            payload = json.dumps({
+                'model': self.model,
+                'messages': messages,
+                'max_tokens': self.max_tokens,
+                'temperature': self.temperature,
+            }).encode()
+
+            req = urllib.request.Request(
+                f"{self.base_url}/chat/completions",
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode())
+
+            content = data['choices'][0]['message']['content']
+            tokens = data.get('usage', {}).get('total_tokens', 0)
+            latency = (time.time() - start) * 1000
+
+            self._request_count += 1
+            self._total_tokens += tokens
+
+            return LLMResponse(
+                content=content, model=self.model,
+                adapter_type='bitnet',
+                tokens_used=tokens, latency_ms=latency,
+            )
+        except Exception as e:
+            logger.warning(f"BitNet request failed: {e}")
+            return LLMResponse(
+                content=f"BitNet request failed: {e}",
+                model=self.model, adapter_type='bitnet',
+                latency_ms=(time.time() - start) * 1000,
+                metadata={'error': str(e)},
+            )
+
+
 # ─── Adapter Registry ────────────────────────────────────────────────────
 # Maps adapter type names to their classes for runtime instantiation.
 ADAPTER_REGISTRY: Dict[str, type] = {
@@ -1049,6 +1127,7 @@ ADAPTER_REGISTRY: Dict[str, type] = {
     'gemini': GeminiAdapter,
     'mistral': MistralAdapter,
     'ollama': OllamaAdapter,
+    'bitnet': BitNetAdapter,
     'local': LocalAdapter,
 }
 

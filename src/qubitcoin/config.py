@@ -376,6 +376,7 @@ class Config:
     CLAUDE_API_KEY: str = os.getenv('CLAUDE_API_KEY', '')
     CLAUDE_MODEL: str = os.getenv('CLAUDE_MODEL', 'claude-sonnet-4-5-20250929')
     LOCAL_LLM_URL: str = os.getenv('LOCAL_LLM_URL', '')
+    BITNET_BASE_URL: str = os.getenv('BITNET_BASE_URL', 'http://127.0.0.1:8178/v1')
     OLLAMA_BASE_URL: str = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
     OLLAMA_MODEL: str = os.getenv('OLLAMA_MODEL', 'qwen2.5:7b')
     OLLAMA_CHAT_MODEL: str = os.getenv('OLLAMA_CHAT_MODEL', 'qwen2.5:0.5b')
