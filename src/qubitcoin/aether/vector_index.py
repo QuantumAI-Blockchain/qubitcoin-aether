@@ -695,6 +695,14 @@ class VectorIndex:
             self._py_hnsw_dirty = True
         return len(embs)
 
+    def get_vector(self, node_id: int) -> Optional[List[float]]:
+        """Return the raw embedding vector for a node, or None if not embedded."""
+        with self._lock:
+            emb = self.embeddings.get(node_id)
+        if emb is None:
+            return None
+        return list(emb) if not isinstance(emb, list) else emb
+
     def remove_node(self, node_id: int) -> None:
         """Remove a node's embedding."""
         with self._lock:

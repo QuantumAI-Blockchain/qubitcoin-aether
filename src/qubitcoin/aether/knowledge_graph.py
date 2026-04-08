@@ -553,12 +553,34 @@ class KnowledgeGraph:
                     logger.error(f"Async KG writer DB batch failed ({len(db_items)} items): {e}")
 
             # Process vector embeddings (model.encode — expensive but off critical path)
+            # Also persist embeddings to CockroachDB for pgvector HNSW search
+            embed_updates: List[Tuple[int, List[float]]] = []
             for item in vec_items:
                 try:
                     _, node_id, content = item
                     self.vector_index.add_node(node_id, content)
+                    # Extract embedding from vector_index for DB persistence
+                    vec = self.vector_index.get_vector(node_id)
+                    if vec is not None:
+                        embed_updates.append((node_id, vec))
                 except Exception as e:
                     logger.debug(f"Async vector embed failed for node {item[1]}: {e}")
+
+            # Batch-write embeddings to CockroachDB
+            if embed_updates:
+                try:
+                    with self.db.get_session() as session:
+                        for nid, vec in embed_updates:
+                            vec_str = '[' + ','.join(f'{v:.6f}' for v in vec) + ']'
+                            session.execute(
+                                text("""UPDATE knowledge_nodes
+                                        SET embedding = :vec::vector
+                                        WHERE id = :nid"""),
+                                {'nid': nid, 'vec': vec_str}
+                            )
+                        session.commit()
+                except Exception as e:
+                    logger.debug(f"Embedding DB persist failed: {e}")
 
         # Drain remaining items on shutdown
         remaining_items = []
@@ -1118,6 +1140,62 @@ class KnowledgeGraph:
             return r is not None
         except Exception:
             return False
+
+    def vector_search(self, query: str, top_k: int = 10) -> List[Tuple[KeterNode, float]]:
+        """Semantic vector search using pgvector HNSW index in CockroachDB.
+
+        Encodes the query with the same sentence-transformer model used for
+        node embeddings, then uses the L2 distance operator (<->) to find
+        nearest neighbors via the HNSW index.
+
+        Falls back to in-memory vector_index if CRDB search fails.
+        """
+        from .vector_index import _compute_embedding
+        try:
+            query_vec = _compute_embedding(query)
+        except Exception:
+            return self.search(query, top_k)  # fallback to blended search
+
+        try:
+            return self._db_vector_search(query_vec, top_k)
+        except Exception as e:
+            logger.debug("pgvector search fallback to in-memory: %s", e)
+            # Fall back to in-memory vector index
+            results = self.vector_index.query(query, top_k=top_k)
+            return [
+                (self.nodes[nid], score)
+                for nid, score in results
+                if nid in self.nodes
+            ]
+
+    def _db_vector_search(self, query_vec: list, top_k: int) -> List[Tuple[KeterNode, float]]:
+        """pgvector HNSW search using L2 distance operator."""
+        from sqlalchemy import text
+        vec_str = '[' + ','.join(f'{v:.6f}' for v in query_vec) + ']'
+        with self.db.get_session() as session:
+            rows = session.execute(
+                text("""SELECT id, node_type, content_hash, content, confidence,
+                               source_block, domain, grounding_source,
+                               reference_count, last_referenced_block,
+                               embedding <-> :qvec::vector AS distance
+                        FROM knowledge_nodes
+                        WHERE embedding IS NOT NULL
+                        ORDER BY embedding <-> :qvec::vector
+                        LIMIT :lim"""),
+                {'qvec': vec_str, 'lim': top_k}
+            ).fetchall()
+        result = []
+        for r in rows:
+            cached = self.nodes.get(r[0])
+            if cached:
+                node = cached
+            else:
+                node = self._row_to_node(r)
+            # Convert L2 distance to similarity score (1 / (1 + distance))
+            distance = float(r[10]) if r[10] is not None else 1.0
+            similarity = 1.0 / (1.0 + distance)
+            result.append((node, similarity))
+        return result
 
     def find_by_type(self, node_type: str, limit: int = 100) -> List[KeterNode]:
         """Find nodes by type, sorted by confidence descending.
