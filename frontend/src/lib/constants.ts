@@ -5,6 +5,8 @@ export const CHAIN_NAME = process.env.NEXT_PUBLIC_CHAIN_NAME ?? "Quantum Blockch
 export const CHAIN_SYMBOL = process.env.NEXT_PUBLIC_CHAIN_SYMBOL ?? "QBC";
 export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || "/api";
 export const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:5000/ws";
+/** Aether Engine (Rust) URL — SSE streaming chat + fast knowledge search */
+export const AETHER_ENGINE_URL = process.env.NEXT_PUBLIC_AETHER_ENGINE_URL || "/aether-api";
 
 /** Golden ratio */
 export const PHI = 1.618033988749895;

@@ -34,22 +34,57 @@ export function ChatWidget() {
     setLoading(true);
 
     try {
-      let sid = sessionId;
-      if (!sid) {
-        const sess = await api.createChatSession();
-        sid = sess.session_id;
-        setSessionId(sid);
+      // Stream tokens from Aether Engine (Rust) for instant response
+      let fullResponse = "";
+      const streamIdx = messages.length + 1; // Index of the new aether message
+
+      // Add placeholder message that will be updated with streaming tokens
+      setMessages((prev) => [...prev, { role: "aether", text: "" }]);
+
+      for await (const chunk of api.streamChat(text)) {
+        if (chunk.done) {
+          break;
+        }
+        fullResponse += chunk.token;
+        const captured = fullResponse;
+        setMessages((prev) => {
+          const updated = [...prev];
+          if (updated[streamIdx]) {
+            updated[streamIdx] = { ...updated[streamIdx], text: captured };
+          }
+          return updated;
+        });
       }
-      const res = await api.sendChatMessage(sid, text);
-      const dominant = res.emotional_state
-        ? Object.entries(res.emotional_state).sort(([, a], [, b]) => b - a)[0]?.[0]
-        : undefined;
-      setMessages((prev) => [...prev, { role: "aether", text: res.response, dominantEmotion: dominant }]);
+
+      // If streaming returned nothing, remove the empty placeholder
+      if (!fullResponse) {
+        setMessages((prev) => prev.filter((_, i) => i !== streamIdx));
+        throw new Error("Empty response");
+      }
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "aether", text: t("offline") },
-      ]);
+      // Fallback to Python node chat if Rust engine is unavailable
+      try {
+        let sid = sessionId;
+        if (!sid) {
+          const sess = await api.createChatSession();
+          sid = sess.session_id;
+          setSessionId(sid);
+        }
+        const res = await api.sendChatMessage(sid, text);
+        const dominant = res.emotional_state
+          ? Object.entries(res.emotional_state).sort(([, a], [, b]) => b - a)[0]?.[0]
+          : undefined;
+        setMessages((prev) => {
+          // Remove the streaming placeholder if it exists
+          const filtered = prev.filter((m) => !(m.role === "aether" && m.text === ""));
+          return [...filtered, { role: "aether", text: res.response, dominantEmotion: dominant }];
+        });
+      } catch {
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => !(m.role === "aether" && m.text === ""));
+          return [...filtered, { role: "aether", text: t("offline") }];
+        });
+      }
     } finally {
       setLoading(false);
     }

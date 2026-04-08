@@ -203,34 +203,83 @@ function AetherPageContent() {
     setLoading(true);
 
     try {
-      let sid = sessionId;
-      if (!sid) {
-        const sess = await api.createChatSession();
-        sid = sess.session_id;
-        setSessionId(sid);
-      }
-      const res: ChatResponse = await api.sendChatMessage(sid, text);
+      // Try streaming from Aether Engine (Rust) first — instant TTFT
+      let fullResponse = "";
       setMessages((prev) => {
-        const idx = prev.length; // index of the new message
-        setStreamingIdx(idx);
-        return [
-          ...prev,
-          {
-            role: "aether",
-            text: res.response,
-            reasoning: res.reasoning_trace,
-            potHash: res.proof_of_thought_hash,
-            phi: res.phi_at_response,
-            emotionalState: res.emotional_state,
-          },
-        ];
+        setStreamingIdx(prev.length);
+        return [...prev, { role: "aether" as const, text: "" }];
       });
+
+      let sources: Array<{ node_id: number; summary: string; confidence: number }> = [];
+      for await (const chunk of api.streamChat(text)) {
+        if (chunk.done) {
+          if (chunk.sources) sources = chunk.sources;
+          break;
+        }
+        fullResponse += chunk.token;
+        const captured = fullResponse;
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          if (updated[lastIdx]?.role === "aether") {
+            updated[lastIdx] = { ...updated[lastIdx], text: captured };
+          }
+          return updated;
+        });
+      }
+
+      if (!fullResponse) throw new Error("Empty response");
+
+      // Update final message with sources
+      if (sources.length > 0) {
+        const reasoning = sources.map(
+          (s) => `[Node ${s.node_id}] ${s.summary} (conf: ${s.confidence.toFixed(2)})`
+        ).join("\n");
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          if (updated[lastIdx]?.role === "aether") {
+            updated[lastIdx] = { ...updated[lastIdx], reasoning };
+          }
+          return updated;
+        });
+      }
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "aether", text: "Unable to reach Aether Tree. The node may be offline." },
-      ]);
-      toast("Failed to reach Aether Tree", "error");
+      // Fallback to Python node chat
+      try {
+        let sid = sessionId;
+        if (!sid) {
+          const sess = await api.createChatSession();
+          sid = sess.session_id;
+          setSessionId(sid);
+        }
+        const res: ChatResponse = await api.sendChatMessage(sid, text);
+        setMessages((prev) => {
+          // Remove streaming placeholder if empty
+          const filtered = prev.filter((m) => !(m.role === "aether" && m.text === ""));
+          setStreamingIdx(filtered.length);
+          return [
+            ...filtered,
+            {
+              role: "aether",
+              text: res.response,
+              reasoning: res.reasoning_trace,
+              potHash: res.proof_of_thought_hash,
+              phi: res.phi_at_response,
+              emotionalState: res.emotional_state,
+            },
+          ];
+        });
+      } catch {
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => !(m.role === "aether" && m.text === ""));
+          return [
+            ...filtered,
+            { role: "aether", text: "Unable to reach Aether Tree. The node may be offline." },
+          ];
+        });
+        toast("Failed to reach Aether Tree", "error");
+      }
     } finally {
       setLoading(false);
     }

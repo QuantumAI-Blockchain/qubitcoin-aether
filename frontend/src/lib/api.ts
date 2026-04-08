@@ -1,10 +1,13 @@
-import { RPC_URL } from "./constants";
+import { RPC_URL, AETHER_ENGINE_URL } from "./constants";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
 
 /** API base URL with fallback if the env var / constants import is undefined at runtime. */
 const API_URL = RPC_URL || "http://localhost:5000";
+
+/** Aether Engine (Rust) base URL for fast streaming chat */
+const AETHER_URL = AETHER_ENGINE_URL || "http://localhost:5001";
 
 /** Generic fetch wrapper for the QBC node REST API with exponential backoff retry. */
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -779,4 +782,70 @@ export const api = {
       "/transaction/set-window",
       body,
     ),
+
+  // --- Aether Engine (Rust) streaming chat ---
+
+  /**
+   * Send a streaming chat message to the Aether Engine.
+   * Returns an async generator that yields tokens as they arrive.
+   */
+  streamChat: async function* (
+    message: string,
+    userId: string = "anonymous",
+  ): AsyncGenerator<{ token: string; done: boolean; sources?: ChatSource[] }> {
+    const resp = await fetch(`${AETHER_URL}/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, user_id: userId }),
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Aether Engine error: ${resp.status}`);
+    }
+
+    const reader = resp.body?.getReader();
+    if (!reader) throw new Error("No response body");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(trimmed.slice(6));
+            yield data;
+          } catch {
+            // Skip malformed SSE lines
+          }
+        }
+      }
+    }
+  },
+
+  /** Non-streaming chat via Aether Engine (Rust). */
+  sendAetherChat: (message: string, userId: string = "anonymous") =>
+    fetch(`${AETHER_URL}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, user_id: userId }),
+    }).then((r) => r.json() as Promise<ChatResponse>),
+
+  /** Aether Engine health check. */
+  getAetherHealth: () =>
+    fetch(`${AETHER_URL}/health`).then((r) => r.json()),
 } as const;
+
+interface ChatSource {
+  node_id: number;
+  summary: string;
+  confidence: number;
+}

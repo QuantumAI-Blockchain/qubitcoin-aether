@@ -29,11 +29,17 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // Proxy /api/* requests to the RPC backend — avoids CORS issues entirely
     const rpcDest = process.env.RPC_BACKEND_URL || "http://localhost:5000";
+    const aetherDest = process.env.AETHER_ENGINE_URL || "http://localhost:5001";
     return [
       {
         // MetaMask JSON-RPC endpoint — POST to /rpc proxies to node root
         source: "/rpc",
         destination: `${rpcDest}/`,
+      },
+      {
+        // Aether Engine (Rust) — streaming chat, knowledge search
+        source: "/aether-api/:path*",
+        destination: `${aetherDest}/:path*`,
       },
       {
         source: "/api/:path*",
