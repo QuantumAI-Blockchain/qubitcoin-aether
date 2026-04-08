@@ -7929,6 +7929,40 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "nodes_after": len(aether_engine.kg.nodes),
         }
 
+    @app.post("/aether/persist")
+    async def aether_persist(
+        body: dict = {},
+        authorization: Optional[str] = Header(None, alias="Authorization"),
+    ):
+        """Persist in-memory KG metadata (domain, confidence, grounding, refs) to DB.
+
+        Admin-only endpoint. Triggers a batch write of all in-memory node
+        metadata to CockroachDB so it survives restarts.
+        """
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+
+        x_admin = body.get("_admin_key", "")
+        if x_admin and hasattr(Config, "ADMIN_API_KEY") and Config.ADMIN_API_KEY:
+            import hmac
+            if not hmac.compare_digest(x_admin, Config.ADMIN_API_KEY):
+                raise HTTPException(status_code=403, detail="Invalid admin key")
+        else:
+            raise HTTPException(status_code=403, detail="Admin key required")
+
+        import asyncio as _asyncio
+        _loop = _asyncio.get_event_loop()
+        updated = await _loop.run_in_executor(
+            None,
+            aether_engine.kg.persist_confidence_updates,
+        )
+
+        return {
+            "status": "ok",
+            "nodes_updated": updated,
+            "total_nodes": len(aether_engine.kg.nodes),
+        }
+
     # ── L1 ↔ L2 Internal Bridge ────────────────────────────────────────
 
     class L1L2DepositRequest(BaseModel):

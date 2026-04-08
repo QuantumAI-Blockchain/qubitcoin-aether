@@ -312,7 +312,10 @@ class KnowledgeGraph:
             from sqlalchemy import text
             with self.db.get_session() as session:
                 rows = session.execute(
-                    text("SELECT id, node_type, content_hash, content, confidence, source_block FROM knowledge_nodes ORDER BY id")
+                    text("""SELECT id, node_type, content_hash, content, confidence,
+                                   source_block, domain, grounding_source,
+                                   reference_count, last_referenced_block
+                            FROM knowledge_nodes ORDER BY id""")
                 )
                 try:
                     for r in rows:
@@ -323,6 +326,10 @@ class KnowledgeGraph:
                             content=json.loads(r[3]) if isinstance(r[3], str) else (r[3] or {}),
                             confidence=float(r[4] or 0.5),
                             source_block=r[5] or 0,
+                            domain=r[6] or '',
+                            grounding_source=r[7] or '',
+                            reference_count=r[8] or 0,
+                            last_referenced_block=r[9] or 0,
                         )
                         self.nodes[node.node_id] = node
                         self._next_id = max(self._next_id, node.node_id + 1)
@@ -516,15 +523,20 @@ class KnowledgeGraph:
                     with self.db.get_session() as session:
                         for item in db_items:
                             if item[0] == 'node':
-                                _, node_id, ntype, chash, content_json, conf, sb = item
+                                _, node_id, ntype, chash, content_json, conf, sb, dom, gs, rc, lrb = item
                                 session.execute(
                                     text("""
-                                        INSERT INTO knowledge_nodes (id, node_type, content_hash, content, confidence, source_block)
-                                        VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf, :sb)
+                                        INSERT INTO knowledge_nodes
+                                            (id, node_type, content_hash, content, confidence,
+                                             source_block, domain, grounding_source,
+                                             reference_count, last_referenced_block)
+                                        VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf,
+                                                :sb, :dom, :gs, :rc, :lrb)
                                         ON CONFLICT (id) DO NOTHING
                                     """),
                                     {'id': node_id, 'ntype': ntype, 'chash': chash,
-                                     'content': content_json, 'conf': conf, 'sb': sb}
+                                     'content': content_json, 'conf': conf, 'sb': sb,
+                                     'dom': dom, 'gs': gs, 'rc': rc, 'lrb': lrb}
                                 )
                             elif item[0] == 'edge':
                                 _, fid, tid, etype, w = item
@@ -562,15 +574,20 @@ class KnowledgeGraph:
                     with self.db.get_session() as session:
                         for item in db_rem:
                             if item[0] == 'node':
-                                _, node_id, ntype, chash, content_json, conf, sb = item
+                                _, node_id, ntype, chash, content_json, conf, sb, dom, gs, rc, lrb = item
                                 session.execute(
                                     text("""
-                                        INSERT INTO knowledge_nodes (id, node_type, content_hash, content, confidence, source_block)
-                                        VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf, :sb)
+                                        INSERT INTO knowledge_nodes
+                                            (id, node_type, content_hash, content, confidence,
+                                             source_block, domain, grounding_source,
+                                             reference_count, last_referenced_block)
+                                        VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf,
+                                                :sb, :dom, :gs, :rc, :lrb)
                                         ON CONFLICT (id) DO NOTHING
                                     """),
                                     {'id': node_id, 'ntype': ntype, 'chash': chash,
-                                     'content': content_json, 'conf': conf, 'sb': sb}
+                                     'content': content_json, 'conf': conf, 'sb': sb,
+                                     'dom': dom, 'gs': gs, 'rc': rc, 'lrb': lrb}
                                 )
                             elif item[0] == 'edge':
                                 _, fid, tid, etype, w = item
@@ -617,7 +634,9 @@ class KnowledgeGraph:
             try:
                 self._write_queue.put_nowait((
                     'node', node.node_id, node.node_type, node.content_hash,
-                    json.dumps(node.content), node.confidence, source_block
+                    json.dumps(node.content), node.confidence, source_block,
+                    node.domain, node.grounding_source, node.reference_count,
+                    node.last_referenced_block,
                 ))
                 # Queue vector embedding update (the sentence-transformer model call)
                 self._write_queue.put_nowait(('vec', node.node_id, content))
@@ -912,10 +931,10 @@ class KnowledgeGraph:
 
     def persist_confidence_updates(self) -> int:
         """
-        Write changed confidence values back to the database.
+        Write changed confidence, domain, grounding, and reference data back to DB.
 
         Called periodically (e.g. every 100 blocks) to ensure that
-        confidence adjustments from reasoning/propagation survive restarts.
+        in-memory state changes from reasoning/propagation survive restarts.
 
         Uses a single batch UPDATE via UNNEST for massive speedup over
         per-row updates (1 round-trip instead of N).
@@ -928,12 +947,20 @@ class KnowledgeGraph:
 
         try:
             from sqlalchemy import text
-            # Collect all node IDs and confidence values
+            # Collect all node metadata
             ids = []
             confs = []
+            domains = []
+            groundings = []
+            ref_counts = []
+            last_refs = []
             for nid, node in self.nodes.items():
                 ids.append(nid)
                 confs.append(round(node.confidence, 8))
+                domains.append(node.domain or '')
+                groundings.append(node.grounding_source or '')
+                ref_counts.append(node.reference_count)
+                last_refs.append(node.last_referenced_block)
 
             if not ids:
                 return 0
@@ -943,25 +970,44 @@ class KnowledgeGraph:
             updated = 0
             with self.db.get_session() as session:
                 for i in range(0, len(ids), BATCH_SIZE):
-                    batch_ids = ids[i:i + BATCH_SIZE]
-                    batch_confs = confs[i:i + BATCH_SIZE]
+                    bi = ids[i:i + BATCH_SIZE]
+                    bc = confs[i:i + BATCH_SIZE]
+                    bd = domains[i:i + BATCH_SIZE]
+                    bg = groundings[i:i + BATCH_SIZE]
+                    br = ref_counts[i:i + BATCH_SIZE]
+                    bl = last_refs[i:i + BATCH_SIZE]
                     result = session.execute(
                         text("""
                             UPDATE knowledge_nodes AS kn
-                            SET confidence = batch.conf
-                            FROM (SELECT UNNEST(:ids) AS id, UNNEST(:confs) AS conf) AS batch
-                            WHERE kn.id = batch.id AND kn.confidence != batch.conf
+                            SET confidence = batch.conf,
+                                domain = batch.dom,
+                                grounding_source = batch.gs,
+                                reference_count = batch.rc,
+                                last_referenced_block = batch.lrb
+                            FROM (SELECT UNNEST(:ids) AS id,
+                                         UNNEST(:confs) AS conf,
+                                         UNNEST(:doms) AS dom,
+                                         UNNEST(:gss) AS gs,
+                                         UNNEST(:rcs) AS rc,
+                                         UNNEST(:lrbs) AS lrb) AS batch
+                            WHERE kn.id = batch.id
+                              AND (kn.confidence != batch.conf
+                                   OR kn.domain != batch.dom
+                                   OR kn.grounding_source != batch.gs
+                                   OR kn.reference_count != batch.rc
+                                   OR kn.last_referenced_block != batch.lrb)
                         """),
-                        {'ids': batch_ids, 'confs': batch_confs}
+                        {'ids': bi, 'confs': bc, 'doms': bd,
+                         'gss': bg, 'rcs': br, 'lrbs': bl}
                     )
                     updated += result.rowcount
                 session.commit()
 
             if updated > 0:
-                logger.info(f"Persisted confidence updates for {updated} nodes (batch)")
+                logger.info(f"Persisted metadata updates for {updated} nodes (batch)")
             return updated
         except Exception as e:
-            logger.error(f"Failed to persist confidence updates: {e}")
+            logger.error(f"Failed to persist metadata updates: {e}")
             return 0
 
     def search(self, query: str, top_k: int = 10) -> List[Tuple[KeterNode, float]]:
