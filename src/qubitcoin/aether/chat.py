@@ -2296,7 +2296,7 @@ class AetherChat:
             except Exception as e:
                 logger.debug("TF-IDF search failed: %s", e)
 
-        # Phase 2: Vector similarity search
+        # Phase 2: Vector similarity search (in-memory)
         vi = getattr(self.engine.kg, 'vector_index', None)
         if vi and getattr(vi, 'embeddings', None):
             try:
@@ -2305,6 +2305,31 @@ class AetherChat:
                     return [nid for nid, score in vec_results if score > 0.3]
             except Exception as e:
                 logger.debug("Vector search failed: %s", e)
+
+        # Phase 2b: DB text search (CockroachDB indexed, covers all 700K+ nodes)
+        try:
+            db_results = self.engine.kg._db_text_search(query, limit=20)
+            if db_results:
+                # Filter out block_observation noise
+                filtered = []
+                for nid, score in db_results:
+                    node = self.engine.kg.nodes.get(nid)
+                    if node:
+                        content = node.content
+                        if isinstance(content, dict) and content.get('type') in (
+                            'block_observation', 'quantum_observation'
+                        ):
+                            continue
+                    filtered.append(nid)
+                if filtered:
+                    elapsed = (time.time() - t0) * 1000
+                    logger.info(
+                        "DB text search: %d results in %.1fms",
+                        len(filtered), elapsed,
+                    )
+                    return filtered[:10]
+        except Exception as e:
+            logger.debug("DB text search failed: %s", e)
 
         # Phase 3: Fallback keyword scan on content-rich nodes only
         query_lower = query.lower()
