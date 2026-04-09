@@ -545,10 +545,55 @@ class KnowledgeGraph:
                         self.search_index._idf_dirty = True
                         self.search_index._refresh_idf()
 
+            # Persist domain + grounding classifications back to DB in background
+            if unclassified > 0 or grounded_count > 0:
+                self._start_background_metadata_persist(unclassified + grounded_count)
+
         except Exception as e:
             logger.warning(
                 f"Knowledge graph DB load failed ({nodes_loaded} nodes, {edges_loaded} edges recovered): {e}"
             )
+
+    def _start_background_metadata_persist(self, estimated_count: int) -> None:
+        """Persist in-memory domain/grounding classifications back to DB."""
+        import threading
+
+        def _persist_worker() -> None:
+            BATCH = 500
+            updated = 0
+            try:
+                items = [
+                    (n.node_id, n.domain, n.grounding_source)
+                    for n in self.nodes.values()
+                    if n.domain or n.grounding_source
+                ]
+                if not self._db_manager:
+                    return
+                for i in range(0, len(items), BATCH):
+                    if self._writer_stop.is_set():
+                        break
+                    batch = items[i:i + BATCH]
+                    try:
+                        with self._db_manager.get_session() as session:
+                            for node_id, domain, grounding in batch:
+                                session.execute(
+                                    "UPDATE knowledge_nodes SET domain = :d, grounding_source = :g "
+                                    "WHERE node_id = :id AND (domain IS NULL OR domain = '' "
+                                    "OR grounding_source IS NULL OR grounding_source = '')",
+                                    {'d': domain or '', 'g': grounding or '', 'id': node_id}
+                                )
+                            session.commit()
+                            updated += len(batch)
+                    except Exception as e:
+                        logger.debug("Metadata persist batch error: %s", e)
+                    time.sleep(0.2)
+                logger.info("Background metadata persist: %d nodes updated", updated)
+            except Exception as e:
+                logger.debug("Metadata persist worker error: %s", e)
+
+        t = threading.Thread(target=_persist_worker, name="kg-metadata-persist", daemon=True)
+        t.start()
+        logger.info("Starting background metadata persist for ~%d nodes", estimated_count)
 
     def _start_background_vector_rebuild(self) -> None:
         """Start a low-priority background thread to embed existing nodes.

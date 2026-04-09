@@ -4131,6 +4131,23 @@ class AetherEngine:
                 stats['fep_domain_precisions'] = float(
                     len(fep_stats.get('domain_precisions', {}))
                 )
+                # Gate 8: curiosity-driven discoveries
+                stats['curiosity_driven_discoveries'] = float(
+                    fep_stats.get('discoveries_count', 0)
+                )
+        except Exception:
+            pass
+
+        # SelfImprovement: enacted cycles + performance delta (Gate 6)
+        try:
+            if self.self_improvement:
+                si_stats = self.self_improvement.get_stats()
+                stats['improvement_cycles_enacted'] = float(
+                    si_stats.get('cycles_completed', 0)
+                )
+                stats['improvement_performance_delta'] = float(
+                    si_stats.get('performance_delta', 0.0)
+                )
         except Exception:
             pass
 

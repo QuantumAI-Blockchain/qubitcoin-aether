@@ -58,10 +58,11 @@ LABEL maintainer="Qubitcoin Team <dev@qbc.network>"
 LABEL description="Qubitcoin Node — Quantum-Secured Layer 1 Blockchain"
 LABEL version="1.0.0"
 
-# Install runtime dependencies
+# Install runtime dependencies + tini (reaps zombie child processes from healthchecks)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     curl \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -113,6 +114,9 @@ EXPOSE 5000 4001 50051 3333
 USER qbc
 
 WORKDIR /app/src
+
+# Use tini as init to reap zombie child processes (e.g. from HEALTHCHECK curl)
+ENTRYPOINT ["tini", "--"]
 
 # Default: run the node
 CMD ["python3", "run_node.py"]

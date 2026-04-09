@@ -127,6 +127,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    init: true
     container_name: qbc-node
     ports:
       - "5000:5000"     # RPC API

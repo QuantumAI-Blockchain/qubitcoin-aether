@@ -142,6 +142,8 @@ class SelfImprovementEngine:
         self._cycles_completed: int = 0
         self._total_adjustments: int = 0
         self._last_cycle_block: int = 0
+        self._last_performance_delta: float = 0.0  # post-cycle vs pre-cycle success rate change
+        self._rollback_count: int = 0
 
         # Configurable parameters (read from Config)
         self._interval: int = Config.SELF_IMPROVEMENT_INTERVAL
@@ -349,6 +351,7 @@ class SelfImprovementEngine:
         # Performance regression detection (Improvement 94)
         post_cycle_stats = self._compute_performance_stats()
         post_cycle_success = self._compute_overall_success_rate(post_cycle_stats)
+        self._last_performance_delta = post_cycle_success - pre_cycle_success
         regression_detected = False
         if pre_cycle_success > 0 and post_cycle_success < pre_cycle_success * 0.9:
             regression_detected = True
@@ -676,6 +679,7 @@ class SelfImprovementEngine:
             block_height, snapshot = self._weight_snapshots[snapshot_index]
             import copy
             self._domain_weights = copy.deepcopy(snapshot)
+            self._rollback_count += 1
             logger.info(
                 "Rolled back weights to snapshot from block %d", block_height
             )
@@ -926,6 +930,8 @@ class SelfImprovementEngine:
         return {
             'cycles_completed': self._cycles_completed,
             'total_adjustments': self._total_adjustments,
+            'rollbacks': self._rollback_count,
+            'performance_delta': self._last_performance_delta,
             'total_records': len(self._records),
             'last_cycle_block': self._last_cycle_block,
             'interval': self._interval,
