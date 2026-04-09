@@ -495,8 +495,12 @@ class PhiCalculator:
     def _compute_iit_micro(self) -> float:
         """Compute IIT 3.0 micro-level Phi via 5 independent 16-node samples.
 
-        Runs the IITApproximator on 5 randomly sampled elite subgraphs and
-        returns the median. Result is normalized to [0, 1] and cached for
+        Uses BFS-based subgraph sampling from high-degree seed nodes to ensure
+        each sample has actual edges (random sampling from large graphs produces
+        disconnected subgraphs with ~0 edges, yielding meaningless phi=0).
+
+        Runs the IITApproximator on 5 BFS-expanded elite subgraphs and returns
+        the median.  Result is normalized to [0, 1] and cached for
         _IIT_CACHE_SECONDS to avoid repeated O(16^3) computation.
 
         Returns:
@@ -547,18 +551,64 @@ class PhiCalculator:
             logger.debug(f"IIT KG snapshot failed: {e}")
             return self._iit_phi_cache
 
-        # Sample 5 DIFFERENT 16-node subgraphs for diversity.
-        # Each sample picks a random subset of nodes and their induced edges.
+        # Build adjacency list for BFS-based connected subgraph sampling.
+        # Random sampling from 100K+ nodes yields ~0 edges in subgraphs
+        # (expected edges ≈ m*(k/n)^2 → near zero for large n).
+        # BFS expansion from high-degree seeds preserves local connectivity.
+        adj_list: Dict[int, List[int]] = {}
+        for e in kg_edges:
+            fid = getattr(e, 'from_node_id', None)
+            tid = getattr(e, 'to_node_id', None)
+            if fid is not None and tid is not None:
+                adj_list.setdefault(fid, []).append(tid)
+                adj_list.setdefault(tid, []).append(fid)
+
+        # Find high-degree nodes as BFS seeds (diverse starting points)
         all_node_ids = list(kg_nodes.keys())
-        n_total = len(all_node_ids)
+        nodes_by_degree = sorted(
+            all_node_ids,
+            key=lambda nid: len(adj_list.get(nid, [])),
+            reverse=True,
+        )
+        # Pick 5 well-separated seeds from top-degree nodes
+        # Spread across top 500 to get diversity
+        top_pool = nodes_by_degree[:min(500, len(nodes_by_degree))]
 
         phis: List[float] = []
+        target_subgraph_size = 64  # IITApproximator selects top 16 from these
+        used_seeds: Set[int] = set()
+
         for sample_idx in range(5):
             try:
-                # Random subgraph: sample 16-64 nodes (IITApproximator picks top 16)
-                sample_size = min(n_total, max(16, min(64, n_total // 5)))
-                rng = random.Random(sample_idx * 7919 + int(time.time()) % 10000)
-                sampled_ids = set(rng.sample(all_node_ids, sample_size))
+                # Pick a seed not yet used, spread across the pool
+                rng = random.Random(sample_idx * 7919 + int(now) % 10000)
+                pool_offset = (sample_idx * len(top_pool)) // 5
+                candidates = top_pool[pool_offset:pool_offset + len(top_pool) // 5]
+                if not candidates:
+                    candidates = top_pool
+                seed = rng.choice([c for c in candidates if c not in used_seeds] or candidates)
+                used_seeds.add(seed)
+
+                # BFS expand from seed to get connected subgraph
+                sampled_ids: Set[int] = set()
+                bfs_queue = deque([seed])
+                while bfs_queue and len(sampled_ids) < target_subgraph_size:
+                    nid = bfs_queue.popleft()
+                    if nid in sampled_ids or nid not in kg_nodes:
+                        continue
+                    sampled_ids.add(nid)
+                    neighbors = adj_list.get(nid, [])
+                    rng.shuffle(neighbors)
+                    for neighbor in neighbors:
+                        if neighbor not in sampled_ids:
+                            bfs_queue.append(neighbor)
+
+                if len(sampled_ids) < 16:
+                    logger.debug(
+                        f"IIT sample {sample_idx}: BFS only reached {len(sampled_ids)} nodes"
+                    )
+                    continue
+
                 sub_nodes = {nid: kg_nodes[nid] for nid in sampled_ids}
                 sub_edges = [
                     e for e in kg_edges
@@ -582,11 +632,15 @@ class PhiCalculator:
             self._iit_phi_cache = min(1.0, median_val)
             logger.info(
                 f"HMS phi_micro={self._iit_phi_cache:.4f} "
-                f"(5 IIT samples: {[round(p,3) for p in phis]}, median={median_val:.4f})"
+                f"({len(phis)} IIT samples: {[round(p,3) for p in phis]}, "
+                f"median={median_val:.4f})"
             )
         else:
             # All samples failed — keep previous cache to avoid sudden drop
-            logger.debug("IIT: all 5 samples failed, keeping cached phi_micro")
+            logger.warning(
+                "IIT: all 5 BFS samples produced phi=0, keeping cached phi_micro=%.4f",
+                self._iit_phi_cache,
+            )
 
         self._iit_last_time = now
         return self._iit_phi_cache

@@ -1048,7 +1048,7 @@ class BitNetAdapter(LLMAdapter):
     """
 
     def __init__(self, model: str = 'bitnet-2b',
-                 base_url: str = 'http://127.0.0.1:8178/v1',
+                 base_url: str = 'http://127.0.0.1:8088/v1',
                  max_tokens: int = 256, temperature: float = 0.7,
                  **kwargs) -> None:
         super().__init__(model, '', base_url, max_tokens, temperature)
