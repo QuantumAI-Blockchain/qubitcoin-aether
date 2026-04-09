@@ -1922,6 +1922,26 @@ class AetherEngine:
                 except Exception as e:
                     logger.debug(f"MemoryManager error: {e}")
 
+            # Phase 4.9: KG-level consolidation (duplicate merge + stale prune)
+            # Runs at same interval as long-term memory consolidation (~3300 blocks)
+            if (self.kg and block.height > 0
+                    and block.height % Config.AETHER_LONG_TERM_CONSOLIDATION_INTERVAL == 0):
+                try:
+                    merged = self.kg.find_and_merge_duplicates(similarity_threshold=0.92)
+                    pruned = self.kg.prune_stale_nodes(
+                        max_age_blocks=50000,
+                        min_confidence=0.15,
+                        current_block=block.height,
+                    )
+                    if merged > 0 or pruned > 0:
+                        logger.info(
+                            "KG consolidation at block %d: merged=%d duplicates, "
+                            "pruned=%d stale nodes",
+                            block.height, merged, pruned,
+                        )
+                except Exception as e:
+                    logger.debug("KG consolidation error: %s", e)
+
             # Phase 5.1: Curiosity-driven exploration
             if block.height > 0 and block.height % Config.AETHER_CURIOSITY_INTERVAL == 0:
                 try:

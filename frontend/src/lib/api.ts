@@ -238,6 +238,8 @@ export interface SelfImprovementStats {
   total_records: number;
   domains_tracked: number;
   diversity_score: number;
+  performance_delta?: number;
+  rollbacks?: number;
   average_weights: Record<string, number>;
 }
 
@@ -872,6 +874,10 @@ export interface AetherEngineInfo {
     hits: number;
     misses: number;
     hit_rate: number;
+  };
+  search_index?: {
+    indexed_nodes: number;
+    vocabulary_size: number;
   };
 }
 

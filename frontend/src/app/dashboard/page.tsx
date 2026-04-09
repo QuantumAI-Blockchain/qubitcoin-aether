@@ -466,6 +466,24 @@ function AetherEnginePanel() {
             {(cacheHitRate * 100).toFixed(1)}%
           </p>
         </div>
+        <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-3">
+          <p className="text-xs text-text-secondary">Nodes / Edges</p>
+          <p className="mt-1 font-[family-name:var(--font-code)] text-sm font-semibold">
+            {(info?.node_count ?? 0).toLocaleString()} / {(info?.edge_count ?? 0).toLocaleString()}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-3">
+          <p className="text-xs text-text-secondary">Search Index</p>
+          <p className="mt-1 font-[family-name:var(--font-code)] text-sm font-semibold">
+            {(info?.search_index?.indexed_nodes ?? 0).toLocaleString()} nodes
+          </p>
+        </div>
+        <div className="rounded-lg border border-border-subtle bg-bg-deep/50 p-3">
+          <p className="text-xs text-text-secondary">Gates Passed</p>
+          <p className="mt-1 font-[family-name:var(--font-code)] text-sm font-semibold text-quantum-green">
+            {info?.gates_passed?.length ?? 0} / 10
+          </p>
+        </div>
       </div>
       {info?.emotional_state && Object.keys(info.emotional_state).length > 0 && (
         <div className="mt-4">
@@ -660,6 +678,24 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
                 <span className="text-text-secondary">Adjustments</span>
                 <span className="font-[family-name:var(--font-code)]">
                   {info.self_improvement.total_adjustments.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Perf Delta</span>
+                <span className={`font-[family-name:var(--font-code)] ${
+                  (info.self_improvement.performance_delta ?? 0) > 0
+                    ? "text-quantum-green"
+                    : (info.self_improvement.performance_delta ?? 0) < 0
+                      ? "text-red-400"
+                      : ""
+                }`}>
+                  {((info.self_improvement.performance_delta ?? 0) * 100).toFixed(2)}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Rollbacks</span>
+                <span className="font-[family-name:var(--font-code)]">
+                  {(info.self_improvement.rollbacks ?? 0).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
