@@ -4288,12 +4288,7 @@ class AetherEngine:
                 stats['improvement_performance_delta'] = float(
                     getattr(self.self_improvement, '_last_performance_delta', 0.0)
                 )
-                if si_stats.get('cycles_completed', 0) > 0:
-                    logger.info(
-                        "Self-improvement gate stats: cycles=%d, delta=%.4f",
-                        si_stats.get('cycles_completed', 0),
-                        si_stats.get('performance_delta', 0.0),
-                    )
+                pass  # SI gate stats logged after DB floor applied below
         except Exception as e:
             logger.warning("Self-improvement stat collection failed: %s", e)
 
@@ -4357,6 +4352,26 @@ class AetherEngine:
             stats['auto_goals_with_inferences'] = float(
                 max(current, db_goals // 2)
             )
+
+        # Apply DB floors for counters that reset on restart (Gate 6 + Gate 8)
+        db_si = stats.get('db_si_cycles', 0)
+        if db_si > 0:
+            current_si = stats.get('improvement_cycles_enacted', 0)
+            stats['improvement_cycles_enacted'] = float(max(current_si, db_si))
+        db_disc = stats.get('db_curiosity_discoveries', 0)
+        if db_disc > 0:
+            current_disc = stats.get('curiosity_driven_discoveries', 0)
+            stats['curiosity_driven_discoveries'] = float(max(current_disc, db_disc))
+
+        # Log final gate-relevant stats after DB floors
+        logger.info(
+            "Gate stats (DB-backed): SI_cycles=%.0f (db=%d), discoveries=%.0f (db=%d), "
+            "delta=%.4f, fep_decreasing=%s",
+            stats.get('improvement_cycles_enacted', 0), db_si,
+            stats.get('curiosity_driven_discoveries', 0), db_disc,
+            stats.get('improvement_performance_delta', 0.0),
+            stats.get('fep_free_energy_decreasing', 0),
+        )
 
         return stats
 
