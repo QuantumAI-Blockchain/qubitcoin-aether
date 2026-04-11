@@ -4260,10 +4260,10 @@ class AetherEngine:
                 stats['fep_domain_precisions'] = float(
                     len(fep_stats.get('domain_precisions', {}))
                 )
-                # Gate 8: curiosity-driven discoveries
-                stats['curiosity_driven_discoveries'] = float(
-                    fep_stats.get('discoveries_count', 0)
-                )
+                # Gate 8: curiosity-driven discoveries (max of in-memory + DB)
+                in_mem_disc = float(fep_stats.get('discoveries_count', 0))
+                db_disc = stats.get('db_curiosity_discoveries', 0)
+                stats['curiosity_driven_discoveries'] = max(in_mem_disc, db_disc)
                 logger.info(
                     "FEP gate stats: free_energy=%.3f, decreasing=%s, "
                     "domains=%d, discoveries=%d, history_len=%d",
@@ -4280,9 +4280,9 @@ class AetherEngine:
         try:
             if self.self_improvement:
                 si_stats = self.self_improvement.get_stats()
-                stats['improvement_cycles_enacted'] = float(
-                    si_stats.get('cycles_completed', 0)
-                )
+                in_mem_cycles = float(si_stats.get('cycles_completed', 0))
+                db_cycles = stats.get('db_si_cycles', 0)
+                stats['improvement_cycles_enacted'] = max(in_mem_cycles, db_cycles)
                 # performance_delta is on _last_performance_delta attr,
                 # not in get_stats() dict
                 stats['improvement_performance_delta'] = float(
@@ -4322,6 +4322,22 @@ class AetherEngine:
                         stats['db_axiom_from_consolidation'] = float(_q[4] or 0)
                         stats['db_novel_concept_count'] = float(_q[5] or 0)
                         stats['db_cross_domain_inferences'] = float(_q[6] or 0)
+                    # Count curiosity discoveries from DB (persist across restarts)
+                    _cq = _sess.execute(sa_text(
+                        "SELECT COUNT(*) FROM knowledge_nodes "
+                        "WHERE node_type = 'meta_observation' "
+                        "AND content::text LIKE '%%curiosity_goal_result%%'"
+                    )).fetchone()
+                    if _cq:
+                        stats['db_curiosity_discoveries'] = float(_cq[0] or 0)
+                    # Count SI cycles from DB (persist across restarts)
+                    _sq = _sess.execute(sa_text(
+                        "SELECT COUNT(*) FROM knowledge_nodes "
+                        "WHERE content::text LIKE '%%self_improvement%%' "
+                        "AND content::text LIKE '%%weight adjustments%%'"
+                    )).fetchone()
+                    if _sq:
+                        stats['db_si_cycles'] = float(_sq[0] or 0)
                     # Also get node_type counts for gate 9 (inference >= 5000)
                     _ntq = _sess.execute(sa_text(
                         "SELECT node_type, COUNT(*) FROM knowledge_nodes "
