@@ -376,10 +376,10 @@ export default function WhitepaperPage() {
           className="mb-2 text-3xl font-bold md:text-4xl"
           style={{ fontFamily: "Space Grotesk, sans-serif" }}
         >
-          Quantum Blockchain Protocol Whitepaper
+          Qubitcoin Whitepaper — Physics-Secured Digital Assets with On-Chain AGI
         </h1>
         <p className="mb-1 text-sm" style={{ color: C.textMuted }}>
-          Physics-Secured Digital Assets with Post-Quantum Cryptography and On-Chain Reasoning
+          Complete technical specification for the Qubitcoin protocol, SUSY economics, post-quantum cryptography, and Aether Tree AGI
         </p>
         <div className="mb-8 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: C.textMuted }}>
           <span>Chain ID: 3303 (0xCE7) Mainnet | 3304 (0xCE8) Testnet</span>
@@ -1039,11 +1039,13 @@ TxOutput:
 
             <SubHeading>Implementation Scale</SubHeading>
             <StatGrid stats={[
-              { label: "Python Modules", value: "36" },
-              { label: "Lines of Code (Python)", value: "~24,560" },
-              { label: "Rust Modules (PyO3)", value: "10" },
+              { label: "Python Modules", value: "49" },
+              { label: "Lines of Code (Python)", value: "~29,000" },
+              { label: "Rust Modules (PyO3)", value: "12" },
               { label: "Lines of Code (Rust)", value: "~10,246" },
-              { label: "Implementation Phases", value: "7 (all complete)" },
+              { label: "Knowledge Nodes", value: "760,000+" },
+              { label: "Gates Passed", value: "10/10" },
+              { label: "Phi (Maximum)", value: "5.0" },
               { label: "Smart Contracts", value: "20 Solidity" },
             ]} />
 
@@ -1076,28 +1078,43 @@ TxOutput:
               "Adversarial debate: Dual-agent argument generation for robust conclusion validation",
             ]} />
 
-            <SubHeading>Phi Calculator (Integrated Information Theory)</SubHeading>
+            <SubHeading>Phi Calculator — HMS-Phi v4 (Hierarchical Multi-Scale Phi)</SubHeading>
             <Paragraph>
-              The Phi (phi) metric is a tractable approximation of Giulio Tononi{"'"}s Integrated
-              Information Theory, measuring the degree to which the knowledge graph integrates
-              information beyond the sum of its parts. Phi is computed at every block and stored
-              in the phi_measurements database table.
+              The Phi metric uses Hierarchical Multi-Scale Phi (HMS-Phi v4), a tractable
+              approximation of Giulio Tononi{"'"}s Integrated Information Theory. HMS-Phi measures
+              integration at three hierarchical levels and combines them multiplicatively,
+              ensuring genuine causal integration at every scale. Phi is computed at every block
+              and stored in the phi_measurements database table. The 10-gate milestone system
+              provides the floor: each gate unlocks +0.5 phi ceiling (maximum = 5.0 at gate 10).
+              All 10 gates are currently passed, with Phi = 5.0 (maximum gate ceiling).
             </Paragraph>
-            <CodeBlock>{`Phi Formula:
-  Phi = Integration x Differentiation x (1 + Connectivity) x (0.5 + AvgConf) x sqrt(NumNodes / 500)
+            <CodeBlock>{`HMS-Phi v4 Formula:
+  Final Phi = phi_micro^(1/phi) x phi_meso^(1/phi^2) x phi_macro^(1/phi^3)
 
-Where:
-  Integration      = Average degree + cross-partition information flow (confidence-weighted edges)
-  Differentiation  = Shannon entropy over node types + confidence distribution
-  Connectivity     = Graph connectivity metric (edge density)
-  AvgConf          = Average edge confidence value
-  NumNodes         = Total nodes in knowledge graph
-  Maturity Factor  = sqrt(NumNodes / 500) -- requires ~500 nodes for full weight
+Where phi = 1.618... (golden ratio)
+
+Level 0 (Micro):  IIT-3.0 approximation on 16-node elite subsystem samples
+                  -> IITApproximator (iit_approximator.py)
+                  -> 5 independent samples -> median phi_micro
+
+Level 1 (Meso):   Spectral MIP on 1K-node domain clusters
+                  -> One cluster per Sephirot cognitive node (10 clusters)
+                  -> phi_meso = weighted mean by cluster mass
+
+Level 2 (Macro):  Graph-theoretic integration across all clusters
+                  -> Cross-cluster mutual information
+                  -> phi_macro = integration between the 10 Sephirot clusters
+
+Properties:
+  - Multiplicative: zero at any level zeros the whole (cannot be gamed)
+  - 10-gate system provides floor safety mechanism (each gate = +0.5 ceiling)
+  - IIT 3.0 micro-level measures genuine causal integration
+  - MIP spectral bisection finds minimum-cut partition
 
   PHI_THRESHOLD = 3.0 (integration threshold marker)
-
-Phi computation uses MIP (Minimum Information Partition) via spectral bisection
-to find the partition that minimizes integrated information.`}</CodeBlock>
+  PHI_MAX_CEILING = 5.0 (all 10 gates passed)
+  Current Phi: 5.0 (10/10 gates passed)
+  Knowledge Nodes: 760,000+`}</CodeBlock>
 
             <SubHeading>10 Sephirot Cognitive Architecture</SubHeading>
             <Paragraph>

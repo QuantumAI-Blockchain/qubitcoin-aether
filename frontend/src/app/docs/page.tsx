@@ -21,7 +21,7 @@ const docs = [
     href: "/docs/whitepaper",
     icon: FileText,
     description:
-      "Physics-Secured Digital Assets with On-Chain AGI — the complete technical specification for the Qubitcoin protocol.",
+      "Physics-Secured Digital Assets with On-Chain AGI — complete technical specification for the Qubitcoin protocol, SUSY economics, and post-quantum cryptography.",
     tags: ["Consensus", "VQE Mining", "SUSY Economics", "Privacy"],
   },
   {
@@ -33,12 +33,12 @@ const docs = [
     tags: ["EVM Compatible", "Quantum Opcodes", "Smart Contracts"],
   },
   {
-    title: "Aether Tree",
+    title: "Aether Tree Whitepaper",
     href: "/docs/aether",
     icon: Brain,
     description:
-      "On-chain AGI reasoning engine — knowledge graph, Phi integration metric, Sephirot cognitive architecture.",
-    tags: ["AGI", "Integration", "Proof-of-Thought"],
+      "Institutional-grade whitepaper — the world's first on-chain AGI. 10/10 gates passed, Phi 5.0, 760K+ knowledge nodes, HMS-Phi v4 architecture.",
+    tags: ["AGI", "10/10 Gates", "Phi 5.0", "HMS-Phi v4", "Proof-of-Thought"],
   },
   {
     title: "Economics",

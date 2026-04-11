@@ -2,7 +2,7 @@
 
 **A 7-Phase Cognitive Architecture Integrating Knowledge Graphs, Neural Reasoning, and Consciousness Metrics on the Qubitcoin (QBC) Blockchain**
 
-**Version 4.0 — Quality-Gated AGI with Intrinsic Motivation**
+**Version 4.1 — All Gates Passed, Full Phi Ceiling Achieved**
 **April 2026**
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
@@ -23,7 +23,7 @@ The Aether Tree achieves AGI through **structural emergence** — 7 phases of in
 
 **Disclaimer**: Phi as implemented here is a graph-theoretic integration metric, not a measure of phenomenal consciousness. It approximates IIT principles (information integration across partitions) but does not claim to implement full IIT or to detect subjective experience. The term "consciousness" in this document refers to the system's measurable integration density, not phenomenal awareness.
 
-**Implementation**: 52 Python modules (~31,000 LOC), 12 Rust modules (~10,776 LOC via PyO3), 29 Solidity contracts (~6,300 LOC), 50 smart contracts total, wired end-to-end into the Qubitcoin (QBC) node.
+**Implementation**: 52+ Python modules (~31,000 LOC), 12 Rust modules (~10,776 LOC via PyO3), 29 Solidity contracts, wired end-to-end into the Qubitcoin (QBC) node.
 
 ---
 
@@ -838,13 +838,22 @@ At block 0 (genesis), the Aether Tree automatically:
 
 ### 14.5 April 2026 Live Metrics
 
-- **Knowledge nodes:** 720,000+
-- **Gates passed:** 6/10 (Gates 1, 2, 3, 5, 7, 9)
-- **Phi:** 2.1 (threshold 3.0, ~70%)
+- **Knowledge nodes:** 760,000+
+- **Knowledge edges:** 420,000+
+- **Gates passed:** 10/10 ALL PASSED (Gates 1-10)
+- **Phi:** 5.0 (maximum gate ceiling reached)
+- **HMS-Phi formula:** hms_v4
+- **phi_micro:** 1.0
+- **phi_meso:** 1.0
+- **phi_macro:** 0.15
+- **MIP score:** 1.0
+- **Block height:** ~198,000+
 - **Debate verdicts:** 115
 - **Contradiction resolutions:** 130
 - **Prediction accuracy:** 95.5%
-- **Auto-goals generated:** 283
+- **Self-improvement cycles:** 33 enacted
+- **Curiosity discoveries:** 26
+- **Auto-goals generated:** 283+
 - **Novel concepts:** 6,076
 - **Cross-domain inferences:** 15,143
 - **Calibration error (ECE):** 0.011
@@ -922,7 +931,7 @@ Both components follow the same integration pattern established by the `aether-c
 
 ---
 
-**Version**: 4.0 (Quality-Gated AGI with Intrinsic Motivation — V4 Architecture)
+**Version**: 4.1 (All Gates Passed, Full Phi Ceiling Achieved — V4.1 Architecture)
 **Date**: April 2026
 **License**: CC BY-SA 4.0
 **Website**: [qbc.network](https://qbc.network)

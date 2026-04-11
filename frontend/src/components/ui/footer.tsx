@@ -13,7 +13,7 @@ const navLinks = [
 const resourceLinks = [
   { href: "/docs/whitepaper", label: "Whitepaper" },
   { href: "/docs/qvm", label: "QVM Docs" },
-  { href: "/docs/aether", label: "Aether Tree Docs" },
+  { href: "/docs/aether", label: "Aether Tree Whitepaper" },
   { href: "/docs/economics", label: "Economics" },
   { href: "/docs/qusd", label: "QUSD Stablecoin" },
   { href: "/docs/exchange", label: "Exchange" },
