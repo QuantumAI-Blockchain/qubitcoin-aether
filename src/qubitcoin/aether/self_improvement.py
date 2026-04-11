@@ -154,7 +154,7 @@ class SelfImprovementEngine:
         self._ema_alpha: float = 0.3
 
         # Minimum observations per (strategy, domain) before adjusting
-        self._min_observations: int = 5
+        self._min_observations: int = 3
 
         # Rollback mechanism (Improvement 92)
         self._weight_snapshots: List[Tuple[int, Dict[str, Dict[str, float]]]] = []
@@ -765,6 +765,8 @@ class SelfImprovementEngine:
         return {
             'cycles_completed': self._cycles_completed,
             'total_adjustments': self._total_adjustments,
+            'performance_delta': self._last_performance_delta,
+            'total_records': len(self._records),
             'recent_cycles': recent,
             'trend': trend,
             'regressions_detected': sum(

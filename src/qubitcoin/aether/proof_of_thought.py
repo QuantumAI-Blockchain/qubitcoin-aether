@@ -1912,6 +1912,7 @@ class AetherEngine:
             if self.self_improvement and block.height > 0:
                 try:
                     # Feed reasoning outcomes to self-improvement engine
+                    si_fed = 0
                     if self.reasoning and hasattr(self.reasoning, '_operations'):
                         for op in self.reasoning._operations[-20:]:
                             self.self_improvement.record_performance(
@@ -1921,6 +1922,7 @@ class AetherEngine:
                                 success=op.success,
                                 block_height=op.block_height,
                             )
+                            si_fed += 1
 
                     # Also feed neural reasoner performance
                     if self.neural_reasoner:
@@ -1932,6 +1934,7 @@ class AetherEngine:
                             success=nr_accuracy > 0.3,
                             block_height=block.height,
                         )
+                        si_fed += 1
                     # Also feed debate outcomes
                     if self.debate_protocol and hasattr(self.debate_protocol, '_debates'):
                         for debate in self.debate_protocol._debates[-5:]:
@@ -1943,11 +1946,24 @@ class AetherEngine:
                                 success=verdict in ('accepted', 'rejected'),
                                 block_height=block.height,
                             )
+                            si_fed += 1
 
                     # Run improvement cycle at configured interval
                     if block.height % Config.AETHER_SELF_IMPROVEMENT_INTERVAL == 0:
-                        if self.self_improvement.should_run_cycle(block.height):
+                        n_records = len(self.self_improvement._records)
+                        should = self.self_improvement.should_run_cycle(block.height)
+                        logger.info(
+                            "SI check at block %d: records=%d, should_run=%s, fed=%d",
+                            block.height, n_records, should, si_fed,
+                        )
+                        if should:
                             cycle_result = self.self_improvement.run_improvement_cycle(block.height)
+                            logger.info(
+                                "SI cycle result at block %d: #%d, adjustments=%d, cycles_completed=%d",
+                                block.height, cycle_result.get('cycle_number', 0),
+                                cycle_result.get('adjustments', 0),
+                                self.self_improvement._cycles_completed,
+                            )
                             if cycle_result.get('adjustments', 0) > 0:
                                 # ENACT improvements: apply weight changes to
                                 # strategy selection with automatic rollback
@@ -4264,8 +4280,10 @@ class AetherEngine:
                 stats['improvement_cycles_enacted'] = float(
                     si_stats.get('cycles_completed', 0)
                 )
+                # performance_delta is on _last_performance_delta attr,
+                # not in get_stats() dict
                 stats['improvement_performance_delta'] = float(
-                    si_stats.get('performance_delta', 0.0)
+                    getattr(self.self_improvement, '_last_performance_delta', 0.0)
                 )
                 if si_stats.get('cycles_completed', 0) > 0:
                     logger.info(
@@ -6046,8 +6064,10 @@ class AetherEngine:
             if goal['type'] == 'explore_domain' and self.reasoning:
                 # Find nodes in the target domain and try induction
                 domain = goal.get('target', '')
+                # Search recent nodes (last 5K) for efficiency
+                recent_nodes = list(self.kg.nodes.values())[-5000:]
                 domain_nodes = [
-                    n for n in self.kg.nodes.values()
+                    n for n in recent_nodes
                     if n.domain == domain and n.node_type == 'observation'
                 ][:5]
                 if len(domain_nodes) >= 2:
@@ -6308,17 +6328,20 @@ class AetherEngine:
             if g['status'] == 'pending'
         }
 
-        # 1. Under-explored domains
+        # 1. Under-explored domains (bottom 3 by relative count)
         domain_stats = self.kg.get_domain_stats()
         if domain_stats:
             sorted_domains = sorted(
                 domain_stats.items(), key=lambda x: x[1]['count']
             )
+            # Always target bottom 3 domains — use relative priority,
+            # not absolute threshold (all domains have 1000s of nodes)
             for domain, info in sorted_domains[:3]:
-                if domain not in existing_targets and info['count'] < 100:
+                if domain not in existing_targets:
+                    max_count = max(d['count'] for d in domain_stats.values()) or 1
                     self._curiosity_goals.append({
                         'type': 'explore_domain',
-                        'priority': 1.0 / (1 + info['count'] / 50),
+                        'priority': 1.0 - (info['count'] / max_count) * 0.5,
                         'target': domain,
                         'created_block': block_height,
                         'status': 'pending',
