@@ -5961,9 +5961,8 @@ class AetherEngine:
                     logger.debug(f"Cross-domain inference error: {e}")
 
         # --- Feed curiosity engine with prediction errors ---
-        # Record domain prediction outcomes every block so FEP accumulates
+        # Record domain prediction outcomes every reasoning cycle so FEP accumulates
         # domain precision data (needed for gates 6 + 8).
-        # Even accuracy=0.0 is valid data — don't skip it.
         if self.curiosity_engine and domains_with_nodes:
             try:
                 accuracy = 0.5  # default prior
@@ -5972,6 +5971,7 @@ class AetherEngine:
                         accuracy = self.temporal_engine.get_accuracy() or 0.5
                     except Exception:
                         pass
+                fed_domains = 0
                 for d in domains_with_nodes:
                     self.curiosity_engine.record_prediction_outcome(
                         domain=d,
@@ -5979,8 +5979,14 @@ class AetherEngine:
                         actual=1.0,
                         topic=f'block_{block_height}_reasoning',
                     )
-            except Exception:
-                pass  # Non-critical
+                    fed_domains += 1
+                if fed_domains > 0:
+                    logger.info(
+                        "FEP fed %d domains at block %d (accuracy=%.3f)",
+                        fed_domains, block_height, accuracy,
+                    )
+            except Exception as e:
+                logger.warning("FEP domain feed failed: %s", e)
 
         if inferences_created > 0:
             logger.info(
