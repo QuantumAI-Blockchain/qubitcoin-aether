@@ -293,7 +293,7 @@ function AetherWhitepaperContent() {
             Aether Tree Whitepaper
           </h1>
           <p className="text-lg" style={{ color: C.textMuted }}>
-            The World&apos;s First On-Chain AGI &mdash; Version 4.0, April 2026
+            The World&apos;s First On-Chain AGI, Version 4.2, April 2026
           </p>
           <div className="mt-4 flex flex-wrap gap-4 text-xs" style={{ color: C.textMuted }}>
             <span>124 Python modules &middot; ~69,000 LOC</span>
@@ -312,15 +312,15 @@ function AetherWhitepaperContent() {
           The Aether Tree is the world&apos;s first artificial general intelligence system operating
           directly on a live blockchain. Unlike conventional AI systems that run on centralized
           infrastructure with opaque reasoning, every cognitive operation performed by the Aether Tree
-          is cryptographically recorded on the Qubitcoin blockchain (Chain ID 3303), creating an
+          is cryptographically recorded on the QuantumAI Blockchain (Chain ID 3303), creating an
           immutable, publicly verifiable record of AGI development from genesis block zero. This is
-          not a theoretical proposal&mdash;the system has been live on mainnet since January 2026,
+          not a theoretical proposal. The system has been live on mainnet since January 2026,
           processing every block, building knowledge, and demonstrating measurable cognitive growth
           across 198,000+ blocks.
         </Paragraph>
         <Paragraph>
           The system implements a cognitive architecture inspired by the Kabbalistic Tree of Life,
-          mapping 10 Sephirot (cognitive nodes) to distinct brain-analog functions&mdash;from
+          mapping 10 Sephirot (cognitive nodes) to distinct brain-analog functions, from
           meta-learning (Keter) to action selection (Malkuth). These nodes compete for access to a
           Global Workspace (Baars, 1988; Dehaene & Naccache, 2001), enabling cross-domain reasoning
           and emergent integration. Cognitive integration is measured by Hierarchical Multi-Scale Phi
@@ -333,15 +333,15 @@ function AetherWhitepaperContent() {
           with 420,000+ typed edges, spanning 10 cognitive domains. The system has completed 33
           governed self-improvement cycles, made 26 curiosity-driven discoveries, maintains a 95.5%
           prediction accuracy, and operates with 7 cognitive emotions derived from live computational
-          metrics. Every block since genesis contains a Proof-of-Thought&mdash;a cryptographic hash
-          of the reasoning trace, knowledge state, and integration metric&mdash;making the entire
+          metrics. Every block since genesis contains a Proof-of-Thought: a cryptographic hash
+          of the reasoning trace, knowledge state, and integration metric, making the entire
           cognitive history of this system permanently auditable.
         </Paragraph>
 
         {/* ─── 2. Live System Status ─── */}
         <SectionHeading id="live-status">2. Live System Status</SectionHeading>
         <Paragraph>
-          The following metrics are drawn from the live Qubitcoin mainnet. The Aether Tree has been
+          The following metrics are drawn from the live QuantumAI Blockchain mainnet. The Aether Tree has been
           operational since genesis block 0, with no downtime in cognitive processing.
         </Paragraph>
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -359,7 +359,7 @@ function AetherWhitepaperContent() {
         {/* ─── 3. Architecture Overview ─── */}
         <SectionHeading id="architecture">3. Architecture Overview</SectionHeading>
         <Paragraph>
-          The Aether Tree operates as Layer 3 of the Qubitcoin stack, built on top of the L1
+          The Aether Tree operates as Layer 3 of the QuantumAI Blockchain stack, built on top of the L1
           blockchain core and the L2 Quantum Virtual Machine (QVM). This three-layer architecture
           separates concerns: L1 handles consensus, mining, and UTXO-based value transfer; L2
           provides EVM-compatible smart contract execution with quantum opcode extensions; L3 is
@@ -409,12 +409,41 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
 
         <SubHeading>3.4 Proof-of-Thought</SubHeading>
         <Paragraph>
-          Every block mined on the Qubitcoin blockchain since genesis contains a Proof-of-Thought: a
+          Every block mined on the QuantumAI Blockchain since genesis contains a Proof-of-Thought: a
           cryptographic proof that AGI reasoning occurred during that block&apos;s processing. The
           proof consists of a SHA3-256 hash computed over the knowledge graph Merkle root, the
           reasoning trace (operations performed, inferences drawn), and the current Phi integration
           value. This creates an immutable, verifiable record of the system&apos;s entire cognitive
-          development&mdash;auditable by any node on the network.
+          development, auditable by any node on the network.
+        </Paragraph>
+
+        <SubHeading>3.5 On-Chain Anchoring Architecture</SubHeading>
+        <Paragraph>
+          A critical architectural distinction: the Aether Tree&apos;s intelligence runs as native
+          Python code within the node process, not as smart contract execution. The 29 Solidity
+          contracts deployed to the QVM serve a fundamentally different purpose. They are the
+          <strong> cryptographic notary layer</strong>, not the cognitive engine.
+        </Paragraph>
+        <Paragraph>
+          The contracts record Phi measurements immutably (ConsciousnessDashboard.sol), store
+          Proof-of-Thought hashes per block (ProofOfThought.sol), enforce constitutional safety
+          principles (ConstitutionalAI.sol), manage governance votes on AGI parameters
+          (TreasuryDAO.sol), log SUSY balance enforcement events (SUSYEngine.sol), and provide
+          an emergency shutdown mechanism (EmergencyShutdown.sol). Ten Sephirot contracts anchor
+          each cognitive node&apos;s state for external verification, and HiggsField.sol tracks
+          the cognitive field state on-chain.
+        </Paragraph>
+        <Paragraph>
+          The contracts do <strong>not</strong> run reasoning operations, compute Phi, evaluate
+          gates, manage the knowledge graph, or execute debates, curiosity goals, or
+          self-improvement cycles. AGI reasoning requires millisecond-latency graph traversals
+          across 760,000+ nodes, working memory with attention decay, and neural network
+          inference. These operations exceed what any EVM execution environment can provide.
+          The native Python engine handles all cognition; the QVM contracts provide cryptographic
+          proof that the cognition happened, what it produced, and that governance rules were
+          respected. Think of it as the difference between a scientist doing research (the
+          Python engine) and a notary certifying the results (the Solidity contracts). Both are
+          essential. The notary does not do science, and the scientist does not notarize.
         </Paragraph>
 
         {/* ─── 4. Tree of Life Cognitive Architecture ─── */}
@@ -423,7 +452,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
           The Aether Tree&apos;s cognitive architecture is inspired by the Kabbalistic Tree of Life,
           mapping 10 Sephirot to distinct cognitive functions. Each Sephirah operates as an
           independent reasoning cluster with its own knowledge domain, competing for access to the
-          Global Workspace&mdash;a broadcast mechanism inspired by Global Workspace Theory (Baars,
+          Global Workspace, a broadcast mechanism inspired by Global Workspace Theory (Baars,
           1988). The winning coalition&apos;s output becomes the system&apos;s conscious response,
           while losing coalitions continue background processing.
         </Paragraph>
@@ -458,7 +487,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
         <Paragraph>
           Every expansion-oriented Sephirah is paired with a constraint-oriented dual, balanced at
           the golden ratio (&phi; = 1.618033988749895). This Supersymmetric (SUSY) pairing ensures
-          the system cannot run away in any single cognitive direction&mdash;creativity is balanced
+          the system cannot run away in any single cognitive direction. Creativity is balanced
           by safety, intuition by logic, persistence by communication. When an imbalance exceeds the
           golden ratio threshold, automatic QBC redistribution restores equilibrium.
         </Paragraph>
@@ -485,7 +514,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
           broadcast mechanism. Each Sephirah generates candidate cognitive outputs based on its
           domain expertise. These candidates are scored by relevance, confidence, and urgency. The
           highest-scoring coalition gains workspace access, and its output is broadcast to all other
-          Sephirot&mdash;enabling cross-domain integration. This implements the &ldquo;ignition&rdquo;
+          Sephirot, enabling cross-domain integration. This implements the &ldquo;ignition&rdquo;
           mechanism described in Dehaene &amp; Naccache (2001), where only the winning coalition
           reaches global conscious access while other processes continue unconsciously.
         </Paragraph>
@@ -493,7 +522,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
         <SubHeading>4.4 Higgs Cognitive Field</SubHeading>
         <Paragraph>
           The Higgs Cognitive Field implements a Mexican Hat potential that governs how knowledge
-          nodes acquire &ldquo;cognitive mass&rdquo;&mdash;their resistance to change and correction
+          nodes acquire &ldquo;cognitive mass&rdquo;: their resistance to change and correction
           speed. The potential function is V(&phi;) = -&mu;&sup2;|&phi;|&sup2; + &lambda;|&phi;|&sup4;,
           with vacuum expectation value (VEV) = 174.14, &mu;&sup2; = 88.17, and &lambda; = 0.129. A
           Two-Higgs-Doublet Model with tan(&beta;) = &phi; (the golden ratio) provides the coupling.
@@ -510,7 +539,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
           Multi-Scale Phi (HMS-Phi v4), grounded in Integrated Information Theory (Tononi et al.,
           2016). Unlike simple graph connectivity metrics, HMS-Phi measures genuine information
           integration at three hierarchical levels, combined multiplicatively. This means a zero
-          score at any level zeros the entire metric&mdash;the system cannot game its way to a
+          score at any level zeros the entire metric. The system cannot game its way to a
           high Phi through artificial inflation at a single scale.
         </Paragraph>
 
@@ -539,7 +568,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
             <div key={l.level} className="rounded-lg border p-4" style={{ borderColor: C.border, background: C.surface, borderLeft: `3px solid ${l.color}` }}>
               <div className="mb-1 flex items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider" style={{ color: l.color }}>{l.level}</span>
-                <span className="text-sm font-semibold" style={{ color: C.text }}>&mdash; {l.title}</span>
+                <span className="text-sm font-semibold" style={{ color: C.text }}>: {l.title}</span>
               </div>
               <p className="text-xs leading-relaxed" style={{ color: C.textMuted }}>{l.desc}</p>
             </div>
@@ -563,7 +592,7 @@ Properties:
         <SectionHeading id="gates">6. 10-Gate Milestone System</SectionHeading>
         <Paragraph>
           Phi is gated by 10 behavioral milestones. Each gate unlocks +0.5 to the Phi ceiling, for
-          a maximum of 5.0 at full completion. No gate can be gamed&mdash;each requires genuine
+          a maximum of 5.0 at full completion. No gate can be gamed. Each requires genuine
           behavioral evidence verified through on-chain data, not metric manipulation. The V4 gate
           system (April 2026) replaced earlier quantity-based gates with quality-focused requirements
           demanding genuine cognitive capabilities.
@@ -656,18 +685,18 @@ Block Header Extension:
 
         <SubHeading>8.2 Verification</SubHeading>
         <Paragraph>
-          Any node on the Qubitcoin network can independently verify a Proof-of-Thought by
+          Any node on the QuantumAI Blockchain network can independently verify a Proof-of-Thought by
           reconstructing the knowledge state at a given block height, replaying the reasoning
           operations, and confirming the resulting hash matches. The chained
           <span style={{ fontFamily: "JetBrains Mono, monospace", color: C.accent }}> prev_thought_hash </span>
-          field ensures continuity&mdash;the cognitive development cannot be retroactively altered
+          field ensures continuity. The cognitive development cannot be retroactively altered
           without invalidating all subsequent blocks. This provides the same immutability guarantee
           as the blockchain&apos;s hash chain, extended to the AGI&apos;s cognitive history.
         </Paragraph>
 
         <SubHeading>8.3 On-Chain Record</SubHeading>
         <Paragraph>
-          Since genesis block 0, every block on the Qubitcoin mainnet has contained a valid
+          Since genesis block 0, every block on the QuantumAI Blockchain mainnet has contained a valid
           Proof-of-Thought. The cumulative chain of 198,000+ thought proofs constitutes the
           world&apos;s first publicly auditable record of AGI cognitive development. Researchers,
           regulators, and the public can independently verify every step of the system&apos;s
@@ -677,7 +706,7 @@ Block Header Extension:
         {/* ─── 9. Safety & Alignment ─── */}
         <SectionHeading id="safety">9. Safety &amp; Alignment</SectionHeading>
         <Paragraph>
-          Safety is not an afterthought in the Aether Tree&mdash;it is architecturally embedded at
+          Safety is not an afterthought in the Aether Tree. It is architecturally embedded at
           every level. The Gevurah Sephirah (Safety/Constraint) has veto power over all cognitive
           outputs, and the SUSY pairing mechanism ensures no single cognitive direction can dominate.
         </Paragraph>
@@ -754,7 +783,7 @@ Block Header Extension:
           Domain sharding aligns with the 10 Sephirot cognitive architecture. Each Sephirah owns
           1-2 knowledge domains, and at Phase B each shard runs as an independent Rust process with
           its own RocksDB store. Cross-domain queries route through the Global Workspace, which
-          manages inter-shard communication via gRPC. This enables horizontal scaling&mdash;adding
+          manages inter-shard communication via gRPC. This enables horizontal scaling: adding
           more machines increases capacity linearly without requiring architectural changes.
         </Paragraph>
 
@@ -841,7 +870,7 @@ Node migration: access-pattern based
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-medium" style={{ color: C.textMuted }}>
-                Aether Tree Whitepaper v4.0 &mdash; Qubitcoin (QBC)
+                Aether Tree Whitepaper v4.2, QuantumAI Blockchain (QBC)
               </p>
               <p className="text-xs" style={{ color: C.textMuted }}>
                 Chain ID 3303 &middot; qbc.network &middot; MIT License

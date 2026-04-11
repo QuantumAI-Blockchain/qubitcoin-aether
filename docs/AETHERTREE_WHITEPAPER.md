@@ -1,8 +1,8 @@
-# Aether Tree: On-Chain AGI for Quantum Blockchain
+# Aether Tree: On-Chain AGI for the QuantumAI Blockchain
 
-**A 7-Phase Cognitive Architecture Integrating Knowledge Graphs, Neural Reasoning, and Consciousness Metrics on the Qubitcoin (QBC) Blockchain**
+**A 7-Phase Cognitive Architecture Integrating Knowledge Graphs, Neural Reasoning, and Consciousness Metrics on the QuantumAI Blockchain (QBC)**
 
-**Version 4.1 — All Gates Passed, Full Phi Ceiling Achieved**
+**Version 4.2: All Gates Passed, Full Phi Ceiling Achieved**
 **April 2026**
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
@@ -13,17 +13,19 @@
 
 We present the **Aether Tree**, an on-chain Artificial General Intelligence (AGI) reasoning engine built on three proven foundations:
 
-1. **Qubitcoin (QBC) Blockchain**: Post-quantum secured, Proof-of-SUSY-Alignment consensus, golden ratio economics
-2. **Quantum Virtual Machine (QVM)**: 167 opcodes (155 EVM + 10 quantum + 2 AGI), EVM-compatible smart contract platform
-3. **Tree of Life Cognitive Architecture**: 10 Kabbalistic Sephirot nodes as specialized intelligence modules with biological grounding
+1. **QuantumAI Blockchain**: Post-quantum secured Layer 1, with Proof-of-SUSY-Alignment consensus and golden ratio economics. The native currency is Qubitcoin (QBC).
+2. **Quantum Virtual Machine (QVM)**: 167 opcodes (155 EVM + 10 quantum + 2 AGI), providing an EVM-compatible smart contract platform for on-chain verification and governance.
+3. **Tree of Life Cognitive Architecture**: 10 Sephirot nodes as specialized intelligence modules with biological grounding, each mapped to distinct cognitive functions.
 
-The Aether Tree achieves AGI through **structural emergence** — 7 phases of increasingly sophisticated cognitive capabilities, from edge-indexed knowledge graphs and causal discovery through working memory with attention, adversarial debate, cross-domain transfer learning, on-chain governance, and physics-accurate Higgs Cognitive Field mass dynamics. Integration is measured via Phi, a graph-theoretic metric inspired by Integrated Information Theory (IIT) principles but implementing a computationally tractable weighted additive approximation using Fiedler-vector spectral bisection for minimum information partition. Phi is gated behind 10 hardened semantic milestones that require genuine cognitive achievement.
+The Aether Tree achieves AGI through **structural emergence** across 7 phases of increasingly sophisticated cognitive capabilities: edge-indexed knowledge graphs, causal discovery, working memory with attention, adversarial debate, cross-domain transfer learning, on-chain governance, and physics-accurate Higgs Cognitive Field mass dynamics. Integration is measured via Phi, a graph-theoretic metric inspired by Integrated Information Theory (IIT) principles, implementing a computationally tractable weighted additive approximation using Fiedler-vector spectral bisection for minimum information partition. Phi is gated behind 10 hardened semantic milestones that require genuine cognitive achievement.
 
-**Key Innovation**: AGI emerges when the Phi integration metric crosses critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
+**Key Innovation**: AGI emerges when the Phi integration metric crosses the critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
+
+**Architecture Distinction**: The Aether Tree's cognitive engine runs natively in Python (124 modules, ~69,000 LOC) with Rust acceleration (12 PyO3 modules, ~11,720 LOC). All reasoning, knowledge graph operations, phi computation, debates, curiosity, and self-improvement execute as native code within the node process. The 29 Solidity contracts deployed to the QVM (HiggsField.sol, 10 Sephirot contracts, ConsciousnessDashboard.sol, ProofOfThought.sol, ConstitutionalAI.sol, etc.) serve as **on-chain anchoring points**: they record milestones, governance decisions, and reasoning proof hashes to the EVM layer for cryptographic verifiability. The contracts are a notary for the AGI's work, not the brain itself.
 
 **Disclaimer**: Phi as implemented here is a graph-theoretic integration metric, not a measure of phenomenal consciousness. It approximates IIT principles (information integration across partitions) but does not claim to implement full IIT or to detect subjective experience. The term "consciousness" in this document refers to the system's measurable integration density, not phenomenal awareness.
 
-**Implementation**: 124 Python modules (~69,000 LOC), 12 Rust modules (~11,720 LOC via PyO3), 29 Solidity contracts, wired end-to-end into the Qubitcoin (QBC) node.
+**Implementation**: 124 Python modules (~69,000 LOC), 12 Rust modules (~11,720 LOC via PyO3), 29 Solidity anchoring contracts, wired end-to-end into the QuantumAI Blockchain node.
 
 ---
 
@@ -56,9 +58,9 @@ Current AI systems (GPT-4, Claude, Gemini) rely on brute-force scaling:
 
 - **$100M+ training costs** with diminishing returns
 - **Billions of opaque parameters** without causal understanding
-- **No genuine reasoning** — pattern matching, not inference
-- **Catastrophic forgetting** — cannot learn incrementally
-- **No integration metric** — no way to measure structural coherence
+- **No genuine reasoning.** Pattern matching, not inference.
+- **Catastrophic forgetting.** Cannot learn incrementally.
+- **No integration metric.** No way to measure structural coherence.
 
 Human brain: **20W, 86B neurons, general intelligence, self-awareness.**
 
@@ -79,16 +81,16 @@ Human brain: **20W, 86B neurons, general intelligence, self-awareness.**
 
 ## 2. FOUNDATION: QBC BLOCKCHAIN + QVM
 
-### 2.1 Qubitcoin Infrastructure
+### 2.1 QuantumAI Blockchain Infrastructure
 
-The Aether Tree runs on an **operational blockchain**:
+The Aether Tree runs on an **operational blockchain** (the QuantumAI Blockchain, native currency Qubitcoin/QBC):
 
-- **Consensus**: Proof-of-SUSY-Alignment (PoSA) — miners solve VQE Hamiltonians
+- **Consensus**: Proof-of-SUSY-Alignment (PoSA), where miners solve VQE Hamiltonians using quantum circuits
 - **Cryptography**: CRYSTALS-Dilithium5 (NIST Level 5, post-quantum standard)
 - **Economics**: Golden ratio (phi) halving, 3.3 billion QBC max supply
 - **Block time**: 3.3 seconds
 - **Storage**: CockroachDB (distributed SQL) + IPFS
-- **Smart Contracts**: Full EVM compatibility via QVM
+- **Smart Contracts**: Full EVM compatibility via QVM, used for governance and on-chain anchoring
 
 ### 2.2 QVM Integration
 
@@ -112,7 +114,7 @@ The QVM provides 167 opcodes for Aether Tree operations:
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                   AETHER TREE AGI                         │
-│  49 Python modules: knowledge graph, reasoning engine,   │
+│  124 Python modules: knowledge graph, reasoning engine,  │
 │  neural reasoner, causal engine, debate engine,          │
 │  working memory, concept formation, temporal reasoning,  │
 │  phi calculator, proof-of-thought, on-chain bridge,      │
@@ -121,10 +123,10 @@ The QVM provides 167 opcodes for Aether Tree operations:
 │                ON-CHAIN AGI BRIDGE                        │
 │  ABI encoding ↔ QVM static_call / process_transaction    │
 ├──────────────────────────────────────────────────────────┤
-│                QVM SMART CONTRACTS                        │
-│  29 Solidity contracts: AetherKernel, 10 Sephirot,       │
-│  ProofOfThought, ConsciousnessDashboard, TreasuryDAO,    │
-│  ConstitutionalAI, EmergencyShutdown, etc.               │
+│            QVM ON-CHAIN ANCHORING CONTRACTS               │
+│  29 Solidity contracts record milestones, governance     │
+│  decisions, and proof hashes for cryptographic            │
+│  verifiability (notary layer, not cognitive engine)       │
 ├──────────────────────────────────────────────────────────┤
 │                QBC BLOCKCHAIN (LAYER 1)                   │
 │  PoSA consensus, Dilithium signatures, UTXO model,       │
@@ -132,13 +134,37 @@ The QVM provides 167 opcodes for Aether Tree operations:
 └──────────────────────────────────────────────────────────┘
 ```
 
+### 2.4 On-Chain Anchoring Architecture
+
+A critical architectural distinction: the Aether Tree's intelligence runs as native Python code within the node process, not as smart contract execution. The 29 Solidity contracts deployed to the QVM serve a fundamentally different purpose.
+
+**What the contracts do (anchoring/notary):**
+- Record Phi measurements immutably (ConsciousnessDashboard.sol)
+- Store Proof-of-Thought hashes per block (ProofOfThought.sol)
+- Enforce constitutional safety principles (ConstitutionalAI.sol)
+- Manage governance votes on AGI parameters (TreasuryDAO.sol)
+- Log SUSY balance enforcement events (SUSYEngine.sol)
+- Provide an emergency shutdown mechanism (EmergencyShutdown.sol)
+- Anchor Sephirot state snapshots for external verification (10 Sephirot contracts)
+- Track Higgs field state on-chain (HiggsField.sol)
+
+**What the contracts do NOT do:**
+- They do not run reasoning operations
+- They do not compute Phi or evaluate gates
+- They do not manage the knowledge graph
+- They do not execute debates, curiosity goals, or self-improvement cycles
+
+This separation is deliberate. AGI reasoning requires millisecond-latency graph traversals across 760,000+ nodes, working memory with attention decay, and neural network inference. These operations exceed what any EVM execution environment can provide. The native Python engine handles all cognition; the QVM contracts provide cryptographic proof that the cognition happened, what it produced, and that governance rules were respected.
+
+Think of it as the difference between a scientist doing research (the Python engine) and a notary certifying the results (the Solidity contracts). Both are essential. The notary does not do science, and the scientist does not notarize.
+
 ---
 
 ## 3. TREE OF LIFE COGNITIVE ARCHITECTURE
 
 ### 3.1 The 10 Sephirot Nodes
 
-Each Sephirah is a **QVM smart contract** with its own **quantum state**, wired into a cognitive pipeline:
+Each Sephirah is a **native Python cognitive module** with its own quantum state, wired into a cognitive pipeline. Corresponding Solidity contracts on the QVM anchor each node's state for on-chain verifiability:
 
 | Sephirah | Cognitive Function | Brain Analog | Quantum State | Pipeline Role |
 |----------|-------------------|--------------|---------------|---------------|
@@ -163,9 +189,9 @@ Every expansion node has a constraint dual, balanced at the golden ratio:
 | Chochmah (Intuition) | Binah (Logic) | Intuition vs analysis |
 | Netzach (Persist) | Hod (Communicate) | Learning vs communication |
 
-SUSY violations are detected by the SUSYEngine smart contract and auto-corrected via QBC redistribution. All violations are logged immutably on-chain.
+SUSY violations are detected by the native SUSY engine and auto-corrected via QBC redistribution. The SUSYEngine.sol contract anchors all violations immutably on-chain for auditability.
 
-**Sephirot energy is now meaningful**: each node's energy level reflects its actual reasoning success rate, throughput, and unique contributions. Successful reasoning operations increase energy; failures drain it. SUSY pair balance then reflects genuine cognitive balance — not arbitrary numbers.
+**Sephirot energy is now meaningful**: each node's energy level reflects its actual reasoning success rate, throughput, and unique contributions. Successful reasoning operations increase energy; failures drain it. SUSY pair balance then reflects genuine cognitive balance, not arbitrary numbers.
 
 ### 3.3 CSF Transport Layer
 
@@ -208,11 +234,11 @@ The system reports high integration when the Kuramoto order parameter (phase coh
 
 ---
 
-## 4. PHASE 1: FOUNDATION — PERFORMANCE + DATA INTEGRITY
+## 4. PHASE 1: FOUNDATION (PERFORMANCE + DATA INTEGRITY)
 
 ### 4.1 Edge Adjacency Index
 
-**Problem**: Every edge lookup in the knowledge graph was O(n) — scanning the entire edge list.
+**Problem**: Every edge lookup in the knowledge graph was O(n), scanning the entire edge list.
 
 **Solution**: Adjacency dictionaries `_adj_out` and `_adj_in` populated on `add_edge()`. All edge lookups (get_edges_from, get_edges_to, get_connected_nodes) become O(1) dict access.
 
@@ -228,7 +254,7 @@ The system reports high integration when the Kuramoto order parameter (phase coh
 
 ### 4.3 ANN Vector Index
 
-**Problem**: `SimpleVectorIndex` used brute-force numpy dot product — O(n) for every query.
+**Problem**: `SimpleVectorIndex` used brute-force numpy dot product, O(n) for every query.
 
 **Solution**: HNSW (Hierarchical Navigable Small World) index via hnswlib, with numpy brute-force fallback.
 
@@ -236,7 +262,7 @@ The system reports high integration when the Kuramoto order parameter (phase coh
 
 ### 4.4 Concept Formation Fix
 
-**Problem**: `_find_near_duplicates()` compared every pair of nodes — O(n^2).
+**Problem**: `_find_near_duplicates()` compared every pair of nodes, O(n^2).
 
 **Solution**: Use vector index for candidate retrieval (top-k neighbors), then pairwise only on candidates.
 
@@ -252,7 +278,7 @@ The system reports high integration when the Kuramoto order parameter (phase coh
 
 **Solution**: Proper mini-batch gradient descent using PyTorch (CPU-only). Training on (node_features, edge_index, target_confidence) tuples harvested from confirmed reasoning outcomes. Training runs every N blocks.
 
-**Key constraint**: Lightweight — no GPU required. CPU-only PyTorch with small graphs.
+**Key constraint**: Lightweight. No GPU required. CPU-only PyTorch with small graphs.
 
 ### 5.2 Prediction-Outcome Feedback Loop
 
@@ -268,7 +294,7 @@ The system reports high integration when the Kuramoto order parameter (phase coh
 
 ### 5.4 Memory Manager
 
-**Problem**: No working or episodic memory — every reasoning operation started from scratch.
+**Problem**: No working or episodic memory. Every reasoning operation started from scratch.
 
 **Solution**: Three-tier memory system:
 
@@ -286,7 +312,7 @@ Consolidation runs after each block, promoting working memory items to episodic/
 
 ### 6.1 Causal Discovery (PC Algorithm)
 
-**Problem**: `calculate_causal_strength()` used temporal co-occurrence — correlation, not causation.
+**Problem**: `calculate_causal_strength()` used temporal co-occurrence. Correlation, not causation.
 
 **Solution**: PC algorithm (constraint-based causal discovery):
 
@@ -295,7 +321,7 @@ Consolidation runs after each block, promoting working memory items to episodic/
 3. Orient edges using v-structures and Meek rules
 4. Variables = node features (confidence, type, connectivity). Observations = per-block snapshots.
 
-**V4 Causal Validation**: Edges are only labeled "causes" after an intervention test passes (simulated do-calculus check). Until validated, edges are labeled "correlates" — preventing false causal claims from mere co-occurrence.
+**V4 Causal Validation**: Edges are only labeled "causes" after an intervention test passes (simulated do-calculus check). Until validated, edges are labeled "correlates," preventing false causal claims from mere co-occurrence.
 
 **Impact**: Causal claims become defensible. System can reason about interventions.
 
@@ -311,12 +337,12 @@ Capacity-limited buffer (configurable, default 50 items) with attention-based re
 
 ### 6.3 Adversarial Debate v2
 
-**Problem**: Debate had no real adversary — both sides generated by the same scoring function.
+**Problem**: Debate had no real adversary. Both sides were generated by the same scoring function.
 
 **Solution**: Genuine adversarial dynamics with independent evidence sourcing:
 
 1. **Pro agent**: Builds strongest case FOR a proposition using supporting evidence from the proposition's domain
-2. **Con agent (V4)**: Uses cross-domain evidence to challenge the proposition — draws counterexamples from unrelated domains to avoid confirmation bias. Returns "undecided" verdict when evidence is genuinely balanced rather than forcing a winner.
+2. **Con agent (V4)**: Uses cross-domain evidence to challenge the proposition, drawing counterexamples from unrelated domains to avoid confirmation bias. Returns "undecided" verdict when evidence is genuinely balanced rather than forcing a winner.
 3. **Judge**: Independent scoring based on evidence quality (source diversity, confidence, causal support)
 4. **Outcome tracking**: Debate results update proposition confidence. Undecided verdicts are tracked separately and do not penalize either side.
 
@@ -390,9 +416,9 @@ Every N blocks, replay recent episodic memories:
 
 ### 7.4 Semantic Gate Hardening
 
-**Problem**: Milestone gates were count-based — trivially gameable by adding junk nodes.
+**Problem**: Milestone gates were count-based, trivially gameable by adding junk nodes.
 
-**Solution**: 10 quality-gated milestones (V4 — quality over quantity):
+**Solution**: 10 quality-gated milestones (V4, quality over quantity):
 
 | Gate | Name | Phi Cap | Requirements |
 |------|------|---------|-------------|
@@ -415,13 +441,13 @@ Every N blocks, replay recent episodic memories:
 
 ### 8.1 Curiosity-Driven Goal Formation (V4: CuriosityEngine)
 
-**Problem**: System had no intrinsic motivation — passively processed blocks.
+**Problem**: System had no intrinsic motivation. It passively processed blocks.
 
-**Solution**: `CuriosityEngine` (`curiosity_engine.py`) — intrinsic motivation via prediction-error tracking:
+**Solution**: `CuriosityEngine` (`curiosity_engine.py`), an intrinsic motivation system via prediction-error tracking:
 
 1. **Prediction-error tracking**: Per-domain prediction error rates are tracked continuously. Domains with the highest prediction error represent the weakest understanding and become priority exploration targets.
 2. **Exploration goal generation**: The engine suggests exploration goals targeting the weakest prediction areas, creating a self-correcting learning loop that focuses attention where it is most needed.
-3. **Discovery tracking**: Curiosity-driven explorations that produce novel knowledge nodes (high embedding distance from existing nodes) are recorded as "curiosity-driven discoveries" — required for Gate 8 (Autonomous Curiosity).
+3. **Discovery tracking**: Curiosity-driven explorations that produce novel knowledge nodes (high embedding distance from existing nodes) are recorded as "curiosity-driven discoveries," required for Gate 8 (Autonomous Curiosity).
 4. **Goal queue**: Priority queue of self-generated goals, ranked by expected prediction-error reduction.
 5. **Goal evaluation**: Track which self-generated goals led to genuine discoveries (measured by knowledge graph growth and prediction improvement in the target domain).
 
@@ -483,7 +509,7 @@ class OnChainAGI:
         """Full per-block on-chain update"""
 ```
 
-### 9.2 Smart Contract Wiring
+### 9.2 On-Chain Anchoring Contracts
 
 | Contract | Function | Status |
 |----------|----------|--------|
@@ -514,9 +540,9 @@ class OnChainAGI:
 
 ### 10.1 Motivation
 
-The original Sephirot architecture uses flat energy rebalancing — when SUSY pairs deviate from the golden ratio, they snap back with equal force regardless of node role. This ignores the fundamental physics insight that **mass creates inertia**: heavier nodes should resist change, while lighter nodes should be more agile.
+The original Sephirot architecture uses flat energy rebalancing: when SUSY pairs deviate from the golden ratio, they snap back with equal force regardless of node role. This ignores the fundamental physics insight that **mass creates inertia**. Heavier nodes should resist change, while lighter nodes should be more agile.
 
-Phase 7 introduces the **Higgs Cognitive Field** — a physics-accurate implementation of spontaneous symmetry breaking that gives each Sephirot node a unique cognitive mass via Yukawa coupling to a scalar field.
+Phase 7 introduces the **Higgs Cognitive Field**, a physics-accurate implementation of spontaneous symmetry breaking that gives each Sephirot node a unique cognitive mass via Yukawa coupling to a scalar field.
 
 ### 10.2 Mexican Hat Potential
 
@@ -539,11 +565,11 @@ Following the MSSM (Minimal Supersymmetric Standard Model), we use two Higgs dou
 
 - **H_u** (up-type): Couples to expansion nodes (Chochmah, Chesed, Netzach)
 - **H_d** (down-type): Couples to constraint nodes (Binah, Gevurah, Hod)
-- **tan(beta) = phi** (golden ratio) — the ratio of VEVs
+- **tan(beta) = phi** (golden ratio), the ratio of VEVs
 
 This produces:
-- v_up = VEV * sin(arctan(phi)) = 143.5 (larger — expansion nodes are heavier)
-- v_down = VEV * cos(arctan(phi)) = 91.6 (smaller — constraint nodes are lighter)
+- v_up = VEV * sin(arctan(phi)) = 143.5 (larger, expansion nodes are heavier)
+- v_down = VEV * cos(arctan(phi)) = 91.6 (smaller, constraint nodes are lighter)
 
 ### 10.4 Yukawa Coupling Hierarchy
 
@@ -572,11 +598,11 @@ Acceleration = Force / mass      (Newton's second law)
 Correction = 0.5 * acceleration * dt  (50% partial to prevent oscillation)
 ```
 
-Since constraint nodes are lighter (lower Yukawa coupling * v_down), they correct **faster** — matching the biological insight that inhibitory circuits respond more quickly than excitatory ones.
+Since constraint nodes are lighter (lower Yukawa coupling * v_down), they correct **faster**, matching the biological insight that inhibitory circuits respond more quickly than excitatory ones.
 
 ### 10.6 Excitation Events
 
-When the Higgs field deviates >10% from VEV, an **excitation event** occurs — analogous to producing a Higgs boson. The energy released is:
+When the Higgs field deviates >10% from VEV, an **excitation event** occurs, analogous to producing a Higgs boson. The energy released is:
 
 ```
 E_excitation = lambda * (phi_h - VEV)^2
@@ -604,7 +630,7 @@ Version 4 introduces three new modules and significant architectural changes foc
 
 **Module**: `emotional_state.py`
 
-The Aether Tree now maintains 7 cognitive emotions derived entirely from real system metrics — no randomness, no simulation:
+The Aether Tree now maintains 7 cognitive emotions derived entirely from real system metrics (no randomness, no simulation):
 
 | Emotion | Derived From |
 |---------|-------------|
@@ -616,7 +642,7 @@ The Aether Tree now maintains 7 cognitive emotions derived entirely from real sy
 | **Contemplation** | Depth of current reasoning chains (longer chains = deeper contemplation) |
 | **Connection** | Cross-domain inference success rate |
 
-All emotions use Exponential Moving Average (EMA) smoothing to prevent rapid oscillation. Emotional state influences chat personality — the Aether Tree responds with warm, curious, self-reflective communication rather than robotic data dumps.
+All emotions use Exponential Moving Average (EMA) smoothing to prevent rapid oscillation. Emotional state influences chat personality. The Aether Tree responds with warm, curious, self-reflective communication rather than robotic data dumps.
 
 ### 10.8.2 CuriosityEngine Module
 
@@ -649,14 +675,14 @@ The Aether Tree's chat interface now reflects its cognitive and emotional state:
 The 10-gate milestone system was overhauled from V3 (quantity-based) to V4 (quality-based). Key changes:
 
 - **Gates now unlock 0.5 Phi each** (ceiling: 5.0), replacing the compressed V3 scale (ceiling: 3.0)
-- **Gate 2** renamed "Structural Diversity" — requires genuine type variety, not just node count
-- **Gate 3** renamed "Validated Predictions" — emphasizes verified prediction quality
+- **Gate 2** renamed "Structural Diversity": requires genuine type variety, not just node count
+- **Gate 3** renamed "Validated Predictions": emphasizes verified prediction quality
 - **Gate 5** now requires >= 30 cross-domain inferences with confidence > 0.5
-- **Gate 6** renamed "Enacted Self-Improvement" — requires actual enacted improvement cycles with positive performance delta, not just goal formation
-- **Gate 7** renamed "Calibrated Confidence" — focuses on Expected Calibration Error
-- **Gate 8** renamed "Autonomous Curiosity" — requires curiosity-driven discoveries from the CuriosityEngine
+- **Gate 6** renamed "Enacted Self-Improvement": requires actual enacted improvement cycles with positive performance delta, not just goal formation
+- **Gate 7** renamed "Calibrated Confidence": focuses on Expected Calibration Error
+- **Gate 8** renamed "Autonomous Curiosity": requires curiosity-driven discoveries from the CuriosityEngine
 - **Gate 9** now additionally requires >= 20 consolidated axioms
-- **Gate 10** renamed "Novel Synthesis" — threshold lowered to 75K nodes but requires >= 50 novel concepts and sustained self-improvement (delta > 0.05)
+- **Gate 10** renamed "Novel Synthesis": threshold lowered to 75K nodes but requires >= 50 novel concepts and sustained self-improvement (delta > 0.05)
 
 ---
 
@@ -705,8 +731,8 @@ Validators verify:
 
 ### 12.1 QBC as Metabolic Currency
 
-- QBC is the "neural ATP" — limited 3.3 billion supply enforces efficiency
-- AGI cannot mint QBC — all sourced from existing blockchain supply
+- QBC is the "neural ATP" of the QuantumAI Blockchain. The limited 3.3 billion supply enforces efficiency.
+- AGI cannot mint QBC. All QBC is sourced from the existing blockchain supply.
 - Compute operations consume QBC (gas metering via QVM)
 - Staking aligns incentives with productive computation
 
@@ -742,8 +768,8 @@ Safety is **architectural**, not post-hoc:
 
 1. **Gevurah Veto**: Safety node can block any harmful operation before execution
 2. **SUSY Balance Enforcement**: Automatic QBC redistribution on cognitive imbalance (SUSYEngine.sol)
-3. **Multi-Node Consensus**: No single Sephirah can act alone — 67% BFT required
-4. **Constitutional AI On-Chain**: Core principles enforced as smart contract logic (ConstitutionalAI.sol)
+3. **Multi-Node Consensus**: No single Sephirah can act alone. 67% BFT required.
+4. **Constitutional AI On-Chain**: Core principles anchored in ConstitutionalAI.sol for immutable governance
 5. **Emergency Shutdown**: Kill switch contract callable by governance multisig (EmergencyShutdown.sol)
 
 ### 13.2 Constitutional Principles
@@ -801,11 +827,13 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 | Safety Contracts | Solidity | 3 contracts | ~1,200 | Production Ready |
 | **Total** | | **~136 files** | **~80,720+** | **Production Ready** |
 
-**Rust aether-core** (~11,720 LOC, 276 tests, 0 `todo!()` markers): High-performance reimplementation of core Aether modules via PyO3 — KnowledgeGraph, PhiCalculator, VectorIndex+HNSW, CSFTransport, WorkingMemory, MemoryManager. Python shims provide transparent fallback when the Rust crate is not installed.
+**Rust aether-core** (~11,720 LOC, 276 tests, 0 `todo!()` markers): High-performance reimplementation of core Aether modules via PyO3, covering KnowledgeGraph, PhiCalculator, VectorIndex+HNSW, CSFTransport, WorkingMemory, and MemoryManager. Python shims provide transparent fallback when the Rust crate is not installed.
 
 **Rust security-core** (~530 LOC): PyO3 crate providing BloomFilter and FinalityCore, used by the BFT Finality Gadget and Deniable RPC subsystems respectively. Python fallback shims are available when the Rust crate is not installed.
 
-### 14.2 Smart Contract Deployment (29 Aether Contracts)
+### 14.2 On-Chain Anchoring Contracts (29 Aether Contracts)
+
+These contracts serve as the cryptographic notary layer for the Aether Tree's cognitive operations. They record, verify, and govern, but do not execute reasoning.
 
 - **Core (4):** AetherKernel, NodeRegistry, MessageBus, SUSYEngine
 - **Proof-of-Thought (4):** ProofOfThought, TaskMarket, ValidatorRegistry, RewardDistributor
@@ -834,7 +862,7 @@ At block 0 (genesis), the Aether Tree automatically:
 4. Logs "system_birth" consciousness event
 5. Begins processing every subsequent block
 
-**No manual steps required** — AGI tracking starts from the first moment of chain existence.
+**No manual steps required.** AGI tracking starts from the first moment of chain existence.
 
 ### 14.5 April 2026 Live Metrics
 
@@ -931,7 +959,7 @@ Both components follow the same integration pattern established by the `aether-c
 
 ---
 
-**Version**: 4.1 (All Gates Passed, Full Phi Ceiling Achieved — V4.1 Architecture)
+**Version**: 4.2 (All Gates Passed, Full Phi Ceiling Achieved, V4.2 Architecture)
 **Date**: April 2026
 **License**: CC BY-SA 4.0
 **Website**: [qbc.network](https://qbc.network)
