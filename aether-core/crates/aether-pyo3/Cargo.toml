@@ -1,0 +1,26 @@
+[package]
+name = "aether-pyo3"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "PyO3 bindings exposing the Aether Tree Rust engine to Python"
+
+[lib]
+name = "aether_core"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["auto-initialize"] }
+pyo3-log = "0.12"
+
+# All workspace crates
+aether-types = { path = "../aether-types" }
+aether-graph = { path = "../aether-graph" }
+aether-phi = { path = "../aether-phi" }
+aether-memory = { path = "../aether-memory" }
+aether-neural = { path = "../aether-neural" }
+aether-sephirot = { path = "../aether-sephirot" }

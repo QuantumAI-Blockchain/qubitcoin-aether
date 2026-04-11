@@ -14,3 +14,4 @@ classifiers = [
 [tool.maturin]
 features = ["extension-module"]
 module-name = "aether_core"
+manifest-path = "crates/aether-pyo3/Cargo.toml"

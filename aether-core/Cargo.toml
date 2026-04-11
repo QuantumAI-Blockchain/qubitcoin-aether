@@ -1,66 +1,19 @@
-[package]
-name = "aether-core"
+[workspace]
+resolver = "2"
+members = [
+    "crates/aether-types",
+    "crates/aether-graph",
+    "crates/aether-phi",
+    "crates/aether-memory",
+    "crates/aether-neural",
+    "crates/aether-sephirot",
+    "crates/aether-pyo3",
+]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Rust-accelerated Aether Tree core modules for Qubitcoin"
-
-[lib]
-name = "aether_core"
-crate-type = ["cdylib", "rlib"]
-
-[features]
-default = []
-extension-module = ["pyo3/extension-module"]
-
-[dependencies]
-pyo3 = { version = "0.23", features = ["auto-initialize"] }
-
-# Graph operations
-petgraph = "0.7"
-
-# Linear algebra (Phi calculator spectral methods)
-nalgebra = "0.33"
-
-# Merkle tree
-rs_merkle = "1.4"
-
-# Hashing
-sha2 = "0.10"
-
-# Concurrency
-parking_lot = "0.12"
-crossbeam-channel = "0.5"
-
-# Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-
-# Random
-rand = "0.8"
-
-# Logging
-log = "0.4"
-pyo3-log = "0.12"
-
-# Ordered float for BTreeMap keys
-ordered-float = "4.2"
-
-[dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-approx = "0.5"
-
-[[bench]]
-name = "bench_knowledge_graph"
-harness = false
-
-[[bench]]
-name = "bench_phi"
-harness = false
-
-[[bench]]
-name = "bench_vector_index"
-harness = false
 
 [profile.release]
 opt-level = 3
