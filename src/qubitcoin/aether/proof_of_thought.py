@@ -6039,7 +6039,13 @@ class AetherEngine:
         acted += self._evaluate_curiosity_goals(block_height)
 
         # --- Refresh goal queue ---
+        pre_gen = len(self._curiosity_goals)
         self._generate_curiosity_goals(block_height)
+        post_gen = len(self._curiosity_goals)
+        logger.info(
+            "Curiosity goal gen at block %d: %d→%d goals (pending_before=%d)",
+            block_height, pre_gen, post_gen, pending_before,
+        )
 
         # --- MCTS planning: replan every N blocks ---
         if (self.mcts_planner
@@ -6330,6 +6336,11 @@ class AetherEngine:
 
         # 1. Under-explored domains (bottom 3 by relative count)
         domain_stats = self.kg.get_domain_stats()
+        logger.info(
+            "Curiosity domain check: %d domains, bottom3=%s",
+            len(domain_stats) if domain_stats else 0,
+            [(d, i['count']) for d, i in sorted(domain_stats.items(), key=lambda x: x[1]['count'])[:3]] if domain_stats else [],
+        )
         if domain_stats:
             sorted_domains = sorted(
                 domain_stats.items(), key=lambda x: x[1]['count']
