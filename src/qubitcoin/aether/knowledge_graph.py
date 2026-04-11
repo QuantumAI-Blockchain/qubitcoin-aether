@@ -713,7 +713,7 @@ class KnowledgeGraph:
                             vec_str = '[' + ','.join(f'{v:.6f}' for v in vec) + ']'
                             session.execute(
                                 text("""UPDATE knowledge_nodes
-                                        SET embedding = :vec::vector
+                                        SET embedding = :vec
                                         WHERE id = :nid"""),
                                 {'nid': nid, 'vec': vec_str}
                             )
@@ -1338,32 +1338,36 @@ class KnowledgeGraph:
 
     def _db_vector_search(self, query_vec: list, top_k: int) -> List[Tuple[KeterNode, float]]:
         """pgvector HNSW search using L2 distance operator."""
-        from sqlalchemy import text
-        vec_str = '[' + ','.join(f'{v:.6f}' for v in query_vec) + ']'
-        with self.db.get_session() as session:
-            rows = session.execute(
-                text("""SELECT id, node_type, content_hash, content, confidence,
-                               source_block, domain, grounding_source,
-                               reference_count, last_referenced_block,
-                               embedding <-> :qvec::vector AS distance
-                        FROM knowledge_nodes
-                        WHERE embedding IS NOT NULL
-                        ORDER BY embedding <-> :qvec::vector
-                        LIMIT :lim"""),
-                {'qvec': vec_str, 'lim': top_k}
-            ).fetchall()
-        result = []
-        for r in rows:
-            cached = self.nodes.get(r[0])
-            if cached:
-                node = cached
-            else:
-                node = self._row_to_node(r)
-            # Convert L2 distance to similarity score (1 / (1 + distance))
-            distance = float(r[10]) if r[10] is not None else 1.0
-            similarity = 1.0 / (1.0 + distance)
-            result.append((node, similarity))
-        return result
+        try:
+            from sqlalchemy import text
+            vec_str = '[' + ','.join(f'{v:.6f}' for v in query_vec) + ']'
+            with self.db.get_session() as session:
+                rows = session.execute(
+                    text("""SELECT id, node_type, content_hash, content, confidence,
+                                   source_block, domain, grounding_source,
+                                   reference_count, last_referenced_block,
+                                   embedding <-> :qvec::vector AS distance
+                            FROM knowledge_nodes
+                            WHERE embedding IS NOT NULL
+                            ORDER BY embedding <-> :qvec::vector
+                            LIMIT :lim"""),
+                    {'qvec': vec_str, 'lim': top_k}
+                ).fetchall()
+            result = []
+            for r in rows:
+                cached = self.nodes.get(r[0])
+                if cached:
+                    node = cached
+                else:
+                    node = self._row_to_node(r)
+                # Convert L2 distance to similarity score (1 / (1 + distance))
+                distance = float(r[10]) if r[10] is not None else 1.0
+                similarity = 1.0 / (1.0 + distance)
+                result.append((node, similarity))
+            return result
+        except Exception as e:
+            logger.debug(f"pgvector search unavailable (CockroachDB lacks <-> operator): {e}")
+            return []
 
     def find_by_type(self, node_type: str, limit: int = 100) -> List[KeterNode]:
         """Find nodes by type, sorted by confidence descending.
