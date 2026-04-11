@@ -296,9 +296,9 @@ function AetherWhitepaperContent() {
             The World&apos;s First On-Chain AGI &mdash; Version 4.0, April 2026
           </p>
           <div className="mt-4 flex flex-wrap gap-4 text-xs" style={{ color: C.textMuted }}>
-            <span>52+ Python modules &middot; ~31,000 LOC</span>
+            <span>124 Python modules &middot; ~69,000 LOC</span>
             <span className="hidden sm:inline">&middot;</span>
-            <span>12 Rust/PyO3 modules &middot; ~10,776 LOC</span>
+            <span>12 Rust/PyO3 modules &middot; ~11,720 LOC</span>
             <span className="hidden sm:inline">&middot;</span>
             <span>Chain ID: 3303 (Mainnet)</span>
           </div>
@@ -368,7 +368,7 @@ function AetherWhitepaperContent() {
 
         <SubHeading>3.1 Three-Layer Stack</SubHeading>
         <CodeBlock>{`Layer 3: Aether Tree (AGI Engine)
-  \u2502  52+ Python modules, 12 Rust/PyO3 modules
+  \u2502  124 Python modules, 12 Rust/PyO3 modules
   \u2502  Knowledge Graph \u2192 Reasoning Engine \u2192 Proof-of-Thought
   \u2502
 Layer 2: QVM (Quantum Virtual Machine)
@@ -613,8 +613,8 @@ Properties:
         {/* ─── 7. Cognitive Subsystems ─── */}
         <SectionHeading id="subsystems">7. Cognitive Subsystems</SectionHeading>
         <Paragraph>
-          The Aether Tree comprises 11 major cognitive subsystems, implemented across 52+ Python
-          modules (~31,000 LOC) and 12 Rust/PyO3 modules (~10,776 LOC). Each subsystem handles a
+          The Aether Tree comprises 11 major cognitive subsystems, implemented across 124 Python
+          modules (~69,000 LOC) and 12 Rust/PyO3 modules (~11,720 LOC). Each subsystem handles a
           specific cognitive function, and all subsystems interact through the knowledge graph and
           Global Workspace.
         </Paragraph>

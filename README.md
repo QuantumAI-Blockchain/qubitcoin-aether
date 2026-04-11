@@ -252,7 +252,7 @@ stratum-server/       (Standalone binary — WebSocket + gRPC)
 
 aether-core/          (PyO3 extension crate — imported by Python)
   KnowledgeGraph, PhiCalculator, VectorIndex, CSFTransport
-  WorkingMemory, MemoryManager — 10,246 LOC, 276 tests
+  WorkingMemory, MemoryManager — ~11,720 LOC, 276 tests
 
 aikgs-sidecar/        (Standalone binary — gRPC on port 50052)
   Knowledge Growth System: scoring, rewards, affiliates, bounties

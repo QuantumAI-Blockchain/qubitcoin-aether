@@ -26,7 +26,7 @@ After reading every module in `src/qubitcoin/aether/` — here's what the code A
 
 ### The Core Problem
 
-**The Aether Tree has 45+ modules and ~29,000 LOC of INFRASTRUCTURE but the actual intelligence is:**
+**The Aether Tree has 124 Python modules and ~69,000 LOC of INFRASTRUCTURE but the actual intelligence is:**
 1. Template selection (35+ hardcoded intent handlers)
 2. Graph traversal (depth 2, no logic)
 3. LLM fallback (Ollama/OpenAI generate the actual intelligent text)

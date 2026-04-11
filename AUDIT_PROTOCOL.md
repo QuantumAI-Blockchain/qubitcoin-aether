@@ -75,7 +75,7 @@ The audit MUST confirm these numbers are still accurate. Flag any drift.
 | **Consensus/Finality** | 3 files | `src/qubitcoin/consensus/` | finality.py 437 LOC |
 | **Mining/Stratum** | 2 files | `src/qubitcoin/mining/` | stratum_bridge.py 157 LOC |
 | **Exchange modules** | 2 files | `src/qubitcoin/exchange/` | 1,073 |
-| **Rust aether-core** | 6 modules, 9 files | `aether-core/src/` | 10,246 (276 tests, 0 todo!()) |
+| **Rust aether-core** | 12 modules, 12 files | `aether-core/src/` | ~11,720 (276 tests, 0 todo!()) |
 | **Rust security-core** | 3 files | `security-core/src/` | ~530 (bloom.rs + finality.rs + lib.rs) |
 | **Rust stratum-server** | 7 files | `stratum-server/src/` | ~1,030 (pool, protocol, worker, bridge, config, main, lib) |
 | **Substrate pallets** | 7 pallets | `substrate-node/pallets/` | 2,837 |
@@ -138,7 +138,7 @@ Every audit run evaluates all 16 components. No component is optional.
 | 2 | **Blockchain Core** (L1) — Python | `src/qubitcoin/` | 342 REST endpoints, 19 JSON-RPC methods, 135 Prometheus metrics |
 | 3 | **Substrate Hybrid Node** (L1) — Rust | `substrate-node/` | 7 pallets (2,837 LOC), runtime (468 LOC), primitives (916 LOC), Kyber (1,180 LOC) |
 | 4 | **QVM** (L2) — Python + Go (Production) | `src/qubitcoin/qvm/` (12,301 LOC) + `qubitcoin-qvm/` (8,732 LOC) | 167 opcodes, 31 Go source files, real crypto, full EVM |
-| 5 | **Aether Tree** (L3) — Python + Rust | `src/qubitcoin/aether/` (24,560 LOC) + `aether-core/` (10,246 LOC) | 36 Python modules, 6 Rust modules |
+| 5 | **Aether Tree** (L3) — Python + Rust | `src/qubitcoin/aether/` (~69,000 LOC) + `aether-core/` (~11,720 LOC) | 124 Python modules, 12 Rust modules |
 | 6 | **QBC Economics & Bridges** | `bridge/` (12 files), emission, fees, config | phi-halving, 8-chain bridges, fee collector, QUSD oracle |
 | 7 | **QUSD Stablecoin** | `stablecoin/` (7 files) + `contracts/solidity/qusd/` (10 .sol) | CDP, savings, reserves, flash loans, governance |
 | 8 | **Exchange** | `exchange/engine.py` (1,065 LOC) + frontend exchange (28 files) | CLOB, WebSocket, MEV protection |
@@ -546,7 +546,7 @@ Verify these physics formulas:
 
 ---
 
-### 1F. Rust aether-core Audit (6 Modules, 10,246 LOC)
+### 1F. Rust aether-core Audit (12 Modules, ~11,720 LOC)
 
 | Module | Source Files | Key Verification |
 |--------|-------------|-----------------|

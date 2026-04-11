@@ -483,8 +483,8 @@ export default function WhitepaperPage() {
                 ["L2", "QVM (Python prototype)", "Python", "8 modules", "~4,500"],
                 ["L2", "QVM (Production)", "Go", "34 source files", "~10,000"],
                 ["L2", "Solidity Contracts", "Solidity 0.8.24+", "65 contracts", "~15,000"],
-                ["L3", "Aether Tree (Python)", "Python", "49 modules", "~29,000"],
-                ["L3", "Aether Tree (Rust)", "Rust (PyO3)", "10 modules", "~10,246"],
+                ["L3", "Aether Tree (Python)", "Python", "124 modules", "~69,000"],
+                ["L3", "Aether Tree (Rust)", "Rust (PyO3)", "12 modules", "~11,720"],
                 ["L3", "Higgs Cognitive Field", "Python + Solidity", "13 files", "~2,700"],
                 ["Frontend", "qbc.network", "TypeScript/React/Next.js 16", "200 files", "~66,900"],
                 ["Infra", "Docker/Monitoring/DevOps", "YAML/Shell", "20+ configs", "~2,000"],
@@ -1039,10 +1039,10 @@ TxOutput:
 
             <SubHeading>Implementation Scale</SubHeading>
             <StatGrid stats={[
-              { label: "Python Modules", value: "49" },
-              { label: "Lines of Code (Python)", value: "~29,000" },
+              { label: "Python Modules", value: "124" },
+              { label: "Lines of Code (Python)", value: "~69,000" },
               { label: "Rust Modules (PyO3)", value: "12" },
-              { label: "Lines of Code (Rust)", value: "~10,246" },
+              { label: "Lines of Code (Rust)", value: "~11,720" },
               { label: "Knowledge Nodes", value: "760,000+" },
               { label: "Gates Passed", value: "10/10" },
               { label: "Phi (Maximum)", value: "5.0" },

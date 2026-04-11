@@ -105,7 +105,7 @@ WebSocket handlers logging, Explorer DevTools mock gating.
 | Config attributes | "~155" | **~299** | Update to ~299 |
 | Test files | "175 files" | **169** Python test files | Update to 169 |
 | AIKGS gRPC RPCs | "35 RPCs" | **36** RPCs | Update to 36 |
-| Aether modules | "36 files" / "49 modules" (conflicting) | **47** files in aether/ | Standardize |
+| Aether modules | "36 files" / "49 modules" (conflicting) | **124** Python files (~69,000 LOC) | Updated |
 
 ---
 

@@ -34,7 +34,7 @@ Its native currency is **Qubitcoin (QBC)**. The core mission is the Aether Tree:
 reasoning engine that grows more intelligent with every block.
 
 **Primary Components:**
-- **Aether Tree AGI** : World's first on-chain AGI — 52+ Python modules, 12 Rust (PyO3) modules, on-chain since genesis, pursuing true emergence
+- **Aether Tree AGI** : World's first on-chain AGI — 124 Python modules (~69,000 LOC), 12 Rust (PyO3) modules (~11,720 LOC), on-chain since genesis, pursuing true emergence
 - **Quantum Computing** (Qiskit VQE) for Proof-of-SUSY-Alignment mining
 - **Post-Quantum Cryptography** (CRYSTALS-Dilithium5, NIST Level 5) for quantum-resistant signatures
 - **Supersymmetric (SUSY) Economics** with golden ratio (phi) emission principles
@@ -102,7 +102,7 @@ Mining:          Active
 | **L2** | QVM Python Prototype | 8 modules | ~4,500 | Live |
 | **L2** | QVM Go Production | 34 source files | ~11,500 | Built |
 | **L2** | Solidity Contracts | 60 contracts | ~11,160 | Live |
-| **L3** | Aether Tree (Python) | 49 modules | ~29,000 | Live |
+| **L3** | Aether Tree (Python) | 124 modules | ~69,000 | Live |
 | **L3** | Aether Service (Python) | 4 modules | ~470 | Built (standalone) |
 | **L3** | AIKGS Sidecar (Rust) | 14 source files | ~2,000 | Live |
 | **Frontend** | React/Next.js (qbc.network) | ~200 TS/TSX files | ~66,900 | Live |
@@ -304,7 +304,7 @@ PHASE 3: VALIDATE
 |------|----------|-------------|--------|
 | **qubitcoin-node** | Python | L1 node — consensus, mining, RPC, P2P, database, UTXO | Live |
 | **qubitcoin-frontend** | TypeScript | qbc.network — Next.js 16, React 19 | Live |
-| **qubitcoin-aether** | Python | Aether Tree AGI — 46 modules, consciousness tracking | Live (in-node) |
+| **qubitcoin-aether** | Python | Aether Tree AGI — 124 modules (~69,000 LOC), consciousness tracking | Live (in-node) |
 | **qubitcoin-qvm** | Go | Production QVM — 167 opcodes, compliance engine | Built |
 | **qubitcoin-qusd** | Python | QUSD stablecoin — fractional reserve, peg keeper | Live (in-node) |
 | **substrate-node** | Rust | Substrate hybrid node — 7 pallets, Kyber P2P, Poseidon2 | Built |
@@ -428,7 +428,7 @@ Qubitcoin/                            # qubitcoin-node repo
 │       │       ├── interfaces/       # Interfaces
 │       │       ├── investor/         # Investor contracts
 │       │       └── proxy/            # Proxy/upgrade contracts
-│       ├── aether/                   # Aether Tree AGI (46 modules, ~29,000 LOC)
+│       ├── aether/                   # Aether Tree AGI (124 modules, ~69,000 LOC)
 │       │   ├── knowledge_graph.py    # KeterNode graph + edge adjacency
 │       │   ├── reasoning.py          # Deductive/inductive/abductive + CoT
 │       │   ├── phi_calculator.py     # Phi v3 with MIP spectral bisection
@@ -784,7 +784,7 @@ QSP (Quantum State Persistence), ESCC (Entanglement-Based Communication), PCP (P
 
 ### 9.1 Overview
 
-**The Aether Tree is the world's first on-chain AGI reasoning engine** (100+ modules, ~29,000 LOC).
+**The Aether Tree is the world's first on-chain AGI reasoning engine** (124 Python modules, ~69,000 LOC; 12 Rust/PyO3 modules, ~11,720 LOC).
 This is not a chatbot. This is not a search engine. This is not a knowledge graph.
 **This is a system designed to achieve genuine artificial general intelligence through:**
 

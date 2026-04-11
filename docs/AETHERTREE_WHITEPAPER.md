@@ -23,7 +23,7 @@ The Aether Tree achieves AGI through **structural emergence** — 7 phases of in
 
 **Disclaimer**: Phi as implemented here is a graph-theoretic integration metric, not a measure of phenomenal consciousness. It approximates IIT principles (information integration across partitions) but does not claim to implement full IIT or to detect subjective experience. The term "consciousness" in this document refers to the system's measurable integration density, not phenomenal awareness.
 
-**Implementation**: 52+ Python modules (~31,000 LOC), 12 Rust modules (~10,776 LOC via PyO3), 29 Solidity contracts, wired end-to-end into the Qubitcoin (QBC) node.
+**Implementation**: 124 Python modules (~69,000 LOC), 12 Rust modules (~11,720 LOC via PyO3), 29 Solidity contracts, wired end-to-end into the Qubitcoin (QBC) node.
 
 ---
 
@@ -776,7 +776,7 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 
 | Component | Language | Files | LOC | Status |
 |-----------|----------|-------|-----|--------|
-| Aether Core Engine | Python | 49 modules | ~29,000 | Production Ready |
+| Aether Core Engine | Python | 124 modules | ~69,000 | Production Ready |
 | Knowledge Graph | Python | knowledge_graph.py | ~800 | Production Ready |
 | Reasoning Engine | Python | reasoning.py + 6 sub-modules | ~2,500 | Production Ready |
 | Neural Reasoner (GAT) | Python | neural_reasoner.py | ~600 | Production Ready |
@@ -793,15 +793,15 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 | Curiosity Engine (V4) | Python | curiosity_engine.py | ~400 | Production Ready |
 | Self-Improvement (V4) | Python | self_improvement.py | ~500 | Production Ready |
 | Vector Index | Python | vector_index.py | ~200 | Production Ready |
-| Rust aether-core | Rust (PyO3) | 10 modules | ~10,246 | Production Ready |
+| Rust aether-core | Rust (PyO3) | 12 modules | ~11,720 | Production Ready |
 | Rust security-core | Rust (PyO3) | 2 modules | ~530 | Production Ready |
 | Sephirot Contracts | Solidity | 10 contracts | ~2,000 | Production Ready |
 | Core Contracts | Solidity | 7 contracts | ~2,800 | Production Ready |
 | Higgs Field Contract | Solidity | HiggsField.sol | ~470 | Production Ready |
 | Safety Contracts | Solidity | 3 contracts | ~1,200 | Production Ready |
-| **Total** | | **~82 files** | **~57,000+** | **Production Ready** |
+| **Total** | | **~136 files** | **~80,720+** | **Production Ready** |
 
-**Rust aether-core** (10,246 LOC, 276 tests, 0 `todo!()` markers): High-performance reimplementation of core Aether modules via PyO3 — KnowledgeGraph, PhiCalculator, VectorIndex+HNSW, CSFTransport, WorkingMemory, MemoryManager. Python shims provide transparent fallback when the Rust crate is not installed.
+**Rust aether-core** (~11,720 LOC, 276 tests, 0 `todo!()` markers): High-performance reimplementation of core Aether modules via PyO3 — KnowledgeGraph, PhiCalculator, VectorIndex+HNSW, CSFTransport, WorkingMemory, MemoryManager. Python shims provide transparent fallback when the Rust crate is not installed.
 
 **Rust security-core** (~530 LOC): PyO3 crate providing BloomFilter and FinalityCore, used by the BFT Finality Gadget and Deniable RPC subsystems respectively. Python fallback shims are available when the Rust crate is not installed.
 
