@@ -1966,7 +1966,7 @@ class AetherEngine:
                                 )
                 except Exception as e:
                     self._track_subsystem_error('self_improvement', e)
-                    logger.debug(f"Self-improvement error: {e}")
+                    logger.warning("Self-improvement error at block %d: %s", block.height, e)
 
             # Phase 2.4: Memory management every block
             if self.memory_manager:
@@ -2022,7 +2022,7 @@ class AetherEngine:
                 try:
                     self._curiosity_explore(block.height)
                 except Exception as e:
-                    logger.debug(f"Curiosity exploration error: {e}")
+                    logger.warning("Curiosity exploration error at block %d: %s", block.height, e)
 
             # FEP: compute total free energy every block to build history for gate 6
             if self.curiosity_engine and hasattr(self.curiosity_engine, 'compute_total_free_energy'):
