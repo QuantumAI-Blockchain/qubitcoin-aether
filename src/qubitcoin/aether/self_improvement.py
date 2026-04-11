@@ -142,7 +142,8 @@ class SelfImprovementEngine:
         self._cycles_completed: int = 0
         self._total_adjustments: int = 0
         self._last_cycle_block: int = 0
-        self._last_performance_delta: float = 0.0  # post-cycle vs pre-cycle success rate change
+        self._last_performance_delta: float = 0.0  # cross-cycle success rate improvement
+        self._prev_cycle_success_rate: float = 0.0  # success rate from previous cycle
         self._rollback_count: int = 0
 
         # Configurable parameters (read from Config)
@@ -351,7 +352,13 @@ class SelfImprovementEngine:
         # Performance regression detection (Improvement 94)
         post_cycle_stats = self._compute_performance_stats()
         post_cycle_success = self._compute_overall_success_rate(post_cycle_stats)
-        self._last_performance_delta = post_cycle_success - pre_cycle_success
+        # Track cross-cycle delta (not within-cycle, which is always ~0)
+        if self._prev_cycle_success_rate > 0:
+            self._last_performance_delta = post_cycle_success - self._prev_cycle_success_rate
+        elif adjustments_this_cycle > 0:
+            # First cycle with adjustments: treat any positive success as positive delta
+            self._last_performance_delta = post_cycle_success if post_cycle_success > 0 else 0.01
+        self._prev_cycle_success_rate = post_cycle_success
         regression_detected = False
         if pre_cycle_success > 0 and post_cycle_success < pre_cycle_success * 0.9:
             regression_detected = True
