@@ -1645,13 +1645,16 @@ class AetherEngine:
                         self._reward_sephirah('temporal', accuracy > 0.5, accuracy * 0.1)
 
                         # Feed prediction errors into FreeEnergyEngine (gate 6 + 8)
+                        # Use error_pct (0-1 normalized) instead of raw metric values
+                        # to keep free energy on a meaningful scale.
                         if self.curiosity_engine and hasattr(self.curiosity_engine, 'record_prediction_outcome'):
                             for ve in getattr(self.temporal_engine, '_last_validation_errors', []):
                                 try:
+                                    err_pct = float(ve.get('error_pct', 0.5))
                                     self.curiosity_engine.record_prediction_outcome(
                                         domain=ve['domain'],
-                                        predicted=float(ve['predicted']),
-                                        actual=float(ve['actual']),
+                                        predicted=1.0 - err_pct,  # normalized: 0=wrong, 1=perfect
+                                        actual=1.0,
                                         topic=f"temporal_{ve['domain']}",
                                     )
                                 except (TypeError, ValueError, KeyError):
