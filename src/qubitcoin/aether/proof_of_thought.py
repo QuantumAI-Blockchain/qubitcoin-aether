@@ -6015,6 +6015,7 @@ class AetherEngine:
             return 0
 
         acted = 0
+        pending_before = len([g for g in self._curiosity_goals if g['status'] == 'pending'])
 
         # --- Evaluate pending goals against current KG state ---
         acted += self._evaluate_curiosity_goals(block_height)
@@ -6188,11 +6189,13 @@ class AetherEngine:
             or block_height - g.get('created_block', 0) < 500
         ][:self._max_curiosity_goals]
 
-        if acted:
-            logger.debug(
-                f"Curiosity at block {block_height}: "
-                f"acted on {acted} goals, queue={len(self._curiosity_goals)}"
-            )
+        pending_after = len([g for g in self._curiosity_goals if g['status'] == 'pending'])
+        completed = self._curiosity_stats.get('goals_completed', 0)
+        discoveries = getattr(self.curiosity_engine, 'discoveries_count', 0) if self.curiosity_engine else 0
+        logger.info(
+            "Curiosity at block %d: acted=%d, pending=%d→%d, completed=%d, discoveries=%d",
+            block_height, acted, pending_before, pending_after, completed, discoveries,
+        )
 
         return acted
 
