@@ -1264,14 +1264,19 @@ class KnowledgeGraph:
 
         where = ' AND '.join(conditions)
         with self.db.get_session() as session:
-            rows = session.execute(
-                text(f"""SELECT id, confidence
-                         FROM knowledge_nodes
-                         WHERE {where}
-                         ORDER BY confidence DESC
-                         LIMIT :lim"""),
-                params
-            ).fetchall()
+            # Set 3s timeout to prevent ILIKE full-scan from blocking GWT processors
+            session.execute(text("SET statement_timeout = '3s'"))
+            try:
+                rows = session.execute(
+                    text(f"""SELECT id, confidence
+                             FROM knowledge_nodes
+                             WHERE {where}
+                             ORDER BY confidence DESC
+                             LIMIT :lim"""),
+                    params
+                ).fetchall()
+            finally:
+                session.execute(text("SET statement_timeout = '0'"))
         # Normalize confidence as relevance score
         return [(r[0], float(r[1] or 0.5)) for r in rows]
 

@@ -883,9 +883,20 @@ class PhiCalculator:
         # Random sampling destroys edge density. BFS preserves local structure.
         node_ids = list(nodes.keys())
         if n_nodes > PHI_MAX_SAMPLE_NODES:
-            _phi_rng = random.Random(PHI_SAMPLE_SEED)
-            # Pick a few random seeds and BFS-expand to get connected subgraph
-            seeds = _phi_rng.sample(node_ids, min(10, n_nodes))
+            # Seed BFS from highest-degree nodes for better connectivity sample
+            _adj_list_seed: Dict[int, int] = {}
+            for edge in edges:
+                _adj_list_seed[edge.from_node_id] = _adj_list_seed.get(edge.from_node_id, 0) + 1
+                _adj_list_seed[edge.to_node_id] = _adj_list_seed.get(edge.to_node_id, 0) + 1
+            # Pick top-10 highest-degree nodes as BFS seeds (ensures dense subgraph)
+            top_degree = sorted(
+                ((nid, deg) for nid, deg in _adj_list_seed.items() if nid in nodes),
+                key=lambda x: x[1], reverse=True,
+            )
+            seeds = [nid for nid, _ in top_degree[:10]]
+            if len(seeds) < 5:
+                _phi_rng = random.Random(PHI_SAMPLE_SEED)
+                seeds = _phi_rng.sample(node_ids, min(10, n_nodes))
             sampled_ids: Set[int] = set()
             bfs_queue = deque(seeds)
             # Build quick adjacency from edges for BFS

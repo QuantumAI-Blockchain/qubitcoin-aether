@@ -4210,8 +4210,17 @@ class AetherEngine:
                 stats['cognitive_cycle_count'] = float(
                     gw_stats.get('cognitive_cycles', 0)
                 )
-        except Exception:
-            pass
+                if gw_stats.get('cognitive_cycles', 0) > 0:
+                    logger.info(
+                        "GWT gate stats: cycles=%d, competitions=%d, "
+                        "diversity=%.3f, winner_roles=%s",
+                        gw_stats.get('cognitive_cycles', 0),
+                        gw_stats.get('competition_count', 0),
+                        gw_stats.get('winner_diversity', 0.0),
+                        gw_stats.get('winner_roles_seen', []),
+                    )
+        except Exception as e:
+            logger.warning("GWT stat collection failed: %s", e)
 
         # FreeEnergyEngine: FEP metrics (free energy trend, domain precisions)
         try:
@@ -4230,8 +4239,17 @@ class AetherEngine:
                 stats['curiosity_driven_discoveries'] = float(
                     fep_stats.get('discoveries_count', 0)
                 )
-        except Exception:
-            pass
+                logger.info(
+                    "FEP gate stats: free_energy=%.3f, decreasing=%s, "
+                    "domains=%d, discoveries=%d, history_len=%d",
+                    fep_stats.get('total_free_energy', 0.0),
+                    fep_stats.get('free_energy_decreasing', False),
+                    len(fep_stats.get('domain_precisions', {})),
+                    fep_stats.get('discoveries_count', 0),
+                    len(getattr(self.curiosity_engine, '_free_energy_history', [])),
+                )
+        except Exception as e:
+            logger.warning("FEP stat collection failed: %s", e)
 
         # SelfImprovement: enacted cycles + performance delta (Gate 6)
         try:
@@ -4243,8 +4261,14 @@ class AetherEngine:
                 stats['improvement_performance_delta'] = float(
                     si_stats.get('performance_delta', 0.0)
                 )
-        except Exception:
-            pass
+                if si_stats.get('cycles_completed', 0) > 0:
+                    logger.info(
+                        "Self-improvement gate stats: cycles=%d, delta=%.4f",
+                        si_stats.get('cycles_completed', 0),
+                        si_stats.get('performance_delta', 0.0),
+                    )
+        except Exception as e:
+            logger.warning("Self-improvement stat collection failed: %s", e)
 
         # DB-queried gate counts — LRU eviction undercounts old nodes in memory.
         # These are passed to phi_calculator as ext overrides (max with in-memory).

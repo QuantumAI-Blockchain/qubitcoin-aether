@@ -414,6 +414,9 @@ class FreeEnergyEngine:
         # Update FEP state
         self.update_precision(domain)
 
+        # Update free energy history so is_free_energy_decreasing() has data
+        self.compute_total_free_energy()
+
         logger.debug(
             "FEP prediction: domain=%s topic=%s error=%.4f",
             domain, topic, error,
