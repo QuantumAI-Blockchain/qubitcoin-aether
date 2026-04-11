@@ -1197,10 +1197,14 @@ class AetherEngine:
         # - Only compute synchronously on first block or every 100th block
         # - Fire background thread to pre-compute next Phi
         phi_result = None
-        if self.phi._last_full_result is not None:
+        is_restored = (
+            self.phi._last_full_result is not None
+            and self.phi._last_full_result.get('phi_formula') == 'restored'
+        )
+        if self.phi._last_full_result is not None and not is_restored:
             phi_result = self.phi._last_full_result
         else:
-            # First block or cache miss — compute synchronously (one-time cost)
+            # First block, restored cache, or cache miss — compute synchronously
             self.phi.set_subsystem_stats(self._collect_subsystem_stats())
             phi_result = self.phi.compute_phi(block_height)
 
