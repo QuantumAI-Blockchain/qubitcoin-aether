@@ -2184,8 +2184,14 @@ class KnowledgeGraph:
 
     def get_stats(self) -> dict:
         """Get knowledge graph statistics"""
+        # Snapshot to avoid RuntimeError from concurrent LRU mutations
+        try:
+            nodes_snapshot = list(self.nodes.values())
+        except RuntimeError:
+            nodes_snapshot = []
+
         type_counts = {}
-        for node in self.nodes.values():
+        for node in nodes_snapshot:
             type_counts[node.node_type] = type_counts.get(node.node_type, 0) + 1
 
         edge_type_counts = {}
@@ -2193,12 +2199,12 @@ class KnowledgeGraph:
             edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
 
         avg_confidence = (
-            sum(n.confidence for n in self.nodes.values()) / len(self.nodes)
-            if self.nodes else 0.0
+            sum(n.confidence for n in nodes_snapshot) / len(nodes_snapshot)
+            if nodes_snapshot else 0.0
         )
 
         domain_counts = {}
-        for node in self.nodes.values():
+        for node in nodes_snapshot:
             d = node.domain or 'general'
             domain_counts[d] = domain_counts.get(d, 0) + 1
 

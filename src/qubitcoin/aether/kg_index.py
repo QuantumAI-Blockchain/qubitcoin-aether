@@ -81,6 +81,8 @@ class TFIDFIndex:
         self._idf_cache: Dict[str, float] = {}
         self._idf_dirty: bool = True
         self._adds_since_refresh: int = 0
+        # cached doc norms (cleared when IDF refreshes)
+        self._doc_norm_cache: Dict[int, float] = {}
 
     def add_node(self, node_id: int, content: dict) -> None:
         """Index a single node's content. Incremental — no rebuild needed."""
@@ -178,13 +180,15 @@ class TFIDFIndex:
         # Normalize by document norms for cosine similarity
         results = []
         for node_id, dot_product in scores.items():
-            # Compute doc norm on-the-fly
-            doc_terms = self.node_terms.get(node_id, set())
-            doc_norm_sq = sum(
-                (self.inverted_index.get(t, {}).get(node_id, 0) * self._idf_cache.get(t, 0)) ** 2
-                for t in doc_terms
-            )
-            doc_norm = math.sqrt(doc_norm_sq) if doc_norm_sq > 0 else 1.0
+            doc_norm = self._doc_norm_cache.get(node_id)
+            if doc_norm is None:
+                doc_terms = self.node_terms.get(node_id, set())
+                doc_norm_sq = sum(
+                    (self.inverted_index.get(t, {}).get(node_id, 0) * self._idf_cache.get(t, 0)) ** 2
+                    for t in doc_terms
+                )
+                doc_norm = math.sqrt(doc_norm_sq) if doc_norm_sq > 0 else 1.0
+                self._doc_norm_cache[node_id] = doc_norm
             cosine = dot_product / (q_norm * doc_norm)
             results.append((node_id, cosine))
 
@@ -202,6 +206,7 @@ class TFIDFIndex:
             for term, df in self.doc_freq.items()
         }
         self._idf_dirty = False
+        self._doc_norm_cache.clear()  # Invalidate when IDF changes
 
     def get_stats(self) -> dict:
         """Return index statistics."""

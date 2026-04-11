@@ -2871,6 +2871,9 @@ class AetherEngine:
                             source="proof_of_thought",
                         )
                         self.global_workspace.run_cognitive_cycle(block_stimulus)
+                        # Push fresh GWT stats into phi calculator for next block's gate eval
+                        if self.phi:
+                            self.phi.set_subsystem_stats(self._collect_subsystem_stats())
                     else:
                         # Legacy: dict-based compete/broadcast
                         candidates = []

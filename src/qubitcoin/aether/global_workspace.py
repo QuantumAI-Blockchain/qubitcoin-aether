@@ -27,7 +27,7 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Maximum time (seconds) for parallel processor execution
-PROCESSOR_TIMEOUT: float = 15.0
+PROCESSOR_TIMEOUT: float = 30.0
 
 # Minimum competition score to enter workspace
 MIN_SCORE_THRESHOLD: float = 0.001  # Lowered to allow more processors through
@@ -135,6 +135,11 @@ class GlobalWorkspace:
         # ResponseCortex._voice_through_hod. Running it here would trigger
         # a redundant (and slow) LLM call before synthesis is ready.
         active_roles = [r for r in active_roles if r != "hod"]
+
+        logger.info(
+            "GWT cycle #%d: activating %d processors: %s",
+            self._cognitive_cycles, len(active_roles), active_roles,
+        )
 
         # Step 2: Run active processors in parallel
         responses = self._parallel_process(active_roles, stimulus)
@@ -244,12 +249,12 @@ class GlobalWorkspace:
                         if resp is not None:
                             responses.append(resp)
                     except (concurrent.futures.TimeoutError, Exception) as e:
-                        logger.debug(f"Processor {role} timed out or failed: {e}")
+                        logger.warning(f"GWT processor {role} failed: {e}")
             except TimeoutError:
                 # Some processors didn't finish in time — use what we have
                 done = sum(1 for f in future_to_role if f.done())
-                logger.debug(
-                    "GW timeout: %d/%d processors completed in %.1fs",
+                logger.warning(
+                    "GWT timeout: %d/%d processors completed in %.1fs",
                     done, len(future_to_role), PROCESSOR_TIMEOUT,
                 )
 
@@ -266,6 +271,10 @@ class GlobalWorkspace:
             resp = proc.process(stimulus)
             latency = (time.monotonic() - t0) * 1000
             proc._record_metrics(latency, resp.confidence)
+            logger.debug(
+                "Processor %s: conf=%.3f rel=%.3f nov=%.3f (%.0fms)",
+                proc.role, resp.confidence, resp.relevance, resp.novelty, latency,
+            )
             return resp
         except Exception as e:
             logger.warning(f"Processor {proc.role} error: {e}")
