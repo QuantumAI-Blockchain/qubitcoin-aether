@@ -1645,13 +1645,14 @@ class AetherEngine:
                         self._reward_sephirah('temporal', accuracy > 0.5, accuracy * 0.1)
 
                         # Feed prediction errors into FreeEnergyEngine (gate 6 + 8)
-                        if self.curiosity_engine and hasattr(self.curiosity_engine, 'record_prediction_error'):
+                        if self.curiosity_engine and hasattr(self.curiosity_engine, 'record_prediction_outcome'):
                             for ve in getattr(self.temporal_engine, '_last_validation_errors', []):
                                 try:
-                                    self.curiosity_engine.record_prediction_error(
+                                    self.curiosity_engine.record_prediction_outcome(
                                         domain=ve['domain'],
-                                        prediction=float(ve['predicted']),
+                                        predicted=float(ve['predicted']),
                                         actual=float(ve['actual']),
+                                        topic=f"temporal_{ve['domain']}",
                                     )
                                 except (TypeError, ValueError, KeyError):
                                     pass
@@ -2848,14 +2849,24 @@ class AetherEngine:
                     # v5: Use cognitive cycle if processors are registered
                     if self.global_workspace.has_cognitive_processors:
                         from .cognitive_processor import StimulusType, WorkspaceItem
+                        # Build richer stimulus so processors can find relevant KG nodes
+                        phi_val = block_phi_result.get("phi_value", 0) if block_phi_result else 0
+                        new_n = new_nodes_count if 'new_nodes_count' in dir() else 0
                         block_stimulus = WorkspaceItem(
                             stimulus_type=StimulusType.BLOCK_DATA,
-                            content=f"Block {block.height} processed",
+                            content=(
+                                f"Block {block.height}: difficulty {block.difficulty:.2f}, "
+                                f"phi {phi_val:.2f}, {len(block.transactions)} transactions, "
+                                f"{new_n} new knowledge nodes. "
+                                f"Analyze blockchain consensus quantum physics reasoning."
+                            ),
                             context={
                                 "block_height": block.height,
-                                "phi_value": block_phi_result.get("phi_value", 0) if block_phi_result else 0,
+                                "phi_value": phi_val,
                                 "is_meaningful": is_meaningful,
-                                "new_nodes": new_nodes_count if 'new_nodes_count' in dir() else 0,
+                                "new_nodes": new_n,
+                                "difficulty": block.difficulty,
+                                "tx_count": len(block.transactions),
                             },
                             source="proof_of_thought",
                         )
@@ -6078,6 +6089,17 @@ class AetherEngine:
             goal['status'] = 'failed'
             self._curiosity_stats['goals_failed'] += 1
             logger.debug(f"Curiosity goal failed: {e}")
+
+        # Record curiosity-driven discovery in FreeEnergyEngine (Gate 8)
+        if goal_success and self.curiosity_engine and hasattr(self.curiosity_engine, 'record_discovery'):
+            try:
+                self.curiosity_engine.record_discovery(
+                    domain=goal.get('target', 'general') if goal.get('type') == 'explore_domain' else 'general',
+                    topic=f"{goal.get('type', 'unknown')}_{goal.get('target', '')}",
+                    block_height=block_height,
+                )
+            except Exception:
+                pass
 
         # Record meta_observation node for completed goals so that
         # auto_goals_with_inferences tracks curiosity→inference links

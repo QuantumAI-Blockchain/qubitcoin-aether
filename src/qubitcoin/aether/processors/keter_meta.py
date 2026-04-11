@@ -31,9 +31,10 @@ DEMAND_CATEGORIES: Dict[str, Dict[str, Any]] = {
     "analytical": {
         "keywords": {
             "why", "how", "explain", "analyze", "compare", "logic",
-            "reason", "prove", "evidence", "cause", "mechanism",
+            "reason", "reasoning", "prove", "evidence", "cause", "mechanism",
             "calculate", "derive", "deduce", "because", "therefore",
             "difference", "relationship", "structure", "evaluate",
+            "difficulty", "consensus", "block", "transactions",
         },
         "roles": ["binah", "netzach"],
         "description": "logical/causal reasoning",
@@ -44,6 +45,7 @@ DEMAND_CATEGORIES: Dict[str, Dict[str, Any]] = {
             "hypothesize", "dream", "envision", "brainstorm", "novel",
             "art", "poem", "story", "metaphor", "analogy", "inspire",
             "explore", "discover", "wonder", "possibility",
+            "quantum", "physics", "knowledge", "phi",
         },
         "roles": ["chochmah", "chesed"],
         "description": "creative/divergent thinking",

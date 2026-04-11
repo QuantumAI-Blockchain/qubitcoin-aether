@@ -391,7 +391,7 @@ class MiningEngine:
                 try:
                     self.aether.process_block_knowledge(block)
                 except Exception as e:
-                    logger.debug(f"Aether knowledge processing: {e}")
+                    logger.warning(f"Aether knowledge processing error: {e}")
 
             # Higgs Cognitive Field per-block tick
             if self.node and getattr(self.node, 'higgs_field', None):
