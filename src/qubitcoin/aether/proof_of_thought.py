@@ -2037,6 +2037,9 @@ class AetherEngine:
             if block.height > 0 and block.height % Config.AETHER_CURIOSITY_INTERVAL == 0:
                 try:
                     self._curiosity_explore(block.height)
+                except RuntimeError as e:
+                    # OrderedDict mutated during iteration — LRU cache race
+                    logger.debug("Curiosity skipped (LRU race): %s", e)
                 except Exception as e:
                     logger.warning("Curiosity exploration error at block %d: %s", block.height, e)
 
@@ -6071,7 +6074,11 @@ class AetherEngine:
                 # Find nodes in the target domain and try induction
                 domain = goal.get('target', '')
                 # Search recent nodes (last 5K) for efficiency
-                recent_nodes = list(self.kg.nodes.values())[-5000:]
+                # Take snapshot to avoid OrderedDict mutation during iteration
+                try:
+                    recent_nodes = list(self.kg.nodes.values())[-5000:]
+                except RuntimeError:
+                    recent_nodes = []
                 domain_nodes = [
                     n for n in recent_nodes
                     if n.domain == domain and n.node_type == 'observation'
@@ -6361,7 +6368,11 @@ class AetherEngine:
 
         # 2. Unresolved contradictions
         contradiction_pairs: List[tuple] = []
-        for edge in self.kg.edges:
+        try:
+            edges_snapshot = list(self.kg.edges)
+        except RuntimeError:
+            edges_snapshot = []
+        for edge in edges_snapshot:
             if edge.edge_type == 'contradicts':
                 if (edge.from_node_id in self.kg.nodes
                         and edge.to_node_id in self.kg.nodes):
@@ -6385,8 +6396,12 @@ class AetherEngine:
                 generated += 1
 
         # 3. Orphaned high-confidence nodes (few edges)
+        try:
+            _nodes_snap = list(self.kg.nodes.values())
+        except RuntimeError:
+            _nodes_snap = []
         orphans = [
-            n for n in self.kg.nodes.values()
+            n for n in _nodes_snap
             if len(n.edges_out) + len(n.edges_in) <= 1
             and n.confidence > 0.5
             and n.node_type in ('inference', 'assertion')
