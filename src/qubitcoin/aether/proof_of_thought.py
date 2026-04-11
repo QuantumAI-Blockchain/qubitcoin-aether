@@ -5938,12 +5938,14 @@ class AetherEngine:
                             block_height=block_height,
                         )
 
-        # --- Cross-domain inference (every 5th reasoning cycle) ---
+        # --- Build domain map (used for cross-domain inference + FEP feed) ---
         domains_with_nodes: dict = {}
+        for n in candidates[:100]:
+            d = getattr(n, 'domain', 'general') or 'general'
+            domains_with_nodes.setdefault(d, []).append(n)
+
+        # --- Cross-domain inference (every 5th reasoning cycle) ---
         if block_height % (Config.AETHER_AUTONOMOUS_REASONING_INTERVAL * 5) == 0:
-            for n in all_nodes:
-                d = getattr(n, 'domain', 'general') or 'general'
-                domains_with_nodes.setdefault(d, []).append(n)
             domain_list = [d for d, ns in domains_with_nodes.items() if len(ns) >= 5]
             if len(domain_list) >= 2:
                 pair = _rng.sample(domain_list, 2)
