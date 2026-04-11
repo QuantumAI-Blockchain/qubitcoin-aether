@@ -86,6 +86,7 @@ class TemporalEngine:
             logger.debug(f"SimpleLSTM init failed: {e}")
         self._predictions_validated: int = 0
         self._predictions_correct: int = 0
+        self._last_validation_errors: List[dict] = []  # FEP integration
         # Recently verified predictions (for feedback loop)
         self._verified_outcomes: List[dict] = []
         self._max_verified_outcomes: int = 500
@@ -346,6 +347,14 @@ class TemporalEngine:
             correct = error_pct < 0.1  # Within 10% = correct (tighter threshold for better calibration)
             if correct:
                 self._predictions_correct += 1
+
+            # Record for FEP (collected per-block by caller)
+            self._last_validation_errors.append({
+                'domain': metric,
+                'predicted': predicted,
+                'actual': actual,
+                'error_pct': error_pct,
+            })
 
             # Update knowledge graph node if exists
             node_id = pred.get('node_id')

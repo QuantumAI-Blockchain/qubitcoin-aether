@@ -60,9 +60,6 @@ class AetherEngine:
         # Running counters for AGI subsystem stats
         self._contradictions_resolved: int = 0
 
-        # Load persisted counters from DB (survive restart)
-        self._load_persisted_counters()
-
         # --- AGI Improvement Subsystems ---
         # #2: Graph Attention Network Reasoner (critical for neural reasoning)
         self.neural_reasoner = None
@@ -820,7 +817,59 @@ class AetherEngine:
             except Exception as e:
                 logger.warning(f"Genesis knowledge seeding failed: {e}")
 
+        # Load persisted counters from DB (survive restart)
+        # MUST be called AFTER all subsystems are initialized (temporal_engine, debate_protocol etc.)
+        self._load_persisted_counters()
+
+        # Register Sephirot cognitive processors on global workspace for block processing
+        if self.global_workspace:
+            self._register_sephirot_processors()
+
         logger.info("Aether Engine initialized (with AGI subsystems)")
+
+    def _register_sephirot_processors(self) -> None:
+        """Register 10 Sephirot cognitive processors on the global workspace.
+
+        This enables the cognitive cycle during block processing (not just chat).
+        Without this, global_workspace.has_cognitive_processors is False and
+        the sephirot-based cognitive broadcast is skipped.
+        """
+        try:
+            from .cognitive_processor import SoulPriors
+            from .soul import AetherSoul
+            from .processors import (
+                KeterMetaProcessor, BinahLogicProcessor, GevurahSafetyProcessor,
+                TiferetIntegratorProcessor, ChochmahIntuitionProcessor,
+                ChesedExplorerProcessor, NetzachReinforcementProcessor,
+                HodLanguageProcessor, YesodMemoryProcessor, MalkuthActionProcessor,
+            )
+
+            soul = AetherSoul()
+            soul_priors = soul.get_priors()
+            kg = self.kg
+
+            processors = {
+                "keter": KeterMetaProcessor(knowledge_graph=kg, soul=soul_priors),
+                "chochmah": ChochmahIntuitionProcessor(knowledge_graph=kg, soul=soul_priors),
+                "binah": BinahLogicProcessor(knowledge_graph=kg, soul=soul_priors),
+                "chesed": ChesedExplorerProcessor(knowledge_graph=kg, soul=soul_priors),
+                "gevurah": GevurahSafetyProcessor(knowledge_graph=kg, soul=soul_priors),
+                "tiferet": TiferetIntegratorProcessor(knowledge_graph=kg, soul=soul_priors),
+                "netzach": NetzachReinforcementProcessor(knowledge_graph=kg, soul=soul_priors),
+                "hod": HodLanguageProcessor(knowledge_graph=kg, soul=soul_priors),
+                "yesod": YesodMemoryProcessor(knowledge_graph=kg, soul=soul_priors),
+                "malkuth": MalkuthActionProcessor(knowledge_graph=kg, soul=soul_priors),
+            }
+
+            for role, proc in processors.items():
+                self.global_workspace.register_cognitive_processor(role, proc)
+
+            logger.info(
+                "Registered %d Sephirot cognitive processors on global workspace",
+                len(processors),
+            )
+        except Exception as e:
+            logger.warning(f"Sephirot processor registration failed: {e}")
 
     def get_subsystem_health(self) -> Dict[str, dict]:
         """IMP-96: Get health status of all AGI subsystems.
@@ -1573,7 +1622,7 @@ class AetherEngine:
                         block.height, temporal_data
                     )
 
-                    # Feed temporal validation outcomes back to metacognition
+                    # Feed temporal validation outcomes back to metacognition + FEP
                     if temporal_result.get('predictions_validated', 0) > 0:
                         accuracy = self.temporal_engine.get_accuracy()
                         if self.metacognition:
@@ -1586,6 +1635,20 @@ class AetherEngine:
                             )
                         # Reward/penalize Yesod based on temporal prediction accuracy
                         self._reward_sephirah('temporal', accuracy > 0.5, accuracy * 0.1)
+
+                        # Feed prediction errors into FreeEnergyEngine (gate 6 + 8)
+                        if self.curiosity_engine and hasattr(self.curiosity_engine, 'record_prediction_error'):
+                            for ve in getattr(self.temporal_engine, '_last_validation_errors', []):
+                                try:
+                                    self.curiosity_engine.record_prediction_error(
+                                        domain=ve['domain'],
+                                        prediction=float(ve['predicted']),
+                                        actual=float(ve['actual']),
+                                    )
+                                except (TypeError, ValueError, KeyError):
+                                    pass
+                            # Clear after consumption
+                            self.temporal_engine._last_validation_errors = []
 
                     # Full prediction→validation→learning pipeline
                     # Processes validated outcomes through KG confidence updates,
@@ -1948,6 +2011,13 @@ class AetherEngine:
                     self._curiosity_explore(block.height)
                 except Exception as e:
                     logger.debug(f"Curiosity exploration error: {e}")
+
+            # FEP: compute total free energy every block to build history for gate 6
+            if self.curiosity_engine and hasattr(self.curiosity_engine, 'compute_total_free_energy'):
+                try:
+                    self.curiosity_engine.compute_total_free_energy()
+                except Exception:
+                    pass
 
             # Phase 5.4: Create knowledge digest
             if block.height > 0 and block.height % Config.AETHER_KNOWLEDGE_DIGEST_INTERVAL == 0:
