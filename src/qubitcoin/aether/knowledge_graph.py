@@ -623,6 +623,13 @@ class KnowledgeGraph:
                         logger.info(f"Background vector rebuild: {total} / {len(node_items)} embedded")
                     time.sleep(SLEEP)
                 logger.info(f"Background vector rebuild complete: {total} nodes embedded")
+                # Build the HNSW index now that all embeddings are loaded
+                try:
+                    hnsw = self.vector_index._ensure_py_hnsw()
+                    if hnsw:
+                        logger.info("Background vector rebuild: HNSW index built (%d vectors)", total)
+                except Exception as e2:
+                    logger.debug(f"HNSW build after vector rebuild failed: {e2}")
             except Exception as e:
                 logger.warning(f"Background vector rebuild failed: {e}")
 
@@ -1214,10 +1221,16 @@ class KnowledgeGraph:
         Returns:
             List of (KeterNode, similarity_score) tuples, best match first.
         """
+        import time as _time
+        _t0 = _time.monotonic()
+
         # TF-IDF results (keyword match)
         tfidf_results = self.search_index.query(query, top_k=top_k * 2)
+        _t1 = _time.monotonic()
+
         # Vector results (semantic similarity)
         vector_results = self.vector_index.query(query, top_k=top_k * 2)
+        _t2 = _time.monotonic()
 
         # Blend scores: 0.4 * tfidf + 0.6 * vector (semantic weighs more)
         scores: Dict[int, float] = {}
@@ -1234,6 +1247,13 @@ class KnowledgeGraph:
                 scores[nid] = scores.get(nid, 0.0) + 0.3 * score
         except Exception:
             pass  # DB search is best-effort supplemental
+        _t3 = _time.monotonic()
+
+        if (_t3 - _t0) > 2.0:
+            logger.warning(
+                "KG search slow: tfidf=%.1fs vec=%.1fs db=%.1fs total=%.1fs q=%s",
+                _t1 - _t0, _t2 - _t1, _t3 - _t2, _t3 - _t0, query[:60],
+            )
 
         # Sort by blended score, return top_k
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_k]

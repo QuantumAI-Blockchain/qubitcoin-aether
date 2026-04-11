@@ -767,18 +767,9 @@ class VectorIndex:
             except Exception:
                 pass  # fall through
 
-        # Step 4: rebuild pure-Python HNSW outside the lock if needed
-        if need_rebuild and embs_snapshot:
-            new_hnsw = HNSWIndex(max_connections=16, ef_construction=200, max_layers=4)
-            for nid, emb in embs_snapshot:
-                new_hnsw.add_vector(nid, emb)
-            # Store under lock (brief)
-            with self._lock:
-                if self._py_hnsw_dirty:  # only swap if still dirty
-                    self._py_hnsw = new_hnsw
-                    self._py_hnsw_dirty = False
-                py_hnsw_snap = self._py_hnsw
-            logger.debug(f"VectorIndex: rebuilt pure-Python HNSW ({len(embs_snapshot)} vectors)")
+        # Step 4: NEVER rebuild HNSW inline during query — it takes 100s+ with 50K+ vectors
+        # and blocks the entire node.  Fall through to brute-force instead.
+        # The background rebuild (add_nodes_batch) handles HNSW construction.
 
         # Step 5: use py_hnsw if available
         if py_hnsw_snap is not None:
@@ -787,9 +778,11 @@ class VectorIndex:
             except Exception:
                 pass  # fall through to brute-force
 
-        # Step 6: brute-force on snapshot
+        # Step 6: brute-force on snapshot (cap at 10K to avoid multi-second scans)
+        _MAX_BRUTE = 10_000
+        scan = embs_snapshot[:_MAX_BRUTE] if len(embs_snapshot) > _MAX_BRUTE else embs_snapshot
         scores = []
-        for nid, emb in embs_snapshot:
+        for nid, emb in scan:
             sim = cosine_similarity(query_emb, emb)
             scores.append((nid, sim))
         scores.sort(key=lambda x: x[1], reverse=True)
@@ -837,8 +830,10 @@ class VectorIndex:
             except Exception as e:
                 logger.debug("Pure-Python HNSW search failed, falling back to brute-force: %s", e)
 
+        _MAX_BRUTE = 10_000
+        scan = embs_snapshot[:_MAX_BRUTE] if len(embs_snapshot) > _MAX_BRUTE else embs_snapshot
         scores = []
-        for nid, emb in embs_snapshot:
+        for nid, emb in scan:
             sim = cosine_similarity(query_emb, emb)
             scores.append((nid, sim))
         scores.sort(key=lambda x: x[1], reverse=True)
