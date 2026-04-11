@@ -313,7 +313,7 @@ class JsonRpcHandler:
         else:
             height = parse_hex_int(block_id)
 
-        block = self.db.get_block(height)
+        block = self.db.get_block_light(height)
         return _block_to_rpc(block, include_txs)
 
     async def eth_getBlockByHash(self, params):

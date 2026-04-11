@@ -1488,6 +1488,55 @@ class DatabaseManager:
                 "recalculated_supply": str(supply_result or 0),
             }
 
+    def get_block_light(self, height: int) -> Optional[Block]:
+        """Get block by height WITHOUT proof_json/thought_proof (for JSON-RPC)."""
+        with self.get_session() as session:
+            result = session.execute(
+                text("""SELECT height, prev_hash, difficulty,
+                        created_at, block_hash, state_root, receipts_root
+                        FROM blocks WHERE height = :h"""),
+                {'h': height}
+            ).fetchone()
+            if not result:
+                return None
+            tx_results = session.execute(
+                text("""SELECT txid, inputs, outputs, fee, signature,
+                        public_key, timestamp, block_height, status,
+                        tx_type, to_address, data, gas_limit, gas_price, nonce
+                        FROM transactions WHERE block_height = :h"""),
+                {'h': height}
+            )
+            transactions = []
+            for tx_row in tx_results:
+                transactions.append(Transaction(
+                    txid=tx_row[0],
+                    inputs=json.loads(tx_row[1]) if isinstance(tx_row[1], str) else (tx_row[1] or []),
+                    outputs=json.loads(tx_row[2]) if isinstance(tx_row[2], str) else (tx_row[2] or []),
+                    fee=Decimal(str(tx_row[3] or 0)),
+                    signature=tx_row[4] or '',
+                    public_key=tx_row[5] or '',
+                    timestamp=float(tx_row[6] or 0),
+                    block_height=tx_row[7],
+                    status=tx_row[8] or 'confirmed',
+                    tx_type=tx_row[9] or 'transfer',
+                    to_address=tx_row[10],
+                    data=tx_row[11],
+                    gas_limit=tx_row[12] or 0,
+                    gas_price=Decimal(str(tx_row[13] or 0)),
+                    nonce=tx_row[14] or 0,
+                ))
+            return Block(
+                height=result[0],
+                prev_hash=result[1],
+                difficulty=float(result[2] or Config.INITIAL_DIFFICULTY),
+                proof_data={},
+                timestamp=float(result[3] or 0),
+                transactions=transactions,
+                block_hash=result[4],
+                state_root=result[5] or '',
+                receipts_root=result[6] or '',
+            )
+
     def get_block(self, height: int) -> Optional[Block]:
         """Get block by height"""
         with self.get_session() as session:
