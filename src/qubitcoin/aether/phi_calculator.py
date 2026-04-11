@@ -320,7 +320,10 @@ class PhiCalculator:
                         },
                     }
                     self._last_full_result = restored
-                    self._last_computed_block = int(row[6])
+                    # NOTE: Do NOT set _last_computed_block here — restored cache
+                    # must be overwritten on first compute_phi call.
+                    # Setting it would cause the compute interval check to skip
+                    # recomputation for up to PHI_COMPUTE_INTERVAL blocks.
                     self._recent_phi_values.append(phi_val)
                     logger.info(
                         f"Phi restored from DB: {phi_val:.4f} at block {int(row[6])} "
