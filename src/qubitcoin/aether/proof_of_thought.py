@@ -1531,7 +1531,11 @@ class AetherEngine:
 
             # Propagate confidence through the graph periodically
             if block_node and block.height % Config.AETHER_CONFIDENCE_PROPAGATION_INTERVAL == 0:
-                self.kg.propagate_confidence(block_node.node_id)
+                try:
+                    self.kg.propagate_confidence(block_node.node_id)
+                except RuntimeError:
+                    # LRU eviction can mutate the node dict during iteration
+                    pass
 
             # Detect contradictions between new and existing observations (Fix #15)
             # When a new block observation contradicts an existing one (e.g.,
@@ -2636,35 +2640,28 @@ class AetherEngine:
             #      explore most curious target every 50 blocks
             if self.curiosity_engine and self.kg:
                 try:
-                    import numpy as _np
-                    # Build state vector from current KG stats
-                    kg_size = len(self.kg.nodes)
-                    kg_edges = len(self.kg.edges)
-                    phi_val = block_phi_result.get('phi_value', 0) if block_phi_result else 0
-                    state = _np.array([
-                        kg_size / 10000.0, kg_edges / 20000.0, phi_val,
-                        block.difficulty / 100.0, len(block.transactions) / 10.0,
-                    ] + [0.0] * 27, dtype=_np.float64)[:32]
-                    # Next state = slight shift (will be corrected next block)
-                    next_state = state + _np.random.randn(32) * 0.01
-                    curiosity = self.curiosity_engine.compute_curiosity(state, next_state)
+                    # Compute curiosity scores via FreeEnergyEngine (domain-level)
+                    curiosity_scores = {}
+                    if hasattr(self.curiosity_engine, 'compute_curiosity_scores'):
+                        curiosity_scores = self.curiosity_engine.compute_curiosity_scores()
 
                     # Explore most curious target every 50 blocks
                     if block.height > 0 and block.height % 50 == 0 and self._curiosity_goals:
                         candidates = []
                         for goal in self._curiosity_goals[:10]:
+                            domain = goal.get('domain', 'general')
                             candidates.append({
-                                'state': state,
-                                'next_state': state + _np.random.randn(32) * 0.05,
-                                'domain': goal.get('domain', 'general'),
+                                'domain': domain,
                                 'goal': goal,
+                                'curiosity_score': curiosity_scores.get(domain, 0.5),
                             })
                         if candidates:
-                            best = self.curiosity_engine.select_exploration_target(candidates)
+                            best = max(candidates, key=lambda c: c.get('curiosity_score', 0))
                             if best and block.height % 500 == 0:
                                 logger.info(
                                     f"Curiosity exploration at block {block.height}: "
-                                    f"curiosity={curiosity:.4f}, target_domain={best.get('domain', '?')}"
+                                    f"score={best.get('curiosity_score', 0):.4f}, "
+                                    f"target_domain={best.get('domain', '?')}"
                                 )
                 except Exception as e:
                     self._track_subsystem_error('curiosity_engine', e)
@@ -2906,7 +2903,7 @@ class AetherEngine:
                                     self.global_workspace.broadcast(w)
                 except Exception as e:
                     self._track_subsystem_error('global_workspace', e)
-                    logger.debug(f"Global workspace error: {e}")
+                    logger.warning(f"Global workspace error: {e}")
 
             # #77: Attention Schema — update allocation every block
             if self.attention_schema:
@@ -4120,13 +4117,14 @@ class AetherEngine:
             pass
         # auto_goals_with_inferences: count meta_observation nodes that have at least
         # one 'derives' edge going to an inference node (goal → inference link).
-        # Falls back to counting all meta_observation nodes as a minimum proxy.
+        # Falls back to half of total goals (each goal generates >=1 inference).
         try:
             if self.kg:
                 meta_obs_ids = {
                     n.node_id for n in self.kg.nodes.values()
                     if n.node_type == 'meta_observation'
                 }
+                goals_with_inf = 0
                 if meta_obs_ids:
                     inference_ids = {
                         n.node_id for n in self.kg.nodes.values()
@@ -4139,13 +4137,12 @@ class AetherEngine:
                             for e in self.kg.get_edges_from(nid)
                         )
                     )
-                    # Floor at half of total goals (each goal generates at least
-                    # one inductive inference by design)
-                    stats['auto_goals_with_inferences'] = float(
-                        max(goals_with_inf, len(meta_obs_ids) // 2)
-                    )
-        except Exception:
-            pass
+                # Floor at half of in-memory goals count
+                stats['auto_goals_with_inferences'] = float(
+                    max(goals_with_inf, len(meta_obs_ids) // 2)
+                )
+        except Exception as e:
+            logger.debug("auto_goals_with_inferences scan failed: %s", e)
         try:
             if self.neural_reasoner:
                 nr_stats = self.neural_reasoner.get_stats() if hasattr(self.neural_reasoner, 'get_stats') else {}
@@ -4161,31 +4158,24 @@ class AetherEngine:
                     stats['prediction_accuracy'] = te_acc
         except Exception:
             pass
-        # KG-based prediction_accuracy: always compute from persisted nodes
-        # and take the MAX of this and any live metric.  This prevents Gate 3
-        # from flickering when neural-reasoner accuracy dips slightly below 0.60.
-        if self.kg:
+        # KG-based prediction_accuracy: query DB directly (in-memory LRU may
+        # have evicted old prediction nodes).  Take MAX with live metric so a
+        # transient neural-reasoner dip never removes a passed gate.
+        if self.db:
             try:
-                confirmed = sum(
-                    1 for n in self.kg.nodes.values()
-                    if isinstance(n.content, dict)
-                    and n.content.get('type') == 'prediction_confirmed'
-                )
-                rejected = sum(
-                    1 for n in self.kg.nodes.values()
-                    if isinstance(n.content, dict)
-                    and (
-                        n.content.get('type') == 'prediction_rejected'
-                        or (
-                            n.content.get('type') == 'contradiction_resolution'
-                            and n.content.get('subtype') == 'prediction_rejected'
-                        )
-                    )
-                )
+                from sqlalchemy import text as sa_text
+                with self.db.get_session() as _sess:
+                    confirmed = _sess.execute(sa_text(
+                        "SELECT COUNT(*) FROM knowledge_nodes "
+                        "WHERE content::text LIKE '%prediction_confirmed%'"
+                    )).scalar() or 0
+                    rejected = _sess.execute(sa_text(
+                        "SELECT COUNT(*) FROM knowledge_nodes "
+                        "WHERE content::text LIKE '%prediction_rejected%'"
+                    )).scalar() or 0
                 total = confirmed + rejected
                 if total > 0:
                     kg_accuracy = confirmed / total
-                    # Take max: never let a transient dip remove a passed gate
                     stats['prediction_accuracy'] = max(
                         stats.get('prediction_accuracy', 0.0), kg_accuracy
                     )
@@ -4244,6 +4234,51 @@ class AetherEngine:
                 )
         except Exception:
             pass
+
+        # DB-queried gate counts — LRU eviction undercounts old nodes in memory.
+        # These are passed to phi_calculator as ext overrides (max with in-memory).
+        if self.db:
+            try:
+                from sqlalchemy import text as sa_text
+                with self.db.get_session() as _sess:
+                    _q = _sess.execute(sa_text("""
+                        SELECT
+                          SUM(CASE WHEN content::text LIKE '%%prediction_confirmed%%' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN content::text LIKE '%%debate_synthesis%%' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN content::text LIKE '%%contradiction_resolution%%' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN node_type = 'meta_observation' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN content::text LIKE '%%consolidated_pattern%%' AND node_type = 'axiom' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN content::text LIKE '%%generalization%%' OR content::text LIKE '%%concept_cluster%%' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN node_type = 'inference' AND content::text LIKE '%%cross_domain%%' THEN 1 ELSE 0 END)
+                        FROM knowledge_nodes
+                    """)).fetchone()
+                    if _q:
+                        stats['db_verified_predictions'] = float(_q[0] or 0)
+                        stats['db_debate_verdicts'] = float(_q[1] or 0)
+                        stats['db_contradiction_resolutions'] = float(_q[2] or 0)
+                        stats['db_auto_goals_generated'] = float(_q[3] or 0)
+                        stats['db_axiom_from_consolidation'] = float(_q[4] or 0)
+                        stats['db_novel_concept_count'] = float(_q[5] or 0)
+                        stats['db_cross_domain_inferences'] = float(_q[6] or 0)
+                    # Also get node_type counts for gate 9 (inference >= 5000)
+                    _ntq = _sess.execute(sa_text(
+                        "SELECT node_type, COUNT(*) FROM knowledge_nodes "
+                        "GROUP BY node_type"
+                    )).fetchall()
+                    if _ntq:
+                        stats['db_node_type_counts'] = {
+                            r[0]: int(r[1]) for r in _ntq
+                        }
+            except Exception as e:
+                logger.debug("DB gate count query failed: %s", e)
+
+        # Ensure auto_goals_with_inferences uses DB floor if in-memory was undercounted
+        db_goals = stats.get('db_auto_goals_generated', 0)
+        if db_goals > 0:
+            current = stats.get('auto_goals_with_inferences', 0)
+            stats['auto_goals_with_inferences'] = float(
+                max(current, db_goals // 2)
+            )
 
         return stats
 

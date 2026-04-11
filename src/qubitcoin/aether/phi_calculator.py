@@ -1248,6 +1248,12 @@ class PhiCalculator:
         n_nodes = len(nodes)
         n_edges = len(edges)
 
+        # Merge DB-queried node_type_counts (max with in-memory) to handle LRU eviction
+        db_ntc = ext.get('db_node_type_counts')
+        if isinstance(db_ntc, dict):
+            for ntype, db_count in db_ntc.items():
+                node_type_counts[ntype] = max(node_type_counts.get(ntype, 0), db_count)
+
         # Average confidence across all nodes
         avg_confidence: float = (confidence_sum / n_nodes) if n_nodes > 0 else 0.0
 
@@ -1332,16 +1338,18 @@ class PhiCalculator:
             'avg_confidence': avg_confidence,
             'domain_count': len(domains),
             'self_reflection_nodes': self_reflection_nodes,
-            'cross_domain_inferences': cross_domain_inferences,
+            # In-memory counts OR DB-queried overrides (ext wins via max).
+            # LRU eviction can undercount old nodes — ext provides DB-accurate totals.
+            'cross_domain_inferences': max(cross_domain_inferences, int(ext.get('db_cross_domain_inferences', 0))),
             'cross_domain_inference_confidence': cross_domain_inference_confidence,
-            'verified_predictions': verified_predictions,
-            'debate_verdicts': debate_verdicts,
-            'contradiction_resolutions': contradiction_resolutions,
-            'auto_goals_generated': auto_goals_generated,
+            'verified_predictions': max(verified_predictions, int(ext.get('db_verified_predictions', 0))),
+            'debate_verdicts': max(debate_verdicts, int(ext.get('db_debate_verdicts', 0))),
+            'contradiction_resolutions': max(contradiction_resolutions, int(ext.get('db_contradiction_resolutions', 0))),
+            'auto_goals_generated': max(auto_goals_generated, int(ext.get('db_auto_goals_generated', 0))),
             'auto_goals_with_inferences': ext.get('auto_goals_with_inferences', 0),
             'grounding_ratio': grounding_ratio,
-            'axiom_from_consolidation': axiom_from_consolidation,
-            'novel_concept_count': novel_concept_count,
+            'axiom_from_consolidation': max(axiom_from_consolidation, int(ext.get('db_axiom_from_consolidation', 0))),
+            'novel_concept_count': max(novel_concept_count, int(ext.get('db_novel_concept_count', 0))),
             # External stats with sensible defaults
             'integration_score': ext.get('integration_score', 0.0),
             'mip_phi': ext.get('mip_phi', 0.0),

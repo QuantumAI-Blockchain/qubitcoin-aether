@@ -27,7 +27,7 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Maximum time (seconds) for parallel processor execution
-PROCESSOR_TIMEOUT: float = 4.0
+PROCESSOR_TIMEOUT: float = 15.0
 
 # Minimum competition score to enter workspace
 MIN_SCORE_THRESHOLD: float = 0.001  # Lowered to allow more processors through
@@ -268,7 +268,7 @@ class GlobalWorkspace:
             proc._record_metrics(latency, resp.confidence)
             return resp
         except Exception as e:
-            logger.debug(f"Processor {proc.role} error: {e}")
+            logger.warning(f"Processor {proc.role} error: {e}")
             return None
 
     def _safety_filter(
@@ -327,6 +327,11 @@ class GlobalWorkspace:
             score = resp.competition_score
             if score >= MIN_SCORE_THRESHOLD:
                 scored.append((score, resp))
+
+        # Ensure at least one winner if responses exist (block data has low novelty)
+        if not scored and responses:
+            best = max(responses, key=lambda r: r.confidence)
+            scored.append((best.confidence * 0.1, best))
 
         # Apply FEP ranking boost if engine is available
         if self._free_energy_engine is not None and scored:

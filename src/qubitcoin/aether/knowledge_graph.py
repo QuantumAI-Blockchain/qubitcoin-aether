@@ -941,7 +941,7 @@ class KnowledgeGraph:
             for iteration in range(iterations):
                 updates = {}
                 max_delta = 0.0
-                for nid, node in self.nodes.items():
+                for nid, node in list(self.nodes.items()):
                     if not node.edges_in:
                         continue
                     support_sum = 0.0
