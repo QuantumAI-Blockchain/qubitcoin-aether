@@ -10,6 +10,8 @@ members = [
     "crates/aether-reasoning",
     "crates/aether-knowledge",
     "crates/aether-nlp",
+    "crates/aether-cognitive",
+    "crates/aether-safety",
     "crates/aether-pyo3",
 ]
 
