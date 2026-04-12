@@ -38,7 +38,7 @@ const DEFAULT_TTL: u32 = 10;
 ///
 /// Each variant maps to the lowercase string value used in Python
 /// (`SephirahRole.KETER.value == "keter"`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SephirahRole {
     Keter,
     Chochmah,

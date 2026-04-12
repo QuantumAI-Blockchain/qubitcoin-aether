@@ -125,6 +125,7 @@ dependencies = [
  "aether-types",
  "approx",
  "crossbeam-channel",
+ "hex",
  "log",
  "parking_lot",
  "pyo3",
