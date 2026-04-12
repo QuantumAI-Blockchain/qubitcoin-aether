@@ -8,6 +8,8 @@ members = [
     "crates/aether-neural",
     "crates/aether-sephirot",
     "crates/aether-reasoning",
+    "crates/aether-knowledge",
+    "crates/aether-nlp",
     "crates/aether-pyo3",
 ]
 
