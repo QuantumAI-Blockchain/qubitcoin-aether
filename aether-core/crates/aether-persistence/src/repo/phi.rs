@@ -102,4 +102,33 @@ impl PhiRepo {
         .await?;
         Ok(count)
     }
+
+    /// Fetch phi measurement at a specific block height.
+    #[instrument(skip(pool))]
+    pub async fn get_by_block(pool: &PgPool, block_height: i64) -> Result<Option<PhiMeasurementRow>> {
+        let row = sqlx::query_as::<_, PhiMeasurementRow>(
+            "SELECT * FROM phi_measurements WHERE block_height = $1",
+        )
+        .bind(block_height)
+        .fetch_optional(pool)
+        .await?;
+        Ok(row)
+    }
+
+    /// Fetch phi measurements within a block range.
+    #[instrument(skip(pool))]
+    pub async fn get_history(
+        pool: &PgPool,
+        from_block: i64,
+        to_block: i64,
+    ) -> Result<Vec<PhiMeasurementRow>> {
+        let rows = sqlx::query_as::<_, PhiMeasurementRow>(
+            "SELECT * FROM phi_measurements WHERE block_height >= $1 AND block_height <= $2 ORDER BY block_height ASC",
+        )
+        .bind(from_block)
+        .bind(to_block)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows)
+    }
 }

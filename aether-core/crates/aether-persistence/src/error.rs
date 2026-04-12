@@ -20,6 +20,10 @@ pub enum PersistenceError {
     /// Failed to establish or maintain a connection pool.
     #[error("connection error: {0}")]
     Connection(String),
+
+    /// Tokio runtime creation/execution failure.
+    #[error("runtime error: {0}")]
+    Runtime(String),
 }
 
 /// Convenience alias used throughout the crate.

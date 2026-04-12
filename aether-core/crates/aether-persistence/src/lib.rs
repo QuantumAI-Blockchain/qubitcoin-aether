@@ -32,3 +32,6 @@ pub use repo::{
     ConsciousnessRepo, KnowledgeEdgeRepo, KnowledgeNodeRepo,
     PhiRepo, ReasoningRepo,
 };
+
+// Re-export PgPool so downstream crates don't need a direct sqlx dependency.
+pub use sqlx::postgres::PgPool;

@@ -115,4 +115,32 @@ impl KnowledgeEdgeRepo {
         .await?;
         Ok(count)
     }
+
+    /// Fetch edges between two specific nodes.
+    #[instrument(skip(pool))]
+    pub async fn get_edges_between(
+        pool: &PgPool,
+        from_id: i64,
+        to_id: i64,
+    ) -> Result<Vec<KnowledgeEdgeRow>> {
+        let rows = sqlx::query_as::<_, KnowledgeEdgeRow>(
+            "SELECT * FROM knowledge_edges WHERE from_node_id = $1 AND to_node_id = $2",
+        )
+        .bind(from_id)
+        .bind(to_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Count edges grouped by type, returned as `(edge_type, count)` pairs.
+    #[instrument(skip(pool))]
+    pub async fn count_by_type(pool: &PgPool) -> Result<Vec<(String, i64)>> {
+        let rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT edge_type, COUNT(*) as cnt FROM knowledge_edges GROUP BY edge_type ORDER BY cnt DESC",
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(rows)
+    }
 }

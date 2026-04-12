@@ -8,6 +8,7 @@ description = "Phi integration metric and gate system for the Aether Tree"
 [dependencies]
 aether-types = { path = "../aether-types" }
 aether-graph = { path = "../aether-graph" }
+aether-persistence = { path = "../aether-persistence" }
 pyo3 = { version = "0.23", features = ["auto-initialize"] }
 nalgebra = "0.33"
 serde = { version = "1.0", features = ["derive"] }
@@ -15,6 +16,9 @@ serde_json = "1.0"
 parking_lot = "0.12"
 log = "0.4"
 rand = "0.8"
+tokio = { version = "1", features = ["rt"] }
+chrono = "0.4"
 
 [dev-dependencies]
 approx = "0.5"
+tokio = { version = "1", features = ["full", "test-util"] }

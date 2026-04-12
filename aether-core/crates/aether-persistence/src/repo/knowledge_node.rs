@@ -117,4 +117,78 @@ impl KnowledgeNodeRepo {
         .await?;
         Ok(rows)
     }
+
+    /// Update last_referenced_block and reference_count for a node.
+    #[instrument(skip(pool))]
+    pub async fn update_reference(pool: &PgPool, id: i64, block: i64, ref_count: i32) -> Result<()> {
+        sqlx::query(
+            "UPDATE knowledge_nodes SET last_referenced_block = $2, reference_count = $3 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(block)
+        .bind(ref_count)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Get top N nodes by confidence (for cache warming).
+    #[instrument(skip(pool))]
+    pub async fn get_top_by_confidence(pool: &PgPool, limit: i64) -> Result<Vec<KnowledgeNodeRow>> {
+        let rows = sqlx::query_as::<_, KnowledgeNodeRow>(
+            "SELECT * FROM knowledge_nodes ORDER BY confidence DESC LIMIT $1",
+        )
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Simple ILIKE text search on search_text column.
+    #[instrument(skip(pool))]
+    pub async fn search_text(pool: &PgPool, query: &str, limit: i64) -> Result<Vec<KnowledgeNodeRow>> {
+        let pattern = format!("%{}%", query);
+        let rows = sqlx::query_as::<_, KnowledgeNodeRow>(
+            "SELECT * FROM knowledge_nodes WHERE search_text ILIKE $1 ORDER BY confidence DESC LIMIT $2",
+        )
+        .bind(pattern)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Count nodes per type, returned as `(node_type, count)` pairs.
+    #[instrument(skip(pool))]
+    pub async fn count_by_type(pool: &PgPool) -> Result<Vec<(String, i64)>> {
+        let rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT node_type, COUNT(*) as cnt FROM knowledge_nodes GROUP BY node_type ORDER BY cnt DESC",
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Average confidence across all knowledge nodes.
+    #[instrument(skip(pool))]
+    pub async fn avg_confidence(pool: &PgPool) -> Result<f64> {
+        let avg: Option<f64> = sqlx::query_scalar(
+            "SELECT AVG(confidence) FROM knowledge_nodes",
+        )
+        .fetch_one(pool)
+        .await?;
+        Ok(avg.unwrap_or(0.0))
+    }
+
+    /// Get nodes from a specific source block.
+    #[instrument(skip(pool))]
+    pub async fn get_by_source_block(pool: &PgPool, block: i64) -> Result<Vec<KnowledgeNodeRow>> {
+        let rows = sqlx::query_as::<_, KnowledgeNodeRow>(
+            "SELECT * FROM knowledge_nodes WHERE source_block = $1 ORDER BY id",
+        )
+        .bind(block)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows)
+    }
 }

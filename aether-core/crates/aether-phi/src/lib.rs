@@ -16,6 +16,8 @@
 //!     raw_phi = integration * differentiation * (1 + connectivity) * maturity
 //!     phi = min(raw_phi * redundancy_factor, gate_ceiling)
 
+pub mod persistence;
+
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
