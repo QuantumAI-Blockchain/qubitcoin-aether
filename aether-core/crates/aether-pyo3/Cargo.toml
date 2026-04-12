@@ -24,3 +24,4 @@ aether-phi = { path = "../aether-phi" }
 aether-memory = { path = "../aether-memory" }
 aether-neural = { path = "../aether-neural" }
 aether-sephirot = { path = "../aether-sephirot" }
+aether-persistence = { path = "../aether-persistence" }
