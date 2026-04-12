@@ -1,0 +1,22 @@
+[package]
+name = "aether-protocol"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Proof-of-Thought protocol, on-chain bridge, and task marketplace for the Aether Tree"
+
+[dependencies]
+aether-types = { path = "../aether-types" }
+aether-graph = { path = "../aether-graph" }
+aether-phi = { path = "../aether-phi" }
+aether-reasoning = { path = "../aether-reasoning" }
+parking_lot = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+sha2 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+
+[dev-dependencies]
+approx = "0.5"

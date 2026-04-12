@@ -1,0 +1,23 @@
+[package]
+name = "aether-chat"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Chat engine and LLM adapter for the Aether Tree AGI system"
+
+[dependencies]
+aether-types = { path = "../aether-types" }
+aether-graph = { path = "../aether-graph" }
+aether-reasoning = { path = "../aether-reasoning" }
+parking_lot = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1"
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+
+[dev-dependencies]
+approx = "0.5"

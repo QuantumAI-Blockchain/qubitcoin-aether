@@ -12,6 +12,9 @@ members = [
     "crates/aether-nlp",
     "crates/aether-cognitive",
     "crates/aether-safety",
+    "crates/aether-chat",
+    "crates/aether-protocol",
+    "crates/aether-infra",
     "crates/aether-pyo3",
 ]
 
