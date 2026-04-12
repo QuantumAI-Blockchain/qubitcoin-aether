@@ -33,6 +33,15 @@ fn aether_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<aether_memory::Episode>()?;
     m.add_class::<aether_memory::MemoryManager>()?;
 
+    // Embedder
+    m.add_class::<aether_memory::SimpleEmbedder>()?;
+    m.add_class::<aether_memory::IDFEmbedder>()?;
+
+    // Long-Term Memory
+    m.add_class::<aether_memory::ConsolidatedPattern>()?;
+    m.add_class::<aether_memory::ConsolidationResult>()?;
+    m.add_class::<aether_memory::LongTermMemory>()?;
+
     // Neural GAT Reasoner
     m.add_class::<aether_neural::RustGATReasoner>()?;
 

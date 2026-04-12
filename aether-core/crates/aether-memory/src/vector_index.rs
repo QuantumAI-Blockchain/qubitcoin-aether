@@ -883,6 +883,99 @@ impl VectorIndex {
     pub fn __contains__(&self, node_id: i64) -> bool {
         self.inner.read().embeddings.contains_key(&node_id)
     }
+
+    /// Add a text to the index by embedding it with a SimpleEmbedder.
+    ///
+    /// Convenience method for Python: embeds the text and stores it under node_id.
+    ///
+    /// Args:
+    ///     node_id: Knowledge graph node ID.
+    ///     text: Text to embed.
+    ///     embedder: A SimpleEmbedder instance.
+    pub fn add_text_simple(
+        &self,
+        node_id: i64,
+        text: &str,
+        embedder: &crate::embedder::SimpleEmbedder,
+    ) {
+        use crate::embedder::Embedder;
+        let embedding = embedder.embed(text);
+        self.inner.write().add_embedding(node_id, embedding);
+    }
+
+    /// Query the index using text with a SimpleEmbedder.
+    ///
+    /// Returns list of (node_id, cosine_similarity), highest similarity first.
+    ///
+    /// Args:
+    ///     query: Query text.
+    ///     top_k: Number of results. Default 10.
+    ///     embedder: A SimpleEmbedder instance.
+    #[pyo3(signature = (query, top_k = 10, embedder = None))]
+    pub fn query_text_simple(
+        &self,
+        query: &str,
+        top_k: usize,
+        embedder: Option<&crate::embedder::SimpleEmbedder>,
+    ) -> Vec<(i64, f64)> {
+        use crate::embedder::Embedder;
+        let emb = embedder.map_or_else(
+            || crate::embedder::SimpleEmbedder::new(384, 3),
+            |e| e.clone(),
+        );
+        let query_emb = emb.embed(query);
+        self.inner.write().query_by_embedding(&query_emb, top_k)
+    }
+}
+
+/// Rust-only text-based methods using the Embedder trait (not exposed to Python).
+impl VectorIndex {
+    /// Add a text to the index by embedding it with any Embedder implementation.
+    ///
+    /// # Arguments
+    /// - `node_id`: Knowledge graph node ID.
+    /// - `text`: Text to embed.
+    /// - `embedder`: Any implementor of the Embedder trait.
+    pub fn add_text(&self, node_id: i64, text: &str, embedder: &dyn crate::embedder::Embedder) {
+        let embedding = embedder.embed(text);
+        self.inner.write().add_embedding(node_id, embedding);
+    }
+
+    /// Query the index using text with any Embedder implementation.
+    ///
+    /// Returns list of (node_id, cosine_similarity), highest similarity first.
+    ///
+    /// # Arguments
+    /// - `query`: Query text.
+    /// - `k`: Number of results to return.
+    /// - `embedder`: Any implementor of the Embedder trait.
+    pub fn query_text(
+        &self,
+        query: &str,
+        k: usize,
+        embedder: &dyn crate::embedder::Embedder,
+    ) -> Vec<(i64, f64)> {
+        let query_emb = embedder.embed(query);
+        self.inner.write().query_by_embedding(&query_emb, k)
+    }
+
+    /// Add multiple texts to the index in batch.
+    ///
+    /// # Arguments
+    /// - `entries`: Pairs of (node_id, text).
+    /// - `embedder`: Any implementor of the Embedder trait.
+    pub fn add_texts_batch(
+        &self,
+        entries: &[(i64, &str)],
+        embedder: &dyn crate::embedder::Embedder,
+    ) {
+        let texts: Vec<&str> = entries.iter().map(|(_, t)| *t).collect();
+        let embeddings = embedder.embed_batch(&texts);
+        let mut inner = self.inner.write();
+        for ((node_id, _), embedding) in entries.iter().zip(embeddings.into_iter()) {
+            inner.add_embedding(*node_id, embedding);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1614,5 +1707,114 @@ mod tests {
             "HNSW near-duplicate search should find the duplicate pair (50, 1000). Found: {:?}",
             dups
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Text-based search tests (Embedder integration)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_add_text_and_query_text() {
+        use crate::embedder::SimpleEmbedder;
+
+        let vi = VectorIndex::new(Some(false));
+        let emb = SimpleEmbedder::new(384, 3);
+
+        vi.add_text(1, "quantum computing research", &emb);
+        vi.add_text(2, "blockchain consensus algorithm", &emb);
+        vi.add_text(3, "quantum entanglement experiments", &emb);
+
+        assert_eq!(vi.size(), 3);
+
+        // Query for "quantum" — should match nodes 1 and 3 more than node 2
+        let results = vi.query_text("quantum physics", 3, &emb);
+        assert_eq!(results.len(), 3);
+
+        // Results are sorted by similarity (highest first)
+        let top_ids: Vec<i64> = results.iter().map(|(id, _)| *id).collect();
+        // Node 2 (blockchain) should be least similar to "quantum physics"
+        assert_eq!(*top_ids.last().unwrap(), 2, "blockchain node should rank lowest for quantum physics query");
+    }
+
+    #[test]
+    fn test_add_text_deterministic() {
+        use crate::embedder::SimpleEmbedder;
+
+        let vi = VectorIndex::new(Some(false));
+        let emb = SimpleEmbedder::new(256, 3);
+
+        vi.add_text(1, "hello world", &emb);
+        let stored = vi.get_embedding(1).unwrap();
+
+        let expected = emb.embed_text("hello world");
+        assert_eq!(stored, expected);
+    }
+
+    #[test]
+    fn test_add_texts_batch() {
+        use crate::embedder::SimpleEmbedder;
+
+        let vi = VectorIndex::new(Some(false));
+        let emb = SimpleEmbedder::new(384, 3);
+
+        let entries: Vec<(i64, &str)> = vec![
+            (1, "alpha particle"),
+            (2, "beta decay"),
+            (3, "gamma radiation"),
+        ];
+        vi.add_texts_batch(&entries, &emb);
+
+        assert_eq!(vi.size(), 3);
+        assert!(vi.get_embedding(1).is_some());
+        assert!(vi.get_embedding(2).is_some());
+        assert!(vi.get_embedding(3).is_some());
+    }
+
+    #[test]
+    fn test_query_text_empty_index() {
+        use crate::embedder::SimpleEmbedder;
+
+        let vi = VectorIndex::new(Some(false));
+        let emb = SimpleEmbedder::new(384, 3);
+
+        let results = vi.query_text("anything", 5, &emb);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_query_text_self_similarity() {
+        use crate::embedder::SimpleEmbedder;
+
+        let vi = VectorIndex::new(Some(false));
+        let emb = SimpleEmbedder::new(384, 3);
+
+        vi.add_text(1, "quantum blockchain technology", &emb);
+
+        let results = vi.query_text("quantum blockchain technology", 1, &emb);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, 1);
+        // Self-query should have similarity ~1.0
+        assert!(
+            results[0].1 > 0.99,
+            "self-query should have near-perfect similarity, got {}",
+            results[0].1
+        );
+    }
+
+    #[test]
+    fn test_add_text_with_idf_embedder() {
+        use crate::embedder::IDFEmbedder;
+
+        let vi = VectorIndex::new(Some(false));
+        let mut emb = IDFEmbedder::new(384, 3);
+        emb.fit_document("quantum computing");
+        emb.fit_document("machine learning");
+
+        vi.add_text(1, "quantum computing research", &emb);
+        vi.add_text(2, "machine learning algorithms", &emb);
+
+        assert_eq!(vi.size(), 2);
+        let results = vi.query_text("quantum", 2, &emb);
+        assert_eq!(results.len(), 2);
     }
 }
