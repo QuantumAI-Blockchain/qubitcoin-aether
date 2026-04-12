@@ -1,17 +1,15 @@
 //! aether-types: Shared types for the Aether Tree AGI engine.
 //!
-//! Provides KeterNode, KeterEdge, domain enums, configuration, and constants
-//! used across all crates in the aether-core workspace.
+//! Provides KeterNode, KeterEdge, and domain constants used across all crates.
 
 pub mod keter_node;
 pub mod keter_edge;
-pub mod enums;
-pub mod config;
 
 pub use keter_node::{KeterNode, VALID_NODE_TYPES};
 pub use keter_edge::{KeterEdge, VALID_EDGE_TYPES};
-pub use enums::{NodeType, EdgeType, Domain, ReasoningStrategy, ConsciousnessEventType};
-pub use config::AetherConfig;
+pub use debate_verdict::DebateVerdict;
+
+pub mod debate_verdict;
 
 /// The 10 Sephirot cognitive domains.
 pub const SEPHIROT_DOMAINS: &[&str] = &[

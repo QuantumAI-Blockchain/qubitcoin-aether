@@ -1,0 +1,20 @@
+[package]
+name = "aether-reasoning"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Reasoning, causal discovery, and debate engines for the Aether Tree"
+
+[dependencies]
+aether-types = { path = "../aether-types" }
+aether-graph = { path = "../aether-graph" }
+parking_lot = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+rand = "0.8"
+sha2 = "0.10"
+strsim = "0.11"
+
+[dev-dependencies]
+approx = "0.5"

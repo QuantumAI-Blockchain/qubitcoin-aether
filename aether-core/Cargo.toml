@@ -7,7 +7,7 @@ members = [
     "crates/aether-memory",
     "crates/aether-neural",
     "crates/aether-sephirot",
-    "crates/aether-persistence",
+    "crates/aether-reasoning",
     "crates/aether-pyo3",
 ]
 

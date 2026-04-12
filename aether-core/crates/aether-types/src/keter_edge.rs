@@ -21,6 +21,7 @@ pub const VALID_EDGE_TYPES: &[&str] = &[
     "requires",
     "refines",
     "causes",
+    "correlates",
     "abstracts",
     "analogous_to",
 ];
