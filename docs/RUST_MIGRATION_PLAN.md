@@ -2,7 +2,9 @@
 
 **Version**: 5.0 (V5 Fork)
 **Date**: April 2026
-**Goal**: Replace all 143 Python modules (~73K LOC) with native Rust (~51K new LOC)
+**Goal**: Replace ALL 143 Python modules (~73K LOC) with native Rust (~51K new LOC)
+**Scale Target**: MAX — 1B+ nodes, 1M+ concurrent users, sub-millisecond cognitive cycles
+**Directive**: 100% migration NOW. No partial upgrades. No future phases. Ship pure Rust.
 
 ---
 
@@ -17,8 +19,8 @@ aether-core/                          # Workspace root
 │   ├── aether-phi/                   # PhiCalculator, IIT, gate system [DONE]
 │   ├── aether-memory/                # VectorIndex/HNSW, WorkingMemory, MemoryManager [DONE]
 │   ├── aether-neural/                # GATReasoner, trainer [DONE]
-│   ├── aether-sephirot/              # CSF transport, Higgs field, 10 processors [DONE partial]
-│   ├── aether-reasoning/             # Deductive/inductive/abductive, causal, debate
+│   ├── aether-sephirot/              # CSF transport, Higgs field, 10 processors, manager [DONE]
+│   ├── aether-reasoning/             # Deductive/inductive/abductive, causal, debate [DONE]
 │   ├── aether-nlp/                   # NLP pipeline, summarizer, entity extraction
 │   ├── aether-knowledge/             # Knowledge extractor, seeder, scorer
 │   ├── aether-cognitive/             # 50+ small cognitive modules
@@ -63,19 +65,21 @@ aether-pyo3           (engine + all, exposes PyO3 bindings)
 
 | Batch | Week | Target | New Rust LOC | Milestone |
 |-------|------|--------|-------------|-----------|
-| 0 | 1-2 | Workspace restructure | 0 | **COMPLETE** (276 tests pass) |
-| 1 | 3-4 | Types + Persistence (sqlx) | ~2,000 | Rust reads/writes CockroachDB |
-| 2 | 5-7 | Graph + Phi (DB-backed) | ~5,000 | KnowledgeGraph live in Rust |
-| 3 | 8-10 | Reasoning + Causal + Debate | ~7,000 | Reasoning engine fully Rust |
-| 4 | 11-13 | Sephirot (all 10 + processors) | ~8,000 | Tree of Life architecture in Rust |
-| 5 | 14-15 | Memory + Vector (ONNX embeddings) | ~3,000 | Memory system in Rust |
-| 6 | 16-18 | NLP + Knowledge processing | ~5,000 | Knowledge pipeline in Rust |
-| 7 | 19-20 | Metacognition + Self-Improvement | ~4,000 | Self-improvement loop in Rust |
-| 8 | 21-23 | Advanced Cognitive (35+ modules) | ~5,500 | All cognitive modules ported |
-| 9 | 24-26 | Chat + LLM + Safety | ~6,000 | User-facing layer in Rust |
-| 10 | 27-29 | Protocol + Infrastructure | ~5,000 | AetherEngine orchestrator in Rust |
-| 11 | 30-32 | Integration + Python removal | ~500 | Pure Rust Aether Tree |
-| **Total** | **32 weeks** | **143 modules** | **~51,000** | **V5 complete** |
+| Batch | Status | Target | New Rust LOC | Tests | Milestone |
+|-------|--------|--------|-------------|-------|-----------|
+| 0 | **DONE** | Workspace restructure (7 crates) | 0 | 276 | Workspace + CI green |
+| 1 | **DONE** | Types + Persistence (sqlx CockroachDB) | ~2,000 | 307 | Rust reads/writes DB |
+| 2 | **DONE** | Graph + Phi (DB-backed) | ~2,200 | 316 | KnowledgeGraph live |
+| 3 | **DONE** | Reasoning + Causal + Debate | ~6,200 | 421 | Reasoning engine |
+| 4 | **DONE** | Sephirot (manager, Higgs, 10 processors) | ~5,035 | 484 | Tree of Life architecture |
+| 5 | NEXT | Memory + Vector (ONNX embeddings) | ~3,000 | — | Memory system in Rust |
+| 6 | — | NLP + Knowledge processing | ~5,000 | — | Knowledge pipeline |
+| 7 | — | Metacognition + Self-Improvement | ~4,000 | — | Self-improvement loop |
+| 8 | — | Advanced Cognitive (35+ modules) | ~5,500 | — | All cognitive modules |
+| 9 | — | Chat + LLM + Safety | ~6,000 | — | User-facing layer |
+| 10 | — | Protocol + Infrastructure | ~5,000 | — | AetherEngine orchestrator |
+| 11 | — | Integration + Python removal | ~500 | — | Pure Rust Aether Tree |
+| **Total** | **4/11 done** | **143 modules** | **~15,435 done / ~51,000 target** | **484** | **30% complete** |
 
 ## 4. Zero-Downtime Strategy
 
@@ -155,5 +159,21 @@ CI:
 
 ---
 
-**Current Status**: Batch 0 COMPLETE. Workspace restructured into 7 crates.
-276 Rust tests passing. Ready for Batch 1 (persistence layer).
+**Current Status (2026-04-12)**: Batches 0-4 COMPLETE. 9 crates, 484 Rust tests, ~15,435 new LOC.
+Core architecture (types, graph, phi, persistence, reasoning, sephirot) fully in Rust.
+Ready for Batch 5 (memory + vector index with ONNX embeddings).
+
+### Completed Crate LOC Breakdown
+
+| Crate | Files | LOC | Tests |
+|-------|-------|-----|-------|
+| aether-types | 6 | ~1,200 | 124 |
+| aether-persistence | 6 | ~900 | 13 |
+| aether-graph | 5 | ~2,100 | 59 |
+| aether-phi | 2 | ~800 | 37 |
+| aether-memory | 3 | ~600 | 8 |
+| aether-neural | 3 | ~500 | 0 |
+| aether-reasoning | 8 | ~4,300 | 123 |
+| aether-sephirot | 5 | ~6,984 | 119 |
+| aether-pyo3 | 1 | ~100 | 1 |
+| **Total** | **39** | **~17,484** | **484** |
