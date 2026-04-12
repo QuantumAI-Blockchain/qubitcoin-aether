@@ -36,6 +36,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "aether-engine"
+version = "0.1.0"
+dependencies = [
+ "aether-chat",
+ "aether-cognitive",
+ "aether-graph",
+ "aether-infra",
+ "aether-knowledge",
+ "aether-memory",
+ "aether-neural",
+ "aether-nlp",
+ "aether-phi",
+ "aether-protocol",
+ "aether-reasoning",
+ "aether-safety",
+ "aether-sephirot",
+ "aether-types",
+ "chrono",
+ "log",
+ "parking_lot",
+ "rand",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "aether-graph"
 version = "0.1.0"
 dependencies = [

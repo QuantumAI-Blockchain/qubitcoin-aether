@@ -1,0 +1,30 @@
+[package]
+name = "aether-engine"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Top-level AetherEngine orchestrator — wires all Aether Tree subsystems into a unified cognitive cycle"
+
+[dependencies]
+aether-types = { path = "../aether-types" }
+aether-graph = { path = "../aether-graph" }
+aether-phi = { path = "../aether-phi" }
+aether-reasoning = { path = "../aether-reasoning" }
+aether-sephirot = { path = "../aether-sephirot" }
+aether-memory = { path = "../aether-memory" }
+aether-neural = { path = "../aether-neural" }
+aether-cognitive = { path = "../aether-cognitive" }
+aether-safety = { path = "../aether-safety" }
+aether-chat = { path = "../aether-chat" }
+aether-protocol = { path = "../aether-protocol" }
+aether-knowledge = { path = "../aether-knowledge" }
+aether-nlp = { path = "../aether-nlp" }
+aether-infra = { path = "../aether-infra" }
+
+parking_lot = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+rand = "0.8"

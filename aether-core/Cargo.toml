@@ -15,6 +15,7 @@ members = [
     "crates/aether-chat",
     "crates/aether-protocol",
     "crates/aether-infra",
+    "crates/aether-engine",
     "crates/aether-pyo3",
 ]
 
