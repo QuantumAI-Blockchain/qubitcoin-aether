@@ -128,6 +128,15 @@ class SelfImprovementEngine:
         self.metacognition = metacognition
         self.kg = knowledge_graph
 
+        # Rust acceleration: delegate compute-heavy weight optimization
+        self._rust = None
+        if _RUST_AVAILABLE and RustSelfImprovementEngine is not None:
+            try:
+                self._rust = RustSelfImprovementEngine()
+                logger.info("SelfImprovementEngine: Rust acceleration ACTIVE")
+            except Exception as exc:
+                logger.warning("SelfImprovementEngine: Rust init failed (%s), using Python", exc)
+
         # Per-domain, per-strategy weights: domain -> {strategy -> weight}
         # Initialized with uniform weights (1/n for n strategies)
         n_strategies = len(REASONING_MODES)
@@ -228,6 +237,8 @@ class SelfImprovementEngine:
         Returns:
             True if enough blocks have passed since the last cycle.
         """
+        # Note: interval is managed by Python (from Config), so we don't
+        # delegate this to Rust — the Rust engine may have different defaults.
         if block_height <= 0:
             return False
         if self._last_cycle_block == 0:
@@ -558,6 +569,8 @@ class SelfImprovementEngine:
             Dict mapping strategy names to weights. Returns uniform weights
             for unknown domains.
         """
+        # Note: weights are managed by Python (_domain_weights is source of
+        # truth). Rust engine is used for compute acceleration, not state.
         if domain in self._domain_weights:
             return dict(self._domain_weights[domain])
 
@@ -687,6 +700,12 @@ class SelfImprovementEngine:
         Returns:
             True if rollback was performed.
         """
+        if self._rust is not None:
+            try:
+                return self._rust.rollback_to_snapshot(snapshot_index)
+            except Exception as exc:
+                logger.debug("Rust rollback_to_snapshot failed: %s", exc)
+
         if not self._weight_snapshots:
             return False
 

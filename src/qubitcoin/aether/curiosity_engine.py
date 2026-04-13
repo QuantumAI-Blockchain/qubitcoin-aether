@@ -42,14 +42,27 @@ class CuriosityEngine:
     ) -> None:
         self._kg = knowledge_graph
         self._temporal = temporal_reasoner
-        self._lock = threading.Lock()
 
-        # domain -> rolling list of |predicted - actual| values (max _ROLLING_WINDOW)
-        self.prediction_errors: dict[str, list[float]] = defaultdict(list)
-        # (domain, topic, block_height) tuples
-        self.exploration_history: list[tuple[str, str, int]] = []
+        # Rust acceleration: delegate all compute to Rust engine
+        self._rust = None
+        if _RUST_AVAILABLE and RustCuriosityEngine is not None:
+            try:
+                self._rust = RustCuriosityEngine()
+                logger.info("CuriosityEngine: Rust acceleration ACTIVE")
+            except Exception as exc:
+                logger.warning("CuriosityEngine: Rust init failed (%s), using Python", exc)
 
-        logger.info("CuriosityEngine initialized (window=%d)", _ROLLING_WINDOW)
+        # Python fallback state (only used when Rust is unavailable)
+        if self._rust is None:
+            self._lock = threading.Lock()
+            self.prediction_errors: dict[str, list[float]] = defaultdict(list)
+            self.exploration_history: list[tuple[str, str, int]] = []
+        else:
+            self._lock = threading.Lock()  # still needed for KG access
+            self.prediction_errors = defaultdict(list)
+            self.exploration_history = []
+
+        logger.info("CuriosityEngine initialized (window=%d, rust=%s)", _ROLLING_WINDOW, self._rust is not None)
 
     # ------------------------------------------------------------------
     # Public API
@@ -57,6 +70,11 @@ class CuriosityEngine:
 
     def compute_curiosity_scores(self) -> dict[str, float]:
         """Return curiosity score per domain (mean prediction error)."""
+        if self._rust is not None:
+            try:
+                return self._rust.compute_curiosity_scores()
+            except Exception as exc:
+                logger.debug("Rust compute_curiosity_scores failed: %s", exc)
         with self._lock:
             scores: dict[str, float] = {}
             for domain, errors in self.prediction_errors.items():
@@ -71,6 +89,16 @@ class CuriosityEngine:
             Dict with ``domain``, ``curiosity_score``, and ``question``
             keys, or ``None`` when no prediction data exists yet.
         """
+        if self._rust is not None:
+            try:
+                result = self._rust.suggest_exploration_goal()
+                if result is not None:
+                    # Override with KG-aware question generation
+                    result["question"] = self._generate_exploration_question(result["domain"])
+                return result
+            except Exception as exc:
+                logger.debug("Rust suggest_exploration_goal failed: %s", exc)
+
         scores = self.compute_curiosity_scores()
         if not scores:
             return None
@@ -98,6 +126,12 @@ class CuriosityEngine:
         topic: str,
     ) -> None:
         """Record the absolute error of a prediction for *domain*."""
+        if self._rust is not None:
+            try:
+                self._rust.record_prediction_outcome(domain, predicted, actual, topic)
+                return
+            except Exception as exc:
+                logger.debug("Rust record_prediction_outcome failed: %s", exc)
         error = abs(predicted - actual)
         with self._lock:
             buf = self.prediction_errors[domain]
@@ -118,6 +152,12 @@ class CuriosityEngine:
         block_height: int,
     ) -> None:
         """Log a curiosity-driven discovery."""
+        if self._rust is not None:
+            try:
+                self._rust.record_discovery(domain, topic, block_height)
+                return
+            except Exception as exc:
+                logger.debug("Rust record_discovery failed: %s", exc)
         with self._lock:
             self.exploration_history.append((domain, topic, block_height))
         logger.info(
@@ -129,6 +169,11 @@ class CuriosityEngine:
 
     def get_curiosity_stats(self) -> dict:
         """Return a summary dict of curiosity state."""
+        if self._rust is not None:
+            try:
+                return self._rust.get_curiosity_stats()
+            except Exception as exc:
+                logger.debug("Rust get_curiosity_stats failed: %s", exc)
         scores = self.compute_curiosity_scores()
         sorted_domains = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
         with self._lock:
@@ -143,6 +188,11 @@ class CuriosityEngine:
     @property
     def discoveries_count(self) -> int:
         """Total curiosity-driven discoveries (used by gate 8 checks)."""
+        if self._rust is not None:
+            try:
+                return self._rust.discoveries_count
+            except Exception as exc:
+                logger.debug("Rust discoveries_count failed: %s", exc)
         with self._lock:
             return len(self.exploration_history)
 

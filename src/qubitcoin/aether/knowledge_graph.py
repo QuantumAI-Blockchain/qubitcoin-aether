@@ -390,6 +390,17 @@ class KnowledgeGraph:
         from .vector_index import VectorIndex
         self.vector_index = VectorIndex()
 
+        # Rust shadow graph for compute-heavy operations (Merkle root,
+        # search, stats, phi computation). Bulk-loaded after DB load,
+        # then kept in sync via add_node/add_edge.
+        self._rust_kg = None
+        if _RUST_AVAILABLE and RustKnowledgeGraph is not None:
+            try:
+                self._rust_kg = RustKnowledgeGraph()
+                logger.info("KnowledgeGraph: Rust shadow graph ACTIVE")
+            except Exception as exc:
+                logger.warning("KnowledgeGraph: Rust shadow init failed: %s", exc)
+
         # Async write queue — node/edge DB persistence is non-blocking.
         # In-memory state is always consistent; DB is written asynchronously.
         self._write_queue: queue.Queue = queue.Queue(maxsize=50000)
@@ -400,6 +411,7 @@ class KnowledgeGraph:
         self._writer_thread.start()
 
         self._load_from_db()
+        self._sync_rust_kg()
 
     def _load_from_db(self):
         """Load knowledge graph from database into memory.
@@ -644,6 +656,41 @@ class KnowledgeGraph:
         t = threading.Thread(target=_rebuild_worker, daemon=True, name='kg-vector-rebuild')
         t.start()
 
+    def _sync_rust_kg(self) -> None:
+        """Bulk-load Python graph state into the Rust shadow graph.
+
+        Called once after _load_from_db(). Subsequent mutations are synced
+        incrementally in add_node() and add_edge().
+        """
+        if self._rust_kg is None:
+            return
+        try:
+            nodes_snapshot = list(self.nodes.values())
+            if not nodes_snapshot:
+                return
+            # Build Rust KeterNode list via add_node calls
+            for node in nodes_snapshot:
+                content = node.content if isinstance(node.content, dict) else {}
+                # Convert all values to strings for Rust
+                str_content = {str(k): str(v) for k, v in content.items()}
+                self._rust_kg.add_node(
+                    node.node_type, str_content, node.confidence,
+                    node.source_block, node.domain or "",
+                )
+            # Bulk-load edges
+            for edge in self.edges:
+                self._rust_kg.add_edge(
+                    edge.from_node_id, edge.to_node_id,
+                    edge.edge_type, edge.weight,
+                )
+            logger.info(
+                "Rust shadow KG synced: %d nodes, %d edges",
+                self._rust_kg.node_count(), self._rust_kg.edge_count(),
+            )
+        except Exception as exc:
+            logger.warning("Rust KG sync failed: %s — disabling shadow graph", exc)
+            self._rust_kg = None
+
     def _async_writer(self) -> None:
         """Background thread: drain write queue and batch-commit to DB."""
         from sqlalchemy import text
@@ -801,6 +848,17 @@ class KnowledgeGraph:
         # Update TF-IDF index synchronously (fast — no model inference)
         self.search_index.add_node(node.node_id, content)
 
+        # Sync to Rust shadow graph (non-blocking, fire-and-forget)
+        if getattr(self, '_rust_kg', None) is not None:
+            try:
+                str_content = {str(k): str(v) for k, v in content.items()} if isinstance(content, dict) else {}
+                self._rust_kg.add_node(
+                    node.node_type, str_content, node.confidence,
+                    source_block, node.domain or "",
+                )
+            except Exception:
+                pass  # Rust shadow is best-effort
+
         # Vector embedding is async — enqueued alongside DB write to avoid
         # blocking on sentence-transformer model.encode() per node.
         # Persist asynchronously via write queue (non-blocking).
@@ -840,6 +898,13 @@ class KnowledgeGraph:
             self._merkle_dirty = True
             self.nodes[from_id].edges_out.append(to_id)
             self.nodes[to_id].edges_in.append(from_id)
+
+        # Sync to Rust shadow graph
+        if getattr(self, '_rust_kg', None) is not None:
+            try:
+                self._rust_kg.add_edge(from_id, to_id, edge_type, weight)
+            except Exception:
+                pass
 
         # Persist asynchronously via write queue (non-blocking)
         if hasattr(self, '_write_queue'):
@@ -999,6 +1064,18 @@ class KnowledgeGraph:
         Takes a snapshot under the lock, then computes the Merkle tree
         outside the lock so add_node() is never blocked.
         """
+        # Rust acceleration for Merkle root computation
+        if getattr(self, '_rust_kg', None) is not None and self._merkle_dirty:
+            try:
+                root = self._rust_kg.compute_knowledge_root()
+                if root:
+                    with self._lock:
+                        self._merkle_cache = root
+                        self._merkle_dirty = False
+                    return root
+            except Exception as exc:
+                logger.debug("Rust compute_knowledge_root failed: %s", exc)
+
         with self._lock:
             if not self.nodes:
                 return hashlib.sha256(b'empty_knowledge').hexdigest()
@@ -2210,8 +2287,20 @@ class KnowledgeGraph:
             logger.info(f"Normalized edge weights for {normalized} nodes")
         return normalized
 
+    @property
+    def rust_kg(self):
+        """Access the Rust shadow KnowledgeGraph for compute delegation (e.g. PhiCalculator)."""
+        return getattr(self, '_rust_kg', None)
+
     def get_stats(self) -> dict:
         """Get knowledge graph statistics"""
+        # Rust-accelerated stats when available
+        if getattr(self, '_rust_kg', None) is not None:
+            try:
+                return self._rust_kg.get_stats()
+            except Exception:
+                pass
+
         # Snapshot to avoid RuntimeError from concurrent LRU mutations
         try:
             nodes_snapshot = list(self.nodes.values())

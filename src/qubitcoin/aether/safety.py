@@ -236,6 +236,16 @@ class GevurahVeto:
         self._principles: Dict[str, SafetyPrinciple] = {}
         self._vetoes: List[VetoRecord] = []
         self._max_vetoes = 10000
+
+        # Rust acceleration for threat evaluation
+        self._rust = None
+        if _RUST_AVAILABLE and RustGevurahVeto is not None:
+            try:
+                self._rust = RustGevurahVeto()
+                logger.info("GevurahVeto: Rust acceleration ACTIVE")
+            except Exception as exc:
+                logger.warning("GevurahVeto: Rust init failed (%s), using Python", exc)
+
         self._initialize_constitutional_principles()
         logger.info("Gevurah Veto system initialized with constitutional principles")
 
@@ -289,6 +299,20 @@ class GevurahVeto:
 
         Returns (threat_level, list_of_violated_principle_ids).
         """
+        if self._rust is not None:
+            try:
+                rust_threat, rust_violated = self._rust.evaluate_action(
+                    action_description, source_node, target_node, block_height
+                )
+                # Map Rust ThreatLevel enum to Python ThreatLevel
+                threat_map = {0: ThreatLevel.NONE, 1: ThreatLevel.LOW,
+                              2: ThreatLevel.MEDIUM, 3: ThreatLevel.HIGH,
+                              4: ThreatLevel.CRITICAL}
+                py_threat = threat_map.get(int(rust_threat), ThreatLevel.NONE) if isinstance(rust_threat, int) else ThreatLevel(str(rust_threat).lower().split('.')[-1])
+                return py_threat, list(rust_violated)
+            except Exception as exc:
+                logger.debug("Rust evaluate_action failed: %s", exc)
+
         violated = []
         max_severity = 0
 
@@ -532,6 +556,16 @@ class SafetyManager:
         self._shutdown_reason: str = ""
         self._shutdown_block: int = 0
         self._safety_log: List[dict] = []
+
+        # Rust ContentFilter for fast input sanitization
+        self._rust_content_filter = None
+        if _RUST_AVAILABLE and RustContentFilter is not None:
+            try:
+                self._rust_content_filter = RustContentFilter()
+                logger.info("SafetyManager: Rust ContentFilter ACTIVE")
+            except Exception as exc:
+                logger.warning("SafetyManager: Rust ContentFilter init failed: %s", exc)
+
         logger.info("Safety Manager initialized (Gevurah + BFT consensus + HMAC auth)")
 
     @property
@@ -698,6 +732,12 @@ class SafetyManager:
         Returns:
             Sanitized message string.
         """
+        if self._rust_content_filter is not None:
+            try:
+                return self._rust_content_filter.sanitize_input(message)
+            except Exception as exc:
+                logger.debug("Rust sanitize_input failed: %s", exc)
+
         import re
 
         if not message or not isinstance(message, str):
@@ -753,6 +793,22 @@ class SafetyManager:
         if not response_text:
             return {'safe': True, 'threat_level': 'none', 'violations': [],
                     'filtered_response': response_text}
+
+        # Try Rust ContentFilter + GevurahVeto for fast evaluation
+        if self._rust_content_filter is not None and self.gevurah._rust is not None:
+            try:
+                result = self._rust_content_filter.evaluate_response_safety(
+                    response_text, self.gevurah._rust
+                )
+                self._log_safety_event('response_evaluated', {
+                    'safe': result.get('safe', True),
+                    'threat_level': result.get('threat_level', 'none'),
+                    'violations': result.get('violations', []),
+                    'response_length': len(response_text),
+                })
+                return result
+            except Exception as exc:
+                logger.debug("Rust evaluate_response_safety failed: %s", exc)
 
         threat_level, violated = self.gevurah.evaluate_action(response_text)
 

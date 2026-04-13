@@ -46,6 +46,16 @@ class MetacognitiveLoop:
 
     def __init__(self, knowledge_graph=None) -> None:
         self.kg = knowledge_graph
+
+        # Rust acceleration: delegate compute-heavy methods
+        self._rust = None
+        if _RUST_AVAILABLE and RustMetacognitionEngine is not None:
+            try:
+                self._rust = RustMetacognitionEngine()
+                logger.info("MetacognitiveLoop: Rust acceleration ACTIVE")
+            except Exception as exc:
+                logger.warning("MetacognitiveLoop: Rust init failed (%s), using Python", exc)
+
         # Strategy effectiveness tracking
         self._strategy_stats: Dict[str, dict] = {}
         # Per-domain tracking
@@ -89,14 +99,23 @@ class MetacognitiveLoop:
         Returns:
             Updated strategy stats.
         """
+        # Delegate to Rust for fast tracking
+        if self._rust is not None:
+            try:
+                result = self._rust.evaluate_reasoning(
+                    strategy, confidence, outcome_correct, domain, block_height
+                )
+                # Keep Python counters in sync for DB persistence
+                self._total_evaluations += 1
+                if outcome_correct:
+                    self._total_correct += 1
+                return result
+            except Exception as exc:
+                logger.debug("Rust evaluate_reasoning failed: %s", exc)
+
         self._total_evaluations += 1
         if outcome_correct:
             self._total_correct += 1
-
-        # IMPORTANT: Use RAW (pre-temperature) confidence for bin placement
-        # and ECE evaluation. This breaks the self-referential feedback loop
-        # where calibrated values train the calibrator. Temperature scaling
-        # is applied only for downstream consumers via calibrate_confidence().
 
         # Update strategy stats
         if strategy not in self._strategy_stats:
@@ -118,9 +137,7 @@ class MetacognitiveLoop:
         if outcome_correct:
             self._domain_stats[domain]['correct'] += 1
 
-        # Use RAW confidence for bin placement — evaluating ECE against
-        # pre-temperature values prevents the self-referential loop where
-        # calibrated values train the calibrator
+        # Use RAW confidence for bin placement
         bin_idx = min(9, int(confidence * 10))
         if bin_idx not in self._confidence_bins:
             self._confidence_bins[bin_idx] = {'count': 0, 'correct': 0}
@@ -213,6 +230,16 @@ class MetacognitiveLoop:
 
         Also updates the adaptive temperature for confidence calibration.
         """
+        if self._rust is not None:
+            try:
+                result = self._rust.adapt_strategy_weights()
+                # Sync back to Python state
+                self._strategy_weights.update(result)
+                self._temperature = self._rust.get_temperature()
+                return result
+            except Exception as exc:
+                logger.debug("Rust adapt_strategy_weights failed: %s", exc)
+
         # Update temperature for confidence calibration
         self._update_temperature()
 
@@ -267,6 +294,12 @@ class MetacognitiveLoop:
         Returns:
             Strategy name with the highest combined weight.
         """
+        if self._rust is not None:
+            try:
+                return self._rust.get_recommended_strategy(domain, question_type)
+            except Exception as exc:
+                logger.debug("Rust get_recommended_strategy failed: %s", exc)
+
         if not self._strategy_weights:
             return 'deductive'
 
@@ -344,6 +377,12 @@ class MetacognitiveLoop:
         Returns:
             Calibrated confidence value (0.0-1.0)
         """
+        if self._rust is not None:
+            try:
+                return self._rust.calibrate_confidence(stated_confidence)
+            except Exception as exc:
+                logger.debug("Rust calibrate_confidence failed: %s", exc)
+
         if self._total_evaluations < self._min_evals_for_temperature:
             return stated_confidence
 
@@ -366,6 +405,12 @@ class MetacognitiveLoop:
 
         Bins with fewer than 3 samples are skipped to avoid noise.
         """
+        if self._rust is not None:
+            try:
+                return self._rust.get_overall_calibration_error()
+            except Exception as exc:
+                logger.debug("Rust get_overall_calibration_error failed: %s", exc)
+
         # Use recent evaluations for responsive ECE
         recent = self._evaluation_history[-500:] if len(self._evaluation_history) >= 10 else []
 
@@ -481,18 +526,32 @@ class MetacognitiveLoop:
         """
         Per-block metacognitive processing.
 
-        Every 100 blocks: adapt strategy weights.
-        Every 500 blocks: create meta-observation node.
+        Every 50 blocks: adapt strategy weights (Rust-accelerated).
+        Every 20 blocks: create meta-observation node (Python — needs KG).
         """
         results = {
             'weights_adapted': False,
             'meta_node_created': False,
         }
 
-        if block_height > 0 and block_height % 50 == 0:
-            self.adapt_strategy_weights()
-            results['weights_adapted'] = True
+        if self._rust is not None:
+            try:
+                rust_result = self._rust.process_block(block_height)
+                results['weights_adapted'] = rust_result.get('weights_adapted', False)
+                if results['weights_adapted']:
+                    # Sync Rust weights back to Python
+                    self._temperature = self._rust.get_temperature()
+            except Exception as exc:
+                logger.debug("Rust process_block failed: %s", exc)
+                if block_height > 0 and block_height % 50 == 0:
+                    self.adapt_strategy_weights()
+                    results['weights_adapted'] = True
+        else:
+            if block_height > 0 and block_height % 50 == 0:
+                self.adapt_strategy_weights()
+                results['weights_adapted'] = True
 
+        # Meta-observation creation stays in Python (needs KG access)
         if block_height > 0 and block_height % 20 == 0:
             node_id = self.create_meta_observation(block_height)
             results['meta_node_created'] = node_id is not None
@@ -613,6 +672,12 @@ class MetacognitiveLoop:
             return False
 
     def get_stats(self) -> dict:
+        if self._rust is not None:
+            try:
+                return self._rust.get_stats()
+            except Exception as exc:
+                logger.debug("Rust get_stats failed: %s", exc)
+
         strategy_accuracies = {}
         for s, data in self._strategy_stats.items():
             if data['attempts'] > 0:

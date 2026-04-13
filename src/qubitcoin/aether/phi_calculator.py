@@ -237,6 +237,15 @@ class PhiCalculator:
         self._compute_interval: int = int(
             os.getenv('PHI_COMPUTE_INTERVAL', '1')
         )
+
+        # Rust PhiCalculator for O(n²) spectral operations
+        self._rust_phi = None
+        if _RUST_AVAILABLE and RustPhiCalculator is not None:
+            try:
+                self._rust_phi = RustPhiCalculator(self._compute_interval)
+                logger.info("PhiCalculator: Rust acceleration ACTIVE")
+            except Exception as exc:
+                logger.warning("PhiCalculator: Rust init failed (%s), using Python", exc)
         # Adaptive gate scale factor: multiplier for node-count thresholds
         self._gate_scale: float = float(
             os.getenv('PHI_GATE_SCALE', '1.0')
@@ -384,6 +393,28 @@ class PhiCalculator:
             cached['block_height'] = block_height
             cached['cached'] = True
             return cached
+
+        # ── Rust-accelerated phi computation ────────────────────────────
+        # If Rust PhiCalculator + Rust shadow KG are both available, use
+        # the Rust engine for the entire spectral bisection + gate check.
+        if self._rust_phi is not None and hasattr(self.kg, 'rust_kg') and self.kg.rust_kg is not None:
+            try:
+                extra_stats = dict(self._subsystem_stats) if self._subsystem_stats else None
+                result = self._rust_phi.compute_phi(self.kg.rust_kg, block_height, extra_stats)
+                if result and isinstance(result, dict) and 'phi_value' in result:
+                    # Cache and store result
+                    phi_val = float(result.get('phi_value', 0.0))
+                    self._cache[block_height] = phi_val
+                    self._last_full_result = result
+                    self._last_computed_block = block_height
+                    self._last_mip_score = float(result.get('mip_score', 0.0))
+                    self._recent_phi_values.append(phi_val)
+                    self._phi_history.append((block_height, phi_val))
+                    if len(self._phi_history) > self._max_history:
+                        self._phi_history = self._phi_history[-self._max_history:]
+                    return result
+            except Exception as exc:
+                logger.debug("Rust compute_phi failed: %s — falling back to Python", exc)
 
         # Snapshot to avoid RuntimeError from concurrent node/edge modifications
         nodes = dict(self.kg.nodes)
