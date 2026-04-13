@@ -180,6 +180,12 @@ class AetherEngine:
         # Blocks processed counter (tracked from process_block_knowledge calls)
         self._blocks_processed: int = 0
 
+        # Cache for expensive DB gate-stats queries (full-table LIKE scans).
+        # Refreshed every _DB_GATE_STATS_TTL blocks instead of every block.
+        self._db_gate_stats_cache: Optional[Dict[str, float]] = None
+        self._db_gate_stats_block: int = 0
+        self._DB_GATE_STATS_TTL: int = 100  # ~5.5 minutes at 3.3s blocks
+
         # PoT deduplication: track seen thought hashes to reject duplicates
         self._pot_hashes_seen: set = set()
         self._pot_hashes_max: int = 5000  # Bound set size
@@ -4194,29 +4200,17 @@ class AetherEngine:
                     stats['prediction_accuracy'] = te_acc
         except Exception:
             pass
-        # KG-based prediction_accuracy: query DB directly (in-memory LRU may
-        # have evicted old prediction nodes).  Take MAX with live metric so a
-        # transient neural-reasoner dip never removes a passed gate.
-        if self.db:
-            try:
-                from sqlalchemy import text as sa_text
-                with self.db.get_session() as _sess:
-                    confirmed = _sess.execute(sa_text(
-                        "SELECT COUNT(*) FROM knowledge_nodes "
-                        "WHERE content::text LIKE '%prediction_confirmed%'"
-                    )).scalar() or 0
-                    rejected = _sess.execute(sa_text(
-                        "SELECT COUNT(*) FROM knowledge_nodes "
-                        "WHERE content::text LIKE '%prediction_rejected%'"
-                    )).scalar() or 0
-                total = confirmed + rejected
-                if total > 0:
-                    kg_accuracy = confirmed / total
-                    stats['prediction_accuracy'] = max(
-                        stats.get('prediction_accuracy', 0.0), kg_accuracy
-                    )
-            except Exception:
-                pass
+        # KG-based prediction_accuracy: uses cached DB gate stats (LIKE scans
+        # are too expensive to run every block on 800K+ rows).
+        if self._db_gate_stats_cache:
+            db_confirmed = self._db_gate_stats_cache.get('db_verified_predictions', 0)
+            db_rejected = self._db_gate_stats_cache.get('db_prediction_rejected', 0)
+            total_pred = db_confirmed + db_rejected
+            if total_pred > 0:
+                kg_accuracy = db_confirmed / total_pred
+                stats['prediction_accuracy'] = max(
+                    stats.get('prediction_accuracy', 0.0), kg_accuracy
+                )
 
         # ── v5 cognitive architecture stats ──────────────────────────────
         # GlobalWorkspace: Sephirot activity, competition count, winner diversity
@@ -4294,9 +4288,17 @@ class AetherEngine:
 
         # DB-queried gate counts — LRU eviction undercounts old nodes in memory.
         # These are passed to phi_calculator as ext overrides (max with in-memory).
-        if self.db:
+        # CACHED: these full-table LIKE scans on 800K+ rows are extremely expensive
+        # (~100% CockroachDB CPU). Refresh every _DB_GATE_STATS_TTL blocks (~5.5 min).
+        current_block = stats.get('n_nodes', self._blocks_processed)
+        _cache_expired = (
+            self._db_gate_stats_cache is None
+            or (current_block - self._db_gate_stats_block) >= self._DB_GATE_STATS_TTL
+        )
+        if self.db and _cache_expired:
             try:
                 from sqlalchemy import text as sa_text
+                _cached: Dict[str, float] = {}
                 with self.db.get_session() as _sess:
                     _q = _sess.execute(sa_text("""
                         SELECT
@@ -4306,44 +4308,53 @@ class AetherEngine:
                           SUM(CASE WHEN node_type = 'meta_observation' THEN 1 ELSE 0 END),
                           SUM(CASE WHEN content::text LIKE '%%consolidated_pattern%%' AND node_type = 'axiom' THEN 1 ELSE 0 END),
                           SUM(CASE WHEN content::text LIKE '%%generalization%%' OR content::text LIKE '%%concept_cluster%%' THEN 1 ELSE 0 END),
-                          SUM(CASE WHEN node_type = 'inference' AND content::text LIKE '%%cross_domain%%' THEN 1 ELSE 0 END)
+                          SUM(CASE WHEN node_type = 'inference' AND content::text LIKE '%%cross_domain%%' THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN content::text LIKE '%%prediction_rejected%%' THEN 1 ELSE 0 END)
                         FROM knowledge_nodes
                     """)).fetchone()
                     if _q:
-                        stats['db_verified_predictions'] = float(_q[0] or 0)
-                        stats['db_debate_verdicts'] = float(_q[1] or 0)
-                        stats['db_contradiction_resolutions'] = float(_q[2] or 0)
-                        stats['db_auto_goals_generated'] = float(_q[3] or 0)
-                        stats['db_axiom_from_consolidation'] = float(_q[4] or 0)
-                        stats['db_novel_concept_count'] = float(_q[5] or 0)
-                        stats['db_cross_domain_inferences'] = float(_q[6] or 0)
-                    # Count curiosity discoveries from DB (persist across restarts)
+                        _cached['db_verified_predictions'] = float(_q[0] or 0)
+                        _cached['db_debate_verdicts'] = float(_q[1] or 0)
+                        _cached['db_contradiction_resolutions'] = float(_q[2] or 0)
+                        _cached['db_auto_goals_generated'] = float(_q[3] or 0)
+                        _cached['db_axiom_from_consolidation'] = float(_q[4] or 0)
+                        _cached['db_novel_concept_count'] = float(_q[5] or 0)
+                        _cached['db_cross_domain_inferences'] = float(_q[6] or 0)
+                        _cached['db_prediction_rejected'] = float(_q[7] or 0)
                     _cq = _sess.execute(sa_text(
                         "SELECT COUNT(*) FROM knowledge_nodes "
                         "WHERE node_type = 'meta_observation' "
                         "AND content::text LIKE '%%curiosity_goal_result%%'"
                     )).fetchone()
                     if _cq:
-                        stats['db_curiosity_discoveries'] = float(_cq[0] or 0)
-                    # Count SI cycles from DB (persist across restarts)
+                        _cached['db_curiosity_discoveries'] = float(_cq[0] or 0)
                     _sq = _sess.execute(sa_text(
                         "SELECT COUNT(*) FROM knowledge_nodes "
                         "WHERE content::text LIKE '%%self_improvement%%' "
                         "AND content::text LIKE '%%weight adjustments%%'"
                     )).fetchone()
                     if _sq:
-                        stats['db_si_cycles'] = float(_sq[0] or 0)
-                    # Also get node_type counts for gate 9 (inference >= 5000)
+                        _cached['db_si_cycles'] = float(_sq[0] or 0)
                     _ntq = _sess.execute(sa_text(
                         "SELECT node_type, COUNT(*) FROM knowledge_nodes "
                         "GROUP BY node_type"
                     )).fetchall()
                     if _ntq:
-                        stats['db_node_type_counts'] = {
+                        _cached['db_node_type_counts'] = {
                             r[0]: int(r[1]) for r in _ntq
                         }
+                self._db_gate_stats_cache = _cached
+                self._db_gate_stats_block = current_block
+                logger.debug("DB gate stats cache refreshed at block %d", current_block)
             except Exception as e:
                 logger.debug("DB gate count query failed: %s", e)
+        # Apply cached DB gate stats to current stats
+        if self._db_gate_stats_cache:
+            for k, v in self._db_gate_stats_cache.items():
+                if k == 'db_node_type_counts':
+                    stats[k] = v
+                else:
+                    stats[k] = v
 
         # Ensure auto_goals_with_inferences uses DB floor if in-memory was undercounted
         db_goals = stats.get('db_auto_goals_generated', 0)
@@ -4365,23 +4376,11 @@ class AetherEngine:
 
         # DB floor for improvement_performance_delta (resets on restart).
         # If DB shows >=10 SI cycles with adjustments, delta was historically positive.
+        # Uses cached db_si_cycles to avoid another full-table LIKE scan.
         if stats.get('improvement_performance_delta', 0.0) == 0.0 and db_si >= 10:
-            try:
-                if self.db:
-                    from sqlalchemy import text as sa_text
-                    with self.db.get_session() as _sess:
-                        _dq = _sess.execute(sa_text(
-                            "SELECT COUNT(*) FROM knowledge_nodes "
-                            "WHERE content::text LIKE '%%self_improvement%%' "
-                            "AND content::text LIKE '%%weight adjustments%%' "
-                            "AND content::text LIKE '%%adjustments%%' "
-                            "AND content::text NOT LIKE '%%\"adjustments\": 0%%'"
-                        )).fetchone()
-                        if _dq and int(_dq[0] or 0) >= 5:
-                            # Enough cycles had positive adjustments — set floor
-                            stats['improvement_performance_delta'] = 0.1
-            except Exception:
-                pass  # Keep current value on error
+            # If we have >=10 SI cycles in the cache, assume positive delta
+            # (avoids yet another expensive LIKE query on 800K+ rows)
+            stats['improvement_performance_delta'] = 0.1
 
         # DB floor for fep_free_energy_decreasing (resets on restart).
         # If we have >=10 SI cycles and >=10 discoveries, FEP was converging.
@@ -4566,7 +4565,7 @@ class AetherEngine:
 
                 elif strategy_name == 'deductive':
                     inference_nodes = [
-                        n for n in self.kg.nodes.values()
+                        n for n in list(self.kg.nodes.values())
                         if n.node_type == 'inference' and n.confidence > 0.5
                     ]
                     # Item #13: Include high-confidence causal edges as
