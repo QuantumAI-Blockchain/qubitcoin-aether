@@ -392,6 +392,40 @@ export type {
   AIKGSCurationRound,
 };
 
+/* ---- Conversation History ---- */
+
+export interface ConversationSession {
+  session_id: string;
+  user_address: string;
+  created_at: number;
+  last_active: number;
+  message_count: number;
+  title: string;
+  is_active: boolean;
+}
+
+export interface ConversationMessage {
+  id: number;
+  session_id: string;
+  role: "user" | "aether";
+  content: string;
+  timestamp: number;
+  reasoning_trace?: string[];
+  proof_of_thought_hash?: string;
+  phi_at_response?: number;
+  emotional_state?: Record<string, number>;
+  quality_score?: number;
+}
+
+export interface ConversationStats {
+  total_sessions: number;
+  active_sessions: number;
+  total_messages: number;
+  unique_users: number;
+  total_user_memories: number;
+  total_insights: number;
+}
+
 /* ---- Typed helpers ---- */
 
 export const api = {
@@ -460,6 +494,14 @@ export const api = {
       message,
       is_deep_query: isDeep,
     }),
+  // Conversation History
+  getConversations: (userId: string) =>
+    get<{ sessions: ConversationSession[] }>(`/aether/conversations/${userId}`),
+  getConversationMessages: (sessionId: string) =>
+    get<{ messages: ConversationMessage[] }>(`/aether/conversation/messages/${sessionId}`),
+  getConversationStats: () =>
+    get<ConversationStats>("/aether/conversation/stats"),
+
   // Knowledge seeding (user-provided API key)
   seedKnowledge: (body: {
     wallet_address: string;

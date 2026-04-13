@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { api, type AetherInfo, type AetherEngineHealth, type AetherEngineInfo } from "@/lib/api";
+import { api, type AetherInfo, type AetherEngineHealth, type AetherEngineInfo, type ConversationStats } from "@/lib/api";
 import { exportData, type ExportFormat } from "@/lib/export";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
@@ -176,13 +176,17 @@ function OverviewTab({
   balance: number | undefined;
   connected: boolean;
 }) {
+  const gatesPassed = phi?.gates_passed ?? 0;
+  const gatesTotal = phi?.gates_total ?? 10;
+
   const stats = [
     { label: "Block Height", value: chain?.height?.toLocaleString() ?? "---" },
     { label: "Circulating Supply", value: chain?.total_supply != null ? formatSupply(chain.total_supply) : "---" },
     { label: "Difficulty", value: chain?.difficulty != null ? formatDifficulty(chain.difficulty) : "---" },
     { label: "Mempool", value: chain?.mempool_size?.toString() ?? "---" },
-    { label: "Phi (\u03A6)", value: phi?.phi?.toFixed(4) ?? "---" },
-    { label: "Knowledge", value: phi?.knowledge_nodes?.toLocaleString() ?? "---" },
+    { label: "HMS-Phi (\u03A6)", value: phi?.phi?.toFixed(4) ?? "---" },
+    { label: "Knowledge Nodes", value: phi?.knowledge_nodes?.toLocaleString() ?? "---" },
+    { label: "AGI Gates", value: `${gatesPassed}/${gatesTotal}` },
   ];
 
   return (
@@ -389,6 +393,12 @@ function AetherTab({
 
       {/* AGI Reasoning Subsystems */}
       {aetherInfo && <AGISubsystemsPanel info={aetherInfo} />}
+
+      {/* Conversation Memory + Graph Shard Stats */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ConversationMemoryCard />
+        <GraphShardCard />
+      </div>
 
       {/* Rust Aether Engine Stats */}
       <AetherEnginePanel />
@@ -724,6 +734,140 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
             </div>
           </div>
         )}
+      </div>
+    </Card>
+  );
+}
+
+function ConversationMemoryCard() {
+  const { data: stats } = useQuery({
+    queryKey: ["conversationStats"],
+    queryFn: api.getConversationStats,
+    refetchInterval: 30_000,
+    retry: false,
+  });
+
+  return (
+    <Card>
+      <h3 className="mb-3 font-[family-name:var(--font-display)] text-sm font-semibold text-text-secondary">
+        Conversation Memory
+      </h3>
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-text-secondary">Total Sessions</span>
+          <span className="font-[family-name:var(--font-code)]">
+            {stats?.total_sessions?.toLocaleString() ?? "---"}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-secondary">Active Sessions</span>
+          <span className="font-[family-name:var(--font-code)] text-quantum-green">
+            {stats?.active_sessions?.toLocaleString() ?? "---"}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-secondary">Total Messages</span>
+          <span className="font-[family-name:var(--font-code)]">
+            {stats?.total_messages?.toLocaleString() ?? "---"}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-secondary">Unique Users</span>
+          <span className="font-[family-name:var(--font-code)]">
+            {stats?.unique_users?.toLocaleString() ?? "---"}
+          </span>
+        </div>
+        <div className="mt-2 border-t border-border-subtle/50 pt-2">
+          <div className="flex justify-between">
+            <span className="text-text-secondary">User Memories</span>
+            <span className="font-[family-name:var(--font-code)] text-quantum-violet">
+              {stats?.total_user_memories?.toLocaleString() ?? "---"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-text-secondary">Insights</span>
+            <span className="font-[family-name:var(--font-code)] text-quantum-violet">
+              {stats?.total_insights?.toLocaleString() ?? "---"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function GraphShardCard() {
+  const { data: aetherEngineInfo } = useQuery({
+    queryKey: ["aetherEngineInfo"],
+    queryFn: api.getAetherEngineInfo,
+    refetchInterval: 15_000,
+    retry: false,
+  });
+
+  const { data: phi } = useQuery({
+    queryKey: ["phi"],
+    queryFn: api.getPhi,
+    refetchInterval: 10_000,
+  });
+
+  const nodeCount = aetherEngineInfo?.node_count ?? 0;
+  const edgeCount = aetherEngineInfo?.edge_count ?? 0;
+  const kgNodes = phi?.knowledge_nodes ?? 0;
+  const gatesPassed = phi?.gates_passed ?? 0;
+  const gatesTotal = phi?.gates_total ?? 10;
+
+  return (
+    <Card>
+      <h3 className="mb-3 font-[family-name:var(--font-display)] text-sm font-semibold text-text-secondary">
+        Graph Shard / AGI Status
+      </h3>
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-text-secondary">KG Nodes (in-memory)</span>
+          <span className="font-[family-name:var(--font-code)]">
+            {kgNodes.toLocaleString()}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-secondary">Shard Nodes (Rust)</span>
+          <span className="font-[family-name:var(--font-code)] text-quantum-green">
+            {nodeCount > 0 ? nodeCount.toLocaleString() : "---"}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-secondary">Shard Edges</span>
+          <span className="font-[family-name:var(--font-code)]">
+            {edgeCount > 0 ? edgeCount.toLocaleString() : "---"}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-secondary">Search Index</span>
+          <span className="font-[family-name:var(--font-code)]">
+            {(aetherEngineInfo?.search_index?.indexed_nodes ?? 0).toLocaleString()} nodes
+          </span>
+        </div>
+        <div className="mt-2 border-t border-border-subtle/50 pt-2">
+          <div className="flex justify-between">
+            <span className="text-text-secondary">Gates Passed</span>
+            <span className="font-[family-name:var(--font-code)] text-quantum-violet">
+              {gatesPassed}/{gatesTotal}
+            </span>
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-bg-deep">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-quantum-violet to-quantum-green transition-all duration-700"
+              style={{ width: `${(gatesPassed / gatesTotal) * 100}%` }}
+            />
+          </div>
+          {phi?.phi != null && (
+            <div className="mt-2 flex justify-between">
+              <span className="text-text-secondary">HMS-Phi</span>
+              <span className="font-[family-name:var(--font-code)] text-quantum-green">
+                {phi.phi.toFixed(4)}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </Card>
   );

@@ -21,6 +21,7 @@ import {
 } from "@/components/aether/conversation-sidebar";
 import { KnowledgeSeeder } from "@/components/aether/knowledge-seeder";
 import { ContributionIndicator } from "@/components/aikgs/contribution-indicator";
+import { useWalletStore } from "@/stores/wallet-store";
 
 const KnowledgeGraph3D = dynamic(
   () => import("@/components/aether/knowledge-graph-3d").then((m) => m.KnowledgeGraph3D),
@@ -152,6 +153,7 @@ function AetherPageContent() {
   const [activeTab, setActiveTab] = useState<"chat" | "graph">("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { address: walletAddress } = useWalletStore();
 
   // Load saved sessions on mount
   useEffect(() => {
@@ -249,7 +251,7 @@ function AetherPageContent() {
       try {
         let sid = sessionId;
         if (!sid) {
-          const sess = await api.createChatSession();
+          const sess = await api.createChatSession(walletAddress ?? "");
           sid = sess.session_id;
           setSessionId(sid);
         }
@@ -283,7 +285,7 @@ function AetherPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, sessionId, toast]);
+  }, [input, loading, sessionId, toast, walletAddress]);
 
   const handleNewChat = useCallback(() => {
     setSessionId(null);
@@ -291,10 +293,29 @@ function AetherPageContent() {
     setSelectedMsg(null);
   }, []);
 
-  const handleSelectSession = useCallback((session: StoredSession) => {
+  const handleSelectSession = useCallback(async (session: StoredSession) => {
     setSessionId(session.id);
-    const saved = loadSessionMessages(session.id) as Message[];
-    setMessages(saved);
+    // Try local first, then fall back to server
+    const local = loadSessionMessages(session.id) as Message[];
+    if (local.length > 0) {
+      setMessages(local);
+    } else {
+      // Attempt to load from server
+      try {
+        const res = await api.getConversationMessages(session.id);
+        const serverMsgs: Message[] = (res.messages ?? []).map((m) => ({
+          role: m.role as "user" | "aether",
+          text: m.content,
+          reasoning: m.reasoning_trace,
+          potHash: m.proof_of_thought_hash,
+          phi: m.phi_at_response,
+          emotionalState: m.emotional_state,
+        }));
+        setMessages(serverMsgs);
+      } catch {
+        setMessages([]);
+      }
+    }
     setSelectedMsg(null);
   }, []);
 
@@ -331,6 +352,7 @@ function AetherPageContent() {
             onSelect={handleSelectSession}
             onNew={handleNewChat}
             onDelete={handleDeleteSession}
+            userAddress={walletAddress}
           />
         </div>
 

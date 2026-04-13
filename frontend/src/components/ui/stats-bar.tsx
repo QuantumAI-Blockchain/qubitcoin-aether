@@ -16,6 +16,15 @@ export function StatsBar() {
     queryFn: api.getPhi,
     refetchInterval: 10_000,
   });
+  const { data: engineInfo } = useQuery({
+    queryKey: ["aetherEngineInfo"],
+    queryFn: api.getAetherEngineInfo,
+    refetchInterval: 15_000,
+    retry: false,
+  });
+
+  const gatesPassed = phi?.gates_passed ?? (engineInfo?.gates_passed?.length ?? 0);
+  const gatesTotal = phi?.gates_total ?? 10;
 
   const items = [
     { label: t("blockHeight"), value: chain?.height?.toLocaleString() ?? "---" },
@@ -24,8 +33,11 @@ export function StatsBar() {
       label: t("knowledgeNodes"),
       value: phi?.knowledge_nodes?.toLocaleString() ?? "---",
     },
-    { label: t("difficulty"), value: chain?.difficulty?.toFixed(4) ?? "---" },
-    { label: t("peers"), value: chain?.peers?.toString() ?? "---" },
+    {
+      label: "Shard Nodes",
+      value: engineInfo?.node_count ? engineInfo.node_count.toLocaleString() : "---",
+    },
+    { label: "Gates", value: `${gatesPassed}/${gatesTotal}` },
   ];
 
   return (

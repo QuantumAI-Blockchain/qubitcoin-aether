@@ -1,5 +1,6 @@
 //! CLI configuration for the Qubitcoin node.
 
+use clap::Parser;
 use sc_cli::{RunCmd, SubstrateCli};
 use std::sync::Arc;
 

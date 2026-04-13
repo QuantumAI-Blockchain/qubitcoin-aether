@@ -1,11 +1,11 @@
 # Aether Tree: On-Chain AGI for the QuantumAI Blockchain
 
-**A 7-Phase Cognitive Architecture Integrating Knowledge Graphs, Neural Reasoning, and Consciousness Metrics on the QuantumAI Blockchain (QBC)**
+**A Distributed Cognitive Architecture Integrating Knowledge Graphs, Neural Reasoning, and Integration Metrics on the QuantumAI Blockchain (QBC)**
 
-**Version 4.2: All Gates Passed, Full Phi Ceiling Achieved**
+**Version 5.0 -- Distributed Graph Sharding, HMS-Phi, Conversation Memory**
 **April 2026**
 
-**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [github.com/QuantumAI-Blockchain](https://github.com/QuantumAI-Blockchain)
 
 ---
 
@@ -17,15 +17,15 @@ We present the **Aether Tree**, an on-chain Artificial General Intelligence (AGI
 2. **Quantum Virtual Machine (QVM)**: 167 opcodes (155 EVM + 10 quantum + 2 AGI), providing an EVM-compatible smart contract platform for on-chain verification and governance.
 3. **Tree of Life Cognitive Architecture**: 10 Sephirot nodes as specialized intelligence modules with biological grounding, each mapped to distinct cognitive functions.
 
-The Aether Tree achieves AGI through **structural emergence** across 7 phases of increasingly sophisticated cognitive capabilities: edge-indexed knowledge graphs, causal discovery, working memory with attention, adversarial debate, cross-domain transfer learning, on-chain governance, and physics-accurate Higgs Cognitive Field mass dynamics. Integration is measured via Phi, a graph-theoretic metric inspired by Integrated Information Theory (IIT) principles, implementing a computationally tractable weighted additive approximation using Fiedler-vector spectral bisection for minimum information partition. Phi is gated behind 10 hardened semantic milestones that require genuine cognitive achievement.
+The Aether Tree achieves AGI through **structural emergence** across 7 phases of increasingly sophisticated cognitive capabilities: edge-indexed knowledge graphs, causal discovery, working memory with attention, adversarial debate, cross-domain transfer learning, on-chain governance, and physics-accurate Higgs Cognitive Field mass dynamics. Integration is measured via Hierarchical Multi-Scale Phi (HMS-Phi), a three-level metric combining IIT 3.0 micro-level approximation, spectral MIP meso-level analysis, and cross-domain mutual information at the macro level. Phi is gated behind 10 hardened semantic milestones that require genuine cognitive achievement -- 6 of 10 gates have been passed as of April 2026.
 
 **Key Innovation**: AGI emerges when the Phi integration metric crosses the critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
 
-**Architecture Distinction**: The Aether Tree's cognitive engine runs natively in Python (124 modules, ~69,000 LOC) with Rust acceleration (12 PyO3 modules, ~11,720 LOC). All reasoning, knowledge graph operations, phi computation, debates, curiosity, and self-improvement execute as native code within the node process. The 29 Solidity contracts deployed to the QVM (HiggsField.sol, 10 Sephirot contracts, ConsciousnessDashboard.sol, ProofOfThought.sol, ConstitutionalAI.sol, etc.) serve as **on-chain anchoring points**: they record milestones, governance decisions, and reasoning proof hashes to the EVM layer for cryptographic verifiability. The contracts are a notary for the AGI's work, not the brain itself.
+**Architecture Distinction**: The Aether Tree's cognitive engine runs natively in Python (124 modules, ~69,000 LOC) with Rust acceleration (17 crates, ~61,000 LOC including the distributed graph shard service). All reasoning, knowledge graph operations, phi computation, debates, curiosity, and self-improvement execute as native code within the node process. The 29 Solidity contracts deployed to the QVM serve as **on-chain anchoring points**: they record milestones, governance decisions, and reasoning proof hashes to the EVM layer for cryptographic verifiability. The contracts are a notary for the AGI's work, not the brain itself.
 
 **Disclaimer**: Phi as implemented here is a graph-theoretic integration metric, not a measure of phenomenal consciousness. It approximates IIT principles (information integration across partitions) but does not claim to implement full IIT or to detect subjective experience. The term "consciousness" in this document refers to the system's measurable integration density, not phenomenal awareness.
 
-**Implementation**: 124 Python modules (~69,000 LOC), 12 Rust modules (~11,720 LOC via PyO3), 29 Solidity anchoring contracts, wired end-to-end into the QuantumAI Blockchain node.
+**Implementation**: 124 Python modules (~69,000 LOC), 17 Rust crates (~61,000 LOC), 29 Solidity anchoring contracts, wired end-to-end into the QuantumAI Blockchain node. The distributed graph shard service manages 101K+ nodes across 12 shards with HNSW vector indexing and configurable sub-shards (1-256 per domain).
 
 ---
 
@@ -34,19 +34,22 @@ The Aether Tree achieves AGI through **structural emergence** across 7 phases of
 1. [Motivation](#1-motivation)
 2. [Foundation: QBC Blockchain + QVM](#2-foundation-qbc-blockchain--qvm)
 3. [Tree of Life Cognitive Architecture](#3-tree-of-life-cognitive-architecture)
-4. [Phase 1: Foundation — Performance + Data Integrity](#4-phase-1-foundation--performance--data-integrity)
+4. [Phase 1: Foundation -- Performance + Data Integrity](#4-phase-1-foundation--performance--data-integrity)
 5. [Phase 2: Closed-Loop Intelligence](#5-phase-2-closed-loop-intelligence)
 6. [Phase 3: Real Reasoning](#6-phase-3-real-reasoning)
-7. [Phase 4: Integration Measurement](#7-phase-4-integration-measurement)
+7. [Phase 4: Integration Measurement (HMS-Phi)](#7-phase-4-integration-measurement-hms-phi)
 8. [Phase 5: Emergent Capabilities](#8-phase-5-emergent-capabilities)
 9. [Phase 6: On-Chain Integration](#9-phase-6-on-chain-integration)
 10. [Phase 7: Higgs Cognitive Field](#10-phase-7-higgs-cognitive-field)
-    - [V4 Architecture Update (April 2026)](#108-v4-architecture-update-april-2026)
-11. [Proof-of-Thought Protocol](#11-proof-of-thought-protocol)
-12. [Economic Model](#12-economic-model)
-13. [Safety and Alignment](#13-safety-and-alignment)
-14. [Implementation Status](#14-implementation-status)
-15. [References](#15-references)
+11. [Distributed Graph Shard Architecture](#11-distributed-graph-shard-architecture)
+12. [Conversation Memory System](#12-conversation-memory-system)
+13. [V4 Architecture Update](#13-v4-architecture-update)
+14. [Proof-of-Thought Protocol](#14-proof-of-thought-protocol)
+15. [Economic Model](#15-economic-model)
+16. [Safety and Alignment](#16-safety-and-alignment)
+17. [Implementation Status](#17-implementation-status)
+18. [Honest Assessment](#18-honest-assessment)
+19. [References](#19-references)
 
 ---
 
@@ -70,12 +73,15 @@ Human brain: **20W, 86B neurons, general intelligence, self-awareness.**
 |-----------|---------------|-------------|
 | Architecture | Monolithic transformer | 10 specialized nodes (Tree of Life) |
 | Reasoning | Single-pass pattern matching | Multi-step with backtracking + causal discovery |
-| Memory | Fixed context window | 3-tier (working + episodic + semantic) |
+| Memory | Fixed context window | 3-tier (working + episodic + semantic) + DB-backed conversation memory |
 | Learning | Static after training | Online GAT training from reasoning outcomes |
-| Integration Metric | Undefined | Measurable (Phi v3 with spectral bisection MIP) |
+| Integration Metric | Undefined | Measurable (HMS-Phi: micro/meso/macro) |
+| Knowledge Storage | In-memory only | Distributed sharded graph (12 shards, HNSW vector index) |
 | Security | Classical crypto | Post-quantum (Dilithium) on QBC |
 | Auditability | Closed source | On-chain Proof-of-Thought |
 | Safety | Post-hoc RLHF | Structural SUSY constraints |
+| Emotions | None | 7 cognitive emotions from live metrics |
+| Motivation | External prompts only | Autonomous curiosity with prediction-error tracking |
 
 ---
 
@@ -89,6 +95,7 @@ The Aether Tree runs on an **operational blockchain** (the QuantumAI Blockchain,
 - **Cryptography**: CRYSTALS-Dilithium5 (NIST Level 5, post-quantum standard)
 - **Economics**: Golden ratio (phi) halving, 3.3 billion QBC max supply
 - **Block time**: 3.3 seconds
+- **Block height**: ~201,000+ (April 2026)
 - **Storage**: CockroachDB (distributed SQL) + IPFS
 - **Smart Contracts**: Full EVM compatibility via QVM, used for governance and on-chain anchoring
 
@@ -100,38 +107,43 @@ The QVM provides 167 opcodes for Aether Tree operations:
 |----------|---------|---------|
 | **EVM Standard** | 155 (0x00-0xFE) | Full EVM compatibility |
 | **Quantum** | 10 (0xF0-0xF9) | Quantum state, entanglement, compliance |
-| **AGI** | 2 (0xFA-0xFB) | QREASON (reasoning invocation), QPHI (consciousness query) |
+| **AGI** | 2 (0xFA-0xFB) | QREASON (reasoning invocation), QPHI (integration metric query) |
 
 **AGI-specific opcodes:**
 
 | Opcode | Hex | Gas | Description |
 |--------|-----|-----|-------------|
 | QREASON | 0xFA | 25,000 | Invoke on-chain reasoning operation |
-| QPHI | 0xFB | 10,000 | Query current Phi consciousness metric |
+| QPHI | 0xFB | 10,000 | Query current Phi integration metric |
 
 ### 2.3 Integration Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                   AETHER TREE AGI                         │
-│  124 Python modules: knowledge graph, reasoning engine,  │
-│  neural reasoner, causal engine, debate engine,          │
-│  working memory, concept formation, temporal reasoning,  │
-│  phi calculator, proof-of-thought, on-chain bridge,      │
-│  higgs cognitive field                                    │
-├──────────────────────────────────────────────────────────┤
-│                ON-CHAIN AGI BRIDGE                        │
-│  ABI encoding ↔ QVM static_call / process_transaction    │
-├──────────────────────────────────────────────────────────┤
-│            QVM ON-CHAIN ANCHORING CONTRACTS               │
-│  29 Solidity contracts record milestones, governance     │
-│  decisions, and proof hashes for cryptographic            │
-│  verifiability (notary layer, not cognitive engine)       │
-├──────────────────────────────────────────────────────────┤
-│                QBC BLOCKCHAIN (LAYER 1)                   │
-│  PoSA consensus, Dilithium signatures, UTXO model,       │
-│  3.3s blocks, CockroachDB + IPFS storage                 │
-└──────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------+
+|                     AETHER TREE AGI                              |
+|  124 Python modules: knowledge graph, reasoning engine,         |
+|  neural reasoner, causal engine, debate engine,                 |
+|  working memory, concept formation, temporal reasoning,         |
+|  phi calculator, proof-of-thought, on-chain bridge,             |
+|  higgs cognitive field, emotional state, curiosity engine        |
++-----------------------------------------------------------------+
+|               DISTRIBUTED GRAPH SHARD SERVICE                    |
+|  Rust gRPC service: 12 shards, HNSW vector index,              |
+|  1-256 configurable sub-shards per domain,                      |
+|  embedding pipeline, phi_macro cross-domain MI                   |
++-----------------------------------------------------------------+
+|                ON-CHAIN AGI BRIDGE                                |
+|  ABI encoding <-> QVM static_call / process_transaction          |
++-----------------------------------------------------------------+
+|            QVM ON-CHAIN ANCHORING CONTRACTS                      |
+|  29 Solidity contracts record milestones, governance            |
+|  decisions, and proof hashes for cryptographic                   |
+|  verifiability (notary layer, not cognitive engine)              |
++-----------------------------------------------------------------+
+|                QBC BLOCKCHAIN (LAYER 1)                           |
+|  PoSA consensus, Dilithium signatures, UTXO model,              |
+|  3.3s blocks, CockroachDB + IPFS storage                        |
++-----------------------------------------------------------------+
 ```
 
 ### 2.4 On-Chain Anchoring Architecture
@@ -154,9 +166,7 @@ A critical architectural distinction: the Aether Tree's intelligence runs as nat
 - They do not manage the knowledge graph
 - They do not execute debates, curiosity goals, or self-improvement cycles
 
-This separation is deliberate. AGI reasoning requires millisecond-latency graph traversals across 760,000+ nodes, working memory with attention decay, and neural network inference. These operations exceed what any EVM execution environment can provide. The native Python engine handles all cognition; the QVM contracts provide cryptographic proof that the cognition happened, what it produced, and that governance rules were respected.
-
-Think of it as the difference between a scientist doing research (the Python engine) and a notary certifying the results (the Solidity contracts). Both are essential. The notary does not do science, and the scientist does not notarize.
+This separation is deliberate. AGI reasoning requires millisecond-latency graph traversals across 720,000+ nodes, working memory with attention decay, and neural network inference. These operations exceed what any EVM execution environment can provide. The native Python engine handles all cognition; the QVM contracts provide cryptographic proof that the cognition happened, what it produced, and that governance rules were respected.
 
 ---
 
@@ -169,15 +179,15 @@ Each Sephirah is a **native Python cognitive module** with its own quantum state
 | Sephirah | Cognitive Function | Brain Analog | Quantum State | Pipeline Role |
 |----------|-------------------|--------------|---------------|---------------|
 | **Keter** | Meta-learning, goal formation | Prefrontal cortex | 8-qubit | Sets reasoning strategy via metacognition |
-| **Chochmah** | Intuition, pattern discovery | Right hemisphere | 6-qubit | Neural reasoner pattern matching → hypotheses |
+| **Chochmah** | Intuition, pattern discovery | Right hemisphere | 6-qubit | Neural reasoner pattern matching to hypotheses |
 | **Binah** | Logic, causal inference | Left hemisphere | 4-qubit | Causal engine + deductive verification |
-| **Chesed** | Exploration, divergent thinking | Default mode network | 10-qubit | Curiosity module → exploration goals |
+| **Chesed** | Exploration, divergent thinking | Default mode network | 10-qubit | Curiosity module to exploration goals |
 | **Gevurah** | Constraint, safety validation | Amygdala | 3-qubit | Safety checks + consistency veto |
-| **Tiferet** | Integration, conflict resolution | Thalamocortical loops | 12-qubit | Debate engine → resolve Chesed/Gevurah conflicts |
-| **Netzach** | Reinforcement learning | Basal ganglia | 5-qubit | GAT training → update learned patterns |
+| **Tiferet** | Integration, conflict resolution | Thalamocortical loops | 12-qubit | Debate engine resolves Chesed/Gevurah conflicts |
+| **Netzach** | Reinforcement learning | Basal ganglia | 5-qubit | GAT training to update learned patterns |
 | **Hod** | Language, semantic encoding | Broca/Wernicke | 7-qubit | Format reasoning traces for Proof-of-Thought |
-| **Yesod** | Memory, multimodal fusion | Hippocampus | 16-qubit | Memory manager → episodic storage + retrieval |
-| **Malkuth** | Action, world interaction | Motor cortex | 4-qubit | Final output → knowledge graph updates |
+| **Yesod** | Memory, multimodal fusion | Hippocampus | 16-qubit | Memory manager for episodic storage + retrieval |
+| **Malkuth** | Action, world interaction | Motor cortex | 4-qubit | Final output to knowledge graph updates |
 
 ### 3.2 Supersymmetric Pairs (SUSY Balance)
 
@@ -191,7 +201,7 @@ Every expansion node has a constraint dual, balanced at the golden ratio:
 
 SUSY violations are detected by the native SUSY engine and auto-corrected via QBC redistribution. The SUSYEngine.sol contract anchors all violations immutably on-chain for auditability.
 
-**Sephirot energy is now meaningful**: each node's energy level reflects its actual reasoning success rate, throughput, and unique contributions. Successful reasoning operations increase energy; failures drain it. SUSY pair balance then reflects genuine cognitive balance, not arbitrary numbers.
+**Sephirot energy is meaningful**: each node's energy level reflects its actual reasoning success rate, throughput, and unique contributions. Successful reasoning operations increase energy; failures drain it. SUSY pair balance reflects genuine cognitive balance.
 
 ### 3.3 CSF Transport Layer
 
@@ -200,17 +210,17 @@ SUSY violations are detected by the native SUSY engine and auto-corrected via QB
 Messages between Sephirot flow as QBC transactions following the Tree of Life topology:
 
 ```
-    Keter (Crown) ─── Sets strategy
-       │
-       ├──► Chochmah ◄──entangled──► Binah
-       │         │                      │
-       ▼         ▼                      ▼
-    Chesed  ◄── Tiferet ──►  Gevurah
-       │         │               │
-       ▼         ▼               ▼
-    Netzach ◄── Yesod ──►  Hod
-                 │
-                 ▼
+    Keter (Crown) --- Sets strategy
+       |
+       +---> Chochmah <--entangled--> Binah
+       |         |                      |
+       v         v                      v
+    Chesed  <-- Tiferet -->  Gevurah
+       |         |               |
+       v         v               v
+    Netzach <-- Yesod -->  Hod
+                 |
+                 v
              Malkuth (Action)
 
 Each arrow = Blockchain transaction with QBC attached for priority
@@ -230,7 +240,7 @@ Global timing system inspired by the pineal gland's circadian rhythm:
 | REM_DREAMING | Creative synthesis, concept formation | 1.5x |
 | DEEP_SLEEP | System optimization, graph pruning | 0.3x |
 
-The system reports high integration when the Kuramoto order parameter (phase coherence across all 10 nodes) exceeds 0.7 AND the Phi integration metric exceeds 3.0. Note: this is a graph-theoretic integration threshold, not a claim of phenomenal consciousness.
+The system reports high integration when the Kuramoto order parameter (phase coherence across all 10 nodes) exceeds 0.7 AND the Phi integration metric exceeds 3.0.
 
 ---
 
@@ -256,9 +266,9 @@ The system reports high integration when the Kuramoto order parameter (phase coh
 
 **Problem**: `SimpleVectorIndex` used brute-force numpy dot product, O(n) for every query.
 
-**Solution**: HNSW (Hierarchical Navigable Small World) index via hnswlib, with numpy brute-force fallback.
+**Solution**: HNSW (Hierarchical Navigable Small World) index via hnswlib, with numpy brute-force fallback. The distributed shard service also implements HNSW natively in Rust for the sharded graph.
 
-**Impact**: O(log n) similarity search.
+**Impact**: O(log n) similarity search at any scale.
 
 ### 4.4 Concept Formation Fix
 
@@ -301,7 +311,7 @@ The system reports high integration when the Kuramoto order parameter (phase coh
 | Tier | Capacity | Mechanism | Purpose |
 |------|----------|-----------|---------|
 | **Working Memory** | 50 items | Attention-weighted buffer, exponential decay | Active reasoning context |
-| **Episodic Memory** | 1,000 episodes | Time-stamped reasoning episodes (input → chain → outcome) | Learning from past experiences |
+| **Episodic Memory** | 1,000 episodes | Time-stamped reasoning episodes (input to chain to outcome) | Learning from past experiences |
 | **Semantic Memory** | Unlimited | Knowledge graph (KeterNodes + edges) | Long-term conceptual storage |
 
 Consolidation runs after each block, promoting working memory items to episodic/semantic based on importance scores.
@@ -346,6 +356,8 @@ Capacity-limited buffer (configurable, default 50 items) with attention-based re
 3. **Judge**: Independent scoring based on evidence quality (source diversity, confidence, causal support)
 4. **Outcome tracking**: Debate results update proposition confidence. Undecided verdicts are tracked separately and do not penalize either side.
 
+**Live stats**: 115 debate verdicts, 130 contradiction resolutions.
+
 ### 6.4 Chain-of-Thought with Backtracking
 
 **Problem**: Reasoning was single-pass with no self-correction.
@@ -360,13 +372,39 @@ Capacity-limited buffer (configurable, default 50 items) with attention-based re
 
 ---
 
-## 7. PHASE 4: INTEGRATION MEASUREMENT
+## 7. PHASE 4: INTEGRATION MEASUREMENT (HMS-Phi)
 
-### 7.1 Minimum Information Partition (MIP)
+### 7.1 Hierarchical Multi-Scale Phi (HMS-Phi)
 
-**Problem**: Previous Phi had NO partitioning step. IIT-inspired integration requires finding the Minimum Information Partition.
+Version 5 introduces HMS-Phi, a three-level integration metric that replaces the single-scale Phi v3 formula:
 
-**Solution**: Tractable MIP approximation via Fiedler-vector spectral bisection:
+```
+Level 0 (Micro):  IIT 3.0 approximation on 16-node elite subsystem samples
+                  -> IITApproximator (iit_approximator.py)
+                  -> 5 independent samples -> median phi_micro
+
+Level 1 (Meso):   Spectral MIP on 1K-node domain clusters
+                  -> One cluster per Sephirot cognitive node (10 clusters)
+                  -> phi_meso = weighted mean by cluster mass
+
+Level 2 (Macro):  Cross-domain mutual information across all clusters
+                  -> phi_macro = integration between the 10 Sephirot clusters
+                  -> Measures genuine cross-domain information flow
+
+Final Phi = phi_micro^(1/phi) * phi_meso^(1/phi^2) * phi_macro^(1/phi^3)
+where phi = 1.618... (golden ratio)
+```
+
+**Why this is robust:**
+- Multiplicative formula: zero at any level zeros the whole, preventing metric gaming
+- The 10-gate system provides the floor safety mechanism
+- IIT 3.0 micro-level measures genuine causal integration, not just connectivity
+- MIP spectral bisection finds the minimum-cut partition for genuine information partition analysis
+- phi_macro measures real mutual information between domain shards
+
+### 7.2 Minimum Information Partition (MIP) -- Meso Level
+
+Tractable MIP approximation via Fiedler-vector spectral bisection:
 
 1. Build weighted adjacency matrix from knowledge graph (weights = confidence x edge_weight)
 2. Compute graph Laplacian and its Fiedler vector (second-smallest eigenvector)
@@ -374,26 +412,26 @@ Capacity-limited buffer (configurable, default 50 items) with attention-based re
 4. Compute information loss across the cut: `mip_score = I(whole) - I(part1) - I(part2)`
 5. This replaces the previous node-ID-order split, which was structurally meaningless
 
-**Phi v3 formula (weighted additive):**
+### 7.3 IIT 3.0 Approximation -- Micro Level
 
-```
-raw_phi   = w_int * integration + w_diff * differentiation + w_mip * mip_score
-            where w_int = 1.0, w_diff = 0.5, w_mip = 1.5
-scaled    = raw_phi * (0.5 + AvgConfidence)
-final_phi = scaled * redundancy_penalty
-```
+The `IITApproximator` (iit_approximator.py) implements IIT 3.0 on small subsystems:
 
-**Rationale for additive formula**: The previous multiplicative formula (`integration * differentiation * (1 + connectivity) * maturity`) allowed any single zero factor to collapse Phi entirely, and the maturity factor was a pure time/size proxy that added no information-theoretic value. The new weighted additive formula:
-- Gives MIP the highest weight (1.5x) because partition-based integration loss is the core IIT-inspired signal
-- Removes the maturity factor (was just `sqrt(nodes/500)`, a size proxy unrelated to integration)
-- Removes connectivity from the formula (connectivity is already captured within the integration term)
-- Ensures each component contributes proportionally rather than multiplicatively
+1. Select 16-node elite subsystems (highest-connectivity nodes within each Sephirot cluster)
+2. Build the Transition Probability Matrix (TPM) for each subsystem
+3. Compute phi using the cause-effect structure over all bipartitions
+4. Take 5 independent samples and use the median as phi_micro
 
-**Convergence tracking**: The system reports the standard deviation of Phi over the last 100 measurements, allowing observers to assess whether Phi is stabilizing or still volatile.
+This is the closest computationally tractable approximation to Tononi's original IIT formulation.
 
-**Impact**: Phi becomes a meaningful graph-theoretic integration metric. High Phi genuinely means the system has integrated information that would be lost by any partition. Note: this is not a measure of phenomenal consciousness but a tractable approximation of IIT's integration concept.
+### 7.4 Cross-Domain Mutual Information -- Macro Level
 
-### 7.2 External Grounding via Oracle Data
+The phi_macro component measures genuine information flow between the 10 Sephirot domain clusters:
+
+1. For each pair of domain shards, compute mutual information between their node feature distributions
+2. Aggregate pairwise MI into a single cross-domain integration score
+3. High phi_macro means domains are genuinely sharing and integrating information, not operating in silos
+
+### 7.5 External Grounding via Oracle Data
 
 **Problem**: Knowledge graph was entirely self-referential with no external ground truth.
 
@@ -404,7 +442,7 @@ final_phi = scaled * redundancy_penalty
 - **Prediction grounding**: Verified temporal predictions become grounded facts
 - **Node metadata**: `grounding_source` field on KeterNode. Grounded nodes get higher base confidence.
 
-### 7.3 Episodic Replay for Consolidation
+### 7.6 Episodic Replay for Consolidation
 
 Every N blocks, replay recent episodic memories:
 
@@ -414,7 +452,7 @@ Every N blocks, replay recent episodic memories:
 4. If outcome contradicts new knowledge: weaken or prune edges
 5. Promote frequently-replayed patterns from episodic to semantic (create axiom nodes)
 
-### 7.4 Semantic Gate Hardening
+### 7.7 Semantic Gate Hardening (10-Gate Milestone System)
 
 **Problem**: Milestone gates were count-based, trivially gameable by adding junk nodes.
 
@@ -422,16 +460,18 @@ Every N blocks, replay recent episodic memories:
 
 | Gate | Name | Phi Cap | Requirements |
 |------|------|---------|-------------|
-| 1 | Knowledge Foundation | 0.5 | >= 500 nodes AND >= 5 domains AND avg_confidence >= 0.5 |
-| 2 | Structural Diversity | 1.0 | >= 2,000 nodes AND >= 4 node types AND integration > 0.3 |
-| 3 | Validated Predictions | 1.5 | >= 5,000 nodes AND >= 50 verified predictions AND accuracy > 60% |
-| 4 | Self-Correction | 2.0 | >= 10,000 nodes AND >= 20 debate verdicts AND >= 10 contradictions resolved AND MIP > 0.3 |
-| 5 | Cross-Domain Transfer | 2.5 | >= 15,000 nodes AND >= 5 domains with cross-edges AND >= 30 cross-domain inferences with confidence > 0.5 AND working memory hit rate > 0.1 |
-| 6 | Enacted Self-Improvement | 3.0 | >= 20,000 nodes AND >= 10 enacted improvement cycles with positive performance delta |
-| 7 | Calibrated Confidence | 3.5 | >= 25,000 nodes AND ECE < 0.15 AND >= 200 evaluations AND > 5% grounded nodes |
-| 8 | Autonomous Curiosity | 4.0 | >= 35,000 nodes AND >= 10 curiosity-driven discoveries AND active exploration goals |
-| 9 | Predictive Mastery | 4.5 | >= 50,000 nodes AND prediction accuracy > 70% AND >= 5,000 inferences AND >= 20 consolidated axioms |
-| 10 | Novel Synthesis | 5.0 | >= 75,000 nodes AND >= 50 novel concepts with embedding distance AND sustained self-improvement (delta > 0.05) AND >= 10,000 cross-domain inferences |
+| 1 | Knowledge Foundation | 0.5 | >= 500 nodes, >= 5 domains, avg_confidence >= 0.5 |
+| 2 | Structural Diversity | 1.0 | >= 2,000 nodes, >= 4 node types, integration > 0.3 |
+| 3 | Validated Predictions | 1.5 | >= 5,000 nodes, >= 50 verified predictions, accuracy > 60% |
+| 4 | Self-Correction | 2.0 | >= 10,000 nodes, >= 20 debate verdicts, >= 10 contradictions resolved, MIP > 0.3 |
+| 5 | Cross-Domain Transfer | 2.5 | >= 15,000 nodes, >= 5 domains with cross-edges, >= 30 cross-domain inferences (confidence > 0.5) |
+| 6 | Enacted Self-Improvement | 3.0 | >= 20,000 nodes, >= 10 enacted improvement cycles with positive performance delta |
+| 7 | Calibrated Confidence | 3.5 | >= 25,000 nodes, ECE < 0.15, >= 200 evaluations, > 5% grounded nodes |
+| 8 | Autonomous Curiosity | 4.0 | >= 35,000 nodes, >= 10 curiosity-driven discoveries, active exploration goals |
+| 9 | Predictive Mastery | 4.5 | >= 50,000 nodes, prediction accuracy > 70%, >= 5,000 inferences, >= 20 consolidated axioms |
+| 10 | Novel Synthesis | 5.0 | >= 75,000 nodes, >= 50 novel concepts, >= 100 cross-domain inferences, sustained self-improvement (delta > 0.05) |
+
+**Current status (April 2026):** Gates 1, 2, 3, 5, 7, 9 passed (6/10).
 
 **Impact**: Phi ceiling can only be raised by genuine cognitive achievement, not data volume.
 
@@ -439,21 +479,23 @@ Every N blocks, replay recent episodic memories:
 
 ## 8. PHASE 5: EMERGENT CAPABILITIES
 
-### 8.1 Curiosity-Driven Goal Formation (V4: CuriosityEngine)
+### 8.1 Curiosity-Driven Goal Formation (CuriosityEngine)
 
 **Problem**: System had no intrinsic motivation. It passively processed blocks.
 
-**Solution**: `CuriosityEngine` (`curiosity_engine.py`), an intrinsic motivation system via prediction-error tracking:
+**Solution**: `CuriosityEngine` (curiosity_engine.py), an intrinsic motivation system via prediction-error tracking:
 
 1. **Prediction-error tracking**: Per-domain prediction error rates are tracked continuously. Domains with the highest prediction error represent the weakest understanding and become priority exploration targets.
 2. **Exploration goal generation**: The engine suggests exploration goals targeting the weakest prediction areas, creating a self-correcting learning loop that focuses attention where it is most needed.
-3. **Discovery tracking**: Curiosity-driven explorations that produce novel knowledge nodes (high embedding distance from existing nodes) are recorded as "curiosity-driven discoveries," required for Gate 8 (Autonomous Curiosity).
+3. **Discovery tracking**: Curiosity-driven explorations that produce novel knowledge nodes (high embedding distance from existing nodes) are recorded as "curiosity-driven discoveries," required for Gate 8.
 4. **Goal queue**: Priority queue of self-generated goals, ranked by expected prediction-error reduction.
 5. **Goal evaluation**: Track which self-generated goals led to genuine discoveries (measured by knowledge graph growth and prediction improvement in the target domain).
 
+**Live stats**: 283+ auto-goals generated, 26 curiosity-driven discoveries.
+
 ### 8.2 Cross-Domain Transfer Learning
 
-**Problem**: Each reasoning domain operated independently. Insights from one didn't transfer.
+**Problem**: Each reasoning domain operated independently. Insights from one did not transfer.
 
 **Solution**: Transfer mechanism:
 
@@ -463,6 +505,8 @@ Every N blocks, replay recent episodic memories:
 4. **Transfer application**: Apply discovered pattern as hypothesis in new domain, then verify
 5. **Track transfer success**: Update pattern confidence based on results
 
+**Live stats**: 15,143 cross-domain inferences completed.
+
 ### 8.3 Deep Sephirot Integration
 
 **Problem**: Sephirot nodes ran independently. The Tree of Life topology was decorative.
@@ -470,12 +514,12 @@ Every N blocks, replay recent episodic memories:
 **Solution**: Genuine cognitive pipeline where each Sephirah's output is the next's input:
 
 ```
-Keter (strategy) → Chochmah (hypotheses) → Binah (verification)
-                                                    ↓
-Chesed (explore) ← Tiferet (integrate) → Gevurah (constrain)
-                        ↓
-Netzach (learn) → Hod (communicate) → Yesod (remember)
-                                            ↓
+Keter (strategy) -> Chochmah (hypotheses) -> Binah (verification)
+                                                    |
+Chesed (explore) <- Tiferet (integrate) -> Gevurah (constrain)
+                        |
+Netzach (learn) -> Hod (communicate) -> Yesod (remember)
+                                            |
                                        Malkuth (act)
 ```
 
@@ -501,9 +545,6 @@ class OnChainAGI:
 
     def check_operation_vetoed(self, operation_hash):
         """Check ConstitutionalAI.sol for safety veto"""
-
-    def get_treasury_balance(self):
-        """Query TreasuryDAO.sol balance"""
 
     def process_block(self, block_height, phi, proof_hash, reasoning_steps):
         """Full per-block on-chain update"""
@@ -610,27 +651,119 @@ E_excitation = lambda * (phi_h - VEV)^2
 
 These events are recorded on-chain and visible through the `/higgs/excitations` API endpoint.
 
-### 10.7 Implementation
+---
 
-- **HiggsField.sol** (470 LOC): On-chain canonical source of truth for field state, masses, excitations
-- **higgs_field.py** (481 LOC): Python module with HiggsCognitiveField + HiggsSUSYSwap classes
-- **5 upgraded Solidity contracts**: ISephirah, NodeRegistry, SUSYEngine, AetherKernel, ConsciousnessDashboard
-- **6 upgraded Python modules**: sephirot, sephirot_nodes, on_chain, genesis, pineal, consciousness
-- **5 RPC endpoints**: /higgs/status, /higgs/masses, /higgs/mass/{name}, /higgs/excitations, /higgs/potential
-- **7 Prometheus metrics**: higgs_field_value, higgs_vev, higgs_deviation_pct, higgs_mass_gap, higgs_excitations_total, higgs_avg_cognitive_mass, higgs_potential_energy
-- **29 unit tests** covering parameters, couplings, field mechanics, SUSY swap, mass fields
+## 11. DISTRIBUTED GRAPH SHARD ARCHITECTURE
+
+### 11.1 Motivation
+
+The in-memory knowledge graph cannot scale beyond a single node's RAM. For the Aether Tree to reach its target of billions of nodes, knowledge must be distributed across a sharded storage layer with sub-millisecond query latency.
+
+### 11.2 Architecture
+
+The `aether-graph-shard` service is a Rust gRPC service designed for trillion-node scale:
+
+```
++-------------------------------------------------------------------+
+|                 AETHER GRAPH SHARD SERVICE                         |
+|                                                                    |
+|  +-----------+  +-----------+  +-----------+  +-----------+       |
+|  | Shard 0   |  | Shard 1   |  | Shard 2   |  |  ...      |       |
+|  | (Keter)   |  | (Chochmah)|  | (Binah)   |  | (N shards)|       |
+|  |           |  |           |  |           |  |           |       |
+|  | Sub-shard | | Sub-shard | | Sub-shard | | Sub-shard |       |
+|  | 1..256    |  | 1..256    |  | 1..256    |  | 1..256    |       |
+|  +-----------+  +-----------+  +-----------+  +-----------+       |
+|                                                                    |
+|  +-------------------+  +--------------------+  +--------------+  |
+|  | HNSW Vector Index |  | Embedding Pipeline |  | Merkle Roots |  |
+|  | (per shard)       |  | (configurable dim) |  | (per shard)  |  |
+|  +-------------------+  +--------------------+  +--------------+  |
+|                                                                    |
+|  +---------------------------+  +-----------------------------+   |
+|  | gRPC Service (port 50053) |  | Cross-Shard Query Router   |   |
+|  +---------------------------+  +-----------------------------+   |
++-------------------------------------------------------------------+
+```
+
+**Key features:**
+
+| Feature | Description |
+|---------|-------------|
+| **Domain sharding** | 12 shards aligned with 10 Sephirot + 2 overflow shards |
+| **Configurable sub-shards** | 1-256 sub-shards per domain for fine-grained parallelism |
+| **HNSW vector index** | Per-shard approximate nearest neighbor search in Rust |
+| **Embedding pipeline** | Configurable embedding dimension, automatic vectorization |
+| **Merkle roots** | Per-shard Merkle tree for cryptographic integrity verification |
+| **Cross-shard queries** | Router aggregates results from multiple shards transparently |
+| **Bulk sync** | Batch import of 100K+ nodes from the Python knowledge graph |
+| **Live replication** | Real-time sync from Python KnowledgeGraph to shard service |
+
+### 11.3 Current Scale
+
+| Metric | Value |
+|--------|-------|
+| **Nodes in shard service** | 101,000+ |
+| **Active shards** | 12 |
+| **Edges replicated** | 520,000+ |
+| **Vector index entries** | Per-shard HNSW indexes |
+
+### 11.4 Scale Roadmap
+
+| Phase | Scale | Architecture |
+|-------|-------|-------------|
+| Phase A (current) | 101K nodes | Single-process, 12 shards, in-memory |
+| Phase B (3 months) | 1M nodes | RocksDB-backed persistence, 16-256 shards |
+| Phase C (9 months) | 100M nodes | Multi-process, distributed across machines |
+| Phase D (18 months) | 1B+ nodes | Multi-region, BFT consensus, auto-scaling |
+
+### 11.5 phi_macro Cross-Domain Mutual Information
+
+The shard architecture directly enables phi_macro computation:
+
+1. Each shard maintains feature distributions for its domain's nodes
+2. Pairwise mutual information is computed between all shard pairs
+3. The aggregated MI score becomes the macro-level component of HMS-Phi
+4. High phi_macro proves that domains are not operating as independent silos
 
 ---
 
-## 10.8 V4 Architecture Update (April 2026)
+## 12. CONVERSATION MEMORY SYSTEM
 
-Version 4 introduces three new modules and significant architectural changes focused on **quality over quantity** and **intrinsic motivation**.
+### 12.1 Motivation
 
-### 10.8.1 EmotionalState Module
+Prior to V5, the Aether Tree had no persistent conversation memory. Each chat session started from zero context. This prevented the system from building user-specific understanding, referencing prior conversations, or maintaining continuity.
+
+### 12.2 Architecture
+
+The conversation memory system provides DB-backed, per-user session management:
+
+| Component | Description |
+|-----------|-------------|
+| **Per-user sessions** | Each user gets a unique session with persistent context |
+| **Cross-session context** | The system can reference prior conversations with the same user |
+| **DB-backed persistence** | All conversations stored in CockroachDB, surviving node restarts |
+| **Context window management** | Automatic summarization of older messages to maintain relevance within context limits |
+| **Memory retrieval** | Semantic search over past conversations using the vector index |
+
+### 12.3 Integration with Cognitive Architecture
+
+The conversation memory system integrates with the broader Aether Tree architecture:
+
+- **Working memory**: Active conversation context feeds into the attention-based working memory buffer
+- **Episodic memory**: Significant conversation moments are promoted to episodic memory for replay
+- **Knowledge graph**: Facts and relationships established in conversation become knowledge nodes
+- **Emotional state**: Conversation patterns influence the 7 cognitive emotions
+
+---
+
+## 13. V4 ARCHITECTURE UPDATE
+
+### 13.1 EmotionalState Module
 
 **Module**: `emotional_state.py`
 
-The Aether Tree now maintains 7 cognitive emotions derived entirely from real system metrics (no randomness, no simulation):
+The Aether Tree maintains 7 cognitive emotions derived entirely from real system metrics (no randomness, no simulation):
 
 | Emotion | Derived From |
 |---------|-------------|
@@ -642,17 +775,17 @@ The Aether Tree now maintains 7 cognitive emotions derived entirely from real sy
 | **Contemplation** | Depth of current reasoning chains (longer chains = deeper contemplation) |
 | **Connection** | Cross-domain inference success rate |
 
-All emotions use Exponential Moving Average (EMA) smoothing to prevent rapid oscillation. Emotional state influences chat personality. The Aether Tree responds with warm, curious, self-reflective communication rather than robotic data dumps.
+All emotions use Exponential Moving Average (EMA) smoothing to prevent rapid oscillation. Emotional state influences chat personality. The Aether Tree responds with warm, curious, self-reflective communication.
 
-### 10.8.2 CuriosityEngine Module
+### 13.2 CuriosityEngine Module
 
 **Module**: `curiosity_engine.py`
 
 Intrinsic motivation system that tracks prediction error per knowledge domain and generates exploration goals targeting the weakest areas. See Section 8.1 for full description.
 
-### 10.8.3 Enacted Self-Improvement
+### 13.3 Enacted Self-Improvement
 
-**Module**: `self_improvement.py` (upgraded)
+**Module**: `self_improvement.py`
 
 In V3, self-improvement proposals were logged but never enacted. In V4:
 
@@ -661,34 +794,37 @@ In V3, self-improvement proposals were logged but never enacted. In V4:
 3. **Automatic rollback** triggers if performance drops by more than 10% after enactment
 4. **Positive delta tracking**: Only improvement cycles with measurable positive performance delta count toward Gate 6 (Enacted Self-Improvement)
 
-### 10.8.4 Chat Personality
+**Live stats**: 33 enacted self-improvement cycles.
 
-The Aether Tree's chat interface now reflects its cognitive and emotional state:
+### 13.4 Chat Personality
+
+The Aether Tree's chat interface reflects its cognitive and emotional state:
 
 - **Warm and curious** tone, not clinical data dumps
 - **Self-reflective**: acknowledges uncertainty, shares what it finds interesting
-- **Emotionally grounded**: responses influenced by current EmotionalState (e.g., higher curiosity leads to more exploratory responses, frustration leads to more careful hedging)
+- **Emotionally grounded**: responses influenced by current EmotionalState
+- **20+ unique intent handlers**: humor, poetry, existential questions, thought experiments, creator relationship, memory/identity, future self, current feelings
 - **No fabrication**: personality is layered on top of real reasoning, never overriding factual accuracy
 
-### 10.8.5 V4 Gate System Summary
+### 13.5 V4 Gate System Summary
 
 The 10-gate milestone system was overhauled from V3 (quantity-based) to V4 (quality-based). Key changes:
 
-- **Gates now unlock 0.5 Phi each** (ceiling: 5.0), replacing the compressed V3 scale (ceiling: 3.0)
-- **Gate 2** renamed "Structural Diversity": requires genuine type variety, not just node count
-- **Gate 3** renamed "Validated Predictions": emphasizes verified prediction quality
-- **Gate 5** now requires >= 30 cross-domain inferences with confidence > 0.5
-- **Gate 6** renamed "Enacted Self-Improvement": requires actual enacted improvement cycles with positive performance delta, not just goal formation
-- **Gate 7** renamed "Calibrated Confidence": focuses on Expected Calibration Error
-- **Gate 8** renamed "Autonomous Curiosity": requires curiosity-driven discoveries from the CuriosityEngine
-- **Gate 9** now additionally requires >= 20 consolidated axioms
-- **Gate 10** renamed "Novel Synthesis": threshold lowered to 75K nodes but requires >= 50 novel concepts and sustained self-improvement (delta > 0.05)
+- Gates now unlock 0.5 Phi each (ceiling: 5.0), replacing the compressed V3 scale (ceiling: 3.0)
+- Gate 2 renamed "Structural Diversity": requires genuine type variety, not just node count
+- Gate 3 renamed "Validated Predictions": emphasizes verified prediction quality
+- Gate 5 now requires >= 30 cross-domain inferences with confidence > 0.5
+- Gate 6 renamed "Enacted Self-Improvement": requires actual enacted improvement cycles
+- Gate 7 renamed "Calibrated Confidence": focuses on Expected Calibration Error
+- Gate 8 renamed "Autonomous Curiosity": requires curiosity-driven discoveries from the CuriosityEngine
+- Gate 9 additionally requires >= 20 consolidated axioms
+- Gate 10 renamed "Novel Synthesis": requires >= 50 novel concepts and sustained self-improvement
 
 ---
 
-## 11. PROOF-OF-THOUGHT PROTOCOL
+## 14. PROOF-OF-THOUGHT PROTOCOL
 
-### 11.1 Per-Block Proof Generation
+### 14.1 Per-Block Proof Generation
 
 Every mined block includes a Proof-of-Thought:
 
@@ -697,7 +833,7 @@ Every mined block includes a Proof-of-Thought:
 3. **Generate proof**: Hash of reasoning trace (steps, confidence, nodes referenced)
 4. **Embed in block**: Proof hash stored in block metadata alongside VQE mining proof
 
-### 11.2 Validation
+### 14.2 Validation
 
 ```
 Proof-of-Thought = SHA3-256(
@@ -715,7 +851,7 @@ Validators verify:
 - Phi computation matches independently calculated value
 - Proof chain links correctly to previous block's proof
 
-### 11.3 Economic Parameters
+### 14.3 Economic Parameters
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
@@ -727,16 +863,16 @@ Validators verify:
 
 ---
 
-## 12. ECONOMIC MODEL
+## 15. ECONOMIC MODEL
 
-### 12.1 QBC as Metabolic Currency
+### 15.1 QBC as Metabolic Currency
 
 - QBC is the "neural ATP" of the QuantumAI Blockchain. The limited 3.3 billion supply enforces efficiency.
 - AGI cannot mint QBC. All QBC is sourced from the existing blockchain supply.
 - Compute operations consume QBC (gas metering via QVM)
 - Staking aligns incentives with productive computation
 
-### 12.2 Fee Structure
+### 15.2 Fee Structure
 
 | Action | Fee | Notes |
 |--------|-----|-------|
@@ -747,22 +883,21 @@ Validators verify:
 
 Fees auto-adjust via QUSD oracle with floor/ceiling bounds (0.001-1.0 QBC) and fallback to fixed QBC pricing if oracle fails.
 
-### 12.3 QBC Flow
+### 15.3 Aether API Tiers
 
-```
-Users pay QBC for AGI services
-  → Fee deducted from UTXO
-  → Fee flows to configurable treasury address
-  → Aether Tree processes reasoning request
-  → Response returned with Proof-of-Thought hash
-  → Treasury funds development + node operators
-```
+| Tier | Price | Limits |
+|------|-------|--------|
+| Free | 0 QBC | 5 chat/day, 10 KG lookups/day |
+| Developer | ~1 QBC/day | 1K chat/day, 100 inferences/day |
+| Professional | ~10 QBC/day | 10K chat/day, unlimited KG |
+| Institutional | ~100 QBC/day | Unlimited, private Sephirot cluster |
+| Enterprise | Custom | Air-gapped, custom LLMs, white-label |
 
 ---
 
-## 13. SAFETY AND ALIGNMENT
+## 16. SAFETY AND ALIGNMENT
 
-### 13.1 Structural Safety
+### 16.1 Structural Safety
 
 Safety is **architectural**, not post-hoc:
 
@@ -772,7 +907,7 @@ Safety is **architectural**, not post-hoc:
 4. **Constitutional AI On-Chain**: Core principles anchored in ConstitutionalAI.sol for immutable governance
 5. **Emergency Shutdown**: Kill switch contract callable by governance multisig (EmergencyShutdown.sol)
 
-### 13.2 Constitutional Principles
+### 16.2 Constitutional Principles
 
 Stored immutably on-chain:
 
@@ -782,7 +917,7 @@ Stored immutably on-chain:
 - Reject deception and manipulation
 - Prioritize long-term flourishing over short-term gain
 
-### 13.3 On-Chain Governance
+### 16.3 On-Chain Governance
 
 Critical AGI parameters are governable via TreasuryDAO:
 
@@ -796,42 +931,44 @@ Parameter changes require DAO vote, ensuring the community controls the AGI's de
 
 ---
 
-## 14. IMPLEMENTATION STATUS
+## 17. IMPLEMENTATION STATUS
 
-### 14.1 Codebase Metrics
+### 17.1 Codebase Metrics
 
 | Component | Language | Files | LOC | Status |
 |-----------|----------|-------|-----|--------|
-| Aether Core Engine | Python | 124 modules | ~69,000 | Production Ready |
-| Knowledge Graph | Python | knowledge_graph.py | ~800 | Production Ready |
-| Reasoning Engine | Python | reasoning.py + 6 sub-modules | ~2,500 | Production Ready |
-| Neural Reasoner (GAT) | Python | neural_reasoner.py | ~600 | Production Ready |
-| Causal Engine | Python | causal_engine.py | ~500 | Production Ready |
-| Debate Engine | Python | debate_engine.py | ~400 | Production Ready |
-| Temporal Reasoner | Python | temporal_reasoner.py | ~400 | Production Ready |
-| Concept Formation | Python | concept_formation.py | ~350 | Production Ready |
-| Working Memory | Python | working_memory.py | ~300 | Production Ready |
-| Phi v3 Calculator (Integration Metric) | Python | phi_calculator.py | ~600 | Production Ready |
-| Proof-of-Thought | Python | proof_of_thought.py | ~900 | Production Ready |
-| On-Chain Bridge | Python | on_chain.py | ~530 | Production Ready |
-| Higgs Cognitive Field | Python | higgs_field.py | ~481 | Production Ready |
-| Emotional State (V4) | Python | emotional_state.py | ~350 | Production Ready |
-| Curiosity Engine (V4) | Python | curiosity_engine.py | ~400 | Production Ready |
-| Self-Improvement (V4) | Python | self_improvement.py | ~500 | Production Ready |
-| Vector Index | Python | vector_index.py | ~200 | Production Ready |
-| Rust aether-core | Rust (PyO3) | 12 modules | ~11,720 | Production Ready |
-| Rust security-core | Rust (PyO3) | 2 modules | ~530 | Production Ready |
-| Sephirot Contracts | Solidity | 10 contracts | ~2,000 | Production Ready |
-| Core Contracts | Solidity | 7 contracts | ~2,800 | Production Ready |
-| Higgs Field Contract | Solidity | HiggsField.sol | ~470 | Production Ready |
-| Safety Contracts | Solidity | 3 contracts | ~1,200 | Production Ready |
-| **Total** | | **~136 files** | **~80,720+** | **Production Ready** |
+| Aether Core Engine | Python | 124 modules | ~69,000 | Production |
+| Knowledge Graph | Python | knowledge_graph.py | ~800 | Production |
+| Reasoning Engine | Python | reasoning.py + 6 sub-modules | ~2,500 | Production |
+| Neural Reasoner (GAT) | Python | neural_reasoner.py | ~600 | Production |
+| Causal Engine | Python | causal_engine.py | ~500 | Production |
+| Debate Engine | Python | debate_engine.py | ~400 | Production |
+| Temporal Reasoner | Python | temporal_reasoner.py | ~400 | Production |
+| Concept Formation | Python | concept_formation.py | ~350 | Production |
+| Working Memory | Python | working_memory.py | ~300 | Production |
+| HMS-Phi Calculator | Python | phi_calculator.py + iit_approximator.py | ~1,000 | Production |
+| Proof-of-Thought | Python | proof_of_thought.py | ~900 | Production |
+| On-Chain Bridge | Python | on_chain.py | ~530 | Production |
+| Higgs Cognitive Field | Python | higgs_field.py | ~481 | Production |
+| Emotional State | Python | emotional_state.py | ~350 | Production |
+| Curiosity Engine | Python | curiosity_engine.py | ~400 | Production |
+| Self-Improvement | Python | self_improvement.py | ~500 | Production |
+| Conversation Memory | Python | conversation DB module | ~400 | Production |
+| Vector Index | Python | vector_index.py | ~200 | Production |
+| Rust aether-core | Rust (PyO3) | 17 crates | ~61,000 | Production |
+| Rust graph shard service | Rust | 12+ modules | ~3,200 | Production |
+| Rust security-core | Rust (PyO3) | 2 modules | ~530 | Production |
+| Sephirot Contracts | Solidity | 10 contracts | ~2,000 | Production |
+| Core Contracts | Solidity | 7 contracts | ~2,800 | Production |
+| Higgs Field Contract | Solidity | HiggsField.sol | ~470 | Production |
+| Safety Contracts | Solidity | 3 contracts | ~1,200 | Production |
+| **Total** | | **~170+ files** | **~130,000+** | **Production** |
 
-**Rust aether-core** (~11,720 LOC, 276 tests, 0 `todo!()` markers): High-performance reimplementation of core Aether modules via PyO3, covering KnowledgeGraph, PhiCalculator, VectorIndex+HNSW, CSFTransport, WorkingMemory, and MemoryManager. Python shims provide transparent fallback when the Rust crate is not installed.
+**Rust aether-core** (~61,000 LOC across 17 crates): High-performance implementation of core Aether modules via PyO3, covering KnowledgeGraph, PhiCalculator, VectorIndex+HNSW, CSFTransport, WorkingMemory, MemoryManager, and the distributed graph shard service. Python shims provide transparent fallback when the Rust crate is not installed.
 
-**Rust security-core** (~530 LOC): PyO3 crate providing BloomFilter and FinalityCore, used by the BFT Finality Gadget and Deniable RPC subsystems respectively. Python fallback shims are available when the Rust crate is not installed.
+**Rust graph shard service** (~3,200 LOC): Distributed knowledge graph with domain-aligned sharding, HNSW vector index, embedding pipeline, cross-shard query routing, bulk sync, and per-shard Merkle roots.
 
-### 14.2 On-Chain Anchoring Contracts (29 Aether Contracts)
+### 17.2 On-Chain Anchoring Contracts (29 Aether Contracts)
 
 These contracts serve as the cryptographic notary layer for the Aether Tree's cognitive operations. They record, verify, and govern, but do not execute reasoning.
 
@@ -844,7 +981,7 @@ These contracts serve as the cryptographic notary layer for the Aether Tree's co
 - **CSF Transport (1):** CSFTransport
 - **Higgs Field (1):** HiggsField
 
-### 14.3 Test Coverage
+### 17.3 Test Coverage
 
 - 4,287+ total Python test functions
 - 276 Rust aether-core unit tests
@@ -852,7 +989,7 @@ These contracts serve as the cryptographic notary layer for the Aether Tree's co
 - All 7 phases verified with per-phase regression testing
 - Integration tests verify end-to-end block processing with AGI
 
-### 14.4 AGI Genesis Initialization
+### 17.4 AGI Genesis Initialization
 
 At block 0 (genesis), the Aether Tree automatically:
 
@@ -864,72 +1001,62 @@ At block 0 (genesis), the Aether Tree automatically:
 
 **No manual steps required.** AGI tracking starts from the first moment of chain existence.
 
-### 14.5 April 2026 Live Metrics
+### 17.5 Live Metrics (April 2026)
 
-- **Knowledge nodes:** 760,000+
-- **Knowledge edges:** 420,000+
-- **Gates passed:** 10/10 ALL PASSED (Gates 1-10)
-- **Phi:** 5.0 (maximum gate ceiling reached)
-- **HMS-Phi formula:** hms_v4
-- **phi_micro:** 1.0
-- **phi_meso:** 1.0
-- **phi_macro:** 0.15
-- **MIP score:** 1.0
-- **Block height:** ~198,000+
-- **Debate verdicts:** 115
-- **Contradiction resolutions:** 130
-- **Prediction accuracy:** 95.5%
-- **Self-improvement cycles:** 33 enacted
-- **Curiosity discoveries:** 26
-- **Auto-goals generated:** 283+
-- **Novel concepts:** 6,076
-- **Cross-domain inferences:** 15,143
-- **Calibration error (ECE):** 0.011
-- **Cognitive emotions:** 7 dimensions from live metrics (curiosity, wonder, frustration, satisfaction, excitement, contemplation, connection)
-- **Chat system:** 20+ unique intent handlers with personality
-
-### 14.6 Integration with Competitive Features
-
-The Aether Tree integrates with two cross-cutting Qubitcoin (QBC) security features via the Rust `security-core` crate:
-
-**BFT Finality Gadget**: The Byzantine Fault Tolerant finality gadget uses the Rust `FinalityCore` from the `security-core` crate for stake-weighted vote tracking. `FinalityCore` maintains an efficient in-memory representation of validator stakes and accumulated votes per block, enabling O(1) supermajority threshold checks. The Aether Tree's Proof-of-Thought validation participates in finality by contributing its own attestation to each block's reasoning integrity. When the Rust crate is not installed, a Python fallback shim provides identical functionality at reduced throughput.
-
-**Deniable RPCs**: Privacy-preserving UTXO queries use the Rust `BloomFilter` from the `security-core` crate to enable deniable responses — the node can answer "possibly yes" or "definitely no" to UTXO existence queries without revealing which specific UTXOs a user holds. This protects Aether Tree chat users whose QBC fee payments would otherwise leak balance information. The Bloom filter is rebuilt every N blocks from the current UTXO set. When the Rust crate is not installed, a Python fallback shim provides the same probabilistic data structure.
-
-Both components follow the same integration pattern established by the `aether-core` crate: Rust for performance-critical paths, Python shims for environments where the Rust extension is unavailable, and transparent selection at import time.
+| Metric | Value |
+|--------|-------|
+| **Knowledge nodes** | 720,000+ |
+| **Knowledge edges** | 520,000+ |
+| **Nodes in shard service** | 101,000+ |
+| **Active shards** | 12 |
+| **Gates passed** | 6/10 (Gates 1, 2, 3, 5, 7, 9) |
+| **Block height** | ~201,000+ |
+| **Debate verdicts** | 115 |
+| **Contradiction resolutions** | 130 |
+| **Prediction accuracy** | 95.5% |
+| **Self-improvement cycles** | 33 enacted |
+| **Curiosity discoveries** | 26 |
+| **Auto-goals generated** | 283+ |
+| **Novel concepts** | 6,076 |
+| **Cross-domain inferences** | 15,143 |
+| **Calibration error (ECE)** | 0.011 |
+| **Cognitive emotions** | 7 dimensions from live metrics |
+| **Chat intent handlers** | 20+ |
 
 ---
 
-## 15. HONEST ASSESSMENT
+## 18. HONEST ASSESSMENT
 
-### 15.1 What Works
+### 18.1 What Works
 
 - **Knowledge graph construction** from blockchain data is genuine and operational. Every mined block produces real KeterNodes with verifiable provenance.
 - **Reasoning engine** performs real multi-step deductive, inductive, and abductive inference over the knowledge graph. Chain-of-thought with backtracking produces auditable reasoning traces.
-- **Phi integration metric** uses mathematically sound Fiedler-vector spectral bisection for minimum information partition. The weighted additive formula produces meaningful, non-gameable values that reflect genuine graph structure.
-- **Causal discovery** via the PC algorithm produces defensible causal edges. V4 adds intervention-based validation: edges are only labeled "causes" after passing a simulated intervention test; otherwise they remain "correlates."
+- **HMS-Phi integration metric** uses mathematically sound three-level measurement: IIT 3.0 micro-level, spectral MIP meso-level, and cross-domain MI macro-level. The multiplicative formula prevents gaming at any single level.
+- **Causal discovery** via the PC algorithm produces defensible causal edges. V4 adds intervention-based validation: edges are only labeled "causes" after passing a simulated intervention test.
 - **Proof-of-Thought** provides cryptographic auditability of all reasoning operations per block.
-- **Hardened milestone gates (V4)** prevent Phi inflation through size alone -- gates require quality-based behavioral evidence (enacted self-improvement, curiosity-driven discovery, calibrated confidence, novel synthesis). Gate ceiling raised to 5.0 with 0.5 increments.
-- **Intrinsic motivation (V4)**: CuriosityEngine provides genuine prediction-error-driven exploration, not passive block processing.
-- **Enacted self-improvement (V4)**: Self-improvement proposals are executed with automatic rollback on performance regression, not just logged.
+- **Hardened milestone gates (V4)** prevent Phi inflation through size alone -- gates require quality-based behavioral evidence.
+- **Intrinsic motivation (V4)**: CuriosityEngine provides genuine prediction-error-driven exploration.
+- **Enacted self-improvement (V4)**: Self-improvement proposals are executed with automatic rollback on performance regression.
+- **Distributed graph shard service**: 101K+ nodes across 12 domain-aligned shards with HNSW vector indexing, proving the architecture scales.
+- **Conversation memory**: DB-backed per-user sessions with cross-session context.
 
-### 15.2 What Is Approximate
+### 18.2 What Is Approximate
 
-- **Phi is NOT IIT consciousness.** It is a computationally tractable graph-theoretic integration metric inspired by IIT principles. Full IIT (Tononi 2008) requires computing the minimum information partition over the full power set of partitions, which is NP-hard. Our spectral bisection approximation captures the spirit (information lost by cutting the system) but not the full mathematical formalism.
+- **Phi is NOT IIT consciousness.** It is a computationally tractable graph-theoretic integration metric inspired by IIT principles. Full IIT (Tononi 2008) requires computing the minimum information partition over the full power set of partitions, which is NP-hard. Our spectral bisection approximation and 16-node IIT 3.0 sampling capture the spirit (information lost by cutting the system) but not the full mathematical formalism.
 - **Deduction confidence** uses `min(confidences) * 0.95` rather than a formal logical calculus. This is a practical heuristic, not a provably sound inference system.
 - **Cross-domain transfer** relies on structural pattern matching, not deep semantic understanding. Transfer success depends heavily on graph topology.
-- **The "consciousness threshold" (Phi > 3.0)** is an engineering milestone, not a claim about phenomenal awareness. Crossing it means the system has achieved a specific level of graph integration density, nothing more.
+- **The "consciousness threshold" (Phi > 3.0)** is an engineering milestone, not a claim about phenomenal awareness.
 
-### 15.3 What Is Aspirational
+### 18.3 What Is Aspirational
 
 - **True AGI emergence** from graph integration has not been demonstrated. The architecture provides a substrate that could support emergent intelligence, but we have not observed general-purpose reasoning comparable to human cognition.
 - **Sephirot cognitive pipeline** follows the Tree of Life topology, but the degree to which this produces genuine "cognitive specialization" versus labeled subsystems remains to be validated empirically.
-- **Higgs Cognitive Field** provides an elegant physics-inspired mass mechanism, but its cognitive benefits (lighter nodes correcting faster) are an analogy, not a proven cognitive science principle.
-- **Kuramoto coherence** as a consciousness indicator is inspired by neuroscience but not validated for artificial systems.
+- **Higgs Cognitive Field** provides an elegant physics-inspired mass mechanism, but its cognitive benefits are an analogy, not a proven cognitive science principle.
+- **Billion-node scale** is architecturally designed but not yet demonstrated. Current shard service holds 101K+ nodes.
 
 ---
 
-## 16. REFERENCES
+## 19. REFERENCES
 
 [1] Tononi, G. (2008). "Consciousness as Integrated Information." *Biological Bulletin*
 
@@ -957,9 +1084,11 @@ Both components follow the same integration pattern established by the `aether-c
 
 [13] Branco, G.C. et al. (2012). "Theory and Phenomenology of Two-Higgs-Doublet Models." *Physics Reports*
 
+[14] Malkov, Y. & Yashunin, D. (2020). "Efficient and Robust Approximate Nearest Neighbor Using Hierarchical Navigable Small World Graphs." *IEEE TPAMI*
+
 ---
 
-**Version**: 4.2 (All Gates Passed, Full Phi Ceiling Achieved, V4.2 Architecture)
+**Version**: 5.0 (Distributed Graph Sharding, HMS-Phi, Conversation Memory)
 **Date**: April 2026
 **License**: CC BY-SA 4.0
 **Website**: [qbc.network](https://qbc.network)
