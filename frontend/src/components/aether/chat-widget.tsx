@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { api } from "@/lib/api";
+import { AetherMarkdown } from "@/components/aether/aether-markdown";
 
 interface Message {
   role: "user" | "aether";
@@ -138,7 +139,11 @@ export function ChatWidget() {
                       : "bg-bg-elevated text-text-primary"
                   }`}
                 >
-                  {m.text}
+                  {m.role === "aether" ? (
+                    <AetherMarkdown>{m.text}</AetherMarkdown>
+                  ) : (
+                    m.text
+                  )}
                   {m.role === "aether" && m.dominantEmotion && (
                     <p className="mt-1 text-[10px] text-quantum-violet/60">
                       Feeling {m.dominantEmotion}

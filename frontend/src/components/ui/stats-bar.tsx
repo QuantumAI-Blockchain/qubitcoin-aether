@@ -34,8 +34,8 @@ export function StatsBar() {
       value: phi?.knowledge_nodes?.toLocaleString() ?? "---",
     },
     {
-      label: "Shard Nodes",
-      value: engineInfo?.node_count ? engineInfo.node_count.toLocaleString() : "---",
+      label: "Graph Edges",
+      value: engineInfo?.edge_count ? engineInfo.edge_count.toLocaleString() : (phi?.knowledge_edges?.toLocaleString() ?? "---"),
     },
     { label: "Gates", value: `${gatesPassed}/${gatesTotal}` },
   ];

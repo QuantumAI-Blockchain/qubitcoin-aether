@@ -10,6 +10,7 @@ import { PhiSpinner } from "@/components/ui/loading";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useToast } from "@/components/ui/toast";
 import { StreamingText } from "@/components/aether/streaming-text";
+import { AetherMarkdown } from "@/components/aether/aether-markdown";
 import {
   ConversationSidebar,
   type StoredSession,
@@ -428,17 +429,19 @@ function AetherPageContent() {
                             : "bg-bg-elevated text-text-primary"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">
-                          {m.role === "aether" && i === streamingIdx ? (
+                        {m.role === "aether" && i === streamingIdx ? (
+                          <p className="whitespace-pre-wrap">
                             <StreamingText
                               text={m.text}
                               speed={16}
                               onComplete={() => setStreamingIdx(null)}
                             />
-                          ) : (
-                            m.text
-                          )}
-                        </p>
+                          </p>
+                        ) : m.role === "aether" ? (
+                          <AetherMarkdown>{m.text}</AetherMarkdown>
+                        ) : (
+                          <p className="whitespace-pre-wrap">{m.text}</p>
+                        )}
                         {m.role === "aether" && m.emotionalState && Object.keys(m.emotionalState).length > 0 && (
                           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-secondary">
                             <span className="font-medium text-quantum-violet/80">Feeling:</span>

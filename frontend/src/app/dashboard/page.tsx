@@ -867,6 +867,28 @@ function GraphShardCard() {
               </span>
             </div>
           )}
+          {(phi?.phi_micro != null || phi?.phi_meso != null || phi?.phi_macro != null) && (
+            <div className="mt-1 space-y-1">
+              {phi?.phi_micro != null && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-text-secondary">Micro (IIT)</span>
+                  <span className="font-[family-name:var(--font-code)]">{phi.phi_micro.toFixed(4)}</span>
+                </div>
+              )}
+              {phi?.phi_meso != null && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-text-secondary">Meso (Domain)</span>
+                  <span className="font-[family-name:var(--font-code)]">{phi.phi_meso.toFixed(4)}</span>
+                </div>
+              )}
+              {phi?.phi_macro != null && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-text-secondary">Macro (Cross)</span>
+                  <span className="font-[family-name:var(--font-code)]">{phi.phi_macro.toFixed(4)}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </Card>

@@ -110,6 +110,10 @@ export interface PhiData {
   convergence_stddev?: number;
   convergence_status?: string;
   formula_weights?: Record<string, number>;
+  // HMS-Phi v4 breakdown
+  phi_micro?: number;
+  phi_meso?: number;
+  phi_macro?: number;
 }
 
 export interface ChatResponse {
@@ -501,6 +505,12 @@ export const api = {
     get<{ messages: ConversationMessage[] }>(`/aether/conversation/messages/${sessionId}`),
   getConversationStats: () =>
     get<ConversationStats>("/aether/conversation/stats"),
+  archiveConversation: (sessionId: string) =>
+    post<{ status: string }>(`/aether/conversation/archive/${sessionId}`, {}),
+  getUserMemories: (userId: string) =>
+    get<{ memories: Record<string, string>; count: number }>(`/aether/conversations/${userId}/memories`),
+  getUserInsights: (userId: string, limit = 20) =>
+    get<{ insights: Array<Record<string, unknown>>; count: number }>(`/aether/conversations/${userId}/insights?limit=${limit}`),
 
   // Knowledge seeding (user-provided API key)
   seedKnowledge: (body: {
