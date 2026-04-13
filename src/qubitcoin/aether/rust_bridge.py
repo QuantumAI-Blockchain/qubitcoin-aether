@@ -60,51 +60,52 @@ RustCircuitBreaker = None
 try:
     import aether_core
 
+    def _get(name: str):
+        return getattr(aether_core, name, None)
+
     # aether-types
-    RustKeterNode = aether_core.KeterNode
-    RustKeterEdge = aether_core.KeterEdge
+    RustKeterNode = _get("KeterNode")
+    RustKeterEdge = _get("KeterEdge")
 
     # aether-graph
-    RustKnowledgeGraph = aether_core.KnowledgeGraph
+    RustKnowledgeGraph = _get("KnowledgeGraph")
 
     # aether-phi
-    RustPhiCalculator = aether_core.PhiCalculator
+    RustPhiCalculator = _get("PhiCalculator")
 
     # aether-memory
-    RustVectorIndex = aether_core.VectorIndex
-    RustHNSWIndex = aether_core.HNSWIndex
-    RustWorkingMemory = aether_core.WorkingMemory
-    RustMemoryManager = aether_core.MemoryManager
-    RustLongTermMemory = aether_core.LongTermMemory
+    RustVectorIndex = _get("VectorIndex")
+    RustHNSWIndex = _get("HNSWIndex")
+    RustWorkingMemory = _get("WorkingMemory")
+    RustMemoryManager = _get("MemoryManager")
+    RustLongTermMemory = _get("LongTermMemory")
 
     # aether-neural
-    RustGATReasoner = aether_core.RustGATReasoner
+    RustGATReasoner = _get("RustGATReasoner")
 
     # aether-sephirot
-    RustCSFTransport = aether_core.CSFTransport
-    RustCSFMessage = aether_core.CSFMessage
+    RustCSFTransport = _get("CSFTransport")
+    RustCSFMessage = _get("CSFMessage")
 
     # aether-cognitive
-    RustEmotionalState = aether_core.EmotionalState
-    RustCuriosityEngine = aether_core.CuriosityEngine
-    RustMetacognitionEngine = aether_core.MetacognitionEngine
-    RustSelfImprovementEngine = aether_core.SelfImprovementEngine
+    RustEmotionalState = _get("EmotionalState")
+    RustCuriosityEngine = _get("CuriosityEngine")
+    RustMetacognitionEngine = _get("MetacognitionEngine")
+    RustSelfImprovementEngine = _get("SelfImprovementEngine")
 
     # aether-safety
-    RustContentFilter = aether_core.ContentFilter
-    RustGevurahVeto = aether_core.GevurahVeto
-    RustSafetyManager = aether_core.SafetyManager
-    RustAuditLog = aether_core.AuditLog
+    RustContentFilter = _get("ContentFilter")
+    RustGevurahVeto = _get("GevurahVeto")
+    RustSafetyManager = _get("SafetyManager")
+    RustAuditLog = _get("AuditLog")
 
     # aether-infra
-    RustAPIKeyVault = aether_core.APIKeyVault
-    RustCircuitBreaker = aether_core.CircuitBreaker
+    RustAPIKeyVault = _get("APIKeyVault")
+    RustCircuitBreaker = _get("CircuitBreaker")
 
     RUST_AVAILABLE = True
-    logger.info(
-        "aether_core Rust extension loaded — %d exports available",
-        len([a for a in dir(aether_core) if not a.startswith("_")]),
-    )
+    exports = len([a for a in dir(aether_core) if not a.startswith("_")])
+    logger.info("aether_core Rust extension loaded — %d exports available", exports)
 except ImportError:
     logger.info("aether_core Rust extension not installed — running pure Python")
 except Exception as exc:

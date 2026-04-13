@@ -65,6 +65,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     && rm -rf /var/lib/apt/lists/*
 
+# Prevent stale .pyc when source is bind-mounted at runtime
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
 # Create non-root user
 RUN groupadd -r qbc && useradd -r -g qbc -m -d /home/qbc qbc
 

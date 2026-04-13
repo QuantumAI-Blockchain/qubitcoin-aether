@@ -135,6 +135,8 @@ services:
       - .env
       - secure_key.env
     environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
       - RPC_HOST=0.0.0.0
       - QBC_CORS_ORIGINS=*
       - DATABASE_URL=postgresql://root@cockroachdb:26257/qubitcoin?sslmode=disable
