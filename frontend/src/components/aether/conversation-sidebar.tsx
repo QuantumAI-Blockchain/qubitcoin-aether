@@ -224,22 +224,22 @@ export function ConversationSidebar({
             <div className="flex justify-between text-[10px] text-text-secondary">
               <span>Sessions</span>
               <span className="font-[family-name:var(--font-code)] text-text-primary">
-                {stats.total_sessions.toLocaleString()}
+                {(stats.total_sessions ?? 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between text-[10px] text-text-secondary">
               <span>Messages</span>
               <span className="font-[family-name:var(--font-code)] text-text-primary">
-                {stats.total_messages.toLocaleString()}
+                {(stats.total_messages ?? 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between text-[10px] text-text-secondary">
               <span>Users</span>
               <span className="font-[family-name:var(--font-code)] text-text-primary">
-                {stats.unique_users.toLocaleString()}
+                {(stats.unique_users ?? 0).toLocaleString()}
               </span>
             </div>
-            {stats.total_user_memories > 0 && (
+            {(stats.total_user_memories ?? 0) > 0 && (
               <div className="flex justify-between text-[10px] text-text-secondary">
                 <span>Memories</span>
                 <span className="font-[family-name:var(--font-code)] text-text-primary">
@@ -247,7 +247,7 @@ export function ConversationSidebar({
                 </span>
               </div>
             )}
-            {stats.total_insights > 0 && (
+            {(stats.total_insights ?? 0) > 0 && (
               <div className="flex justify-between text-[10px] text-text-secondary">
                 <span>Insights</span>
                 <span className="font-[family-name:var(--font-code)] text-text-primary">

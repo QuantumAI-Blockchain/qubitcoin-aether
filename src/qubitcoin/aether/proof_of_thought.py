@@ -4290,7 +4290,7 @@ class AetherEngine:
         # These are passed to phi_calculator as ext overrides (max with in-memory).
         # CACHED: these full-table LIKE scans on 800K+ rows are extremely expensive
         # (~100% CockroachDB CPU). Refresh every _DB_GATE_STATS_TTL blocks (~5.5 min).
-        current_block = stats.get('n_nodes', self._blocks_processed)
+        current_block = self._blocks_processed
         _cache_expired = (
             self._db_gate_stats_cache is None
             or (current_block - self._db_gate_stats_block) >= self._DB_GATE_STATS_TTL
@@ -4350,11 +4350,7 @@ class AetherEngine:
                 logger.debug("DB gate count query failed: %s", e)
         # Apply cached DB gate stats to current stats
         if self._db_gate_stats_cache:
-            for k, v in self._db_gate_stats_cache.items():
-                if k == 'db_node_type_counts':
-                    stats[k] = v
-                else:
-                    stats[k] = v
+            stats.update(self._db_gate_stats_cache)
 
         # Ensure auto_goals_with_inferences uses DB floor if in-memory was undercounted
         db_goals = stats.get('db_auto_goals_generated', 0)
