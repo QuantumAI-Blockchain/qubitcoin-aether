@@ -16,6 +16,7 @@ mod router;
 mod service;
 mod storage;
 mod types;
+mod vector_index;
 
 use router::ShardRouter;
 use service::proto::graph_shard_service_server::GraphShardServiceServer;

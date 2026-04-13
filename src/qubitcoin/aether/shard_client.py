@@ -298,6 +298,36 @@ class GraphShardClient:
             logger.warning("search failed: %s", e)
             return []
 
+    async def vector_search(
+        self,
+        embedding: list[float],
+        top_k: int = 10,
+        domain_filter: str = "",
+        min_similarity: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        """Semantic vector search using embeddings."""
+        if not self._connected:
+            return []
+
+        try:
+            resp = await self._stub.VectorSearch(
+                _pb2.VectorSearchRequest(
+                    query_embedding=embedding,
+                    top_k=top_k,
+                    domain_filter=domain_filter,
+                    min_similarity=min_similarity,
+                ),
+                timeout=self.timeout,
+            )
+            return [
+                {"node": _node_to_dict(r.node), "score": r.score, "match_type": r.match_type}
+                for r in resp.results
+                if r.node
+            ]
+        except Exception as e:
+            logger.warning("vector_search failed: %s", e)
+            return []
+
     async def cross_domain_search(
         self,
         domains: list[str],

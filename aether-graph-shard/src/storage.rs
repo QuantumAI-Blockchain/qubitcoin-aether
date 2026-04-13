@@ -9,6 +9,7 @@
 
 use crate::merkle::IncrementalMerkle;
 use crate::types::{Domain, ShardConfig, ShardEdge, ShardNode, ShardStats};
+use crate::vector_index::{ShardVectorIndex, VectorIndexConfig, VectorResult};
 use anyhow::{Context, Result};
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -36,6 +37,7 @@ pub struct ShardStore {
     config: ShardConfig,
     cache: RwLock<LruCache<i64, ShardNode>>,
     merkle: RwLock<IncrementalMerkle>,
+    vector_index: ShardVectorIndex,
     node_count: AtomicI64,
     edge_count: AtomicI64,
     cache_hits: AtomicU64,
@@ -81,11 +83,20 @@ impl ShardStore {
         let cache_cap =
             NonZeroUsize::new(config.cache_capacity).unwrap_or(NonZeroUsize::new(100_000).unwrap());
 
+        let vec_config = VectorIndexConfig {
+            dim: std::env::var("VECTOR_DIM")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(384),
+            ..VectorIndexConfig::default()
+        };
+
         let store = Self {
             db: Arc::new(db),
             config,
             cache: RwLock::new(LruCache::new(cache_cap)),
             merkle: RwLock::new(IncrementalMerkle::new()),
+            vector_index: ShardVectorIndex::new(vec_config),
             node_count: AtomicI64::new(0),
             edge_count: AtomicI64::new(0),
             cache_hits: AtomicU64::new(0),
@@ -151,6 +162,13 @@ impl ShardStore {
         {
             let mut merkle = self.merkle.write();
             merkle.insert(node.node_id, node.merkle_leaf());
+        }
+
+        // Index embedding if present
+        if let Some(ref emb) = node.embedding {
+            if !emb.is_empty() {
+                self.vector_index.upsert(node.node_id, emb);
+            }
         }
 
         self.node_count.fetch_add(1, Ordering::Relaxed);
@@ -513,6 +531,37 @@ impl ShardStore {
         scored.truncate(top_k);
 
         Ok(scored)
+    }
+
+    // ── Vector Search ────────────────────────────────────────────────
+
+    /// Semantic similarity search using the vector index.
+    pub fn vector_search(
+        &self,
+        query_embedding: &[f32],
+        top_k: usize,
+        min_confidence: f64,
+    ) -> Result<Vec<(ShardNode, f32)>> {
+        let results = self.vector_index.search(query_embedding, top_k * 2);
+
+        let mut scored = Vec::with_capacity(top_k);
+        for vr in results {
+            if let Some(node) = self.get_node(vr.node_id)? {
+                if node.confidence >= min_confidence {
+                    scored.push((node, vr.distance));
+                    if scored.len() >= top_k {
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(scored)
+    }
+
+    /// Number of indexed vectors in this shard.
+    pub fn vector_count(&self) -> usize {
+        self.vector_index.len()
     }
 
     // ── Merkle ─────────────────────────────────────────────────────

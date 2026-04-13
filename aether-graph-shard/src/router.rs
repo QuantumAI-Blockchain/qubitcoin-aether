@@ -231,6 +231,42 @@ impl ShardRouter {
         Ok(all_results)
     }
 
+    // ── Vector Search ────────────────────────────────────────────────
+
+    /// Semantic vector search across specified domains (or all).
+    pub fn vector_search(
+        &self,
+        query_embedding: &[f32],
+        top_k: usize,
+        domain_filter: &str,
+        min_confidence: f64,
+    ) -> Result<Vec<(ShardNode, f32)>> {
+        let mut all_results = Vec::new();
+
+        if domain_filter.is_empty() {
+            // Search all shards
+            for entry in self.shards.iter() {
+                let shard = entry.value();
+                let results = shard.vector_search(query_embedding, top_k, min_confidence)?;
+                all_results.extend(results);
+            }
+        } else {
+            let d = Domain::from_str(domain_filter);
+            for sub in 0..self.sub_shards {
+                let shard_id = self.compute_shard_id(d, sub);
+                if let Some(shard) = self.get_shard(shard_id) {
+                    let results = shard.vector_search(query_embedding, top_k, min_confidence)?;
+                    all_results.extend(results);
+                }
+            }
+        }
+
+        // Sort by distance (ascending — closest first)
+        all_results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        all_results.truncate(top_k);
+        Ok(all_results)
+    }
+
     // ── Merkle ─────────────────────────────────────────────────────
 
     /// Compute the global Merkle root from all shard roots.

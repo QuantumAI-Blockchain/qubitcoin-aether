@@ -397,11 +397,37 @@ impl GraphShardService for GraphShardServer {
 
     async fn vector_search(
         &self,
-        _request: Request<VectorSearchRequest>,
+        request: Request<VectorSearchRequest>,
     ) -> Result<Response<VectorSearchResponse>, Status> {
+        let start = Instant::now();
+        let req = request.into_inner();
+
+        if req.query_embedding.is_empty() {
+            return Err(Status::invalid_argument("query_embedding is required"));
+        }
+
+        let results = self
+            .router
+            .vector_search(
+                &req.query_embedding,
+                req.top_k.max(1) as usize,
+                &req.domain_filter,
+                req.min_similarity,
+            )
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let search_results: Vec<SearchResult> = results
+            .into_iter()
+            .map(|(node, distance)| SearchResult {
+                node: Some(node_to_proto(&node)),
+                score: (1.0 - distance) as f64, // Convert distance to similarity score
+                match_type: "vector".to_string(),
+            })
+            .collect();
+
         Ok(Response::new(VectorSearchResponse {
-            results: Vec::new(),
-            latency_ms: 0.0,
+            results: search_results,
+            latency_ms: start.elapsed().as_secs_f64() * 1000.0,
         }))
     }
 
