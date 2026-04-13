@@ -443,8 +443,9 @@ class PhiCalculator:
         # ── HMS-Phi v4 ────────────────────────────────────────────────────────
         phi_micro: float = 0.0
         phi_meso:  float = max(0.0, min(1.0, self._last_mip_score))
-        # Normalize integration (structural max=5 + MI max=3 + flow max≈1 → cap 9)
-        phi_macro: float = max(0.0, min(1.0, integration / 9.0))
+        # Level 2 (Macro): Cross-domain integration between Sephirot clusters.
+        # Measures how well knowledge flows BETWEEN domains (not within).
+        phi_macro = self._compute_phi_macro(nodes, edges, n_nodes, n_edges)
 
         hms_raw: float = 0.0
         using_hms: bool = False
@@ -853,6 +854,126 @@ class PhiCalculator:
         mean = sum(values) / len(values)
         variance = sum((v - mean) ** 2 for v in values) / len(values)
         return math.sqrt(variance)
+
+    # ========================================================================
+    # Level 2 (Macro): Cross-Domain Integration
+    # ========================================================================
+
+    def _compute_phi_macro(
+        self,
+        nodes: dict,
+        edges: list,
+        n_nodes: int,
+        n_edges: int,
+    ) -> float:
+        """Compute phi_macro: cross-domain integration between Sephirot clusters.
+
+        Measures how well knowledge integrates ACROSS domains by computing:
+        1. Cross-domain edge ratio: fraction of edges connecting different domains
+        2. Domain connectivity: normalized algebraic connectivity of the domain graph
+        3. Cross-domain MI: mutual information between domain node-type distributions
+
+        Returns a value in [0, 1] where higher = better cross-domain integration.
+        """
+        if n_nodes < 50 or n_edges < 10:
+            # Fallback to simple integration normalization for small graphs
+            integration = self._compute_integration(nodes, edges, n_nodes) if n_nodes > 1 else 0.0
+            return max(0.0, min(1.0, integration / 9.0))
+
+        # --- 1. Classify nodes by domain ---
+        domain_nodes: Dict[str, List[int]] = {}
+        for nid, node in nodes.items():
+            d = node.domain or 'general'
+            domain_nodes.setdefault(d, []).append(nid)
+
+        n_domains = len(domain_nodes)
+        if n_domains < 2:
+            return 0.05  # Single domain = minimal macro integration
+
+        # --- 2. Cross-domain edge ratio ---
+        node_domain: Dict[int, str] = {}
+        for d, nids in domain_nodes.items():
+            for nid in nids:
+                node_domain[nid] = d
+
+        cross_edges = 0
+        total_edges = 0
+        # Domain-pair edge counts for MI computation
+        domain_pair_counts: Dict[Tuple[str, str], int] = {}
+        domain_out_counts: Dict[str, int] = {}
+
+        for edge in edges:
+            fd = node_domain.get(edge.from_node_id)
+            td = node_domain.get(edge.to_node_id)
+            if fd is None or td is None:
+                continue
+            total_edges += 1
+            if fd != td:
+                cross_edges += 1
+            pair = (fd, td) if fd <= td else (td, fd)
+            domain_pair_counts[pair] = domain_pair_counts.get(pair, 0) + 1
+            domain_out_counts[fd] = domain_out_counts.get(fd, 0) + 1
+
+        cross_ratio = cross_edges / max(total_edges, 1)
+
+        # --- 3. Domain graph connectivity ---
+        # Build a small graph where nodes=domains, edge weight=cross-domain edge count
+        domains_list = sorted(domain_nodes.keys())
+        d_idx = {d: i for i, d in enumerate(domains_list)}
+        nd = len(domains_list)
+
+        # Adjacency for domain graph
+        d_adj: Dict[int, Dict[int, float]] = {i: {} for i in range(nd)}
+        for (d1, d2), count in domain_pair_counts.items():
+            if d1 == d2:
+                continue
+            i, j = d_idx[d1], d_idx[d2]
+            d_adj[i][j] = d_adj[i].get(j, 0.0) + count
+            d_adj[j][i] = d_adj[j].get(i, 0.0) + count
+
+        # Domain connectivity: what fraction of domain pairs are connected?
+        connected_pairs = sum(1 for i in range(nd) for j in d_adj[i] if j > i)
+        max_pairs = nd * (nd - 1) // 2
+        connectivity = connected_pairs / max(max_pairs, 1)
+
+        # --- 4. Cross-domain mutual information ---
+        # MI between domain membership and node-type distribution
+        # High MI = domains are well-differentiated (each has unique node types)
+        # We want moderate MI (domains are different but interconnected)
+        mi = 0.0
+        if total_edges > 0:
+            # Joint distribution P(source_domain, target_domain) from edges
+            for (d1, d2), count in domain_pair_counts.items():
+                p_joint = count / total_edges
+                p_d1 = domain_out_counts.get(d1, 0) / total_edges
+                # Marginal for d2: sum of all pairs involving d2
+                p_d2_edges = sum(
+                    c for (a, b), c in domain_pair_counts.items()
+                    if b == d2 or a == d2
+                ) / total_edges
+                if p_joint > 0 and p_d1 > 0 and p_d2_edges > 0:
+                    mi += p_joint * math.log(p_joint / (p_d1 * p_d2_edges) + 1e-12)
+            # Normalize MI by log(n_domains) so it's in [0, ~1]
+            mi = max(0.0, mi / math.log(max(n_domains, 2)))
+
+        # --- Combine: weighted sum normalized to [0, 1] ---
+        # cross_ratio: [0, 1] — fraction of edges between domains
+        # connectivity: [0, 1] — fraction of domain pairs connected
+        # mi: [0, ~1] — normalized mutual information
+        phi_macro = (
+            0.4 * cross_ratio
+            + 0.35 * connectivity
+            + 0.25 * min(1.0, mi)
+        )
+
+        logger.debug(
+            "phi_macro=%.4f (cross_ratio=%.3f, connectivity=%.3f, mi=%.4f, "
+            "domains=%d, cross_edges=%d/%d)",
+            phi_macro, cross_ratio, connectivity, mi, n_domains,
+            cross_edges, total_edges,
+        )
+
+        return max(0.0, min(1.0, phi_macro))
 
     # ========================================================================
     # Helper: Build weighted adjacency for MI spectral bisection

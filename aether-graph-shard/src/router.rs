@@ -37,11 +37,15 @@ pub struct ShardRouter {
 
 impl ShardRouter {
     /// Create a new router with the given base directory.
-    pub fn new(data_dir: &str, cache_per_shard: usize) -> Self {
+    ///
+    /// `sub_shards_per_domain`: number of sub-shards per domain (1..=256).
+    /// Start with 1 for simple setups, scale to 16 or 256 as node count grows.
+    pub fn new(data_dir: &str, cache_per_shard: usize, sub_shards_per_domain: u32) -> Self {
+        let sub_shards = sub_shards_per_domain.clamp(1, MAX_SUB_SHARDS);
         Self {
             shards: DashMap::new(),
             global_merkle: RwLock::new(GlobalMerkle::new()),
-            sub_shards: DEFAULT_SUB_SHARDS,
+            sub_shards,
             data_dir: data_dir.to_string(),
             cache_per_shard,
         }

@@ -466,6 +466,7 @@ class GraphShardClient:
                         timestamp=time.time(),
                         domain=n.get("domain", "general"),
                         grounding_source=n.get("grounding_source", ""),
+                        embedding=n.get("embedding") or [],
                     )
                     yield _pb2.PutNodeRequest(node=record)
 

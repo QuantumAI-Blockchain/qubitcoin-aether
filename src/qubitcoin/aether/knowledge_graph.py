@@ -779,6 +779,7 @@ class KnowledgeGraph:
 
             # Process vector embeddings (model.encode — expensive but off critical path)
             # Also persist embeddings to CockroachDB for pgvector HNSW search
+            # AND replicate to distributed shard service for HNSW vector search
             embed_updates: List[Tuple[int, List[float]]] = []
             for item in vec_items:
                 try:
@@ -806,6 +807,9 @@ class KnowledgeGraph:
                         session.commit()
                 except Exception as e:
                     logger.debug(f"Embedding DB persist failed: {e}")
+
+                # Replicate embeddings to distributed shard service (HNSW vector index)
+                self._shard_replicate_embeddings(embed_updates)
 
         # Drain remaining items on shutdown
         remaining_items = []
@@ -982,6 +986,43 @@ class KnowledgeGraph:
         except Exception:
             pass  # Best-effort replication
 
+    def _shard_replicate_embeddings(self, embed_updates: list) -> None:
+        """Fire-and-forget replication of embeddings to shard service.
+
+        Called by the async writer after computing embeddings. Updates the
+        shard service nodes with their embedding vectors so the Rust HNSW
+        vector index is populated.
+        """
+        client = getattr(self, '_shard_client', None)
+        loop = getattr(self, '_shard_loop', None)
+        if client is None or loop is None or not client.connected:
+            return
+        if not embed_updates:
+            return
+
+        for node_id, embedding in embed_updates:
+            try:
+                node = self.nodes.get(node_id)
+                if node is None:
+                    continue
+                content = node.content if isinstance(node.content, dict) else {}
+                str_content = {str(k): str(v) for k, v in content.items()}
+                asyncio.run_coroutine_threadsafe(
+                    client.put_node(
+                        node_id=node.node_id,
+                        node_type=node.node_type,
+                        content=str_content,
+                        confidence=node.confidence,
+                        source_block=node.source_block,
+                        domain=node.domain or 'general',
+                        grounding_source=node.grounding_source or '',
+                        embedding=embedding,
+                    ),
+                    loop,
+                )
+            except Exception:
+                pass  # Best-effort replication
+
     def sync_all_to_shards(self) -> dict:
         """Bulk-load ALL in-memory nodes and edges to the shard service.
 
@@ -1004,13 +1045,20 @@ class KnowledgeGraph:
 
         logger.info("sync_all_to_shards: %d nodes, %d edges", len(all_nodes), len(all_edges))
 
-        # Bulk-load nodes in batches
+        # Bulk-load nodes in batches (with embeddings from vector_index)
         nodes_synced = 0
+        embed_count = 0
         for i in range(0, len(all_nodes), BATCH):
             batch = all_nodes[i:i + BATCH]
             records = []
             for n in batch:
                 content = n.content if isinstance(n.content, dict) else {}
+                # Include embedding if available in vector_index
+                embedding = None
+                if hasattr(self, 'vector_index') and self.vector_index:
+                    embedding = self.vector_index.get_vector(n.node_id)
+                if embedding:
+                    embed_count += 1
                 records.append({
                     "node_id": n.node_id,
                     "node_type": n.node_type,
@@ -1019,6 +1067,7 @@ class KnowledgeGraph:
                     "source_block": n.source_block,
                     "domain": n.domain or "general",
                     "grounding_source": n.grounding_source or "",
+                    "embedding": embedding,
                 })
 
             future = asyncio.run_coroutine_threadsafe(
@@ -1065,6 +1114,7 @@ class KnowledgeGraph:
         stats = {
             "nodes_synced": nodes_synced,
             "edges_synced": edges_synced,
+            "embeddings_synced": embed_count,
             "total_nodes": len(all_nodes),
             "total_edges": len(all_edges),
             "duration_s": round(elapsed, 1),

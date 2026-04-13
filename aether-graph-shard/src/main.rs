@@ -31,6 +31,7 @@ struct Config {
     port: u16,
     data_dir: String,
     cache_per_shard: usize,
+    sub_shards: u32,
 }
 
 impl Config {
@@ -46,6 +47,11 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(100_000),
+            sub_shards: std::env::var("GRAPH_SHARD_SUB_SHARDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .map(|v: u32| v.clamp(1, 256))
+                .unwrap_or(1),
         }
     }
 }
@@ -68,11 +74,16 @@ async fn main() -> anyhow::Result<()> {
         port = config.port,
         data_dir = %config.data_dir,
         cache_per_shard = config.cache_per_shard,
+        sub_shards = config.sub_shards,
         "Starting Aether Graph Shard Service"
     );
 
     // Initialize the shard router with all domain shards
-    let router = Arc::new(ShardRouter::new(&config.data_dir, config.cache_per_shard));
+    let router = Arc::new(ShardRouter::new(
+        &config.data_dir,
+        config.cache_per_shard,
+        config.sub_shards,
+    ));
     router.init_shards()?;
 
     let stats = router.global_stats();
