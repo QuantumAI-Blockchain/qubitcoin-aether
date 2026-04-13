@@ -34,10 +34,10 @@ export function StatsBar() {
       value: phi?.knowledge_nodes?.toLocaleString() ?? "---",
     },
     {
-      label: "Graph Edges",
+      label: t("graphEdges"),
       value: engineInfo?.edge_count ? engineInfo.edge_count.toLocaleString() : (phi?.knowledge_edges?.toLocaleString() ?? "---"),
     },
-    { label: "Gates", value: `${gatesPassed}/${gatesTotal}` },
+    { label: t("gates"), value: `${gatesPassed}/${gatesTotal}` },
   ];
 
   return (

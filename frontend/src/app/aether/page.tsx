@@ -30,12 +30,18 @@ const KnowledgeGraph3D = dynamic(
 );
 
 interface Message {
+  id: string;
   role: "user" | "aether";
   text: string;
   reasoning?: string[];
   potHash?: string;
   phi?: number;
   emotionalState?: Record<string, number>;
+}
+
+let _msgCounter = 0;
+function nextMsgId(): string {
+  return `msg-${Date.now()}-${++_msgCounter}`;
 }
 
 function deriveTitle(messages: Message[]): string {
@@ -94,11 +100,12 @@ function ReasoningTraceView({ steps, potHash }: { steps: string[]; potHash?: str
         <div className="absolute left-[5px] top-1 bottom-1 w-px bg-border-subtle" />
 
         {steps.map((step, si) => {
+          const detected = detectReasoningType(step);
           const rType = si === 0
-            ? detectReasoningType(step) === "deductive" ? "observation" : detectReasoningType(step)
+            ? detected === "deductive" ? "observation" : detected
             : si === steps.length - 1
               ? "conclusion"
-              : detectReasoningType(step);
+              : detected;
           const style = REASONING_STYLES[rType];
           const cleanStep = stripTypePrefix(step);
 
@@ -202,15 +209,16 @@ function AetherPageContent() {
     const text = input.trim();
     if (!text || loading) return;
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", text }]);
+    setMessages((prev) => [...prev, { id: nextMsgId(), role: "user", text }]);
     setLoading(true);
 
     try {
       // Try streaming from Aether Engine (Rust) first — instant TTFT
       let fullResponse = "";
+      const aetherId = nextMsgId();
       setMessages((prev) => {
         setStreamingIdx(prev.length);
-        return [...prev, { role: "aether" as const, text: "" }];
+        return [...prev, { id: aetherId, role: "aether" as const, text: "" }];
       });
 
       let sources: Array<{ node_id: number; summary: string; confidence: number }> = [];
@@ -264,6 +272,7 @@ function AetherPageContent() {
           return [
             ...filtered,
             {
+              id: nextMsgId(),
               role: "aether",
               text: res.response,
               reasoning: res.reasoning_trace,
@@ -278,7 +287,7 @@ function AetherPageContent() {
           const filtered = prev.filter((m) => !(m.role === "aether" && m.text === ""));
           return [
             ...filtered,
-            { role: "aether", text: "Unable to reach Aether Tree. The node may be offline." },
+            { id: nextMsgId(), role: "aether", text: "Unable to reach Aether Tree. The node may be offline." },
           ];
         });
         toast("Failed to reach Aether Tree", "error");
@@ -299,12 +308,14 @@ function AetherPageContent() {
     // Try local first, then fall back to server
     const local = loadSessionMessages(session.id) as Message[];
     if (local.length > 0) {
-      setMessages(local);
+      // Ensure loaded messages have IDs (older sessions may lack them)
+      setMessages(local.map((m) => ({ ...m, id: m.id || nextMsgId() })));
     } else {
       // Attempt to load from server
       try {
         const res = await api.getConversationMessages(session.id);
         const serverMsgs: Message[] = (res.messages ?? []).map((m) => ({
+          id: nextMsgId(),
           role: m.role as "user" | "aether",
           text: m.content,
           reasoning: m.reasoning_trace,
@@ -362,6 +373,9 @@ function AetherPageContent() {
           {/* Tab bar */}
           <div className="flex items-center gap-1 border-b border-border-subtle px-4">
             <button
+              role="tab"
+              aria-selected={activeTab === "chat"}
+              aria-controls="aether-chat-panel"
               onClick={() => setActiveTab("chat")}
               className={`px-4 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === "chat"
@@ -372,6 +386,9 @@ function AetherPageContent() {
               Chat
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === "graph"}
+              aria-controls="aether-graph-panel"
               onClick={() => setActiveTab("graph")}
               className={`px-4 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === "graph"
@@ -417,7 +434,7 @@ function AetherPageContent() {
 
                   {messages.map((m, i) => (
                     <motion.div
-                      key={i}
+                      key={m.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}

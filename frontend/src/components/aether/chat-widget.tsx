@@ -97,6 +97,7 @@ export function ChatWidget() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
+          aria-label="Open Aether chat"
           className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-quantum-violet text-white shadow-lg transition hover:scale-105 hover:bg-quantum-violet/90"
         >
           <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">

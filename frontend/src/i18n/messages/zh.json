@@ -31,7 +31,9 @@
     "phi": "Phi (\u03A6)",
     "knowledgeNodes": "\u77e5\u8bc6\u8282\u70b9",
     "difficulty": "\u96be\u5ea6",
-    "peers": "\u8282\u70b9\u6570"
+    "peers": "\u8282\u70b9\u6570",
+    "graphEdges": "\u56fe\u8fb9\u6570",
+    "gates": "\u95e8\u63a7"
   },
   "features": {
     "coreTitle": "\u6838\u5fc3\u6280\u672f",

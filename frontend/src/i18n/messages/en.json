@@ -31,7 +31,9 @@
     "phi": "Phi (\u03A6)",
     "knowledgeNodes": "Knowledge Nodes",
     "difficulty": "Difficulty",
-    "peers": "Peers"
+    "peers": "Peers",
+    "graphEdges": "Graph Edges",
+    "gates": "Gates"
   },
   "features": {
     "coreTitle": "Core Technology",

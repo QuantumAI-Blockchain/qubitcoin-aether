@@ -856,7 +856,7 @@ function GraphShardCard() {
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-bg-deep">
             <div
               className="h-full rounded-full bg-gradient-to-r from-quantum-violet to-quantum-green transition-all duration-700"
-              style={{ width: `${(gatesPassed / gatesTotal) * 100}%` }}
+              style={{ width: `${(gatesPassed / Math.max(gatesTotal, 1)) * 100}%` }}
             />
           </div>
           {phi?.phi != null && (

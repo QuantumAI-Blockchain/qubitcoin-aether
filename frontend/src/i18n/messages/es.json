@@ -31,7 +31,9 @@
     "phi": "Phi (\u03A6)",
     "knowledgeNodes": "Nodos de Conocimiento",
     "difficulty": "Dificultad",
-    "peers": "Pares"
+    "peers": "Pares",
+    "graphEdges": "Aristas del Grafo",
+    "gates": "Puertas"
   },
   "features": {
     "coreTitle": "Tecnolog\u00eda Central",

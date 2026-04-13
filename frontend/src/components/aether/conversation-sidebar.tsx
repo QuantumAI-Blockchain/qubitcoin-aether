@@ -200,7 +200,7 @@ export function ConversationSidebar({
                       await api.archiveConversation(session.id);
                       queryClient.invalidateQueries({ queryKey: ["conversations", userAddress] });
                     } catch {
-                      /* archive failed — silently ignore */
+                      return; // Don't delete locally if server archive failed
                     }
                   }
                   onDelete(session.id);
