@@ -570,6 +570,16 @@ class AetherChat:
         self.memory = ChatMemory(storage_path=memory_path)
         self._axiom_hit_counts: Dict[int, int] = {}  # (#49) track axiom usage frequency
 
+        # DB-backed conversation store (institutional-grade persistence)
+        self.conversation_store = None
+        try:
+            from .conversation_store import ConversationStore
+            if db_manager:
+                self.conversation_store = ConversationStore(db_manager)
+                logger.info("ConversationStore initialized (DB-backed persistent memory)")
+        except Exception as e:
+            logger.warning(f"ConversationStore init failed (using in-memory only): {e}")
+
         # v5: Cognitive architecture (replaces templates)
         self._response_cortex = None
         self._init_cognitive_architecture()
@@ -1358,7 +1368,7 @@ class AetherChat:
         return best_content if best_score > 0 else None
 
     def create_session(self, user_address: str = '') -> ChatSession:
-        """Create a new chat session."""
+        """Create a new chat session (persisted to DB)."""
         now = time.time()
         session = ChatSession(
             session_id=str(uuid.uuid4()),
@@ -1367,6 +1377,17 @@ class AetherChat:
             user_address=user_address,
         )
         self._sessions[session.session_id] = session
+
+        # Persist to DB
+        if self.conversation_store:
+            try:
+                user_id = user_address or session.session_id
+                self.conversation_store.create_session(
+                    user_id=user_id,
+                    user_address=user_address,
+                )
+            except Exception as e:
+                logger.debug(f"DB session persist failed: {e}")
 
         # Clean up expired sessions periodically
         self._cleanup_expired_sessions()
@@ -1464,9 +1485,37 @@ class AetherChat:
         # Load cross-session user memories for context enrichment
         user_memories: Dict[str, str] = {}
         try:
-            user_memories = self.memory.recall_all(user_id)
+            # Prefer DB-backed memories from ConversationStore
+            if self.conversation_store:
+                user_memories = self.conversation_store.get_user_memories(user_id)
+            if not user_memories:
+                user_memories = self.memory.recall_all(user_id)
         except Exception as e:
             logger.debug(f"Memory recall failed: {e}")
+            try:
+                user_memories = self.memory.recall_all(user_id)
+            except Exception:
+                pass
+
+        # Load cross-session context (prior conversation summaries)
+        cross_session_context: str = ''
+        if self.conversation_store:
+            try:
+                ctx = self.conversation_store.build_context(session_id, user_id)
+                prior = ctx.get('prior_sessions', [])
+                total = ctx.get('total_interactions', 0)
+                if prior:
+                    parts = [f"[Prior conversations ({total} total messages):"]
+                    for ps in prior[:3]:
+                        parts.append(f"  - {ps.get('title', 'Untitled')}: {ps.get('summary', '')[:100]}")
+                    parts.append("]")
+                    cross_session_context = ' '.join(parts)
+            except Exception as e:
+                logger.debug(f"Cross-session context load failed: {e}")
+
+        # Add cross-session context to user memories for downstream use
+        if cross_session_context:
+            user_memories['_cross_session_context'] = cross_session_context
 
         # Handle "remember" command (#18)
         if intent == 'remember_cmd':
@@ -3552,12 +3601,63 @@ class AetherChat:
     # ------------------------------------------------------------------
 
     def _persist_session_to_db(self, session: ChatSession) -> None:
-        """Save chat session to CockroachDB when it has 5+ messages.
+        """Save chat session to CockroachDB via ConversationStore.
+
+        Persists the last two messages (user + aether) to the new normalized
+        conversation_messages table. Falls back to legacy blob storage.
 
         Args:
             session: The chat session to persist.
         """
-        if len(session.messages) < 5 or not self.db:
+        if not self.db:
+            return
+
+        # New: Per-message persistence via ConversationStore
+        if self.conversation_store and len(session.messages) >= 2:
+            try:
+                from .conversation_store import ConversationMessage
+                # Persist the last 2 messages (user msg + aether response)
+                for msg in session.messages[-2:]:
+                    conv_msg = ConversationMessage(
+                        session_id=session.session_id,
+                        role=msg.role,
+                        content=msg.content,
+                        reasoning_trace=msg.reasoning_trace,
+                        phi_at_response=msg.phi_at_response,
+                        knowledge_nodes_referenced=msg.knowledge_nodes_referenced,
+                        proof_of_thought_hash=msg.proof_of_thought_hash,
+                    )
+                    self.conversation_store.save_message(conv_msg)
+
+                # Update session metadata
+                self.conversation_store.update_session(
+                    session_id=session.session_id,
+                    primary_topic=session.current_topic,
+                    topics=session.recent_topics,
+                )
+
+                # Auto-title on first message pair
+                if session.messages_sent <= 2:
+                    self.conversation_store.auto_title(session.session_id)
+
+                # Extract and save user memories from conversation
+                user_id = session.user_address or session.session_id
+                if len(session.messages) >= 2:
+                    user_msg = session.messages[-2]
+                    aether_msg = session.messages[-1]
+                    new_memories = self.memory.extract_memories(user_msg.content, aether_msg.content)
+                    for mk, mv in new_memories.items():
+                        self.conversation_store.remember(user_id, mk, mv, source='auto')
+
+                logger.debug(
+                    f"Persisted 2 messages for session {session.session_id[:8]} "
+                    f"to ConversationStore"
+                )
+            except Exception as e:
+                logger.debug(f"ConversationStore persist failed: {e}")
+
+        # Legacy: blob persistence (kept for backward compat)
+        if len(session.messages) < 5:
             return
 
         try:
@@ -3570,7 +3670,6 @@ class AetherChat:
                 'messages': [m.to_dict() for m in session.messages],
             }
 
-            # Use raw SQL upsert to persist session
             if hasattr(self.db, 'execute_raw'):
                 self.db.execute_raw(
                     """INSERT INTO aether_chat_sessions
@@ -3585,12 +3684,8 @@ class AetherChat:
                      session.created_at, session.last_activity,
                      session.messages_sent, json.dumps(session_data['messages'])),
                 )
-                logger.debug(
-                    f"Persisted session {session.session_id[:8]} "
-                    f"({len(session.messages)} messages) to DB"
-                )
         except Exception as e:
-            logger.debug(f"Session DB persistence skipped: {e}")
+            logger.debug(f"Legacy session DB persistence skipped: {e}")
 
     def _load_session_from_db(self, session_id: str) -> Optional[ChatSession]:
         """Load a chat session from CockroachDB.

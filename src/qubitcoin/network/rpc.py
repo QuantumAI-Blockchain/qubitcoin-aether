@@ -2435,6 +2435,75 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         return session.to_dict()
 
     # ========================================================================
+    # CONVERSATION MEMORY (DB-backed)
+    # ========================================================================
+
+    @app.get("/aether/conversations/{user_id}")
+    async def get_user_conversations(user_id: str, limit: int = 20, status: str = 'active'):
+        """Get all conversation sessions for a user."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, _ = _get_chat()
+        if not chat.conversation_store:
+            raise HTTPException(status_code=503, detail="ConversationStore not available")
+        sessions = chat.conversation_store.get_user_sessions(user_id, limit=min(limit, 100), status=status)
+        return {"sessions": [s.to_dict() for s in sessions], "count": len(sessions)}
+
+    @app.get("/aether/conversations/{user_id}/memories")
+    async def get_user_memories(user_id: str):
+        """Get all persistent memories for a user."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, _ = _get_chat()
+        if not chat.conversation_store:
+            raise HTTPException(status_code=503, detail="ConversationStore not available")
+        memories = chat.conversation_store.get_user_memories(user_id)
+        return {"memories": memories, "count": len(memories)}
+
+    @app.get("/aether/conversations/{user_id}/insights")
+    async def get_user_insights(user_id: str, limit: int = 20):
+        """Get conversation insights for a user."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, _ = _get_chat()
+        if not chat.conversation_store:
+            raise HTTPException(status_code=503, detail="ConversationStore not available")
+        insights = chat.conversation_store.get_user_insights(user_id, limit=min(limit, 100))
+        return {"insights": insights, "count": len(insights)}
+
+    @app.get("/aether/conversation/messages/{session_id}")
+    async def get_conversation_messages(session_id: str, limit: int = 50, offset: int = 0):
+        """Get persisted messages for a conversation session."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, _ = _get_chat()
+        if not chat.conversation_store:
+            raise HTTPException(status_code=503, detail="ConversationStore not available")
+        messages = chat.conversation_store.get_messages(session_id, limit=min(limit, 200), offset=offset)
+        return {"messages": [m.to_dict() for m in messages], "count": len(messages)}
+
+    @app.get("/aether/conversation/stats")
+    async def get_conversation_stats():
+        """Get conversation store statistics."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, _ = _get_chat()
+        if not chat.conversation_store:
+            return {"status": "not_initialized"}
+        return chat.conversation_store.get_stats()
+
+    @app.post("/aether/conversation/archive/{session_id}")
+    async def archive_conversation(session_id: str):
+        """Archive a conversation session."""
+        if not aether_engine:
+            raise HTTPException(status_code=503, detail="Aether Tree not available")
+        chat, _ = _get_chat()
+        if not chat.conversation_store:
+            raise HTTPException(status_code=503, detail="ConversationStore not available")
+        chat.conversation_store.archive_session(session_id)
+        return {"status": "archived", "session_id": session_id}
+
+    # ========================================================================
     # LLM / KNOWLEDGE SEEDER STATS
     # ========================================================================
 

@@ -168,6 +168,83 @@ pub struct ConsciousnessEventRow {
 }
 
 // ---------------------------------------------------------------------------
+// conversation_sessions
+// ---------------------------------------------------------------------------
+
+/// Row from the `conversation_sessions` table.
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ConversationSessionRow {
+    pub session_id: uuid::Uuid,
+    pub user_id: String,
+    pub user_address: String,
+    pub title: String,
+    pub created_at: NaiveDateTime,
+    pub last_activity: NaiveDateTime,
+    pub expires_at: NaiveDateTime,
+    pub message_count: i32,
+    pub fees_paid_atoms: i64,
+    pub status: String,
+    pub context_summary: String,
+    pub primary_topic: String,
+    pub topics: JsonValue,
+}
+
+// ---------------------------------------------------------------------------
+// conversation_messages
+// ---------------------------------------------------------------------------
+
+/// Row from the `conversation_messages` table.
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ConversationMessageRow {
+    pub id: i64,
+    pub session_id: uuid::Uuid,
+    pub role: String,
+    pub content: String,
+    pub content_hash: String,
+    pub created_at: NaiveDateTime,
+    pub reasoning_trace: JsonValue,
+    pub phi_at_response: f64,
+    pub knowledge_nodes_referenced: JsonValue,
+    pub proof_of_thought_hash: String,
+    pub quality_score: f64,
+    pub intent: String,
+    pub entities: JsonValue,
+}
+
+// ---------------------------------------------------------------------------
+// user_memory
+// ---------------------------------------------------------------------------
+
+/// Row from the `user_memory` table.
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct UserMemoryRow {
+    pub id: i64,
+    pub user_id: String,
+    pub memory_key: String,
+    pub memory_value: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub source: String,
+}
+
+// ---------------------------------------------------------------------------
+// conversation_insights
+// ---------------------------------------------------------------------------
+
+/// Row from the `conversation_insights` table.
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ConversationInsightRow {
+    pub id: i64,
+    pub session_id: uuid::Uuid,
+    pub user_id: String,
+    pub insight_type: String,
+    pub content: String,
+    pub confidence: f64,
+    pub knowledge_node_id: Option<i64>,
+    pub created_at: NaiveDateTime,
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 

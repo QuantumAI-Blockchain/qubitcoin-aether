@@ -24,13 +24,16 @@ pub mod repo;
 
 pub use error::{PersistenceError, Result};
 pub use models::{
-    ConsciousnessEventRow, KnowledgeEdgeRow, KnowledgeNodeRow,
-    PhiMeasurementRow, ReasoningOperationRow,
+    ConsciousnessEventRow, ConversationInsightRow, ConversationMessageRow,
+    ConversationSessionRow, KnowledgeEdgeRow, KnowledgeNodeRow,
+    PhiMeasurementRow, ReasoningOperationRow, UserMemoryRow,
 };
 pub use pool::create_pool;
 pub use repo::{
-    ConsciousnessRepo, KnowledgeEdgeRepo, KnowledgeNodeRepo,
-    PhiRepo, ReasoningRepo,
+    ConsciousnessRepo, ConversationInsightRepo, ConversationMessageRepo,
+    ConversationSessionRepo, KnowledgeEdgeRepo, KnowledgeNodeRepo,
+    PhiRepo, ReasoningRepo, UserMemoryRepo,
+    ensure_conversation_tables,
 };
 
 // Re-export PgPool so downstream crates don't need a direct sqlx dependency.
