@@ -2095,6 +2095,35 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         removed = aether_engine.kg.prune_low_confidence(threshold)
         return {"removed": removed, "remaining_nodes": len(aether_engine.kg.nodes)}
 
+    @app.post("/aether/shard/sync")
+    async def shard_sync(
+        x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    ):
+        """Bulk-sync all KG nodes/edges to the distributed shard service (admin auth required)."""
+        _require_admin_key(x_admin_key)
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        import asyncio
+        result = await asyncio.to_thread(aether_engine.kg.sync_all_to_shards)
+        return result
+
+    @app.get("/aether/shard/stats")
+    async def shard_stats():
+        """Get distributed shard service statistics."""
+        if not aether_engine or not aether_engine.kg:
+            raise HTTPException(status_code=503, detail="Knowledge graph not available")
+        client = getattr(aether_engine.kg, '_shard_client', None)
+        loop = getattr(aether_engine.kg, '_shard_loop', None)
+        if client is None or loop is None or not client.connected:
+            return {"error": "shard client not connected"}
+        import asyncio as _aio
+        future = _aio.run_coroutine_threadsafe(client.get_stats(), loop)
+        try:
+            stats = future.result(timeout=10.0)
+            return stats or {"error": "no stats returned"}
+        except Exception as e:
+            return {"error": str(e)}
+
     @app.get("/aether/knowledge/export")
     async def knowledge_export(limit: int = 0, format: str = "json-ld"):
         """Export knowledge graph in JSON-LD format."""

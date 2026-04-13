@@ -173,6 +173,8 @@ services:
       - AETHER_CONTRADICTION_RESOLVE_INTERVAL=149
       # Chain sync: peer RPC URL for catching up on blocks
       - SYNC_PEER_URL=${SYNC_PEER_URL:-}
+      # Distributed Graph Shard Service (trillion-node KG)
+      - GRAPH_SHARD_ADDR=graph-shard:50053
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -418,10 +420,11 @@ services:
     networks:
       - qbc-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:51053/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:51053/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 15s
 
 # ── Named Volumes ───────────────────────────────────────────────────────
 volumes:

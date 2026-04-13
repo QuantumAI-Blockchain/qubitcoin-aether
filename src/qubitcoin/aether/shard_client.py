@@ -451,6 +451,37 @@ class GraphShardClient:
             logger.warning("bulk_put_nodes failed: %s", e)
             return None
 
+    async def bulk_put_edges(
+        self, edges: list[dict[str, Any]]
+    ) -> Optional[dict[str, Any]]:
+        """Bulk insert edges via streaming RPC."""
+        if not self._connected:
+            return None
+
+        try:
+            async def edge_stream():
+                for e in edges:
+                    record = _pb2.EdgeRecord(
+                        from_node_id=e["from_node_id"],
+                        to_node_id=e["to_node_id"],
+                        edge_type=e.get("edge_type", "supports"),
+                        weight=e.get("weight", 1.0),
+                        timestamp=time.time(),
+                    )
+                    yield _pb2.PutEdgeRequest(edge=record)
+
+            resp = await self._stub.BulkPutEdges(
+                edge_stream(), timeout=300.0
+            )
+            return {
+                "edges_written": resp.edges_written,
+                "errors": resp.errors,
+                "duration_ms": resp.duration_ms,
+            }
+        except Exception as e:
+            logger.warning("bulk_put_edges failed: %s", e)
+            return None
+
 
 # ── Helper conversions ─────────────────────────────────────────────
 

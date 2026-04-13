@@ -982,6 +982,96 @@ class KnowledgeGraph:
         except Exception:
             pass  # Best-effort replication
 
+    def sync_all_to_shards(self) -> dict:
+        """Bulk-load ALL in-memory nodes and edges to the shard service.
+
+        Returns stats dict with nodes_synced, edges_synced, duration_s.
+        Runs synchronously — may take 30-120s for 100K+ nodes.
+        """
+        client = getattr(self, '_shard_client', None)
+        loop = getattr(self, '_shard_loop', None)
+        if client is None or loop is None or not client.connected:
+            return {"error": "shard client not connected"}
+
+        import time as _time
+        t0 = _time.time()
+        BATCH = 500
+
+        # Collect all nodes
+        with self._lock:
+            all_nodes = list(self.nodes.values())
+            all_edges = list(self.edges)
+
+        logger.info("sync_all_to_shards: %d nodes, %d edges", len(all_nodes), len(all_edges))
+
+        # Bulk-load nodes in batches
+        nodes_synced = 0
+        for i in range(0, len(all_nodes), BATCH):
+            batch = all_nodes[i:i + BATCH]
+            records = []
+            for n in batch:
+                content = n.content if isinstance(n.content, dict) else {}
+                records.append({
+                    "node_id": n.node_id,
+                    "node_type": n.node_type,
+                    "content": {str(k): str(v) for k, v in content.items()},
+                    "confidence": n.confidence,
+                    "source_block": n.source_block,
+                    "domain": n.domain or "general",
+                    "grounding_source": n.grounding_source or "",
+                })
+
+            future = asyncio.run_coroutine_threadsafe(
+                client.bulk_put_nodes(records), loop
+            )
+            try:
+                result = future.result(timeout=60.0)
+                if result:
+                    nodes_synced += result.get("nodes_written", 0)
+            except Exception as exc:
+                logger.warning("sync_all_to_shards batch %d failed: %s", i, exc)
+
+            if (i // BATCH) % 20 == 0:
+                logger.info("sync_all_to_shards: %d/%d nodes", nodes_synced, len(all_nodes))
+
+        # Bulk-load edges in batches
+        edges_synced = 0
+        EDGE_BATCH = 2000
+        for i in range(0, len(all_edges), EDGE_BATCH):
+            batch = all_edges[i:i + EDGE_BATCH]
+            records = [
+                {
+                    "from_node_id": e.from_node_id,
+                    "to_node_id": e.to_node_id,
+                    "edge_type": e.edge_type,
+                    "weight": e.weight,
+                }
+                for e in batch
+            ]
+            future = asyncio.run_coroutine_threadsafe(
+                client.bulk_put_edges(records), loop
+            )
+            try:
+                result = future.result(timeout=120.0)
+                if result:
+                    edges_synced += result.get("edges_written", 0)
+            except Exception as exc:
+                logger.warning("sync_all_to_shards edge batch %d failed: %s", i, exc)
+
+            if (i // EDGE_BATCH) % 20 == 0:
+                logger.info("sync_all_to_shards: %d/%d edges", edges_synced, len(all_edges))
+
+        elapsed = _time.time() - t0
+        stats = {
+            "nodes_synced": nodes_synced,
+            "edges_synced": edges_synced,
+            "total_nodes": len(all_nodes),
+            "total_edges": len(all_edges),
+            "duration_s": round(elapsed, 1),
+        }
+        logger.info("sync_all_to_shards complete: %s", stats)
+        return stats
+
     def get_node(self, node_id: int) -> Optional[KeterNode]:
         """Return a KeterNode by its ID, or None if not found.
 
