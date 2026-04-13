@@ -18,6 +18,14 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Rust acceleration
+_RUST_AVAILABLE = False
+try:
+    from .rust_bridge import RUST_AVAILABLE, RustMetacognitionEngine
+    _RUST_AVAILABLE = RUST_AVAILABLE and RustMetacognitionEngine is not None
+except ImportError:
+    pass
+
 
 class MetacognitiveLoop:
     """

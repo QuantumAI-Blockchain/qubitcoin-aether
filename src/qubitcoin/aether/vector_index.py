@@ -27,6 +27,14 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Rust acceleration
+_RUST_AVAILABLE = False
+try:
+    from .rust_bridge import RUST_AVAILABLE, RustVectorIndex, RustHNSWIndex
+    _RUST_AVAILABLE = RUST_AVAILABLE and RustVectorIndex is not None
+except ImportError:
+    pass
+
 # Lazy-loaded transformer model
 _model = None
 _model_load_attempted = False

@@ -218,11 +218,15 @@ dependencies = [
 name = "aether-pyo3"
 version = "0.1.0"
 dependencies = [
+ "aether-cognitive",
  "aether-graph",
+ "aether-infra",
  "aether-memory",
  "aether-neural",
  "aether-persistence",
  "aether-phi",
+ "aether-reasoning",
+ "aether-safety",
  "aether-sephirot",
  "aether-types",
  "pyo3",

@@ -24,6 +24,14 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Rust acceleration
+_RUST_AVAILABLE = False
+try:
+    from .rust_bridge import RUST_AVAILABLE, RustGevurahVeto, RustSafetyManager, RustContentFilter
+    _RUST_AVAILABLE = RUST_AVAILABLE and RustGevurahVeto is not None
+except ImportError:
+    pass
+
 # BFT threshold — 67% of validators must agree
 BFT_THRESHOLD = 0.67
 

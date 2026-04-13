@@ -21,6 +21,14 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Rust acceleration (standalone engine for compute-heavy paths)
+_RUST_AVAILABLE = False
+try:
+    from .rust_bridge import RUST_AVAILABLE, RustCuriosityEngine
+    _RUST_AVAILABLE = RUST_AVAILABLE and RustCuriosityEngine is not None
+except ImportError:
+    pass
+
 _ROLLING_WINDOW = 100
 
 

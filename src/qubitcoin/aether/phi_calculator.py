@@ -32,6 +32,14 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from ..config import Config
 from ..utils.logger import get_logger
 
+# Rust acceleration
+_RUST_AVAILABLE = False
+try:
+    from .rust_bridge import RUST_AVAILABLE, RustPhiCalculator
+    _RUST_AVAILABLE = RUST_AVAILABLE and RustPhiCalculator is not None
+except ImportError:
+    pass
+
 # Golden ratio for HMS-Phi formula
 _PHI_RATIO: float = 1.618033988749895
 # Exponents: 1/φ, 1/φ², 1/φ³

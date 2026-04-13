@@ -18,6 +18,14 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Rust acceleration
+_RUST_AVAILABLE = False
+try:
+    from .rust_bridge import RUST_AVAILABLE, RustKnowledgeGraph, RustKeterNode
+    _RUST_AVAILABLE = RUST_AVAILABLE and RustKnowledgeGraph is not None
+except ImportError:
+    pass
+
 
 @dataclass
 class KeterNode:

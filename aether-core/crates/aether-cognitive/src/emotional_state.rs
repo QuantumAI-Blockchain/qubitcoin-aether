@@ -390,22 +390,47 @@ impl EmotionalState {
     }
 
     /// Get a snapshot of all emotion values.
+    /// Accessible as both `obj.get_states()` and `obj.states` property.
     #[pyo3(name = "get_states")]
     pub fn py_states(&self) -> PyResult<PyObject> {
-        let states = self.states();
-        Python::with_gil(|py| {
-            let dict = pyo3::types::PyDict::new(py);
-            for (k, v) in &states {
-                dict.set_item(k, v)?;
-            }
-            Ok(dict.into())
-        })
+        self._states_dict()
     }
 
-    /// Update emotional state from a JSON string of metrics.
+    /// Update emotional state from a dict of metrics (matching Python API).
     #[pyo3(name = "update")]
-    pub fn py_update(&self, metrics_json: &str) -> PyResult<()> {
-        let m: EmotionMetrics = serde_json::from_str(metrics_json).unwrap_or_default();
+    pub fn py_update(&self, metrics: &Bound<'_, pyo3::types::PyDict>) -> PyResult<()> {
+        let get_f64 = |key: &str| -> f64 {
+            metrics
+                .get_item(key)
+                .ok()
+                .flatten()
+                .and_then(|v| v.extract::<f64>().ok())
+                .unwrap_or(0.0)
+        };
+        let get_str = |key: &str, default: &str| -> String {
+            metrics
+                .get_item(key)
+                .ok()
+                .flatten()
+                .and_then(|v| v.extract::<String>().ok())
+                .unwrap_or_else(|| default.to_string())
+        };
+
+        let m = EmotionMetrics {
+            prediction_errors: get_f64("prediction_errors"),
+            prediction_accuracy: {
+                let v = get_f64("prediction_accuracy");
+                if v == 0.0 { 0.5 } else { v }
+            },
+            novel_concepts_recent: get_f64("novel_concepts_recent"),
+            unresolved_contradictions: get_f64("unresolved_contradictions"),
+            debate_verdicts_recent: get_f64("debate_verdicts_recent"),
+            cross_domain_edges_recent: get_f64("cross_domain_edges_recent"),
+            gates_passed: get_f64("gates_passed"),
+            user_interactions_recent: get_f64("user_interactions_recent"),
+            pineal_phase: get_str("pineal_phase", "wake"),
+            blocks_since_last_interaction: get_f64("blocks_since_last_interaction"),
+        };
         self.update(&m);
         Ok(())
     }
@@ -493,6 +518,35 @@ impl EmotionalState {
             dict.set_item("mood", &snap.mood)?;
             Ok(dict.into())
         })
+    }
+
+    /// Blend FEP-derived emotions into current state (matching Python API).
+    #[pyo3(name = "update_from_fep")]
+    pub fn py_update_from_fep(&self, fep_emotions: HashMap<String, f64>) {
+        self.update_from_fep(&fep_emotions);
+    }
+
+    /// Property alias: `obj.states` (Python compatibility).
+    #[getter(states)]
+    pub fn states_prop(&self) -> PyResult<PyObject> {
+        self._states_dict()
+    }
+
+    fn _states_dict(&self) -> PyResult<PyObject> {
+        let states = self.states();
+        Python::with_gil(|py| {
+            let dict = pyo3::types::PyDict::new(py);
+            for (k, v) in &states {
+                dict.set_item(k, v)?;
+            }
+            Ok(dict.into())
+        })
+    }
+
+    /// Property alias: `obj.mood` (Python compatibility).
+    #[getter(mood)]
+    pub fn mood_prop(&self) -> String {
+        self.mood()
     }
 
     fn __repr__(&self) -> String {

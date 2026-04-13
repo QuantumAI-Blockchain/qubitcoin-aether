@@ -27,6 +27,14 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Rust acceleration
+_RUST_AVAILABLE = False
+try:
+    from .rust_bridge import RUST_AVAILABLE, RustSelfImprovementEngine
+    _RUST_AVAILABLE = RUST_AVAILABLE and RustSelfImprovementEngine is not None
+except ImportError:
+    pass
+
 # Reasoning modes tracked by this engine
 REASONING_MODES: List[str] = [
     'deductive', 'inductive', 'abductive',
