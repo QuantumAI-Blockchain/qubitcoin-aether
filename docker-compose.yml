@@ -398,6 +398,31 @@ services:
     profiles:
       - production
 
+  # ── Aether Graph Shard Service (Distributed KG) ──────────────────────
+  graph-shard:
+    build:
+      context: ./aether-graph-shard
+      dockerfile: Dockerfile
+    container_name: qbc-graph-shard
+    ports:
+      - "50053:50053"   # gRPC
+      - "51053:51053"   # Metrics/health HTTP
+    volumes:
+      - graph-shard-data:/data/graph-shards
+    environment:
+      GRAPH_SHARD_PORT: "50053"
+      GRAPH_SHARD_DATA_DIR: /data/graph-shards
+      GRAPH_SHARD_CACHE: "100000"
+      RUST_LOG: info
+    restart: unless-stopped
+    networks:
+      - qbc-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:51053/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 # ── Named Volumes ───────────────────────────────────────────────────────
 volumes:
   cockroach-data:
@@ -412,6 +437,7 @@ volumes:
   loki-data:
   certbot-conf:
   certbot-www:
+  graph-shard-data:
 
 # ── Network ─────────────────────────────────────────────────────────────
 networks:

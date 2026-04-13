@@ -1,0 +1,344 @@
+syntax = "proto3";
+package graph_shard;
+
+// ── Aether Graph Shard Service ──────────────────────────────────────
+// Distributed knowledge graph with domain-based sharding.
+// Designed for 1 trillion+ nodes across 10 Sephirot domains × 256 sub-shards.
+//
+// Architecture:
+//   Client → ShardRouter → DomainShard (RocksDB)
+//                        → CrossShardQuery (scatter-gather)
+//                        → IncrementalMerkle (per-shard roots → global root)
+
+service GraphShardService {
+    // ── Node Operations ────────────────────────────────────────────
+    rpc PutNode(PutNodeRequest) returns (PutNodeResponse);
+    rpc GetNode(GetNodeRequest) returns (GetNodeResponse);
+    rpc GetNodes(GetNodesRequest) returns (GetNodesResponse);
+    rpc DeleteNode(DeleteNodeRequest) returns (DeleteNodeResponse);
+    rpc UpdateConfidence(UpdateConfidenceRequest) returns (UpdateConfidenceResponse);
+
+    // ── Edge Operations ────────────────────────────────────────────
+    rpc PutEdge(PutEdgeRequest) returns (PutEdgeResponse);
+    rpc GetEdges(GetEdgesRequest) returns (GetEdgesResponse);
+    rpc GetNeighbors(GetNeighborsRequest) returns (GetNeighborsResponse);
+
+    // ── Search ─────────────────────────────────────────────────────
+    rpc Search(SearchRequest) returns (SearchResponse);
+    rpc VectorSearch(VectorSearchRequest) returns (VectorSearchResponse);
+    rpc DomainSearch(DomainSearchRequest) returns (DomainSearchResponse);
+    rpc CrossDomainSearch(CrossDomainSearchRequest) returns (CrossDomainSearchResponse);
+
+    // ── Merkle & Integrity ─────────────────────────────────────────
+    rpc GetMerkleRoot(MerkleRootRequest) returns (MerkleRootResponse);
+    rpc GetShardMerkleRoots(ShardMerkleRootsRequest) returns (ShardMerkleRootsResponse);
+
+    // ── Statistics & Health ────────────────────────────────────────
+    rpc GetStats(StatsRequest) returns (StatsResponse);
+    rpc GetShardStats(ShardStatsRequest) returns (ShardStatsResponse);
+    rpc HealthCheck(HealthRequest) returns (HealthResponse);
+
+    // ── Bulk Operations ────────────────────────────────────────────
+    rpc BulkPutNodes(stream PutNodeRequest) returns (BulkPutResponse);
+    rpc BulkPutEdges(stream PutEdgeRequest) returns (BulkPutResponse);
+    rpc StreamNodes(StreamNodesRequest) returns (stream NodeRecord);
+
+    // ── Shard Management ───────────────────────────────────────────
+    rpc RebalanceShards(RebalanceRequest) returns (RebalanceResponse);
+    rpc CompactShard(CompactRequest) returns (CompactResponse);
+    rpc GetShardMap(ShardMapRequest) returns (ShardMapResponse);
+}
+
+// ── Core Types ─────────────────────────────────────────────────────
+
+message NodeRecord {
+    int64 node_id = 1;
+    string node_type = 2;
+    string content_hash = 3;
+    map<string, string> content = 4;
+    double confidence = 5;
+    int64 source_block = 6;
+    double timestamp = 7;
+    string domain = 8;
+    int64 last_referenced_block = 9;
+    int64 reference_count = 10;
+    string grounding_source = 11;
+    repeated int64 edges_out = 12;
+    repeated int64 edges_in = 13;
+    repeated float embedding = 14;  // Optional dense vector (384-dim)
+}
+
+message EdgeRecord {
+    int64 from_node_id = 1;
+    int64 to_node_id = 2;
+    string edge_type = 3;
+    double weight = 4;
+    double timestamp = 5;
+}
+
+// ── Node Operations ────────────────────────────────────────────────
+
+message PutNodeRequest {
+    NodeRecord node = 1;
+    bool generate_id = 2;  // If true, service assigns next ID
+}
+
+message PutNodeResponse {
+    int64 node_id = 1;
+    uint32 shard_id = 2;
+    string merkle_proof = 3;  // Optional proof of inclusion
+}
+
+message GetNodeRequest {
+    int64 node_id = 1;
+}
+
+message GetNodeResponse {
+    NodeRecord node = 1;
+    bool found = 2;
+    uint32 shard_id = 3;
+}
+
+message GetNodesRequest {
+    repeated int64 node_ids = 1;
+}
+
+message GetNodesResponse {
+    repeated NodeRecord nodes = 1;
+    repeated int64 missing_ids = 2;
+}
+
+message DeleteNodeRequest {
+    int64 node_id = 1;
+    bool cascade_edges = 2;
+}
+
+message DeleteNodeResponse {
+    bool deleted = 1;
+    int32 edges_removed = 2;
+}
+
+message UpdateConfidenceRequest {
+    int64 node_id = 1;
+    double new_confidence = 2;
+    int64 block_height = 3;  // For reference tracking
+}
+
+message UpdateConfidenceResponse {
+    bool updated = 1;
+    double old_confidence = 2;
+}
+
+// ── Edge Operations ────────────────────────────────────────────────
+
+message PutEdgeRequest {
+    EdgeRecord edge = 1;
+}
+
+message PutEdgeResponse {
+    bool created = 1;
+    bool updated = 2;  // If edge already existed, weight was updated
+}
+
+message GetEdgesRequest {
+    int64 node_id = 1;
+    enum Direction {
+        OUTGOING = 0;
+        INCOMING = 1;
+        BOTH = 2;
+    }
+    Direction direction = 2;
+    string edge_type_filter = 3;  // Empty = all types
+}
+
+message GetEdgesResponse {
+    repeated EdgeRecord edges = 1;
+}
+
+message GetNeighborsRequest {
+    int64 node_id = 1;
+    int32 max_hops = 2;  // 1 = direct, 2 = 2-hop, max 5
+    string edge_type_filter = 3;
+    int32 limit = 4;
+}
+
+message GetNeighborsResponse {
+    repeated NodeRecord neighbors = 1;
+    repeated EdgeRecord paths = 2;
+}
+
+// ── Search ─────────────────────────────────────────────────────────
+
+message SearchRequest {
+    string query = 1;
+    int32 top_k = 2;
+    string domain_filter = 3;  // Empty = all domains
+    double min_confidence = 4;
+    string node_type_filter = 5;
+}
+
+message SearchResponse {
+    repeated SearchResult results = 1;
+    int64 total_candidates = 2;
+    double latency_ms = 3;
+}
+
+message SearchResult {
+    NodeRecord node = 1;
+    double score = 2;
+    string match_type = 3;  // "keyword", "semantic", "hybrid"
+}
+
+message VectorSearchRequest {
+    repeated float query_embedding = 1;
+    int32 top_k = 2;
+    string domain_filter = 3;
+    double min_similarity = 4;
+}
+
+message VectorSearchResponse {
+    repeated SearchResult results = 1;
+    double latency_ms = 2;
+}
+
+message DomainSearchRequest {
+    string domain = 1;
+    string query = 2;
+    int32 top_k = 3;
+    double min_confidence = 4;
+}
+
+message DomainSearchResponse {
+    repeated SearchResult results = 1;
+    int64 domain_node_count = 2;
+}
+
+message CrossDomainSearchRequest {
+    repeated string domains = 1;
+    string query = 2;
+    int32 top_k_per_domain = 3;
+    double min_confidence = 4;
+    bool merge_results = 5;
+}
+
+message CrossDomainSearchResponse {
+    map<string, DomainSearchResponse> per_domain = 1;
+    repeated SearchResult merged = 2;  // If merge_results=true
+    double total_latency_ms = 3;
+}
+
+// ── Merkle & Integrity ─────────────────────────────────────────────
+
+message MerkleRootRequest {
+    bool force_recompute = 1;
+}
+
+message MerkleRootResponse {
+    string global_root = 1;
+    int64 node_count = 2;
+    double compute_ms = 3;
+}
+
+message ShardMerkleRootsRequest {}
+
+message ShardMerkleRootsResponse {
+    map<uint32, string> shard_roots = 1;  // shard_id -> root hash
+    string global_root = 2;
+    int64 total_nodes = 3;
+}
+
+// ── Statistics ─────────────────────────────────────────────────────
+
+message StatsRequest {}
+
+message StatsResponse {
+    int64 total_nodes = 1;
+    int64 total_edges = 2;
+    map<string, int64> nodes_per_domain = 3;
+    map<string, int64> nodes_per_type = 4;
+    map<string, int64> edges_per_type = 5;
+    double avg_confidence = 6;
+    int32 active_shards = 7;
+    int64 cache_hits = 8;
+    int64 cache_misses = 9;
+    double cache_hit_rate = 10;
+    string merkle_root = 11;
+}
+
+message ShardStatsRequest {
+    uint32 shard_id = 1;
+}
+
+message ShardStatsResponse {
+    uint32 shard_id = 1;
+    string domain = 2;
+    int64 node_count = 3;
+    int64 edge_count = 4;
+    int64 disk_bytes = 5;
+    double avg_confidence = 6;
+    string merkle_root = 7;
+    double last_compact_ms = 8;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+    bool healthy = 1;
+    int32 shards_online = 2;
+    int32 shards_total = 3;
+    double uptime_seconds = 4;
+    map<uint32, bool> shard_health = 5;
+}
+
+// ── Bulk Operations ────────────────────────────────────────────────
+
+message BulkPutResponse {
+    int64 nodes_written = 1;
+    int64 edges_written = 2;
+    int64 errors = 3;
+    double duration_ms = 4;
+}
+
+message StreamNodesRequest {
+    string domain_filter = 1;
+    int64 min_node_id = 2;  // For cursor-based pagination
+    int64 batch_size = 3;
+}
+
+// ── Shard Management ───────────────────────────────────────────────
+
+message RebalanceRequest {
+    uint32 target_shards = 1;  // New total shard count
+}
+
+message RebalanceResponse {
+    bool started = 1;
+    int64 nodes_to_migrate = 2;
+    double estimated_seconds = 3;
+}
+
+message CompactRequest {
+    uint32 shard_id = 1;
+    bool all_shards = 2;
+    double min_confidence = 3;  // Prune nodes below this
+}
+
+message CompactResponse {
+    int64 nodes_pruned = 1;
+    int64 bytes_reclaimed = 2;
+    double duration_ms = 3;
+}
+
+message ShardMapRequest {}
+
+message ShardMapResponse {
+    map<uint32, ShardInfo> shards = 1;
+}
+
+message ShardInfo {
+    uint32 shard_id = 1;
+    string domain = 2;
+    int64 node_count = 3;
+    string storage_path = 4;
+    bool online = 5;
+}
