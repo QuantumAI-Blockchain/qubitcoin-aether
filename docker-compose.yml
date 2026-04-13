@@ -405,8 +405,8 @@ services:
       dockerfile: Dockerfile
     container_name: qbc-graph-shard
     ports:
-      - "50053:50053"   # gRPC
-      - "51053:51053"   # Metrics/health HTTP
+      - "50054:50053"   # gRPC (host 50054 -> container 50053)
+      - "51054:51053"   # Metrics/health HTTP
     volumes:
       - graph-shard-data:/data/graph-shards
     environment:

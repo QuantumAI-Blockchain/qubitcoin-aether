@@ -3,9 +3,11 @@ Knowledge Graph - KeterNode System
 Manages the decentralized knowledge graph that forms the foundation of the Aether Tree.
 Each node (KeterNode) represents a piece of verified knowledge; edges represent relationships.
 """
+import asyncio
 import hashlib
 import json
 import math
+import os
 import queue
 import threading
 import time
@@ -389,6 +391,28 @@ class KnowledgeGraph:
         # Dense embedding vector index (semantic similarity)
         from .vector_index import VectorIndex
         self.vector_index = VectorIndex()
+
+        # Distributed graph shard client (fire-and-forget replication).
+        # Nodes/edges are replicated to the shard service for trillion-node scale.
+        self._shard_client = None
+        self._shard_loop = None
+        try:
+            shard_addr = os.environ.get('GRAPH_SHARD_ADDR', '')
+            if shard_addr:
+                from .shard_client import GraphShardClient
+                self._shard_client = GraphShardClient(shard_addr)
+                self._shard_loop = asyncio.new_event_loop()
+                _t = threading.Thread(
+                    target=self._shard_loop.run_forever,
+                    name="kg-shard-loop", daemon=True,
+                )
+                _t.start()
+                asyncio.run_coroutine_threadsafe(
+                    self._shard_client.connect(), self._shard_loop
+                )
+                logger.info("KnowledgeGraph: shard replication to %s ACTIVE", shard_addr)
+        except Exception as exc:
+            logger.info("KnowledgeGraph: shard client not initialized: %s", exc)
 
         # Rust shadow graph for compute-heavy operations (Merkle root,
         # search, stats, phi computation). Bulk-loaded after DB load,
@@ -877,6 +901,9 @@ class KnowledgeGraph:
             except queue.Full:
                 logger.warning("KG write queue full — dropping node persist for id=%d", node.node_id)
 
+        # Replicate to distributed shard service (fire-and-forget)
+        self._shard_replicate_node(node, content)
+
         return node
 
     def add_edge(self, from_id: int, to_id: int, edge_type: str = 'supports',
@@ -913,7 +940,47 @@ class KnowledgeGraph:
             except queue.Full:
                 logger.warning("KG write queue full — dropping edge persist %d→%d", from_id, to_id)
 
+        # Replicate to distributed shard service (fire-and-forget)
+        self._shard_replicate_edge(from_id, to_id, edge_type, weight)
+
         return edge
+
+    def _shard_replicate_node(self, node: 'KeterNode', content: dict) -> None:
+        """Fire-and-forget replication of a node to the shard service."""
+        client = getattr(self, '_shard_client', None)
+        loop = getattr(self, '_shard_loop', None)
+        if client is None or loop is None or not client.connected:
+            return
+        try:
+            str_content = {str(k): str(v) for k, v in content.items()} if isinstance(content, dict) else {}
+            asyncio.run_coroutine_threadsafe(
+                client.put_node(
+                    node_id=node.node_id,
+                    node_type=node.node_type,
+                    content=str_content,
+                    confidence=node.confidence,
+                    source_block=node.source_block,
+                    domain=node.domain or 'general',
+                    grounding_source=node.grounding_source or '',
+                ),
+                loop,
+            )
+        except Exception:
+            pass  # Best-effort replication
+
+    def _shard_replicate_edge(self, from_id: int, to_id: int, edge_type: str, weight: float) -> None:
+        """Fire-and-forget replication of an edge to the shard service."""
+        client = getattr(self, '_shard_client', None)
+        loop = getattr(self, '_shard_loop', None)
+        if client is None or loop is None or not client.connected:
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(
+                client.put_edge(from_id, to_id, edge_type, weight),
+                loop,
+            )
+        except Exception:
+            pass  # Best-effort replication
 
     def get_node(self, node_id: int) -> Optional[KeterNode]:
         """Return a KeterNode by its ID, or None if not found.
