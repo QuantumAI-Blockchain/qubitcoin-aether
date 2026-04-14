@@ -357,16 +357,19 @@ impl Indexer {
 // Event Decoders
 // ═══════════════════════════════════════════════════════════════════════
 
+// In subxt 0.38 dynamic mode, `event.field_values()` returns
+// `scale_value::Composite<u32>`.  The inner field values are
+// `scale_value::Value<u32>` structs whose `.value` is a `ValueDef`.
+// Use the convenience accessors (`.as_u128()`, `.as_i128()`) on Value.
+
+use scale_value::{Composite, Value, ValueDef, Primitive};
+
 /// Decode a BlockMined event from dynamic event data.
 fn decode_mining_event(
     event: &EventDetails<SubstrateConfig>,
 ) -> Option<MiningEvent> {
-    // In subxt dynamic mode, we decode field values by index.
-    // BlockMined { block_height: u64, miner: Address, energy: i128, difficulty: u64, reward: u128 }
     let fields = event.field_values().ok()?;
 
-    // Extract fields — subxt returns them as scale_value::Value
-    // We need to traverse the composite structure
     let block_height = extract_u64_field(&fields, "block_height")?;
     let miner = extract_bytes_field(&fields, "miner")?;
     let energy = extract_i128_field(&fields, "energy")?;
@@ -417,108 +420,93 @@ fn decode_susy_event(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Field Extraction Helpers (subxt dynamic values)
+// Field Extraction Helpers (scale-value 0.17 API)
 // ═══════════════════════════════════════════════════════════════════════
+//
+// `Composite<T>` is an enum: `Named(Vec<(String, Value<T>)>)` | `Unnamed(Vec<Value<T>>)`
+// `Value<T>` is a struct with `.value: ValueDef<T>` and `.context: T`
+// `ValueDef<T>` is an enum: `Composite(...)` | `Variant(...)` | `Primitive(...)` | `BitSequence(...)`
+// `Primitive` is an enum: `U128(u128)` | `I128(i128)` | `U256([u8;32])` | ...
+// `Value<T>` has accessors: `.as_u128()`, `.as_i128()`, `.as_bool()`, `.as_str()`
 
-/// Extract a u64 field from a scale_value::Value composite.
-fn extract_u64_field(
-    value: &scale_value::Value,
+/// Find a named field in a Composite and return its Value.
+fn find_named_field<'a, T>(
+    composite: &'a Composite<T>,
     name: &str,
-) -> Option<u64> {
-    // Try named composite first, then positional
-    if let scale_value::Value::Composite(scale_value::Composite::Named(fields)) = value {
+) -> Option<&'a Value<T>> {
+    if let Composite::Named(fields) = composite {
         for (field_name, field_value) in fields {
             if field_name == name {
-                return value_to_u64(field_value);
+                return Some(field_value);
             }
         }
     }
     None
 }
 
-/// Extract an i128 field from a scale_value::Value composite.
-fn extract_i128_field(
-    value: &scale_value::Value,
-    name: &str,
-) -> Option<i128> {
-    if let scale_value::Value::Composite(scale_value::Composite::Named(fields)) = value {
-        for (field_name, field_value) in fields {
-            if field_name == name {
-                return value_to_i128(field_value);
-            }
-        }
+/// Extract a u64 field from a Composite.
+fn extract_u64_field<T>(composite: &Composite<T>, name: &str) -> Option<u64> {
+    let val = find_named_field(composite, name)?;
+    // as_u128() handles Primitive::U128; also try U256 as fallback
+    if let Some(n) = val.as_u128() {
+        return Some(n as u64);
+    }
+    // U256 fallback: read as little-endian bytes
+    if let ValueDef::Primitive(Primitive::U256(bytes)) = &val.value {
+        // Read first 8 bytes as little-endian u64
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&bytes[..8]);
+        return Some(u64::from_le_bytes(buf));
     }
     None
 }
 
-/// Extract a u128 field from a scale_value::Value composite.
-fn extract_u128_field(
-    value: &scale_value::Value,
-    name: &str,
-) -> Option<u128> {
-    if let scale_value::Value::Composite(scale_value::Composite::Named(fields)) = value {
-        for (field_name, field_value) in fields {
-            if field_name == name {
-                return value_to_u128(field_value);
-            }
-        }
+/// Extract an i128 field from a Composite.
+fn extract_i128_field<T>(composite: &Composite<T>, name: &str) -> Option<i128> {
+    let val = find_named_field(composite, name)?;
+    if let Some(n) = val.as_i128() {
+        return Some(n);
+    }
+    // U128 → i128 cast as fallback
+    if let Some(n) = val.as_u128() {
+        return Some(n as i128);
     }
     None
 }
 
-/// Extract a bytes (Address) field.
-fn extract_bytes_field(
-    value: &scale_value::Value,
-    name: &str,
-) -> Option<Vec<u8>> {
-    if let scale_value::Value::Composite(scale_value::Composite::Named(fields)) = value {
-        for (field_name, field_value) in fields {
-            if field_name == name {
-                return value_to_bytes(field_value);
+/// Extract a u128 field from a Composite.
+fn extract_u128_field<T>(composite: &Composite<T>, name: &str) -> Option<u128> {
+    let val = find_named_field(composite, name)?;
+    val.as_u128()
+}
+
+/// Extract a bytes (Address) field from a Composite.
+/// Address is a newtype wrapper: Address([u8; 32])
+/// In SCALE value it appears as a Composite with unnamed u8 fields.
+fn extract_bytes_field<T>(composite: &Composite<T>, name: &str) -> Option<Vec<u8>> {
+    let val = find_named_field(composite, name)?;
+    value_to_bytes(val)
+}
+
+fn value_to_bytes<T>(v: &Value<T>) -> Option<Vec<u8>> {
+    match &v.value {
+        ValueDef::Composite(Composite::Unnamed(fields)) => {
+            // Try: each element is a u8 value
+            let bytes: Option<Vec<u8>> = fields
+                .iter()
+                .map(|f| f.as_u128().map(|n| n as u8))
+                .collect();
+            if bytes.is_some() {
+                return bytes;
             }
-        }
-    }
-    None
-}
-
-fn value_to_u64(v: &scale_value::Value) -> Option<u64> {
-    match v {
-        scale_value::Value::Primitive(scale_value::Primitive::U128(n)) => Some(*n as u64),
-        scale_value::Value::Primitive(scale_value::Primitive::U256(n)) => {
-            Some(n.low_u64())
-        }
-        _ => None,
-    }
-}
-
-fn value_to_i128(v: &scale_value::Value) -> Option<i128> {
-    match v {
-        scale_value::Value::Primitive(scale_value::Primitive::I128(n)) => Some(*n),
-        scale_value::Value::Primitive(scale_value::Primitive::U128(n)) => Some(*n as i128),
-        _ => None,
-    }
-}
-
-fn value_to_u128(v: &scale_value::Value) -> Option<u128> {
-    match v {
-        scale_value::Value::Primitive(scale_value::Primitive::U128(n)) => Some(*n),
-        _ => None,
-    }
-}
-
-fn value_to_bytes(v: &scale_value::Value) -> Option<Vec<u8>> {
-    // Address is a newtype wrapper: Address([u8; 32])
-    // In SCALE value it may appear as a Composite with unnamed fields
-    match v {
-        scale_value::Value::Composite(scale_value::Composite::Unnamed(fields)) => {
-            // Address(bytes) — first field is the byte array
+            // Try: first element is itself a byte array
             if let Some(first) = fields.first() {
                 return value_to_bytes(first);
             }
             None
         }
-        scale_value::Value::Composite(scale_value::Composite::Named(fields)) => {
-            // Named struct with a "value" field
+        ValueDef::Composite(Composite::Named(fields)) => {
+            // Named struct with a "0" or "value" field
             for (name, val) in fields {
                 if name == "0" || name == "value" {
                     return value_to_bytes(val);
@@ -526,17 +514,7 @@ fn value_to_bytes(v: &scale_value::Value) -> Option<Vec<u8>> {
             }
             None
         }
-        _ => {
-            // Try to extract as a sequence of u8 bytes
-            if let scale_value::Value::Composite(scale_value::Composite::Unnamed(bytes)) = v {
-                let result: Option<Vec<u8>> = bytes
-                    .iter()
-                    .map(|b| value_to_u64(b).map(|n| n as u8))
-                    .collect();
-                return result;
-            }
-            None
-        }
+        _ => None,
     }
 }
 

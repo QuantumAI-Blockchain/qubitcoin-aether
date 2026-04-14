@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use subxt::backend::rpc::RpcClient;
 use subxt::backend::legacy::LegacyRpcMethods;
 use subxt::{OnlineClient, SubstrateConfig};
-use tracing::{debug, info, warn};
+use tracing::info;
 
 use crate::config::Config;
 
@@ -36,9 +36,8 @@ impl SubstrateClient {
         let genesis = rpc.genesis_hash().await?;
         let runtime_version = api.runtime_version();
         info!(
-            "Connected! Genesis: 0x{}, Runtime: {}/{}",
+            "Connected! Genesis: 0x{}, Runtime spec_version: {}",
             hex::encode(genesis.0),
-            runtime_version.spec_name,
             runtime_version.spec_version,
         );
 
