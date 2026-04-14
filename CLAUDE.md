@@ -275,12 +275,12 @@ PHASE 3: VALIDATE
 | **Quantum** | Qiskit | latest (local estimator) |
 | **Content Storage** | IPFS (Kubo) | Docker container |
 | **Cache** | Redis | Docker container |
-| **Frontend Framework** | React 19 + Next.js 16 (App Router) | latest stable |
-| **Language** | TypeScript 5.x (strict mode) | latest |
-| **Styling** | TailwindCSS 4 + Framer Motion | latest |
-| **State Management** | Zustand + TanStack Query | latest |
-| **3D / Viz** | Three.js + React Three Fiber + D3 | latest |
-| **Wallet** | ethers.js v6 (MetaMask compat) | latest |
+| **Frontend Framework** | React 19.2 + Next.js 16.2 (App Router) | latest stable |
+| **Language** | TypeScript 5.9 (strict mode) | latest |
+| **Styling** | TailwindCSS 4.2 + Framer Motion 12.38 | latest |
+| **State Management** | Zustand 5.0 + TanStack Query 5.99 | latest |
+| **3D / Viz** | Three.js 0.183 + React Three Fiber 9.6 + D3 | latest |
+| **Wallet** | ethers.js v6.16 (MetaMask compat) | latest |
 | **Deployment** | Cloudflare Tunnel + Docker | qbc.network + api.qbc.network |
 | **Monitoring** | Prometheus + Grafana + Loki | latest |
 | **Package Manager** | pnpm (frontend/agents) / pip (backend) | latest |
@@ -329,29 +329,38 @@ PHASE 3: VALIDATE
 
 ### 5.2 Monorepo Path → Org Repo Mapping
 
-The working directory `/root/Qubitcoin` is the `qubitcoin-node` repo with co-located components:
+The working directory `/root/Qubitcoin` is a **single git repo** with **42 remotes** configured. Changes to subcomponents push to their dedicated org repos via named remotes.
 
-| Local Path | Org Repo | Notes |
-|------------|----------|-------|
-| `src/`, `tests/`, `scripts/`, configs | `qubitcoin-node` | Primary — `origin` remote |
-| `frontend/` | `qubitcoin-frontend` | `qai-frontend` remote |
-| `substrate-node/` | `substrate-node` | Separate repo |
-| `stratum-server/` | `stratum-server` | Separate repo |
-| `aikgs-sidecar/` | `aikgs-sidecar` | Separate repo |
-| `qubitcoin-qvm/` | `qubitcoin-qvm` | Separate repo |
-| `src/qubitcoin/aether/` | `qubitcoin-aether` | Extracted to separate repo |
-| `src/qubitcoin/stablecoin/` | `qubitcoin-qusd` | Extracted to separate repo |
-| `src/qubitcoin/contracts/solidity/` | `solidity-contracts` | Separate repo |
-| `rust-p2p/` | `rust-p2p` | Separate repo |
-| `docs/` | `whitepaper` + `docs` | Separate repos |
-| `config/` + `tools/` | `monitoring` | Separate repo |
+| Local Path | Org Repo | Remote Name | Push Rule |
+|------------|----------|-------------|-----------|
+| `src/`, `tests/`, `scripts/`, configs | `qubitcoin-node` | `origin` | Primary — always push |
+| `frontend/` | `qubitcoin-frontend` | `qai-frontend` | **DUAL-PUSH** to origin + qai-frontend |
+| `src/qubitcoin/aether/` | `qubitcoin-aether` | `qai-aether` | **DUAL-PUSH** to origin + qai-aether |
+| `src/qubitcoin/stablecoin/` | `qubitcoin-qusd` | `qai-qusd` | Synced via remote |
+| `src/qubitcoin/contracts/solidity/` | `solidity-contracts` | `qai-solidity` | Synced via remote |
+| `substrate-node/` | `substrate-node` | `qai-substrate` | Synced via remote |
+| `rust-p2p/` | `rust-p2p` | `qai-rustp2p` | Synced via remote |
+| `aikgs-sidecar/` | `aikgs-sidecar` | `qai-aikgs` | Synced via remote |
+| `stratum-server/` | `stratum-server` | `qai-stratum` | Synced via remote |
+| `qubitcoin-qvm/` | `qubitcoin-qvm` | `qai-qvm` | Synced via remote |
+| `api-gateway/` | `api-gateway` | `qai-api-gateway` | Synced via remote |
+| `indexer/` | `blockchain-indexer` | `qai-indexer` | Synced via remote |
+| `aether-core/` | `aether-graph-shard` | `qai-graph-shard` | Synced via remote |
+| `security-core/` | `security-core` | `qai-security-core` | Synced via remote |
+| `tests/` | `qubitcoin-tests` | `qai-tests` | Synced via remote |
+| `docs/` | `whitepaper` + `docs` | `qai-whitepaper` / `qai-docs` | Synced via remote |
+| `config/` + `tools/` | `monitoring` | `qai-monitoring` | Synced via remote |
+| `miner/`, `aether-service/` | (part of qubitcoin-node) | `origin` | Part of main repo |
 
-**Git remotes configured:**
+**Critical push rules:**
 ```
-origin      → QuantumAI-Blockchain/qubitcoin-node (primary)
-qai-frontend → QuantumAI-Blockchain/qubitcoin-frontend
-blockartica → BlockArtica/Qubitcoin (legacy — do NOT push for production)
+origin        → QuantumAI-Blockchain/qubitcoin-node (PRIMARY — all changes)
+qai-frontend  → QuantumAI-Blockchain/qubitcoin-frontend (DUAL-PUSH with origin)
+qai-aether    → QuantumAI-Blockchain/qubitcoin-aether (DUAL-PUSH with origin)
+blockartica   → BlockArtica/Qubitcoin (LEGACY — NEVER push to production)
 ```
+
+**DUAL-PUSH means:** When modifying `frontend/` or `src/qubitcoin/aether/`, push to BOTH `origin` AND the dedicated remote.
 
 ---
 
