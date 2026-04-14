@@ -1,0 +1,15 @@
+[package]
+name = "aether-temporal"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Temporal reasoning, time-series analysis, LTL model checking, and Granger causality for the Aether Tree AGI"
+
+[dependencies]
+aether-types = { path = "../aether-types" }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+tracing = "0.1"
+
+[dev-dependencies]
+approx = "0.5"

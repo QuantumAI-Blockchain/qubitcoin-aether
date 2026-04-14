@@ -1,0 +1,16 @@
+[package]
+name = "aether-logic"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "First-order logic reasoning engine for the Aether Tree AGI — unification, inference, forward/backward chaining, abduction, induction"
+
+[dependencies]
+aether-types = { path = "../aether-types" }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+smallvec = { version = "1", features = ["serde"] }
+rustc-hash = "2"
+tracing = "0.1"
+
+[dev-dependencies]
