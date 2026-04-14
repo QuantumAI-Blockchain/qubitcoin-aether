@@ -71,8 +71,9 @@ class TestKnowledgeExtractor:
         from qubitcoin.aether.knowledge_extractor import KnowledgeExtractor
         kg = _make_mock_kg()
         ke = KnowledgeExtractor(kg)
-        block = _make_block(1, difficulty=0.5)
-        ke.extract_from_block(block, 1)
+        # Use milestone block (every 1000) to pass observation filter
+        block = _make_block(1000, difficulty=0.5)
+        ke.extract_from_block(block, 1000)
 
         # Verify add_node was called with block_observation
         calls = kg.add_node.call_args_list
@@ -80,7 +81,7 @@ class TestKnowledgeExtractor:
         first_call = calls[0]
         assert first_call.kwargs['node_type'] == 'observation'
         assert first_call.kwargs['content']['type'] == 'block_observation'
-        assert first_call.kwargs['content']['height'] == 1
+        assert first_call.kwargs['content']['height'] == 1000
 
     def test_extract_transaction_patterns(self):
         from qubitcoin.aether.knowledge_extractor import KnowledgeExtractor
@@ -94,8 +95,9 @@ class TestKnowledgeExtractor:
         from qubitcoin.aether.knowledge_extractor import KnowledgeExtractor
         kg = _make_mock_kg()
         ke = KnowledgeExtractor(kg)
-        block = _make_block(1, proof_data={'energy': -2.5, 'n_qubits': 4})
-        nodes = ke.extract_from_block(block, 1)
+        # Use milestone block to pass observation filter
+        block = _make_block(1000, proof_data={'energy': -2.5, 'n_qubits': 4})
+        nodes = ke.extract_from_block(block, 1000)
         assert nodes >= 2  # block metadata + quantum observation
 
     def test_extract_contract_activity(self):
@@ -203,10 +205,11 @@ class TestKnowledgeExtractor:
         kg = _make_mock_kg()
         ke = KnowledgeExtractor(kg)
 
+        # Use genesis (block 0) and milestone (block 1000) to pass observation filter
         ke.extract_from_block(_make_block(0), 0)
-        ke.extract_from_block(_make_block(1), 1)
+        ke.extract_from_block(_make_block(1000), 1000)
 
-        # add_edge should be called to link block 1 → block 0
+        # add_edge should be called to link block 1000 → block 0
         edge_calls = kg.add_edge.call_args_list
         derives_calls = [c for c in edge_calls if 'derives' in str(c)]
         assert len(derives_calls) >= 1

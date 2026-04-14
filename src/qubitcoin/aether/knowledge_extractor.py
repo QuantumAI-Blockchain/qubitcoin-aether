@@ -41,6 +41,9 @@ class KnowledgeExtractor:
         self._energies: List[float] = []
         self._window_size = 144  # Match difficulty adjustment window
         self._blocks_processed = 0
+        # O(1) lookup index: block_height -> node_id for block observations
+        self._block_height_index: Dict[int, int] = {}
+        self._last_difficulty: Optional[float] = None
         logger.info("Knowledge Extractor initialized")
 
     def extract_from_block(self, block: object, block_height: int) -> int:
@@ -91,29 +94,51 @@ class KnowledgeExtractor:
 
         return nodes_created
 
+    def _should_create_observation(self, block: object, block_height: int) -> bool:
+        """Determine if this block warrants a knowledge observation node.
+
+        Only create observation nodes for blocks that carry genuine knowledge
+        value: transactions present, significant difficulty change, milestone
+        blocks, or blocks with thought proofs. Routine empty blocks are skipped
+        to prevent knowledge graph bloat.
+        """
+        # Always observe block 0 (genesis)
+        if block_height == 0:
+            return True
+
+        # Blocks with transactions
+        if len(getattr(block, 'transactions', [])) > 0:
+            return True
+
+        # Milestone blocks (every 1000)
+        if block_height % 1000 == 0:
+            return True
+
+        # Blocks with thought proofs
+        if getattr(block, 'thought_proof', None):
+            return True
+
+        # Significant difficulty change (>1% from last observed)
+        difficulty = getattr(block, 'difficulty', 0.0)
+        if self._last_difficulty is not None and self._last_difficulty > 0:
+            change = abs(difficulty - self._last_difficulty) / self._last_difficulty
+            if change > 0.01:
+                return True
+
+        return False
+
     def _extract_block_metadata(self, block: object, block_height: int) -> Optional[int]:
-        """Extract core block metadata as an observation node."""
+        """Extract core block metadata as an observation node.
+
+        Skips routine empty blocks to prevent knowledge graph bloat.
+        Only creates nodes for blocks with transactions, difficulty shifts,
+        milestones, or thought proofs.
+        """
         difficulty = getattr(block, 'difficulty', 0.0)
         timestamp = getattr(block, 'timestamp', time.time())
         tx_count = len(getattr(block, 'transactions', []))
 
-        content = {
-            'type': 'block_observation',
-            'height': block_height,
-            'difficulty': difficulty,
-            'tx_count': tx_count,
-            'timestamp': timestamp,
-        }
-
-        node = self.kg.add_node(
-            node_type='observation',
-            content=content,
-            confidence=0.95,
-            source_block=block_height,
-        )
-        node.grounding_source = 'block_oracle'
-
-        # Update sliding windows
+        # Update sliding windows regardless of whether we create a node
         self._difficulties.append(difficulty)
         self._tx_counts.append(tx_count)
         if len(self._difficulties) > self._window_size:
@@ -123,19 +148,46 @@ class KnowledgeExtractor:
 
         # Track block times
         if hasattr(block, 'timestamp') and self._block_times:
-            block_time = timestamp - self._block_times[-1]
             self._block_times.append(timestamp)
-            content['block_time'] = round(block_time, 3)
         else:
             self._block_times.append(timestamp)
-
         if len(self._block_times) > self._window_size:
             self._block_times = self._block_times[-self._window_size:]
+
+        # Skip routine empty blocks to avoid KG bloat
+        if not self._should_create_observation(block, block_height):
+            self._last_difficulty = difficulty
+            return None
+
+        content = {
+            'type': 'block_observation',
+            'height': block_height,
+            'difficulty': difficulty,
+            'tx_count': tx_count,
+            'timestamp': timestamp,
+        }
+
+        # Compute block time if we have prior timestamps
+        if len(self._block_times) >= 2:
+            block_time = self._block_times[-1] - self._block_times[-2]
+            content['block_time'] = round(block_time, 3)
+
+        node = self.kg.add_node(
+            node_type='observation',
+            content=content,
+            confidence=0.95,
+            source_block=block_height,
+        )
+        node.grounding_source = 'block_oracle'
+
+        # Register in O(1) lookup index
+        self._block_height_index[block_height] = node.node_id
 
         # Link to previous block observation
         if block_height > 0:
             self._link_to_previous_block(node.node_id, block_height)
 
+        self._last_difficulty = difficulty
         return node.node_id
 
     def _extract_transaction_patterns(self, block: object, block_height: int,
@@ -370,13 +422,18 @@ class KnowledgeExtractor:
         return nodes_created
 
     def _link_to_previous_block(self, node_id: int, block_height: int) -> None:
-        """Link current block observation to the previous block's observation."""
-        prev_height = block_height - 1
-        for nid, node in self.kg.nodes.items():
-            if (node.content.get('type') == 'block_observation'
-                    and node.content.get('height') == prev_height):
-                self.kg.add_edge(nid, node_id, 'derives')
-                break
+        """Link current block observation to the nearest previous observation.
+
+        Uses the _block_height_index for O(1) lookup instead of scanning
+        all KG nodes. Walks backwards up to 1000 blocks to find the most
+        recent observation (since not every block creates a node).
+        """
+        # Walk backwards to find the nearest previous observation
+        for prev_height in range(block_height - 1, max(block_height - 1001, -1), -1):
+            prev_nid = self._block_height_index.get(prev_height)
+            if prev_nid is not None:
+                self.kg.add_edge(prev_nid, node_id, 'derives')
+                return
 
     def _extract_cross_domain(self, block: object, block_height: int,
                                parent_node_id: Optional[int]) -> int:

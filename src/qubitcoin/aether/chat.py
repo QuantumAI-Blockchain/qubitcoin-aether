@@ -1701,8 +1701,6 @@ class AetherChat:
                 'fee_qbc': fee_qbc,
             }
 
-            session.fees_paid_atoms += int(Decimal(str(fee_qbc)) * 10**8)
-
         # #54: Coreference resolution — resolve pronouns before processing
         resolved_message = message
         try:
