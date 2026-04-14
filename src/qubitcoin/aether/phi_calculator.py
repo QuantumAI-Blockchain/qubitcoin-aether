@@ -395,9 +395,11 @@ class PhiCalculator:
             return cached
 
         # ── Rust-accelerated phi computation ────────────────────────────
-        # If Rust PhiCalculator + Rust shadow KG are both available, use
-        # the Rust engine for the entire spectral bisection + gate check.
-        if self._rust_phi is not None and hasattr(self.kg, 'rust_kg') and self.kg.rust_kg is not None:
+        # DISABLED: Rust PhiCalculator uses v3 gates/formula. Python v4 HMS-Phi
+        # is the correct computation until Rust crate is updated to v4.
+        # TODO: Update aether-core/src_legacy/phi_calculator/mod.rs to v4 gates
+        #       and HMS-Phi formula, then re-enable this block.
+        if False and self._rust_phi is not None and hasattr(self.kg, 'rust_kg') and self.kg.rust_kg is not None:
             try:
                 extra_stats = dict(self._subsystem_stats) if self._subsystem_stats else None
                 result = self._rust_phi.compute_phi(self.kg.rust_kg, block_height, extra_stats)

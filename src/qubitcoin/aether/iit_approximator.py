@@ -97,10 +97,12 @@ class IITApproximator:
 
         # Parse edges to get influence weights
         influence = np.zeros((n, n))
-        edges = getattr(knowledge_graph, 'edges', {})
-        for edge in edges.values():
-            src = getattr(edge, 'source_id', None) or (edge.get('source_id') if isinstance(edge, dict) else None)
-            tgt = getattr(edge, 'target_id', None) or (edge.get('target_id') if isinstance(edge, dict) else None)
+        edges_raw = getattr(knowledge_graph, 'edges', {})
+        # Support both dict (edges.values()) and list formats
+        edge_iter = edges_raw.values() if isinstance(edges_raw, dict) else edges_raw
+        for edge in edge_iter:
+            src = getattr(edge, 'source_id', None) or getattr(edge, 'from_node_id', None) or (edge.get('source_id') if isinstance(edge, dict) else None)
+            tgt = getattr(edge, 'target_id', None) or getattr(edge, 'to_node_id', None) or (edge.get('target_id') if isinstance(edge, dict) else None)
             weight = getattr(edge, 'weight', 0.5) if not isinstance(edge, dict) else edge.get('weight', 0.5)
             if src in id_to_idx and tgt in id_to_idx:
                 influence[id_to_idx[src], id_to_idx[tgt]] += float(weight)
