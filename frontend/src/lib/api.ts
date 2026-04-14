@@ -1,4 +1,5 @@
 import { RPC_URL, AETHER_ENGINE_URL } from "./constants";
+import { getAuthToken } from "@/stores/wallet-store";
 
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 500;
@@ -9,6 +10,26 @@ const API_URL = RPC_URL || "http://localhost:5000";
 /** Aether Engine (Rust) base URL for fast streaming chat */
 const AETHER_URL = AETHER_ENGINE_URL || "http://localhost:5001";
 
+/** Build headers with optional JWT auth. */
+function buildHeaders(extra?: HeadersInit): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const token = getAuthToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (extra) {
+    const entries = extra instanceof Headers
+      ? Array.from(extra.entries())
+      : Array.isArray(extra)
+        ? extra
+        : Object.entries(extra);
+    for (const [k, v] of entries) {
+      headers[k] = v;
+    }
+  }
+  return headers;
+}
+
 /** Generic fetch wrapper for the QBC node REST API with exponential backoff retry. */
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${API_URL}${path}`;
@@ -17,8 +38,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(url, {
-        headers: { "Content-Type": "application/json", ...init?.headers },
         ...init,
+        headers: buildHeaders(init?.headers),
       });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
@@ -432,7 +453,28 @@ export interface ConversationStats {
 
 /* ---- Typed helpers ---- */
 
+/* ---- Auth ---- */
+
+export interface ChallengeResponse {
+  address: string;
+  nonce: string;
+  timestamp: number;
+  message: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  address: string;
+  expires_at: number;
+}
+
 export const api = {
+  // Auth
+  getChallenge: (address: string) =>
+    get<ChallengeResponse>(`/auth/challenge?address=${encodeURIComponent(address)}`),
+  authenticate: (body: { public_key_hex: string; signature_hex: string; message: string }) =>
+    post<AuthResponse>("/auth/authenticate", body),
+
   // Chain
   getChainInfo: () => get<ChainInfo>("/chain/info"),
   getHealth: () => get<{ status: string }>("/health"),
@@ -847,9 +889,12 @@ export const api = {
     message: string,
     userId: string = "anonymous",
   ): AsyncGenerator<{ token: string; done: boolean; sources?: ChatSource[] }> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const token = getAuthToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(`${AETHER_URL}/chat/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ message, user_id: userId }),
     });
 

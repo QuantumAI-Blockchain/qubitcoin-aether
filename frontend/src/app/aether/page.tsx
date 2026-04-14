@@ -22,7 +22,7 @@ import {
 } from "@/components/aether/conversation-sidebar";
 import { KnowledgeSeeder } from "@/components/aether/knowledge-seeder";
 import { ContributionIndicator } from "@/components/aikgs/contribution-indicator";
-import { useWalletStore } from "@/stores/wallet-store";
+import { useWalletStore, getAuthToken } from "@/stores/wallet-store";
 
 const KnowledgeGraph3D = dynamic(
   () => import("@/components/aether/knowledge-graph-3d").then((m) => m.KnowledgeGraph3D),
@@ -161,7 +161,9 @@ function AetherPageContent() {
   const [activeTab, setActiveTab] = useState<"chat" | "graph">("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  const { address: walletAddress } = useWalletStore();
+  const { address: walletAddress, authAddress, activeNativeWallet } = useWalletStore();
+  // Prefer authenticated address (verified via JWT), then MetaMask, then native wallet
+  const identityAddress = authAddress ?? walletAddress ?? activeNativeWallet;
 
   // Load saved sessions on mount
   useEffect(() => {
@@ -260,7 +262,7 @@ function AetherPageContent() {
       try {
         let sid = sessionId;
         if (!sid) {
-          const sess = await api.createChatSession(walletAddress ?? "");
+          const sess = await api.createChatSession(identityAddress ?? "");
           sid = sess.session_id;
           setSessionId(sid);
         }
@@ -295,7 +297,7 @@ function AetherPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, sessionId, toast, walletAddress]);
+  }, [input, loading, sessionId, toast, identityAddress]);
 
   const handleNewChat = useCallback(() => {
     setSessionId(null);
@@ -364,7 +366,7 @@ function AetherPageContent() {
             onSelect={handleSelectSession}
             onNew={handleNewChat}
             onDelete={handleDeleteSession}
-            userAddress={walletAddress}
+            userAddress={identityAddress}
           />
         </div>
 
@@ -652,6 +654,23 @@ function AetherPageContent() {
             <p className="mt-1 text-xs text-text-secondary">
               {messages.filter((m) => m.role === "user").length} messages sent
             </p>
+            {identityAddress ? (
+              <div className="mt-2 flex items-center gap-1.5">
+                <div className="h-2 w-2 rounded-full bg-quantum-green" />
+                <span className="font-[family-name:var(--font-code)] text-[10px] text-quantum-green/80">
+                  {identityAddress.slice(0, 8)}...{identityAddress.slice(-6)}
+                </span>
+                {authAddress && (
+                  <span className="rounded bg-quantum-green/10 px-1 py-0.5 text-[9px] font-medium text-quantum-green">
+                    JWT
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="mt-2 text-[10px] text-text-secondary/60">
+                Connect wallet for persistent history
+              </p>
+            )}
           </Card>
 
           <KnowledgeSeeder />

@@ -158,9 +158,17 @@ export function ConversationSidebar({
       {/* Session list */}
       <div className="flex-1 overflow-y-auto p-2">
         {historyTab === "server" && !userAddress && (
-          <p className="px-2 py-4 text-center text-xs text-text-secondary">
-            Connect a wallet to view conversation history
-          </p>
+          <div className="px-2 py-6 text-center">
+            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-quantum-violet/10">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-5 w-5 text-quantum-violet">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" />
+              </svg>
+            </div>
+            <p className="text-xs font-medium text-text-primary">Connect Wallet</p>
+            <p className="mt-1 text-[10px] text-text-secondary">
+              Sign in with your QBC wallet to sync conversation history across devices
+            </p>
+          </div>
         )}
         {displaySessions.length === 0 && (historyTab === "local" || !!userAddress) && (
           <p className="px-2 py-4 text-center text-xs text-text-secondary">
