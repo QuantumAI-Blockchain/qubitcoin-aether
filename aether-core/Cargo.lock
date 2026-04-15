@@ -255,6 +255,7 @@ dependencies = [
  "aether-types",
  "approx",
  "parking_lot",
+ "pyo3",
  "rand",
  "rustc-hash",
  "serde",

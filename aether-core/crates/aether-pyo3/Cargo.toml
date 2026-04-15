@@ -25,7 +25,7 @@ aether-memory = { path = "../aether-memory" }
 aether-neural = { path = "../aether-neural" }
 aether-sephirot = { path = "../aether-sephirot" }
 aether-persistence = { path = "../aether-persistence" }
-aether-reasoning = { path = "../aether-reasoning" }
+aether-reasoning = { path = "../aether-reasoning", features = ["pyo3"] }
 aether-cognitive = { path = "../aether-cognitive" }
 aether-safety = { path = "../aether-safety" }
 aether-infra = { path = "../aether-infra" }

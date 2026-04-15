@@ -5,6 +5,10 @@ edition = "2021"
 license = "MIT"
 description = "Reasoning, causal discovery, and debate engines for the Aether Tree"
 
+[features]
+default = []
+pyo3 = ["dep:pyo3"]
+
 [dependencies]
 aether-types = { path = "../aether-types" }
 aether-graph = { path = "../aether-graph" }
@@ -17,6 +21,7 @@ rand = "0.8"
 sha2 = "0.10"
 strsim = "0.11"
 rustc-hash = "2"
+pyo3 = { version = "0.23", optional = true }
 
 [dev-dependencies]
 approx = "0.5"

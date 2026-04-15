@@ -99,6 +99,84 @@ class ReasoningEngine:
         self._debate_engine: Optional[Any] = None
         # Current block height context (updated externally)
         self._current_block_height: int = 0
+        # Rust LogicBridge for FOL reasoning (no LLM required)
+        self._logic_bridge: Optional[Any] = None
+        self._logic_bridge_loaded: bool = False
+        self._init_logic_bridge()
+
+    def _init_logic_bridge(self) -> None:
+        """Initialize the Rust LogicBridge for FOL reasoning (no LLM required)."""
+        try:
+            from aether_core import LogicBridge
+            self._logic_bridge = LogicBridge()
+            logger.info("Rust LogicBridge initialized — FOL reasoning available without LLM")
+        except ImportError:
+            logger.debug("Rust LogicBridge not available — using graph-traversal reasoning only")
+            self._logic_bridge = None
+
+    def refresh_logic_bridge(self, max_nodes: int = 2000) -> None:
+        """Reload the knowledge graph into the Rust LogicBridge FOL KB.
+
+        Call periodically (e.g. every N blocks) to keep the FOL KB in sync
+        with the growing knowledge graph.
+        """
+        if self._logic_bridge is None:
+            return
+        try:
+            self._logic_bridge.load_from_graph(self.kg, max_nodes=max_nodes)
+            self._logic_bridge_loaded = True
+            stats = self._logic_bridge.stats()
+            logger.info(
+                "LogicBridge refreshed: %d facts, %d rules",
+                stats.get('facts', 0), stats.get('rules', 0),
+            )
+        except Exception as e:
+            logger.warning("LogicBridge refresh failed: %s", e)
+            self._logic_bridge_loaded = False
+
+    def prove_relation(self, from_id: int, to_id: int, relation: str) -> Optional[Dict]:
+        """Prove a relationship between two nodes via FOL backward chaining.
+
+        Returns a dict with 'proved' (bool) and 'summary' (str), or None
+        if the LogicBridge is not available.
+        """
+        if not self._logic_bridge or not self._logic_bridge_loaded:
+            return None
+        try:
+            return self._logic_bridge.prove_relation(from_id, to_id, relation)
+        except Exception as e:
+            logger.debug("LogicBridge prove_relation failed: %s", e)
+            return None
+
+    def fol_deduce(self, premise_ids: Optional[List[int]] = None, max_steps: int = 50) -> List[Dict]:
+        """Run FOL forward chaining via the Rust LogicBridge.
+
+        Returns a list of newly derived facts (dicts with 'description' and
+        'source_node_ids'). Returns empty list if LogicBridge not available.
+        """
+        if not self._logic_bridge or not self._logic_bridge_loaded:
+            return []
+        try:
+            if premise_ids:
+                return self._logic_bridge.deduce_from(premise_ids, max_steps)
+            return self._logic_bridge.deduce(max_steps)
+        except Exception as e:
+            logger.debug("LogicBridge deduce failed: %s", e)
+            return []
+
+    def fol_explain(self, observation_node_id: int) -> List[Dict]:
+        """Generate abductive explanations via FOL reasoning.
+
+        Returns a list of hypotheses (dicts with 'description', 'score',
+        'also_explains_count'). Returns empty list if LogicBridge not available.
+        """
+        if not self._logic_bridge or not self._logic_bridge_loaded:
+            return []
+        try:
+            return self._logic_bridge.explain(observation_node_id)
+        except Exception as e:
+            logger.debug("LogicBridge explain failed: %s", e)
+            return []
 
     def _grounding_boost(self, premise_ids: List[int]) -> float:
         """Compute a confidence boost factor based on how many premises are grounded.

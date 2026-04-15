@@ -87,6 +87,11 @@ fn aether_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<aether_safety::AuditLog>()?;
 
     // ---------------------------------------------------------------
+    // aether-reasoning: LogicBridge (FOL reasoning without LLM)
+    // ---------------------------------------------------------------
+    m.add_class::<aether_reasoning::PyLogicBridge>()?;
+
+    // ---------------------------------------------------------------
     // aether-infra: AIKGS client types, API vault
     // ---------------------------------------------------------------
     m.add_class::<aether_infra::CircuitState>()?;

@@ -18,7 +18,7 @@
 //!    learning debate verdict prediction.
 //!
 //! All structures are thread-safe via `parking_lot::RwLock` and `Arc`.
-//! No PyO3 annotations — pure Rust. PyO3 bindings come in a later batch.
+//! PyO3 bindings available via the `pyo3` feature flag.
 
 pub mod reasoning;
 pub mod reasoning_chain;
@@ -40,3 +40,8 @@ pub use debate::{DebateProtocol, DebateResult, DebatePosition};
 pub use debate_multi::MultiPartyDebate;
 pub use debate_scorer::DebateScorer;
 pub use logic_bridge::{LogicBridge, DerivedFact, Explanation, InductiveRule, ProofResult};
+
+#[cfg(feature = "pyo3")]
+pub mod pyo3_bindings;
+#[cfg(feature = "pyo3")]
+pub use pyo3_bindings::PyLogicBridge;
