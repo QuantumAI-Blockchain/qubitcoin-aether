@@ -22,9 +22,13 @@ impl SubstrateClient {
     pub async fn connect(config: &Config) -> Result<Self> {
         info!("Connecting to Substrate node: {}", config.substrate_ws_url);
 
-        let rpc_client = RpcClient::from_url(&config.substrate_ws_url)
-            .await
-            .context("Failed to connect to Substrate WebSocket")?;
+        // Use from_insecure_url for ws:// (non-TLS) connections.
+        let rpc_client = if config.substrate_ws_url.starts_with("ws://") {
+            RpcClient::from_insecure_url(&config.substrate_ws_url).await
+        } else {
+            RpcClient::from_url(&config.substrate_ws_url).await
+        }
+        .context("Failed to connect to Substrate WebSocket")?;
 
         let api = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client.clone())
             .await

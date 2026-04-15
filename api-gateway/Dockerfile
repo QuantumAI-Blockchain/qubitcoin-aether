@@ -1,13 +1,13 @@
 # ═══════════════════════════════════════════════════════════════════════
 # Qubitcoin API Gateway — Docker Image
 # ═══════════════════════════════════════════════════════════════════════
-FROM rust:1.85-bookworm AS builder
+FROM rust:1-bookworm AS builder
 WORKDIR /build
 COPY api-gateway/Cargo.toml api-gateway/Cargo.lock* ./
 RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release 2>/dev/null || true
-RUN rm -rf src
+RUN rm -rf src target/release/qbc-api-gateway target/release/deps/qbc_api_gateway*
 COPY api-gateway/src/ ./src/
-RUN cargo build --release
+RUN touch src/main.rs && cargo build --release
 
 FROM debian:bookworm-slim
 LABEL org.opencontainers.image.title="Qubitcoin API Gateway"

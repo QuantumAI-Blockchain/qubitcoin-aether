@@ -34,7 +34,12 @@ pub struct SubstrateRpc {
 
 impl SubstrateRpc {
     pub async fn connect(url: &str) -> anyhow::Result<Self> {
-        let rpc_client = RpcClient::from_url(url).await?;
+        // Use from_insecure_url for ws:// (non-TLS) connections.
+        let rpc_client = if url.starts_with("ws://") {
+            RpcClient::from_insecure_url(url).await?
+        } else {
+            RpcClient::from_url(url).await?
+        };
         let api = OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client.clone()).await?;
         let rpc = LegacyRpcMethods::<SubstrateConfig>::new(rpc_client);
         Ok(Self { api, rpc })

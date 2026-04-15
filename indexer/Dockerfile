@@ -12,18 +12,18 @@
 #     qbc-indexer
 # ═══════════════════════════════════════════════════════════════════════
 
-FROM rust:1.85-bookworm AS builder
+FROM rust:1-bookworm AS builder
 
 WORKDIR /build
 
 # Cache dependencies
 COPY indexer/Cargo.toml indexer/Cargo.lock* ./
 RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release 2>/dev/null || true
-RUN rm -rf src
+RUN rm -rf src target/release/qbc-indexer target/release/deps/qbc_indexer*
 
 # Build real source
 COPY indexer/src/ ./src/
-RUN cargo build --release
+RUN touch src/main.rs && cargo build --release
 
 # ── Production stage ────────────────────────────────────────────────
 FROM debian:bookworm-slim
