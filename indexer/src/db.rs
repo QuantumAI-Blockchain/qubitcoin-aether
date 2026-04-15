@@ -32,13 +32,161 @@ impl Database {
         sqlx::query("SELECT 1").execute(&pool).await?;
         info!("CockroachDB connected successfully");
 
-        Ok(Self { pool })
+        let db = Self { pool };
+        db.run_migrations().await?;
+        Ok(db)
+    }
+
+    /// Create substrate indexer tables if they don't exist.
+    /// Uses `idx_` prefix to avoid conflicts with the Python node's tables.
+    async fn run_migrations(&self) -> Result<()> {
+        info!("Running indexer schema migrations...");
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS idx_blocks (
+                block_hash BYTES PRIMARY KEY,
+                block_height INT8 NOT NULL,
+                previous_hash BYTES,
+                timestamp TIMESTAMPTZ,
+                difficulty DECIMAL(20,10),
+                achieved_eigenvalue DECIMAL(20,10),
+                miner_address BYTES,
+                era INT4 DEFAULT 0,
+                actual_reward DECIMAL(20,8),
+                total_fees DECIMAL(20,8) DEFAULT 0,
+                transaction_count INT4 DEFAULT 0,
+                block_size INT8 DEFAULT 0,
+                is_valid BOOL DEFAULT true,
+                INDEX idx_blocks_height (block_height DESC)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS idx_transactions (
+                tx_hash BYTES PRIMARY KEY,
+                block_hash BYTES,
+                block_height INT8,
+                tx_index INT4 DEFAULT 0,
+                timestamp TIMESTAMPTZ,
+                tx_type VARCHAR(20) DEFAULT 'transfer',
+                total_output DECIMAL(20,8),
+                fee DECIMAL(20,8) DEFAULT 0,
+                tx_size INT8 DEFAULT 0,
+                is_valid BOOL DEFAULT true,
+                INDEX idx_tx_block_height (block_height)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS idx_transaction_outputs (
+                output_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tx_hash BYTES NOT NULL,
+                output_index INT4 NOT NULL,
+                amount DECIMAL(20,8) NOT NULL,
+                recipient_address BYTES,
+                script_pubkey BYTES,
+                is_spent BOOL DEFAULT false,
+                spent_in_tx BYTES,
+                spent_at_height INT8,
+                spent_at_timestamp TIMESTAMPTZ,
+                UNIQUE (tx_hash, output_index)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS idx_addresses (
+                address BYTES PRIMARY KEY,
+                balance DECIMAL(20,8) DEFAULT 0,
+                total_received DECIMAL(20,8) DEFAULT 0,
+                total_sent DECIMAL(20,8) DEFAULT 0,
+                tx_count INT8 DEFAULT 0,
+                utxo_count INT8 DEFAULT 0,
+                first_seen_height INT8,
+                first_seen_timestamp TIMESTAMPTZ,
+                last_active_height INT8,
+                last_active_timestamp TIMESTAMPTZ
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS idx_chain_state (
+                id INT8 PRIMARY KEY DEFAULT 1,
+                best_block_hash BYTES,
+                best_block_height INT8 DEFAULT 0,
+                total_blocks INT8 DEFAULT 0,
+                total_transactions INT8 DEFAULT 0,
+                total_addresses INT8 DEFAULT 0,
+                total_supply DECIMAL(30,8) DEFAULT 0,
+                current_era INT8 DEFAULT 0,
+                current_difficulty DECIMAL(20,10) DEFAULT 1.0,
+                average_block_time DECIMAL(10,2) DEFAULT 3.3,
+                updated_at TIMESTAMPTZ DEFAULT now()
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS idx_susy_solutions (
+                solution_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                block_hash BYTES,
+                block_height INT8,
+                miner_address BYTES,
+                ground_state_energy DECIMAL(20,10),
+                alignment_score FLOAT8 DEFAULT 100.0,
+                is_verified BOOL DEFAULT true,
+                discovered_timestamp TIMESTAMPTZ DEFAULT now()
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS idx_phi_measurements (
+                id SERIAL PRIMARY KEY,
+                phi_value FLOAT8,
+                phi_threshold FLOAT8 DEFAULT 3.0,
+                integration_score FLOAT8 DEFAULT 0.0,
+                differentiation_score FLOAT8 DEFAULT 0.0,
+                num_nodes INT8 DEFAULT 0,
+                num_edges INT8 DEFAULT 0,
+                block_height INT8,
+                measured_at TIMESTAMPTZ DEFAULT now()
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        info!("Indexer schema migrations complete");
+        Ok(())
     }
 
     /// Get the highest indexed block height, or None if no blocks exist.
     pub async fn get_last_indexed_height(&self) -> Result<Option<u64>> {
         let row: Option<(i64,)> = sqlx::query_as(
-            "SELECT best_block_height FROM chain_state WHERE id = 1",
+            "SELECT best_block_height FROM idx_chain_state WHERE id = 1",
         )
         .fetch_optional(&self.pool)
         .await?;
@@ -51,7 +199,7 @@ impl Database {
     pub async fn insert_block(&self, block: &IndexedBlock) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO blocks (
+            INSERT INTO idx_blocks (
                 block_hash, block_height, previous_hash, timestamp,
                 difficulty, achieved_eigenvalue, miner_address,
                 era, actual_reward, total_fees, transaction_count,
@@ -87,7 +235,7 @@ impl Database {
         // Insert transaction if it doesn't exist (coinbase tx)
         sqlx::query(
             r#"
-            INSERT INTO transactions (
+            INSERT INTO idx_transactions (
                 tx_hash, block_hash, block_height, tx_index, timestamp,
                 tx_type, total_output, fee, tx_size, is_valid
             ) VALUES ($1, $2, $3, 0, now(), 'coinbase', $4, 0, 0, true)
@@ -104,7 +252,7 @@ impl Database {
         // Insert the output
         sqlx::query(
             r#"
-            INSERT INTO transaction_outputs (
+            INSERT INTO idx_transaction_outputs (
                 output_id, tx_hash, output_index, amount,
                 recipient_address, script_pubkey, is_spent
             ) VALUES ($1, $2, $3, $4, $5, $6, false)
@@ -134,7 +282,7 @@ impl Database {
     pub async fn mark_utxo_spent(&self, spent: &SpentUtxo) -> Result<()> {
         let result = sqlx::query(
             r#"
-            UPDATE transaction_outputs
+            UPDATE idx_transaction_outputs
             SET is_spent = true,
                 spent_in_tx = $1,
                 spent_at_height = $2,
@@ -173,16 +321,16 @@ impl Database {
         if is_receive {
             sqlx::query(
                 r#"
-                INSERT INTO addresses (
+                INSERT INTO idx_addresses (
                     address, balance, total_received, tx_count, utxo_count,
                     first_seen_height, first_seen_timestamp,
                     last_active_height, last_active_timestamp
                 ) VALUES ($1, $2, $2, 1, 1, $3, now(), $3, now())
                 ON CONFLICT (address) DO UPDATE SET
-                    balance = addresses.balance + $2,
-                    total_received = addresses.total_received + $2,
-                    tx_count = addresses.tx_count + 1,
-                    utxo_count = addresses.utxo_count + 1,
+                    balance = idx_addresses.balance + $2,
+                    total_received = idx_addresses.total_received + $2,
+                    tx_count = idx_addresses.tx_count + 1,
+                    utxo_count = idx_addresses.utxo_count + 1,
                     last_active_height = $3,
                     last_active_timestamp = now()
                 "#,
@@ -195,7 +343,7 @@ impl Database {
         } else {
             sqlx::query(
                 r#"
-                UPDATE addresses SET
+                UPDATE idx_addresses SET
                     balance = balance - $1,
                     total_sent = total_sent + $1,
                     tx_count = tx_count + 1,
@@ -220,7 +368,7 @@ impl Database {
     pub async fn update_chain_state(&self, state: &ChainState) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO chain_state (
+            INSERT INTO idx_chain_state (
                 id, best_block_hash, best_block_height,
                 total_blocks, total_transactions, total_addresses,
                 total_supply, current_era, current_difficulty,
@@ -270,7 +418,7 @@ impl Database {
 
         sqlx::query(
             r#"
-            INSERT INTO susy_solutions (
+            INSERT INTO idx_susy_solutions (
                 solution_id, block_hash, block_height, miner_address,
                 ground_state_energy, alignment_score, is_verified,
                 discovered_timestamp
@@ -299,7 +447,7 @@ impl Database {
     ) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO phi_measurements (
+            INSERT INTO idx_phi_measurements (
                 phi_value, phi_threshold, integration_score,
                 differentiation_score, num_nodes, num_edges,
                 block_height, measured_at
@@ -318,7 +466,7 @@ impl Database {
 
     /// Count total addresses in the addresses table.
     pub async fn count_addresses(&self) -> Result<u64> {
-        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM addresses")
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM idx_addresses")
             .fetch_one(&self.pool)
             .await?;
         Ok(row.0 as u64)
@@ -326,7 +474,7 @@ impl Database {
 
     /// Count total transactions.
     pub async fn count_transactions(&self) -> Result<u64> {
-        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM transactions")
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM idx_transactions")
             .fetch_one(&self.pool)
             .await?;
         Ok(row.0 as u64)
@@ -334,7 +482,7 @@ impl Database {
 
     /// Remove a transaction from the mempool after it's been finalized.
     pub async fn remove_from_mempool(&self, tx_hash: &[u8]) -> Result<()> {
-        sqlx::query("DELETE FROM mempool WHERE tx_hash = $1")
+        sqlx::query("DELETE FROM idx_transactions WHERE tx_hash = $1 AND tx_type = 'mempool'")
             .bind(tx_hash)
             .execute(&self.pool)
             .await?;

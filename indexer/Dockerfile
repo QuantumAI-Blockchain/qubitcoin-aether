@@ -32,7 +32,7 @@ LABEL org.opencontainers.image.title="Qubitcoin Block Indexer"
 LABEL org.opencontainers.image.description="Subscribes to finalized Substrate blocks and writes to CockroachDB"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates procps \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/qbc-indexer /usr/local/bin/
@@ -45,7 +45,7 @@ ENV START_HEIGHT=0
 ENV BACKFILL=false
 ENV LOG_LEVEL=info
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD test -f /tmp/indexer_healthy || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD pgrep -x qbc-indexer > /dev/null || exit 1
 
 ENTRYPOINT ["qbc-indexer"]

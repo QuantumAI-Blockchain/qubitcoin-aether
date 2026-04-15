@@ -11,7 +11,7 @@ RUN touch src/main.rs && cargo build --release
 
 FROM debian:bookworm-slim
 LABEL org.opencontainers.image.title="Qubitcoin API Gateway"
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/release/qbc-api-gateway /usr/local/bin/
 
 ENV API_LISTEN_ADDR=0.0.0.0:5000
