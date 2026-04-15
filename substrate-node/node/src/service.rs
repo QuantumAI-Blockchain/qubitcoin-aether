@@ -3,6 +3,7 @@
 //! Sets up networking, consensus (Aura + GRANDPA), transaction pool, RPC,
 //! and optional VQE mining engine.
 
+use codec::Encode;
 use qbc_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{Backend, StorageProvider};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
@@ -10,6 +11,7 @@ use sc_consensus_grandpa::SharedVoterState;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncConfig};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
+use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use futures::FutureExt;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
@@ -17,7 +19,7 @@ use std::sync::Arc;
 
 /// The full client type.
 pub type FullClient = sc_service::TFullClient<Block, RuntimeApi, sc_executor::WasmExecutor<sp_io::SubstrateHostFunctions>>;
-type FullBackend = sc_service::TFullBackend<Block>;
+pub(crate) type FullBackend = sc_service::TFullBackend<Block>;
 
 // ═══════════════════════════════════════════════════════════════════════
 // Fork Choice Rule — Weighted Chain Selection
@@ -134,8 +136,6 @@ impl qbc_mining::ProofSubmitter for SubstrateProofSubmitter {
         hamiltonian_seed: sp_core::H256,
         n_qubits: u8,
     ) -> Result<sp_core::H256, String> {
-        use codec::Encode;
-        use sp_core::crypto::Pair;
         use sp_keyring::Sr25519Keyring;
         use sp_runtime::BoundedVec;
         use sp_runtime::traits::ConstU32;
@@ -151,22 +151,22 @@ impl qbc_mining::ProofSubmitter for SubstrateProofSubmitter {
             n_qubits,
         };
 
-        // Build the call: submit_mining_proof(miner_address, vqe_proof)
-        // The miner_address is derived from origin in the pallet, so we can
-        // pass a dummy address here — the pallet ignores it.
+        // The miner_address parameter is ignored by the pallet (it derives
+        // the address from the signed origin), but we must pass it for the call.
         let miner_address = qbc_primitives::Address([0u8; 32]);
 
-        // Construct the extrinsic manually using the runtime's UncheckedExtrinsic.
-        // The call index for QbcConsensus::submit_mining_proof is (pallet_index, 0).
-        //
-        // We use the keystore to sign the extrinsic with the first available
-        // sr25519 key, or fall back to Alice in dev mode.
-        let best_hash = self.client.info().best_hash;
-        let best_number = self.client.info().best_number;
+        // Construct the RuntimeCall for submit_mining_proof
+        let call = qbc_runtime::RuntimeCall::QbcConsensus(
+            pallet_qbc_consensus::Call::submit_mining_proof {
+                miner_address,
+                vqe_proof: proof,
+            },
+        );
 
-        // Get signer from keystore
-        let signer = {
-            use sp_core::sr25519;
+        let best_hash = self.client.info().best_hash;
+
+        // Get signer public key from keystore (AURA key) or fall back to Alice
+        let signer_pub = {
             let keys = sp_keystore::Keystore::sr25519_public_keys(
                 &*self.keystore,
                 sp_core::crypto::key_types::AURA,
@@ -174,46 +174,120 @@ impl qbc_mining::ProofSubmitter for SubstrateProofSubmitter {
             if let Some(pub_key) = keys.first() {
                 *pub_key
             } else {
-                // Fall back to Alice for dev mode
                 Sr25519Keyring::Alice.public()
             }
         };
 
-        // Encode the call payload: pallet_index (from runtime) + call_index(0) + args
-        // For now, we construct a raw extrinsic bytes and submit via RPC-style pool.
-        // This is a simplified approach — in production, use the runtime's
-        // SignedPayload and SignedExtra.
-        let call_data = {
-            let mut data = Vec::new();
-            // QbcConsensus pallet index in the runtime (check construct_runtime!)
-            // We'll use a well-known index. The pallet index depends on the runtime
-            // ordering — typically the custom pallets start after standard ones.
-            // From the runtime: QbcConsensus is declared after QbcUtxo.
-            // We need to discover this dynamically or hardcode based on the runtime.
-            //
-            // For robustness, we construct the full Call enum variant.
-            // The runtime's Call::QbcConsensus(submit_mining_proof { .. }) will be
-            // at the correct pallet index automatically.
-            data.extend_from_slice(&miner_address.encode());
-            data.extend_from_slice(&proof.encode());
-            data
+        let account_id: qbc_runtime::AccountId = signer_pub.into();
+
+        // Get the account nonce via runtime API
+        let nonce: qbc_runtime::Nonce = {
+            use frame_system_rpc_runtime_api::AccountNonceApi;
+            self.client
+                .runtime_api()
+                .account_nonce(best_hash, account_id.clone())
+                .map_err(|e| format!("Failed to get nonce: {:?}", e))?
         };
 
-        // For now, log the proof details. Full extrinsic submission requires
-        // runtime metadata introspection or a hardcoded call encoding.
-        // The mining engine successfully finds VQE solutions — extrinsic
-        // submission will be wired once the runtime call index is confirmed.
+        // Get genesis hash and runtime version for the signed extra
+        let genesis_hash = self.client
+            .hash(0u32.into())
+            .map_err(|e| format!("Failed to get genesis hash: {:?}", e))?
+            .ok_or_else(|| "Genesis block not found".to_string())?;
+
+        let spec_version = qbc_runtime::VERSION.spec_version;
+        let transaction_version = qbc_runtime::VERSION.transaction_version;
+
+        // Construct SignedExtra (must match runtime's SignedExtra type exactly)
+        let extra: qbc_runtime::SignedExtra = (
+            frame_system::CheckNonZeroSender::new(),
+            frame_system::CheckSpecVersion::new(),
+            frame_system::CheckTxVersion::new(),
+            frame_system::CheckGenesis::new(),
+            frame_system::CheckEra::from(sp_runtime::generic::Era::Immortal),
+            frame_system::CheckNonce::from(nonce),
+            frame_system::CheckWeight::new(),
+            pallet_transaction_payment::ChargeTransactionPayment::from(0u128),
+        );
+
+        // Build the raw payload to sign: (call, extra, additional_signed)
+        // additional_signed = ((), spec_version, tx_version, genesis_hash, genesis_hash, (), (), ())
+        let additional_signed = (
+            (),                    // CheckNonZeroSender
+            spec_version,          // CheckSpecVersion
+            transaction_version,   // CheckTxVersion
+            genesis_hash,          // CheckGenesis
+            genesis_hash,          // CheckEra (immortal → genesis_hash)
+            (),                    // CheckNonce
+            (),                    // CheckWeight
+            (),                    // ChargeTransactionPayment
+        );
+
+        let raw_payload = (&call, &extra, &additional_signed);
+        let signature = raw_payload.using_encoded(|payload| {
+            // If > 256 bytes, hash first (Substrate convention)
+            let msg = if payload.len() > 256 {
+                sp_core::hashing::blake2_256(payload).to_vec()
+            } else {
+                payload.to_vec()
+            };
+            sp_keystore::Keystore::sr25519_sign(
+                &*self.keystore,
+                sp_core::crypto::key_types::AURA,
+                &signer_pub,
+                &msg,
+            )
+        })
+        .map_err(|e| format!("Keystore sign error: {:?}", e))?
+        .ok_or_else(|| "Key not found in keystore".to_string())?;
+
+        let multi_sig = sp_runtime::MultiSignature::Sr25519(signature);
+
+        // Build the unchecked extrinsic
+        let extrinsic = qbc_runtime::UncheckedExtrinsic::new_signed(
+            call,
+            sp_runtime::MultiAddress::Id(account_id),
+            multi_sig,
+            extra,
+        );
+
+        // Compute a hash for logging
+        let encoded = extrinsic.encode();
         let tx_hash = sp_core::H256::from_slice(
-            &sp_core::hashing::sha2_256(&call_data),
+            &sp_core::hashing::blake2_256(&encoded),
         );
 
-        log::info!(
-            target: "mining",
-            "Mining proof ready: energy={}, n_qubits={}, seed={:?}, tx_hash={:?}",
-            energy, n_qubits, hamiltonian_seed, tx_hash
+        // Convert to opaque extrinsic for pool submission
+        #[allow(deprecated)]
+        let opaque = sp_runtime::OpaqueExtrinsic::from_bytes(&encoded)
+            .map_err(|_| "Failed to encode extrinsic".to_string())?;
+
+        // Submit to the transaction pool
+        use sc_transaction_pool_api::TransactionPool;
+        let submit_future = self.pool.submit_one(
+            best_hash,
+            sp_runtime::transaction_validity::TransactionSource::Local,
+            opaque.into(),
         );
 
-        Ok(tx_hash)
+        // Block on submission (we're already in a blocking thread)
+        let result = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(submit_future)
+        });
+
+        match result {
+            Ok(_) => {
+                log::info!(
+                    target: "mining",
+                    "Mining proof submitted to pool: energy={}, n_qubits={}, tx_hash={:?}",
+                    energy, n_qubits, tx_hash
+                );
+                Ok(tx_hash)
+            }
+            Err(e) => {
+                Err(format!("Failed to submit to pool: {:?}", e))
+            }
+        }
     }
 }
 
@@ -473,7 +547,102 @@ pub fn new_full(
         tracing_execute_block: None,
     })?;
 
-    if role.is_authority() {
+    // ── Block Authoring Strategy ────────────────────────────────────
+    //
+    // When mining is enabled (--mine):
+    //   VQE-gated block authoring. Blocks are ONLY produced when the
+    //   mining engine finds a VQE solution. Aura authoring is NOT started.
+    //
+    // When mining is disabled:
+    //   Standard Aura slot-based block authoring (for validator nodes
+    //   that don't mine but still need to produce blocks in dev mode).
+    //
+    // In both cases, the Aura import queue is active for validating
+    // incoming blocks from peers.
+
+    if mining_enabled {
+        log::info!(
+            target: "mining",
+            "VQE-gated block authoring enabled — Aura authoring disabled"
+        );
+        log::info!(
+            target: "mining",
+            "Starting {} VQE mining thread(s)",
+            mining_threads
+        );
+
+        // Create channel for mining engine → block author notifications.
+        // Buffer of 4: one per mining thread + headroom.
+        let (proof_tx, proof_rx) =
+            std::sync::mpsc::sync_channel::<qbc_mining::MiningProofReady>(4);
+
+        // Spawn mining threads
+        for i in 0..mining_threads {
+            let mining_client = client.clone();
+            let mining_pool = transaction_pool.clone();
+            let mining_keystore = keystore_container.keystore();
+            let mining_proof_tx = proof_tx.clone();
+            let task_name: &'static str = Box::leak(format!("vqe-miner-{}", i).into_boxed_str());
+
+            task_manager
+                .spawn_essential_handle()
+                .spawn_blocking(
+                    task_name,
+                    Some("mining"),
+                    async move {
+                        let reader = Arc::new(SubstrateChainReader {
+                            client: mining_client.clone(),
+                        });
+                        let submitter = Arc::new(SubstrateProofSubmitter {
+                            client: mining_client,
+                            pool: mining_pool,
+                            keystore: mining_keystore,
+                        });
+                        let config = qbc_mining::MiningConfig {
+                            thread_id: i,
+                            max_attempts: qbc_mining::engine::MAX_ATTEMPTS,
+                        };
+
+                        // Run the blocking mining loop with proof notification
+                        tokio::task::spawn_blocking(move || {
+                            qbc_mining::engine::run_mining_with_notify(
+                                reader,
+                                submitter,
+                                config,
+                                Some(mining_proof_tx),
+                            );
+                        })
+                        .await
+                        .expect("Mining thread panicked");
+                    },
+                );
+        }
+        // Drop the original sender so the channel closes when all miners stop
+        drop(proof_tx);
+
+        // Spawn VQE-gated block author
+        let author_proposer_factory = sc_basic_authorship::ProposerFactory::new(
+            task_manager.spawn_handle(),
+            client.clone(),
+            transaction_pool.clone(),
+            prometheus_registry.as_ref(),
+            telemetry.as_ref().map(|x| x.handle()),
+        );
+
+        task_manager
+            .spawn_essential_handle()
+            .spawn_blocking(
+                "vqe-block-author",
+                Some("block-authoring"),
+                crate::block_author::run_vqe_block_author(
+                    client.clone(),
+                    author_proposer_factory,
+                    block_import,
+                    proof_rx,
+                ),
+            );
+    } else if role.is_authority() {
+        // Standard Aura block authoring (dev/validator mode without mining)
         let proposer_factory = sc_basic_authorship::ProposerFactory::new(
             task_manager.spawn_handle(),
             client.clone(),
@@ -517,56 +686,6 @@ pub fn new_full(
         task_manager
             .spawn_essential_handle()
             .spawn_blocking("aura", Some("block-authoring"), aura);
-    }
-
-    // ── VQE Mining Engine ─────────────────────────────────────────────
-    // Spawn mining threads when --mine flag is set.
-    // Mining is decoupled from Aura authority — a node can be:
-    //   - Authority + miner (block producer + VQE solver)
-    //   - Authority only (block producer, no mining)
-    //   - Miner only (submits proofs but doesn't produce blocks)
-    //   - Neither (full node, sync + validate only)
-    if mining_enabled {
-        log::info!(
-            target: "mining",
-            "Starting {} VQE mining thread(s)",
-            mining_threads
-        );
-
-        for i in 0..mining_threads {
-            let mining_client = client.clone();
-            let mining_pool = transaction_pool.clone();
-            let mining_keystore = keystore_container.keystore();
-            let task_name: &'static str = Box::leak(format!("vqe-miner-{}", i).into_boxed_str());
-
-            task_manager
-                .spawn_essential_handle()
-                .spawn_blocking(
-                    task_name,
-                    Some("mining"),
-                    async move {
-                        let reader = Arc::new(SubstrateChainReader {
-                            client: mining_client.clone(),
-                        });
-                        let submitter = Arc::new(SubstrateProofSubmitter {
-                            client: mining_client,
-                            pool: mining_pool,
-                            keystore: mining_keystore,
-                        });
-                        let config = qbc_mining::MiningConfig {
-                            thread_id: i,
-                            max_attempts: qbc_mining::engine::MAX_ATTEMPTS,
-                        };
-
-                        // Run the blocking mining loop in a tokio blocking thread
-                        tokio::task::spawn_blocking(move || {
-                            qbc_mining::engine::run_mining(reader, submitter, config);
-                        })
-                        .await
-                        .expect("Mining thread panicked");
-                    },
-                );
-        }
     }
 
     if enable_grandpa {

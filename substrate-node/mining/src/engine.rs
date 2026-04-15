@@ -16,6 +16,15 @@ use sp_core::H256;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+/// Notification sent from mining engine to block author when a proof is ready.
+#[derive(Debug, Clone)]
+pub struct MiningProofReady {
+    /// Block height this proof targets.
+    pub block_height: u64,
+    /// Transaction hash of the submitted proof extrinsic.
+    pub tx_hash: H256,
+}
+
 /// Number of VQE optimization attempts per block.
 pub const MAX_ATTEMPTS: usize = 50;
 /// Energy scaling factor (must match pallet: values stored as i128 * 10^12).
@@ -78,10 +87,25 @@ pub trait ProofSubmitter: Send + Sync {
 /// 2. Derives the Hamiltonian
 /// 3. Runs VQE optimization
 /// 4. Submits proof if energy < difficulty
+/// 5. Notifies block author via `proof_tx` channel (if provided)
+///
+/// When `proof_tx` is provided, the block author receives a notification
+/// after each successful proof submission so it can trigger block production.
 pub fn run_mining<C: ChainReader, S: ProofSubmitter>(
     client: Arc<C>,
     submitter: Arc<S>,
     config: MiningConfig,
+) {
+    run_mining_with_notify(client, submitter, config, None);
+}
+
+/// Run the mining loop with an optional notification channel for VQE-gated
+/// block authoring.
+pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
+    client: Arc<C>,
+    submitter: Arc<S>,
+    config: MiningConfig,
+    proof_tx: Option<std::sync::mpsc::SyncSender<MiningProofReady>>,
 ) {
     let thread_id = config.thread_id;
     info!(
@@ -120,16 +144,12 @@ pub fn run_mining<C: ChainReader, S: ProofSubmitter>(
             }
         };
 
-        // 3. Get parent hash and derive Hamiltonian seed
-        let parent_hash = match client.parent_hash(&best_hash) {
-            Some(h) => h,
-            None => {
-                // For genesis block, parent hash is zero
-                H256::zero()
-            }
-        };
-
-        let seed = hamiltonian::derive_seed(&parent_hash, mining_height);
+        // 3. Derive Hamiltonian seed using best_hash as parent.
+        // The pallet's derive_hamiltonian_seed() calls parent_hash() which
+        // returns the hash of the parent of the block being executed. When
+        // mining block N, the "block being executed" is block N, so its
+        // parent_hash() returns the hash of block N-1 — which is best_hash.
+        let seed = hamiltonian::derive_seed(&best_hash, mining_height);
         let hamiltonian = hamiltonian::generate_hamiltonian(&seed);
 
         debug!(
@@ -175,6 +195,15 @@ pub fn run_mining<C: ChainReader, S: ProofSubmitter>(
                             "[miner-{}] Mining proof submitted: tx_hash={:?}",
                             thread_id, tx_hash
                         );
+
+                        // Notify block author that a proof is ready
+                        if let Some(ref tx) = proof_tx {
+                            let _ = tx.try_send(MiningProofReady {
+                                block_height: mining_height,
+                                tx_hash,
+                            });
+                        }
+
                         last_mined_height = mining_height;
                         found = true;
                         break;
@@ -289,18 +318,20 @@ mod tests {
 
     #[test]
     fn test_hamiltonian_seed_derivation_matches_pallet() {
-        // Verify our seed derivation matches the pallet's logic
+        // Verify our seed derivation matches the pallet's format:
+        // SHA256("{hex_parent_hash}:{decimal_height}")
         use sha2::{Digest, Sha256};
         let parent = H256::from([0x42u8; 32]);
         let height: u64 = 100;
 
         let seed = hamiltonian::derive_seed(&parent, height);
 
-        // Manual computation
+        // Manual computation matching pallet's derive_hamiltonian_seed()
         let mut hasher = Sha256::new();
-        hasher.update(b"hamiltonian-seed-v1:");
-        hasher.update(parent.as_bytes());
-        hasher.update(&height.to_le_bytes());
+        let hex_str = hex::encode(parent.as_bytes());
+        hasher.update(hex_str.as_bytes());
+        hasher.update(b":");
+        hasher.update(b"100");
         let expected = H256::from_slice(&hasher.finalize());
 
         assert_eq!(seed, expected);

@@ -60,6 +60,9 @@ qbc-runtime = { workspace = true }
 qbc-primitives = { workspace = true, features = ["std"] }
 qbc-mining = { workspace = true }
 qbc-p2p-bridge = { workspace = true }
+pallet-qbc-consensus = { workspace = true, features = ["std"] }
+pallet-transaction-payment = { workspace = true, features = ["std"] }
+frame-system-rpc-runtime-api = { workspace = true, features = ["std"] }
 
 # Pin rustix 0.38 for transitive deps (wasmtime→memfd→rustix)
 rustix = { workspace = true }

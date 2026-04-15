@@ -32,12 +32,18 @@ pub struct Hamiltonian {
 /// Derive the Hamiltonian seed from parent block hash and block height.
 ///
 /// Must match `pallet-qbc-consensus::derive_hamiltonian_seed()` exactly:
-/// `seed = SHA2-256("hamiltonian-seed-v1:" || parent_hash || height_le_bytes)`
+///   `seed = SHA2-256("{hex_of_parent_hash}:{block_height_decimal}")`
+/// where hex is lowercase and height is a decimal ASCII string.
+///
+/// This also matches the Python node's derivation:
+///   `hashlib.sha256(f"{prev_hash}:{height}".encode()).digest()`
 pub fn derive_seed(parent_hash: &H256, block_height: u64) -> H256 {
     let mut hasher = Sha256::new();
-    hasher.update(b"hamiltonian-seed-v1:");
-    hasher.update(parent_hash.as_bytes());
-    hasher.update(&block_height.to_le_bytes());
+    // Format: "{hex_of_parent_hash}:{block_height_decimal}"
+    let hex_str = hex::encode(parent_hash.as_bytes());
+    hasher.update(hex_str.as_bytes());
+    hasher.update(b":");
+    hasher.update(block_height.to_string().as_bytes());
     H256::from_slice(&hasher.finalize())
 }
 
@@ -93,6 +99,45 @@ mod tests {
         let seed1 = derive_seed(&parent1, 100);
         let seed2 = derive_seed(&parent2, 100);
         assert_ne!(seed1, seed2);
+    }
+
+    /// Verify mining engine seed derivation matches pallet's format exactly.
+    /// The pallet computes: SHA256("{hex_parent_hash}:{decimal_height}")
+    /// This test manually constructs the same string to ensure agreement.
+    #[test]
+    fn test_seed_matches_pallet_format() {
+        let parent = H256::from([0x42u8; 32]);
+        let height: u64 = 100;
+
+        let seed = derive_seed(&parent, height);
+
+        // Manual computation matching the pallet's derive_hamiltonian_seed()
+        let mut hasher = Sha256::new();
+        let hex_str = hex::encode(parent.as_bytes());
+        hasher.update(hex_str.as_bytes());
+        hasher.update(b":");
+        hasher.update(b"100"); // decimal string of height
+        let expected = H256::from_slice(&hasher.finalize());
+
+        assert_eq!(seed, expected, "Mining seed must match pallet derivation");
+    }
+
+    /// Verify the seed format matches what Python produces:
+    ///   hashlib.sha256(f"{prev_hash}:{height}".encode()).digest()
+    #[test]
+    fn test_seed_format_is_hex_colon_decimal() {
+        let parent = H256::from([0x00u8; 32]);
+        let height: u64 = 0;
+
+        let seed = derive_seed(&parent, height);
+
+        // The input string should be:
+        // "0000000000000000000000000000000000000000000000000000000000000000:0"
+        let mut hasher = Sha256::new();
+        hasher.update(b"0000000000000000000000000000000000000000000000000000000000000000:0");
+        let expected = H256::from_slice(&hasher.finalize());
+
+        assert_eq!(seed, expected, "Seed format must be hex:decimal");
     }
 
     #[test]

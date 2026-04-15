@@ -37,4 +37,4 @@ pub mod hamiltonian;
 pub mod simulator;
 pub mod vqe;
 
-pub use engine::{ChainReader, MiningConfig, ProofSubmitter};
+pub use engine::{ChainReader, MiningConfig, MiningProofReady, ProofSubmitter};
