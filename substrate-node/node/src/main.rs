@@ -7,6 +7,7 @@ mod chain_spec;
 mod cli;
 mod rpc;
 mod service;
+mod weighted_chain;
 
 fn main() -> sc_cli::Result<()> {
     cli::run()

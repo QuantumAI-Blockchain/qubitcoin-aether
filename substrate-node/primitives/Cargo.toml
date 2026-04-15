@@ -8,6 +8,7 @@ description = "Qubitcoin shared primitive types — Address, TxId, UTXO, Dilithi
 [dependencies]
 codec = { workspace = true }
 scale-info = { workspace = true }
+sp-api = { workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
@@ -21,6 +22,7 @@ default = ["std"]
 std = [
     "codec/std",
     "scale-info/std",
+    "sp-api/std",
     "sp-core/std",
     "sp-runtime/std",
     "sp-std/std",

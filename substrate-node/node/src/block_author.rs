@@ -17,6 +17,7 @@
 use qbc_runtime::opaque::Block;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sp_blockchain::HeaderBackend;
+use sp_consensus::{Environment, Proposer};
 use sp_inherents::InherentDataProvider;
 use sp_runtime::traits::Block as BlockT;
 use std::sync::Arc;
@@ -27,15 +28,15 @@ type FullGrandpaBlockImport = sc_consensus_grandpa::GrandpaBlockImport<
     FullBackend,
     Block,
     FullClient,
-    sc_consensus::LongestChain<FullBackend, Block>,
+    crate::weighted_chain::WeightedChain<FullBackend, FullClient>,
 >;
 
 type Pool = sc_transaction_pool::TransactionPoolHandle<Block, FullClient>;
 
 type FullProposerFactory = sc_basic_authorship::ProposerFactory<
-    sc_service::SpawnTaskHandle,
-    FullClient,
     Pool,
+    FullClient,
+    sp_consensus::DisableProofRecording,
 >;
 
 /// Run the VQE-gated block authoring loop.
@@ -150,7 +151,7 @@ pub async fn run_vqe_block_author(
 
         // Import the block
         let mut import_params = BlockImportParams::new(
-            sc_consensus::BlockOrigin::Own,
+            sp_consensus::BlockOrigin::Own,
             header,
         );
         import_params.body = Some(body);

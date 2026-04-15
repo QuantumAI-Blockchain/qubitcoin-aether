@@ -15,6 +15,9 @@
 
 pub use pallet::*;
 
+#[cfg(test)]
+mod tests;
+
 #[frame_support::pallet]
 pub mod pallet {
     use frame_support::pallet_prelude::*;
@@ -419,7 +422,7 @@ pub mod pallet {
         /// Uses `frame_system::Pallet::parent_hash()` which returns the hash of the
         /// parent of the block currently being executed. This is tamper-proof because
         /// block hashes are committed by consensus before extrinsic execution.
-        fn derive_hamiltonian_seed(block_height: u64) -> H256 {
+        pub(crate) fn derive_hamiltonian_seed(block_height: u64) -> H256 {
             use sp_core::hashing::sha2_256;
             let parent_hash = <frame_system::Pallet<T>>::parent_hash();
             // Format: "{hex_of_parent_hash}:{block_height}" — matches Python's
@@ -438,7 +441,7 @@ pub mod pallet {
         ///
         /// Includes the VQE proof data, miner address, and block height so that
         /// the same proof cannot be replayed at a different height or by a different miner.
-        fn compute_proof_hash(proof: &VqeProof, miner: &Address, block_height: u64) -> H256 {
+        pub(crate) fn compute_proof_hash(proof: &VqeProof, miner: &Address, block_height: u64) -> H256 {
             use sp_core::hashing::sha2_256;
             let mut data = sp_std::vec::Vec::new();
             data.extend_from_slice(b"mining-proof-v1:");
@@ -464,7 +467,7 @@ pub mod pallet {
         /// - Three one-time resets at heights 167, 724, 2750 (historical fixes)
         /// - Meaningful-max guard prevents runaway when compute-bound
         /// - Floor (0.5) and ceiling (1000.0) enforced
-        fn adjust_difficulty(timestamp_ms: u64, block_height: u64) {
+        pub(crate) fn adjust_difficulty(timestamp_ms: u64, block_height: u64) {
             // ── One-Time Difficulty Resets (fork-prevention) ────────────
             // These match the Python node's historical difficulty resets.
             // Without these, the Substrate node would diverge from the
@@ -565,7 +568,7 @@ pub mod pallet {
         /// FORK-PREVENTION: Must match Python exactly:
         ///   `hashlib.sha256(f"coinbase-{height}-{prev_hash}".encode()).hexdigest()`
         /// where height is decimal and prev_hash is lowercase hex.
-        fn coinbase_txid(block_height: u64) -> H256 {
+        pub(crate) fn coinbase_txid(block_height: u64) -> H256 {
             use sp_core::hashing::sha2_256;
             let parent_hash = <frame_system::Pallet<T>>::parent_hash();
             let hex_str = Self::bytes_to_hex(parent_hash.as_ref());
@@ -581,7 +584,7 @@ pub mod pallet {
 
         /// Convert a byte slice to lowercase hex string (no_std compatible).
         /// Produces the same output as Python's `bytes.hex()`.
-        fn bytes_to_hex(bytes: &[u8]) -> sp_std::vec::Vec<u8> {
+        pub(crate) fn bytes_to_hex(bytes: &[u8]) -> sp_std::vec::Vec<u8> {
             const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
             let mut hex = sp_std::vec::Vec::with_capacity(bytes.len() * 2);
             for &b in bytes {
@@ -593,7 +596,7 @@ pub mod pallet {
 
         /// Convert a u64 to its decimal ASCII representation (no_std compatible).
         /// Produces the same output as Python's `str(n)`.
-        fn u64_to_decimal_bytes(mut n: u64) -> sp_std::vec::Vec<u8> {
+        pub(crate) fn u64_to_decimal_bytes(mut n: u64) -> sp_std::vec::Vec<u8> {
             if n == 0 {
                 return sp_std::vec![b'0'];
             }

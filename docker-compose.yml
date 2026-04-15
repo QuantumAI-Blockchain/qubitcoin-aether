@@ -26,7 +26,11 @@ services:
     #
     # --accept-sql-without-tls is an explicit opt-in to allow unencrypted
     # SQL connections, making the security posture visible in the config.
-    command: start-single-node --insecure --accept-sql-without-tls
+    command: start-single-node --insecure --accept-sql-without-tls --cache=1.5GiB --max-sql-memory=1.5GiB
+    deploy:
+      resources:
+        limits:
+          memory: 4G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
       interval: 10s
@@ -118,6 +122,10 @@ services:
       - RUST_P2P_GRPC_ADDR=0.0.0.0:50051
       - RUST_LOG=info,qubitcoin_p2p=debug
       - PEER_SEEDS=${PEER_SEEDS:-}
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     networks:
       - qbc-net
     restart: unless-stopped
@@ -186,6 +194,10 @@ services:
         condition: service_healthy
       qbc-p2p:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 6G
     volumes:
       - node-data:/app/data
       - node-logs:/app/logs

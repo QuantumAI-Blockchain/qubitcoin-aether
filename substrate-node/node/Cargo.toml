@@ -29,6 +29,7 @@ sp-blockchain = "43.0"
 sp-io = { workspace = true, features = ["std"] }
 sp-runtime = { workspace = true, features = ["std"] }
 sp-core = { workspace = true, features = ["std"] }
+sp-consensus = { workspace = true }
 sp-consensus-aura = { workspace = true, features = ["std"] }
 sp-consensus-grandpa = { workspace = true, features = ["std"] }
 sp-inherents = { workspace = true, features = ["std"] }
@@ -51,6 +52,7 @@ serde_json = { workspace = true, features = ["std"] }
 jsonrpsee = { workspace = true }
 
 # Async
+async-trait = "0.1"
 tokio = { workspace = true }
 futures = { workspace = true }
 log = { workspace = true }

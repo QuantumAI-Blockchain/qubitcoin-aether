@@ -255,6 +255,22 @@ pub struct PhiMeasurement {
 /// 3.0 * 1000 = 3000 in scaled representation.
 pub const PHI_THRESHOLD_SCALED: u64 = 3_000;
 
+// ═══════════════════════════════════════════════════════════════════════
+// Runtime API for consensus queries (used by weighted fork choice)
+// ═══════════════════════════════════════════════════════════════════════
+
+sp_api::decl_runtime_apis! {
+    /// Runtime API for querying QBC consensus state from the node side.
+    ///
+    /// Used by the weighted fork choice rule (`WeightedChain`) to read
+    /// per-block difficulty without direct storage access.
+    pub trait QbcConsensusApi {
+        /// Return the current difficulty stored in the QbcConsensus pallet.
+        /// Value is scaled by 10^6 (e.g., 1_000_000 = difficulty 1.0).
+        fn current_difficulty() -> Difficulty;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

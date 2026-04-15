@@ -21,6 +21,9 @@ log = { workspace = true }
 
 [dev-dependencies]
 sp-io = { workspace = true, features = ["std"] }
+sha2 = "0.10"
+hex = "0.4"
+pallet-qbc-dilithium = { workspace = true, features = ["std"] }
 
 [features]
 default = ["std"]

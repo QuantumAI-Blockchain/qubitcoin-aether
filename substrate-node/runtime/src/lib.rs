@@ -462,6 +462,12 @@ impl_runtime_apis! {
         }
     }
 
+    impl qbc_primitives::QbcConsensusApi<Block> for Runtime {
+        fn current_difficulty() -> qbc_primitives::Difficulty {
+            QbcConsensus::current_difficulty()
+        }
+    }
+
     impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
         fn build_state(config: Vec<u8>) -> sp_genesis_builder::Result {
             build_state::<RuntimeGenesisConfig>(config)
