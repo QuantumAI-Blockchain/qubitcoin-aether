@@ -400,6 +400,54 @@ services:
     profiles:
       - production
 
+  # ── API Gateway (Rust) ───────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: qbc-api-gateway
+    ports:
+      - "5100:5000"     # Host 5100 to avoid conflict with Python node on 5000
+    environment:
+      - API_LISTEN_ADDR=0.0.0.0:5000
+      - SUBSTRATE_WS_URL=ws://substrate-node:9944
+      - DATABASE_URL=postgresql://root@cockroachdb:26257/qubitcoin?sslmode=disable
+      - AETHER_SERVICE_URL=http://qbc-node:5000
+      - CHAIN_ID=3303
+      - LOG_LEVEL=info
+      - RUST_LOG=info,qbc_api_gateway=debug
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+    networks:
+      - qbc-net
+    restart: unless-stopped
+    profiles:
+      - substrate
+
+  # ── Block Indexer (Rust) ────────────────────────────────────────────
+  indexer:
+    build:
+      context: .
+      dockerfile: indexer/Dockerfile
+    container_name: qbc-indexer
+    environment:
+      - SUBSTRATE_WS_URL=ws://substrate-node:9944
+      - DATABASE_URL=postgresql://root@cockroachdb:26257/qubitcoin?sslmode=disable
+      - DB_POOL_SIZE=10
+      - START_HEIGHT=0
+      - BACKFILL=false
+      - LOG_LEVEL=info
+      - RUST_LOG=info,qbc_indexer=debug
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+    networks:
+      - qbc-net
+    restart: unless-stopped
+    profiles:
+      - substrate
+
   # ── Aether Graph Shard Service (Distributed KG) ──────────────────────
   graph-shard:
     build:

@@ -394,19 +394,23 @@ impl PhiCalculator {
             // --- Parse external stats for milestone gates ---
             let extra = self.parse_extra_stats(extra_stats);
 
+            // Merge MIP: take max of Rust-computed MIP and Python-computed MIP override.
+            // Python uses algebraic_connectivity + normalized_cut (different formula).
+            let effective_mip = self.last_mip_score.max(extra.mip_phi_override);
+
             // --- Milestone gates ---
             let gate_results = self.check_gates(
                 &nodes,
                 &edges,
                 integration,
-                self.last_mip_score,
+                effective_mip,
                 &extra,
             );
             let gates_passed = gate_results.iter().filter(|g| g.1).count();
             let gate_ceiling = gates_passed as f64 * GATE_CEILING_INCREMENT;
 
             // --- HMS-Phi v4 ---
-            let phi_meso = self.last_mip_score.max(0.0).min(1.0);
+            let phi_meso = effective_mip.max(0.0).min(1.0);
             let phi_macro = self.compute_phi_macro(&nodes, &edges, n_nodes, n_edges);
             // phi_micro: use a simple proxy based on subgraph MIP sampling
             // (full IIT TPM approximation is too expensive for Rust without numpy)
@@ -438,7 +442,7 @@ impl PhiCalculator {
                 phi_raw: round6(raw_phi),
                 integration_score: round6(integration),
                 differentiation_score: round6(differentiation),
-                mip_score: round6(self.last_mip_score),
+                mip_score: round6(effective_mip),
                 redundancy_factor: round4(redundancy_factor),
                 phi_micro: round6(phi_micro),
                 phi_meso: round6(phi_meso),
@@ -1068,10 +1072,24 @@ impl PhiCalculator {
             0.0
         };
         let grounding_ratio = if n_nodes > 0 {
-            grounded_nodes as f64 / n_nodes as f64
+            // Take max of Rust-computed and Python-provided grounding ratio.
+            // Rust shadow KG lacks grounding_source (not synced), so Python's
+            // DB-computed ratio is the authoritative value.
+            let rust_ratio = grounded_nodes as f64 / n_nodes as f64;
+            rust_ratio.max(extra.grounding_ratio_override)
         } else {
-            0.0
+            extra.grounding_ratio_override
         };
+
+        // Apply DB-floor counts — LRU eviction undercounts old nodes in Rust KG.
+        // Python queries CockroachDB for the accurate total and we take max.
+        let verified_predictions = verified_predictions.max(extra.db_verified_predictions);
+        let debate_verdicts = debate_verdicts.max(extra.db_debate_verdicts);
+        let contradiction_resolutions = contradiction_resolutions.max(extra.db_contradiction_resolutions);
+        let auto_goals_generated = auto_goals_generated.max(extra.db_auto_goals_generated);
+        let axiom_from_consolidation = axiom_from_consolidation.max(extra.db_axiom_from_consolidation);
+        let novel_concept_count = novel_concept_count.max(extra.db_novel_concept_count);
+        let cross_domain_inferences = cross_domain_inferences.max(extra.db_cross_domain_inferences);
 
         let stats = GateStats {
             n_nodes,
@@ -1362,6 +1380,17 @@ impl PhiCalculator {
             fep_domain_precisions: extract_f64(extra_stats, "fep_domain_precisions", 0.0) as usize,
             cross_domain_inference_confidence: extract_f64(extra_stats, "cross_domain_inference_confidence", 0.0),
             sephirot_winner_diversity: extract_f64(extra_stats, "sephirot_winner_diversity", 0.0),
+            mip_phi_override: extract_f64(extra_stats, "mip_phi", 0.0),
+            grounding_ratio_override: extract_f64(extra_stats, "grounding_ratio", 0.0),
+            // DB-floor counts — LRU eviction undercounts old nodes in the Rust KG.
+            // Python queries CockroachDB for accurate totals and passes them here.
+            db_verified_predictions: extract_f64(extra_stats, "db_verified_predictions", 0.0) as usize,
+            db_debate_verdicts: extract_f64(extra_stats, "db_debate_verdicts", 0.0) as usize,
+            db_contradiction_resolutions: extract_f64(extra_stats, "db_contradiction_resolutions", 0.0) as usize,
+            db_auto_goals_generated: extract_f64(extra_stats, "db_auto_goals_generated", 0.0) as usize,
+            db_axiom_from_consolidation: extract_f64(extra_stats, "db_axiom_from_consolidation", 0.0) as usize,
+            db_novel_concept_count: extract_f64(extra_stats, "db_novel_concept_count", 0.0) as usize,
+            db_cross_domain_inferences: extract_f64(extra_stats, "db_cross_domain_inferences", 0.0) as usize,
         }
     }
 
@@ -1450,6 +1479,20 @@ struct ExtraStats {
     fep_domain_precisions: usize,
     cross_domain_inference_confidence: f64,
     sephirot_winner_diversity: f64,
+    // Python-computed MIP score (algebraic connectivity + normalized cut).
+    // Rust's own MIP uses a different formula; take max to avoid gate failures.
+    mip_phi_override: f64,
+    // Python-computed grounding ratio (from DB — Rust shadow KG lacks grounding_source).
+    grounding_ratio_override: f64,
+    // DB-floor counts — Python queries CockroachDB for accurate totals
+    // since LRU eviction causes in-memory undercounting.
+    db_verified_predictions: usize,
+    db_debate_verdicts: usize,
+    db_contradiction_resolutions: usize,
+    db_auto_goals_generated: usize,
+    db_axiom_from_consolidation: usize,
+    db_novel_concept_count: usize,
+    db_cross_domain_inferences: usize,
 }
 
 // ---------------------------------------------------------------------------

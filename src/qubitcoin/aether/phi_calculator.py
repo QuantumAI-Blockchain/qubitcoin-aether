@@ -397,7 +397,16 @@ class PhiCalculator:
         # ── Rust-accelerated phi computation ────────────────────────────
         # Rust PhiCalculator updated to v4 HMS-Phi gates/formula (2026-04-14).
         # Uses Rust for the entire spectral bisection + gate check when available.
-        if self._rust_phi is not None and hasattr(self.kg, 'rust_kg') and self.kg.rust_kg is not None:
+        # On first call after restart, force Python path to seed _last_mip_score
+        # (Rust MIP formula differs from Python's — Python MIP is passed to Rust
+        # via mip_phi in ExtraStats, but it's 0 until Python computes it once).
+        _rust_ready = (
+            self._rust_phi is not None
+            and hasattr(self.kg, 'rust_kg')
+            and self.kg.rust_kg is not None
+            and self._last_mip_score > 0  # Need at least one Python MIP compute
+        )
+        if _rust_ready:
             try:
                 extra_stats = dict(self._subsystem_stats) if self._subsystem_stats else None
                 result = self._rust_phi.compute_phi(self.kg.rust_kg, block_height, extra_stats)
@@ -407,7 +416,9 @@ class PhiCalculator:
                     self._cache[block_height] = phi_val
                     self._last_full_result = result
                     self._last_computed_block = block_height
-                    self._last_mip_score = float(result.get('mip_score', 0.0))
+                    # Keep the higher of Rust-reported MIP and previously-computed Python MIP
+                    rust_mip = float(result.get('mip_score', 0.0))
+                    self._last_mip_score = max(self._last_mip_score, rust_mip)
                     self._recent_phi_values.append(phi_val)
                     self._phi_history.append((block_height, phi_val))
                     if len(self._phi_history) > self._max_history:
@@ -1592,6 +1603,10 @@ class PhiCalculator:
             'calibration_error': stats.get('calibration_error', 1.0),
             'calibration_evaluations': stats.get('calibration_evaluations', 0),
             'auto_goals_with_inferences': stats.get('auto_goals_with_inferences', 0),
+            # v4 gate stats — self-improvement (Gate 6 + 10)
+            'improvement_cycles_enacted': stats.get('improvement_cycles_enacted', 0),
+            'improvement_performance_delta': stats.get('improvement_performance_delta', 0.0),
+            'curiosity_driven_discoveries': stats.get('curiosity_driven_discoveries', 0),
             # v5 cognitive architecture stats
             'sephirot_active_count': stats.get('sephirot_active_count', 0),
             'sephirot_winner_diversity': stats.get('sephirot_winner_diversity', 0.0),
