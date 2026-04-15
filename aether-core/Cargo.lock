@@ -251,10 +251,12 @@ name = "aether-reasoning"
 version = "0.1.0"
 dependencies = [
  "aether-graph",
+ "aether-logic",
  "aether-types",
  "approx",
  "parking_lot",
  "rand",
+ "rustc-hash",
  "serde",
  "serde_json",
  "sha2",

@@ -8,6 +8,7 @@ description = "Reasoning, causal discovery, and debate engines for the Aether Tr
 [dependencies]
 aether-types = { path = "../aether-types" }
 aether-graph = { path = "../aether-graph" }
+aether-logic = { path = "../aether-logic" }
 parking_lot = "0.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -15,6 +16,7 @@ tracing = "0.1"
 rand = "0.8"
 sha2 = "0.10"
 strsim = "0.11"
+rustc-hash = "2"
 
 [dev-dependencies]
 approx = "0.5"

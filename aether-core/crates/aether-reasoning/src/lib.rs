@@ -29,6 +29,7 @@ pub mod causal_stats;
 pub mod debate;
 pub mod debate_multi;
 pub mod debate_scorer;
+pub mod logic_bridge;
 
 pub use reasoning::{ReasoningEngine, ReasoningResult, ReasoningStep};
 pub use reasoning_chain::ReasonChainResult;
@@ -38,3 +39,4 @@ pub use causal_stats::{pearson_correlation, fisher_z_p_value};
 pub use debate::{DebateProtocol, DebateResult, DebatePosition};
 pub use debate_multi::MultiPartyDebate;
 pub use debate_scorer::DebateScorer;
+pub use logic_bridge::{LogicBridge, DerivedFact, Explanation, InductiveRule, ProofResult};
