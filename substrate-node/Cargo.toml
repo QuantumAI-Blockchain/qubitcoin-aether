@@ -46,6 +46,7 @@ sp-runtime = { version = "45.0", default-features = false }
 sp-core = { version = "39.0", default-features = false }
 sp-std = { version = "14.0", default-features = false }
 sp-genesis-builder = { version = "0.21", default-features = false }
+sp-consensus = "0.46"
 sp-consensus-aura = { version = "0.46", default-features = false }
 sp-consensus-grandpa = { version = "27.0", default-features = false }
 sp-block-builder = { version = "40.0", default-features = false }

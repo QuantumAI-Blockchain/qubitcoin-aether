@@ -97,7 +97,7 @@ impl P2p for P2PService {
 
         let msg = NetworkMessage::NewBlock {
             height: req.height,
-            hash: req.hash,
+            hash: req.hash.clone(),
         };
 
         self.to_network_tx
@@ -105,6 +105,27 @@ impl P2p for P2PService {
             .map_err(|e| Status::internal(format!("Channel send error: {}", e)))?;
 
         self.stats.blocks_sent.fetch_add(1, Ordering::Relaxed);
+
+        // Echo to event stream so other gRPC subscribers (e.g. Substrate bridge) see it
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let _ = self.event_tx.send(NetworkEvent {
+            event_type: 0, // BLOCK_RECEIVED
+            timestamp: now,
+            block: Some(p2p_service::BlockData {
+                height: req.height,
+                hash: req.hash,
+                prev_hash: String::new(),
+                timestamp: now,
+                difficulty: 0.0,
+                nonce: 0,
+                miner: String::new(),
+            }),
+            transaction: None,
+            peer: None,
+        });
 
         Ok(Response::new(BroadcastResponse {
             success: true,
@@ -120,9 +141,9 @@ impl P2p for P2PService {
         info!("gRPC: Broadcasting tx {}", &req.txid[..8.min(req.txid.len())]);
 
         let msg = NetworkMessage::NewTransaction(crate::protocol::TransactionData {
-            txid: req.txid,
+            txid: req.txid.clone(),
             size: req.size as usize,
-            fee: req.fee,
+            fee: req.fee.clone(),
         });
 
         self.to_network_tx
@@ -130,6 +151,23 @@ impl P2p for P2PService {
             .map_err(|e| Status::internal(format!("Channel send error: {}", e)))?;
 
         self.stats.txs_sent.fetch_add(1, Ordering::Relaxed);
+
+        // Echo to event stream so other gRPC subscribers see it
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let _ = self.event_tx.send(NetworkEvent {
+            event_type: 1, // TRANSACTION_RECEIVED
+            timestamp: now,
+            block: None,
+            transaction: Some(p2p_service::TransactionData {
+                txid: req.txid,
+                size: req.size,
+                fee: req.fee,
+            }),
+            peer: None,
+        });
 
         Ok(Response::new(BroadcastResponse {
             success: true,
@@ -146,12 +184,12 @@ impl P2p for P2PService {
 
         let msg = NetworkMessage::Block(crate::protocol::BlockData {
             height: block.height,
-            hash: block.hash,
-            prev_hash: block.prev_hash,
+            hash: block.hash.clone(),
+            prev_hash: block.prev_hash.clone(),
             timestamp: block.timestamp,
             difficulty: block.difficulty,
             nonce: block.nonce,
-            miner: block.miner,
+            miner: block.miner.clone(),
         });
 
         self.to_network_tx
@@ -159,6 +197,23 @@ impl P2p for P2PService {
             .map_err(|e| Status::internal(format!("Channel send error: {}", e)))?;
 
         self.stats.blocks_sent.fetch_add(1, Ordering::Relaxed);
+
+        // Echo to event stream so other gRPC subscribers (e.g. Substrate bridge) see it
+        let _ = self.event_tx.send(NetworkEvent {
+            event_type: 0, // BLOCK_RECEIVED
+            timestamp: block.timestamp,
+            block: Some(p2p_service::BlockData {
+                height: block.height,
+                hash: block.hash,
+                prev_hash: block.prev_hash,
+                timestamp: block.timestamp,
+                difficulty: block.difficulty,
+                nonce: block.nonce,
+                miner: block.miner,
+            }),
+            transaction: None,
+            peer: None,
+        });
 
         Ok(Response::new(BroadcastResponse {
             success: true,
