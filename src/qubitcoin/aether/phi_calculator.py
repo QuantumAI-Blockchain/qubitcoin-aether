@@ -1,38 +1,35 @@
 """
-Phi Calculator v3 — Phi Integration Metric
+Phi Calculator v4 — Rust-Only HMS-Phi Integration Metric
 
-Computes Phi (Φ) as a graph-theoretic integration metric for the Aether Tree
-knowledge graph. Inspired by Integrated Information Theory (IIT) principles
-but implementing a computationally tractable graph-theoretic approximation
-rather than the full IIT formalism.
+Computes Phi (Φ) as a multi-scale integration metric for the Aether Tree
+knowledge graph. ALL computation is performed in Rust (aether-core crate).
+Python handles only:
+  - Stats collection from live subsystems (metacognition, memory, etc.)
+  - DB storage/retrieval of measurements
+  - Caching and trend tracking
 
-v3 uses a weighted additive formula:
-  - Integration: mutual information between spectral-bisection partitions
-  - Differentiation: Shannon entropy over node types + edge types + confidence
-  - MIP: Minimum Information Partition via Fiedler-vector spectral bisection
-  - Redundancy penalty: duplicate content detected via near-duplicate cosine similarity
-  - Milestone gates: 10 gates that cap Phi until genuine cognitive milestones are met
+HMS-Phi formula (computed in Rust):
+    phi_micro: Spectral MIP on sampled subgraphs (Level 0)
+    phi_meso:  Spectral MIP (Fiedler bisection) on full knowledge graph (Level 1)
+    phi_macro: Cross-domain integration between Sephirot clusters (Level 2)
 
-Formula:
-    raw_phi = w_int * integration + w_diff * differentiation + w_mip * mip_score
-    redundancy_factor = 1.0 - (duplicate_fraction * 0.5)
-    phi = min(raw_phi * redundancy_factor, gate_ceiling)
+    hms_raw = phi_micro^(1/φ) × phi_meso^(1/φ²) × phi_macro^(1/φ³)
+    raw_phi = hms_raw × 8.0
+    phi = min(raw_phi × redundancy, gate_ceiling)
 
 Note: This is NOT a measure of phenomenal consciousness. It is an integration
 metric that quantifies how well-connected and information-rich the knowledge
 graph is, using principles inspired by (but not equivalent to) Tononi's IIT.
 """
-import math
 import os
-import random
 import time
 from collections import deque
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..config import Config
 from ..utils.logger import get_logger
 
-# Rust acceleration
+# Rust acceleration — REQUIRED for phi computation
 _RUST_AVAILABLE = False
 try:
     from .rust_bridge import RUST_AVAILABLE, RustPhiCalculator
@@ -40,25 +37,11 @@ try:
 except ImportError:
     pass
 
-# Golden ratio for HMS-Phi formula
-_PHI_RATIO: float = 1.618033988749895
-# Exponents: 1/φ, 1/φ², 1/φ³
-_HMS_EXP_MICRO: float = 1.0 / _PHI_RATIO          # ≈ 0.618
-_HMS_EXP_MESO:  float = 1.0 / (_PHI_RATIO ** 2)   # ≈ 0.382
-_HMS_EXP_MACRO: float = 1.0 / (_PHI_RATIO ** 3)   # ≈ 0.236
-# Scale so perfect HMS integration (=1.0) exceeds max gate ceiling (5.0)
-_HMS_SCALE: float = 8.0
-
 logger = get_logger(__name__)
 
 # Phi integration threshold for Proof-of-Thought validity (loaded from Config)
 # This is an integration quality threshold, not a consciousness threshold
 PHI_THRESHOLD = Config.PHI_THRESHOLD
-
-# Maximum nodes to sample for spectral bisection (O(n^2) cap)
-PHI_MAX_SAMPLE_NODES = Config.PHI_MAX_SAMPLE_NODES
-# Deterministic seed for reproducible sampling
-PHI_SAMPLE_SEED = Config.PHI_SAMPLE_SEED
 
 # ============================================================================
 # MILESTONE GATES (Peer-Reviewed Thresholds v4)
@@ -66,6 +49,9 @@ PHI_SAMPLE_SEED = Config.PHI_SAMPLE_SEED
 # cognitive milestones emphasizing QUALITY over quantity.  Volume alone cannot
 # pass higher gates — they require validated predictions, genuine cross-domain
 # transfer, enacted self-improvement, and novel concept synthesis.
+#
+# NOTE: Gate evaluation happens in Rust (aether-phi crate). These Python
+# definitions are kept for get_gate_progress() dashboard and diagnostic APIs.
 # ============================================================================
 MILESTONE_GATES: List[dict] = [
     {
@@ -213,17 +199,14 @@ class PhiCalculator:
     """
     Computes Phi (Φ) integration metric for the Aether Tree knowledge graph.
 
-    Inspired by IIT principles but implementing a computationally tractable
-    graph-theoretic approximation. Uses a weighted additive formula:
+    ALL phi computation is delegated to the Rust aether-phi crate via PyO3.
+    Python handles:
+      - Stats collection from live subsystems
+      - DB storage/retrieval
+      - Caching and trend tracking
+      - Dashboard/diagnostic APIs
 
-        raw_phi = w_int * integration + w_diff * differentiation + w_mip * mip_score
-
-    This avoids the multiplicative collapse problem (where any zero term
-    kills the entire score) and honestly represents independent measurements.
-
-    Milestone gates support adaptive thresholds via a configurable scale
-    factor.  When ``gate_scale > 1.0``, node count thresholds increase
-    (harder to pass); when ``gate_scale < 1.0`` they decrease (easier).
+    If Rust is not available, returns zeros (no Python fallback).
     """
 
     def __init__(self, db_manager, knowledge_graph=None):
@@ -238,14 +221,17 @@ class PhiCalculator:
             os.getenv('PHI_COMPUTE_INTERVAL', '1')
         )
 
-        # Rust PhiCalculator for O(n²) spectral operations
+        # Rust PhiCalculator — sole computation engine
         self._rust_phi = None
         if _RUST_AVAILABLE and RustPhiCalculator is not None:
             try:
                 self._rust_phi = RustPhiCalculator(self._compute_interval)
-                logger.info("PhiCalculator: Rust acceleration ACTIVE")
+                logger.info("PhiCalculator: Rust acceleration ACTIVE (sole compute path)")
             except Exception as exc:
-                logger.warning("PhiCalculator: Rust init failed (%s), using Python", exc)
+                logger.error("PhiCalculator: Rust init failed (%s) — phi will return zeros", exc)
+        else:
+            logger.warning("PhiCalculator: Rust extension NOT available — phi will return zeros")
+
         # Adaptive gate scale factor: multiplier for node-count thresholds
         self._gate_scale: float = float(
             os.getenv('PHI_GATE_SCALE', '1.0')
@@ -255,39 +241,18 @@ class PhiCalculator:
         self._max_history: int = 1000
         # Subsystem stats injected by AetherEngine before each compute_phi call
         self._subsystem_stats: Dict[str, float] = {}
-        # Cached Config values — avoids re-importing Config on every call
+        # Cached Config values
         self._phi_downsample_retain_days: int = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
-        # Phi formula weights (from Config) — used in additive fallback
-        self._w_int: float = Config.PHI_INTEGRATION_WEIGHT
-        self._w_diff: float = Config.PHI_DIFFERENTIATION_WEIGHT
-        self._w_mip: float = Config.PHI_MIP_WEIGHT
         # Convergence tracking: stddev over last N measurements
         self._convergence_window: int = Config.PHI_CONVERGENCE_WINDOW
         self._recent_phi_values: deque = deque(maxlen=Config.PHI_CONVERGENCE_WINDOW)
-
-        # ── HMS-Phi: IIT 3.0 micro-level ────────────────────────────────────
-        # Lazy-imported to avoid numpy overhead on startup if not needed.
-        self._iit_approximator: Optional[object] = None
-        self._iit_phi_cache: float = 0.0          # cached phi_micro
-        self._iit_last_time: float = 0.0           # wall-time of last IIT run
-        # Recompute IIT every 15 seconds (expensive O(16^3) exhaustive search)
-        self._IIT_CACHE_SECONDS: float = float(
-            os.getenv('HMS_IIT_CACHE_SECONDS', '15')
-        )
-        # Minimum nodes before HMS-Phi is used (additive fallback below)
-        self._HMS_MIN_NODES: int = 500
 
         # Restore last phi measurement from DB so get_cached() returns
         # non-zero values immediately after restart
         self._restore_from_db()
 
     def _restore_from_db(self) -> None:
-        """Load the latest phi measurement from DB to warm the cache on startup.
-
-        This ensures get_cached() returns the last known phi value instead of
-        0.0 after a node restart. Gates are recomputed on the next compute_phi
-        call using current KG state.
-        """
+        """Load the latest phi measurement from DB to warm the cache on startup."""
         if not self.db:
             return
         try:
@@ -330,17 +295,8 @@ class PhiCalculator:
                         'gates': [],
                         'convergence_stddev': 0.0,
                         'convergence_status': 'restored',
-                        'formula_weights': {
-                            'integration': self._w_int,
-                            'differentiation': self._w_diff,
-                            'mip': self._w_mip,
-                        },
                     }
                     self._last_full_result = restored
-                    # NOTE: Do NOT set _last_computed_block here — restored cache
-                    # must be overwritten on first compute_phi call.
-                    # Setting it would cause the compute interval check to skip
-                    # recomputation for up to PHI_COMPUTE_INTERVAL blocks.
                     self._recent_phi_values.append(phi_val)
                     logger.info(
                         f"Phi restored from DB: {phi_val:.4f} at block {int(row[6])} "
@@ -363,22 +319,14 @@ class PhiCalculator:
 
     def compute_phi(self, block_height: int = 0) -> dict:
         """
-        Compute Phi integration metric using HMS-Phi v4 (Hierarchical Multi-Scale Phi).
+        Compute Phi integration metric using Rust HMS-Phi v4.
 
-        HMS-Phi uses three independent levels of analysis, multiplicatively combined:
-            phi_micro: IIT 3.0 approximation on elite 16-node subgraph samples
-            phi_meso:  Spectral MIP (Fiedler bisection) on full knowledge graph
-            phi_macro: Graph-theoretic integration (connectivity + mutual info)
-
-            hms_raw   = phi_micro^(1/φ) × phi_meso^(1/φ²) × phi_macro^(1/φ³)
-            raw_phi   = hms_raw × 8.0   (scale so hms_raw=1 > max gate ceiling)
-            phi       = min(raw_phi × redundancy, gate_ceiling)
-
-        Multiplicative structure means zero in any level → zero phi (ungameable).
-        Falls back to weighted additive when n_nodes < 500 or IIT is unavailable.
+        ALL computation is performed in Rust. Python provides:
+        - Subsystem stats (via extra_stats dict)
+        - Caching and DB storage
 
         Returns:
-            Dict with phi_value, hms components, gates breakdown.
+            Dict with phi_value, HMS components, gates breakdown.
         """
         if not self.kg or not self.kg.nodes:
             return self._empty_result(block_height)
@@ -394,310 +342,34 @@ class PhiCalculator:
             cached['cached'] = True
             return cached
 
-        # ── Rust-accelerated phi computation ────────────────────────────
-        # Rust PhiCalculator updated to v4 HMS-Phi gates/formula (2026-04-14).
-        # Uses Rust for the entire spectral bisection + gate check when available.
-        # On first call after restart, force Python path to seed _last_mip_score
-        # (Rust MIP formula differs from Python's — Python MIP is passed to Rust
-        # via mip_phi in ExtraStats, but it's 0 until Python computes it once).
-        _rust_ready = (
-            self._rust_phi is not None
-            and hasattr(self.kg, 'rust_kg')
-            and self.kg.rust_kg is not None
-            and self._last_mip_score > 0  # Need at least one Python MIP compute
-        )
-        if _rust_ready:
+        # ── Rust-only phi computation ─────────────────────────────────────
+        if (self._rust_phi is not None
+                and hasattr(self.kg, 'rust_kg')
+                and self.kg.rust_kg is not None):
             try:
                 extra_stats = dict(self._subsystem_stats) if self._subsystem_stats else None
                 result = self._rust_phi.compute_phi(self.kg.rust_kg, block_height, extra_stats)
                 if result and isinstance(result, dict) and 'phi_value' in result:
-                    # Cache and store result
                     phi_val = float(result.get('phi_value', 0.0))
                     self._cache[block_height] = phi_val
                     self._last_full_result = result
                     self._last_computed_block = block_height
-                    # Keep the higher of Rust-reported MIP and previously-computed Python MIP
+                    # Track MIP for external inspection
                     rust_mip = float(result.get('mip_score', 0.0))
                     self._last_mip_score = max(self._last_mip_score, rust_mip)
                     self._recent_phi_values.append(phi_val)
                     self._phi_history.append((block_height, phi_val))
                     if len(self._phi_history) > self._max_history:
                         self._phi_history = self._phi_history[-self._max_history:]
+                    # Store to DB
+                    self._store_measurement(result)
                     return result
             except Exception as exc:
-                logger.debug("Rust compute_phi failed: %s — falling back to Python", exc)
+                logger.warning("Rust compute_phi failed: %s", exc)
 
-        # Snapshot to avoid RuntimeError from concurrent node/edge modifications
-        nodes = dict(self.kg.nodes)
-        edges = list(self.kg.edges)
-        n_nodes = len(nodes)
-        n_edges = len(edges)
-
-        # --- Level 2 (Macro): Graph-theoretic integration ---
-        integration = self._compute_integration(nodes, edges, n_nodes)
-        # _compute_integration also populates self._last_mip_score (Level 1 meso)
-
-        # --- Differentiation (Shannon entropy — used in additive fallback) ---
-        differentiation = self._compute_differentiation(nodes, edges)
-
-        # --- Redundancy penalty ---
-        redundancy_factor = self._compute_redundancy_factor()
-
-        # --- Milestone gates ---
-        extra = dict(self._subsystem_stats)
-        extra['integration_score'] = integration
-        extra['mip_phi'] = self._last_mip_score
-        gates = self._check_gates(nodes, edges, extra_stats=extra)
-        gates_passed = sum(1 for g in gates if g['passed'])
-        gate_ceiling = gates_passed * 0.5
-
-        # ── HMS-Phi v4 ────────────────────────────────────────────────────────
-        phi_micro: float = 0.0
-        phi_meso:  float = max(0.0, min(1.0, self._last_mip_score))
-        # Level 2 (Macro): Cross-domain integration between Sephirot clusters.
-        # Measures how well knowledge flows BETWEEN domains (not within).
-        phi_macro = self._compute_phi_macro(nodes, edges, n_nodes, n_edges)
-
-        hms_raw: float = 0.0
-        using_hms: bool = False
-
-        if n_nodes >= self._HMS_MIN_NODES and phi_meso > 0 and phi_macro > 0:
-            # Level 0 (Micro): IIT 3.0 on elite 16-node subgraphs (5 samples, median)
-            phi_micro = self._compute_iit_micro()
-        elif n_nodes >= self._HMS_MIN_NODES:
-            logger.debug(
-                "HMS-Phi skipped: phi_meso=%.4f phi_macro=%.4f "
-                "(need both > 0, n_nodes=%d)",
-                phi_meso, phi_macro, n_nodes,
-            )
-
-        # HMS-Phi: if IIT micro computed a positive value AND meso/macro are
-        # both positive, use the true multiplicative HMS formula.
-        # This MUST be outside the if/elif above — the if branch computes
-        # phi_micro, and this block uses it.
-        if phi_micro > 0 and phi_meso > 0 and phi_macro > 0:
-            # True multiplicative HMS-Phi
-            hms_raw = (
-                math.pow(phi_micro, _HMS_EXP_MICRO)
-                * math.pow(phi_meso,  _HMS_EXP_MESO)
-                * math.pow(phi_macro, _HMS_EXP_MACRO)
-            )
-            raw_phi = hms_raw * _HMS_SCALE
-            using_hms = True
-
-        if not using_hms:
-            # Additive fallback: original v3 formula
-            raw_phi = (
-                self._w_int * integration
-                + self._w_diff * differentiation
-                + self._w_mip * self._last_mip_score
-            )
-
-        # --- Final Phi ---
-        phi = min(raw_phi * redundancy_factor, gate_ceiling)
-
-        # --- Convergence tracking ---
-        self._recent_phi_values.append(phi)
-        convergence_stddev = self._compute_convergence_stddev()
-
-        result = {
-            'phi_value': round(phi, 6),
-            'phi_raw': round(raw_phi, 6),
-            'phi_threshold': PHI_THRESHOLD,
-            'above_threshold': phi >= PHI_THRESHOLD,
-            'integration_score': round(integration, 6),
-            'differentiation_score': round(differentiation, 6),
-            'mip_score': round(self._last_mip_score, 6),
-            'redundancy_factor': round(redundancy_factor, 4),
-            # HMS-Phi components
-            'phi_micro': round(phi_micro, 6),
-            'phi_meso': round(phi_meso, 6),
-            'phi_macro': round(phi_macro, 6),
-            'hms_phi_raw': round(hms_raw, 6),
-            'phi_formula': 'hms_v4' if using_hms else 'additive_v3',
-            'num_nodes': n_nodes,
-            'num_edges': n_edges,
-            'block_height': block_height,
-            'timestamp': time.time(),
-            'phi_version': 4,
-            'gates_passed': gates_passed,
-            'gates_total': len(MILESTONE_GATES),
-            'gate_ceiling': gate_ceiling,
-            'gates': gates,
-            'gate_stats': getattr(self, '_last_gate_stats', {}),
-            'convergence_stddev': round(convergence_stddev, 6),
-            'convergence_status': (
-                'converged' if convergence_stddev < 0.01
-                and len(self._recent_phi_values) >= self._convergence_window
-                else 'converging' if len(self._recent_phi_values) >= 10
-                else 'insufficient_data'
-            ),
-            'formula_weights': {
-                'integration': self._w_int,
-                'differentiation': self._w_diff,
-                'mip': self._w_mip,
-                'hms_scale': _HMS_SCALE if using_hms else None,
-            },
-        }
-
-        self._last_full_result = result
-        self._last_computed_block = block_height
-
-        self._store_measurement(result)
-        return result
-
-    def _compute_iit_micro(self) -> float:
-        """Compute IIT 3.0 micro-level Phi via 5 independent 16-node samples.
-
-        Uses BFS-based subgraph sampling from high-degree seed nodes to ensure
-        each sample has actual edges (random sampling from large graphs produces
-        disconnected subgraphs with ~0 edges, yielding meaningless phi=0).
-
-        Runs the IITApproximator on 5 BFS-expanded elite subgraphs and returns
-        the median.  Result is normalized to [0, 1] and cached for
-        _IIT_CACHE_SECONDS to avoid repeated O(16^3) computation.
-
-        Returns:
-            Normalized phi_micro in [0, 1], or cached value if within interval.
-        """
-        now = time.time()
-        if now - self._iit_last_time < self._IIT_CACHE_SECONDS:
-            return self._iit_phi_cache
-
-        if not self.kg or len(self.kg.nodes) < 16:
-            return 0.0
-
-        # Lazy import — only pay for numpy when actually needed
-        if self._iit_approximator is None:
-            try:
-                from .iit_approximator import IITApproximator
-                self._iit_approximator = IITApproximator(max_nodes=16)
-            except Exception as e:
-                logger.warning(f"IITApproximator import failed: {e}")
-                self._iit_last_time = now
-                return 0.0
-
-        # Build an adapter that maps KeterEdge (from_node_id/to_node_id) to
-        # what IITApproximator expects (source_id/target_id, dict of edges).
-        # KnowledgeGraph.edges is a list; IITApproximator.build_tpm_from_kg
-        # calls edges.values() expecting a dict.
-        class _KGAdapter:
-            """Thin adapter: maps KeterEdge attrs to IITApproximator API."""
-            __slots__ = ('nodes', 'edges')
-            def __init__(self, nodes, edges_list):
-                self.nodes = nodes
-                self.edges = {
-                    i: _EdgeAdapter(e) for i, e in enumerate(edges_list)
-                }
-
-        class _EdgeAdapter:
-            __slots__ = ('source_id', 'target_id', 'weight')
-            def __init__(self, e):
-                # KeterEdge uses from_node_id / to_node_id
-                self.source_id = getattr(e, 'from_node_id', None)
-                self.target_id = getattr(e, 'to_node_id', None)
-                self.weight = getattr(e, 'weight', 0.5)
-
-        try:
-            kg_nodes = dict(self.kg.nodes)
-            kg_edges = list(self.kg.edges)
-        except Exception as e:
-            logger.debug(f"IIT KG snapshot failed: {e}")
-            return self._iit_phi_cache
-
-        # Build adjacency list for BFS-based connected subgraph sampling.
-        # Random sampling from 100K+ nodes yields ~0 edges in subgraphs
-        # (expected edges ≈ m*(k/n)^2 → near zero for large n).
-        # BFS expansion from high-degree seeds preserves local connectivity.
-        adj_list: Dict[int, List[int]] = {}
-        for e in kg_edges:
-            fid = getattr(e, 'from_node_id', None)
-            tid = getattr(e, 'to_node_id', None)
-            if fid is not None and tid is not None:
-                adj_list.setdefault(fid, []).append(tid)
-                adj_list.setdefault(tid, []).append(fid)
-
-        # Find high-degree nodes as BFS seeds (diverse starting points)
-        all_node_ids = list(kg_nodes.keys())
-        nodes_by_degree = sorted(
-            all_node_ids,
-            key=lambda nid: len(adj_list.get(nid, [])),
-            reverse=True,
-        )
-        # Pick 5 well-separated seeds from top-degree nodes
-        # Spread across top 500 to get diversity
-        top_pool = nodes_by_degree[:min(500, len(nodes_by_degree))]
-
-        phis: List[float] = []
-        target_subgraph_size = 64  # IITApproximator selects top 16 from these
-        used_seeds: Set[int] = set()
-
-        for sample_idx in range(5):
-            try:
-                # Pick a seed not yet used, spread across the pool
-                rng = random.Random(sample_idx * 7919 + int(now) % 10000)
-                pool_offset = (sample_idx * len(top_pool)) // 5
-                candidates = top_pool[pool_offset:pool_offset + len(top_pool) // 5]
-                if not candidates:
-                    candidates = top_pool
-                seed = rng.choice([c for c in candidates if c not in used_seeds] or candidates)
-                used_seeds.add(seed)
-
-                # BFS expand from seed to get connected subgraph
-                sampled_ids: Set[int] = set()
-                bfs_queue = deque([seed])
-                while bfs_queue and len(sampled_ids) < target_subgraph_size:
-                    nid = bfs_queue.popleft()
-                    if nid in sampled_ids or nid not in kg_nodes:
-                        continue
-                    sampled_ids.add(nid)
-                    neighbors = adj_list.get(nid, [])
-                    rng.shuffle(neighbors)
-                    for neighbor in neighbors:
-                        if neighbor not in sampled_ids:
-                            bfs_queue.append(neighbor)
-
-                if len(sampled_ids) < 16:
-                    logger.debug(
-                        f"IIT sample {sample_idx}: BFS only reached {len(sampled_ids)} nodes"
-                    )
-                    continue
-
-                sub_nodes = {nid: kg_nodes[nid] for nid in sampled_ids}
-                sub_edges = [
-                    e for e in kg_edges
-                    if getattr(e, 'from_node_id', None) in sampled_ids
-                    and getattr(e, 'to_node_id', None) in sampled_ids
-                ]
-                adapter = _KGAdapter(sub_nodes, sub_edges)
-                tpm = self._iit_approximator.build_tpm_from_kg(adapter)
-                phi_val = self._iit_approximator.compute_phi(tpm)
-                if phi_val > 0:
-                    phis.append(phi_val)
-            except Exception as e:
-                logger.debug(f"IIT sample {sample_idx} failed: {e}")
-
-        if phis:
-            # Median of samples (robust to outliers)
-            phis.sort()
-            n = len(phis)
-            median_val = phis[n // 2] if n % 2 != 0 else (phis[n//2 - 1] + phis[n//2]) / 2.0
-            # Normalize: IIT information-loss values can exceed 1.0; cap at 1.0
-            self._iit_phi_cache = min(1.0, median_val)
-            logger.info(
-                f"HMS phi_micro={self._iit_phi_cache:.4f} "
-                f"({len(phis)} IIT samples: {[round(p,3) for p in phis]}, "
-                f"median={median_val:.4f})"
-            )
-        else:
-            # All samples failed — keep previous cache to avoid sudden drop
-            logger.warning(
-                "IIT: all 5 BFS samples produced phi=0, keeping cached phi_micro=%.4f",
-                self._iit_phi_cache,
-            )
-
-        self._iit_last_time = now
-        return self._iit_phi_cache
+        # No Rust available — return zeros
+        logger.debug("PhiCalculator: Rust not available, returning zeros for block %d", block_height)
+        return self._empty_result(block_height)
 
     def get_cached(self) -> dict:
         """Return the last computed Phi result without triggering a recompute.
@@ -722,912 +394,15 @@ class PhiCalculator:
             'num_nodes': len(self.kg.nodes) if self.kg else 0,
             'num_edges': len(self.kg.edges) if self.kg else 0,
             'block_height': 0,
-            'phi_version': 3,
+            'phi_version': 4,
             'gates_passed': 0,
             'gates_total': len(MILESTONE_GATES),
             'cached': True,
         }
 
     # ========================================================================
-    # Integration: Mutual Information + Cross-flow
+    # Gate Progress & Diagnostics (Python-side, for dashboard APIs)
     # ========================================================================
-
-    def _compute_integration(self, nodes: dict, edges: list, n_nodes: int) -> float:
-        """
-        Compute integration using:
-        1. Connected component analysis (structural integration)
-        2. Mutual information between graph partitions (via VectorIndex)
-        3. Confidence-weighted cross-partition flow
-        """
-        if n_nodes <= 1:
-            return 0.0
-
-        # Build adjacency for connected component analysis
-        adj: Dict[int, set] = {nid: set() for nid in nodes}
-        for edge in edges:
-            if edge.from_node_id in adj and edge.to_node_id in adj:
-                adj[edge.from_node_id].add(edge.to_node_id)
-                adj[edge.to_node_id].add(edge.from_node_id)
-
-        # Find connected components via BFS
-        visited = set()
-        components = []
-
-        def _bfs(start):
-            comp = set()
-            queue = deque([start])
-            while queue:
-                n = queue.popleft()
-                if n in comp:
-                    continue
-                comp.add(n)
-                visited.add(n)
-                for neighbor in adj.get(n, set()):
-                    if neighbor not in comp:
-                        queue.append(neighbor)
-            return comp
-
-        for nid in nodes:
-            if nid not in visited:
-                comp = _bfs(nid)
-                components.append(comp)
-
-        # Structural integration from connectivity
-        if len(components) == 1:
-            avg_degree = sum(len(adj[nid]) for nid in nodes) / n_nodes if n_nodes > 0 else 0
-            structural = min(5.0, avg_degree)
-        else:
-            largest = max(len(c) for c in components)
-            structural = (largest / n_nodes) * 2.0
-
-        # Mutual information between partitions (via VectorIndex)
-        # Uses Fiedler-vector spectral bisection for meaningful partition
-        # instead of arbitrary node-ID-order split
-        mi_score = 0.0
-        if (hasattr(self.kg, 'vector_index')
-                and self.kg.vector_index
-                and len(self.kg.vector_index.embeddings) >= 10
-                and len(components) == 1):
-            # Build weighted adjacency for spectral bisection
-            node_list = list(nodes.keys())
-            try:
-                mi_adj, mi_degree = self._build_weighted_adj_for_mi(
-                    node_list, nodes, edges, n_nodes
-                )
-                lambda_max = max(mi_degree) if mi_degree else 1.0
-                if lambda_max <= 0.0:
-                    lambda_max = 1.0
-                fiedler = self._power_iteration_fiedler(
-                    mi_adj, mi_degree, lambda_max + 0.1, n_nodes, max_iter=30
-                )
-                if fiedler is not None:
-                    # Split by Fiedler vector sign
-                    partition_a = [node_list[i] for i in range(n_nodes) if fiedler[i] <= 0]
-                    partition_b = [node_list[i] for i in range(n_nodes) if fiedler[i] > 0]
-                else:
-                    mid = n_nodes // 2
-                    partition_a = node_list[:mid]
-                    partition_b = node_list[mid:]
-            except Exception:
-                mid = n_nodes // 2
-                partition_a = node_list[:mid]
-                partition_b = node_list[mid:]
-
-            if partition_a and partition_b:
-                mi_score = self.kg.vector_index.compute_partition_mutual_info(
-                    partition_a, partition_b
-                )
-                # Normalize MI to [0, 3] range
-                mi_score = min(3.0, mi_score / max(1.0, math.log(n_nodes)))
-
-        # Cross-partition information flow
-        cross_flow = 0.0
-        for edge in edges:
-            fn = nodes.get(edge.from_node_id)
-            tn = nodes.get(edge.to_node_id)
-            if fn and tn:
-                cross_flow += fn.confidence * tn.confidence * edge.weight
-        if edges:
-            cross_flow /= len(edges)
-
-        # Contradiction penalty: high contradiction ratio reduces integration
-        contradiction_count = sum(1 for e in edges if e.edge_type == 'contradicts')
-        if edges:
-            contradiction_ratio = contradiction_count / len(edges)
-            cross_flow *= (1.0 - contradiction_ratio * 0.5)  # Penalize contradictions
-
-        # Minimum Information Partition (algebraic connectivity + spectral cut)
-        mip_score = 0.0
-        if n_nodes >= 10:
-            try:
-                mip_score = self._compute_mip(nodes, edges)
-            except Exception as e:
-                logger.warning(f"MIP error: {e}")
-                mip_score = 0.0
-
-        # Store MIP on instance for result dict access
-        self._last_mip_score = mip_score
-
-        return structural + mi_score + cross_flow
-
-    # ========================================================================
-    # Convergence Tracking
-    # ========================================================================
-
-    def _compute_convergence_stddev(self) -> float:
-        """Compute standard deviation of recent Phi measurements.
-
-        Used to report whether Phi has converged to a stable value.
-        """
-        values = list(self._recent_phi_values)
-        if len(values) < 2:
-            return 999.0  # sentinel for "not yet converged" — JSON-serializable
-        mean = sum(values) / len(values)
-        variance = sum((v - mean) ** 2 for v in values) / len(values)
-        return math.sqrt(variance)
-
-    # ========================================================================
-    # Level 2 (Macro): Cross-Domain Integration
-    # ========================================================================
-
-    def _compute_phi_macro(
-        self,
-        nodes: dict,
-        edges: list,
-        n_nodes: int,
-        n_edges: int,
-    ) -> float:
-        """Compute phi_macro: cross-domain integration between Sephirot clusters.
-
-        Measures how well knowledge integrates ACROSS domains by computing:
-        1. Cross-domain edge ratio: fraction of edges connecting different domains
-        2. Domain connectivity: normalized algebraic connectivity of the domain graph
-        3. Cross-domain MI: mutual information between domain node-type distributions
-
-        Returns a value in [0, 1] where higher = better cross-domain integration.
-        """
-        if n_nodes < 50 or n_edges < 10:
-            # Fallback to simple integration normalization for small graphs
-            integration = self._compute_integration(nodes, edges, n_nodes) if n_nodes > 1 else 0.0
-            return max(0.0, min(1.0, integration / 9.0))
-
-        # --- 1. Classify nodes by domain ---
-        domain_nodes: Dict[str, List[int]] = {}
-        for nid, node in nodes.items():
-            d = node.domain or 'general'
-            domain_nodes.setdefault(d, []).append(nid)
-
-        n_domains = len(domain_nodes)
-        if n_domains < 2:
-            return 0.05  # Single domain = minimal macro integration
-
-        # --- 2. Cross-domain edge ratio ---
-        node_domain: Dict[int, str] = {}
-        for d, nids in domain_nodes.items():
-            for nid in nids:
-                node_domain[nid] = d
-
-        cross_edges = 0
-        total_edges = 0
-        # Domain-pair edge counts for MI computation
-        domain_pair_counts: Dict[Tuple[str, str], int] = {}
-        domain_out_counts: Dict[str, int] = {}
-
-        for edge in edges:
-            fd = node_domain.get(edge.from_node_id)
-            td = node_domain.get(edge.to_node_id)
-            if fd is None or td is None:
-                continue
-            total_edges += 1
-            if fd != td:
-                cross_edges += 1
-            pair = (fd, td) if fd <= td else (td, fd)
-            domain_pair_counts[pair] = domain_pair_counts.get(pair, 0) + 1
-            domain_out_counts[fd] = domain_out_counts.get(fd, 0) + 1
-
-        cross_ratio = cross_edges / max(total_edges, 1)
-
-        # --- 3. Domain graph connectivity ---
-        # Build a small graph where nodes=domains, edge weight=cross-domain edge count
-        domains_list = sorted(domain_nodes.keys())
-        d_idx = {d: i for i, d in enumerate(domains_list)}
-        nd = len(domains_list)
-
-        # Adjacency for domain graph
-        d_adj: Dict[int, Dict[int, float]] = {i: {} for i in range(nd)}
-        for (d1, d2), count in domain_pair_counts.items():
-            if d1 == d2:
-                continue
-            i, j = d_idx[d1], d_idx[d2]
-            d_adj[i][j] = d_adj[i].get(j, 0.0) + count
-            d_adj[j][i] = d_adj[j].get(i, 0.0) + count
-
-        # Domain connectivity: what fraction of domain pairs are connected?
-        connected_pairs = sum(1 for i in range(nd) for j in d_adj[i] if j > i)
-        max_pairs = nd * (nd - 1) // 2
-        connectivity = connected_pairs / max(max_pairs, 1)
-
-        # --- 4. Cross-domain mutual information ---
-        # MI between domain membership and node-type distribution
-        # High MI = domains are well-differentiated (each has unique node types)
-        # We want moderate MI (domains are different but interconnected)
-        mi = 0.0
-        if total_edges > 0:
-            # Joint distribution P(source_domain, target_domain) from edges
-            for (d1, d2), count in domain_pair_counts.items():
-                p_joint = count / total_edges
-                p_d1 = domain_out_counts.get(d1, 0) / total_edges
-                # Marginal for d2: sum of all pairs involving d2
-                p_d2_edges = sum(
-                    c for (a, b), c in domain_pair_counts.items()
-                    if b == d2 or a == d2
-                ) / total_edges
-                if p_joint > 0 and p_d1 > 0 and p_d2_edges > 0:
-                    mi += p_joint * math.log(p_joint / (p_d1 * p_d2_edges) + 1e-12)
-            # Normalize MI by log(n_domains) so it's in [0, ~1]
-            mi = max(0.0, mi / math.log(max(n_domains, 2)))
-
-        # --- Combine: weighted sum normalized to [0, 1] ---
-        # cross_ratio: [0, 1] — fraction of edges between domains
-        # connectivity: [0, 1] — fraction of domain pairs connected
-        # mi: [0, ~1] — normalized mutual information
-        phi_macro = (
-            0.4 * cross_ratio
-            + 0.35 * connectivity
-            + 0.25 * min(1.0, mi)
-        )
-
-        logger.debug(
-            "phi_macro=%.4f (cross_ratio=%.3f, connectivity=%.3f, mi=%.4f, "
-            "domains=%d, cross_edges=%d/%d)",
-            phi_macro, cross_ratio, connectivity, mi, n_domains,
-            cross_edges, total_edges,
-        )
-
-        return max(0.0, min(1.0, phi_macro))
-
-    # ========================================================================
-    # Helper: Build weighted adjacency for MI spectral bisection
-    # ========================================================================
-
-    def _build_weighted_adj_for_mi(
-        self,
-        node_list: list,
-        nodes: dict,
-        edges: list,
-        n_nodes: int,
-    ) -> Tuple[Dict[int, Dict[int, float]], List[float]]:
-        """Build weighted adjacency matrix and degree vector for MI partition.
-
-        Samples nodes if graph is too large, then builds the dict-of-dicts
-        adjacency needed by _power_iteration_fiedler.
-
-        Returns:
-            (adj, degree) where adj is Dict[idx, Dict[idx, float]] and
-            degree is List[float].
-        """
-        # Sample for large graphs
-        if n_nodes > PHI_MAX_SAMPLE_NODES:
-            _rng = random.Random(PHI_SAMPLE_SEED)
-            node_list = _rng.sample(node_list, PHI_MAX_SAMPLE_NODES)
-            n_nodes = len(node_list)
-
-        id_to_idx = {nid: i for i, nid in enumerate(node_list)}
-        adj: Dict[int, Dict[int, float]] = {i: {} for i in range(n_nodes)}
-
-        for edge in edges:
-            fid, tid = edge.from_node_id, edge.to_node_id
-            if fid not in id_to_idx or tid not in id_to_idx or fid == tid:
-                continue
-            fi, ti = id_to_idx[fid], id_to_idx[tid]
-            w = edge.weight if hasattr(edge, 'weight') else 1.0
-            adj[fi][ti] = adj[fi].get(ti, 0.0) + w
-            adj[ti][fi] = adj[ti].get(fi, 0.0) + w
-
-        degree = [sum(adj[i].values()) for i in range(n_nodes)]
-        return adj, degree
-
-    # ========================================================================
-    # Minimum Information Partition (MIP) via Spectral Bisection
-    # ========================================================================
-
-    def _compute_mip(self, nodes: dict, edges: list) -> float:
-        """
-        Compute integration metric using algebraic connectivity + normalized cut.
-
-        Uses the Fiedler value (second-smallest eigenvalue of graph Laplacian)
-        as a direct measure of graph integration, supplemented by the
-        normalized cut ratio from spectral bisection.
-
-        For large graphs, samples PHI_MAX_SAMPLE_NODES nodes and their
-        induced subgraph.
-
-        Args:
-            nodes: Dict[int, KeterNode] — knowledge graph nodes
-            edges: List[KeterEdge] — knowledge graph edges
-
-        Returns:
-            MIP score (float >= 0).  Higher means more integrated.
-        """
-        n_nodes = len(nodes)
-        if n_nodes < 10:
-            return 0.0
-
-        # --- Sample nodes for large graphs via BFS expansion ---
-        # Random sampling destroys edge density. BFS preserves local structure.
-        node_ids = list(nodes.keys())
-        if n_nodes > PHI_MAX_SAMPLE_NODES:
-            # Seed BFS from highest-degree nodes for better connectivity sample
-            _adj_list_seed: Dict[int, int] = {}
-            for edge in edges:
-                _adj_list_seed[edge.from_node_id] = _adj_list_seed.get(edge.from_node_id, 0) + 1
-                _adj_list_seed[edge.to_node_id] = _adj_list_seed.get(edge.to_node_id, 0) + 1
-            # Pick top-10 highest-degree nodes as BFS seeds (ensures dense subgraph)
-            top_degree = sorted(
-                ((nid, deg) for nid, deg in _adj_list_seed.items() if nid in nodes),
-                key=lambda x: x[1], reverse=True,
-            )
-            seeds = [nid for nid, _ in top_degree[:10]]
-            if len(seeds) < 5:
-                _phi_rng = random.Random(PHI_SAMPLE_SEED)
-                seeds = _phi_rng.sample(node_ids, min(10, n_nodes))
-            sampled_ids: Set[int] = set()
-            bfs_queue = deque(seeds)
-            # Build quick adjacency from edges for BFS
-            _adj_list: Dict[int, List[int]] = {}
-            for edge in edges:
-                _adj_list.setdefault(edge.from_node_id, []).append(edge.to_node_id)
-                _adj_list.setdefault(edge.to_node_id, []).append(edge.from_node_id)
-            while bfs_queue and len(sampled_ids) < PHI_MAX_SAMPLE_NODES:
-                nid = bfs_queue.popleft()
-                if nid in sampled_ids or nid not in nodes:
-                    continue
-                sampled_ids.add(nid)
-                for neighbor in _adj_list.get(nid, []):
-                    if neighbor not in sampled_ids:
-                        bfs_queue.append(neighbor)
-            node_ids = list(sampled_ids)
-            n_nodes = len(node_ids)
-        else:
-            sampled_ids = set(node_ids)
-
-        # Create index mapping
-        id_to_idx: Dict[int, int] = {nid: i for i, nid in enumerate(node_ids)}
-
-        # --- Build weighted adjacency ---
-        adj: Dict[int, Dict[int, float]] = {i: {} for i in range(n_nodes)}
-        for edge in edges:
-            fid = edge.from_node_id
-            tid = edge.to_node_id
-            if fid not in id_to_idx or tid not in id_to_idx:
-                continue
-            if fid == tid:
-                continue
-            fi = id_to_idx[fid]
-            ti = id_to_idx[tid]
-            fn = nodes.get(fid)
-            tn = nodes.get(tid)
-            if fn is None or tn is None:
-                continue
-            w = fn.confidence * tn.confidence * edge.weight
-            if w <= 0.0:
-                continue
-            adj[fi][ti] = adj[fi].get(ti, 0.0) + w
-            adj[ti][fi] = adj[ti].get(fi, 0.0) + w
-
-        # Count edges in sample
-        n_sample_edges = sum(len(v) for v in adj.values()) // 2
-        if n_sample_edges < 5:
-            return 0.0
-
-        # --- Degree vector ---
-        degree: List[float] = [0.0] * n_nodes
-        for i in range(n_nodes):
-            degree[i] = sum(adj[i].values())
-
-        # --- Algebraic connectivity via inverse power iteration ---
-        # The Fiedler value (lambda_2 of Laplacian) directly measures integration.
-        # Higher lambda_2 = harder to disconnect = more integrated.
-        lambda_max = max(degree) if degree else 1.0
-        if lambda_max <= 0.0:
-            lambda_max = 1.0
-        shift = 2.0 * lambda_max + 0.1
-
-        fiedler = self._power_iteration_fiedler(adj, degree, shift, n_nodes, max_iter=50)
-
-        if fiedler is None:
-            # Graph likely disconnected — use connectivity ratio
-            connected = sum(1 for d in degree if d > 0)
-            return 0.1 * connected / n_nodes
-
-        # Estimate Fiedler value (lambda_2) from the Rayleigh quotient:
-        # lambda_2 = v^T L v / v^T v  (v is Fiedler vector, already normalized)
-        # L*v[i] = degree[i]*v[i] - sum(adj[i][j]*v[j])
-        lv = [0.0] * n_nodes
-        for i in range(n_nodes):
-            lv[i] = degree[i] * fiedler[i]
-            for j, w in adj[i].items():
-                lv[i] -= w * fiedler[j]
-        rayleigh = sum(fiedler[i] * lv[i] for i in range(n_nodes))
-        # rayleigh ≈ lambda_2 since fiedler is normalized
-
-        # Also compute normalized cut for the spectral bisection
-        sorted_indices = sorted(range(n_nodes), key=lambda i: fiedler[i])
-        mid = n_nodes // 2
-        part_a = set(sorted_indices[:mid])
-
-        cut_weight = 0.0
-        total_flow = 0.0
-        for i in range(n_nodes):
-            for j, w in adj[i].items():
-                if j > i:
-                    total_flow += w
-                    if (i in part_a) != (j in part_a):
-                        cut_weight += w
-
-        # Normalized cut ratio: fraction of edge weight crossing the partition
-        ncut = cut_weight / total_flow if total_flow > 0 else 0.0
-
-        # Integration score: combine algebraic connectivity with normalized cut
-        # Higher algebraic connectivity and higher cut ratio = more integrated
-        # Scale algebraic connectivity to [0, 0.5] range
-        avg_degree = sum(degree) / n_nodes if n_nodes > 0 else 1.0
-        alg_conn_normalized = min(0.5, rayleigh / max(avg_degree, 0.01))
-
-        # ncut in [0, 0.5] typically; scale to [0, 0.5]
-        ncut_contribution = min(0.5, ncut)
-
-        mip_score = alg_conn_normalized + ncut_contribution
-        logger.info(f"MIP={mip_score:.3f} (ac={rayleigh:.3f} ncut={ncut:.3f})")
-        return mip_score
-
-    def _power_iteration_fiedler(
-        self,
-        adj: Dict[int, Dict[int, float]],
-        degree: List[float],
-        shift: float,
-        n: int,
-        max_iter: int = 20,
-    ) -> Optional[List[float]]:
-        """
-        Find the Fiedler vector (second-smallest eigenvector of graph Laplacian)
-        using power iteration on the shifted matrix (shift*I - L).
-
-        The largest eigenvector of (shift*I - L) corresponds to the smallest
-        eigenvector of L.  By projecting out the trivial constant eigenvector
-        at each iteration, we converge to the Fiedler vector instead.
-
-        Args:
-            adj: Sparse adjacency matrix (dict-of-dicts)
-            degree: Degree vector
-            shift: Shift value (>= lambda_max of L)
-            n: Number of nodes
-            max_iter: Maximum iterations for convergence
-
-        Returns:
-            Fiedler vector as List[float], or None if computation fails.
-        """
-        if n < 2:
-            return None
-
-        # Initialize with a non-constant vector
-        # Use alternating +/- to break symmetry, with slight randomness
-        _fiedler_rng = random.Random(123)  # local RNG for reproducibility
-        v: List[float] = [
-            (1.0 if i % 2 == 0 else -1.0) + _fiedler_rng.uniform(-0.01, 0.01)
-            for i in range(n)
-        ]
-
-        # Project out the constant vector (all-ones direction)
-        mean_v = sum(v) / n
-        v = [v[i] - mean_v for i in range(n)]
-
-        # Normalize
-        norm = math.sqrt(sum(x * x for x in v))
-        if norm < 1e-15:
-            return None
-        v = [x / norm for x in v]
-
-        for iteration in range(max_iter):
-            # Compute w = (shift * I - L) * v
-            # (shift * I - L) * v = shift * v - L * v
-            # L * v = D * v - A * v
-            # So (shift * I - L) * v = (shift - degree[i]) * v[i] + sum(adj[i][j] * v[j])
-            w: List[float] = [0.0] * n
-            for i in range(n):
-                # (shift - degree[i]) * v[i]
-                w[i] = (shift - degree[i]) * v[i]
-                # + sum(adj[i][j] * v[j])  (this is A*v contribution)
-                for j, a_ij in adj[i].items():
-                    w[i] += a_ij * v[j]
-
-            # Project out the constant (trivial) eigenvector
-            mean_w = sum(w) / n
-            w = [w[i] - mean_w for i in range(n)]
-
-            # Normalize
-            norm = math.sqrt(sum(x * x for x in w))
-            if norm < 1e-15:
-                # Vector collapsed — graph may be disconnected or trivial
-                logger.debug(
-                    f"Fiedler iteration collapsed at step {iteration}"
-                )
-                return None
-
-            v = [x / norm for x in w]
-
-        return v
-
-    # ========================================================================
-    # Differentiation: Shannon Entropy
-    # ========================================================================
-
-    def _compute_differentiation(self, nodes: dict, edges: list) -> float:
-        """
-        Compute differentiation using Shannon entropy over:
-        1. Node type distribution
-        2. Edge type distribution
-        3. Confidence distribution (10 bins)
-        """
-        if not nodes:
-            return 0.0
-
-        n = len(nodes)
-
-        # Entropy over node types
-        type_counts: Dict[str, int] = {}
-        for node in nodes.values():
-            type_counts[node.node_type] = type_counts.get(node.node_type, 0) + 1
-
-        type_entropy = 0.0
-        for count in type_counts.values():
-            p = count / n
-            if p > 0:
-                type_entropy -= p * math.log2(p)
-
-        # Entropy over edge types
-        edge_type_counts: Dict[str, int] = {}
-        for edge in edges:
-            edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
-
-        edge_entropy = 0.0
-        n_edges = len(edges)
-        if n_edges > 0:
-            for count in edge_type_counts.values():
-                p = count / n_edges
-                if p > 0:
-                    edge_entropy -= p * math.log2(p)
-
-        # Entropy over confidence distribution (10 bins)
-        bins = [0] * 10
-        for node in nodes.values():
-            bin_idx = min(9, int(node.confidence * 10))
-            bins[bin_idx] += 1
-
-        conf_entropy = 0.0
-        for count in bins:
-            if count > 0:
-                p = count / n
-                conf_entropy -= p * math.log2(p)
-
-        # Domain diversity: Shannon entropy over node domains
-        domain_counts: Dict[str, int] = {}
-        for node in nodes.values():
-            domain = getattr(node, 'domain', None) or 'unknown'
-            domain_counts[domain] = domain_counts.get(domain, 0) + 1
-
-        domain_entropy = 0.0
-        if len(domain_counts) > 1:
-            for count in domain_counts.values():
-                p = count / n
-                if p > 0:
-                    domain_entropy -= p * math.log2(p)
-
-        # Semantic diversity: estimate from vector embedding variance
-        semantic_diversity = 0.0
-        if (hasattr(self, 'kg') and self.kg
-                and hasattr(self.kg, 'vector_index')
-                and self.kg.vector_index
-                and len(self.kg.vector_index.embeddings) >= 10):
-            try:
-                embs = list(self.kg.vector_index.embeddings.values())[:500]
-                if embs and embs[0]:
-                    dim = len(embs[0])
-                    n_emb = len(embs)
-                    # Compute per-dimension variance as diversity proxy
-                    total_var = 0.0
-                    for d in range(min(dim, 32)):  # Sample first 32 dims for speed
-                        vals = [e[d] for e in embs]
-                        mean_v = sum(vals) / n_emb
-                        var = sum((v - mean_v) ** 2 for v in vals) / n_emb
-                        total_var += var
-                    # Normalize to [0, 1] range
-                    semantic_diversity = min(1.0, total_var / max(min(dim, 32), 1))
-            except Exception:
-                pass
-
-        # Combined differentiation: node types + edge types + confidence + domain + semantic diversity
-        return type_entropy + edge_entropy * 0.5 + conf_entropy * 0.3 + domain_entropy * 0.2 + semantic_diversity * 0.3
-
-    # ========================================================================
-    # Redundancy Penalty
-    # ========================================================================
-
-    def _compute_redundancy_factor(self) -> float:
-        """
-        Compute redundancy penalty using sampling-based duplicate detection.
-
-        Returns a factor in [0.5, 1.0] — more duplicates = lower factor.
-        """
-        if not hasattr(self.kg, 'vector_index') or not self.kg.vector_index:
-            return 1.0
-
-        n_embeddings = len(self.kg.vector_index.embeddings)
-        if n_embeddings < 10:
-            return 1.0
-
-        try:
-            # Use sample-based approach to avoid O(n^2) full duplicate scan
-            duplicates = self.kg.vector_index.find_near_duplicates(
-                threshold=0.95
-            )
-            if not duplicates:
-                return 1.0
-
-            dup_nodes = set()
-            for a, b, _ in duplicates[:100]:  # cap pairs examined
-                dup_nodes.add(a)
-                dup_nodes.add(b)
-
-            dup_fraction = len(dup_nodes) / n_embeddings
-            return max(0.5, 1.0 - dup_fraction * 0.5)
-        except Exception:
-            return 1.0
-
-    # ========================================================================
-    # Milestone Gates
-    # ========================================================================
-
-    def _check_gates(
-        self,
-        nodes: dict,
-        edges: list,
-        extra_stats: Optional[dict] = None,
-    ) -> List[dict]:
-        """
-        Evaluate all semantic quality gates against current graph state.
-
-        Gates require BOTH quantity AND quality criteria.  Extended stats are
-        computed from in-memory nodes/edges (O(n + e)) and optionally
-        supplemented by ``extra_stats`` for values that come from external
-        subsystems (MIP score, working memory hit rate, calibration error,
-        prediction accuracy, integration score).
-
-        Args:
-            nodes: Dict[int, KeterNode] — knowledge graph nodes
-            edges: List[KeterEdge] — knowledge graph edges
-            extra_stats: Optional dict with keys like ``mip_phi``,
-                ``working_memory_hit_rate``, ``calibration_error``,
-                ``prediction_accuracy``, ``integration_score``.
-
-        Returns:
-            List of gate result dicts with id, name, description,
-            requirement, and passed (bool).
-        """
-        ext = extra_stats or {}
-
-        # --- Base counts ---
-        node_type_counts: Dict[str, int] = {}
-        confidence_sum: float = 0.0
-        for node in nodes.values():
-            node_type_counts[node.node_type] = (
-                node_type_counts.get(node.node_type, 0) + 1
-            )
-            confidence_sum += node.confidence
-
-        edge_type_counts: Dict[str, int] = {}
-        for edge in edges:
-            etype = edge.edge_type
-            edge_type_counts[etype] = edge_type_counts.get(etype, 0) + 1
-
-        n_nodes = len(nodes)
-        n_edges = len(edges)
-
-        # Merge DB-queried node_type_counts (max with in-memory) to handle LRU eviction
-        db_ntc = ext.get('db_node_type_counts')
-        if isinstance(db_ntc, dict):
-            for ntype, db_count in db_ntc.items():
-                node_type_counts[ntype] = max(node_type_counts.get(ntype, 0), db_count)
-
-        # Average confidence across all nodes
-        avg_confidence: float = (confidence_sum / n_nodes) if n_nodes > 0 else 0.0
-
-        # --- Extended semantic stats (single pass over nodes) ---
-        domains: set = set()
-        self_reflection_nodes: int = 0
-        cross_domain_inferences: int = 0
-        verified_predictions: int = 0
-        debate_verdicts: int = 0
-        contradiction_resolutions: int = 0
-        auto_goals_generated: int = 0
-        grounded_nodes: int = 0
-        axiom_from_consolidation: int = 0
-        novel_concept_count: int = 0
-
-        for node in nodes.values():
-            if node.domain:
-                domains.add(node.domain)
-
-            # Check grounding_source for grounding ratio
-            if getattr(node, 'grounding_source', '') != '':
-                grounded_nodes += 1
-
-            content = node.content if isinstance(node.content, dict) else {}
-            content_type = content.get('type', '')
-
-            # Self-reflection nodes (source field in content)
-            if content.get('source') == 'self-reflection':
-                self_reflection_nodes += 1
-
-            # Cross-domain inferences
-            if (node.node_type == 'inference'
-                    and content.get('cross_domain', False)):
-                cross_domain_inferences += 1
-
-            # Verified predictions (content type = 'prediction_confirmed')
-            if content_type == 'prediction_confirmed':
-                verified_predictions += 1
-
-            # Debate verdicts (content type = 'debate_synthesis')
-            if content_type == 'debate_synthesis':
-                debate_verdicts += 1
-
-            # Contradiction resolutions (content type = 'contradiction_resolution')
-            if content_type == 'contradiction_resolution':
-                contradiction_resolutions += 1
-
-            # Auto-generated goals (meta_observation node type)
-            if node.node_type == 'meta_observation':
-                auto_goals_generated += 1
-
-            # Consolidated axioms (axiom with content type = 'consolidated_pattern')
-            if node.node_type == 'axiom' and content_type == 'consolidated_pattern':
-                axiom_from_consolidation += 1
-
-            # Novel concepts (generalization or concept_cluster content types)
-            if content_type in ('generalization', 'concept_cluster'):
-                novel_concept_count += 1
-
-        # Grounding ratio: fraction of nodes with non-empty grounding_source
-        grounding_ratio: float = (
-            grounded_nodes / n_nodes if n_nodes > 0 else 0.0
-        )
-
-        # Compute cross-domain inference confidence average
-        cross_domain_conf_sum = 0.0
-        for node in nodes.values():
-            content = node.content if isinstance(node.content, dict) else {}
-            if (node.node_type == 'inference'
-                    and content.get('cross_domain', False)
-                    and node.confidence > 0):
-                cross_domain_conf_sum += node.confidence
-        cross_domain_inference_confidence = (
-            cross_domain_conf_sum / max(1, cross_domain_inferences)
-        )
-
-        stats: Dict = {
-            'n_nodes': n_nodes,
-            'n_edges': n_edges,
-            'node_type_counts': node_type_counts,
-            'edge_type_counts': edge_type_counts,
-            'avg_confidence': avg_confidence,
-            'domain_count': len(domains),
-            'self_reflection_nodes': self_reflection_nodes,
-            # In-memory counts OR DB-queried overrides (ext wins via max).
-            # LRU eviction can undercount old nodes — ext provides DB-accurate totals.
-            'cross_domain_inferences': max(cross_domain_inferences, int(ext.get('db_cross_domain_inferences', 0))),
-            'cross_domain_inference_confidence': cross_domain_inference_confidence,
-            'verified_predictions': max(verified_predictions, int(ext.get('db_verified_predictions', 0))),
-            'debate_verdicts': max(debate_verdicts, int(ext.get('db_debate_verdicts', 0))),
-            'contradiction_resolutions': max(contradiction_resolutions, int(ext.get('db_contradiction_resolutions', 0))),
-            'auto_goals_generated': max(auto_goals_generated, int(ext.get('db_auto_goals_generated', 0))),
-            'auto_goals_with_inferences': ext.get('auto_goals_with_inferences', 0),
-            'grounding_ratio': grounding_ratio,
-            'axiom_from_consolidation': max(axiom_from_consolidation, int(ext.get('db_axiom_from_consolidation', 0))),
-            'novel_concept_count': max(novel_concept_count, int(ext.get('db_novel_concept_count', 0))),
-            # External stats with sensible defaults
-            'integration_score': ext.get('integration_score', 0.0),
-            'mip_phi': ext.get('mip_phi', 0.0),
-            'working_memory_hit_rate': ext.get('working_memory_hit_rate', 0.0),
-            'calibration_error': ext.get('calibration_error', 1.0),
-            'calibration_evaluations': ext.get('calibration_evaluations', 0),
-            'prediction_accuracy': ext.get('prediction_accuracy', 0.0),
-            # v4 gate stats — self-improvement and curiosity
-            'improvement_cycles_enacted': ext.get('improvement_cycles_enacted', 0),
-            'improvement_performance_delta': ext.get('improvement_performance_delta', 0.0),
-            'curiosity_driven_discoveries': ext.get('curiosity_driven_discoveries', 0),
-            # v5 cognitive architecture stats
-            'sephirot_active_count': ext.get('sephirot_active_count', 0),
-            'sephirot_winner_diversity': ext.get('sephirot_winner_diversity', 0.0),
-            'gw_competitions_total': ext.get('gw_competitions_total', 0),
-            'fep_free_energy_decreasing': ext.get('fep_free_energy_decreasing', False),
-            'fep_total_free_energy': ext.get('fep_total_free_energy', 0.0),
-            'fep_domain_precisions': ext.get('fep_domain_precisions', 0),
-            'cognitive_cycle_count': ext.get('cognitive_cycle_count', 0),
-        }
-
-        # Log gate stat summary for diagnostics
-        logger.debug(
-            "Gate stats: nodes=%d debate_verdicts=%d contradiction_resolutions=%d "
-            "verified_predictions=%d mip_phi=%.3f auto_goals=%d axioms=%d "
-            "novel_concepts=%d cross_domain_inf=%d "
-            "sephirot_active=%d gw_competitions=%d fep_decreasing=%s winner_div=%.2f",
-            stats['n_nodes'],
-            debate_verdicts,
-            contradiction_resolutions,
-            verified_predictions,
-            stats.get('mip_phi', 0.0),
-            auto_goals_generated,
-            axiom_from_consolidation,
-            novel_concept_count,
-            cross_domain_inferences,
-            stats.get('sephirot_active_count', 0),
-            stats.get('gw_competitions_total', 0),
-            stats.get('fep_free_energy_decreasing', False),
-            stats.get('sephirot_winner_diversity', 0.0),
-        )
-
-        # Apply adaptive gate scaling: multiply n_nodes threshold by _gate_scale.
-        # This is achieved by dividing the actual n_nodes by _gate_scale before
-        # passing to the gate check, so a scale of 1.5 makes gates 50% harder
-        # and 0.8 makes them 20% easier.
-        gate_scale = getattr(self, '_gate_scale', 1.0)
-        if gate_scale != 1.0 and gate_scale > 0:
-            scaled_stats = dict(stats)
-            scaled_stats['n_nodes'] = int(stats['n_nodes'] / gate_scale)
-        else:
-            scaled_stats = stats
-
-        # Store computed stats for external inspection (e.g., API debug)
-        self._last_gate_stats = {
-            'debate_verdicts': debate_verdicts,
-            'contradiction_resolutions': contradiction_resolutions,
-            'verified_predictions': verified_predictions,
-            'auto_goals_generated': auto_goals_generated,
-            'axiom_from_consolidation': axiom_from_consolidation,
-            'novel_concept_count': novel_concept_count,
-            'cross_domain_inferences': cross_domain_inferences,
-            'grounding_ratio': round(grounding_ratio, 4),
-            'mip_phi': stats.get('mip_phi', 0.0),
-            'prediction_accuracy': stats.get('prediction_accuracy', 0.0),
-            'calibration_error': stats.get('calibration_error', 1.0),
-            'calibration_evaluations': stats.get('calibration_evaluations', 0),
-            'auto_goals_with_inferences': stats.get('auto_goals_with_inferences', 0),
-            # v4 gate stats — self-improvement (Gate 6 + 10)
-            'improvement_cycles_enacted': stats.get('improvement_cycles_enacted', 0),
-            'improvement_performance_delta': stats.get('improvement_performance_delta', 0.0),
-            'curiosity_driven_discoveries': stats.get('curiosity_driven_discoveries', 0),
-            # v5 cognitive architecture stats
-            'sephirot_active_count': stats.get('sephirot_active_count', 0),
-            'sephirot_winner_diversity': stats.get('sephirot_winner_diversity', 0.0),
-            'gw_competitions_total': stats.get('gw_competitions_total', 0),
-            'fep_free_energy_decreasing': stats.get('fep_free_energy_decreasing', False),
-        }
-
-        results: List[dict] = []
-        for gate in MILESTONE_GATES:
-            try:
-                passed = bool(gate['check'](scaled_stats))
-            except Exception:
-                passed = False
-            results.append({
-                'id': gate['id'],
-                'name': gate['name'],
-                'description': gate['description'],
-                'requirement': gate['requirement'],
-                'passed': passed,
-            })
-        return results
 
     def log_gate_progress(self, block_height: int) -> Dict[str, Any]:
         """Log detailed gate progress: what's passed, what's next, what's needed.
@@ -1673,7 +448,6 @@ class PhiCalculator:
                 'nodes_need': needed_nodes,
                 'nodes_remaining': max(0, needed_nodes - n_nodes),
             }
-            # Add relevant metric gaps for the next gate
             if gate_id == 4:
                 progress['next_gate']['debate_verdicts'] = gate_stats.get('debate_verdicts', 0)
                 progress['next_gate']['contradiction_resolutions'] = gate_stats.get('contradiction_resolutions', 0)
@@ -1708,62 +482,40 @@ class PhiCalculator:
         return progress
 
     def adapt_gate_scale(self, block_height: int, phi_value: float) -> None:
-        """Record Phi progression and adapt gate scale based on growth rate.
-
-        If Phi has been growing too quickly (potential gaming), tighten gates.
-        If Phi is stagnant despite real knowledge growth, relax slightly.
-
-        Args:
-            block_height: Current block height.
-            phi_value: Current computed Phi.
-        """
+        """Record Phi progression and adapt gate scale based on growth rate."""
         self._phi_history.append((block_height, phi_value))
         if len(self._phi_history) > self._max_history:
             self._phi_history = self._phi_history[-self._max_history:]
 
-        # Need at least 100 measurements to adapt
         if len(self._phi_history) < 100:
             return
 
-        # Compare recent (last 20) vs older (20 before that) growth rate
         recent = self._phi_history[-20:]
         older = self._phi_history[-40:-20]
-
         recent_delta = recent[-1][1] - recent[0][1]
         older_delta = older[-1][1] - older[0][1]
 
         if older_delta <= 0:
-            return  # No previous growth to compare
+            return
 
         growth_ratio = recent_delta / older_delta
-
-        # If Phi is growing >3x faster than before, tighten gates slightly
         if growth_ratio > 3.0:
             self._gate_scale = min(2.0, self._gate_scale * 1.05)
             logger.info(f"Phi growth anomaly (ratio={growth_ratio:.1f}), "
                         f"tightening gates: scale={self._gate_scale:.3f}")
-        # If Phi is growing <0.2x the previous rate, relax slightly
         elif growth_ratio < 0.2 and self._gate_scale > 0.5:
             self._gate_scale = max(0.5, self._gate_scale * 0.98)
             logger.info(f"Phi growth stagnation (ratio={growth_ratio:.1f}), "
                         f"relaxing gates: scale={self._gate_scale:.3f}")
 
     # ========================================================================
-    # Phi Trend Tracking & Breakdown (Improvements 66-75)
+    # Phi Trend Tracking & Breakdown
     # ========================================================================
 
     _TREND_BUFFER_SIZE: int = 100
 
     def get_phi_trend(self) -> dict:
-        """Get Phi trend analysis from recent history.
-
-        Stores last 100 Phi values and computes whether Phi is rising,
-        falling, or stable.
-
-        Returns:
-            Dict with trend direction, slope, recent_values count,
-            min/max/avg of recent window.
-        """
+        """Get Phi trend analysis from recent history."""
         history = self._phi_history
         if len(history) < 5:
             return {
@@ -1776,7 +528,6 @@ class PhiCalculator:
         values = [v for _, v in recent]
         n = len(values)
 
-        # Linear regression for trend
         mean_x = (n - 1) / 2.0
         mean_y = sum(values) / n
         ss_xx = sum((i - mean_x) ** 2 for i in range(n))
@@ -1801,12 +552,7 @@ class PhiCalculator:
         }
 
     def get_phi_breakdown(self) -> dict:
-        """Get structured breakdown of all Phi components.
-
-        Returns:
-            Dict with integration, differentiation, mip,
-            redundancy, gates, convergence, and trend info.
-        """
+        """Get structured breakdown of all Phi components."""
         if self._last_full_result is None:
             return {'status': 'no_computation_yet'}
 
@@ -1836,34 +582,13 @@ class PhiCalculator:
         }
 
     def predict_gate_progress(self, blocks_ahead: int = 10000) -> List[dict]:
-        """Estimate when each unpassed gate might be reached.
-
-        Uses current growth rate to extrapolate node count and predict
-        when each gate's node threshold will be met.
-
-        Args:
-            blocks_ahead: How many blocks to project forward.
-
-        Returns:
-            List of dicts with gate_id, estimated_blocks_to_pass, and
-            current progress percentage.
-        """
+        """Estimate when each unpassed gate might be reached."""
         if len(self._phi_history) < 20 or not self.kg:
             return []
 
-        # Estimate node growth rate from recent history
         n_nodes = len(self.kg.nodes)
-        history = self._phi_history
-        if len(history) >= 20:
-            block_span = history[-1][0] - history[-20][0]
-        else:
-            block_span = 1
-
-        # Use progress from get_gate_progress
         gate_progress = self.get_gate_progress()
         predictions: List[dict] = []
-
-        # Gate node thresholds (reduced values)
         gate_thresholds = [g['nodes'] for g in MILESTONE_GATES]
 
         for gp in gate_progress:
@@ -1879,7 +604,6 @@ class PhiCalculator:
 
             threshold = gate_thresholds[gid - 1] if gid <= len(gate_thresholds) else 100000
             if n_nodes >= threshold:
-                # Node threshold met but other criteria missing
                 predictions.append({
                     'gate_id': gid,
                     'name': gp['name'],
@@ -1887,17 +611,14 @@ class PhiCalculator:
                     'progress_pct': gp.get('progress_pct', 0),
                 })
             else:
-                # Estimate blocks until node threshold
                 remaining_nodes = threshold - n_nodes
-                # Rough estimate: ~1 node per block (from observation)
-                est_blocks = remaining_nodes
                 predictions.append({
                     'gate_id': gid,
                     'name': gp['name'],
                     'status': 'in_progress',
                     'progress_pct': gp.get('progress_pct', 0),
                     'nodes_needed': remaining_nodes,
-                    'est_blocks': est_blocks,
+                    'est_blocks': remaining_nodes,
                 })
 
         return predictions
@@ -1906,8 +627,10 @@ class PhiCalculator:
     # Storage & History
     # ========================================================================
 
-    def _store_measurement(self, result: dict):
-        """Store phi measurement in database"""
+    def _store_measurement(self, result: dict) -> None:
+        """Store phi measurement in database."""
+        if not self.db:
+            return
         try:
             from sqlalchemy import text
             with self.db.get_session() as session:
@@ -1946,9 +669,9 @@ class PhiCalculator:
             'phi_meso': 0.0,
             'phi_macro': 0.0,
             'hms_phi_raw': 0.0,
-            'phi_formula': 'additive_v3',
-            'num_nodes': 0,
-            'num_edges': 0,
+            'phi_formula': 'rust_unavailable',
+            'num_nodes': len(self.kg.nodes) if self.kg and self.kg.nodes else 0,
+            'num_edges': len(self.kg.edges) if self.kg and self.kg.edges else 0,
             'block_height': block_height,
             'timestamp': time.time(),
             'phi_version': 4,
@@ -1958,23 +681,34 @@ class PhiCalculator:
             'gates': [],
             'convergence_stddev': 0.0,
             'convergence_status': 'insufficient_data',
-            'formula_weights': {
-                'integration': getattr(self, '_w_int', 1.0),
-                'differentiation': getattr(self, '_w_diff', 0.5),
-                'mip': getattr(self, '_w_mip', 1.5),
-            },
         }
 
     def get_gate_progress(self) -> List[dict]:
         """Return detailed progress for each milestone gate.
 
-        Shows how close each gate is to passing with specific metric
-        values vs requirements, suitable for dashboard display.
-
-        Returns:
-            List of dicts with gate id, name, passed status, and
-            individual metric progress indicators.
+        Uses the last Rust-computed result's gate data, supplemented by
+        Python-side node scanning for dashboard display.
         """
+        # If we have a recent Rust result with gates, use it directly
+        if self._last_full_result and self._last_full_result.get('gates'):
+            rust_gates = self._last_full_result['gates']
+            progress: List[dict] = []
+            n_nodes = self._last_full_result.get('num_nodes', 0)
+            for g in rust_gates:
+                gate_id = g.get('id', 0)
+                gate_def = MILESTONE_GATES[gate_id - 1] if 0 < gate_id <= len(MILESTONE_GATES) else None
+                node_req = gate_def['nodes'] if gate_def else 0
+                node_pct = min(1.0, n_nodes / node_req) * 100 if node_req > 0 else 100.0
+                progress.append({
+                    'id': gate_id,
+                    'name': g.get('name', ''),
+                    'passed': g.get('passed', False),
+                    'metrics': {'nodes': f'{n_nodes}/{node_req}'},
+                    'progress_pct': round(min(100, node_pct), 1),
+                })
+            return progress
+
+        # No Rust result — scan KG nodes for basic progress
         if not self.kg or not self.kg.nodes:
             return [
                 {
@@ -1991,7 +725,6 @@ class PhiCalculator:
         n_nodes = len(nodes)
         n_edges = len(edges)
 
-        # Compute stats (same as _check_gates)
         node_type_counts: Dict[str, int] = {}
         confidence_sum = 0.0
         domains: set = set()
@@ -2000,7 +733,6 @@ class PhiCalculator:
         debate_verdicts = 0
         contradiction_resolutions = 0
         auto_goals_generated = 0
-        self_reflection_nodes = 0
         axiom_from_consolidation = 0
         cross_domain_inferences = 0
         novel_concept_count = 0
@@ -2014,8 +746,6 @@ class PhiCalculator:
                 grounded_nodes += 1
             content = node.content if isinstance(node.content, dict) else {}
             content_type = content.get('type', '')
-            if content.get('source') == 'self-reflection':
-                self_reflection_nodes += 1
             if node.node_type == 'inference' and content.get('cross_domain', False):
                 cross_domain_inferences += 1
             if content_type == 'prediction_confirmed':
@@ -2037,53 +767,51 @@ class PhiCalculator:
 
         avg_confidence = confidence_sum / n_nodes if n_nodes > 0 else 0.0
         grounding_ratio = grounded_nodes / n_nodes if n_nodes > 0 else 0.0
-        types_with_10 = len([t for t, c in node_type_counts.items() if c >= 10])
-        causal_pct = (edge_type_counts.get('causes', 0) / n_edges * 100) if n_edges > 0 else 0.0
-        inference_count = node_type_counts.get('inference', 0)
 
-        progress: List[dict] = []
-
-        # Build stats dict matching what _check_gates uses
         stats = {
             'n_nodes': n_nodes,
             'n_edges': n_edges,
             'avg_confidence': avg_confidence,
-            'n_domains': len(domains),
-            'n_node_types': len(node_type_counts),
-            'types_with_50': len([t for t, c in node_type_counts.items() if c >= 50]),
+            'node_type_counts': node_type_counts,
+            'edge_type_counts': edge_type_counts,
+            'domain_count': len(domains),
+            'cross_domain_inferences': cross_domain_inferences,
+            'cross_domain_inference_confidence': 0.0,
             'verified_predictions': verified_predictions,
             'debate_verdicts': debate_verdicts,
             'contradiction_resolutions': contradiction_resolutions,
-            'cross_domain_edges': self._count_cross_domain_edges(),
             'auto_goals_generated': auto_goals_generated,
-            'self_reflection_nodes': self_reflection_nodes,
-            'axiom_from_consolidation': axiom_from_consolidation,
-            'cross_domain_inferences': cross_domain_inferences,
-            'novel_concept_count': novel_concept_count,
-            'inference_count': node_type_counts.get('inference', 0),
+            'auto_goals_with_inferences': self._subsystem_stats.get('auto_goals_with_inferences', 0),
             'grounding_ratio': grounding_ratio,
-            'mip_score': self._last_mip_score,
+            'axiom_from_consolidation': axiom_from_consolidation,
+            'novel_concept_count': novel_concept_count,
+            'integration_score': 0.0,
+            'mip_phi': self._last_mip_score,
+            'calibration_error': self._subsystem_stats.get('calibration_error', 1.0),
+            'calibration_evaluations': self._subsystem_stats.get('calibration_evaluations', 0),
+            'prediction_accuracy': self._subsystem_stats.get('prediction_accuracy', 0.0),
+            'improvement_cycles_enacted': self._subsystem_stats.get('improvement_cycles_enacted', 0),
+            'improvement_performance_delta': self._subsystem_stats.get('improvement_performance_delta', 0.0),
+            'curiosity_driven_discoveries': self._subsystem_stats.get('curiosity_driven_discoveries', 0),
+            'sephirot_winner_diversity': self._subsystem_stats.get('sephirot_winner_diversity', 0.0),
+            'fep_free_energy_decreasing': self._subsystem_stats.get('fep_free_energy_decreasing', False),
+            'fep_domain_precisions': self._subsystem_stats.get('fep_domain_precisions', 0),
         }
-        # Add stats from subsystem injection
-        stats.update(self._subsystem_stats)
 
-        # Evaluate gates using the canonical MILESTONE_GATES definitions
+        progress: List[dict] = []
         for gate in MILESTONE_GATES:
             gate_id = gate['id']
-            gate_name = gate['name']
             node_req = gate.get('nodes', 0)
-            passed = gate['check'](stats)
-
-            # Node progress as primary metric
+            try:
+                passed = bool(gate['check'](stats))
+            except Exception:
+                passed = False
             node_pct = min(1.0, n_nodes / node_req) * 100 if node_req > 0 else 100.0
-
             progress.append({
                 'id': gate_id,
-                'name': gate_name,
+                'name': gate['name'],
                 'passed': passed,
-                'metrics': {
-                    'nodes': f'{n_nodes}/{node_req}',
-                },
+                'metrics': {'nodes': f'{n_nodes}/{node_req}'},
                 'progress_pct': round(min(100, node_pct), 1),
             })
 
@@ -2231,18 +959,10 @@ class PhiCalculator:
         return stats
 
     def _archive_history(self) -> int:
-        """Archive old phi_history entries to DB when history exceeds max.
-
-        Keeps the most recent 1000 entries in memory but persists all
-        older entries to the phi_measurements table for long-term storage.
-
-        Returns:
-            Number of entries archived.
-        """
+        """Archive old phi_history entries to DB when history exceeds max."""
         if len(self._phi_history) <= self._max_history:
             return 0
 
-        # Entries to archive: everything except the most recent _max_history
         archive_count = len(self._phi_history) - self._max_history
         to_archive = self._phi_history[:archive_count]
 
@@ -2267,7 +987,6 @@ class PhiCalculator:
                     archived += 1
                 session.commit()
 
-            # Trim in-memory history to most recent entries
             self._phi_history = self._phi_history[archive_count:]
             logger.info(
                 f"Phi history archived: {archived} entries written to DB, "
@@ -2279,7 +998,7 @@ class PhiCalculator:
         return archived
 
     def get_history(self, limit: int = 50) -> List[dict]:
-        """Get recent phi measurement history"""
+        """Get recent phi measurement history."""
         try:
             from sqlalchemy import text
             with self.db.get_session() as session:
@@ -2307,14 +1026,3 @@ class PhiCalculator:
         except Exception as e:
             logger.debug(f"Failed to get phi history: {e}")
             return []
-
-
-# --- Rust acceleration shim ---
-# NOTE: Rust PhiCalculator has different API (no kg/db args, compute_phi takes
-# nodes/edges explicitly). Keep Python PhiCalculator for now; the expensive
-# _compute_mip is optimized by reducing PHI_MAX_SAMPLE_NODES and caching.
-try:
-    import aether_core as _aether_core  # noqa: F401
-    logger.info("PhiCalculator: using pure-Python with Rust KeterNode/KeterEdge")
-except ImportError:
-    logger.debug("aether_core not installed — using pure-Python PhiCalculator")

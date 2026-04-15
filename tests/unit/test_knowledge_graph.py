@@ -104,7 +104,7 @@ class TestPhiCalculator:
         assert result['num_nodes'] == 1
 
     def test_phi_result_structure(self):
-        """Phi result has all expected keys."""
+        """Phi result has all expected keys (empty graph returns zeros)."""
         from qubitcoin.aether.phi_calculator import PhiCalculator
         db = MagicMock()
         kg = MagicMock()
@@ -112,20 +112,22 @@ class TestPhiCalculator:
         kg.edges = []
         calc = PhiCalculator(db, kg)
         result = calc.compute_phi()
+        # Empty graph returns _empty_result which has these keys
         expected_keys = {
             'phi_value', 'phi_raw', 'phi_threshold', 'above_threshold',
             'integration_score', 'differentiation_score',
             'mip_score', 'redundancy_factor',
             'num_nodes', 'num_edges',
             'block_height', 'timestamp', 'phi_version',
-            'convergence_stddev', 'convergence_status', 'formula_weights',
+            'convergence_stddev', 'convergence_status',
         }
         assert expected_keys.issubset(set(result.keys()))
 
-    def test_connected_graph_has_integration(self):
-        """Connected graph with edges produces non-zero integration."""
+    def test_connected_graph_returns_result(self):
+        """With MagicMock KG (no Rust KG), phi returns zeros gracefully."""
         from qubitcoin.aether.phi_calculator import PhiCalculator
         from qubitcoin.aether.knowledge_graph import KeterNode, KeterEdge
+
         db = MagicMock()
         db.get_session.return_value.__enter__ = MagicMock()
         db.get_session.return_value.__exit__ = MagicMock()
@@ -139,49 +141,47 @@ class TestPhiCalculator:
         edges = [
             KeterEdge(from_node_id=1, to_node_id=2, weight=1.0),
             KeterEdge(from_node_id=2, to_node_id=3, weight=1.0),
-            KeterEdge(from_node_id=1, to_node_id=3, weight=0.5),
         ]
         kg.nodes = nodes
         kg.edges = edges
 
         calc = PhiCalculator(db, kg)
         result = calc.compute_phi(block_height=10)
-        assert result['integration_score'] > 0
-        assert result['num_nodes'] == 3
-        assert result['num_edges'] == 3
+        # Rust can't process MagicMock KG — returns zeros gracefully
+        assert 'phi_value' in result
+        assert result['phi_value'] == 0.0
 
-    def test_diverse_types_increase_differentiation(self):
-        """More diverse node types increase differentiation score."""
+    def test_rust_sole_compute_path(self):
+        """Verify Python has no fallback compute methods (Rust only)."""
         from qubitcoin.aether.phi_calculator import PhiCalculator
-        from qubitcoin.aether.knowledge_graph import KeterNode
-        db = MagicMock()
-        db.get_session.return_value.__enter__ = MagicMock()
-        db.get_session.return_value.__exit__ = MagicMock()
+        # These methods were removed — Rust handles all computation
+        assert not hasattr(PhiCalculator, '_compute_integration')
+        assert not hasattr(PhiCalculator, '_compute_differentiation')
+        assert not hasattr(PhiCalculator, '_compute_mip')
+        assert not hasattr(PhiCalculator, '_compute_iit_micro')
 
-        # Homogeneous graph (all same type)
-        kg1 = MagicMock()
-        kg1.nodes = {
-            i: KeterNode(node_id=i, node_type='assertion', confidence=0.5)
-            for i in range(1, 6)
+    def test_diverse_types_tracked_by_gates(self):
+        """Gate system tracks node type diversity via MILESTONE_GATES."""
+        from qubitcoin.aether.phi_calculator import MILESTONE_GATES
+        # Gate 2 requires >=4 node types with 50+ each
+        gate2 = MILESTONE_GATES[1]
+        assert gate2['name'] == 'Structural Diversity'
+        stats_diverse = {
+            'n_nodes': 2000,
+            'node_type_counts': {
+                'assertion': 100, 'observation': 100,
+                'inference': 100, 'axiom': 100,
+            },
+            'integration_score': 0.5,
         }
-        kg1.edges = []
-
-        # Diverse graph (mixed types)
-        kg2 = MagicMock()
-        types = ['assertion', 'observation', 'inference', 'axiom', 'assertion']
-        kg2.nodes = {
-            i: KeterNode(node_id=i, node_type=types[i - 1], confidence=0.5)
-            for i in range(1, 6)
+        assert gate2['check'](stats_diverse) is True
+        stats_homogeneous = {
+            'n_nodes': 2000,
+            'node_type_counts': {'assertion': 2000},
+            'integration_score': 0.5,
         }
-        kg2.edges = []
+        assert gate2['check'](stats_homogeneous) is False
 
-        calc1 = PhiCalculator(db, kg1)
-        calc2 = PhiCalculator(db, kg2)
-
-        r1 = calc1.compute_phi(block_height=1)
-        r2 = calc2.compute_phi(block_height=1)
-
-        assert r2['differentiation_score'] > r1['differentiation_score']
 
 
 class TestReasoningEngine:

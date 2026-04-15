@@ -216,62 +216,40 @@ class TestSemanticGates:
         max_ceiling = len(MILESTONE_GATES) * 0.5
         assert max_ceiling == 5.0
 
-    def test_check_gates_computes_extended_stats(self):
-        """Verify _check_gates builds the extended stats dict correctly."""
-        from qubitcoin.aether.phi_calculator import PhiCalculator
+    def test_milestone_gates_evaluate_correctly(self):
+        """Verify MILESTONE_GATES lambda checks work with stats dicts."""
+        from qubitcoin.aether.phi_calculator import MILESTONE_GATES
 
-        calc = PhiCalculator.__new__(PhiCalculator)
-        calc.kg = MagicMock()
-
-        # Create nodes with domains, self-reflection, and various content types
-        nodes = {
-            1: KeterNode(node_id=1, node_type='assertion', domain='physics',
-                         content={'text': 'test'}, confidence=0.8),
-            2: KeterNode(node_id=2, node_type='inference', domain='math',
-                         content={'source': 'self-reflection', 'text': 'reflect'},
-                         confidence=0.6),
-            3: KeterNode(node_id=3, node_type='inference', domain='physics',
-                         content={'cross_domain': True, 'text': 'cross'},
-                         confidence=0.7),
+        # With only 3 nodes, all gates should fail (gate 1 requires >= 500)
+        stats = {
+            'n_nodes': 3,
+            'node_type_counts': {'assertion': 2, 'inference': 1},
+            'edge_type_counts': {'supports': 1},
+            'avg_confidence': 0.7,
+            'domain_count': 2,
         }
-        edges = [
-            KeterEdge(from_node_id=1, to_node_id=2,
-                          edge_type='supports', weight=1.0),
-        ]
+        for gate in MILESTONE_GATES:
+            try:
+                passed = gate['check'](stats)
+            except Exception:
+                passed = False
+            assert passed is False, f"Gate {gate['id']} should fail with 3 nodes"
 
-        results = calc._check_gates(nodes, edges)
-        assert len(results) == 10
-        # All gates should fail with only 3 nodes (gate 1 requires >= 500)
-        for g in results:
-            assert g['passed'] is False
+    def test_milestone_gate1_passes_with_500_nodes(self):
+        """Verify gate 1 passes with 500 nodes, 5 domains, avg conf >= 0.5."""
+        from qubitcoin.aether.phi_calculator import MILESTONE_GATES
 
-    def test_check_gates_accepts_extra_stats(self):
-        """Verify _check_gates merges external stats."""
-        from qubitcoin.aether.phi_calculator import PhiCalculator
-
-        calc = PhiCalculator.__new__(PhiCalculator)
-        calc.kg = MagicMock()
-
-        # Create 500 nodes across 5 domains to pass gate 1
-        domains = ['physics', 'math', 'cs', 'biology', 'chemistry']
-        nodes = {
-            i: KeterNode(node_id=i, node_type='assertion',
-                         content={'text': f'node {i}'}, confidence=0.7,
-                         domain=domains[i % 5])
-            for i in range(1, 501)
-        }
-        edges = []
-
-        # Without extra_stats, gate 1 should pass (500 nodes, 5 domains, conf 0.7)
-        results = calc._check_gates(nodes, edges)
-        assert results[0]['passed'] is True  # Gate 1
-
-        # With extra_stats, integration_score is injected
-        results_with_extra = calc._check_gates(nodes, edges, extra_stats={
+        stats = {
+            'n_nodes': 500,
+            'node_type_counts': {'assertion': 500},
+            'edge_type_counts': {},
+            'avg_confidence': 0.7,
+            'domain_count': 5,
             'integration_score': 0.5,
             'mip_phi': 0.4,
-        })
-        assert results_with_extra[0]['passed'] is True  # Gate 1 still passes
+        }
+        gate1 = MILESTONE_GATES[0]
+        assert gate1['check'](stats) is True
 
 
 # ─── 4.2 Analogy Detection ─────────────────────────────────────────────────

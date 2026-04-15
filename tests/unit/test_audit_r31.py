@@ -177,13 +177,12 @@ class TestBFSDeque:
         assert 'popleft' in source
         assert '.pop(0)' not in source
 
-    def test_phi_calculator_bfs_uses_deque(self) -> None:
-        """PhiCalculator integration BFS should use deque."""
-        import inspect
+    def test_phi_calculator_uses_rust(self) -> None:
+        """PhiCalculator should delegate computation to Rust."""
         from qubitcoin.aether.phi_calculator import PhiCalculator
-        source = inspect.getsource(PhiCalculator._compute_integration)
-        assert 'popleft' in source
-        assert '.pop(0)' not in source
+        # Rust is the sole compute path — no Python _compute_integration
+        assert not hasattr(PhiCalculator, '_compute_integration')
+        assert not hasattr(PhiCalculator, '_compute_mip')
 
     def test_hnsw_index_uses_heapq(self) -> None:
         """HNSWIndex search should use heapq, not sort+pop."""
