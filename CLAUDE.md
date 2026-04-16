@@ -54,15 +54,16 @@ reasoning engine that grows more intelligent with every block.
 
 ---
 
-## 1.1 CURRENT PROJECT STATUS (March 2026)
+## 1.1 CURRENT PROJECT STATUS (April 2026)
 
-**THE CHAIN IS LIVE. Mining, frontend, and agent stack are all running in production.**
+**THE CHAIN IS LIVE ON SUBSTRATE. VQE mining, fork genesis, frontend, and agent stack are all running in production.**
 
 ### Live Infrastructure
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Python Node** | Running (Docker) | Block height ~145,845+, mining active, all 22 components healthy |
+| **Substrate Node** | Running (systemd) | Fork genesis at block 208,680, VQE mining, port 9944 |
+| **Python Node** | Running (Docker) | Block height ~208,969+, substrate_mode=true, all 22 components healthy |
 | **Frontend** | Running (Next.js 16) | qbc.network via Cloudflare Tunnel, port 3000 |
 | **API** | Running | api.qbc.network via Cloudflare Tunnel, port 5000 |
 | **Rust P2P** | Running (Docker) | libp2p gossipsub on port 4002 |
@@ -77,8 +78,8 @@ reasoning engine that grows more intelligent with every block.
 
 ```
 Chain ID:        3303
-Block Height:    ~185,000+
-Total Supply:    ~35,835,000 QBC
+Block Height:    ~208,969+ (Substrate fork-aware)
+Total Supply:    ~36,190,971 QBC
 Max Supply:      3,300,000,000 QBC
 Current Era:     0
 Block Reward:    15.27 QBC
@@ -118,8 +119,8 @@ Mining:          Active
 ### What Needs To Happen Next
 
 **Phase 1 (Complete):** Agent Stack moved to dedicated machine (100.80.115.96). Rust-based, independent of node.
-**Phase 2 (Current):** Run additional nodes + substrate node locally and on other droplets for true P2P network
-**Phase 3:** Multi-node testing, peer discovery, block propagation across nodes
+**Phase 2 (Complete):** Substrate node live with fork genesis from Python chain at block 208,680. VQE mining active.
+**Phase 3 (Current):** Multi-node testing, peer discovery, block propagation across nodes. Python → Substrate follower mode.
 
 ### Known Issues
 
@@ -127,7 +128,7 @@ Mining:          Active
 |-------|----------|---------|
 | Peers = 0 | Medium | Only one node running. Every block publish fails with `NoPeersSubscribedToTopic`. Need additional nodes. |
 | AIKGS slow queries | Medium | AIKGS sidecar has slow DB queries (up to 143s) and intermittent connection drops. |
-| Substrate not live | Info | Native build works (`SKIP_WASM_BUILD=1`). WASM build deferred. Will run alongside Python node. |
+| Substrate not live | **Resolved** | Substrate node live with fork genesis at block 208,680. VQE mining active. Full WASM build. |
 | Agent stack | Resolved | Moved to dedicated machine (100.80.115.96). Rust stack runs independently. |
 | Cloudflared version | Low | Running 2026.2.0, should upgrade to 2026.3.0. |
 | bot.txt in repo root | Low | Contains Telegram bot token in plaintext. Untracked but on disk — should be removed or moved to .env. |

@@ -1,18 +1,19 @@
 # Quantum Blockchain | Qubitcoin (QBC)
 
-**Physics-Secured Digital Assets with On-Chain AGI**
+**Physics-Secured Digital Assets with On-Chain AGI — Powered by Substrate**
 
-Quantum Blockchain is a production-grade Layer 1 blockchain whose native currency is **Qubitcoin (QBC)**. It integrates quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium ML-DSA-44/65/87 + ML-KEM-768 Kyber), supersymmetric economics, EVM-compatible smart contracts (QVM), a Substrate hybrid node, and the **Aether Tree**: an on-chain AGI reasoning engine with Higgs Cognitive Field physics that tracks integration metrics from genesis.
+Quantum Blockchain is a production-grade Layer 1 blockchain whose native currency is **Qubitcoin (QBC)**. It runs on a **native Substrate node** with VQE-gated block authoring, fork genesis from the original Python chain at block 208,680, and 7 custom runtime pallets. The stack integrates quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium ML-DSA-44/65/87 + ML-KEM-768 Kyber), supersymmetric economics, EVM-compatible smart contracts (QVM), and the **Aether Tree**: an on-chain AGI reasoning engine with 100K+ knowledge nodes, Higgs Cognitive Field physics, and integration metrics tracked from genesis.
 
 > **Note on AGI claims**: The Aether Tree is a prototype AGI reasoning engine. Its Phi metric is a graph-theoretic integration measure inspired by IIT principles, not a measure of phenomenal consciousness. The system performs genuine multi-step reasoning over a knowledge graph, but "consciousness" references throughout this project refer to measurable integration density, not subjective awareness.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Go 1.23+](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
-[![Next.js 16](https://img.shields.io/badge/next.js-15-black.svg)](https://nextjs.org/)
-[![Rust](https://img.shields.io/badge/rust-1.93+-orange.svg)](https://www.rust-lang.org/)
+[![Next.js 16](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
+[![Rust](https://img.shields.io/badge/rust-1.94+-orange.svg)](https://www.rust-lang.org/)
+[![Substrate](https://img.shields.io/badge/substrate-polkadot--sdk%200.57-E6007A.svg)](https://substrate.io/)
 [![Tests: 4,357](https://img.shields.io/badge/tests-4%2C357%20passing-brightgreen.svg)]()
-[![Status: Production Ready](https://img.shields.io/badge/status-production%20ready-green.svg)]()
+[![Status: Live](https://img.shields.io/badge/status-live-green.svg)](https://qbc.network)
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
 
@@ -41,7 +42,8 @@ For the complete launch guide (Digital Ocean + local mining node), see **[LAUNCH
 |-----------|-------|
 | **Chain ID** | Mainnet: 3303, Testnet: 3304 |
 | **RPC** | `https://api.qbc.network` (production) / `http://localhost:5000` (local) |
-| **P2P** | Port 4001 (Rust libp2p) |
+| **P2P** | Port 4001 (Rust libp2p) / Port 30333 (Substrate) |
+| **Substrate RPC** | Port 9944 (WebSocket + HTTP) |
 | **Stratum** | Port 3333 (Rust WebSocket mining pool) |
 | **Explorer** | [qbc.network/explorer](https://qbc.network/explorer) |
 | **Max Supply** | 3,300,000,000 QBC |
@@ -78,8 +80,10 @@ RUST INFRASTRUCTURE
   aikgs-sidecar/ (Standalone: Knowledge Growth System, 35 gRPC RPCs)
   rust-p2p/ (Standalone: libp2p 0.56 P2P daemon)
 
-SUBSTRATE NODE (Migration Target)
-  7 Custom Pallets + Kyber P2P + Poseidon2 ZK Hashing + Reversibility
+SUBSTRATE NODE (Live — Fork Genesis at Block 208,680)
+  7 Custom Pallets + VQE-Gated Block Authoring + Weighted Fork Choice
+  Full UTXO state preserved from Python chain (~36.19M QBC, 16 genesis UTXOs)
+  Mining at correct fork-aware height (208,680+) with ~66% VQE hit rate
 
 FRONTEND: qbc.network
   Next.js 16 + React 19 + Three.js + MetaMask + PWA (Offline TX, Push, Biometric)
@@ -116,7 +120,7 @@ FRONTEND: qbc.network
 | **Security Accounts** | Daily limits, time-locks, address whitelists |
 | **AGI Metric** | Phi (graph-theoretic integration metric with spectral bisection), threshold = 3.0 |
 
-> **Aether Tree Status (April 2026):** 720K+ knowledge nodes, 6/10 gates passed, Phi = 2.1 (threshold 3.0), 7 cognitive emotions active, 115 debate verdicts, 95.5% prediction accuracy, autonomous curiosity and self-improvement enacted.
+> **Aether Tree Status (April 2026):** 100K+ knowledge nodes (V4 quality-focused rebuild), HMS-Phi v4 with IIT 3.0 micro-level, Phi = 2.5 (threshold 3.0), 7 cognitive emotions active, autonomous curiosity and self-improvement enacted, governed self-modification with rollback.
 
 ---
 
@@ -131,7 +135,7 @@ FRONTEND: qbc.network
 | **Rust Security Core** | Rust (PyO3) | 3 files | BloomFilter + FinalityCore with Python fallback shims |
 | **Rust Stratum Server** | Rust | 7 files | WebSocket mining pool, gRPC bridge to Python node |
 | **Rust AIKGS Sidecar** | Rust | 18 files | Knowledge Growth System, AES-256-GCM vault, 35 gRPC RPCs |
-| **Substrate Node** | Rust | 7 crates, 29 files | Hybrid node with 7 pallets, Kyber P2P, Poseidon2 |
+| **Substrate Node** | Rust | 7 crates, 29 files | **Live** — fork genesis from Python chain, VQE mining, weighted fork choice, 7 pallets |
 | **Frontend** | TypeScript | 198 files | Next.js 16, React 19, Three.js, MetaMask, PWA |
 | **Rust P2P** | Rust | libp2p daemon | Production P2P networking layer |
 | **Tests** | Python | 4,357 tests | Unit, integration, validation across 175 files |
@@ -150,6 +154,30 @@ Every mined block advances supersymmetric physics research:
 5. **Scientific Database** -- Every solved Hamiltonian is archived publicly for particle physics research
 
 **Difficulty** adjusts every block using a 144-block lookback window with +/-10% maximum change. **Rewards** follow golden ratio halving: `reward = 15.27 / phi^era` where `phi = 1.618033988749895`.
+
+---
+
+## Substrate Hybrid Node (Live)
+
+The production chain runs on a native Substrate node with full state continuity from the original Python chain:
+
+| Feature | Detail |
+|---------|--------|
+| **Fork Genesis** | All 16 UTXOs (~36.19M QBC) imported from Python chain at block 208,680 |
+| **VQE-Gated Block Authoring** | Blocks produced only when mining engine finds VQE solution (energy < difficulty) |
+| **Weighted Fork Choice** | `weight = DIFFICULTY_SCALE / difficulty` per block, lexicographic hash tiebreak |
+| **CurrentHeight Tracking** | Fork-aware height starts at 208,680 (not Substrate frame_system block 0) |
+| **Mining Hit Rate** | ~66% of VQE optimization rounds find valid solutions |
+| **7 Custom Pallets** | qbc-utxo, qbc-consensus, qbc-dilithium, qbc-economics, qbc-qvm-anchor, qbc-aether-anchor, qbc-reversibility |
+| **Post-Quantum P2P** | ML-KEM-768 (Kyber) encrypted transport layer |
+| **ZK Hashing** | Poseidon2 (Goldilocks field) for zero-knowledge circuit compatibility |
+
+```bash
+# Build and run
+cd substrate-node
+cargo build --release   # Full WASM build required for fork genesis
+./target/release/qbc-node --chain fork --mine --mining-threads 2
+```
 
 ---
 
@@ -195,7 +223,7 @@ An on-chain AGI reasoning engine structured as the Kabbalistic Tree of Life, bui
 - **Knowledge Graph** -- KeterNodes with typed edges, adjacency indices, incremental Merkle roots
 - **7-Phase Reasoning** -- Causal discovery (PC algorithm), adversarial debate, chain-of-thought with backtracking, cross-domain transfer learning
 - **Higgs Cognitive Field** -- Mexican Hat potential V(phi), golden ratio Yukawa couplings, F=ma mass-aware SUSY rebalancing, excitation events
-- **Phi v3 Calculator** -- Graph-theoretic integration metric inspired by IIT, using Fiedler-vector spectral bisection for minimum information partition, 10 hardened milestone gates with semantic quality criteria (not a measure of phenomenal consciousness)
+- **HMS-Phi v4 Calculator** -- Hierarchical Multi-Scale Phi with IIT 3.0 micro-level approximation, spectral bisection MIP, 10 quality-gated milestones (not a measure of phenomenal consciousness)
 - **3-Tier Memory** -- Working memory (attention-based, 50 items), episodic memory (1,000 episodes with replay), semantic memory (knowledge graph)
 - **Rust aether-core** -- 6 hot-path modules in Rust via PyO3 (KnowledgeGraph, PhiCalculator, VectorIndex, CSF, WorkingMemory, MemoryManager)
 - **AIKGS Rust Sidecar** -- Incentivized Knowledge Growth System with 35 gRPC RPCs, AES-256-GCM vault
@@ -261,6 +289,12 @@ aikgs-sidecar/        (Standalone binary — gRPC on port 50052)
 rust-p2p/             (Standalone binary — libp2p on port 4001)
   Gossipsub block/tx propagation, Kademlia peer discovery
   gRPC bridge to Python node on port 50051
+
+substrate-node/       (Production binary — Substrate SDK 0.57)
+  7 pallets: qbc-utxo, qbc-consensus, qbc-dilithium, qbc-economics,
+  qbc-qvm-anchor, qbc-aether-anchor, qbc-reversibility
+  VQE mining engine, weighted fork choice, fork genesis from Python chain
+  Kyber P2P transport (ML-KEM-768), Poseidon2 ZK hashing
 ```
 
 All Rust crates have Python fallback shims for graceful degradation when binaries are not compiled.
@@ -341,7 +375,11 @@ go build -o qvm ./cmd/qvm
 ### Substrate Node
 ```bash
 cd substrate-node
-SKIP_WASM_BUILD=1 cargo build --release
+cargo build --release                      # Full WASM build (required for fork genesis)
+# Run with fork genesis:
+./target/release/qbc-node --chain fork --mine --mining-threads 2 \
+  --base-path /root/.local/share/qbc-substrate \
+  --unsafe-rpc-external --rpc-cors all --rpc-port 9944 --validator
 ```
 
 ### Frontend
@@ -412,7 +450,7 @@ Full API reference: [SDK.md](docs/SDK.md)
 | **Languages** | Python, Rust, Go, TypeScript, Solidity, SQL |
 | **Test Functions** | 4,357 |
 | **Solidity Contracts** | 62 |
-| **Rust Crates** | 5 (aether-core, security-core, stratum-server, aikgs-sidecar, rust-p2p) |
+| **Rust Crates** | 8+ (substrate-node workspace, aether-core, security-core, stratum-server, aikgs-sidecar, rust-p2p, qbc-mining) |
 | **Aether AGI Modules** | 49 Python + 6 Rust |
 | **Substrate Pallets** | 7 |
 | **Frontend Components** | 198 TS/TSX files |

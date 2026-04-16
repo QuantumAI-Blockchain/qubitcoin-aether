@@ -1,0 +1,140 @@
+{
+  "fork_height": 208680,
+  "total_supply_qbc": 36186558.87,
+  "total_supply_units": 3618655887000000,
+  "total_in_utxos_qbc": 34163192.33002001,
+  "difficulty": 10.641778010593423,
+  "difficulty_scaled": 10641778,
+  "era": 0,
+  "addresses": 16,
+  "genesis_utxos": [
+    {
+      "txid": "54c19f708af3e823d1a11ec94b5241aa6fcdf38d7372ef63a0dfcff6473d407a",
+      "vout": 0,
+      "address_hex": "genesis_miner",
+      "amount": 2805001527000000,
+      "address_label": "genesis_mine...",
+      "amount_qbc": 28050015.27
+    },
+    {
+      "txid": "a03307393a1513c0f1d59ef38372b4c1ff6e3297986ea06ce36df2dfe422404a",
+      "vout": 0,
+      "address_hex": "51d3a9b12dc4667f771b2a5ce3491631251e9d41",
+      "amount": 300000000000000,
+      "address_label": "51d3a9b12dc4...",
+      "amount_qbc": 3000000.000000001
+    },
+    {
+      "txid": "b4058c97a002ae8b083a96d73e1a7bc269ae255b5362e285e16bc5132cdad034",
+      "vout": 0,
+      "address_hex": "035b5ed4454e0820002a5b1bfa36855c965fc3fe",
+      "amount": 100000000000000,
+      "address_label": "035b5ed4454e...",
+      "amount_qbc": 1000000.0000000013
+    },
+    {
+      "txid": "5071626c75c7d2362575954ac5dd28096e2045ad3a82af98084d5d352ac187a9",
+      "vout": 0,
+      "address_hex": "1ca2afb858e3efeb882bbf0c8a47529c2c7bd7cb",
+      "amount": 98496049002000,
+      "address_label": "1ca2afb858e3...",
+      "amount_qbc": 984960.49002
+    },
+    {
+      "txid": "d7b23c82862ba22798f2b20fd4e0cac9cdd9c8a741040d25800251f6b4bf70d9",
+      "vout": 0,
+      "address_hex": "d5f7bd5755efa26aeec75f3b1523b2dd3814afb2",
+      "amount": 17821617000000,
+      "address_label": "d5f7bd5755ef...",
+      "amount_qbc": 178216.17
+    },
+    {
+      "txid": "dec8cf4cfc34586e377aaec4c148cbe52a738040f24101e3d7b636627265f482",
+      "vout": 0,
+      "address_hex": "6bfd0cf44818671068a54eba97073a2b39b83d41",
+      "amount": 10000000000000,
+      "address_label": "6bfd0cf44818...",
+      "amount_qbc": 100000.000000005
+    },
+    {
+      "txid": "0900ce073020a0756cf13f4f59dc8f9d3b5d630e0cc3f5162d7943d5efab3059",
+      "vout": 0,
+      "address_hex": "7a1fd046807e656e42cabc26e60da4ccd5864d37",
+      "amount": 10000000000000,
+      "address_label": "7a1fd046807e...",
+      "amount_qbc": 100000.0000000035
+    },
+    {
+      "txid": "66f3a94f1022f533e6b7ad65449b06820321c712c35d546e05370b65304e14ed",
+      "vout": 0,
+      "address_hex": "39073254200b5663945c3cbb47ae14be8da8bd24",
+      "amount": 10000000000000,
+      "address_label": "39073254200b...",
+      "amount_qbc": 100000.0
+    },
+    {
+      "txid": "1e39f50164c442dc39454a34d35c094e2305ae2eae091be090de80dc49554664",
+      "vout": 0,
+      "address_hex": "57c1c9e8433158b42010e9a6b359a2304a54d3a3",
+      "amount": 10000000000000,
+      "address_label": "57c1c9e84331...",
+      "amount_qbc": 100000.0
+    },
+    {
+      "txid": "1f4e805e0a276032c69e4a41a903f6bd0a0aa75cb98425a31e31bfd7031842a3",
+      "vout": 0,
+      "address_hex": "3f9f571b24b8a63df09a3ddddc1b6c854be60b76",
+      "amount": 10000000000000,
+      "address_label": "3f9f571b24b8...",
+      "amount_qbc": 100000.0
+    },
+    {
+      "txid": "d175c850201dbb17ac8b32ae47d5a289d7e2091efa1323b6e17fdb63af3bccd9",
+      "vout": 0,
+      "address_hex": "755805a47252ceeddd0fd07521fc80d0e6bb6015",
+      "amount": 10000000000000,
+      "address_label": "755805a47252...",
+      "amount_qbc": 100000.0
+    },
+    {
+      "txid": "ba47f0efb9dc37edefecbe52c0d0f3df3439107727277427dadd9c18cddbe252",
+      "vout": 0,
+      "address_hex": "3f56a174c3ed8af958d1ff8b30682e6cf03cdb5b",
+      "amount": 10000000000000,
+      "address_label": "3f56a174c3ed...",
+      "amount_qbc": 100000.0
+    },
+    {
+      "txid": "2ad9d49b7a39b304da99f46a3a7e10daad8ece8dbe5358fbf4afca64650c3fd6",
+      "vout": 0,
+      "address_hex": "b6e46cb71d41fb42e77940749fdd3e6c29abb728",
+      "amount": 10000000000000,
+      "address_label": "b6e46cb71d41...",
+      "amount_qbc": 100000.0
+    },
+    {
+      "txid": "fe2a4d4d1f9ceedabd8632591d9b944359586b0d806cd80351af5cf5b82b9fd1",
+      "vout": 0,
+      "address_hex": "d47a560e242a64139407e2063642a2cf549978a2",
+      "amount": 10000000000000,
+      "address_label": "d47a560e242a...",
+      "amount_qbc": 100000.0
+    },
+    {
+      "txid": "eaf0aeba62df0aa5c77921fbe1bf260dcca81a8ebf05a3c22e3273aa0de2a0b7",
+      "vout": 0,
+      "address_hex": "5059106cfdb9c9572eed70e97b2d2b03af1736aa",
+      "amount": 5000000000000,
+      "address_label": "5059106cfdb9...",
+      "amount_qbc": 50000.0
+    },
+    {
+      "txid": "7b3d72df47542dbbe6ee6e8ab9c0cbb1280e3d7467de9a3d9eab198480cd9c72",
+      "vout": 0,
+      "address_hex": "52de0c6cb3681b0f7094bd55c1967ac81a080e8e",
+      "amount": 40000000,
+      "address_label": "52de0c6cb368...",
+      "amount_qbc": 0.4
+    }
+  ]
+}

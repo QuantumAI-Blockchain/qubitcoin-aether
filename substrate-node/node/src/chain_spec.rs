@@ -12,6 +12,7 @@ use qbc_primitives::{
     Address, Utxo, GENESIS_PREMINE, INITIAL_DIFFICULTY, INITIAL_REWARD,
     CHAIN_ID_MAINNET, CHAIN_ID_TESTNET, QBC_DECIMALS,
 };
+use hex;
 use qbc_runtime::{AccountId, Signature, WASM_BINARY};
 use sc_service::ChainType;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -49,6 +50,37 @@ where
 /// Generate Aura + GRANDPA authority keys from seed.
 pub fn authority_keys_from_seed(s: &str) -> (AuraId, GrandpaId) {
     (get_from_seed::<AuraId>(s), get_from_seed::<GrandpaId>(s))
+}
+
+/// Convert a hex address string (20-byte or 32-byte) to a 32-byte Address.
+///
+/// - 20-byte hex (EVM-style): left-padded with 12 zero bytes
+/// - 32-byte hex: used directly
+/// - "genesis_miner": mapped to SHA2-256("genesis_miner") for determinism
+fn hex_to_address(hex_str: &str) -> Address {
+    if hex_str == "genesis_miner" {
+        use sp_core::hashing::sha2_256;
+        return Address(sha2_256(b"genesis_miner"));
+    }
+    let clean = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+    let bytes = hex::decode(clean).expect("valid hex address");
+    let mut addr = [0u8; 32];
+    match bytes.len() {
+        20 => addr[12..].copy_from_slice(&bytes), // Left-pad for EVM compat
+        32 => addr.copy_from_slice(&bytes),
+        _ => panic!("Invalid address length: {} bytes", bytes.len()),
+    }
+    Address(addr)
+}
+
+/// Convert a hex txid string to H256.
+fn hex_to_h256(hex_str: &str) -> H256 {
+    let clean = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+    let bytes = hex::decode(clean).expect("valid hex txid");
+    assert_eq!(bytes.len(), 32, "txid must be 32 bytes");
+    let mut arr = [0u8; 32];
+    arr.copy_from_slice(&bytes);
+    H256(arr)
 }
 
 /// Build standard QBC chain properties (token metadata for wallets/explorers).
@@ -229,6 +261,73 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
         .build())
 }
 
+/// **MAINNET FORK** — State-preserving fork from the Python chain.
+///
+/// This genesis embeds ALL unspent UTXOs from the Python chain at the fork
+/// height, preserving every coin in circulation. The Substrate chain starts
+/// fresh from block 0 but with the exact same UTXO distribution.
+///
+/// Fork state is loaded from `fork_state.json` (baked in at compile time).
+pub fn mainnet_fork_config() -> Result<ChainSpec, String> {
+    let fork_state: serde_json::Value = serde_json::from_str(
+        include_str!("../../fork_state.json")
+    ).map_err(|e| format!("Failed to parse fork_state.json: {}", e))?;
+
+    let fork_height = fork_state["fork_height"].as_u64().unwrap_or(0);
+    log::info!("Building fork genesis from Python chain at block {}", fork_height);
+
+    // Single validator — this node is the sole miner post-fork
+    let initial_authorities = vec![
+        authority_keys_from_seed("Alice"),
+    ];
+
+    let root_key = get_account_id_from_seed::<sr25519::Public>("Alice");
+    let endowed_accounts = vec![root_key.clone()];
+
+    // Parse fork UTXOs from JSON
+    let utxo_array = fork_state["genesis_utxos"].as_array()
+        .ok_or("fork_state.json missing genesis_utxos array")?;
+
+    let mut genesis_utxos = Vec::with_capacity(utxo_array.len());
+    for entry in utxo_array {
+        let txid = hex_to_h256(entry["txid"].as_str().unwrap());
+        let address = hex_to_address(entry["address_hex"].as_str().unwrap());
+        let amount = entry["amount"].as_u64().unwrap() as u128;
+        if amount == 0 {
+            continue;
+        }
+        genesis_utxos.push(Utxo {
+            txid,
+            vout: entry["vout"].as_u64().unwrap_or(0) as u32,
+            address,
+            amount,
+            block_height: fork_height,
+            is_coinbase: true, // All fork genesis UTXOs marked coinbase
+        });
+    }
+
+    let difficulty_scaled = fork_state["difficulty_scaled"].as_u64()
+        .unwrap_or(INITIAL_DIFFICULTY);
+    let total_emitted = fork_state["total_supply_units"].as_u64()
+        .unwrap_or(0) as u128;
+
+    Ok(ChainSpec::builder(wasm_binary()?, None)
+        .with_name("Qubitcoin Mainnet (Fork)")
+        .with_id("qbc_mainnet_fork")
+        .with_protocol_id("qbc")
+        .with_chain_type(ChainType::Live)
+        .with_properties(chain_properties(CHAIN_ID_MAINNET))
+        .with_genesis_config_patch(build_fork_genesis(
+            initial_authorities,
+            root_key,
+            endowed_accounts,
+            genesis_utxos,
+            difficulty_scaled,
+            total_emitted,
+        ))
+        .build())
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Genesis state builder
 // ═══════════════════════════════════════════════════════════════════════
@@ -375,6 +474,65 @@ fn build_genesis(
 
         // Aether Anchor — Python execution service handles Aether Tree
         // Phi starts at 0, empty knowledge root, AGI tracked from genesis
+        "qbcAetherAnchor": {
+            "serviceEndpoint": b"http://127.0.0.1:5000".to_vec(),
+        },
+    })
+}
+
+/// Build the fork genesis — preserves all UTXO balances from the Python chain.
+///
+/// Unlike `build_genesis()`, this function takes pre-built UTXOs (from the
+/// fork state export) and custom difficulty/supply values matching the Python
+/// chain's state at the fork block.
+fn build_fork_genesis(
+    initial_authorities: Vec<(AuraId, GrandpaId)>,
+    root_key: AccountId,
+    endowed_accounts: Vec<AccountId>,
+    genesis_utxos: Vec<Utxo>,
+    difficulty_scaled: u64,
+    total_emitted: u128,
+) -> serde_json::Value {
+    serde_json::json!({
+        "balances": {
+            "balances": endowed_accounts.iter().cloned()
+                .map(|k| (k, 1u128 << 60))
+                .collect::<Vec<_>>(),
+        },
+        "aura": {
+            "authorities": initial_authorities.iter()
+                .map(|x| x.0.clone())
+                .collect::<Vec<_>>(),
+        },
+        "grandpa": {
+            "authorities": initial_authorities.iter()
+                .map(|x| (x.1.clone(), 1u64))
+                .collect::<Vec<_>>(),
+        },
+        "sudo": {
+            "key": Some(root_key),
+        },
+
+        // Fork genesis: ALL unspent UTXOs from the Python chain at fork height.
+        // Every coin in circulation is preserved.
+        "qbcUtxo": {
+            "genesisUtxos": genesis_utxos,
+        },
+
+        // Difficulty at fork height (not 1.0 — matches Python chain's current difficulty)
+        "qbcConsensus": {
+            "initialDifficulty": difficulty_scaled,
+        },
+
+        // Total emitted at fork height (not genesis amount — matches Python chain's supply)
+        "qbcEconomics": {
+            "initialEmitted": total_emitted,
+        },
+
+        "qbcQvmAnchor": {
+            "serviceEndpoint": b"http://127.0.0.1:5000".to_vec(),
+        },
+
         "qbcAetherAnchor": {
             "serviceEndpoint": b"http://127.0.0.1:5000".to_vec(),
         },

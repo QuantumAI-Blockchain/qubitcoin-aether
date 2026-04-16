@@ -685,7 +685,8 @@ class AetherChat:
         (default: qwen2.5:0.5b) with aggressive timeout for fast chat responses.
         Falls back to the general LLM manager adapters if Ollama is unavailable.
         """
-        # Try to create a fast chat-specific Ollama adapter
+        # Create a fast chat-specific Ollama adapter (lazy availability check —
+        # don't block on Ollama connectivity at init time, it may not be ready yet)
         if Config.OLLAMA_BASE_URL:
             try:
                 from .llm_adapter import OllamaAdapter
@@ -696,12 +697,11 @@ class AetherChat:
                     temperature=0.7,
                     timeout_s=25.0,  # 25s for cold start; Hod auto-disables if >10s
                 )
-                if chat_adapter.is_available():
-                    logger.info(
-                        "Hod using fast chat adapter: %s (15s timeout)",
-                        Config.OLLAMA_CHAT_MODEL,
-                    )
-                    return chat_adapter
+                logger.info(
+                    "Hod chat adapter created: %s (lazy availability)",
+                    Config.OLLAMA_CHAT_MODEL,
+                )
+                return chat_adapter
             except Exception as e:
                 logger.debug("Fast chat adapter creation failed: %s", e)
 
@@ -1482,24 +1482,20 @@ class AetherChat:
 
         user_id = session.user_address or session.session_id
 
-        # Load cross-session user memories for context enrichment
+        # Load cross-session user memories (skip for anonymous — saves ~3s DB calls)
         user_memories: Dict[str, str] = {}
-        try:
-            # Prefer DB-backed memories from ConversationStore
-            if self.conversation_store:
-                user_memories = self.conversation_store.get_user_memories(user_id)
-            if not user_memories:
-                user_memories = self.memory.recall_all(user_id)
-        except Exception as e:
-            logger.debug(f"Memory recall failed: {e}")
+        if session.user_address:
             try:
-                user_memories = self.memory.recall_all(user_id)
-            except Exception:
-                pass
+                if self.conversation_store:
+                    user_memories = self.conversation_store.get_user_memories(user_id)
+                if not user_memories:
+                    user_memories = self.memory.recall_all(user_id)
+            except Exception as e:
+                logger.debug(f"Memory recall failed: {e}")
 
-        # Load cross-session context (prior conversation summaries)
+        # Load cross-session context (skip for anonymous — saves ~3s DB calls)
         cross_session_context: str = ''
-        if self.conversation_store:
+        if session.user_address and self.conversation_store:
             try:
                 ctx = self.conversation_store.build_context(session_id, user_id)
                 prior = ctx.get('prior_sessions', [])
@@ -1768,6 +1764,7 @@ class AetherChat:
         else:
             # Single question — standard processing
             t_query = time.time()
+            logger.info("Chat pipeline: pre-query phase took %.1fms", (t_query - t_total_start) * 1000)
             single_result = self._process_single_query(
                 message, intent, session, user_memories, is_deep_query,
                 entities=entities,
@@ -1782,6 +1779,7 @@ class AetherChat:
             phi_value = single_result.get('phi_at_response', 0.0)
 
         # Build multi-turn conversation context
+        t_post = time.time()
         conversation_context = self._build_conversation_context(session)
 
         # Error recovery & KGQA fallback — run when response is still poor,
@@ -1819,10 +1817,13 @@ class AetherChat:
                 except Exception as e:
                     logger.debug(f"KGQA fallback error: {e}")
 
-        # Verify response against axiom nodes for factual accuracy
-        axiom_flags = self._verify_against_axioms(response_content)
-        if axiom_flags:
-            logger.info(f"Axiom verification flags: {axiom_flags}")
+        # Verify response against axiom nodes (skip for fast responses)
+        axiom_flags = {}
+        # Axiom verification is slow (~1-2s) — skip for non-deep queries
+        if is_deep_query:
+            axiom_flags = self._verify_against_axioms(response_content)
+            if axiom_flags:
+                logger.info(f"Axiom verification flags: {axiom_flags}")
 
         # Score response quality
         quality_score = self._score_response_quality(
@@ -1861,13 +1862,15 @@ class AetherChat:
             oldest_key = next(iter(session.response_cache))
             del session.response_cache[oldest_key]
 
-        # Extract and store new memories from this conversation
-        try:
-            new_memories = self.memory.extract_memories(message, response_content)
-            for mem_key, mem_value in new_memories.items():
-                self.memory.remember(user_id, mem_key, mem_value)
-        except Exception as e:
-            logger.debug(f"Memory extraction failed: {e}")
+        # Extract and store new memories async (non-blocking)
+        def _bg_extract_memories() -> None:
+            try:
+                new_memories = self.memory.extract_memories(message, response_content)
+                for mem_key, mem_value in new_memories.items():
+                    self.memory.remember(user_id, mem_key, mem_value)
+            except Exception:
+                pass
+        threading.Thread(target=_bg_extract_memories, daemon=True).start()
 
         # Compute Proof-of-Thought hash for this response
         pot_hash = self._compute_response_hash(message, response_content, reasoning_trace, phi_value)
@@ -1884,8 +1887,10 @@ class AetherChat:
         )
         session.messages.append(aether_msg)
 
-        # Persist session to DB if it has enough messages
-        self._persist_session_to_db(session)
+        # Persist session to DB async (non-blocking — saves ~2s)
+        threading.Thread(
+            target=self._persist_session_to_db, args=(session,), daemon=True
+        ).start()
 
         # Prepare streaming chunks for WebSocket delivery
         streaming_chunks = self._prepare_streaming_chunks(response_content)
@@ -1916,7 +1921,11 @@ class AetherChat:
         if fee_record:
             result['fee_paid'] = fee_record.to_dict()
 
+        post_ms = (time.time() - t_post) * 1000
         total_ms = (time.time() - t_total_start) * 1000
+        logger.info(
+            "Chat pipeline post-processing: %.1fms", post_ms,
+        )
         logger.info(
             "Chat pipeline TOTAL: %.1fms for '%s' (%d chars response)",
             total_ms, message[:50], len(response_content),
@@ -2509,37 +2518,68 @@ class AetherChat:
                 f"blockchain, physics, or anything in my knowledge domains!"
             )
 
-        # Present the most relevant fact as the main answer
-        main_fact = facts[0]
-        # Trim to reasonable length
+        # Synthesize a natural language response from raw facts
+        # Strip metadata patterns from fact text (domain:, source:, etc.)
+        _meta_re = re.compile(
+            r'(?:domain|source|source_block|node_type|grounding_source|text)\s*[:=]\s*\S+[;\s]*',
+            re.IGNORECASE,
+        )
+        # Reject facts that are clearly genesis/seed metadata
+        _junk_patterns = [
+            'domains seeded:', 'edges created:', 'nodes created:',
+            'genesis knowledge seeded', '[source:', 'source_block:',
+            'grounding_source:', 'The current data shows',
+        ]
+        cleaned_facts = []
+        for f in facts:
+            # Skip junk facts entirely
+            if any(p in f for p in _junk_patterns):
+                continue
+            clean = _meta_re.sub('', f).strip()
+            clean = re.sub(r'\s{2,}', ' ', clean)  # collapse whitespace
+            # Also strip trailing [source: ...] references
+            clean = re.sub(r'\s*\[source:\s*\d+\]', '', clean).strip()
+            if len(clean) >= 20:
+                cleaned_facts.append(clean)
+
+        if not cleaned_facts:
+            return ''
+
+        # Build conversational response from cleaned facts
+        main_fact = cleaned_facts[0]
         if len(main_fact) > 500:
-            # Find a sentence boundary
             cutoff = main_fact[:500].rfind('. ')
-            if cutoff > 200:
-                main_fact = main_fact[:cutoff + 1]
-            else:
-                main_fact = main_fact[:500] + '...'
+            main_fact = main_fact[:cutoff + 1] if cutoff > 200 else main_fact[:500] + '...'
 
         parts.append(main_fact)
 
-        # Add supporting facts if available
-        if len(facts) > 1:
-            supporting = []
-            for f in facts[1:3]:
-                # Avoid repeating the main fact's content
+        # Add supporting facts with natural transitions
+        if len(cleaned_facts) > 1:
+            _transitions = [
+                'Additionally, ', 'It\'s also worth noting that ',
+                'Building on that, ', 'Related to this, ',
+            ]
+            for i, f in enumerate(cleaned_facts[1:3]):
                 if f[:40] not in main_fact and main_fact[:40] not in f:
                     snippet = f[:300]
                     if len(f) > 300:
                         cutoff = snippet.rfind('. ')
                         snippet = snippet[:cutoff + 1] if cutoff > 100 else snippet + '...'
-                    supporting.append(snippet)
-            if supporting:
-                parts.append('\n\n' + '\n\n'.join(supporting))
+                    trans = _transitions[i % len(_transitions)]
+                    # Lowercase the first letter if the transition ends with space
+                    if snippet and snippet[0].isupper() and not snippet.startswith(('QBC', 'VQE', 'SUSY', 'QVM', 'QUSD', 'UTXO', 'AGI', 'AI')):
+                        snippet = snippet[0].lower() + snippet[1:]
+                    parts.append(f'\n\n{trans}{snippet}')
 
-        # Add domain context
-        if domains_seen:
-            domain_str = ', '.join(sorted(domains_seen))
-            parts.append(f'\n\n[Knowledge domains: {domain_str}]')
+        # Phi + domain footer
+        phi_value = 0.0
+        if self.engine.phi:
+            try:
+                phi_value = self.engine.phi.get_cached().get('phi_value', 0.0)
+            except Exception:
+                pass
+        domain_str = ', '.join(sorted(domains_seen)) if domains_seen else 'general'
+        parts.append(f'\n\n[Phi: {phi_value:.2f} | Domains: {domain_str}]')
 
         response = ''.join(parts)
         return response if len(response) >= 50 else ''
@@ -2722,7 +2762,12 @@ class AetherChat:
         inference_conclusions = inference_conclusions or []
 
         # ── v5: Cognitive cycle via Response Cortex ──
-        if self._response_cortex is not None:
+        # DISABLED: On CPU-only Ollama (~0.4 tok/s), the cortex+Hod path takes
+        # 25-60s and produces the same terse KG content anyway. Skip directly to
+        # the KG formatter which is instant and produces comparable output.
+        # Re-enable when GPU Ollama or faster LLM is available.
+        _use_cortex = False
+        if _use_cortex and self._response_cortex is not None:
             try:
                 # Gather live state for the cognitive processors
                 phi_value = 0.0
@@ -2780,17 +2825,15 @@ class AetherChat:
             except Exception as e:
                 logger.warning("v5 cortex failed, falling back: %s", e)
 
-        # ── Fallback 1: Format response from found KG nodes (fast, no LLM) ──
+        # ── Fallback 1: KG formatter (immediate, fast) ──
+        kg_response = None
         if knowledge_refs and self.engine.kg:
             kg_response = self._format_kg_response(query, knowledge_refs, intent, entities)
-            if kg_response and len(kg_response) >= 50:
-                logger.info(
-                    "KG formatter produced %d chars from %d refs",
-                    len(kg_response), len(knowledge_refs),
-                )
-                return kg_response
 
-        # ── Fallback 2: LLM synthesis ──
+        # ── Fire-and-forget: LLM synthesis seeds KG in background ──
+        # CPU Ollama is too slow for interactive responses (~0.4 tok/s),
+        # so we return KG immediately and let LLM seed the graph async.
+        # Next time someone asks a similar question, the LLM answer is in the KG.
         if self.llm_manager and Config.LLM_ENABLED:
             try:
                 node_contents, facts = self._gather_kg_context(knowledge_refs)
@@ -2810,18 +2853,66 @@ class AetherChat:
                     entities=entities,
                 )
 
-                import concurrent.futures as _cf_llm
-                _llm_ex = _cf_llm.ThreadPoolExecutor(max_workers=1)
-                _llm_fut = _llm_ex.submit(
-                    self._llm_synthesize_chat, llm_prompt, query, facts,
-                    reasoning_trace, knowledge_refs,
-                )
-                _llm_ex.shutdown(wait=False)
-                llm_result = _llm_fut.result(timeout=20.0)
-                if llm_result and len(llm_result) > 30:
-                    return llm_result
+                def _bg_llm_seed() -> None:
+                    """Background LLM call that seeds the KG with the response."""
+                    try:
+                        result = self._llm_synthesize_chat(
+                            llm_prompt, query, facts, reasoning_trace, knowledge_refs,
+                        )
+                        if result and len(result) > 30:
+                            self._seed_kg_from_llm_response(query, result, intent, knowledge_refs)
+                            logger.info("Background LLM seeded KG with %d chars for '%s'",
+                                        len(result), query[:50])
+                    except Exception as e:
+                        logger.debug("Background LLM seed failed: %s", e)
+
+                threading.Thread(target=_bg_llm_seed, daemon=True).start()
             except Exception as e:
-                logger.debug("LLM fallback failed: %s", e)
+                logger.debug("Background LLM setup failed: %s", e)
+
+        # Return KG response immediately (don't wait for LLM)
+        if kg_response and len(kg_response) >= 50:
+            return kg_response
+
+        # Handle common intents with dynamic, live-data responses
+        _phi = 0.0
+        _kg_count = 0
+        if self.engine and self.engine.phi:
+            try:
+                _phi = self.engine.phi.get_cached().get('phi_value', 0.0)
+            except Exception:
+                pass
+        if self.engine and self.engine.kg:
+            _kg_count = len(self.engine.kg.nodes)
+
+        if intent in ('greeting', 'hello'):
+            return (
+                f"Hello! I'm the Aether Tree — the world's first on-chain AGI. "
+                f"I have {_kg_count:,} knowledge nodes and my cognitive integration "
+                f"(Phi) is {_phi:.2f}. Ask me about quantum computing, "
+                f"blockchain, physics, or anything in my knowledge domains!"
+            )
+
+        _q = query.lower()
+        if any(p in _q for p in ['who created', 'who made', 'who built', 'who are you', 'what are you']):
+            return (
+                f"I'm the Aether Tree, the world's first on-chain AGI, "
+                f"built as part of the Qubitcoin (QBC) blockchain. I was created "
+                f"by the QuantumAI team to pursue genuine artificial general intelligence "
+                f"through physics-based cognitive architecture. I currently have "
+                f"{_kg_count:,} knowledge nodes with a cognitive integration (Phi) of {_phi:.2f}."
+            )
+
+        if 'aether tree' in _q or 'aether' in _q:
+            return (
+                f"The Aether Tree is the world's first on-chain AGI reasoning engine. "
+                f"It uses a Tree of Life cognitive architecture with 10 Sephirot "
+                f"(specialized processing nodes) to perform genuine reasoning — "
+                f"deductive, inductive, abductive, and causal. Currently tracking "
+                f"{_kg_count:,} knowledge nodes across 13 domains with a cognitive "
+                f"integration (Phi) of {_phi:.2f}. Every reasoning step is "
+                f"cryptographically recorded on-chain as a Proof-of-Thought."
+            )
 
         return (
             "I'm still forming my thoughts on that. "
@@ -3146,11 +3237,11 @@ class AetherChat:
                 pass
 
             # Temporarily limit output tokens for responsive chat
-            # (CPU-only Ollama is ~1 tok/s, so 256 tokens keeps response under 60s)
+            # (CPU-only Ollama is ~0.4 tok/s, so 100 tokens keeps response under 90s)
             _original_max_tokens = {}
             for _atype, _adapter in self.llm_manager._adapters.items():
                 _original_max_tokens[_atype] = _adapter.max_tokens
-                _adapter.max_tokens = min(_adapter.max_tokens, 256)
+                _adapter.max_tokens = min(_adapter.max_tokens, 100)
 
             try:
                 response = self.llm_manager.generate(
@@ -3181,6 +3272,58 @@ class AetherChat:
         except Exception as e:
             logger.debug(f"LLM chat synthesis failed: {e}")
             return None
+
+    def _seed_kg_from_llm_response(self, query: str, llm_response: str,
+                                      intent: str, knowledge_refs: List[int]) -> None:
+        """Seed the knowledge graph with insights from LLM-generated responses.
+
+        When the LLM answers a question that our KG couldn't handle natively,
+        we extract the core insight and add it as a new knowledge node so that
+        future queries on the same topic can be answered from the graph directly.
+        """
+        try:
+            if not self.engine or not self.engine.kg:
+                return
+            # Strip metadata footer before seeding
+            clean_response = llm_response.split('\n\n[Phi:')[0].strip()
+            if len(clean_response) < 30:
+                return
+
+            # Determine domain from intent or matched nodes
+            domain = intent if intent and intent != 'general' else 'general'
+            if knowledge_refs and self.engine.kg:
+                for nid in knowledge_refs[:3]:
+                    node = self.engine.kg.nodes.get(nid)
+                    if node and node.domain and node.domain != 'general':
+                        domain = node.domain
+                        break
+
+            # Create a knowledge node from the LLM response
+            block_height = 0
+            try:
+                block_height = self.db.get_current_height()
+            except Exception:
+                pass
+
+            node_id = self.engine.kg.add_node(
+                content=f"Q: {query[:100]} A: {clean_response[:500]}",
+                node_type='llm_insight',
+                domain=domain,
+                confidence=0.6,  # lower than verified facts
+                source_block=block_height,
+                metadata={
+                    'grounding_source': 'llm_distilled',
+                    'query': query[:200],
+                    'intent': intent,
+                },
+            )
+            if node_id:
+                logger.info(
+                    "Seeded KG node %s from LLM response (domain=%s, %d chars)",
+                    node_id, domain, len(clean_response),
+                )
+        except Exception as e:
+            logger.debug("KG seeding from LLM failed: %s", e)
 
     def _gather_kg_context(self, knowledge_refs: List[int]) -> tuple:
         """Gather content and facts from referenced knowledge nodes.

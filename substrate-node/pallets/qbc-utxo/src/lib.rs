@@ -195,6 +195,9 @@ pub mod pallet {
         UtxoFrozen,
     }
 
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]
     pub struct GenesisConfig<T: Config> {
@@ -207,6 +210,17 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
         fn build(&self) {
+            // For fork genesis: infer starting height from the UTXOs' block_height.
+            // All fork UTXOs carry the fork height, so use the max as the chain's
+            // starting height. This ensures the block counter continues from the
+            // Python chain's fork point instead of resetting to 0.
+            let max_height = self.genesis_utxos.iter()
+                .map(|u| u.block_height)
+                .max()
+                .unwrap_or(0);
+            if max_height > 0 {
+                CurrentHeight::<T>::put(max_height);
+            }
             for utxo in &self.genesis_utxos {
                 UtxoSet::<T>::insert((&utxo.txid, utxo.vout), utxo.clone());
                 Balances::<T>::mutate(&utxo.address, |bal| {

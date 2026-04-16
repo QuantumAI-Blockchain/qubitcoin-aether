@@ -606,6 +606,7 @@ pub fn new_full(
                     client.clone(),
                     author_proposer_factory,
                     block_import,
+                    keystore_container.keystore(),
                     proof_rx,
                 ),
             );

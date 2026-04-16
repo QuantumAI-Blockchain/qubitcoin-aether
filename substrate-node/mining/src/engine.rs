@@ -115,24 +115,28 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
     );
 
     let mut rng = ChaCha8Rng::from_entropy();
-    let mut last_mined_height: u64 = 0;
+    let mut last_mined_hash: H256 = H256::zero();
 
     loop {
         // 1. Get current chain state
         let best_hash = client.best_hash();
         let best_number = client.best_number();
 
-        // The mining target is the NEXT block
-        let current_height = client
-            .current_height(&best_hash)
-            .unwrap_or(best_number);
-        let mining_height = current_height + 1;
-
-        // Skip if we already mined this height
-        if mining_height <= last_mined_height {
+        // Skip if the chain tip hasn't changed since our last mining attempt.
+        // This prevents re-mining the same parent block. Once a new block is
+        // imported (by us or someone else), best_hash changes and we retry.
+        if best_hash == last_mined_hash {
             std::thread::sleep(POLL_INTERVAL);
             continue;
         }
+
+        // The mining target is CurrentHeight + 1 from the UTXO pallet.
+        // This matches the pallet's submit_mining_proof which uses
+        // pallet_qbc_utxo::current_height() + 1 for Hamiltonian seed derivation.
+        // Note: best_number is the frame_system block number which starts at 0,
+        // whereas CurrentHeight tracks the fork-aware chain height (e.g. 208680+).
+        let current_height = client.current_height(&best_hash).unwrap_or(best_number);
+        let mining_height = current_height + 1;
 
         // 2. Read difficulty
         let difficulty = match client.current_difficulty(&best_hash) {
@@ -204,7 +208,7 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
                             });
                         }
 
-                        last_mined_height = mining_height;
+                        last_mined_hash = best_hash;
                         found = true;
                         break;
                     }
