@@ -5,6 +5,25 @@ Handles Hamiltonian generation and optimization
 KEY DESIGN: Hamiltonians are deterministically derived from chain state
 (prev_hash + height). Every miner works on the SAME puzzle. The first
 to find VQE parameters that achieve energy < difficulty threshold wins.
+
+QUANTUM ADVANTAGE NOTE (honest assessment):
+  The current 4-qubit TwoLocal ansatz is exactly simulable on classical
+  hardware in O(2^4 = 16) time per energy evaluation. At this scale,
+  classical eigensolvers (e.g. numpy.linalg.eigh on a 16x16 matrix)
+  are faster than VQE optimization. The VQE framework is used because:
+  1. It is the correct algorithm — VQE is what scales to 50+ qubits
+  2. The consensus mechanism is VQE-native from day one
+  3. When qubit count increases to 30+, classical simulation becomes
+     exponentially intractable (2^30 ≈ 1 billion amplitudes), while
+     VQE on quantum hardware scales polynomially
+  4. The mining protocol, proof format, and verification logic all
+     work identically at any qubit count — only NUM_QUBITS changes
+
+  Planned scaling path:
+    4 qubits (current)  → classical-equivalent, proof-of-concept
+    8 qubits            → still classically simulable, richer Hamiltonians
+    16 qubits           → borderline classical (65K amplitudes)
+    30+ qubits          → genuine quantum advantage territory
 """
 
 import hashlib

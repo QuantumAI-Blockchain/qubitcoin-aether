@@ -6,6 +6,15 @@
 //! 3. Generate Hamiltonian from seed
 //! 4. Run VQE optimization (multiple attempts)
 //! 5. If energy < difficulty, submit proof as an extrinsic
+//!
+//! # Quantum advantage note
+//!
+//! The current 4-qubit ansatz is exactly simulable classically (2^4 = 16
+//! amplitudes). VQE is used because the consensus mechanism is designed to
+//! scale: increasing `N_QUBITS` to 30+ makes classical simulation
+//! exponentially intractable while VQE on quantum hardware scales
+//! polynomially. The mining protocol, proof format, and on-chain
+//! verification all work identically at any qubit count.
 
 use crate::hamiltonian;
 use crate::vqe;
