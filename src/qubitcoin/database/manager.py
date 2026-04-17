@@ -1,6 +1,11 @@
 """
-Database manager for CockroachDB
-Handles all database operations with proper compatibility
+Database manager for CockroachDB.
+
+Contains SQLAlchemy ORM table models (``BlockModel``, ``UTXOModel``, etc.)
+and the ``DatabaseManager`` class.  ORM models are the **persistence** layer;
+the corresponding **domain** dataclasses live in ``database/models.py``.
+The separation is intentional — domain objects stay framework-free while
+ORM models carry SQLAlchemy column metadata and table mappings.
 """
 import json
 from contextlib import contextmanager

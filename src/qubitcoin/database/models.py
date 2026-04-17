@@ -1,6 +1,11 @@
 """
-Data models for Qubitcoin
-Defines core blockchain structures with QVM, Aether Tree, and AIKGS support
+Domain models for Qubitcoin (dataclasses).
+
+These are the **business-logic** representations used throughout the codebase
+(consensus, mining, RPC serialization, etc.).  They are distinct from the
+SQLAlchemy ORM models in ``database/manager.py`` which handle DB persistence.
+The two layers are intentionally separate: domain objects are framework-free
+and serializable, while ORM models carry SQLAlchemy metadata.
 """
 from dataclasses import dataclass, asdict, field
 from typing import List, Dict, Any, Optional

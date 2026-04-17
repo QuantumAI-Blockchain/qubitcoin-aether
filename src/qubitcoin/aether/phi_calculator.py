@@ -537,10 +537,30 @@ class PhiCalculator:
 
         Safe to call from latency-sensitive paths (e.g., chat, response synthesis).
         Returns sensible defaults if no cached result exists yet — never blocks.
+        If gates are empty (e.g. restored from DB), evaluates them dynamically.
         """
         if self._last_full_result is not None:
             result = dict(self._last_full_result)
             result['cached'] = True
+            # Re-evaluate gates if they were empty (e.g. restored from DB)
+            if not result.get('gates') and self.kg and self.kg.nodes:
+                try:
+                    gate_progress = self.get_gate_progress()
+                    gates_passed = sum(1 for g in gate_progress if g.get('passed'))
+                    gate_ceiling = gates_passed * 0.5
+                    result['gates'] = gate_progress
+                    result['gates_passed'] = gates_passed
+                    result['gate_ceiling'] = gate_ceiling
+                    # Update cached result so subsequent calls don't re-scan
+                    self._last_full_result['gates'] = gate_progress
+                    self._last_full_result['gates_passed'] = gates_passed
+                    self._last_full_result['gate_ceiling'] = gate_ceiling
+                    # Apply gate ceiling to phi_value
+                    if gate_ceiling > 0:
+                        result['phi_value'] = min(result.get('phi_raw', 0.0), gate_ceiling)
+                        self._last_full_result['phi_value'] = result['phi_value']
+                except Exception:
+                    pass
             return result
         # No cache yet — return defaults rather than blocking on a full compute
         return {
@@ -896,6 +916,7 @@ class PhiCalculator:
         auto_goals_generated = 0
         axiom_from_consolidation = 0
         cross_domain_inferences = 0
+        cross_domain_conf_sum = 0.0
         novel_concept_count = 0
 
         for node in nodes.values():
@@ -909,6 +930,7 @@ class PhiCalculator:
             content_type = content.get('type', '')
             if node.node_type == 'inference' and content.get('cross_domain', False):
                 cross_domain_inferences += 1
+                cross_domain_conf_sum += node.confidence
             if content_type == 'prediction_confirmed':
                 verified_predictions += 1
             if content_type == 'debate_synthesis':
@@ -929,6 +951,21 @@ class PhiCalculator:
         avg_confidence = confidence_sum / n_nodes if n_nodes > 0 else 0.0
         grounding_ratio = grounded_nodes / n_nodes if n_nodes > 0 else 0.0
 
+        # Compute integration_score from graph connectivity:
+        # ratio of edges to nodes × domain diversity, capped at 1.0
+        if n_nodes > 0:
+            edge_ratio = min(1.0, n_edges / n_nodes)
+            domain_ratio = min(1.0, len(domains) / 10.0)  # 10 = max sephirot domains
+            integration_score = edge_ratio * 0.7 + domain_ratio * 0.3
+        else:
+            integration_score = 0.0
+
+        # Cross-domain inference average confidence
+        cross_domain_inference_confidence = (
+            cross_domain_conf_sum / cross_domain_inferences
+            if cross_domain_inferences > 0 else 0.0
+        )
+
         stats = {
             'n_nodes': n_nodes,
             'n_edges': n_edges,
@@ -937,7 +974,7 @@ class PhiCalculator:
             'edge_type_counts': edge_type_counts,
             'domain_count': len(domains),
             'cross_domain_inferences': cross_domain_inferences,
-            'cross_domain_inference_confidence': 0.0,
+            'cross_domain_inference_confidence': cross_domain_inference_confidence,
             'verified_predictions': verified_predictions,
             'debate_verdicts': debate_verdicts,
             'contradiction_resolutions': contradiction_resolutions,
@@ -946,8 +983,8 @@ class PhiCalculator:
             'grounding_ratio': grounding_ratio,
             'axiom_from_consolidation': axiom_from_consolidation,
             'novel_concept_count': novel_concept_count,
-            'integration_score': 0.0,
-            'mip_phi': self._last_mip_score,
+            'integration_score': integration_score,
+            'mip_phi': max(self._last_mip_score, integration_score * 0.6),
             'calibration_error': self._subsystem_stats.get('calibration_error', 1.0),
             'calibration_evaluations': self._subsystem_stats.get('calibration_evaluations', 0),
             'prediction_accuracy': self._subsystem_stats.get('prediction_accuracy', 0.0),

@@ -1,8 +1,16 @@
 """
-Proof-of-Thought Consensus & Aether Engine
-Combines Proof-of-SUSY-Alignment with knowledge graph validation.
-Validators must demonstrate meaningful reasoning (Phi > threshold) to
-participate in block production.
+Proof-of-Thought State Attestation & Aether Engine
+====================================================
+Proof-of-Thought (PoT) is a **state attestation hash** — a SHA3-256 digest of
+the Aether Tree's cognitive state (knowledge-graph statistics, Phi measurement,
+reasoning-operation count, and gate progress) embedded in every block header.
+It is *not* a proof of intelligence; it is a tamper-evident commitment that
+lets any node verify what the Aether Tree's metrics were at a given block
+height.
+
+The ``AetherEngine`` class orchestrates all AGI-layer subsystems (loaded via
+``subsystem_registry.SUBSYSTEM_REGISTRY``) and exposes the per-block
+``generate_thought_proof`` pipeline consumed by the mining loop.
 """
 import json
 import time
@@ -16,18 +24,14 @@ logger = get_logger(__name__)
 
 
 class AetherEngine:
-    """
-    Main Aether Tree engine that orchestrates all AGI-layer components.
-    Integrates KnowledgeGraph, PhiCalculator, ReasoningEngine, and
-    Proof-of-Thought consensus into the QBC block pipeline.
+    """Orchestrator for all Aether Tree AGI-layer subsystems.
 
-    AGI subsystems (Improvements #2-#9):
-    - GATReasoner: Neural reasoning over knowledge graph (#2)
-    - CausalDiscovery: Causal edge discovery via PC algorithm (#3)
-    - DebateProtocol: Adversarial debate between Sephirot (#5)
-    - TemporalEngine: Time-series analysis and prediction (#6)
-    - ConceptFormation: Hierarchical concept abstraction (#8)
-    - MetacognitiveLoop: Reasoning quality self-evaluation (#9)
+    Integrates KnowledgeGraph, PhiCalculator, ReasoningEngine, and the
+    Proof-of-Thought state-attestation pipeline into the QBC block cycle.
+
+    AGI subsystems (~70 modules) are loaded declaratively from
+    ``subsystem_registry.SUBSYSTEM_REGISTRY`` rather than inline
+    try/except blocks.  See ``subsystem_registry.py`` for the full list.
     """
 
     def __init__(self, db_manager, knowledge_graph=None, phi_calculator=None,
@@ -60,123 +64,6 @@ class AetherEngine:
         # Running counters for AGI subsystem stats
         self._contradictions_resolved: int = 0
 
-        # --- AGI Improvement Subsystems ---
-        # #2: Graph Attention Network Reasoner (critical for neural reasoning)
-        self.neural_reasoner = None
-        try:
-            from .neural_reasoner import GATReasoner
-            self.neural_reasoner = GATReasoner()
-        except Exception as e:
-            logger.warning(f"GATReasoner init failed — neural reasoning disabled: {e}")
-
-        # #22: Link Prediction (GNN-based missing edge prediction)
-        self.link_predictor = None
-        try:
-            from .neural_reasoner import LinkPredictor
-            self.link_predictor = LinkPredictor(self.neural_reasoner)
-        except Exception as e:
-            logger.warning(f"LinkPredictor init failed — link prediction disabled: {e}")
-
-        # #3: Causal Discovery Engine (critical for causal inference)
-        self.causal_engine = None
-        try:
-            from .causal_engine import CausalDiscovery
-            self.causal_engine = CausalDiscovery(knowledge_graph)
-        except Exception as e:
-            logger.warning(f"CausalDiscovery init failed — causal inference disabled: {e}")
-
-        # #5: Adversarial Debate Protocol (critical for contradiction resolution)
-        self.debate_protocol = None
-        try:
-            from .debate import DebateProtocol
-            self.debate_protocol = DebateProtocol(knowledge_graph)
-        except Exception as e:
-            logger.warning(f"DebateProtocol init failed — adversarial debate disabled: {e}")
-
-        # #6: Temporal Reasoning Engine
-        self.temporal_engine = None
-        try:
-            from .temporal import TemporalEngine
-            self.temporal_engine = TemporalEngine(knowledge_graph)
-            # Warm-start from DB so predictions work immediately after restart
-            if db_manager is not None:
-                try:
-                    self.temporal_engine.load_from_db(db_manager)
-                except Exception as _te:
-                    logger.debug("TemporalEngine DB warmup failed: %s", _te)
-        except Exception as e:
-            logger.debug(f"TemporalEngine init failed: {e}")
-
-        # #8: Concept Formation
-        self.concept_formation = None
-        try:
-            from .concept_formation import ConceptFormation
-            vector_index = knowledge_graph.vector_index if knowledge_graph else None
-            self.concept_formation = ConceptFormation(knowledge_graph, vector_index)
-        except Exception as e:
-            logger.debug(f"ConceptFormation init failed: {e}")
-
-        # #9: Metacognitive Self-Evaluation Loop
-        self.metacognition = None
-        try:
-            from .metacognition import MetacognitiveLoop
-            self.metacognition = MetacognitiveLoop(knowledge_graph)
-        except Exception as e:
-            logger.debug(f"MetacognitiveLoop init failed: {e}")
-
-        # Phase 2.4: Three-Tier Memory Manager
-        self.memory_manager = None
-        try:
-            from .memory_manager import MemoryManager
-            self.memory_manager = MemoryManager(knowledge_graph, capacity=50)
-        except Exception as e:
-            logger.debug(f"MemoryManager init failed: {e}")
-
-        # Phase 7: Self-Improvement Engine (recursive strategy optimization)
-        self.self_improvement = None
-        try:
-            from .self_improvement import SelfImprovementEngine
-            self.self_improvement = SelfImprovementEngine(
-                metacognition=self.metacognition,
-                knowledge_graph=knowledge_graph,
-            )
-        except Exception as e:
-            logger.warning(f"SelfImprovementEngine init failed: {e}")
-
-        # Phase 7: External Knowledge Connector (Wikidata + ConceptNet grounding)
-        self.external_knowledge = None
-        try:
-            from .external_knowledge import ExternalKnowledgeConnector
-            self.external_knowledge = ExternalKnowledgeConnector(
-                knowledge_graph=knowledge_graph,
-            )
-        except Exception as e:
-            logger.debug(f"ExternalKnowledgeConnector init failed: {e}")
-
-        # Phase 8: Emotional State (cognitive feelings derived from metrics)
-        self.emotional_state = None
-        try:
-            from .emotional_state import EmotionalState
-            self.emotional_state = EmotionalState()
-        except Exception as e:
-            logger.debug(f"EmotionalState init failed: {e}")
-
-        # Phase 9: Free Energy Engine (Friston FEP — replaces CuriosityEngine)
-        self.curiosity_engine = None
-        try:
-            from .free_energy_engine import FreeEnergyEngine
-            self.curiosity_engine = FreeEnergyEngine(
-                knowledge_graph=knowledge_graph,
-                temporal_reasoner=getattr(self, 'temporal_engine', None),
-            )
-        except Exception as e:
-            logger.debug(f"FreeEnergyEngine init failed, trying CuriosityEngine: {e}")
-            try:
-                from .curiosity_engine import CuriosityEngine
-                self.curiosity_engine = CuriosityEngine(knowledge_graph)
-            except Exception as e2:
-                logger.debug(f"CuriosityEngine init also failed: {e2}")
-
         # Blocks processed counter (tracked from process_block_knowledge calls)
         self._blocks_processed: int = 0
 
@@ -198,601 +85,38 @@ class AetherEngine:
             'goals_evaluated': 0,
         }
 
-        # #38: MCTS Planner for goal decomposition & action planning
-        self.mcts_planner = None
-        try:
-            from .mcts_planner import MCTSPlanner
-            self.mcts_planner = MCTSPlanner(
-                knowledge_graph=knowledge_graph,
-                reasoning_engine=reasoning_engine,
-                max_iterations=100,
-                exploration_c=1.414,
-            )
-        except Exception as e:
-            logger.warning(f"MCTSPlanner init failed — MCTS planning disabled: {e}")
-
         # How often (in blocks) MCTS replans the exploration batch
         self._mcts_replan_interval: int = 200
         self._mcts_action_queue: List[dict] = []
 
-        # #33: TransE Knowledge Graph Embeddings
-        self.kg_embeddings = None
-        try:
-            from .kg_embeddings import TransEEmbeddings
-            self.kg_embeddings = TransEEmbeddings(dim=32, lr=0.01, margin=1.0)
-        except Exception as e:
-            logger.warning(f"TransEEmbeddings init failed: {e}")
-
-        # #40: Modern Hopfield Network for Associative Memory
-        self.hopfield_memory = None
-        try:
-            from .hopfield_memory import ModernHopfield
-            self.hopfield_memory = ModernHopfield(dim=32, beta=8.0, max_patterns=5000)
-        except Exception as e:
-            logger.warning(f"ModernHopfield init failed: {e}")
-
-        # #23: Transformer-based Reasoning
-        self.transformer_reasoner = None
-        try:
-            from .transformer_reasoner import TransformerReasoner
-            self.transformer_reasoner = TransformerReasoner(dim=64, num_heads=4)
-        except Exception as e:
-            logger.warning(f"TransformerReasoner init failed: {e}")
-
-        # #24: Attention-based Working Memory
-        self.attention_memory = None
-        try:
-            from .attention_memory import AttentionMemory
-            self.attention_memory = AttentionMemory(dim=32, capacity=1000)
-        except Exception as e:
-            logger.warning(f"AttentionMemory init failed: {e}")
-
-        # #27: RL Goal Planner
-        self.rl_planner = None
+        # RL planner previous state/action
         self._rl_prev_state: Optional[Any] = None
         self._rl_prev_action: Optional[str] = None
-        try:
-            from .rl_planner import RLPlanner
-            self.rl_planner = RLPlanner()
-        except Exception as e:
-            logger.warning(f"RLPlanner init failed: {e}")
-
-        # #28: Contrastive Concept Learning
-        self.contrastive_concepts = None
-        try:
-            from .contrastive_concepts import ContrastiveConcepts
-            self.contrastive_concepts = ContrastiveConcepts(dim=32, margin=1.0)
-        except Exception as e:
-            logger.warning(f"ContrastiveConcepts init failed: {e}")
-
-        # #29: Neural Debate Scoring
-        self.debate_scorer = None
-        try:
-            from .debate_scorer import DebateScorer
-            self.debate_scorer = DebateScorer(input_dim=8, hidden_dim=16)
-        except Exception as e:
-            logger.warning(f"DebateScorer init failed: {e}")
-
-        # #34: IIT Approximation (proper Phi via TPM bipartition search)
-        self.iit_approximator = None
-        try:
-            from .iit_approximator import IITApproximator
-            self.iit_approximator = IITApproximator(max_nodes=12, window=100)
-        except Exception as e:
-            logger.warning(f"IITApproximator init failed: {e}")
-
-        # #35: Multi-head Attention Sephirot Routing
-        self.sephirot_attention = None
-        try:
-            from .sephirot_attention import SephirotAttention
-            self.sephirot_attention = SephirotAttention(embed_dim=32, num_heads=4)
-        except Exception as e:
-            logger.warning(f"SephirotAttention init failed: {e}")
-
-        # #36: Knowledge VAE (subgraph compression)
-        self.knowledge_vae = None
-        try:
-            from .knowledge_vae import KnowledgeVAE
-            self.knowledge_vae = KnowledgeVAE(input_dim=32, latent_dim=8)
-        except Exception as e:
-            logger.warning(f"KnowledgeVAE init failed: {e}")
-
-        # #39: Neural Calibrator (Platt scaling for confidence calibration)
-        self.neural_calibrator = None
-        try:
-            from .neural_calibrator import NeuralCalibrator
-            self.neural_calibrator = NeuralCalibrator(lr=0.01, max_iter=200)
-        except Exception as e:
-            logger.warning(f"NeuralCalibrator init failed: {e}")
 
         # Phase 5.4: Emergent communication protocol
         self._pending_digest: Optional[dict] = None
-        self._seen_digests: dict = {}  # OrderedDict-like (dict preserves insertion order in 3.7+)
+        self._seen_digests: dict = {}  # dict preserves insertion order in 3.7+
         self._max_seen_digests: int = 10000
         self._digests_created: int = 0
         self._digests_received: int = 0
         self._nodes_from_peers: int = 0
         self._peer_consensus_boosts: int = 0
 
-        # #49: External Data Ingestion
-        self.external_ingestion = None
-        try:
-            from .external_ingestion import ExternalDataIngestion
-            self.external_ingestion = ExternalDataIngestion(knowledge_graph=knowledge_graph)
-        except Exception as e:
-            logger.warning(f"ExternalDataIngestion init failed: {e}")
-
-        # #50: Time-series Pattern Detector
-        self.pattern_detector = None
-        try:
-            from .pattern_detector import PatternDetector
-            self.pattern_detector = PatternDetector()
-        except Exception as e:
-            logger.warning(f"PatternDetector init failed: {e}")
-
-        # #51: Graph Pattern Detector (multimodal understanding)
-        self.graph_pattern_detector = None
-        try:
-            from .graph_patterns import GraphPatternDetector
-            self.graph_pattern_detector = GraphPatternDetector()
-        except Exception as e:
-            logger.warning(f"GraphPatternDetector init failed: {e}")
-
-        # #52: Dialogue State Tracker (chat-time module, init only)
-        self.dialogue_tracker = None
-        try:
-            from .dialogue_tracker import DialogueTracker
-            self.dialogue_tracker = DialogueTracker()
-        except Exception as e:
-            logger.warning(f"DialogueTracker init failed: {e}")
-
-        # #53: Relevance Ranker (chat-time module, init only)
-        self.relevance_ranker = None
-        try:
-            from .relevance_ranker import RelevanceRanker
-            self.relevance_ranker = RelevanceRanker()
-        except Exception as e:
-            logger.warning(f"RelevanceRanker init failed: {e}")
-
-        # #54: Coreference Resolver (chat-time module, init only)
-        self.coreference_resolver = None
-        try:
-            from .coreference import CoreferenceResolver
-            self.coreference_resolver = CoreferenceResolver()
-        except Exception as e:
-            logger.warning(f"CoreferenceResolver init failed: {e}")
-
-        # #55: Grounded Generator (chat-time module, init only)
-        self.grounded_generator = None
-        try:
-            from .grounded_generator import GroundedGenerator
-            self.grounded_generator = GroundedGenerator()
-        except Exception as e:
-            logger.warning(f"GroundedGenerator init failed: {e}")
-
-        # #56: HTN Planner (Hierarchical Task Network)
-        self.htn_planner = None
-        try:
-            from .htn_planner import HTNPlanner
-            self.htn_planner = HTNPlanner()
-        except Exception as e:
-            logger.warning(f"HTNPlanner init failed: {e}")
-
-        # #57: Goal Prioritizer (utility-based ranking)
-        self.goal_prioritizer = None
-        try:
-            from .goal_prioritizer import GoalPrioritizer
-            self.goal_prioritizer = GoalPrioritizer()
-        except Exception as e:
-            logger.warning(f"GoalPrioritizer init failed: {e}")
-
-        # #58: World Model (model-based planning)
-        self.world_model = None
+        # World model previous state/action
         self._world_model_prev_state = None
         self._world_model_prev_action: Optional[str] = None
-        try:
-            from .world_model import WorldModel
-            self.world_model = WorldModel()
-        except Exception as e:
-            logger.warning(f"WorldModel init failed: {e}")
 
-        # #59: Knowledge Gap Detector
-        self.gap_detector = None
-        try:
-            from .gap_detector import GapDetector
-            self.gap_detector = GapDetector()
-        except Exception as e:
-            logger.warning(f"GapDetector init failed: {e}")
-
-        # #60: Active Learner (training data selection)
-        self.active_learner = None
-        try:
-            from .active_learner import ActiveLearner
-            self.active_learner = ActiveLearner()
-        except Exception as e:
-            logger.warning(f"ActiveLearner init failed: {e}")
-
-        # #61: Architecture Search (NAS-lite)
-        self.architecture_search = None
-        try:
-            from .architecture_search import ArchitectureSearch
-            self.architecture_search = ArchitectureSearch()
-        except Exception as e:
-            logger.warning(f"ArchitectureSearch init failed: {e}")
-
-        # #62: Causal Intervention (do-calculus)
-        self.causal_intervention = None
-        try:
-            from .causal_intervention import CausalIntervention
-            self.causal_intervention = CausalIntervention()
-        except Exception as e:
-            logger.warning(f"CausalIntervention init failed: {e}")
-
-        # #63: Theory Engine (hypothesis generation & testing)
-        self.theory_engine = None
-        try:
-            from .theory_engine import TheoryEngine
-            self.theory_engine = TheoryEngine()
-        except Exception as e:
-            logger.warning(f"TheoryEngine init failed: {e}")
-
-        # #64: Belief Revision (AGM-style)
-        self.belief_revision = None
+        # Belief revision state
         self._belief_set: set = set()
-        try:
-            from .belief_revision import BeliefRevision
-            self.belief_revision = BeliefRevision()
-        except Exception as e:
-            logger.warning(f"BeliefRevision init failed: {e}")
 
-        # #65: Metacognitive Monitor (auto strategy switching)
-        self.meta_monitor = None
-        try:
-            from .meta_monitor import MetaMonitor
-            self.meta_monitor = MetaMonitor()
-        except Exception as e:
-            logger.warning(f"MetaMonitor init failed: {e}")
-
-        # #66: Free Energy Engine (FEP — replaces CuriosityEngine)
-        # NOTE: Only set if not already initialized in Phase 9 above
-        if self.curiosity_engine is None:
-            try:
-                from .free_energy_engine import FreeEnergyEngine
-                self.curiosity_engine = FreeEnergyEngine()
-            except Exception as e:
-                logger.warning(f"FreeEnergyEngine init failed: {e}")
-
-        # #67: Theory of Mind (social modeling)
-        self.theory_of_mind = None
-        try:
-            from .theory_of_mind import TheoryOfMind
-            self.theory_of_mind = TheoryOfMind()
-        except Exception as e:
-            logger.warning(f"TheoryOfMind init failed: {e}")
-
-        # #68: Multi-Step Reasoning Chains
-        self.chain_reasoner = None
-        try:
-            from .chain_reasoner import ChainReasoner
-            self.chain_reasoner = ChainReasoner(max_steps=7)
-        except Exception as e:
-            logger.warning(f"ChainReasoner init failed: {e}")
-
-        # #69: Creative Cross-Domain Recombination
-        self.creative_recombiner = None
-        try:
-            from .creative_recombiner import CreativeRecombiner
-            self.creative_recombiner = CreativeRecombiner()
-        except Exception as e:
-            logger.warning(f"CreativeRecombiner init failed: {e}")
-
-        # #70: Self-Evaluation Against Ground Truth
-        self.self_evaluator = None
-        try:
-            from .self_evaluator import SelfEvaluator
-            self.self_evaluator = SelfEvaluator()
-        except Exception as e:
-            logger.warning(f"SelfEvaluator init failed: {e}")
-
-        # #71: Resource-Aware Planning
-        self.resource_planner = None
-        try:
-            from .resource_planner import ResourcePlanner
-            self.resource_planner = ResourcePlanner()
-        except Exception as e:
-            logger.warning(f"ResourcePlanner init failed: {e}")
-
-        # #72: Explanation Generation (human-readable, used by chat)
-        self.explainer = None
-        try:
-            from .explainer import Explainer
-            self.explainer = Explainer()
-        except Exception as e:
-            logger.warning(f"Explainer init failed: {e}")
-
-        # #73: Anomaly-Triggered Deep Reasoning
-        self.anomaly_investigator = None
-        try:
-            from .anomaly_investigator import AnomalyInvestigator
-            self.anomaly_investigator = AnomalyInvestigator()
-        except Exception as e:
-            logger.warning(f"AnomalyInvestigator init failed: {e}")
-
-        # #74: Prioritized Experience Replay
-        self.experience_replay = None
-        try:
-            from .experience_replay import ExperienceReplay
-            self.experience_replay = ExperienceReplay(capacity=10000)
-        except Exception as e:
-            logger.warning(f"ExperienceReplay init failed: {e}")
-
-        # #75: Self-Repair Mechanisms
-        self.self_repair = None
-        try:
-            from .self_repair import SelfRepair
-            self.self_repair = SelfRepair()
-        except Exception as e:
-            logger.warning(f"SelfRepair init failed: {e}")
-
-        # #76: Global Workspace Theory (broadcast winning coalitions)
-        self.global_workspace = None
-        try:
-            from .global_workspace import GlobalWorkspace
-            self.global_workspace = GlobalWorkspace(capacity=10, ignition_threshold=0.5)
-        except Exception as e:
-            logger.warning(f"GlobalWorkspace init failed: {e}")
-
-        # #77: Attention Schema (model own attention allocation)
-        self.attention_schema = None
-        try:
-            from .attention_schema import AttentionSchema
-            self.attention_schema = AttentionSchema()
-        except Exception as e:
-            logger.warning(f"AttentionSchema init failed: {e}")
-
-        # #78: Predictive Processing (hierarchical prediction error minimization)
-        self.predictive_processing = None
-        try:
-            from .predictive_processing import PredictiveProcessing
-            self.predictive_processing = PredictiveProcessing(input_dim=16)
-        except Exception as e:
-            logger.warning(f"PredictiveProcessing init failed: {e}")
-
-        # #79: Embodied Grounding (ground concepts in chain data)
-        self.embodied_grounding = None
-        try:
-            from .embodied_grounding import EmbodiedGrounding
-            self.embodied_grounding = EmbodiedGrounding()
-        except Exception as e:
-            logger.warning(f"EmbodiedGrounding init failed: {e}")
-
-        # #80: Recurrent Sephirot Processing (GRU-gated feedback loops)
-        self.sephirot_recurrent = None
-        try:
-            from .sephirot_recurrent import SephirotRecurrent
-            self.sephirot_recurrent = SephirotRecurrent(dim=16)
-        except Exception as e:
-            logger.warning(f"SephirotRecurrent init failed: {e}")
-
-        # #81: Cross-Modal Binding (temporal + structural + semantic)
-        self.cross_modal_binding = None
-        try:
-            from .cross_modal_binding import CrossModalBinding
-            self.cross_modal_binding = CrossModalBinding(shared_dim=16)
-        except Exception as e:
-            logger.warning(f"CrossModalBinding init failed: {e}")
-
-        # #82: Real Partition-Based Phi (minimum information cut)
-        self.phi_partition = None
-        try:
-            from .phi_partition import PhiPartition
-            self.phi_partition = PhiPartition(max_nodes=16)
-        except Exception as e:
-            logger.warning(f"PhiPartition init failed: {e}")
-
-        # #83: Phenomenal State Tracking
-        self.phenomenal_state = None
-        try:
-            from .phenomenal_state import PhenomenalStateTracker
-            self.phenomenal_state = PhenomenalStateTracker()
-        except Exception as e:
-            logger.warning(f"PhenomenalStateTracker init failed: {e}")
-
-        # #84: Self-Model Updating
-        self.self_model = None
-        try:
-            from .self_model import SelfModel
-            self.self_model = SelfModel()
-        except Exception as e:
-            logger.warning(f"SelfModel init failed: {e}")
-
-        # #85: Emotional Valence for Decision-Making
-        self.emotional_valence = None
-        try:
-            from .emotional_valence import EmotionalValence
-            self.emotional_valence = EmotionalValence()
-        except Exception as e:
-            logger.warning(f"EmotionalValence init failed: {e}")
-
-        # #86: Empathic User Modeling (used by chat, init only)
-        self.empathic_model = None
-        try:
-            from .empathic_model import EmpathicModel
-            self.empathic_model = EmpathicModel()
-        except Exception as e:
-            logger.warning(f"EmpathicModel init failed: {e}")
-
-        # #87: Narrative Coherence (across reasoning episodes)
-        self.narrative_coherence = None
-        try:
-            from .narrative_coherence import NarrativeCoherence
-            self.narrative_coherence = NarrativeCoherence()
-        except Exception as e:
-            logger.warning(f"NarrativeCoherence init failed: {e}")
-
-        # #88: Cross-Domain Transfer Learning
-        self.transfer_learning = None
-        try:
-            from .transfer_learning import TransferLearning
-            self.transfer_learning = TransferLearning(dim=32)
-        except Exception as e:
-            logger.warning(f"TransferLearning init failed: {e}")
-
-        # #89: Few-Shot Learner
-        self.few_shot_learner = None
-        try:
-            from .few_shot_learner import FewShotLearner
-            self.few_shot_learner = FewShotLearner(dim=32)
-        except Exception as e:
-            logger.warning(f"FewShotLearner init failed: {e}")
-
-        # #90: Continual Learning (EWC)
-        self.continual_learning = None
-        try:
-            from .continual_learning import ContinualLearning
-            self.continual_learning = ContinualLearning(lambda_ewc=1000.0)
-        except Exception as e:
-            logger.warning(f"ContinualLearning init failed: {e}")
-
-        # #91: Counterfactual Reasoning
-        self.counterfactual = None
-        try:
-            from .counterfactual import CounterfactualReasoner
-            self.counterfactual = CounterfactualReasoner()
-        except Exception as e:
-            logger.warning(f"CounterfactualReasoner init failed: {e}")
-
-        # #92: Analogical Transfer (Structure Mapping)
-        self.analogical_transfer = None
-        try:
-            from .analogical_transfer import AnalogicalTransfer
-            self.analogical_transfer = AnalogicalTransfer()
-        except Exception as e:
-            logger.warning(f"AnalogicalTransfer init failed: {e}")
-
-        # #93: Dream-State Consolidation
-        self.dream_consolidation = None
-        try:
-            from .dream_consolidation import DreamConsolidation
-            self.dream_consolidation = DreamConsolidation()
-        except Exception as e:
-            logger.warning(f"DreamConsolidation init failed: {e}")
-
-        # #94: Phi Gate Attention
-        self.phi_gate_attention = None
-        try:
-            from .phi_gate_attention import PhiGateAttention
-            self.phi_gate_attention = PhiGateAttention()
-        except Exception as e:
-            logger.warning(f"PhiGateAttention init failed: {e}")
-
-        # #95: Adversarial Defense (used by chat, init only)
-        self.adversarial_defense = None
-        try:
-            from .adversarial_defense import AdversarialDefense
-            self.adversarial_defense = AdversarialDefense()
-        except Exception as e:
-            logger.warning(f"AdversarialDefense init failed: {e}")
-
-        # #96: Safety Verifier (formal Gevurah verification)
-        self.safety_verifier = None
-        try:
-            from .safety_verifier import SafetyVerifier
-            self.safety_verifier = SafetyVerifier()
-        except Exception as e:
-            logger.warning(f"SafetyVerifier init failed: {e}")
-
-        # #97: Distributed Phi (cross-node integration metric)
-        self.distributed_phi = None
-        try:
-            from .distributed_phi import DistributedPhi
-            self.distributed_phi = DistributedPhi(state_dim=32)
-        except Exception as e:
-            logger.warning(f"DistributedPhi init failed: {e}")
-
-        # #98: Cognitive Load Balancer
-        self.cognitive_load = None
-        try:
-            from .cognitive_load import CognitiveLoadBalancer
-            self.cognitive_load = CognitiveLoadBalancer()
-        except Exception as e:
-            logger.warning(f"CognitiveLoadBalancer init failed: {e}")
-
-        # #99: Meta-Learner (learn how to learn)
-        self.meta_learner = None
-        try:
-            from .meta_learner import MetaLearner
-            self.meta_learner = MetaLearner()
-        except Exception as e:
-            logger.warning(f"MetaLearner init failed: {e}")
-
-        # #100: Recursive Self-Improvement with Gevurah Safety
-        self.recursive_improvement = None
-        try:
-            from .recursive_improvement import RecursiveImprovement
-            self.recursive_improvement = RecursiveImprovement()
-        except Exception as e:
-            logger.warning(f"RecursiveImprovement init failed: {e}")
-
-        # #41: NLP Pipeline (lightweight tokenizer, POS tagger, NER, deps)
-        self.nlp_pipeline = None
-        try:
-            from .nlp_pipeline import NLPPipeline
-            self.nlp_pipeline = NLPPipeline()
-        except Exception as e:
-            logger.warning(f"NLPPipeline init failed: {e}")
-
-        # #43: Blockchain Entity Extractor
-        self.blockchain_entity_extractor = None
-        try:
-            from .blockchain_entity_extractor import BlockchainEntityExtractor
-            self.blockchain_entity_extractor = BlockchainEntityExtractor(
-                knowledge_graph=knowledge_graph,
-            )
-        except Exception as e:
-            logger.warning(f"BlockchainEntityExtractor init failed: {e}")
-
-        # #44: Semantic Similarity (TF-IDF)
-        self.semantic_similarity = None
-        try:
-            from .semantic_similarity import SemanticSimilarity
-            self.semantic_similarity = SemanticSimilarity(min_df=2, max_df_ratio=0.85)
-        except Exception as e:
-            logger.warning(f"SemanticSimilarity init failed: {e}")
-
-        # #45: Sentiment Analyzer (lexicon-based)
-        self.sentiment_analyzer = None
-        try:
-            from .sentiment_analyzer import SentimentAnalyzer
-            self.sentiment_analyzer = SentimentAnalyzer()
-        except Exception as e:
-            logger.warning(f"SentimentAnalyzer init failed: {e}")
-
-        # #46: KG Summarizer (template-based)
-        self.kg_summarizer = None
-        try:
-            from .summarizer import KGSummarizer
-            self.kg_summarizer = KGSummarizer()
-        except Exception as e:
-            logger.warning(f"KGSummarizer init failed: {e}")
-
-        # #48: KGQA (Knowledge Graph Question Answering)
-        self.kgqa = None
-        try:
-            from .kgqa import KGQA
-            self.kgqa = KGQA(knowledge_graph=knowledge_graph)
-        except Exception as e:
-            logger.warning(f"KGQA init failed: {e}")
-
-        # Phase 6: On-chain AGI integration
-        # Initialize with log-only fallback so phi writes and PoT submissions
-        # are tracked even when no QVM StateManager/contracts are available.
-        self.on_chain = None
-        try:
-            from .on_chain import OnChainAGILogOnly
-            self.on_chain = OnChainAGILogOnly(db_manager=db_manager)
-        except Exception as e:
-            logger.debug(f"OnChainAGILogOnly init failed: {e}")
+        # --- AGI Subsystem Loading (registry-driven) ---
+        from .subsystem_registry import load_subsystems
+        load_subsystems(
+            engine=self,
+            knowledge_graph=knowledge_graph,
+            reasoning_engine=reasoning_engine,
+            db_manager=db_manager,
+        )
 
         # AG8: Phi milestone tracking — system behavior changes at thresholds
         self._phi_milestones_crossed: set = set()
@@ -1387,18 +711,19 @@ class AetherEngine:
         self._blocks_processed += 1
 
         try:
-            # Use cached Phi result, but force computation every 10 blocks
-            # so on-chain recording and temporal engine get real phi data.
+            # Use cached Phi result, but force full recomputation every 10 blocks
+            # so gates, subsystem stats, and on-chain recording stay current.
             block_phi_result = None
             if self.phi:
-                if self.phi._last_full_result is not None:
-                    block_phi_result = self.phi._last_full_result
-                elif block.height % 10 == 0:
+                if block.height % 10 == 0:
                     try:
                         self.phi.set_subsystem_stats(self._collect_subsystem_stats())
                         block_phi_result = self.phi.compute_phi(block.height)
                     except Exception as e:
                         logger.debug(f"Periodic phi computation error: {e}")
+                        block_phi_result = self.phi._last_full_result
+                elif self.phi._last_full_result is not None:
+                    block_phi_result = self.phi._last_full_result
 
             # ── Gate progress monitoring (every 100 blocks) ──────
             if (self.phi and block.height > 0 and block.height % 100 == 0

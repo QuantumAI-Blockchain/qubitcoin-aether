@@ -1776,14 +1776,13 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """Get current Phi (consciousness metric). Returns cached result if available."""
         if not aether_engine or not aether_engine.phi:
             raise HTTPException(status_code=503, detail="Phi calculator not available")
-        # Return in-memory cached result if phi was computed recently (during block processing)
-        cached = aether_engine.phi._last_full_result
-        if cached is not None:
+        # Use get_cached() which dynamically evaluates gates if empty
+        cached_result = await asyncio.to_thread(aether_engine.phi.get_cached)
+        phi_val = cached_result.get('phi_value', 0)
+        if (isinstance(phi_val, (int, float)) and phi_val > 0) or cached_result.get('gates'):
             height = await asyncio.to_thread(db_manager.get_current_height)
-            result = dict(cached)
-            result['block_height'] = height
-            result['cached'] = True
-            return result
+            cached_result['block_height'] = height
+            return cached_result
         # Fallback: return latest stored measurement from DB (fast)
         history = await asyncio.to_thread(aether_engine.phi.get_history, 1)
         if history:
