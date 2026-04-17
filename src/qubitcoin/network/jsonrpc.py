@@ -181,13 +181,14 @@ class JsonRpcHandler:
     """Handles eth_* JSON-RPC method dispatch"""
 
     def __init__(self, db, consensus=None, mining=None, quantum=None, qvm=None,
-                 event_index=None):
+                 event_index=None, substrate_bridge=None):
         self.db = db
         self.consensus = consensus
         self.mining = mining
         self.quantum = quantum
         self.qvm = qvm
         self.event_index = event_index  # Optional EventIndex for fast in-memory log queries
+        self.substrate_bridge = substrate_bridge
         self._http_request: Optional[Request] = None  # Set per-call for client IP checks
 
         self.methods = {
@@ -295,6 +296,14 @@ class JsonRpcHandler:
 
     async def eth_blockNumber(self, params):
         height = self.db.get_current_height()
+        # In substrate mode, report combined chain height
+        if Config.SUBSTRATE_MODE and self.substrate_bridge and self.substrate_bridge.is_connected:
+            try:
+                info = await self.substrate_bridge.get_chain_info()
+                if info.get("best_height"):
+                    height = info["best_height"]
+            except Exception:
+                pass
         return hex_int(max(0, height))
 
     # ========================================================================
@@ -806,10 +815,11 @@ def _serialize(model):
 
 
 def create_jsonrpc_router(db, consensus=None, mining=None, quantum=None, qvm=None,
-                          event_index=None) -> APIRouter:
+                          event_index=None, substrate_bridge=None) -> APIRouter:
     """Create JSON-RPC router and attach to FastAPI"""
     handler = JsonRpcHandler(db, consensus, mining, quantum, qvm,
-                             event_index=event_index)
+                             event_index=event_index,
+                             substrate_bridge=substrate_bridge)
 
     @router.post("/")
     @router.post("/jsonrpc")

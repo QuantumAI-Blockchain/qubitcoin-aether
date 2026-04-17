@@ -14,11 +14,15 @@ import time
 from collections import OrderedDict, deque
 from collections.abc import MutableMapping
 from dataclasses import dataclass, field, asdict
-from typing import Dict, Iterator, List, Optional, Set, Tuple
+from typing import Deque, Dict, Iterator, List, Optional, Set, Tuple
 
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Edge bound — adjacency indices (_adj_out/_adj_in) provide O(1) lookup;
+# the master edge list is a secondary record bounded to prevent OOM.
+MAX_EDGES = 1_000_000
 
 # Rust acceleration
 _RUST_AVAILABLE = False
@@ -377,7 +381,7 @@ class KnowledgeGraph:
         self.db = db_manager
         self._lock = threading.RLock()
         self.nodes: BoundedNodeCache = BoundedNodeCache(max_size=100_000)
-        self.edges: List[KeterEdge] = []
+        self.edges: Deque[KeterEdge] = deque(maxlen=MAX_EDGES)
         # O(1) edge adjacency index — avoids O(n) scans of self.edges
         self._adj_out: Dict[int, List[KeterEdge]] = {}  # node_id -> outgoing edges
         self._adj_in: Dict[int, List[KeterEdge]] = {}   # node_id -> incoming edges
@@ -1345,10 +1349,11 @@ class KnowledgeGraph:
         # Remove from in-memory graph — single-pass over edges using a set
         remove_set = set(to_remove)
         with self._lock:
-            self.edges = [
-                e for e in self.edges
-                if e.from_node_id not in remove_set and e.to_node_id not in remove_set
-            ]
+            self.edges = deque(
+                (e for e in self.edges
+                 if e.from_node_id not in remove_set and e.to_node_id not in remove_set),
+                maxlen=MAX_EDGES,
+            )
             # Clean adjacency indices and node cross-references in one pass.
             # Uses adj index to update only affected neighbors: O(degree) per node
             # instead of the old O(N) scan of all nodes per removed node.
@@ -2858,10 +2863,11 @@ class KnowledgeGraph:
         remove_set = set(to_remove)
         # Remove from graph
         with self._lock:
-            self.edges = [
-                e for e in self.edges
-                if e.from_node_id not in remove_set and e.to_node_id not in remove_set
-            ]
+            self.edges = deque(
+                (e for e in self.edges
+                 if e.from_node_id not in remove_set and e.to_node_id not in remove_set),
+                maxlen=MAX_EDGES,
+            )
             for nid in remove_set:
                 for edge in self._adj_out.get(nid, []):
                     adj_list = self._adj_in.get(edge.to_node_id, [])
@@ -2976,10 +2982,11 @@ class KnowledgeGraph:
         # Use existing prune infrastructure for safe removal
         remove_set = set(to_remove)
         with self._lock:
-            self.edges = [
-                e for e in self.edges
-                if e.from_node_id not in remove_set and e.to_node_id not in remove_set
-            ]
+            self.edges = deque(
+                (e for e in self.edges
+                 if e.from_node_id not in remove_set and e.to_node_id not in remove_set),
+                maxlen=MAX_EDGES,
+            )
             for nid in remove_set:
                 for edge in self._adj_out.get(nid, []):
                     adj_list = self._adj_in.get(edge.to_node_id, [])

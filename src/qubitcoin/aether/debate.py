@@ -23,6 +23,8 @@ v3 enhancements:
 - Coalition strength = sum of member confidences
 - Strongest coalition's position wins after all rounds
 """
+import hashlib
+import random
 import re
 import time
 from dataclasses import dataclass, field
@@ -200,10 +202,15 @@ class DebateProtocol:
         positions: List[DebatePosition] = []
         round_num = 0
 
+        # Deterministic RNG seeded from topic hash — ensures identical debate
+        # outcomes across all nodes for the same topic (consensus-safe).
+        seed_bytes = hashlib.sha256(topic_text.encode()).digest()[:8]
+        seed_int = int.from_bytes(seed_bytes, 'big')
+        rng = random.Random(seed_int)
+
         for round_num in range(max_rounds):
             # Add exploration randomness for diverse reasoning (Improvement: debate diversity)
-            import random
-            exploration_noise = random.uniform(-0.05, 0.05)
+            exploration_noise = rng.uniform(-0.05, 0.05)
 
             # --- Chesed proposes (with vector-index semantic support) ---
             support_evidence = self._find_supporting_evidence(topic_node_ids)

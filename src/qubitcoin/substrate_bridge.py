@@ -288,19 +288,32 @@ class SubstrateBridge:
             health = await self._rpc_call("system_health")
             chain = await self._rpc_call("system_chain")
             version = await self._rpc_call("system_version")
-            best_hash = await self._rpc_call("chain_getFinalizedHead")
-            best_header = await self._rpc_call("chain_getHeader", [best_hash])
 
+            # Get best (head) block — this is the real chain tip
+            best_header = await self._rpc_call("chain_getHeader")
             best_number = 0
             if best_header and "number" in best_header:
                 best_number = int(best_header["number"], 16)
+
+            # Get finalized block separately
+            finalized_hash = await self._rpc_call("chain_getFinalizedHead")
+            finalized_header = await self._rpc_call("chain_getHeader", [finalized_hash])
+            finalized_number = 0
+            if finalized_header and "number" in finalized_header:
+                finalized_number = int(finalized_header["number"], 16)
+
+            # Fork offset: Substrate block 0 = Python block 208,680
+            fork_offset = 208680
 
             return {
                 "chain": chain,
                 "version": version,
                 "health": health,
-                "finalized_height": best_number,
-                "finalized_hash": best_hash,
+                "best_number": best_number,
+                "best_height": fork_offset + best_number,
+                "finalized_height": finalized_number,
+                "finalized_hash": finalized_hash,
+                "fork_offset": fork_offset,
                 "substrate_node": True,
             }
         except Exception as e:

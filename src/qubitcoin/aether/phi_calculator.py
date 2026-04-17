@@ -21,6 +21,7 @@ Note: This is NOT a measure of phenomenal consciousness. It is an integration
 metric that quantifies how well-connected and information-rich the knowledge
 graph is, using principles inspired by (but not equivalent to) Tononi's IIT.
 """
+import math
 import os
 import time
 from collections import deque
@@ -206,7 +207,8 @@ class PhiCalculator:
       - Caching and trend tracking
       - Dashboard/diagnostic APIs
 
-    If Rust is not available, returns zeros (no Python fallback).
+    If Rust is not available, uses a lightweight Python fallback that
+    computes simplified graph-theoretic Phi (conservative approximation).
     """
 
     def __init__(self, db_manager, knowledge_graph=None):
@@ -228,9 +230,9 @@ class PhiCalculator:
                 self._rust_phi = RustPhiCalculator(self._compute_interval)
                 logger.info("PhiCalculator: Rust acceleration ACTIVE (sole compute path)")
             except Exception as exc:
-                logger.error("PhiCalculator: Rust init failed (%s) — phi will return zeros", exc)
+                logger.error("PhiCalculator: Rust init failed (%s) — using Python fallback", exc)
         else:
-            logger.warning("PhiCalculator: Rust extension NOT available — phi will return zeros")
+            logger.warning("PhiCalculator: Rust extension NOT available — using Python fallback")
 
         # Adaptive gate scale factor: multiplier for node-count thresholds
         self._gate_scale: float = float(
@@ -367,9 +369,168 @@ class PhiCalculator:
             except Exception as exc:
                 logger.warning("Rust compute_phi failed: %s", exc)
 
-        # No Rust available — return zeros
-        logger.debug("PhiCalculator: Rust not available, returning zeros for block %d", block_height)
-        return self._empty_result(block_height)
+        # No Rust available — use Python fallback
+        return self._python_fallback_phi(block_height)
+
+    # ========================================================================
+    # Python fallback — less accurate than Rust HMS-Phi
+    # ========================================================================
+    # Used when the Rust aether_core PyO3 extension is not available.
+    # Computes a simplified, conservative Phi approximation using only
+    # basic graph statistics. Values will be lower than Rust HMS-Phi.
+    # ========================================================================
+
+    def _python_fallback_phi(self, block_height: int) -> dict:
+        """Compute simplified Phi when Rust extension is unavailable.
+
+        Python fallback — less accurate than Rust HMS-Phi.
+        Uses graph density and degree distribution as proxies for
+        integration metrics. Conservative by design.
+        """
+        if not self.kg or not self.kg.nodes:
+            return self._empty_result(block_height)
+
+        logger.info("Using Python phi fallback (Rust aether_core not available)")
+
+        _PHI = 1.618033988749895
+        nodes = self.kg.nodes
+        edges = self.kg.edges
+        num_nodes = len(nodes)
+        num_edges = len(edges)
+
+        # ── phi_macro: Graph-theoretic integration ──────────────────────
+        # Algebraic connectivity approximated as graph density
+        if num_nodes > 1:
+            max_possible_edges = num_nodes * (num_nodes - 1)
+            phi_macro = (2.0 * num_edges) / max_possible_edges if max_possible_edges > 0 else 0.0
+        else:
+            phi_macro = 0.0
+
+        # ── phi_meso: Average intra-domain connectivity ─────────────────
+        # Group nodes by domain, compute edge density per domain
+        domain_nodes: Dict[str, set] = {}
+        for node_id, node in nodes.items():
+            domain = getattr(node, 'domain', None) or 'unknown'
+            if domain not in domain_nodes:
+                domain_nodes[domain] = set()
+            domain_nodes[domain].add(node_id)
+
+        domain_densities: List[float] = []
+        for domain, node_ids in domain_nodes.items():
+            if len(node_ids) < 2:
+                continue
+            # Count edges within this domain
+            intra_edges = 0
+            for edge in edges:
+                src = edge.source_id if hasattr(edge, 'source_id') else (edge[0] if isinstance(edge, (list, tuple)) else None)
+                tgt = edge.target_id if hasattr(edge, 'target_id') else (edge[1] if isinstance(edge, (list, tuple)) else None)
+                if src in node_ids and tgt in node_ids:
+                    intra_edges += 1
+            max_intra = len(node_ids) * (len(node_ids) - 1)
+            if max_intra > 0:
+                domain_densities.append(intra_edges / max_intra)
+
+        phi_meso = sum(domain_densities) / len(domain_densities) if domain_densities else 0.0
+
+        # ── phi_micro: Simplified information integration ───────────────
+        # 1 - (entropy of degree distribution / log2(num_nodes))
+        if num_nodes > 1:
+            # Build degree counts
+            degree_count: Dict[str, int] = {}
+            for node_id in nodes:
+                degree_count[node_id] = 0
+            for edge in edges:
+                src = edge.source_id if hasattr(edge, 'source_id') else (edge[0] if isinstance(edge, (list, tuple)) else None)
+                tgt = edge.target_id if hasattr(edge, 'target_id') else (edge[1] if isinstance(edge, (list, tuple)) else None)
+                if src in degree_count:
+                    degree_count[src] += 1
+                if tgt in degree_count:
+                    degree_count[tgt] += 1
+
+            # Degree distribution entropy
+            degree_freq: Dict[int, int] = {}
+            for d in degree_count.values():
+                degree_freq[d] = degree_freq.get(d, 0) + 1
+
+            entropy = 0.0
+            for count in degree_freq.values():
+                p = count / num_nodes
+                if p > 0:
+                    entropy -= p * math.log2(p)
+
+            max_entropy = math.log2(num_nodes)
+            phi_micro = 1.0 - (entropy / max_entropy) if max_entropy > 0 else 0.0
+            # Clamp to [0, 1]
+            phi_micro = max(0.0, min(1.0, phi_micro))
+        else:
+            phi_micro = 0.0
+
+        # ── Final HMS-Phi combination ───────────────────────────────────
+        # phi = phi_micro^(1/PHI) * phi_meso^(1/PHI^2) * phi_macro^(1/PHI^3)
+        # Multiplicative: any zero component zeros the whole thing
+        if phi_micro > 0 and phi_meso > 0 and phi_macro > 0:
+            hms_raw = (
+                phi_micro ** (1.0 / _PHI)
+                * phi_meso ** (1.0 / (_PHI ** 2))
+                * phi_macro ** (1.0 / (_PHI ** 3))
+            )
+        else:
+            hms_raw = 0.0
+
+        # Scale factor matches Rust path (raw_phi = hms_raw * 8.0)
+        raw_phi = hms_raw * 8.0
+
+        # ── Gate evaluation (same thresholds as Rust) ───────────────────
+        gate_progress = self.get_gate_progress()
+        gates_passed = sum(1 for g in gate_progress if g.get('passed'))
+        gate_ceiling = gates_passed * 0.5  # +0.5 per gate
+
+        phi_value = min(raw_phi, gate_ceiling) if gate_ceiling > 0 else 0.0
+
+        # Integration/differentiation scores (simplified)
+        integration_score = phi_macro
+        differentiation_score = phi_micro
+
+        result = {
+            'phi_value': phi_value,
+            'phi_raw': raw_phi,
+            'phi_threshold': PHI_THRESHOLD,
+            'above_threshold': phi_value >= PHI_THRESHOLD,
+            'integration_score': integration_score,
+            'differentiation_score': differentiation_score,
+            'mip_score': 0.0,
+            'redundancy_factor': 1.0,
+            'phi_micro': phi_micro,
+            'phi_meso': phi_meso,
+            'phi_macro': phi_macro,
+            'hms_phi_raw': hms_raw,
+            'phi_formula': 'python_fallback',
+            'num_nodes': num_nodes,
+            'num_edges': num_edges,
+            'block_height': block_height,
+            'timestamp': time.time(),
+            'phi_version': 4,
+            'gates_passed': gates_passed,
+            'gates_total': len(MILESTONE_GATES),
+            'gate_ceiling': gate_ceiling,
+            'gates': gate_progress,
+            'convergence_stddev': 0.0,
+            'convergence_status': 'python_fallback',
+        }
+
+        # Update caches
+        self._cache[block_height] = phi_value
+        self._last_full_result = result
+        self._last_computed_block = block_height
+        self._recent_phi_values.append(phi_value)
+        self._phi_history.append((block_height, phi_value))
+        if len(self._phi_history) > self._max_history:
+            self._phi_history = self._phi_history[-self._max_history:]
+
+        # Store to DB
+        self._store_measurement(result)
+
+        return result
 
     def get_cached(self) -> dict:
         """Return the last computed Phi result without triggering a recompute.

@@ -250,7 +250,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     from .jsonrpc import create_jsonrpc_router
     jsonrpc_router = create_jsonrpc_router(
         db_manager, consensus_engine, mining_engine, quantum_engine,
-        qvm=state_manager, event_index=event_index
+        qvm=state_manager, event_index=event_index,
+        substrate_bridge=substrate_bridge
     )
     app.include_router(jsonrpc_router, tags=["JSON-RPC"])
 
@@ -537,12 +538,26 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         except Exception:
             mempool_size = 0
 
+        # In substrate_mode, report the combined chain height (fork_offset + substrate best)
+        # and compute total supply including Substrate-mined blocks
+        reported_height = emission_stats['current_height']
+        reported_supply = float(emission_stats['total_supply'])
+        if substrate_info and substrate_info.get("best_number"):
+            reported_height = substrate_info["best_height"]
+            # Supply = Python fork supply + (substrate blocks * current era reward)
+            fork_supply = float(emission_stats['total_supply'])
+            substrate_blocks = substrate_info["best_number"]
+            era_reward = float(emission_stats.get('current_reward', 15.27))
+            reported_supply = fork_supply + (substrate_blocks * era_reward)
+
+        percent_emitted = (reported_supply / float(Config.MAX_SUPPLY) * 100) if Config.MAX_SUPPLY > 0 else 0
+
         result = {
             "chain_id": Config.CHAIN_ID,
-            "height": emission_stats['current_height'],
-            "total_supply": float(emission_stats['total_supply']),
+            "height": reported_height,
+            "total_supply": reported_supply,
             "max_supply": float(Config.MAX_SUPPLY),
-            "percent_emitted": f"{emission_stats['percent_emitted']:.4f}%",
+            "percent_emitted": f"{percent_emitted:.4f}%",
             "current_era": emission_stats.get('current_era', 0),
             "current_reward": float(emission_stats.get('current_reward', 50.0)),
             "difficulty": mining_engine.get_stats_snapshot().get('current_difficulty', Config.INITIAL_DIFFICULTY),
@@ -554,6 +569,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if substrate_info:
             result["substrate"] = {
                 "version": substrate_info.get("version", "unknown"),
+                "best_number": substrate_info.get("best_number", 0),
+                "best_height": substrate_info.get("best_height", 0),
                 "finalized_height": substrate_info.get("finalized_height", 0),
                 "syncing": substrate_info.get("health", {}).get("isSyncing", False),
             }
