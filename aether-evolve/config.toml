@@ -1,0 +1,38 @@
+[general]
+name = "aether-evolve"
+log_level = "info"
+data_dir = "/root/aether-evolve/data"
+aether_source = "/root/Qubitcoin/src/qubitcoin/aether"
+
+[aether]
+base_url = "http://localhost:5000"
+timeout_secs = 30
+max_retries = 3
+
+[ollama]
+base_url = "http://localhost:11434"
+primary_model = "qwen2.5:7b"
+fast_model = "qwen2.5:3b"
+bulk_model = "qwen2.5:0.5b"
+timeout_secs = 120
+max_concurrent = 2
+
+[pipeline]
+max_steps = 0
+step_interval_secs = 60
+parallel_workers = 4
+save_interval = 10
+
+[sampling]
+algorithm = "ucb1"
+sample_n = 3
+exploration_weight = 1.414
+
+[safety]
+max_api_calls_per_minute = 60
+max_code_changes_per_hour = 5
+max_seeds_per_step = 1000
+min_test_pass_rate = 0.95
+max_memory_mb = 2048
+auto_rollback_threshold = -0.05
+forbidden_files = [".env", "secure_key.env", "genesis.py"]

@@ -1,0 +1,41 @@
+domain = "causal_inference"
+
+[[items]]
+id = "causal-pc"
+title = "PC Algorithm for Causal Discovery"
+content = """
+Peter-Clark algorithm: starts with fully connected graph, removes edges
+based on conditional independence tests. Finds the causal skeleton (CPDAG).
+Steps: 1) Start with complete undirected graph, 2) For each pair (X,Y),
+test if X independent of Y given subsets of other variables,
+3) If independent, remove edge, 4) Orient edges using v-structures.
+Requires sufficient data and correct conditional independence tests.
+"""
+tags = ["pc", "algorithm", "discovery", "independence"]
+
+[[items]]
+id = "causal-do-calculus"
+title = "Pearl's Do-Calculus"
+content = """
+Three rules for reducing interventional distributions to observational:
+Rule 1: Insertion/deletion of observations
+Rule 2: Action/observation exchange
+Rule 3: Insertion/deletion of actions
+Enables answering counterfactual questions: 'What would have happened
+if we did X instead of Y?' Foundation for genuine causal reasoning.
+"""
+tags = ["pearl", "do-calculus", "counterfactual", "intervention"]
+
+[[items]]
+id = "causal-intervention"
+title = "Causal Intervention Testing"
+content = """
+To verify a causal relationship A→B:
+1. Observe baseline correlation between A and B
+2. Intervene on A (change it independently of its causes)
+3. Check if B changes as predicted
+4. If yes: genuine causal relationship. If no: spurious correlation.
+The Aether Tree's causal engine should perform these intervention tests
+on its knowledge graph edges to validate causal claims.
+"""
+tags = ["intervention", "validation", "testing", "correlation"]

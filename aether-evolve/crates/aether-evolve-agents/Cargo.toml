@@ -1,0 +1,20 @@
+[package]
+name = "aether-evolve-agents"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+aether-evolve-core = { workspace = true }
+aether-evolve-llm = { workspace = true }
+aether-evolve-api = { workspace = true }
+aether-evolve-safety = { workspace = true }
+aether-evolve-memory = { workspace = true }
+tera = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }

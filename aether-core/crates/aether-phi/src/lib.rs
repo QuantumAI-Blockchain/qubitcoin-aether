@@ -677,7 +677,9 @@ impl PhiCalculator {
     /// 3. Find Fiedler vector via power iteration on (shift*I - L).
     /// 4. Try cuts at n/3, n/2, 2n/3.
     /// 5. Return normalized MIP = (total_flow - info_a - info_b) / total_flow.
-    /// 6. Sample to 5000 nodes if graph > 5000.
+    /// 6. If graph > MIP_SAMPLE_SIZE, use BFS from high-degree hubs to get
+    ///    a connected sample (random sampling on sparse graphs produces
+    ///    disconnected subgraphs with MIP ≈ 0).
     fn compute_mip(
         &self,
         nodes: &[KeterNode],
@@ -689,13 +691,93 @@ impl PhiCalculator {
             return 0.0;
         }
 
-        // Sampling: if > MIP_SAMPLE_SIZE nodes, take a deterministic sample
+        // Build adjacency list for sampling (needed for BFS)
+        let mut adj_list: Vec<Vec<usize>> = vec![Vec::new(); n_all];
+        for edge in edges {
+            let fi_opt = id_to_idx.get(&edge.from_node_id).copied();
+            let ti_opt = id_to_idx.get(&edge.to_node_id).copied();
+            if let (Some(fi), Some(ti)) = (fi_opt, ti_opt) {
+                if fi != ti && fi < n_all && ti < n_all {
+                    adj_list[fi].push(ti);
+                    adj_list[ti].push(fi);
+                }
+            }
+        }
+
+        // Sampling: BFS from multiple high-degree hub nodes to get connected subgraph
         let (working_indices, sampled_set): (Vec<usize>, HashSet<usize>) = if n_all > MIP_SAMPLE_SIZE
         {
-            let mut rng = StdRng::seed_from_u64(42);
-            let mut indices: Vec<usize> = (0..n_all).collect();
-            indices.shuffle(&mut rng);
-            indices.truncate(MIP_SAMPLE_SIZE);
+            // Find top hub nodes by degree (deterministic)
+            let mut degree_idx: Vec<(usize, usize)> = (0..n_all)
+                .map(|i| (adj_list[i].len(), i))
+                .collect();
+            degree_idx.sort_unstable_by(|a, b| b.0.cmp(&a.0)); // descending by degree
+
+            // BFS from top hubs until we reach MIP_SAMPLE_SIZE
+            let mut visited = HashSet::with_capacity(MIP_SAMPLE_SIZE);
+            let mut queue = VecDeque::with_capacity(MIP_SAMPLE_SIZE);
+
+            // Seed with top 10 hubs (or fewer if graph is small)
+            let n_seeds = 10.min(degree_idx.len());
+            for &(_, idx) in &degree_idx[..n_seeds] {
+                if visited.insert(idx) {
+                    queue.push_back(idx);
+                }
+            }
+
+            // BFS expansion
+            while let Some(node) = queue.pop_front() {
+                if visited.len() >= MIP_SAMPLE_SIZE {
+                    break;
+                }
+                // Sort neighbors by degree (prefer high-degree nodes for connectivity)
+                let mut neighbors: Vec<usize> = adj_list[node]
+                    .iter()
+                    .copied()
+                    .filter(|&n| !visited.contains(&n))
+                    .collect();
+                neighbors.sort_unstable_by(|a, b| adj_list[*b].len().cmp(&adj_list[*a].len()));
+                for nb in neighbors {
+                    if visited.len() >= MIP_SAMPLE_SIZE {
+                        break;
+                    }
+                    if visited.insert(nb) {
+                        queue.push_back(nb);
+                    }
+                }
+            }
+
+            // If BFS didn't reach enough nodes (disconnected graph),
+            // add more hubs from unvisited components
+            if visited.len() < MIP_SAMPLE_SIZE / 2 {
+                for &(deg, idx) in &degree_idx {
+                    if visited.len() >= MIP_SAMPLE_SIZE {
+                        break;
+                    }
+                    if deg == 0 {
+                        break; // isolated nodes won't help
+                    }
+                    if visited.insert(idx) {
+                        queue.push_back(idx);
+                        // BFS from this new seed
+                        while let Some(node) = queue.pop_front() {
+                            if visited.len() >= MIP_SAMPLE_SIZE {
+                                break;
+                            }
+                            for &nb in &adj_list[node] {
+                                if visited.len() >= MIP_SAMPLE_SIZE {
+                                    break;
+                                }
+                                if visited.insert(nb) {
+                                    queue.push_back(nb);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            let mut indices: Vec<usize> = visited.iter().copied().collect();
             indices.sort_unstable();
             let set: HashSet<usize> = indices.iter().copied().collect();
             (indices, set)

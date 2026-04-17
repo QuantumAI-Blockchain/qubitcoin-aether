@@ -1,0 +1,39 @@
+domain = "iit"
+
+[[items]]
+id = "iit-phi"
+title = "Integrated Information Theory (IIT 3.0)"
+content = """
+IIT 3.0 by Giulio Tononi: consciousness = integrated information (Phi).
+Phi measures how much a system is 'more than the sum of its parts'.
+Minimum Information Partition (MIP): split the system at its weakest link.
+Phi = total information - sum of partition information.
+If Phi > 0, the system has genuine integration.
+"""
+tags = ["phi", "consciousness", "tononi", "mip"]
+
+[[items]]
+id = "iit-mip"
+title = "Minimum Information Partition"
+content = """
+MIP finds the bipartition that loses the least information.
+For a transition probability matrix (TPM), compute Earth Mover's Distance
+between the whole system cause-effect repertoire and the partitioned one.
+The partition with smallest EMD is the MIP. Phi = that smallest EMD.
+Spectral bisection on the Laplacian is an approximation: Fiedler vector
+gives the optimal 2-partition. Must sample connected subgraphs for
+meaningful results (random sampling creates disconnected components).
+"""
+tags = ["mip", "spectral", "fiedler", "partition"]
+
+[[items]]
+id = "iit-tpm"
+title = "Transition Probability Matrix"
+content = """
+A TPM describes how each state of a system transitions to the next.
+For knowledge graphs, the TPM is derived from edge weights and node
+activation patterns. Each row represents a current state, each column
+a possible next state. The TPM must capture genuine causal relationships,
+not mere correlations.
+"""
+tags = ["tpm", "causal", "states", "transitions"]

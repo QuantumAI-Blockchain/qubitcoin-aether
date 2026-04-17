@@ -406,31 +406,36 @@ class PhiCalculator:
         else:
             phi_macro = 0.0
 
-        # ── phi_meso: Average intra-domain connectivity ─────────────────
-        # Group nodes by domain, compute edge density per domain
-        domain_nodes: Dict[str, set] = {}
+        # ── phi_meso: Intra-domain edge ratio (fraction of edges within domains)
+        # Build node-to-domain map, then count intra-domain vs total edges.
+        # Using edge ratio instead of density (which → 0 for large domains).
+        node_domain: Dict[str, str] = {}
         for node_id, node in nodes.items():
             domain = getattr(node, 'domain', None) or 'unknown'
-            if domain not in domain_nodes:
-                domain_nodes[domain] = set()
-            domain_nodes[domain].add(node_id)
+            node_domain[node_id] = domain
 
-        domain_densities: List[float] = []
-        for domain, node_ids in domain_nodes.items():
-            if len(node_ids) < 2:
-                continue
-            # Count edges within this domain
-            intra_edges = 0
-            for edge in edges:
-                src = edge.source_id if hasattr(edge, 'source_id') else (edge[0] if isinstance(edge, (list, tuple)) else None)
-                tgt = edge.target_id if hasattr(edge, 'target_id') else (edge[1] if isinstance(edge, (list, tuple)) else None)
-                if src in node_ids and tgt in node_ids:
-                    intra_edges += 1
-            max_intra = len(node_ids) * (len(node_ids) - 1)
-            if max_intra > 0:
-                domain_densities.append(intra_edges / max_intra)
+        intra_domain_edges = 0
+        total_counted = 0
+        for edge in edges:
+            src = edge.source_id if hasattr(edge, 'source_id') else (edge[0] if isinstance(edge, (list, tuple)) else None)
+            tgt = edge.target_id if hasattr(edge, 'target_id') else (edge[1] if isinstance(edge, (list, tuple)) else None)
+            if src in node_domain and tgt in node_domain:
+                total_counted += 1
+                if node_domain[src] == node_domain[tgt]:
+                    intra_domain_edges += 1
 
-        phi_meso = sum(domain_densities) / len(domain_densities) if domain_densities else 0.0
+        # phi_meso = ratio of intra-domain edges (measures domain cohesion)
+        # Balanced by cross-domain ratio to avoid trivial 1.0 when all edges
+        # are intra-domain (which would mean no cross-domain integration).
+        if total_counted > 0:
+            intra_ratio = intra_domain_edges / total_counted
+            cross_ratio = 1.0 - intra_ratio
+            # Geometric mean of cohesion and cross-domain connectivity
+            # Max at 0.5/0.5 split, zero if either is zero
+            phi_meso = 2.0 * (intra_ratio * cross_ratio) ** 0.5
+            phi_meso = max(0.0, min(1.0, phi_meso))
+        else:
+            phi_meso = 0.0
 
         # ── phi_micro: Simplified information integration ───────────────
         # 1 - (entropy of degree distribution / log2(num_nodes))

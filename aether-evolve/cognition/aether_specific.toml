@@ -1,0 +1,47 @@
+domain = "aether"
+
+[[items]]
+id = "aether-hms-phi"
+title = "HMS-Phi Formula"
+content = """
+HMS-Phi = phi_micro^(1/phi) * phi_meso^(1/phi^2) * phi_macro^(1/phi^3)
+where phi = 1.618... (golden ratio).
+Multiplicative: any zero kills the result. phi_meso=0 is the #1 blocker.
+phi_micro from IIT 3.0 approximation, phi_meso from domain cluster MIP,
+phi_macro from cross-cluster integration.
+"""
+tags = ["phi", "iit", "integration", "formula"]
+
+[[items]]
+id = "aether-10-gates"
+title = "10-Gate Milestone System"
+content = """
+Each gate unlocks +0.5 phi ceiling. Must be genuine behavioral evidence.
+Gate 4 (Self-Correction): 10K nodes, 20 debates, 10 contradictions, MIP>0.3
+Gate 10 (Novel Synthesis): 75K nodes, 50 novel concepts, 100 cross-domain inferences
+Current blockers: Gate 4 (debates), Gate 10 (novel concepts)
+"""
+tags = ["gates", "milestones", "emergence"]
+
+[[items]]
+id = "aether-sephirot"
+title = "10 Sephirot Cognitive Architecture"
+content = """
+10 cognitive domains: Keter(meta), Chochmah(intuition), Binah(logic),
+Chesed(exploration), Gevurah(safety), Tiferet(integration),
+Netzach(reinforcement), Hod(language), Yesod(memory), Malkuth(action).
+Each Sephirot is a reasoning cluster that should have its own MIP > 0.
+Meso-level phi computed per Sephirot domain cluster.
+"""
+tags = ["sephirot", "domains", "architecture"]
+
+[[items]]
+id = "aether-dead-subsystems"
+title = "Dead Subsystems That Need Activation"
+content = """
+concept_formation: 0 runs — never triggered, needs threshold lowering
+causal_engine: 0 runs — PC algorithm never ran
+transfer_learning: 0 transfers — cross-domain inference never happened
+These are critical for genuine integration and must be activated.
+"""
+tags = ["subsystems", "activation", "concept_formation", "causal"]
