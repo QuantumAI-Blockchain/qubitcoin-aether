@@ -23,6 +23,9 @@ logger = get_logger(__name__)
 # Edge bound — adjacency indices (_adj_out/_adj_in) provide O(1) lookup;
 # the master edge list is a secondary record bounded to prevent OOM.
 MAX_EDGES = 1_000_000
+# Maximum edges per node in adjacency index — prevents hub nodes from
+# accumulating unbounded adjacency lists.
+MAX_ADJ_PER_NODE = 500
 
 # Rust acceleration
 _RUST_AVAILABLE = False
@@ -928,8 +931,15 @@ class KnowledgeGraph:
                 timestamp=time.time()
             )
             self.edges.append(edge)
-            self._adj_out.setdefault(from_id, []).append(edge)
-            self._adj_in.setdefault(to_id, []).append(edge)
+            out_list = self._adj_out.setdefault(from_id, [])
+            out_list.append(edge)
+            if len(out_list) > MAX_ADJ_PER_NODE:
+                # Evict oldest edges from this node's adjacency list
+                self._adj_out[from_id] = out_list[-MAX_ADJ_PER_NODE:]
+            in_list = self._adj_in.setdefault(to_id, [])
+            in_list.append(edge)
+            if len(in_list) > MAX_ADJ_PER_NODE:
+                self._adj_in[to_id] = in_list[-MAX_ADJ_PER_NODE:]
             self._merkle_dirty = True
             self.nodes[from_id].edges_out.append(to_id)
             self.nodes[to_id].edges_in.append(from_id)
@@ -1323,6 +1333,28 @@ class KnowledgeGraph:
             self._merkle_dirty = False
         return root
 
+    def gc_adjacency(self) -> int:
+        """Garbage-collect adjacency indices for nodes no longer in the graph.
+
+        Over time, node eviction from BoundedNodeCache and deque auto-discard
+        can leave orphaned entries in _adj_out / _adj_in.  This method removes
+        them, preventing unbounded memory growth in the adjacency dicts.
+
+        Returns:
+            Number of orphaned adjacency keys removed.
+        """
+        removed = 0
+        with self._lock:
+            live_ids = set(self.nodes.keys())
+            for adj in (self._adj_out, self._adj_in):
+                orphan_keys = [k for k in adj if k not in live_ids]
+                for k in orphan_keys:
+                    del adj[k]
+                    removed += 1
+        if removed:
+            logger.info("gc_adjacency: removed %d orphaned adjacency entries", removed)
+        return removed
+
     def prune_low_confidence(self, threshold: float = 0.1, protect_types: Optional[Set[str]] = None) -> int:
         """
         Remove nodes with confidence below threshold from memory AND database.
@@ -1416,6 +1448,9 @@ class KnowledgeGraph:
                 session.commit()
         except Exception as e:
             logger.error(f"Failed to delete pruned nodes from DB: {e}")
+
+        # Also GC any adjacency entries orphaned by BoundedNodeCache eviction
+        self.gc_adjacency()
 
         logger.info(
             f"Pruned {len(to_remove)} low-confidence nodes (threshold={threshold}), "

@@ -932,14 +932,21 @@ class DebateProtocol:
     def _apply_verdict_to_topics(self, topic_node_ids: List[int],
                                  verdict: str,
                                  synthesis_conf: float) -> None:
-        """Update topic node confidence based on the debate verdict.
+        """Log debate verdict for topic nodes (advisory only).
 
-        - 'accepted': boost confidence by _ACCEPTED_BOOST (capped at 1.0)
-        - 'rejected': reduce confidence by _REJECTED_PENALTY (floored at 0.0)
-        - 'modified': set confidence to synthesis_conf
+        Debates are NOT consensus-critical: different nodes may have divergent
+        knowledge graphs, causing different debate selections and verdicts.
+        Mutating KG node confidence from debate results would create silent
+        consensus divergence between nodes.
+
+        Instead, verdicts are logged for analytics and stored as metadata on
+        the debate record itself (via _debates_run / _accepted / _rejected
+        counters). The confidence of KG nodes is only modified by consensus-
+        safe operations (block validation, causal discovery, explicit user
+        grounding).
 
         Args:
-            topic_node_ids: Nodes to update.
+            topic_node_ids: Nodes the debate covered.
             verdict: The debate verdict.
             synthesis_conf: The synthesis confidence (used for 'modified').
         """
@@ -951,18 +958,21 @@ class DebateProtocol:
             if not node:
                 continue
 
-            old_conf = node.confidence
+            # Log what the confidence change WOULD have been (advisory)
             if verdict == 'accepted':
-                node.confidence = min(1.0, node.confidence + self._ACCEPTED_BOOST)
+                suggested = min(1.0, node.confidence + self._ACCEPTED_BOOST)
             elif verdict == 'rejected':
-                node.confidence = max(0.0, node.confidence - self._REJECTED_PENALTY)
+                suggested = max(0.0, node.confidence - self._REJECTED_PENALTY)
             elif verdict == 'modified':
-                node.confidence = max(0.0, min(1.0, synthesis_conf))
+                suggested = max(0.0, min(1.0, synthesis_conf))
+            else:
+                suggested = node.confidence
 
-            if node.confidence != old_conf:
+            if suggested != node.confidence:
                 logger.debug(
-                    f"Debate verdict '{verdict}' updated node {nid} confidence: "
-                    f"{old_conf:.4f} -> {node.confidence:.4f}"
+                    "Debate verdict '%s' for node %d: confidence %.4f "
+                    "(suggested %.4f, advisory only)",
+                    verdict, nid, node.confidence, suggested,
                 )
 
     # ------------------------------------------------------------------
