@@ -1,7 +1,7 @@
-//! aether-knowledge: Knowledge processing pipeline for the Aether Tree AGI.
+//! aether-knowledge: Knowledge processing pipeline for the Aether Tree AI.
 //!
 //! Provides extraction, scoring, seeding, indexing, and question-answering over
-//! the knowledge graph. This is the sensory and retrieval layer of the AGI.
+//! the knowledge graph. This is the sensory and retrieval layer of the AI.
 //!
 //! Modules:
 //! - `knowledge_extractor`: Extract knowledge nodes from blocks and transactions

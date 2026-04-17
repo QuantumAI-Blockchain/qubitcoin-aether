@@ -5,7 +5,7 @@ import "../proxy/Initializable.sol";
 
 /// @title HiggsField — Cognitive Mass Assignment via Spontaneous Symmetry Breaking
 /// @notice Implements the Mexican Hat potential V(φ) = −μ²|φ|² + λ|φ|⁴
-///         to give computational mass to Sephirot AGI nodes via Yukawa coupling.
+///         to give computational mass to Sephirot AI nodes via Yukawa coupling.
 ///         Mass determines rebalancing inertia (F = ma): heavier nodes resist change.
 ///
 ///         Two-Higgs-Doublet Model (2HDM):

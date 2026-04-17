@@ -35,7 +35,7 @@ intervening on the source node would change the target node.  This is Judea
 Pearl's ladder of causation — the defining gap between correlation machines
 and true intelligence.
 
-Improvement #3 in the AGI stack.
+Improvement #3 in the AI stack.
 """
 import math
 from itertools import combinations

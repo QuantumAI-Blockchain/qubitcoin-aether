@@ -79,7 +79,7 @@ class ResponseCortex:
             emotional_state: Current emotional state dict.
             phi_value: Current Phi integration metric.
             kg_node_count: Knowledge graph node count.
-            gates_passed: AGI gates passed.
+            gates_passed: AI gates passed.
             is_deep_query: Whether to use deep reasoning.
 
         Returns:

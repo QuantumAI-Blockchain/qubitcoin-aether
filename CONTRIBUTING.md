@@ -236,7 +236,7 @@ Changes are classified by risk level:
 ### HIGH (max 3 files per batch)
 - `qvm/vm.py`, `qvm/opcodes.py`, `qvm/state.py` -- QVM interpreter
 - `privacy/*.py` -- privacy features
-- `aether/*.py` -- Aether Tree AGI
+- `aether/*.py` -- Aether Tree AI
 - `bridge/*.py` -- cross-chain bridges
 - `network/jsonrpc.py` -- JSON-RPC compatibility
 

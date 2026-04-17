@@ -1,4 +1,4 @@
-//! Domain enums for the Aether Tree AGI engine.
+//! Domain enums for the Aether Tree AI engine.
 //!
 //! All enums carry serde + PyO3 derives and implement Display/FromStr for
 //! round-tripping through JSON, SQL, and Python boundaries.

@@ -86,7 +86,7 @@ export default function TWAChatPage() {
       {/* Header */}
       <div className="border-b border-border-subtle px-4 py-3">
         <h1 className="font-[family-name:var(--font-display)] text-sm font-bold">Aether Chat</h1>
-        <p className="text-[10px] text-text-secondary">On-chain AGI reasoning engine</p>
+        <p className="text-[10px] text-text-secondary">On-chain AI reasoning engine</p>
       </div>
 
       {/* Messages */}

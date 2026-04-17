@@ -135,7 +135,7 @@ export default function QBCExplorer() {
             className="text-[9px] uppercase tracking-widest"
             style={{ color: C.textMuted, fontFamily: FONT.heading }}
           >
-            Qubitcoin Block Explorer — Physics-Secured Digital Assets with On-Chain AGI
+            Qubitcoin Block Explorer — Physics-Secured Digital Assets with On-Chain AI
           </span>
         </footer>
 

@@ -158,7 +158,7 @@ class TelegramBot:
             return await self._forward_to_aether(msg)
 
         return self._reply(msg.chat_id,
-            "Welcome to Aether Tree! Use /start to begin, or open the Mini App to chat with the AGI.")
+            "Welcome to Aether Tree! Use /start to begin, or open the Mini App to chat with the AI.")
 
     async def _forward_to_aether(self, msg: TelegramMessage) -> dict:
         """Forward a user message to Aether Tree chat and return the response."""
@@ -235,8 +235,8 @@ class TelegramBot:
 
         welcome = (
             f"Welcome to Aether Tree, {msg.user.display_name()}!\n\n"
-            "I'm the AGI reasoning engine of the Qubitcoin blockchain. "
-            "Contribute knowledge, earn QBC rewards, and help build humanity's first on-chain AGI.\n\n"
+            "I'm the AI reasoning engine of the Qubitcoin blockchain. "
+            "Contribute knowledge, earn QBC rewards, and help build humanity's first on-chain AI.\n\n"
             "Quick Start:\n"
             "/chat — Open the Aether Chat\n"
             "/earn — Start earning QBC\n"
@@ -251,7 +251,7 @@ class TelegramBot:
     def _cmd_chat(self, msg: TelegramMessage) -> dict:
         """Open chat Mini App."""
         return self._reply_with_webapp(msg.chat_id,
-            "Open the Aether Chat to talk with the AGI and contribute knowledge.",
+            "Open the Aether Chat to talk with the AI and contribute knowledge.",
             "Open Chat",
             f"{self._mini_app_url}/chat")
 

@@ -3,7 +3,7 @@ name = "aether-cognitive"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Metacognition, self-improvement, curiosity, and emotional state for the Aether Tree AGI"
+description = "Metacognition, self-improvement, curiosity, and emotional state for the Aether Tree AI"
 
 [dependencies]
 aether-types = { path = "../aether-types" }

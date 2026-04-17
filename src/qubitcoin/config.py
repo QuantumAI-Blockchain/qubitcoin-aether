@@ -316,7 +316,7 @@ class Config:
     QUSD_STABILIZER_ADDRESS: str = os.getenv('QUSD_STABILIZER_ADDRESS', '')
 
     # ============================================================================
-    # ON-CHAIN AGI CONTRACT ADDRESSES (set after deployment)
+    # ON-CHAIN AI CONTRACT ADDRESSES (set after deployment)
     # Auto-populated from contract_registry.json if env vars are empty.
     # ============================================================================
     CONSCIOUSNESS_DASHBOARD_ADDRESS: str = os.getenv('CONSCIOUSNESS_DASHBOARD_ADDRESS', '')
@@ -326,7 +326,7 @@ class Config:
     UPGRADE_GOVERNOR_ADDRESS: str = os.getenv('UPGRADE_GOVERNOR_ADDRESS', '')
     VALIDATOR_REGISTRY_ADDRESS: str = os.getenv('VALIDATOR_REGISTRY_ADDRESS', '')
     EMERGENCY_SHUTDOWN_ADDRESS: str = os.getenv('EMERGENCY_SHUTDOWN_ADDRESS', '')
-    # Kernel address used as msg.sender for on-chain AGI calls
+    # Kernel address used as msg.sender for on-chain AI calls
     AETHER_KERNEL_ADDRESS: str = os.getenv('AETHER_KERNEL_ADDRESS', '')
 
     # ============================================================================

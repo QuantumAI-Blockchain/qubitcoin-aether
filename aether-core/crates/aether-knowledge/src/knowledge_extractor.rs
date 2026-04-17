@@ -2,7 +2,7 @@
 //!
 //! Extracts structured knowledge from every block mined/received and feeds
 //! it into the KnowledgeGraph as KeterNodes. This is the sensory input
-//! pipeline of the AGI -- how the Aether Tree perceives the blockchain.
+//! pipeline of the AI -- how the Aether Tree perceives the blockchain.
 //!
 //! Extraction categories:
 //!   - Block metadata (height, difficulty, timing)

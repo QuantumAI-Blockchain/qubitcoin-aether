@@ -1,7 +1,7 @@
 """
 Reinforcement Learning Goal Planner (Item #27)
 
-Q-learning based planner that selects AGI exploration actions based on
+Q-learning based planner that selects AI exploration actions based on
 discretized knowledge graph state features. Uses epsilon-greedy exploration
 with decay.
 """
@@ -27,11 +27,11 @@ ACTIONS: List[str] = [
 
 class RLPlanner:
     """
-    Tabular Q-learning planner for AGI goal selection.
+    Tabular Q-learning planner for AI goal selection.
 
     State space: Discretized KG features (node counts per domain, edge density,
     prediction accuracy, etc.)
-    Action space: 6 high-level AGI strategies.
+    Action space: 6 high-level AI strategies.
     """
 
     def __init__(self, num_state_bins: int = 10, lr: float = 0.1,

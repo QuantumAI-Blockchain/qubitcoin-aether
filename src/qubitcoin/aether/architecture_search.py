@@ -1,10 +1,10 @@
 """
-Architecture Search — NAS-lite for AGI component auto-tuning.
+Architecture Search — NAS-lite for AI component auto-tuning.
 
 Evaluates component performance, suggests modifications (prune, grow,
 merge, split), and tracks which modifications helped vs hurt.
 
-AGI Roadmap Item #61.
+AI Roadmap Item #61.
 """
 import time
 from dataclasses import dataclass, field
@@ -28,7 +28,7 @@ class Modification:
 
 
 class ArchitectureSearch:
-    """NAS-lite: evaluate and modify AGI subsystem architecture.
+    """NAS-lite: evaluate and modify AI subsystem architecture.
 
     Monitors component performance and suggests modifications:
     - Prune: remove underperforming components (accuracy < 0.3 for 1000+ blocks)

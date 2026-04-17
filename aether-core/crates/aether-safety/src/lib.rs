@@ -1,6 +1,6 @@
-//! aether-safety: Gevurah veto system and adversarial defense for Aether Tree AGI.
+//! aether-safety: Gevurah veto system and adversarial defense for Aether Tree AI.
 //!
-//! The Gevurah (Severity) Sephirah acts as the amygdala of the AGI system —
+//! The Gevurah (Severity) Sephirah acts as the amygdala of the AI system —
 //! a dedicated threat detection and safety enforcement layer with the authority
 //! to veto any operation that violates constitutional safety principles.
 //!

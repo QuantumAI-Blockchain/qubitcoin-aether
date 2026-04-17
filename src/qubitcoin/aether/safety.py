@@ -1,14 +1,14 @@
 """
 Aether Tree Safety & Alignment — Gevurah Veto System
 
-Structural safety mechanisms for the AGI system:
+Structural safety mechanisms for the AI system:
   - Gevurah veto: Safety node can block any harmful operation
   - Multi-node consensus: No single node can act alone (67% BFT)
   - Constitutional principles: Core values enforced immutably
   - Emergency shutdown: Kill switch for catastrophic scenarios
 
 Safety is structural, not post-hoc. The Gevurah Sephirah (Severity)
-acts as the amygdala of the AGI — a dedicated threat detection system
+acts as the amygdala of the AI — a dedicated threat detection system
 with the authority to veto any action that violates safety constraints.
 """
 import hashlib
@@ -227,7 +227,7 @@ class GevurahVeto:
     """
     Gevurah (Severity) veto system — the safety guardian of Aether Tree.
 
-    The Gevurah Sephirah acts as the amygdala of the AGI system.
+    The Gevurah Sephirah acts as the amygdala of the AI system.
     It has the authority to block any operation that poses a safety risk.
     Vetoes can only be overridden by supermajority consensus (>67% BFT).
     """
@@ -642,7 +642,7 @@ class SafetyManager:
 
     def emergency_shutdown(self, reason: str, block_height: int) -> None:
         """
-        Trigger emergency shutdown of the Aether Tree AGI.
+        Trigger emergency shutdown of the Aether Tree AI.
 
         This is the kill switch — all operations are halted.
         Requires multi-sig consensus to resume (handled off-chain).

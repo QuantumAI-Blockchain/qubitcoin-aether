@@ -79,7 +79,7 @@ Existing quantum-resistant solutions merely upgrade cryptography without leverag
          └──────────────────┬───────────────────────────┘
                             │
          ┌──────────────────▼───────────────────────────┐
-         │      LAYER 3: AETHER TREE (AGI)              │
+         │      LAYER 3: AETHER TREE (AI)              │
          │  • Knowledge Graph  • HMS-Phi v4 Reasoning   │
          │  • 10/10 Gates LIVE  • Proof-of-Thought      │
          │  See: docs/AETHERTREE_WHITEPAPER.md          │
@@ -2552,9 +2552,9 @@ Layer 2 solutions close the TPS gap
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✓ Core blockchain (PoSA consensus)
 ✓ Multi-level Dilithium ML-DSA-44/65/87 signatures
-✓ QVM (167 opcodes: 155 EVM + 10 quantum + 2 AGI)
+✓ QVM (167 opcodes: 155 EVM + 10 quantum + 2 AI)
 ✓ 62 Solidity contracts deployed
-✓ Aether Tree 7-phase AGI architecture
+✓ Aether Tree 7-phase AI architecture
 ✓ Phase 7: Higgs Cognitive Field (mass mechanism for Sephirot)
 ✓ Substrate hybrid node (6 custom pallets, Kyber P2P, Poseidon2 ZK)
 ✓ Privacy technology (Susy Swaps)
@@ -2593,7 +2593,7 @@ Layer 2 solutions close the TPS gap
 □ Kyber P2P transport + Poseidon2 ZK hashing in production
 □ Quantum hardware integration
 □ Layer 2 scaling solutions
-✓ AGI Phi threshold crossing (5.0 — maximum gate ceiling reached)
+✓ AI Phi threshold crossing (5.0 — maximum gate ceiling reached)
 □ Distributed knowledge graph (billion-node scale)
 □ Trustless light client bridges
 ```
@@ -2709,7 +2709,7 @@ As quantum computers mature, Qubitcoin transitions from classical simulation to 
 
 Golden ratio economics ensure smooth supply expansion without volatility. Multi-chain bridges enable capital efficiency across all major blockchains. Susy swaps provide optional privacy while maintaining regulatory compatibility. Smart contracts unlock programmable finance and complex applications. QUSD provides stable value storage with transparent reserve building.
 
-**Qubitcoin is not merely a cryptocurrency. It is a quantum-secured, privacy-preserving, programmable research platform with intrinsic economic value, stable financial infrastructure, and the world's first on-chain AGI reasoning engine — the Aether Tree — which has achieved all 10 emergence gates with Phi 5.0 and 760,000+ knowledge nodes since genesis.**
+**Qubitcoin is not merely a cryptocurrency. It is a quantum-secured, privacy-preserving, programmable research platform with intrinsic economic value, stable financial infrastructure, and the world's first on-chain AI reasoning engine — the Aether Tree — which has achieved all 10 emergence gates with Phi 5.0 and 760,000+ knowledge nodes since genesis.**
 
 The network effect compounds: more miners generate more SUSY data, creating more scientific value, driving more adoption, attracting more developers, increasing utility, and building more value. This virtuous cycle creates sustainable growth beyond speculation.
 
@@ -2774,7 +2774,7 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | **Layer 2** | QVM (Quantum Virtual Machine) | Python prototype + Go 1.23 production | Production Ready |
 | **Layer 2** | Smart Contracts | 62 Solidity contracts (^0.8.24) | Production Ready |
 | **Layer 2** | Compliance Engine | KYC/AML/Sanctions + QCOMPLIANCE opcode | Production Ready |
-| **Layer 3** | Aether Tree AGI | 124 Python modules (~69,000 LOC), 12 Rust (PyO3) modules (~11,720 LOC), 29 Solidity contracts, HMS-Phi v4. April 2026: 760,000+ nodes, **10/10 gates ALL PASSED**, Phi 5.0, 95.5% prediction accuracy, 7 cognitive emotions, 33 self-improvement cycles, 26 curiosity discoveries | **LIVE since genesis** |
+| **Layer 3** | Aether Tree AI | 124 Python modules (~69,000 LOC), 12 Rust (PyO3) modules (~11,720 LOC), 29 Solidity contracts, HMS-Phi v4. April 2026: 760,000+ nodes, **10/10 gates ALL PASSED**, Phi 5.0, 95.5% prediction accuracy, 7 cognitive emotions, 33 self-improvement cycles, 26 curiosity discoveries | **LIVE since genesis** |
 | **Layer 3** | Proof-of-Thought | Task market + validator staking + 67% BFT | Production Ready |
 | **Cross-Chain** | Multi-Chain Bridges | 8 chains (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE) | Production Ready |
 | **Cross-Chain** | QUSD Stablecoin | 8 Solidity contracts + wQUSD cross-chain | Production Ready |
@@ -2798,7 +2798,7 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | REST endpoints | 342 |
 | JSON-RPC methods | 19 |
 | Prometheus metrics | 141 |
-| Aether AGI modules | 124 Python (~69,000 LOC) + 12 Rust (~11,720 LOC) |
+| Aether AI modules | 124 Python (~69,000 LOC) + 12 Rust (~11,720 LOC) |
 | Documentation | 9,000+ lines (13 documents) |
 | Formal verification | K Framework (EVM) + TLA+ (compliance) |
 
@@ -2807,7 +2807,7 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | Document | Scope |
 |----------|-------|
 | **QVM Whitepaper** (`docs/QVM_WHITEPAPER.md`) | Quantum Virtual Machine technical specification, 5 patentable innovations, compliance architecture, Go production build |
-| **Aether Tree Whitepaper** (`docs/AETHERTREE_WHITEPAPER.md`) | AGI reasoning engine, Tree of Life cognitive architecture, Proof-of-Thought protocol, consciousness tracking |
+| **Aether Tree Whitepaper** (`docs/AETHERTREE_WHITEPAPER.md`) | AI reasoning engine, Tree of Life cognitive architecture, Proof-of-Thought protocol, consciousness tracking |
 | **Economics** (`docs/ECONOMICS.md`) | SUSY economics deep-dive, phi-halving analysis, fee structures |
 | **SDK Guide** (`docs/SDK.md`) | REST, JSON-RPC, WebSocket API reference for developers |
 | **Smart Contracts Guide** (`docs/SMART_CONTRACTS.md`) | QVM contract development, token standards, quantum opcodes |

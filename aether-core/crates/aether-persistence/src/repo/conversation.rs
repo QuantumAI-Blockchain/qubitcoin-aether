@@ -2,7 +2,7 @@
 //! `user_memory`, and `conversation_insights` tables.
 //!
 //! Provides institutional-grade persistent conversation memory for the Aether
-//! Tree AGI chat system. Supports per-user sessions, cross-session context,
+//! Tree AI chat system. Supports per-user sessions, cross-session context,
 //! sliding context windows, and conversation insight extraction.
 
 use chrono::{NaiveDateTime, Utc};

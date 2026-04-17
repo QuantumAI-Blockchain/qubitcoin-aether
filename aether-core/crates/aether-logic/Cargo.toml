@@ -3,7 +3,7 @@ name = "aether-logic"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "First-order logic reasoning engine for the Aether Tree AGI — unification, inference, forward/backward chaining, abduction, induction"
+description = "First-order logic reasoning engine for the Aether Tree AI — unification, inference, forward/backward chaining, abduction, induction"
 
 [dependencies]
 aether-types = { path = "../aether-types" }

@@ -1,4 +1,4 @@
-//! aether-types: Shared types for the Aether Tree AGI engine.
+//! aether-types: Shared types for the Aether Tree AI engine.
 //!
 //! Provides KeterNode, KeterEdge, and domain constants used across all crates.
 

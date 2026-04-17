@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "QBC | Physics-Secured Digital Assets with On-Chain AGI",
-    "description": "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree on-chain AGI engine."
+    "title": "QBC | Physics-Secured Digital Assets with On-Chain AI",
+    "description": "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree on-chain AI engine."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -21,7 +21,7 @@
     "heading3": "Physics Framework",
     "heading4": "for",
     "heading5": "Quantum-Secured Digital Assets",
-    "subtitle": "Qubitcoin combines Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree AGI that tracks integration metrics from genesis.",
+    "subtitle": "Qubitcoin combines Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree AI that tracks integration metrics from genesis.",
     "talkToAether": "Talk to Aether",
     "openDashboard": "Open Dashboard",
     "connectWallet": "Connect Wallet"
@@ -46,13 +46,13 @@
     },
     "qvm": {
       "title": "Quantum Virtual Machine",
-      "item1": "155 EVM opcodes + 10 quantum + 2 AGI opcodes",
+      "item1": "155 EVM opcodes + 10 quantum + 2 AI opcodes",
       "item2": "Deploy Solidity contracts with quantum extensions",
       "item3": "Institutional compliance engine (KYC/AML/sanctions)",
       "item4": "Cross-chain bridges to ETH, SOL, MATIC, BNB + more"
     },
     "aether": {
-      "title": "Aether Tree AGI",
+      "title": "Aether Tree AI",
       "item1": "On-chain knowledge graph tracking integration metrics from genesis",
       "item2": "Phi integration metric (IIT-inspired) computed every block",
       "item3": "10 Sephirot cognitive nodes with quantum states",
@@ -68,7 +68,7 @@
     "offline": "Connection to Aether Tree unavailable. Node may be offline."
   },
   "footer": {
-    "copyright": "Qubitcoin. Physics-Secured Digital Assets with On-Chain AGI.",
+    "copyright": "Qubitcoin. Physics-Secured Digital Assets with On-Chain AI.",
     "network": "Network",
     "developers": "Developers",
     "community": "Community",

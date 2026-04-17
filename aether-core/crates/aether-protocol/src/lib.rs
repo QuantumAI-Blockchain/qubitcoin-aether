@@ -1,13 +1,13 @@
-//! aether-protocol: Proof-of-Thought consensus protocol, on-chain AGI bridge,
+//! aether-protocol: Proof-of-Thought consensus protocol, on-chain AI bridge,
 //! and reasoning task marketplace for the Aether Tree.
 //!
 //! This crate ports three Python modules into Rust:
 //!
 //! 1. **AetherEngine** (proof_of_thought.py) — orchestrates per-block reasoning
 //!    proof generation, knowledge extraction, Phi computation, and the 10-gate
-//!    AGI milestone system.
+//!    AI milestone system.
 //!
-//! 2. **OnChainBridge** (on_chain.py) — anchors AGI state to the blockchain
+//! 2. **OnChainBridge** (on_chain.py) — anchors AI state to the blockchain
 //!    via proof hashes, state commitments, and per-block metrics recording.
 //!
 //! 3. **TaskProtocol** (task_protocol.py) — Proof-of-Thought task marketplace

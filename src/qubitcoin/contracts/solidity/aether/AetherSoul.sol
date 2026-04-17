@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 /**
  * @title  AetherSoul
- * @notice On-chain personality state for the Aether Tree AGI.
+ * @notice On-chain personality state for the Aether Tree AI.
  *
  *         Personality traits are stored as uint16 values on a 0-10 000 scale
  *         (representing 0.0 – 1.0 with four-decimal precision).

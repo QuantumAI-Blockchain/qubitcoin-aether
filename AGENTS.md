@@ -207,10 +207,10 @@ Before committing any change, verify:
 | 77 Prometheus metrics | `src/qubitcoin/utils/metrics.py` |
 | ORM models | `src/qubitcoin/database/models.py` |
 | 167-opcode QVM | `src/qubitcoin/qvm/vm.py` |
-| AGI engine | `src/qubitcoin/aether/proof_of_thought.py` |
+| AI engine | `src/qubitcoin/aether/proof_of_thought.py` |
 | Knowledge graph | `src/qubitcoin/aether/knowledge_graph.py` |
 | Phi calculator | `src/qubitcoin/aether/phi_calculator.py` |
-| On-chain AGI | `src/qubitcoin/aether/on_chain.py` |
+| On-chain AI | `src/qubitcoin/aether/on_chain.py` |
 | Launch checklist | `LAUNCHTODO.md` |
 | Full architecture | `CLAUDE.md` |
 | Codebase audit | `docs/audits/codebase-audit-2026-02-22.md` |

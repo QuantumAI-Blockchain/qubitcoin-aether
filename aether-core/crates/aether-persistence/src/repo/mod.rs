@@ -1,4 +1,4 @@
-//! Repository modules — one per AGI table.
+//! Repository modules — one per AI table.
 //!
 //! Each repo exposes async functions that accept `&PgPool` and operate on a
 //! single table.  All queries use runtime string SQL (not compile-time macros)

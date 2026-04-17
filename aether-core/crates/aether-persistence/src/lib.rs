@@ -1,6 +1,6 @@
 //! aether-persistence: Async CockroachDB persistence for the Aether Tree.
 //!
-//! Provides typed CRUD access to the five core AGI tables via sqlx and
+//! Provides typed CRUD access to the five core AI tables via sqlx and
 //! the PostgreSQL wire protocol.  All queries use runtime string SQL
 //! (not compile-time macros) because a live database is not guaranteed
 //! at build time.

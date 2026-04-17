@@ -1,5 +1,5 @@
 """
-Cognitive/emotional state tracker for the Aether Tree AGI.
+Cognitive/emotional state tracker for the Aether Tree AI.
 
 All emotional states are derived from REAL system metrics — prediction accuracy,
 contradiction resolution, concept formation, user interactions, and pineal phase.

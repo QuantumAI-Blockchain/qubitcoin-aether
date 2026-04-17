@@ -92,7 +92,7 @@ def app_and_client():
     contract_engine.deploy_contract.return_value = (True, 'Contract deployed', 'contract_001')
     contract_engine.execute.return_value = (True, 'Executed successfully', {'result': 42})
 
-    # --- On-chain AGI ---
+    # --- On-chain AI ---
     on_chain_agi = MagicMock()
     on_chain_agi.get_onchain_phi.return_value = 0.42
     on_chain_agi.get_onchain_consciousness_status.return_value = {

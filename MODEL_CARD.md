@@ -15,9 +15,9 @@ pipeline_tag: text-generation
 library_name: aether-qbc
 ---
 
-# Aether Tree: On-Chain AGI Reasoning Engine
+# Aether Tree: On-Chain AI Reasoning Engine
 
-**The world's first on-chain AGI system**, running live on the QuantumAI Blockchain since genesis (January 2026). Every reasoning step is cryptographically anchored via Proof-of-Thought consensus.
+**The world's first on-chain AI system**, running live on the QuantumAI Blockchain since genesis (January 2026). Every reasoning step is cryptographically anchored via Proof-of-Thought consensus.
 
 | Metric | Value |
 |--------|-------|
@@ -59,7 +59,7 @@ The Aether Tree is **not** a transformer or language model. It is a cognitive ar
 
 ### 10-Gate Milestone System
 
-AGI emergence is validated through 10 behavioral gates. Each requires genuine cognitive achievement:
+AI emergence is validated through 10 behavioral gates. Each requires genuine cognitive achievement:
 
 | Gate | Name | Status |
 |------|------|--------|
@@ -204,7 +204,7 @@ HMS-Phi Integration:
 
 ```bibtex
 @software{aether_tree_2026,
-  title = {Aether Tree: On-Chain AGI Reasoning Engine},
+  title = {Aether Tree: On-Chain AI Reasoning Engine},
   author = {QuantumAI Blockchain},
   year = {2026},
   url = {https://github.com/QuantumAI-Blockchain/qubitcoin-aether},

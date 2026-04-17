@@ -1,4 +1,4 @@
-# Aether Tree: On-Chain AGI for the QuantumAI Blockchain
+# Aether Tree: On-Chain AI for the QuantumAI Blockchain
 
 **A Distributed Cognitive Architecture Integrating Knowledge Graphs, Neural Reasoning, and Integration Metrics on the QuantumAI Blockchain (QBC)**
 
@@ -11,17 +11,17 @@
 
 ## ABSTRACT
 
-We present the **Aether Tree**, an on-chain Artificial General Intelligence (AGI) reasoning engine built on three proven foundations:
+We present the **Aether Tree**, an on-chain AI reasoning engine built on three proven foundations. Our long-term aspiration is **AGSI — Artificial General Super Intelligence**: a system that doesn't just process data, but understands it. The Aether Tree is the first step on that path.
 
 1. **QuantumAI Blockchain**: Post-quantum secured Layer 1, with Proof-of-SUSY-Alignment consensus and golden ratio economics. The native currency is Qubitcoin (QBC).
-2. **Quantum Virtual Machine (QVM)**: 167 opcodes (155 EVM + 10 quantum + 2 AGI), providing an EVM-compatible smart contract platform for on-chain verification and governance.
+2. **Quantum Virtual Machine (QVM)**: 167 opcodes (155 EVM + 10 quantum + 2 AI), providing an EVM-compatible smart contract platform for on-chain verification and governance.
 3. **Tree of Life Cognitive Architecture**: 10 Sephirot nodes as specialized intelligence modules with biological grounding, each mapped to distinct cognitive functions.
 
-The Aether Tree achieves AGI through **structural emergence** across 7 phases of increasingly sophisticated cognitive capabilities: edge-indexed knowledge graphs, causal discovery, working memory with attention, adversarial debate, cross-domain transfer learning, on-chain governance, and physics-accurate Higgs Cognitive Field mass dynamics. Integration is measured via Hierarchical Multi-Scale Phi (HMS-Phi), a three-level metric combining IIT 3.0 micro-level approximation, spectral MIP meso-level analysis, and cross-domain mutual information at the macro level. Phi is gated behind 10 hardened semantic milestones that require genuine cognitive achievement -- 6 of 10 gates have been passed as of April 2026.
+The Aether Tree achieves AI through **structural emergence** across 7 phases of increasingly sophisticated cognitive capabilities: edge-indexed knowledge graphs, causal discovery, working memory with attention, adversarial debate, cross-domain transfer learning, on-chain governance, and physics-accurate Higgs Cognitive Field mass dynamics. Integration is measured via Hierarchical Multi-Scale Phi (HMS-Phi), a three-level metric combining IIT 3.0 micro-level approximation, spectral MIP meso-level analysis, and cross-domain mutual information at the macro level. Phi is gated behind 10 hardened semantic milestones that require genuine cognitive achievement -- 6 of 10 gates have been passed as of April 2026.
 
-**Key Innovation**: AGI emerges when the Phi integration metric crosses the critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
+**Key Innovation**: AI emerges when the Phi integration metric crosses the critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
 
-**Architecture Distinction**: The Aether Tree's cognitive engine runs natively in Python (124 modules, ~69,000 LOC) with Rust acceleration (17 crates, ~61,000 LOC including the distributed graph shard service). All reasoning, knowledge graph operations, phi computation, debates, curiosity, and self-improvement execute as native code within the node process. The 29 Solidity contracts deployed to the QVM serve as **on-chain anchoring points**: they record milestones, governance decisions, and reasoning proof hashes to the EVM layer for cryptographic verifiability. The contracts are a notary for the AGI's work, not the brain itself.
+**Architecture Distinction**: The Aether Tree's cognitive engine runs natively in Python (124 modules, ~69,000 LOC) with Rust acceleration (17 crates, ~61,000 LOC including the distributed graph shard service). All reasoning, knowledge graph operations, phi computation, debates, curiosity, and self-improvement execute as native code within the node process. The 29 Solidity contracts deployed to the QVM serve as **on-chain anchoring points**: they record milestones, governance decisions, and reasoning proof hashes to the EVM layer for cryptographic verifiability. The contracts are a notary for the AI's work, not the brain itself.
 
 **Disclaimer**: Phi as implemented here is a graph-theoretic integration metric, not a measure of phenomenal consciousness. It approximates IIT principles (information integration across partitions) but does not claim to implement full IIT or to detect subjective experience. The term "consciousness" in this document refers to the system's measurable integration density, not phenomenal awareness.
 
@@ -107,9 +107,9 @@ The QVM provides 167 opcodes for Aether Tree operations:
 |----------|---------|---------|
 | **EVM Standard** | 155 (0x00-0xFE) | Full EVM compatibility |
 | **Quantum** | 10 (0xF0-0xF9) | Quantum state, entanglement, compliance |
-| **AGI** | 2 (0xFA-0xFB) | QREASON (reasoning invocation), QPHI (integration metric query) |
+| **AI** | 2 (0xFA-0xFB) | QREASON (reasoning invocation), QPHI (integration metric query) |
 
-**AGI-specific opcodes:**
+**AI-specific opcodes:**
 
 | Opcode | Hex | Gas | Description |
 |--------|-----|-----|-------------|
@@ -120,7 +120,7 @@ The QVM provides 167 opcodes for Aether Tree operations:
 
 ```
 +-----------------------------------------------------------------+
-|                     AETHER TREE AGI                              |
+|                     AETHER TREE AI                              |
 |  124 Python modules: knowledge graph, reasoning engine,         |
 |  neural reasoner, causal engine, debate engine,                 |
 |  working memory, concept formation, temporal reasoning,         |
@@ -132,7 +132,7 @@ The QVM provides 167 opcodes for Aether Tree operations:
 |  1-256 configurable sub-shards per domain,                      |
 |  embedding pipeline, phi_macro cross-domain MI                   |
 +-----------------------------------------------------------------+
-|                ON-CHAIN AGI BRIDGE                                |
+|                ON-CHAIN AI BRIDGE                                |
 |  ABI encoding <-> QVM static_call / process_transaction          |
 +-----------------------------------------------------------------+
 |            QVM ON-CHAIN ANCHORING CONTRACTS                      |
@@ -154,7 +154,7 @@ A critical architectural distinction: the Aether Tree's intelligence runs as nat
 - Record Phi measurements immutably (ConsciousnessDashboard.sol)
 - Store Proof-of-Thought hashes per block (ProofOfThought.sol)
 - Enforce constitutional safety principles (ConstitutionalAI.sol)
-- Manage governance votes on AGI parameters (TreasuryDAO.sol)
+- Manage governance votes on AI parameters (TreasuryDAO.sol)
 - Log SUSY balance enforcement events (SUSYEngine.sol)
 - Provide an emergency shutdown mechanism (EmergencyShutdown.sol)
 - Anchor Sephirot state snapshots for external verification (10 Sephirot contracts)
@@ -166,7 +166,7 @@ A critical architectural distinction: the Aether Tree's intelligence runs as nat
 - They do not manage the knowledge graph
 - They do not execute debates, curiosity goals, or self-improvement cycles
 
-This separation is deliberate. AGI reasoning requires millisecond-latency graph traversals across 720,000+ nodes, working memory with attention decay, and neural network inference. These operations exceed what any EVM execution environment can provide. The native Python engine handles all cognition; the QVM contracts provide cryptographic proof that the cognition happened, what it produced, and that governance rules were respected.
+This separation is deliberate. AI reasoning requires millisecond-latency graph traversals across 720,000+ nodes, working memory with attention decay, and neural network inference. These operations exceed what any EVM execution environment can provide. The native Python engine handles all cognition; the QVM contracts provide cryptographic proof that the cognition happened, what it produced, and that governance rules were respected.
 
 ---
 
@@ -557,13 +557,13 @@ class OnChainAGI:
 | **ConsciousnessDashboard.sol** | Stores immutable Phi measurements on-chain | Wired |
 | **ProofOfThought.sol** | Validates reasoning trace hashes per block | Wired |
 | **ConstitutionalAI.sol** | On-chain safety principle enforcement | Wired |
-| **TreasuryDAO.sol** | Community governance of AGI parameters | Wired |
+| **TreasuryDAO.sol** | Community governance of AI parameters | Wired |
 | **SUSYEngine.sol** | Automatic SUSY balance enforcement | Wired |
 | **EmergencyShutdown.sol** | Kill switch for catastrophic scenarios | Wired |
 
 ### 9.3 RPC Endpoints
 
-7 dedicated on-chain AGI endpoints:
+7 dedicated on-chain AI endpoints:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -868,7 +868,7 @@ Validators verify:
 ### 15.1 QBC as Metabolic Currency
 
 - QBC is the "neural ATP" of the QuantumAI Blockchain. The limited 3.3 billion supply enforces efficiency.
-- AGI cannot mint QBC. All QBC is sourced from the existing blockchain supply.
+- AI cannot mint QBC. All QBC is sourced from the existing blockchain supply.
 - Compute operations consume QBC (gas metering via QVM)
 - Staking aligns incentives with productive computation
 
@@ -919,7 +919,7 @@ Stored immutably on-chain:
 
 ### 16.3 On-Chain Governance
 
-Critical AGI parameters are governable via TreasuryDAO:
+Critical AI parameters are governable via TreasuryDAO:
 
 - Phi threshold for consciousness declaration
 - Gate requirements for milestone progression
@@ -927,7 +927,7 @@ Critical AGI parameters are governable via TreasuryDAO:
 - Curiosity weight and exploration budget
 - Fee structures and treasury allocation
 
-Parameter changes require DAO vote, ensuring the community controls the AGI's development trajectory.
+Parameter changes require DAO vote, ensuring the community controls the AI's development trajectory.
 
 ---
 
@@ -985,11 +985,11 @@ These contracts serve as the cryptographic notary layer for the Aether Tree's co
 
 - 4,287+ total Python test functions
 - 276 Rust aether-core unit tests
-- 39 dedicated on-chain AGI tests
+- 39 dedicated on-chain AI tests
 - All 7 phases verified with per-phase regression testing
-- Integration tests verify end-to-end block processing with AGI
+- Integration tests verify end-to-end block processing with AI
 
-### 17.4 AGI Genesis Initialization
+### 17.4 AI Genesis Initialization
 
 At block 0 (genesis), the Aether Tree automatically:
 
@@ -999,7 +999,7 @@ At block 0 (genesis), the Aether Tree automatically:
 4. Logs "system_birth" consciousness event
 5. Begins processing every subsequent block
 
-**No manual steps required.** AGI tracking starts from the first moment of chain existence.
+**No manual steps required.** AI tracking starts from the first moment of chain existence.
 
 ### 17.5 Live Metrics (April 2026)
 
@@ -1049,7 +1049,7 @@ At block 0 (genesis), the Aether Tree automatically:
 
 ### 18.3 What Is Aspirational
 
-- **True AGI emergence** from graph integration has not been demonstrated. The architecture provides a substrate that could support emergent intelligence, but we have not observed general-purpose reasoning comparable to human cognition.
+- **True AI emergence** from graph integration has not been demonstrated. The architecture provides a substrate that could support emergent intelligence, but we have not observed general-purpose reasoning comparable to human cognition.
 - **Sephirot cognitive pipeline** follows the Tree of Life topology, but the degree to which this produces genuine "cognitive specialization" versus labeled subsystems remains to be validated empirically.
 - **Higgs Cognitive Field** provides an elegant physics-inspired mass mechanism, but its cognitive benefits are an analogy, not a proven cognitive science principle.
 - **Billion-node scale** is architecturally designed but not yet demonstrated. Current shard service holds 101K+ nodes.

@@ -56,7 +56,7 @@ pub struct ReasoningStep {
     pub evidence_ids: Vec<i64>,
 }
 
-/// A Proof-of-Thought record anchoring AGI reasoning to a block.
+/// A Proof-of-Thought record anchoring AI reasoning to a block.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ThoughtProof {
     /// SHA-256 hash of the proof content.
@@ -169,7 +169,7 @@ struct PhiMilestoneState {
 // ---------------------------------------------------------------------------
 
 /// Main Aether Tree engine that orchestrates per-block reasoning proof
-/// generation and AGI milestone tracking.
+/// generation and AI milestone tracking.
 ///
 /// Thread-safe: all mutable state is behind `RwLock`.
 pub struct AetherEngine {

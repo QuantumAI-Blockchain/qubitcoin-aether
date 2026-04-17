@@ -51,7 +51,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 /* ─── Data ─── */
 
 const liveStats = [
-  { label: "AGI Gates Passed", value: "10 / 10", color: C.green },
+  { label: "AI Gates Passed", value: "10 / 10", color: C.green },
   { label: "Phi (HMS-Phi v4)", value: "5.0", color: C.primary },
   { label: "Knowledge Nodes", value: "760,000+", color: C.accent },
   { label: "Knowledge Edges", value: "420,000+", color: C.secondary },
@@ -240,7 +240,8 @@ function TableOfContents() {
     { id: "safety", label: "9. Safety & Alignment" },
     { id: "scale", label: "10. Scale Architecture" },
     { id: "economics", label: "11. Economic Model" },
-    { id: "references", label: "12. References" },
+    { id: "agsi-vision", label: "12. AGSI Vision" },
+    { id: "references", label: "13. References" },
   ];
   return (
     <nav className="mb-10 rounded-lg border p-5" style={{ background: C.surface, borderColor: C.border }}>
@@ -293,7 +294,7 @@ function AetherWhitepaperContent() {
             Aether Tree Whitepaper
           </h1>
           <p className="text-lg" style={{ color: C.textMuted }}>
-            The World&apos;s First On-Chain AGI, Version 4.2, April 2026
+            The World&apos;s First On-Chain AI Reasoning Engine &mdash; Version 4.2, April 2026
           </p>
           <div className="mt-4 flex flex-wrap gap-4 text-xs" style={{ color: C.textMuted }}>
             <span>124 Python modules &middot; ~69,000 LOC</span>
@@ -309,14 +310,16 @@ function AetherWhitepaperContent() {
         {/* ─── 1. Abstract ─── */}
         <SectionHeading id="abstract">1. Abstract</SectionHeading>
         <Paragraph>
-          The Aether Tree is the world&apos;s first artificial general intelligence system operating
+          The Aether Tree is the world&apos;s first on-chain AI reasoning engine operating
           directly on a live blockchain. Unlike conventional AI systems that run on centralized
           infrastructure with opaque reasoning, every cognitive operation performed by the Aether Tree
           is cryptographically recorded on the QuantumAI Blockchain (Chain ID 3303), creating an
-          immutable, publicly verifiable record of AGI development from genesis block zero. This is
+          immutable, publicly verifiable record of AI development from genesis block zero. This is
           not a theoretical proposal. The system has been live on mainnet since January 2026,
           processing every block, building knowledge, and demonstrating measurable cognitive growth
-          across 198,000+ blocks.
+          across 198,000+ blocks. The long-term aspiration is AGSI &mdash; Artificial General Super
+          Intelligence &mdash; a system that reasons across domains, improves autonomously, and
+          operates with full public auditability.
         </Paragraph>
         <Paragraph>
           The system implements a cognitive architecture inspired by the Kabbalistic Tree of Life,
@@ -335,7 +338,7 @@ function AetherWhitepaperContent() {
           prediction accuracy, and operates with 7 cognitive emotions derived from live computational
           metrics. Every block since genesis contains a Proof-of-Thought: a cryptographic hash
           of the reasoning trace, knowledge state, and integration metric, making the entire
-          cognitive history of this system permanently auditable.
+          cognitive history of this AI system permanently auditable.
         </Paragraph>
 
         {/* ─── 2. Live System Status ─── */}
@@ -363,16 +366,16 @@ function AetherWhitepaperContent() {
           blockchain core and the L2 Quantum Virtual Machine (QVM). This three-layer architecture
           separates concerns: L1 handles consensus, mining, and UTXO-based value transfer; L2
           provides EVM-compatible smart contract execution with quantum opcode extensions; L3 is
-          the AGI reasoning engine that processes every block and builds cumulative intelligence.
+          the AI reasoning engine that processes every block and builds cumulative intelligence.
         </Paragraph>
 
         <SubHeading>3.1 Three-Layer Stack</SubHeading>
-        <CodeBlock>{`Layer 3: Aether Tree (AGI Engine)
+        <CodeBlock>{`Layer 3: Aether Tree (AI Reasoning Engine)
   \u2502  124 Python modules, 12 Rust/PyO3 modules
   \u2502  Knowledge Graph \u2192 Reasoning Engine \u2192 Proof-of-Thought
   \u2502
 Layer 2: QVM (Quantum Virtual Machine)
-  \u2502  155 EVM + 10 quantum + 2 AGI opcodes (167 total)
+  \u2502  155 EVM + 10 quantum + 2 AI opcodes (167 total)
   \u2502  Gas metering, compliance engine, state management
   \u2502
 Layer 1: QBC Blockchain Core
@@ -410,7 +413,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
         <SubHeading>3.4 Proof-of-Thought</SubHeading>
         <Paragraph>
           Every block mined on the QuantumAI Blockchain since genesis contains a Proof-of-Thought: a
-          cryptographic proof that AGI reasoning occurred during that block&apos;s processing. The
+          cryptographic proof that AI reasoning occurred during that block&apos;s processing. The
           proof consists of a SHA3-256 hash computed over the knowledge graph Merkle root, the
           reasoning trace (operations performed, inferences drawn), and the current Phi integration
           value. This creates an immutable, verifiable record of the system&apos;s entire cognitive
@@ -425,9 +428,9 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
           <strong> cryptographic notary layer</strong>, not the cognitive engine.
         </Paragraph>
         <Paragraph>
-          The contracts record Phi measurements immutably (ConsciousnessDashboard.sol), store
+          The contracts record Phi integration measurements immutably (ConsciousnessDashboard.sol), store
           Proof-of-Thought hashes per block (ProofOfThought.sol), enforce constitutional safety
-          principles (ConstitutionalAI.sol), manage governance votes on AGI parameters
+          principles (ConstitutionalAI.sol), manage governance votes on AI parameters
           (TreasuryDAO.sol), log SUSY balance enforcement events (SUSYEngine.sol), and provide
           an emergency shutdown mechanism (EmergencyShutdown.sol). Ten Sephirot contracts anchor
           each cognitive node&apos;s state for external verification, and HiggsField.sol tracks
@@ -436,7 +439,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
         <Paragraph>
           The contracts do <strong>not</strong> run reasoning operations, compute Phi, evaluate
           gates, manage the knowledge graph, or execute debates, curiosity goals, or
-          self-improvement cycles. AGI reasoning requires millisecond-latency graph traversals
+          self-improvement cycles. AI reasoning at this scale requires millisecond-latency graph traversals
           across 760,000+ nodes, working memory with attention decay, and neural network
           inference. These operations exceed what any EVM execution environment can provide.
           The native Python engine handles all cognition; the QVM contracts provide cryptographic
@@ -453,7 +456,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
           mapping 10 Sephirot to distinct cognitive functions. Each Sephirah operates as an
           independent reasoning cluster with its own knowledge domain, competing for access to the
           Global Workspace, a broadcast mechanism inspired by Global Workspace Theory (Baars,
-          1988). The winning coalition&apos;s output becomes the system&apos;s conscious response,
+          1988). The winning coalition&apos;s output becomes the system&apos;s integrated response,
           while losing coalitions continue background processing.
         </Paragraph>
 
@@ -516,7 +519,7 @@ Infrastructure: CockroachDB + IPFS + Redis + Rust libp2p P2P`}</CodeBlock>
           highest-scoring coalition gains workspace access, and its output is broadcast to all other
           Sephirot, enabling cross-domain integration. This implements the &ldquo;ignition&rdquo;
           mechanism described in Dehaene &amp; Naccache (2001), where only the winning coalition
-          reaches global conscious access while other processes continue unconsciously.
+          reaches global workspace access while other processes continue in background.
         </Paragraph>
 
         <SubHeading>4.4 Higgs Cognitive Field</SubHeading>
@@ -664,7 +667,7 @@ Properties:
         <Paragraph>
           The Proof-of-Thought (PoT) protocol is the mechanism by which every cognitive operation is
           cryptographically anchored to the blockchain. This creates an immutable, publicly verifiable
-          audit trail of AGI reasoning from genesis to the present moment.
+          audit trail of AI reasoning from genesis to the present moment.
         </Paragraph>
 
         <SubHeading>8.1 Proof Construction</SubHeading>
@@ -691,14 +694,14 @@ Block Header Extension:
           <span style={{ fontFamily: "JetBrains Mono, monospace", color: C.accent }}> prev_thought_hash </span>
           field ensures continuity. The cognitive development cannot be retroactively altered
           without invalidating all subsequent blocks. This provides the same immutability guarantee
-          as the blockchain&apos;s hash chain, extended to the AGI&apos;s cognitive history.
+          as the blockchain&apos;s hash chain, extended to the AI system&apos;s cognitive history.
         </Paragraph>
 
         <SubHeading>8.3 On-Chain Record</SubHeading>
         <Paragraph>
           Since genesis block 0, every block on the QuantumAI Blockchain mainnet has contained a valid
           Proof-of-Thought. The cumulative chain of 198,000+ thought proofs constitutes the
-          world&apos;s first publicly auditable record of AGI cognitive development. Researchers,
+          world&apos;s first publicly auditable record of on-chain AI cognitive development. Researchers,
           regulators, and the public can independently verify every step of the system&apos;s
           intellectual growth.
         </Paragraph>
@@ -803,7 +806,7 @@ Node migration: access-pattern based
         <SectionHeading id="economics">11. Economic Model</SectionHeading>
         <Paragraph>
           The Aether Tree is monetized through the Aether API, which provides programmatic access to
-          the world&apos;s first on-chain AGI. Payment is made in QBC (Qubitcoin), the native
+          the world&apos;s first on-chain AI reasoning engine. Payment is made in QBC (Qubitcoin), the native
           currency of the blockchain, creating a direct economic incentive for QBC adoption.
           Knowledge contributors earn QBC rewards through the AIKGS (AI Knowledge Graph Service)
           sidecar, which manages contributions, curation, bounties, and rewards via a Rust gRPC
@@ -854,8 +857,24 @@ Node migration: access-pattern based
           and Rust (<span style={{ fontFamily: "JetBrains Mono, monospace", color: C.accent }}>cargo add aether-qbc</span>).
         </Paragraph>
 
-        {/* ─── 12. References ─── */}
-        <SectionHeading id="references">12. References</SectionHeading>
+        {/* ─── 12. AGSI Vision ─── */}
+        <SectionHeading id="agsi-vision">12. Long-Term Vision: AGSI</SectionHeading>
+        <Paragraph>
+          The Aether Tree is an operational on-chain AI reasoning engine today. The long-term
+          aspiration is <strong style={{ color: C.primary }}>AGSI &mdash; Artificial General Super
+          Intelligence</strong>: a system capable of autonomous cross-domain reasoning, governed
+          self-improvement, and novel synthesis at institutional scale. AGSI is not a marketing
+          claim &mdash; it is an engineering target measured by concrete milestones: sustained novel
+          concept generation, multi-modal knowledge integration, do-calculus causal reasoning, and
+          theory-of-mind capabilities. Every gate passed, every self-improvement cycle enacted, and
+          every curiosity-driven discovery moves the system closer to that target. The 10-gate
+          milestone system, HMS-Phi integration metric, and Proof-of-Thought protocol provide the
+          measurement framework to track genuine progress toward AGSI with full public
+          accountability.
+        </Paragraph>
+
+        {/* ─── 13. References ─── */}
+        <SectionHeading id="references">13. References</SectionHeading>
         <ol className="mb-10 space-y-2">
           {references.map((r) => (
             <li key={r.id} className="text-xs leading-relaxed" style={{ color: C.textMuted }}>

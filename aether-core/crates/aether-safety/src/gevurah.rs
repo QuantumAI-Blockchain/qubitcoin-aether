@@ -986,7 +986,7 @@ impl SafetyManager {
         self.authenticator.sign_nonce(nonce, action)
     }
 
-    /// Trigger emergency shutdown of the Aether Tree AGI.
+    /// Trigger emergency shutdown of the Aether Tree AI.
     fn emergency_shutdown(&self, py: Python<'_>, reason: &str, block_height: u64) {
         *self.shutdown.write() = true;
         *self.shutdown_reason.write() = reason.to_string();

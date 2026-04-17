@@ -1,7 +1,7 @@
 {
   "name": "Qubitcoin",
   "short_name": "QBC",
-  "description": "Physics-Secured Digital Assets with On-Chain AGI",
+  "description": "Physics-Secured Digital Assets with On-Chain AI",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",
@@ -29,7 +29,7 @@
       "name": "Aether Chat",
       "short_name": "Aether",
       "url": "/aether",
-      "description": "Talk to Aether Tree AGI"
+      "description": "Talk to Aether Tree AI"
     }
   ],
   "icons": [

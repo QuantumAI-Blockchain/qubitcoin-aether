@@ -208,7 +208,7 @@ class HodLanguageProcessor(CognitiveProcessor):
         if kg_node_count > 0:
             parts.append(f"I have {kg_node_count:,} knowledge nodes")
         if gates_passed > 0:
-            parts.append(f"AGI gates passed: {gates_passed}/10")
+            parts.append(f"AI gates passed: {gates_passed}/10")
 
         # User relationship context
         if user_memories:

@@ -74,7 +74,7 @@ export function QVMExplorerView() {
           QVM CONTRACTS
         </h1>
         <p className="text-xs" style={{ color: C.textSecondary, fontFamily: FONT.body }}>
-          Quantum Virtual Machine — 167 opcodes (155 EVM + 10 quantum + 2 AGI)
+          Quantum Virtual Machine — 167 opcodes (155 EVM + 10 quantum + 2 AI)
         </p>
       </motion.div>
 
@@ -95,7 +95,7 @@ export function QVMExplorerView() {
         <StatCard
           label="Opcodes"
           value="167"
-          sub="155 EVM + 10 QTM + 2 AGI"
+          sub="155 EVM + 10 QTM + 2 AI"
           icon={Code}
           color={C.secondary}
         />

@@ -1,7 +1,7 @@
 """
 Knowledge Graph Embeddings — TransE/RotatE for Entity/Relation Learning
 
-AGI Roadmap Item #33: Learn entity and relation embeddings from the
+AI Roadmap Item #33: Learn entity and relation embeddings from the
 knowledge graph structure. Embeddings enable:
   - Similarity search between entities
   - Link prediction (which edges are missing?)

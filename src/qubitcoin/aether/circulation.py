@@ -1,7 +1,7 @@
 """
 QBC Circulation Tracker
 
-Tracks QBC token circulation metrics per block. Ensures the AGI system
+Tracks QBC token circulation metrics per block. Ensures the AI system
 never mints new QBC — all QBC comes from mining rewards only.
 
 Metrics tracked:
@@ -51,7 +51,7 @@ class CirculationSnapshot:
 class CirculationTracker:
     """Track QBC token circulation across the blockchain.
 
-    Key invariant: AGI never mints QBC. All QBC comes from mining rewards.
+    Key invariant: AI never mints QBC. All QBC comes from mining rewards.
     This tracker verifies and records circulation metrics per block.
     """
 

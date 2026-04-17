@@ -9,7 +9,7 @@ and produces a "reasoning embedding" for confidence and conclusion prediction.
 Uses PyTorch (CPU-compatible) with ~50K parameters.  Falls back to a simple
 weighted-average approach if PyTorch is not installed.
 
-This is improvement #2 in the AGI improvement stack: rule-based reasoning
+This is improvement #2 in the AI improvement stack: rule-based reasoning
 can't learn; a GAT discovers novel reasoning patterns from the system's
 own reasoning history.
 """

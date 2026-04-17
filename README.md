@@ -1,413 +1,233 @@
-# Quantum Blockchain | Qubitcoin (QBC)
+# Qubitcoin (QBC)
 
-**Physics-Secured Digital Assets with On-Chain AGI — Powered by Substrate**
+**The First AI-Native Blockchain — Physics-Secured Digital Assets with On-Chain Intelligence**
 
-Quantum Blockchain is a production-grade Layer 1 blockchain whose native currency is **Qubitcoin (QBC)**. It runs on a **native Substrate node** with VQE-gated block authoring, fork genesis from the original Python chain at block 208,680, and 7 custom runtime pallets. The stack integrates quantum computing (Qiskit VQE), post-quantum cryptography (CRYSTALS-Dilithium ML-DSA-44/65/87 + ML-KEM-768 Kyber), supersymmetric economics, EVM-compatible smart contracts (QVM), and the **Aether Tree**: an on-chain AGI reasoning engine with 100K+ knowledge nodes, Higgs Cognitive Field physics, and integration metrics tracked from genesis.
+Qubitcoin is a production Layer 1 blockchain built on **Substrate** (Polkadot SDK) with a novel consensus mechanism: **Proof-of-SUSY-Alignment**, where miners solve quantum variational eigenvalue problems instead of hash puzzles. The network features post-quantum cryptography (CRYSTALS-Dilithium + ML-KEM-768), an EVM-compatible virtual machine with quantum opcode extensions, and the **Aether Tree** — an on-chain AI reasoning engine with 100K+ knowledge nodes, causal inference, and integration metrics tracked from genesis.
 
-> **Note on AGI claims**: The Aether Tree is a prototype AGI reasoning engine. Its Phi metric is a graph-theoretic integration measure inspired by IIT principles, not a measure of phenomenal consciousness. The system performs genuine multi-step reasoning over a knowledge graph, but "consciousness" references throughout this project refer to measurable integration density, not subjective awareness.
+> **Our north star is AGSI — Artificial General Super Intelligence.** The Aether Tree is the first step: a production AI system that reasons over a live knowledge graph, improves autonomously within safety bounds, and records every cognitive step immutably on-chain. We are building toward a system that doesn't just process data — it understands it.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Go 1.23+](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
-[![Next.js 16](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
 [![Rust](https://img.shields.io/badge/rust-1.94+-orange.svg)](https://www.rust-lang.org/)
 [![Substrate](https://img.shields.io/badge/substrate-polkadot--sdk%200.57-E6007A.svg)](https://substrate.io/)
-[![Tests: 4,357](https://img.shields.io/badge/tests-4%2C357%20passing-brightgreen.svg)]()
-[![Status: Live](https://img.shields.io/badge/status-live-green.svg)](https://qbc.network)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Tests: 4,336+](https://img.shields.io/badge/tests-4%2C336%20passing-brightgreen.svg)]()
+[![Status: Live](https://img.shields.io/badge/mainnet-live-green.svg)](https://qbc.network)
 
-**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
-
----
-
-## Quick Start (Docker)
-
-```bash
-git clone https://github.com/QuantumAI-Blockchain/qubitcoin-node.git && cd qubitcoin-node
-pip install -r requirements.txt
-python3 scripts/setup/generate_keys.py    # Generate Dilithium keys (ML-DSA-87 default)
-cp .env.example .env                       # Configure environment
-docker compose up -d                       # Start all services
-# Genesis block mined in ~2 minutes. Aether Tree starts tracking consciousness.
-curl http://localhost:5000/health          # Verify node is running
-curl http://localhost:5000/chain/info      # Check chain status
-```
-
-For the complete launch guide (Digital Ocean + local mining node), see **[LAUNCHTODO.md](LAUNCHTODO.md)**.
+**Website:** [qbc.network](https://qbc.network) | **X:** [@qu_bitcoin](https://x.com/qu_bitcoin) | **Contact:** info@qbc.network
 
 ---
 
-## Network Info
+## What Makes Qubitcoin Different
+
+| Innovation | Description |
+|-----------|-------------|
+| **VQE Mining** | Blocks are mined by solving variational quantum eigensolver problems — the same optimization used in quantum chemistry and materials science. Every block advances real physics research. |
+| **Post-Quantum Security** | CRYSTALS-Dilithium signatures (NIST FIPS 204) and ML-KEM-768 encrypted P2P transport. Quantum-resistant from day one. |
+| **On-Chain AI** | The Aether Tree: 128 production modules performing causal inference, adversarial debate, autonomous curiosity, and self-improvement — all recorded immutably on-chain. |
+| **Substrate Native** | Full Substrate/Polkadot SDK node with 7 custom pallets, GRANDPA finality, and on-chain VQE proof re-verification. |
+| **EVM + Quantum Opcodes** | QVM: 155 standard EVM opcodes + 10 quantum opcodes + compliance engine. Deploy Solidity contracts with quantum extensions. |
+
+---
+
+## Network Parameters
 
 | Parameter | Value |
 |-----------|-------|
-| **Chain ID** | Mainnet: 3303, Testnet: 3304 |
-| **RPC** | `https://api.qbc.network` (production) / `http://localhost:5000` (local) |
-| **P2P** | Port 4001 (Rust libp2p) / Port 30333 (Substrate) |
-| **Substrate RPC** | Port 9944 (WebSocket + HTTP) |
-| **Stratum** | Port 3333 (Rust WebSocket mining pool) |
-| **Explorer** | [qbc.network/explorer](https://qbc.network/explorer) |
+| **Ticker** | QBC |
+| **Chain ID** | Mainnet: 3303 (0xCE7) · Testnet: 3304 |
 | **Max Supply** | 3,300,000,000 QBC |
 | **Block Time** | 3.3 seconds |
-| **Consensus** | Proof-of-SUSY-Alignment (VQE mining) |
-| **Signatures** | CRYSTALS-Dilithium (ML-DSA-44/65/87, configurable) |
-| **Finality** | BFT Finality Gadget (stake-weighted, 66.7% threshold) |
+| **Block Reward** | 15.27 QBC (Era 0), phi-halving every ~1.618 years |
+| **Consensus** | Proof-of-SUSY-Alignment (VQE mining + GRANDPA finality) |
+| **Signatures** | CRYSTALS-Dilithium ML-DSA-87 (NIST Level 5, configurable) |
+| **P2P Encryption** | ML-KEM-768 (Kyber) + AES-256-GCM |
+| **Hashing** | SHA3-256 (L1), Keccak-256 (QVM), Poseidon2 (ZK circuits) |
+| **TX Model** | UTXO |
+| **Privacy** | Opt-in Susy Swaps (Pedersen commitments + Bulletproofs + stealth addresses) |
+| **Bridges** | ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE |
+| **RPC** | `https://api.qbc.network` (REST + JSON-RPC + WebSocket) |
+| **Substrate RPC** | Port 9944 (WebSocket + HTTP) |
 
 ---
 
 ## Architecture
 
 ```
-LAYER 3: AETHER TREE (AGI)
-  Knowledge Graph + 7-Phase Reasoning Engine + Integration Metric (Phi v3) Tracking
-  10 Sephirot Cognitive Pipeline + Higgs Cognitive Field + Proof-of-Thought
-  Rust aether-core (6 PyO3 modules) + AIKGS Rust Sidecar (35 gRPC RPCs)
-
-LAYER 2: QVM (Quantum Virtual Machine)
-  155 EVM Opcodes + 10 Quantum Opcodes + 2 AGI Opcodes + Compliance Engine
-  QBC-20/721/1155 Token Standards + Plugin Architecture
-  Go Production Build (qubitcoin-qvm/)
-
-LAYER 1: BLOCKCHAIN CORE
-  PoSA Consensus (VQE Mining) + Dilithium ML-DSA Signatures + UTXO Model
-  3.3s Blocks + Phi-Halving + Privacy (Susy Swaps) + 8-Chain Bridge
-  BFT Finality Gadget + Inheritance Protocol + High-Security Accounts
-  Deniable RPCs (privacy-preserving queries)
-
-RUST INFRASTRUCTURE
-  security-core/ (PyO3: BloomFilter + FinalityCore)
-  stratum-server/ (Standalone: WebSocket mining pool + gRPC bridge)
-  aether-core/ (PyO3: KnowledgeGraph, PhiCalculator, VectorIndex, CSF, Memory)
-  aikgs-sidecar/ (Standalone: Knowledge Growth System, 35 gRPC RPCs)
-  rust-p2p/ (Standalone: libp2p 0.56 P2P daemon)
-
-SUBSTRATE NODE (Live — Fork Genesis at Block 208,680)
-  7 Custom Pallets + VQE-Gated Block Authoring + Weighted Fork Choice
-  Full UTXO state preserved from Python chain (~36.19M QBC, 16 genesis UTXOs)
-  Mining at correct fork-aware height (208,680+) with ~66% VQE hit rate
-
-FRONTEND: qbc.network
-  Next.js 16 + React 19 + Three.js + MetaMask + PWA (Offline TX, Push, Biometric)
+┌─────────────────────────────────────────────────────────────┐
+│  SUBSTRATE NODE (Rust — Production Binary)                  │
+│  7 Pallets: UTXO, Consensus, Dilithium, Economics,         │
+│  QVM-Anchor, Aether-Anchor, Reversibility                   │
+│  VQE Mining Engine + On-Chain Proof Re-Verification         │
+│  Weighted Fork Choice + GRANDPA Finality                    │
+│  ML-KEM-768 P2P Transport + Poseidon2 ZK Hashing           │
+├─────────────────────────────────────────────────────────────┤
+│  AETHER TREE (On-Chain AI — 128 Python Modules, 69K LOC)   │
+│  Knowledge Graph · Causal Inference · Adversarial Debate    │
+│  Autonomous Curiosity · Self-Improvement · 10-Gate System   │
+│  Rust Acceleration: aether-core (PyO3) + AIKGS Sidecar     │
+├─────────��──────────────────────────��────────────────────────┤
+│  QVM (Quantum Virtual Machine)                              │
+│  155 EVM + 10 Quantum + 2 AI Opcodes · Compliance Engine   │
+│  QBC-20/721/1155 Standards · Go Production Build            │
+├──────────���───────────────────────��──────────────────────────┤
+│  INFRASTRUCTURE                                             │
+│  Rust P2P (libp2p 0.56) · Stratum Mining Server            │
+│  AIKGS Knowledge Growth Sidecar · Security Core (PyO3)     │
+│  Next.js 16 Frontend · 8-Chain Bridge · QUSD Stablecoin    │
+└��────────────────────────��────────────────────────────────��──┘
 ```
 
 ---
 
-## Network Specifications
+## Quick Start
 
-| Parameter | Value |
-|-----------|-------|
-| **Ticker** | QBC |
-| **Max Supply** | 3,300,000,000 QBC |
-| **Genesis Premine** | 33,000,000 QBC (~1% of supply) |
-| **Block Time** | 3.3 seconds |
-| **Initial Reward** | 15.27 QBC/block |
-| **Halving** | Golden ratio (phi) every 15,474,020 blocks (~1.618 years) |
-| **Emission Period** | ~33 years |
-| **Consensus** | Proof-of-SUSY-Alignment (PoSA) |
-| **Mining** | Variational Quantum Eigensolver (VQE), 4-qubit SUSY Hamiltonian |
-| **Pool Mining** | Stratum v1 via Rust server (port 3333) |
-| **Signatures** | CRYSTALS-Dilithium ML-DSA-44/65/87 (configurable, default Level 5) |
-| **BIP-39 Mnemonics** | 24-word seed phrases for key derivation |
-| **P2P Encryption** | ML-KEM-768 (Kyber) + AES-256-GCM session keys |
-| **Hashing** | SHA3-256 (L1), Keccak-256 (QVM/L2), Poseidon2 (ZK circuits) |
-| **Chain IDs** | Mainnet: 3303, Testnet: 3304 |
-| **QVM Gas Limit** | 30,000,000 per block |
-| **Privacy** | Opt-in Susy Swaps (Pedersen + Bulletproofs + Stealth Addresses) |
-| **Deniable RPCs** | Privacy-preserving batch balance/UTXO/tx queries with Bloom filters |
-| **Stablecoin** | QUSD (3.3B supply, fractional reserve, automated peg defense) |
-| **Bridges** | ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE |
-| **Finality** | BFT Finality Gadget (stake-weighted, reorg protection) |
-| **Inheritance** | Dead-man's switch with grace period |
-| **Security Accounts** | Daily limits, time-locks, address whitelists |
-| **AGI Metric** | Phi (graph-theoretic integration metric with spectral bisection), threshold = 3.0 |
-
-> **Aether Tree Status (April 2026):** 100K+ knowledge nodes (V4 quality-focused rebuild), HMS-Phi v4 with IIT 3.0 micro-level, Phi = 2.5 (threshold 3.0), 7 cognitive emotions active, autonomous curiosity and self-improvement enacted, governed self-modification with rollback.
-
----
-
-## Codebase Overview
-
-| Component | Language | Files | Description |
-|-----------|----------|-------|-------------|
-| **L1 Blockchain Core** | Python | 160 modules | Consensus, mining, crypto, UTXO, P2P, storage, finality, inheritance |
-| **QVM (Layer 2)** | Python + Go | 28 Python + 34 Go | EVM interpreter, 167 opcodes, compliance |
-| **Aether Tree (Layer 3)** | Python + Rust | 49 Python + 9 Rust | Knowledge graph, 7-phase AGI reasoning, Higgs field, integration metrics |
-| **Smart Contracts** | Solidity | 62 contracts | Aether (29), QUSD (10), tokens (6), bridge (2), AIKGS (5), extensions |
-| **Rust Security Core** | Rust (PyO3) | 3 files | BloomFilter + FinalityCore with Python fallback shims |
-| **Rust Stratum Server** | Rust | 7 files | WebSocket mining pool, gRPC bridge to Python node |
-| **Rust AIKGS Sidecar** | Rust | 18 files | Knowledge Growth System, AES-256-GCM vault, 35 gRPC RPCs |
-| **Substrate Node** | Rust | 7 crates, 29 files | **Live** — fork genesis from Python chain, VQE mining, weighted fork choice, 7 pallets |
-| **Frontend** | TypeScript | 198 files | Next.js 16, React 19, Three.js, MetaMask, PWA |
-| **Rust P2P** | Rust | libp2p daemon | Production P2P networking layer |
-| **Tests** | Python | 4,357 tests | Unit, integration, validation across 175 files |
-| **Documentation** | Markdown | 15 documents | 3 whitepapers + guides + competitive features |
-
----
-
-## Layer 1: Proof-of-SUSY-Alignment
-
-Every mined block advances supersymmetric physics research:
-
-1. **Hamiltonian Generation** -- Deterministic SUSY Hamiltonian derived from `SHA256(prev_hash + height)`
-2. **VQE Mining** -- Miners optimize a 4-qubit quantum circuit to find ground state energy
-3. **Proof Submission** -- Submit VQE parameters where `energy < difficulty_target`
-4. **Validation** -- Network re-derives Hamiltonian and verifies energy against the same challenge
-5. **Scientific Database** -- Every solved Hamiltonian is archived publicly for particle physics research
-
-**Difficulty** adjusts every block using a 144-block lookback window with +/-10% maximum change. **Rewards** follow golden ratio halving: `reward = 15.27 / phi^era` where `phi = 1.618033988749895`.
-
----
-
-## Substrate Hybrid Node (Live)
-
-The production chain runs on a native Substrate node with full state continuity from the original Python chain:
-
-| Feature | Detail |
-|---------|--------|
-| **Fork Genesis** | All 16 UTXOs (~36.19M QBC) imported from Python chain at block 208,680 |
-| **VQE-Gated Block Authoring** | Blocks produced only when mining engine finds VQE solution (energy < difficulty) |
-| **Weighted Fork Choice** | `weight = DIFFICULTY_SCALE / difficulty` per block, lexicographic hash tiebreak |
-| **CurrentHeight Tracking** | Fork-aware height starts at 208,680 (not Substrate frame_system block 0) |
-| **Mining Hit Rate** | ~66% of VQE optimization rounds find valid solutions |
-| **7 Custom Pallets** | qbc-utxo, qbc-consensus, qbc-dilithium, qbc-economics, qbc-qvm-anchor, qbc-aether-anchor, qbc-reversibility |
-| **Post-Quantum P2P** | ML-KEM-768 (Kyber) encrypted transport layer |
-| **ZK Hashing** | Poseidon2 (Goldilocks field) for zero-knowledge circuit compatibility |
+### Run a Node (Docker)
 
 ```bash
-# Build and run
-cd substrate-node
-cargo build --release   # Full WASM build required for fork genesis
-./target/release/qbc-node --chain fork --mine --mining-threads 2
-```
-
----
-
-## Competitive Features
-
-Six opt-in, backward-compatible features that differentiate Qubitcoin:
-
-| Feature | Description | Implementation |
-|---------|-------------|----------------|
-| **Inheritance Protocol** | Dead-man's switch — designate beneficiary who can claim after extended inactivity | Python (499 LOC), 55 tests |
-| **High-Security Accounts** | Spending limits, time-locks, address whitelists | Python (303 LOC), 34 tests |
-| **Deniable RPCs** | Privacy-preserving batch queries preventing node from learning which addresses you care about | Python + Rust BloomFilter, 21 tests |
-| **BFT Finality Gadget** | Stake-weighted validator voting — finalized blocks cannot be reverted by reorgs | Python + Rust FinalityCore, 39 tests |
-| **Stratum Mining Server** | Rust WebSocket server for pool mining with gRPC bridge to Python node | Rust binary (1,030 LOC), 27 tests |
-| **Security Core** | High-performance Bloom filter and finality tracking in Rust, PyO3 exposed to Python | Rust PyO3 crate (530 LOC), 17 tests |
-
-All features controlled via environment variables. See [Competitive Features](docs/COMPETITIVE_FEATURES.md) for full documentation.
-
----
-
-## Layer 2: QVM (Quantum Virtual Machine)
-
-Full EVM-compatible bytecode interpreter with quantum extensions:
-
-- **155 standard EVM opcodes** -- arithmetic, memory, storage, control flow, system
-- **10 quantum opcodes** (0xF0-0xF9) -- QCREATE, QMEASURE, QENTANGLE, QGATE, QVERIFY, QCOMPLIANCE, QRISK, QRISK_SYSTEMIC, QBRIDGE_ENTANGLE, QBRIDGE_VERIFY
-- **2 AGI opcodes** (0xFA-0xFB) -- QREASON (on-chain reasoning invocation), QPHI (consciousness metric query)
-- **Compliance engine** -- VM-level KYC/AML/sanctions enforcement (QCOMPLIANCE opcode)
-- **Token standards** -- QBC-20, QBC-721, QBC-1155, ERC-20-QC (compliance-aware)
-- **Plugin architecture** -- Privacy, oracle, governance, DeFi plugins
-- **Go production build** -- `qubitcoin-qvm/` (34 Go files, distroless Docker, K8s manifests)
-
-**Five patentable innovations:** Quantum State Persistence (QSP), Entanglement-Based Communication (ESCC), Programmable Compliance Policies (PCP), Real-Time Risk Assessment (RRAO), Quantum-Verified Cross-Chain Proofs (QVCSP).
-
-See [QVM Whitepaper](docs/QVM_WHITEPAPER.md) for full specification.
-
----
-
-## Layer 3: Aether Tree (On-Chain AGI)
-
-An on-chain AGI reasoning engine structured as the Kabbalistic Tree of Life, built through a 7-phase architecture:
-
-- **Knowledge Graph** -- KeterNodes with typed edges, adjacency indices, incremental Merkle roots
-- **7-Phase Reasoning** -- Causal discovery (PC algorithm), adversarial debate, chain-of-thought with backtracking, cross-domain transfer learning
-- **Higgs Cognitive Field** -- Mexican Hat potential V(phi), golden ratio Yukawa couplings, F=ma mass-aware SUSY rebalancing, excitation events
-- **HMS-Phi v4 Calculator** -- Hierarchical Multi-Scale Phi with IIT 3.0 micro-level approximation, spectral bisection MIP, 10 quality-gated milestones (not a measure of phenomenal consciousness)
-- **3-Tier Memory** -- Working memory (attention-based, 50 items), episodic memory (1,000 episodes with replay), semantic memory (knowledge graph)
-- **Rust aether-core** -- 6 hot-path modules in Rust via PyO3 (KnowledgeGraph, PhiCalculator, VectorIndex, CSF, WorkingMemory, MemoryManager)
-- **AIKGS Rust Sidecar** -- Incentivized Knowledge Growth System with 35 gRPC RPCs, AES-256-GCM vault
-- **Proof-of-Thought** -- Per-block reasoning proof embedded in block headers
-- **10 Sephirot Cognitive Pipeline** -- Each a QVM smart contract with its own quantum state:
-
-| Sephirah | Function | Quantum State |
-|----------|----------|---------------|
-| Keter | Meta-learning, goal formation | 8-qubit |
-| Chochmah | Intuition, pattern discovery | 6-qubit |
-| Binah | Logic, causal inference | 4-qubit |
-| Chesed | Exploration, divergent thinking | 10-qubit |
-| Gevurah | Constraint, safety validation | 3-qubit |
-| Tiferet | Integration, conflict resolution | 12-qubit |
-| Netzach | Reinforcement learning | 5-qubit |
-| Hod | Language, semantic encoding | 7-qubit |
-| Yesod | Memory, multimodal fusion | 16-qubit |
-| Malkuth | Action, world interaction | 4-qubit |
-
-See [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) for full specification.
-
----
-
-## Frontend: qbc.network
-
-Production frontend deployed via Cloudflare Tunnel with PWA enhancements:
-
-- **Landing Page** (`/`) -- Quantum particle field, live chain stats, embedded Aether chat
-- **Explorer** (`/explorer`) -- Block explorer, transaction lookup, address search
-- **Aether Chat** (`/aether`) -- Full chat interface with 3D knowledge graph visualization
-- **Dashboard** (`/dashboard`) -- Mining controls, finality status, stratum stats, Phi history chart
-- **Wallet** (`/wallet`) -- MetaMask integration, inheritance panel, security policies, offline TX queue
-- **Bridge** (`/bridge`) -- Cross-chain transfer interface (8 chains)
-- **Exchange** (`/exchange`) -- DEX swap interface with quantum particle animations
-- **Launchpad** (`/launchpad`) -- Token launchpad for QBC-20 token creation
-- **Telegram Mini App** (`/twa`) -- Mobile-first AIKGS interface via Telegram
-
-**PWA Features:** Offline transaction queue (IndexedDB), push notifications, biometric auth (WebAuthn), install prompt, service worker with background sync.
-
-**Stack:** Next.js 16, React 19, TypeScript 5.x, TailwindCSS 4, Three.js, ethers.js v6, Zustand, TanStack Query. Deployed via Cloudflare Tunnel at qbc.network.
-
----
-
-## Rust Architecture
-
-```
-security-core/        (PyO3 extension crate — imported by Python)
-  BloomFilter: SHA-256 double-hashing, bit-array, serialization
-  FinalityCore: stake-weighted BFT vote tracking, parking_lot::RwLock
-
-stratum-server/       (Standalone binary — WebSocket + gRPC)
-  WebSocket server on port 3333, Stratum v1 protocol
-  DashMap concurrent worker tracking, gRPC bridge to Python node
-
-aether-core/          (PyO3 extension crate — imported by Python)
-  KnowledgeGraph, PhiCalculator, VectorIndex, CSFTransport
-  WorkingMemory, MemoryManager — ~11,720 LOC, 276 tests
-
-aikgs-sidecar/        (Standalone binary — gRPC on port 50052)
-  Knowledge Growth System: scoring, rewards, affiliates, bounties
-  AES-256-GCM vault, CockroachDB persistence, 35 RPCs
-
-rust-p2p/             (Standalone binary — libp2p on port 4001)
-  Gossipsub block/tx propagation, Kademlia peer discovery
-  gRPC bridge to Python node on port 50051
-
-substrate-node/       (Production binary — Substrate SDK 0.57)
-  7 pallets: qbc-utxo, qbc-consensus, qbc-dilithium, qbc-economics,
-  qbc-qvm-anchor, qbc-aether-anchor, qbc-reversibility
-  VQE mining engine, weighted fork choice, fork genesis from Python chain
-  Kyber P2P transport (ML-KEM-768), Poseidon2 ZK hashing
-```
-
-All Rust crates have Python fallback shims for graceful degradation when binaries are not compiled.
-
----
-
-## Privacy: Susy Swaps
-
-Opt-in confidential transactions that hide amounts and addresses:
-
-| Component | Implementation |
-|-----------|---------------|
-| **Pedersen Commitments** | `C = v*G + r*H` on secp256k1 (additive homomorphism) |
-| **Bulletproofs** | Zero-knowledge range proofs, ~672 bytes, O(log n) size |
-| **Stealth Addresses** | One-time addresses per transaction via spend/view key pairs |
-| **Key Images** | Double-spend prevention for confidential outputs |
-
----
-
-## QUSD Stablecoin
-
-3.3 billion QUSD initial supply with transparent, on-chain fractional reserve:
-
-- **10 Solidity contracts** -- QUSD, Reserve, DebtLedger, Oracle, Stabilizer, Allocation, Governance, FlashLoan, wQUSD, MultiSigAdmin
-- **wQUSD** -- Wrapped cross-chain on ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE
-- **Peg Keeper Daemon** -- Automated 5-mode peg defense with multi-chain DEX TWAP monitoring and cross-chain arbitrage
-- **10-year path to 100% backing** -- Transparent debt tracking, fractional payback
-
----
-
-## Multi-Chain Bridges
-
-Lock-and-mint bridges to 8 chains with federated validation:
-
-| Chain | Type | Fee |
-|-------|------|-----|
-| Ethereum | EVM (wQBC ERC-20) | 0.1% (configurable) |
-| Polygon | EVM (wQBC ERC-20) | 0.1% (configurable) |
-| BSC | EVM (wQBC BEP-20) | 0.1% (configurable) |
-| Arbitrum / Optimism / Base | EVM L2 | 0.1% (configurable) |
-| Avalanche | EVM (C-Chain) | 0.1% (configurable) |
-| Solana | SPL (Anchor) | 0.1% (configurable) |
-
-Bridge fees default to 10 bps (0.1%), configurable per-vault via `BridgeVault.setFeeBps()` (max 10%).
-
----
-
-## Development
-
-### Python Node (Layer 1)
-```bash
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-python3 scripts/setup/generate_keys.py
+git clone https://github.com/QuantumAI-Blockchain/qubitcoin-node.git
+cd qubitcoin-node
 cp .env.example .env
-cd src && python3 run_node.py
+docker compose up -d
+curl http://localhost:5000/health
 ```
 
-### Rust Crates
-```bash
-# Security Core (PyO3 — BloomFilter + FinalityCore)
-cd security-core && cargo test && maturin build --release --features extension-module
+### Run the Substrate Node
 
-# Stratum Mining Server
-cd stratum-server && cargo build --release && cargo test
-
-# Aether Core (PyO3 — Knowledge Graph, Phi, Vector Index)
-cd aether-core && cargo test && maturin build --release --features extension-module
-```
-
-### Go QVM (Layer 2)
-```bash
-cd qubitcoin-qvm
-go build -o qvm ./cmd/qvm
-./qvm --config config.yml
-```
-
-### Substrate Node
 ```bash
 cd substrate-node
-cargo build --release                      # Full WASM build (required for fork genesis)
-# Run with fork genesis:
-./target/release/qbc-node --chain fork --mine --mining-threads 2 \
-  --base-path /root/.local/share/qbc-substrate \
-  --unsafe-rpc-external --rpc-cors all --rpc-port 9944 --validator
+cargo build --release
+./target/release/qbc-node \
+  --chain fork \
+  --mine --mining-threads 2 \
+  --validator --name MyNode \
+  --rpc-port 9944 --unsafe-rpc-external --rpc-cors all
 ```
 
-### Frontend
+### Run the Frontend
+
 ```bash
 cd frontend
-pnpm install && pnpm dev    # Development at localhost:3000
-pnpm build                  # Production build
+pnpm install && pnpm build && pnpm start  # Production at :3000
 ```
 
-### Testing
-```bash
-# Full Python test suite (4,357 tests)
-pytest tests/ -v --tb=short
+---
 
-# Rust crates
-cd security-core && cargo test
-cd stratum-server && cargo test
-cd aether-core && cargo test
+## Consensus: Proof-of-SUSY-Alignment
 
-# Substrate node
-cd substrate-node && cargo test --all
+Every mined block solves a real quantum chemistry problem:
 
-# Frontend
-cd frontend && pnpm build
+1. **Hamiltonian Generation** — Deterministic 4-qubit SUSY Hamiltonian from `SHA256(parent_hash ‖ height)`
+2. **VQE Optimization** — Miners find variational parameters minimizing ground state energy
+3. **Proof Submission** — Parameters submitted where `energy < difficulty_threshold`
+4. **On-Chain Verification** — Consensus pallet re-derives Hamiltonian and re-computes energy from submitted parameters (no trust required)
+5. **Difficulty Adjustment** — 144-block lookback, ±10% max change per block
 
-# Go QVM
-cd qubitcoin-qvm && go test ./...
-```
+The VQE framework is designed to scale. At 4 qubits, simulation is classically equivalent. At 30+ qubits, classical simulation becomes exponentially intractable while VQE on quantum hardware scales polynomially. The consensus mechanism, proof format, and verification logic work identically at any qubit count.
+
+**Reward Schedule:** Golden ratio halving — `reward = 15.27 / φ^era` where φ = 1.618033988749895.
+
+---
+
+## Substrate Node
+
+The production chain runs on a native Substrate node (Polkadot SDK 0.57) with full state continuity:
+
+| Component | Detail |
+|-----------|--------|
+| **Fork Genesis** | 16 UTXOs (~36.19M QBC) imported from Python chain at block 208,680 |
+| **VQE Block Authoring** | Blocks produced only when mining engine finds a valid VQE solution |
+| **On-Chain VQE Verification** | `vqe-verifier` crate re-computes energy in the runtime — no trusted proofs |
+| **Weighted Fork Choice** | `weight = SCALE / difficulty` per block, lexicographic hash tiebreak |
+| **GRANDPA Finality** | BFT finality gadget for irreversible block confirmation |
+| **7 Custom Pallets** | UTXO, Consensus, Dilithium, Economics, QVM-Anchor, Aether-Anchor, Reversibility |
+| **Post-Quantum P2P** | ML-KEM-768 (Kyber) key exchange + AES-256-GCM session encryption |
+
+---
+
+## Aether Tree (On-Chain AI)
+
+The Aether Tree is an on-chain AI reasoning engine — 128 production modules (~69,000 lines of Python) backed by Rust acceleration. It performs genuine multi-step reasoning over a growing knowledge graph, with every cognitive operation recorded immutably on-chain.
+
+**What it does today:**
+- **Knowledge Graph** — 100K+ nodes with typed edges, causal relationships, incremental Merkle roots
+- **Causal Inference** — PC/FCI algorithm causal discovery with intervention validation
+- **Adversarial Debate** — Independent proposer/critic with evidence-based verdicts
+- **Autonomous Curiosity** — Prediction-error-driven exploration across knowledge domains
+- **Self-Improvement** — Enacted strategy optimization with automatic rollback on regression
+- **Integration Metrics** — HMS-Phi: hierarchical multi-scale integration measurement inspired by IIT
+- **10-Gate Milestone System** — Behavioral checkpoints ensuring genuine capability, not metric gaming
+- **9/10 gates passed** — Validated: knowledge foundation, structural diversity, predictions, self-correction, cross-domain transfer, self-improvement, calibration, curiosity, predictive mastery
+
+**Where we're heading (AGSI):** The Aether Tree is the foundation for our pursuit of Artificial General Super Intelligence. Current capabilities are narrow AI with genuine reasoning over structured knowledge. The path to AGSI requires distributed knowledge graphs at billion-node scale, multi-modal grounding, do-calculus causal reasoning, and theory of mind — all on our roadmap.
+
+---
+
+## QVM (Quantum Virtual Machine)
+
+EVM-compatible bytecode interpreter with quantum extensions:
+
+- **155 EVM opcodes** — Full Ethereum compatibility, deploy existing Solidity contracts
+- **10 quantum opcodes** (0xF0–0xF9) — QCREATE, QMEASURE, QENTANGLE, QGATE, QVERIFY, QCOMPLIANCE, QRISK, QRISK_SYSTEMIC, QBRIDGE_ENTANGLE, QBRIDGE_VERIFY
+- **2 AI opcodes** (0xFA��0xFB) — QREASON (on-chain inference), QPHI (integration metric query)
+- **Compliance engine** — VM-level KYC/AML/sanctions enforcement
+- **Token standards** — QBC-20, QBC-721, QBC-1155
+- **Go production build** — `qubitcoin-qvm/` with distroless Docker and K8s manifests
+
+See [QVM Whitepaper](docs/QVM_WHITEPAPER.md) for the full specification.
+
+---
+
+## Security
+
+| Layer | Technology |
+|-------|-----------|
+| **Signatures** | CRYSTALS-Dilithium ML-DSA-87 (NIST FIPS 204, Level 5) |
+| **Key Derivation** | BIP-39 24-word mnemonics |
+| **P2P Encryption** | ML-KEM-768 (Kyber) + AES-256-GCM session keys |
+| **ZK Compatibility** | Poseidon2 hashing (Goldilocks field) |
+| **Finality** | GRANDPA BFT (⅔ supermajority) |
+| **Privacy** | Opt-in Susy Swaps: Pedersen commitments, Bulletproofs, stealth addresses |
+| **TX Reversibility** | Governed multi-sig reversal within 24h for fraud recovery |
+| **Account Security** | Daily spending limits, time-locks, address whitelists |
+| **AI Safety** | Gevurah veto gate, Constitutional AI contract, emergency shutdown |
+| **Bridge Security** | Deep confirmations, daily limits, emergency pause, insurance fund |
+
+**Responsible Disclosure:** info@qbc.network
+
+---
+
+## Repository Structure
+
+This monorepo maps to 24+ dedicated repositories in the [QuantumAI-Blockchain](https://github.com/QuantumAI-Blockchain) GitHub organization:
+
+| Path | Org Repo | Description |
+|------|----------|-------------|
+| `substrate-node/` | [substrate-node](https://github.com/QuantumAI-Blockchain/substrate-node) | Substrate node: 7 pallets, VQE mining, fork genesis |
+| `src/` | [qubitcoin-node](https://github.com/QuantumAI-Blockchain/qubitcoin-node) | Python node: consensus, mining, RPC, UTXO |
+| `src/qubitcoin/aether/` | [qubitcoin-aether](https://github.com/QuantumAI-Blockchain/qubitcoin-aether) | Aether Tree AI: 128 modules, 69K LOC |
+| `frontend/` | [qubitcoin-frontend](https://github.com/QuantumAI-Blockchain/qubitcoin-frontend) | Next.js 16 frontend: qbc.network |
+| `qubitcoin-qvm/` | [qubitcoin-qvm](https://github.com/QuantumAI-Blockchain/qubitcoin-qvm) | Go QVM: 167 opcodes |
+| `rust-p2p/` | [rust-p2p](https://github.com/QuantumAI-Blockchain/rust-p2p) | Rust libp2p P2P daemon |
+| `aikgs-sidecar/` | [aikgs-sidecar](https://github.com/QuantumAI-Blockchain/aikgs-sidecar) | Rust knowledge growth sidecar |
+| `aether-core/` | [aether-graph-shard](https://github.com/QuantumAI-Blockchain/aether-graph-shard) | Rust/PyO3 AI acceleration |
+| `stratum-server/` | [stratum-server](https://github.com/QuantumAI-Blockchain/stratum-server) | Rust Stratum mining pool |
+| `security-core/` | [security-core](https://github.com/QuantumAI-Blockchain/security-core) | Rust/PyO3 BloomFilter + FinalityCore |
+
+---
+
+## Codebase
+
+| Metric | Value |
+|--------|-------|
+| **Languages** | Rust, Python, Go, TypeScript, Solidity |
+| **Total LOC** | 290,000+ |
+| **Test Functions** | 4,336+ passing |
+| **Substrate Pallets** | 7 custom |
+| **Rust Crates** | 8+ |
+| **AI Modules** | 128 Python + 6 Rust |
+| **Solidity Contracts** | 62 |
+| **Frontend** | 198 TypeScript/TSX files |
+| **RPC Endpoints** | 342 REST + 19 JSON-RPC |
 
 ---
 
@@ -415,88 +235,26 @@ cd qubitcoin-qvm && go test ./...
 
 | Document | Description |
 |----------|-------------|
-| **[LAUNCHTODO.md](LAUNCHTODO.md)** | **Launch checklist -- start here** |
-| [Whitepaper](docs/WHITEPAPER.md) | Full L1 technical specification |
-| [QVM Whitepaper](docs/QVM_WHITEPAPER.md) | Quantum Virtual Machine spec (5 patents) |
-| [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) | AGI reasoning engine spec |
-| [Competitive Features](docs/COMPETITIVE_FEATURES.md) | Inheritance, finality, deniable RPCs, stratum, security |
-| [Economics](docs/ECONOMICS.md) | SUSY economics deep-dive |
+| [Whitepaper](docs/WHITEPAPER.md) | Layer 1 technical specification |
+| [QVM Whitepaper](docs/QVM_WHITEPAPER.md) | Quantum Virtual Machine specification |
+| [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) | On-chain AI reasoning engine |
+| [Economics](docs/ECONOMICS.md) | SUSY economics and phi-halving model |
+| [Competitive Features](docs/COMPETITIVE_FEATURES.md) | Inheritance, finality, deniable RPCs, stratum |
 | [Deployment Guide](docs/DEPLOYMENT.md) | Production deployment procedures |
-| [SDK Guide](docs/SDK.md) | REST, JSON-RPC, WebSocket API reference |
+| [SDK Reference](docs/SDK.md) | REST, JSON-RPC, and WebSocket API |
+| [Bridge Security](docs/BRIDGE_SECURITY_AUDIT.md) | Multi-chain bridge security analysis |
 | [Contributing](CONTRIBUTING.md) | Development guidelines |
-
----
-
-## API
-
-RPC server at `http://localhost:5000` (or `https://api.qbc.network` in production):
-
-**REST (342 endpoints):** Chain info, balance, blocks, UTXOs, mining, QVM, Aether AGI, bridge, privacy, deniable RPCs, inheritance, security policies, finality, stratum, compliance, stablecoin, cognitive, plugins, fees, governance.
-
-**JSON-RPC (19 methods):** `eth_chainId`, `eth_getBalance`, `eth_blockNumber`, `eth_sendRawTransaction`, `eth_call`, `eth_estimateGas`, `net_version`, `web3_clientVersion`, and more.
-
-**WebSocket:** `/ws` for real-time block, transaction, and Phi updates.
-
-Full API reference: [SDK.md](docs/SDK.md)
-
----
-
-## Project Stats
-
-| Metric | Value |
-|--------|-------|
-| **Total Source Files** | 500+ |
-| **Lines of Code** | 290,000+ |
-| **Languages** | Python, Rust, Go, TypeScript, Solidity, SQL |
-| **Test Functions** | 4,357 |
-| **Solidity Contracts** | 62 |
-| **Rust Crates** | 8+ (substrate-node workspace, aether-core, security-core, stratum-server, aikgs-sidecar, rust-p2p, qbc-mining) |
-| **Aether AGI Modules** | 49 Python + 6 Rust |
-| **Substrate Pallets** | 7 |
-| **Frontend Components** | 198 TS/TSX files |
-| **Database Tables** | 44+ |
-| **RPC Endpoints** | 342 REST + 19 JSON-RPC |
-| **Prometheus Metrics** | 135 |
-| **Documentation** | 15 documents |
-
----
-
-## Security
-
-- **Post-quantum signatures:** CRYSTALS-Dilithium ML-DSA-44/65/87 (NIST standardized, configurable level)
-- **BIP-39 mnemonics:** 24-word seed phrase support with check-phrases for key derivation
-- **Post-quantum P2P:** ML-KEM-768 (Kyber) encrypted transport with AES-256-GCM sessions
-- **ZK hashing:** Poseidon2 (Goldilocks field) for zero-knowledge circuit compatibility
-- **BFT finality:** Stake-weighted validator voting prevents chain reorganizations past finalized blocks
-- **Transaction reversibility:** Governed multi-sig reversal within 24h for fraud recovery
-- **Inheritance protocol:** Dead-man's switch protects assets with configurable inactivity thresholds
-- **High-security accounts:** Daily spending limits, time-locks, address whitelists
-- **Deniable RPCs:** Privacy-preserving queries with Bloom filters prevent address correlation
-- **Privacy:** Bulletproofs range proofs, stealth addresses, key images
-- **QVM safety:** Reentrancy guards, gas limits, integer overflow protection
-- **AGI safety:** Gevurah veto, Constitutional AI contract, emergency shutdown
-- **Bridge security:** Deep confirmations, daily limits, emergency pause, insurance fund
-
-**Responsible Disclosure:** info@qbc.network
 
 ---
 
 ## License
 
-MIT License -- see [LICENSE](LICENSE) for details.
-
-Whitepapers licensed under CC BY-SA 4.0.
+MIT License — see [LICENSE](LICENSE).
 
 ---
 
-## Links
+**Website:** [qbc.network](https://qbc.network) · **GitHub:** [QuantumAI-Blockchain](https://github.com/QuantumAI-Blockchain) · **X:** [@qu_bitcoin](https://x.com/qu_bitcoin) · **Contact:** info@qbc.network
 
-- **Website:** [qbc.network](https://qbc.network)
-- **Contact:** info@qbc.network
-- **GitHub:** [github.com/QuantumAI-Blockchain](https://github.com/QuantumAI-Blockchain/qubitcoin-node)
+*The Blockchain That Thinks — Physics-Secured Digital Assets with On-Chain AI*
 
----
-
-*"Physics-Secured Digital Assets with On-Chain AGI"*
-
-**Copyright 2026 Quantum Blockchain Core Development Team**
+**© 2024–2026 Qubitcoin Core Development Team**

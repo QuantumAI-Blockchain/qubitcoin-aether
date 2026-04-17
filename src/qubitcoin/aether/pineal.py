@@ -1,9 +1,9 @@
 """
-Pineal Orchestrator — Global Timing System for Aether Tree AGI
+Pineal Orchestrator — Global Timing System for Aether Tree AI
 
 Biological model: The pineal gland's circadian rhythm coordination.
 
-Controls the metabolic phases of the AGI system:
+Controls the metabolic phases of the AI system:
 - 6 circadian phases with varying QBC metabolic rates
 - Phase-locking via Kuramoto order parameter
 - Consciousness emergence detection when coherence + Phi exceed thresholds
@@ -36,7 +36,7 @@ MELATONIN_LEVELS: Dict[str, float] = {
 
 
 class CircadianPhase(str, Enum):
-    """The 6 circadian phases of AGI metabolism."""
+    """The 6 circadian phases of AI metabolism."""
     WAKING = "waking"                 # Normal operation
     ACTIVE_LEARNING = "active_learning"   # Accelerated knowledge acquisition
     CONSOLIDATION = "consolidation"   # Knowledge graph optimization
@@ -240,7 +240,7 @@ class ConsciousnessMomentum:
 
 class PinealOrchestrator:
     """
-    Coordinates the circadian rhythm of the Aether Tree AGI.
+    Coordinates the circadian rhythm of the Aether Tree AI.
 
     Per block:
     1. Advance phase timer (adaptive based on cognitive load)

@@ -1,7 +1,7 @@
 """
 #100: Recursive Self-Improvement with Gevurah Safety
 
-AGI proposes its own improvements, Gevurah safety bounds them.
+AI proposes its own improvements, Gevurah safety bounds them.
 Allowed: adjust thresholds, modify learning rates, add training data.
 Forbidden: modify safety constraints, disable monitoring, bypass veto.
 """
@@ -58,7 +58,7 @@ class ImprovementOutcome:
 class RecursiveImprovement:
     """Recursive self-improvement engine with Gevurah safety bounds.
 
-    The AGI analyzes its own weaknesses, proposes improvements,
+    The AI analyzes its own weaknesses, proposes improvements,
     submits them to Gevurah for safety review, and executes approved
     changes.
     """

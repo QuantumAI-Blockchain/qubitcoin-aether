@@ -1,5 +1,5 @@
 //! aether-reasoning: Reasoning, causal discovery, and adversarial debate engines
-//! for the Aether Tree AGI system.
+//! for the Aether Tree AI system.
 //!
 //! This crate ports three Python modules into Rust:
 //!

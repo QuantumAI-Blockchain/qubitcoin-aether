@@ -1,5 +1,5 @@
 """
-Consciousness Dashboard — AGI Emergence Tracking from Genesis
+Consciousness Dashboard — AI Emergence Tracking from Genesis
 
 Tracks and provides APIs for consciousness metrics:
   - Phi (IIT) progression over time from block 0

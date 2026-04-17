@@ -1,6 +1,6 @@
 //! Sephirot Manager -- Core orchestrator for the 10 Tree of Life cognitive nodes.
 //!
-//! The 10 Sephirot form the cognitive backbone of the AGI system, each handling
+//! The 10 Sephirot form the cognitive backbone of the AI system, each handling
 //! a distinct function analogous to brain regions. They communicate via CSF
 //! transport (QBC transactions) and maintain SUSY balance enforced by the
 //! golden ratio.

@@ -1,6 +1,6 @@
 """
 Self-Model Updating — Item #84
-Maintain and update the AGI's model of itself: capabilities,
+Maintain and update the AI's model of itself: capabilities,
 performance history, strengths, weaknesses, confidence calibration.
 """
 import time
@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class SelfModel:
-    """AGI's internal model of its own capabilities and limitations."""
+    """AI's internal model of its own capabilities and limitations."""
 
     def __init__(self) -> None:
         # capability_name -> {accuracy: float, confidence: float, samples: int, last_update: float}

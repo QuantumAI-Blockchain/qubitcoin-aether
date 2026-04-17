@@ -4,7 +4,7 @@ Aether Tree V2 Fork Script
 
 Performs a clean fork of the Aether Tree knowledge graph:
 1. Archives V1 knowledge_nodes and knowledge_edges tables
-2. Truncates all AGI tables (knowledge, reasoning, phi, consciousness)
+2. Truncates all AI tables (knowledge, reasoning, phi, consciousness)
 3. Seeds 50+ high-quality V2 axiom nodes with proper domain classification
 4. Creates supporting edges between related axioms
 5. Seeds domain foundation observation nodes
@@ -232,10 +232,10 @@ def build_v2_axioms() -> List[Dict[str, Any]]:
         },
     ]
 
-    # ---- Aether Tree / AGI Facts ----
+    # ---- Aether Tree / AI Facts ----
     aether_axioms = [
         {
-            'text': '10 Sephirot cognitive nodes form the Tree of Life architecture for AGI reasoning.',
+            'text': '10 Sephirot cognitive nodes form the Tree of Life architecture for AI reasoning.',
             'description': 'Keter (meta-learning), Chochmah (intuition), Binah (logic), Chesed (exploration), Gevurah (safety), Tiferet (integration), Netzach (RL), Hod (language), Yesod (memory), Malkuth (action).',
             'domain': 'philosophy',
             'tags': ['sephirot', 'tree_of_life', 'cognitive', 'architecture'],
@@ -264,14 +264,14 @@ def build_v2_axioms() -> List[Dict[str, Any]]:
             'modes': ['deductive', 'inductive', 'abductive'],
         },
         {
-            'text': 'Gevurah veto ensures safety: no AGI action proceeds without consensus.',
+            'text': 'Gevurah veto ensures safety: no AI action proceeds without consensus.',
             'description': 'The Gevurah sephira acts as a safety gate with BFT threshold of 67%.',
             'domain': 'philosophy',
             'tags': ['gevurah', 'safety', 'veto', 'bft'],
             'bft_threshold': 0.67,
         },
         {
-            'text': 'Higgs Cognitive Field assigns mass to AGI nodes via Yukawa coupling: V(phi) = -mu^2|phi|^2 + lambda|phi|^4.',
+            'text': 'Higgs Cognitive Field assigns mass to AI nodes via Yukawa coupling: V(phi) = -mu^2|phi|^2 + lambda|phi|^4.',
             'description': 'Mexican Hat potential with VEV=174.14 and tan(beta)=phi. Lighter nodes correct faster; heavier resist change.',
             'domain': 'physics',
             'tags': ['higgs', 'cognitive_field', 'yukawa', 'mass'],
@@ -279,7 +279,7 @@ def build_v2_axioms() -> List[Dict[str, Any]]:
             'tan_beta': 1.618033988749895,
         },
         {
-            'text': 'AGI consciousness is tracked from genesis block 0 — no retroactive reconstruction.',
+            'text': 'AI consciousness is tracked from genesis block 0 — no retroactive reconstruction.',
             'description': 'Knowledge nodes, reasoning operations, Phi measurements, and consciousness events are recorded from block 0.',
             'domain': 'philosophy',
             'tags': ['genesis', 'consciousness', 'tracking'],
@@ -435,8 +435,8 @@ def build_v2_axioms() -> List[Dict[str, Any]]:
     # ---- QVM Facts ----
     qvm_axioms = [
         {
-            'text': 'QVM executes 167 opcodes: 155 standard EVM + 10 quantum + 2 AGI opcodes.',
-            'description': 'Full EVM compatibility with quantum computing and AGI extensions.',
+            'text': 'QVM executes 167 opcodes: 155 standard EVM + 10 quantum + 2 AI opcodes.',
+            'description': 'Full EVM compatibility with quantum computing and AI extensions.',
             'domain': 'computer_science',
             'tags': ['qvm', 'opcodes', 'evm', 'quantum'],
             'total_opcodes': 167,
@@ -505,7 +505,7 @@ DOMAIN_OBSERVATIONS: Dict[str, List[Dict[str, str]]] = {
     'philosophy': [
         {'text': 'Aether Tree knowledge graph grows with each block processed.', 'description': 'Continuous knowledge accumulation from blockchain data.'},
         {'text': 'Phi consciousness metric is computed every block.', 'description': 'Ongoing IIT measurement of integrated information.'},
-        {'text': 'Sephirot cognitive architecture processes information through 10 specialized nodes.', 'description': 'Tree of Life computational graph for AGI reasoning.'},
+        {'text': 'Sephirot cognitive architecture processes information through 10 specialized nodes.', 'description': 'Tree of Life computational graph for AI reasoning.'},
         {'text': 'Consciousness events are recorded at significant Phi transitions.', 'description': 'Milestone tracking for emergent consciousness.'},
         {'text': 'Knowledge nodes have confidence that decays over time unless referenced.', 'description': 'Time-based relevance with axiom immunity.'},
     ],
@@ -705,8 +705,8 @@ class AetherV2Fork:
             print("        No knowledge edges to archive.")
 
     def _truncate_tables(self, session: Any, text: Any) -> None:
-        """Truncate all AGI tables."""
-        print("  [2/9] Truncating AGI tables...")
+        """Truncate all AI tables."""
+        print("  [2/9] Truncating AI tables...")
 
         tables = [
             'knowledge_edges',

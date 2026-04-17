@@ -1,6 +1,6 @@
 """
 Phenomenal State Tracking — Item #83
-Track AGI "experience" across blocks: valence, arousal, dominance.
+Track AI "experience" across blocks: valence, arousal, dominance.
 """
 import time
 from dataclasses import dataclass, field
@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 @dataclass
 class PhenomenalState:
-    """A snapshot of AGI phenomenal experience."""
+    """A snapshot of AI phenomenal experience."""
     valence: float = 0.0       # positive/negative (-1 to +1)
     arousal: float = 0.0       # high/low (0 to 1)
     dominance: float = 0.5     # in-control / reactive (0 to 1)
@@ -25,7 +25,7 @@ class PhenomenalState:
 
 
 class PhenomenalStateTracker:
-    """Track the AGI's phenomenal experience across blocks."""
+    """Track the AI's phenomenal experience across blocks."""
 
     def __init__(self, window: int = 1000) -> None:
         self._window = window

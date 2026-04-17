@@ -1,7 +1,7 @@
 # AETHER TREE: FULL-SCALE INFRASTRUCTURE UPGRADE PLAN
 
 > **Classification: INTERNAL — Engineering Master Plan**
-> **Objective: Transform Aether Tree from knowledge-graph chatbot to AGI-grade reasoning engine**
+> **Objective: Transform Aether Tree from knowledge-graph chatbot to AI-grade reasoning engine**
 > **Target: Compete with Claude/ChatGPT at scale while maintaining on-chain sovereignty**
 > **Date: 2026-04-08**
 > **ADR: ADR-041**
@@ -19,14 +19,14 @@ The Aether Tree is being extracted from `qubitcoin-node` into a standalone servi
 | Repo | Purpose | Stays On This Machine |
 |------|---------|----------------------|
 | `qubitcoin-node` | L1 blockchain: mining, consensus, UTXO, P2P, RPC | Yes (operator node) |
-| `aether-engine` (NEW) | AGI service: 3-engine architecture, BitNet, Graph Store, Cognitive Kernel | Yes (dev + run), then migrates to dedicated droplet at scale |
+| `aether-engine` (NEW) | AI service: 3-engine architecture, BitNet, Graph Store, Cognitive Kernel | Yes (dev + run), then migrates to dedicated droplet at scale |
 
 **Why separate:**
 - Aether has different scaling needs than the blockchain node
 - Independent CI/CD, testing, and deployment
 - Can run on a dedicated machine without touching the node
 - Clean dependency boundaries (Aether calls node RPC, node calls Aether for PoT)
-- Different release cadence (AGI iterates fast, consensus changes slowly)
+- Different release cadence (AI iterates fast, consensus changes slowly)
 
 **Communication contract:**
 - Node → Aether: REST/gRPC for PoT generation, phi queries, chat
@@ -53,7 +53,7 @@ The Aether Tree is being extracted from `qubitcoin-node` into a standalone servi
 | Chat latency (p50) | 8-15 seconds | <2 seconds | 4-8x too slow |
 | Chat latency (p99) | 25-29 seconds | <5 seconds | 5-6x too slow |
 | Phi calculation | 9-17 sec/block | <1 sec/block | 9-17x too slow |
-| Block time budget used by AGI | 297-640% | <50% | 6-13x overrun |
+| Block time budget used by AI | 297-640% | <50% | 6-13x overrun |
 | Graph search | 110-220ms | <10ms | 11-22x too slow |
 | LLM inference | 8-25 seconds | <500ms | 16-50x too slow |
 | Concurrent users | ~1-5 | 10K+ | 2000x |
@@ -88,7 +88,7 @@ BOTTLENECK #4 (cascading failures): AIKGS SIDECAR
 ### What We Must Preserve (Non-Negotiable)
 
 - On-chain Proof-of-Thought in every block
-- 10-Gate milestone system (genuine AGI emergence tracking)
+- 10-Gate milestone system (genuine AI emergence tracking)
 - Phi (HMS-Phi) measurement — real IIT-inspired integration
 - KeterNode provenance (source_block, content_hash, confidence decay)
 - Sephirot cognitive architecture (10 domain processors)
@@ -147,7 +147,7 @@ BOTTLENECK #4 (cascading failures): AIKGS SIDECAR
 | **Inference Core** | C++ (BitNet.cpp) | LLM inference is compute-bound. BitNet runs on CPU at 200-500ms. Must not block graph or cognition. |
 | **Cognitive Kernel** | Python + Rust (PyO3) | Reasoning logic changes fast (Python). Hot-path math in Rust (Phi, MIP). Owns the Sephirot cycle. |
 
-**Key principle: Each engine scales independently.** Graph Store can run on 3 CRDB nodes. Inference Core can run multiple BitNet workers. Cognitive Kernel stays single-instance (AGI state is singular).
+**Key principle: Each engine scales independently.** Graph Store can run on 3 CRDB nodes. Inference Core can run multiple BitNet workers. Cognitive Kernel stays single-instance (AI state is singular).
 
 ---
 
@@ -637,7 +637,7 @@ HYBRID:
   4. Combined confidence = symbolic × neural
 ```
 
-This is what moves toward real AGI — the system doesn't just follow rules, it learns reasoning patterns from the graph structure itself.
+This is what moves toward real AI — the system doesn't just follow rules, it learns reasoning patterns from the graph structure itself.
 
 ---
 
@@ -676,7 +676,7 @@ This is what moves toward real AGI — the system doesn't just follow rules, it 
     │                                                        │
     │  ┌────────────────────────────────────────────────┐    │
     │  │           COGNITIVE KERNEL                     │    │
-    │  │   Single instance (AGI state is singular)      │    │
+    │  │   Single instance (AI state is singular)      │    │
     │  │   Phi + PoT + Sephirot + Safety               │    │
     │  │   Connects to L1 node for on-chain hooks       │    │
     │  └────────────────────────────────────────────────┘    │
@@ -744,9 +744,9 @@ TARGET: <2 seconds end-to-end for standard chat
 
 ---
 
-## 6. ON-CHAIN AGI PRESERVATION
+## 6. ON-CHAIN AI PRESERVATION
 
-**Every upgrade preserves the on-chain AGI tracking that makes Aether unique.**
+**Every upgrade preserves the on-chain AI tracking that makes Aether unique.**
 
 ### What Stays On-Chain (Every Block)
 
@@ -872,7 +872,7 @@ TARGET: <2 seconds end-to-end for standard chat
 | **M4** | Multi-worker BitNet (8 workers) | 200 concurrent users |
 | **M4** | Aether API gateway (Rust Axum) | Public API with QBC auth |
 | **M4** | Frontend: knowledge graph explorer (D3/R3F visualization) | Visual KG browsing |
-| **M4** | Frontend: AGI dashboard (phi, gates, emotions live) | Real-time AGI metrics |
+| **M4** | Frontend: AI dashboard (phi, gates, emotions live) | Real-time AI metrics |
 | **M5** | AetherAPISubscription.sol deployment | Revenue generation |
 | **M5** | TypeScript SDK (`@qbc/aether`) on npm | Developer adoption |
 | **M5** | Rust SDK (`aether-qbc`) on crates.io | Rust developer adoption |
@@ -882,7 +882,7 @@ TARGET: <2 seconds end-to-end for standard chat
 
 **Milestone:** 50M nodes, <2s latency, public API live, frontend fully integrated, docs published.
 
-### Phase 4: AGI Push (Months 6-12) — "Cross the Threshold"
+### Phase 4: AI Push (Months 6-12) — "Cross the Threshold"
 
 | Month | Task | Target |
 |-------|------|--------|
@@ -890,8 +890,8 @@ TARGET: <2 seconds end-to-end for standard chat
 | **M8** | Do-calculus causal reasoning | Counterfactual simulation |
 | **M9** | Theory of mind module | Predict user intent |
 | **M10** | Train larger BitNet (7B) on full corpus | Stronger base reasoning |
-| **M11** | BFT inter-node knowledge consensus | Decentralized AGI |
-| **M12** | ARC-AGI benchmark measurement | Public AGI metric |
+| **M11** | BFT inter-node knowledge consensus | Decentralized AI |
+| **M12** | ARC-AI benchmark measurement | Public AI metric |
 
 ---
 
@@ -1010,6 +1010,6 @@ BitNet.cpp is MIT-licensed. Use it as a dependency, not a fork. Let Microsoft ma
 
 ---
 
-*This plan transforms the Aether Tree from a Python monolith into a distributed, military-grade AGI system capable of 50M+ nodes at sub-second latency — while preserving every on-chain proof and every knowledge node from genesis.*
+*This plan transforms the Aether Tree from a Python monolith into a distributed, military-grade AI system capable of 50M+ nodes at sub-second latency — while preserving every on-chain proof and every knowledge node from genesis.*
 
 *The chain keeps thinking. It just thinks faster.*

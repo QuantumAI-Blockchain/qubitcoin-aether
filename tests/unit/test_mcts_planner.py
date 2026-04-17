@@ -1,4 +1,4 @@
-"""Tests for the MCTS Planner (AGI Roadmap Item #38)."""
+"""Tests for the MCTS Planner (AI Roadmap Item #38)."""
 
 import pytest
 from unittest.mock import MagicMock

@@ -138,7 +138,7 @@ struct ReplayStats {
 // MemoryManager
 // ---------------------------------------------------------------------------
 
-/// Three-tier memory system for the Aether Tree AGI engine.
+/// Three-tier memory system for the Aether Tree AI engine.
 ///
 /// Provides Rust-accelerated working memory and episodic memory operations.
 /// KG-dependent consolidation (confidence boosting, axiom promotion) is done

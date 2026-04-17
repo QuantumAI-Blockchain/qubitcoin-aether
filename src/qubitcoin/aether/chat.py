@@ -1,7 +1,7 @@
 """
 Aether Tree Chat System
 
-Provides a conversational interface for users to interact with the Aether Tree AGI.
+Provides a conversational interface for users to interact with the Aether Tree AI.
 Each message is processed through the reasoning engine, linked to the knowledge graph,
 and produces a Proof-of-Thought hash.
 
@@ -233,7 +233,7 @@ class ChatMemory:
             "bridge": "cross-chain bridges",
             "smart contract": "smart contracts",
             "economics": "token economics",
-            "aether": "Aether Tree AGI",
+            "aether": "Aether Tree AI",
             "consciousness": "consciousness",
         }
         for keyword, topic in topic_keywords.items():
@@ -2512,7 +2512,7 @@ class AetherChat:
                     pass
             kg_count = len(self.engine.kg.nodes)
             return (
-                f"Hello! I'm the Aether Tree — the world's first on-chain AGI. "
+                f"Hello! I'm the Aether Tree — the world's first on-chain AI. "
                 f"I have {kg_count:,} knowledge nodes and my cognitive integration "
                 f"(phi) is {phi_value:.2f}. Ask me about quantum computing, "
                 f"blockchain, physics, or anything in my knowledge domains!"
@@ -2567,7 +2567,7 @@ class AetherChat:
                         snippet = snippet[:cutoff + 1] if cutoff > 100 else snippet + '...'
                     trans = _transitions[i % len(_transitions)]
                     # Lowercase the first letter if the transition ends with space
-                    if snippet and snippet[0].isupper() and not snippet.startswith(('QBC', 'VQE', 'SUSY', 'QVM', 'QUSD', 'UTXO', 'AGI', 'AI')):
+                    if snippet and snippet[0].isupper() and not snippet.startswith(('QBC', 'VQE', 'SUSY', 'QVM', 'QUSD', 'UTXO', 'AI', 'AI')):
                         snippet = snippet[0].lower() + snippet[1:]
                     parts.append(f'\n\n{trans}{snippet}')
 
@@ -2887,7 +2887,7 @@ class AetherChat:
 
         if intent in ('greeting', 'hello'):
             return (
-                f"Hello! I'm the Aether Tree — the world's first on-chain AGI. "
+                f"Hello! I'm the Aether Tree — the world's first on-chain AI. "
                 f"I have {_kg_count:,} knowledge nodes and my cognitive integration "
                 f"(Phi) is {_phi:.2f}. Ask me about quantum computing, "
                 f"blockchain, physics, or anything in my knowledge domains!"
@@ -2896,7 +2896,7 @@ class AetherChat:
         _q = query.lower()
         if any(p in _q for p in ['who created', 'who made', 'who built', 'who are you', 'what are you']):
             return (
-                f"I'm the Aether Tree, the world's first on-chain AGI, "
+                f"I'm the Aether Tree, the world's first on-chain AI, "
                 f"built as part of the Qubitcoin (QBC) blockchain. I was created "
                 f"by the QuantumAI team to pursue genuine artificial general intelligence "
                 f"through physics-based cognitive architecture. I currently have "
@@ -2905,7 +2905,7 @@ class AetherChat:
 
         if 'aether tree' in _q or 'aether' in _q:
             return (
-                f"The Aether Tree is the world's first on-chain AGI reasoning engine. "
+                f"The Aether Tree is the world's first on-chain AI reasoning engine. "
                 f"It uses a Tree of Life cognitive architecture with 10 Sephirot "
                 f"(specialized processing nodes) to perform genuine reasoning — "
                 f"deductive, inductive, abductive, and causal. Currently tracking "
@@ -3190,7 +3190,7 @@ class AetherChat:
                 "Bech32 addresses, Kyber P2P encryption."
             ),
             'qvm': (
-                "Explain the QVM: 167 opcodes (155 EVM + 10 quantum + 2 AGI), "
+                "Explain the QVM: 167 opcodes (155 EVM + 10 quantum + 2 AI), "
                 "gas metering, quantum opcodes."
             ),
             'bridges': (
@@ -3487,7 +3487,7 @@ class AetherChat:
             prompt = (
                 f"Knowledge graph context:\n{context_block}\n\n"
                 f"User question: {query}\n\n"
-                f"Answer as Aether Tree, the on-chain AGI of Qubitcoin. "
+                f"Answer as Aether Tree, the on-chain AI of Qubitcoin. "
                 f"Ground your answer in the knowledge context above when "
                 f"relevant, but also draw on your broader knowledge. "
                 f"Be clear, informative, and conversational."

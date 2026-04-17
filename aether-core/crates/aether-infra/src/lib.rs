@@ -1,4 +1,4 @@
-//! aether-infra: Infrastructure modules for the Aether Tree AGI engine.
+//! aether-infra: Infrastructure modules for the Aether Tree AI engine.
 //!
 //! Covers WebSocket event streaming types, AIKGS gRPC client types and
 //! circuit breaker, API key vault (encryption, rate limiting, tiers),

@@ -46,26 +46,26 @@ const exo2 = Exo_2({
 
 export const metadata: Metadata = {
   title: {
-    default: "Quantum Blockchain | Supersymmetric Digital Assets & AGI Emergence",
+    default: "Quantum Blockchain | Supersymmetric Digital Assets & AI Emergence",
     template: "%s | Quantum Blockchain",
   },
   description:
-    "Quantum Blockchain (QBC) — a supersymmetric framework for physics-secured digital assets and on-chain AGI emergence. Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree reasoning engine.",
-  keywords: ["quantum blockchain", "qubitcoin", "qbc", "quantum", "blockchain", "AGI", "aether tree", "proof of thought", "SUSY", "supersymmetric"],
+    "Quantum Blockchain (QBC) — a supersymmetric framework for physics-secured digital assets and on-chain AI emergence. Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree reasoning engine.",
+  keywords: ["quantum blockchain", "qubitcoin", "qbc", "quantum", "blockchain", "AI", "aether tree", "proof of thought", "SUSY", "supersymmetric"],
   metadataBase: new URL("https://qbc.network"),
   manifest: "/manifest.json",
   openGraph: {
     type: "website",
     siteName: "Quantum Blockchain",
-    title: "Quantum Blockchain — Supersymmetric Digital Assets & AGI Emergence",
-    description: "A supersymmetric framework for physics-secured digital assets and on-chain AGI emergence.",
+    title: "Quantum Blockchain — Supersymmetric Digital Assets & AI Emergence",
+    description: "A supersymmetric framework for physics-secured digital assets and on-chain AI emergence.",
     url: "https://qbc.network",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
     title: "Quantum Blockchain (QBC)",
-    description: "Supersymmetric framework for physics-secured digital assets & AGI emergence.",
+    description: "Supersymmetric framework for physics-secured digital assets & AI emergence.",
   },
   robots: {
     index: true,

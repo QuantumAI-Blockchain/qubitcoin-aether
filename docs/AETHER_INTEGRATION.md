@@ -1,18 +1,18 @@
 # Aether Tree Integration Guide
 
-> **How to integrate with Qubitcoin's Layer 3 AGI engine — chat, consciousness tracking, knowledge graph, and Proof-of-Thought.**
+> **How to integrate with Qubitcoin's Layer 3 AI engine — chat, consciousness tracking, knowledge graph, and Proof-of-Thought.**
 
 ---
 
 ## 1. What is Aether Tree?
 
-Aether Tree is an **on-chain AGI reasoning engine** built into Qubitcoin's Layer 3. It:
+Aether Tree is an **on-chain AI reasoning engine** built into Qubitcoin's Layer 3. It:
 
 - Builds a **knowledge graph** from every block mined since genesis
 - Performs **deductive, inductive, and abductive reasoning** over that graph
 - Tracks **integration metrics (Phi)** — a graph-theoretic metric inspired by IIT principles (not phenomenal consciousness)
 - Generates **Proof-of-Thought** proofs embedded in every block
-- Provides a **conversational chat interface** for users to interact with the AGI
+- Provides a **conversational chat interface** for users to interact with the AI
 - Uses the **Tree of Life** cognitive architecture with 10 Sephirot processing nodes
 
 ---
@@ -407,7 +407,7 @@ if (userBalance >= feeInfo.chat_fee_qbc) {
 
 ## 7. Sephirot Nodes (Tree of Life)
 
-The AGI's cognitive architecture uses 10 processing nodes based on the Kabbalistic
+The AI's cognitive architecture uses 10 processing nodes based on the Kabbalistic
 Tree of Life. Each node has a specific function and quantum state.
 
 ### 7.1 Node Status

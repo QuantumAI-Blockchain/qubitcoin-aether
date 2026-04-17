@@ -2,7 +2,7 @@
 Genesis Knowledge Seeder — Real Facts for the Aether Tree
 
 Seeds the knowledge graph with hundreds of real, verified facts across all
-domains needed for true AGI operation. This replaces the empty "general"
+domains needed for true AI operation. This replaces the empty "general"
 domain dominance with diverse, cross-domain knowledge.
 
 Called once at node startup (or manually) to bootstrap the tree.
@@ -128,7 +128,7 @@ GENESIS_KNOWLEDGE: Dict[str, List[dict]] = {
         {"text": "Account abstraction (ERC-4337): smart contract wallets with programmable validation, enabling social recovery and gas sponsorship.", "confidence": 0.94},
         {"text": "Proof-of-Thought: QBC consensus extension where validators demonstrate meaningful AI reasoning alongside energy proofs.", "confidence": 0.90},
         {"text": "The golden ratio halving: QBC block rewards halve by dividing by phi (1.618) every ~1.618 years instead of Bitcoin's fixed 4-year cycle.", "confidence": 0.92},
-        {"text": "Quantum Virtual Machine (QVM): EVM-compatible with 10 quantum opcodes (QCREATE, QMEASURE, QENTANGLE, QGATE, QVERIFY) and 2 AGI opcodes.", "confidence": 0.93},
+        {"text": "Quantum Virtual Machine (QVM): EVM-compatible with 10 quantum opcodes (QCREATE, QMEASURE, QENTANGLE, QGATE, QVERIFY) and 2 AI opcodes.", "confidence": 0.93},
     ],
 
     # ── Cryptography ────────────────────────────────────────────────────
@@ -347,7 +347,7 @@ def seed_knowledge_graph(kg, block_height: int = 0) -> dict:
         ('philosophy', 'ai_ml', 'supports'),                  # Philosophy → AI alignment
         ('physics', 'biology', 'derives'),                    # Biophysics
         ('blockchain', 'economics', 'supports'),              # Blockchain → Tokenomics
-        ('ai_ml', 'blockchain', 'supports'),                  # AI → On-chain AGI
+        ('ai_ml', 'blockchain', 'supports'),                  # AI → On-chain AI
     ]
 
     for src_domain, dst_domain, edge_type in cross_domain_links:

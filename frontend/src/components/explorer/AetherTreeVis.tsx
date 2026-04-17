@@ -1,8 +1,8 @@
 "use client";
 /* ─────────────────────────────────────────────────────────────────────────
-   QBC Explorer — Aether AGI Transparency Explorer (8-tab dashboard)
+   QBC Explorer — Aether AI Transparency Explorer (8-tab dashboard)
 
-   Replaces the old D3 force graph with a comprehensive AGI transparency
+   Replaces the old D3 force graph with a comprehensive AI transparency
    dashboard exposing every aspect of the Aether Tree's cognition.
    ───────────────────────────────────────────────────────────────────────── */
 
@@ -916,7 +916,7 @@ export function AetherTreeView() {
           AETHER TREE
         </h1>
         <p className="text-xs" style={{ color: C.textSecondary, fontFamily: FONT.body }}>
-          On-chain AGI transparency dashboard — knowledge, reasoning, integration, and Proof-of-Thought
+          On-chain AI transparency dashboard — knowledge, reasoning, integration, and Proof-of-Thought
         </p>
       </motion.div>
 

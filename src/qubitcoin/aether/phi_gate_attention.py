@@ -75,7 +75,7 @@ class GateStatus:
 class PhiGateAttention:
     """Evaluate Phi consciousness gates via attention/processing metrics.
 
-    Each of 10 gates maps to a concrete metric from the AGI subsystems.
+    Each of 10 gates maps to a concrete metric from the AI subsystems.
     Gates unlock progressively as the system develops capabilities.
     """
 
@@ -207,7 +207,7 @@ class PhiGateAttention:
         narrative_coherence: Any = None,
         kg: Any = None,
     ) -> dict:
-        """Extract gate metrics from AGI subsystems.
+        """Extract gate metrics from AI subsystems.
 
         Convenience method that queries each subsystem for the metric
         needed by the corresponding gate.

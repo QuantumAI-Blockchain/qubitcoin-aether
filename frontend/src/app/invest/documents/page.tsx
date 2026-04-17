@@ -76,7 +76,7 @@ export default function DocumentsPage() {
                 <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-glow-cyan" />
                 <div>
                   <strong className="text-text-primary">Aether Tree Chat Fees</strong>
-                  <p className="text-xs">Every interaction with the on-chain AGI costs a micro-fee in QBC. 10% of all Aether fees flow to the investor revenue pool.</p>
+                  <p className="text-xs">Every interaction with the on-chain AI costs a micro-fee in QBC. 10% of all Aether fees flow to the investor revenue pool.</p>
                 </div>
               </div>
             </div>

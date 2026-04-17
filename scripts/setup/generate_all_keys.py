@@ -768,7 +768,7 @@ ADMIN_API_KEY={secrets.token_hex(48)}
 # LAMBDA = Quartic self-coupling (controls width of potential)
 # TAN_BETA = tan(beta) = phi for Two-Higgs-Doublet Model (SUSY balance)
 #
-# CHANGEABLE: Yes — via .env (restart). Affects AGI node dynamics.
+# CHANGEABLE: Yes — via .env (restart). Affects AI node dynamics.
 # OPERATOR ADDRESS: Contract operator for HiggsField.sol
 HIGGS_FIELD_ADDRESS={addr['higgs_operator']}
 HIGGS_MU=88.45

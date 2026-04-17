@@ -21,7 +21,7 @@ const docs = [
     href: "/docs/whitepaper",
     icon: FileText,
     description:
-      "Physics-Secured Digital Assets with On-Chain AGI — complete technical specification for the Qubitcoin protocol, SUSY economics, and post-quantum cryptography.",
+      "Physics-Secured Digital Assets with On-Chain AI — complete technical specification for the Qubitcoin protocol, SUSY economics, and post-quantum cryptography.",
     tags: ["Consensus", "VQE Mining", "SUSY Economics", "Privacy"],
   },
   {
@@ -29,7 +29,7 @@ const docs = [
     href: "/docs/qvm",
     icon: Cpu,
     description:
-      "Quantum Virtual Machine — 167 opcodes (155 EVM + 10 quantum + 2 AGI), compliance engine, and plugin architecture.",
+      "Quantum Virtual Machine — 167 opcodes (155 EVM + 10 quantum + 2 AI), compliance engine, and plugin architecture.",
     tags: ["EVM Compatible", "Quantum Opcodes", "Smart Contracts"],
   },
   {
@@ -37,8 +37,8 @@ const docs = [
     href: "/docs/aether",
     icon: Brain,
     description:
-      "Institutional-grade whitepaper — the world's first on-chain AGI. 10/10 gates passed, Phi 5.0, 760K+ knowledge nodes, HMS-Phi v4 architecture.",
-    tags: ["AGI", "10/10 Gates", "Phi 5.0", "HMS-Phi v4", "Proof-of-Thought"],
+      "Institutional-grade whitepaper — the world's first on-chain AI reasoning engine. 10/10 gates passed, Phi 5.0, 760K+ knowledge nodes, HMS-Phi v4 architecture. Building toward AGSI — Artificial General Super Intelligence.",
+    tags: ["On-Chain AI", "10/10 Gates", "Phi 5.0", "HMS-Phi v4", "Proof-of-Thought"],
   },
   {
     title: "Economics",

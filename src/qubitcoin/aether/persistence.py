@@ -1,7 +1,7 @@
 """
-AGI Persistence Layer — Save/Load AGI State to CockroachDB
+AI Persistence Layer — Save/Load AI State to CockroachDB
 
-Provides save/load functions for all AGI subsystems so that learned
+Provides save/load functions for all AI subsystems so that learned
 weights, episodic memories, calibration data, and time series
 survive node restarts.
 
@@ -29,10 +29,10 @@ except ImportError:
 
 
 class AGIPersistence:
-    """Persistence manager for AGI subsystem state.
+    """Persistence manager for AI subsystem state.
 
     Uses the node's existing DatabaseManager (SQLAlchemy + CockroachDB)
-    to store and retrieve AGI state via get_session().
+    to store and retrieve AI state via get_session().
     """
 
     def __init__(self, db_manager: object) -> None:
@@ -53,9 +53,9 @@ class AGIPersistence:
                     text("SELECT COUNT(*) FROM agi_neural_weights")
                 ).fetchone()
                 self._initialized = True
-                logger.info("AGI persistence tables verified")
+                logger.info("AI persistence tables verified")
         except Exception as e:
-            logger.warning("AGI persistence tables not ready (run 06_agi_persistence.sql): %s", e)
+            logger.warning("AI persistence tables not ready (run 06_agi_persistence.sql): %s", e)
 
     # ========================================================================
     # Neural Reasoner Weights

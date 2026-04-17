@@ -1,4 +1,4 @@
-"""Monte Carlo Tree Search planner for AGI goal decomposition.
+"""Monte Carlo Tree Search planner for AI goal decomposition.
 
 Gives the Aether Tree the ability to plan multi-step exploration
 actions by simulating outcomes via MCTS with UCB1 selection.

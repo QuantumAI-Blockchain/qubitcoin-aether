@@ -47,7 +47,7 @@ export default function TWAHomePage() {
           {user ? `Hello, ${user.first_name}` : "Aether Tree"}
         </h1>
         <p className="text-xs text-text-secondary">
-          Quantum Blockchain with On-Chain AGI
+          Quantum Blockchain with On-Chain AI
         </p>
       </motion.div>
 
@@ -94,7 +94,7 @@ export default function TWAHomePage() {
         <Link href="/twa/chat" className="block">
           <Card className="!p-4 text-center transition hover:border-quantum-violet/30" glow="violet">
             <p className="text-2xl">💬</p>
-            <p className="mt-1 text-xs font-semibold text-text-primary">Chat with AGI</p>
+            <p className="mt-1 text-xs font-semibold text-text-primary">Chat with AI</p>
             <p className="text-[10px] text-text-secondary">Talk to Aether Tree</p>
           </Card>
         </Link>

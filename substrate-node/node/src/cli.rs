@@ -77,7 +77,7 @@ impl SubstrateCli for Cli {
     }
 
     fn description() -> String {
-        "Qubitcoin — Quantum-secured Layer 1 blockchain with on-chain AGI".into()
+        "Qubitcoin — Quantum-secured Layer 1 blockchain with on-chain AI".into()
     }
 
     fn author() -> String {

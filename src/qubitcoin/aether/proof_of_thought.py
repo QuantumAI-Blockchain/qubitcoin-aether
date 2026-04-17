@@ -8,7 +8,7 @@ It is *not* a proof of intelligence; it is a tamper-evident commitment that
 lets any node verify what the Aether Tree's metrics were at a given block
 height.
 
-The ``AetherEngine`` class orchestrates all AGI-layer subsystems (loaded via
+The ``AetherEngine`` class orchestrates all AI-layer subsystems (loaded via
 ``subsystem_registry.SUBSYSTEM_REGISTRY``) and exposes the per-block
 ``generate_thought_proof`` pipeline consumed by the mining loop.
 """
@@ -24,12 +24,12 @@ logger = get_logger(__name__)
 
 
 class AetherEngine:
-    """Orchestrator for all Aether Tree AGI-layer subsystems.
+    """Orchestrator for all Aether Tree AI-layer subsystems.
 
     Integrates KnowledgeGraph, PhiCalculator, ReasoningEngine, and the
     Proof-of-Thought state-attestation pipeline into the QBC block cycle.
 
-    AGI subsystems (~70 modules) are loaded declaratively from
+    AI subsystems (~70 modules) are loaded declaratively from
     ``subsystem_registry.SUBSYSTEM_REGISTRY`` rather than inline
     try/except blocks.  See ``subsystem_registry.py`` for the full list.
     """
@@ -61,7 +61,7 @@ class AetherEngine:
         # ProofOfThoughtExplorer — wired after RPC app creation (see node.py)
         self.pot_explorer = None
 
-        # Running counters for AGI subsystem stats
+        # Running counters for AI subsystem stats
         self._contradictions_resolved: int = 0
 
         # Blocks processed counter (tracked from process_block_knowledge calls)
@@ -109,7 +109,7 @@ class AetherEngine:
         # Belief revision state
         self._belief_set: set = set()
 
-        # --- AGI Subsystem Loading (registry-driven) ---
+        # --- AI Subsystem Loading (registry-driven) ---
         from .subsystem_registry import load_subsystems
         load_subsystems(
             engine=self,
@@ -155,7 +155,7 @@ class AetherEngine:
         if self.global_workspace:
             self._register_sephirot_processors()
 
-        logger.info("Aether Engine initialized (with AGI subsystems)")
+        logger.info("Aether Engine initialized (with AI subsystems)")
 
     def _register_sephirot_processors(self) -> None:
         """Register 10 Sephirot cognitive processors on the global workspace.
@@ -202,7 +202,7 @@ class AetherEngine:
             logger.warning(f"Sephirot processor registration failed: {e}")
 
     def get_subsystem_health(self) -> Dict[str, dict]:
-        """IMP-96: Get health status of all AGI subsystems.
+        """IMP-96: Get health status of all AI subsystems.
 
         Returns a dict mapping subsystem name to health info:
         {name: {active: bool, last_used: float, error_count: int, status: str}}
@@ -920,7 +920,7 @@ class AetherEngine:
             if block.height > 0 and block.height % Config.AETHER_DREAM_ANALOGIES_INTERVAL == 0 and self.reasoning and self.kg:
                 self._dream_analogies(block.height)
 
-            # --- AGI Improvement Subsystems ---
+            # --- AI Improvement Subsystems ---
 
             # #3: Causal discovery sweep
             if block.height > 0 and block.height % Config.AETHER_CAUSAL_DISCOVERY_INTERVAL == 0 and self.causal_engine:
@@ -1389,7 +1389,7 @@ class AetherEngine:
                 except Exception as e:
                     logger.debug(f"Knowledge digest creation error: {e}")
 
-            # Phase 6: On-chain AGI integration
+            # Phase 6: On-chain AI integration
             # Use empty dict fallback so log-only mode always records
             if self.on_chain:
                 if not block_phi_result:
@@ -1412,7 +1412,7 @@ class AetherEngine:
                         validator_address=getattr(block, 'miner_address', ''),
                     )
                 except Exception as e:
-                    logger.warning(f"On-chain AGI integration error: {e}")
+                    logger.warning(f"On-chain AI integration error: {e}")
 
             # Phase 7: TransE KG Embeddings training (Item #33)
             if self.kg_embeddings and self.kg and block.height % 100 == 0:
@@ -2494,7 +2494,7 @@ class AetherEngine:
                 except Exception as e:
                     logger.debug(f"Narrative coherence error: {e}")
 
-            # --- Items #88-#100: Final AGI Batch ---
+            # --- Items #88-#100: Final AI Batch ---
 
             # #88: Transfer Learning — attempt cross-domain transfer every 500 blocks
             if self.transfer_learning and self.kg and block.height > 0 and block.height % 500 == 0:
@@ -2877,14 +2877,14 @@ class AetherEngine:
                 except Exception as e:
                     logger.debug(f"Emotional state update error: {e}")
 
-            # Persist AGI counters to DB every 500 blocks
+            # Persist AI counters to DB every 500 blocks
             if block.height > 0 and block.height % 500 == 0:
                 self._persist_counters(block.height)
 
-            # AGI-013: Consolidated diagnostic log every 100 blocks
+            # AI-013: Consolidated diagnostic log every 100 blocks
             if block.height > 0 and block.height % 100 == 0:
                 try:
-                    diag_parts = [f"AGI diagnostics at block {block.height}:"]
+                    diag_parts = [f"AI diagnostics at block {block.height}:"]
                     diag_parts.append(
                         f"KG={len(self.kg.nodes) if self.kg else 0} nodes"
                     )
@@ -3019,10 +3019,10 @@ class AetherEngine:
     def _route_sephirot_messages(self, block) -> int:
         """
         Route messages between Sephirot cognitive nodes along the Tree of
-        Life topology, wiring genuine AGI subsystem outputs as context.
+        Life topology, wiring genuine AI subsystem outputs as context.
 
         Phase 5.3 Deep Integration: each Sephirah node receives enriched
-        context from upstream AGI subsystems and passes its output to the
+        context from upstream AI subsystems and passes its output to the
         next node in the pipeline.
 
         Pipeline:
@@ -4398,12 +4398,12 @@ class AetherEngine:
         err_count = self._subsystem_health[subsystem_name]['error_count']
         if err_count == 10:
             logger.warning(
-                f"AGI subsystem '{subsystem_name}' has {err_count} errors — "
+                f"AI subsystem '{subsystem_name}' has {err_count} errors — "
                 f"may be degraded. Last error: {str(error)[:100]}"
             )
         elif err_count % 100 == 0:
             logger.warning(
-                f"AGI subsystem '{subsystem_name}' has {err_count} cumulative errors"
+                f"AI subsystem '{subsystem_name}' has {err_count} cumulative errors"
             )
 
     def _record_reasoning_outcome(self, strategy: str, confidence: float,
@@ -4866,7 +4866,7 @@ class AetherEngine:
     def get_mind_state(self, block_height: int = 0) -> dict:
         """Return a snapshot of Aether's current cognitive state.
 
-        This is the 'window into AGI integration state' — what is Aether
+        This is the 'window into AI integration state' — what is Aether
         thinking about right now?
 
         Returns dict with: current goals, contradictions, knowledge gaps,
@@ -4945,7 +4945,7 @@ class AetherEngine:
         return result
 
     def _apply_circadian_behavior(self, block) -> None:
-        """Adjust AGI behavior based on current circadian phase.
+        """Adjust AI behavior based on current circadian phase.
 
         Phases affect what maintenance / learning activities run:
         - Active Learning: deeper reasoning (already via chain_of_thought)
@@ -5305,7 +5305,7 @@ class AetherEngine:
         every downstream subsystem (neural_reasoner, metacognition,
         self_improvement, curiosity_engine).
 
-        This is the critical activation that makes the AGI *think* between
+        This is the critical activation that makes the AI *think* between
         user interactions — without it, reasoning only fires during chat.
         """
         import random as _rng
@@ -6066,7 +6066,7 @@ class AetherEngine:
         return stats
 
     def _load_persisted_counters(self) -> None:
-        """Load AGI subsystem counters from DB (survive restart)."""
+        """Load AI subsystem counters from DB (survive restart)."""
         if not self.db:
             return
         try:
@@ -6086,14 +6086,14 @@ class AetherEngine:
                         self.temporal_engine._predictions_correct = counters['predictions_correct']
                 if counters:
                     logger.info(
-                        "Restored AGI counters from DB: %s",
+                        "Restored AI counters from DB: %s",
                         {k: v for k, v in counters.items()},
                     )
         except Exception as e:
-            logger.debug(f"Could not load persisted AGI counters: {e}")
+            logger.debug(f"Could not load persisted AI counters: {e}")
 
     def _persist_counters(self, block_height: int) -> None:
-        """Persist AGI subsystem counters to DB (every 500 blocks)."""
+        """Persist AI subsystem counters to DB (every 500 blocks)."""
         if not self.db:
             return
         try:
@@ -6118,11 +6118,11 @@ class AetherEngine:
                             "(config_key, config_value, config_type, category, description, is_mutable) "
                             "VALUES (:key, :val, 'integer', 'agi_counters', :desc, true)"
                         ),
-                        {'key': key, 'val': str(value), 'desc': f'AGI counter: {key}'},
+                        {'key': key, 'val': str(value), 'desc': f'AI counter: {key}'},
                     )
                 session.commit()
         except Exception as e:
-            logger.debug(f"Could not persist AGI counters: {e}")
+            logger.debug(f"Could not persist AI counters: {e}")
 
     def get_stats(self) -> dict:
         """Get comprehensive Aether engine statistics"""
@@ -6149,7 +6149,7 @@ class AetherEngine:
             'contradictions_resolved': getattr(self, '_contradictions_resolved', 0),
         }
 
-        # AGI-014: Emotional state
+        # AI-014: Emotional state
         try:
             if hasattr(self, 'emotional_state') and self.emotional_state:
                 es = self.emotional_state.states
@@ -6163,7 +6163,7 @@ class AetherEngine:
         except Exception:
             pass
 
-        # AGI-014: Self-improvement stats
+        # AI-014: Self-improvement stats
         try:
             if hasattr(self, 'self_improvement') and self.self_improvement:
                 si = self.self_improvement
@@ -6175,7 +6175,7 @@ class AetherEngine:
         except Exception:
             pass
 
-        # AGI-014: Prediction accuracy summary
+        # AI-014: Prediction accuracy summary
         try:
             if hasattr(self, 'temporal_engine') and self.temporal_engine:
                 te = self.temporal_engine
@@ -6189,7 +6189,7 @@ class AetherEngine:
         except Exception:
             pass
 
-        # AGI subsystem stats
+        # AI subsystem stats
         if self.neural_reasoner:
             stats['neural_reasoner'] = self.neural_reasoner.get_stats()
         if self.causal_engine:

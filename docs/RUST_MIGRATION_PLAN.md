@@ -158,7 +158,7 @@ CI:
 ---
 
 **Status (2026-04-12)**: ALL 11 BATCHES COMPLETE. 17 crates, 1,068 Rust tests, 49,709 LOC.
-Full Aether Tree AGI engine ported to native Rust. Next: wire PyO3 bindings and
+Full Aether Tree AI engine ported to native Rust. Next: wire PyO3 bindings and
 begin Python module replacement on live chain.
 
 ### Final Crate LOC Breakdown

@@ -4,7 +4,7 @@ Active Learner — Select the most informative training examples.
 Implements uncertainty sampling, margin sampling, entropy sampling,
 and diversity sampling with combined strategies and meta-learning.
 
-AGI Roadmap Item #60.
+AI Roadmap Item #60.
 """
 import numpy as np
 from typing import Dict, List, Optional, Tuple

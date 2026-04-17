@@ -20,7 +20,7 @@ global:
 
 # ── Scrape Targets ──────────────────────────────────────────────────────
 scrape_configs:
-  # Qubitcoin Node — all blockchain, QVM, AGI, and bridge metrics
+  # Qubitcoin Node — all blockchain, QVM, AI, and bridge metrics
   - job_name: 'qubitcoin-node'
     metrics_path: '/metrics'
     static_configs:

@@ -499,8 +499,8 @@ def phase_10_metamask_jsonrpc(rpc: str):
 
 
 def phase_11_aether_tree(rpc: str):
-    """Phase 11: Aether Tree AGI"""
-    print(f"\n{Colors.BOLD}Phase 11: Aether Tree AGI{Colors.END}")
+    """Phase 11: Aether Tree AI"""
+    print(f"\n{Colors.BOLD}Phase 11: Aether Tree AI{Colors.END}")
 
     def aether_info():
         r = rpc_call(rpc, "GET", "/aether/info")

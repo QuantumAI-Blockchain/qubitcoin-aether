@@ -1,4 +1,4 @@
-"""Aether Tree SDK client — talk to the on-chain AGI."""
+"""Aether Tree SDK client — talk to the on-chain AI."""
 
 from __future__ import annotations
 

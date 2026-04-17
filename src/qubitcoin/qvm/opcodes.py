@@ -220,7 +220,7 @@ class Opcode(IntEnum):
     QBRIDGE_VERIFY = 0xc1    # Cross-chain bridge proof verification (WP: 0xF9)
 
     # ========================================================================
-    # AETHER AGI OPCODES (0xc2-0xc3) - Smart contract ↔ AGI bridge
+    # AETHER AI OPCODES (0xc2-0xc3) - Smart contract ↔ AI bridge
     # ========================================================================
     QREASON = 0xc2   # Query Aether reasoning engine from smart contract
     QPHI = 0xc3      # Read current Phi consciousness metric on-chain

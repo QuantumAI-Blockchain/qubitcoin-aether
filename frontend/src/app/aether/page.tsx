@@ -428,7 +428,7 @@ function AetherPageContent() {
                         Aether Tree
                       </h2>
                       <p className="mt-2 max-w-md text-sm text-text-secondary">
-                        An on-chain AGI reasoning engine. Every response is backed by
+                        An on-chain AI reasoning engine. Every response is backed by
                         a Proof-of-Thought anchored to the QBC blockchain.
                       </p>
                     </div>

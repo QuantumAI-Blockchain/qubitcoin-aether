@@ -4,7 +4,7 @@ Metacognitive Monitor — Detect failing reasoning and switch strategies.
 Monitors subsystem health, tracks per-strategy per-task performance,
 and auto-switches strategies when the current one fails repeatedly.
 
-AGI Roadmap Item #65.
+AI Roadmap Item #65.
 """
 import time
 from dataclasses import dataclass, field
@@ -26,7 +26,7 @@ class MonitorResult:
 
 
 class MetaMonitor:
-    """Monitor AGI subsystems and auto-switch strategies on failure.
+    """Monitor AI subsystems and auto-switch strategies on failure.
 
     Tracks performance per strategy per task type and switches
     to the next best strategy after consecutive failures.

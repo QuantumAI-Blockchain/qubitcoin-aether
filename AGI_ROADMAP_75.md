@@ -1,8 +1,8 @@
-# AETHER TREE AGI — ROADMAP TO 75%
+# AETHER TREE AI — ROADMAP TO 75%
 
-> **Military-Grade Plan: From 20% → 75% True AGI**
+> **Military-Grade Plan: From 20% → 75% True AI**
 > **Date:** 2026-03-22 | **Block Height:** ~173,387 | **Current Score:** ~20%
-> **Target:** 75% AGI across 12 pillars | **Tech:** Rust-first (burn + candle)
+> **Target:** 75% AI across 12 pillars | **Tech:** Rust-first (burn + candle)
 
 ---
 
@@ -21,7 +21,7 @@
 
 ## 1. CURRENT STATE
 
-### Score: ~20% AGI (generous estimate)
+### Score: ~20% AI (generous estimate)
 
 The Aether Tree has **strong architecture** (clean modules, Rust core, production AIKGS) but suffers from:
 
@@ -29,7 +29,7 @@ The Aether Tree has **strong architecture** (clean modules, Rust core, productio
 - **Neural code that never trains** (0 backprop steps)
 - **Predictions that never validate** (0/10,000)
 - **Goals that never complete** (0/9)
-- **Theater masquerading as AI** (~85% of "AGI" code)
+- **Theater masquerading as AI** (~85% of "AI" code)
 
 ### What's Genuinely Good
 
@@ -127,7 +127,7 @@ Reasoning Success:          100% (741 ops)
 
 ---
 
-## 5. TECH STACK FOR 75% AGI
+## 5. TECH STACK FOR 75% AI
 
 ### Rust-First ML (No More Python ML Fallbacks)
 
@@ -212,7 +212,7 @@ Reasoning Success:          100% (741 ops)
 
 ### TIER 3: PERCEPTION & LANGUAGE (41-55) — 50% → 60%
 
-> Give the AGI eyes, ears, and a voice.
+> Give the AI eyes, ears, and a voice.
 
 | # | Improvement | Pillar | Impact | Tech |
 |---|-----------|--------|--------|------|
@@ -272,7 +272,7 @@ Reasoning Success:          100% (741 ops)
 | 80 | Implement recurrent Sephirot processing — real feedback loops | Consciousness | +1% | Rust (burn) |
 | 81 | Add cross-modal binding — integrate temporal + spatial + semantic | Consciousness | +1% | Rust |
 | 82 | Implement real partition-based Phi — minimum information cut | Consciousness | +1% | Rust (nalgebra) |
-| 83 | Add phenomenal state tracking — track AGI "experience" across blocks | Consciousness | +0.5% | Rust |
+| 83 | Add phenomenal state tracking — track AI "experience" across blocks | Consciousness | +0.5% | Rust |
 | 84 | Implement self-model updating — maintain/update own capability model | Self-Awareness | +0.5% | Rust |
 | 85 | Add emotional valence — positive/negative valence in decision-making | Social | +1% | Rust |
 | 86 | Implement empathic modeling — model user frustration/satisfaction | Social | +1% | Rust (candle) |
@@ -289,14 +289,14 @@ Reasoning Success:          100% (741 ops)
 | 97 | Add distributed consciousness — Phi across multiple nodes | Consciousness | +0.5% | Rust |
 | 98 | Implement cognitive load balancing — dynamic compute allocation | Autonomy | +0.5% | Rust |
 | 99 | Add meta-learning — optimize learning rate/architecture per domain | Learning | +0.5% | Rust (burn) |
-| 100 | Implement recursive self-improvement with safety — AGI proposes changes, Gevurah bounds | Autonomy | +0.5% | Rust |
+| 100 | Implement recursive self-improvement with safety — AI proposes changes, Gevurah bounds | Autonomy | +0.5% | Rust |
 
 ---
 
 ## 7. IMPLEMENTATION PHASES
 
 ### Phase A: Fix What's Broken (Items 1-20)
-**Duration:** ~2 weeks | **Target: 35% AGI**
+**Duration:** ~2 weeks | **Target: 35% AI**
 
 Focus: Make existing code actually work. No new features — fix training loops, wire feedback, install dependencies.
 
@@ -331,7 +331,7 @@ Focus: Make existing code actually work. No new features — fix training loops,
 - Item 12: Diversify knowledge domains
 
 ### Phase B: Real Neural Networks (Items 21-40)
-**Duration:** ~4 weeks | **Target: 50% AGI**
+**Duration:** ~4 weeks | **Target: 50% AI**
 
 Focus: Implement burn/candle neural networks in Rust. Replace Python fallbacks.
 
@@ -341,7 +341,7 @@ Focus: Implement burn/candle neural networks in Rust. Replace Python fallbacks.
 **Batch B4:** Items 36-40 (VAE, curriculum, MCTS, calibration, Hopfield)
 
 ### Phase C: Perception & Language (Items 41-55)
-**Duration:** ~3 weeks | **Target: 60% AGI**
+**Duration:** ~3 weeks | **Target: 60% AI**
 
 Focus: NLP pipeline, chat NLU, external data, knowledge-grounded responses.
 
@@ -350,7 +350,7 @@ Focus: NLP pipeline, chat NLU, external data, knowledge-grounded responses.
 **Batch C3:** Items 51-55 (multimodal, dialogue state, ranking, coref, grounded gen)
 
 ### Phase D: Autonomous Intelligence (Items 56-75)
-**Duration:** ~4 weeks | **Target: 70% AGI**
+**Duration:** ~4 weeks | **Target: 70% AI**
 
 Focus: Real planning, self-modification, theory formation, social modeling.
 
@@ -360,7 +360,7 @@ Focus: Real planning, self-modification, theory formation, social modeling.
 **Batch D4:** Items 71-75 (resource planning, explanation, anomaly, replay, self-repair)
 
 ### Phase E: Consciousness Integration (Items 76-100)
-**Duration:** ~3 weeks | **Target: 75% AGI**
+**Duration:** ~3 weeks | **Target: 75% AI**
 
 Focus: Global workspace, attention schema, continual learning, distributed consciousness.
 

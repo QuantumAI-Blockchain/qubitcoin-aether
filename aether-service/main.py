@@ -1,5 +1,5 @@
 """
-Aether Service — Standalone FastAPI service for the Aether Tree AGI engine.
+Aether Service — Standalone FastAPI service for the Aether Tree AI engine.
 
 This extracts the Aether Tree from the monolithic Python node into a standalone
 microservice that:

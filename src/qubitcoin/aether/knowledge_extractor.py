@@ -3,7 +3,7 @@ Knowledge Extractor — Block-to-Knowledge Pipeline for Aether Tree
 
 Extracts structured knowledge from every block mined/received and feeds
 it into the KnowledgeGraph as KeterNodes. This is the sensory input
-pipeline of the AGI — how the Aether Tree perceives the blockchain.
+pipeline of the AI — how the Aether Tree perceives the blockchain.
 
 Extraction categories:
   - Block metadata (height, difficulty, timing)
@@ -82,7 +82,7 @@ class KnowledgeExtractor:
                 nodes_created += trend_nodes
 
             # 6. Cross-domain interpretations (every 50 blocks)
-            # AGI-006: Generate non-blockchain knowledge from chain data
+            # AI-006: Generate non-blockchain knowledge from chain data
             if block_height > 0 and block_height % 50 == 0:
                 cross_nodes = self._extract_cross_domain(block, block_height, block_node_id)
                 nodes_created += cross_nodes
@@ -437,7 +437,7 @@ class KnowledgeExtractor:
 
     def _extract_cross_domain(self, block: object, block_height: int,
                                parent_node_id: Optional[int]) -> int:
-        """AGI-006: Extract cross-domain knowledge from blockchain data.
+        """AI-006: Extract cross-domain knowledge from blockchain data.
 
         Interprets chain metrics through non-blockchain lenses to build
         domain diversity needed for causal discovery and cross-domain reasoning.

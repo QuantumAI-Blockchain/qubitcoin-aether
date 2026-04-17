@@ -1,4 +1,4 @@
-//! aether-chat: Chat engine and LLM adapter for the Aether Tree AGI system.
+//! aether-chat: Chat engine and LLM adapter for the Aether Tree AI system.
 //!
 //! This crate ports two Python modules into Rust:
 //!

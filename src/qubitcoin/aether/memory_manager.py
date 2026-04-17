@@ -40,7 +40,7 @@ class Episode:
 
 class MemoryManager:
     """
-    Three-tier memory system for the Aether Tree AGI engine.
+    Three-tier memory system for the Aether Tree AI engine.
 
     Tier 1 - Working Memory: Fixed-capacity buffer of KG node IDs with
         relevance scores that decay over time. Provides fast access to

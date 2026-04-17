@@ -158,7 +158,7 @@
 
 ---
 
-## 4. Layer 3: Aether Tree (AGI Engine)
+## 4. Layer 3: Aether Tree (AI Engine)
 
 ### 4.1 Aether Core
 | File | LOC | Primary Exports |
@@ -193,7 +193,7 @@
 | `src/qubitcoin/aether/kg_index.py` | 201 | TF-IDF knowledge graph index |
 | `src/qubitcoin/aether/query_translator.py` | 295 | Natural language → KG query |
 | `src/qubitcoin/aether/ipfs_memory.py` | 204 | `IPFSMemoryStore` — IPFS-backed memory |
-| `src/qubitcoin/aether/genesis.py` | 178 | `AetherGenesis` — genesis block AGI init |
+| `src/qubitcoin/aether/genesis.py` | 178 | `AetherGenesis` — genesis block AI init |
 
 ### 4.5 Aether Services
 | File | LOC | Primary Exports |
@@ -499,7 +499,7 @@
 | H6 | `aether/safety.py` | UNWIRED | SafetyManager (GevurahVeto, MultiNodeConsensus) never instantiated. "Structural safety" from CLAUDE.md absent from runtime. |
 | H7 | `aether/csf_transport.py` | UNWIRED | CSFTransport never instantiated. Inter-Sephirot message routing via QBC transactions doesn't exist at runtime. |
 | H8 | `aether/memory.py` | UNWIRED | MemoryManager (episodic/semantic/procedural/working) never instantiated. Biologically-inspired memory hierarchy absent. |
-| H9 | `aether/ipfs_memory.py` | UNWIRED | IPFSMemoryStore never instantiated. IPFS-backed AGI memory doesn't exist. |
+| H9 | `aether/ipfs_memory.py` | UNWIRED | IPFSMemoryStore never instantiated. IPFS-backed AI memory doesn't exist. |
 | H10 | `aether/knowledge_extractor.py` | UNWIRED | KnowledgeExtractor never instantiated. AetherEngine does extraction inline. |
 | H11 | `aether/consciousness.py` | DATA_STARVED | ConsciousnessDashboard.record_measurement() never called. Dashboard always returns empty data. |
 | H12 | `aether/circulation.py` | DATA_STARVED | CirculationTracker.record_block() never called. `/circulation/current` always returns "No data." |
@@ -608,7 +608,7 @@
 3. **Plugin System**: 5 files fully disconnected. No dispatch_hook() calls in QVM execution pipeline.
 4. **Rust P2P**: Skeleton that runs but doesn't actually bridge anything. Channels are dead.
 5. **Fee Collection**: FeeCollector never instantiated. QUSD peg mechanism non-functional.
-6. **Cognitive Architecture**: PinealOrchestrator, SafetyManager, CSFTransport, MemoryManager all uninstantiated. AGI "structural safety" described in whitepapers doesn't exist at runtime.
+6. **Cognitive Architecture**: PinealOrchestrator, SafetyManager, CSFTransport, MemoryManager all uninstantiated. AI "structural safety" described in whitepapers doesn't exist at runtime.
 7. **Data-Starved Components**: ~~ConsciousnessDashboard~~, ~~CirculationTracker~~ (FIXED), ProofOfThoughtExplorer, AetherWSManager still wired to endpoints but never fed data.
 8. **SQL Schema Divergence**: sql_new/ schemas and SQLAlchemy models are fundamentally different designs. Node runs on SQLAlchemy. sql_new/ is aspirational documentation.
 9. **QVM Extensions**: 11 QVM extension modules (AML, risk, batching, state channels, ABI, etc.) fully implemented but zero production callers.

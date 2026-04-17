@@ -91,7 +91,7 @@ class TestProofModels:
             assert name in field_names, f"ProofOfSUSY missing field: {name}"
 
     def test_proof_of_thought_has_fields(self):
-        """ProofOfThought model has AGI proof fields."""
+        """ProofOfThought model has AI proof fields."""
         from qubitcoin.database.models import ProofOfThought
         field_names = {f.name for f in fields(ProofOfThought)}
         # Should have at minimum reasoning/knowledge references

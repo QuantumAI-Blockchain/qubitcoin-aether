@@ -31,7 +31,7 @@ export default function QVMPage() {
         QVM Explorer
       </h1>
       <p className="mt-1 font-[family-name:var(--font-reading)] text-text-secondary">
-        Quantum Virtual Machine: 155 EVM + 10 quantum + 2 AGI opcodes (167 total)
+        Quantum Virtual Machine: 155 EVM + 10 quantum + 2 AI opcodes (167 total)
       </p>
 
       {/* Stats */}

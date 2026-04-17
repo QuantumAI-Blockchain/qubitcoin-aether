@@ -1,7 +1,7 @@
 //! aether-logic: First-Order Logic reasoning engine for the Aether Tree.
 //!
 //! This crate implements **real** logical inference -- the foundational capability
-//! required for genuine AGI reasoning. Unlike graph-traversal approaches that label
+//! required for genuine AI reasoning. Unlike graph-traversal approaches that label
 //! BFS as "deduction," this crate provides:
 //!
 //! - **First-Order Logic terms and formulas** (`term`, `formula`)

@@ -224,7 +224,7 @@
       }
     },
     {
-      "title": "AGI: Knowledge Nodes",
+      "title": "AI: Knowledge Nodes",
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 12 },
       "targets": [

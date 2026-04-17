@@ -64,7 +64,7 @@ export function Footer() {
             </span>
             <p className="mt-3 font-[family-name:var(--font-reading)] text-sm leading-relaxed text-text-secondary">
               Physics-secured digital assets with post-quantum cryptography and
-              the Aether Tree on-chain AGI engine.
+              the Aether Tree on-chain AI engine.
             </p>
             <div className="mt-4 flex gap-3">
               {socialLinks.map(({ href, label, icon }) => (
@@ -321,7 +321,7 @@ export function Footer() {
             &copy; 2026 Quantum Blockchain. MIT License.
           </p>
           <p className="font-[family-name:var(--font-code)] text-[10px] tracking-wide text-text-secondary">
-            Proof-of-SUSY-Alignment &middot; Dilithium5 &middot; QVM (167 Opcodes) &middot; Aether Tree AGI &middot; ZK Bridge (8 Chains) &middot; 50 Markets
+            Proof-of-SUSY-Alignment &middot; Dilithium5 &middot; QVM (167 Opcodes) &middot; Aether Tree AI &middot; ZK Bridge (8 Chains) &middot; 50 Markets
           </p>
         </div>
       </div>

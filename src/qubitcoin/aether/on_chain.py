@@ -1,7 +1,7 @@
 """
-On-Chain AGI Integration — Phase 6
+On-Chain AI Integration — Phase 6
 
-Bridges the Python AGI engine with deployed Solidity contracts via QVM.
+Bridges the Python AI engine with deployed Solidity contracts via QVM.
 Provides write operations (record Phi, submit proofs, veto operations)
 and read operations (query on-chain state, governance parameters) using
 the QVM ABI encoding layer.
@@ -38,7 +38,7 @@ PHI_PRECISION = 1000
 
 class OnChainAGI:
     """
-    Bridge between Python AGI engine and on-chain Solidity contracts.
+    Bridge between Python AI engine and on-chain Solidity contracts.
 
     Uses QVM static_call() for reads and builds contract_call transactions
     for writes.  All writes go through the StateManager transaction pipeline
@@ -918,7 +918,7 @@ class OnChainAGI:
 
 
 class OnChainAGILogOnly:
-    """Log-only fallback for on-chain AGI integration.
+    """Log-only fallback for on-chain AI integration.
 
     When no QVM StateManager is available (no deployed contracts), this
     class records phi writes and PoT submissions as database entries and

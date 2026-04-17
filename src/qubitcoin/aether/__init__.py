@@ -1,5 +1,5 @@
 """
-Aether Tree - AGI Layer for Qubitcoin
+Aether Tree - AI Layer for Qubitcoin
 KeterNode knowledge graph, Phi consciousness, Proof-of-Thought consensus,
 Genesis initialization, Chat interface, Fee management,
 Sephirot Tree of Life cognitive architecture, CSF transport, Pineal orchestrator,

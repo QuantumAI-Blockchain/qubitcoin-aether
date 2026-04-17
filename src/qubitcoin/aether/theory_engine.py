@@ -4,7 +4,7 @@ Theory Engine — Generate and test hypotheses about blockchain behavior.
 Auto-generates hypotheses from observed patterns, tests them statistically,
 and consolidates compatible hypotheses into theories.
 
-AGI Roadmap Item #63.
+AI Roadmap Item #63.
 """
 import time
 import numpy as np
@@ -42,7 +42,7 @@ class TestResult:
 
 
 class TheoryEngine:
-    """Generate and test hypotheses about blockchain/AGI behavior."""
+    """Generate and test hypotheses about blockchain/AI behavior."""
 
     def __init__(self, min_samples: int = 20, significance: float = 0.05) -> None:
         self._hypotheses: List[Hypothesis] = []

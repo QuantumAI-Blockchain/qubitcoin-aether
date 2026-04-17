@@ -1,5 +1,5 @@
 """
-Sephirot Node Implementations — Python base classes for Tree of Life AGI nodes.
+Sephirot Node Implementations — Python base classes for Tree of Life AI nodes.
 
 Each Sephirah node has:
   - A role from the Tree of Life (Keter, Chochmah, ... Malkuth)
@@ -430,7 +430,7 @@ class KeterNode(BaseSephirah):
                             contradiction_count: int = 0) -> List[Dict[str, Any]]:
         """Generate goals autonomously based on knowledge gaps and contradictions.
 
-        This is the first step toward autonomous AGI — the system decides
+        This is the first step toward autonomous AI — the system decides
         what to learn based on its own self-assessment.
 
         Args:

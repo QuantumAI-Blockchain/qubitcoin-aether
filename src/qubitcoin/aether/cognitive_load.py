@@ -1,7 +1,7 @@
 """
 #98: Cognitive Load Balancing
 
-Dynamic compute allocation across AGI subsystems.  Distributes a
+Dynamic compute allocation across AI subsystems.  Distributes a
 total budget of 1.0 proportionally to priority * demand, with
 throttle/boost controls and automatic rebalancing.
 """
@@ -18,7 +18,7 @@ PHI = 1.618033988749895
 
 
 class CognitiveLoadBalancer:
-    """Dynamic compute allocation across AGI subsystems.
+    """Dynamic compute allocation across AI subsystems.
 
     Manages a total budget of 1.0, distributing resources proportionally
     to each subsystem's priority and current demand.

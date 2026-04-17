@@ -1,11 +1,11 @@
 """
 Goal Prioritizer — Multi-criteria utility-based goal ranking.
 
-Maximizes expected utility across competing AGI goals using
+Maximizes expected utility across competing AI goals using
 impact, probability of success, cost, and urgency weighting.
 Includes Pareto frontier detection for multi-objective decisions.
 
-AGI Roadmap Item #57.
+AI Roadmap Item #57.
 """
 import numpy as np
 from dataclasses import dataclass, field
@@ -29,7 +29,7 @@ class GoalScore:
 
 
 class GoalPrioritizer:
-    """Prioritize AGI goals by expected utility with Pareto analysis."""
+    """Prioritize AI goals by expected utility with Pareto analysis."""
 
     def __init__(self, impact_weight: float = 1.0, prob_weight: float = 1.0,
                  cost_weight: float = 1.0, urgency_weight: float = 1.0) -> None:
@@ -43,7 +43,7 @@ class GoalPrioritizer:
         self._max_history: int = 1000
 
     def estimate_impact(self, goal: dict) -> float:
-        """Estimate AGI score improvement from completing this goal.
+        """Estimate AI score improvement from completing this goal.
 
         Uses goal metadata: 'domain_coverage', 'novelty', 'confidence_boost'.
         """

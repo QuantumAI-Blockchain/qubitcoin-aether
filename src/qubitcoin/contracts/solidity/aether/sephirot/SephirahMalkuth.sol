@@ -5,7 +5,7 @@ import "../../interfaces/ISephirah.sol";
 import "../../proxy/Initializable.sol";
 
 /// @title SephirahMalkuth — Kingdom: Action & World Interaction
-/// @notice The lowest Sephirah — the interface between AGI and the external world.
+/// @notice The lowest Sephirah — the interface between AI and the external world.
 ///         Executes actions, submits transactions, and interacts with users. 4-qubit state.
 ///         Brain analog: Motor cortex.
 contract SephirahMalkuth is ISephirah, Initializable {

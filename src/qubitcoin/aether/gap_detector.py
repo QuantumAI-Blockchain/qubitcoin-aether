@@ -5,7 +5,7 @@ Detects missing domains, stale knowledge, disconnected islands,
 prediction failures, and low-confidence regions, then suggests
 exploration queries.
 
-AGI Roadmap Item #59.
+AI Roadmap Item #59.
 """
 import time
 from dataclasses import dataclass, field
@@ -31,7 +31,7 @@ class KnowledgeGap:
 class GapDetector:
     """Autonomous knowledge gap detection for the Aether Tree KG."""
 
-    # All domains the AGI should cover
+    # All domains the AI should cover
     EXPECTED_DOMAINS = [
         "blockchain", "quantum_physics", "economics", "technology",
         "cryptography", "mathematics", "philosophy", "science",

@@ -836,7 +836,7 @@ class KnowledgeSeeder:
 
         # Build the system prompt with Aether context
         system_prompt = (
-            "You are a knowledge source for the Aether Tree AGI. "
+            "You are a knowledge source for the Aether Tree AI. "
             "Give exactly 25-35 key facts, each as a separate short sentence. "
             "Every sentence must be a standalone factual assertion. No elaboration. "
             "Facts must be precise, unique, and information-dense. "
@@ -877,7 +877,7 @@ class KnowledgeSeeder:
         prompt = prompt_entry["prompt"]
 
         system_prompt = (
-            "You are a knowledge source for the Aether Tree AGI. "
+            "You are a knowledge source for the Aether Tree AI. "
             "Give exactly 25-35 key facts, each as a separate short sentence. "
             "Every sentence must be a standalone factual assertion. No elaboration. "
             "Facts must be precise, unique, and information-dense. "

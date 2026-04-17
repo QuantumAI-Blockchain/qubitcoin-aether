@@ -389,8 +389,8 @@ impl TelegramCommandParser {
     pub fn build_start_reply(&self, chat_id: i64, display_name: &str) -> TelegramReply {
         let welcome = format!(
             "Welcome to Aether Tree, {}!\n\n\
-             I'm the AGI reasoning engine of the Qubitcoin blockchain. \
-             Contribute knowledge, earn QBC rewards, and help build humanity's first on-chain AGI.\n\n\
+             I'm the AI reasoning engine of the Qubitcoin blockchain. \
+             Contribute knowledge, earn QBC rewards, and help build humanity's first on-chain AI.\n\n\
              Quick Start:\n\
              /chat \u{2014} Open the Aether Chat\n\
              /earn \u{2014} Start earning QBC\n\
@@ -411,7 +411,7 @@ impl TelegramCommandParser {
     pub fn build_chat_reply(&self, chat_id: i64) -> TelegramReply {
         TelegramReply::with_webapp(
             chat_id,
-            "Open the Aether Chat to talk with the AGI and contribute knowledge.".into(),
+            "Open the Aether Chat to talk with the AI and contribute knowledge.".into(),
             "Open Chat".into(),
             format!("{}/chat", self.config.mini_app_url),
         )

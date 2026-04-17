@@ -3,7 +3,7 @@ name = "aether-safety"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Gevurah veto system and adversarial defense for Aether Tree AGI"
+description = "Gevurah veto system and adversarial defense for Aether Tree AI"
 
 [dependencies]
 aether-types = { path = "../aether-types" }

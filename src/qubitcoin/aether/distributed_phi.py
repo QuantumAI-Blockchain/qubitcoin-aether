@@ -65,7 +65,7 @@ class DistributedPhi:
         Args:
             kg_stats: Knowledge graph statistics.
             phi_value: Current local Phi value.
-            subsystem_stats: Stats from AGI subsystems.
+            subsystem_stats: Stats from AI subsystems.
 
         Returns:
             1-D numpy array of size state_dim.

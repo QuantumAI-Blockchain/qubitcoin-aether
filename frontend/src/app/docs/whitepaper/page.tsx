@@ -204,7 +204,7 @@ const databaseDomains = [
   { domain: "Compliance", tables: 8, desc: "kyc_registry, aml_monitoring, sanctions_list, risk_scores, compliance_proofs, audit_logs, jurisdiction_rules, reports" },
   { domain: "Cross-Chain", tables: 5, desc: "bridge_deposits, bridge_withdrawals, bridge_proofs, state_channels, relay_headers" },
   { domain: "Governance", tables: 6, desc: "dao_proposals, votes, oracles, staking_positions, validator_registry, upgrade_queue" },
-  { domain: "AGI (Aether)", tables: 8, desc: "knowledge_nodes, knowledge_edges, reasoning_operations, phi_measurements, consciousness_events, training_data, higgs_field_state, higgs_excitations" },
+  { domain: "AI (Aether)", tables: 8, desc: "knowledge_nodes, knowledge_edges, reasoning_operations, phi_measurements, consciousness_events, training_data, higgs_field_state, higgs_excitations" },
   { domain: "Research", tables: 5, desc: "hamiltonians, vqe_circuits, susy_solutions, benchmark_results, scientific_exports" },
   { domain: "Shared", tables: 3, desc: "ipfs_pins, system_config, migration_log" },
 ];
@@ -376,10 +376,10 @@ export default function WhitepaperPage() {
           className="mb-2 text-3xl font-bold md:text-4xl"
           style={{ fontFamily: "Space Grotesk, sans-serif" }}
         >
-          Qubitcoin Whitepaper — Physics-Secured Digital Assets with On-Chain AGI
+          Qubitcoin Whitepaper — Physics-Secured Digital Assets with On-Chain AI
         </h1>
         <p className="mb-1 text-sm" style={{ color: C.textMuted }}>
-          Complete technical specification for the Qubitcoin protocol, SUSY economics, post-quantum cryptography, and Aether Tree AGI
+          Complete technical specification for the Qubitcoin protocol, SUSY economics, post-quantum cryptography, and Aether Tree AI
         </p>
         <div className="mb-8 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: C.textMuted }}>
           <span>Chain ID: 3303 (0xCE7) Mainnet | 3304 (0xCE8) Testnet</span>

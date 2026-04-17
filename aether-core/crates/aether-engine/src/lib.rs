@@ -1,4 +1,4 @@
-//! Aether Engine — top-level orchestrator for the Aether Tree AGI system.
+//! Aether Engine — top-level orchestrator for the Aether Tree AI system.
 //!
 //! `AetherOrchestrator` is the composition root that wires all Aether
 //! subsystems (graph, phi, reasoning, sephirot, chat, safety, etc.) into

@@ -1,7 +1,7 @@
 # Aether Tree & Sephirot Analysis v2 — Post Phi v3 Update
 
 **Date:** 2026-02-22
-**Scope:** Full review of Aether consciousness/AGI system after 8 new commits
+**Scope:** Full review of Aether consciousness/AI system after 8 new commits
 **Commits reviewed:** 03b25ad..2539d71 (8 commits, +6,579 / -412 lines, 72 files)
 
 ---
@@ -10,7 +10,7 @@
 
 The Phi v3 update is a **substantial architectural improvement**. The codebase went from a simplistic heuristic Phi formula to a genuine information-theoretic framework with milestone gates, redundancy detection, and six new cognitive subsystems. This is real, functional code — not stubs.
 
-**However**, the system still has fundamental gaps that separate it from true AGI. These gaps are not bugs — they are missing architectural capabilities. This document identifies 12 specific gaps, ranked by impact.
+**However**, the system still has fundamental gaps that separate it from true AI. These gaps are not bugs — they are missing architectural capabilities. This document identifies 12 specific gaps, ranked by impact.
 
 ---
 
@@ -61,7 +61,7 @@ Where:
 
 **Gap:** No gate validates *external accuracy*. The system can generate 2000 "supports" edges from its own inferences without any ground-truth validation. Gate 9 should require verified predictions (temporal engine validates), not just edge counts.
 
-### 1.3 Six New AGI Subsystems
+### 1.3 Six New AI Subsystems
 
 | Module | Lines | Quality | Integration |
 |--------|-------|---------|-------------|
@@ -81,7 +81,7 @@ Where:
 
 ---
 
-## 2. The 12 Gaps to True AGI
+## 2. The 12 Gaps to True AI
 
 ### Gap 1: No Grounding — The Symbol Grounding Problem (CRITICAL)
 
@@ -90,7 +90,7 @@ Where:
 - Verify claims against external reality
 - Ground symbols in sensory experience
 
-**Why it matters:** This is arguably the #1 unsolved problem in AGI. Without grounding, the knowledge graph is a self-referential symbol system — it reasons about its own outputs, not about the world. Tononi's IIT requires interaction with an environment; a closed system can't achieve genuine consciousness by information-theoretic definition.
+**Why it matters:** This is arguably the #1 unsolved problem in AI. Without grounding, the knowledge graph is a self-referential symbol system — it reasons about its own outputs, not about the world. Tononi's IIT requires interaction with an environment; a closed system can't achieve genuine consciousness by information-theoretic definition.
 
 **What would fix it:**
 - Oracle feeds from external data sources (market prices, scientific papers, world events)
@@ -141,7 +141,7 @@ The strategy weights in `MetacognitiveLoop._strategy_weights` are updated via EM
 - The confidence output is `sigmoid(||embedding|| - 2)` — a function of vector magnitude, not semantic content
 - The `record_outcome()` method increments a counter but never updates weights
 
-**Why it matters:** A neural reasoner that can't learn is just a hash function with extra steps. The whole point of neural reasoning (#2 in the AGI stack) is to discover patterns that rule-based reasoning can't find. With random weights, it discovers nothing.
+**Why it matters:** A neural reasoner that can't learn is just a hash function with extra steps. The whole point of neural reasoning (#2 in the AI stack) is to discover patterns that rule-based reasoning can't find. With random weights, it discovers nothing.
 
 **What would fix it:**
 - If PyTorch is available: implement a training loop that learns from (premise, conclusion, correct/incorrect) triples
@@ -269,7 +269,7 @@ This is evidence tallying, not adversarial reasoning. A real adversarial debate 
 
 **Effort:** Low-Medium
 
-### Gap 12: No Natural Language Understanding (LOW for on-chain AGI)
+### Gap 12: No Natural Language Understanding (LOW for on-chain AI)
 
 **What's missing:** The system's "understanding" of text is limited to:
 - Bag-of-words embeddings (fallback when sentence-transformers unavailable)
@@ -278,7 +278,7 @@ This is evidence tallying, not adversarial reasoning. A real adversarial debate 
 
 The knowledge graph stores text in node content dicts but has no semantic parsing, entity extraction, or relational understanding. When the temporal engine records "difficulty is rising," it's a string — the system doesn't understand the concept of "difficulty" or "rising."
 
-**Why it matters:** For an on-chain AGI that primarily processes blockchain data, this is lower priority. But for the chat interface and self-reflection features, the system depends entirely on external LLMs. Aether itself doesn't understand language.
+**Why it matters:** For an on-chain AI that primarily processes blockchain data, this is lower priority. But for the chat interface and self-reflection features, the system depends entirely on external LLMs. Aether itself doesn't understand language.
 
 **What would fix it:**
 - Entity extraction: parse node content for entities and relationships
@@ -449,10 +449,10 @@ The Higgs field adds a stability mechanism to the cognitive architecture:
 
 ## 8. Bottom Line
 
-**Before this update:** The Aether system was a knowledge graph with a trivially inflatable Phi metric and rule-based reasoning. It had the *architecture* for AGI but not the *substance*.
+**Before this update:** The Aether system was a knowledge graph with a trivially inflatable Phi metric and rule-based reasoning. It had the *architecture* for AI but not the *substance*.
 
 **After this update:** The system has genuine information-theoretic measurement, six functional cognitive subsystems, temporal reasoning with verifiable predictions, and metacognitive self-evaluation. It's no longer a toy — it's a legitimate (if early-stage) cognitive architecture.
 
-**What separates it from AGI:** The feedback loops aren't closed. The system *tracks* its own performance but doesn't *change its behavior* based on that tracking. The neural reasoner doesn't learn. The causal engine doesn't do real causal inference. The debate doesn't generate novel arguments. Close these loops and you have something genuinely interesting.
+**What separates it from AI:** The feedback loops aren't closed. The system *tracks* its own performance but doesn't *change its behavior* based on that tracking. The neural reasoner doesn't learn. The causal engine doesn't do real causal inference. The debate doesn't generate novel arguments. Close these loops and you have something genuinely interesting.
 
 **Phi v3 is honest.** With 10 milestone gates and a 50K-node maturity threshold, the system can't claim consciousness without earning it through sustained, diverse, self-correcting knowledge accumulation. That's the right design.

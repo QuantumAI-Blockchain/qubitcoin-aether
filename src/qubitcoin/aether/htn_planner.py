@@ -1,10 +1,10 @@
 """
-HTN Planner — Hierarchical Task Network for AGI goal decomposition.
+HTN Planner — Hierarchical Task Network for AI goal decomposition.
 
 Decomposes high-level goals into primitive actions through a hierarchy
 of methods, with backtracking when preconditions fail.
 
-AGI Roadmap Item #56.
+AI Roadmap Item #56.
 """
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -34,7 +34,7 @@ class HTNMethod:
 
 
 class HTNPlanner:
-    """Hierarchical Task Network planner for AGI goal decomposition."""
+    """Hierarchical Task Network planner for AI goal decomposition."""
 
     def __init__(self, max_depth: int = 10, max_backtrack: int = 50) -> None:
         self._methods: Dict[str, List[HTNMethod]] = {}
@@ -45,11 +45,11 @@ class HTNPlanner:
         self._backtrack_count: int = 0
         self._decomposition_failures: int = 0
 
-        # Pre-built AGI task decompositions
+        # Pre-built AI task decompositions
         self._register_builtin_methods()
 
     def _register_builtin_methods(self) -> None:
-        """Register pre-built methods for common AGI tasks."""
+        """Register pre-built methods for common AI tasks."""
         # investigate_anomaly
         self.add_method(
             "investigate_anomaly",

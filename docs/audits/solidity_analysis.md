@@ -23,11 +23,11 @@
 | QUSDAllocation | `qusd/QUSDAllocation.sol` | 195 | 4-tier vesting (LP/Treasury/Dev/Team) |
 | wQUSD | `qusd/wQUSD.sol` | 183 | Wrapped QUSD for cross-chain bridging |
 
-### 1.2 Aether Tree AGI (17 contracts)
+### 1.2 Aether Tree AI (17 contracts)
 
 | Contract | File | LOC | Purpose |
 |----------|------|-----|---------|
-| AetherKernel | `aether/AetherKernel.sol` | 205 | Main AGI orchestration hub |
+| AetherKernel | `aether/AetherKernel.sol` | 205 | Main AI orchestration hub |
 | NodeRegistry | `aether/NodeRegistry.sol` | ~120 | Sephirot node registration |
 | MessageBus | `aether/MessageBus.sol` | ~150 | Inter-node messaging |
 | SUSYEngine | `aether/SUSYEngine.sol` | 178 | Golden ratio balance enforcement |
@@ -291,7 +291,7 @@ Several internal helper functions lack `@dev` documentation. Recommend adding Na
 | **Proxy/Upgrade** | **A** | EIP-1967 compliant, correct storage slots, proper transparent proxy pattern, revert-reason bubbling. Clean implementation. |
 | **Token Standards** | **A-** | Complete ERC-20/721/1155 implementations. Compliance-aware ERC20QC is novel. Minor: missing increaseAllowance/decreaseAllowance. |
 | **QUSD Stablecoin** | **B+** | Well-structured fractional reserve system with oracle, governance, stabilizer, and debt tracking. Deductions: single-owner admin (H-2), unverified vote weight (H-3), deposit trust issues (M-1, M-2). |
-| **Aether Tree** | **B+** | Innovative AGI-on-chain design. SUSY balance enforcement, Proof-of-Thought validation, constitutional AI safety are well-implemented. Deductions: fixed signer arrays (L-4), missing ownership transfer (M-4). |
+| **Aether Tree** | **B+** | Innovative AI-on-chain design. SUSY balance enforcement, Proof-of-Thought validation, constitutional AI safety are well-implemented. Deductions: fixed signer arrays (L-4), missing ownership transfer (M-4). |
 | **Bridge** | **B** | Functional lock-and-mint bridge with fee structure and daily limits. Deductions: missing reentrancy guard (H-1), no deposit timeout (M-8), chain array cleanup (M-6). |
 | **Interfaces** | **A** | Clean, minimal interface definitions. |
 

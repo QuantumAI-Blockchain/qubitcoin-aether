@@ -58,7 +58,7 @@ class SafetyCertificate:
 
 
 class SafetyVerifier:
-    """Formal safety verification for AGI actions.
+    """Formal safety verification for AI actions.
 
     Uses bounded model checking to simulate actions for N steps and
     verify that safety invariants hold throughout.

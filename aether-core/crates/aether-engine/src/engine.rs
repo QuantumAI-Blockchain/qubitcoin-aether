@@ -124,7 +124,7 @@ pub struct SubsystemResult {
 // AetherOrchestrator
 // ---------------------------------------------------------------------------
 
-/// The composition root for the Aether Tree AGI system.
+/// The composition root for the Aether Tree AI system.
 ///
 /// Holds shared references to all subsystems and orchestrates
 /// the per-block cognitive cycle.

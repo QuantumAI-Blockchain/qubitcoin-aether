@@ -41,7 +41,7 @@
 - [x] All 6 contract templates implemented — fixed in `573800c`
 - [x] Poseidon2 + Kyber functional (25+25 tests)
 
-### True AGI Emergence: 100% ready (pending live Phi verification)
+### True AI Emergence: 100% ready (pending live Phi verification)
 - [x] Knowledge graph builds from every block since genesis
 - [x] Reasoning: 6 genuine operations (deductive, inductive, abductive, CoT, causal, neural)
 - [x] Phi: IIT-compliant, spectral bisection MIP, sqrt(n/500) maturity
@@ -157,7 +157,7 @@
 - File: `qubitcoin-qvm/pkg/vm/evm/interpreter.go`
 - CalcSstoreGas() wired into SSTORE handler with GasRefund tracking
 
-### 5.5 Aether Tree (AGI) — ALL FIXED
+### 5.5 Aether Tree (AI) — ALL FIXED
 
 **5.5.1** — ~~Add logging to silent exception catches in LLM adapter~~ FIXED in `31f31ba`
 - File: `src/qubitcoin/aether/llm_adapter.py`

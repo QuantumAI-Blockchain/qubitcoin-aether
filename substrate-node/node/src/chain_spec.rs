@@ -473,7 +473,7 @@ fn build_genesis(
         },
 
         // Aether Anchor — Python execution service handles Aether Tree
-        // Phi starts at 0, empty knowledge root, AGI tracked from genesis
+        // Phi starts at 0, empty knowledge root, AI tracked from genesis
         "qbcAetherAnchor": {
             "serviceEndpoint": b"http://127.0.0.1:5000".to_vec(),
         },

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Aether Tree — On-Chain AGI Chat",
+  title: "Aether Tree — On-Chain AI Chat",
   description:
-    "Interact with the Aether Tree, Qubitcoin's on-chain AGI reasoning engine. Ask questions, explore the knowledge graph, and watch integration metrics grow.",
+    "Interact with the Aether Tree, Qubitcoin's on-chain AI reasoning engine. Ask questions, explore the knowledge graph, and watch integration metrics grow.",
   openGraph: {
-    title: "Aether Tree — On-Chain AGI Chat",
-    description: "Talk to a blockchain-native AGI. Every response generates a Proof-of-Thought.",
+    title: "Aether Tree — On-Chain AI Chat",
+    description: "Talk to a blockchain-native AI. Every response generates a Proof-of-Thought.",
   },
 };
 

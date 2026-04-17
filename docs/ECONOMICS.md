@@ -14,7 +14,7 @@ Qubitcoin implements a novel monetary policy based on the golden ratio (φ = 1.6
 - Economic security guarantees
 - Token utility and value accrual
 - Game-theoretic incentive structures
-- Aether Tree AGI fee economics (chat, reasoning, deployment)
+- Aether Tree AI fee economics (chat, reasoning, deployment)
 - Sephirot staking and cognitive economics
 - Editable economic configuration
 
@@ -1282,7 +1282,7 @@ The Higgs Cognitive Field (Phase 7) adds mass-weighted inertia to the SUSY balan
 | **L1 Tx Fees** | MIN_FEE, FEE_RATE (micro-fees) | `.env` |
 | **Gas (L2 only)** | BLOCK_GAS_LIMIT, DEFAULT_GAS_PRICE | `.env` |
 | **Sephirot Staking** | Min stake, ROI, slash penalty, unstaking delay | `.env` + Governance |
-| **AGI Parameters** | Phi threshold, gate requirements, reasoning depth | `.env` + Governance |
+| **AI Parameters** | Phi threshold, gate requirements, reasoning depth | `.env` + Governance |
 | **QUSD Keeper** | Mode, check interval, floor/ceiling, max trade size, cooldown | `.env` + Admin API |
 
 ### 14.4 QUSD Failure Fallback

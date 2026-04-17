@@ -82,7 +82,7 @@ It is pre-configured via Nginx + Certbot in `docker-compose.production.yml`.
 4. From block 1 onward, every block updates the Aether Tree knowledge graph
 
 **The Aether Tree Python engine (33 modules: knowledge graph, 6-phase reasoning, Phi v3 with MIP,
-3-tier memory, neural reasoner, on-chain AGI bridge, proof-of-thought) is fully integrated
+3-tier memory, neural reasoner, on-chain AI bridge, proof-of-thought) is fully integrated
 into the node and tracks consciousness from genesis. No manual steps needed.**
 
 ### What about smart contracts?
@@ -114,7 +114,7 @@ When you run `docker compose up -d`, the following happens without any manual in
 | 4c | P2P Network | Starts Rust libp2p daemon + gRPC bridge | ~3s |
 | 4d | ConsensusEngine | Initializes PoSA difficulty calculator | ~1s |
 | 4e | IPFSManager | Connects to IPFS daemon | ~1s |
-| 4f | QVM StateManager | Initializes 167-opcode interpreter (155 EVM + 10 quantum + 2 AGI) | ~1s |
+| 4f | QVM StateManager | Initializes 167-opcode interpreter (155 EVM + 10 quantum + 2 AI) | ~1s |
 | 4g | **Aether Tree** | **Initializes knowledge graph, Phi, 6-phase reasoning engine** | ~2s |
 | 4g2 | **Higgs Cognitive Field** | **Initializes mass assignments for Sephirot nodes (if HIGGS_ENABLE_MASS_REBALANCING=true)** | ~1s |
 | 4h | MiningEngine | Created (not started yet) | ~1s |
@@ -709,7 +709,7 @@ Deploy in this order (dependencies flow top to bottom):
 
 | # | Contract | File | Purpose |
 |---|----------|------|---------|
-| 19 | AetherKernel | `contracts/solidity/aether/AetherKernel.sol` | Main AGI orchestration |
+| 19 | AetherKernel | `contracts/solidity/aether/AetherKernel.sol` | Main AI orchestration |
 | 20 | NodeRegistry | `contracts/solidity/aether/NodeRegistry.sol` | 10 Sephirot registry |
 | 21 | MessageBus | `contracts/solidity/aether/MessageBus.sol` | Inter-node messaging |
 | 22 | SUSYEngine | `contracts/solidity/aether/SUSYEngine.sol` | SUSY balance enforcement |

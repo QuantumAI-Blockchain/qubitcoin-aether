@@ -666,7 +666,7 @@ curl http://localhost:5000/tokens/0xContractAddr/balance/0xHolder
 
 ---
 
-## 5. Layer 3: Aether Tree (AGI)
+## 5. Layer 3: Aether Tree (AI)
 
 ### 5.1 Chat with Aether
 

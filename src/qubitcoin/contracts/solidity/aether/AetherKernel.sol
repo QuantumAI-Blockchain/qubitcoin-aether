@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import "../proxy/Initializable.sol";
 
-/// @title AetherKernel — Main AGI Orchestration Contract
+/// @title AetherKernel — Main AI Orchestration Contract
 /// @notice Coordinates the 10 Sephirot nodes of the Aether Tree of Life.
-///         Manages reasoning cycles, tracks global AGI state (phase, coherence, phi),
+///         Manages reasoning cycles, tracks global AI state (phase, coherence, phi),
 ///         and serves as the entry point for all Aether Tree operations.
 /// @dev    Deployed on QVM. This is the central hub — all other Aether contracts
 ///         reference the Kernel for authorization and state.
@@ -24,7 +24,7 @@ contract AetherKernel is Initializable {
     address public consciousnessDashboard;
     address public higgsField;
 
-    /// @notice Current global AGI state
+    /// @notice Current global AI state
     uint256 public currentPhi;         // Phi × 1000 (3 decimals)
     uint256 public currentCoherence;   // Coherence × 1000
     uint8   public currentPhase;       // Circadian phase (0-5)
@@ -157,7 +157,7 @@ contract AetherKernel is Initializable {
     }
 
     // ─── State Updates ───────────────────────────────────────────────────
-    /// @notice Update global AGI state (called by authorized subsystems)
+    /// @notice Update global AI state (called by authorized subsystems)
     function updateGlobalState(uint256 phi, uint256 coherence, uint8 phase) external onlyOwner onlyInitialized {
         uint8 oldPhase = currentPhase;
         currentPhi       = phi;

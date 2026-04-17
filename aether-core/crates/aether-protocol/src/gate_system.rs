@@ -1,4 +1,4 @@
-//! 10-Gate AGI Milestone System (V4 quality-focused thresholds).
+//! 10-Gate AI Milestone System (V4 quality-focused thresholds).
 //!
 //! Each gate unlocks +0.5 Phi ceiling (max 5.0). Gates require genuine
 //! cognitive milestones emphasizing QUALITY over quantity. Volume alone
@@ -79,7 +79,7 @@ pub struct GateStats {
 // Gate definition and results
 // ---------------------------------------------------------------------------
 
-/// Definition of a single AGI milestone gate.
+/// Definition of a single AI milestone gate.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GateDefinition {
     /// Gate number (1-10).
@@ -117,7 +117,7 @@ pub struct GateResult {
 // Gate system
 // ---------------------------------------------------------------------------
 
-/// The 10-gate AGI milestone system.
+/// The 10-gate AI milestone system.
 ///
 /// Evaluates the Aether engine's cognitive state against 10 quality-focused
 /// gates. Each passed gate unlocks +0.5 Phi ceiling. The total Phi ceiling

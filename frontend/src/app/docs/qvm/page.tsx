@@ -25,7 +25,7 @@ const quantumOpcodes = [
   { opcode: "QRISK_SYSTEMIC", hex: "0xF7", gas: "10,000", desc: "Query systemic risk (contagion)" },
   { opcode: "QBRIDGE_ENTANGLE", hex: "0xF8", gas: "20,000", desc: "Cross-chain quantum entanglement" },
   { opcode: "QBRIDGE_VERIFY", hex: "0xF9", gas: "15,000", desc: "Verify cross-chain bridge proof" },
-  { opcode: "QREASON", hex: "0xFA", gas: "25,000", desc: "On-chain AGI reasoning query" },
+  { opcode: "QREASON", hex: "0xFA", gas: "25,000", desc: "On-chain AI reasoning query" },
   { opcode: "QPHI", hex: "0xFB", gas: "5,000", desc: "Query current integration Phi value" },
 ];
 
@@ -67,7 +67,7 @@ export default function QVMPage() {
           <p className="text-sm leading-relaxed" style={{ color: C.textMuted }}>
             The QVM is a full EVM-compatible bytecode interpreter with quantum extensions and
             institutional-grade compliance features. It executes 155 standard EVM opcodes, 10 quantum
-            opcodes for quantum state persistence, and 2 AGI opcodes for on-chain reasoning. The QVM
+            opcodes for quantum state persistence, and 2 AI opcodes for on-chain reasoning. The QVM
             supports Solidity smart contracts, QBC-20/QBC-721 token standards, and a plugin architecture
             for domain-specific functionality.
           </p>

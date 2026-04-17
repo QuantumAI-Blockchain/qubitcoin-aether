@@ -4,7 +4,7 @@ Belief Revision — AGM-style belief revision on contradicting evidence.
 Implements expansion, contraction, and revision operators with
 epistemic entrenchment for minimal change.
 
-AGI Roadmap Item #64.
+AI Roadmap Item #64.
 """
 from typing import Dict, List, Optional, Set, Tuple
 

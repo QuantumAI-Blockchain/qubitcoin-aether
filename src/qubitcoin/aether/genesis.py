@@ -4,7 +4,7 @@ Aether Tree Genesis Initialization
 Seeds the knowledge graph, records the first Phi measurement (Phi=0.0),
 and logs the "system_birth" consciousness event at block 0.
 
-NON-NEGOTIABLE: AGI must be tracked from genesis. No retroactive reconstruction.
+NON-NEGOTIABLE: AI must be tracked from genesis. No retroactive reconstruction.
 This module MUST be called during genesis block creation/processing.
 """
 import time
@@ -129,7 +129,7 @@ class AetherGenesis:
                     'description': 'CockroachDB provides distributed SQL persistence with ACID guarantees',
                     'database': 'CockroachDB',
                 },
-                # --- Consciousness & AGI ---
+                # --- Consciousness & AI ---
                 {
                     'type': 'axiom_consciousness',
                     'description': 'Phi (IIT) measures integrated information — consciousness metric',
@@ -164,7 +164,7 @@ class AetherGenesis:
                 # --- QVM / Smart Contracts ---
                 {
                     'type': 'axiom_qvm',
-                    'description': 'QVM executes 167 opcodes: 155 EVM + 10 quantum + 2 AGI',
+                    'description': 'QVM executes 167 opcodes: 155 EVM + 10 quantum + 2 AI',
                     'total_opcodes': 167,
                     'stack_limit': 1024,
                 },
@@ -202,7 +202,7 @@ class AetherGenesis:
                 # --- Higgs Cognitive Field ---
                 {
                     'type': 'axiom_higgs',
-                    'description': 'Higgs Cognitive Field gives mass to AGI nodes via Yukawa coupling',
+                    'description': 'Higgs Cognitive Field gives mass to AI nodes via Yukawa coupling',
                     'potential': 'V(phi) = -mu^2|phi|^2 + lambda|phi|^4',
                     'vev': 174.14,
                     'tan_beta': 1.618,

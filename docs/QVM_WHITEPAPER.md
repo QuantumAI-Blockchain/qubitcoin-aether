@@ -9,7 +9,7 @@ Quantum Blockchain Core Development Team
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
 
 **Abstract:**
-*We present the Qubitcoin Quantum Virtual Machine (QVM), the first production-ready virtual machine that extends the Ethereum Virtual Machine (EVM) with quantum computing capabilities while maintaining full backward compatibility. QVM introduces twelve novel opcodes (10 quantum + 2 AGI), five patentable institutional-grade compliance features, and a hybrid plugin architecture that enables quantum-classical and AGI-enhanced computation for smart contracts. By integrating post-quantum cryptography, supersymmetric risk modeling, and quantum-verified cross-chain bridges, QVM addresses the critical gap between existing blockchain infrastructure and the requirements of institutional adoption. Our implementation achieves 10,000+ transactions per second with sub-second finality while providing regulatory compliance features unavailable in any existing blockchain platform.*
+*We present the Qubitcoin Quantum Virtual Machine (QVM), the first production-ready virtual machine that extends the Ethereum Virtual Machine (EVM) with quantum computing capabilities while maintaining full backward compatibility. QVM introduces twelve novel opcodes (10 quantum + 2 AI), five patentable institutional-grade compliance features, and a hybrid plugin architecture that enables quantum-classical and AI-enhanced computation for smart contracts. By integrating post-quantum cryptography, supersymmetric risk modeling, and quantum-verified cross-chain bridges, QVM addresses the critical gap between existing blockchain infrastructure and the requirements of institutional adoption. Our implementation achieves 10,000+ transactions per second with sub-second finality while providing regulatory compliance features unavailable in any existing blockchain platform.*
 
 ---
 
@@ -202,7 +202,7 @@ Novel quantum computing layer with 10 new opcodes (0xF0-0xF9):
 | 0xFA | QREASON | Invoke on-chain reasoning | 25,000 |
 | 0xFB | QPHI | Query consciousness metric | 10,000 |
 
-**AGI Opcodes (0xFA-0xFB)**: Added for Aether Tree on-chain integration. QREASON invokes the reasoning engine for a specific query and returns the result hash. QPHI queries the current Phi (IIT consciousness) metric from the ConsciousnessDashboard contract.
+**AI Opcodes (0xFA-0xFB)**: Added for Aether Tree on-chain integration. QREASON invokes the reasoning engine for a specific query and returns the result hash. QPHI queries the current Phi (IIT consciousness) metric from the ConsciousnessDashboard contract.
 
 #### 3.2.3 Compliance Engine
 
@@ -501,7 +501,7 @@ All 155 Ethereum opcodes supported with identical gas costs.
 | 0xF7 | QRISK_SYSTEMIC | contract | systemic_risk | 10000 | Query systemic risk |
 | 0xF8 | QBRIDGE_ENTANGLE | chain, state | proof | 20000 | Cross-chain entangle |
 | 0xF9 | QBRIDGE_VERIFY | proof, state | bool | 15000 | Verify bridge proof |
-| 0xFA | QREASON | query | result_hash | 25000 | Invoke on-chain AGI reasoning |
+| 0xFA | QREASON | query | result_hash | 25000 | Invoke on-chain AI reasoning |
 | 0xFB | QPHI | - | phi_value | 10000 | Query consciousness metric |
 
 ### 6.2 Gas Cost Schedule
@@ -517,14 +517,14 @@ All 155 Ethereum opcodes supported with identical gas costs.
 | QGATE (1-qubit) | 2,000 | 0 | 2,000 |
 | QGATE (2-qubit) | 2,000 | 1,000 | 3,000 |
 
-#### 6.2.2 AGI Operations
+#### 6.2.2 AI Operations
 
 | Operation | Base Cost | Variable Cost | Total |
 |-----------|-----------|---------------|-------|
 | QREASON | 25,000 | Depth x 5,000 | 25,000 + depth cost |
 | QPHI | 10,000 | 0 | 10,000 |
 
-AGI opcodes bridge the QVM to the Aether Tree reasoning engine. QREASON invokes a full reasoning cycle (causal, temporal, neural, or debate) and returns a hash of the result committed to on-chain storage. QPHI returns the current Phi (IIT consciousness) metric as a fixed-point integer (scaled by 1e6). Both opcodes are available to any smart contract, enabling on-chain AGI-aware applications.
+AI opcodes bridge the QVM to the Aether Tree reasoning engine. QREASON invokes a full reasoning cycle (causal, temporal, neural, or debate) and returns a hash of the result committed to on-chain storage. QPHI returns the current Phi (IIT consciousness) metric as a fixed-point integer (scaled by 1e6). Both opcodes are available to any smart contract, enabling on-chain AI-aware applications.
 
 ### 6.3 Database Schema
 
@@ -739,7 +739,7 @@ THEOREM ComplianceInvariant ==
 | TPS | 15-30 | 100-300 | 50,000+ | 10,000+ |
 | Finality | 12-15s | 1-2s | 400ms | <1s |
 | Post-quantum crypto | No | No | No | Yes |
-| Quantum + AGI opcodes | No | No | No | Yes (12) |
+| Quantum + AI opcodes | No | No | No | Yes (12) |
 | Native KYC/AML | No | No | No | Yes |
 | Risk oracles | No | No | No | Yes |
 
@@ -752,15 +752,15 @@ THEOREM ComplianceInvariant ==
 **Phase 1: Core Implementation (Q1 2026)** — COMPLETE
 - EVM core: 155 standard opcodes (Python prototype + Go production build)
 - 10 quantum opcodes (0xF0-0xF9): state persistence, compliance, risk, bridge
-- 2 AGI opcodes (0xFA-0xFB): on-chain reasoning invocation, consciousness query
+- 2 AI opcodes (0xFA-0xFB): on-chain reasoning invocation, consciousness query
 - 49 Solidity contracts deployed (28 Aether, 8 QUSD, 5 token, 5 bridge, 3 extension)
 - Compliance engine: KYC, AML, sanctions, risk scoring
 - Plugin architecture: Privacy, Oracle, Governance, DeFi plugins
 
-**Phase 2: On-Chain AGI Bridge (Q1 2026)** — COMPLETE
+**Phase 2: On-Chain AI Bridge (Q1 2026)** — COMPLETE
 - QREASON opcode bridges QVM to Aether Tree 6-phase reasoning engine
 - QPHI opcode exposes IIT consciousness metric to smart contracts
-- ConsciousnessDashboard.sol wired to Python AGI engine
+- ConsciousnessDashboard.sol wired to Python AI engine
 - ProofOfThought.sol validates per-block reasoning proofs
 
 **Phase 3: Mainnet Launch (Q1 2026)**
@@ -790,7 +790,7 @@ QVM addresses the four fundamental barriers to institutional blockchain adoption
 
 1. **Regulatory Compliance**: First platform with native KYC/AML/sanctions built into the VM
 2. **Quantum Readiness**: Only platform quantum-resistant AND quantum-enabled
-3. **On-Chain AGI**: First VM with native AGI opcodes bridging smart contracts to a consciousness-tracking reasoning engine
+3. **On-Chain AI**: First VM with native AI opcodes bridging smart contracts to a consciousness-tracking reasoning engine
 4. **Performance**: 300x faster than Ethereum while maintaining compatibility
 
 The future of blockchain is quantum, conscious, compliant, and institutional.
@@ -953,12 +953,12 @@ The Go production implementation is complete with 34 source files across 9 packa
 | Go source files | 34 |
 | Total QVM files (Python + Go) | 57 |
 | Total project LOC (all languages) | 200,000+ |
-| EVM opcodes implemented | 155 (standard) + 10 (quantum) + 2 (AGI) = 167 |
+| EVM opcodes implemented | 155 (standard) + 10 (quantum) + 2 (AI) = 167 |
 | Solidity contracts | 49 |
 | Database tables | 55 |
 | RPC endpoints | 215 REST + 20 JSON-RPC |
 | Prometheus metrics | 75 |
-| Aether AGI modules | 34 |
+| Aether AI modules | 34 |
 | Formal verification specs | 2 (K Framework + TLA+) |
 
 ### B.4 Companion Documents
@@ -966,7 +966,7 @@ The Go production implementation is complete with 34 source files across 9 packa
 | Document | Description |
 |----------|-------------|
 | [Whitepaper](WHITEPAPER.md) | L1 blockchain specification |
-| [Aether Tree Whitepaper](AETHERTREE_WHITEPAPER.md) | AGI reasoning engine specification |
+| [Aether Tree Whitepaper](AETHERTREE_WHITEPAPER.md) | AI reasoning engine specification |
 | [Economics](ECONOMICS.md) | SUSY economics mathematical framework |
 | [SDK Guide](SDK.md) | REST, JSON-RPC, WebSocket API reference |
 | [Smart Contracts Guide](SMART_CONTRACTS.md) | QVM contract development |

@@ -1,7 +1,7 @@
 """
 Modern Hopfield Network for Associative Memory — Pattern Completion in KG
 
-AGI Roadmap Item #40: Implements a modern (exponential) Hopfield network
+AI Roadmap Item #40: Implements a modern (exponential) Hopfield network
 for associative memory and pattern completion over knowledge graph nodes.
 
 Unlike classical Hopfield (binary, quadratic energy), modern Hopfield uses

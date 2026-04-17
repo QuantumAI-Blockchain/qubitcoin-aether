@@ -1,5 +1,5 @@
 """
-Autonomous Curiosity Engine for Aether Tree AGI.
+Autonomous Curiosity Engine for Aether Tree AI.
 
 Provides intrinsic motivation by tracking prediction errors per domain
 and suggesting exploration goals based on knowledge gaps.  Higher

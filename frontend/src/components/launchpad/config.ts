@@ -257,7 +257,7 @@ export const PROJECT_CATEGORIES = [
   "RWA",
   "Social",
   "Identity",
-  "AI / AGI",
+  "AI / AI",
   "Privacy",
   "Other",
 ] as const;

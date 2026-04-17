@@ -1,7 +1,7 @@
 """
 Aether Engine Subsystem Registry
 =================================
-Declarative registry of all AGI subsystem definitions loaded by AetherEngine.__init__.
+Declarative registry of all AI subsystem definitions loaded by AetherEngine.__init__.
 Each entry describes a module to import, a class to instantiate, how to build its
 constructor kwargs, and what log level to use on failure.
 
@@ -41,7 +41,7 @@ def _no_args(_ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 @dataclass(frozen=True)
 class SubsystemDef:
-    """Definition of a single AGI subsystem to load into AetherEngine."""
+    """Definition of a single AI subsystem to load into AetherEngine."""
 
     attr_name: str
     """Attribute name set on the engine (e.g. ``neural_reasoner``)."""
@@ -842,7 +842,7 @@ SUBSYSTEM_REGISTRY: List[SubsystemDef] = [
         log_level="warning",
     ),
 
-    # Phase 6: On-chain AGI integration (log-only fallback)
+    # Phase 6: On-chain AI integration (log-only fallback)
     SubsystemDef(
         attr_name="on_chain",
         module="on_chain",
@@ -868,7 +868,7 @@ def load_subsystems(
     reasoning_engine: Any,
     db_manager: Any,
 ) -> None:
-    """Load all AGI subsystems from the registry onto *engine*.
+    """Load all AI subsystems from the registry onto *engine*.
 
     For each ``SubsystemDef`` in ``SUBSYSTEM_REGISTRY``:
     1. Skip if ``conditional`` returns False.

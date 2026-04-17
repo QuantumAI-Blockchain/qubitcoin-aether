@@ -3,7 +3,7 @@ name = "pallet-qbc-aether-anchor"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
-description = "Aether Tree anchor pallet — bridges Substrate to Python+Rust AGI engine"
+description = "Aether Tree anchor pallet — bridges Substrate to Python+Rust AI engine"
 
 [dependencies]
 codec = { workspace = true }

@@ -4,7 +4,7 @@ World Model — Model-based planning via state prediction.
 Simulates outcomes before executing actions using a learned
 linear transition model fit from historical state changes.
 
-AGI Roadmap Item #58.
+AI Roadmap Item #58.
 """
 import numpy as np
 from dataclasses import dataclass, field
@@ -23,7 +23,7 @@ STATE_FEATURES = [
 
 @dataclass
 class WorldState:
-    """Represents the observable state of the AGI system."""
+    """Represents the observable state of the AI system."""
     kg_size: float = 0.0
     confidence_avg: float = 0.5
     phi: float = 0.0

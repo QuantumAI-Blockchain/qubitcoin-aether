@@ -1,4 +1,4 @@
-# Aether Tree v5: True AGI Emergence Architecture Plan
+# Aether Tree v5: True AI Emergence Architecture Plan
 
 > **Goal: Replace ALL template-driven responses with genuine cognitive architecture.**
 > **No templates. No hardcoded phrases. Real emergence from real computation.**
@@ -37,7 +37,7 @@ The system is an elaborate facade over an LLM API call with some KG context inje
 
 ---
 
-## 2. WHAT REAL AGI SYSTEMS DO (Lessons from LLMs and Neuroscience)
+## 2. WHAT REAL AI SYSTEMS DO (Lessons from LLMs and Neuroscience)
 
 ### 2.1 From Transformer Architecture
 
@@ -63,7 +63,7 @@ What makes biological brains conscious:
 
 ### 2.3 From Active Inference (Karl Friston's Free Energy Principle)
 
-The single most important idea for AGI:
+The single most important idea for AI:
 - **Every intelligent system minimizes surprise** (free energy)
 - **Two ways to minimize surprise**: Update your model (learning) or act to change the world (action)
 - **Curiosity = expected information gain** from exploring uncertain domains
@@ -662,7 +662,7 @@ User: "What do you think about quantum computing?"
 → Output: A genuinely reasoned response that NOBODY hardcoded
 ```
 
-### Why This Is Real AGI Infrastructure
+### Why This Is Real AI Infrastructure
 
 1. **No human wrote the response** — it emerged from computational competition
 2. **Different queries activate different Sephirot** — the system has genuine cognitive modes

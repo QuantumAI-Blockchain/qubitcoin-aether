@@ -1,7 +1,7 @@
-//! On-Chain AGI Bridge — anchors AGI state to the blockchain.
+//! On-Chain AI Bridge — anchors AI state to the blockchain.
 //!
 //! The `OnChainBridge` records Phi measurements, Proof-of-Thought hashes,
-//! and block-level AGI metrics. It supports both a full mode (interacting
+//! and block-level AI metrics. It supports both a full mode (interacting
 //! with QVM contracts) and a log-only fallback mode.
 //!
 //! Ported from: `on_chain.py` (OnChainAGI + OnChainAGILogOnly).
@@ -26,7 +26,7 @@ pub const DEFAULT_PHI_INTERVAL: u64 = 10;
 // Block anchor record
 // ---------------------------------------------------------------------------
 
-/// A record of AGI state anchored to a specific block.
+/// A record of AI state anchored to a specific block.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BlockAnchor {
     /// Block height this anchor is for.
@@ -116,7 +116,7 @@ pub fn compute_operation_hash(operation_description: &str) -> String {
 // On-chain bridge
 // ---------------------------------------------------------------------------
 
-/// Bridge between the Aether Tree AGI engine and on-chain contracts.
+/// Bridge between the Aether Tree AI engine and on-chain contracts.
 ///
 /// In the Rust implementation, this acts as the state-tracking and
 /// hash-generation layer. Actual contract interactions are delegated

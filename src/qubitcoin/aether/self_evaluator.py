@@ -1,7 +1,7 @@
 """
 #70: Self-Evaluation Against Ground Truth
 
-Tests AGI predictions against known answers.  Generates self-test
+Tests AI predictions against known answers.  Generates self-test
 questions from the knowledge graph and tracks accuracy trends.
 
 Numpy-only implementation (no PyTorch).
@@ -55,7 +55,7 @@ class EvalReport:
 
 
 class SelfEvaluator:
-    """Test AGI predictions against ground truth and track accuracy."""
+    """Test AI predictions against ground truth and track accuracy."""
 
     def __init__(self, history_cap: int = 200) -> None:
         self._history_cap = history_cap

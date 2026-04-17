@@ -20,7 +20,7 @@
 | 1 | Frontend (qbc.network) | 100 | 98 | 100 | DevTools mock gated, localhost fallbacks documented |
 | 2 | Blockchain Core (L1 Python) | 100 | 95 | 100 | Decimal for money, logging on all handlers |
 | 3 | Substrate Hybrid Node (Rust) | 100 | 94 | 100 | Fee burn via finalize_fees_with_burn() |
-| 4 | QVM (L2 Python + Go) | 100 | 88 | 100 | All 19 quantum+AGI opcodes implemented in Go |
+| 4 | QVM (L2 Python + Go) | 100 | 88 | 100 | All 19 quantum+AI opcodes implemented in Go |
 | 5 | Aether Tree (L3) | 100 | 98 | 100 | All modules verified real implementations |
 | 6 | QBC Economics & Bridges | 100 | 98 | 100 | Verified correct |
 | 7 | QUSD Stablecoin | 100 | 98 | 100 | Verified correct |
@@ -99,7 +99,7 @@ WebSocket handlers logging, Explorer DevTools mock gating.
 | REST endpoints | "342 routes" | **367** routes | Update to 367 |
 | JSON-RPC methods | "19 methods" | **21** methods | Update to 21 |
 | Total API surface | Not stated | **388** methods | Add to docs |
-| QVM opcodes | "155 EVM + 10 quantum + 2 AGI = 167" | Python: 163 (144+17+2), Go: ~152 (140+10+2) | Clarify per-implementation |
+| QVM opcodes | "155 EVM + 10 quantum + 2 AI = 167" | Python: 163 (144+17+2), Go: ~152 (140+10+2) | Clarify per-implementation |
 | Solidity contracts | "62 contracts" | **60** contracts | Update to 60 |
 | SQLAlchemy models | "must match SQL schemas" | No SQLAlchemy ORM — uses dataclasses + raw SQL | Fix documentation |
 | Config attributes | "~155" | **~299** | Update to ~299 |

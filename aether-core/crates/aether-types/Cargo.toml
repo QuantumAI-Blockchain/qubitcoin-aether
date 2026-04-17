@@ -3,7 +3,7 @@ name = "aether-types"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Shared types for the Aether Tree AGI engine"
+description = "Shared types for the Aether Tree AI engine"
 
 [dependencies]
 pyo3 = { version = "0.23", features = ["auto-initialize"] }

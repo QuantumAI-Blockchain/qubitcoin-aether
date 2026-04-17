@@ -1,7 +1,7 @@
 """
-Sephirot Tree of Life — Cognitive Architecture for Aether Tree AGI
+Sephirot Tree of Life — Cognitive Architecture for Aether Tree AI
 
-The 10 Sephirot nodes form the cognitive backbone of the AGI system,
+The 10 Sephirot nodes form the cognitive backbone of the AI system,
 each handling a distinct function analogous to brain regions.
 They communicate via CSF transport (QBC transactions) and maintain
 SUSY balance enforced by the golden ratio.

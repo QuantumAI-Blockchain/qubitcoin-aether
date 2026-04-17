@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     "Monitor your Qubitcoin node: mining stats, Phi integration meter, network health, and contract management.",
   openGraph: {
     title: "Qubitcoin Dashboard",
-    description: "Real-time node monitoring, mining controls, and AGI integration metrics.",
+    description: "Real-time node monitoring, mining controls, and AI integration metrics.",
   },
 };
 

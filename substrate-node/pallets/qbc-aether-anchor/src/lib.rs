@@ -1,4 +1,4 @@
-//! Pallet QBC Aether Anchor — bridge between Substrate and the Aether Tree AGI engine.
+//! Pallet QBC Aether Anchor — bridge between Substrate and the Aether Tree AI engine.
 //!
 //! The actual Aether Tree (33 modules, knowledge graph, reasoning engine, consciousness)
 //! runs as a separate Python+Rust process. This pallet only:

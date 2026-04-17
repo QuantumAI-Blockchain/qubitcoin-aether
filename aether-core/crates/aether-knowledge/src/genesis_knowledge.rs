@@ -65,7 +65,7 @@ pub static GENESIS_KNOWLEDGE: &[GenesisFact] = &[
     GenesisFact { text: "Layer 2 scaling: rollups move computation off L1 while inheriting security.", confidence: 0.96, domain: "blockchain" },
     GenesisFact { text: "Proof-of-Thought: QBC validators demonstrate meaningful AI reasoning per block.", confidence: 0.90, domain: "blockchain" },
     GenesisFact { text: "Golden ratio halving: QBC rewards divide by phi each era (~1.618 years).", confidence: 0.92, domain: "blockchain" },
-    GenesisFact { text: "QVM: 155 EVM + 10 quantum + 2 AGI opcodes (167 total).", confidence: 0.93, domain: "blockchain" },
+    GenesisFact { text: "QVM: 155 EVM + 10 quantum + 2 AI opcodes (167 total).", confidence: 0.93, domain: "blockchain" },
     // Cryptography (8)
     GenesisFact { text: "AES-256: symmetric encryption standard with 14 rounds and 256-bit key.", confidence: 0.99, domain: "cryptography" },
     GenesisFact { text: "Lattice cryptography: security from SVP and LWE hardness. Post-quantum secure.", confidence: 0.97, domain: "cryptography" },

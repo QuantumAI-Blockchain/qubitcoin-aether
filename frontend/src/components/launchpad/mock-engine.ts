@@ -107,7 +107,7 @@ const DESCRIPTIONS = [
   "Infrastructure protocol for quantum-resistant messaging and data storage.",
 ];
 
-const CATEGORIES = ["DeFi", "GameFi", "Infrastructure", "DAO", "RWA", "Social", "Identity", "AI / AGI", "Privacy"];
+const CATEGORIES = ["DeFi", "GameFi", "Infrastructure", "DAO", "RWA", "Social", "Identity", "AI / AI", "Privacy"];
 
 const MILESTONE_TYPES: MGTMilestoneType[] = [
   "holder_count", "dex_volume", "liquidity_depth", "susy_streak",

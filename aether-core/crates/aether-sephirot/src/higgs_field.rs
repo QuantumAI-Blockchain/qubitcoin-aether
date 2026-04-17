@@ -1,4 +1,4 @@
-//! Higgs Cognitive Field -- Physics-based mass assignment for AGI nodes.
+//! Higgs Cognitive Field -- Physics-based mass assignment for AI nodes.
 //!
 //! Implements the Mexican Hat potential `V(phi) = -mu^2 |phi|^2 + lambda |phi|^4`
 //! to give computational mass to each Sephirot node via Yukawa coupling.
@@ -218,7 +218,7 @@ pub struct MassHierarchyHealth {
 // HiggsCognitiveField
 // ---------------------------------------------------------------------------
 
-/// Pervasive scalar field giving computational mass to AGI cognitive nodes.
+/// Pervasive scalar field giving computational mass to AI cognitive nodes.
 ///
 /// Implements:
 /// - Mexican Hat potential with spontaneous symmetry breaking

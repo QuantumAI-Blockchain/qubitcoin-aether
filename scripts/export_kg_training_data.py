@@ -279,7 +279,7 @@ def export_qa_pairs(conn, limit: int) -> List[Dict[str, Any]]:
             "What drives the value of QBC?",
         ],
         'aether': [
-            "How does the Aether Tree AGI system work?",
+            "How does the Aether Tree AI system work?",
             "Explain a key aspect of Aether Tree intelligence.",
             "What makes the Aether Tree unique?",
         ],

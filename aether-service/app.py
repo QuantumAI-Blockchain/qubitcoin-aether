@@ -71,7 +71,7 @@ def create_app() -> FastAPI:
     """Create the FastAPI application with all routes."""
     app = FastAPI(
         title="Qubitcoin Aether Service",
-        description="Standalone AGI reasoning engine for the Qubitcoin blockchain",
+        description="Standalone AI reasoning engine for the Qubitcoin blockchain",
         version="1.0.0",
         lifespan=lifespan,
     )

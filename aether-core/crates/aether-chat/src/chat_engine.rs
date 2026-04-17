@@ -377,7 +377,7 @@ impl ChatMemory {
             ("quantum", "quantum computing"), ("staking", "staking"),
             ("governance", "governance"), ("privacy", "privacy"),
             ("bridge", "cross-chain bridges"), ("smart contract", "smart contracts"),
-            ("economics", "token economics"), ("aether", "Aether Tree AGI"),
+            ("economics", "token economics"), ("aether", "Aether Tree AI"),
             ("consciousness", "consciousness"),
         ];
         for (keyword, topic) in &topic_keywords {

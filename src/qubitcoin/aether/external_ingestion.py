@@ -1,7 +1,7 @@
 """
 External Data Ingestion — Feed Real-World Knowledge into KG
 
-AGI Roadmap Item #49: Ingest data from external sources to ground the
+AI Roadmap Item #49: Ingest data from external sources to ground the
 Aether Tree's knowledge in real-world information:
   - Blockchain metrics (from the local node's own chain data)
   - Crypto market data (CoinGecko free API)

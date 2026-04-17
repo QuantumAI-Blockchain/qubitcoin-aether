@@ -56,7 +56,7 @@ Print this. Check each box before launch day.
 - [ ] `CONTRACT_FEE_TREASURY_ADDRESS` set in `.env`
 - [ ] `ADMIN_API_KEY` set to strong random value (64+ chars)
 - [ ] `GRAFANA_ADMIN_PASSWORD` changed from default
-- [ ] `GEVURAH_SECRET` set (for AGI safety veto auth)
+- [ ] `GEVURAH_SECRET` set (for AI safety veto auth)
 - [ ] `DEBUG=false` in `.env`
 
 ### Competitive Features (all opt-in, enabled by default)
@@ -304,7 +304,7 @@ QUSD_STABILIZER_ADDRESS=0x...
 HIGGS_FIELD_ADDRESS=0x...
 ```
 
-Then restart the node to enable on-chain AGI bridge:
+Then restart the node to enable on-chain AI bridge:
 ```bash
 docker compose -f docker-compose.production.yml restart qbc-node
 ```
@@ -315,7 +315,7 @@ All deployed addresses are saved in `contract_registry.json` at the project root
 Current entries (62 contracts):
 
 - **ProxyAdmin** — manages all proxy upgrades
-- **AetherKernel** — main AGI orchestration
+- **AetherKernel** — main AI orchestration
 - **10 Sephirot nodes** — Keter, Chochmah, Binah, Chesed, Gevurah, Tiferet, Netzach, Hod, Yesod, Malkuth
 - **QUSD suite** — QUSD, Reserve, Oracle, DebtLedger, Stabilizer, Allocation, Governance
 - **Token standards** — QBC20, QBC721, QBC1155, ERC20QC, wQBC, wQUSD
@@ -509,7 +509,7 @@ Every node runs a Docker Compose stack:
 | CockroachDB | 4-8 GB | 500 GB+ (grows ~50 GB/yr) | Blockchain database |
 | IPFS (Kubo) | 1-2 GB | 50 GB+ | Content storage |
 | Redis | 256 MB | <1 GB | Caching |
-| QBC Node | 2-4 GB | <10 GB | Blockchain + mining + AGI + keeper |
+| QBC Node | 2-4 GB | <10 GB | Blockchain + mining + AI + keeper |
 | AIKGS Sidecar | 256 MB | <1 GB | Knowledge reward engine (Rust gRPC) |
 | Prometheus | 1-2 GB | 50 GB (90-day retention) | Metrics |
 | Grafana | 512 MB | <2 GB | Dashboards |
@@ -655,7 +655,7 @@ curl -X PUT https://api.qbc.network/admin/aether/fees \
 | `GET /balance/<address>` | QBC balance for any address |
 | `GET /mining/stats` | Mining performance metrics |
 | `GET /aether/phi` | Current consciousness (Phi) value |
-| `GET /aether/info` | AGI engine status |
+| `GET /aether/info` | AI engine status |
 | `GET /p2p/peers` | Connected peer list |
 | `GET /qvm/info` | Smart contract engine stats |
 | `GET /keeper/status` | Peg keeper status, mode, role, prices |
@@ -995,7 +995,7 @@ QUSD_STABILIZER_ADDRESS=0x...      # Set after contract deployment
 | Second droplet (additional node) | $96/mo | When traffic grows |
 | Managed backup (S3/Spaces) | ~$5/mo | Data protection |
 | IBM Quantum access | $0+ | If you want real quantum hardware |
-| LLM API keys (OpenAI/Claude) | $10-100/mo | If enabling LLM-seeded AGI |
+| LLM API keys (OpenAI/Claude) | $10-100/mo | If enabling LLM-seeded AI |
 
 ---
 

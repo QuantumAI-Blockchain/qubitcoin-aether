@@ -3,7 +3,7 @@ name = "aether-temporal"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Temporal reasoning, time-series analysis, LTL model checking, and Granger causality for the Aether Tree AGI"
+description = "Temporal reasoning, time-series analysis, LTL model checking, and Granger causality for the Aether Tree AI"
 
 [dependencies]
 aether-types = { path = "../aether-types" }

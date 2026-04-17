@@ -1,4 +1,4 @@
-"""aether-qbc: Python SDK for the Aether Tree AGI on the QuantumAI Blockchain."""
+"""aether-qbc: Python SDK for the Aether Tree AI on the QuantumAI Blockchain."""
 
 from aether_qbc.client import AetherClient
 from aether_qbc.types import (

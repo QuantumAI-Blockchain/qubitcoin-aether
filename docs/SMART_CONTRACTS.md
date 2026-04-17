@@ -389,7 +389,7 @@ contracts/solidity/
 │   ├── QUSDOracle.sol     # Price oracle
 │   └── ...                # 4 more QUSD contracts
 ├── aether/
-│   ├── AetherKernel.sol   # AGI orchestration
+│   ├── AetherKernel.sol   # AI orchestration
 │   ├── ProofOfThought.sol # PoT validation
 │   └── ...                # 15+ Aether contracts
 └── bridge/

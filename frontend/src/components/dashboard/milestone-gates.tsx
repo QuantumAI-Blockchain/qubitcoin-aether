@@ -27,7 +27,7 @@ export function MilestoneGates({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-          AGI Integration Milestones
+          AI Integration Milestones
         </h3>
         <span className="rounded-full bg-quantum-violet/15 px-3 py-1 font-[family-name:var(--font-code)] text-xs text-quantum-violet">
           {gatesPassed}/{gatesTotal} gates

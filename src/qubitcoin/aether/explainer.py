@@ -41,7 +41,7 @@ def _confidence_phrase(confidence: float) -> str:
 
 
 class Explainer:
-    """Generate human-readable explanations of AGI reasoning."""
+    """Generate human-readable explanations of AI reasoning."""
 
     def __init__(self) -> None:
         self._total_explanations: int = 0

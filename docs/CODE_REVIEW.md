@@ -430,7 +430,7 @@ Previous rounds used batch-file-reading per subsystem. Round 6 redesigned the ap
 3. **QVM correctness** — 140+ standard EVM opcodes implemented correctly including edge cases (signed division, sign extension, SAR, memory expansion gas)
 4. **Quantum opcode extensions** — QVQE, QPROOF, QDILITHIUM cleanly integrated without breaking EVM compatibility
 5. **Post-quantum crypto** — CRYSTALS-Dilithium2 with graceful development fallback
-6. **Aether Tree** — Well-structured AGI layer with knowledge graph, Phi calculator, reasoning engine, and Proof-of-Thought consensus
+6. **Aether Tree** — Well-structured AI layer with knowledge graph, Phi calculator, reasoning engine, and Proof-of-Thought consensus
 7. **Comprehensive metrics** — Prometheus counters/gauges/histograms across all subsystems
 8. **Dual P2P** — Rust libp2p (production) + Python asyncio TCP (fallback) with clean feature flag
 9. **Consensus validation** — Thorough block validation including UTXO double-spend detection, coinbase limits, difficulty verification, state root matching, and thought proof verification

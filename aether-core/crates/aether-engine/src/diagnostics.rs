@@ -48,7 +48,7 @@ impl std::fmt::Display for HealthStatus {
 pub struct MindState {
     /// Current Phi integration value.
     pub phi: f64,
-    /// Number of AGI milestone gates passed.
+    /// Number of AI milestone gates passed.
     pub gates_passed: u32,
     /// Gate ceiling for Phi.
     pub gate_ceiling: f64,

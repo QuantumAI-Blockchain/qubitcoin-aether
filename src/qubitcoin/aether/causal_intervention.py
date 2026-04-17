@@ -5,7 +5,7 @@ Computes interventional distributions using do-calculus,
 average treatment effects, confounder identification,
 and back-door / front-door criteria.
 
-AGI Roadmap Item #62.
+AI Roadmap Item #62.
 """
 import numpy as np
 from typing import Any, Dict, List, Optional, Set, Tuple

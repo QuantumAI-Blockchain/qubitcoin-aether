@@ -8,7 +8,7 @@
 //! Data sources:
 //! - CockroachDB (block/tx data populated by the indexer)
 //! - Substrate RPC (live chain state via WebSocket)
-//! - Aether service (proxied for AGI endpoints)
+//! - Aether service (proxied for AI endpoints)
 
 mod config;
 mod routes;

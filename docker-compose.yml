@@ -166,7 +166,7 @@ services:
       - LLM_SEEDER_ENABLED=false
       # Phi MIP spectral bisection is expensive — compute every 5 blocks instead of every 1
       - PHI_COMPUTE_INTERVAL=5
-      # AGI operation intervals — all primes, none share common factors → never collide
+      # AI operation intervals — all primes, none share common factors → never collide
       - AETHER_DEBATE_INTERVAL=211
       - AETHER_CAUSAL_DISCOVERY_INTERVAL=307
       - AETHER_DREAM_ANALOGIES_INTERVAL=251

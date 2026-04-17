@@ -617,7 +617,7 @@ curl http://localhost:5000/health         # Node health
 curl http://localhost:5000/chain/info     # Chain status
 curl http://localhost:5000/mining/stats   # Mining status
 curl http://localhost:5000/p2p/stats      # P2P status
-curl http://localhost:5000/aether/phi     # AGI consciousness
+curl http://localhost:5000/aether/phi     # AI consciousness
 ```
 
 ---

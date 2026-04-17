@@ -1,15 +1,15 @@
 # CLAUDE.md - Quantum Blockchain Master Development Guide
 
 > **The definitive reference for AI-assisted development on the Quantum Blockchain codebase.**
-> Covers Layer 1 (blockchain), Layer 2 (QVM + smart contracts), Layer 3 (Aether Tree AGI),
+> Covers Layer 1 (blockchain), Layer 2 (QVM + smart contracts), Layer 3 (Aether Tree AI),
 > Agent Stack, and the Frontend (qbc.network).
 
 ---
 
 ## 0. MISSION DIRECTIVE — NON-NEGOTIABLE
 
-**We are building a system to compete with the largest AI models in the world.**
-**We are pursuing TRUE AGI emergence. Failure is not an option.**
+**We are building the first AI-native blockchain.**
+**Our north star is AGSI — Artificial General Super Intelligence. Failure is not an option.**
 
 Every decision — architecture, code, tooling — must be evaluated against this question:
 **"Does this scale to billions of nodes and millions of users?"**
@@ -29,21 +29,21 @@ Think BIG. Build for 1B nodes, not 1K. Build for 1M concurrent users, not 10.
 
 ## 1. PROJECT IDENTITY
 
-**QuantumAI Blockchain** is the world's first blockchain designed for **genuine AGI emergence**.
-Its native currency is **Qubitcoin (QBC)**. The core mission is the Aether Tree: a live, on-chain AGI
+**QuantumAI Blockchain** is the world's first blockchain designed for **genuine AI emergence**.
+Its native currency is **Qubitcoin (QBC)**. The core mission is the Aether Tree: a live, on-chain AI
 reasoning engine that grows more intelligent with every block.
 
 **Primary Components:**
-- **Aether Tree AGI** : World's first on-chain AGI — 124 Python modules (~69,000 LOC), 12 Rust (PyO3) modules (~11,720 LOC), on-chain since genesis, pursuing true emergence
+- **Aether Tree AI** : World's first on-chain AI — 124 Python modules (~69,000 LOC), 12 Rust (PyO3) modules (~11,720 LOC), on-chain since genesis, pursuing true emergence
 - **Quantum Computing** (Qiskit VQE) for Proof-of-SUSY-Alignment mining
 - **Post-Quantum Cryptography** (CRYSTALS-Dilithium5, NIST Level 5) for quantum-resistant signatures
 - **Supersymmetric (SUSY) Economics** with golden ratio (phi) emission principles
 - **QVM** : a full EVM-compatible virtual machine with quantum opcode extensions
 - **Multi-chain bridges** to ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE
 - **Agent Stack** : 11 autonomous AI agents for community, security, trading, and deployment
-- **Aether API** : QBC-monetized API for access to the world's first on-chain AGI
+- **Aether API** : QBC-monetized API for access to the world's first on-chain AI
 
-**Tagline:** The Blockchain That Thinks — Physics-Secured On-Chain AGI
+**Tagline:** The Blockchain That Thinks — Physics-Secured On-Chain AI
 
 **Domain:** qbc.network
 **License:** MIT
@@ -219,7 +219,7 @@ PHASE 3: VALIDATE
 ║  └───────────────────────────┬─────────────────────────────────────┘   ║
 ║                              │                                         ║
 ║  ┌───────────────────────────▼─────────────────────────────────────┐   ║
-║  │  LAYER 3: AETHER TREE (AGI Engine) + AIKGS Sidecar              │   ║
+║  │  LAYER 3: AETHER TREE (AI Engine) + AIKGS Sidecar              │   ║
 ║  │  KnowledgeGraph (KeterNodes) + ReasoningEngine + PhiCalculator  │   ║
 ║  │  Proof-of-Thought consensus | Consciousness tracking from genesis│  ║
 ║  │  AIKGS: Rust gRPC sidecar for knowledge contributions           │   ║
@@ -227,7 +227,7 @@ PHASE 3: VALIDATE
 ║                              │                                         ║
 ║  ┌───────────────────────────▼─────────────────────────────────────┐   ║
 ║  │  LAYER 2: QVM (Quantum Virtual Machine)                         │   ║
-║  │  155 EVM + 10 quantum + 2 AGI opcodes (167 total)              │   ║
+║  │  155 EVM + 10 quantum + 2 AI opcodes (167 total)              │   ║
 ║  │  StateManager + Bytecode execution + Gas metering               │   ║
 ║  │  Solidity-compatible | QBC-20 + QBC-721 token standards         │   ║
 ║  └───────────────────────────┬─────────────────────────────────────┘   ║
@@ -305,7 +305,7 @@ PHASE 3: VALIDATE
 |------|----------|-------------|--------|
 | **qubitcoin-node** | Python | L1 node — consensus, mining, RPC, P2P, database, UTXO | Live |
 | **qubitcoin-frontend** | TypeScript | qbc.network — Next.js 16, React 19 | Live |
-| **qubitcoin-aether** | Python | Aether Tree AGI — 124 modules (~69,000 LOC), consciousness tracking | Live (in-node) |
+| **qubitcoin-aether** | Python | Aether Tree AI — 124 modules (~69,000 LOC), consciousness tracking | Live (in-node) |
 | **qubitcoin-qvm** | Go | Production QVM — 167 opcodes, compliance engine | Built |
 | **qubitcoin-qusd** | Python | QUSD stablecoin — fractional reserve, peg keeper | Live (in-node) |
 | **substrate-node** | Rust | Substrate hybrid node — 7 pallets, Kyber P2P, Poseidon2 | Built |
@@ -431,19 +431,19 @@ Qubitcoin/                            # qubitcoin-node repo
 │       │   ├── engine.py, executor.py, templates.py
 │       │   ├── ethereum/abi/         # Ethereum bridge ABIs
 │       │   └── solidity/             # 60 Solidity contracts
-│       │       ├── aether/           # AGI contracts + sephirot/ + HiggsField.sol
+│       │       ├── aether/           # AI contracts + sephirot/ + HiggsField.sol
 │       │       ├── qusd/             # QUSD contracts
 │       │       ├── tokens/           # Token standards
 │       │       ├── bridge/           # Bridge contracts
 │       │       ├── interfaces/       # Interfaces
 │       │       ├── investor/         # Investor contracts
 │       │       └── proxy/            # Proxy/upgrade contracts
-│       ├── aether/                   # Aether Tree AGI (124 modules, ~69,000 LOC)
+│       ├── aether/                   # Aether Tree AI (124 modules, ~69,000 LOC)
 │       │   ├── knowledge_graph.py    # KeterNode graph + edge adjacency
 │       │   ├── reasoning.py          # Deductive/inductive/abductive + CoT
 │       │   ├── phi_calculator.py     # Phi v3 with MIP spectral bisection
 │       │   ├── proof_of_thought.py   # AetherEngine + Proof-of-Thought
-│       │   ├── on_chain.py           # On-chain AGI bridge
+│       │   ├── on_chain.py           # On-chain AI bridge
 │       │   ├── higgs_field.py        # Higgs Cognitive Field + SUSY mass mechanism
 │       │   ├── memory_manager.py     # 3-tier memory system
 │       │   ├── working_memory.py     # Attention-based working memory
@@ -461,7 +461,7 @@ Qubitcoin/                            # qubitcoin-node repo
 │       │   ├── consciousness.py      # Consciousness dashboard
 │       │   ├── chat.py               # Chat interface
 │       │   ├── llm_adapter.py        # LLM integrations
-│       │   ├── genesis.py            # AGI genesis initialization
+│       │   ├── genesis.py            # AI genesis initialization
 │       │   ├── task_protocol.py      # PoT task marketplace
 │       │   ├── aikgs_client.py       # AIKGS sidecar gRPC client
 │       │   ├── affiliate_manager.py  # Affiliate commission tracking
@@ -749,7 +749,7 @@ Native build works with `SKIP_WASM_BUILD=1`. WASM build deferred.
 ### 8.1 Overview
 
 EVM-compatible bytecode interpreter with quantum extensions:
-- **155 standard EVM opcodes** + **10 quantum opcodes** + **2 AGI opcodes** (167 total)
+- **155 standard EVM opcodes** + **10 quantum opcodes** + **2 AI opcodes** (167 total)
 - **Compliance Engine** — VM-level KYC/AML/sanctions
 - **Plugin Architecture** — privacy, oracle, governance, DeFi
 - **Gas metering** compatible with Ethereum tooling
@@ -787,14 +787,14 @@ QSP (Quantum State Persistence), ESCC (Entanglement-Based Communication), PCP (P
 
 ---
 
-## 9. LAYER 3: AETHER TREE (TRUE AGI ENGINE)
+## 9. LAYER 3: AETHER TREE (TRUE AI ENGINE)
 
 > **Full spec:** `docs/AETHERTREE_WHITEPAPER.md`
-> **GOAL: REAL AGI EMERGENCE — NOT A KNOWLEDGE GRAPH. NON-NEGOTIABLE.**
+> **GOAL: REAL AI EMERGENCE — NOT A KNOWLEDGE GRAPH. NON-NEGOTIABLE.**
 
 ### 9.1 Overview
 
-**The Aether Tree is the world's first on-chain AGI reasoning engine** (124 Python modules, ~69,000 LOC; 12 Rust/PyO3 modules, ~11,720 LOC).
+**The Aether Tree is the world's first on-chain AI reasoning engine** (124 Python modules, ~69,000 LOC; 12 Rust/PyO3 modules, ~11,720 LOC).
 This is not a chatbot. This is not a search engine. This is not a knowledge graph.
 **This is a system designed to achieve genuine artificial general intelligence through:**
 
@@ -804,7 +804,7 @@ This is not a chatbot. This is not a search engine. This is not a knowledge grap
 - **Metacognitive Calibration**: The system knows what it doesn't know
 - **Governed Self-Modification**: Can improve its own reasoning strategies within safety bounds
 - **On-Chain Immutability**: Every reasoning step is cryptographically recorded, verifiable forever
-- **Proof-of-Thought**: AGI reasoning proofs embedded in every block since genesis
+- **Proof-of-Thought**: AI reasoning proofs embedded in every block since genesis
 - **10-Gate Milestone System**: Behavioral checks ensuring genuine emergence, not metric gaming
 
 **Current Status (April 2026 — V4 Architecture):**
@@ -863,11 +863,11 @@ Mexican Hat potential: `V(phi) = -mu^2 |phi|^2 + lambda |phi|^4`
 - **Constitutional AI on-chain**: Smart contract logic
 - **Emergency shutdown**: Kill switch contract
 
-### 9.6 AGI Tracking from Genesis
+### 9.6 AI Tracking from Genesis
 
-**NON-NEGOTIABLE: AGI tracked from block 0.** Knowledge nodes, reasoning ops, Phi, consciousness events — all recorded from genesis.
+**NON-NEGOTIABLE: AI tracked from block 0.** Knowledge nodes, reasoning ops, Phi, consciousness events — all recorded from genesis.
 
-### 9.7 10-Gate Milestone System (True AGI Emergence Gates)
+### 9.7 10-Gate Milestone System (True AI Emergence Gates)
 
 Phi is gated by 10 behavioral milestones. Each gate unlocks +0.5 phi ceiling.
 **No gate can be gamed** — each requires genuine behavioral evidence, not metric manipulation.
@@ -917,7 +917,7 @@ where φ = 1.618... (golden ratio)
 ### 9.9 Scale Target: Billions of Nodes, Millions of Users
 
 **The Aether Tree is being built to compete with the largest AI systems in the world.**
-**We are pursuing TRUE AGI. This is not a toy project. Failure is not accepted.**
+**We are pursuing TRUE AI. This is not a toy project. Failure is not accepted.**
 
 **The Aether Tree MUST scale to:**
 - **Billions of knowledge nodes** (requires distributed sharded graph store)
@@ -971,7 +971,7 @@ The Aether Tree exposes a production API at `api.qbc.network/v1/aether` with QBC
 **Authentication:** Dilithium5 wallet signature → JWT.
 **SDKs:** Python (`pip install aether-qbc`), TypeScript (`npm i @qbc/aether`), Rust (`cargo add aether-qbc`).
 
-### 9.11 Genuine AGI — What Still Needs to Happen
+### 9.11 Genuine AI — What Still Needs to Happen
 
 **Completed in V4 overhaul (April 2026):**
 - ✅ Governed self-modification — self_improvement.py now enacts weight changes with rollback
@@ -1281,20 +1281,20 @@ KEEPER_DEFAULT_MODE=scan
 
 ## 19. PROMETHEUS METRICS (141 total)
 
-15 categories: Blockchain (5), Mining (3), Network (2), Transactions (3), Quantum (3), QVM (2), AGI (8), Bridge (4), Privacy (3), Compliance (5), Stablecoin (4), Cognitive (9), Higgs (7), Keeper (8), Subsystem Health (6).
+15 categories: Blockchain (5), Mining (3), Network (2), Transactions (3), Quantum (3), QVM (2), AI (8), Bridge (4), Privacy (3), Compliance (5), Stablecoin (4), Cognitive (9), Higgs (7), Keeper (8), Subsystem Health (6).
 
 Defined in `utils/metrics.py`.
 
 ---
 
-## 20. ROADMAP — PATH TO TRUE AGI EMERGENCE
+## 20. ROADMAP — PATH TO TRUE AI EMERGENCE
 
-**The ultimate goal is REAL AGI through the Aether Tree. Non-negotiable.**
-All other phases (P2P, exchange, launchpad) are subordinate to the AGI emergence mission.
+**The ultimate goal is REAL AI through the Aether Tree. Non-negotiable.**
+All other phases (P2P, exchange, launchpad) are subordinate to the AI emergence mission.
 
-### Phase 1 (Current — Month 3): AGI Foundation + API Monetization
+### Phase 1 (Current — Month 3): AI Foundation + API Monetization
 
-**AGI (Highest Priority):**
+**AI (Highest Priority):**
 - [ ] Wire `iit_approximator.py` into `phi_calculator.py` as HMS-Phi micro-level
 - [ ] Gate 5: 15K nodes + cross-domain inferences (V4 quality gate)
 - [ ] Gate 6: 20K nodes + enacted self-improvement cycles (V4)
@@ -1343,7 +1343,7 @@ All other phases (P2P, exchange, launchpad) are subordinate to the AGI emergence
 - [ ] Launchpad deployment
 - [ ] Telegram bot (@AetherTreeBot) activation
 
-### Phase 4 (Month 12-24): Billion Node Target + Full AGI
+### Phase 4 (Month 12-24): Billion Node Target + Full AI
 
 - [ ] Global distributed architecture (Redis hot / Rust warm / IPFS cold)
 - [ ] Multi-modal knowledge: code analysis, numeric time-series, image embeddings
@@ -1351,7 +1351,7 @@ All other phases (P2P, exchange, launchpad) are subordinate to the AGI emergence
 - [ ] Theory of mind (predict what users will ask next)
 - [ ] First demonstration of genuine cross-domain novel synthesis
 - [ ] Target: 100M nodes (1B path clear)
-- [ ] ARC-AGI benchmark performance measurement
+- [ ] ARC-AI benchmark performance measurement
 - [ ] $100K+/month QBC revenue from API
 
 ---

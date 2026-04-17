@@ -1,6 +1,6 @@
 """
 Prometheus metrics for monitoring
-Exports key performance indicators for QBC, QVM, and AGI
+Exports key performance indicators for QBC, QVM, and AI
 """
 from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -50,7 +50,7 @@ total_contracts = Gauge('qbc_total_contracts', 'Total deployed smart contracts')
 active_contracts = Gauge('qbc_active_contracts', 'Currently active smart contracts')
 
 # ============================================================================
-# AGI (AETHER TREE) METRICS
+# AI (AETHER TREE) METRICS
 # ============================================================================
 phi_current = Gauge('qbc_phi_current', 'Current Phi (consciousness metric)')
 phi_threshold_distance = Gauge('qbc_phi_threshold_distance', 'Distance to consciousness threshold (3.0 - Phi)')
@@ -292,7 +292,7 @@ __all__ = [
     'quantum_backend_metric', 'active_hamiltonians', 'vqe_solutions_total',
     # QVM
     'total_contracts', 'active_contracts',
-    # AGI
+    # AI
     'phi_current', 'phi_threshold_distance', 'knowledge_nodes_total',
     'knowledge_edges_total', 'reasoning_operations_total',
     'consciousness_events_total', 'integration_score', 'differentiation_score',

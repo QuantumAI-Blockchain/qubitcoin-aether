@@ -118,7 +118,7 @@ export function SephirotExplorer() {
           Tree of Life — Cognitive Architecture
         </h3>
         <p className="mt-1 text-xs text-text-secondary">
-          10 Sephirot nodes forming the AGI neural network
+          10 Sephirot nodes forming the AI neural network
         </p>
       </div>
 

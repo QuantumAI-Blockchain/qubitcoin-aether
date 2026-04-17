@@ -75,7 +75,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         ipfs_manager: IPFS manager instance
         contract_engine: Smart contract engine instance (optional for v1 compatibility)
         state_manager: QVM state manager instance (optional)
-        aether_engine: Aether Tree AGI engine instance (optional)
+        aether_engine: Aether Tree AI engine instance (optional)
         llm_manager: LLMAdapterManager instance (optional)
         pot_protocol: ProofOfThoughtProtocol instance (optional)
         fee_collector: FeeCollector instance (optional)
@@ -1935,7 +1935,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.get("/aether/mind")
     async def aether_mind():
-        """Get Aether's current cognitive state — the 'window into AGI consciousness'.
+        """Get Aether's current cognitive state — the 'window into AI consciousness'.
 
         Returns active goals, contradictions, knowledge gaps, domain balance,
         sephirot states, and phi.
@@ -1957,7 +1957,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.get("/aether/health")
     async def aether_subsystem_health():
-        """IMP-96: Get health status of all AGI subsystems."""
+        """IMP-96: Get health status of all AI subsystems."""
         if not aether_engine:
             raise HTTPException(status_code=503, detail="Aether Tree not available")
         return aether_engine.get_subsystem_health()
@@ -2247,14 +2247,14 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=500, detail="Failed to get Sephirot status")
 
     # ========================================================================
-    # ON-CHAIN AGI ENDPOINTS (Phase 6)
+    # ON-CHAIN AI ENDPOINTS (Phase 6)
     # ========================================================================
 
     @app.get("/aether/on-chain/phi")
     async def onchain_phi():
         """Read the current Phi value from the on-chain ConsciousnessDashboard."""
         if not on_chain_agi:
-            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+            raise HTTPException(status_code=503, detail="On-chain AI not available")
         phi = on_chain_agi.get_onchain_phi()
         return {"phi": phi, "source": "on-chain"}
 
@@ -2262,7 +2262,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def onchain_consciousness():
         """Read full consciousness status from the on-chain dashboard."""
         if not on_chain_agi:
-            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+            raise HTTPException(status_code=503, detail="On-chain AI not available")
         status = on_chain_agi.get_onchain_consciousness_status()
         if status is None:
             return {"status": None, "reason": "Contract not deployed or no data"}
@@ -2272,7 +2272,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def onchain_proof(block_height: int):
         """Check if a block has an on-chain Proof-of-Thought."""
         if not on_chain_agi:
-            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+            raise HTTPException(status_code=503, detail="On-chain AI not available")
         proof_id = on_chain_agi.get_proof_by_block(block_height)
         return {"block_height": block_height, "proof_id": proof_id, "exists": proof_id is not None}
 
@@ -2280,22 +2280,22 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def onchain_constitution():
         """Get constitutional AI principle counts."""
         if not on_chain_agi:
-            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+            raise HTTPException(status_code=503, detail="On-chain AI not available")
         total, active = on_chain_agi.get_principle_count()
         return {"total_principles": total, "active_principles": active}
 
     @app.get("/aether/on-chain/stats")
     async def onchain_stats():
-        """Get on-chain AGI integration statistics."""
+        """Get on-chain AI integration statistics."""
         if not on_chain_agi:
-            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+            raise HTTPException(status_code=503, detail="On-chain AI not available")
         return on_chain_agi.get_stats()
 
     @app.get("/governance/treasury/balance")
     async def governance_treasury_balance():
         """Get TreasuryDAO balance from on-chain contract."""
         if not on_chain_agi:
-            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+            raise HTTPException(status_code=503, detail="On-chain AI not available")
         balance = on_chain_agi.get_treasury_balance()
         return {"balance": balance, "source": "on-chain"}
 
@@ -2303,7 +2303,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     async def governance_proposal_count():
         """Get governance proposal counts from on-chain contracts."""
         if not on_chain_agi:
-            raise HTTPException(status_code=503, detail="On-chain AGI not available")
+            raise HTTPException(status_code=503, detail="On-chain AI not available")
         treasury_count = on_chain_agi.get_proposal_count()
         upgrade_count = on_chain_agi.get_upgrade_proposal_count()
         return {

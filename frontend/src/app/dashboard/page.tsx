@@ -186,7 +186,7 @@ function OverviewTab({
     { label: "Mempool", value: chain?.mempool_size?.toString() ?? "---" },
     { label: "HMS-Phi (\u03A6)", value: phi?.phi?.toFixed(4) ?? "---" },
     { label: "Knowledge Nodes", value: phi?.knowledge_nodes?.toLocaleString() ?? "---" },
-    { label: "AGI Gates", value: `${gatesPassed}/${gatesTotal}` },
+    { label: "AI Gates", value: `${gatesPassed}/${gatesTotal}` },
   ];
 
   return (
@@ -391,7 +391,7 @@ function AetherTab({
         </Card>
       </div>
 
-      {/* AGI Reasoning Subsystems */}
+      {/* AI Reasoning Subsystems */}
       {aetherInfo && <AGISubsystemsPanel info={aetherInfo} />}
 
       {/* Conversation Memory + Graph Shard Stats */}
@@ -531,7 +531,7 @@ function AGISubsystemsPanel({ info }: { info: AetherInfo }) {
   return (
     <Card>
       <h3 className="mb-4 font-[family-name:var(--font-display)] text-lg font-semibold">
-        AGI Reasoning Subsystems
+        AI Reasoning Subsystems
       </h3>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {info.neural_reasoner && (
@@ -819,7 +819,7 @@ function GraphShardCard() {
   return (
     <Card>
       <h3 className="mb-3 font-[family-name:var(--font-display)] text-sm font-semibold text-text-secondary">
-        Graph Shard / AGI Status
+        Graph Shard / AI Status
       </h3>
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">

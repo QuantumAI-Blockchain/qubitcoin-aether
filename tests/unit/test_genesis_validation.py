@@ -1,6 +1,6 @@
 """Unit tests for Aether Genesis initialization and validation.
 
-Verifies that the AGI layer is properly initialized from block 0:
+Verifies that the AI layer is properly initialized from block 0:
 - Knowledge graph seeded with genesis axioms
 - First Phi measurement recorded (baseline Phi=0.0)
 - Genesis consciousness event logged (system_birth)

@@ -1,4 +1,4 @@
-//! aether-temporal: Temporal reasoning engine for the Aether Tree AGI.
+//! aether-temporal: Temporal reasoning engine for the Aether Tree AI.
 //!
 //! Provides real temporal reasoning capabilities:
 //!

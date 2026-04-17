@@ -1,6 +1,6 @@
 """
 Attention Schema Theory (AST) — Item #77
-Models the AGI's own attention allocation following Graziano's AST.
+Models the AI's own attention allocation following Graziano's AST.
 Tracks where attention is focused, provides meta-attention reports.
 """
 import time
@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 class AttentionSchema:
-    """Model of the AGI's own attention allocation.
+    """Model of the AI's own attention allocation.
 
     Maintains a budget of 1.0 distributed across active targets.
     Unattended items decay over time.

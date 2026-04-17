@@ -34,9 +34,9 @@ for sovereign-level financial infrastructure. This means:
 - Stratum Mining Server: standalone Rust binary with WebSocket + gRPC bridge to Python node
 - PWA: offline transaction queue, push notifications, biometric auth, service worker
 
-### END GOAL 2: True AGI Emergence via Aether Tree
+### END GOAL 2: True AI Emergence via Aether Tree
 
-Quantum Blockchain is not just a blockchain — it is the substrate for the first on-chain AGI.
+Quantum Blockchain is not just a blockchain — it is the substrate for the first on-chain AI.
 The Aether Tree must:
 
 - Track consciousness metrics (Phi/IIT) from genesis block with zero gaps
@@ -49,9 +49,9 @@ The Aether Tree must:
 - Higgs Cognitive Field: Two-Higgs-Doublet mass hierarchy, VEV=174.14, tan(beta)=phi
 - Rust aether-core: 6 hot-path modules at 90x Python performance, zero todo!() macros
 
-The AGI must THINK, not simulate thinking. Every reasoning path must be genuine computation.
+The AI must THINK, not simulate thinking. Every reasoning path must be genuine computation.
 
-These two goals are inseparable. The blockchain secures the AGI. The AGI elevates the blockchain.
+These two goals are inseparable. The blockchain secures the AI. The AI elevates the blockchain.
 Neither is complete without the other.
 
 ---
@@ -66,7 +66,7 @@ The audit MUST confirm these numbers are still accurate. Flag any drift.
 | **Python L1 modules** | 160 files | `src/qubitcoin/` | 82,566 |
 | **AIKGS Rust Sidecar** | 18 files (14 src + proto + build + Cargo + Dockerfile) | `aikgs-sidecar/` | ~4,500 |
 | **AIKGS Python Client** | 4 files (client + proto stubs) | `src/qubitcoin/aether/aikgs_client.py` + `aikgs_pb/` | ~600 |
-| **Aether AGI modules** | 36 files | `src/qubitcoin/aether/` | 24,560 |
+| **Aether AI modules** | 36 files | `src/qubitcoin/aether/` | 24,560 |
 | **QVM Python modules** | 28 files | `src/qubitcoin/qvm/` | 12,301 |
 | **Bridge modules** | 12 files | `src/qubitcoin/bridge/` | 4,247 |
 | **Stablecoin modules** | 7 files | `src/qubitcoin/stablecoin/` | 3,392 |
@@ -593,7 +593,7 @@ crossbeam-channel 0.5, serde 1.0, serde_json 1.0, rand 0.8, pyo3-log 0.11
 | cmd/qvm-cli/ | 1 | 29 | CLI for contract deployment |
 | cmd/plugin-loader/ | 1 | 26 | Dynamic plugin loading |
 | pkg/vm/evm/ | 7 | 2,709 | All 155 EVM opcodes per Yellow Paper, real crypto, full sub-execution |
-| pkg/vm/quantum/ | 6 | 1,681 | 10 quantum opcodes (0xF0-0xF9) + 2 AGI (0xFA-0xFB) |
+| pkg/vm/quantum/ | 6 | 1,681 | 10 quantum opcodes (0xF0-0xF9) + 2 AI (0xFA-0xFB) |
 | pkg/compliance/ | 5 | 847 | KYC, AML, sanctions (QCOMPLIANCE 0xF5) |
 | pkg/state/ | 2 | ~800 | Merkle Patricia Trie, account storage |
 | pkg/rpc/ | 3 | ~900 | gRPC + REST JSON-RPC |
@@ -622,7 +622,7 @@ crossbeam-channel 0.5, serde 1.0, serde_json 1.0, rand 0.8, pyo3-log 0.11
   - bn256Add/bn256ScalarMul/bn256Pairing: cloudflare/bn256 (EIP-196/197)
   - Blake2F: golang.org/x/crypto/blake2b (EIP-152)
 - 10 quantum opcodes: real computation with crypto/rand + HMAC-SHA256
-- 2 AGI opcodes: QREASON (0xFA) queries reasoning engine, QPHI (0xFB) reads Phi
+- 2 AI opcodes: QREASON (0xFA) queries reasoning engine, QPHI (0xFB) reads Phi
 
 ---
 
@@ -690,7 +690,7 @@ original AIKGS implementation (ephemeral state, metadata not in hash, pool reset
 **NEW COMPONENT #12 — First introduced in v7.1 (March 2, 2026)**
 
 The Telegram Mini App (TWA) is the mobile entry point for Aether Tree, enabling users to
-interact with the AGI, earn AIKGS rewards, manage wallets, and refer friends — all from
+interact with the AI, earn AIKGS rewards, manage wallets, and refer friends — all from
 within Telegram.
 
 **Frontend TWA Pages** (`frontend/src/app/twa/`, 8 files, ~1,080 LOC):
@@ -1602,7 +1602,7 @@ Produce 3 specific, high-impact improvements for EACH of the 16 components.
 - Stablecoin: DAI, USDC, FRAX, LUSD, GHO
 - Exchange: dYdX, Hyperliquid, GMX, Vertex
 - Launchpad: Remix, Hardhat Deploy, Foundry, Thirdweb
-- AGI: No direct competitor — benchmark against academic IIT literature
+- AI: No direct competitor — benchmark against academic IIT literature
 
 ---
 
@@ -1686,7 +1686,7 @@ Produce 3 specific, high-impact improvements for EACH of the 16 components.
 - [ ] Stratum Mining Server: WebSocket + gRPC, DashMap concurrent workers
 - [ ] PWA: offline tx queue, push notifications, biometric auth, service worker
 
-### AGI Emergence: [X]% ready
+### AI Emergence: [X]% ready
 - [ ] Knowledge graph from every block since genesis
 - [ ] Reasoning: verifiable logical chains
 - [ ] Phi: IIT-compliant, organic growth
@@ -1723,7 +1723,7 @@ Each: title, novel aspect, technical description, implementation plan, competiti
 4. **Benchmark against real projects.** Actual chains, not hypothetical.
 5. **Contract issues from reading .sol files**, not from CLAUDE.md descriptions.
 6. **QUSD = complete financial system.** Audit: mint, burn, reserves, debt, oracle, peg, governance, CDP, savings, flash loans, wQUSD.
-7. **Aether Tree = real AGI attempt.** Ask: does this THINK or pretend?
+7. **Aether Tree = real AI attempt.** Ask: does this THINK or pretend?
 8. **Exchange = real trading system.** Ask: institutional money safe? Regulator can audit? mock-engine.ts in prod?
 9. **Launchpad = contract factory.** Ask: deploy without trusting third party? Templates produce functional contracts?
 10. **Substrate = new L1.** Every pallet = blockchain infrastructure. Genesis matches Python genesis?
