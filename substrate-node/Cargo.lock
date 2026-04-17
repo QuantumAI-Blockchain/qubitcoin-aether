@@ -6535,6 +6535,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "vqe-verifier",
 ]
 
 [[package]]
@@ -12799,6 +12800,18 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
+name = "vqe-verifier"
+version = "0.1.0"
+dependencies = [
+ "libm",
+ "num-complex",
+ "qbc-mining",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "sp-core",
+]
 
 [[package]]
 name = "w3f-bls"

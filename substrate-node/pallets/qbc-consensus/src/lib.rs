@@ -190,6 +190,9 @@ pub mod pallet {
         DuplicateProof,
         /// Rate limited — only one mining proof per block per miner.
         MinerRateLimited,
+        /// VQE energy re-verification failed — submitted energy does not match
+        /// re-computation from the submitted parameters and Hamiltonian seed.
+        EnergyVerificationFailed,
     }
 
     #[pallet::genesis_config]
@@ -304,6 +307,21 @@ pub mod pallet {
             ensure!(
                 vqe_proof.energy < difficulty_threshold.saturating_add(tolerance_scaled),
                 Error::<T>::EnergyAboveDifficulty
+            );
+
+            // ── VQE Proof Re-Verification ─────────────────────────────────
+            // Re-derive the Hamiltonian from the seed, apply the submitted
+            // parameters to the ansatz, and verify the computed energy matches
+            // the claimed energy within tolerance.  This prevents malicious
+            // miners from submitting arbitrary energy values below threshold.
+            let params_vec: sp_std::vec::Vec<i64> = vqe_proof.params.to_vec();
+            ensure!(
+                vqe_verifier::verify_energy(
+                    &expected_seed,
+                    &params_vec,
+                    vqe_proof.energy,
+                ),
+                Error::<T>::EnergyVerificationFailed
             );
 
             // ── Chain Timestamp ──────────────────────────────────────────

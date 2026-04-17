@@ -1,0 +1,33 @@
+[package]
+name = "vqe-verifier"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "no_std VQE energy re-verification for on-chain proof validation"
+
+[dependencies]
+# no_std complex numbers (uses libm for trig)
+num-complex = { version = "0.4", default-features = false, features = ["libm"] }
+
+# no_std trig functions
+libm = "0.2"
+
+# Deterministic RNG (no_std compatible)
+rand = { version = "0.8", default-features = false }
+rand_chacha = { version = "0.3", default-features = false }
+
+# Substrate hashing (for SHA2-256 in no_std)
+sp-core = { workspace = true }
+
+[dev-dependencies]
+# The std mining crate for cross-validation tests
+qbc-mining = { path = "../mining" }
+
+[features]
+default = ["std"]
+std = [
+    "num-complex/std",
+    "rand/std",
+    "rand_chacha/std",
+    "sp-core/std",
+]

@@ -14,6 +14,7 @@ members = [
     "crypto/kyber-transport",
     "mining",
     "p2p-bridge",
+    "vqe-verifier",
 ]
 
 [workspace.package]
@@ -120,6 +121,9 @@ qbc-kyber-transport = { path = "crypto/kyber-transport" }
 
 # Mining engine
 qbc-mining = { path = "mining" }
+
+# VQE proof verification (no_std compatible)
+vqe-verifier = { path = "vqe-verifier", default-features = false }
 
 # P2P bridge
 qbc-p2p-bridge = { path = "p2p-bridge" }
