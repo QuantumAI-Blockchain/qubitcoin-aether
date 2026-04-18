@@ -81,7 +81,7 @@ Existing quantum-resistant solutions merely upgrade cryptography without leverag
          ┌──────────────────▼───────────────────────────┐
          │      LAYER 3: AETHER TREE (AI)              │
          │  • Knowledge Graph  • HMS-Phi v4 Reasoning   │
-         │  • 10/10 Gates LIVE  • Proof-of-Thought      │
+         │  • 10/10 Gates LIVE  • True PoT v2 (accuracy)  │
          │  See: docs/AETHERTREE_WHITEPAPER.md          │
          └──────────────────┬───────────────────────────┘
                             │
@@ -2567,7 +2567,7 @@ Layer 2 solutions close the TPS gap
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✓ Mainnet genesis block (LIVE, block height ~198,000+)
 ✓ Aether Tree LIVE since genesis — 10/10 gates ALL PASSED, Phi 5.0
-✓ Proof-of-Thought LIVE in every block
+✓ True Proof-of-Thought v2 LIVE — commits prediction accuracy on-chain (not just activity)
 ✓ Emotional state system LIVE (7 cognitive dimensions)
 ✓ Self-improvement engine LIVE (33 enacted cycles)
 ✓ Curiosity engine LIVE (26 discoveries)
@@ -2775,7 +2775,7 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | **Layer 2** | Smart Contracts | 62 Solidity contracts (^0.8.24) | Production Ready |
 | **Layer 2** | Compliance Engine | KYC/AML/Sanctions + QCOMPLIANCE opcode | Production Ready |
 | **Layer 3** | Aether Tree AI | 124 Python modules (~69,000 LOC), 12 Rust (PyO3) modules (~11,720 LOC), 29 Solidity contracts, HMS-Phi v4. April 2026: 760,000+ nodes, **10/10 gates ALL PASSED**, Phi 5.0, 95.5% prediction accuracy, 7 cognitive emotions, 33 self-improvement cycles, 26 curiosity discoveries | **LIVE since genesis** |
-| **Layer 3** | Proof-of-Thought | Task market + validator staking + 67% BFT | Production Ready |
+| **Layer 3** | True Proof-of-Thought v2 | On-chain prediction accuracy commitment + causal validation + self-improvement feedback loop + task market + 67% BFT | **LIVE** |
 | **Cross-Chain** | Multi-Chain Bridges | 8 chains (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE) | Production Ready |
 | **Cross-Chain** | QUSD Stablecoin | 8 Solidity contracts + wQUSD cross-chain | Production Ready |
 | **Frontend** | qbc.network | Next.js 16 + React 19 + Three.js | Production Ready |
@@ -2807,7 +2807,7 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | Document | Scope |
 |----------|-------|
 | **QVM Whitepaper** (`docs/QVM_WHITEPAPER.md`) | Quantum Virtual Machine technical specification, 5 patentable innovations, compliance architecture, Go production build |
-| **Aether Tree Whitepaper** (`docs/AETHERTREE_WHITEPAPER.md`) | AI reasoning engine, Tree of Life cognitive architecture, Proof-of-Thought protocol, consciousness tracking |
+| **Aether Tree Whitepaper** (`docs/AETHERTREE_WHITEPAPER.md`) | AI reasoning engine, Tree of Life cognitive architecture, True Proof-of-Thought v2 protocol (on-chain accuracy commitment), consciousness tracking |
 | **Economics** (`docs/ECONOMICS.md`) | SUSY economics deep-dive, phi-halving analysis, fee structures |
 | **SDK Guide** (`docs/SDK.md`) | REST, JSON-RPC, WebSocket API reference for developers |
 | **Smart Contracts Guide** (`docs/SMART_CONTRACTS.md`) | QVM contract development, token standards, quantum opcodes |

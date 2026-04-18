@@ -518,6 +518,51 @@ class AetherEngine:
         if not self.kg or not self.phi or not self.reasoning:
             return None
 
+        # Step 0 (True PoT v2): Verify past predictions against current block.
+        # This runs EVERY block, not just on curiosity goals.
+        # Predictions are grounded by checking predicted values against actuals.
+        predictions_verified = 0
+        predictions_correct = 0
+        prediction_accuracy = 0.0
+        if hasattr(self, 'temporal_engine') and self.temporal_engine:
+            try:
+                pv_before = getattr(self.temporal_engine, '_predictions_validated', 0)
+                pc_before = getattr(self.temporal_engine, '_predictions_correct', 0)
+                self.temporal_engine.validate_predictions(block_height)
+                predictions_verified = getattr(self.temporal_engine, '_predictions_validated', 0)
+                predictions_correct = getattr(self.temporal_engine, '_predictions_correct', 0)
+                # Log newly verified predictions
+                new_verified = predictions_verified - pv_before
+                new_correct = predictions_correct - pc_before
+                if new_verified > 0:
+                    logger.info(
+                        f"PoT verification: {new_verified} predictions checked, "
+                        f"{new_correct} correct at block {block_height}"
+                    )
+                    # Feed verification results into self-improvement
+                    if hasattr(self, 'self_improvement') and self.self_improvement:
+                        for _ in range(new_correct):
+                            self.self_improvement.record_reasoning_outcome(
+                                'temporal', 1.0, True, block_height
+                            )
+                        for _ in range(new_verified - new_correct):
+                            self.self_improvement.record_reasoning_outcome(
+                                'temporal', 0.0, False, block_height
+                            )
+                if predictions_verified > 0:
+                    prediction_accuracy = predictions_correct / predictions_verified
+            except Exception as e:
+                logger.debug(f"Prediction verification failed: {e}")
+
+        # Step 0.5 (GAP-2): Refresh LogicBridge every 100 blocks so FOL KB
+        # stays in sync with the growing knowledge graph.
+        if (hasattr(self, 'reasoning') and self.reasoning
+                and block_height % 100 == 0):
+            try:
+                self.reasoning.refresh_logic_bridge(max_nodes=2000)
+            except Exception as e:
+                logger.debug(f"LogicBridge refresh failed: {e}")
+
         # Step 1: Perform automated reasoning on the graph
         reasoning_steps = self._auto_reason(block_height)
 
@@ -546,7 +591,14 @@ class AetherEngine:
         # Step 3: Compute knowledge root
         knowledge_root = self.kg.compute_knowledge_root()
 
-        # Step 4: Build the thought proof
+        # Step 4: Count causal edges validated (via causal engine)
+        causal_edges_validated = 0
+        if hasattr(self, 'causal_engine') and self.causal_engine:
+            causal_edges_validated = getattr(
+                self.causal_engine, '_validated_edges', 0
+            )
+
+        # Step 5: Build the thought proof (True PoT v2)
         pot = ProofOfThought(
             thought_hash='',
             reasoning_steps=reasoning_steps,
@@ -555,6 +607,11 @@ class AetherEngine:
             validator_address=validator_address,
             signature='',  # Signed by the mining pipeline
             timestamp=time.time(),
+            # True PoT v2: on-chain prediction accuracy commitment
+            predictions_verified=predictions_verified,
+            predictions_correct=predictions_correct,
+            prediction_accuracy=prediction_accuracy,
+            causal_edges_validated=causal_edges_validated,
         )
         pot.thought_hash = pot.calculate_hash()
 
@@ -927,10 +984,20 @@ class AetherEngine:
                 try:
                     causal_result = self.causal_engine.discover_all_domains(block.height)
                     # Feed causal discovery results as positive training signal to neural reasoner
-                    if self.neural_reasoner and causal_result:
+                    edges_found = 0
+                    if causal_result:
                         edges_found = causal_result if isinstance(causal_result, int) else causal_result.get('edges_created', 0) if isinstance(causal_result, dict) else 0
-                        if edges_found > 0:
+                    if edges_found > 0:
+                        if self.neural_reasoner:
                             self.neural_reasoner.record_outcome(prediction_correct=True)
+                        # GAP-3: Feed causal edges into self-improvement as validated reasoning
+                        if hasattr(self, 'self_improvement') and self.self_improvement:
+                            self.self_improvement.record_reasoning_outcome(
+                                'causal', 0.85, True, block.height
+                            )
+                        logger.info(
+                            f"Causal discovery: {edges_found} edges found at block {block.height}"
+                        )
                 except Exception as e:
                     # IMP-97: Track subsystem errors instead of silently ignoring
                     self._track_subsystem_error('causal_engine', e)
@@ -3977,23 +4044,46 @@ class AetherEngine:
 
                     if len(combined_ids) >= 2:
                         inf_ids = combined_ids[:5]  # cap at 5 premises
-                        result = self.reasoning.deduce(inf_ids)
-                        if result.success:
-                            self._calibrate_conclusion(result)
-                            steps.extend([s.to_dict() for s in result.chain])
+
+                        # GAP-2: Try FOL reasoning first (real modus ponens),
+                        # fall back to graph-traversal if LogicBridge unavailable.
+                        fol_derived = self.reasoning.fol_deduce(inf_ids, max_steps=20)
+                        if fol_derived:
+                            # FOL produced real logical derivations
+                            for derived in fol_derived[:3]:
+                                steps.append({
+                                    'step_type': 'fol_derivation',
+                                    'content': derived.get('description', '')[:200],
+                                    'source_node_ids': derived.get('source_node_ids', []),
+                                    'confidence': 0.9,  # FOL derivations are sound
+                                    'method': 'modus_ponens',
+                                })
                             self._record_reasoning_outcome(
-                                'deductive', result.confidence, True, block_height,
-                                result=result
+                                'deductive', 0.9, True, block_height
                             )
-                            # Put conclusion into working memory
-                            if self.memory_manager and result.conclusion_node_id:
-                                self.memory_manager.attend(
-                                    result.conclusion_node_id, boost=0.5
-                                )
+                            logger.info(
+                                f"FOL deduction: {len(fol_derived)} facts derived "
+                                f"from {len(inf_ids)} premises at block {block_height}"
+                            )
                         else:
-                            self._record_reasoning_outcome(
-                                'deductive', 0.0, False, block_height
-                            )
+                            # Fallback: graph-traversal deduction
+                            result = self.reasoning.deduce(inf_ids)
+                            if result.success:
+                                self._calibrate_conclusion(result)
+                                steps.extend([s.to_dict() for s in result.chain])
+                                self._record_reasoning_outcome(
+                                    'deductive', result.confidence, True, block_height,
+                                    result=result
+                                )
+                                # Put conclusion into working memory
+                                if self.memory_manager and result.conclusion_node_id:
+                                    self.memory_manager.attend(
+                                        result.conclusion_node_id, boost=0.5
+                                    )
+                            else:
+                                self._record_reasoning_outcome(
+                                    'deductive', 0.0, False, block_height
+                                )
 
                 elif strategy_name == 'abductive':
                     low_conf = [
@@ -4001,23 +4091,41 @@ class AetherEngine:
                         if n.confidence < 0.4 and n.node_type == 'observation'
                     ]
                     if low_conf:
-                        result = self.reasoning.abduce(low_conf[0].node_id)
-                        if result.success:
-                            self._calibrate_conclusion(result)
-                            steps.extend([s.to_dict() for s in result.chain])
+                        target_node = low_conf[0]
+                        # GAP-2: Try FOL abduction first (hypothesis generation)
+                        fol_explanations = self.reasoning.fol_explain(target_node.node_id)
+                        if fol_explanations:
+                            best = fol_explanations[0]
+                            steps.append({
+                                'step_type': 'fol_abduction',
+                                'content': best.get('description', '')[:200],
+                                'score': best.get('score', 0.0),
+                                'confidence': min(0.8, best.get('score', 0.5)),
+                                'method': 'fol_abduction',
+                                'observation_node_id': target_node.node_id,
+                            })
                             self._record_reasoning_outcome(
-                                'abductive', result.confidence, True, block_height,
-                                result=result
+                                'abductive', best.get('score', 0.5), True, block_height
                             )
-                            # Put conclusion into working memory
-                            if self.memory_manager and result.conclusion_node_id:
-                                self.memory_manager.attend(
-                                    result.conclusion_node_id, boost=0.5
-                                )
                         else:
-                            self._record_reasoning_outcome(
-                                'abductive', 0.0, False, block_height
-                            )
+                            # Fallback: graph-traversal abduction
+                            result = self.reasoning.abduce(target_node.node_id)
+                            if result.success:
+                                self._calibrate_conclusion(result)
+                                steps.extend([s.to_dict() for s in result.chain])
+                                self._record_reasoning_outcome(
+                                    'abductive', result.confidence, True, block_height,
+                                    result=result
+                                )
+                                # Put conclusion into working memory
+                                if self.memory_manager and result.conclusion_node_id:
+                                    self.memory_manager.attend(
+                                        result.conclusion_node_id, boost=0.5
+                                    )
+                            else:
+                                self._record_reasoning_outcome(
+                                    'abductive', 0.0, False, block_height
+                                )
 
                 elif strategy_name == 'neural':
                     if (self.neural_reasoner and self.kg

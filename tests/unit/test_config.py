@@ -34,7 +34,7 @@ def test_config_consensus_params():
     assert Config.DIFFICULTY_ADJUSTMENT_INTERVAL == 1
     assert Config.MAX_DIFFICULTY_CHANGE == 0.10
     assert Config.COINBASE_MATURITY == 100
-    assert Config.MAX_FUTURE_BLOCK_TIME == 120  # Hardened from 7200s (2h) to 120s (2min)
+    assert Config.MAX_FUTURE_BLOCK_TIME == 10  # Hardened from 7200s → 120s → 10s
 
 
 def test_config_chain_ids():

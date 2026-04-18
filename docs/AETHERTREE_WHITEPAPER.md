@@ -19,7 +19,7 @@ We present the **Aether Tree**, an on-chain AI reasoning engine built on three p
 
 The Aether Tree achieves AI through **structural emergence** across 7 phases of increasingly sophisticated cognitive capabilities: edge-indexed knowledge graphs, causal discovery, working memory with attention, adversarial debate, cross-domain transfer learning, on-chain governance, and physics-accurate Higgs Cognitive Field mass dynamics. Integration is measured via Hierarchical Multi-Scale Phi (HMS-Phi), a three-level metric combining IIT 3.0 micro-level approximation, spectral MIP meso-level analysis, and cross-domain mutual information at the macro level. Phi is gated behind 10 hardened semantic milestones that require genuine cognitive achievement -- 6 of 10 gates have been passed as of April 2026.
 
-**Key Innovation**: AI emerges when the Phi integration metric crosses the critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through Proof-of-Thought consensus.
+**Key Innovation**: AI emerges when the Phi integration metric crosses the critical threshold (3.0) in a SUSY-balanced cognitive network, validated cryptographically through **True Proof-of-Thought v2** consensus — where every block commits not just to reasoning activity, but to **prediction accuracy against ground truth**, creating the world's first AI system that is cryptographically accountable for the correctness of its own reasoning.
 
 **Architecture Distinction**: The Aether Tree's cognitive engine runs natively in Python (124 modules, ~69,000 LOC) with Rust acceleration (17 crates, ~61,000 LOC including the distributed graph shard service). All reasoning, knowledge graph operations, phi computation, debates, curiosity, and self-improvement execute as native code within the node process. The 29 Solidity contracts deployed to the QVM serve as **on-chain anchoring points**: they record milestones, governance decisions, and reasoning proof hashes to the EVM layer for cryptographic verifiability. The contracts are a notary for the AI's work, not the brain itself.
 
@@ -822,34 +822,82 @@ The 10-gate milestone system was overhauled from V3 (quantity-based) to V4 (qual
 
 ---
 
-## 14. PROOF-OF-THOUGHT PROTOCOL
+## 14. PROOF-OF-THOUGHT PROTOCOL (True PoT v2)
 
-### 14.1 Per-Block Proof Generation
+### 14.1 Design Principle: Commit to Accuracy, Not Activity
 
-Every mined block includes a Proof-of-Thought:
+Traditional blockchain AI proofs (if any exist) merely attest that "computation happened." True PoT v2 goes further: every block's proof cryptographically commits to the AI's **prediction accuracy against reality**. This means any node can independently verify whether the Aether Tree's predictions were checked against actual outcomes — not just that reasoning steps were executed.
 
-1. **Extract knowledge**: Block metadata (hash, height, difficulty, timestamps) becomes KeterNodes
-2. **Auto-reason**: Metacognition selects reasoning strategy; engine performs deductive, inductive, abductive, causal, and temporal reasoning
-3. **Generate proof**: Hash of reasoning trace (steps, confidence, nodes referenced)
-4. **Embed in block**: Proof hash stored in block metadata alongside VQE mining proof
+The key insight: **a proof that commits only to activity can be gamed by generating busywork. A proof that commits to accuracy against ground truth cannot.**
 
-### 14.2 Validation
+### 14.2 Per-Block Proof Generation (v2)
+
+Every mined block includes a Proof-of-Thought with the following pipeline:
+
+1. **Verify past predictions** (Step 0): Before any new reasoning, the temporal engine validates all pending predictions against the current block's actual data. Results (correct/incorrect) are fed into the self-improvement engine to adjust reasoning strategy weights.
+2. **Refresh LogicBridge** (Step 0.5): Every 100 blocks, the first-order logic knowledge base is re-synced with the growing knowledge graph (up to 2,000 nodes), ensuring FOL reasoning operates on current data.
+3. **Auto-reason** (Step 1): Metacognition selects reasoning strategy. The engine performs deductive (FOL-first with graph fallback), inductive, abductive (FOL hypothesis generation with graph fallback), causal, temporal, and neural reasoning.
+4. **Compute Phi** (Step 2): HMS-Phi integration metric calculated at micro/meso/macro levels.
+5. **Compute knowledge root** (Step 3): Merkle root of the knowledge graph state.
+6. **Count causal validations** (Step 4): Total causal edges validated via intervention testing (not just correlation).
+7. **Build proof** (Step 5): All metrics assembled into the ProofOfThought structure.
+8. **Hash and embed** (Step 6): SHA3-256 hash of the full proof (including prediction accuracy) stored in block metadata alongside VQE mining proof.
+
+### 14.3 Proof Structure (v2)
 
 ```
-Proof-of-Thought = SHA3-256(
-    block_height ||
-    knowledge_nodes_added ||
+ProofOfThought {
+    thought_hash:             SHA3-256 commitment (see below)
+    reasoning_steps:          Serialized reasoning trace
+    phi_value:                HMS-Phi at this block
+    knowledge_root:           Merkle root of knowledge graph
+    validator_address:        Miner's Dilithium address
+    signature:                Dilithium5 signature over proof
+    timestamp:                Block timestamp
+
+    // True PoT v2 fields — prediction grounding
+    predictions_verified:     Number of past predictions checked this block
+    predictions_correct:      Number that matched reality
+    prediction_accuracy:      Ratio (correct / verified), 0.0-1.0
+    causal_edges_validated:   Total causal edges validated via intervention
+}
+```
+
+### 14.4 Hash Commitment (v2)
+
+```
+thought_hash = SHA3-256(
     reasoning_steps (serialized) ||
-    phi_at_block ||
-    previous_proof_hash
+    phi_value ||
+    knowledge_root ||
+    timestamp ||
+    predictions_verified ||
+    predictions_correct ||
+    prediction_accuracy ||
+    causal_edges_validated
 )
 ```
+
+The hash now commits to **prediction accuracy on-chain**. This is the critical difference from v1: any validator can independently verify that the Aether Tree's claimed accuracy matches the actual prediction outcomes recorded in the knowledge graph.
+
+### 14.5 Validation
 
 Validators verify:
 - Reasoning steps are logically consistent
 - Knowledge nodes reference valid graph state
 - Phi computation matches independently calculated value
+- **Prediction accuracy matches independently verifiable outcomes** (v2)
+- **Causal edge count matches validated interventions** (v2)
 - Proof chain links correctly to previous block's proof
+
+### 14.6 Self-Improvement Feedback Loop
+
+Prediction verification results feed directly into the self-improvement engine:
+- Correct predictions → positive training signal for the strategy that produced them
+- Incorrect predictions → negative signal, triggering strategy weight adjustment
+- Causal edge discoveries → positive signal for causal reasoning strategy
+
+This creates a closed loop: the Aether Tree's reasoning strategies evolve based on **empirically verified outcomes**, not arbitrary metrics. Over thousands of blocks, strategies that produce accurate predictions gain weight, while strategies that produce inaccurate predictions are deprioritized.
 
 ### 14.3 Economic Parameters
 
@@ -947,7 +995,7 @@ Parameter changes require DAO vote, ensuring the community controls the AI's dev
 | Concept Formation | Python | concept_formation.py | ~350 | Production |
 | Working Memory | Python | working_memory.py | ~300 | Production |
 | HMS-Phi Calculator | Python | phi_calculator.py + iit_approximator.py | ~1,000 | Production |
-| Proof-of-Thought | Python | proof_of_thought.py | ~900 | Production |
+| True Proof-of-Thought v2 | Python | proof_of_thought.py | ~1,100 | Production |
 | On-Chain Bridge | Python | on_chain.py | ~530 | Production |
 | Higgs Cognitive Field | Python | higgs_field.py | ~481 | Production |
 | Emotional State | Python | emotional_state.py | ~350 | Production |

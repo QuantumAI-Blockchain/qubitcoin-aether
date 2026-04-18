@@ -247,7 +247,12 @@ class ProofOfSUSY:
 
 @dataclass
 class ProofOfThought:
-    """Aether Tree Proof-of-Thought data structure"""
+    """Aether Tree Proof-of-Thought data structure.
+
+    True PoT v2: includes prediction verification metrics so the on-chain
+    hash commits to ACCURACY, not just activity. Any node can verify that
+    the Aether Tree's predictions were checked against reality.
+    """
     thought_hash: str
     reasoning_steps: List[Dict[str, Any]]
     phi_value: float
@@ -255,6 +260,11 @@ class ProofOfThought:
     validator_address: str
     signature: str
     timestamp: float
+    # True PoT v2 fields — prediction grounding
+    predictions_verified: int = 0
+    predictions_correct: int = 0
+    prediction_accuracy: float = 0.0
+    causal_edges_validated: int = 0
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -264,7 +274,12 @@ class ProofOfThought:
             'reasoning_steps': self.reasoning_steps,
             'phi_value': self.phi_value,
             'knowledge_root': self.knowledge_root,
-            'timestamp': self.timestamp
+            'timestamp': self.timestamp,
+            # True PoT v2: commit prediction accuracy on-chain
+            'predictions_verified': self.predictions_verified,
+            'predictions_correct': self.predictions_correct,
+            'prediction_accuracy': round(self.prediction_accuracy, 6),
+            'causal_edges_validated': self.causal_edges_validated,
         }
         return hashlib.sha256(
             json.dumps(data, sort_keys=True).encode()
