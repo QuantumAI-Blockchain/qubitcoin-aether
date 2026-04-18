@@ -286,6 +286,11 @@ class AetherEngine:
                 }
 
         self._subsystem_last_check = now
+
+        # Include error budget summary at top level
+        budget = self.get_error_budget_status()
+        health['__error_budget__'] = budget
+
         return health
 
     def get_full_stats(self) -> dict:
@@ -4742,26 +4747,44 @@ class AetherEngine:
         except Exception as e:
             logger.debug(f"Sephirah reward error for {role_name}: {e}")
 
-    def _track_subsystem_error(self, subsystem_name: str, error: Exception) -> None:
-        """IMP-97: Track subsystem errors for health monitoring.
+    # ── Core subsystems that MUST be healthy for block processing ──
+    _CRITICAL_SUBSYSTEMS = frozenset({
+        'knowledge_graph', 'reasoning_engine', 'phi_calculator',
+        'temporal_engine', 'causal_engine', 'debate_protocol',
+    })
+    # Maximum degraded critical subsystems before block quality is flagged
+    _CRITICAL_ERROR_BUDGET = 2
+    # Maximum total failed subsystems before overall health is degraded
+    _TOTAL_ERROR_BUDGET = 15
 
-        Increments the error count for a subsystem. If errors exceed threshold,
-        logs a warning so operators know a subsystem is degraded.
+    def _track_subsystem_error(self, subsystem_name: str, error: Exception) -> None:
+        """Track subsystem errors with error budget awareness.
+
+        Increments the error count for a subsystem. Logs at INFO level
+        (not debug) so errors are visible in normal operation. Triggers
+        error budget warnings when too many subsystems are degraded.
         """
         if subsystem_name not in self._subsystem_health:
             self._subsystem_health[subsystem_name] = {
                 'error_count': 0, 'consecutive_errors': 0, 'last_error': '',
+                'last_error_time': 0.0,
             }
         health = self._subsystem_health[subsystem_name]
         health['error_count'] += 1
         health['consecutive_errors'] = health.get('consecutive_errors', 0) + 1
         health['last_error'] = str(error)[:200]
+        health['last_error_time'] = time.time()
         consec = health['consecutive_errors']
         total = health['error_count']
-        # Log at WARNING after 3 consecutive failures (not just total)
-        if consec == 3:
+
+        # Log at INFO on first failure and WARNING after 3 consecutive
+        if consec == 1:
+            logger.info(
+                "Subsystem '%s' error: %s", subsystem_name, str(error)[:100]
+            )
+        elif consec == 3:
             logger.warning(
-                "Subsystem '%s' failing: %d consecutive errors (total: %d). "
+                "Subsystem '%s' DEGRADED: %d consecutive errors (total: %d). "
                 "Last: %s", subsystem_name, consec, total, str(error)[:100]
             )
         elif consec > 3 and consec % 50 == 0:
@@ -4770,10 +4793,84 @@ class AetherEngine:
                 subsystem_name, consec, total
             )
 
+        # Check error budget
+        self._check_error_budget()
+
     def _mark_subsystem_ok(self, subsystem_name: str) -> None:
         """Reset consecutive error count on subsystem success."""
         if subsystem_name in self._subsystem_health:
             self._subsystem_health[subsystem_name]['consecutive_errors'] = 0
+
+    def _check_error_budget(self) -> None:
+        """Check if the error budget is exceeded and log at appropriate level.
+
+        Error budget = how many subsystems can be degraded before the
+        overall system is considered unhealthy. Two budgets:
+        - Critical subsystems: max 2 degraded (out of 6 critical)
+        - Total subsystems: max 15 degraded (out of ~60)
+        """
+        degraded_critical = 0
+        degraded_total = 0
+        for name, health in self._subsystem_health.items():
+            if health.get('consecutive_errors', 0) >= 3:
+                degraded_total += 1
+                if name in self._CRITICAL_SUBSYSTEMS:
+                    degraded_critical += 1
+
+        if degraded_critical > self._CRITICAL_ERROR_BUDGET:
+            logger.error(
+                "ERROR BUDGET EXCEEDED: %d/%d critical subsystems degraded "
+                "(budget: %d). Block quality compromised.",
+                degraded_critical, len(self._CRITICAL_SUBSYSTEMS),
+                self._CRITICAL_ERROR_BUDGET,
+            )
+        elif degraded_total > self._TOTAL_ERROR_BUDGET:
+            logger.warning(
+                "Error budget warning: %d subsystems degraded (budget: %d)",
+                degraded_total, self._TOTAL_ERROR_BUDGET,
+            )
+
+    def get_error_budget_status(self) -> dict:
+        """Return current error budget utilization.
+
+        Returns:
+            Dict with critical and total budget usage, degraded subsystem list.
+        """
+        degraded_critical: list = []
+        degraded_other: list = []
+        for name, health in self._subsystem_health.items():
+            consec = health.get('consecutive_errors', 0)
+            if consec >= 3:
+                entry = {
+                    'name': name,
+                    'consecutive_errors': consec,
+                    'total_errors': health.get('error_count', 0),
+                    'last_error': health.get('last_error', '')[:100],
+                }
+                if name in self._CRITICAL_SUBSYSTEMS:
+                    degraded_critical.append(entry)
+                else:
+                    degraded_other.append(entry)
+
+        return {
+            'critical_budget': {
+                'used': len(degraded_critical),
+                'total': self._CRITICAL_ERROR_BUDGET,
+                'exceeded': len(degraded_critical) > self._CRITICAL_ERROR_BUDGET,
+                'degraded': degraded_critical,
+            },
+            'total_budget': {
+                'used': len(degraded_critical) + len(degraded_other),
+                'total': self._TOTAL_ERROR_BUDGET,
+                'exceeded': (len(degraded_critical) + len(degraded_other)) > self._TOTAL_ERROR_BUDGET,
+                'degraded_other': degraded_other[:10],  # Top 10 for readability
+            },
+            'overall_health': (
+                'critical' if len(degraded_critical) > self._CRITICAL_ERROR_BUDGET
+                else 'warning' if (len(degraded_critical) + len(degraded_other)) > self._TOTAL_ERROR_BUDGET
+                else 'healthy'
+            ),
+        }
 
     def _record_reasoning_outcome(self, strategy: str, confidence: float,
                                    success: bool, block_height: int,
