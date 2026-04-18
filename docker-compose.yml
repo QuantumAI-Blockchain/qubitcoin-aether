@@ -175,7 +175,7 @@ services:
       - PHI_COMPUTE_INTERVAL=10
       # AI operation intervals — staggered to prevent OOM (4GB limit)
       # Use PRIME numbers to avoid multiple heavy processes on same block
-      - AETHER_DEBATE_INTERVAL=53
+      - AETHER_DEBATE_INTERVAL=7
       - AETHER_CAUSAL_DISCOVERY_INTERVAL=67
       - AETHER_DREAM_ANALOGIES_INTERVAL=97
       - AETHER_SELF_REFLECT_INTERVAL=79

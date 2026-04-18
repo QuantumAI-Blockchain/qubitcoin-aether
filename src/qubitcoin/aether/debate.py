@@ -195,9 +195,12 @@ class DebateProtocol:
 
         # Initial proposer confidence = average of topic node confidences
         proposer_conf = sum(n.confidence for n in topic_nodes) / len(topic_nodes)
-        # Critic starts as adversary, but with a minimum of 0.35 to ensure
-        # competitive debates even when topic confidence is very high.
-        critic_conf = max(0.35, 1.0 - proposer_conf)
+        # V5: Critic starts at 0.5 for balanced debates.  Previous logic
+        # (max(0.35, 1-proposer)) gave the critic only 0.1-0.35 against
+        # high-confidence nodes, so ALL debates ended "accepted".
+        # Fair starting ground means verdicts reflect evidence quality,
+        # not starting-confidence advantage.
+        critic_conf = 0.5
 
         positions: List[DebatePosition] = []
         round_num = 0
@@ -300,23 +303,30 @@ class DebateProtocol:
             all_pro_evidence, all_con_evidence
         )
 
-        if abs(proposer_conf - critic_conf) <= 0.05 and abs(pro_adjusted - con_adjusted) <= 0.02:
-            # Genuinely balanced evidence — neither side wins
+        # V5: Quality-gap verdict with wider thresholds for genuine diversity.
+        # Previous 0.02 threshold meant pro_adjusted almost always won.
+        quality_gap = pro_adjusted - con_adjusted
+        conf_gap = abs(proposer_conf - critic_conf)
+
+        if conf_gap <= 0.08 and abs(quality_gap) <= 0.05:
+            # Genuinely balanced — neither side has clear advantage
             verdict = 'undecided'
             self._undecided += 1
             synthesis_conf = (proposer_conf + critic_conf) / 2.0
-        elif pro_adjusted > con_adjusted + 0.02:
+        elif quality_gap > 0.10:
+            # Proposer clearly stronger
             verdict = 'accepted'
             self._accepted += 1
             synthesis_conf = proposer_conf * 0.8 + (1.0 - critic_conf) * 0.2
-        elif con_adjusted > pro_adjusted + 0.02:
+        elif quality_gap < -0.10:
+            # Critic clearly stronger — reject the claim
             verdict = 'rejected'
             self._rejected += 1
             synthesis_conf = (1.0 - proposer_conf) * 0.5
         else:
+            # Evidence on both sides — modify the claim
             verdict = 'modified'
             self._modified += 1
-            # Weighted synthesis: blend proposer and critic insights proportional to quality
             if pro_quality + con_quality > 0:
                 pro_weight = pro_quality / (pro_quality + con_quality)
             else:

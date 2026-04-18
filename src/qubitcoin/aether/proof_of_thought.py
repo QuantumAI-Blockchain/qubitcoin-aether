@@ -1083,7 +1083,7 @@ class AetherEngine:
             # #5: Adversarial debate on recent inferences
             if block.height > 0 and block.height % Config.AETHER_DEBATE_INTERVAL == 0 and self.debate_protocol:
                 try:
-                    self.debate_protocol.run_periodic_debates(block.height, max_debates=5)
+                    self.debate_protocol.run_periodic_debates(block.height, max_debates=10)
                     # Reward Tiferet for successful debate facilitation
                     self._reward_sephirah('debate', True, 0.05)
                 except Exception as e:
