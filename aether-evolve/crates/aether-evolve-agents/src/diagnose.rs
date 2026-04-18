@@ -8,14 +8,29 @@ use tracing::info;
 use aether_evolve_llm::{ExtractedResponse, OllamaClient, PromptManager};
 
 pub struct DiagnoseAgent {
-    llm: OllamaClient,
-    prompts: PromptManager,
+    /// None when running in Claude mode (rule-based only)
+    llm: Option<OllamaClient>,
+    prompts: Option<PromptManager>,
     model: String,
 }
 
 impl DiagnoseAgent {
+    /// Create with Ollama LLM for autonomous mode.
     pub fn new(llm: OllamaClient, prompts: PromptManager, model: String) -> Self {
-        Self { llm, prompts, model }
+        Self {
+            llm: Some(llm),
+            prompts: Some(prompts),
+            model,
+        }
+    }
+
+    /// Create without LLM — rule-based diagnosis only (Claude mode).
+    pub fn new_without_llm() -> Self {
+        Self {
+            llm: None,
+            prompts: None,
+            model: String::new(),
+        }
     }
 
     /// Analyze current metrics and produce a ranked diagnosis.
@@ -23,10 +38,10 @@ impl DiagnoseAgent {
         // First: rule-based diagnosis (deterministic, no LLM needed)
         let mut items = self.rule_based_diagnosis(metrics);
 
-        // If we have items already, we can optionally enhance with LLM
-        // For speed, skip LLM if we have clear P0/P1 items
-        if items.is_empty() || items.iter().all(|i| i.priority as u32 >= 3) {
-            // Use LLM for deeper analysis
+        // If we have LLM and only low-priority items, enhance with LLM
+        if self.llm.is_some()
+            && (items.is_empty() || items.iter().all(|i| i.priority as u32 >= 3))
+        {
             match self.llm_diagnosis(metrics).await {
                 Ok(mut llm_items) => items.append(&mut llm_items),
                 Err(e) => {
@@ -41,6 +56,7 @@ impl DiagnoseAgent {
         info!(
             count = items.len(),
             top_priority = ?items.first().map(|i| &i.priority),
+            llm_available = self.llm.is_some(),
             "Diagnosis complete"
         );
 
@@ -54,7 +70,31 @@ impl DiagnoseAgent {
     fn rule_based_diagnosis(&self, m: &AetherMetrics) -> Vec<DiagnosisItem> {
         let mut items = Vec::new();
 
-        // P0: Any phi component is zero
+        // P0: Stale/restored phi cache — must recalculate before any code changes
+        let is_stale_cache = m.phi.formula == "restored"
+            || (m.phi.phi_meso == 0.0 && m.phi.phi_micro == 0.0 && m.phi.phi_macro == 0.0
+                && m.total_nodes > 1000);
+
+        if is_stale_cache {
+            items.push(DiagnosisItem {
+                priority: DiagnosisPriority::P0PhiZero,
+                category: "phi_cache_stale".into(),
+                description: format!(
+                    "Phi cache is stale (formula='{}') — all HMS components are zero despite {} nodes. \
+                     Need to force recalculation.",
+                    m.phi.formula, m.total_nodes
+                ),
+                root_cause: "Phi was restored from DB on startup with zeros. \
+                             No new blocks have triggered recomputation."
+                    .into(),
+                recommended_intervention: InterventionType::CacheBust,
+                target_files: vec!["API: /aether/phi/recalculate".into()],
+                expected_improvement: "phi_meso > 0, phi_micro > 0 after fresh computation".into(),
+            });
+            return items;
+        }
+
+        // P0: Any phi component is zero (after cache bust)
         if m.phi.phi_meso == 0.0 {
             items.push(DiagnosisItem {
                 priority: DiagnosisPriority::P0PhiZero,
@@ -85,14 +125,12 @@ impl DiagnoseAgent {
         for gate in &m.gates {
             if !gate.passed {
                 let (intervention, files) = match gate.gate_number {
-                    4 => (
-                        InterventionType::KnowledgeSeed,
-                        vec!["API: /aether/chat".into()],
-                    ),
+                    4 => (InterventionType::ApiCall, vec![]),
                     10 => (
                         InterventionType::KnowledgeSeed,
                         vec!["API: /aether/ingest/batch".into()],
                     ),
+                    8 => (InterventionType::ApiCall, vec![]),
                     _ => (InterventionType::ApiCall, vec![]),
                 };
 
@@ -155,6 +193,9 @@ impl DiagnoseAgent {
     }
 
     async fn llm_diagnosis(&self, metrics: &AetherMetrics) -> Result<Vec<DiagnosisItem>> {
+        let llm = self.llm.as_ref().ok_or_else(|| anyhow::anyhow!("No LLM available"))?;
+        let prompts = self.prompts.as_ref().ok_or_else(|| anyhow::anyhow!("No prompts available"))?;
+
         let mut ctx = tera::Context::new();
         ctx.insert("block_height", &metrics.block_height);
         ctx.insert("total_nodes", &metrics.total_nodes);
@@ -172,8 +213,8 @@ impl DiagnoseAgent {
         ctx.insert("mip_score", &metrics.mip_score);
         ctx.insert("subsystems", &metrics.subsystems);
 
-        let prompt = self.prompts.render("diagnose", &ctx)?;
-        let response = self.llm.generate(&self.model, "", &prompt, 0.3, 2048).await?;
+        let prompt = prompts.render("diagnose", &ctx)?;
+        let response = llm.generate(&self.model, "", &prompt, 0.3, 2048).await?;
 
         let extracted = ExtractedResponse::new(response);
         let xml_items = extracted.extract_diagnosis_items();

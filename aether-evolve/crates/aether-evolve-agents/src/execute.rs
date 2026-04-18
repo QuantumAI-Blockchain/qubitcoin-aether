@@ -50,6 +50,7 @@ impl ExecuteAgent {
                 self.execute_seed(step, plan, pre_metrics).await
             }
             InterventionType::ApiCall => self.execute_api_call(step, plan, pre_metrics).await,
+            InterventionType::CacheBust => self.execute_cache_bust(step, pre_metrics).await,
         }
     }
 
@@ -191,6 +192,60 @@ impl ExecuteAgent {
             branch_name: None,
             details: format!("Seeded {seeded}/{} knowledge nodes", plan.seeds.len()),
         })
+    }
+
+    async fn execute_cache_bust(
+        &self,
+        step: u64,
+        pre_metrics: AetherMetrics,
+    ) -> Result<ExecutionResult> {
+        info!(step, "Busting stale phi cache — forcing recalculation");
+
+        match self.aether_client.recalculate_phi().await {
+            Ok(phi_data) => {
+                let phi_val = phi_data["phi_value"].as_f64().unwrap_or(0.0);
+                let formula = phi_data["phi_formula"]
+                    .as_str()
+                    .unwrap_or("unknown")
+                    .to_string();
+
+                // Wait for metrics to stabilize
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                let post_metrics = self.aether_client.snapshot().await?;
+
+                info!(
+                    step,
+                    phi = phi_val,
+                    formula = %formula,
+                    "Cache bust complete"
+                );
+
+                Ok(ExecutionResult {
+                    success: formula != "restored",
+                    pre_metrics,
+                    post_metrics,
+                    branch_name: None,
+                    details: format!(
+                        "Phi recalculated: value={:.6}, formula={}, phi_meso={}, phi_micro={}, phi_macro={}",
+                        phi_val,
+                        formula,
+                        phi_data["phi_meso"].as_f64().unwrap_or(0.0),
+                        phi_data["phi_micro"].as_f64().unwrap_or(0.0),
+                        phi_data["phi_macro"].as_f64().unwrap_or(0.0),
+                    ),
+                })
+            }
+            Err(e) => {
+                warn!("Cache bust failed: {e}");
+                Ok(ExecutionResult {
+                    success: false,
+                    pre_metrics: pre_metrics.clone(),
+                    post_metrics: pre_metrics,
+                    branch_name: None,
+                    details: format!("Cache bust failed: {e}"),
+                })
+            }
+        }
     }
 
     async fn execute_api_call(

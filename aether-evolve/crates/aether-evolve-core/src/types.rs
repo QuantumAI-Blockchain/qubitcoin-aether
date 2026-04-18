@@ -11,6 +11,7 @@ pub enum InterventionType {
     KnowledgeSeed,
     SwarmSeed,
     ApiCall,
+    CacheBust,
 }
 
 // ── Diagnosis ───────────────────────────────────────────────────────────
@@ -51,6 +52,8 @@ pub struct PhiComponents {
     pub phi_meso: f64,
     pub phi_macro: f64,
     pub hms_phi: f64,
+    /// "restored", "python_fallback", "additive_v3", "hms_v4", etc.
+    pub formula: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -180,6 +183,20 @@ impl MetricsDelta {
 
         phi_norm + gates + subsys + quality + stability
     }
+}
+
+// ── Evolution plan (shared between Claude mode and Ollama mode) ─────────
+
+/// A research plan that can be produced by Claude or by the Ollama-powered
+/// research agent. Serializable to/from JSON for file-based handoff.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvolvePlan {
+    pub intervention_type: InterventionType,
+    pub hypothesis: String,
+    #[serde(default)]
+    pub diffs: Vec<CodeDiff>,
+    #[serde(default)]
+    pub seeds: Vec<KnowledgePayload>,
 }
 
 // ── Evolution pipeline state ────────────────────────────────────────────

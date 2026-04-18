@@ -6,11 +6,12 @@ use crate::client::AetherClient;
 
 pub struct KnowledgeSeederImpl {
     client: AetherClient,
+    admin_key: String,
 }
 
 impl KnowledgeSeederImpl {
-    pub fn new(client: AetherClient) -> Self {
-        Self { client }
+    pub fn new(client: AetherClient, admin_key: String) -> Self {
+        Self { client, admin_key }
     }
 
     /// Seed a batch of knowledge payloads, converting to API format.
@@ -23,7 +24,7 @@ impl KnowledgeSeederImpl {
             .iter()
             .map(|p| {
                 serde_json::json!({
-                    "content": p.content,
+                    "text": p.content,
                     "domain": p.domain,
                     "node_type": p.node_type,
                     "confidence": p.confidence,
@@ -37,7 +38,7 @@ impl KnowledgeSeederImpl {
         for chunk in nodes.chunks(100) {
             let ingested = self
                 .client
-                .ingest_batch(chunk)
+                .ingest_batch(chunk, &self.admin_key)
                 .await
                 .context("Batch seed failed")?;
             total += ingested;

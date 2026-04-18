@@ -1,11 +1,11 @@
 use aether_evolve_agents::{AnalyzeAgent, DiagnoseAgent, ExecuteAgent, ResearchAgent};
 use aether_evolve_api::{AetherClient, CodePatcher, KnowledgeSeederImpl};
-use aether_evolve_core::{EvolveConfig, PipelinePhase, PipelineState};
+use aether_evolve_core::{EvolvePlan, EvolveConfig, PipelinePhase, PipelineState};
 use aether_evolve_llm::{OllamaClient, PromptManager};
 use aether_evolve_memory::{CognitionStore, ExperimentDb};
 use aether_evolve_safety::{AuditLog, SafetyGovernor};
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use tracing::{error, info, warn};
 
@@ -16,18 +16,41 @@ struct Cli {
     #[arg(short, long, default_value = "config.toml")]
     config: PathBuf,
 
-    /// Run a single step then exit (for testing)
-    #[arg(long)]
-    single_step: bool,
-
     /// Override data directory
     #[arg(long)]
     data_dir: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Get current Aether Tree metrics as JSON (for Claude to inspect)
+    Snapshot,
+
+    /// Diagnose current state, output prioritized issues as JSON
+    Diagnose,
+
+    /// Execute a plan from a JSON file (diffs, seeds, API calls)
+    /// Claude writes the plan, this command applies it with safety checks
+    ExecutePlan {
+        /// Path to plan JSON file
+        #[arg(long)]
+        plan: PathBuf,
+    },
+
+    /// Run the full autonomous evolution loop (uses Ollama LLM)
+    /// This is the original mode — works without Claude
+    Loop {
+        /// Run a single step then exit
+        #[arg(long)]
+        single_step: bool,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -35,11 +58,11 @@ async fn main() -> Result<()> {
         )
         .with_target(true)
         .with_thread_ids(true)
+        .with_writer(std::io::stderr)
         .init();
 
     let cli = Cli::parse();
 
-    // Load config
     let mut config = if cli.config.exists() {
         EvolveConfig::from_file(&cli.config).context("Failed to load config")?
     } else {
@@ -51,18 +74,157 @@ async fn main() -> Result<()> {
         config.general.data_dir = data_dir;
     }
 
+    std::fs::create_dir_all(&config.general.data_dir)?;
+
+    match cli.command {
+        Some(Command::Snapshot) => cmd_snapshot(&config).await,
+        Some(Command::Diagnose) => cmd_diagnose(&config).await,
+        Some(Command::ExecutePlan { plan }) => cmd_execute_plan(&config, &plan).await,
+        Some(Command::Loop { single_step }) => cmd_loop(&config, single_step).await,
+        None => {
+            // Default behavior: if claude mode is on, show help; otherwise run loop
+            if config.claude.enabled {
+                println!("Claude mode is enabled. Use subcommands:");
+                println!("  aether-evolve snapshot       — current metrics JSON");
+                println!("  aether-evolve diagnose       — prioritized issues JSON");
+                println!("  aether-evolve execute-plan   — apply a plan JSON file");
+                println!("  aether-evolve loop           — autonomous Ollama loop");
+                Ok(())
+            } else {
+                cmd_loop(&config, false).await
+            }
+        }
+    }
+}
+
+// ─── SNAPSHOT ───────────────────────────────────────────────────────────
+
+async fn cmd_snapshot(config: &EvolveConfig) -> Result<()> {
+    let client = AetherClient::new(
+        &config.aether.base_url,
+        config.aether.timeout_secs,
+        config.aether.max_retries,
+    )?;
+
+    let metrics = client.snapshot().await?;
+    println!("{}", serde_json::to_string_pretty(&metrics)?);
+    Ok(())
+}
+
+// ─── DIAGNOSE ───────────────────────────────────────────────────────────
+
+async fn cmd_diagnose(config: &EvolveConfig) -> Result<()> {
+    let client = AetherClient::new(
+        &config.aether.base_url,
+        config.aether.timeout_secs,
+        config.aether.max_retries,
+    )?;
+
+    let metrics = client.snapshot().await?;
+
+    // In claude mode, always use rule-based diagnosis only (fast, deterministic)
+    // In ollama mode, optionally enhance with LLM
+    if config.claude.enabled {
+        let diagnose = DiagnoseAgent::new_without_llm();
+        let diagnosis = diagnose.diagnose(&metrics).await?;
+        println!("{}", serde_json::to_string_pretty(&diagnosis)?);
+    } else {
+        let ollama = OllamaClient::new(
+            &config.ollama.base_url,
+            config.ollama.timeout_secs,
+        )?;
+        let prompts = PromptManager::with_defaults()?;
+        let diagnose = DiagnoseAgent::new(ollama, prompts, config.ollama.primary_model.clone());
+        let diagnosis = diagnose.diagnose(&metrics).await?;
+        println!("{}", serde_json::to_string_pretty(&diagnosis)?);
+    }
+
+    Ok(())
+}
+
+// ─── EXECUTE PLAN ───────────────────────────────────────────────────────
+
+async fn cmd_execute_plan(config: &EvolveConfig, plan_path: &PathBuf) -> Result<()> {
+    let plan_json = std::fs::read_to_string(plan_path)
+        .with_context(|| format!("Failed to read plan file: {}", plan_path.display()))?;
+    let plan: EvolvePlan = serde_json::from_str(&plan_json)
+        .with_context(|| "Failed to parse plan JSON")?;
+
+    info!(
+        intervention = ?plan.intervention_type,
+        diffs = plan.diffs.len(),
+        seeds = plan.seeds.len(),
+        hypothesis = %plan.hypothesis,
+        "Executing plan"
+    );
+
+    let aether_client = AetherClient::new(
+        &config.aether.base_url,
+        config.aether.timeout_secs,
+        config.aether.max_retries,
+    )?;
+
+    let code_patcher = CodePatcher::new("/root/Qubitcoin");
+
+    let seeder_client = AetherClient::new(
+        &config.aether.base_url,
+        config.aether.timeout_secs,
+        config.aether.max_retries,
+    )?;
+    let seeder = KnowledgeSeederImpl::new(seeder_client, config.aether.admin_key.clone());
+    let safety = SafetyGovernor::new(config.clone());
+
+    let execute_agent = ExecuteAgent::new(aether_client, code_patcher, seeder, safety);
+
+    // Use step 0 for manual executions — the audit log differentiates
+    let result = execute_agent.execute(0, &plan).await?;
+
+    // Output result as JSON
+    let output = serde_json::json!({
+        "success": result.success,
+        "details": result.details,
+        "branch": result.branch_name,
+        "pre_metrics": {
+            "phi": result.pre_metrics.phi.hms_phi,
+            "nodes": result.pre_metrics.total_nodes,
+            "gates": result.pre_metrics.gates_passed,
+        },
+        "post_metrics": {
+            "phi": result.post_metrics.phi.hms_phi,
+            "nodes": result.post_metrics.total_nodes,
+            "gates": result.post_metrics.gates_passed,
+        },
+        "delta_phi": result.post_metrics.phi.hms_phi - result.pre_metrics.phi.hms_phi,
+        "delta_nodes": result.post_metrics.total_nodes as i64 - result.pre_metrics.total_nodes as i64,
+        "delta_gates": result.post_metrics.gates_passed as i32 - result.pre_metrics.gates_passed as i32,
+    });
+
+    println!("{}", serde_json::to_string_pretty(&output)?);
+
+    // Record experiment
+    let audit = AuditLog::new(&config.general.data_dir)?;
+    audit.record(0, "execute-plan", &result.details, result.success)?;
+
+    Ok(())
+}
+
+// ─── AUTONOMOUS LOOP (OLLAMA MODE) ─────────────────────────────────────
+
+async fn cmd_loop(config: &EvolveConfig, single_step: bool) -> Result<()> {
+    if config.claude.enabled {
+        warn!("Running autonomous loop with claude.enabled=true — Ollama LLM calls may be slow.");
+        warn!("Consider using subcommands (snapshot, diagnose, execute-plan) instead.");
+    }
+
     info!(
         name = %config.general.name,
         data_dir = %config.general.data_dir.display(),
         aether_url = %config.aether.base_url,
         ollama_url = %config.ollama.base_url,
-        "Starting Aether-Evolve"
+        claude_mode = config.claude.enabled,
+        "Starting Aether-Evolve loop"
     );
 
-    // Ensure data directory exists
-    std::fs::create_dir_all(&config.general.data_dir)?;
-
-    // Initialize components
     let aether_client = AetherClient::new(
         &config.aether.base_url,
         config.aether.timeout_secs,
@@ -73,12 +235,10 @@ async fn main() -> Result<()> {
         &config.ollama.base_url,
         config.ollama.timeout_secs,
     )?;
-
     let ollama_fast = OllamaClient::new(
         &config.ollama.base_url,
         config.ollama.timeout_secs,
     )?;
-
     let ollama_analyze = OllamaClient::new(
         &config.ollama.base_url,
         config.ollama.timeout_secs,
@@ -88,71 +248,36 @@ async fn main() -> Result<()> {
     let prompts2 = PromptManager::with_defaults()?;
     let prompts3 = PromptManager::with_defaults()?;
 
-    let seeder_client = AetherClient::new(
-        &config.aether.base_url,
-        config.aether.timeout_secs,
-        config.aether.max_retries,
-    )?;
-    let seeder = KnowledgeSeederImpl::new(seeder_client);
-
-    let code_patcher = CodePatcher::new(
-        config.general.aether_source
-            .parent()
-            .and_then(|p| p.parent())
-            .and_then(|p| p.parent())
-            .map(|p| p.to_str().unwrap_or("/root/Qubitcoin"))
-            .unwrap_or("/root/Qubitcoin"),
-    );
-
-    let safety = SafetyGovernor::new(config.clone());
     let audit = AuditLog::new(&config.general.data_dir)?;
     let mut db = ExperimentDb::open(&config.general.data_dir)?;
 
     let cognition_dir = config.general.data_dir.parent()
         .unwrap_or(&config.general.data_dir)
         .join("cognition");
-    let mut cognition = CognitionStore::load(&cognition_dir).unwrap_or_else(|e| {
+    let cognition = CognitionStore::load(&cognition_dir).unwrap_or_else(|e| {
         warn!("Cognition store failed to load: {e}, starting empty");
         CognitionStore::load(std::path::Path::new("/nonexistent")).unwrap()
     });
 
     // Create agents
-    let diagnose_agent = DiagnoseAgent::new(
-        ollama_primary,
-        prompts,
-        config.ollama.primary_model.clone(),
-    );
+    let diagnose_agent = DiagnoseAgent::new(ollama_primary, prompts, config.ollama.primary_model.clone());
     let research_agent = ResearchAgent::new(
-        ollama_fast,
-        prompts2,
+        ollama_fast, prompts2,
         config.ollama.primary_model.clone(),
         config.ollama.fast_model.clone(),
         "/root/Qubitcoin".into(),
     );
     let execute_agent_client = AetherClient::new(
-        &config.aether.base_url,
-        config.aether.timeout_secs,
-        config.aether.max_retries,
+        &config.aether.base_url, config.aether.timeout_secs, config.aether.max_retries,
     )?;
     let execute_seeder_client = AetherClient::new(
-        &config.aether.base_url,
-        config.aether.timeout_secs,
-        config.aether.max_retries,
+        &config.aether.base_url, config.aether.timeout_secs, config.aether.max_retries,
     )?;
-    let execute_seeder = KnowledgeSeederImpl::new(execute_seeder_client);
+    let execute_seeder = KnowledgeSeederImpl::new(execute_seeder_client, config.aether.admin_key.clone());
     let execute_safety = SafetyGovernor::new(config.clone());
     let execute_patcher = CodePatcher::new("/root/Qubitcoin");
-    let execute_agent = ExecuteAgent::new(
-        execute_agent_client,
-        execute_patcher,
-        execute_seeder,
-        execute_safety,
-    );
-    let analyze_agent = AnalyzeAgent::new(
-        ollama_analyze,
-        prompts3,
-        config.ollama.primary_model.clone(),
-    );
+    let execute_agent = ExecuteAgent::new(execute_agent_client, execute_patcher, execute_seeder, execute_safety);
+    let analyze_agent = AnalyzeAgent::new(ollama_analyze, prompts3, config.ollama.fast_model.clone());
 
     // Check health
     let aether_healthy = aether_client.health().await?;
@@ -218,12 +343,8 @@ async fn main() -> Result<()> {
 
         if diagnosis.items.is_empty() {
             info!("No weaknesses found — system is healthy!");
-            if cli.single_step {
-                break;
-            }
-            tokio::time::sleep(tokio::time::Duration::from_secs(
-                config.pipeline.step_interval_secs,
-            )).await;
+            if single_step { break; }
+            tokio::time::sleep(tokio::time::Duration::from_secs(config.pipeline.step_interval_secs)).await;
             continue;
         }
 
@@ -300,28 +421,22 @@ async fn main() -> Result<()> {
             state.best_experiment_id = Some(exp_id);
         }
 
-        // Phase transitions
         state.current_phase = determine_phase(&metrics);
 
-        // Save state
         if state.current_step % config.pipeline.save_interval == 0 {
             let state_json = serde_json::to_string_pretty(&state)?;
             std::fs::write(&state_path, state_json)?;
             info!("Pipeline state saved");
         }
 
-        if cli.single_step {
+        if single_step {
             info!("Single step mode — exiting");
             break;
         }
 
-        // Wait between steps
-        tokio::time::sleep(tokio::time::Duration::from_secs(
-            config.pipeline.step_interval_secs,
-        )).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(config.pipeline.step_interval_secs)).await;
     }
 
-    // Final save
     let state_json = serde_json::to_string_pretty(&state)?;
     std::fs::write(&state_path, state_json)?;
     info!("Aether-Evolve shutdown complete");

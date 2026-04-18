@@ -38,23 +38,46 @@ impl AetherClient {
         let phi_detail = &v.get("phi_detail").unwrap_or(&Value::Null);
         let gates_section = &v["phi_gate_attention"];
         let prediction = &v["prediction_summary"];
-        let debate = &v["debate_engine"];
+        // API returns keys like "debate_protocol", "curiosity", not "debate_engine"
+        let debate = &v["debate_protocol"];
         let self_imp = &v["self_improvement"];
-        let curiosity = &v["curiosity_engine"];
+        let curiosity = &v["curiosity"];
         let concept_formation = &v["concept_formation"];
         let causal = &v["causal_engine"];
         let metacognition = &v["metacognition"];
 
-        // Extract phi components from various places
+        // Extract phi components — also check /aether/phi for detailed data
+        let phi_full = self.get_json("/aether/phi").await.unwrap_or_default();
         let hms_phi = phi_section["current_value"].as_f64().unwrap_or(0.0);
-        let phi_micro = phi_detail["phi_micro"].as_f64().unwrap_or(0.0);
-        let phi_meso = phi_detail["phi_meso"].as_f64().unwrap_or(0.0);
-        let phi_macro = phi_detail["phi_macro"].as_f64().unwrap_or(0.0);
+        let phi_micro = phi_full["phi_micro"]
+            .as_f64()
+            .or_else(|| phi_detail["phi_micro"].as_f64())
+            .unwrap_or(0.0);
+        let phi_meso = phi_full["phi_meso"]
+            .as_f64()
+            .or_else(|| phi_detail["phi_meso"].as_f64())
+            .unwrap_or(0.0);
+        let phi_macro = phi_full["phi_macro"]
+            .as_f64()
+            .or_else(|| phi_detail["phi_macro"].as_f64())
+            .unwrap_or(0.0);
+        let phi_formula = phi_full["phi_formula"]
+            .as_str()
+            .unwrap_or("unknown")
+            .to_string();
 
-        // Extract gates
-        let gate_states = gates_section["gate_states"].as_object();
+        // Extract gates — prefer /aether/phi (accurate) over /aether/info gate_attention (stale)
         let mut gates = Vec::new();
-        if let Some(gs) = gate_states {
+        if let Some(phi_gates) = phi_full["gates"].as_array() {
+            for g in phi_gates {
+                gates.push(GateStatus {
+                    gate_number: g["id"].as_u64().unwrap_or(0) as u32,
+                    name: g["name"].as_str().unwrap_or("").to_string(),
+                    passed: g["passed"].as_bool().unwrap_or(false),
+                    details: g["requirement"].as_str().unwrap_or("").to_string(),
+                });
+            }
+        } else if let Some(gs) = gates_section["gate_states"].as_object() {
             for (i, (name, passed)) in gs.iter().enumerate() {
                 gates.push(GateStatus {
                     gate_number: (i + 1) as u32,
@@ -64,8 +87,9 @@ impl AetherClient {
                 });
             }
         }
-        let gates_passed = gates_section["gates_currently_passed"]
+        let gates_passed = phi_full["gates_passed"]
             .as_u64()
+            .or_else(|| gates_section["gates_currently_passed"].as_u64())
             .or_else(|| phi_section["gates_passed"].as_u64())
             .unwrap_or(0) as u32;
 
@@ -81,11 +105,11 @@ impl AetherClient {
         let mut subsystems = Vec::new();
         let subsystem_checks = [
             ("debate_engine", &debate["total_debates"]),
-            ("concept_formation", &concept_formation["total_concepts"]),
-            ("causal_engine", &causal["total_discoveries"]),
+            ("concept_formation", &concept_formation["total_runs"]),
+            ("causal_engine", &causal["total_runs"]),
             ("self_improvement", &self_imp["cycles_completed"]),
             ("metacognition", &metacognition["total_evaluations"]),
-            ("curiosity_engine", &curiosity["total_goals"]),
+            ("curiosity_engine", &curiosity["goals_generated"]),
         ];
         for (name, runs_val) in &subsystem_checks {
             let runs = runs_val.as_u64().unwrap_or(0);
@@ -110,6 +134,7 @@ impl AetherClient {
                 phi_meso,
                 phi_macro,
                 hms_phi,
+                formula: phi_formula,
             },
             gates,
             gates_passed,
@@ -118,10 +143,10 @@ impl AetherClient {
             contradiction_count: v["contradictions_resolved"].as_u64().unwrap_or(0),
             prediction_accuracy: prediction["accuracy"].as_f64().unwrap_or(0.0),
             mip_score: phi_detail["mip_score"].as_f64().unwrap_or(0.0),
-            ece: metacognition["ece"].as_f64().unwrap_or(1.0),
-            novel_concepts: concept_formation["total_concepts"].as_u64().unwrap_or(0),
-            auto_goals: curiosity["total_goals"].as_u64().unwrap_or(0),
-            curiosity_discoveries: curiosity["discoveries"].as_u64().unwrap_or(0),
+            ece: metacognition["calibration_error"].as_f64().unwrap_or(1.0),
+            novel_concepts: concept_formation["total_concepts_created"].as_u64().unwrap_or(0),
+            auto_goals: curiosity["goals_generated"].as_u64().unwrap_or(0),
+            curiosity_discoveries: curiosity["goals_completed"].as_u64().unwrap_or(0),
             self_improvement_cycles: self_imp["cycles_completed"].as_u64().unwrap_or(0),
             subsystems,
             domains,
@@ -197,9 +222,12 @@ impl AetherClient {
     }
 
     /// Trigger batch knowledge ingestion.
-    pub async fn ingest_batch(&self, nodes: &[Value]) -> Result<u64> {
+    pub async fn ingest_batch(&self, nodes: &[Value], admin_key: &str) -> Result<u64> {
         let url = format!("{}/aether/ingest/batch", self.base_url);
-        let body = serde_json::json!({ "nodes": nodes });
+        let body = serde_json::json!({
+            "nodes": nodes,
+            "_admin_key": admin_key,
+        });
         let resp = self
             .client
             .post(&url)
@@ -208,8 +236,36 @@ impl AetherClient {
             .await
             .context("Batch ingest request failed")?;
 
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            warn!(%status, "Batch ingest failed: {body}");
+            return Ok(0);
+        }
+
         let data: Value = resp.json().await.context("Batch ingest parse failed")?;
-        Ok(data["ingested"].as_u64().unwrap_or(0))
+        Ok(data["nodes_created"].as_u64().unwrap_or(0))
+    }
+
+    /// Force a fresh Phi recalculation (busts restored/stale caches).
+    pub async fn recalculate_phi(&self) -> Result<serde_json::Value> {
+        let url = format!("{}/aether/phi/recalculate", self.base_url);
+        let resp = self
+            .client
+            .post(&url)
+            .send()
+            .await
+            .context("Phi recalculate request failed")?;
+        let data: serde_json::Value = resp.json().await.context("Phi recalculate parse failed")?;
+        info!(
+            phi = data["phi_value"].as_f64().unwrap_or(0.0),
+            phi_meso = data["phi_meso"].as_f64().unwrap_or(0.0),
+            phi_micro = data["phi_micro"].as_f64().unwrap_or(0.0),
+            phi_macro = data["phi_macro"].as_f64().unwrap_or(0.0),
+            formula = data["phi_formula"].as_str().unwrap_or("?"),
+            "Phi recalculated"
+        );
+        Ok(data)
     }
 
     /// Health check.

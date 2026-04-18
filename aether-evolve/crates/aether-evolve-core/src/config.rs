@@ -6,9 +6,27 @@ pub struct EvolveConfig {
     pub general: GeneralConfig,
     pub aether: AetherConfig,
     pub ollama: OllamaConfig,
+    #[serde(default)]
+    pub claude: ClaudeConfig,
     pub pipeline: PipelineConfig,
     pub sampling: SamplingConfig,
     pub safety: SafetyConfig,
+}
+
+/// When claude mode is enabled, the binary acts as a CLI tool that Claude Code
+/// orchestrates. LLM calls are skipped — Claude provides the intelligence,
+/// the binary provides the infrastructure (metrics, git, tests, seeding).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClaudeConfig {
+    /// When true, subcommands (snapshot, diagnose, execute-plan) are the primary interface.
+    /// When false, the autonomous loop uses Ollama for all reasoning.
+    pub enabled: bool,
+}
+
+impl Default for ClaudeConfig {
+    fn default() -> Self {
+        Self { enabled: false }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,6 +42,8 @@ pub struct AetherConfig {
     pub base_url: String,
     pub timeout_secs: u64,
     pub max_retries: u32,
+    #[serde(default)]
+    pub admin_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +95,7 @@ impl Default for EvolveConfig {
                 base_url: "http://localhost:5000".into(),
                 timeout_secs: 30,
                 max_retries: 3,
+                admin_key: String::new(),
             },
             ollama: OllamaConfig {
                 base_url: "http://localhost:11434".into(),
@@ -84,6 +105,7 @@ impl Default for EvolveConfig {
                 timeout_secs: 120,
                 max_concurrent: 2,
             },
+            claude: ClaudeConfig::default(),
             pipeline: PipelineConfig {
                 max_steps: 0,
                 step_interval_secs: 60,

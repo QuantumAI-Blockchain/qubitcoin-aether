@@ -1809,6 +1809,33 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             'cached': False,
         }
 
+    @app.post("/aether/phi/recalculate")
+    async def aether_phi_recalculate():
+        """Force a fresh Phi computation, bypassing cached/restored values.
+
+        Useful when code changes have been deployed but no new blocks have
+        triggered recomputation. Clears the restored cache and computes
+        phi from scratch using current KG state.
+        """
+        if not aether_engine or not aether_engine.phi:
+            raise HTTPException(status_code=503, detail="Phi calculator not available")
+        phi = aether_engine.phi
+        # Clear the restored/stale cache
+        phi._last_full_result = None
+        phi._last_computed_block = 0
+        # Get current block height
+        height = await asyncio.to_thread(db_manager.get_current_height)
+        # Set subsystem stats if possible
+        if hasattr(aether_engine, '_collect_subsystem_stats'):
+            try:
+                stats = aether_engine._collect_subsystem_stats()
+                phi.set_subsystem_stats(stats)
+            except Exception:
+                pass
+        # Compute fresh
+        result = await asyncio.to_thread(phi.compute_phi, height)
+        return result
+
     @app.get("/aether/phi/history")
     async def aether_phi_history(limit: int = 50):
         """Get Phi measurement history"""

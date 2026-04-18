@@ -6,16 +6,20 @@ aether_source = "/root/Qubitcoin/src/qubitcoin/aether"
 
 [aether]
 base_url = "http://localhost:5000"
-timeout_secs = 30
+timeout_secs = 120
 max_retries = 3
+admin_key = "1e6f46ca7f1271f6b27a8bf292eb4ade3c6c40805ebc764151c525f8657a253c96fd73e1ae0766a822a39c3862793920"
 
 [ollama]
 base_url = "http://localhost:11434"
-primary_model = "qwen2.5:7b"
-fast_model = "qwen2.5:3b"
+primary_model = "qwen2.5:3b"
+fast_model = "qwen2.5:0.5b"
 bulk_model = "qwen2.5:0.5b"
-timeout_secs = 120
+timeout_secs = 300
 max_concurrent = 2
+
+[claude]
+enabled = true
 
 [pipeline]
 max_steps = 0

@@ -410,7 +410,40 @@ impl PhiCalculator {
             let gate_ceiling = gates_passed as f64 * GATE_CEILING_INCREMENT;
 
             // --- HMS-Phi v4 ---
-            let phi_meso = effective_mip.max(0.0).min(1.0);
+            // phi_meso: domain cohesion via edge-ratio geometric mean.
+            // MIP spectral bisection returns ~0 on sparse graphs (avg degree < 2),
+            // so we use intra-domain vs cross-domain edge ratio instead.
+            // geometric_mean(intra_ratio, cross_ratio) peaks at 50/50 split.
+            let phi_meso = {
+                // Build node_id → index lookup
+                let node_id_to_idx: HashMap<i64, usize> = nodes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, n)| (n.node_id, i))
+                    .collect();
+
+                let mut intra_domain = 0usize;
+                let mut total_counted = 0usize;
+                for edge in &edges {
+                    let fi_opt = node_id_to_idx.get(&edge.from_node_id).copied();
+                    let ti_opt = node_id_to_idx.get(&edge.to_node_id).copied();
+                    if let (Some(fi), Some(ti)) = (fi_opt, ti_opt) {
+                        total_counted += 1;
+                        if nodes[fi].domain == nodes[ti].domain {
+                            intra_domain += 1;
+                        }
+                    }
+                }
+                if total_counted > 0 {
+                    let intra_r = intra_domain as f64 / total_counted as f64;
+                    let cross_r = 1.0 - intra_r;
+                    // Geometric mean scaled to [0,1], max at 0.5/0.5
+                    let raw = 2.0 * (intra_r * cross_r).sqrt();
+                    raw.max(0.0).min(1.0)
+                } else {
+                    0.0
+                }
+            };
             let phi_macro = self.compute_phi_macro(&nodes, &edges, n_nodes, n_edges);
             // phi_micro: use a simple proxy based on subgraph MIP sampling
             // (full IIT TPM approximation is too expensive for Rust without numpy)

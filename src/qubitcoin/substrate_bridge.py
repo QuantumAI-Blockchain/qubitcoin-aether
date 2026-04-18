@@ -142,7 +142,7 @@ class SubstrateBridge:
                     )
                 return response.get("result")
             # Re-queue subscription notifications for the listener
-            if "method" in response and response["method"] == "chain_finalizedHead":
+            if "method" in response and response["method"] in ("chain_newHead", "chain_finalizedHead"):
                 if self._block_callback:
                     header = response.get("params", {}).get("result", {})
                     if header:
@@ -174,10 +174,11 @@ class SubstrateBridge:
                         )
                         continue
 
-                # Subscribe to finalized heads (must use WS for subscriptions)
-                result = await self._ws_rpc_call("chain_subscribeFinalizedHeads")
+                # Subscribe to new heads (not finalized — single-validator finalization
+                # can stall, blocking Aether Tree processing entirely)
+                result = await self._ws_rpc_call("chain_subscribeNewHeads")
                 self._subscription_id = result
-                logger.info(f"Subscribed to finalized heads (sub_id={result})")
+                logger.info(f"Subscribed to new heads (sub_id={result})")
 
                 # Listen for notifications
                 await self._listen_loop()
@@ -209,8 +210,8 @@ class SubstrateBridge:
                 raw = await asyncio.wait_for(self._ws.recv(), timeout=30)
                 msg = json.loads(raw)
 
-                # Subscription notification
-                if msg.get("method") == "chain_finalizedHead":
+                # Subscription notification (chain_newHead for new heads subscription)
+                if msg.get("method") in ("chain_newHead", "chain_finalizedHead"):
                     header = msg.get("params", {}).get("result", {})
                     if header:
                         await self._process_header(header)
