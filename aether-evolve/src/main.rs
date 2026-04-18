@@ -279,13 +279,29 @@ async fn cmd_loop(config: &EvolveConfig, single_step: bool) -> Result<()> {
     let execute_agent = ExecuteAgent::new(execute_agent_client, execute_patcher, execute_seeder, execute_safety);
     let analyze_agent = AnalyzeAgent::new(ollama_analyze, prompts3, config.ollama.fast_model.clone());
 
-    // Check health
-    let aether_healthy = aether_client.health().await?;
-    if !aether_healthy {
-        error!("Aether Tree API is not reachable at {}", config.aether.base_url);
+    // Check health with retry — node may be processing block backlog
+    let max_health_retries = 30; // 30 x 10s = 5 minutes max wait
+    let mut healthy = false;
+    for attempt in 1..=max_health_retries {
+        match aether_client.health().await {
+            Ok(true) => {
+                info!("Aether Tree API is healthy (attempt {})", attempt);
+                healthy = true;
+                break;
+            }
+            Ok(false) | Err(_) => {
+                warn!(
+                    "Aether Tree API not reachable (attempt {}/{}), retrying in 10s...",
+                    attempt, max_health_retries
+                );
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            }
+        }
+    }
+    if !healthy {
+        error!("Aether Tree API is not reachable at {} after {} attempts", config.aether.base_url, max_health_retries);
         anyhow::bail!("Cannot reach Aether Tree API");
     }
-    info!("Aether Tree API is healthy");
 
     // Load or init pipeline state
     let state_path = config.general.data_dir.join("pipeline_state.json");

@@ -93,19 +93,24 @@ reasoning engine that grows more intelligent with every block.
 
 ### Live Infrastructure
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| **Substrate Node** | Running (systemd) | Fork genesis at block 208,680, VQE mining, port 9944 |
-| **Python Node** | Running (Docker) | Block height ~208,969+, substrate_mode=true, all 22 components healthy |
-| **Frontend** | Running (Next.js 16) | qbc.network via Cloudflare Tunnel, port 3000 |
-| **API** | Running | api.qbc.network via Cloudflare Tunnel, port 5000 |
-| **Rust P2P** | Running (Docker) | libp2p gossipsub on port 4002 |
-| **AIKGS Sidecar** | Running (Docker) | Rust gRPC knowledge graph service, port 50052 |
-| **CockroachDB** | Running (Docker) | v25.2.12, port 26257 |
-| **IPFS** | Running (Docker) | Kubo, ports 4001/5002/8081 |
-| **Redis** | Running (Docker) | Port 6379 |
-| **Agent Stack** | Running (separate machine) | Rust agents on 100.80.115.96 (ash's machine, WSL2), NOT on this droplet |
-| **Cloudflare Tunnel** | Running | qbc.network + app.qbc.network → :3000, api.qbc.network → :5000 |
+**Two-tier architecture:** Substrate (Rust) is the primary blockchain. Python node runs Aether Tree AI + API.
+
+| Component | Runtime | CPU Limit | Mem Limit | Details |
+|-----------|---------|-----------|-----------|---------|
+| **Substrate Node** | systemd (`qbc-substrate`) | 300% (3 cores) | 4G | **PRIMARY blockchain** — fork genesis at block 208,680, VQE mining, port 9944 |
+| **Python Node** | Docker (`qbc-node`) | 200% (2 cores) | 4G | Aether Tree AI engine + REST/JSON-RPC API, port 5000 |
+| **Ollama** | Docker (`qbc-ollama`) | 100% (1 core) | 2G | LLM for Aether reasoning (qwen2.5:0.5b), port 11434 |
+| **CockroachDB** | Docker (`qbc-cockroachdb`) | 200% (2 cores) | 3G | v25.2.12, cache=512MiB, port 26257 |
+| **Rust P2P** | Docker (`qbc-p2p`) | 50% (0.5 core) | 1G | libp2p gossipsub on port 4002 |
+| **IPFS** | Docker (`qbc-ipfs`) | 50% (0.5 core) | 512M | Kubo, ports 4001/5002/8081 |
+| **AIKGS Sidecar** | Docker (`qbc-aikgs-sidecar`) | — | — | Rust gRPC knowledge graph service, port 50052 |
+| **Redis** | Docker (`qbc-redis`) | — | — | Port 6379 |
+| **Frontend** | systemd (Next.js 16) | — | — | qbc.network via Cloudflare Tunnel, port 3000 |
+| **Agent Stack** | Separate machine | — | — | Rust agents on 100.80.115.96 (ash's machine, WSL2) |
+| **Cloudflare Tunnel** | systemd | — | — | qbc.network + app.qbc.network → :3000, api.qbc.network → :5000 |
+| **Aether Evolve** | systemd | — | — | Autonomous evolution agent, low CPU |
+
+**Total CPU budget:** ~8 cores available. Limits sum to ~7 cores max to keep headroom for OS + SSH + dev work.
 
 ### Chain Stats (Live)
 
@@ -128,7 +133,7 @@ Mining:          Active
 | **L1** | Rust P2P (libp2p 0.56) | Docker container | ~1,200 | Live |
 | **L1** | Rust Security Core (PyO3) | 3 source files | ~530 | Live |
 | **L1** | Rust Stratum Server | 7 source files | ~1,030 | Built |
-| **L1** | Substrate Hybrid Node (Rust) | 7 crates, 7 pallets | ~17,400 | Built (not live yet) |
+| **L1** | Substrate Hybrid Node (Rust) | 7 crates, 7 pallets | ~17,400 | **Live** (systemd, primary chain) |
 | **L1** | Aether Core (Rust/PyO3) | 9 modules | ~5,000 | Built |
 | **L1** | API Gateway (Rust) | 10 source files | ~2,000 | Built (not live yet) |
 | **L1** | Blockchain Indexer (Rust) | 6 source files | ~1,500 | Built (not live yet) |
@@ -159,6 +164,7 @@ Mining:          Active
 
 | Issue | Severity | Details |
 |-------|----------|---------|
+| CPU exhaustion (droplet) | **Resolved** | Ollama was using 436% CPU uncapped. Fixed: CPU limits on all containers + systemd CPUQuota. |
 | Peers = 0 | Medium | Only one node running. Every block publish fails with `NoPeersSubscribedToTopic`. Need additional nodes. |
 | AIKGS slow queries | Medium | AIKGS sidecar has slow DB queries (up to 143s) and intermittent connection drops. |
 | Substrate not live | **Resolved** | Substrate node live with fork genesis at block 208,680. VQE mining active. Full WASM build. |

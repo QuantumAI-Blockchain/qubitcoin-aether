@@ -1,0 +1,96 @@
+domain = "agi_gaps"
+
+[[items]]
+id = "gap-grounding"
+title = "GAP 1: Zero Grounding to Truth"
+content = """
+CRITICAL: The system has no way to know if its reasoning is correct.
+'success' means 'the function ran without errors', NOT 'the conclusion is true'.
+The 96% prediction accuracy measures execution rate, not prediction accuracy.
+
+FIX: Every prediction node must have a verifiable_at block height.
+When that block arrives, check prediction against reality.
+Feed prediction error back into self-improvement weights.
+This requires changes to: proof_of_thought.py (prediction tracking),
+self_improvement.py (use prediction accuracy not execution success),
+temporal_reasoner.py (verify predictions when blocks arrive).
+"""
+tags = ["grounding", "truth", "prediction", "verification", "critical"]
+
+[[items]]
+id = "gap-reasoning"
+title = "GAP 2: No Real Logical Inference"
+content = """
+CRITICAL: deduce() is confidence multiplication on graph edges.
+induce() is template-based string formatting. abduce() returns highest-degree node.
+None of these perform actual logical reasoning.
+
+FIX: The Rust LogicBridge (FOL engine) exists but falls back to empty results.
+Wire it properly: variable binding, unification, proof search.
+Add actual modus ponens: Given A and (A→B), conclude B with certainty.
+Changes needed: reasoning.py (use LogicBridge as primary, graph as fallback),
+aether-core/src/logic.rs (ensure FOL engine works).
+"""
+tags = ["reasoning", "logic", "FOL", "deduction", "critical"]
+
+[[items]]
+id = "gap-causal"
+title = "GAP 3: Causal Engine Not Integrated"
+content = """
+HIGH: PC/FCI algorithms exist in causal_engine.py but are NOT called from
+reasoning.py or debate.py. Causal claims are never validated.
+
+FIX: Wire causal_engine into the reasoning loop.
+When system claims 'A causes B', run causal_intervention validation.
+In debate.py, judge should use causal evidence not confidence max().
+Changes needed: proof_of_thought.py (call causal_engine periodically),
+debate.py (use causal strength in verdict), reasoning.py (prefer causal edges).
+"""
+tags = ["causal", "intervention", "integration", "high"]
+
+[[items]]
+id = "gap-self-improvement"
+title = "GAP 4: Self-Improvement is Circular"
+content = """
+HIGH: Weights optimize for 'can I run reasoning?' not 'is my reasoning correct?'
+result.success means the function returned a non-empty result, NOT that the
+conclusion is actually true.
+
+FIX: self_improvement.py must track prediction accuracy against verifiable
+outcomes. record_reasoning_outcome should use VERIFIED truth, not execution
+success. Changes needed: self_improvement.py (verify outcomes),
+metacognition.py (track verified vs unverified accuracy separately).
+"""
+tags = ["self-improvement", "circular", "verification", "high"]
+
+[[items]]
+id = "gap-phi"
+title = "GAP 5: Phi Measures Topology Not Causality"
+content = """
+MEDIUM: HMS-Phi computes graph density, degree distribution entropy,
+and domain cohesion. This is NOT integrated information theory.
+A random fully-connected graph would score high.
+
+FIX: True IIT requires cause/effect repertoires from intervention data.
+The iit_approximator.py builds TPM from edge weights (topology).
+Should build TPM from actual causal influence (intervention tests).
+Changes needed: iit_approximator.py (use intervention data for TPM),
+phi_calculator.py (weight micro-phi from real causal data higher).
+"""
+tags = ["phi", "IIT", "topology", "causality", "medium"]
+
+[[items]]
+id = "gap-debate"
+title = "GAP 6: Debate Verdict is Trivial"
+content = """
+MEDIUM: Tiferet judge just picks max(confidence). No causal analysis of WHY
+positions differ. No formal conflict resolution. Evidence quality is measured
+by diversity (unique domains), not actual quality.
+
+FIX: Verdict should consider: causal evidence strength, prediction track record
+of supporting nodes, intervention results. The losing side's counter-evidence
+should be investigated, not dismissed.
+Changes needed: debate.py (causal verdict logic), reasoning.py (track
+which inferences led to correct predictions).
+"""
+tags = ["debate", "verdict", "conflict-resolution", "medium"]

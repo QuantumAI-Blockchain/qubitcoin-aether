@@ -26,11 +26,12 @@ services:
     #
     # --accept-sql-without-tls is an explicit opt-in to allow unencrypted
     # SQL connections, making the security posture visible in the config.
-    command: start-single-node --insecure --accept-sql-without-tls --cache=1.5GiB --max-sql-memory=1.5GiB
+    command: start-single-node --insecure --accept-sql-without-tls --cache=512MiB --max-sql-memory=512MiB
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 3G
+          cpus: "2.0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
       interval: 10s
@@ -80,6 +81,11 @@ services:
       - "8081:8080"     # Gateway (mapped to 8081 to avoid CockroachDB)
     volumes:
       - ipfs-data:/data/ipfs
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
     healthcheck:
       test: ["CMD-SHELL", "ipfs id || exit 1"]
       interval: 30s
@@ -126,6 +132,7 @@ services:
       resources:
         limits:
           memory: 1G
+          cpus: "0.5"
     networks:
       - qbc-net
     restart: unless-stopped
@@ -164,21 +171,22 @@ services:
       - LLM_ENABLED=true
       - LLM_PRIMARY_ADAPTER=ollama
       - LLM_SEEDER_ENABLED=false
-      # Phi MIP spectral bisection is expensive — compute every 5 blocks instead of every 1
-      - PHI_COMPUTE_INTERVAL=5
-      # AI operation intervals — all primes, none share common factors → never collide
-      - AETHER_DEBATE_INTERVAL=211
-      - AETHER_CAUSAL_DISCOVERY_INTERVAL=307
-      - AETHER_DREAM_ANALOGIES_INTERVAL=251
-      - AETHER_SELF_REFLECT_INTERVAL=503
-      - AETHER_CONCEPT_FORMATION_INTERVAL=541
-      - AETHER_MEMORY_CONSOLIDATE_INTERVAL=547
-      - AETHER_EPISODIC_REPLAY_INTERVAL=557
-      - AETHER_CURIOSITY_INTERVAL=50
-      - AETHER_KNOWLEDGE_DIGEST_INTERVAL=601
-      - AETHER_SELF_IMPROVEMENT_INTERVAL=47
-      - AETHER_SEPHIROT_PERSIST_INTERVAL=613
-      - AETHER_CONTRADICTION_RESOLVE_INTERVAL=149
+      # Phi MIP spectral bisection is expensive — compute every 10 blocks
+      - PHI_COMPUTE_INTERVAL=10
+      # AI operation intervals — relaxed to reduce CPU pressure from LLM calls
+      # Gate 4+ already passed; stability > frequency now
+      - AETHER_DEBATE_INTERVAL=100
+      - AETHER_CAUSAL_DISCOVERY_INTERVAL=200
+      - AETHER_DREAM_ANALOGIES_INTERVAL=500
+      - AETHER_SELF_REFLECT_INTERVAL=1000
+      - AETHER_CONCEPT_FORMATION_INTERVAL=200
+      - AETHER_MEMORY_CONSOLIDATE_INTERVAL=1000
+      - AETHER_EPISODIC_REPLAY_INTERVAL=1000
+      - AETHER_CURIOSITY_INTERVAL=100
+      - AETHER_KNOWLEDGE_DIGEST_INTERVAL=1000
+      - AETHER_SELF_IMPROVEMENT_INTERVAL=200
+      - AETHER_SEPHIROT_PERSIST_INTERVAL=1000
+      - AETHER_CONTRADICTION_RESOLVE_INTERVAL=100
       # Chain sync: peer RPC URL for catching up on blocks
       - SYNC_PEER_URL=${SYNC_PEER_URL:-}
       # Distributed Graph Shard Service (trillion-node KG)
@@ -197,7 +205,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
+          memory: 4G
+          cpus: "2.0"
     volumes:
       - node-data:/app/data
       - node-logs:/app/logs
@@ -240,6 +249,8 @@ services:
     restart: unless-stopped
 
   # ── Ollama (Local LLM for Aether Tree reasoning) ────────────────────
+  # CPU-limited to prevent starving the Substrate node and other services.
+  # Aether Tree uses this for reasoning — runs qwen2.5:0.5b (small model).
   ollama:
     image: ollama/ollama:latest
     container_name: qbc-ollama
@@ -250,6 +261,7 @@ services:
     environment:
       - OLLAMA_NUM_PARALLEL=1
       - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_NUM_THREAD=2
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:11434/api/tags >/dev/null 2>&1 || exit 1"]
       interval: 30s
@@ -259,7 +271,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G
+          memory: 2G
+          cpus: "1.0"
     networks:
       - qbc-net
     restart: unless-stopped

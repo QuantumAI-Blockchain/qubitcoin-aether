@@ -19,11 +19,11 @@ timeout_secs = 300
 max_concurrent = 2
 
 [claude]
-enabled = true
+enabled = false
 
 [pipeline]
 max_steps = 0
-step_interval_secs = 60
+step_interval_secs = 120
 parallel_workers = 4
 save_interval = 10
 

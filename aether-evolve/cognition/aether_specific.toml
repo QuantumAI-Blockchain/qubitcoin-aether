@@ -6,9 +6,10 @@ title = "HMS-Phi Formula"
 content = """
 HMS-Phi = phi_micro^(1/phi) * phi_meso^(1/phi^2) * phi_macro^(1/phi^3)
 where phi = 1.618... (golden ratio).
-Multiplicative: any zero kills the result. phi_meso=0 is the #1 blocker.
+Multiplicative: any zero kills the result.
 phi_micro from IIT 3.0 approximation, phi_meso from domain cluster MIP,
 phi_macro from cross-cluster integration.
+PROBLEM: Measures graph topology, not causal integration. Not real IIT.
 """
 tags = ["phi", "iit", "integration", "formula"]
 
@@ -19,9 +20,25 @@ content = """
 Each gate unlocks +0.5 phi ceiling. Must be genuine behavioral evidence.
 Gate 4 (Self-Correction): 10K nodes, 20 debates, 10 contradictions, MIP>0.3
 Gate 10 (Novel Synthesis): 75K nodes, 50 novel concepts, 100 cross-domain inferences
-Current blockers: Gate 4 (debates), Gate 10 (novel concepts)
+Current state: 9/10 gates passed, 101K+ nodes, phi=4.089
+Blocker: Gate 4 needs 20 debates + 10 contradictions under V4 criteria
 """
 tags = ["gates", "milestones", "emergence"]
+
+[[items]]
+id = "aether-live-state"
+title = "Current Live System State (2026-04-18)"
+content = """
+101,059 nodes | 60,438 edges | 15 domains
+phi = 4.089 | 9/10 gates passed
+Self-improvement: 7 cycles, 76 adjustments
+Debate verdicts: active | Contradictions resolved: 66
+Emotional state: satisfaction dominant
+Subsystems ALL ACTIVE: metacognition, self_improvement, curiosity,
+concept_formation, causal_engine, debate_protocol
+Processing Substrate blocks (~48K+)
+"""
+tags = ["status", "live", "metrics"]
 
 [[items]]
 id = "aether-sephirot"
@@ -34,14 +51,3 @@ Each Sephirot is a reasoning cluster that should have its own MIP > 0.
 Meso-level phi computed per Sephirot domain cluster.
 """
 tags = ["sephirot", "domains", "architecture"]
-
-[[items]]
-id = "aether-dead-subsystems"
-title = "Dead Subsystems That Need Activation"
-content = """
-concept_formation: 0 runs — never triggered, needs threshold lowering
-causal_engine: 0 runs — PC algorithm never ran
-transfer_learning: 0 transfers — cross-domain inference never happened
-These are critical for genuine integration and must be activated.
-"""
-tags = ["subsystems", "activation", "concept_formation", "causal"]
