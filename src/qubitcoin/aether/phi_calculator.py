@@ -365,6 +365,12 @@ class PhiCalculator:
                 extra_stats = dict(self._subsystem_stats) if self._subsystem_stats else None
                 result = self._rust_phi.compute_phi(self.kg.rust_kg, block_height, extra_stats)
                 if result and isinstance(result, dict) and 'phi_value' in result:
+                    logger.info(
+                        "Rust compute_phi OK: phi_value=%.4f, gates_passed=%s, mip=%.4f",
+                        float(result.get('phi_value', 0)),
+                        result.get('gates_passed', '?'),
+                        float(result.get('mip_score', 0)),
+                    )
                     # ── V5: De-inflate Rust HMS_SCALE=8.0 ──────────────
                     # Rust bakes in ×8.0 scaling (HMS_SCALE constant).
                     # V5 removes this inflation — phi should be honest.
@@ -386,7 +392,9 @@ class PhiCalculator:
                         py_gates = self.get_gate_progress()
                         gates_passed = sum(1 for g in py_gates if g.get('passed'))
                         result['gates'] = py_gates
-                    except Exception:
+                        logger.info("Python gate eval: %d/10 passed", gates_passed)
+                    except Exception as gate_exc:
+                        logger.warning("Python gate eval failed, using Rust: %s", gate_exc)
                         gates_passed = int(result.get('gates_passed', 0))
                     result['gates_passed'] = gates_passed
                     result['gates_total'] = 10
@@ -411,7 +419,7 @@ class PhiCalculator:
                             # Replace phi_micro with real IIT value
                             result['phi_micro'] = min(1.0, iit_phi)
                         except Exception as iit_exc:
-                            logger.debug("IIT micro-phi failed: %s", iit_exc)
+                            logger.warning("IIT micro-phi failed: %s", iit_exc)
                             result['iit_micro_phi'] = 0.0
                     self._recent_phi_values.append(phi_val)
                     self._phi_history.append((block_height, phi_val))

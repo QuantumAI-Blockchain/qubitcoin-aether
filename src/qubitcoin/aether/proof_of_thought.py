@@ -577,7 +577,8 @@ class AetherEngine:
             and self.phi._last_full_result.get('phi_formula') == 'restored'
         )
         if self.phi._last_full_result is not None and not is_restored:
-            phi_result = self.phi._last_full_result
+            # Use get_cached() which dynamically evaluates gates via Python
+            phi_result = self.phi.get_cached()
         else:
             # First block, restored cache, or cache miss — compute synchronously
             self.phi.set_subsystem_stats(self._collect_subsystem_stats())
@@ -4008,7 +4009,7 @@ class AetherEngine:
                 self.phi.compute_phi(block_height)
                 # Result is stored in self.phi._last_full_result
             except Exception as e:
-                logger.debug(f"Async Phi computation error: {e}")
+                logger.warning(f"Async Phi computation error: {e}")
             finally:
                 self._phi_computing = False
 
