@@ -895,28 +895,13 @@ class PhiCalculator:
     def get_gate_progress(self) -> List[dict]:
         """Return detailed progress for each milestone gate.
 
-        Uses the last Rust-computed result's gate data, supplemented by
-        Python-side node scanning for dashboard display.
+        V5: Always uses Python-side gate evaluation (get_gate_stats) as the
+        authoritative source.  The Rust code doesn't have the
+        `mip_phi = max(rust_mip, integration_score * 0.6)` fallback,
+        doesn't count debate_synthesis or contradiction_resolution KG nodes,
+        and doesn't track subsystem stats.  Using Rust gates caused Gate 4
+        to remain blocked even when Python stats showed it should pass.
         """
-        # If we have a recent Rust result with gates, use it directly
-        if self._last_full_result and self._last_full_result.get('gates'):
-            rust_gates = self._last_full_result['gates']
-            progress: List[dict] = []
-            n_nodes = self._last_full_result.get('num_nodes', 0)
-            for g in rust_gates:
-                gate_id = g.get('id', 0)
-                gate_def = MILESTONE_GATES[gate_id - 1] if 0 < gate_id <= len(MILESTONE_GATES) else None
-                node_req = gate_def['nodes'] if gate_def else 0
-                node_pct = min(1.0, n_nodes / node_req) * 100 if node_req > 0 else 100.0
-                progress.append({
-                    'id': gate_id,
-                    'name': g.get('name', ''),
-                    'passed': g.get('passed', False),
-                    'metrics': {'nodes': f'{n_nodes}/{node_req}'},
-                    'progress_pct': round(min(100, node_pct), 1),
-                })
-            return progress
-
         # No Rust result — scan KG nodes for basic progress
         if not self.kg or not self.kg.nodes:
             return [

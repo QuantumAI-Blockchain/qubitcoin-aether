@@ -121,17 +121,70 @@ impl DiagnoseAgent {
             });
         }
 
-        // P1: Gate blockers
+        // P1: Gate blockers — targeted diagnosis per gate
         for gate in &m.gates {
             if !gate.passed {
-                let (intervention, files) = match gate.gate_number {
-                    4 => (InterventionType::ApiCall, vec![]),
+                let (intervention, files, root_cause, expected) = match gate.gate_number {
+                    4 => {
+                        // Gate 4: Self-Correction — needs debates, contradictions, MIP
+                        // Diagnose WHICH sub-requirement is failing
+                        if m.debate_count < 20 {
+                            (
+                                InterventionType::CodeChange,
+                                vec![
+                                    "src/qubitcoin/aether/debate.py".into(),
+                                    "src/qubitcoin/aether/proof_of_thought.py".into(),
+                                ],
+                                format!(
+                                    "Only {} debates (need 20). Debate interval too high or \
+                                     max_debates too low. Verdict logic may be imbalanced.",
+                                    m.debate_count
+                                ),
+                                "Debate frequency increased, verdict diversity improved".into(),
+                            )
+                        } else if m.contradiction_count < 10 {
+                            (
+                                InterventionType::CodeChange,
+                                vec!["src/qubitcoin/aether/debate.py".into()],
+                                format!(
+                                    "Only {} contradictions resolved (need 10). All debate \
+                                     verdicts may be 'accepted' — critic too weak or verdict \
+                                     thresholds too tight.",
+                                    m.contradiction_count
+                                ),
+                                "Debate verdicts include modified/rejected → contradiction nodes created".into(),
+                            )
+                        } else {
+                            (
+                                InterventionType::CodeChange,
+                                vec!["src/qubitcoin/aether/phi_calculator.py".into()],
+                                format!(
+                                    "MIP score {} < 0.3. Graph integration too low — \
+                                     too many disconnected observation nodes.",
+                                    m.mip_score
+                                ),
+                                "MIP computation improved or graph pruned for higher integration".into(),
+                            )
+                        }
+                    }
                     10 => (
                         InterventionType::KnowledgeSeed,
                         vec!["API: /aether/ingest/batch".into()],
+                        "Novel synthesis requires diverse cross-domain knowledge".into(),
+                        "Gate 10 passed".into(),
                     ),
-                    8 => (InterventionType::ApiCall, vec![]),
-                    _ => (InterventionType::ApiCall, vec![]),
+                    8 => (
+                        InterventionType::KnowledgeSeed,
+                        vec!["API: /aether/ingest/batch".into()],
+                        "Autonomous curiosity needs diverse domains to explore".into(),
+                        "Gate 8 passed with curiosity discoveries".into(),
+                    ),
+                    _ => (
+                        InterventionType::ApiCall,
+                        vec![],
+                        format!("Requirements not met for gate {}", gate.gate_number),
+                        format!("Gate {} passed", gate.gate_number),
+                    ),
                 };
 
                 items.push(DiagnosisItem {
@@ -141,10 +194,10 @@ impl DiagnoseAgent {
                         "Gate {} ({}) not passed: {}",
                         gate.gate_number, gate.name, gate.details
                     ),
-                    root_cause: format!("Requirements not met for gate {}", gate.gate_number),
+                    root_cause,
                     recommended_intervention: intervention,
                     target_files: files,
-                    expected_improvement: format!("Gate {} passed", gate.gate_number),
+                    expected_improvement: expected,
                 });
             }
         }
