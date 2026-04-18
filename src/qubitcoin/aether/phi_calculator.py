@@ -256,6 +256,7 @@ class PhiCalculator:
         self._max_history: int = 1000
         # Subsystem stats injected by AetherEngine before each compute_phi call
         self._subsystem_stats: Dict[str, float] = {}
+        self._restore_subsystem_stats()
         # Cached Config values
         self._phi_downsample_retain_days: int = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
         # Convergence tracking: stddev over last N measurements
@@ -325,12 +326,31 @@ class PhiCalculator:
 
         Called by AetherEngine before compute_phi to provide live metrics
         from metacognition, memory, neural reasoner, etc.
+        Persists to file so stats survive container restarts.
 
         Args:
             stats: Dict with keys like working_memory_hit_rate,
                 calibration_error, prediction_accuracy.
         """
         self._subsystem_stats = stats
+        # Persist for restart recovery
+        try:
+            import json as _json
+            with open('/app/data/subsystem_stats.json', 'w') as f:
+                _json.dump(stats, f)
+        except Exception:
+            pass
+
+    def _restore_subsystem_stats(self) -> None:
+        """Restore persisted subsystem stats from file."""
+        try:
+            import json as _json
+            with open('/app/data/subsystem_stats.json', 'r') as f:
+                self._subsystem_stats = _json.load(f)
+                logger.info("Restored subsystem stats from file: %d keys",
+                            len(self._subsystem_stats))
+        except Exception:
+            pass
 
     def compute_phi(self, block_height: int = 0) -> dict:
         """
@@ -587,8 +607,9 @@ class PhiCalculator:
         if self._last_full_result is not None:
             result = dict(self._last_full_result)
             result['cached'] = True
-            # Re-evaluate gates if they were empty (e.g. restored from DB)
-            if not result.get('gates') and self.kg and self.kg.nodes:
+            # Always re-evaluate gates using Python (authoritative).
+            # Rust gates and early-session evaluations can be stale.
+            if self.kg and self.kg.nodes:
                 try:
                     gate_progress = self.get_gate_progress()
                     gates_passed = sum(1 for g in gate_progress if g.get('passed'))
@@ -596,7 +617,7 @@ class PhiCalculator:
                     result['gates'] = gate_progress
                     result['gates_passed'] = gates_passed
                     result['gate_ceiling'] = gate_ceiling
-                    # Update cached result so subsequent calls don't re-scan
+                    # Update cached result
                     self._last_full_result['gates'] = gate_progress
                     self._last_full_result['gates_passed'] = gates_passed
                     self._last_full_result['gate_ceiling'] = gate_ceiling
@@ -604,8 +625,8 @@ class PhiCalculator:
                     if gate_ceiling > 0:
                         result['phi_value'] = min(result.get('phi_raw', 0.0), gate_ceiling)
                         self._last_full_result['phi_value'] = result['phi_value']
-                except Exception:
-                    pass
+                except Exception as gc_exc:
+                    logger.warning("get_cached gate re-eval failed: %s", gc_exc)
             return result
         # No cache yet — return defaults rather than blocking on a full compute
         return {
@@ -941,6 +962,14 @@ class PhiCalculator:
         if db_total > n_nodes:
             n_nodes = db_total
 
+        # Snapshot node values to avoid OrderedDict mutation during iteration
+        try:
+            node_values = list(nodes.values())
+        except RuntimeError:
+            # Dict changed during list() — use empty fallback
+            node_values = []
+            logger.warning("KG nodes mutated during snapshot, using empty list")
+
         node_type_counts: Dict[str, int] = {}
         confidence_sum = 0.0
         domains: set = set()
@@ -954,14 +983,22 @@ class PhiCalculator:
         cross_domain_conf_sum = 0.0
         novel_concept_count = 0
 
-        for node in nodes.values():
+        for node in node_values:
             node_type_counts[node.node_type] = node_type_counts.get(node.node_type, 0) + 1
             confidence_sum += node.confidence
             if node.domain:
                 domains.add(node.domain)
             if getattr(node, 'grounding_source', '') != '':
                 grounded_nodes += 1
-            content = node.content if isinstance(node.content, dict) else {}
+            content = node.content
+            if isinstance(content, str):
+                try:
+                    import json as _json
+                    content = _json.loads(content)
+                except Exception:
+                    content = {}
+            elif not isinstance(content, dict):
+                content = {}
             content_type = content.get('type', '')
             if node.node_type == 'inference' and content.get('cross_domain', False):
                 cross_domain_inferences += 1
@@ -1002,10 +1039,14 @@ class PhiCalculator:
                 logger.warning("DB gate count fallback failed: %s", db_exc)
 
         edge_type_counts: Dict[str, int] = {}
-        for edge in edges:
+        try:
+            edge_list = list(edges)
+        except RuntimeError:
+            edge_list = []
+        for edge in edge_list:
             edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
 
-        avg_confidence = confidence_sum / len(nodes) if len(nodes) > 0 else 0.0
+        avg_confidence = confidence_sum / len(node_values) if len(node_values) > 0 else 0.0
         grounding_ratio = grounded_nodes / n_nodes if n_nodes > 0 else 0.0
 
         # Compute integration_score from graph connectivity:
