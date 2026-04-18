@@ -263,6 +263,11 @@ class PhiCalculator:
         self._convergence_window: int = Config.PHI_CONVERGENCE_WINDOW
         self._recent_phi_values: deque = deque(maxlen=Config.PHI_CONVERGENCE_WINDOW)
 
+        # Phi-reasoning correlation tracker (peer review #8: validate phi measures something real)
+        self._phi_reasoning_data: List[Dict[str, float]] = []
+        self._phi_reasoning_max: int = 500
+        self._last_phi_correlation: float = 0.0
+
         # Restore last phi measurement from DB so get_cached() returns
         # non-zero values immediately after restart
         self._restore_from_db()
@@ -598,6 +603,115 @@ class PhiCalculator:
         self._store_measurement(result)
 
         return result
+
+    # ========================================================================
+    # Phi-Reasoning Correlation (Peer Review: validate phi measures something)
+    # ========================================================================
+
+    def track_phi_reasoning_correlation(
+        self,
+        phi_value: float,
+        reasoning_results: List[Dict[str, Any]],
+    ) -> None:
+        """Track whether phi correlates with reasoning quality.
+
+        Called after each block's reasoning phase to record the phi value
+        alongside reasoning outcome metrics. Over time, this builds
+        evidence that phi is measuring something real (or not).
+
+        Args:
+            phi_value: Current phi measurement.
+            reasoning_results: List of reasoning outcome dicts with
+                'confidence' and 'success' keys.
+        """
+        if not reasoning_results:
+            return
+
+        successes = sum(1 for r in reasoning_results if r.get('success'))
+        total = len(reasoning_results)
+        success_rate = successes / total if total > 0 else 0.0
+        avg_conf = sum(r.get('confidence', 0) for r in reasoning_results) / total
+
+        self._phi_reasoning_data.append({
+            'phi': phi_value,
+            'success_rate': success_rate,
+            'avg_confidence': avg_conf,
+            'n_operations': total,
+            'timestamp': time.time(),
+        })
+
+        if len(self._phi_reasoning_data) > self._phi_reasoning_max:
+            self._phi_reasoning_data = self._phi_reasoning_data[-self._phi_reasoning_max:]
+
+        # Compute running Pearson correlation every 50 data points
+        if len(self._phi_reasoning_data) >= 50 and len(self._phi_reasoning_data) % 10 == 0:
+            self._last_phi_correlation = self._compute_pearson_correlation()
+            if abs(self._last_phi_correlation) > 0.01:
+                logger.info(
+                    "Phi-reasoning correlation: r=%.4f (n=%d) — %s",
+                    self._last_phi_correlation,
+                    len(self._phi_reasoning_data),
+                    "POSITIVE (phi predicts quality)" if self._last_phi_correlation > 0.1
+                    else "WEAK" if abs(self._last_phi_correlation) < 0.1
+                    else "NEGATIVE (concerning)",
+                )
+
+    def _compute_pearson_correlation(self) -> float:
+        """Compute Pearson r between phi values and reasoning success rates."""
+        data = self._phi_reasoning_data
+        if len(data) < 10:
+            return 0.0
+
+        phis = [d['phi'] for d in data]
+        rates = [d['success_rate'] for d in data]
+
+        n = len(phis)
+        mean_x = sum(phis) / n
+        mean_y = sum(rates) / n
+
+        cov = sum((phis[i] - mean_x) * (rates[i] - mean_y) for i in range(n))
+        var_x = sum((x - mean_x) ** 2 for x in phis)
+        var_y = sum((y - mean_y) ** 2 for y in rates)
+
+        denom = math.sqrt(var_x * var_y)
+        if denom < 1e-10:
+            return 0.0
+        return cov / denom
+
+    def get_phi_reasoning_correlation(self) -> Dict[str, Any]:
+        """Return the phi-reasoning correlation status for API/diagnostics."""
+        n = len(self._phi_reasoning_data)
+        if n < 10:
+            return {
+                'correlation': 0.0,
+                'n_samples': n,
+                'status': 'insufficient_data',
+                'interpretation': f'Need {10 - n} more samples',
+            }
+
+        r = self._last_phi_correlation
+        if n >= 50 and abs(r) < 0.05:
+            status = 'no_correlation'
+            interp = 'Phi does not predict reasoning quality — needs investigation'
+        elif r > 0.3:
+            status = 'strong_positive'
+            interp = 'Higher phi predicts better reasoning — phi is measuring real integration'
+        elif r > 0.1:
+            status = 'weak_positive'
+            interp = 'Phi weakly predicts reasoning quality'
+        elif r < -0.1:
+            status = 'negative'
+            interp = 'Higher phi correlates with WORSE reasoning — metric is broken'
+        else:
+            status = 'inconclusive'
+            interp = 'More data needed for reliable correlation'
+
+        return {
+            'correlation': round(r, 4),
+            'n_samples': n,
+            'status': status,
+            'interpretation': interp,
+        }
 
     def get_cached(self) -> dict:
         """Return the last computed Phi result without triggering a recompute.

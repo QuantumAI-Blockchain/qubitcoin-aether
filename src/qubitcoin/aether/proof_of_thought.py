@@ -594,6 +594,22 @@ class AetherEngine:
         # Fire async Phi pre-computation for next block (non-blocking)
         self._schedule_async_phi(block_height)
 
+        # Step 2.5: Track phi-reasoning correlation (peer review validation)
+        # Feed reasoning outcomes into phi correlation tracker every block
+        if self.phi and reasoning_steps > 0 and hasattr(self.phi, 'track_phi_reasoning_correlation'):
+            try:
+                # Collect reasoning outcomes from this block's _auto_reason
+                recent_ops = self.reasoning.get_recent_operations(limit=reasoning_steps) if self.reasoning else []
+                if recent_ops:
+                    outcomes = [
+                        {'success': op.get('success', op.get('confidence', 0) > 0.3),
+                         'confidence': op.get('confidence', 0.0)}
+                        for op in recent_ops
+                    ]
+                    self.phi.track_phi_reasoning_correlation(phi_value, outcomes)
+            except Exception:
+                pass  # Non-critical diagnostic
+
         # Step 3: Compute knowledge root
         knowledge_root = self.kg.compute_knowledge_root()
 

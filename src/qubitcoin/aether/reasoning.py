@@ -1955,6 +1955,28 @@ class ReasoningEngine:
             self._operations = self._operations[-self._max_operations:]
         return result
 
+    def get_recent_operations(self, limit: int = 10) -> List[dict]:
+        """Return the most recent reasoning operations as dicts.
+
+        Used by phi-reasoning correlation tracker to validate that
+        higher phi values predict better reasoning outcomes.
+
+        Args:
+            limit: Max number of operations to return.
+
+        Returns:
+            List of dicts with 'success', 'confidence', 'operation_type' keys.
+        """
+        recent = self._operations[-limit:] if limit > 0 else []
+        return [
+            {
+                'success': op.success,
+                'confidence': op.confidence,
+                'operation_type': op.operation_type,
+            }
+            for op in recent
+        ]
+
     def get_stats(self) -> dict:
         """Get reasoning engine statistics"""
         type_counts: Dict[str, int] = {}
