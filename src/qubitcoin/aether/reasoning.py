@@ -530,18 +530,18 @@ class ReasoningEngine:
         conflicting_ids: List[int] = []
 
         # Check nodes in the same domain with high confidence
+        # Use domain index for O(1) lookup when available
         if hasattr(self.kg, 'nodes'):
-            for nid, node in self.kg.nodes.items():
+            if hasattr(self.kg, 'get_nodes_by_domain') and conclusion_domain:
+                domain_nodes = self.kg.get_nodes_by_domain(conclusion_domain, limit=200)
+                candidates = {n.node_id: n for n in domain_nodes}
+            else:
+                candidates = {nid: n for nid, n in self.kg.nodes.items()
+                              if (n.content.get('type', '') or n.node_type) == conclusion_domain}
+            for nid, node in candidates.items():
                 if nid == conclusion_id:
                     continue
                 if node.confidence <= 0.7:
-                    continue
-
-                # Same domain check
-                node_domain = node.content.get('type', '')
-                if not node_domain:
-                    node_domain = node.node_type
-                if node_domain != conclusion_domain:
                     continue
 
                 # Check for contradictory content (opposite conclusions about same topic)
@@ -1144,15 +1144,32 @@ class ReasoningEngine:
             content=source.content, confidence=source.confidence,
         ))
 
-        # Find candidates in other domains
+        # Find candidates in other domains — use domain index for efficiency
         source_domain = source.domain or ''
-        candidates = [
-            n for n in self.kg.nodes.values()
-            if n.node_id != source_node_id
-            and (n.domain != source_domain or not source_domain)
-            and (not target_domain or n.domain == target_domain)
-            and n.node_type in ('assertion', 'inference')
-        ]
+        if target_domain and hasattr(self.kg, 'get_nodes_by_domain'):
+            candidates = [
+                n for n in self.kg.get_nodes_by_domain(target_domain, limit=200)
+                if n.node_id != source_node_id
+                and n.node_type in ('assertion', 'inference')
+            ]
+        elif hasattr(self.kg, 'get_domains') and source_domain:
+            # Get nodes from all OTHER domains
+            candidates = []
+            for d in self.kg.get_domains():
+                if d == source_domain:
+                    continue
+                candidates.extend(
+                    n for n in self.kg.get_nodes_by_domain(d, limit=50)
+                    if n.node_id != source_node_id
+                    and n.node_type in ('assertion', 'inference')
+                )
+        else:
+            candidates = [
+                n for n in self.kg.nodes.values()
+                if n.node_id != source_node_id
+                and (n.domain != source_domain or not source_domain)
+                and n.node_type in ('assertion', 'inference')
+            ]
 
         analogies_found: List[dict] = []
         for candidate in candidates:
@@ -1768,8 +1785,13 @@ class ReasoningEngine:
         if not hasattr(self.kg, 'nodes'):
             return []
 
-        nodes_a = [n for n in self.kg.nodes.values() if n.domain == domain_a]
-        nodes_b = [n for n in self.kg.nodes.values() if n.domain == domain_b]
+        # Use domain index for O(1) lookup instead of O(N) scan
+        if hasattr(self.kg, 'get_nodes_by_domain'):
+            nodes_a = self.kg.get_nodes_by_domain(domain_a, limit=50)
+            nodes_b = self.kg.get_nodes_by_domain(domain_b, limit=50)
+        else:
+            nodes_a = [n for n in self.kg.nodes.values() if n.domain == domain_a][:50]
+            nodes_b = [n for n in self.kg.nodes.values() if n.domain == domain_b][:50]
 
         if not nodes_a or not nodes_b:
             return []
@@ -2177,13 +2199,21 @@ class ReasoningEngine:
         # 2. Structural analogy: find similar observations and their explanations
         if hasattr(self.kg, 'nodes'):
             obs_domain = observation.domain or 'general'
-            similar_obs = [
-                n for n in self.kg.nodes.values()
-                if n.node_id != observation_id
-                and n.node_type == 'observation'
-                and n.domain == obs_domain
-                and n.confidence > 0.5
-            ]
+            if hasattr(self.kg, 'get_nodes_by_domain') and obs_domain:
+                similar_obs = [
+                    n for n in self.kg.get_nodes_by_domain(obs_domain, limit=100)
+                    if n.node_id != observation_id
+                    and n.node_type == 'observation'
+                    and n.confidence > 0.5
+                ]
+            else:
+                similar_obs = [
+                    n for n in self.kg.nodes.values()
+                    if n.node_id != observation_id
+                    and n.node_type == 'observation'
+                    and n.domain == obs_domain
+                    and n.confidence > 0.5
+                ]
             # Find observations that already have explanations
             for sim_obs in similar_obs[:10]:
                 explanations = self.kg.get_neighbors(sim_obs.node_id, 'in')
@@ -2206,10 +2236,15 @@ class ReasoningEngine:
                     break
 
         # 3. Temporal hypothesis: what else happened near this block?
+        # Bounded scan: only check last 2000 nodes to avoid O(N) on 100K+ graph
         if observation.source_block > 0:
             block_window = 10
+            try:
+                recent_nodes = list(self.kg.nodes.values())[-2000:]
+            except RuntimeError:
+                recent_nodes = []
             nearby_events = [
-                n for n in self.kg.nodes.values()
+                n for n in recent_nodes
                 if n.node_id != observation_id
                 and abs(n.source_block - observation.source_block) <= block_window
                 and n.node_type in ('observation', 'assertion')

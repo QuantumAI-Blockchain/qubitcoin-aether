@@ -4398,17 +4398,22 @@ class AetherEngine:
                 import random as _rng
                 _CACHE_INTERVAL = 50
                 if (block_height - self._xd_cache_block) >= _CACHE_INTERVAL or not self._xd_domain_cache:
-                    from collections import defaultdict as _dd_xd
-                    _new_cache: Dict[str, list] = _dd_xd(list)
-                    for _n in self.kg.nodes.values():
-                        if (_n.node_type in ('inference', 'assertion', 'observation')
-                                and _n.confidence > 0.4 and _n.domain):
-                            _new_cache[_n.domain].append(_n.node_id)
-                    # Keep max 50 node_ids per domain (high-confidence preference not possible
-                    # without sorting, but random sample is unbiased and O(1) per domain)
-                    self._xd_domain_cache = {
-                        d: ids for d, ids in _new_cache.items() if len(ids) >= 3
-                    }
+                    # Use KG domain index for O(1) domain lookup instead of O(N) scan
+                    if hasattr(self.kg, '_domain_index'):
+                        self._xd_domain_cache = {
+                            d: list(ids)[:50] for d, ids in self.kg._domain_index.items()
+                            if len(ids) >= 3
+                        }
+                    else:
+                        from collections import defaultdict as _dd_xd
+                        _new_cache: Dict[str, list] = _dd_xd(list)
+                        for _n in self.kg.nodes.values():
+                            if (_n.node_type in ('inference', 'assertion', 'observation')
+                                    and _n.confidence > 0.4 and _n.domain):
+                                _new_cache[_n.domain].append(_n.node_id)
+                        self._xd_domain_cache = {
+                            d: ids for d, ids in _new_cache.items() if len(ids) >= 3
+                        }
                     self._xd_cache_block = block_height
 
                 xd_cache = self._xd_domain_cache

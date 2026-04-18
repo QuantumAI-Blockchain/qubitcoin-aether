@@ -388,6 +388,8 @@ class KnowledgeGraph:
         # O(1) edge adjacency index — avoids O(n) scans of self.edges
         self._adj_out: Dict[int, List[KeterEdge]] = {}  # node_id -> outgoing edges
         self._adj_in: Dict[int, List[KeterEdge]] = {}   # node_id -> incoming edges
+        # O(1) domain index — avoids O(n) scans for domain-filtered queries
+        self._domain_index: Dict[str, Set[int]] = {}  # domain -> set of node_ids
         self._next_id = 1
         # Merkle root cache — avoids O(n) recomputation per call
         self._merkle_dirty: bool = True
@@ -478,6 +480,9 @@ class KnowledgeGraph:
                         )
                         self.nodes[node.node_id] = node
                         self._next_id = max(self._next_id, node.node_id + 1)
+                        # Maintain domain index during load
+                        if node.domain:
+                            self._domain_index.setdefault(node.domain, set()).add(node.node_id)
                         nodes_loaded += 1
                 except Exception as e:
                     logger.warning(
@@ -879,6 +884,9 @@ class KnowledgeGraph:
             self._next_id += 1
             self.nodes[node.node_id] = node
             self._merkle_dirty = True
+            # Maintain domain index
+            if node.domain:
+                self._domain_index.setdefault(node.domain, set()).add(node.node_id)
 
         # Update TF-IDF index synchronously (fast — no model inference)
         self.search_index.add_node(node.node_id, content)
@@ -1169,6 +1177,30 @@ class KnowledgeGraph:
             return node
         except Exception:
             return None
+
+    def get_nodes_by_domain(self, domain: str, limit: int = 200) -> List[KeterNode]:
+        """Return nodes for a given domain using O(1) domain index.
+
+        Args:
+            domain: Domain string to filter by.
+            limit: Maximum nodes to return.
+
+        Returns:
+            List of KeterNode instances in the domain.
+        """
+        node_ids = self._domain_index.get(domain, set())
+        result: List[KeterNode] = []
+        for nid in node_ids:
+            if len(result) >= limit:
+                break
+            node = self.nodes.get(nid)
+            if node is not None:
+                result.append(node)
+        return result
+
+    def get_domains(self) -> List[str]:
+        """Return list of all domains with at least one node."""
+        return [d for d, ids in self._domain_index.items() if ids]
 
     def get_neighbors(self, node_id: int, direction: str = 'out') -> List[KeterNode]:
         """Get neighboring nodes"""
