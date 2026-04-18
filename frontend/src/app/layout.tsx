@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, JetBrains_Mono, Orbitron, Share_Tech_Mono, Exo_2 } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -44,6 +44,14 @@ const exo2 = Exo_2({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: "#0a0a0f",
+};
+
 export const metadata: Metadata = {
   title: {
     default: "Quantum Blockchain | Supersymmetric Digital Assets & AI Emergence",
@@ -54,6 +62,11 @@ export const metadata: Metadata = {
   keywords: ["quantum blockchain", "qubitcoin", "qbc", "quantum", "blockchain", "AI", "aether tree", "proof of thought", "SUSY", "supersymmetric"],
   metadataBase: new URL("https://qbc.network"),
   manifest: "/manifest.json",
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+  },
   openGraph: {
     type: "website",
     siteName: "Quantum Blockchain",

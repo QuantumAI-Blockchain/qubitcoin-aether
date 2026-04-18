@@ -73,21 +73,21 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pt-20 pb-12">
-      <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold glow-cyan">
+    <div className="mx-auto max-w-7xl px-4 pt-20 pb-12 sm:px-6">
+      <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold glow-cyan sm:text-3xl">
         Dashboard
       </h1>
       <p className="mt-1 font-[family-name:var(--font-display)] text-[10px] uppercase tracking-[0.3em] text-text-secondary">
         Command Center
       </p>
 
-      {/* Tabs */}
-      <div className="mt-6 flex gap-1 border-b border-border-subtle">
+      {/* Tabs — horizontally scrollable on mobile */}
+      <div className="mt-6 flex gap-1 border-b border-border-subtle overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`relative px-4 py-2 font-[family-name:var(--font-display)] text-[11px] uppercase tracking-widest transition-colors ${
+            className={`relative px-3 py-3 font-[family-name:var(--font-display)] text-[11px] uppercase tracking-widest transition-colors whitespace-nowrap min-h-[44px] sm:px-4 ${
               tab === t ? "glow-cyan" : "text-text-secondary hover:text-text-primary"
             }`}
           >

@@ -373,13 +373,13 @@ function AetherPageContent() {
         {/* Main content area — tabs switch between chat and graph */}
         <div className="flex flex-1 flex-col">
           {/* Tab bar */}
-          <div className="flex items-center gap-1 border-b border-border-subtle px-4">
+          <div className="flex items-center gap-1 border-b border-border-subtle px-3 sm:px-4">
             <button
               role="tab"
               aria-selected={activeTab === "chat"}
               aria-controls="aether-chat-panel"
               onClick={() => setActiveTab("chat")}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              className={`px-3 py-3 text-sm font-medium transition-colors min-h-[44px] sm:px-4 ${
                 activeTab === "chat"
                   ? "border-b-2 border-quantum-violet text-text-primary"
                   : "text-text-secondary hover:text-text-primary"
@@ -392,7 +392,7 @@ function AetherPageContent() {
               aria-selected={activeTab === "graph"}
               aria-controls="aether-graph-panel"
               onClick={() => setActiveTab("graph")}
-              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+              className={`px-3 py-3 text-sm font-medium transition-colors min-h-[44px] sm:px-4 ${
                 activeTab === "graph"
                   ? "border-b-2 border-quantum-green text-text-primary"
                   : "text-text-secondary hover:text-text-primary"
@@ -404,7 +404,7 @@ function AetherPageContent() {
             <div className="ml-auto flex items-center gap-2 md:hidden">
               <button
                 onClick={handleNewChat}
-                className="rounded-lg bg-quantum-violet/20 px-3 py-1.5 text-xs font-medium text-quantum-violet"
+                className="rounded-lg bg-quantum-violet/20 px-3 py-2.5 text-xs font-medium text-quantum-violet active:scale-95 min-h-[44px]"
               >
                 + New Chat
               </button>
@@ -507,17 +507,18 @@ function AetherPageContent() {
                 </div>
               </div>
 
-              {/* Input */}
-              <div className="border-t border-border-subtle bg-bg-deep/80 px-4 py-4 backdrop-blur-sm">
+              {/* Input — safe area padding for iOS */}
+              <div className="border-t border-border-subtle bg-bg-deep/80 px-3 py-3 backdrop-blur-sm sm:px-4 sm:py-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
                 <form
                   onSubmit={(e) => { e.preventDefault(); send(); }}
-                  className="mx-auto flex max-w-3xl gap-3"
+                  className="mx-auto flex max-w-3xl gap-2 sm:gap-3"
                 >
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask Aether Tree anything..."
-                    className="flex-1 rounded-xl bg-bg-panel px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50"
+                    autoComplete="off"
+                    className="flex-1 rounded-xl bg-bg-panel px-4 py-3 text-base text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50 sm:text-sm"
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
                     }}
@@ -525,7 +526,7 @@ function AetherPageContent() {
                   <button
                     type="submit"
                     disabled={loading || !input.trim()}
-                    className="rounded-xl bg-quantum-green px-5 py-3 text-sm font-semibold text-void transition hover:bg-quantum-green/80 disabled:opacity-40"
+                    className="rounded-xl bg-quantum-green px-4 py-3 text-sm font-semibold text-void transition hover:bg-quantum-green/80 disabled:opacity-40 active:scale-95 flex-shrink-0 sm:px-5"
                   >
                     Send
                   </button>

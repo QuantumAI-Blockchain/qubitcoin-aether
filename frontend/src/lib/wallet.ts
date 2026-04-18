@@ -12,6 +12,58 @@ export function isTelegramWebApp(): boolean {
 }
 
 /**
+ * Detect mobile device (phone or tablet).
+ */
+export function isMobile(): boolean {
+  if (typeof window === "undefined") return false;
+  return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent,
+  );
+}
+
+/**
+ * Detect if we're inside MetaMask's in-app browser.
+ */
+export function isMetaMaskBrowser(): boolean {
+  if (typeof window === "undefined") return false;
+  const ethereum = (window as any).ethereum;
+  return !!(ethereum?.isMetaMask);
+}
+
+/**
+ * Check if any EVM provider is available (works on desktop + MetaMask in-app browser).
+ */
+export function hasInjectedProvider(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!(window as any).ethereum;
+}
+
+/**
+ * Open the current page in MetaMask's in-app browser via deep link.
+ * On iOS, uses metamask:// scheme. On Android, uses https://metamask.app.link.
+ */
+export function openInMetaMask(): void {
+  const dappUrl = window.location.host + window.location.pathname;
+  // metamask.app.link works on both iOS and Android
+  window.location.href = `https://metamask.app.link/dapp/${dappUrl}`;
+}
+
+/**
+ * Get the MetaMask install URL appropriate for the platform.
+ */
+export function getMetaMaskInstallUrl(): string {
+  if (typeof window === "undefined") return "https://metamask.io/download/";
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    return "https://apps.apple.com/app/metamask/id1438144202";
+  }
+  if (/Android/i.test(ua)) {
+    return "https://play.google.com/store/apps/details?id=io.metamask";
+  }
+  return "https://metamask.io/download/";
+}
+
+/**
  * Find the real MetaMask provider, handling multi-wallet environments.
  * Phantom injects itself as window.ethereum with isMetaMask=true,
  * so we must check the providers array and exclude Phantom.
@@ -61,6 +113,13 @@ export async function connectWallet(): Promise<{
   }
 
   const ethereum = getEthereum();
+
+  // On mobile without injected provider, deep-link to MetaMask
+  if (!ethereum && isMobile()) {
+    openInMetaMask();
+    throw new Error("METAMASK_DEEPLINK");
+  }
+
   if (!ethereum) throw new Error("MetaMask not installed. Please install MetaMask from metamask.io");
 
   const provider = new BrowserProvider(ethereum);

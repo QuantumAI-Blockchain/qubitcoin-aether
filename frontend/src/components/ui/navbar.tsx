@@ -128,9 +128,9 @@ export function Navbar() {
       {mobileOpen && (
         <div
           className="lg:hidden fixed inset-0 top-16 z-[9999] bg-bg-deep border-t border-border-subtle/60 overflow-y-auto"
-          style={{ WebkitOverflowScrolling: "touch" }}
+          style={{ WebkitOverflowScrolling: "touch", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
         >
-          <ul className="flex flex-col px-6 py-4 gap-1">
+          <ul className="flex flex-col px-4 py-3 gap-0.5">
             {navKeys.map(({ href, key }) => {
               const active = pathname === href;
               const label = key === "home" ? (fallbackLabels[key]) : (t.has(key) ? t(key) : fallbackLabels[key]);
@@ -139,7 +139,7 @@ export function Navbar() {
                   <Link
                     href={href}
                     onClick={() => setMobileOpen(false)}
-                    className={`block rounded-lg px-4 py-3 font-[family-name:var(--font-display)] text-sm uppercase tracking-widest transition-colors ${
+                    className={`flex items-center rounded-lg px-4 py-3.5 font-[family-name:var(--font-display)] text-sm uppercase tracking-widest transition-colors min-h-[48px] active:scale-[0.98] ${
                       active
                         ? "glow-cyan bg-glow-cyan/10"
                         : "text-text-secondary hover:text-text-primary hover:bg-white/5"
@@ -152,7 +152,7 @@ export function Navbar() {
             })}
           </ul>
           {/* Mobile-only controls */}
-          <div className="flex items-center gap-4 px-10 py-4 border-t border-border-subtle/40">
+          <div className="flex items-center gap-4 px-8 py-4 border-t border-border-subtle/40">
             <LanguageSwitcher />
             <ThemeToggle />
           </div>
