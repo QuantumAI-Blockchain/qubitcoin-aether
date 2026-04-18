@@ -936,6 +936,11 @@ class PhiCalculator:
         n_nodes = len(nodes)
         n_edges = len(edges)
 
+        # Use DB total if in-memory is a subset
+        db_total = getattr(self.kg, '_db_node_count', 0)
+        if db_total > n_nodes:
+            n_nodes = db_total
+
         node_type_counts: Dict[str, int] = {}
         confidence_sum = 0.0
         domains: set = set()
@@ -974,11 +979,33 @@ class PhiCalculator:
             if content_type in ('generalization', 'concept_cluster'):
                 novel_concept_count += 1
 
+        # Supplement gate-critical counts from DB if in-memory is a subset
+        if self.db and (debate_verdicts < 20 or contradiction_resolutions < 10
+                        or novel_concept_count < 50):
+            try:
+                from sqlalchemy import text
+                with self.db.get_session() as session:
+                    row = session.execute(text(
+                        "SELECT "
+                        "COUNT(*) FILTER (WHERE content::STRING LIKE '%debate_synthesis%'), "
+                        "COUNT(*) FILTER (WHERE content::STRING LIKE '%contradiction_resolution%'), "
+                        "COUNT(*) FILTER (WHERE content::STRING LIKE '%generalization%' "
+                        "OR content::STRING LIKE '%concept_cluster%') "
+                        "FROM knowledge_nodes"
+                    )).fetchone()
+                    if row:
+                        debate_verdicts = max(debate_verdicts, int(row[0] or 0))
+                        contradiction_resolutions = max(
+                            contradiction_resolutions, int(row[1] or 0))
+                        novel_concept_count = max(novel_concept_count, int(row[2] or 0))
+            except Exception as db_exc:
+                logger.warning("DB gate count fallback failed: %s", db_exc)
+
         edge_type_counts: Dict[str, int] = {}
         for edge in edges:
             edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
 
-        avg_confidence = confidence_sum / n_nodes if n_nodes > 0 else 0.0
+        avg_confidence = confidence_sum / len(nodes) if len(nodes) > 0 else 0.0
         grounding_ratio = grounded_nodes / n_nodes if n_nodes > 0 else 0.0
 
         # Compute integration_score from graph connectivity:
