@@ -376,8 +376,20 @@ class PhiCalculator:
                     else:
                         result['phi_raw'] = float(result.get('phi_raw', 0.0)) / 8.0
 
-                    # Re-apply gate ceiling on honest value
-                    gates_passed = int(result.get('gates_passed', 0))
+                    # V5: Re-evaluate gates using Python (authoritative).
+                    # Rust gates don't have the mip_phi fallback, so they
+                    # under-count passed gates (e.g. Gate 4 stays blocked).
+                    # Track MIP early so get_gate_progress can use it.
+                    rust_mip = float(result.get('mip_score', 0.0))
+                    self._last_mip_score = max(self._last_mip_score, rust_mip)
+                    try:
+                        py_gates = self.get_gate_progress()
+                        gates_passed = sum(1 for g in py_gates if g.get('passed'))
+                        result['gates'] = py_gates
+                    except Exception:
+                        gates_passed = int(result.get('gates_passed', 0))
+                    result['gates_passed'] = gates_passed
+                    result['gates_total'] = 10
                     gate_ceiling = gates_passed * 0.5
                     honest_phi = min(result['phi_raw'], gate_ceiling) if gate_ceiling > 0 else 0.0
                     result['phi_value'] = honest_phi
@@ -388,9 +400,6 @@ class PhiCalculator:
                     self._cache[block_height] = phi_val
                     self._last_full_result = result
                     self._last_computed_block = block_height
-                    # Track MIP for external inspection
-                    rust_mip = float(result.get('mip_score', 0.0))
-                    self._last_mip_score = max(self._last_mip_score, rust_mip)
                     # ── V5: Run IIT approximator as micro-level phi ────
                     if self.kg and self.kg.nodes:
                         try:
@@ -1009,6 +1018,17 @@ class PhiCalculator:
             'fep_domain_precisions': self._subsystem_stats.get('fep_domain_precisions', 0),
         }
 
+        # Log Gate 4 diagnostics (the hardest gate to debug)
+        logger.info(
+            "Gate 4 stats: n_nodes=%d, debate_verdicts=%d, "
+            "contradiction_resolutions=%d, mip_phi=%.4f, "
+            "mip_score=%.4f, integration_score=%.4f",
+            n_nodes, stats['debate_verdicts'],
+            stats['contradiction_resolutions'],
+            stats['mip_phi'], self._last_mip_score,
+            stats['integration_score'],
+        )
+
         progress: List[dict] = []
         for gate in MILESTONE_GATES:
             gate_id = gate['id']
@@ -1018,11 +1038,18 @@ class PhiCalculator:
             except Exception:
                 passed = False
             node_pct = min(1.0, n_nodes / node_req) * 100 if node_req > 0 else 100.0
+            details = {'nodes': f'{n_nodes}/{node_req}'}
+            if gate_id == 4:
+                details.update({
+                    'debate_verdicts': stats['debate_verdicts'],
+                    'contradiction_resolutions': stats['contradiction_resolutions'],
+                    'mip_phi': round(stats['mip_phi'], 4),
+                })
             progress.append({
                 'id': gate_id,
                 'name': gate['name'],
                 'passed': passed,
-                'metrics': {'nodes': f'{n_nodes}/{node_req}'},
+                'metrics': details,
                 'progress_pct': round(min(100, node_pct), 1),
             })
 
