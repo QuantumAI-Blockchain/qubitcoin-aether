@@ -538,30 +538,84 @@ class ReasoningEngine:
             else:
                 candidates = {nid: n for nid, n in self.kg.nodes.items()
                               if (n.content.get('type', '') or n.node_type) == conclusion_domain}
+            # Pre-compute conclusion text and embedding for semantic checks
+            conclusion_text = str(conclusion.content.get('text', '')).lower()
+            conclusion_emb = None
+            _cos_sim_fn = None
+            try:
+                from .vector_index import cosine_similarity as _cos_sim_fn_import
+                _cos_sim_fn = _cos_sim_fn_import
+                if hasattr(self.kg, 'vector_index') and self.kg.vector_index:
+                    conclusion_emb = self.kg.vector_index.get_embedding(conclusion_id)
+            except Exception:
+                pass
+
             for nid, node in candidates.items():
                 if nid == conclusion_id:
                     continue
                 if node.confidence <= 0.7:
                     continue
 
-                # Check for contradictory content (opposite conclusions about same topic)
-                conclusion_content = conclusion.content
-                node_content = node.content
+                is_contradiction = False
+                contradiction_reason = ''
 
-                # Detect contradiction: both are inferences/generalizations about
-                # the same premises but with significantly different confidence
-                if (conclusion.node_type == 'inference' and node.node_type == 'inference'
-                        and abs(conclusion.confidence - node.confidence) > 0.3):
-                    # Check if they share premise lineage
+                # Check 1: Semantic similarity with opposing claims
+                # Two nodes that are semantically similar but reach different conclusions
+                # are more likely contradictions than nodes with different confidence
+                if conclusion_emb and _cos_sim_fn and hasattr(self.kg, 'vector_index'):
+                    node_emb = self.kg.vector_index.get_embedding(nid)
+                    if node_emb:
+                        sem_sim = _cos_sim_fn(conclusion_emb, node_emb)
+                        # High semantic similarity (>0.7) + different conclusions = contradiction
+                        if sem_sim > 0.7:
+                            # Check for opposing numeric values or negation
+                            node_text = str(node.content.get('text', '')).lower()
+                            if conclusion_text and node_text:
+                                import re
+                                conc_nums = set(re.findall(r'\b\d+\.?\d*\b', conclusion_text))
+                                node_nums = set(re.findall(r'\b\d+\.?\d*\b', node_text))
+                                # Same topic (high sim) but different numbers = contradiction
+                                if (conc_nums and node_nums
+                                        and conc_nums != node_nums
+                                        and len(conc_nums & node_nums) == 0):
+                                    is_contradiction = True
+                                    contradiction_reason = (
+                                        f"Semantic similarity {sem_sim:.2f} with conflicting "
+                                        f"values: {conc_nums} vs {node_nums}"
+                                    )
+                                # Check for negation patterns
+                                negation_markers = ['not ', 'no ', 'never ', 'false', 'incorrect',
+                                                    'wrong', 'invalid', 'decrease', 'increase']
+                                conc_has_neg = any(m in conclusion_text for m in negation_markers)
+                                node_has_neg = any(m in node_text for m in negation_markers)
+                                if conc_has_neg != node_has_neg and sem_sim > 0.75:
+                                    is_contradiction = True
+                                    contradiction_reason = (
+                                        f"Semantic similarity {sem_sim:.2f} with opposing "
+                                        f"polarity (negation asymmetry)"
+                                    )
+
+                # Check 2: Shared premise lineage with divergent conclusions (original check, improved)
+                if (not is_contradiction
+                        and conclusion.node_type == 'inference'
+                        and node.node_type == 'inference'):
                     conclusion_neighbors = {n.node_id for n in self.kg.get_neighbors(conclusion_id, 'in')}
                     node_neighbors = {n.node_id for n in self.kg.get_neighbors(nid, 'in')}
-                    if conclusion_neighbors & node_neighbors:
-                        self.kg.add_edge(conclusion_id, nid, 'contradicts')
-                        conflicting_ids.append(nid)
-                        logger.debug(
-                            f"Conflict detected: node {conclusion_id} contradicts "
-                            f"node {nid} (domain={conclusion_domain})"
+                    shared_premises = conclusion_neighbors & node_neighbors
+                    if shared_premises and abs(conclusion.confidence - node.confidence) > 0.3:
+                        is_contradiction = True
+                        contradiction_reason = (
+                            f"Same premises ({len(shared_premises)} shared) but "
+                            f"divergent confidence: {conclusion.confidence:.2f} vs {node.confidence:.2f}"
                         )
+
+                if is_contradiction:
+                    self.kg.add_edge(conclusion_id, nid, 'contradicts')
+                    conflicting_ids.append(nid)
+                    logger.debug(
+                        f"Conflict detected: node {conclusion_id} contradicts "
+                        f"node {nid} (domain={conclusion_domain}): {contradiction_reason}"
+                    )
 
         return conflicting_ids
 
@@ -739,14 +793,104 @@ class ReasoningEngine:
         grounding_factor = self._grounding_boost([observation_id])
 
         if not explanations:
-            # No existing explanations — generate hypothesis
-            hypothesis = {
-                'type': 'hypothesis',
-                'explains': observation.content,
-                'method': 'abductive_inference',
-                'cross_domain': False,
-            }
-            hyp_conf = min(1.0, 0.3 * grounding_factor)
+            # No existing explanations — generate hypothesis via structural analysis
+            # Step 1: Find structurally similar nodes that DO have explanations
+            obs_domain = observation.domain or 'general'
+            obs_text = str(observation.content.get('text', '')).lower()
+            candidate_explanations: List[dict] = []
+
+            # Search for analogous observations with known explanations
+            if hasattr(self.kg, 'get_nodes_by_domain') and obs_domain:
+                similar_obs = self.kg.get_nodes_by_domain(obs_domain, limit=50)
+            elif hasattr(self.kg, 'nodes'):
+                similar_obs = [
+                    n for n in list(self.kg.nodes.values())[-2000:]
+                    if n.domain == obs_domain and n.node_id != observation_id
+                ][:50]
+            else:
+                similar_obs = []
+
+            for sim in similar_obs:
+                if sim.node_id == observation_id:
+                    continue
+                # Check if this similar node has incoming explanations
+                sim_explanations = self.kg.get_neighbors(sim.node_id, 'in')
+                for expl in sim_explanations:
+                    if expl.node_type == 'inference' and expl.confidence > 0.2:
+                        expl_text = str(expl.content.get('text', ''))
+                        candidate_explanations.append({
+                            'source_node': expl.node_id,
+                            'source_obs': sim.node_id,
+                            'confidence': expl.confidence * 0.6,  # Discount for analogy transfer
+                            'content': expl.content,
+                            'mechanism': f"Analogical transfer from node {sim.node_id}: {expl_text[:120]}",
+                        })
+                        if len(candidate_explanations) >= 5:
+                            break
+                if len(candidate_explanations) >= 5:
+                    break
+
+            # Step 2: Use embedding similarity to find semantically close explanations
+            if len(candidate_explanations) < 2 and obs_text and hasattr(self.kg, 'vector_index'):
+                try:
+                    from .vector_index import _compute_embedding, cosine_similarity as _cos_sim
+                    obs_emb = _compute_embedding(obs_text)
+                    if obs_emb and any(v != 0 for v in obs_emb):
+                        nearby = self.kg.vector_index.query(obs_text, top_k=10)
+                        for nid, sim_score in nearby:
+                            if nid == observation_id or sim_score < 0.5:
+                                continue
+                            nearby_node = self.kg.get_node(nid)
+                            if nearby_node and nearby_node.node_type == 'inference':
+                                candidate_explanations.append({
+                                    'source_node': nid,
+                                    'source_obs': None,
+                                    'confidence': nearby_node.confidence * sim_score * 0.5,
+                                    'content': nearby_node.content,
+                                    'mechanism': (
+                                        f"Semantic similarity ({sim_score:.2f}) to inference "
+                                        f"node {nid}: {str(nearby_node.content.get('text', ''))[:120]}"
+                                    ),
+                                })
+                                if len(candidate_explanations) >= 5:
+                                    break
+                except Exception as e:
+                    logger.debug(f"Embedding-based hypothesis search failed: {e}")
+
+            # Step 3: Build the best hypothesis from candidates or create a structural one
+            if candidate_explanations:
+                # Rank by confidence and pick best
+                candidate_explanations.sort(key=lambda c: c['confidence'], reverse=True)
+                best_candidate = candidate_explanations[0]
+                hypothesis = {
+                    'type': 'hypothesis',
+                    'explains': observation.content,
+                    'method': 'abductive_inference',
+                    'mechanism': best_candidate['mechanism'],
+                    'competing_hypotheses': len(candidate_explanations),
+                    'explanatory_source': best_candidate['source_node'],
+                    'cross_domain': False,
+                }
+                hyp_conf = min(1.0, best_candidate['confidence'] * grounding_factor)
+            else:
+                # Fallback: structural hypothesis from observation's neighborhood
+                neighbors = self.kg.get_neighbors(observation_id, 'out')
+                neighbor_types = [n.node_type for n in neighbors[:10]]
+                neighbor_domains = list({n.domain for n in neighbors[:10] if n.domain})
+                hypothesis = {
+                    'type': 'hypothesis',
+                    'explains': observation.content,
+                    'method': 'abductive_inference',
+                    'mechanism': (
+                        f"Unexplained {obs_domain} observation with "
+                        f"{len(neighbors)} connections to {', '.join(neighbor_types[:3]) or 'no'} nodes"
+                        f"{' across domains: ' + ', '.join(neighbor_domains[:3]) if neighbor_domains else ''}"
+                    ),
+                    'competing_hypotheses': 0,
+                    'cross_domain': len(neighbor_domains) > 1,
+                }
+                hyp_conf = min(1.0, 0.3 * grounding_factor)
+
             hyp_node = self.kg.add_node(
                 node_type='inference',
                 content=hypothesis,
@@ -762,6 +906,7 @@ class ReasoningEngine:
                 confidence=hyp_conf,
             ))
 
+            expl_detail = hypothesis.get('mechanism', 'Generated hypothesis')
             result = ReasoningResult(
                 operation_type='abductive',
                 premise_ids=[observation_id],
@@ -769,18 +914,34 @@ class ReasoningEngine:
                 confidence=hyp_conf,
                 chain=chain,
                 success=True,
-                explanation='Generated hypothesis to explain observation',
+                explanation=f"Abductive hypothesis: {expl_detail[:200]}",
             )
         else:
-            # Rank explanations by confidence
-            best = max(explanations, key=lambda n: n.confidence)
+            # Rank explanations by composite score: confidence + evidence support
+            def _explanation_score(n: Any) -> float:
+                support = self.kg.get_neighbors(n.node_id, 'in')
+                evidence_count = len(support)
+                return n.confidence * (1.0 + 0.1 * min(evidence_count, 10))
+
+            best = max(explanations, key=_explanation_score)
             abd_conf = min(1.0, best.confidence * observation.confidence * grounding_factor)
+            best_text = str(best.content.get('text', best.content.get('type', '')))[:150]
+
             chain.append(ReasoningStep(
                 step_type='conclusion',
                 node_id=best.node_id,
                 content=best.content,
                 confidence=abd_conf,
             ))
+
+            # Check if there are competing explanations
+            competing = [e for e in explanations if e.node_id != best.node_id]
+            competing_info = ""
+            if competing:
+                competing_info = (
+                    f" ({len(competing)} competing explanations, "
+                    f"best alternative: node {competing[0].node_id} conf={competing[0].confidence:.3f})"
+                )
 
             result = ReasoningResult(
                 operation_type='abductive',
@@ -789,7 +950,10 @@ class ReasoningEngine:
                 confidence=abd_conf,
                 chain=chain,
                 success=True,
-                explanation=f"Best explanation: node {best.node_id} (conf: {best.confidence:.4f})",
+                explanation=(
+                    f"Best explanation: node {best.node_id} — {best_text or 'inference'} "
+                    f"(conf: {best.confidence:.4f}){competing_info}"
+                ),
             )
 
         self._store_operation(result)
@@ -1467,12 +1631,23 @@ class ReasoningEngine:
                     'reason': f"Chain node {edge.from_node_id} explicitly contradicts new node {new_node_id}",
                 }
 
-        # Check 3: Content-level conflict (same domain, opposing values)
+        # Check 3: Content-level conflict (semantic + structural)
         new_content_text = str(new_node.content.get('text', '')).lower()
         if new_content_text:
             import re
             new_numbers = set(re.findall(r'\b\d+\.?\d*\b', new_content_text))
             new_words = set(new_content_text.split())
+
+            # Try embedding-based similarity for more accurate conflict detection
+            new_emb = None
+            _cos_sim_fn = None
+            try:
+                from .vector_index import cosine_similarity as _cos_sim_fn_import
+                _cos_sim_fn = _cos_sim_fn_import
+                if hasattr(self.kg, 'vector_index') and self.kg.vector_index:
+                    new_emb = self.kg.vector_index.get_embedding(new_node_id)
+            except Exception:
+                pass
 
             for step in chain:
                 if step.node_id is None or step.node_id == new_node_id:
@@ -1486,12 +1661,25 @@ class ReasoningEngine:
                 chain_text = str(chain_node.content.get('text', '')).lower()
                 if not chain_text:
                     continue
-                chain_words = set(chain_text.split())
-                overlap = len(new_words & chain_words)
-                total = len(new_words | chain_words)
-                word_sim = overlap / total if total > 0 else 0
 
-                if word_sim > 0.4:
+                # Compute similarity: prefer embedding, fall back to word overlap
+                similarity = 0.0
+                sim_method = 'word'
+                if new_emb and _cos_sim_fn and hasattr(self.kg, 'vector_index'):
+                    chain_emb = self.kg.vector_index.get_embedding(step.node_id)
+                    if chain_emb:
+                        similarity = _cos_sim_fn(new_emb, chain_emb)
+                        sim_method = 'embedding'
+
+                if sim_method == 'word':
+                    chain_words = set(chain_text.split())
+                    overlap = len(new_words & chain_words)
+                    total = len(new_words | chain_words)
+                    similarity = overlap / total if total > 0 else 0
+
+                # High similarity + different numeric values = content conflict
+                threshold = 0.4 if sim_method == 'word' else 0.65
+                if similarity > threshold:
                     chain_numbers = set(re.findall(r'\b\d+\.?\d*\b', chain_text))
                     if (new_numbers and chain_numbers
                             and new_numbers != chain_numbers
@@ -1500,13 +1688,35 @@ class ReasoningEngine:
                             'type': 'content_conflict',
                             'new_node_id': new_node_id,
                             'conflicting_node_id': step.node_id,
-                            'word_similarity': round(word_sim, 3),
+                            'similarity': round(similarity, 3),
+                            'similarity_method': sim_method,
                             'reason': (
-                                f"Content conflict: node {new_node_id} and chain node "
-                                f"{step.node_id} share {overlap}/{total} words but have "
-                                f"different numeric values ({new_numbers} vs {chain_numbers})"
+                                f"Content conflict ({sim_method} sim={similarity:.2f}): "
+                                f"node {new_node_id} and chain node {step.node_id} "
+                                f"are semantically similar but have different values "
+                                f"({new_numbers} vs {chain_numbers})"
                             ),
                         }
+
+                    # Check negation asymmetry for high-similarity pairs
+                    if similarity > (0.6 if sim_method == 'word' else 0.75):
+                        negation_markers = ['not ', 'no ', 'never ', 'false', 'incorrect',
+                                            'wrong', 'invalid']
+                        new_has_neg = any(m in new_content_text for m in negation_markers)
+                        chain_has_neg = any(m in chain_text for m in negation_markers)
+                        if new_has_neg != chain_has_neg:
+                            return {
+                                'type': 'content_conflict',
+                                'new_node_id': new_node_id,
+                                'conflicting_node_id': step.node_id,
+                                'similarity': round(similarity, 3),
+                                'similarity_method': sim_method,
+                                'reason': (
+                                    f"Negation conflict ({sim_method} sim={similarity:.2f}): "
+                                    f"node {new_node_id} and chain node {step.node_id} "
+                                    f"make opposing claims (negation asymmetry)"
+                                ),
+                            }
 
         return None
 
@@ -2264,6 +2474,26 @@ class ReasoningEngine:
                     'nearby_event_count': len(nearby_events),
                     'nearby_node_ids': [n.node_id for n in nearby_events[:5]],
                 })
+
+        # Rank hypotheses by explanatory power before returning
+        if len(hypotheses) > 1:
+            for hyp in hypotheses:
+                # Explanatory power = how many observations the hypothesis source explains
+                explanatory_power = 0.0
+                if 'node_id' in hyp and hyp['node_id']:
+                    explained = self.kg.get_neighbors(hyp['node_id'], 'out')
+                    explanatory_power = sum(
+                        1.0 for e in explained
+                        if e.node_type in ('observation', 'assertion')
+                    )
+                hyp['explanatory_power'] = explanatory_power
+                # Composite score: confidence * (1 + log(explanatory_power + 1))
+                import math
+                hyp['composite_score'] = hyp['confidence'] * (
+                    1.0 + math.log1p(explanatory_power)
+                )
+
+            hypotheses.sort(key=lambda h: h.get('composite_score', h['confidence']), reverse=True)
 
         return hypotheses[:max_hypotheses]
 

@@ -540,15 +540,139 @@ class FreeEnergyEngine:
     # Internal
     # ==================================================================
 
+    def compute_information_gain(self, domain: str, candidate_content: str) -> float:
+        """Estimate information gain from adding candidate knowledge to a domain.
+
+        Uses the domain's current precision and prediction error distribution
+        to estimate how much surprise reduction the candidate would provide.
+
+        Args:
+            domain: Knowledge domain.
+            candidate_content: Text description of the candidate knowledge.
+
+        Returns:
+            Estimated information gain (bits), higher = more informative.
+        """
+        precision = self._domain_precision.get(domain, 1.0)
+        errors = self.prediction_errors.get(domain, [])
+
+        # Base information gain: inverse of precision (uncertain domains gain more)
+        base_gain = 1.0 / (1.0 + precision)
+
+        # Novelty bonus: use embedding similarity to existing knowledge
+        novelty = 1.0
+        if self._kg and candidate_content and hasattr(self._kg, 'vector_index') and self._kg.vector_index:
+            try:
+                from .vector_index import _compute_embedding, cosine_similarity
+                cand_emb = _compute_embedding(candidate_content)
+                if cand_emb and any(v != 0 for v in cand_emb):
+                    # Find most similar existing node
+                    results = self._kg.vector_index.query(candidate_content, top_k=3)
+                    if results:
+                        max_sim = max(sim for _, sim in results)
+                        # Low similarity to existing = high novelty
+                        novelty = 1.0 - max_sim
+                    else:
+                        novelty = 1.0  # No existing nodes = maximally novel
+            except Exception:
+                pass
+
+        # Convergence factor: domains with plateaued learning benefit less
+        slope = self._convergence_slopes.get(domain, 0.0)
+        convergence_discount = max(0.3, 1.0 - abs(slope) * 5.0) if abs(slope) < 0.01 else 1.0
+
+        # Error reduction estimate: high current error = more room to learn
+        mean_error = sum(errors) / len(errors) if errors else 0.5
+        error_headroom = min(1.0, mean_error * 2.0)
+
+        info_gain = base_gain * novelty * convergence_discount * (0.5 + error_headroom * 0.5)
+        return round(info_gain, 4)
+
+    def detect_novelty(self, node_content: dict, domain: str = "general") -> dict:
+        """Detect whether a knowledge node represents genuinely novel information.
+
+        Uses embedding similarity, domain coverage, and structural analysis
+        to determine if this is truly new knowledge or a near-duplicate.
+
+        Args:
+            node_content: Content dict of the candidate node.
+            domain: Knowledge domain.
+
+        Returns:
+            Dict with novelty_score (0-1), is_novel (bool), nearest_match, reason.
+        """
+        text = str(node_content.get('text', ''))
+        if not text:
+            return {
+                'novelty_score': 0.0,
+                'is_novel': False,
+                'reason': 'No text content to evaluate',
+            }
+
+        result: dict = {
+            'novelty_score': 1.0,
+            'is_novel': True,
+            'nearest_match': None,
+            'nearest_similarity': 0.0,
+            'reason': 'No similar nodes found — genuinely novel',
+        }
+
+        # Check 1: Embedding similarity to existing knowledge
+        if self._kg and hasattr(self._kg, 'vector_index') and self._kg.vector_index:
+            try:
+                from .vector_index import _compute_embedding
+                emb = _compute_embedding(text)
+                if emb and any(v != 0 for v in emb):
+                    similar = self._kg.vector_index.query(text, top_k=5)
+                    if similar:
+                        best_id, best_sim = similar[0]
+                        result['nearest_match'] = best_id
+                        result['nearest_similarity'] = round(best_sim, 3)
+
+                        if best_sim > 0.95:
+                            result['novelty_score'] = 0.05
+                            result['is_novel'] = False
+                            result['reason'] = f'Near-duplicate of node {best_id} (sim={best_sim:.3f})'
+                        elif best_sim > 0.85:
+                            result['novelty_score'] = 0.3
+                            result['is_novel'] = False
+                            result['reason'] = f'Closely related to node {best_id} (sim={best_sim:.3f})'
+                        elif best_sim > 0.7:
+                            result['novelty_score'] = 0.6
+                            result['is_novel'] = True
+                            result['reason'] = f'Related but distinct from node {best_id} (sim={best_sim:.3f})'
+                        else:
+                            result['novelty_score'] = 1.0 - best_sim
+                            result['is_novel'] = True
+                            result['reason'] = f'Novel content (nearest sim={best_sim:.3f})'
+            except Exception as e:
+                logger.debug(f"Novelty detection embedding check failed: {e}")
+
+        # Check 2: Domain coverage — is this a new perspective on the domain?
+        if self._kg and hasattr(self._kg, 'get_nodes_by_domain'):
+            domain_nodes = self._kg.get_nodes_by_domain(domain, limit=10)
+            if not domain_nodes:
+                result['novelty_score'] = min(1.0, result['novelty_score'] + 0.2)
+                result['reason'] += ' (first in domain)'
+
+        return result
+
     def _generate_exploration_question(self, domain: str) -> str:
         """Create a question targeting a domain's weakest prediction area."""
         if self._kg is None:
             return f"What are the foundational principles of {domain}?"
 
+        # Use domain index for O(1) lookup instead of O(N) scan
         weak_nodes: list[tuple[float, str]] = []
-        for node in self._kg.nodes.values():
-            if (node.domain or "general") != domain:
-                continue
+        if hasattr(self._kg, 'get_nodes_by_domain'):
+            domain_nodes = self._kg.get_nodes_by_domain(domain, limit=200)
+        else:
+            domain_nodes = [
+                n for n in list(self._kg.nodes.values())[-2000:]
+                if (n.domain or "general") == domain
+            ]
+
+        for node in domain_nodes:
             text = ""
             if isinstance(node.content, dict):
                 text = node.content.get("text", "")

@@ -203,13 +203,21 @@ class CuriosityEngine:
     def _generate_exploration_question(self, domain: str) -> str:
         """Create a question targeting *domain*'s weakest prediction area.
 
-        Scans the knowledge graph for nodes in *domain*, picks the one
-        with the lowest confidence, and formulates a question around it.
+        Uses the domain index for O(1) lookup instead of scanning all nodes.
+        Picks the lowest-confidence node and formulates a question around it.
         """
         weak_nodes: list[tuple[float, str]] = []
-        for node in self._kg.nodes.values():
-            if (node.domain or "general") != domain:
-                continue
+
+        # Use domain index for O(1) lookup when available
+        if hasattr(self._kg, 'get_nodes_by_domain'):
+            domain_nodes = self._kg.get_nodes_by_domain(domain, limit=200)
+        else:
+            domain_nodes = [
+                n for n in list(self._kg.nodes.values())[-2000:]
+                if (n.domain or "general") == domain
+            ]
+
+        for node in domain_nodes:
             text = ""
             if isinstance(node.content, dict):
                 text = node.content.get("text", "")
