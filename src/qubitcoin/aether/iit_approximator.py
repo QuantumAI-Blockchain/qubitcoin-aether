@@ -6,8 +6,15 @@ Proper IIT approximation using TPM-based partition search:
 - Greedy/heuristic bipartition search for Minimum Information Partition (MIP)
 - Earth Mover's Distance approximation for cause/effect repertoire distance
 - Supports systems of 4-16 nodes (subsamples larger systems)
+
+V2 Changes:
+- Node selection: BFS from highest-degree node to get connected subgraph
+  (fixes near-zero phi_micro from sparse random selection)
+- Multiple seed samples with median aggregation
+- Influence weights normalized per-column with Laplace smoothing
 """
 import time
+from collections import deque
 from itertools import combinations
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -20,7 +27,8 @@ logger = get_logger(__name__)
 # Phi threshold constants
 MAX_SYSTEM_SIZE = 16
 MIN_SYSTEM_SIZE = 4
-DEFAULT_WINDOW = 100
+DEFAULT_WINDOW = 500
+N_SAMPLES = 5  # Number of seed samples for median aggregation
 
 
 class IITApproximator:
@@ -42,88 +50,182 @@ class IITApproximator:
     # ------------------------------------------------------------------
 
     def build_tpm_from_kg(self, knowledge_graph: Any,
-                          window: Optional[int] = None) -> np.ndarray:
-        """Build a Transition Probability Matrix from recent KG state changes.
+                          window: Optional[int] = None,
+                          seed_idx: int = 0) -> np.ndarray:
+        """Build a Transition Probability Matrix from a connected KG subgraph.
 
-        Selects up to max_nodes high-confidence nodes, then estimates
-        transition probabilities from edge weights over the observation window.
+        Selects up to max_nodes by BFS from a high-degree seed node,
+        ensuring the subsystem has real edge connections (not sparse randoms).
 
         Args:
-            knowledge_graph: KnowledgeGraph instance with .nodes and .edges.
-            window: How many recent source_blocks to consider.
+            knowledge_graph: KnowledgeGraph instance with .nodes, ._adj_out, ._adj_in.
+            window: How many recent source_blocks to consider for recency filter.
+            seed_idx: Which seed rank to start BFS from (0=highest degree, 1=second, etc.)
 
         Returns:
-            np.ndarray of shape (2^n, n) — conditional TPM in state-by-node
-            format, where n = number of system nodes.
+            np.ndarray of shape (2^n, n) — conditional TPM in state-by-node format.
         """
         window = window or self._window
 
-        # Select system nodes: highest confidence nodes with recent activity
-        all_nodes = list(knowledge_graph.nodes.values())
-        if not all_nodes:
-            return np.eye(2)[:, :1]  # Degenerate 1-node system
+        # Get adjacency dicts for connectivity-based selection
+        adj_out = getattr(knowledge_graph, '_adj_out', {})
+        adj_in = getattr(knowledge_graph, '_adj_in', {})
 
-        # Sort by confidence * recency, take top N
-        max_block = max(
-            (getattr(n, 'source_block', 0) or 0) for n in all_nodes
-        )
-        cutoff = max(0, max_block - window)
+        # Compute degree for each node that exists in the graph
+        all_node_ids = set()
+        try:
+            all_node_ids = set(knowledge_graph.nodes.keys())
+        except RuntimeError:
+            try:
+                all_node_ids = set(list(knowledge_graph.nodes.keys()))
+            except Exception:
+                return np.eye(2)[:, :1]
 
-        scored = []
-        for n in all_nodes:
-            sb = getattr(n, 'source_block', 0) or 0
-            conf = getattr(n, 'confidence', 0.5)
-            if sb >= cutoff:
-                recency = 1.0 - (max_block - sb) / max(window, 1)
-                scored.append((conf * 0.6 + recency * 0.4, n))
-        scored.sort(key=lambda x: x[0], reverse=True)
+        if len(all_node_ids) < MIN_SYSTEM_SIZE:
+            return np.eye(2)[:, :1]
 
-        n_nodes = min(len(scored), self._max_nodes)
-        n_nodes = max(n_nodes, MIN_SYSTEM_SIZE)
-        if len(scored) < MIN_SYSTEM_SIZE:
-            # Pad with synthetic nodes to reach minimum
-            n_nodes = MIN_SYSTEM_SIZE
-            selected = [s[1] for s in scored]
-        else:
-            selected = [s[1] for s in scored[:n_nodes]]
+        # Score nodes by degree (in + out)
+        degree: Dict[int, int] = {}
+        for nid in all_node_ids:
+            d = len(adj_out.get(nid, [])) + len(adj_in.get(nid, []))
+            if d > 0:
+                degree[nid] = d
 
-        n = len(selected)
-        node_ids = [getattr(nd, 'node_id', str(i)) for i, nd in enumerate(selected)]
-        id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+        if len(degree) < MIN_SYSTEM_SIZE:
+            # Fallback: use any nodes
+            for nid in all_node_ids:
+                degree.setdefault(nid, 0)
 
-        # Build adjacency-based transition weights
-        n_states = 2 ** n
-        tpm = np.full((n_states, n), 0.5)  # Default: 50% activation probability
+        # Sort by degree descending, pick seed
+        sorted_by_degree = sorted(degree.keys(), key=lambda x: degree[x], reverse=True)
+        seed_rank = min(seed_idx, len(sorted_by_degree) - 1)
+        seed_node = sorted_by_degree[seed_rank]
 
-        # Parse edges to get influence weights
+        # BFS from seed to get connected subgraph of max_nodes
+        selected_ids: List[int] = []
+        visited: set = set()
+        queue: deque = deque([seed_node])
+        visited.add(seed_node)
+
+        while queue and len(selected_ids) < self._max_nodes:
+            nid = queue.popleft()
+            if nid in all_node_ids:
+                selected_ids.append(nid)
+
+            # Add neighbors (both directions) sorted by degree for quality
+            neighbors = set()
+            for edge in adj_out.get(nid, []):
+                tid = getattr(edge, 'to_node_id', None)
+                if tid and tid not in visited and tid in all_node_ids:
+                    neighbors.add(tid)
+            for edge in adj_in.get(nid, []):
+                fid = getattr(edge, 'from_node_id', None)
+                if fid and fid not in visited and fid in all_node_ids:
+                    neighbors.add(fid)
+
+            # Prioritize high-degree neighbors
+            for nb in sorted(neighbors, key=lambda x: degree.get(x, 0), reverse=True):
+                if nb not in visited:
+                    visited.add(nb)
+                    queue.append(nb)
+
+        n = len(selected_ids)
+        if n < MIN_SYSTEM_SIZE:
+            # Pad with random nodes if BFS didn't find enough
+            remaining = [nid for nid in all_node_ids if nid not in visited]
+            for nid in remaining[:MIN_SYSTEM_SIZE - n]:
+                selected_ids.append(nid)
+            n = len(selected_ids)
+
+        id_to_idx = {nid: i for i, nid in enumerate(selected_ids)}
+
+        # Build influence matrix from actual edges
         influence = np.zeros((n, n))
-        edges_raw = getattr(knowledge_graph, 'edges', {})
-        # Support both dict (edges.values()) and list formats
-        edge_iter = edges_raw.values() if isinstance(edges_raw, dict) else edges_raw
-        for edge in edge_iter:
-            src = getattr(edge, 'source_id', None) or getattr(edge, 'from_node_id', None) or (edge.get('source_id') if isinstance(edge, dict) else None)
-            tgt = getattr(edge, 'target_id', None) or getattr(edge, 'to_node_id', None) or (edge.get('target_id') if isinstance(edge, dict) else None)
-            weight = getattr(edge, 'weight', 0.5) if not isinstance(edge, dict) else edge.get('weight', 0.5)
-            if src in id_to_idx and tgt in id_to_idx:
-                influence[id_to_idx[src], id_to_idx[tgt]] += float(weight)
+        edge_count = 0
+        for i, nid in enumerate(selected_ids):
+            for edge in adj_out.get(nid, []):
+                tid = getattr(edge, 'to_node_id', None)
+                if tid in id_to_idx:
+                    weight = getattr(edge, 'weight', 0.5)
+                    j = id_to_idx[tid]
+                    influence[i, j] += float(weight)
+                    edge_count += 1
 
-        # Normalize influence
-        row_sums = influence.sum(axis=0)
-        row_sums[row_sums == 0] = 1.0
-        influence = influence / row_sums
+        # Also count incoming edges (bidirectional influence)
+        for i, nid in enumerate(selected_ids):
+            for edge in adj_in.get(nid, []):
+                fid = getattr(edge, 'from_node_id', None)
+                if fid in id_to_idx:
+                    weight = getattr(edge, 'weight', 0.5)
+                    j = id_to_idx[fid]
+                    # Incoming edges have weaker influence (0.3x)
+                    influence[j, i] += float(weight) * 0.3
+                    edge_count += 1
 
-        # Fill TPM: for each possible state, compute next-state probabilities
+        # Normalize influence per target column with Laplace smoothing
+        # This prevents all-zero columns which make TPM trivial
+        for j in range(n):
+            col_sum = influence[:, j].sum()
+            if col_sum > 0:
+                influence[:, j] = influence[:, j] / col_sum
+            else:
+                # Self-influence if no connections
+                influence[j, j] = 0.5
+
+        # Build TPM: for each possible state, compute next-state probabilities
+        n_states = 2 ** n
+        tpm = np.full((n_states, n), 0.5)
+
         for state_idx in range(n_states):
             state = np.array([(state_idx >> i) & 1 for i in range(n)], dtype=np.float64)
             for j in range(n):
                 # Probability node j is ON in next state given current state
                 input_signal = np.dot(state, influence[:, j])
-                # Sigmoid activation
-                prob = 1.0 / (1.0 + np.exp(-4.0 * (input_signal - 0.5)))
+                # Sigmoid activation with steeper slope for better differentiation
+                prob = 1.0 / (1.0 + np.exp(-6.0 * (input_signal - 0.4)))
                 tpm[state_idx, j] = np.clip(prob, 0.01, 0.99)
 
         self._last_tpm = tpm
         return tpm
+
+    def compute_phi_from_kg(self, knowledge_graph: Any) -> float:
+        """Compute phi_micro using multiple seed samples and median aggregation.
+
+        Takes N_SAMPLES different seed nodes, builds TPM from each connected
+        subgraph, computes phi, and returns the median. This is more robust
+        than a single sample.
+
+        Args:
+            knowledge_graph: KnowledgeGraph instance.
+
+        Returns:
+            Median phi value across samples.
+        """
+        start = time.monotonic()
+        phi_values = []
+
+        for seed_idx in range(N_SAMPLES):
+            try:
+                tpm = self.build_tpm_from_kg(knowledge_graph, seed_idx=seed_idx)
+                if tpm.shape[1] < MIN_SYSTEM_SIZE:
+                    continue
+                phi = self._compute_phi_internal(tpm)
+                phi_values.append(phi)
+            except Exception as e:
+                logger.debug(f"IIT sample {seed_idx} failed: {e}")
+                continue
+
+        self._total_time += time.monotonic() - start
+        self._computations += 1
+
+        if not phi_values:
+            self._last_phi = 0.0
+            return 0.0
+
+        median_phi = float(np.median(phi_values))
+        self._last_phi = median_phi
+        self._phi_history.append(median_phi)
+        return median_phi
 
     def compute_phi(self, tpm: np.ndarray) -> float:
         """Compute Phi (integrated information) for a given TPM.
@@ -139,13 +241,18 @@ class IITApproximator:
         """
         start = time.monotonic()
         try:
-            phi, _ = self.find_mip(tpm)
+            phi = self._compute_phi_internal(tpm)
             self._phi_history.append(phi)
             self._last_phi = phi
             self._computations += 1
             return phi
         finally:
             self._total_time += time.monotonic() - start
+
+    def _compute_phi_internal(self, tpm: np.ndarray) -> float:
+        """Internal phi computation without stats tracking."""
+        phi, _ = self.find_mip(tpm)
+        return phi
 
     def find_mip(self, tpm: np.ndarray) -> Tuple[float, Tuple]:
         """Find the Minimum Information Partition.

@@ -431,8 +431,7 @@ class PhiCalculator:
                     # ── V5: Run IIT approximator as micro-level phi ────
                     if self.kg and self.kg.nodes:
                         try:
-                            tpm = self._iit.build_tpm_from_kg(self.kg, window=200)
-                            iit_phi = self._iit.compute_phi(tpm)
+                            iit_phi = self._iit.compute_phi_from_kg(self.kg)
                             result['iit_micro_phi'] = min(1.0, iit_phi)
                             result['iit_computations'] = self._iit._computations
                             result['iit_last_phi'] = self._iit._last_phi
@@ -519,13 +518,16 @@ class PhiCalculator:
         else:
             phi_meso = 0.0
 
-        # ── phi_micro: IIT 3.0 approximation on elite node subsample ────
+        # ── phi_micro: IIT 3.0 approximation on connected KG subgraph ──
+        # Uses BFS from high-degree nodes to select connected subsystems,
+        # then computes median phi across N_SAMPLES seed points.
         try:
-            tpm = self._iit.build_tpm_from_kg(self.kg, window=200)
-            iit_phi = self._iit.compute_phi(tpm)
+            iit_phi = self._iit.compute_phi_from_kg(self.kg)
             phi_micro = min(1.0, iit_phi)  # Normalize to [0, 1]
+            if phi_micro > 0:
+                logger.info(f"IIT phi_micro = {phi_micro:.6f} (from {self._iit._computations} computations)")
         except Exception as e:
-            logger.debug(f"IIT micro-phi failed: {e}")
+            logger.warning(f"IIT micro-phi failed: {e}")
             phi_micro = 0.0  # Honest zero if IIT fails
 
         # ── Final HMS-Phi combination ───────────────────────────────────
