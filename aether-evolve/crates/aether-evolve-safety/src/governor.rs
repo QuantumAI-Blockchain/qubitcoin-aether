@@ -141,3 +141,142 @@ impl SafetyGovernor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use aether_evolve_core::{EvolveConfig, PhiComponents};
+    use chrono::Utc;
+
+    fn test_config() -> EvolveConfig {
+        let mut config = EvolveConfig::default();
+        config.safety.max_api_calls_per_minute = 5;
+        config.safety.max_code_changes_per_hour = 3;
+        config.safety.max_seeds_per_step = 100;
+        config.safety.auto_rollback_threshold = -0.05;
+        config.safety.forbidden_files = vec![".env".into(), "secure_key.env".into()];
+        config
+    }
+
+    fn make_metrics(phi: f64, gates: u32) -> AetherMetrics {
+        AetherMetrics {
+            timestamp: Utc::now(),
+            block_height: 1000,
+            total_nodes: 10000,
+            total_edges: 5000,
+            phi: PhiComponents {
+                hms_phi: phi,
+                ..Default::default()
+            },
+            gates_passed: gates,
+            gates_total: 10,
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_forbidden_file_blocked() {
+        let gov = SafetyGovernor::new(test_config());
+        let diffs = vec![CodeDiff {
+            file_path: "src/.env".into(),
+            search: "old".into(),
+            replace: "new".into(),
+        }];
+        let result = gov.check_code_change(&diffs).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("forbidden"));
+    }
+
+    #[tokio::test]
+    async fn test_allowed_file_passes() {
+        let gov = SafetyGovernor::new(test_config());
+        let diffs = vec![CodeDiff {
+            file_path: "src/qubitcoin/aether/reasoning.py".into(),
+            search: "old".into(),
+            replace: "new".into(),
+        }];
+        assert!(gov.check_code_change(&diffs).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_code_change_rate_limit() {
+        let gov = SafetyGovernor::new(test_config());
+        let diffs = vec![CodeDiff {
+            file_path: "test.py".into(),
+            search: "a".into(),
+            replace: "b".into(),
+        }];
+
+        // 3 changes allowed
+        for _ in 0..3 {
+            assert!(gov.check_code_change(&diffs).await.is_ok());
+            gov.record_code_change();
+        }
+
+        // 4th should fail
+        let result = gov.check_code_change(&diffs).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("rate limit"));
+    }
+
+    #[tokio::test]
+    async fn test_api_call_rate_limit() {
+        let gov = SafetyGovernor::new(test_config());
+
+        // 5 calls allowed
+        for _ in 0..5 {
+            assert!(gov.check_api_call().await.is_ok());
+            gov.record_api_call();
+        }
+
+        // 6th should fail
+        assert!(gov.check_api_call().await.is_err());
+    }
+
+    #[test]
+    fn test_should_rollback_phi_regression() {
+        let gov = SafetyGovernor::new(test_config());
+        let pre = make_metrics(3.5, 8);
+        let post = make_metrics(3.4, 8); // -0.1 phi (below -0.05 threshold)
+        assert!(gov.should_rollback(&pre, &post));
+    }
+
+    #[test]
+    fn test_should_not_rollback_small_phi_drop() {
+        let gov = SafetyGovernor::new(test_config());
+        let pre = make_metrics(3.5, 8);
+        let post = make_metrics(3.48, 8); // -0.02 phi (above -0.05 threshold)
+        assert!(!gov.should_rollback(&pre, &post));
+    }
+
+    #[test]
+    fn test_should_rollback_gate_regression() {
+        let gov = SafetyGovernor::new(test_config());
+        let pre = make_metrics(3.5, 8);
+        let post = make_metrics(3.5, 7); // Lost a gate
+        assert!(gov.should_rollback(&pre, &post));
+    }
+
+    #[test]
+    fn test_should_not_rollback_improvement() {
+        let gov = SafetyGovernor::new(test_config());
+        let pre = make_metrics(3.5, 8);
+        let post = make_metrics(3.8, 9);
+        assert!(!gov.should_rollback(&pre, &post));
+    }
+
+    #[test]
+    fn test_seed_count_within_limit() {
+        let gov = SafetyGovernor::new(test_config());
+        assert!(gov.check_seed_count(50).is_ok());
+        assert!(gov.check_seed_count(100).is_ok());
+    }
+
+    #[test]
+    fn test_seed_count_exceeds_limit() {
+        let gov = SafetyGovernor::new(test_config());
+        let result = gov.check_seed_count(101);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Seed count"));
+    }
+}

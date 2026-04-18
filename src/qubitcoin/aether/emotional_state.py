@@ -71,7 +71,7 @@ class EmotionalState:
             except Exception as exc:
                 logger.warning("Rust EmotionalState failed, falling back to Python: %s", exc)
                 self._rust = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._states: Dict[str, float] = {e: BASELINE for e in EMOTIONS}
         self._last_update: float = time.monotonic()
         self._dominant_domains: List[str] = []
