@@ -544,12 +544,19 @@ pub fn new_full(
         let (proof_tx, proof_rx) =
             std::sync::mpsc::sync_channel::<qbc_mining::MiningProofReady>(4);
 
+        // Shared atomic: tracks the last block height for which a proof was
+        // successfully submitted. Prevents multiple threads from submitting
+        // duplicate proofs for the same height (causes TooLowPriority errors).
+        let last_proved_height: qbc_mining::engine::LastProvedHeight =
+            Arc::new(std::sync::atomic::AtomicU64::new(0));
+
         // Spawn mining threads
         for i in 0..mining_threads {
             let mining_client = client.clone();
             let mining_pool = transaction_pool.clone();
             let mining_keystore = keystore_container.keystore();
             let mining_proof_tx = proof_tx.clone();
+            let mining_last_proved = last_proved_height.clone();
             let task_name: &'static str = Box::leak(format!("vqe-miner-{}", i).into_boxed_str());
 
             task_manager
@@ -578,6 +585,7 @@ pub fn new_full(
                                 submitter,
                                 config,
                                 Some(mining_proof_tx),
+                                mining_last_proved,
                             );
                         })
                         .await

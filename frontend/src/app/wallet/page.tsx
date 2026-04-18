@@ -200,9 +200,10 @@ function MetaMaskSend() {
       const ethereum = (window as unknown as { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<string> } }).ethereum;
       if (!ethereum) throw new Error("MetaMask not found");
 
+      // QBC uses 8 decimals (not 18 like Ethereum)
       const weiHex =
         "0x" +
-        BigInt(Math.floor(parseFloat(amount) * 1e18)).toString(16);
+        BigInt(Math.floor(parseFloat(amount) * 1e8)).toString(16);
 
       const txHash = await ethereum.request({
         method: "eth_sendTransaction",

@@ -521,8 +521,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                 try:
                     substrate_info = await node.substrate_bridge.get_chain_info()
                     peers = substrate_info.get("health", {}).get("peers", 0)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"substrate_bridge.get_chain_info() failed: {e}")
+                    substrate_info = None
             elif hasattr(node, 'rust_p2p') and node.rust_p2p and node.rust_p2p.connected:
                 try:
                     peers = node.rust_p2p.get_peer_count()

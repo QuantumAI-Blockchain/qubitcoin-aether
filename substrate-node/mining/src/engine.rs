@@ -22,6 +22,7 @@ use log::{debug, info, warn};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use sp_core::H256;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -89,6 +90,12 @@ pub trait ProofSubmitter: Send + Sync {
     ) -> Result<H256, String>;
 }
 
+/// Shared atomic tracking the last height for which a proof was successfully
+/// submitted. All mining threads check this to avoid submitting duplicate
+/// proofs for the same block height (which causes TooLowPriority errors
+/// because all threads share the same signer account and nonce).
+pub type LastProvedHeight = Arc<AtomicU64>;
+
 /// Run the mining loop. This is the main entry point spawned as a blocking task.
 ///
 /// The loop continuously:
@@ -105,7 +112,7 @@ pub fn run_mining<C: ChainReader, S: ProofSubmitter>(
     submitter: Arc<S>,
     config: MiningConfig,
 ) {
-    run_mining_with_notify(client, submitter, config, None);
+    run_mining_with_notify(client, submitter, config, None, Arc::new(AtomicU64::new(0)));
 }
 
 /// Run the mining loop with an optional notification channel for VQE-gated
@@ -115,6 +122,7 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
     submitter: Arc<S>,
     config: MiningConfig,
     proof_tx: Option<std::sync::mpsc::SyncSender<MiningProofReady>>,
+    last_proved_height: LastProvedHeight,
 ) {
     let thread_id = config.thread_id;
     info!(
@@ -176,11 +184,43 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
         let start = Instant::now();
         let mut found = false;
 
+        // Skip if another thread already submitted a proof for this height
+        if last_proved_height.load(Ordering::Relaxed) >= mining_height {
+            debug!(
+                target: "mining",
+                "[miner-{}] Height {} already proved by another thread, skipping",
+                thread_id, mining_height
+            );
+            std::thread::sleep(POLL_INTERVAL);
+            continue;
+        }
+
         for attempt in 0..config.max_attempts {
+            // Check mid-loop if another thread beat us
+            if last_proved_height.load(Ordering::Relaxed) >= mining_height {
+                debug!(
+                    target: "mining",
+                    "[miner-{}] Height {} proved by another thread during attempt {}",
+                    thread_id, mining_height, attempt + 1
+                );
+                break;
+            }
+
             let result = vqe::optimize(&hamiltonian, &mut rng);
 
             if result.energy < difficulty_f64 {
                 let elapsed = start.elapsed();
+
+                // Double-check before submitting (another thread may have won the race)
+                if last_proved_height.load(Ordering::Acquire) >= mining_height {
+                    debug!(
+                        target: "mining",
+                        "[miner-{}] Height {} already proved, skipping submission",
+                        thread_id, mining_height
+                    );
+                    break;
+                }
+
                 info!(
                     target: "mining",
                     "[miner-{}] VQE solution found: energy={:.6} < difficulty={:.6} \
@@ -203,6 +243,9 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
 
                 match submitter.submit_proof(scaled_params, scaled_energy, seed, 4) {
                     Ok(tx_hash) => {
+                        // Mark this height as proved so other threads skip it
+                        last_proved_height.store(mining_height, Ordering::Release);
+
                         info!(
                             target: "mining",
                             "[miner-{}] Mining proof submitted: tx_hash={:?}",
@@ -222,6 +265,19 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
                         break;
                     }
                     Err(e) => {
+                        // If pool rejected with TooLowPriority, another thread
+                        // already submitted — treat as success and move on
+                        if e.contains("TooLowPriority") {
+                            debug!(
+                                target: "mining",
+                                "[miner-{}] Proof already in pool for height {}, skipping",
+                                thread_id, mining_height
+                            );
+                            last_proved_height.store(mining_height, Ordering::Release);
+                            last_mined_hash = best_hash;
+                            found = true;
+                            break;
+                        }
                         warn!(
                             target: "mining",
                             "[miner-{}] Failed to submit proof: {}",

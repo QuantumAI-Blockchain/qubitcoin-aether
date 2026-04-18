@@ -5,7 +5,7 @@ import { useState } from "react";
 const NETWORK_CONFIG = {
   chainId: "0xce7", // 3303
   chainName: "Quantum Blockchain",
-  nativeCurrency: { name: "Qubitcoin", symbol: "QBC", decimals: 18 },
+  nativeCurrency: { name: "Qubitcoin", symbol: "QBC", decimals: 8 },
   rpcUrls: ["https://qbc.network/rpc"],
   blockExplorerUrls: ["https://qbc.network/explorer"],
 };
@@ -15,7 +15,7 @@ const DISPLAY_ROWS = [
   { label: "RPC URL", value: "https://qbc.network/rpc", mono: true },
   { label: "Chain ID", value: "3303" },
   { label: "Currency Symbol", value: "QBC" },
-  { label: "Decimals", value: "18" },
+  { label: "Decimals", value: "8" },
   { label: "Block Explorer", value: "https://qbc.network/explorer", mono: true },
 ];
 

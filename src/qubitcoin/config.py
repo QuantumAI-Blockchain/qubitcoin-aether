@@ -172,7 +172,7 @@ class Config:
     # One-time difficulty reset height to recover from ceiling runaway
     DIFFICULTY_CEILING_FIX_HEIGHT: int = int(os.getenv('DIFFICULTY_CEILING_FIX_HEIGHT', 2750))
     COINBASE_MATURITY: int = 100  # Coinbase outputs unspendable for 100 blocks
-    MAX_FUTURE_BLOCK_TIME: int = 120  # Max seconds a block timestamp can be in the future (2 minutes)
+    MAX_FUTURE_BLOCK_TIME: int = 10  # Max seconds a block timestamp can be in the future (~3 block times)
     CONFIRMATION_DEPTH: int = 180  # Wait 180 blocks (~10 min) for finality
     MAX_REORG_DEPTH: int = 100
 

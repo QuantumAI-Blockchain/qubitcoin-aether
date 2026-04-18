@@ -23,11 +23,14 @@ export const GENESIS_PREMINE = 33_000_000;
 /** Block time target (seconds) */
 export const TARGET_BLOCK_TIME = 3.3;
 
+/** Token decimals (QBC uses 8, NOT 18 like Ethereum) */
+export const TOKEN_DECIMALS = 8;
+
 /** Chain config for MetaMask */
 export const CHAIN_CONFIG = {
   chainId: `0x${CHAIN_ID.toString(16)}`,
   chainName: CHAIN_NAME,
-  nativeCurrency: { name: CHAIN_NAME, symbol: CHAIN_SYMBOL, decimals: 18 },
+  nativeCurrency: { name: CHAIN_NAME, symbol: CHAIN_SYMBOL, decimals: TOKEN_DECIMALS },
   rpcUrls: [RPC_URL],
 };
 

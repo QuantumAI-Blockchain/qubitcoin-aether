@@ -7,14 +7,14 @@ const NETWORK_DETAILS = [
   { label: "RPC URL", value: "https://qbc.network/rpc", mono: true, copy: true },
   { label: "Chain ID", value: "3303", copy: true },
   { label: "Currency Symbol", value: "QBC" },
-  { label: "Decimals", value: "18" },
+  { label: "Decimals", value: "8" },
   { label: "Block Explorer", value: "https://qbc.network/explorer", mono: true, copy: true },
 ];
 
 const CHAIN_PARAMS = {
   chainId: "0xce7",
   chainName: "Quantum Blockchain",
-  nativeCurrency: { name: "Qubitcoin", symbol: "QBC", decimals: 18 },
+  nativeCurrency: { name: "Qubitcoin", symbol: "QBC", decimals: 8 },
   rpcUrls: ["https://qbc.network/rpc"],
   blockExplorerUrls: ["https://qbc.network/explorer"],
 };
