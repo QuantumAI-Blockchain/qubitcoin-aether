@@ -105,7 +105,11 @@ class TemporalEngine:
             Total data points loaded.
         """
         loaded = 0
-        METRICS = ['difficulty', 'knowledge_nodes', 'knowledge_edges', 'phi_value', 'tx_count']
+        METRICS = [
+            'difficulty', 'knowledge_nodes', 'knowledge_edges', 'phi_value', 'tx_count',
+            # External metrics — ground truth the AI cannot self-predict
+            'substrate_block_height', 'mempool_size', 'peer_count',
+        ]
         try:
             import sqlalchemy as sa
             with db_manager.get_session() as session:
@@ -458,9 +462,10 @@ class TemporalEngine:
             'new_predictions': [],
         }
 
-        # Record standard metrics
+        # Record standard metrics (internal + external)
         for key in ('difficulty', 'tx_count', 'energy', 'knowledge_nodes',
-                     'knowledge_edges', 'phi_value'):
+                     'knowledge_edges', 'phi_value',
+                     'substrate_block_height', 'mempool_size', 'peer_count'):
             value = block_data.get(key)
             if value is not None:
                 self.record_metric(key, block_height, float(value))

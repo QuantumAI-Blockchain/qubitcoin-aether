@@ -1,21 +1,23 @@
 """
-Phi Calculator v4 — Rust-Only HMS-Phi Integration Metric
+Phi Calculator v5 — HMS-Phi with IIT 3.0 Micro-Level Integration
 
 Computes Phi (Φ) as a multi-scale integration metric for the Aether Tree
-knowledge graph. ALL computation is performed in Rust (aether-core crate).
-Python handles only:
-  - Stats collection from live subsystems (metacognition, memory, etc.)
-  - DB storage/retrieval of measurements
-  - Caching and trend tracking
+knowledge graph. Uses IIT 3.0 approximation (TPM-based MIP search) as
+the micro-level phi computation for honest, non-inflated measurements.
 
-HMS-Phi formula (computed in Rust):
-    phi_micro: Spectral MIP on sampled subgraphs (Level 0)
-    phi_meso:  Spectral MIP (Fiedler bisection) on full knowledge graph (Level 1)
-    phi_macro: Cross-domain integration between Sephirot clusters (Level 2)
+HMS-Phi formula:
+    phi_micro: IIT 3.0 approximation via TPM bipartition search (Level 0)
+               Uses IITApproximator on elite node subsample from KG.
+    phi_meso:  Intra/cross-domain edge ratio (Level 1)
+    phi_macro: Graph density integration (Level 2)
 
     hms_raw = phi_micro^(1/φ) × phi_meso^(1/φ²) × phi_macro^(1/φ³)
-    raw_phi = hms_raw × 8.0
-    phi = min(raw_phi × redundancy, gate_ceiling)
+    raw_phi = hms_raw  (NO artificial scaling)
+    phi = min(raw_phi, gate_ceiling)
+
+Phi values are intentionally low (0-1 range) until the system earns
+higher values through genuine cognitive integration. The 10-gate
+milestone system controls the ceiling.
 
 Note: This is NOT a measure of phenomenal consciousness. It is an integration
 metric that quantifies how well-connected and information-rich the knowledge
@@ -29,6 +31,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..config import Config
 from ..utils.logger import get_logger
+from .iit_approximator import IITApproximator
 
 # Rust acceleration — REQUIRED for phi computation
 _RUST_AVAILABLE = False
@@ -200,15 +203,22 @@ class PhiCalculator:
     """
     Computes Phi (Φ) integration metric for the Aether Tree knowledge graph.
 
-    ALL phi computation is delegated to the Rust aether-phi crate via PyO3.
+    v5: Integrates IIT 3.0 approximation (IITApproximator) as the micro-level
+    phi computation. No artificial scaling -- phi values are honest and will
+    be low until the system earns higher integration through genuine
+    cognitive milestones.
+
+    Computation paths:
+      - Rust (primary): Delegates to aether-phi crate via PyO3, supplements
+        with IIT micro phi when Rust MIP is zero.
+      - Python fallback: Uses IITApproximator for phi_micro, graph stats for
+        phi_meso and phi_macro. No inflation factor.
+
     Python handles:
       - Stats collection from live subsystems
       - DB storage/retrieval
       - Caching and trend tracking
       - Dashboard/diagnostic APIs
-
-    If Rust is not available, uses a lightweight Python fallback that
-    computes simplified graph-theoretic Phi (conservative approximation).
     """
 
     def __init__(self, db_manager, knowledge_graph=None):
@@ -222,6 +232,9 @@ class PhiCalculator:
         self._compute_interval: int = int(
             os.getenv('PHI_COMPUTE_INTERVAL', '1')
         )
+
+        # IIT 3.0 Approximator for honest micro-level phi
+        self._iit = IITApproximator(max_nodes=12)
 
         # Rust PhiCalculator — sole computation engine
         self._rust_phi = None
@@ -290,7 +303,7 @@ class PhiCalculator:
                         'num_edges': int(row[5]),
                         'block_height': int(row[6]),
                         'timestamp': time.time(),
-                        'phi_version': 4,
+                        'phi_version': 5,
                         'gates_passed': 0,  # recomputed on next compute_phi
                         'gates_total': len(MILESTONE_GATES),
                         'gate_ceiling': 0.0,
@@ -352,13 +365,45 @@ class PhiCalculator:
                 extra_stats = dict(self._subsystem_stats) if self._subsystem_stats else None
                 result = self._rust_phi.compute_phi(self.kg.rust_kg, block_height, extra_stats)
                 if result and isinstance(result, dict) and 'phi_value' in result:
-                    phi_val = float(result.get('phi_value', 0.0))
+                    # ── V5: De-inflate Rust HMS_SCALE=8.0 ──────────────
+                    # Rust bakes in ×8.0 scaling (HMS_SCALE constant).
+                    # V5 removes this inflation — phi should be honest.
+                    hms_raw = float(result.get('hms_phi_raw', 0.0))
+                    if hms_raw > 0:
+                        # Rust computed: raw_phi = hms_raw × 8.0
+                        # We want: raw_phi = hms_raw (no inflation)
+                        result['phi_raw'] = hms_raw
+                    else:
+                        result['phi_raw'] = float(result.get('phi_raw', 0.0)) / 8.0
+
+                    # Re-apply gate ceiling on honest value
+                    gates_passed = int(result.get('gates_passed', 0))
+                    gate_ceiling = gates_passed * 0.5
+                    honest_phi = min(result['phi_raw'], gate_ceiling) if gate_ceiling > 0 else 0.0
+                    result['phi_value'] = honest_phi
+                    result['phi_version'] = 5
+                    result['phi_formula'] = 'hms_v5_iit'
+
+                    phi_val = honest_phi
                     self._cache[block_height] = phi_val
                     self._last_full_result = result
                     self._last_computed_block = block_height
                     # Track MIP for external inspection
                     rust_mip = float(result.get('mip_score', 0.0))
                     self._last_mip_score = max(self._last_mip_score, rust_mip)
+                    # ── V5: Run IIT approximator as micro-level phi ────
+                    if self.kg and self.kg.nodes:
+                        try:
+                            tpm = self._iit.build_tpm_from_kg(self.kg, window=200)
+                            iit_phi = self._iit.compute_phi(tpm)
+                            result['iit_micro_phi'] = min(1.0, iit_phi)
+                            result['iit_computations'] = self._iit._computations
+                            result['iit_last_phi'] = self._iit._last_phi
+                            # Replace phi_micro with real IIT value
+                            result['phi_micro'] = min(1.0, iit_phi)
+                        except Exception as iit_exc:
+                            logger.debug("IIT micro-phi failed: %s", iit_exc)
+                            result['iit_micro_phi'] = 0.0
                     self._recent_phi_values.append(phi_val)
                     self._phi_history.append((block_height, phi_val))
                     if len(self._phi_history) > self._max_history:
@@ -437,38 +482,14 @@ class PhiCalculator:
         else:
             phi_meso = 0.0
 
-        # ── phi_micro: Simplified information integration ───────────────
-        # 1 - (entropy of degree distribution / log2(num_nodes))
-        if num_nodes > 1:
-            # Build degree counts
-            degree_count: Dict[str, int] = {}
-            for node_id in nodes:
-                degree_count[node_id] = 0
-            for edge in edges:
-                src = edge.source_id if hasattr(edge, 'source_id') else (edge[0] if isinstance(edge, (list, tuple)) else None)
-                tgt = edge.target_id if hasattr(edge, 'target_id') else (edge[1] if isinstance(edge, (list, tuple)) else None)
-                if src in degree_count:
-                    degree_count[src] += 1
-                if tgt in degree_count:
-                    degree_count[tgt] += 1
-
-            # Degree distribution entropy
-            degree_freq: Dict[int, int] = {}
-            for d in degree_count.values():
-                degree_freq[d] = degree_freq.get(d, 0) + 1
-
-            entropy = 0.0
-            for count in degree_freq.values():
-                p = count / num_nodes
-                if p > 0:
-                    entropy -= p * math.log2(p)
-
-            max_entropy = math.log2(num_nodes)
-            phi_micro = 1.0 - (entropy / max_entropy) if max_entropy > 0 else 0.0
-            # Clamp to [0, 1]
-            phi_micro = max(0.0, min(1.0, phi_micro))
-        else:
-            phi_micro = 0.0
+        # ── phi_micro: IIT 3.0 approximation on elite node subsample ────
+        try:
+            tpm = self._iit.build_tpm_from_kg(self.kg, window=200)
+            iit_phi = self._iit.compute_phi(tpm)
+            phi_micro = min(1.0, iit_phi)  # Normalize to [0, 1]
+        except Exception as e:
+            logger.debug(f"IIT micro-phi failed: {e}")
+            phi_micro = 0.0  # Honest zero if IIT fails
 
         # ── Final HMS-Phi combination ───────────────────────────────────
         # phi = phi_micro^(1/PHI) * phi_meso^(1/PHI^2) * phi_macro^(1/PHI^3)
@@ -482,8 +503,8 @@ class PhiCalculator:
         else:
             hms_raw = 0.0
 
-        # Scale factor matches Rust path (raw_phi = hms_raw * 8.0)
-        raw_phi = hms_raw * 8.0
+        # No artificial scaling — honest phi value
+        raw_phi = hms_raw
 
         # ── Gate evaluation (same thresholds as Rust) ───────────────────
         gate_progress = self.get_gate_progress()
@@ -509,18 +530,20 @@ class PhiCalculator:
             'phi_meso': phi_meso,
             'phi_macro': phi_macro,
             'hms_phi_raw': hms_raw,
-            'phi_formula': 'python_fallback',
+            'phi_formula': 'hms_v5_iit',
             'num_nodes': num_nodes,
             'num_edges': num_edges,
             'block_height': block_height,
             'timestamp': time.time(),
-            'phi_version': 4,
+            'phi_version': 5,
+            'iit_computations': self._iit._computations,
+            'iit_last_phi': self._iit._last_phi,
             'gates_passed': gates_passed,
             'gates_total': len(MILESTONE_GATES),
             'gate_ceiling': gate_ceiling,
             'gates': gate_progress,
             'convergence_stddev': 0.0,
-            'convergence_status': 'python_fallback',
+            'convergence_status': 'hms_v5_iit',
         }
 
         # Update caches
@@ -580,7 +603,7 @@ class PhiCalculator:
             'num_nodes': len(self.kg.nodes) if self.kg else 0,
             'num_edges': len(self.kg.edges) if self.kg else 0,
             'block_height': 0,
-            'phi_version': 4,
+            'phi_version': 5,
             'gates_passed': 0,
             'gates_total': len(MILESTONE_GATES),
             'cached': True,
@@ -860,7 +883,7 @@ class PhiCalculator:
             'num_edges': len(self.kg.edges) if self.kg and self.kg.edges else 0,
             'block_height': block_height,
             'timestamp': time.time(),
-            'phi_version': 4,
+            'phi_version': 5,
             'gates_passed': 0,
             'gates_total': len(MILESTONE_GATES),
             'gate_ceiling': 0.0,

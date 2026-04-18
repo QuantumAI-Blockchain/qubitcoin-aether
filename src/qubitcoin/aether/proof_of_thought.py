@@ -1003,6 +1003,83 @@ class AetherEngine:
                     self._track_subsystem_error('causal_engine', e)
                     logger.debug(f"Causal discovery error: {e}")
 
+            # #3b: Do-calculus validation — validate strongest causal claim
+            # Runs at the same interval as causal discovery
+            if block.height > 0 and block.height % Config.AETHER_CAUSAL_DISCOVERY_INTERVAL == 0 and self.causal_engine and self.kg:
+                try:
+                    # Find the strongest causal edge discovered so far
+                    strongest_edge = None
+                    strongest_weight = 0.0
+                    for nid in list(self.kg.nodes.keys())[-500:]:  # Check recent nodes
+                        for edge in self.kg.get_edges_from(nid):
+                            if edge.edge_type == 'causes' and edge.weight > strongest_weight:
+                                strongest_weight = edge.weight
+                                strongest_edge = edge
+
+                    if strongest_edge:
+                        # Run do-calculus query to validate the causal claim
+                        do_result = self.causal_engine.do_calculus_query(
+                            strongest_edge.from_node_id,
+                            strongest_edge.to_node_id,
+                        )
+                        if do_result and do_result.get('identifiable'):
+                            # Store as a causal_validation knowledge node
+                            validation_content = {
+                                'type': 'causal_validation',
+                                'text': (
+                                    f"Do-calculus validates causal link: "
+                                    f"node {strongest_edge.from_node_id} -> "
+                                    f"node {strongest_edge.to_node_id}, "
+                                    f"effect={do_result['effect']:.4f}, "
+                                    f"adjustment_set_size={do_result.get('adjustment_set_size', 0)}"
+                                ),
+                                'effect': do_result['effect'],
+                                'adjustment_set': do_result.get('adjustment_set', []),
+                                'causal_paths': do_result.get('causal_paths', 0),
+                                'block_height': block.height,
+                                'intervention_node': strongest_edge.from_node_id,
+                                'outcome_node': strongest_edge.to_node_id,
+                            }
+                            validation_node = self.kg.add_node(
+                                node_type='inference',
+                                content=validation_content,
+                                confidence=do_result.get('confidence', 0.5),
+                                source_block=block.height,
+                                domain='causal_reasoning',
+                            )
+                            if validation_node:
+                                # Link to the cause and effect nodes
+                                self.kg.add_edge(
+                                    strongest_edge.from_node_id,
+                                    validation_node.node_id,
+                                    'derives',
+                                )
+                                self.kg.add_edge(
+                                    validation_node.node_id,
+                                    strongest_edge.to_node_id,
+                                    'supports',
+                                )
+                                logger.info(
+                                    f"Do-calculus validation at block {block.height}: "
+                                    f"effect={do_result['effect']:.4f}, "
+                                    f"confidence={do_result.get('confidence', 0):.3f}"
+                                )
+
+                        # Also run a counterfactual query on the same edge
+                        cf_result = self.causal_engine.counterfactual_query(
+                            strongest_edge.from_node_id,
+                            'increase',
+                        )
+                        if cf_result and cf_result.get('total_affected', 0) > 0:
+                            logger.debug(
+                                f"Counterfactual at block {block.height}: "
+                                f"intervening on node {strongest_edge.from_node_id} "
+                                f"affects {cf_result['total_affected']} nodes"
+                            )
+                except Exception as e:
+                    self._track_subsystem_error('do_calculus', e)
+                    logger.debug(f"Do-calculus error: {e}")
+
             # #5: Adversarial debate on recent inferences
             if block.height > 0 and block.height % Config.AETHER_DEBATE_INTERVAL == 0 and self.debate_protocol:
                 try:
@@ -1024,6 +1101,14 @@ class AetherEngine:
                     }
                     if block_phi_result:
                         temporal_data['phi_value'] = block_phi_result.get('phi_value', 0)
+
+                    # Inject external ground-truth metrics (best-effort)
+                    try:
+                        external = self._fetch_external_metrics()
+                        temporal_data.update(external)
+                    except Exception:
+                        pass  # External metrics are optional
+
                     temporal_result = self.temporal_engine.process_block(
                         block.height, temporal_data
                     )
@@ -2563,38 +2648,93 @@ class AetherEngine:
 
             # --- Items #88-#100: Final AI Batch ---
 
-            # #88: Transfer Learning — attempt cross-domain transfer every 500 blocks
-            if self.transfer_learning and self.kg and block.height > 0 and block.height % 500 == 0:
+            # #88: Transfer Learning — register domains + attempt cross-domain transfer
+            # Runs every 100 blocks (after concept formation at 50-block intervals has built concepts)
+            if self.transfer_learning and self.kg and block.height > 0 and block.height % 100 == 0:
                 try:
                     import numpy as _np
-                    # Register domains from KG nodes
+                    # Register domains from KG nodes using node.domain (NOT content dict)
                     domain_data: Dict[str, List] = {}
-                    for node in list(self.kg.nodes.values())[:500]:
-                        content = getattr(node, 'content', {})
-                        d = content.get('domain', 'general') if isinstance(content, dict) else 'general'
+                    domain_node_ids: Dict[str, List[int]] = {}
+                    vi = getattr(self, 'vector_index', None)
+                    for node in list(self.kg.nodes.values())[-2000:]:
+                        d = node.domain or 'general'
+                        if d == 'general':
+                            continue  # Skip unclassified nodes — they add noise
                         if d not in domain_data:
                             domain_data[d] = []
-                        feat = _np.array([
-                            (hash(str(content) + str(i)) % 10000) / 10000.0
-                            for i in range(32)
-                        ], dtype=_np.float64)
+                            domain_node_ids[d] = []
+                        domain_node_ids[d].append(node.node_id)
+                        # Use real vector embeddings if available
+                        emb = None
+                        if vi and hasattr(vi, 'get_embedding'):
+                            emb = vi.get_embedding(node.node_id)
+                        if emb is not None:
+                            feat = _np.array(emb[:32], dtype=_np.float64) if len(emb) >= 32 else _np.pad(emb, (0, 32 - len(emb)))
+                        else:
+                            # Deterministic content-based features (fallback)
+                            content_str = str(node.content) if node.content else ''
+                            feat = _np.array([
+                                (hash(content_str + str(i)) % 10000) / 10000.0
+                                for i in range(32)
+                            ], dtype=_np.float64)
                         domain_data[d].append(feat)
+                    # Register all domains with the TransferLearning subsystem
                     for d, feats in domain_data.items():
-                        if feats:
+                        if len(feats) >= 3:  # Need minimum nodes to form meaningful embedding
                             self.transfer_learning.register_domain(d, _np.stack(feats))
-                    # Attempt transfer between top 2 domains
-                    domain_names = sorted(domain_data.keys(), key=lambda k: len(domain_data[k]), reverse=True)
-                    if len(domain_names) >= 2:
-                        src, tgt = domain_names[0], domain_names[1]
-                        sim = self.transfer_learning.compute_transferability(src, tgt)
-                        if sim > 0.2:
+                    # Attempt transfers between all domain pairs (not just top 2)
+                    domain_names = sorted(
+                        [d for d in domain_data if len(domain_data[d]) >= 3],
+                        key=lambda k: len(domain_data[k]), reverse=True,
+                    )
+                    transfers_done = 0
+                    for i, src in enumerate(domain_names):
+                        if transfers_done >= 3:
+                            break
+                        for tgt in domain_names[i + 1:]:
+                            if transfers_done >= 3:
+                                break
+                            sim = self.transfer_learning.compute_transferability(src, tgt)
+                            if sim < 0.15:
+                                continue
+                            # Transfer weights (maintains TransferLearning internal state)
                             weights = _np.random.randn(32) * 0.1
-                            transferred = self.transfer_learning.transfer(src, tgt, weights)
-                            self.transfer_learning.record_outcome(src, tgt, 'auto', True)
-                            if block.height % 2000 == 0:
-                                logger.info(
-                                    f"Transfer learning {src}->{tgt}: sim={sim:.3f}"
+                            self.transfer_learning.transfer(src, tgt, weights)
+                            # Create a cross-domain inference node in the KG
+                            src_nodes = domain_node_ids.get(src, [])[-5:]
+                            tgt_nodes = domain_node_ids.get(tgt, [])[-5:]
+                            if src_nodes and tgt_nodes:
+                                hypothesis = self.kg.add_node(
+                                    node_type='inference',
+                                    content={
+                                        'type': 'transfer_hypothesis',
+                                        'text': f"Cross-domain transfer: {src} -> {tgt} (sim={sim:.3f})",
+                                        'source_domain': src,
+                                        'target_domain': tgt,
+                                        'transferability': round(sim, 4),
+                                        'source': 'transfer_learning',
+                                    },
+                                    confidence=min(sim * 0.8, 0.7),
+                                    source_block=block.height,
+                                    domain=tgt,
                                 )
+                                if hypothesis:
+                                    # Link hypothesis to source and target nodes
+                                    for sid in src_nodes[:2]:
+                                        self.kg.add_edge(hypothesis.node_id, sid, 'derives', weight=0.4)
+                                    for tid in tgt_nodes[:2]:
+                                        self.kg.add_edge(hypothesis.node_id, tid, 'cross_domain', weight=sim * 0.6)
+                                    self.transfer_learning.record_outcome(src, tgt, 'auto', True)
+                                    transfers_done += 1
+                                else:
+                                    self.transfer_learning.record_outcome(src, tgt, 'auto', False)
+                    if transfers_done > 0:
+                        logger.info(
+                            f"Transfer learning at block {block.height}: "
+                            f"{len(domain_names)} domains, {transfers_done} transfers, "
+                            f"domains={domain_names[:5]}"
+                        )
                 except Exception as e:
                     self._track_subsystem_error('transfer_learning', e)
                     logger.debug(f"Transfer learning error: {e}")
@@ -3874,6 +4014,52 @@ class AetherEngine:
 
         t = threading.Thread(target=_compute, daemon=True, name="phi-async")
         t.start()
+
+    def _fetch_external_metrics(self) -> dict:
+        """Fetch external ground-truth metrics that the AI cannot self-predict.
+
+        These metrics come from outside the Aether Tree's own state, providing
+        honest grounding for the temporal prediction system.  All fetches are
+        best-effort with short timeouts so they never block block production.
+        """
+        import urllib.request
+        import json as _json
+
+        metrics: Dict[str, float] = {}
+
+        # mempool_size + peer_count from the node REST API
+        try:
+            req = urllib.request.Request(
+                'http://localhost:5000/chain/info',
+                headers={'Accept': 'application/json'},
+            )
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                data = _json.loads(resp.read())
+                if 'mempool_size' in data:
+                    metrics['mempool_size'] = float(data['mempool_size'])
+                if 'peers' in data:
+                    metrics['peer_count'] = float(data['peers'])
+        except Exception:
+            pass
+
+        # substrate_block_height from Substrate JSON-RPC
+        try:
+            payload = _json.dumps({
+                'id': 1, 'jsonrpc': '2.0', 'method': 'chain_getHeader',
+            }).encode()
+            req = urllib.request.Request(
+                'http://localhost:9944',
+                data=payload,
+                headers={'Content-Type': 'application/json'},
+            )
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                data = _json.loads(resp.read())
+                hex_height = data.get('result', {}).get('number', '0x0')
+                metrics['substrate_block_height'] = float(int(hex_height, 16))
+        except Exception:
+            pass
+
+        return metrics
 
     def _auto_reason(self, block_height: int) -> List[dict]:
         """

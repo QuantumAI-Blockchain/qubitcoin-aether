@@ -102,6 +102,9 @@ class ReasoningEngine:
         # Rust LogicBridge for FOL reasoning (no LLM required)
         self._logic_bridge: Optional[Any] = None
         self._logic_bridge_loaded: bool = False
+        # Counters: track how many deductions used logic_bridge vs graph_traversal
+        self._logic_bridge_deductions: int = 0
+        self._graph_traversal_deductions: int = 0
         self._init_logic_bridge()
 
     def _init_logic_bridge(self) -> None:
@@ -203,10 +206,13 @@ class ReasoningEngine:
         """
         Deductive reasoning: derive certain conclusions from premises.
 
-        If premise A supports premise B, and B supports C,
-        then we can derive a path-based conclusion with compounded confidence.
+        Strategy:
+        1. If the Rust LogicBridge is loaded, try FOL forward chaining from the
+           given premises first — this is real modus-ponens deduction.
+        2. Fall back to graph-traversal deduction if LogicBridge is unavailable,
+           has no matching rules, or fails.
         """
-        chain = []
+        chain: List[ReasoningStep] = []
         premises = []
         for pid in premise_ids:
             node = self.kg.get_node(pid)
@@ -229,8 +235,153 @@ class ReasoningEngine:
                 explanation='Need at least 2 premises for deduction',
             )
 
+        # -----------------------------------------------------------------
+        # Path 1: LogicBridge FOL deduction (real logical inference)
+        # -----------------------------------------------------------------
+        logic_bridge_result = self._try_logic_bridge_deduction(
+            premise_ids, premises, chain, rule_content,
+        )
+        if logic_bridge_result is not None:
+            self._logic_bridge_deductions += 1
+            logger.debug(
+                "Deduction via logic_bridge for premises %s (total lb=%d, gt=%d)",
+                premise_ids, self._logic_bridge_deductions,
+                self._graph_traversal_deductions,
+            )
+            self._store_operation(logic_bridge_result)
+            self._operations.append(logic_bridge_result)
+            if len(self._operations) > self._max_operations:
+                self._operations = self._operations[-self._max_operations:]
+            return logic_bridge_result
+
+        # -----------------------------------------------------------------
+        # Path 2: Graph-traversal deduction (fallback)
+        # -----------------------------------------------------------------
+        result = self._graph_traversal_deduction(
+            premise_ids, premises, chain, rule_content,
+        )
+        self._graph_traversal_deductions += 1
+        logger.debug(
+            "Deduction via graph_traversal for premises %s (total lb=%d, gt=%d)",
+            premise_ids, self._logic_bridge_deductions,
+            self._graph_traversal_deductions,
+        )
+
+        self._store_operation(result)
+        self._operations.append(result)
+        if len(self._operations) > self._max_operations:
+            self._operations = self._operations[-self._max_operations:]
+        return result
+
+    # -----------------------------------------------------------------
+    # LogicBridge deduction path
+    # -----------------------------------------------------------------
+
+    def _try_logic_bridge_deduction(
+        self,
+        premise_ids: List[int],
+        premises: list,
+        chain: List[ReasoningStep],
+        rule_content: Optional[dict],
+    ) -> Optional[ReasoningResult]:
+        """Attempt deduction via the Rust LogicBridge (FOL forward chaining).
+
+        Returns a ReasoningResult on success, or None if the bridge is
+        unavailable, not loaded, or produces no new derivations from the
+        given premises.
+        """
+        if not self._logic_bridge or not self._logic_bridge_loaded:
+            return None
+
+        try:
+            derived = self._logic_bridge.deduce_from(premise_ids, 50)
+        except Exception as e:
+            logger.debug("LogicBridge deduce_from failed: %s", e)
+            return None
+
+        if not derived:
+            return None
+
+        # Pick the best derived fact (most source nodes = strongest provenance)
+        best = max(derived, key=lambda d: len(d.get('source_node_ids', [])))
+        source_ids = best.get('source_node_ids', [])
+        description = best.get('description', 'FOL-derived conclusion')
+
+        # Confidence: minimum of premise confidences * 0.95
+        # (same discipline as graph traversal, but from a proper inference)
+        min_premise_conf = min(p.confidence for p in premises)
+        conf = min_premise_conf * 0.95
+        conf *= self._grounding_boost(premise_ids)
+        conf = min(min_premise_conf, conf)
+
+        # Detect cross-domain
+        premise_domains = set(getattr(p, 'domain', '') or 'general' for p in premises)
+        is_cross_domain = len(premise_domains) > 1
+
+        combined = {
+            'type': 'deduction',
+            'method': 'logic_bridge',
+            'from_premises': [p.content for p in premises],
+            'rule': rule_content or {'operation': 'fol_forward_chain'},
+            'fol_description': description,
+            'fol_derived_count': len(derived),
+            'cross_domain': is_cross_domain,
+        }
+
+        block_height = max(p.source_block for p in premises)
+        conclusion = self.kg.add_node(
+            node_type='inference',
+            content=combined,
+            confidence=conf,
+            source_block=block_height,
+        )
+
+        # Link premises to conclusion
+        for p in premises:
+            self.kg.add_edge(p.node_id, conclusion.node_id, 'derives')
+
+        # Build the chain with a rule step indicating FOL inference
+        result_chain = list(chain)  # copy premise steps
+        result_chain.append(ReasoningStep(
+            step_type='rule',
+            content={'operation': 'fol_forward_chain', 'description': description},
+            confidence=1.0,
+        ))
+        result_chain.append(ReasoningStep(
+            step_type='conclusion',
+            node_id=conclusion.node_id,
+            content=combined,
+            confidence=conf,
+        ))
+
+        return ReasoningResult(
+            operation_type='deductive',
+            premise_ids=premise_ids,
+            conclusion_node_id=conclusion.node_id,
+            confidence=conf,
+            chain=result_chain,
+            success=True,
+            explanation=(
+                f"FOL deduction via LogicBridge from {len(premises)} premises "
+                f"({len(derived)} derived facts, best: {description[:80]})"
+            ),
+        )
+
+    # -----------------------------------------------------------------
+    # Graph-traversal deduction path (original algorithm, kept as fallback)
+    # -----------------------------------------------------------------
+
+    def _graph_traversal_deduction(
+        self,
+        premise_ids: List[int],
+        premises: list,
+        chain: List[ReasoningStep],
+        rule_content: Optional[dict],
+    ) -> ReasoningResult:
+        """Deduction via BFS graph reachability (fallback when LogicBridge
+        is unavailable or produces no results)."""
         # Find common conclusions: nodes reachable from all premises
-        # Depth 2 exploration (was 4 — reduced to cap O(n²) blowup); max 5 premises
+        # Depth 2 exploration (was 4 — reduced to cap O(n^2) blowup); max 5 premises
         reachable_sets = []
         for premise in premises[:5]:
             reachable: set = set()
@@ -265,6 +416,7 @@ class ReasoningEngine:
             is_cross_domain = len(premise_domains) > 1
             combined = {
                 'type': 'deduction',
+                'method': 'graph_traversal',
                 'from_premises': [p.content for p in premises],
                 'rule': rule_content or {'operation': 'conjunction'},
                 'cross_domain': is_cross_domain,
@@ -309,7 +461,7 @@ class ReasoningEngine:
                 confidence=conf,
                 chain=chain,
                 success=True,
-                explanation=f"Deduced new conclusion from {len(premises)} premises",
+                explanation=f"Deduced new conclusion from {len(premises)} premises (graph traversal)",
             )
         else:
             # Found existing common conclusion
@@ -335,7 +487,7 @@ class ReasoningEngine:
                 f"Deduced from {len(premises)} premises "
                 f"({', '.join(premise_texts[:3])}) -> "
                 f"conclusion: {best_text or f'node {best_id}'} "
-                f"(confidence: {conf:.4f})"
+                f"(confidence: {conf:.4f}, graph traversal)"
             )
 
             result = ReasoningResult(
@@ -352,10 +504,6 @@ class ReasoningEngine:
         # through evidence. Artificially preventing axiom confidence from
         # dropping below 0.8 creates an unfalsifiable knowledge base.
 
-        self._store_operation(result)
-        self._operations.append(result)
-        if len(self._operations) > self._max_operations:
-            self._operations = self._operations[-self._max_operations:]
         return result
 
     def detect_conflicts(self, conclusion_id: int) -> List[int]:
@@ -1595,6 +1743,10 @@ class ReasoningEngine:
             'avg_confidence': (
                 sum(op.confidence for op in self._operations) / max(1, len(self._operations))
             ),
+            'logic_bridge_deductions': self._logic_bridge_deductions,
+            'graph_traversal_deductions': self._graph_traversal_deductions,
+            'logic_bridge_available': self._logic_bridge is not None,
+            'logic_bridge_loaded': self._logic_bridge_loaded,
         }
 
     def cross_domain_infer(self, domain_a: str, domain_b: str,

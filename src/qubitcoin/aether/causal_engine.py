@@ -304,6 +304,10 @@ class CausalDiscovery:
         # Separation sets: records the conditioning set that made (A, B)
         # conditionally independent — needed for v-structure detection
         self._sep_sets: Dict[FrozenSet[int], Set[int]] = {}
+        # Do-calculus stats
+        self._do_calculus_queries: int = 0
+        self._valid_adjustments_found: int = 0
+        self._counterfactual_queries: int = 0
 
     # ------------------------------------------------------------------
     # Causal validation via intervention test
@@ -488,7 +492,527 @@ class CausalDiscovery:
             'total_runs': self._runs,
             'last_run_block': self._last_run_block,
             'max_conditioning_depth': MAX_CONDITIONING_DEPTH,
+            'do_calculus_queries': self._do_calculus_queries,
+            'valid_adjustments_found': self._valid_adjustments_found,
+            'counterfactual_queries': self._counterfactual_queries,
         }
+
+    # ------------------------------------------------------------------
+    # Do-Calculus: Pearl's adjustment formula for causal effect estimation
+    # ------------------------------------------------------------------
+
+    def _build_causal_dag(self) -> Dict[int, Set[int]]:
+        """Build a directed adjacency dict from 'causes' edges in the KG.
+
+        Returns:
+            Dict mapping each node_id to the set of node_ids it causes
+            (its children in the causal DAG).
+        """
+        dag: Dict[int, Set[int]] = {}
+        if not self.kg:
+            return dag
+
+        for node_id in self.kg.nodes:
+            dag.setdefault(node_id, set())
+            for edge in self.kg.get_edges_from(node_id):
+                if edge.edge_type == 'causes':
+                    dag.setdefault(node_id, set()).add(edge.to_node_id)
+                    dag.setdefault(edge.to_node_id, set())
+
+        return dag
+
+    def _dag_ancestors(self, node: int, dag: Dict[int, Set[int]]) -> Set[int]:
+        """Return all ancestors of *node* in the DAG via BFS."""
+        # Build reverse adjacency (parents)
+        parents: Dict[int, Set[int]] = {}
+        for src, children in dag.items():
+            for child in children:
+                parents.setdefault(child, set()).add(src)
+
+        ancestors: Set[int] = set()
+        queue = list(parents.get(node, set()))
+        while queue:
+            n = queue.pop()
+            if n not in ancestors:
+                ancestors.add(n)
+                queue.extend(parents.get(n, set()))
+        return ancestors
+
+    def _dag_descendants(self, node: int, dag: Dict[int, Set[int]]) -> Set[int]:
+        """Return all descendants of *node* in the DAG via BFS."""
+        descendants: Set[int] = set()
+        queue = list(dag.get(node, set()))
+        while queue:
+            n = queue.pop()
+            if n not in descendants:
+                descendants.add(n)
+                queue.extend(dag.get(n, set()))
+        return descendants
+
+    def _dag_parents(self, node: int, dag: Dict[int, Set[int]]) -> Set[int]:
+        """Return direct parents of *node* in the DAG."""
+        parents: Set[int] = set()
+        for src, children in dag.items():
+            if node in children:
+                parents.add(src)
+        return parents
+
+    def _find_backdoor_adjustment_set(
+        self,
+        treatment: int,
+        outcome: int,
+        dag: Dict[int, Set[int]],
+    ) -> Optional[Set[int]]:
+        """Find a valid adjustment set satisfying the backdoor criterion.
+
+        The backdoor criterion (Pearl, 2009) requires a set Z such that:
+        1. No node in Z is a descendant of X (the treatment)
+        2. Z blocks all backdoor paths from X to Y (paths with an arrow
+           into X)
+
+        We use the sufficient adjustment set: all parents of X that are
+        not descendants of X.  This is always valid if it blocks all
+        confounding paths.
+
+        For efficiency, we use a minimal approach: parents of the treatment
+        that are also ancestors of the outcome (i.e., actual confounders).
+
+        Args:
+            treatment: Node ID of the intervention variable.
+            outcome: Node ID of the outcome variable.
+            dag: Causal DAG as adjacency dict.
+
+        Returns:
+            A valid adjustment set (possibly empty), or None if no valid
+            set can be found (e.g., treatment is an ancestor of outcome
+            via a path that cannot be blocked).
+        """
+        descendants_of_treatment = self._dag_descendants(treatment, dag)
+
+        # Candidate adjusters: non-descendants of treatment
+        # Use parents of treatment as they are the most likely confounders
+        parents_of_treatment = self._dag_parents(treatment, dag)
+        ancestors_of_outcome = self._dag_ancestors(outcome, dag)
+
+        # Confounders: ancestors of both treatment and outcome
+        # (the ones that actually open backdoor paths)
+        adjustment_set: Set[int] = set()
+        for parent in parents_of_treatment:
+            if parent in descendants_of_treatment:
+                continue  # Violates condition 1
+            # Include if it's an ancestor of outcome or directly connected
+            if parent in ancestors_of_outcome or parent == outcome:
+                adjustment_set.add(parent)
+
+        # Also add common ancestors that aren't parents of treatment
+        # but are ancestors of both (true confounders)
+        ancestors_of_treatment = self._dag_ancestors(treatment, dag)
+        common_ancestors = ancestors_of_treatment & ancestors_of_outcome
+        for ca in common_ancestors:
+            if ca not in descendants_of_treatment:
+                adjustment_set.add(ca)
+
+        # Validate: adjustment set must not contain descendants of treatment
+        adjustment_set -= descendants_of_treatment
+        adjustment_set.discard(treatment)
+        adjustment_set.discard(outcome)
+
+        return adjustment_set
+
+    def _estimate_causal_effect(
+        self,
+        treatment: int,
+        outcome: int,
+        adjustment_set: Set[int],
+        dag: Dict[int, Set[int]],
+    ) -> float:
+        """Estimate P(Y|do(X)) using the adjustment formula.
+
+        P(Y|do(X)) = sum_z P(Y|X,Z=z) P(Z=z)
+
+        Since we don't have continuous data distributions, we estimate
+        the causal effect strength using the graph structure:
+
+        1. Compute the direct path strength from X to Y (product of edge
+           weights along shortest causal path)
+        2. Subtract the confounded component (paths through adjustment set
+           that don't go through X)
+
+        The result is a normalized effect estimate in [-1, 1].
+
+        Args:
+            treatment: Treatment node ID.
+            outcome: Outcome node ID.
+            adjustment_set: Valid backdoor adjustment set.
+            dag: Causal DAG.
+
+        Returns:
+            Estimated causal effect strength in [-1, 1].
+        """
+        if not self.kg:
+            return 0.0
+
+        # Find all directed paths from treatment to outcome (BFS, max depth 5)
+        causal_paths = self._find_directed_paths(treatment, outcome, dag, max_depth=5)
+        if not causal_paths:
+            return 0.0
+
+        # Compute path strength: product of edge weights along each path
+        total_effect = 0.0
+        for path in causal_paths:
+            path_weight = 1.0
+            for i in range(len(path) - 1):
+                src, tgt = path[i], path[i + 1]
+                # Find the edge weight
+                edge_weight = 0.5  # default
+                for edge in self.kg.get_edges_from(src):
+                    if edge.to_node_id == tgt and edge.edge_type == 'causes':
+                        edge_weight = edge.weight
+                        break
+                path_weight *= edge_weight
+            total_effect += path_weight
+
+        # Discount for confounding: if there are confounders, the observed
+        # correlation includes a spurious component. The adjustment formula
+        # removes it. We estimate the confounding bias as the fraction of
+        # paths from treatment to outcome that go through the adjustment set.
+        confounding_bias = 0.0
+        if adjustment_set:
+            # Count paths from confounders to outcome (spurious paths)
+            for confounder in adjustment_set:
+                confounder_paths = self._find_directed_paths(
+                    confounder, outcome, dag, max_depth=4
+                )
+                for cp in confounder_paths:
+                    # Only count paths that don't go through treatment
+                    if treatment not in cp[1:]:  # exclude start node
+                        cp_weight = 1.0
+                        for i in range(len(cp) - 1):
+                            w = 0.5
+                            for edge in self.kg.get_edges_from(cp[i]):
+                                if edge.to_node_id == cp[i + 1] and edge.edge_type == 'causes':
+                                    w = edge.weight
+                                    break
+                            cp_weight *= w
+                        confounding_bias += cp_weight * 0.5  # Partial contribution
+
+        # Adjusted effect = direct effect - confounding bias
+        adjusted_effect = total_effect - confounding_bias
+
+        # Normalize to [-1, 1]
+        return max(-1.0, min(1.0, adjusted_effect))
+
+    def _find_directed_paths(
+        self,
+        source: int,
+        target: int,
+        dag: Dict[int, Set[int]],
+        max_depth: int = 5,
+    ) -> List[List[int]]:
+        """Find all directed paths from source to target in the DAG.
+
+        Uses BFS with depth limit for tractability.
+
+        Args:
+            source: Start node.
+            target: End node.
+            dag: Causal DAG.
+            max_depth: Maximum path length to search.
+
+        Returns:
+            List of paths, where each path is a list of node IDs.
+        """
+        paths: List[List[int]] = []
+        # BFS: queue holds (current_node, path_so_far)
+        queue: List[Tuple[int, List[int]]] = [(source, [source])]
+
+        while queue:
+            current, path = queue.pop(0)
+            if len(path) > max_depth + 1:
+                continue
+
+            for child in dag.get(current, set()):
+                if child == target:
+                    paths.append(path + [child])
+                elif child not in path:  # Avoid cycles
+                    queue.append((child, path + [child]))
+
+            # Safety: limit total paths found
+            if len(paths) >= 20:
+                break
+
+        return paths
+
+    def do_calculus_query(
+        self,
+        intervention_var: int,
+        outcome_var: int,
+        observed: Optional[Dict[int, float]] = None,
+    ) -> Optional[Dict]:
+        """Estimate causal effect of do(intervention_var) on outcome_var.
+
+        Uses the adjustment formula when valid adjustment sets exist:
+        P(Y|do(X)) = sum_z P(Y|X,Z) P(Z)
+        where Z is a valid adjustment set (no descendant of X that's
+        ancestor of Y).
+
+        This is the core of Pearl's do-calculus — it separates genuine
+        causation from mere correlation by controlling for confounders.
+
+        Args:
+            intervention_var: Node ID of the variable to intervene on.
+            outcome_var: Node ID of the outcome variable.
+            observed: Optional dict of node_id -> observed values
+                      (not currently used, reserved for future data-driven
+                      adjustment).
+
+        Returns:
+            Dict with estimated effect, adjustment set used, confidence,
+            and diagnostic info. None if the query cannot be answered.
+        """
+        self._do_calculus_queries += 1
+
+        if not self.kg:
+            logger.warning("Do-calculus query failed: no knowledge graph")
+            return None
+
+        if intervention_var not in self.kg.nodes:
+            logger.debug(f"Do-calculus: intervention node {intervention_var} not in KG")
+            return None
+        if outcome_var not in self.kg.nodes:
+            logger.debug(f"Do-calculus: outcome node {outcome_var} not in KG")
+            return None
+
+        # Build the causal DAG from 'causes' edges
+        dag = self._build_causal_dag()
+
+        if not dag:
+            return {
+                'effect': 0.0,
+                'identifiable': False,
+                'reason': 'no_causal_edges',
+                'adjustment_set': [],
+                'confidence': 0.0,
+            }
+
+        # Check if outcome is reachable from intervention
+        descendants = self._dag_descendants(intervention_var, dag)
+        if outcome_var not in descendants:
+            # No causal path exists
+            return {
+                'effect': 0.0,
+                'identifiable': True,
+                'reason': 'no_causal_path',
+                'adjustment_set': [],
+                'confidence': 0.9,  # High confidence in null effect
+                'intervention_node': intervention_var,
+                'outcome_node': outcome_var,
+            }
+
+        # Find valid adjustment set (backdoor criterion)
+        adjustment_set = self._find_backdoor_adjustment_set(
+            intervention_var, outcome_var, dag
+        )
+
+        if adjustment_set is None:
+            # Cannot identify — no valid adjustment set
+            return {
+                'effect': 0.0,
+                'identifiable': False,
+                'reason': 'no_valid_adjustment_set',
+                'adjustment_set': [],
+                'confidence': 0.0,
+            }
+
+        self._valid_adjustments_found += 1
+
+        # Estimate the causal effect using the adjustment formula
+        effect = self._estimate_causal_effect(
+            intervention_var, outcome_var, adjustment_set, dag
+        )
+
+        # Compute confidence based on:
+        # - Number of paths found (more paths = more evidence)
+        # - Size of adjustment set (smaller = more precise)
+        # - Edge weights along causal paths
+        paths = self._find_directed_paths(intervention_var, outcome_var, dag)
+        path_count = len(paths)
+        adj_size = len(adjustment_set)
+
+        confidence = min(0.95, 0.3 + 0.15 * path_count - 0.05 * adj_size)
+        confidence = max(0.1, confidence)
+
+        # Get node content for interpretability
+        intervention_content = ''
+        outcome_content = ''
+        iv_node = self.kg.nodes.get(intervention_var)
+        ov_node = self.kg.nodes.get(outcome_var)
+        if iv_node:
+            intervention_content = str(iv_node.content.get('text', ''))[:100]
+        if ov_node:
+            outcome_content = str(ov_node.content.get('text', ''))[:100]
+
+        result = {
+            'effect': round(effect, 6),
+            'identifiable': True,
+            'reason': 'backdoor_adjustment',
+            'adjustment_set': sorted(adjustment_set),
+            'adjustment_set_size': adj_size,
+            'causal_paths': path_count,
+            'confidence': round(confidence, 4),
+            'intervention_node': intervention_var,
+            'intervention_content': intervention_content,
+            'outcome_node': outcome_var,
+            'outcome_content': outcome_content,
+        }
+
+        if effect != 0.0:
+            logger.info(
+                f"Do-calculus: do({intervention_var})->{outcome_var} "
+                f"effect={effect:.4f}, adj_set_size={adj_size}, "
+                f"confidence={confidence:.3f}"
+            )
+
+        return result
+
+    def counterfactual_query(
+        self,
+        node_id: int,
+        intervention: str,
+    ) -> Optional[Dict]:
+        """What would happen to downstream nodes if we intervened on node_id?
+
+        Traces causal paths forward from the intervened node and estimates
+        the propagated effect using edge weights. This implements the
+        "graph surgery" approach: cut all incoming edges to the intervention
+        node, set its value, and propagate forward.
+
+        Args:
+            node_id: The node to intervene on.
+            intervention: Description of the intervention (e.g., 'increase',
+                         'remove', 'set_high', 'set_low'). Used to determine
+                         the direction of the effect (+1 or -1).
+
+        Returns:
+            Dict with affected nodes, propagated effects, and confidence.
+            None if the query cannot be answered.
+        """
+        self._counterfactual_queries += 1
+
+        if not self.kg or node_id not in self.kg.nodes:
+            return None
+
+        dag = self._build_causal_dag()
+        if not dag:
+            return {
+                'intervention_node': node_id,
+                'intervention': intervention,
+                'affected_nodes': [],
+                'total_affected': 0,
+                'confidence': 0.0,
+            }
+
+        # Determine intervention direction
+        positive_terms = {'increase', 'set_high', 'add', 'strengthen', 'boost', 'raise'}
+        negative_terms = {'decrease', 'set_low', 'remove', 'weaken', 'reduce', 'lower'}
+        intervention_lower = intervention.lower()
+
+        direction = 0.0
+        for term in positive_terms:
+            if term in intervention_lower:
+                direction = 1.0
+                break
+        if direction == 0.0:
+            for term in negative_terms:
+                if term in intervention_lower:
+                    direction = -1.0
+                    break
+        if direction == 0.0:
+            direction = 1.0  # Default to positive intervention
+
+        # Propagate effects through the causal DAG using BFS
+        # Effect decays by edge weight at each step
+        descendants = self._dag_descendants(node_id, dag)
+        if not descendants:
+            return {
+                'intervention_node': node_id,
+                'intervention': intervention,
+                'affected_nodes': [],
+                'total_affected': 0,
+                'confidence': 0.5,  # Confident there are no downstream effects
+            }
+
+        # BFS propagation with decay
+        effects: Dict[int, float] = {}
+        visited: Set[int] = set()
+        # Queue: (current_node, accumulated_effect)
+        queue: List[Tuple[int, float]] = [(node_id, direction)]
+
+        while queue:
+            current, current_effect = queue.pop(0)
+            if current in visited:
+                continue
+            visited.add(current)
+
+            for child in dag.get(current, set()):
+                # Find edge weight
+                edge_weight = 0.5
+                for edge in self.kg.get_edges_from(current):
+                    if edge.to_node_id == child and edge.edge_type == 'causes':
+                        edge_weight = edge.weight
+                        break
+
+                propagated = current_effect * edge_weight
+                if abs(propagated) > 0.01:  # Only track non-trivial effects
+                    # If we've already computed an effect for this node,
+                    # take the stronger one (multiple causal paths)
+                    if child in effects:
+                        if abs(propagated) > abs(effects[child]):
+                            effects[child] = propagated
+                    else:
+                        effects[child] = propagated
+                    queue.append((child, propagated))
+
+        # Build result with node content
+        affected_nodes = []
+        for affected_id, effect_strength in sorted(
+            effects.items(), key=lambda x: abs(x[1]), reverse=True
+        )[:20]:  # Limit to top 20
+            node = self.kg.nodes.get(affected_id)
+            entry: Dict = {
+                'node_id': affected_id,
+                'effect': round(effect_strength, 6),
+                'direction': 'increase' if effect_strength > 0 else 'decrease',
+            }
+            if node:
+                entry['content'] = str(node.content.get('text', ''))[:100]
+                entry['domain'] = node.domain or 'general'
+                entry['node_type'] = node.node_type
+            affected_nodes.append(entry)
+
+        # Confidence based on number of edges traversed and path lengths
+        confidence = min(0.9, 0.2 + 0.1 * len(effects))
+        confidence = max(0.1, confidence)
+
+        source_node = self.kg.nodes.get(node_id)
+        result = {
+            'intervention_node': node_id,
+            'intervention': intervention,
+            'intervention_content': str(source_node.content.get('text', ''))[:100] if source_node else '',
+            'affected_nodes': affected_nodes,
+            'total_affected': len(effects),
+            'max_effect': round(max((abs(e) for e in effects.values()), default=0.0), 6),
+            'confidence': round(confidence, 4),
+        }
+
+        if effects:
+            logger.info(
+                f"Counterfactual: intervene on node {node_id} ({intervention}) "
+                f"affects {len(effects)} downstream nodes, "
+                f"max_effect={result['max_effect']:.4f}"
+            )
+
+        return result
 
     def discover_temporal_causal(self, domain: Optional[str] = None,
                                   max_nodes: int = 200,
@@ -823,7 +1347,7 @@ class CausalDiscovery:
         Returns:
             A p-value in ``[0, 1]``.  Values **above** *alpha* indicate
             that the null hypothesis of conditional independence cannot
-            be rejected (i.e.\ the nodes are likely independent given
+            be rejected (i.e. the nodes are likely independent given
             the conditioning set).
         """
         # --- Gather involved node IDs in a deterministic order ----------

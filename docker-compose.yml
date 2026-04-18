@@ -173,20 +173,20 @@ services:
       - LLM_SEEDER_ENABLED=false
       # Phi MIP spectral bisection is expensive — compute every 10 blocks
       - PHI_COMPUTE_INTERVAL=10
-      # AI operation intervals — relaxed to reduce CPU pressure from LLM calls
-      # Gate 4+ already passed; stability > frequency now
-      - AETHER_DEBATE_INTERVAL=100
-      - AETHER_CAUSAL_DISCOVERY_INTERVAL=200
-      - AETHER_DREAM_ANALOGIES_INTERVAL=500
-      - AETHER_SELF_REFLECT_INTERVAL=1000
-      - AETHER_CONCEPT_FORMATION_INTERVAL=200
-      - AETHER_MEMORY_CONSOLIDATE_INTERVAL=1000
-      - AETHER_EPISODIC_REPLAY_INTERVAL=1000
-      - AETHER_CURIOSITY_INTERVAL=100
-      - AETHER_KNOWLEDGE_DIGEST_INTERVAL=1000
-      - AETHER_SELF_IMPROVEMENT_INTERVAL=200
-      - AETHER_SEPHIROT_PERSIST_INTERVAL=1000
-      - AETHER_CONTRADICTION_RESOLVE_INTERVAL=100
+      # AI operation intervals — staggered to prevent OOM (4GB limit)
+      # Use PRIME numbers to avoid multiple heavy processes on same block
+      - AETHER_DEBATE_INTERVAL=53
+      - AETHER_CAUSAL_DISCOVERY_INTERVAL=67
+      - AETHER_DREAM_ANALOGIES_INTERVAL=97
+      - AETHER_SELF_REFLECT_INTERVAL=79
+      - AETHER_CONCEPT_FORMATION_INTERVAL=89
+      - AETHER_MEMORY_CONSOLIDATE_INTERVAL=71
+      - AETHER_EPISODIC_REPLAY_INTERVAL=83
+      - AETHER_CURIOSITY_INTERVAL=61
+      - AETHER_KNOWLEDGE_DIGEST_INTERVAL=101
+      - AETHER_SELF_IMPROVEMENT_INTERVAL=107
+      - AETHER_SEPHIROT_PERSIST_INTERVAL=113
+      - AETHER_CONTRADICTION_RESOLVE_INTERVAL=73
       # Chain sync: peer RPC URL for catching up on blocks
       - SYNC_PEER_URL=${SYNC_PEER_URL:-}
       # Distributed Graph Shard Service (trillion-node KG)
@@ -205,7 +205,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: 6G
           cpus: "2.0"
     volumes:
       - node-data:/app/data
