@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS knowledge_nodes (
     search_text TEXT NOT NULL DEFAULT '',
 
     -- pgvector embedding for semantic similarity search
-    -- 384 dimensions = all-MiniLM-L6-v2 sentence-transformer
-    embedding vector(384),
+    -- 896 dimensions = Ollama qwen2.5 embedding model
+    embedding vector(896),
 
     -- Timestamps
     created_at TIMESTAMP NOT NULL DEFAULT now(),
