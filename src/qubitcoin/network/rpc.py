@@ -177,6 +177,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         '/block/', '/chain/info', '/chain/tip', '/health',
         '/snapshots/', '/sync/', '/metrics', '/exchange/',
         '/aether/chat/message', '/aether/chat/session',
+        '/aether/info', '/aether/phi',
     )
 
     @app.middleware("http")
