@@ -2,7 +2,7 @@ use aether_evolve_core::{CodeDiff, DiagnosisItem, EvolvePlan, InterventionType, 
 use anyhow::{Context, Result};
 use tracing::{info, warn};
 
-use aether_evolve_llm::{ExtractedResponse, OllamaClient, PromptManager};
+use aether_evolve_llm::{ExtractedResponse, LlmBackend, LlmClient, PromptManager};
 use aether_evolve_memory::CognitionStore;
 
 /// Maximum lines of code context to send to the LLM.
@@ -16,7 +16,7 @@ const CONTEXT_MARGIN: usize = 40;
 pub type ResearchPlan = EvolvePlan;
 
 pub struct ResearchAgent {
-    llm: OllamaClient,
+    llm: LlmBackend,
     prompts: PromptManager,
     primary_model: String,
     fast_model: String,
@@ -25,7 +25,7 @@ pub struct ResearchAgent {
 
 impl ResearchAgent {
     pub fn new(
-        llm: OllamaClient,
+        llm: LlmBackend,
         prompts: PromptManager,
         primary_model: String,
         fast_model: String,

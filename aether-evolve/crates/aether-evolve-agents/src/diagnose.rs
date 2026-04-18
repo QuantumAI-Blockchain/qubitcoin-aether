@@ -5,18 +5,18 @@ use anyhow::Result;
 use chrono::Utc;
 use tracing::info;
 
-use aether_evolve_llm::{ExtractedResponse, OllamaClient, PromptManager};
+use aether_evolve_llm::{ExtractedResponse, LlmBackend, LlmClient, PromptManager};
 
 pub struct DiagnoseAgent {
     /// None when running in Claude mode (rule-based only)
-    llm: Option<OllamaClient>,
+    llm: Option<LlmBackend>,
     prompts: Option<PromptManager>,
     model: String,
 }
 
 impl DiagnoseAgent {
-    /// Create with Ollama LLM for autonomous mode.
-    pub fn new(llm: OllamaClient, prompts: PromptManager, model: String) -> Self {
+    /// Create with an LLM backend for autonomous mode.
+    pub fn new(llm: LlmBackend, prompts: PromptManager, model: String) -> Self {
         Self {
             llm: Some(llm),
             prompts: Some(prompts),

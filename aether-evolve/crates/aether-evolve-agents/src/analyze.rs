@@ -2,13 +2,13 @@ use aether_evolve_core::{ExperimentNode, MetricsDelta};
 use anyhow::Result;
 use tracing::info;
 
-use aether_evolve_llm::{ExtractedResponse, OllamaClient, PromptManager};
+use aether_evolve_llm::{ExtractedResponse, LlmBackend, LlmClient, PromptManager};
 
 use crate::execute::ExecutionResult;
 use crate::research::ResearchPlan;
 
 pub struct AnalyzeAgent {
-    llm: OllamaClient,
+    llm: LlmBackend,
     prompts: PromptManager,
     model: String,
 }
@@ -19,7 +19,7 @@ pub struct AnalysisResult {
 }
 
 impl AnalyzeAgent {
-    pub fn new(llm: OllamaClient, prompts: PromptManager, model: String) -> Self {
+    pub fn new(llm: LlmBackend, prompts: PromptManager, model: String) -> Self {
         Self { llm, prompts, model }
     }
 

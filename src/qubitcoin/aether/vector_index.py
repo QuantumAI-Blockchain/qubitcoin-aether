@@ -16,6 +16,7 @@ for O(log n) approximate nearest neighbor search at scale, used as the
 default backend when vectors > 1000.
 """
 import math
+import os
 import random
 import re
 import heapq
@@ -55,6 +56,120 @@ def _load_model():
         _USE_TRANSFORMER = False
         logger.info(f"VectorIndex: sentence-transformers not available ({e}), using fallback BoW embeddings")
     return _model
+
+
+# ---------------------------------------------------------------------------
+# Ollama embedding API — real semantic embeddings
+# ---------------------------------------------------------------------------
+_OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+_OLLAMA_EMBED_MODEL = os.getenv('OLLAMA_EMBED_MODEL', 'qwen2.5:0.5b')
+_ollama_cache: Dict[str, List[float]] = {}
+_ollama_cache_lock = threading.Lock()
+_ollama_available: Optional[bool] = None  # None = not yet checked
+_OLLAMA_EMBED_DIM = 896  # qwen2.5:0.5b produces 896-dim embeddings
+
+# Dimension used for hash-based fallback embeddings (must match callers)
+EMBED_DIM = _OLLAMA_EMBED_DIM
+
+
+def get_ollama_embedding(text: str, dim: Optional[int] = None) -> Optional[List[float]]:
+    """Get a real semantic embedding from Ollama's /api/embed endpoint.
+
+    Args:
+        text: Text to embed. Truncated to 512 chars.
+        dim: If set, truncate/pad the embedding to this dimension.
+
+    Returns:
+        Embedding vector, or None if Ollama is unavailable.
+    """
+    global _ollama_available
+    if _ollama_available is False:
+        return None
+
+    # Truncate input
+    text = text[:512].strip()
+    if not text:
+        return None
+
+    # Check cache
+    cache_key = text[:256]  # Cache on first 256 chars to keep keys bounded
+    with _ollama_cache_lock:
+        cached = _ollama_cache.get(cache_key)
+    if cached is not None:
+        if dim and len(cached) != dim:
+            return _resize_embedding(cached, dim)
+        return cached
+
+    try:
+        import requests
+        resp = requests.post(
+            f'{_OLLAMA_BASE_URL}/api/embed',
+            json={'model': _OLLAMA_EMBED_MODEL, 'input': text},
+            timeout=5.0,
+        )
+        if resp.status_code != 200:
+            _ollama_available = False
+            logger.debug(f"Ollama embed returned {resp.status_code}, disabling")
+            return None
+        data = resp.json()
+        embeddings = data.get('embeddings')
+        if not embeddings or not embeddings[0]:
+            return None
+        emb = embeddings[0]
+        # Cache it
+        with _ollama_cache_lock:
+            if len(_ollama_cache) < 50000:  # Bound cache size
+                _ollama_cache[cache_key] = emb
+        if _ollama_available is None:
+            _ollama_available = True
+            logger.info(
+                f"Ollama embeddings active: model={_OLLAMA_EMBED_MODEL}, "
+                f"dim={len(emb)}"
+            )
+        if dim and len(emb) != dim:
+            return _resize_embedding(emb, dim)
+        return emb
+    except Exception:
+        if _ollama_available is None:
+            _ollama_available = False
+            logger.info("Ollama embeddings unavailable, using fallback")
+        return None
+
+
+def _resize_embedding(emb: List[float], dim: int) -> List[float]:
+    """Truncate or zero-pad an embedding to the target dimension."""
+    if len(emb) >= dim:
+        return emb[:dim]
+    return emb + [0.0] * (dim - len(emb))
+
+
+def _hash_embedding(text: str, dim: int = 32) -> List[float]:
+    """Deterministic hash-based fallback embedding (no semantic meaning)."""
+    return [(hash(text + str(i)) % 10000) / 10000.0 for i in range(dim)]
+
+
+def embed_text(text: str, dim: Optional[int] = None) -> List[float]:
+    """Get an embedding for text, trying Ollama first, then hash fallback.
+
+    This is the primary entry point for all embedding needs in the Aether
+    system. It tries Ollama's real semantic embeddings first. If Ollama is
+    unavailable, it falls back to a deterministic hash-based embedding.
+
+    Args:
+        text: Text to embed.
+        dim: Target dimension. If None, uses Ollama's native dim (896) or
+             falls back to 32 for hash embeddings.
+
+    Returns:
+        Embedding vector as a list of floats.
+    """
+    # Try real embeddings first
+    emb = get_ollama_embedding(text, dim=dim)
+    if emb is not None:
+        return emb
+    # Fallback: hash-based
+    fallback_dim = dim if dim else 32
+    return _hash_embedding(text, fallback_dim)
 
 
 def _extract_text(content: dict) -> str:
@@ -134,7 +249,15 @@ _bow_embedder = _BoWEmbedder()
 
 
 def _compute_embedding(text: str) -> List[float]:
-    """Compute embedding for a single text string."""
+    """Compute embedding for a single text string.
+
+    Priority: Ollama real embeddings > sentence-transformers > BoW fallback.
+    """
+    # Try Ollama first (real semantic embeddings)
+    ollama_emb = get_ollama_embedding(text)
+    if ollama_emb is not None:
+        return ollama_emb
+    # Try sentence-transformers
     model = _load_model()
     if model is not None:
         emb = model.encode([text], show_progress_bar=False)[0]

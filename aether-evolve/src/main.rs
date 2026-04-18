@@ -1,7 +1,7 @@
 use aether_evolve_agents::{AnalyzeAgent, DiagnoseAgent, ExecuteAgent, ResearchAgent};
 use aether_evolve_api::{AetherClient, CodePatcher, KnowledgeSeederImpl};
 use aether_evolve_core::{EvolvePlan, EvolveConfig, PipelinePhase, PipelineState};
-use aether_evolve_llm::{OllamaClient, PromptManager};
+use aether_evolve_llm::{ClaudeClient, LlmBackend, OllamaClient, PromptManager};
 use aether_evolve_memory::{CognitionStore, ExperimentDb};
 use aether_evolve_safety::{AuditLog, SafetyGovernor};
 use anyhow::{Context, Result};
@@ -129,12 +129,9 @@ async fn cmd_diagnose(config: &EvolveConfig) -> Result<()> {
         let diagnosis = diagnose.diagnose(&metrics).await?;
         println!("{}", serde_json::to_string_pretty(&diagnosis)?);
     } else {
-        let ollama = OllamaClient::new(
-            &config.ollama.base_url,
-            config.ollama.timeout_secs,
-        )?;
+        let backend = build_llm_backend(config)?;
         let prompts = PromptManager::with_defaults()?;
-        let diagnose = DiagnoseAgent::new(ollama, prompts, config.ollama.primary_model.clone());
+        let diagnose = DiagnoseAgent::new(backend, prompts, config.ollama.primary_model.clone());
         let diagnosis = diagnose.diagnose(&metrics).await?;
         println!("{}", serde_json::to_string_pretty(&diagnosis)?);
     }
@@ -231,18 +228,9 @@ async fn cmd_loop(config: &EvolveConfig, single_step: bool) -> Result<()> {
         config.aether.max_retries,
     )?;
 
-    let ollama_primary = OllamaClient::new(
-        &config.ollama.base_url,
-        config.ollama.timeout_secs,
-    )?;
-    let ollama_fast = OllamaClient::new(
-        &config.ollama.base_url,
-        config.ollama.timeout_secs,
-    )?;
-    let ollama_analyze = OllamaClient::new(
-        &config.ollama.base_url,
-        config.ollama.timeout_secs,
-    )?;
+    let llm_primary = build_llm_backend(config)?;
+    let llm_fast = build_llm_backend(config)?;
+    let llm_analyze = build_llm_backend(config)?;
 
     let prompts = PromptManager::with_defaults()?;
     let prompts2 = PromptManager::with_defaults()?;
@@ -260,9 +248,9 @@ async fn cmd_loop(config: &EvolveConfig, single_step: bool) -> Result<()> {
     });
 
     // Create agents
-    let diagnose_agent = DiagnoseAgent::new(ollama_primary, prompts, config.ollama.primary_model.clone());
+    let diagnose_agent = DiagnoseAgent::new(llm_primary, prompts, config.ollama.primary_model.clone());
     let research_agent = ResearchAgent::new(
-        ollama_fast, prompts2,
+        llm_fast, prompts2,
         config.ollama.primary_model.clone(),
         config.ollama.fast_model.clone(),
         "/root/Qubitcoin".into(),
@@ -277,7 +265,7 @@ async fn cmd_loop(config: &EvolveConfig, single_step: bool) -> Result<()> {
     let execute_safety = SafetyGovernor::new(config.clone());
     let execute_patcher = CodePatcher::new("/root/Qubitcoin");
     let execute_agent = ExecuteAgent::new(execute_agent_client, execute_patcher, execute_seeder, execute_safety);
-    let analyze_agent = AnalyzeAgent::new(ollama_analyze, prompts3, config.ollama.fast_model.clone());
+    let analyze_agent = AnalyzeAgent::new(llm_analyze, prompts3, config.ollama.fast_model.clone());
 
     // Check health with retry — node may be processing block backlog
     let max_health_retries = 30; // 30 x 10s = 5 minutes max wait
@@ -458,6 +446,32 @@ async fn cmd_loop(config: &EvolveConfig, single_step: bool) -> Result<()> {
     info!("Aether-Evolve shutdown complete");
 
     Ok(())
+}
+
+/// Build the appropriate LLM backend based on config.
+/// If claude.enabled and an API key is available, use Claude. Otherwise use Ollama.
+fn build_llm_backend(config: &EvolveConfig) -> Result<LlmBackend> {
+    if config.claude.enabled {
+        // Resolve API key: config field takes precedence, then env var
+        let api_key = if !config.claude.api_key.is_empty() {
+            config.claude.api_key.clone()
+        } else {
+            std::env::var("ANTHROPIC_API_KEY").unwrap_or_default()
+        };
+
+        if !api_key.is_empty() {
+            info!(model = %config.claude.model, "Using Claude API backend");
+            let client = ClaudeClient::new(&api_key, &config.claude.model, config.ollama.timeout_secs)?;
+            return Ok(LlmBackend::Claude(client));
+        }
+
+        // claude.enabled but no API key — fall back to Ollama
+        warn!("claude.enabled=true but no API key found (ANTHROPIC_API_KEY / claude.api_key). Falling back to Ollama.");
+    }
+
+    info!(base_url = %config.ollama.base_url, "Using Ollama backend");
+    let client = OllamaClient::new(&config.ollama.base_url, config.ollama.timeout_secs)?;
+    Ok(LlmBackend::Ollama(client))
 }
 
 fn determine_phase(metrics: &aether_evolve_core::AetherMetrics) -> PipelinePhase {

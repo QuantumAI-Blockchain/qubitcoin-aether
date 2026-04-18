@@ -1679,11 +1679,12 @@ class AetherEngine:
                     import numpy as _np
                     sephirot_nodes = self._ensure_sephirot()
                     if sephirot_nodes:
+                        from .vector_index import embed_text as _embed_text
                         for seph_name, seph_node in sephirot_nodes.items():
                             energy = getattr(seph_node, 'energy', 0.5)
                             msg_emb = _np.array(
-                                [(hash(seph_name + str(i)) % 10000) / 10000.0
-                                 for i in range(32)], dtype=_np.float64
+                                _embed_text(str(seph_name), dim=32),
+                                dtype=_np.float64
                             ) * energy
                             # SephirahRole enums have lowercase .value; attention
                             # router expects title-case names ('Keter', not 'keter')
@@ -1718,13 +1719,14 @@ class AetherEngine:
                     ]
                     if len(recent_nodes) >= 5:
                         # Build feature vectors from node content
+                        from .vector_index import embed_text as _embed_text
                         features = []
                         for node in recent_nodes[:50]:
                             content_str = str(node.content)
-                            feat = _np.array([
-                                (hash(content_str + str(i)) % 10000) / 10000.0
-                                for i in range(32)
-                            ], dtype=_np.float64)
+                            feat = _np.array(
+                                _embed_text(content_str, dim=32),
+                                dtype=_np.float64
+                            )
                             features.append(feat)
                         # Train on batch
                         batch = _np.stack(features)
@@ -1787,14 +1789,15 @@ class AetherEngine:
                         if getattr(n, 'source_block', 0) >= block.height - 50
                     ][:20]  # Cap sequence length
                     if len(recent_nodes) >= 3:
+                        from .vector_index import embed_text as _embed_text
                         embeddings = []
                         for node in recent_nodes:
                             # Generate embedding from content
                             content_str = str(node.content)
-                            emb = _np.array([
-                                (hash(content_str + str(i)) % 10000) / 10000.0
-                                for i in range(64)
-                            ], dtype=_np.float64)
+                            emb = _np.array(
+                                _embed_text(content_str, dim=64),
+                                dtype=_np.float64
+                            )
                             embeddings.append(emb)
                         reasoning_out = self.transformer_reasoner.reason_over_sequence(embeddings)
                         # Store reasoning result in attention memory
@@ -1928,14 +1931,15 @@ class AetherEngine:
                         if getattr(n, 'source_block', 0) >= block.height - 100
                     ][:100]
                     if len(recent_nodes) >= 5:
+                        from .vector_index import embed_text as _embed_text
                         candidates = []
                         confidences = []
                         for node in recent_nodes:
                             content_str = str(getattr(node, 'content', ''))
-                            feat = _np.array([
-                                (hash(content_str + str(i)) % 10000) / 10000.0
-                                for i in range(32)
-                            ], dtype=_np.float64)
+                            feat = _np.array(
+                                _embed_text(content_str, dim=32),
+                                dtype=_np.float64
+                            )
                             candidates.append(feat)
                             confidences.append(getattr(node, 'confidence', 0.5))
                         selected = self.active_learner.select_samples(
@@ -2674,11 +2678,12 @@ class AetherEngine:
                             feat = _np.array(emb[:32], dtype=_np.float64) if len(emb) >= 32 else _np.pad(emb, (0, 32 - len(emb)))
                         else:
                             # Deterministic content-based features (fallback)
+                            from .vector_index import embed_text as _embed_text
                             content_str = str(node.content) if node.content else ''
-                            feat = _np.array([
-                                (hash(content_str + str(i)) % 10000) / 10000.0
-                                for i in range(32)
-                            ], dtype=_np.float64)
+                            feat = _np.array(
+                                _embed_text(content_str, dim=32),
+                                dtype=_np.float64
+                            )
                         domain_data[d].append(feat)
                     # Register all domains with the TransferLearning subsystem
                     for d, feats in domain_data.items():
@@ -2749,12 +2754,13 @@ class AetherEngine:
                         if getattr(n, 'source_block', 0) >= block.height - 1000
                     ][:100]
                     if len(recent_nodes) >= 10:
+                        from .vector_index import embed_text as _embed_text
                         data = []
                         for node in recent_nodes:
-                            feat = _np.array([
-                                (hash(str(node.content) + str(i)) % 10000) / 10000.0
-                                for i in range(32)
-                            ], dtype=_np.float64)
+                            feat = _np.array(
+                                _embed_text(str(node.content), dim=32),
+                                dtype=_np.float64
+                            )
                             data.append(feat)
                         model_weights = _np.random.randn(32) * 0.1
                         fisher = self.continual_learning.compute_fisher(
@@ -4593,7 +4599,29 @@ class AetherEngine:
             except Exception as e:
                 logger.debug(f"Sephirot energy modulation skipped: {e}")
 
-        # Layer 3: Phi milestone exploration boost (AG8)
+        # Layer 3: Emotional modulation — emotions influence strategy selection
+        if self.emotional_state:
+            try:
+                states = self.emotional_state.states
+                frustration = states.get('frustration', 0.0)
+                curiosity = states.get('curiosity', 0.0)
+                satisfaction = states.get('satisfaction', 0.5)
+                # High frustration → try different approaches (boost abductive)
+                if frustration > 0.6:
+                    weights['abductive'] *= (1.0 + frustration * 0.5)
+                    weights['neural'] *= (1.0 + frustration * 0.3)
+                # High curiosity → explore patterns (boost inductive)
+                if curiosity > 0.6:
+                    weights['inductive'] *= (1.0 + curiosity * 0.4)
+                    weights['abductive'] *= (1.0 + curiosity * 0.2)
+                # Low satisfaction → favor reliable strategies
+                if satisfaction < 0.3:
+                    weights['deductive'] *= 1.3
+                    weights['abductive'] *= 0.8
+            except Exception:
+                pass
+
+        # Layer 4: Phi milestone exploration boost (AG8)
         if self._phi_exploration_boost > 1.0:
             weights['abductive'] *= self._phi_exploration_boost
 
@@ -4687,19 +4715,31 @@ class AetherEngine:
         logs a warning so operators know a subsystem is degraded.
         """
         if subsystem_name not in self._subsystem_health:
-            self._subsystem_health[subsystem_name] = {'error_count': 0, 'last_error': ''}
-        self._subsystem_health[subsystem_name]['error_count'] += 1
-        self._subsystem_health[subsystem_name]['last_error'] = str(error)[:200]
-        err_count = self._subsystem_health[subsystem_name]['error_count']
-        if err_count == 10:
+            self._subsystem_health[subsystem_name] = {
+                'error_count': 0, 'consecutive_errors': 0, 'last_error': '',
+            }
+        health = self._subsystem_health[subsystem_name]
+        health['error_count'] += 1
+        health['consecutive_errors'] = health.get('consecutive_errors', 0) + 1
+        health['last_error'] = str(error)[:200]
+        consec = health['consecutive_errors']
+        total = health['error_count']
+        # Log at WARNING after 3 consecutive failures (not just total)
+        if consec == 3:
             logger.warning(
-                f"AI subsystem '{subsystem_name}' has {err_count} errors — "
-                f"may be degraded. Last error: {str(error)[:100]}"
+                "Subsystem '%s' failing: %d consecutive errors (total: %d). "
+                "Last: %s", subsystem_name, consec, total, str(error)[:100]
             )
-        elif err_count % 100 == 0:
+        elif consec > 3 and consec % 50 == 0:
             logger.warning(
-                f"AI subsystem '{subsystem_name}' has {err_count} cumulative errors"
+                "Subsystem '%s' still failing: %d consecutive (total: %d)",
+                subsystem_name, consec, total
             )
+
+    def _mark_subsystem_ok(self, subsystem_name: str) -> None:
+        """Reset consecutive error count on subsystem success."""
+        if subsystem_name in self._subsystem_health:
+            self._subsystem_health[subsystem_name]['consecutive_errors'] = 0
 
     def _record_reasoning_outcome(self, strategy: str, confidence: float,
                                    success: bool, block_height: int,

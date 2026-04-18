@@ -16,16 +16,35 @@ pub struct EvolveConfig {
 /// When claude mode is enabled, the binary acts as a CLI tool that Claude Code
 /// orchestrates. LLM calls are skipped — Claude provides the intelligence,
 /// the binary provides the infrastructure (metrics, git, tests, seeding).
+///
+/// Alternatively, when `enabled = true` AND `api_key` is set, the autonomous
+/// loop uses the Anthropic Messages API instead of Ollama.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaudeConfig {
     /// When true, subcommands (snapshot, diagnose, execute-plan) are the primary interface.
     /// When false, the autonomous loop uses Ollama for all reasoning.
     pub enabled: bool,
+
+    /// Anthropic API key. If empty, falls back to ANTHROPIC_API_KEY env var.
+    #[serde(default)]
+    pub api_key: String,
+
+    /// Claude model to use (default: claude-sonnet-4-20250514).
+    #[serde(default = "default_claude_model")]
+    pub model: String,
+}
+
+fn default_claude_model() -> String {
+    "claude-sonnet-4-20250514".to_string()
 }
 
 impl Default for ClaudeConfig {
     fn default() -> Self {
-        Self { enabled: false }
+        Self {
+            enabled: false,
+            api_key: String::new(),
+            model: default_claude_model(),
+        }
     }
 }
 
