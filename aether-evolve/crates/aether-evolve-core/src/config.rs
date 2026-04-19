@@ -121,7 +121,7 @@ impl Default for EvolveConfig {
                 primary_model: "qwen2.5:7b".into(),
                 fast_model: "qwen2.5:3b".into(),
                 bulk_model: "qwen2.5:0.5b".into(),
-                timeout_secs: 120,
+                timeout_secs: 300,
                 max_concurrent: 2,
             },
             claude: ClaudeConfig::default(),

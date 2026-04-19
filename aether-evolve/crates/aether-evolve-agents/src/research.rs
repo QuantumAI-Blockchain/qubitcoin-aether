@@ -6,11 +6,12 @@ use aether_evolve_llm::{ExtractedResponse, LlmBackend, LlmClient, PromptManager}
 use aether_evolve_memory::CognitionStore;
 
 /// Maximum lines of code context to send to the LLM.
-/// On CPU Ollama with small models, full files (700+ lines) cause timeouts.
-const MAX_CONTEXT_LINES: usize = 120;
+/// Increased from 120 to 300 — the 7B model can handle this on CPU.
+/// Full files are better than truncated context for accurate patches.
+const MAX_CONTEXT_LINES: usize = 300;
 
 /// Lines of context to include above/below a keyword match.
-const CONTEXT_MARGIN: usize = 40;
+const CONTEXT_MARGIN: usize = 60;
 
 /// Type alias — ResearchPlan is now the shared EvolvePlan from core.
 pub type ResearchPlan = EvolvePlan;
@@ -66,7 +67,7 @@ impl ResearchAgent {
     }
 
     /// Extract the most relevant section of a file based on keywords from the diagnosis.
-    /// Returns (extracted_content, start_line) so patches can be context-aware.
+    /// Returns numbered lines so the LLM can see exact line numbers.
     fn extract_relevant_section(
         file_content: &str,
         description: &str,
@@ -75,9 +76,9 @@ impl ResearchAgent {
         let lines: Vec<&str> = file_content.lines().collect();
         let total_lines = lines.len();
 
-        // If file is small enough, return it all
+        // If file is small enough, return it all with line numbers
         if total_lines <= MAX_CONTEXT_LINES {
-            return file_content.to_string();
+            return Self::add_line_numbers(&lines, 0);
         }
 
         // Extract keywords from diagnosis to find relevant code
@@ -95,6 +96,8 @@ impl ResearchAgent {
                         | "what" | "zero" | "level" | "needs" | "more"
                         | "than" | "most" | "some" | "very" | "also"
                         | "does" | "kills" | "returning" | "values"
+                        | "currently" | "because" | "through" | "between"
+                        | "actual" | "always" | "never" | "only"
                 )
             })
             .collect();
@@ -133,8 +136,7 @@ impl ResearchAgent {
         if match_scores.is_empty() {
             // No keyword matches — return the first MAX_CONTEXT_LINES
             warn!("No keyword matches found, returning file head");
-            return lines[..MAX_CONTEXT_LINES.min(total_lines)]
-                .join("\n");
+            return Self::add_line_numbers(&lines[..MAX_CONTEXT_LINES.min(total_lines)], 0);
         }
 
         // Sort by score descending, take the best match center
@@ -162,7 +164,7 @@ impl ResearchAgent {
         let actual_end = end.min(actual_start + MAX_CONTEXT_LINES);
 
         let mut result = format!("# ... (lines 1-{} omitted) ...\n", actual_start);
-        result.push_str(&lines[actual_start..actual_end].join("\n"));
+        result.push_str(&Self::add_line_numbers(&lines[actual_start..actual_end], actual_start));
         if actual_end < total_lines {
             result.push_str(&format!(
                 "\n# ... (lines {}-{} omitted) ...",
@@ -182,6 +184,15 @@ impl ResearchAgent {
         result
     }
 
+    /// Add line numbers to code lines for LLM context.
+    /// Format: "  42| code here" — LLM can reference exact lines.
+    fn add_line_numbers(lines: &[&str], offset: usize) -> String {
+        lines.iter().enumerate()
+            .map(|(i, line)| format!("{:4}| {}", offset + i + 1, line))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     async fn research_code(&self, item: &DiagnosisItem) -> Result<ResearchPlan> {
         let mut all_diffs = Vec::new();
 
@@ -194,7 +205,7 @@ impl ResearchAgent {
             let file_content = std::fs::read_to_string(&full_path)
                 .with_context(|| format!("Failed to read {full_path}"))?;
 
-            // Extract only the relevant section to keep prompt small for CPU LLM
+            // Extract relevant section with line numbers
             let relevant_section = Self::extract_relevant_section(
                 &file_content,
                 &item.description,
@@ -205,7 +216,7 @@ impl ResearchAgent {
                 file = %target_file,
                 full_lines = file_content.lines().count(),
                 context_lines = relevant_section.lines().count(),
-                "Sending truncated context to LLM"
+                "Sending code context to LLM"
             );
 
             let mut ctx = tera::Context::new();
@@ -215,20 +226,29 @@ impl ResearchAgent {
             ctx.insert("file_path", target_file);
 
             let prompt = self.prompts.render("research_code", &ctx)?;
-            // Use fast_model for code research — primary is too slow on CPU
+            // Use PRIMARY model for code changes — fast model is too weak
+            // Code changes are rare (max 5/hour) so the extra time is worth accuracy
             let response = self
                 .llm
-                .generate(&self.fast_model, "", &prompt, 0.2, 2048)
+                .generate(&self.primary_model, "", &prompt, 0.2, 4096)
                 .await?;
 
             let extracted = ExtractedResponse::new(response);
             let patches = extracted.extract_patches();
 
+            if patches.is_empty() {
+                warn!(file = %target_file, "LLM produced no patches");
+            }
+
             for (search, replace) in patches {
+                // Strip line number prefixes if LLM included them
+                let clean_search = Self::strip_line_numbers(&search);
+                let clean_replace = Self::strip_line_numbers(&replace);
+
                 all_diffs.push(CodeDiff {
                     file_path: target_file.clone(),
-                    search,
-                    replace,
+                    search: clean_search,
+                    replace: clean_replace,
                 });
             }
         }
@@ -244,6 +264,24 @@ impl ResearchAgent {
             diffs: all_diffs,
             seeds: Vec::new(),
         })
+    }
+
+    /// Strip line number prefixes that the LLM might include from numbered context.
+    /// Handles formats like "  42| code" or "42: code" or "42 code".
+    fn strip_line_numbers(text: &str) -> String {
+        text.lines()
+            .map(|line| {
+                // Try to strip "  NN| " prefix
+                if let Some(idx) = line.find('|') {
+                    let prefix = &line[..idx];
+                    if prefix.trim().chars().all(|c| c.is_ascii_digit()) {
+                        return line[idx + 1..].strip_prefix(' ').unwrap_or(&line[idx + 1..]);
+                    }
+                }
+                line
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     async fn research_seed(
@@ -346,5 +384,40 @@ impl ResearchAgent {
             diffs: Vec::new(),
             seeds,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_line_numbers_with_pipe() {
+        let input = "  42| def foo():\n  43|     return 1";
+        let result = ResearchAgent::strip_line_numbers(input);
+        assert_eq!(result, "def foo():\n    return 1");
+    }
+
+    #[test]
+    fn test_strip_line_numbers_no_prefix() {
+        let input = "def foo():\n    return 1";
+        let result = ResearchAgent::strip_line_numbers(input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn test_add_line_numbers() {
+        let lines = vec!["def foo():", "    return 1"];
+        let result = ResearchAgent::add_line_numbers(&lines, 41);
+        assert!(result.contains("  42| def foo():"));
+        assert!(result.contains("  43|     return 1"));
+    }
+
+    #[test]
+    fn test_extract_section_small_file() {
+        let content = "line1\nline2\nline3\n";
+        let result = ResearchAgent::extract_relevant_section(content, "test", "root");
+        // Small file should include line numbers
+        assert!(result.contains("1|"));
     }
 }

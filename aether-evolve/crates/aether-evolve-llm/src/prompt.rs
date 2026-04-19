@@ -84,29 +84,32 @@ const RESEARCH_CODE_TEMPLATE: &str = r#"You are modifying the Aether Tree cognit
 ## Root Cause
 {{ root_cause }}
 
-## Target File Content
+## File: {{ file_path }}
+Lines are numbered (e.g. "  42| code"). DO NOT include line numbers in your patches.
+
 ```python
 {{ file_content }}
 ```
 
-## File Path
-{{ file_path }}
+## CRITICAL RULES
+1. The SEARCH string must match the ACTUAL code shown above EXACTLY
+2. DO NOT include line number prefixes (like "  42| ") in SEARCH or REPLACE
+3. Copy-paste the exact code from above — do not retype or paraphrase
+4. Include enough context lines (3-5 lines before and after the change) to ensure unique matching
+5. Keep changes minimal — only change what is needed to fix the weakness
+6. Each patch should be a self-contained fix
 
-## Instructions
-Generate a SEARCH/REPLACE patch to fix this weakness. The SEARCH string must match
-the existing code EXACTLY (including whitespace). The REPLACE string is the fixed code.
-
-Respond in this exact format:
+## Output Format
 <patch>
 <search>
-exact code to find
+exact lines from the file (without line numbers)
 </search>
 <replace>
-fixed code
+the fixed version of those same lines
 </replace>
 </patch>
 
-You may include multiple <patch> blocks if needed. Keep changes minimal and focused."#;
+You may include multiple <patch> blocks if needed."#;
 
 const RESEARCH_SEED_TEMPLATE: &str = r#"You are generating high-quality knowledge for the Aether Tree cognitive system.
 

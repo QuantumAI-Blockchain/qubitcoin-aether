@@ -179,9 +179,47 @@ impl DiagnoseAgent {
                         "Autonomous curiosity needs diverse domains to explore".into(),
                         "Gate 8 passed with curiosity discoveries".into(),
                     ),
+                    6 => (
+                        InterventionType::CodeChange,
+                        vec![
+                            "src/qubitcoin/aether/self_improvement.py".into(),
+                            "src/qubitcoin/aether/proof_of_thought.py".into(),
+                        ],
+                        "Gate 6 needs enacted self-improvement cycles with positive \
+                         performance delta. Check if improvement strategies are being \
+                         enacted (not just proposed)."
+                            .into(),
+                        "Self-improvement actively enacting and measuring improvements".into(),
+                    ),
+                    7 => (
+                        InterventionType::CodeChange,
+                        vec![
+                            "src/qubitcoin/aether/metacognition.py".into(),
+                            "src/qubitcoin/aether/phi_calculator.py".into(),
+                        ],
+                        format!(
+                            "Gate 7 needs ECE < 0.15 and ≥200 evaluations. \
+                             Current calibration may be using raw confidence instead \
+                             of calibrated values."
+                        ),
+                        "ECE below 0.15 with calibrated confidence scores".into(),
+                    ),
+                    9 => (
+                        InterventionType::CodeChange,
+                        vec![
+                            "src/qubitcoin/aether/reasoning.py".into(),
+                            "src/qubitcoin/aether/knowledge_graph.py".into(),
+                        ],
+                        format!(
+                            "Gate 9 needs prediction accuracy > 70%% and ≥20 consolidated \
+                             axioms. Prediction verification or axiom consolidation may be \
+                             too conservative."
+                        ),
+                        "Prediction accuracy > 70% with axiom consolidation active".into(),
+                    ),
                     _ => (
-                        InterventionType::ApiCall,
-                        vec![],
+                        InterventionType::KnowledgeSeed,
+                        vec!["API: /aether/ingest/batch".into()],
                         format!("Requirements not met for gate {}", gate.gate_number),
                         format!("Gate {} passed", gate.gate_number),
                     ),
