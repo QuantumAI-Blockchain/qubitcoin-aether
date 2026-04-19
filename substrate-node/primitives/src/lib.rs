@@ -83,8 +83,11 @@ pub const DIFFICULTY_CEILING_FIX_HEIGHT: u32 = 2750;
 // Difficulty Bounds (scaled by 10^6 for fixed-point arithmetic)
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Minimum difficulty: 0.5 (scaled by 10^6).
-pub const DIFFICULTY_FLOOR: u64 = 500_000;
+/// Minimum difficulty: 2.0 (scaled by 10^6).
+/// Must be high enough that ALL possible 4-qubit Hamiltonians have
+/// ground state energy below this threshold. With 5 terms and |coeff| < 1,
+/// eigenvalues are bounded by [-5, 5], so energy < 2.0 is always achievable.
+pub const DIFFICULTY_FLOOR: u64 = 2_000_000;
 /// Maximum difficulty: 1000.0 (scaled by 10^6).
 pub const DIFFICULTY_CEILING: u64 = 1_000_000_000;
 /// Meaningful max: 10.0 (scaled by 10^6).  When difficulty exceeds this, blocks

@@ -65,7 +65,15 @@ pub fn generate_hamiltonian(seed: &H256) -> Hamiltonian {
             }
             // Coefficient in [-1, 1)
             let coefficient: f64 = rng.gen_range(-1.0..1.0);
-            PauliTerm { pauli, coefficient }
+            // Zero out all-Identity terms: IIII just shifts every eigenvalue
+            // by a constant, which can make the Hamiltonian unsolvable when
+            // the shift pushes the ground state above the difficulty floor.
+            // Zeroing (instead of re-sampling) preserves RNG state consistency.
+            let is_all_identity = pauli.iter().all(|&p| p == b'I');
+            PauliTerm {
+                pauli,
+                coefficient: if is_all_identity { 0.0 } else { coefficient },
+            }
         })
         .collect();
 

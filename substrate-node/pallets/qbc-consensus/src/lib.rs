@@ -46,6 +46,10 @@ pub mod pallet {
     pub const DIFFICULTY_RESET_HEIGHT_167: u64 = 167;
     pub const DIFFICULTY_RESET_HEIGHT_724: u64 = 724;
     pub const DIFFICULTY_RESET_HEIGHT_2750: u64 = 2750;
+    /// Height 215469: difficulty hit old floor (0.5) due to equivocation-induced
+    /// fast blocks, making Hamiltonians with positive eigenvalues unsolvable.
+    /// Reset to INITIAL_DIFFICULTY (1.0) to resume block production.
+    pub const DIFFICULTY_RESET_HEIGHT_215469: u64 = 215_469;
 
     /// Difficulty floor: 0.5 scaled by 10^6. Prevents difficulty from dropping
     /// so low that mining becomes impossibly hard (remember: higher = easier).
@@ -493,6 +497,7 @@ pub mod pallet {
             if block_height == DIFFICULTY_RESET_HEIGHT_167
                 || block_height == DIFFICULTY_RESET_HEIGHT_724
                 || block_height == DIFFICULTY_RESET_HEIGHT_2750
+                || block_height == DIFFICULTY_RESET_HEIGHT_215469
             {
                 let old_difficulty = CurrentDifficulty::<T>::get();
                 CurrentDifficulty::<T>::put(INITIAL_DIFFICULTY);

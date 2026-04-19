@@ -36,7 +36,7 @@ pub struct MiningProofReady {
 }
 
 /// Number of VQE optimization attempts per block.
-pub const MAX_ATTEMPTS: usize = 50;
+pub const MAX_ATTEMPTS: usize = 100;
 /// Energy scaling factor (must match pallet: values stored as i128 * 10^12).
 pub const ENERGY_SCALE: f64 = 1e12;
 /// Difficulty scaling factor (stored as u64 * 10^6 in pallet).
@@ -133,8 +133,11 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
 
     let mut rng = ChaCha8Rng::from_entropy();
     let mut last_mined_hash: H256 = H256::zero();
+    let mut iteration: u64 = 0;
 
     loop {
+        iteration += 1;
+
         // 1. Get current chain state
         let best_hash = client.best_hash();
         let best_number = client.best_number();
@@ -166,17 +169,13 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
         };
 
         // 3. Derive Hamiltonian seed using best_hash as parent.
-        // The pallet's derive_hamiltonian_seed() calls parent_hash() which
-        // returns the hash of the parent of the block being executed. When
-        // mining block N, the "block being executed" is block N, so its
-        // parent_hash() returns the hash of block N-1 — which is best_hash.
         let seed = hamiltonian::derive_seed(&best_hash, mining_height);
         let hamiltonian = hamiltonian::generate_hamiltonian(&seed);
 
         debug!(
             target: "mining",
-            "[miner-{}] Mining height {} (difficulty={}e-6, seed={:?})",
-            thread_id, mining_height, difficulty, seed
+            "[miner-{}] Mining height {} (difficulty={:.6}, best_hash={:?})",
+            thread_id, mining_height, difficulty as f64 / DIFFICULTY_SCALE, best_hash
         );
 
         // 4. Run VQE optimization attempts
@@ -299,10 +298,11 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
         }
 
         if !found {
-            debug!(
+            warn!(
                 target: "mining",
-                "[miner-{}] No solution found for height {} after {} attempts ({:.1}ms)",
-                thread_id, mining_height, config.max_attempts, start.elapsed().as_secs_f64() * 1000.0
+                "[miner-{}] No solution found for height {} after {} attempts ({:.1}ms), difficulty={:.6}",
+                thread_id, mining_height, config.max_attempts, start.elapsed().as_secs_f64() * 1000.0,
+                difficulty_f64
             );
         }
 
