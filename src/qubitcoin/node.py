@@ -1033,9 +1033,17 @@ class QubitcoinNode:
         """Process a finalized Substrate block through the Python execution pipeline.
 
         Called by SubstrateBridge for each new finalized block.
-        Runs synchronous DB/Aether work in a thread pool to avoid blocking the event loop.
+        Uses loop.run_in_executor with a dedicated single-worker pool
+        so the main event loop stays responsive for API requests.
         """
-        await asyncio.to_thread(
+        loop = asyncio.get_running_loop()
+        if not hasattr(self, '_substrate_executor'):
+            import concurrent.futures
+            self._substrate_executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="substrate-block"
+            )
+        await loop.run_in_executor(
+            self._substrate_executor,
             self._process_substrate_block_sync,
             block_height, block_hash, header, block_data,
         )
@@ -1091,30 +1099,35 @@ class QubitcoinNode:
             current_height_metric.set(block_height)
             blocks_received.inc()
 
-            # Process block knowledge for Aether Tree
-            if self.aether:
-                try:
-                    self.aether.process_block_knowledge(block_obj)
-                except Exception as e:
-                    logger.debug(f"Aether knowledge processing: {e}")
+            # Heavy Aether processing only every 100th Substrate block
+            # (at 3.3s blocks, this is ~5.5 min between full reasoning cycles).
+            # This prevents GIL contention from starving the API event loop.
+            # All blocks are still stored in CockroachDB above.
+            if block_height % 100 == 0:
+                # Process block knowledge for Aether Tree
+                if self.aether:
+                    try:
+                        self.aether.process_block_knowledge(block_obj)
+                    except Exception as e:
+                        logger.debug(f"Aether knowledge processing: {e}")
 
-            # Higgs Cognitive Field per-block tick
-            if getattr(self, 'higgs_field', None):
-                try:
-                    self.higgs_field.tick(block_height)
-                except Exception as e:
-                    logger.debug(f"Higgs field tick: {e}")
+                # Higgs Cognitive Field tick
+                if getattr(self, 'higgs_field', None):
+                    try:
+                        self.higgs_field.tick(block_height)
+                    except Exception as e:
+                        logger.debug(f"Higgs field tick: {e}")
 
-            # QUSD Keeper per-block tick
-            if getattr(self, 'qusd_keeper', None):
-                try:
-                    self.qusd_keeper.on_block(block_height)
-                except Exception as e:
-                    logger.debug(f"QUSD keeper tick: {e}")
+                # QUSD Keeper tick
+                if getattr(self, 'qusd_keeper', None):
+                    try:
+                        self.qusd_keeper.on_block(block_height)
+                    except Exception as e:
+                        logger.debug(f"QUSD keeper tick: {e}")
 
-            # Anchor Aether state back to Substrate (every N blocks)
+            # Anchor Aether state back to Substrate (every 100 blocks)
             # Note: anchoring is async, schedule from sync thread via event loop
-            if self.substrate_bridge and block_height % 10 == 0 and self.aether:
+            if self.substrate_bridge and block_height % 100 == 0 and self.aether:
                 try:
                     phi_value = self.aether.phi
                     kg = self.aether.kg
@@ -1137,7 +1150,7 @@ class QubitcoinNode:
                     logger.debug(f"Aether anchoring: {e}")
 
             # Anchor QVM state root (every N blocks)
-            if self.substrate_bridge and block_height % 10 == 0 and self.state_manager:
+            if self.substrate_bridge and block_height % 100 == 0 and self.state_manager:
                 try:
                     state_root = self.state_manager.get_state_root()
                     loop = asyncio.get_event_loop()
@@ -1206,12 +1219,17 @@ class QubitcoinNode:
             logger.warning("AI state save error (non-fatal): %s", e)
 
     async def _update_metrics_loop(self):
-        """Periodically update Prometheus metrics from database"""
+        """Periodically update Prometheus metrics from database.
+
+        Runs the actual metrics collection in a thread pool to avoid blocking
+        the asyncio event loop with synchronous DB queries.
+        """
         logger.info("Metrics update loop started")
+        loop = asyncio.get_running_loop()
 
         while self.running:
             try:
-                await self._update_all_metrics()
+                await loop.run_in_executor(None, self._update_all_metrics_sync)
                 await asyncio.sleep(30)  # Update every 30 seconds
             except Exception as e:
                 logger.error(f"Error updating metrics: {e}", exc_info=True)
@@ -1291,8 +1309,8 @@ class QubitcoinNode:
         else:
             logger.warning("Rust P2P daemon started but gRPC not reachable within timeout — continuing anyway")
 
-    async def _update_all_metrics(self):
-        """Update all Prometheus metrics from current state"""
+    def _update_all_metrics_sync(self):
+        """Update all Prometheus metrics from current state (sync — runs in thread pool)."""
         try:
             # ============================================================
             # BLOCKCHAIN METRICS
@@ -1619,12 +1637,13 @@ class QubitcoinNode:
             if self.aikgs_client and self.aikgs_client.connected:
                 try:
                     import asyncio
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # Schedule the async call — metrics will update next cycle
-                        asyncio.ensure_future(self._update_aikgs_metrics())
-                    else:
-                        loop.run_until_complete(self._update_aikgs_metrics())
+                    try:
+                        loop = asyncio.get_running_loop()
+                        # Running in thread pool — schedule on the main event loop
+                        asyncio.run_coroutine_threadsafe(self._update_aikgs_metrics(), loop)
+                    except RuntimeError:
+                        # No running loop in this thread — skip AIKGS metrics
+                        pass
                 except Exception as e:
                     logger.debug(f"Metrics update error (AIKGS): {e}")
 
@@ -1723,14 +1742,16 @@ class QubitcoinNode:
         self.metrics_task = asyncio.create_task(self._update_metrics_loop())
         logger.info("Metrics collection started")
 
-        # Start knowledge seeder
-        if self.knowledge_seeder:
+        # Start knowledge seeder (skip in SUBSTRATE_MODE — reduces Ollama/CPU load)
+        if self.knowledge_seeder and not Config.SUBSTRATE_MODE:
             # Wire knowledge graph reference for domain-weighted prompt selection
             # and internet worker direct injection
             if hasattr(self, 'aether') and self.aether and getattr(self.aether, 'kg', None):
                 self.knowledge_seeder._kg = self.aether.kg
             self.knowledge_seeder.start()
             logger.info("Knowledge seeder started")
+        elif Config.SUBSTRATE_MODE:
+            logger.info("Knowledge seeder skipped (SUBSTRATE_MODE — Ollama reserved for blocks)")
 
         # Initialize bridges (async)
         if self.bridge_manager:
@@ -1895,11 +1916,12 @@ class QubitcoinNode:
                 "Mining thread is running but blocked until sync completes."
             )
 
-        # Snapshot check
-        local_height = self.db.get_current_height()
-        if local_height > 0 and local_height % Config.SNAPSHOT_INTERVAL == 0:
-            loop = asyncio.get_event_loop()
-            loop.run_in_executor(None, self.ipfs.create_snapshot, self.db, local_height)
+        # Snapshot check (skip in SUBSTRATE_MODE — snapshot uses Python chain heights)
+        if not Config.SUBSTRATE_MODE:
+            local_height = self.db.get_current_height()
+            if local_height > 0 and local_height % Config.SNAPSHOT_INTERVAL == 0:
+                loop = asyncio.get_event_loop()
+                loop.run_in_executor(None, self.ipfs.create_snapshot, self.db, local_height)
 
         logger.info("Node startup complete")
 

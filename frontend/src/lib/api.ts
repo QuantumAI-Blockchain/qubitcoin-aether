@@ -90,6 +90,15 @@ export interface ChainInfo {
   target_block_time: number;
   peers: number;
   mempool_size: number;
+  substrate_mode?: boolean;
+  finalized_height?: number;
+  substrate?: {
+    version: string;
+    best_number: number;
+    best_height: number;
+    finalized_height: number;
+    syncing: boolean;
+  };
 }
 
 export interface MiningStats {

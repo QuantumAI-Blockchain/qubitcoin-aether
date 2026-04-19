@@ -496,22 +496,24 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/chain/info")
     async def chain_info():
         """Get blockchain information"""
-        try:
-            emission_stats = consensus_engine.get_emission_stats(db_manager)
-        except Exception as e:
-            logger.debug(f"Could not get emission stats for chain_info: {e}")
-            height = db_manager.get_current_height()
-            supply = db_manager.get_total_supply()
-            emission_stats = {
-                'current_height': height,
-                'total_supply': float(supply),
-                'supply_cap': float(Config.MAX_SUPPLY),
-                'current_reward': 50.0,
-                'current_era': 0,
-                'percent_emitted': float(supply / Config.MAX_SUPPLY * 100) if Config.MAX_SUPPLY > 0 else 0,
-                'blocks_until_halving': Config.HALVING_INTERVAL,
-                'hours_until_halving': (Config.HALVING_INTERVAL * Config.TARGET_BLOCK_TIME) / 3600
-            }
+        def _get_emission_stats():
+            try:
+                return consensus_engine.get_emission_stats(db_manager)
+            except Exception:
+                height = db_manager.get_current_height()
+                supply = db_manager.get_total_supply()
+                return {
+                    'current_height': height,
+                    'total_supply': float(supply),
+                    'supply_cap': float(Config.MAX_SUPPLY),
+                    'current_reward': 50.0,
+                    'current_era': 0,
+                    'percent_emitted': float(supply / Config.MAX_SUPPLY * 100) if Config.MAX_SUPPLY > 0 else 0,
+                    'blocks_until_halving': Config.HALVING_INTERVAL,
+                    'hours_until_halving': (Config.HALVING_INTERVAL * Config.TARGET_BLOCK_TIME) / 3600
+                }
+
+        emission_stats = await asyncio.to_thread(_get_emission_stats)
 
         # Peer count (cached to avoid blocking gRPC calls on every request)
         peers = 0
@@ -521,7 +523,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             if hasattr(node, 'substrate_bridge') and node.substrate_bridge and node.substrate_bridge.is_connected:
                 try:
                     substrate_info = await node.substrate_bridge.get_chain_info()
-                    peers = substrate_info.get("health", {}).get("peers", 0)
+                    # Substrate peers + 1 for this Python node (connected via WS)
+                    peers = substrate_info.get("health", {}).get("peers", 0) + 1
                 except Exception as e:
                     logger.warning(f"substrate_bridge.get_chain_info() failed: {e}")
                     substrate_info = None
@@ -533,10 +536,9 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             elif hasattr(node, 'p2p') and node.p2p:
                 peers = len(node.p2p.connections)
 
-        # Mempool size
+        # Mempool size (run in thread to avoid blocking event loop)
         try:
-            pending = db_manager.get_pending_transactions()
-            mempool_size = len(pending)
+            mempool_size = await asyncio.to_thread(lambda: len(db_manager.get_pending_transactions()))
         except Exception:
             mempool_size = 0
 
@@ -569,14 +571,18 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             "substrate_mode": Config.SUBSTRATE_MODE,
         }
         if substrate_info:
+            sub_finalized = substrate_info.get("finalized_height", 0)
+            fork_offset = substrate_info.get("fork_offset", 208680)
             result["substrate"] = {
                 "version": substrate_info.get("version", "unknown"),
                 "best_number": substrate_info.get("best_number", 0),
                 "best_height": substrate_info.get("best_height", 0),
-                "finalized_height": substrate_info.get("finalized_height", 0),
+                "finalized_height": fork_offset + sub_finalized if sub_finalized > 0 else 0,
                 "syncing": substrate_info.get("health", {}).get("isSyncing", False),
             }
-        if finality_gadget:
+            # In SUBSTRATE_MODE, use Substrate finalization (GRANDPA)
+            result["finalized_height"] = fork_offset + sub_finalized if sub_finalized > 0 else 0
+        elif finality_gadget:
             result["finalized_height"] = finality_gadget.get_last_finalized()
         return result
 
@@ -1827,15 +1833,16 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         phi._last_computed_block = 0
         # Get current block height
         height = await asyncio.to_thread(db_manager.get_current_height)
-        # Set subsystem stats if possible
-        if hasattr(aether_engine, '_collect_subsystem_stats'):
-            try:
-                stats = aether_engine._collect_subsystem_stats()
-                phi.set_subsystem_stats(stats)
-            except Exception:
-                pass
-        # Compute fresh
-        result = await asyncio.to_thread(phi.compute_phi, height)
+        # Set subsystem stats if possible (runs in thread to avoid blocking event loop)
+        def _recalc_sync():
+            if hasattr(aether_engine, '_collect_subsystem_stats'):
+                try:
+                    stats = aether_engine._collect_subsystem_stats()
+                    phi.set_subsystem_stats(stats)
+                except Exception:
+                    pass
+            return phi.compute_phi(height)
+        result = await asyncio.to_thread(_recalc_sync)
         return result
 
     @app.get("/aether/phi/history")

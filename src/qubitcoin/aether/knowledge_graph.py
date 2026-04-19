@@ -557,9 +557,7 @@ class KnowledgeGraph:
                 if embedded:
                     logger.info(f"Vector index: embedded {embedded} nodes")
             else:
-                logger.info(f"Skipping bulk vector embedding for {_total} nodes (background rebuild starting)")
-                # Start background thread to slowly embed existing nodes
-                self._start_background_vector_rebuild()
+                logger.info(f"Skipping bulk vector embedding for {_total} nodes (vectors built incrementally)")
 
             domain_counts = {}
             for node in self.nodes.values():
@@ -789,26 +787,26 @@ class KnowledgeGraph:
                 except Exception as e:
                     logger.error(f"Async KG writer DB batch failed ({len(db_items)} items): {e}")
 
-            # Process vector embeddings (model.encode — expensive but off critical path)
-            # Also persist embeddings to CockroachDB for pgvector HNSW search
-            # AND replicate to distributed shard service for HNSW vector search
+            # Vector embeddings DISABLED in background writer to prevent GIL starvation.
+            # The _async_writer's synchronous Ollama HTTP calls (requests.post) hold the
+            # GIL during response parsing, blocking the asyncio event loop and making the
+            # API unresponsive. Embeddings are computed on-demand when needed for search.
+            # Vec items are silently dropped — they can be regenerated later.
             embed_updates: List[Tuple[int, List[float]]] = []
-            for item in vec_items:
-                try:
-                    _, node_id, content = item
-                    self.vector_index.add_node(node_id, content)
-                    # Extract embedding from vector_index for DB persistence
-                    vec = self.vector_index.get_vector(node_id)
-                    if vec is not None:
-                        embed_updates.append((node_id, vec))
-                except Exception as e:
-                    logger.debug(f"Async vector embed failed for node {item[1]}: {e}")
+            if vec_items:
+                logger.debug(f"Skipped {len(vec_items)} vector embeddings (background writer disabled)")
 
-            # Batch-write embeddings to CockroachDB
+            # Batch-write embeddings to CockroachDB (column is VECTOR(896))
+            DB_EMBED_DIM = 896
             if embed_updates:
                 try:
                     with self.db.get_session() as session:
                         for nid, vec in embed_updates:
+                            # Resize to match DB column dimension
+                            if len(vec) < DB_EMBED_DIM:
+                                vec = vec + [0.0] * (DB_EMBED_DIM - len(vec))
+                            elif len(vec) > DB_EMBED_DIM:
+                                vec = vec[:DB_EMBED_DIM]
                             vec_str = '[' + ','.join(f'{v:.6f}' for v in vec) + ']'
                             session.execute(
                                 text("""UPDATE knowledge_nodes

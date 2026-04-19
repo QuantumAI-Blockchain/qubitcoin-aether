@@ -790,11 +790,12 @@ class AetherEngine:
         self._blocks_processed += 1
 
         try:
-            # Use cached Phi result, but force full recomputation every 10 blocks
+            # Use cached Phi result, but force full recomputation every 100 blocks
             # so gates, subsystem stats, and on-chain recording stay current.
+            # (At 3.3s block time, every 100 blocks = ~5.5 minutes)
             block_phi_result = None
             if self.phi:
-                if block.height % 10 == 0:
+                if block.height % 100 == 0:
                     try:
                         self.phi.set_subsystem_stats(self._collect_subsystem_stats())
                         block_phi_result = self.phi.compute_phi(block.height)

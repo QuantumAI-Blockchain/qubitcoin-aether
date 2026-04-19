@@ -28,6 +28,7 @@ export function StatsBar() {
 
   const items = [
     { label: t("blockHeight"), value: chain?.height?.toLocaleString() ?? "---" },
+    { label: t("peers"), value: chain?.peers != null ? `${chain.peers} Nodes` : "---" },
     { label: t("phi"), value: phi?.phi?.toFixed(4) ?? "---" },
     {
       label: t("knowledgeNodes"),
@@ -41,7 +42,7 @@ export function StatsBar() {
   ];
 
   return (
-    <div className="mx-auto grid max-w-5xl grid-cols-2 gap-4 sm:grid-cols-5">
+    <div className="mx-auto grid max-w-5xl grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       {items.map(({ label, value }) => (
         <div
           key={label}

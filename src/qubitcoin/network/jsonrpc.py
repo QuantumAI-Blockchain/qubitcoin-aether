@@ -2,6 +2,7 @@
 JSON-RPC Adapter for Qubitcoin
 Provides eth_* compatible endpoints for Web3 tools (MetaMask, Hardhat, Ethers.js)
 """
+import asyncio
 import json
 import hashlib
 import time
@@ -313,25 +314,31 @@ class JsonRpcHandler:
         block_id = params[0] if params else 'latest'
         include_txs = params[1] if len(params) > 1 else False
 
-        if block_id == 'latest':
-            height = self.db.get_current_height()
-        elif block_id == 'pending':
-            height = self.db.get_current_height() + 1
-        elif block_id == 'earliest':
-            height = 0
-        else:
-            height = parse_hex_int(block_id)
+        def _get_block():
+            if block_id == 'latest':
+                height = self.db.get_current_height()
+            elif block_id == 'pending':
+                height = self.db.get_current_height() + 1
+            elif block_id == 'earliest':
+                height = 0
+            else:
+                height = parse_hex_int(block_id)
+            block = self.db.get_block_light(height)
+            return _block_to_rpc(block, include_txs)
 
-        block = self.db.get_block_light(height)
-        return _block_to_rpc(block, include_txs)
+        return await asyncio.to_thread(_get_block)
 
     async def eth_getBlockByHash(self, params):
         if params:
             validate_hex(params[0], "blockHash", max_len=66)
         block_hash = params[0].replace('0x', '') if params else ''
         include_txs = params[1] if len(params) > 1 else False
-        block = self.db.get_block_by_hash(block_hash)
-        return _block_to_rpc(block, include_txs)
+
+        def _get_block():
+            block = self.db.get_block_by_hash(block_hash)
+            return _block_to_rpc(block, include_txs)
+
+        return await asyncio.to_thread(_get_block)
 
     # ========================================================================
     # ACCOUNT METHODS
@@ -341,20 +348,25 @@ class JsonRpcHandler:
             raise ValueError("eth_getBalance requires an address parameter")
         validate_hex(params[0], "address", max_len=42)
         address = params[0].replace('0x', '').lower() if params else ''
-        # Sum both account balance (QVM/MetaMask) and UTXO balance
-        account_bal = self.db.get_account_balance(address)
-        utxo_bal = self.db.get_balance(address)
-        balance = account_bal + utxo_bal
-        return hex_balance(balance)
+
+        def _get_balance():
+            account_bal = self.db.get_account_balance(address)
+            utxo_bal = self.db.get_balance(address)
+            return hex_balance(account_bal + utxo_bal)
+
+        return await asyncio.to_thread(_get_balance)
 
     async def eth_getTransactionCount(self, params):
         if not params:
             raise ValueError("eth_getTransactionCount requires an address parameter")
         validate_hex(params[0], "address", max_len=42)
         address = params[0].replace('0x', '').lower() if params else ''
-        account = self.db.get_account(address)
-        nonce = account.nonce if account else 0
-        return hex_int(nonce)
+
+        def _get_nonce():
+            account = self.db.get_account(address)
+            return hex_int(account.nonce if account else 0)
+
+        return await asyncio.to_thread(_get_nonce)
 
     async def eth_getCode(self, params):
         if not params:

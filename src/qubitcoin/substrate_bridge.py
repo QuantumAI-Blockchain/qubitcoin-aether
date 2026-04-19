@@ -57,6 +57,8 @@ class SubstrateBridge:
         self._max_reconnect_delay: float = 30.0
         self._block_callback: Optional[Callable[..., Coroutine[Any, Any, None]]] = None
         self._last_finalized_height: int = -1
+        self._cached_chain_info: dict = {}
+        self._chain_info_updated: float = 0
         self._last_block_time: float = 0.0
         self._rpc_id: int = 0
         # Optional: substrate-interface for extrinsic encoding
@@ -214,7 +216,9 @@ class SubstrateBridge:
                 if msg.get("method") in ("chain_newHead", "chain_finalizedHead"):
                     header = msg.get("params", {}).get("result", {})
                     if header:
-                        await self._process_header(header)
+                        # Fire-and-forget: don't block the listener loop
+                        # so the event loop stays responsive for API requests
+                        asyncio.create_task(self._process_header(header))
             except asyncio.TimeoutError:
                 # No message in 30s — send a health check
                 try:
@@ -239,6 +243,10 @@ class SubstrateBridge:
 
             self._last_finalized_height = block_height
             self._last_block_time = time.time()
+
+            # Update cached chain info for fast API responses
+            block_hash_from_header = header.get("parentHash", "")  # Will be updated below
+            self._update_cache_from_header(block_height, block_hash_from_header)
 
             # Fetch parent hash for reference
             parent_hash = header.get("parentHash", "0x" + "0" * 64)
@@ -281,7 +289,17 @@ class SubstrateBridge:
             return None
 
     async def get_chain_info(self) -> dict:
-        """Get current chain information from Substrate node."""
+        """Get current chain information from Substrate node.
+
+        Returns cached info if available and fresh (< 10s old).
+        Falls back to live RPC calls if cache is stale.
+        """
+        import time
+
+        # Return cache if fresh (< 10 seconds old)
+        if self._cached_chain_info and (time.time() - self._chain_info_updated) < 10:
+            return self._cached_chain_info
+
         try:
             if not self._ws:
                 await self.connect()
@@ -306,7 +324,7 @@ class SubstrateBridge:
             # Fork offset: Substrate block 0 = Python block 208,680
             fork_offset = 208680
 
-            return {
+            info = {
                 "chain": chain,
                 "version": version,
                 "health": health,
@@ -317,8 +335,14 @@ class SubstrateBridge:
                 "fork_offset": fork_offset,
                 "substrate_node": True,
             }
+            self._cached_chain_info = info
+            self._chain_info_updated = time.time()
+            return info
         except Exception as e:
             logger.error(f"Failed to get chain info: {e}")
+            # Return stale cache if available
+            if self._cached_chain_info:
+                return self._cached_chain_info
             return {
                 "chain": "Qubitcoin",
                 "version": "unknown",
@@ -328,6 +352,15 @@ class SubstrateBridge:
                 "substrate_node": True,
                 "error": str(e),
             }
+
+    def _update_cache_from_header(self, block_height: int, block_hash: str) -> None:
+        """Update cached chain info from a received block header (non-async)."""
+        import time
+        fork_offset = 208680
+        if self._cached_chain_info:
+            self._cached_chain_info["best_number"] = block_height
+            self._cached_chain_info["best_height"] = fork_offset + block_height
+            self._chain_info_updated = time.time()
 
     # ──────────────────────────────────────────────────────────────────────
     # Extrinsic submission
