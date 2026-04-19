@@ -71,7 +71,7 @@ class AetherEngine:
         # Refreshed every _DB_GATE_STATS_TTL blocks instead of every block.
         self._db_gate_stats_cache: Optional[Dict[str, float]] = None
         self._db_gate_stats_block: int = 0
-        self._DB_GATE_STATS_TTL: int = 100  # ~5.5 minutes at 3.3s blocks
+        self._DB_GATE_STATS_TTL: int = 500  # ~27.5 minutes at 3.3s blocks
 
         # PoT deduplication: track seen thought hashes to reject duplicates
         self._pot_hashes_seen: set = set()
@@ -991,11 +991,6 @@ class AetherEngine:
             if block.height > 0 and block.height % Config.AETHER_KG_BOOST_INTERVAL == 0 and self.kg:
                 self.kg.boost_referenced_nodes()
 
-            # Self-reflection via LLM periodically
-            if (block.height > 0 and block.height % Config.AETHER_SELF_REFLECT_INTERVAL == 0
-                    and self.llm_manager):
-                self.self_reflect(block.height)
-
             # Find analogies during REM-like phases
             if block.height > 0 and block.height % Config.AETHER_DREAM_ANALOGIES_INTERVAL == 0 and self.reasoning and self.kg:
                 self._dream_analogies(block.height)
@@ -1400,8 +1395,13 @@ class AetherEngine:
                         # Do NOT wait for the background thread — it runs independently
                         _ex.shutdown(wait=False)
 
-                    if transfer_result.get('transfers_attempted', 0) > 0:
+                    transfers = transfer_result.get('transfers_attempted', 0)
+                    if transfers > 0:
                         self._reward_sephirah('concept_formation', True, 0.08)
+                        logger.info(
+                            "Concept formation at block %d: %d transfers attempted",
+                            block.height, transfers,
+                        )
                     else:
                         self._reward_sephirah('concept_formation', True, 0.05)
                     self._mark_subsystem_ok('concept_formation')
@@ -1550,6 +1550,21 @@ class AetherEngine:
                     logger.debug("Curiosity skipped (LRU race): %s", e)
                 except Exception as e:
                     logger.warning("Curiosity exploration error at block %d: %s", block.height, e)
+
+            # Self-reflection via LLM periodically — runs AFTER critical AI subsystems
+            # to avoid blocking causal/curiosity/concept formation with slow LLM calls.
+            # Wrapped in a background thread with timeout to prevent pipeline stalls.
+            if (block.height > 0 and block.height % Config.AETHER_SELF_REFLECT_INTERVAL == 0
+                    and self.llm_manager):
+                try:
+                    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+                    with ThreadPoolExecutor(max_workers=1) as pool:
+                        future = pool.submit(self.self_reflect, block.height)
+                        future.result(timeout=15)  # 15s max — don't block pipeline
+                except FuturesTimeout:
+                    logger.debug("Self-reflection timed out at block %d (15s limit)", block.height)
+                except Exception as e:
+                    logger.debug("Self-reflection error at block %d: %s", block.height, e)
 
             # FEP: compute total free energy every block to build history for gate 6
             if self.curiosity_engine and hasattr(self.curiosity_engine, 'compute_total_free_energy'):
@@ -3890,6 +3905,8 @@ class AetherEngine:
                 from sqlalchemy import text as sa_text
                 _cached: Dict[str, float] = {}
                 with self.db.get_session() as _sess:
+                    # Set generous timeout — these are expensive full-table scans
+                    _sess.execute(sa_text("SET statement_timeout = '30s'"))
                     _q = _sess.execute(sa_text("""
                         SELECT
                           SUM(CASE WHEN content::text LIKE '%%prediction_confirmed%%' THEN 1 ELSE 0 END),
@@ -3933,11 +3950,16 @@ class AetherEngine:
                         _cached['db_node_type_counts'] = {
                             r[0]: int(r[1]) for r in _ntq
                         }
+                    # Reset timeout
+                    try:
+                        _sess.execute(sa_text("SET statement_timeout = '0'"))
+                    except Exception:
+                        _sess.rollback()
                 self._db_gate_stats_cache = _cached
                 self._db_gate_stats_block = current_block
                 logger.debug("DB gate stats cache refreshed at block %d", current_block)
             except Exception as e:
-                logger.debug("DB gate count query failed: %s", e)
+                logger.warning("DB gate count fallback failed: %s", e)
         # Apply cached DB gate stats to current stats
         if self._db_gate_stats_cache:
             stats.update(self._db_gate_stats_cache)

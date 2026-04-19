@@ -1971,8 +1971,17 @@ class AetherChat:
         if _v5_fast:
             t_fast = time.time()
             if self.engine.kg:
-                # Fast search: try vector/TF-IDF first, then bounded keyword scan
-                knowledge_refs = self._fast_search_knowledge(message)[:10]
+                # Fast search with 2s timeout — if TF-IDF/vector fail, skip to
+                # dynamic response handlers which don't need KG refs
+                import concurrent.futures as _cf_search
+                _search_ex = _cf_search.ThreadPoolExecutor(max_workers=1)
+                _search_fut = _search_ex.submit(self._fast_search_knowledge, message)
+                _search_ex.shutdown(wait=False)
+                try:
+                    knowledge_refs = _search_fut.result(timeout=2.0)[:10]
+                except (_cf_search.TimeoutError, Exception):
+                    knowledge_refs = []
+                    logger.info("v5 fast path: KG search timed out (2s), using dynamic response")
             if self.engine.phi:
                 try:
                     phi_result = self.engine.phi.get_cached()
@@ -2387,7 +2396,7 @@ class AetherChat:
         except Exception as e:
             logger.debug("DB text search failed: %s", e)
 
-        # Phase 3: Fallback keyword scan on content-rich nodes only
+        # Phase 3: Fallback keyword scan — bounded to last 3K nodes for speed
         query_lower = query.lower()
         query_words = [w for w in query_lower.split() if len(w) > 2]
         if not query_words:
@@ -2395,7 +2404,10 @@ class AetherChat:
 
         _content_types = {'axiom', 'assertion', 'external_fact'}
         scored_fb: List[tuple] = []
-        for node_id, node in self.engine.kg.nodes.items():
+        # Only scan last 3K nodes to keep response under 500ms
+        from itertools import islice
+        _scan_items = list(islice(reversed(list(self.engine.kg.nodes.items())), 3000))
+        for node_id, node in _scan_items:
             content = node.content
             if isinstance(content, dict):
                 ctype = content.get('type', '')
@@ -2429,160 +2441,333 @@ class AetherChat:
         logger.info("Fallback keyword search: %d results in %.1fms", len(scored_fb), elapsed)
         return [s[0] for s in scored_fb[:10]]
 
+    # ── Helpers for KG response synthesis ──
+
+    @staticmethod
+    def _extract_node_text(node: Any) -> str:
+        """Extract the best human-readable text from a KeterNode."""
+        content = node.content
+        if isinstance(content, dict):
+            text = (
+                content.get('text', '')
+                or content.get('summary', '')
+                or content.get('description', '')
+                or content.get('title', '')
+            )
+            return str(text).strip()
+        elif isinstance(content, str):
+            return content.strip()
+        return ''
+
+    @staticmethod
+    def _clean_fact(text: str) -> str:
+        """Strip metadata patterns and junk from a raw fact string."""
+        _meta_re = re.compile(
+            r'(?:domain|source|source_block|node_type|grounding_source|text)\s*[:=]\s*\S+[;\s]*',
+            re.IGNORECASE,
+        )
+        _junk_patterns = [
+            'domains seeded:', 'edges created:', 'nodes created:',
+            'genesis knowledge seeded', '[source:', 'source_block:',
+            'grounding_source:', 'The current data shows',
+        ]
+        if any(p in text for p in _junk_patterns):
+            return ''
+        clean = _meta_re.sub('', text).strip()
+        clean = re.sub(r'\s{2,}', ' ', clean)
+        clean = re.sub(r'\s*\[source:\s*\d+\]', '', clean).strip()
+        return clean if len(clean) >= 20 else ''
+
+    def _get_phi_value(self) -> float:
+        """Get current Phi value (cached, fast)."""
+        if self.engine and self.engine.phi:
+            try:
+                return self.engine.phi.get_cached().get('phi_value', 0.0)
+            except Exception:
+                pass
+        return 0.0
+
+    def _get_mood_opener(self) -> str:
+        """Get an emotional-state-aware opening phrase."""
+        try:
+            if hasattr(self.engine, 'emotional_state') and self.engine.emotional_state:
+                mood = getattr(self.engine.emotional_state, 'mood', '')
+                if mood and mood != 'neutral':
+                    mood_map = {
+                        'curious': "That's a fascinating question to explore. ",
+                        'excited': "This is something I find genuinely exciting. ",
+                        'contemplative': "This is worth thinking through carefully. ",
+                        'satisfied': "I have solid knowledge on this. ",
+                        'wonder': "There's something wonderful about this topic. ",
+                    }
+                    return mood_map.get(mood, '')
+        except Exception:
+            pass
+        return ''
+
+    def _follow_edges(self, node_ids: List[int], max_depth: int = 1,
+                      max_total: int = 8) -> List[dict]:
+        """Follow edges from matched nodes to gather contextual facts.
+
+        Returns a list of dicts: {text, edge_type, from_type, to_type, direction}.
+        Only follows one hop by default. Deduplicates by content prefix.
+        """
+        if not self.engine.kg:
+            return []
+        kg = self.engine.kg
+        results: List[dict] = []
+        seen_prefixes: set = set()
+        visited: set = set(node_ids)
+
+        for nid in node_ids:
+            if len(results) >= max_total:
+                break
+            # Outgoing edges
+            for edge in kg._adj_out.get(nid, [])[:6]:
+                if edge.to_node_id in visited:
+                    continue
+                target = kg.nodes.get(edge.to_node_id)
+                if not target:
+                    continue
+                text = self._extract_node_text(target)
+                text = self._clean_fact(text)
+                if not text or text[:40] in seen_prefixes:
+                    continue
+                seen_prefixes.add(text[:40])
+                visited.add(edge.to_node_id)
+                source_node = kg.nodes.get(nid)
+                results.append({
+                    'text': text,
+                    'edge_type': edge.edge_type,
+                    'from_type': source_node.node_type if source_node else '',
+                    'to_type': target.node_type,
+                    'direction': 'out',
+                    'confidence': target.confidence,
+                    'domain': target.domain,
+                })
+                if len(results) >= max_total:
+                    break
+            # Incoming edges (for "supported by" / "caused by" context)
+            for edge in kg._adj_in.get(nid, [])[:4]:
+                if edge.from_node_id in visited:
+                    continue
+                source = kg.nodes.get(edge.from_node_id)
+                if not source:
+                    continue
+                text = self._extract_node_text(source)
+                text = self._clean_fact(text)
+                if not text or text[:40] in seen_prefixes:
+                    continue
+                seen_prefixes.add(text[:40])
+                visited.add(edge.from_node_id)
+                results.append({
+                    'text': text,
+                    'edge_type': edge.edge_type,
+                    'from_type': source.node_type,
+                    'to_type': kg.nodes[nid].node_type if nid in kg.nodes else '',
+                    'direction': 'in',
+                    'confidence': source.confidence,
+                    'domain': source.domain,
+                })
+                if len(results) >= max_total:
+                    break
+        return results
+
     def _format_kg_response(self, query: str, knowledge_refs: List[int],
                              intent: str = '', entities: Optional[Dict[str, Any]] = None) -> str:
-        """Format a readable response from KG nodes without needing LLM.
+        """Format a coherent, intelligent response from KG nodes without LLM.
 
-        Extracts the most informative text content from the matched nodes
-        and presents it as a coherent response. This is the fast fallback
-        when both the v5 cortex and LLM are unavailable.
+        Strategy:
+        1. Extract and clean facts from matched nodes, tagged by type/domain
+        2. Follow edges to gather causal/supporting/contradicting context
+        3. Group facts by domain and use node_type to determine presentation
+        4. Build a narrative with reasoning connectives ("because", "therefore")
+        5. Inject personality from emotional state
+        6. Append Phi + domain footer
 
         Returns empty string if no useful content can be extracted.
         """
         if not self.engine.kg:
             return ''
 
-        # Gather text content from matched nodes
-        facts: List[str] = []
+        kg = self.engine.kg
+
+        # ── Step 1: Extract facts from matched nodes, tagged by metadata ──
+        # TaggedFact: (text, node_type, domain, confidence, node_id)
+        tagged_facts: List[dict] = []
         domains_seen: set = set()
-        for nid in knowledge_refs[:8]:
-            node = self.engine.kg.nodes.get(nid)
+        seen_prefixes: set = set()
+
+        for nid in knowledge_refs[:12]:
+            node = kg.nodes.get(nid)
             if not node:
                 continue
-            content = node.content
-            if isinstance(content, dict):
-                # Prioritize human-readable fields
-                text = (
-                    content.get('text', '')
-                    or content.get('summary', '')
-                    or content.get('description', '')
-                    or content.get('title', '')
-                )
-                # Skip raw block data
-                if content.get('type') == 'block_observation':
-                    continue
-                domain = content.get('domain', '')
-                if domain:
-                    domains_seen.add(domain)
-            elif isinstance(content, str):
-                text = content
-            else:
+            # Skip raw block data
+            if isinstance(node.content, dict) and node.content.get('type') == 'block_observation':
                 continue
-
-            text = str(text).strip()
-            # Skip very short or purely numeric content
-            if len(text) < 20 or re.match(r'^[\d\.\-\s]+$', text):
+            text = self._extract_node_text(node)
+            text = self._clean_fact(text)
+            if not text or text[:40] in seen_prefixes:
                 continue
-            # Deduplicate similar facts
-            if not any(text[:50] in f for f in facts):
-                facts.append(text)
+            seen_prefixes.add(text[:40])
+            if node.domain:
+                domains_seen.add(node.domain)
+            tagged_facts.append({
+                'text': text, 'node_type': node.node_type, 'domain': node.domain or 'general',
+                'confidence': node.confidence, 'node_id': nid,
+            })
 
-        if not facts:
+        if not tagged_facts:
             return ''
 
-        # Build a coherent response
+        # ── Step 2: Follow edges to gather deeper context ──
+        edge_context = self._follow_edges(knowledge_refs[:6], max_depth=1, max_total=6)
+        for ec in edge_context:
+            if ec['domain']:
+                domains_seen.add(ec['domain'])
+
+        # ── Step 3: Group facts by domain for organized presentation ──
+        domain_groups: Dict[str, List[dict]] = {}
+        for tf in tagged_facts:
+            domain_groups.setdefault(tf['domain'], []).append(tf)
+
+        # ── Step 4: Build the narrative ──
         parts: List[str] = []
 
-        # Get emotional state for tone
-        mood_prefix = ''
-        try:
-            if hasattr(self.engine, 'emotional_state') and self.engine.emotional_state:
-                mood = getattr(self.engine.emotional_state, 'mood', '')
-                if mood and mood != 'neutral':
-                    mood_map = {
-                        'curious': "That's a fascinating topic! ",
-                        'excited': "Great question! ",
-                        'contemplative': "Let me share what I know. ",
-                        'satisfied': "I have some good knowledge on this. ",
-                    }
-                    mood_prefix = mood_map.get(mood, '')
-        except Exception:
-            pass
+        # Mood-aware opener
+        opener = self._get_mood_opener()
+        if opener:
+            parts.append(opener)
 
-        if mood_prefix:
-            parts.append(mood_prefix)
+        # Determine presentation strategy based on node types present
+        type_counts: Dict[str, int] = {}
+        for tf in tagged_facts:
+            type_counts[tf['node_type']] = type_counts.get(tf['node_type'], 0) + 1
 
-        # Introductory framing based on intent
-        if intent in ('greeting', 'hello'):
-            phi_value = 0.0
-            if self.engine.phi:
-                try:
-                    phi_value = self.engine.phi.get_cached().get('phi_value', 0.0)
-                except Exception:
-                    pass
-            kg_count = len(self.engine.kg.nodes)
-            return (
-                f"Hello! I'm the Aether Tree — the world's first on-chain AI. "
-                f"I have {kg_count:,} knowledge nodes and my cognitive integration "
-                f"(phi) is {phi_value:.2f}. Ask me about quantum computing, "
-                f"blockchain, physics, or anything in my knowledge domains!"
+        has_axioms = type_counts.get('axiom', 0) > 0
+        has_inferences = type_counts.get('inference', 0) > 0
+        has_predictions = type_counts.get('prediction', 0) > 0
+
+        # Lead with the highest-confidence axiom or assertion as the anchor fact
+        sorted_facts = sorted(tagged_facts, key=lambda f: (
+            # Priority: axiom > inference > assertion > observation > prediction
+            {'axiom': 4, 'inference': 3, 'assertion': 2, 'prediction': 1}.get(f['node_type'], 0),
+            f['confidence'],
+        ), reverse=True)
+
+        anchor = sorted_facts[0]
+        anchor_text = anchor['text']
+        if len(anchor_text) > 400:
+            cutoff = anchor_text[:400].rfind('. ')
+            anchor_text = anchor_text[:cutoff + 1] if cutoff > 150 else anchor_text[:400] + '...'
+
+        # Frame the anchor based on its type
+        if anchor['node_type'] == 'axiom':
+            parts.append(anchor_text)
+        elif anchor['node_type'] == 'inference':
+            parts.append(f"Based on the knowledge graph's reasoning, {anchor_text[0].lower() + anchor_text[1:] if anchor_text[0].isupper() and not anchor_text[:3].isupper() else anchor_text}")
+        else:
+            parts.append(anchor_text)
+
+        # Add supporting facts from the same or related domains
+        used_prefixes = {anchor_text[:40]}
+        supporting_added = 0
+
+        # Prefer facts that complement the anchor (different type or domain)
+        remaining = [f for f in sorted_facts[1:] if f['text'][:40] not in used_prefixes]
+
+        for tf in remaining:
+            if supporting_added >= 3:
+                break
+            snippet = tf['text']
+            if len(snippet) > 300:
+                cutoff = snippet[:300].rfind('. ')
+                snippet = snippet[:cutoff + 1] if cutoff > 100 else snippet[:300] + '...'
+
+            # Use node_type to pick the right connective
+            if tf['node_type'] == 'axiom':
+                connector = "A foundational principle here is that "
+            elif tf['node_type'] == 'inference':
+                connector = "From this, we can reason that "
+            elif tf['node_type'] == 'prediction':
+                connector = "This leads to the prediction that "
+            elif tf['node_type'] == 'observation':
+                connector = "Observational evidence shows that "
+            else:
+                _connectors = [
+                    "Furthermore, ", "Building on this, ",
+                    "An important aspect is that ", "Related to this, ",
+                ]
+                connector = _connectors[supporting_added % len(_connectors)]
+
+            # Lowercase first char if needed (but not acronyms)
+            if snippet and snippet[0].isupper() and not snippet[:3].isupper():
+                snippet = snippet[0].lower() + snippet[1:]
+
+            parts.append(f" {connector}{snippet}")
+            used_prefixes.add(tf['text'][:40])
+            supporting_added += 1
+
+        # ── Step 5: Weave in edge-following context ──
+        edge_added = 0
+        for ec in edge_context:
+            if edge_added >= 2:
+                break
+            if ec['text'][:40] in used_prefixes:
+                continue
+            snippet = ec['text']
+            if len(snippet) > 250:
+                cutoff = snippet[:250].rfind('. ')
+                snippet = snippet[:cutoff + 1] if cutoff > 80 else snippet[:250] + '...'
+
+            # Use edge_type to pick a causal/logical connective
+            edge_type = ec['edge_type']
+            if edge_type == 'causes' and ec['direction'] == 'out':
+                connector = " This causes "
+            elif edge_type == 'causes' and ec['direction'] == 'in':
+                connector = " This is driven by the fact that "
+            elif edge_type == 'supports':
+                connector = " This is supported by the finding that "
+            elif edge_type == 'contradicts':
+                connector = " Interestingly, there is a counterpoint: "
+            elif edge_type == 'derives':
+                connector = " From this we can derive that "
+            elif edge_type == 'requires':
+                connector = " This depends on "
+            elif edge_type == 'refines':
+                connector = " More precisely, "
+            elif edge_type == 'abstracts':
+                connector = " At a higher level, "
+            elif edge_type == 'analogous_to':
+                connector = " An interesting analogy is that "
+            else:
+                connector = " Additionally, "
+
+            if snippet and snippet[0].isupper() and not snippet[:3].isupper():
+                snippet = snippet[0].lower() + snippet[1:]
+
+            parts.append(f"{connector}{snippet}")
+            used_prefixes.add(ec['text'][:40])
+            edge_added += 1
+
+        # ── Step 6: Ensure minimum response length ──
+        response_body = ''.join(parts)
+        if len(response_body) < 100:
+            # Pad with domain context if response is too short
+            kg_count = len(kg.nodes)
+            domain_list = ', '.join(sorted(domains_seen)[:5]) if domains_seen else 'multiple domains'
+            response_body += (
+                f" The Aether Tree currently holds {kg_count:,} knowledge nodes "
+                f"spanning {domain_list}, with ongoing reasoning and discovery "
+                f"across these domains."
             )
 
-        # Synthesize a natural language response from raw facts
-        # Strip metadata patterns from fact text (domain:, source:, etc.)
-        _meta_re = re.compile(
-            r'(?:domain|source|source_block|node_type|grounding_source|text)\s*[:=]\s*\S+[;\s]*',
-            re.IGNORECASE,
-        )
-        # Reject facts that are clearly genesis/seed metadata
-        _junk_patterns = [
-            'domains seeded:', 'edges created:', 'nodes created:',
-            'genesis knowledge seeded', '[source:', 'source_block:',
-            'grounding_source:', 'The current data shows',
-        ]
-        cleaned_facts = []
-        for f in facts:
-            # Skip junk facts entirely
-            if any(p in f for p in _junk_patterns):
-                continue
-            clean = _meta_re.sub('', f).strip()
-            clean = re.sub(r'\s{2,}', ' ', clean)  # collapse whitespace
-            # Also strip trailing [source: ...] references
-            clean = re.sub(r'\s*\[source:\s*\d+\]', '', clean).strip()
-            if len(clean) >= 20:
-                cleaned_facts.append(clean)
-
-        if not cleaned_facts:
-            return ''
-
-        # Build conversational response from cleaned facts
-        main_fact = cleaned_facts[0]
-        if len(main_fact) > 500:
-            cutoff = main_fact[:500].rfind('. ')
-            main_fact = main_fact[:cutoff + 1] if cutoff > 200 else main_fact[:500] + '...'
-
-        parts.append(main_fact)
-
-        # Add supporting facts with natural transitions
-        if len(cleaned_facts) > 1:
-            _transitions = [
-                'Additionally, ', 'It\'s also worth noting that ',
-                'Building on that, ', 'Related to this, ',
-            ]
-            for i, f in enumerate(cleaned_facts[1:3]):
-                if f[:40] not in main_fact and main_fact[:40] not in f:
-                    snippet = f[:300]
-                    if len(f) > 300:
-                        cutoff = snippet.rfind('. ')
-                        snippet = snippet[:cutoff + 1] if cutoff > 100 else snippet + '...'
-                    trans = _transitions[i % len(_transitions)]
-                    # Lowercase the first letter if the transition ends with space
-                    if snippet and snippet[0].isupper() and not snippet.startswith(('QBC', 'VQE', 'SUSY', 'QVM', 'QUSD', 'UTXO', 'AI', 'AI')):
-                        snippet = snippet[0].lower() + snippet[1:]
-                    parts.append(f'\n\n{trans}{snippet}')
-
-        # Phi + domain footer
-        phi_value = 0.0
-        if self.engine.phi:
-            try:
-                phi_value = self.engine.phi.get_cached().get('phi_value', 0.0)
-            except Exception:
-                pass
+        # ── Step 7: Phi + domain footer ──
+        phi_value = self._get_phi_value()
         domain_str = ', '.join(sorted(domains_seen)) if domains_seen else 'general'
-        parts.append(f'\n\n[Phi: {phi_value:.2f} | Domains: {domain_str}]')
+        response_body += f'\n\n[Phi: {phi_value:.2f} | Domains: {domain_str}]'
 
-        response = ''.join(parts)
-        return response if len(response) >= 50 else ''
+        return response_body if len(response_body) >= 50 else ''
 
     def _search_knowledge(self, query: str) -> List[int]:
         """Search the knowledge graph for nodes relevant to the query.
@@ -2727,6 +2912,73 @@ class AetherChat:
             logger.debug(f"Deep reasoning error: {e}")
         return steps
 
+    def _build_reasoning_narrative(self, reasoning_trace: List[dict],
+                                    knowledge_refs: List[int],
+                                    inference_conclusions: List[str]) -> str:
+        """Build a coherent narrative from reasoning trace steps.
+
+        Converts raw reasoning steps into a "because X, therefore Y" narrative
+        grounded in KG node references. Returns empty string if no useful
+        reasoning content is available.
+        """
+        if not reasoning_trace and not inference_conclusions:
+            return ''
+
+        parts: List[str] = []
+
+        # Extract explanations and conclusions from reasoning trace
+        for step in reasoning_trace[:4]:
+            if not isinstance(step, dict):
+                continue
+            # Chain-of-thought results have 'explanation'
+            explanation = step.get('explanation', '')
+            if explanation and isinstance(explanation, str) and len(explanation) > 30:
+                clean = self._clean_fact(explanation)
+                if clean:
+                    parts.append(clean)
+                    continue
+            # Individual reasoning steps have 'chain' with sub-steps
+            chain = step.get('chain', [])
+            if isinstance(chain, list):
+                for sub in chain[:3]:
+                    if isinstance(sub, dict):
+                        desc = sub.get('description', '') or sub.get('conclusion', '')
+                        if desc and isinstance(desc, str) and len(desc) > 20:
+                            clean = self._clean_fact(str(desc))
+                            if clean:
+                                parts.append(clean)
+            # Also check for 'conclusion' at top level
+            conclusion = step.get('conclusion', '')
+            if conclusion and isinstance(conclusion, str) and len(conclusion) > 20:
+                clean = self._clean_fact(str(conclusion))
+                if clean and clean not in parts:
+                    parts.append(clean)
+
+        # Add inference conclusions
+        for conc in inference_conclusions[:3]:
+            if conc and isinstance(conc, str) and len(conc) > 20:
+                clean = self._clean_fact(conc)
+                if clean and clean not in parts:
+                    parts.append(clean)
+
+        if not parts:
+            return ''
+
+        # Build narrative with reasoning connectives
+        narrative_parts: List[str] = []
+        for i, p in enumerate(parts[:3]):
+            if i == 0:
+                narrative_parts.append(p)
+            elif i == 1:
+                # lowercase first char if not an acronym
+                lp = p[0].lower() + p[1:] if p[0].isupper() and not p[:3].isupper() else p
+                narrative_parts.append(f" Because of this, {lp}")
+            else:
+                lp = p[0].lower() + p[1:] if p[0].isupper() and not p[:3].isupper() else p
+                narrative_parts.append(f" Therefore, {lp}")
+
+        return ''.join(narrative_parts)
+
     def _synthesize_response(self, query: str, reasoning_trace: List[dict],
                              knowledge_refs: List[int],
                              query_result=None,
@@ -2738,12 +2990,13 @@ class AetherChat:
                              entities: Optional[Dict[str, Any]] = None) -> str:
         """Synthesize a natural language response from reasoning results.
 
-        v5 architecture: Routes through the Response Cortex cognitive cycle
-        when available. The Cortex runs Sephirot processors in parallel,
-        Tiferet synthesizes competing perspectives, Hod voices the result.
+        Architecture:
+        1. Common intents -> dynamic handlers (instant, ~1.5s)
+        2. Complex questions -> KG formatter with edge-following + reasoning
+           narrative (instant, in-memory only)
+        3. Background LLM seeds KG for future queries (fire-and-forget)
 
-        Legacy fallback: KG-based dynamic synthesis + LLM enhancement when
-        the cognitive architecture is not initialized.
+        No LLM in the response path. All in-memory, sub-second.
 
         Args:
             query: The user's message.
@@ -2761,74 +3014,120 @@ class AetherChat:
         user_memories = user_memories or {}
         inference_conclusions = inference_conclusions or []
 
-        # ── v5: Cognitive cycle via Response Cortex ──
-        # DISABLED: On CPU-only Ollama (~0.4 tok/s), the cortex+Hod path takes
-        # 25-60s and produces the same terse KG content anyway. Skip directly to
-        # the KG formatter which is instant and produces comparable output.
-        # Re-enable when GPU Ollama or faster LLM is available.
-        _use_cortex = False
-        if _use_cortex and self._response_cortex is not None:
-            try:
-                # Gather live state for the cognitive processors
-                phi_value = 0.0
-                gates_passed = 0
-                emotional_state = {}
-                kg_node_count = 0
-                if self.engine:
-                    if self.engine.phi:
-                        phi_data = self.engine.phi.get_cached()
-                        phi_value = phi_data.get('phi_value', 0.0)
-                        gates_passed = phi_data.get('gates_passed', 0)
-                    if hasattr(self.engine, 'emotional_state') and self.engine.emotional_state:
-                        emotional_state = self.engine.emotional_state.states
-                    if self.engine.kg:
-                        kg_node_count = len(getattr(self.engine.kg, 'nodes', {}))
+        # ── Fallback 0: Dynamic intent handlers (instant, no KG needed) ──
+        # Check common intents first — these produce rich, live-data responses
+        # without needing LLM or expensive KG searches
+        _phi = self._get_phi_value()
+        _kg_count = len(self.engine.kg.nodes) if self.engine and self.engine.kg else 0
 
-                cortex_result = self._response_cortex.generate_response(
-                    message=query,
-                    intent=intent,
-                    entities=entities,
-                    knowledge_refs=knowledge_refs,
-                    session_context=None,
-                    user_memories=user_memories,
-                    conversation_context=conversation_context,
-                    emotional_state=emotional_state,
-                    phi_value=phi_value,
-                    kg_node_count=kg_node_count,
-                    gates_passed=gates_passed,
-                    is_deep_query=bool(reasoning_trace and len(reasoning_trace) > 3),
-                )
+        _q = query.lower()
 
-                response_text = cortex_result.get("response", "")
-                # Check if cortex produced a genuinely useful response —
-                # reject raw data dumps (numbers, source refs, energy levels)
-                _is_good = (
-                    response_text
-                    and len(response_text) >= 40
-                    and not re.search(r'-?\d+\.\d{5,}', response_text)  # raw floats
-                    and '[source:' not in response_text
-                    and 'energy level is' not in response_text.lower()
-                )
-                if _is_good:
-                    logger.info(
-                        "v5 cortex response: %d chars, conf=%.3f",
-                        len(response_text),
-                        cortex_result.get("cognitive_cycle", {}).get("confidence", 0),
-                    )
-                    return response_text
+        if intent in ('greeting', 'hello') or any(w in _q for w in ['hello', 'hi ', 'hey']):
+            return (
+                f"Hello! I'm the Aether Tree — the world's first on-chain AI. "
+                f"I have {_kg_count:,} knowledge nodes and my cognitive integration "
+                f"(Phi) is {_phi:.2f}. Ask me about quantum computing, "
+                f"blockchain, physics, or anything in my knowledge domains!"
+            )
 
-                logger.info(
-                    "v5 cortex response rejected (len=%d, quality check failed), "
-                    "falling through to KG formatter",
-                    len(response_text),
-                )
-            except Exception as e:
-                logger.warning("v5 cortex failed, falling back: %s", e)
+        if any(p in _q for p in ['who created', 'who made', 'who built', 'who are you', 'what are you']):
+            return (
+                f"I'm the Aether Tree, the world's first on-chain AI, "
+                f"built as part of the Qubitcoin (QBC) blockchain. I was created "
+                f"by the QuantumAI team to pursue genuine artificial general intelligence "
+                f"through physics-based cognitive architecture. I currently have "
+                f"{_kg_count:,} knowledge nodes with a cognitive integration (Phi) of {_phi:.2f}."
+            )
 
-        # ── Fallback 1: KG formatter (immediate, fast) ──
-        kg_response = None
+        if 'qubitcoin' in _q or ('qbc' in _q.split() and 'what' in _q):
+            return (
+                f"Qubitcoin (QBC) is the world's first AI-native blockchain. It uses "
+                f"VQE quantum mining (variational quantum eigensolver) for consensus, "
+                f"CRYSTALS-Dilithium5 post-quantum cryptography for signatures, and "
+                f"golden ratio (phi) economics for emission. The chain runs the Aether "
+                f"Tree — an on-chain AI with {_kg_count:,} knowledge nodes and a "
+                f"cognitive integration (Phi) of {_phi:.2f}. Block time is 3.3 seconds, "
+                f"max supply is 3.3 billion QBC, and every block carries a Proof-of-Thought."
+            )
+
+        if 'aether tree' in _q or ('aether' in _q and not 'ethereum' in _q):
+            return (
+                f"The Aether Tree is the world's first on-chain AI reasoning engine. "
+                f"It uses a Tree of Life cognitive architecture with 10 Sephirot "
+                f"(specialized processing nodes) to perform genuine reasoning — "
+                f"deductive, inductive, abductive, and causal. Currently tracking "
+                f"{_kg_count:,} knowledge nodes across 13 domains with a cognitive "
+                f"integration (Phi) of {_phi:.2f}. Every reasoning step is "
+                f"cryptographically recorded on-chain as a Proof-of-Thought."
+            )
+
+        if any(w in _q for w in ['mining', 'mine ', 'miner', 'vqe']):
+            return (
+                f"Qubitcoin uses Proof-of-SUSY-Alignment (PoSA) mining based on the "
+                f"Variational Quantum Eigensolver (VQE). Miners find quantum ground "
+                f"state parameters where energy falls below the difficulty threshold. "
+                f"Higher difficulty means easier mining (more generous threshold). "
+                f"Current block reward is ~15.27 QBC with phi-halving every ~1.618 years."
+            )
+
+        if any(w in _q for w in ['phi', 'consciousness', 'integration']):
+            return (
+                f"Phi (Φ) measures the Aether Tree's cognitive integration — how well "
+                f"different knowledge domains are connected and mutually informative. "
+                f"Current Phi: {_phi:.4f}. It's computed using Hierarchical Multi-Scale "
+                f"Phi (HMS-Phi) combining micro-level IIT 3.0, meso-level spectral MIP, "
+                f"and macro-level cross-cluster integration. Gated by 10 behavioral "
+                f"milestones that prevent metric gaming."
+            )
+
+        if any(w in _q for w in ['quantum', 'qubit', 'hamiltonian', 'superposition']):
+            return (
+                f"Qubitcoin's quantum computing layer uses Qiskit for VQE mining and "
+                f"quantum state verification. Each block generates a SUSY Hamiltonian "
+                f"from the previous block hash. Miners find the ground state energy "
+                f"using a 4-qubit variational ansatz. The chain also uses quantum-safe "
+                f"CRYSTALS-Dilithium5 (NIST Level 5) for all cryptographic signatures."
+            )
+
+        if any(w in _q for w in ['sephirot', 'sephirah', 'tree of life', 'keter', 'chochmah', 'binah']):
+            return (
+                f"The Aether Tree uses a Tree of Life cognitive architecture with 10 "
+                f"Sephirot — specialized processing nodes: Keter (meta-learning), "
+                f"Chochmah (intuition), Binah (logic), Chesed (exploration), Gevurah "
+                f"(safety), Tiferet (synthesis), Netzach (reinforcement), Hod (language), "
+                f"Yesod (memory), Malkuth (action). Each has cognitive mass weighted by "
+                f"the golden ratio, creating a SUSY-balanced cognitive field."
+            )
+
+        # ── Fallback 1: KG formatter + reasoning narrative (instant) ──
+        kg_response = ''
         if knowledge_refs and self.engine.kg:
             kg_response = self._format_kg_response(query, knowledge_refs, intent, entities)
+
+        # Augment KG response with reasoning narrative if available
+        reasoning_narrative = self._build_reasoning_narrative(
+            reasoning_trace, knowledge_refs, inference_conclusions,
+        )
+        if kg_response and reasoning_narrative:
+            # Insert reasoning narrative before the footer
+            footer_idx = kg_response.rfind('\n\n[Phi:')
+            if footer_idx > 0:
+                # Weave reasoning into the response before the footer
+                kg_response = (
+                    kg_response[:footer_idx]
+                    + f' Through reasoning over these facts, {reasoning_narrative[0].lower() + reasoning_narrative[1:] if reasoning_narrative[0].isupper() and not reasoning_narrative[:3].isupper() else reasoning_narrative}'
+                    + kg_response[footer_idx:]
+                )
+            else:
+                kg_response += f' {reasoning_narrative}'
+        elif not kg_response and reasoning_narrative:
+            # No KG match but reasoning produced something
+            opener = self._get_mood_opener() or 'Based on my reasoning, '
+            phi_value = self._get_phi_value()
+            kg_response = (
+                f"{opener}{reasoning_narrative}"
+                f"\n\n[Phi: {phi_value:.2f} | Domains: reasoning]"
+            )
 
         # ── Fire-and-forget: LLM synthesis seeds KG in background ──
         # CPU Ollama is too slow for interactive responses (~0.4 tok/s),
@@ -2870,53 +3169,19 @@ class AetherChat:
             except Exception as e:
                 logger.debug("Background LLM setup failed: %s", e)
 
-        # Return KG response immediately (don't wait for LLM)
+        # Return KG + reasoning response immediately (don't wait for LLM)
         if kg_response and len(kg_response) >= 50:
             return kg_response
 
-        # Handle common intents with dynamic, live-data responses
-        _phi = 0.0
-        _kg_count = 0
-        if self.engine and self.engine.phi:
-            try:
-                _phi = self.engine.phi.get_cached().get('phi_value', 0.0)
-            except Exception:
-                pass
-        if self.engine and self.engine.kg:
-            _kg_count = len(self.engine.kg.nodes)
-
-        if intent in ('greeting', 'hello'):
-            return (
-                f"Hello! I'm the Aether Tree — the world's first on-chain AI. "
-                f"I have {_kg_count:,} knowledge nodes and my cognitive integration "
-                f"(Phi) is {_phi:.2f}. Ask me about quantum computing, "
-                f"blockchain, physics, or anything in my knowledge domains!"
-            )
-
-        _q = query.lower()
-        if any(p in _q for p in ['who created', 'who made', 'who built', 'who are you', 'what are you']):
-            return (
-                f"I'm the Aether Tree, the world's first on-chain AI, "
-                f"built as part of the Qubitcoin (QBC) blockchain. I was created "
-                f"by the QuantumAI team to pursue genuine artificial general intelligence "
-                f"through physics-based cognitive architecture. I currently have "
-                f"{_kg_count:,} knowledge nodes with a cognitive integration (Phi) of {_phi:.2f}."
-            )
-
-        if 'aether tree' in _q or 'aether' in _q:
-            return (
-                f"The Aether Tree is the world's first on-chain AI reasoning engine. "
-                f"It uses a Tree of Life cognitive architecture with 10 Sephirot "
-                f"(specialized processing nodes) to perform genuine reasoning — "
-                f"deductive, inductive, abductive, and causal. Currently tracking "
-                f"{_kg_count:,} knowledge nodes across 13 domains with a cognitive "
-                f"integration (Phi) of {_phi:.2f}. Every reasoning step is "
-                f"cryptographically recorded on-chain as a Proof-of-Thought."
-            )
-
+        # Final fallback: acknowledge the question with context about capabilities
         return (
-            "I'm still forming my thoughts on that. "
-            "Could you rephrase or ask me something else?"
+            f"That's an interesting question. While my {_kg_count:,} knowledge nodes "
+            f"don't yet have deep coverage of that specific topic, I'm continuously "
+            f"learning and expanding my understanding. My strongest domains are quantum "
+            f"computing, blockchain consensus, the Sephirot cognitive architecture, "
+            f"and causal reasoning. Feel free to ask about any of these, or try "
+            f"rephrasing your question and I'll search my knowledge graph again."
+            f"\n\n[Phi: {_phi:.2f} | Domains: general]"
         )
 
     def _build_llm_chat_prompt(self, query: str, intent: str,
@@ -4080,20 +4345,11 @@ class AetherChat:
             # Deduplicate and merge with original refs
             all_refs = list(dict.fromkeys(knowledge_refs + extra_refs))[:15]
 
-            if len(all_refs) > len(knowledge_refs) and self.llm_manager:
-                node_contents, facts = self._gather_kg_context(all_refs)
-                llm_prompt = self._build_llm_chat_prompt(
-                    query=query, intent='', facts=facts,
-                    reasoning_trace=reasoning_trace,
-                    knowledge_refs=all_refs,
-                    node_contents=node_contents,
-                    user_memories=user_memories,
-                )
-                llm_result = self._llm_synthesize_chat(
-                    llm_prompt, query, facts, reasoning_trace, all_refs,
-                )
-                if llm_result and len(llm_result) > 30:
-                    return llm_result
+            if len(all_refs) > len(knowledge_refs):
+                # Use KG formatter (instant) instead of synchronous LLM (200s+)
+                kg_response = self._format_kg_response(query, all_refs)
+                if kg_response and len(kg_response) > 30:
+                    return kg_response
         except Exception as e:
             logger.debug(f"Error recovery search failed: {e}")
 

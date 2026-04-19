@@ -337,8 +337,9 @@ class QubitcoinNode:
                 available = self.llm_manager.get_available_adapters()
                 logger.info(f"LLM adapters initialized: {available}")
 
-                # Knowledge Seeder
-                if Config.LLM_SEEDER_ENABLED and available:
+                # Knowledge Seeder — internet workers (Grokipedia/ArXiv) run
+                # regardless of LLM adapter availability
+                if Config.LLM_SEEDER_ENABLED:
                     from .aether.knowledge_seeder import KnowledgeSeeder
                     self.knowledge_seeder = KnowledgeSeeder(self.llm_manager, self.db)
                     logger.info("Knowledge seeder initialized (will start on node startup)")
@@ -1418,27 +1419,30 @@ class QubitcoinNode:
                     progress_pct = (phi_val / phi_thresh) * 100
                     logger.debug(f"Consciousness: Phi={phi_val:.4f} ({progress_pct:.1f}% to threshold)")
 
-            knowledge_stats = self.db.query_one("""
+            # Use in-memory KG stats if available (avoids slow COUNT(*) on 700K+ rows)
+            if self.aether and hasattr(self.aether, 'kg') and self.aether.kg:
+                knowledge_nodes_total.set(len(self.aether.kg.nodes))
+                knowledge_edges_total.set(len(self.aether.kg.edges))
+            else:
+                # Fallback: use approximate row count from pg_class (instant, not exact)
+                knowledge_stats = self.db.query_one("""
+                    SELECT
+                        COALESCE((SELECT reltuples::bigint FROM pg_class WHERE relname = 'knowledge_nodes'), 0) as node_count,
+                        COALESCE((SELECT reltuples::bigint FROM pg_class WHERE relname = 'knowledge_edges'), 0) as edge_count
+                """)
+                if knowledge_stats:
+                    knowledge_nodes_total.set(knowledge_stats.get('node_count', 0))
+                    knowledge_edges_total.set(knowledge_stats.get('edge_count', 0))
+
+            # Consciousness events + reasoning operations (use approximate counts)
+            approx_counts = self.db.query_one("""
                 SELECT
-                    (SELECT COUNT(*) FROM knowledge_nodes) as node_count,
-                    (SELECT COUNT(*) FROM knowledge_edges) as edge_count
+                    COALESCE((SELECT reltuples::bigint FROM pg_class WHERE relname = 'consciousness_events'), 0) as consciousness_count,
+                    COALESCE((SELECT reltuples::bigint FROM pg_class WHERE relname = 'reasoning_operations'), 0) as reasoning_count
             """)
-            if knowledge_stats:
-                knowledge_nodes_total.set(knowledge_stats.get('node_count', 0))
-                knowledge_edges_total.set(knowledge_stats.get('edge_count', 0))
-
-            # Consciousness events + reasoning operations
-            consciousness_count = self.db.query_one(
-                "SELECT COUNT(*) as count FROM consciousness_events"
-            )
-            if consciousness_count:
-                consciousness_events_total.set(consciousness_count.get('count', 0))
-
-            reasoning_count = self.db.query_one(
-                "SELECT COUNT(*) as count FROM reasoning_operations"
-            )
-            if reasoning_count:
-                reasoning_operations_total.set(reasoning_count.get('count', 0))
+            if approx_counts:
+                consciousness_events_total.set(approx_counts.get('consciousness_count', 0))
+                reasoning_operations_total.set(approx_counts.get('reasoning_count', 0))
 
             # ============================================================
             # IPFS METRICS
@@ -1741,16 +1745,18 @@ class QubitcoinNode:
         self.metrics_task = asyncio.create_task(self._update_metrics_loop())
         logger.info("Metrics collection started")
 
-        # Start knowledge seeder (skip in SUBSTRATE_MODE — reduces Ollama/CPU load)
-        if self.knowledge_seeder and not Config.SUBSTRATE_MODE:
+        # Start knowledge seeder — internet workers (Grokipedia/ArXiv) always run
+        # LLM workers respect their own rate limits and won't compete with block processing
+        if self.knowledge_seeder:
             # Wire knowledge graph reference for domain-weighted prompt selection
             # and internet worker direct injection
             if hasattr(self, 'aether') and self.aether and getattr(self.aether, 'kg', None):
                 self.knowledge_seeder._kg = self.aether.kg
             self.knowledge_seeder.start()
-            logger.info("Knowledge seeder started")
-        elif Config.SUBSTRATE_MODE:
-            logger.info("Knowledge seeder skipped (SUBSTRATE_MODE — Ollama reserved for blocks)")
+            logger.info(
+                "Knowledge seeder started (30 Grokipedia/ArXiv workers + %d LLM workers)",
+                self.knowledge_seeder._NUM_WORKERS,
+            )
 
         # Initialize bridges (async)
         if self.bridge_manager:

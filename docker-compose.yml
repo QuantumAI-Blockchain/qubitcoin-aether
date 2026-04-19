@@ -170,7 +170,7 @@ services:
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:0.5b}
       - LLM_ENABLED=true
       - LLM_PRIMARY_ADAPTER=ollama
-      - LLM_SEEDER_ENABLED=false
+      - LLM_SEEDER_ENABLED=true
       # Phi MIP spectral bisection is expensive — compute every 10 blocks
       - PHI_COMPUTE_INTERVAL=10
       # AI operation intervals — staggered to prevent OOM (4GB limit)

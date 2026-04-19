@@ -321,7 +321,8 @@ class BoundedNodeCache(MutableMapping):
         del self._data[key]
 
     def __iter__(self) -> Iterator[int]:
-        return iter(self._data)
+        # Return iterator over a snapshot to prevent mutation errors
+        return iter(list(self._data))
 
     def __len__(self) -> int:
         return len(self._data)
@@ -341,13 +342,17 @@ class BoundedNodeCache(MutableMapping):
             return default
 
     def values(self):
-        return self._data.values()
+        # Return a snapshot list to prevent OrderedDict mutation errors
+        # when concurrent threads call move_to_end/evict during iteration
+        return list(self._data.values())
 
     def items(self):
-        return self._data.items()
+        # Return a snapshot list to prevent OrderedDict mutation errors
+        return list(self._data.items())
 
     def keys(self):
-        return self._data.keys()
+        # Return a snapshot list to prevent OrderedDict mutation errors
+        return list(self._data.keys())
 
     def pop(self, key: int, *args):
         return self._data.pop(key, *args)
@@ -1657,8 +1662,16 @@ class KnowledgeGraph:
                              LIMIT :lim"""),
                     params
                 ).fetchall()
+            except Exception:
+                # Query timed out or failed — rollback the aborted transaction
+                # before resetting timeout, otherwise session stays poisoned
+                session.rollback()
+                rows = []
             finally:
-                session.execute(text("SET statement_timeout = '0'"))
+                try:
+                    session.execute(text("SET statement_timeout = '0'"))
+                except Exception:
+                    pass
         # Normalize confidence as relevance score
         return [(r[0], float(r[1] or 0.5)) for r in rows]
 

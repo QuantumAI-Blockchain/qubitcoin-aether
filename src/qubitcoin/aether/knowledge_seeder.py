@@ -30,20 +30,73 @@ _WIKI_TOPICS_BY_DOMAIN: Dict[str, List[str]] = {
         "Quantum entanglement", "Superposition principle", "Wave function",
         "Quantum decoherence", "Bell's theorem", "Quantum tunnelling",
         "Schrödinger equation", "Quantum field theory", "Planck constant",
-        "Heisenberg uncertainty principle",
+        "Heisenberg uncertainty principle", "Quantum computing",
+        "Quantum teleportation", "Bose–Einstein condensate",
+        "Quantum chromodynamics", "Quantum electrodynamics",
+        "Pauli exclusion principle", "Dirac equation",
+        "Feynman diagram", "Path integral formulation",
+        "Density matrix", "Quantum state", "Hilbert space",
+        "Spin (physics)", "Quantum harmonic oscillator",
+        "Quantum key distribution", "Quantum error correction",
+        "Topological quantum computer", "Majorana fermion",
+        "Quantum supremacy", "Variational quantum eigensolver",
+        "Quantum annealing", "Adiabatic quantum computation",
+        "Quantum walk", "Grover's algorithm", "Shor's algorithm",
+        "No-cloning theorem", "Quantum Zeno effect",
+        "EPR paradox", "Many-worlds interpretation",
+        "Copenhagen interpretation", "Pilot wave theory",
+        "Wigner's friend", "Delayed-choice quantum eraser",
+        "Quantum thermodynamics", "Quantum biology",
+        "Casimir effect", "Lamb shift", "Vacuum state",
+        "Squeezed coherent state", "Quantum noise",
     ],
     "ai_machine_learning": [
         "Transformer (deep learning)", "Reinforcement learning",
         "Neural network", "Large language model", "Backpropagation",
         "Attention mechanism", "Convolutional neural network",
         "Generative adversarial network", "Knowledge graph",
-        "Artificial general intelligence",
+        "Artificial general intelligence", "Recurrent neural network",
+        "Long short-term memory", "Graph neural network",
+        "Variational autoencoder", "Diffusion model",
+        "Self-supervised learning", "Transfer learning",
+        "Meta-learning (computer science)", "Few-shot learning",
+        "Federated learning", "Neural architecture search",
+        "Mixture of experts", "Reward shaping",
+        "Proximal policy optimization", "Monte Carlo tree search",
+        "AlphaGo", "GPT-4", "BERT (language model)",
+        "Word2vec", "Embedding", "Tokenization (data security)",
+        "Perceptron", "Activation function", "Batch normalization",
+        "Dropout (neural networks)", "Gradient descent",
+        "Stochastic gradient descent", "Adam (optimizer)",
+        "Overfitting", "Cross-validation (statistics)",
+        "Precision and recall", "F-score", "ROC curve",
+        "Decision tree learning", "Random forest",
+        "Support-vector machine", "K-nearest neighbors algorithm",
+        "Principal component analysis", "Dimensionality reduction",
+        "Autoencoder", "Boltzmann machine",
     ],
     "mathematics": [
         "Gödel's incompleteness theorems", "Riemann hypothesis",
         "Topology", "Category theory", "Information theory",
         "Fourier analysis", "Prime number", "Golden ratio",
-        "Graph theory", "Bayesian inference",
+        "Graph theory", "Bayesian inference", "Linear algebra",
+        "Eigenvalues and eigenvectors", "Matrix (mathematics)",
+        "Tensor", "Differential equation", "Partial differential equation",
+        "Calculus", "Real analysis", "Complex analysis",
+        "Abstract algebra", "Group theory", "Ring (mathematics)",
+        "Field (mathematics)", "Vector space", "Metric space",
+        "Banach space", "Measure (mathematics)", "Lebesgue measure",
+        "Probability theory", "Stochastic process",
+        "Markov chain", "Martingale (probability theory)",
+        "Random variable", "Central limit theorem",
+        "Law of large numbers", "Monte Carlo method",
+        "Numerical analysis", "Finite element method",
+        "Optimization (mathematics)", "Convex optimization",
+        "Lagrange multiplier", "Variational principle",
+        "Functional analysis", "Operator theory",
+        "Spectral theory", "Fourier transform",
+        "Laplace transform", "Wavelet", "Set theory",
+        "Zermelo–Fraenkel set theory", "Continuum hypothesis",
     ],
     "philosophy_of_mind": [
         "Consciousness", "Integrated information theory",
@@ -51,55 +104,350 @@ _WIKI_TOPICS_BY_DOMAIN: Dict[str, List[str]] = {
         "Functionalism (philosophy of mind)", "Emergentism",
         "Global workspace theory", "Embodied cognition",
         "Theory of mind", "Philosophical zombie",
+        "Chinese room", "Turing test", "Mary's room",
+        "Epiphenomenalism", "Panpsychism", "Dualism (philosophy of mind)",
+        "Identity theory of mind", "Eliminative materialism",
+        "Multiple realizability", "Intentionality",
+        "Mental representation", "Propositional attitude",
+        "Free will", "Determinism", "Compatibilism",
+        "Philosophy of perception", "Phenomenology (philosophy)",
+        "Edmund Husserl", "Martin Heidegger",
+        "Maurice Merleau-Ponty", "Daniel Dennett",
+        "David Chalmers", "John Searle", "Jerry Fodor",
+        "Cognitive science", "Computational theory of mind",
+        "Connectionism", "Symbol grounding problem",
+        "Binding problem", "Neural correlates of consciousness",
+        "Access consciousness", "Higher-order theories of consciousness",
+        "Orchestrated objective reduction", "Attention",
+        "Blindsight", "Split-brain", "Thought experiment",
+        "Personal identity", "Self-awareness", "Sentience",
+        "Sapience", "Artificial consciousness",
     ],
     "neuroscience": [
         "Neuroplasticity", "Default mode network", "Long-term potentiation",
         "Cerebrospinal fluid", "Hippocampus", "Prefrontal cortex",
         "Synaptic pruning", "Mirror neuron", "Neurogenesis",
-        "Brain–computer interface",
+        "Brain–computer interface", "Neurotransmitter",
+        "Dopamine", "Serotonin", "GABA", "Glutamate (neurotransmitter)",
+        "Action potential", "Synapse", "Axon", "Dendrite",
+        "Glial cell", "Astrocyte", "Myelin",
+        "Cerebral cortex", "Amygdala", "Thalamus",
+        "Cerebellum", "Basal ganglia", "Broca's area",
+        "Wernicke's area", "Connectome", "Diffusion MRI",
+        "Functional magnetic resonance imaging",
+        "Electroencephalography", "Magnetoencephalography",
+        "Optogenetics", "Cortical column",
+        "Neural oscillation", "Gamma wave", "Theta wave",
+        "Sleep", "Rapid eye movement sleep", "Memory consolidation",
+        "Working memory", "Episodic memory", "Semantic memory",
+        "Procedural memory", "Hebbian theory",
+        "Spike-timing-dependent plasticity", "Neural coding",
+        "Population coding", "Place cell", "Grid cell",
     ],
     "physics_general": [
         "Standard Model", "General relativity", "Quantum chromodynamics",
         "Dark matter", "Dark energy", "String theory",
         "Supersymmetry", "Higgs boson", "Black hole", "Entropy",
+        "Special relativity", "Spacetime", "Lorentz transformation",
+        "Gravitational wave", "Neutron star", "Pulsar",
+        "White dwarf", "Supernova", "Cosmic microwave background",
+        "Big Bang", "Cosmic inflation", "Hubble's law",
+        "Redshift", "Olbers's paradox", "Hawking radiation",
+        "Black hole thermodynamics", "Bekenstein–Hawking entropy",
+        "Holographic principle", "AdS/CFT correspondence",
+        "Gauge theory", "Yang–Mills theory", "Quantum gravity",
+        "Loop quantum gravity", "Twistor theory",
+        "Kaluza–Klein theory", "Grand Unified Theory",
+        "CP violation", "Neutrino oscillation", "Lepton",
+        "Quark", "Gluon", "W and Z bosons", "Photon",
+        "Fermion", "Boson", "Baryogenesis", "Antimatter",
+        "Nuclear physics", "Nuclear fusion", "Nuclear fission",
+        "Plasma (physics)", "Condensed matter physics",
     ],
     "cryptography": [
         "Elliptic-curve cryptography", "Zero-knowledge proof",
         "Lattice-based cryptography", "Hash function",
         "Public-key cryptography", "Merkle tree", "Byzantine fault tolerance",
         "Post-quantum cryptography", "Homomorphic encryption", "Dilithium (cryptography)",
+        "RSA (cryptosystem)", "Advanced Encryption Standard",
+        "SHA-2", "SHA-3", "Keccak (hash function)",
+        "Digital signature", "Certificate authority",
+        "Transport Layer Security", "Diffie–Hellman key exchange",
+        "Elliptic-curve Diffie–Hellman", "Key derivation function",
+        "Password hashing", "Bcrypt", "Argon2",
+        "Block cipher", "Stream cipher", "One-time pad",
+        "Cryptographic nonce", "Initialization vector",
+        "Authenticated encryption", "Message authentication code",
+        "HMAC", "Commitment scheme", "Oblivious transfer",
+        "Secure multi-party computation", "Secret sharing",
+        "Shamir's secret sharing", "Threshold cryptosystem",
+        "Ring signature", "Group signature", "Blind signature",
+        "Pedersen commitment", "Bulletproofs",
+        "ZK-SNARK", "ZK-STARK", "Verkle tree",
+        "Accumulator (cryptography)", "Verifiable random function",
+        "Verifiable delay function", "Randomness extractor",
+        "Entropy (computing)", "Side-channel attack",
     ],
     "blockchain_fundamentals": [
         "Blockchain", "Bitcoin", "Ethereum", "Smart contract",
         "Proof of work", "Decentralized finance",
         "Unspent transaction output", "Consensus mechanism",
         "Cross-chain interoperability", "Layer 2 blockchain solution",
+        "Proof of stake", "Delegated proof of stake",
+        "Bitcoin network", "Lightning Network",
+        "Ethereum 2.0", "Solidity (programming language)",
+        "Decentralized application", "Decentralized autonomous organization",
+        "Non-fungible token", "ERC-20", "ERC-721",
+        "Automated market maker", "Liquidity pool",
+        "Yield farming", "Flash loan", "Reentrancy attack",
+        "51% attack", "Sybil attack", "Front running",
+        "Maximal extractable value", "Gas (Ethereum)",
+        "Merkle Patricia trie", "State channel",
+        "Plasma (blockchain)", "Optimistic rollup", "ZK-rollup",
+        "Cosmos (blockchain)", "Polkadot (blockchain)",
+        "Avalanche (blockchain platform)", "Solana",
+        "Cardano (blockchain platform)", "Polygon (blockchain)",
+        "Chainlink", "The Graph (blockchain)",
+        "Aave", "Uniswap", "MakerDAO", "Compound (finance)",
+        "Stablecoin", "Central bank digital currency",
     ],
     "complexity_science": [
         "Emergence", "Complex system", "Self-organization",
         "Chaos theory", "Cellular automaton", "Phase transition",
         "Attractor", "Feedback", "Scale-free network", "Swarm intelligence",
+        "Butterfly effect", "Lorenz system", "Fractal",
+        "Mandelbrot set", "Power law", "Zipf's law",
+        "Percolation theory", "Criticality (physics)",
+        "Self-organized criticality", "Sandpile model",
+        "Agent-based model", "Cellular automaton",
+        "Game of Life", "Wolfram's classification",
+        "Artificial life", "Autopoiesis", "Dissipative system",
+        "Bifurcation theory", "Lyapunov exponent",
+        "Strange attractor", "Ergodic theory",
+        "Dynamical system", "Nonlinear system",
+        "Predator–prey equations", "Logistic map",
+        "Turing pattern", "Reaction–diffusion system",
+        "Small-world network", "Preferential attachment",
+        "Network science", "Community structure",
+        "Robustness of complex networks", "Cascading failure",
+        "Resilience (network)", "Multi-agent system",
+        "Ant colony optimization", "Genetic algorithm",
+        "Particle swarm optimization", "Simulated annealing",
     ],
     "information_theory": [
         "Shannon entropy", "Channel capacity", "Kolmogorov complexity",
         "Data compression", "Mutual information", "Entropy (information theory)",
         "Error correction code", "Algorithmic information theory",
         "Minimum description length", "Coding theory",
+        "Huffman coding", "Arithmetic coding", "Lempel–Ziv",
+        "Reed–Solomon error correction", "Turbo code", "LDPC code",
+        "Source coding theorem", "Noisy-channel coding theorem",
+        "Rate–distortion theory", "Differential entropy",
+        "Conditional entropy", "Joint entropy",
+        "Kullback–Leibler divergence", "Cross-entropy",
+        "Fisher information", "Cramér–Rao bound",
+        "Maximum entropy probability distribution",
+        "Principle of maximum entropy", "Jaynes–Cummings model",
+        "Quantum information science", "Quantum entropy",
+        "Von Neumann entropy", "Holevo's theorem",
+        "Quantum channel", "Quantum error correction",
+        "No-communication theorem", "Quantum mutual information",
+        "Rényi entropy", "Tsallis entropy",
+        "Transfer entropy", "Granger causality",
+        "Directed information", "Causal entropy",
+        "Information bottleneck method", "Sufficient statistic",
+        "Minimal sufficient statistic", "Exponential family",
+        "Maximum likelihood estimation", "Expectation-maximization algorithm",
+    ],
+    # ── NEW DOMAINS for massive coverage ──────────────────────────────────
+    "computer_science": [
+        "Algorithm", "Data structure", "Computational complexity theory",
+        "P versus NP problem", "Turing machine", "Lambda calculus",
+        "Automata theory", "Compiler", "Operating system",
+        "Distributed computing", "Parallel computing", "Cloud computing",
+        "Virtualization", "Container (computing)", "Kubernetes",
+        "Microservices", "REST", "GraphQL", "WebSocket",
+        "Database", "Relational database", "NoSQL", "SQL",
+        "B-tree", "Hash table", "Red–black tree",
+        "Binary search tree", "Heap (data structure)",
+        "Dijkstra's algorithm", "A* search algorithm",
+        "Dynamic programming", "Divide-and-conquer algorithm",
+        "Sorting algorithm", "Quicksort", "Merge sort",
+        "MapReduce", "Apache Spark", "Apache Kafka",
+        "Consensus (computer science)", "Paxos (computer science)",
+        "Raft (algorithm)", "CAP theorem", "ACID",
+        "Two-phase commit protocol", "Eventual consistency",
+        "Conflict-free replicated data type", "Vector clock",
+        "Bloom filter", "Count–min sketch", "HyperLogLog",
+        "Consistent hashing", "Load balancing (computing)",
+    ],
+    "biology_evolution": [
+        "Evolution", "Natural selection", "Genetic drift",
+        "Speciation", "Phylogenetics", "Molecular evolution",
+        "DNA", "RNA", "Protein", "Gene expression",
+        "Epigenetics", "CRISPR gene editing", "Genome",
+        "Proteome", "Metabolome", "Systems biology",
+        "Synthetic biology", "Bioinformatics",
+        "Molecular biology", "Cell (biology)", "Mitosis",
+        "Meiosis", "Stem cell", "Cell signaling",
+        "Apoptosis", "Telomere", "Chromosome",
+        "Mutation", "Horizontal gene transfer",
+        "Endosymbiont", "Mitochondrion", "Chloroplast",
+        "Photosynthesis", "Cellular respiration",
+        "Enzyme", "Catalysis", "Protein folding",
+        "Prion", "Virus", "Bacteriophage",
+        "Antibiotic resistance", "Microbiome",
+        "Ecosystem", "Biodiversity", "Trophic level",
+        "Food web", "Symbiosis", "Coevolution",
+        "Convergent evolution", "Adaptive radiation",
+    ],
+    "economics_game_theory": [
+        "Game theory", "Nash equilibrium", "Prisoner's dilemma",
+        "Mechanism design", "Auction theory", "Public goods game",
+        "Tragedy of the commons", "Free-rider problem",
+        "Principal–agent problem", "Moral hazard",
+        "Adverse selection", "Signaling (economics)",
+        "Market failure", "Externality", "Pareto efficiency",
+        "General equilibrium theory", "Arrow's impossibility theorem",
+        "Rational choice theory", "Bounded rationality",
+        "Prospect theory", "Behavioral economics",
+        "Nudge theory", "Loss aversion", "Endowment effect",
+        "Keynesian economics", "Monetarism", "Austrian School",
+        "Modern monetary theory", "Inflation", "Deflation",
+        "Central bank", "Monetary policy", "Fiscal policy",
+        "Supply and demand", "Market equilibrium",
+        "Oligopoly", "Monopoly", "Perfect competition",
+        "Price elasticity of demand", "Consumer surplus",
+        "Comparative advantage", "International trade",
+        "Exchange rate", "Balance of payments",
+        "Gini coefficient", "Human Development Index",
+        "Gross domestic product", "Purchasing power parity",
+        "Financial market", "Stock market", "Bond market",
+    ],
+    "philosophy_general": [
+        "Epistemology", "Ontology", "Metaphysics", "Logic",
+        "Ethics", "Aesthetics", "Philosophy of science",
+        "Philosophy of language", "Philosophy of mathematics",
+        "Analytic philosophy", "Continental philosophy",
+        "Existentialism", "Nihilism", "Absurdism",
+        "Pragmatism", "Empiricism", "Rationalism",
+        "Idealism", "Materialism", "Realism",
+        "Nominalism", "Constructivism (philosophy of mathematics)",
+        "Falsifiability", "Thomas Kuhn", "Paradigm shift",
+        "Occam's razor", "Logical positivism", "Verificationism",
+        "Modal logic", "Possible world", "Counterfactual conditional",
+        "Trolley problem", "Utilitarianism", "Deontological ethics",
+        "Virtue ethics", "Consequentialism", "Social contract",
+        "Justice as Fairness", "Veil of ignorance",
+        "Categorical imperative", "Moral relativism",
+        "Natural law", "Stoicism", "Epicureanism",
+        "Taoism", "Confucianism", "Buddhism",
+        "Vedanta", "Zen", "Kabbalah", "Tree of Life (Kabbalah)",
+    ],
+    "cognitive_science": [
+        "Cognitive psychology", "Perception", "Attention",
+        "Pattern recognition (psychology)", "Problem solving",
+        "Decision-making", "Heuristic", "Cognitive bias",
+        "Confirmation bias", "Anchoring effect",
+        "Availability heuristic", "Dunning–Kruger effect",
+        "Language acquisition", "Noam Chomsky",
+        "Universal grammar", "Sapir–Whorf hypothesis",
+        "Mental model", "Schema (psychology)",
+        "Dual process theory", "System 1 and System 2",
+        "Metacognition", "Executive functions",
+        "Cognitive load theory", "Chunking (psychology)",
+        "Distributed cognition", "Situated cognition",
+        "Predictive coding", "Bayesian brain",
+        "Active inference", "Free energy principle",
+        "Karl Friston", "Embodied cognition",
+        "Extended mind thesis", "4E cognition",
+        "Mirror neuron system", "Social cognition",
+        "Empathy", "Emotion", "Affect (psychology)",
+        "Motivation", "Intrinsic motivation",
+        "Flow (psychology)", "Peak experience",
+        "Altered state of consciousness", "Meditation",
+        "Mindfulness", "Hypnosis", "Synesthesia",
+        "Creativity", "Divergent thinking", "Insight",
+    ],
+    "engineering_systems": [
+        "Control theory", "Cybernetics", "Systems engineering",
+        "Signal processing", "Digital signal processing",
+        "Fourier transform", "Kalman filter",
+        "PID controller", "State-space representation",
+        "Transfer function", "Bode plot", "Nyquist stability criterion",
+        "Feedback", "Negative feedback", "Positive feedback",
+        "Servo (mechanism)", "Robotics", "Actuator",
+        "Sensor", "Internet of things", "Embedded system",
+        "Field-programmable gate array", "Application-specific integrated circuit",
+        "Von Neumann architecture", "Harvard architecture",
+        "RISC", "ARM architecture", "x86",
+        "Graphics processing unit", "Tensor Processing Unit",
+        "Neuromorphic engineering", "Memristor",
+        "Photonics", "Optical fiber", "Quantum dot",
+        "Nanotechnology", "Molecular machine",
+        "3D printing", "Additive manufacturing",
+        "Renewable energy", "Solar cell", "Wind power",
+        "Nuclear power", "Fusion power", "Tokamak",
+        "Superconductivity", "High-temperature superconductivity",
+        "Quantum sensor", "Atomic clock",
+        "Global Positioning System", "Satellite navigation",
+        "Space elevator", "Dyson sphere",
     ],
 }
 
 # ArXiv search terms by domain (maps to ArXiv category codes)
 _ARXIV_QUERIES: List[Dict[str, str]] = [
+    # Quantum physics & computing
     {"term": "quantum computing entanglement", "cat": "quant-ph"},
+    {"term": "quantum error correction surface code", "cat": "quant-ph"},
+    {"term": "variational quantum eigensolver molecular", "cat": "quant-ph"},
+    {"term": "quantum supremacy advantage", "cat": "quant-ph"},
+    {"term": "topological quantum computing", "cat": "quant-ph"},
+    {"term": "quantum key distribution security", "cat": "quant-ph"},
+    {"term": "quantum machine learning kernel", "cat": "quant-ph"},
+    {"term": "quantum simulation many-body", "cat": "quant-ph"},
+    # AI & Machine Learning
     {"term": "large language model reasoning", "cat": "cs.AI"},
-    {"term": "integrated information theory consciousness", "cat": "q-bio.NC"},
-    {"term": "knowledge graph embedding", "cat": "cs.LG"},
-    {"term": "blockchain consensus scalability", "cat": "cs.CR"},
+    {"term": "reinforcement learning planning", "cat": "cs.AI"},
     {"term": "neural network interpretability", "cat": "cs.LG"},
+    {"term": "knowledge graph embedding", "cat": "cs.LG"},
+    {"term": "graph neural network", "cat": "cs.LG"},
+    {"term": "transformer attention mechanism", "cat": "cs.LG"},
+    {"term": "diffusion model generative", "cat": "cs.LG"},
+    {"term": "meta-learning few-shot", "cat": "cs.LG"},
+    {"term": "federated learning privacy", "cat": "cs.LG"},
+    {"term": "multi-agent reinforcement learning", "cat": "cs.MA"},
+    {"term": "artificial general intelligence", "cat": "cs.AI"},
+    {"term": "neuro-symbolic reasoning", "cat": "cs.AI"},
+    {"term": "causal representation learning", "cat": "cs.LG"},
+    {"term": "self-supervised contrastive learning", "cat": "cs.LG"},
+    # Neuroscience & consciousness
+    {"term": "integrated information theory consciousness", "cat": "q-bio.NC"},
+    {"term": "neural correlates consciousness", "cat": "q-bio.NC"},
+    {"term": "predictive coding brain", "cat": "q-bio.NC"},
+    {"term": "connectome mapping brain", "cat": "q-bio.NC"},
+    {"term": "free energy principle active inference", "cat": "q-bio.NC"},
+    # Cryptography & security
+    {"term": "blockchain consensus scalability", "cat": "cs.CR"},
+    {"term": "zero knowledge proof scalable", "cat": "cs.CR"},
+    {"term": "post-quantum cryptography lattice", "cat": "cs.CR"},
+    {"term": "homomorphic encryption computation", "cat": "cs.CR"},
+    {"term": "secure multi-party computation", "cat": "cs.CR"},
+    # Mathematics & statistics
     {"term": "causal inference discovery", "cat": "stat.ML"},
     {"term": "topological data analysis", "cat": "math.AT"},
-    {"term": "quantum error correction", "cat": "quant-ph"},
-    {"term": "reinforcement learning planning", "cat": "cs.AI"},
+    {"term": "information geometry statistical manifold", "cat": "math.ST"},
+    {"term": "category theory applied mathematics", "cat": "math.CT"},
+    {"term": "spectral graph theory clustering", "cat": "math.SP"},
+    {"term": "optimal transport machine learning", "cat": "stat.ML"},
+    # Complex systems & physics
+    {"term": "complex network dynamics emergence", "cat": "nlin.AO"},
+    {"term": "self-organized criticality", "cat": "cond-mat.stat-mech"},
+    {"term": "information thermodynamics entropy", "cat": "cond-mat.stat-mech"},
+    # Biology & evolution
+    {"term": "evolutionary dynamics cooperation", "cat": "q-bio.PE"},
+    {"term": "gene regulatory network inference", "cat": "q-bio.MN"},
+    {"term": "protein structure prediction", "cat": "q-bio.BM"},
 ]
 
 logger = get_logger(__name__)
@@ -567,9 +915,10 @@ class KnowledgeSeeder:
     # Reduced to 1 for CPU-only Ollama — prevents chat timeouts
     _NUM_WORKERS: int = 1
     # Internet workers (Wikipedia + ArXiv) — no Ollama, separate rate limit
-    _NUM_INTERNET_WORKERS: int = 5
+    # Scaled to 30 for massive knowledge ingestion
+    _NUM_INTERNET_WORKERS: int = 30
     # Minimum seconds between Wikipedia fetches per worker (be respectful)
-    _INTERNET_COOLDOWN: float = 8.0
+    _INTERNET_COOLDOWN: float = 5.0
 
     def start(self) -> None:
         """Start background seeder daemon threads (5 LLM + 5 internet workers)."""
@@ -959,8 +1308,9 @@ class KnowledgeSeeder:
         if worker_id > 0:
             self._stop_event.wait(timeout=worker_id * 2.5)
 
-        # Alternate between Wikipedia and ArXiv (per-worker, independent cooldown)
-        sources = ['wikipedia', 'arxiv']
+        # Alternate between Grokipedia and ArXiv (per-worker, independent cooldown)
+        # 70% Grokipedia, 30% ArXiv for maximum knowledge diversity
+        sources = ['grokipedia', 'grokipedia', 'arxiv']
         source_idx = worker_id % len(sources)
         last_call: float = 0.0
 
@@ -972,8 +1322,8 @@ class KnowledgeSeeder:
                     source = sources[source_idx % len(sources)]
                     source_idx += 1
 
-                    if source == 'wikipedia':
-                        created = self._mine_wikipedia(worker_id)
+                    if source == 'grokipedia':
+                        created = self._mine_grokipedia(worker_id)
                     else:
                         created = self._mine_arxiv(worker_id)
 
@@ -1031,6 +1381,12 @@ class KnowledgeSeeder:
             'blockchain_fundamentals': 'blockchain',
             'complexity_science': 'philosophy',
             'information_theory': 'mathematics',
+            'computer_science': 'ai_ml',
+            'biology_evolution': 'biology',
+            'economics_game_theory': 'general',
+            'philosophy_general': 'philosophy',
+            'cognitive_science': 'philosophy',
+            'engineering_systems': 'general',
         }
         kg_domain = domain_map.get(domain, 'general')
 
@@ -1080,6 +1436,140 @@ class KnowledgeSeeder:
         if created > 0:
             logger.info(
                 f"Internet worker-{worker_id}: Wikipedia '{title}' "
+                f"→ {created} nodes ({kg_domain})"
+            )
+        return created
+
+    def _mine_grokipedia(self, worker_id: int) -> int:
+        """Fetch a Grokipedia article and inject sentences as KG nodes.
+
+        Grokipedia (grokipedia.com) is xAI's AI-generated encyclopedia with
+        rich, fact-checked articles. We extract clean text from the HTML,
+        split into sentences, and inject as high-confidence observation nodes.
+        """
+        kg = self._kg
+        if kg is None:
+            return 0
+
+        # Pick a random topic from a random domain
+        domain = random.choice(list(_WIKI_TOPICS_BY_DOMAIN.keys()))
+        topics = _WIKI_TOPICS_BY_DOMAIN.get(domain, [])
+        if not topics:
+            return 0
+        topic = random.choice(topics)
+
+        try:
+            slug = topic.replace(' ', '_')
+            url = f"https://grokipedia.com/page/{urllib.parse.quote(slug)}"
+            req = urllib.request.Request(
+                url, headers={'User-Agent': 'QBC-Aether/1.0 (knowledge-mining)'}
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                html = resp.read().decode('utf-8', errors='replace')
+        except Exception as e:
+            logger.debug(f"Grokipedia fetch failed ({topic}): {e}")
+            return 0
+
+        if len(html) < 500:
+            return 0
+
+        # Extract clean text: strip script/style, then HTML tags
+        import re as _re
+        html = _re.sub(r'<script[^>]*>.*?</script>', '', html, flags=_re.DOTALL)
+        html = _re.sub(r'<style[^>]*>.*?</style>', '', html, flags=_re.DOTALL)
+        text = _re.sub(r'<[^>]+>', ' ', html)
+        text = _re.sub(r'\s+', ' ', text).strip()
+
+        # Find the article content (starts after the title, skip nav/menu)
+        # Look for the topic name or first heading as anchor
+        anchor_idx = text.find(topic)
+        if anchor_idx < 0:
+            # Try without parenthetical disambiguation
+            short_topic = topic.split('(')[0].strip()
+            anchor_idx = text.find(short_topic)
+        if anchor_idx >= 0:
+            text = text[anchor_idx:]
+        elif len(text) > 2000:
+            # Skip first 1000 chars (nav/menu) if we can't find anchor
+            text = text[1000:]
+
+        # Limit to first 8000 chars (article body, avoid references/footer)
+        text = text[:8000]
+
+        if len(text) < 200:
+            return 0
+
+        # Map domain to KG domain
+        domain_map = {
+            'quantum_physics': 'quantum_physics',
+            'ai_machine_learning': 'ai_ml',
+            'mathematics': 'mathematics',
+            'philosophy_of_mind': 'philosophy',
+            'neuroscience': 'biology',
+            'physics_general': 'quantum_physics',
+            'cryptography': 'cryptography',
+            'blockchain_fundamentals': 'blockchain',
+            'complexity_science': 'philosophy',
+            'information_theory': 'mathematics',
+            'computer_science': 'ai_ml',
+            'biology_evolution': 'biology',
+            'economics_game_theory': 'general',
+            'philosophy_general': 'philosophy',
+            'cognitive_science': 'philosophy',
+            'engineering_systems': 'general',
+        }
+        kg_domain = domain_map.get(domain, 'general')
+
+        # Split into sentences and inject as knowledge nodes
+        sentences = self._split_sentences(text)
+        created = 0
+        prev_node_id = None
+
+        try:
+            current_height = self.db.get_current_height()
+        except Exception:
+            current_height = 0
+
+        for sent in sentences:
+            if len(sent) < 40 or len(sent) > 500:
+                continue
+            # Skip sentences that are mostly non-alpha (JS remnants, CSS)
+            alpha_ratio = sum(1 for c in sent if c.isalpha()) / max(len(sent), 1)
+            if alpha_ratio < 0.6:
+                continue
+            try:
+                node = kg.add_node(
+                    node_type='observation',
+                    content={
+                        'text': sent,
+                        'source': f'grokipedia:{topic}',
+                        'domain': kg_domain,
+                        'grounding': 'internet',
+                    },
+                    confidence=0.85,
+                    source_block=current_height,
+                )
+                if node:
+                    node.grounding_source = 'grokipedia'
+                    created += 1
+                    # Chain consecutive sentences with 'supports' edges
+                    if prev_node_id is not None:
+                        try:
+                            kg.add_edge(
+                                from_node_id=prev_node_id,
+                                to_node_id=node.node_id,
+                                edge_type='supports',
+                                weight=0.7,
+                            )
+                        except Exception:
+                            pass
+                    prev_node_id = node.node_id
+            except Exception as e:
+                logger.debug(f"Grokipedia node inject error: {e}")
+
+        if created > 0:
+            logger.info(
+                f"Internet worker-{worker_id}: Grokipedia '{topic}' "
                 f"→ {created} nodes ({kg_domain})"
             )
         return created

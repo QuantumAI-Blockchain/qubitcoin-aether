@@ -190,28 +190,58 @@ class QueryTranslator:
                               max_results: int) -> List[int]:
         """Find knowledge graph nodes matching the query keywords.
 
-        Uses a scoring system: each keyword match in node content increases
-        the score. Higher-confidence nodes are preferred.
+        Uses vector index TF-IDF search for fast retrieval, then re-ranks
+        by keyword match density and confidence.
         """
         if not self.kg or not self.kg.nodes:
             return []
 
+        # Fast path: use TF-IDF / vector index search (O(1) per keyword)
+        vi = getattr(self.kg, 'vector_index', None)
+        candidate_ids: set = set()
+        if vi:
+            for kw in keywords[:5]:
+                try:
+                    results = vi.search(kw, k=max_results * 2)
+                    for nid, _score in results:
+                        candidate_ids.add(nid)
+                except Exception:
+                    pass
+
+        # Also try bounded keyword scan (last 2K nodes) as fallback
+        if len(candidate_ids) < max_results:
+            try:
+                from itertools import islice
+                recent_items = list(islice(
+                    reversed(list(self.kg.nodes.items())), 2000
+                ))
+                for node_id, node in recent_items:
+                    if node_id in candidate_ids:
+                        continue
+                    content_str = str(node.content).lower()
+                    if any(kw in content_str for kw in keywords):
+                        candidate_ids.add(node_id)
+                    if len(candidate_ids) >= max_results * 3:
+                        break
+            except Exception:
+                pass
+
+        if not candidate_ids:
+            return []
+
+        # Re-rank candidates by keyword match density + confidence
         scored: List[Tuple[int, float]] = []
-
-        for node_id, node in self.kg.nodes.items():
-            content_str = json.dumps(node.content).lower()
-            node_type_str = node.node_type.lower()
-
-            # Score by keyword matches
-            matches = sum(1 for kw in keywords if kw in content_str or kw in node_type_str)
+        for node_id in candidate_ids:
+            node = self.kg.nodes.get(node_id)
+            if not node:
+                continue
+            content_str = str(node.content).lower()
+            matches = sum(1 for kw in keywords if kw in content_str)
             if matches == 0:
                 continue
-
-            # Weight by confidence and match density
             score = matches * node.confidence
             scored.append((node_id, score))
 
-        # Sort by score descending
         scored.sort(key=lambda x: x[1], reverse=True)
         return [s[0] for s in scored[:max_results]]
 
