@@ -171,15 +171,24 @@ impl MetricsDelta {
         }
     }
 
-    /// Composite score 0-100 per the master plan formula.
+    /// Composite score 0-100. No free points — zero improvement = zero score.
     pub fn score(&self) -> f64 {
-        let phi_norm = (self.delta_phi * 100.0).clamp(0.0, 30.0);
+        // Phi improvement: 0-35 points (requires actual positive delta)
+        let phi_norm = if self.delta_phi > 0.001 {
+            (self.delta_phi * 100.0).clamp(0.0, 35.0)
+        } else {
+            0.0
+        };
+        // Gate progress: 0-25 points
         let gates = (self.delta_gates.max(0) as f64 * 25.0).min(25.0);
-        let subsys = (self.subsystems_activated.len() as f64 * 10.0).min(20.0);
-        let quality = (self.delta_debates.max(0) as f64 * 0.5
-            + self.delta_novel_concepts.max(0) as f64 * 1.0)
+        // Subsystem activation: 0-15 points
+        let subsys = (self.subsystems_activated.len() as f64 * 5.0).min(15.0);
+        // Quality: debates + novel concepts: 0-15 points
+        let quality = (self.delta_debates.max(0) as f64 * 1.0
+            + self.delta_novel_concepts.max(0) as f64 * 2.0)
             .min(15.0);
-        let stability = if self.delta_phi >= 0.0 { 10.0 } else { 0.0 };
+        // Stability: 10 points only if phi actually improved (not just didn't crash)
+        let stability = if self.delta_phi > 0.0 { 10.0 } else { 0.0 };
 
         phi_norm + gates + subsys + quality + stability
     }

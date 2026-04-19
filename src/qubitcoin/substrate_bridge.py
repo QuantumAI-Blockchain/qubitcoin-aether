@@ -218,7 +218,8 @@ class SubstrateBridge:
                     if header:
                         # Fire-and-forget: don't block the listener loop
                         # so the event loop stays responsive for API requests
-                        asyncio.create_task(self._process_header(header))
+                        task = asyncio.create_task(self._process_header(header))
+                        task.add_done_callback(self._header_task_done)
             except asyncio.TimeoutError:
                 # No message in 30s — send a health check
                 try:
@@ -229,6 +230,14 @@ class SubstrateBridge:
                 raise
             except Exception as e:
                 logger.error(f"Error in listen loop: {e}", exc_info=True)
+
+    def _header_task_done(self, task: asyncio.Task) -> None:
+        """Log errors from fire-and-forget header processing tasks."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc:
+            logger.error(f"Header processing task failed: {exc}", exc_info=exc)
 
     async def _process_header(self, header: dict) -> None:
         """Process a finalized block header notification."""

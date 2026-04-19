@@ -1099,35 +1099,34 @@ class QubitcoinNode:
             current_height_metric.set(block_height)
             blocks_received.inc()
 
-            # Heavy Aether processing only every 100th Substrate block
-            # (at 3.3s blocks, this is ~5.5 min between full reasoning cycles).
-            # This prevents GIL contention from starving the API event loop.
-            # All blocks are still stored in CockroachDB above.
-            if block_height % 100 == 0:
+            # Aether processing every 10th Substrate block
+            # (at 3.3s blocks, this is ~33s between cognitive cycles).
+            # Runs in the substrate-block thread pool, not the main event loop.
+            if block_height % 10 == 0:
                 # Process block knowledge for Aether Tree
                 if self.aether:
                     try:
                         self.aether.process_block_knowledge(block_obj)
                     except Exception as e:
-                        logger.debug(f"Aether knowledge processing: {e}")
+                        logger.error(f"Aether knowledge processing FAILED at block {block_height}: {e}", exc_info=True)
 
                 # Higgs Cognitive Field tick
                 if getattr(self, 'higgs_field', None):
                     try:
                         self.higgs_field.tick(block_height)
                     except Exception as e:
-                        logger.debug(f"Higgs field tick: {e}")
+                        logger.warning(f"Higgs field tick: {e}")
 
                 # QUSD Keeper tick
                 if getattr(self, 'qusd_keeper', None):
                     try:
                         self.qusd_keeper.on_block(block_height)
                     except Exception as e:
-                        logger.debug(f"QUSD keeper tick: {e}")
+                        logger.warning(f"QUSD keeper tick: {e}")
 
-            # Anchor Aether state back to Substrate (every 100 blocks)
+            # Anchor Aether state back to Substrate (every 50 blocks)
             # Note: anchoring is async, schedule from sync thread via event loop
-            if self.substrate_bridge and block_height % 100 == 0 and self.aether:
+            if self.substrate_bridge and block_height % 50 == 0 and self.aether:
                 try:
                     phi_value = self.aether.phi
                     kg = self.aether.kg
