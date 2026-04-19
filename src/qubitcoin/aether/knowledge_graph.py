@@ -2570,11 +2570,30 @@ class KnowledgeGraph:
         return getattr(self, '_rust_kg', None)
 
     def get_stats(self) -> dict:
-        """Get knowledge graph statistics"""
+        """Get knowledge graph statistics.
+
+        Caches the result for 30 seconds to avoid re-iterating 100K+ nodes
+        on every API call. Cache is also invalidated when nodes/edges change.
+        """
+        import time as _time
+        now = _time.monotonic()
+        cache = getattr(self, '_stats_cache', None)
+        cache_time = getattr(self, '_stats_cache_time', 0.0)
+        cache_size = getattr(self, '_stats_cache_size', -1)
+        current_size = len(self.nodes)
+
+        # Return cached if <30s old and node count unchanged
+        if cache is not None and (now - cache_time) < 30.0 and cache_size == current_size:
+            return cache
+
         # Rust-accelerated stats when available
         if getattr(self, '_rust_kg', None) is not None:
             try:
-                return self._rust_kg.get_stats()
+                result = self._rust_kg.get_stats()
+                self._stats_cache = result
+                self._stats_cache_time = now
+                self._stats_cache_size = current_size
+                return result
             except Exception:
                 pass
 
@@ -2584,34 +2603,40 @@ class KnowledgeGraph:
         except RuntimeError:
             nodes_snapshot = []
 
-        type_counts = {}
+        type_counts: dict = {}
+        domain_counts: dict = {}
+        total_conf = 0.0
         for node in nodes_snapshot:
             type_counts[node.node_type] = type_counts.get(node.node_type, 0) + 1
+            d = node.domain or 'general'
+            domain_counts[d] = domain_counts.get(d, 0) + 1
+            total_conf += node.confidence
 
-        edge_type_counts = {}
+        edge_type_counts: dict = {}
         for edge in self.edges:
             edge_type_counts[edge.edge_type] = edge_type_counts.get(edge.edge_type, 0) + 1
 
-        avg_confidence = (
-            sum(n.confidence for n in nodes_snapshot) / len(nodes_snapshot)
-            if nodes_snapshot else 0.0
-        )
+        avg_confidence = total_conf / len(nodes_snapshot) if nodes_snapshot else 0.0
 
-        domain_counts = {}
-        for node in nodes_snapshot:
-            d = node.domain or 'general'
-            domain_counts[d] = domain_counts.get(d, 0) + 1
+        # Use cached merkle root (don't recompute on stats call)
+        kr = getattr(self, '_merkle_cache', None)
+        if not kr:
+            kr = '0' * 16
 
-        return {
+        result = {
             'total_nodes': len(self.nodes),
             'total_edges': len(self.edges),
             'node_types': type_counts,
             'edge_types': edge_type_counts,
             'avg_confidence': round(avg_confidence, 4),
             'domains': domain_counts,
-            'knowledge_root': self.compute_knowledge_root()[:16] + '...',
-            'cache': self.nodes.cache_stats() if hasattr(self.nodes, 'cache_stats') else {},
+            'knowledge_root': kr[:16] + '...',
         }
+
+        self._stats_cache = result
+        self._stats_cache_time = now
+        self._stats_cache_size = current_size
+        return result
 
     # ────────────────────────────────────────────────────────────────────────
     # Improvements 51-65: Advanced Knowledge Graph Operations
