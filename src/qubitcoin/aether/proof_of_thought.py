@@ -5790,6 +5790,11 @@ class AetherEngine:
 
         This is the critical activation that makes the AI *think* between
         user interactions — without it, reasoning only fires during chat.
+
+        IMPORTANT: This method must produce inference nodes even when the
+        KG is mostly disconnected axioms.  Deduction falls back to
+        same-domain pairing when graph neighbors are absent.  Abduction
+        works with any observation + axiom pair (no neighbor requirement).
         """
         import random as _rng
 
@@ -5799,7 +5804,7 @@ class AetherEngine:
         if n_nodes < 10:
             return  # Too few nodes for meaningful reasoning
 
-        # Sample recent high-confidence nodes for reasoning premises
+        # Build domain-bucketed candidate pool for efficient lookup
         all_nodes = list(kg.nodes.values())
         # Prefer recent, high-confidence nodes
         candidates = sorted(
@@ -5809,19 +5814,45 @@ class AetherEngine:
             reverse=True,
         )[:200]  # Top 200 candidates
 
+        # Pre-build domain map (used by deduction fallback, induction, and FEP)
+        domains: dict = {}
+        for n in candidates[:100]:
+            d = getattr(n, 'domain', 'general') or 'general'
+            domains.setdefault(d, []).append(n)
+
         inferences_created = 0
         max_inferences = 5  # Cap per cycle to keep block processing fast
 
-        # --- Deductive reasoning: pick 2-3 connected nodes ---
+        # --- Deductive reasoning: pick 2-3 premise pairs ---
+        # First try graph-connected pairs; fall back to same-domain pairs
+        # so deduction works even when the KG is mostly disconnected axioms.
         for _ in range(min(3, max_inferences)):
             if inferences_created >= max_inferences:
                 break
             seed = _rng.choice(candidates)
+            seed_domain = getattr(seed, 'domain', 'general') or 'general'
+
+            # Try graph neighbors first (preserves original connected-reasoning)
             neighbors = kg.get_neighbors(seed.node_id, 'out')
             if not neighbors:
                 neighbors = kg.get_neighbors(seed.node_id, 'in')
+
+            partner = None
             if neighbors:
                 partner = _rng.choice(neighbors[:10])
+            else:
+                # Fallback: pick a different node from the same domain
+                domain_peers = [
+                    n for n in domains.get(seed_domain, [])
+                    if n.node_id != seed.node_id
+                ]
+                if not domain_peers:
+                    # Last resort: any other candidate
+                    domain_peers = [n for n in candidates if n.node_id != seed.node_id]
+                if domain_peers:
+                    partner = _rng.choice(domain_peers[:20])
+
+            if partner:
                 result = reasoning.deduce([seed.node_id, partner.node_id])
                 if result.success:
                     inferences_created += 1
@@ -5831,16 +5862,12 @@ class AetherEngine:
                         strategy='deductive',
                         confidence=result.confidence,
                         outcome_correct=result.success,
-                        domain=getattr(seed, 'domain', 'general'),
+                        domain=seed_domain,
                         block_height=block_height,
                     )
 
         # --- Inductive reasoning: pick 3+ nodes from same domain ---
         if inferences_created < max_inferences:
-            domains = {}
-            for n in candidates[:100]:
-                d = getattr(n, 'domain', 'general') or 'general'
-                domains.setdefault(d, []).append(n)
             # Pick domain with most nodes
             for domain_name in sorted(domains, key=lambda d: len(domains[d]), reverse=True)[:3]:
                 if inferences_created >= max_inferences:
@@ -5861,15 +5888,31 @@ class AetherEngine:
                             block_height=block_height,
                         )
 
-        # --- Abductive reasoning: pick observation and hypothesize ---
+        # --- Abductive reasoning: pick observation/axiom and hypothesize ---
+        # Does NOT require pre-existing neighbors — any observation + axiom
+        # pair from the same domain suffices for hypothesis generation.
         if inferences_created < max_inferences:
             observations = [n for n in candidates if getattr(n, 'node_type', '') == 'observation']
+            axioms = [n for n in candidates if getattr(n, 'node_type', '') == 'axiom']
+            # Fall back to any node type if no observations exist yet
+            if not observations:
+                observations = [n for n in candidates if getattr(n, 'node_type', '') in ('inference', 'assertion')]
             if observations:
                 obs = _rng.choice(observations[:30])
-                # Find a rule-like node connected to this observation
+                # Try graph neighbors first
                 neighbors = kg.get_neighbors(obs.node_id, 'in')
+                rule_node = None
                 if neighbors:
                     rule_node = _rng.choice(neighbors[:5])
+                elif axioms:
+                    # Fallback: pick an axiom from same domain as explanatory premise
+                    obs_domain = getattr(obs, 'domain', 'general') or 'general'
+                    same_domain_axioms = [a for a in axioms if (getattr(a, 'domain', 'general') or 'general') == obs_domain]
+                    if same_domain_axioms:
+                        rule_node = _rng.choice(same_domain_axioms[:10])
+                    else:
+                        rule_node = _rng.choice(axioms[:10])
+                if rule_node:
                     result = reasoning.abduce(obs.node_id, [rule_node.node_id])
                     if result.success:
                         inferences_created += 1
@@ -5882,15 +5925,9 @@ class AetherEngine:
                             block_height=block_height,
                         )
 
-        # --- Build domain map (used for cross-domain inference + FEP feed) ---
-        domains_with_nodes: dict = {}
-        for n in candidates[:100]:
-            d = getattr(n, 'domain', 'general') or 'general'
-            domains_with_nodes.setdefault(d, []).append(n)
-
         # --- Cross-domain inference (every 5th reasoning cycle) ---
         if block_height % (Config.AETHER_AUTONOMOUS_REASONING_INTERVAL * 5) == 0:
-            domain_list = [d for d, ns in domains_with_nodes.items() if len(ns) >= 5]
+            domain_list = [d for d, ns in domains.items() if len(ns) >= 3]
             if len(domain_list) >= 2:
                 pair = _rng.sample(domain_list, 2)
                 try:
@@ -5907,7 +5944,7 @@ class AetherEngine:
         # --- Feed curiosity engine with prediction errors ---
         # Record domain prediction outcomes every reasoning cycle so FEP accumulates
         # domain precision data (needed for gates 6 + 8).
-        if self.curiosity_engine and domains_with_nodes:
+        if self.curiosity_engine and domains:
             try:
                 accuracy = 0.5  # default prior
                 if self.temporal_engine:
@@ -5916,7 +5953,7 @@ class AetherEngine:
                     except Exception:
                         pass
                 fed_domains = 0
-                for d in domains_with_nodes:
+                for d in domains:
                     self.curiosity_engine.record_prediction_outcome(
                         domain=d,
                         predicted=accuracy,
@@ -5936,6 +5973,11 @@ class AetherEngine:
             logger.info(
                 "Autonomous reasoning at block %d: %d inferences created",
                 block_height, inferences_created,
+            )
+        else:
+            logger.debug(
+                "Autonomous reasoning at block %d: 0 inferences (candidates=%d, domains=%d)",
+                block_height, len(candidates), len(domains),
             )
 
     def _curiosity_explore(self, block_height: int) -> int:

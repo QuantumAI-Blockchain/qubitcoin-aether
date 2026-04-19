@@ -1089,10 +1089,11 @@ class DebateProtocol:
 
     def run_periodic_debates(self, block_height: int,
                              max_debates: int = 3) -> int:
-        """Run debates on recent high-confidence inference nodes.
+        """Run debates on recent knowledge nodes to stress-test conclusions.
 
-        Called periodically (e.g., every 100 blocks) to stress-test
-        recent conclusions.
+        Prefers inference nodes (conclusions that should be challenged), but
+        falls back to high-confidence axioms when no inferences exist yet.
+        This ensures the debate subsystem activates even in a mostly-axiom KG.
 
         Args:
             block_height: Current block height.
@@ -1118,6 +1119,18 @@ class DebateProtocol:
             and n.confidence >= 0.5
             and n.node_id not in debated_ids
         ]
+
+        # Fallback: if no inference nodes exist yet, debate axioms.
+        # This bootstraps the debate subsystem so it can produce verdicts
+        # and feed downstream subsystems (self-improvement, metacognition).
+        if not candidates:
+            candidates = [
+                n for n in self.kg.nodes.values()
+                if n.node_type in ('axiom', 'assertion', 'observation')
+                and n.confidence >= 0.5
+                and n.node_id not in debated_ids
+            ]
+
         candidates.sort(key=lambda n: n.source_block, reverse=True)
 
         debates_run = 0

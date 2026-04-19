@@ -90,11 +90,13 @@ class ConceptFormation:
 
         self._runs += 1
 
-        # Select candidate nodes
+        # Select candidate nodes — include axioms so concept formation works
+        # even when the KG is dominated by genesis axiom nodes.  Axioms are
+        # real knowledge and should be clustered into higher-level concepts.
         candidates = [
             n for n in self.kg.nodes.values()
             if (not domain or n.domain == domain)
-            and n.node_type in ('observation', 'inference', 'assertion')
+            and n.node_type in ('observation', 'inference', 'assertion', 'axiom')
         ]
         candidates.sort(key=lambda n: n.source_block, reverse=True)
         candidates = candidates[:max_nodes]

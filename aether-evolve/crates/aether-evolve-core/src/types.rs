@@ -245,3 +245,97 @@ impl Default for PipelineState {
         }
     }
 }
+
+// ── Institutional Peer Review ─────────────────────────────────────────
+
+/// Comprehensive peer review score across 10 dimensions, each 0-10.
+/// Total score: 0-100. Target: 100/100 for true AGI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeerReviewScore {
+    /// Knowledge depth & breadth (nodes, domains, cross-domain edges)
+    pub knowledge_quality: f64,
+    /// Reasoning rigor (prediction accuracy, causal validity, deduction quality)
+    pub reasoning_depth: f64,
+    /// Self-improvement capability (enacted cycles, positive deltas, rollback safety)
+    pub self_improvement: f64,
+    /// Confidence calibration (ECE, grounded ratio, calibrated vs raw)
+    pub calibration: f64,
+    /// Adversarial robustness (debate verdicts, contradiction resolution, critic independence)
+    pub adversarial_robustness: f64,
+    /// Integrated information (HMS-Phi micro/meso/macro, MIP score)
+    pub integrated_information: f64,
+    /// Autonomous curiosity (auto-goals, discoveries, exploration diversity)
+    pub autonomous_curiosity: f64,
+    /// Novel synthesis (novel concepts, cross-domain inferences, emergent patterns)
+    pub novel_synthesis: f64,
+    /// System reliability (subsystem uptime, error rates, recovery)
+    pub system_reliability: f64,
+    /// Scale readiness (node count trajectory, query latency, shard readiness)
+    pub scale_readiness: f64,
+}
+
+impl PeerReviewScore {
+    pub fn total(&self) -> f64 {
+        self.knowledge_quality
+            + self.reasoning_depth
+            + self.self_improvement
+            + self.calibration
+            + self.adversarial_robustness
+            + self.integrated_information
+            + self.autonomous_curiosity
+            + self.novel_synthesis
+            + self.system_reliability
+            + self.scale_readiness
+    }
+
+    /// Returns the weakest dimension name and score.
+    pub fn weakest_dimension(&self) -> (&'static str, f64) {
+        let dims = [
+            ("knowledge_quality", self.knowledge_quality),
+            ("reasoning_depth", self.reasoning_depth),
+            ("self_improvement", self.self_improvement),
+            ("calibration", self.calibration),
+            ("adversarial_robustness", self.adversarial_robustness),
+            ("integrated_information", self.integrated_information),
+            ("autonomous_curiosity", self.autonomous_curiosity),
+            ("novel_synthesis", self.novel_synthesis),
+            ("system_reliability", self.system_reliability),
+            ("scale_readiness", self.scale_readiness),
+        ];
+        dims.iter()
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .copied()
+            .unwrap_or(("unknown", 0.0))
+    }
+
+    /// Returns all dimensions sorted weakest-first.
+    pub fn ranked_dimensions(&self) -> Vec<(&'static str, f64)> {
+        let mut dims = vec![
+            ("knowledge_quality", self.knowledge_quality),
+            ("reasoning_depth", self.reasoning_depth),
+            ("self_improvement", self.self_improvement),
+            ("calibration", self.calibration),
+            ("adversarial_robustness", self.adversarial_robustness),
+            ("integrated_information", self.integrated_information),
+            ("autonomous_curiosity", self.autonomous_curiosity),
+            ("novel_synthesis", self.novel_synthesis),
+            ("system_reliability", self.system_reliability),
+            ("scale_readiness", self.scale_readiness),
+        ];
+        dims.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        dims
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeerReviewReport {
+    pub timestamp: DateTime<Utc>,
+    pub step: u64,
+    pub score: PeerReviewScore,
+    pub total: f64,
+    pub grade: String,
+    pub summary: String,
+    pub top_weaknesses: Vec<String>,
+    pub recommendations: Vec<String>,
+    pub metrics_snapshot: AetherMetrics,
+}

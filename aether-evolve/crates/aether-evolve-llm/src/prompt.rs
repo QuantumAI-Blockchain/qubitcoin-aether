@@ -22,6 +22,7 @@ impl PromptManager {
         tera.add_raw_template("research_code", RESEARCH_CODE_TEMPLATE)?;
         tera.add_raw_template("research_seed", RESEARCH_SEED_TEMPLATE)?;
         tera.add_raw_template("analyze", ANALYZE_TEMPLATE)?;
+        tera.add_raw_template("peer_review", PEER_REVIEW_TEMPLATE)?;
 
         Ok(Self { tera })
     }
@@ -134,6 +135,43 @@ Respond as a JSON array:
   }
 ]
 ```"#;
+
+const PEER_REVIEW_TEMPLATE: &str = r#"You are an institutional-grade AI peer reviewer evaluating the Aether Tree cognitive system.
+Your review standards are those of a top-tier AI research institution (DeepMind, Anthropic, OpenAI level).
+
+## System Metrics
+- Nodes: {{ total_nodes }} | Edges: {{ total_edges }}
+- HMS-Phi: {{ hms_phi }} (micro={{ phi_micro }}, meso={{ phi_meso }}, macro={{ phi_macro }})
+- Gates: {{ gates_passed }}/{{ gates_total }}
+- Prediction accuracy: {{ prediction_accuracy }}%
+- Debates: {{ debate_count }} | Contradictions: {{ contradiction_count }}
+- Novel concepts: {{ novel_concepts }}
+- Auto-goals: {{ auto_goals }} | Curiosity discoveries: {{ curiosity_discoveries }}
+- Self-improvement cycles: {{ self_improvement_cycles }}
+- ECE: {{ ece }} | MIP: {{ mip_score }}
+
+## Current Dimension Scores (rule-based)
+{{ dimensions }}
+Total: {{ total_score }}/100
+
+## Task
+Provide an institutional peer review. Be HARSH but FAIR. This system claims to pursue AGI —
+hold it to that standard. For each dimension below 8/10, provide specific, actionable
+recommendations for what the code needs to change.
+
+Focus on:
+1. What is genuinely impressive vs what is smoke and mirrors
+2. Where the biggest gaps are between claims and reality
+3. What specific code changes would move each dimension toward 10/10
+4. Whether the system shows genuine emergence or just metric optimization
+
+Respond in this format:
+<summary>
+Overall assessment (2-3 sentences, institutional tone)
+</summary>
+<recommendation>Specific actionable recommendation 1</recommendation>
+<recommendation>Specific actionable recommendation 2</recommendation>
+<recommendation>Specific actionable recommendation 3</recommendation>"#;
 
 const ANALYZE_TEMPLATE: &str = r#"You are analyzing the results of an evolution experiment on the Aether Tree.
 
