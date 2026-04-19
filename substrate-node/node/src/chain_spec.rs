@@ -276,13 +276,18 @@ pub fn mainnet_fork_config() -> Result<ChainSpec, String> {
     let fork_height = fork_state["fork_height"].as_u64().unwrap_or(0);
     log::info!("Building fork genesis from Python chain at block {}", fork_height);
 
-    // Single validator — this node is the sole miner post-fork
+    // Two validators — Alice (primary) and Bob (public node)
+    // Both run VQE mining; Aura alternates block slots between them.
     let initial_authorities = vec![
         authority_keys_from_seed("Alice"),
+        authority_keys_from_seed("Bob"),
     ];
 
     let root_key = get_account_id_from_seed::<sr25519::Public>("Alice");
-    let endowed_accounts = vec![root_key.clone()];
+    let endowed_accounts = vec![
+        root_key.clone(),
+        get_account_id_from_seed::<sr25519::Public>("Bob"),
+    ];
 
     // Parse fork UTXOs from JSON
     let utxo_array = fork_state["genesis_utxos"].as_array()

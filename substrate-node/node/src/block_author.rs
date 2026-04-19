@@ -137,7 +137,10 @@ pub async fn run_vqe_block_author(
             .as_millis() as u64;
         let current_slot = sp_consensus_aura::Slot::from(proposal_time_ms / slot_duration_ms);
 
-        // Claim the slot — verify we have the authority key for this slot
+        // Claim a slot — try current and subsequent slots until we find one we own.
+        // With multiple Aura authorities, we may not own the current slot.
+        // We MUST NOT go back to proof_rx.recv() here — the proof is already in the
+        // pool and the mining engine won't generate another one until the chain advances.
         let authorities: Vec<sp_consensus_aura::sr25519::AuthorityId> =
             match client.runtime_api().authorities(best_hash) {
                 Ok(a) => a,
@@ -150,33 +153,51 @@ pub async fn run_vqe_block_author(
                 }
             };
 
-        let authority_public = match sc_consensus_aura::standalone::claim_slot::<AuraPair>(
-            current_slot,
-            &authorities,
-            &keystore,
-        )
-        .await
-        {
-            Some(public) => public,
-            None => {
-                // We don't own this slot — wait for the next one we do own
-                log::debug!(
-                    target: "block-author",
-                    "Slot {} not owned by our authority, skipping", *current_slot
-                );
-                // Try the next slot
-                let next_own_slot_ms = (*current_slot + 1) * slot_duration_ms;
+        let (authority_public, current_slot) = {
+            let mut slot = current_slot;
+            let mut found = None;
+            // Try up to N_AUTHORITIES * 2 slots to find one we own
+            let max_tries = (authorities.len() as u64) * 2;
+            for _ in 0..max_tries {
+                if let Some(public) = sc_consensus_aura::standalone::claim_slot::<AuraPair>(
+                    slot,
+                    &authorities,
+                    &keystore,
+                )
+                .await
+                {
+                    found = Some((public, slot));
+                    break;
+                }
+                // Wait for the next slot
+                let next_slot_ms = (*slot + 1) * slot_duration_ms;
                 let now2 = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .expect("time")
                     .as_millis() as u64;
-                if next_own_slot_ms > now2 {
+                if next_slot_ms > now2 {
+                    log::debug!(
+                        target: "block-author",
+                        "Slot {} not owned, waiting {}ms for next slot",
+                        *slot, next_slot_ms - now2
+                    );
                     tokio::time::sleep(std::time::Duration::from_millis(
-                        next_own_slot_ms - now2,
+                        next_slot_ms - now2,
                     ))
                     .await;
                 }
-                continue;
+                slot = sp_consensus_aura::Slot::from(*slot + 1);
+            }
+            match found {
+                Some(result) => result,
+                None => {
+                    log::warn!(
+                        target: "block-author",
+                        "Could not claim any slot after {} tries, retrying...",
+                        max_tries
+                    );
+                    continue;
+                }
             }
         };
 

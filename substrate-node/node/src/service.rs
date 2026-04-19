@@ -418,7 +418,7 @@ pub fn new_full(
         config.prometheus_registry(),
     );
 
-    let net_config = sc_network::config::FullNetworkConfiguration::<
+    let mut net_config = sc_network::config::FullNetworkConfiguration::<
         Block,
         <Block as sp_runtime::traits::Block>::Hash,
         sc_network::NetworkWorker<Block, <Block as sp_runtime::traits::Block>::Hash>,
@@ -426,12 +426,14 @@ pub fn new_full(
 
     let peer_store_handle = net_config.peer_store_handle();
 
-    let (_grandpa_protocol_config, grandpa_notification_service) =
+    let (grandpa_protocol_config, grandpa_notification_service) =
         sc_consensus_grandpa::grandpa_peers_set_config::<Block, sc_network::NetworkWorker<Block, <Block as sp_runtime::traits::Block>::Hash>>(
             grandpa_protocol_name.clone(),
             metrics.clone(),
             peer_store_handle,
         );
+
+    net_config.add_notification_protocol(grandpa_protocol_config);
 
     let warp_sync_config = WarpSyncConfig::WithProvider(
         Arc::new(sc_consensus_grandpa::warp_proof::NetworkProvider::new(
