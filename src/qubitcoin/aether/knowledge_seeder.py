@@ -23,9 +23,14 @@ from typing import Dict, List, Optional
 from ..config import Config
 from ..utils.logger import get_logger
 
-# ── Wikipedia topics per knowledge domain ─────────────────────────────────────
+# ── Topic list (try expanded module first, fallback to inline) ────────────────
 # Used by internet workers to mine grounded factual knowledge without LLM.
-_WIKI_TOPICS_BY_DOMAIN: Dict[str, List[str]] = {
+try:
+    from ._seeder_topics import TOPICS_BY_DOMAIN as _EXPANDED_TOPICS
+except ImportError:
+    _EXPANDED_TOPICS = None
+
+_WIKI_TOPICS_BY_DOMAIN_INLINE: Dict[str, List[str]] = {
     "quantum_physics": [
         "Quantum entanglement", "Superposition principle", "Wave function",
         "Quantum decoherence", "Bell's theorem", "Quantum tunnelling",
@@ -395,9 +400,14 @@ _WIKI_TOPICS_BY_DOMAIN: Dict[str, List[str]] = {
     ],
 }
 
+# Use expanded topics if available (3000+ topics), else use inline (885 topics)
+_WIKI_TOPICS_BY_DOMAIN: Dict[str, List[str]] = (
+    _EXPANDED_TOPICS if _EXPANDED_TOPICS else _WIKI_TOPICS_BY_DOMAIN_INLINE
+)
+
 # ArXiv search terms by domain (maps to ArXiv category codes)
 _ARXIV_QUERIES: List[Dict[str, str]] = [
-    # Quantum physics & computing
+    # ── Quantum physics & computing (30) ──────────────────────────────────
     {"term": "quantum computing entanglement", "cat": "quant-ph"},
     {"term": "quantum error correction surface code", "cat": "quant-ph"},
     {"term": "variational quantum eigensolver molecular", "cat": "quant-ph"},
@@ -406,7 +416,29 @@ _ARXIV_QUERIES: List[Dict[str, str]] = [
     {"term": "quantum key distribution security", "cat": "quant-ph"},
     {"term": "quantum machine learning kernel", "cat": "quant-ph"},
     {"term": "quantum simulation many-body", "cat": "quant-ph"},
-    # AI & Machine Learning
+    {"term": "quantum annealing optimization", "cat": "quant-ph"},
+    {"term": "quantum walk algorithm", "cat": "quant-ph"},
+    {"term": "quantum channel capacity", "cat": "quant-ph"},
+    {"term": "quantum metrology sensing", "cat": "quant-ph"},
+    {"term": "boson sampling photonic", "cat": "quant-ph"},
+    {"term": "quantum network repeater", "cat": "quant-ph"},
+    {"term": "quantum thermodynamics engine", "cat": "quant-ph"},
+    {"term": "quantum coherence decoherence", "cat": "quant-ph"},
+    {"term": "measurement-based quantum computation", "cat": "quant-ph"},
+    {"term": "quantum state tomography", "cat": "quant-ph"},
+    {"term": "quantum optimal control", "cat": "quant-ph"},
+    {"term": "trapped ion quantum processor", "cat": "quant-ph"},
+    {"term": "superconducting qubit architecture", "cat": "quant-ph"},
+    {"term": "quantum random number generation", "cat": "quant-ph"},
+    {"term": "adiabatic quantum computation", "cat": "quant-ph"},
+    {"term": "quantum spin liquid", "cat": "quant-ph"},
+    {"term": "quantum entanglement entropy", "cat": "quant-ph"},
+    {"term": "quantum information scrambling", "cat": "quant-ph"},
+    {"term": "fault-tolerant quantum gate", "cat": "quant-ph"},
+    {"term": "quantum chemistry simulation", "cat": "quant-ph"},
+    {"term": "Majorana fermion braiding", "cat": "quant-ph"},
+    {"term": "quantum dot qubit", "cat": "quant-ph"},
+    # ── AI & Machine Learning (50) ────────────────────────────────────────
     {"term": "large language model reasoning", "cat": "cs.AI"},
     {"term": "reinforcement learning planning", "cat": "cs.AI"},
     {"term": "neural network interpretability", "cat": "cs.LG"},
@@ -416,39 +448,214 @@ _ARXIV_QUERIES: List[Dict[str, str]] = [
     {"term": "diffusion model generative", "cat": "cs.LG"},
     {"term": "meta-learning few-shot", "cat": "cs.LG"},
     {"term": "federated learning privacy", "cat": "cs.LG"},
-    {"term": "multi-agent reinforcement learning", "cat": "cs.MA"},
+    {"term": "multi-agent reinforcement learning", "cat": "cs.AI"},
     {"term": "artificial general intelligence", "cat": "cs.AI"},
     {"term": "neuro-symbolic reasoning", "cat": "cs.AI"},
     {"term": "causal representation learning", "cat": "cs.LG"},
     {"term": "self-supervised contrastive learning", "cat": "cs.LG"},
-    # Neuroscience & consciousness
+    {"term": "vision transformer image recognition", "cat": "cs.CV"},
+    {"term": "object detection YOLO", "cat": "cs.CV"},
+    {"term": "3D point cloud deep learning", "cat": "cs.CV"},
+    {"term": "neural radiance field NeRF", "cat": "cs.CV"},
+    {"term": "text-to-image generation", "cat": "cs.CV"},
+    {"term": "natural language inference entailment", "cat": "cs.CL"},
+    {"term": "machine translation multilingual", "cat": "cs.CL"},
+    {"term": "speech recognition end-to-end", "cat": "cs.CL"},
+    {"term": "question answering retrieval augmented", "cat": "cs.CL"},
+    {"term": "code generation program synthesis", "cat": "cs.CL"},
+    {"term": "continual learning catastrophic forgetting", "cat": "cs.LG"},
+    {"term": "neural architecture search AutoML", "cat": "cs.LG"},
+    {"term": "Bayesian deep learning uncertainty", "cat": "cs.LG"},
+    {"term": "world model planning", "cat": "cs.AI"},
+    {"term": "reward shaping alignment", "cat": "cs.AI"},
+    {"term": "AI safety alignment RLHF", "cat": "cs.AI"},
+    {"term": "mixture of experts scaling", "cat": "cs.LG"},
+    {"term": "state space model sequence", "cat": "cs.LG"},
+    {"term": "normalizing flow density estimation", "cat": "cs.LG"},
+    {"term": "energy-based model contrastive", "cat": "cs.LG"},
+    {"term": "robotics manipulation reinforcement", "cat": "cs.RO"},
+    {"term": "autonomous driving perception planning", "cat": "cs.RO"},
+    {"term": "multi-modal learning vision language", "cat": "cs.CV"},
+    {"term": "adversarial robustness attack defense", "cat": "cs.LG"},
+    {"term": "pruning quantization efficient inference", "cat": "cs.LG"},
+    {"term": "emergent abilities language model", "cat": "cs.CL"},
+    {"term": "chain of thought prompting reasoning", "cat": "cs.AI"},
+    {"term": "graph transformer molecular property", "cat": "cs.LG"},
+    {"term": "equivariant neural network symmetry", "cat": "cs.LG"},
+    {"term": "active learning annotation efficient", "cat": "cs.LG"},
+    # ── Neuroscience & consciousness (20) ─────────────────────────────────
     {"term": "integrated information theory consciousness", "cat": "q-bio.NC"},
     {"term": "neural correlates consciousness", "cat": "q-bio.NC"},
     {"term": "predictive coding brain", "cat": "q-bio.NC"},
     {"term": "connectome mapping brain", "cat": "q-bio.NC"},
     {"term": "free energy principle active inference", "cat": "q-bio.NC"},
-    # Cryptography & security
+    {"term": "global workspace theory attention", "cat": "q-bio.NC"},
+    {"term": "synaptic plasticity learning memory", "cat": "q-bio.NC"},
+    {"term": "neural oscillation gamma synchrony", "cat": "q-bio.NC"},
+    {"term": "computational neuroscience spiking", "cat": "q-bio.NC"},
+    {"term": "brain-computer interface neural decoding", "cat": "q-bio.NC"},
+    {"term": "prefrontal cortex decision making", "cat": "q-bio.NC"},
+    {"term": "hippocampal memory replay consolidation", "cat": "q-bio.NC"},
+    {"term": "cortical hierarchy visual processing", "cat": "q-bio.NC"},
+    {"term": "neuromodulation dopamine reward", "cat": "q-bio.NC"},
+    {"term": "neuromorphic computing spike-based", "cat": "q-bio.NC"},
+    {"term": "default mode network resting state", "cat": "q-bio.NC"},
+    {"term": "neural coding population dynamics", "cat": "q-bio.NC"},
+    {"term": "thalamus cortex loop sensory", "cat": "q-bio.NC"},
+    {"term": "glial cell astrocyte function", "cat": "q-bio.NC"},
+    {"term": "optogenetics circuit manipulation", "cat": "q-bio.NC"},
+    # ── Cryptography & security (20) ──────────────────────────────────────
     {"term": "blockchain consensus scalability", "cat": "cs.CR"},
     {"term": "zero knowledge proof scalable", "cat": "cs.CR"},
     {"term": "post-quantum cryptography lattice", "cat": "cs.CR"},
     {"term": "homomorphic encryption computation", "cat": "cs.CR"},
     {"term": "secure multi-party computation", "cat": "cs.CR"},
-    # Mathematics & statistics
+    {"term": "verifiable computation blockchain", "cat": "cs.CR"},
+    {"term": "decentralized identity self-sovereign", "cat": "cs.CR"},
+    {"term": "zk-SNARK zk-STARK recursive", "cat": "cs.CR"},
+    {"term": "threshold signature distributed key", "cat": "cs.CR"},
+    {"term": "formal verification smart contract", "cat": "cs.CR"},
+    {"term": "MEV flashbot auction mechanism", "cat": "cs.CR"},
+    {"term": "layer-2 rollup validity proof", "cat": "cs.CR"},
+    {"term": "sharding cross-shard transaction", "cat": "cs.CR"},
+    {"term": "DeFi protocol security audit", "cat": "cs.CR"},
+    {"term": "consensus BFT byzantine fault", "cat": "cs.DC"},
+    {"term": "peer-to-peer network gossip protocol", "cat": "cs.DC"},
+    {"term": "oblivious RAM private retrieval", "cat": "cs.CR"},
+    {"term": "attribute-based encryption access control", "cat": "cs.CR"},
+    {"term": "functional encryption predicate", "cat": "cs.CR"},
+    {"term": "quantum-resistant digital signature", "cat": "cs.CR"},
+    # ── Mathematics & statistics (25) ─────────────────────────────────────
     {"term": "causal inference discovery", "cat": "stat.ML"},
     {"term": "topological data analysis", "cat": "math.AT"},
     {"term": "information geometry statistical manifold", "cat": "math.ST"},
     {"term": "category theory applied mathematics", "cat": "math.CT"},
     {"term": "spectral graph theory clustering", "cat": "math.SP"},
     {"term": "optimal transport machine learning", "cat": "stat.ML"},
-    # Complex systems & physics
+    {"term": "algebraic topology homology cohomology", "cat": "math.AT"},
+    {"term": "Riemannian geometry manifold", "cat": "math.DG"},
+    {"term": "stochastic differential equation", "cat": "math.PR"},
+    {"term": "random matrix theory eigenvalue", "cat": "math.PR"},
+    {"term": "combinatorial optimization approximation", "cat": "math.CO"},
+    {"term": "number theory prime distribution", "cat": "math.NT"},
+    {"term": "functional analysis operator theory", "cat": "math.FA"},
+    {"term": "ergodic theory dynamical systems", "cat": "math.DS"},
+    {"term": "convex optimization interior point", "cat": "math.OC"},
+    {"term": "harmonic analysis wavelet transform", "cat": "math.CA"},
+    {"term": "algebraic geometry scheme variety", "cat": "math.AG"},
+    {"term": "representation theory group algebra", "cat": "math.RT"},
+    {"term": "numerical analysis finite element", "cat": "math.NA"},
+    {"term": "graph theory extremal combinatorial", "cat": "math.CO"},
+    {"term": "probability martingale stochastic process", "cat": "math.PR"},
+    {"term": "logic model theory computability", "cat": "math.LO"},
+    {"term": "differential equation dynamical system", "cat": "math.DS"},
+    {"term": "measure theory integration", "cat": "math.CA"},
+    {"term": "homotopy type theory foundations", "cat": "math.CT"},
+    # ── Physics (25) ──────────────────────────────────────────────────────
     {"term": "complex network dynamics emergence", "cat": "nlin.AO"},
     {"term": "self-organized criticality", "cat": "cond-mat.stat-mech"},
     {"term": "information thermodynamics entropy", "cat": "cond-mat.stat-mech"},
-    # Biology & evolution
+    {"term": "string theory landscape swampland", "cat": "hep-th"},
+    {"term": "supersymmetry SUSY breaking", "cat": "hep-ph"},
+    {"term": "black hole information paradox", "cat": "hep-th"},
+    {"term": "holographic principle AdS/CFT", "cat": "hep-th"},
+    {"term": "dark matter candidate detection", "cat": "hep-ph"},
+    {"term": "neutrino mass oscillation", "cat": "hep-ph"},
+    {"term": "gravitational wave detection LIGO", "cat": "gr-qc"},
+    {"term": "loop quantum gravity spin foam", "cat": "gr-qc"},
+    {"term": "cosmic inflation primordial", "cat": "astro-ph"},
+    {"term": "dark energy cosmological constant", "cat": "astro-ph"},
+    {"term": "neutron star equation of state", "cat": "astro-ph"},
+    {"term": "topological insulator surface state", "cat": "cond-mat.mes-hall"},
+    {"term": "high temperature superconductor cuprate", "cat": "cond-mat.supr-con"},
+    {"term": "phase transition critical phenomena", "cat": "cond-mat.stat-mech"},
+    {"term": "Bose-Einstein condensate ultracold", "cat": "cond-mat.quant-gas"},
+    {"term": "spintronics magnetoresistance", "cat": "cond-mat.mtrl-sci"},
+    {"term": "metamaterial photonic crystal", "cat": "physics.optics"},
+    {"term": "plasma physics fusion confinement", "cat": "physics.plasm-ph"},
+    {"term": "turbulence fluid dynamics Navier-Stokes", "cat": "physics.flu-dyn"},
+    {"term": "nonlinear dynamics chaos bifurcation", "cat": "nlin.CD"},
+    {"term": "lattice gauge theory simulation", "cat": "hep-lat"},
+    {"term": "quantum gravity phenomenology", "cat": "gr-qc"},
+    # ── Biology & evolution (20) ──────────────────────────────────────────
     {"term": "evolutionary dynamics cooperation", "cat": "q-bio.PE"},
     {"term": "gene regulatory network inference", "cat": "q-bio.MN"},
     {"term": "protein structure prediction", "cat": "q-bio.BM"},
+    {"term": "single cell RNA sequencing analysis", "cat": "q-bio.GN"},
+    {"term": "CRISPR gene editing guide RNA", "cat": "q-bio.GN"},
+    {"term": "protein folding energy landscape", "cat": "q-bio.BM"},
+    {"term": "metabolic network flux analysis", "cat": "q-bio.MN"},
+    {"term": "phylogenetic inference molecular clock", "cat": "q-bio.PE"},
+    {"term": "population genetics selection drift", "cat": "q-bio.PE"},
+    {"term": "epigenetics chromatin modification", "cat": "q-bio.GN"},
+    {"term": "synthetic biology genetic circuit", "cat": "q-bio.MN"},
+    {"term": "immune system adaptive immunity", "cat": "q-bio.CB"},
+    {"term": "microbiome metagenomics diversity", "cat": "q-bio.PE"},
+    {"term": "developmental biology morphogenesis", "cat": "q-bio.CB"},
+    {"term": "ecology food web species interaction", "cat": "q-bio.PE"},
+    {"term": "systems biology pathway modeling", "cat": "q-bio.MN"},
+    {"term": "bioinformatics sequence alignment", "cat": "q-bio.GN"},
+    {"term": "structural biology cryo-EM", "cat": "q-bio.BM"},
+    {"term": "evolutionary game theory fitness", "cat": "q-bio.PE"},
+    {"term": "drug discovery molecular docking", "cat": "q-bio.BM"},
+    # ── Computer Science (20) ────────────────────────────────────────────
+    {"term": "distributed consensus Raft Paxos", "cat": "cs.DC"},
+    {"term": "database query optimization index", "cat": "cs.DB"},
+    {"term": "programming language type system", "cat": "cs.PL"},
+    {"term": "compiler optimization LLVM", "cat": "cs.PL"},
+    {"term": "operating system kernel scheduling", "cat": "cs.OS"},
+    {"term": "parallel computing GPU acceleration", "cat": "cs.DC"},
+    {"term": "formal methods verification model checking", "cat": "cs.LO"},
+    {"term": "approximation algorithm complexity", "cat": "cs.DS"},
+    {"term": "streaming algorithm data sketch", "cat": "cs.DS"},
+    {"term": "differential privacy mechanism", "cat": "cs.CR"},
+    {"term": "information retrieval search ranking", "cat": "cs.IR"},
+    {"term": "software engineering testing verification", "cat": "cs.SE"},
+    {"term": "computer architecture memory hierarchy", "cat": "cs.AR"},
+    {"term": "network protocol routing optimization", "cat": "cs.NI"},
+    {"term": "human-computer interaction interface", "cat": "cs.HC"},
+    {"term": "computational geometry algorithm", "cat": "cs.CG"},
+    {"term": "automata theory formal language", "cat": "cs.FL"},
+    {"term": "game theory algorithmic mechanism", "cat": "cs.GT"},
+    {"term": "natural language processing semantic", "cat": "cs.CL"},
+    {"term": "computer graphics rendering real-time", "cat": "cs.GR"},
+    # ── Economics & game theory (10) ──────────────────────────────────────
+    {"term": "mechanism design auction incentive", "cat": "econ.TH"},
+    {"term": "behavioral economics bounded rationality", "cat": "econ.TH"},
+    {"term": "market microstructure order book", "cat": "q-fin.TR"},
+    {"term": "network economics platform market", "cat": "econ.TH"},
+    {"term": "cooperative game theory coalition", "cat": "econ.TH"},
+    {"term": "stochastic game Markov equilibrium", "cat": "econ.TH"},
+    {"term": "matching market stable allocation", "cat": "econ.TH"},
+    {"term": "social choice voting theory", "cat": "econ.TH"},
+    {"term": "contract theory moral hazard", "cat": "econ.TH"},
+    {"term": "financial network systemic risk", "cat": "q-fin.RM"},
 ]
+
+# ── Domain mapping: seeder domain → KG domain ────────────────────────────────
+_DOMAIN_TO_KG: Dict[str, str] = {
+    'quantum_physics': 'quantum_physics',
+    'ai_machine_learning': 'ai_ml',
+    'mathematics': 'mathematics',
+    'philosophy_of_mind': 'philosophy',
+    'neuroscience': 'neuroscience',
+    'physics_general': 'physics',
+    'cryptography': 'cryptography',
+    'blockchain_fundamentals': 'blockchain',
+    'complexity_science': 'philosophy',
+    'information_theory': 'mathematics',
+    'computer_science': 'computer_science',
+    'biology_evolution': 'biology',
+    'economics_game_theory': 'economics',
+    'philosophy_general': 'philosophy',
+    'cognitive_science': 'neuroscience',
+    'engineering_systems': 'engineering',
+    # New domains from expanded topic list
+    'chemistry': 'physics',
+    'astronomy_cosmology': 'physics',
+    'linguistics': 'philosophy',
+    'medicine_health': 'biology',
+}
 
 logger = get_logger(__name__)
 
@@ -914,11 +1121,13 @@ class KnowledgeSeeder:
     # LLM workers (Ollama) — share hourly rate limit
     # Reduced to 1 for CPU-only Ollama — prevents chat timeouts
     _NUM_WORKERS: int = 1
-    # Internet workers (Wikipedia + ArXiv) — no Ollama, separate rate limit
-    # Scaled to 30 for massive knowledge ingestion
-    _NUM_INTERNET_WORKERS: int = 30
-    # Minimum seconds between Wikipedia fetches per worker (be respectful)
-    _INTERNET_COOLDOWN: float = 5.0
+    # Internet workers (Grokipedia + ArXiv) — no Ollama, separate rate limit
+    # 200 workers: optimal balance between throughput and API responsiveness.
+    # 500 workers caused GIL starvation — API became unresponsive.
+    # 200 workers = ~100K nodes/hour without starving FastAPI.
+    _NUM_INTERNET_WORKERS: int = 200
+    # Minimum seconds between fetches per worker
+    _INTERNET_COOLDOWN: float = 2.0
 
     def start(self) -> None:
         """Start background seeder daemon threads (5 LLM + 5 internet workers)."""
@@ -1305,12 +1514,14 @@ class KnowledgeSeeder:
         - Respect a separate, gentler rate limit (8s cooldown)
         """
         # Stagger worker starts so they don't all hit APIs simultaneously
+        # 0.05s per worker = 25s for all 500 workers to be active
         if worker_id > 0:
-            self._stop_event.wait(timeout=worker_id * 2.5)
+            self._stop_event.wait(timeout=worker_id * 0.05)
 
-        # Alternate between Grokipedia and ArXiv (per-worker, independent cooldown)
-        # 70% Grokipedia, 30% ArXiv for maximum knowledge diversity
-        sources = ['grokipedia', 'grokipedia', 'arxiv']
+        # Rotate between all three sources for maximum throughput & diversity
+        # Grokipedia = rich AI-generated articles, ArXiv = research papers,
+        # Wikipedia = encyclopedic summaries (fast API, no rate limits)
+        sources = ['grokipedia', 'arxiv', 'wikipedia', 'arxiv']
         source_idx = worker_id % len(sources)
         last_call: float = 0.0
 
@@ -1324,8 +1535,10 @@ class KnowledgeSeeder:
 
                     if source == 'grokipedia':
                         created = self._mine_grokipedia(worker_id)
-                    else:
+                    elif source == 'arxiv':
                         created = self._mine_arxiv(worker_id)
+                    else:
+                        created = self._mine_wikipedia(worker_id)
 
                     if created > 0:
                         with self._internet_lock:
@@ -1334,8 +1547,15 @@ class KnowledgeSeeder:
                             ) + created
             except Exception as e:
                 logger.debug(f"Internet worker-{worker_id} error: {e}")
+                # Adaptive backoff: if errors happen, slow down this worker
+                self._stop_event.wait(timeout=min(30.0, 2.0 * (1 + getattr(self, f'_w{worker_id}_errs', 0))))
+                err_key = f'_w{worker_id}_errs'
+                setattr(self, err_key, min(getattr(self, err_key, 0) + 1, 10))
+                continue
 
-            self._stop_event.wait(timeout=4.0)
+            # Reset error count on success
+            setattr(self, f'_w{worker_id}_errs', 0)
+            self._stop_event.wait(timeout=1.0)
 
     def _mine_wikipedia(self, worker_id: int) -> int:
         """Fetch a Wikipedia article and inject sentences as KG nodes."""
@@ -1370,25 +1590,7 @@ class KnowledgeSeeder:
             return 0
 
         # Map Wikipedia domain to KG domain
-        domain_map = {
-            'quantum_physics': 'quantum_physics',
-            'ai_machine_learning': 'ai_ml',
-            'mathematics': 'mathematics',
-            'philosophy_of_mind': 'philosophy',
-            'neuroscience': 'biology',
-            'physics_general': 'quantum_physics',
-            'cryptography': 'cryptography',
-            'blockchain_fundamentals': 'blockchain',
-            'complexity_science': 'philosophy',
-            'information_theory': 'mathematics',
-            'computer_science': 'ai_ml',
-            'biology_evolution': 'biology',
-            'economics_game_theory': 'general',
-            'philosophy_general': 'philosophy',
-            'cognitive_science': 'philosophy',
-            'engineering_systems': 'general',
-        }
-        kg_domain = domain_map.get(domain, 'general')
+        kg_domain = _DOMAIN_TO_KG.get(domain, 'general')
 
         # Split into sentences and inject as knowledge nodes
         sentences = self._split_sentences(extract)
@@ -1500,25 +1702,7 @@ class KnowledgeSeeder:
             return 0
 
         # Map domain to KG domain
-        domain_map = {
-            'quantum_physics': 'quantum_physics',
-            'ai_machine_learning': 'ai_ml',
-            'mathematics': 'mathematics',
-            'philosophy_of_mind': 'philosophy',
-            'neuroscience': 'biology',
-            'physics_general': 'quantum_physics',
-            'cryptography': 'cryptography',
-            'blockchain_fundamentals': 'blockchain',
-            'complexity_science': 'philosophy',
-            'information_theory': 'mathematics',
-            'computer_science': 'ai_ml',
-            'biology_evolution': 'biology',
-            'economics_game_theory': 'general',
-            'philosophy_general': 'philosophy',
-            'cognitive_science': 'philosophy',
-            'engineering_systems': 'general',
-        }
-        kg_domain = domain_map.get(domain, 'general')
+        kg_domain = _DOMAIN_TO_KG.get(domain, 'general')
 
         # Split into sentences and inject as knowledge nodes
         sentences = self._split_sentences(text)
@@ -1587,8 +1771,8 @@ class KnowledgeSeeder:
         try:
             params = urllib.parse.urlencode({
                 'search_query': f'all:{term} AND cat:{cat}',
-                'start': '0',
-                'max_results': '5',
+                'start': str(random.randint(0, 200)),
+                'max_results': '20',
                 'sortBy': 'lastUpdatedDate',
                 'sortOrder': 'descending',
             })
@@ -1627,12 +1811,20 @@ class KnowledgeSeeder:
             # Map ArXiv category to KG domain
             cat_to_domain = {
                 'quant-ph': 'quantum_physics',
-                'cs.AI': 'ai_ml',
-                'cs.LG': 'ai_ml',
-                'cs.CR': 'cryptography',
-                'q-bio.NC': 'biology',
-                'stat.ML': 'ai_ml',
-                'math.AT': 'mathematics',
+                'cs.AI': 'ai_ml', 'cs.LG': 'ai_ml', 'cs.CL': 'ai_ml',
+                'cs.CV': 'ai_ml', 'cs.NE': 'ai_ml', 'cs.RO': 'ai_ml',
+                'cs.CR': 'cryptography', 'cs.DC': 'computer_science',
+                'cs.DS': 'computer_science', 'cs.PL': 'computer_science',
+                'q-bio.NC': 'biology', 'q-bio.GN': 'biology',
+                'stat.ML': 'ai_ml', 'stat.TH': 'mathematics',
+                'math.AT': 'mathematics', 'math.AG': 'mathematics',
+                'math.CO': 'mathematics', 'math.PR': 'mathematics',
+                'math.OC': 'mathematics', 'math.NA': 'mathematics',
+                'hep-th': 'physics', 'hep-ph': 'physics',
+                'cond-mat': 'physics', 'gr-qc': 'physics',
+                'astro-ph': 'physics', 'nlin.CD': 'philosophy',
+                'econ.TH': 'economics', 'econ.GN': 'economics',
+                'physics.comp-ph': 'physics',
             }
             kg_domain = cat_to_domain.get(cat, 'general')
 

@@ -441,12 +441,44 @@ class KnowledgeGraph:
 
         # Async write queue — node/edge DB persistence is non-blocking.
         # In-memory state is always consistent; DB is written asynchronously.
-        self._write_queue: queue.Queue = queue.Queue(maxsize=50000)
+        self._write_queue: queue.Queue = queue.Queue(maxsize=500000)
         self._writer_stop = threading.Event()
-        self._writer_thread = threading.Thread(
-            target=self._async_writer, name="kg-db-writer", daemon=True
-        )
-        self._writer_thread.start()
+
+        # Track total nodes/edges written to DB (for accurate stats without COUNT(*))
+        # Initialize from crdb_internal estimate (fast, non-blocking)
+        self._total_nodes_written: int = 0
+        self._total_edges_written: int = 0
+        try:
+            from sqlalchemy import text as _init_text
+            with self.db.get_session() as _init_sess:
+                _est = _init_sess.execute(_init_text(
+                    "SELECT table_name, "
+                    "COALESCE(sum(estimated_row_count), 0)::bigint "
+                    "FROM crdb_internal.table_row_statistics "
+                    "WHERE table_name IN ('knowledge_nodes', 'knowledge_edges') "
+                    "GROUP BY table_name"
+                )).fetchall()
+                for _r in _est:
+                    if str(_r[0]) == 'knowledge_nodes':
+                        self._total_nodes_written = int(_r[1])
+                    elif str(_r[0]) == 'knowledge_edges':
+                        self._total_edges_written = int(_r[1])
+                logger.info(
+                    "KG DB counts initialized: %d nodes, %d edges",
+                    self._total_nodes_written, self._total_edges_written
+                )
+        except Exception as _ie:
+            logger.warning("KG DB count init failed (will use cache size): %s", _ie)
+
+        # Spawn 4 writer threads for high-throughput DB persistence
+        self._writer_threads = []
+        for _wt_i in range(4):
+            _wt = threading.Thread(
+                target=self._async_writer, name=f"kg-db-writer-{_wt_i}", daemon=True
+            )
+            _wt.start()
+            self._writer_threads.append(_wt)
+        self._writer_thread = self._writer_threads[0]  # backwards compat
 
         self._load_from_db()
         self._sync_rust_kg()
@@ -733,8 +765,8 @@ class KnowledgeGraph:
     def _async_writer(self) -> None:
         """Background thread: drain write queue and batch-commit to DB."""
         from sqlalchemy import text
-        BATCH_SIZE = 200
-        FLUSH_INTERVAL = 0.25  # seconds
+        BATCH_SIZE = 2000
+        FLUSH_INTERVAL = 0.5  # seconds
 
         while not self._writer_stop.is_set():
             batch = []
@@ -754,43 +786,70 @@ class KnowledgeGraph:
                 continue
 
             # Separate DB items from vector items
-            db_items = [i for i in batch if i[0] in ('node', 'edge')]
+            node_items = [i for i in batch if i[0] == 'node']
+            edge_items = [i for i in batch if i[0] == 'edge']
             vec_items = [i for i in batch if i[0] == 'vec']
 
-            # Write DB batch in a single transaction
-            if db_items:
+            # Write nodes via multi-row INSERT (much faster than individual INSERTs)
+            if node_items:
                 try:
                     with self.db.get_session() as session:
-                        for item in db_items:
-                            if item[0] == 'node':
+                        # Build multi-row INSERT in chunks of 500
+                        for chunk_start in range(0, len(node_items), 500):
+                            chunk = node_items[chunk_start:chunk_start + 500]
+                            values_clauses = []
+                            params = {}
+                            for idx, item in enumerate(chunk):
                                 _, node_id, ntype, chash, content_json, conf, sb, dom, gs, rc, lrb = item
-                                session.execute(
-                                    text("""
-                                        INSERT INTO knowledge_nodes
-                                            (id, node_type, content_hash, content, confidence,
-                                             source_block, domain, grounding_source,
-                                             reference_count, last_referenced_block)
-                                        VALUES (:id, :ntype, :chash, CAST(:content AS jsonb), :conf,
-                                                :sb, :dom, :gs, :rc, :lrb)
-                                        ON CONFLICT (id) DO NOTHING
-                                    """),
-                                    {'id': node_id, 'ntype': ntype, 'chash': chash,
-                                     'content': content_json, 'conf': conf, 'sb': sb,
-                                     'dom': dom, 'gs': gs, 'rc': rc, 'lrb': lrb}
+                                p = f'n{idx}'
+                                values_clauses.append(
+                                    f"(:{p}_id, :{p}_ntype, :{p}_chash, CAST(:{p}_content AS jsonb), "
+                                    f":{p}_conf, :{p}_sb, :{p}_dom, :{p}_gs, :{p}_rc, :{p}_lrb)"
                                 )
-                            elif item[0] == 'edge':
-                                _, fid, tid, etype, w = item
-                                session.execute(
-                                    text("""
-                                        INSERT INTO knowledge_edges (from_node_id, to_node_id, edge_type, weight)
-                                        VALUES (:fid, :tid, :etype, :w)
-                                        ON CONFLICT (from_node_id, to_node_id, edge_type) DO UPDATE SET weight = :w
-                                    """),
-                                    {'fid': fid, 'tid': tid, 'etype': etype, 'w': w}
-                                )
+                                params.update({
+                                    f'{p}_id': node_id, f'{p}_ntype': ntype, f'{p}_chash': chash,
+                                    f'{p}_content': content_json, f'{p}_conf': conf, f'{p}_sb': sb,
+                                    f'{p}_dom': dom, f'{p}_gs': gs, f'{p}_rc': rc, f'{p}_lrb': lrb,
+                                })
+                            sql = (
+                                "INSERT INTO knowledge_nodes "
+                                "(id, node_type, content_hash, content, confidence, "
+                                "source_block, domain, grounding_source, reference_count, last_referenced_block) "
+                                "VALUES " + ", ".join(values_clauses) +
+                                " ON CONFLICT (id) DO NOTHING"
+                            )
+                            session.execute(text(sql), params)
                         session.commit()
+                        self._total_nodes_written += len(node_items)
                 except Exception as e:
-                    logger.error(f"Async KG writer DB batch failed ({len(db_items)} items): {e}")
+                    logger.error(f"Async KG writer node batch failed ({len(node_items)} items): {e}")
+
+            # Write edges via multi-row INSERT
+            if edge_items:
+                try:
+                    with self.db.get_session() as session:
+                        for chunk_start in range(0, len(edge_items), 500):
+                            chunk = edge_items[chunk_start:chunk_start + 500]
+                            values_clauses = []
+                            params = {}
+                            for idx, item in enumerate(chunk):
+                                _, fid, tid, etype, w = item
+                                p = f'e{idx}'
+                                values_clauses.append(f"(:{p}_fid, :{p}_tid, :{p}_etype, :{p}_w)")
+                                params.update({
+                                    f'{p}_fid': fid, f'{p}_tid': tid,
+                                    f'{p}_etype': etype, f'{p}_w': w,
+                                })
+                            sql = (
+                                "INSERT INTO knowledge_edges (from_node_id, to_node_id, edge_type, weight) "
+                                "VALUES " + ", ".join(values_clauses) +
+                                " ON CONFLICT (from_node_id, to_node_id, edge_type) DO UPDATE SET weight = EXCLUDED.weight"
+                            )
+                            session.execute(text(sql), params)
+                        session.commit()
+                        self._total_edges_written += len(edge_items)
+                except Exception as e:
+                    logger.error(f"Async KG writer edge batch failed ({len(edge_items)} items): {e}")
 
             # Vector embeddings DISABLED in background writer to prevent GIL starvation.
             # The _async_writer's synchronous Ollama HTTP calls (requests.post) hold the
@@ -2599,10 +2658,17 @@ class KnowledgeGraph:
         if cache is not None and (now - cache_time) < 30.0 and cache_size == current_size:
             return cache
 
-        # Rust-accelerated stats when available
+        # Rust-accelerated stats when available — but override totals with DB counts
         if getattr(self, '_rust_kg', None) is not None:
             try:
                 result = self._rust_kg.get_stats()
+                # Override with DB-tracked totals (Rust cache is bounded like Python's)
+                _db_nodes = getattr(self, '_total_nodes_written', 0)
+                _db_edges = getattr(self, '_total_edges_written', 0)
+                if _db_nodes > result.get('total_nodes', 0):
+                    result['total_nodes'] = _db_nodes
+                if _db_edges > result.get('total_edges', 0):
+                    result['total_edges'] = _db_edges
                 self._stats_cache = result
                 self._stats_cache_time = now
                 self._stats_cache_size = current_size
@@ -2636,9 +2702,20 @@ class KnowledgeGraph:
         if not kr:
             kr = '0' * 16
 
+        # Use writer-tracked count (incremented by _async_writer on each successful commit).
+        # Falls back to in-memory cache size if no writes have happened yet.
+        db_node_count = max(
+            len(self.nodes),
+            getattr(self, '_total_nodes_written', 0),
+        )
+        db_edge_count = max(
+            len(self.edges),
+            getattr(self, '_total_edges_written', 0),
+        )
+
         result = {
-            'total_nodes': len(self.nodes),
-            'total_edges': len(self.edges),
+            'total_nodes': db_node_count,
+            'total_edges': db_edge_count,
             'node_types': type_counts,
             'edge_types': edge_type_counts,
             'avg_confidence': round(avg_confidence, 4),

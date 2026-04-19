@@ -26,12 +26,12 @@ services:
     #
     # --accept-sql-without-tls is an explicit opt-in to allow unencrypted
     # SQL connections, making the security posture visible in the config.
-    command: start-single-node --insecure --accept-sql-without-tls --cache=512MiB --max-sql-memory=512MiB
+    command: start-single-node --insecure --accept-sql-without-tls --cache=1GiB --max-sql-memory=1GiB
     deploy:
       resources:
         limits:
-          memory: 3G
-          cpus: "2.0"
+          memory: 5G
+          cpus: "3.0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
       interval: 10s
@@ -205,8 +205,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
-          cpus: "2.0"
+          memory: 8G
+          cpus: "3.0"
     volumes:
       - node-data:/app/data
       - node-logs:/app/logs
