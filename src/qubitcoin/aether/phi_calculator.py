@@ -261,6 +261,10 @@ class PhiCalculator:
         self._phi_downsample_retain_days: int = Config.PHI_DOWNSAMPLE_RETAIN_DAYS
         # Convergence tracking: stddev over last N measurements
         self._convergence_window: int = Config.PHI_CONVERGENCE_WINDOW
+        # Cached gate progress (expensive to compute — refresh every 60s)
+        self._cached_gate_progress: Optional[List[dict]] = None
+        self._cached_gate_progress_ts: float = 0.0
+        self._gate_progress_ttl: float = 60.0  # seconds
         self._recent_phi_values: deque = deque(maxlen=Config.PHI_CONVERGENCE_WINDOW)
 
         # Phi-reasoning correlation tracker (peer review #8: validate phi measures something real)
@@ -723,11 +727,12 @@ class PhiCalculator:
         if self._last_full_result is not None:
             result = dict(self._last_full_result)
             result['cached'] = True
-            # Always re-evaluate gates using Python (authoritative).
-            # Rust gates and early-session evaluations can be stale.
+            # Re-evaluate gates using cached gate progress (refreshed every 60s).
+            # get_gate_progress() can be expensive (DB queries on millions of rows),
+            # so we never call it inline on the hot chat path.
             if self.kg and self.kg.nodes:
                 try:
-                    gate_progress = self.get_gate_progress()
+                    gate_progress = self._get_cached_gate_progress()
                     gates_passed = sum(1 for g in gate_progress if g.get('passed'))
                     gate_ceiling = gates_passed * 0.5
                     result['gates'] = gate_progress
@@ -1045,6 +1050,50 @@ class PhiCalculator:
             'convergence_stddev': 0.0,
             'convergence_status': 'insufficient_data',
         }
+
+    def _get_cached_gate_progress(self) -> List[dict]:
+        """Return gate progress from cache, refreshing every _gate_progress_ttl seconds.
+
+        get_gate_progress() iterates all in-memory nodes and may run DB queries
+        on millions of rows.  Calling it inline on every get_cached() would
+        block the chat path for 10-30+ seconds.  This wrapper keeps a TTL cache.
+
+        On cold cache (first call), returns empty/stale data immediately and
+        schedules a background refresh to avoid blocking the chat path.
+        """
+        now = time.time()
+        if (self._cached_gate_progress is not None
+                and now - self._cached_gate_progress_ts < self._gate_progress_ttl):
+            return self._cached_gate_progress
+
+        # If cache is cold (first call ever), don't block — return stale/empty
+        # data and schedule a background refresh.
+        stale_gates = (self._last_full_result or {}).get('gates', [])
+        if self._cached_gate_progress is None:
+            import threading
+            def _bg_refresh():
+                try:
+                    self._cached_gate_progress = self.get_gate_progress()
+                    self._cached_gate_progress_ts = time.time()
+                    logger.info("Background gate refresh complete: %d gates",
+                                len(self._cached_gate_progress))
+                except Exception as e:
+                    logger.warning("Background gate refresh failed: %s", e)
+            t = threading.Thread(target=_bg_refresh, daemon=True)
+            t.start()
+            return stale_gates
+
+        # Cache expired — refresh in background, return stale data
+        import threading
+        def _bg_refresh_expired():
+            try:
+                self._cached_gate_progress = self.get_gate_progress()
+                self._cached_gate_progress_ts = time.time()
+            except Exception as e:
+                logger.warning("Background gate refresh failed: %s", e)
+        t = threading.Thread(target=_bg_refresh_expired, daemon=True)
+        t.start()
+        return self._cached_gate_progress
 
     def get_gate_progress(self) -> List[dict]:
         """Return detailed progress for each milestone gate.

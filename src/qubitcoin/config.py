@@ -79,8 +79,8 @@ class Config:
         'DATABASE_URL',
         'postgresql://root@localhost:26257/qbc?sslmode=disable'
     )
-    DB_POOL_SIZE: int = 10
-    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 30
     DB_POOL_TIMEOUT: int = 30
 
     # ============================================================================

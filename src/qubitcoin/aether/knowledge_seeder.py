@@ -1122,12 +1122,12 @@ class KnowledgeSeeder:
     # Reduced to 1 for CPU-only Ollama — prevents chat timeouts
     _NUM_WORKERS: int = 1
     # Internet workers (Grokipedia + ArXiv) — no Ollama, separate rate limit
-    # 200 workers: optimal balance between throughput and API responsiveness.
-    # 500 workers caused GIL starvation — API became unresponsive.
-    # 200 workers = ~100K nodes/hour without starving FastAPI.
-    _NUM_INTERNET_WORKERS: int = 200
+    # 5 workers: minimal DB contention to keep chat/API responsive.
+    # 200 workers caused DB pool exhaustion (QueuePool overflow).
+    # 5 workers still produces ~3K nodes/hour without starving chat/API.
+    _NUM_INTERNET_WORKERS: int = 2
     # Minimum seconds between fetches per worker
-    _INTERNET_COOLDOWN: float = 2.0
+    _INTERNET_COOLDOWN: float = 10.0
 
     def start(self) -> None:
         """Start background seeder daemon threads (5 LLM + 5 internet workers)."""

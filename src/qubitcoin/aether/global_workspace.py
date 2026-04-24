@@ -26,8 +26,9 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Maximum time (seconds) for parallel processor execution
-PROCESSOR_TIMEOUT: float = 30.0
+# Maximum time (seconds) for parallel processor execution.
+# 5s keeps chat responsive; processors that can't finish in 5s are skipped.
+PROCESSOR_TIMEOUT: float = 2.0
 
 # Minimum competition score to enter workspace
 MIN_SCORE_THRESHOLD: float = 0.001  # Lowered to allow more processors through

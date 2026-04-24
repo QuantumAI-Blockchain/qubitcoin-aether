@@ -26,12 +26,12 @@ services:
     #
     # --accept-sql-without-tls is an explicit opt-in to allow unencrypted
     # SQL connections, making the security posture visible in the config.
-    command: start-single-node --insecure --accept-sql-without-tls --cache=1GiB --max-sql-memory=1GiB
+    command: start-single-node --insecure --accept-sql-without-tls --cache=512MiB --max-sql-memory=512MiB
     deploy:
       resources:
         limits:
-          memory: 5G
-          cpus: "3.0"
+          memory: 3G
+          cpus: "2.0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
       interval: 10s
@@ -205,8 +205,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G
-          cpus: "3.0"
+          memory: 4G
+          cpus: "2.0"
     volumes:
       - node-data:/app/data
       - node-logs:/app/logs
@@ -491,8 +491,13 @@ services:
     environment:
       GRAPH_SHARD_PORT: "50053"
       GRAPH_SHARD_DATA_DIR: /data/graph-shards
-      GRAPH_SHARD_CACHE: "100000"
+      GRAPH_SHARD_CACHE: "50000"
       RUST_LOG: info
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+          cpus: "1.0"
     restart: unless-stopped
     networks:
       - qbc-net

@@ -1122,7 +1122,8 @@ class DatabaseManager:
             echo=Config.DEBUG,
             pool_size=Config.DB_POOL_SIZE,
             max_overflow=Config.DB_MAX_OVERFLOW,
-            pool_timeout=Config.DB_POOL_TIMEOUT
+            pool_timeout=Config.DB_POOL_TIMEOUT,
+            pool_recycle=300,  # Recycle connections every 5 min
         )
 
     def _create_tables(self):

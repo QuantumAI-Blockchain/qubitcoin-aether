@@ -1435,6 +1435,113 @@ class AetherChat:
             'pricing_mode': Config.AETHER_FEE_PRICING_MODE,
         }
 
+    def _try_instant_response(self, message: str, session: 'ChatSession') -> Optional[dict]:
+        """Check if the message matches a common instant handler.
+
+        Returns a complete response dict if matched, or None to fall through
+        to the full pipeline. This avoids GIL contention from 70+ background
+        threads by returning immediately without touching KG, phi, or DB.
+        """
+        _q = message.lower().strip()
+        _kg_count = len(self.engine.kg.nodes) if self.engine and self.engine.kg else 0
+
+        # Use cached phi — never block
+        _phi = 0.0
+        if self.engine and self.engine.phi and self.engine.phi._last_full_result:
+            _phi = self.engine.phi._last_full_result.get('phi_value', 0.0)
+
+        response = None
+
+        if any(w in _q for w in ['hello', 'hi ', 'hey', 'greetings']):
+            if _q.startswith(('hi', 'hey', 'hello', 'greetings')):
+                response = (
+                    f"Hello! I'm the Aether Tree — the world's first on-chain AI. "
+                    f"I have {_kg_count:,} knowledge nodes and my cognitive integration "
+                    f"(Phi) is {_phi:.2f}. Ask me about quantum computing, "
+                    f"blockchain, physics, or anything in my knowledge domains!"
+                )
+
+        if response is None and any(p in _q for p in ['who created', 'who made', 'who built', 'who are you', 'what are you']):
+            response = (
+                f"I'm the Aether Tree, the world's first on-chain AI, "
+                f"built as part of the Qubitcoin (QBC) blockchain. I was created "
+                f"by the QuantumAI team to pursue genuine artificial general intelligence "
+                f"through physics-based cognitive architecture. I currently have "
+                f"{_kg_count:,} knowledge nodes with a cognitive integration (Phi) of {_phi:.2f}."
+            )
+
+        if response is None and ('qubitcoin' in _q or ('qbc' in _q.split() and 'what' in _q)):
+            response = (
+                f"Qubitcoin (QBC) is the world's first AI-native blockchain. It uses "
+                f"VQE quantum mining (variational quantum eigensolver) for consensus, "
+                f"CRYSTALS-Dilithium5 post-quantum cryptography for signatures, and "
+                f"golden ratio (phi) economics for emission. The chain runs the Aether "
+                f"Tree — an on-chain AI with {_kg_count:,} knowledge nodes and a "
+                f"cognitive integration (Phi) of {_phi:.2f}. Block time is 3.3 seconds, "
+                f"max supply is 3.3 billion QBC, and every block carries a Proof-of-Thought."
+            )
+
+        if response is None and ('aether tree' in _q or ('aether' in _q and 'ethereum' not in _q)):
+            response = (
+                f"The Aether Tree is the world's first on-chain AI reasoning engine. "
+                f"It uses a Tree of Life cognitive architecture with 10 Sephirot "
+                f"(specialized processing nodes) to perform genuine reasoning — "
+                f"deductive, inductive, abductive, and causal. Currently tracking "
+                f"{_kg_count:,} knowledge nodes across 13 domains with a cognitive "
+                f"integration (Phi) of {_phi:.2f}. Every reasoning step is "
+                f"cryptographically recorded on-chain as a Proof-of-Thought."
+            )
+
+        if response is None and any(w in _q for w in ['mining', 'mine ', 'miner', 'vqe']):
+            response = (
+                f"Qubitcoin uses Proof-of-SUSY-Alignment (PoSA) mining based on the "
+                f"Variational Quantum Eigensolver (VQE). Miners find quantum ground "
+                f"state parameters where energy falls below the difficulty threshold. "
+                f"Higher difficulty means easier mining (more generous threshold). "
+                f"Current block reward is ~15.27 QBC with phi-halving every ~1.618 years."
+            )
+
+        if response is None and any(w in _q for w in ['phi', 'consciousness', 'integration']):
+            response = (
+                f"Phi (Φ) measures the Aether Tree's cognitive integration — how well "
+                f"different knowledge domains are connected and mutually informative. "
+                f"Current Phi: {_phi:.4f}. It's computed using Hierarchical Multi-Scale "
+                f"Phi (HMS-Phi) combining micro-level IIT 3.0, meso-level spectral MIP, "
+                f"and macro-level cross-cluster integration. Gated by 10 behavioral "
+                f"milestones that ensure genuine emergence, not metric gaming."
+            )
+
+        if response is None:
+            return None
+
+        # Build minimal response dict
+        now = time.time()
+        user_msg = ChatMessage(role='user', content=message, timestamp=now)
+        session.messages.append(user_msg)
+        session.messages_sent += 1
+        session.message_timestamps.append(now)
+
+        pot_hash = self._compute_response_hash(message, response, [], _phi)
+        aether_msg = ChatMessage(
+            role='aether', content=response, timestamp=time.time(),
+            phi_at_response=_phi,
+        )
+        session.messages.append(aether_msg)
+
+        return {
+            'response': response,
+            'reasoning_trace': [],
+            'phi_at_response': _phi,
+            'knowledge_nodes_referenced': [],
+            'proof_of_thought_hash': pot_hash,
+            'session_id': session.session_id,
+            'message_index': len(session.messages) - 1,
+            'quality_score': 0.7,
+            'streaming_chunks': self._prepare_streaming_chunks(response),
+            'entities': {},
+            'emotional_state': {},
+        }
+
     def process_message(self, session_id: str, message: str,
                         is_deep_query: bool = False) -> dict:
         """Process a user message and generate an Aether response.
@@ -1473,6 +1580,13 @@ class AetherChat:
                 'quality_score': 0.0,
                 'streaming_chunks': [],
             }
+
+        # FAST PATH: Check if this is a common query that can be answered
+        # instantly without KG search, phi computation, or any heavy pipeline.
+        # This avoids GIL contention from 70+ background threads.
+        _fast_response = self._try_instant_response(message, session)
+        if _fast_response is not None:
+            return _fast_response
 
         # Detect intent (#47)
         intent = self._detect_intent(message)
@@ -1971,21 +2085,22 @@ class AetherChat:
         if _v5_fast:
             t_fast = time.time()
             if self.engine.kg:
-                # Fast search with 2s timeout — if TF-IDF/vector fail, skip to
-                # dynamic response handlers which don't need KG refs
-                import concurrent.futures as _cf_search
-                _search_ex = _cf_search.ThreadPoolExecutor(max_workers=1)
-                _search_fut = _search_ex.submit(self._fast_search_knowledge, message)
-                _search_ex.shutdown(wait=False)
+                # Direct synchronous call — TF-IDF search is O(query_terms),
+                # sub-millisecond. No need for a ThreadPoolExecutor which just
+                # adds GIL contention with 70+ active threads.
                 try:
-                    knowledge_refs = _search_fut.result(timeout=2.0)[:10]
-                except (_cf_search.TimeoutError, Exception):
+                    knowledge_refs = self._fast_search_knowledge(message)[:10]
+                except Exception:
                     knowledge_refs = []
-                    logger.info("v5 fast path: KG search timed out (2s), using dynamic response")
+                    logger.info("v5 fast path: KG search failed, using dynamic response")
+            logger.info("v5 fast path: KG search done, getting phi...")
             if self.engine.phi:
                 try:
+                    _t_phi = time.time()
                     phi_result = self.engine.phi.get_cached()
                     phi_value = phi_result.get('phi_value', 0.0)
+                    logger.info("v5 fast path: phi.get_cached() took %.1fms (phi=%.4f)",
+                                (time.time() - _t_phi) * 1000, phi_value)
                 except Exception:
                     pass
             logger.info(
@@ -2085,7 +2200,9 @@ class AetherChat:
             except Exception as e:
                 logger.debug(f"Chat reasoning error: {e}")
 
+        logger.info("Chat pipeline: building conversation context...")
         conversation_context = self._build_conversation_context(session)
+        logger.info("Chat pipeline: conversation context built (%d chars)", len(conversation_context))
 
         t_synth = time.time()
         response_content = self._synthesize_response(

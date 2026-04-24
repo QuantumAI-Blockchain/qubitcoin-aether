@@ -470,9 +470,10 @@ class KnowledgeGraph:
         except Exception as _ie:
             logger.warning("KG DB count init failed (will use cache size): %s", _ie)
 
-        # Spawn 4 writer threads for high-throughput DB persistence
+        # Spawn 2 writer threads for DB persistence (reduced from 4 to leave
+        # pool headroom for API/chat requests)
         self._writer_threads = []
-        for _wt_i in range(4):
+        for _wt_i in range(2):
             _wt = threading.Thread(
                 target=self._async_writer, name=f"kg-db-writer-{_wt_i}", daemon=True
             )
@@ -484,7 +485,11 @@ class KnowledgeGraph:
         self._sync_rust_kg()
 
     def _load_from_db(self):
-        """Load knowledge graph from database into memory.
+        """Load recent knowledge graph nodes from database into memory.
+
+        Only loads the most recent nodes (2x cache size) to avoid OOM
+        with millions of nodes.  Older nodes are fetched on-demand via
+        _db_get_node() cache-miss path.
 
         If the DB query fails mid-iteration (e.g. connection drop),
         partial data already loaded into self.nodes / self.edges is
@@ -492,6 +497,9 @@ class KnowledgeGraph:
         """
         nodes_loaded = 0
         edges_loaded = 0
+        # Load 2x cache capacity of most recent nodes — older nodes
+        # are fetched on-demand via get_node() DB fallback.
+        load_limit = self.nodes._max_size * 2
         try:
             from sqlalchemy import text
             with self.db.get_session() as session:
@@ -499,7 +507,9 @@ class KnowledgeGraph:
                     text("""SELECT id, node_type, content_hash, content, confidence,
                                    source_block, domain, grounding_source,
                                    reference_count, last_referenced_block
-                            FROM knowledge_nodes ORDER BY id""")
+                            FROM knowledge_nodes ORDER BY id DESC
+                            LIMIT :lim"""),
+                    {'lim': load_limit}
                 )
                 try:
                     for r in rows:
@@ -527,8 +537,11 @@ class KnowledgeGraph:
                         f"continuing with partial data"
                     )
 
+                # Only load edges for nodes we have in memory
                 edge_rows = session.execute(
-                    text("SELECT from_node_id, to_node_id, edge_type, weight FROM knowledge_edges ORDER BY id")
+                    text("SELECT from_node_id, to_node_id, edge_type, weight "
+                         "FROM knowledge_edges ORDER BY id DESC LIMIT :lim"),
+                    {'lim': load_limit * 4}
                 )
                 try:
                     for r in edge_rows:

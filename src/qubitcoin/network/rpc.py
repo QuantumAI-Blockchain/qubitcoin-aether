@@ -2414,13 +2414,25 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         check_rate_limit(wallet, "chat", tier)
         chat, _ = _get_chat()
         import asyncio
+        import time as _chat_time
+        from concurrent.futures import ThreadPoolExecutor
+        _chat_t0 = _chat_time.time()
+        logger.info("Chat API: dispatching process_message for session=%s", request.session_id)
         loop = asyncio.get_event_loop()
+        # Use a dedicated 2-thread pool for chat so it never competes
+        # with background tasks (internet workers, DB writers, GWT cycles)
+        # that saturate the default executor.
+        if not hasattr(send_chat_message, '_chat_executor'):
+            send_chat_message._chat_executor = ThreadPoolExecutor(
+                max_workers=2, thread_name_prefix="chat"
+            )
         result = await loop.run_in_executor(
-            None,
+            send_chat_message._chat_executor,
             lambda: chat.process_message(
                 request.session_id, request.message, request.is_deep_query
             )
         )
+        logger.info("Chat API: process_message completed in %.1fms", (_chat_time.time() - _chat_t0) * 1000)
         if 'error' in result:
             raise HTTPException(status_code=400, detail=result['error'])
         # Sanitize non-JSON-compliant floats (inf/nan → null)
