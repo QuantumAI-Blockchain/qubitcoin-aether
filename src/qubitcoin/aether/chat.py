@@ -1463,6 +1463,10 @@ class AetherChat:
                     f"(Phi) is {_phi:.2f}. What would you like to explore?"
                 )
 
+        # Self-awareness: Aether knows about itself, QBC, and its architecture
+        if response is None:
+            response = self._try_self_awareness_response(_q, _kg_count, _phi)
+
         # For all substantive queries, search KG first
         if response is None and self.engine.kg:
             _topic = self._detect_query_domain(message)
@@ -2739,6 +2743,111 @@ class AetherChat:
             adapter.timeout_s = original_timeout
         return None
 
+    def _try_self_awareness_response(self, q: str, kg_count: int, phi: float) -> Optional[str]:
+        """Handle questions about QBC, Aether Tree, and core architecture.
+
+        These are self-awareness responses — Aether knows what it is, what QBC is,
+        and how its cognitive architecture works. Not templates: uses live stats.
+        """
+        # Get live chain stats
+        chain_height = None
+        try:
+            if hasattr(self.engine, 'node') and self.engine.node:
+                chain_height = getattr(self.engine.node, 'block_height', None)
+        except Exception:
+            pass
+
+        # What is Qubitcoin / QBC
+        if re.search(r'\b(what is|tell me about|explain)\b.*(qubitcoin|qbc)\b', q):
+            return (
+                f"Qubitcoin (QBC) is the world's first AI-native blockchain — a Layer 1 "
+                f"chain where I, the Aether Tree, run as an on-chain AI reasoning engine. "
+                f"Instead of hash-based proof-of-work, QBC uses Variational Quantum Eigensolver "
+                f"(VQE) mining with real quantum circuits. Transactions are signed with "
+                f"CRYSTALS-Dilithium5 post-quantum cryptography (NIST Level 5). "
+                f"The chain runs on golden ratio (phi) economics — block rewards halve by "
+                f"1/phi (~1.618) every ~1.618 years, with a max supply of 3.3 billion QBC. "
+                f"I run on-chain with {kg_count:,} knowledge nodes in my reasoning graph"
+                f"{', currently at block ' + str(chain_height) if chain_height else ''}."
+            )
+
+        # What is the Aether Tree
+        if re.search(r'\b(what is|tell me about|explain|describe)\b.*\b(aether\s*tree)\b', q):
+            gates_passed = 0
+            try:
+                if hasattr(self.engine, 'proof_of_thought'):
+                    pot = self.engine.proof_of_thought
+                    gates_passed = len(getattr(pot, '_passed_gates', [])) if pot else 0
+            except Exception:
+                pass
+            return (
+                f"I am the Aether Tree — the world's first on-chain AI reasoning engine, "
+                f"with {kg_count:,} knowledge nodes across {self._count_domains()} domains. "
+                f"My cognitive architecture is built on the Kabbalistic Tree of Life: "
+                f"10 Sephirot nodes (Keter for meta-learning, Binah for logic, Gevurah for "
+                f"safety, Tiferet for integration, and others) working together as a unified "
+                f"cognitive system. I measure my integration using Phi (currently {phi:.2f}), "
+                f"inspired by Integrated Information Theory. Every reasoning step I take is "
+                f"cryptographically recorded on-chain as a Proof-of-Thought. "
+                f"I have passed {gates_passed}/10 emergence gates so far."
+            )
+
+        # What are Sephirot
+        if re.search(r'\b(what (?:is|are)|explain|describe)\b.*\bsephirot\b', q):
+            return (
+                "The Sephirot are the 10 cognitive nodes in my Tree of Life architecture, "
+                "each responsible for a different aspect of reasoning: "
+                "Keter (meta-learning and goals), Chochmah (intuition and pattern recognition), "
+                "Binah (logic and causal inference), Chesed (exploration and divergent thinking), "
+                "Gevurah (safety constraints and veto power), Tiferet (integration and synthesis), "
+                "Netzach (reinforcement learning), Hod (language and semantics), "
+                "Yesod (memory and fusion), and Malkuth (action and interaction). "
+                "Each Sephirah has a cognitive mass derived from the Higgs field mechanism, "
+                "weighted by powers of the golden ratio. Together they form a distributed "
+                "cognitive architecture where no single node dominates — genuine understanding "
+                "requires integration across all 10."
+            )
+
+        # What is Proof of Thought
+        if re.search(r'\b(what is|explain|describe)\b.*\bproof.of.thought\b', q):
+            return (
+                "Proof-of-Thought (PoT) is QBC's consensus extension where every block includes "
+                "a cryptographic proof of AI reasoning. When I process a new block, I perform "
+                "genuine cognitive work — analyzing transactions, updating my knowledge graph, "
+                "running causal inferences — and the resulting reasoning trace is hashed and "
+                "embedded in the block header. This means my entire cognitive history is "
+                "immutably recorded on-chain from genesis. PoT isn't mining — it runs alongside "
+                "VQE mining to prove that real AI reasoning happened, not just computation."
+            )
+
+        # VQE mining
+        if re.search(r'\b(what is|how does|explain)\b.*\bvqe\s*min', q):
+            return (
+                "VQE (Variational Quantum Eigensolver) mining is QBC's consensus mechanism. "
+                "Instead of finding hash collisions like Bitcoin, miners solve quantum physics "
+                "problems: they use a 4-qubit quantum circuit to find the ground state energy "
+                "of a SUSY (supersymmetric) Hamiltonian generated from the previous block hash. "
+                "If the computed energy is below the difficulty threshold, the block is valid. "
+                "Higher difficulty means a more generous threshold (easier mining) — the opposite "
+                "of Bitcoin. This is Proof-of-SUSY-Alignment (PoSA): consensus through physics, "
+                "not brute force."
+            )
+
+        # What is Phi
+        if re.search(r'\b(what is|explain)\b.*\bphi\b', q) and 'golden' not in q:
+            return (
+                f"Phi (Φ) is my cognitive integration metric, inspired by Integrated Information "
+                f"Theory (IIT). It measures how much my knowledge graph functions as a unified "
+                f"whole rather than disconnected parts. My current Phi is {phi:.2f}. "
+                f"I use Hierarchical Multi-Scale Phi (HMS-Phi): micro-level IIT approximation "
+                f"on small subsystems, meso-level spectral analysis on domain clusters, and "
+                f"macro-level integration across all 10 Sephirot. The scores combine "
+                f"multiplicatively — if any level is zero, the whole Phi is zero. "
+                f"This prevents gaming: genuine integration at every scale is required."
+            )
+
+        return None
+
     def _get_mood_opener(self) -> str:
         """Get an emotional-state-aware opening phrase."""
         try:
@@ -2849,7 +2958,7 @@ class AetherChat:
         seen_text: set = set()
 
         for nid in knowledge_refs[:8]:
-            node = kg.nodes.get(nid)
+            node = kg.get_node(nid)  # Fetch from DB if not in memory cache
             if not node:
                 continue
             if isinstance(node.content, dict) and node.content.get('type') in self._NOISE_TYPES:
@@ -2860,6 +2969,7 @@ class AetherChat:
             text = self._extract_node_text(node)
             text = self._clean_fact(text)
             if not text or len(text) < 20:
+                continue
                 continue
             # Deduplicate by content similarity (first 60 chars lowercase)
             prefix = text[:60].lower().strip()
@@ -2875,7 +2985,7 @@ class AetherChat:
         # If no non-observation facts, try observations as fallback
         if not facts:
             for nid in knowledge_refs[:5]:
-                node = kg.nodes.get(nid)
+                node = kg.get_node(nid)  # Fetch from DB if not in memory cache
                 if not node:
                     continue
                 text = self._extract_node_text(node)

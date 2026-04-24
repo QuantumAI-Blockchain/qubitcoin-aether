@@ -871,8 +871,9 @@ class PhiCalculator:
             self._gate_scale = min(2.0, self._gate_scale * 1.05)
             logger.info(f"Phi growth anomaly (ratio={growth_ratio:.1f}), "
                         f"tightening gates: scale={self._gate_scale:.3f}")
+            growth_ratio = recent_delta / older_delta
         elif growth_ratio < 0.2 and self._gate_scale > 0.5:
-            self._gate_scale = max(0.5, self._gate_scale * 0.98)
+            self._gate_scale = max(0.5, min(self._gate_scale * 0.98, 1.0))
             logger.info(f"Phi growth stagnation (ratio={growth_ratio:.1f}), "
                         f"relaxing gates: scale={self._gate_scale:.3f}")
 
