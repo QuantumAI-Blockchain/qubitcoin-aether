@@ -1147,16 +1147,18 @@ class DatabaseManager:
                 session.rollback()
                 logger.debug(f"cumulative_weight migration: {e}")
         # ── Backfill cumulative_weight for existing blocks ──
+        # Use a short timeout so this doesn't block startup when DB is under load
         with self.get_session() as session:
             try:
+                session.execute(text("SET statement_timeout = '5s'"))
                 needs_backfill = session.execute(text(
                     "SELECT COUNT(*) FROM blocks WHERE cumulative_weight = 0 OR cumulative_weight IS NULL"
                 )).scalar()
+                session.execute(text("SET statement_timeout = '0'"))
                 if needs_backfill and needs_backfill > 0:
                     total_blocks = session.execute(text("SELECT COUNT(*) FROM blocks")).scalar() or 0
                     if total_blocks > 0:
                         logger.info(f"Backfilling cumulative_weight for {needs_backfill} blocks...")
-                        # Compute weights incrementally from genesis
                         session.execute(text("""
                             WITH RECURSIVE weights AS (
                                 SELECT height, difficulty,
@@ -1173,9 +1175,11 @@ class DatabaseManager:
                         """))
                         session.commit()
                         logger.info(f"Backfilled cumulative_weight for {total_blocks} blocks")
+                else:
+                    logger.debug("cumulative_weight: all blocks already backfilled")
             except Exception as e:
                 session.rollback()
-                logger.warning(f"cumulative_weight backfill: {e}")
+                logger.warning(f"cumulative_weight backfill skipped (DB busy): {e}")
         # Seed default stablecoin params if empty (atomic upsert per row)
         with self.get_session() as session:
             defaults = [

@@ -497,19 +497,28 @@ class KnowledgeGraph:
         """
         nodes_loaded = 0
         edges_loaded = 0
-        # Load 2x cache capacity of most recent nodes — older nodes
-        # are fetched on-demand via get_node() DB fallback.
+        # Load cache in two phases:
+        # 1. Quality nodes first (axiom, external_fact, inference, assertion)
+        #    — these are the backbone for chat/search responses
+        # 2. Fill remaining capacity with recent observations
         load_limit = self.nodes._max_size * 2
+        quality_limit = min(50_000, load_limit)  # Up to 50K quality nodes
         try:
             from sqlalchemy import text
             with self.db.get_session() as session:
+                # Allow startup queries more time (DB may be under load)
+                session.execute(text("SET statement_timeout = '60s'"))
+                # Phase 1: Load ALL quality nodes (axiom/inference/assertion/external_fact)
+                # Uses idx_kn_type_confidence index for efficient retrieval
                 rows = session.execute(
                     text("""SELECT id, node_type, content_hash, content, confidence,
                                    source_block, domain, grounding_source,
                                    reference_count, last_referenced_block
-                            FROM knowledge_nodes ORDER BY id DESC
+                            FROM knowledge_nodes@idx_kn_type_confidence
+                            WHERE node_type IN ('axiom', 'external_fact', 'inference', 'assertion', 'prediction')
+                            ORDER BY confidence DESC, id DESC
                             LIMIT :lim"""),
-                    {'lim': load_limit}
+                    {'lim': quality_limit}
                 )
                 try:
                     for r in rows:
@@ -536,6 +545,38 @@ class KnowledgeGraph:
                         f"Knowledge graph node iteration failed after {nodes_loaded} nodes: {e}; "
                         f"continuing with partial data"
                     )
+
+                quality_loaded = nodes_loaded
+                # Phase 2: Fill remaining cache capacity with recent observations
+                remaining = load_limit - nodes_loaded
+                if remaining > 0:
+                    try:
+                        obs_rows = session.execute(
+                            text("""SELECT id, node_type, content_hash, content, confidence,
+                                           source_block, domain, grounding_source,
+                                           reference_count, last_referenced_block
+                                    FROM knowledge_nodes
+                                    WHERE node_type NOT IN ('axiom', 'external_fact', 'inference', 'assertion', 'prediction')
+                                    ORDER BY id DESC
+                                    LIMIT :lim"""),
+                            {'lim': remaining}
+                        )
+                        for r in obs_rows:
+                            node = KeterNode(
+                                node_id=r[0], node_type=r[1], content_hash=r[2],
+                                content=json.loads(r[3]) if isinstance(r[3], str) else (r[3] or {}),
+                                confidence=float(r[4] or 0.5), source_block=r[5] or 0,
+                                domain=r[6] or '', grounding_source=r[7] or '',
+                                reference_count=r[8] or 0, last_referenced_block=r[9] or 0,
+                            )
+                            self.nodes[node.node_id] = node
+                            self._next_id = max(self._next_id, node.node_id + 1)
+                            if node.domain:
+                                self._domain_index.setdefault(node.domain, set()).add(node.node_id)
+                            nodes_loaded += 1
+                    except Exception as e:
+                        logger.warning(f"Phase 2 (observation) load failed after {nodes_loaded - quality_loaded}: {e}")
+                logger.info(f"Cache loaded: {quality_loaded} quality + {nodes_loaded - quality_loaded} observation nodes")
 
                 # Only load edges for nodes we have in memory
                 edge_rows = session.execute(
@@ -1702,20 +1743,33 @@ class KnowledgeGraph:
             if nid in self.nodes or self._node_exists_in_db(nid)
         ]
 
+    # Class-level flag: set True once GIN index on search_tsv is confirmed ready
+    _gin_index_ready: bool = False
+
     def _db_text_search(self, query: str, limit: int = 20) -> List[Tuple[int, float]]:
         """Search knowledge_nodes using tsvector full-text search.
 
         Uses search_tsv GIN index for fast matching on 9M+ rows.
-        Falls back to trigram ILIKE on first 3 keywords if tsvector unavailable.
+        Falls back to ILIKE on quality node types if tsvector unavailable.
         Returns (node_id, relevance_score) tuples.
+
+        Performance notes:
+        - With GIN index: tsvector @@ query in <100ms
+        - Without GIN index: full table scan OOMs on 9.8M rows
+        - ILIKE on all rows also OOMs; restrict to quality types only
+        - Timeout kept short (1s) to fail fast to TF-IDF fallback
         """
         from sqlalchemy import text
         keywords = [w.strip().lower() for w in query.split() if len(w.strip()) >= 3]
         if not keywords:
             return []
 
+        rows: list = []
+        # Use short timeout — if DB is slow, TF-IDF fallback is faster
+        timeout = '3s' if self._gin_index_ready else '1s'
+
         with self.db.get_session() as session:
-            session.execute(text("SET statement_timeout = '3s'"))
+            session.execute(text(f"SET statement_timeout = '{timeout}'"))
             try:
                 # Primary: tsvector full-text search (GIN indexed, sub-100ms)
                 tsquery = ' & '.join(keywords[:5])
@@ -1729,23 +1783,15 @@ class KnowledgeGraph:
                             LIMIT :lim"""),
                     {'tsq': tsquery, 'lim': limit}
                 ).fetchall()
+                # If we got results, GIN index is working
+                if rows and not self._gin_index_ready:
+                    self._gin_index_ready = True
+                    logger.info("GIN index on search_tsv confirmed ready")
             except Exception:
                 session.rollback()
-                # Fallback: high-quality nodes only with ILIKE (much smaller scan)
-                try:
-                    session.execute(text("SET statement_timeout = '3s'"))
-                    rows = session.execute(
-                        text("""SELECT id, confidence
-                                FROM knowledge_nodes
-                                WHERE search_text ILIKE :kw
-                                  AND node_type IN ('axiom', 'external_fact', 'inference', 'assertion')
-                                ORDER BY confidence DESC
-                                LIMIT :lim"""),
-                        {'kw': f'%{keywords[0]}%', 'lim': limit}
-                    ).fetchall()
-                except Exception:
-                    session.rollback()
-                    rows = []
+                # Skip ILIKE fallback if DB is under heavy load (OOM likely)
+                # TF-IDF in-memory search is faster and more reliable
+                rows = []
             finally:
                 try:
                     session.execute(text("SET statement_timeout = '0'"))

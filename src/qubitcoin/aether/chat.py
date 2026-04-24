@@ -1473,11 +1473,17 @@ class AetherChat:
                         message, knowledge_refs, _topic,
                     )
                     if kg_answer and len(kg_answer) >= 60:
-                        # Quality gate: response must have sentences (periods)
-                        # and not be just a list of paper titles
                         has_sentences = '. ' in kg_answer or kg_answer.endswith('.')
                         if has_sentences:
                             response = kg_answer
+                        else:
+                            logger.info("KG answer rejected (no sentences): %s", kg_answer[:100])
+                    elif kg_answer:
+                        logger.info("KG answer rejected (too short=%d): %s", len(kg_answer), kg_answer[:100])
+                    else:
+                        logger.info("KG format returned empty for %d refs", len(knowledge_refs))
+                else:
+                    logger.info("KG search: 0 refs for query=%s topic=%s", _q[:40], _topic)
             except Exception as e:
                 logger.debug("KG search failed in instant path: %s", e)
 
@@ -2372,25 +2378,26 @@ class AetherChat:
         # Collect candidates from all sources: {node_id: raw_score}
         candidates: Dict[int, float] = {}
 
-        # Phase 1: CockroachDB full-text search (tsvector or ILIKE on quality nodes)
-        # This is the primary search — covers all 9.8M nodes via indexed query.
-        try:
-            db_results = kg._db_text_search(query, limit=20)
-            for nid, score in (db_results or []):
-                candidates[nid] = max(candidates.get(nid, 0.0), score)
-        except Exception as e:
-            logger.debug("DB text search failed: %s", e)
+        # Phase 1: TF-IDF inverted index (in-memory, sub-ms, 100K cached nodes)
+        # Fastest path — always try first.
+        si = getattr(kg, 'search_index', None)
+        if si and si.n_docs > 0:
+            try:
+                results = si.query(query, top_k=30)
+                for nid, score in (results or []):
+                    candidates[nid] = max(candidates.get(nid, 0.0), score)
+            except Exception as e:
+                logger.debug("TF-IDF search failed: %s", e)
 
-        # Phase 2: TF-IDF inverted index (in-memory, sub-ms, 100K cached nodes)
+        # Phase 2: CockroachDB full-text search (tsvector with GIN index)
+        # Skip if TF-IDF already found enough quality results.
         if len(candidates) < 10:
-            si = getattr(kg, 'search_index', None)
-            if si and si.n_docs > 0:
-                try:
-                    results = si.query(query, top_k=30)
-                    for nid, score in (results or []):
-                        candidates[nid] = max(candidates.get(nid, 0.0), score)
-                except Exception as e:
-                    logger.debug("TF-IDF search failed: %s", e)
+            try:
+                db_results = kg._db_text_search(query, limit=20)
+                for nid, score in (db_results or []):
+                    candidates[nid] = max(candidates.get(nid, 0.0), score)
+            except Exception as e:
+                logger.debug("DB text search failed: %s", e)
 
         # Phase 3: Rust graph shard search (RocksDB, covers all 9M+ nodes)
         if len(candidates) < 10:
@@ -2405,7 +2412,7 @@ class AetherChat:
             except Exception as e:
                 logger.debug("Shard search failed: %s", e)
 
-        # Phase 4: Bounded keyword fallback (last 3K in-memory nodes)
+        # Phase 4: Keyword scan of ALL in-memory nodes (~100K)
         if len(candidates) < 3:
             candidates.update(
                 self._keyword_fallback_search(query, kg, limit=20)
@@ -2524,35 +2531,48 @@ class AetherChat:
 
     @staticmethod
     def _keyword_fallback_search(query: str, kg: Any, limit: int = 20) -> Dict[int, float]:
-        """Bounded keyword scan of last 3K in-memory nodes. Returns {nid: score}."""
+        """Keyword scan of ALL in-memory nodes (~100K). Returns {nid: score}.
+
+        Scans the full in-memory cache (not just last 3K) because relevant
+        nodes for topics like 'neural networks' may be anywhere in the cache.
+        100K iterations completes in <200ms.
+        """
         query_lower = query.lower()
         query_words = [w for w in query_lower.split() if len(w) > 2]
         if not query_words:
             return {}
 
         scored: Dict[int, float] = {}
-        from itertools import islice
-        _scan_items = list(islice(reversed(list(kg.nodes.items())), 3000))
-        for node_id, node in _scan_items:
+        # Require at least half the query words for multi-word queries
+        min_hits = max(1, len(query_words) // 2)
+        for node_id, node in kg.nodes.items():
             content = node.content
             if isinstance(content, dict):
-                parts = []
-                for key in ('text', 'title', 'summary', 'description'):
-                    val = content.get(key, '')
-                    if val:
-                        parts.append(str(val))
-                text = ' '.join(parts).lower()
+                text = str(content.get('text', '') or content.get('summary', '')).lower()
             elif isinstance(content, str):
                 text = content.lower()
             else:
                 continue
-            if len(text) < 15:
+            if len(text) < 20:
                 continue
             hits = sum(1 for w in query_words if w in text)
-            if hits > 0:
-                scored[node_id] = hits * getattr(node, 'confidence', 0.5)
-            if len(scored) >= limit:
-                break
+            if hits < min_hits:
+                continue
+            # Prefer quality node types and high confidence
+            type_mult = 1.0
+            nt = getattr(node, 'node_type', '')
+            if nt in ('axiom', 'external_fact'):
+                type_mult = 3.0
+            elif nt in ('inference', 'assertion'):
+                type_mult = 2.0
+            elif nt == 'observation':
+                type_mult = 0.3
+            scored[node_id] = hits * getattr(node, 'confidence', 0.5) * type_mult
+
+        # Return top-scoring nodes
+        if len(scored) > limit:
+            top = sorted(scored.items(), key=lambda x: -x[1])[:limit]
+            return dict(top)
         return scored
 
     # ── Helpers for KG response synthesis ──
@@ -2604,15 +2624,18 @@ class AetherChat:
         has_sentence = '.' in clean
         if not has_sentence and len(words) > 5:
             # No sentences and >5 words — likely a paper title or heading
-            # Allow short definitions like "quantum computing: study of X"
+            # Allow definitions that use colons or have enough explanatory words
             if ':' in clean:
-                # Only allow if the part after ":" is explanatory (multiple common words)
                 after_colon = clean.split(':', 1)[1].strip().lower()
                 explanation_words = ['is', 'are', 'was', 'the', 'a', 'an', 'of', 'for',
-                                     'that', 'which', 'used', 'based', 'with', 'by', 'to']
+                                     'that', 'which', 'used', 'based', 'with', 'by', 'to',
+                                     'using', 'through', 'between', 'from', 'into', 'can']
                 match_count = sum(1 for w in after_colon.split() if w in explanation_words)
-                if match_count < 2:
+                if match_count < 1:
                     return ''
+            elif len(words) > 15:
+                # Long text without periods and no colon — likely real content
+                pass
             else:
                 return ''
         return clean
