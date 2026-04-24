@@ -452,32 +452,49 @@ class SubstrateBridge:
         knowledge_root: str,
         knowledge_nodes: int,
         knowledge_edges: int,
+        thought_proof_hash: str = "",
+        reasoning_ops: int = 0,
     ) -> Optional[str]:
         """Anchor Aether Tree state to Substrate via Sudo extrinsic.
 
         Uses Sudo.sudo() because pallet-qbc-aether-anchor::record_block_state
         requires ensure_root origin.
+
+        Pallet signature (call_index 0):
+            record_block_state(
+                block_height: u64,
+                knowledge_root: H256,
+                phi_scaled: u64,
+                knowledge_nodes: u64,
+                knowledge_edges: u64,
+                thought_proof_hash: H256,
+                reasoning_ops: u64,
+            )
         """
         try:
             substrate = self._get_substrate_interface()
 
             phi_scaled = int(phi_value * PHI_SCALE)
-            kr_bytes = bytes.fromhex(
-                knowledge_root.replace("0x", "")
-            ) if knowledge_root else b"\x00" * 32
+
+            # Ensure knowledge_root is a valid 32-byte hex (H256)
+            kr_hex = knowledge_root.replace("0x", "") if knowledge_root else "0" * 64
+            kr_hex = kr_hex.ljust(64, "0")[:64]
+
+            # Ensure thought_proof_hash is a valid 32-byte hex (H256)
+            tp_hex = thought_proof_hash.replace("0x", "") if thought_proof_hash else "0" * 64
+            tp_hex = tp_hex.ljust(64, "0")[:64]
 
             inner_call = substrate.compose_call(
                 call_module="QbcAetherAnchor",
                 call_function="record_block_state",
                 call_params={
                     "block_height": block_height,
-                    "phi": {
-                        "block_height": block_height,
-                        "phi_scaled": phi_scaled,
-                        "knowledge_nodes": knowledge_nodes,
-                        "knowledge_edges": knowledge_edges,
-                    },
-                    "knowledge_root": f"0x{kr_bytes.hex()}",
+                    "knowledge_root": f"0x{kr_hex}",
+                    "phi_scaled": phi_scaled,
+                    "knowledge_nodes": knowledge_nodes,
+                    "knowledge_edges": knowledge_edges,
+                    "thought_proof_hash": f"0x{tp_hex}",
+                    "reasoning_ops": reasoning_ops,
                 },
             )
 
@@ -494,7 +511,11 @@ class SubstrateBridge:
                 extrinsic, wait_for_inclusion=False
             )
             tx_hash = result.get("extrinsic_hash", str(result))
-            logger.debug(f"Aether state anchored at height {block_height}: {tx_hash}")
+            logger.info(
+                f"Aether state anchored on-chain at block {block_height}: "
+                f"phi={phi_value:.4f}, nodes={knowledge_nodes}, "
+                f"edges={knowledge_edges}, tx={tx_hash[:16]}..."
+            )
             return tx_hash
 
         except Exception as e:

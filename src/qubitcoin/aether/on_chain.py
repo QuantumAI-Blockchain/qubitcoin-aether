@@ -918,26 +918,41 @@ class OnChainAGI:
 
 
 class OnChainAGILogOnly:
-    """Log-only fallback for on-chain AI integration.
+    """On-chain AI integration via Substrate extrinsics.
 
-    When no QVM StateManager is available (no deployed contracts), this
-    class records phi writes and PoT submissions as database entries and
-    increments counters so that the stats dashboard shows activity.
+    Records Phi measurements and PoT proofs to both:
+    1. CockroachDB (local persistence)
+    2. Substrate chain via SubstrateBridge (on-chain anchoring)
+
+    When SubstrateBridge is available, submits real extrinsics to the
+    QbcAetherAnchor pallet every ONCHAIN_PHI_INTERVAL blocks. When
+    unavailable, falls back to DB-only logging.
 
     Drop-in replacement for OnChainAGI — same public API surface.
     """
 
-    def __init__(self, db_manager: object = None) -> None:
+    def __init__(self, db_manager: object = None,
+                 substrate_bridge: object = None) -> None:
         self._db = db_manager
+        self._bridge = substrate_bridge
         self._phi_writes: int = 0
         self._pot_submissions: int = 0
+        self._onchain_submissions: int = 0
+        self._onchain_failures: int = 0
         self._veto_checks: int = 0
         self._governance_reads: int = 0
         self._errors: int = 0
         self._total_calls: int = 0
         self._current_block: int = 0
         self._recent_results: list = []
-        logger.info("OnChainAGI running in LOG-ONLY mode (no contracts deployed)")
+        mode = "SUBSTRATE-ANCHORED" if substrate_bridge else "LOG-ONLY"
+        logger.info(f"OnChainAGI running in {mode} mode")
+
+    def set_substrate_bridge(self, bridge: object) -> None:
+        """Inject SubstrateBridge after construction (for late binding)."""
+        self._bridge = bridge
+        if bridge:
+            logger.info("OnChainAGI: SubstrateBridge connected — on-chain submissions enabled")
 
     def record_phi_onchain(self, block_height: int, phi_value: float,
                            integration: float = 0.0,
@@ -970,44 +985,93 @@ class OnChainAGILogOnly:
     def submit_proof_onchain(self, block_height: int, thought_hash: str,
                              knowledge_root: str, submitter: str = '',
                              task_id: int = 0) -> bool:
-        """Record a PoT submission to the database (log-only mode)."""
+        """Submit PoT proof on-chain via Substrate and log to DB.
+
+        If SubstrateBridge is available, this submits a real extrinsic to the
+        QbcAetherAnchor pallet. Otherwise, it logs to DB only.
+        """
         self._pot_submissions += 1
         self._total_calls += 1
-        logger.debug(
-            f"[log-only] PoT proof recorded at block {block_height} "
-            f"(hash={thought_hash[:16]}..., submitter={submitter[:16]})"
-        )
+
+        # Attempt on-chain submission via SubstrateBridge
+        if self._bridge:
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                asyncio.run_coroutine_threadsafe(
+                    self._bridge.anchor_aether_state(
+                        block_height=block_height,
+                        phi_value=0.0,  # phi handled separately in process_block
+                        knowledge_root=knowledge_root,
+                        knowledge_nodes=0,
+                        knowledge_edges=0,
+                        thought_proof_hash=thought_hash,
+                        reasoning_ops=0,
+                    ),
+                    loop,
+                )
+                self._onchain_submissions += 1
+                logger.debug(
+                    f"PoT proof submitted on-chain at block {block_height} "
+                    f"(hash={thought_hash[:16]}...)"
+                )
+            except Exception as e:
+                self._onchain_failures += 1
+                logger.debug(f"On-chain PoT submission failed (DB fallback): {e}")
+        else:
+            logger.debug(
+                f"[db-only] PoT proof recorded at block {block_height} "
+                f"(hash={thought_hash[:16]}...)"
+            )
         return True
 
     def process_block(self, block_height: int, phi_result: dict,
                       thought_hash: str = '', knowledge_root: str = '',
                       validator_address: str = '',
                       higgs_field_value: float = 0.0,
-                      avg_cognitive_mass: float = 0.0) -> dict:
-        """Per-block log-only integration hook."""
+                      avg_cognitive_mass: float = 0.0,
+                      reasoning_ops: int = 0) -> dict:
+        """Per-block integration hook — anchors AI state to Substrate.
+
+        When SubstrateBridge is connected, this submits a real on-chain
+        extrinsic to QbcAetherAnchor::record_block_state every
+        ONCHAIN_PHI_INTERVAL blocks with:
+        - Phi measurement (scaled by 1000)
+        - Knowledge graph Merkle root (H256)
+        - Node/edge counts
+        - Proof-of-Thought hash (H256)
+        - Cumulative reasoning operations
+        """
         self._current_block = block_height
+        mode = 'substrate' if self._bridge else 'log_only'
         results: dict = {
             'phi_written': False,
             'pot_submitted': False,
             'higgs_updated': False,
             'block_height': block_height,
-            'mode': 'log_only',
+            'mode': mode,
         }
 
-        # Record phi every ONCHAIN_PHI_INTERVAL blocks
+        # Record phi every ONCHAIN_PHI_INTERVAL blocks (to DB)
         phi_interval = Config.ONCHAIN_PHI_INTERVAL
+        phi_value = 0.0
+        n_nodes = 0
+        n_edges = 0
         if block_height % phi_interval == 0 and phi_result:
+            phi_value = phi_result.get('phi_value', 0.0)
+            n_nodes = phi_result.get('num_nodes', 0)
+            n_edges = phi_result.get('num_edges', 0)
             results['phi_written'] = self.record_phi_onchain(
                 block_height=block_height,
-                phi_value=phi_result.get('phi_value', 0.0),
+                phi_value=phi_value,
                 integration=phi_result.get('integration', 0.0),
                 differentiation=phi_result.get('differentiation', 0.0),
                 coherence=phi_result.get('coherence', 0.0),
-                knowledge_nodes=phi_result.get('num_nodes', 0),
-                knowledge_edges=phi_result.get('num_edges', 0),
+                knowledge_nodes=n_nodes,
+                knowledge_edges=n_edges,
             )
 
-        # Record PoT proof
+        # Record PoT proof (to DB)
         if thought_hash and knowledge_root:
             results['pot_submitted'] = self.submit_proof_onchain(
                 block_height=block_height,
@@ -1015,6 +1079,30 @@ class OnChainAGILogOnly:
                 knowledge_root=knowledge_root,
                 submitter=validator_address,
             )
+
+        # Submit full state on-chain via Substrate every phi_interval blocks
+        if self._bridge and block_height % phi_interval == 0 and phi_result:
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                asyncio.run_coroutine_threadsafe(
+                    self._bridge.anchor_aether_state(
+                        block_height=block_height,
+                        phi_value=phi_value,
+                        knowledge_root=knowledge_root or "0" * 64,
+                        knowledge_nodes=n_nodes,
+                        knowledge_edges=n_edges,
+                        thought_proof_hash=thought_hash or "0" * 64,
+                        reasoning_ops=reasoning_ops,
+                    ),
+                    loop,
+                )
+                self._onchain_submissions += 1
+                results['onchain_submitted'] = True
+            except Exception as e:
+                self._onchain_failures += 1
+                results['onchain_submitted'] = False
+                logger.debug(f"On-chain state submission failed: {e}")
 
         return results
 
@@ -1024,27 +1112,35 @@ class OnChainAGILogOnly:
         return False
 
     def is_healthy(self) -> dict:
-        """Health check for log-only mode."""
+        """Health check."""
+        mode = 'substrate' if self._bridge else 'log_only'
         return {
             'healthy': True,
-            'mode': 'log_only',
+            'mode': mode,
             'contracts_configured': 0,
             'qvm_accessible': False,
+            'substrate_bridge': self._bridge is not None,
+            'onchain_submissions': self._onchain_submissions,
+            'onchain_failures': self._onchain_failures,
             'error_rate': 0.0,
             'total_calls': self._total_calls,
             'recent_window_size': 0,
-            'details': 'running in log-only mode (no contracts deployed)',
+            'details': f'running in {mode} mode',
         }
 
     def get_stats(self) -> dict:
-        """Get log-only integration statistics."""
+        """Get on-chain integration statistics."""
+        mode = 'substrate' if self._bridge else 'log_only'
         return {
             'phi_writes': self._phi_writes,
             'pot_submissions': self._pot_submissions,
+            'onchain_submissions': self._onchain_submissions,
+            'onchain_failures': self._onchain_failures,
             'veto_checks': self._veto_checks,
             'governance_reads': self._governance_reads,
             'errors': self._errors,
-            'mode': 'log_only',
+            'mode': mode,
+            'substrate_connected': self._bridge is not None,
             'contracts_configured': {
                 'consciousness_dashboard': False,
                 'proof_of_thought': False,

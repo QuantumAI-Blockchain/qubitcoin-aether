@@ -1747,6 +1747,45 @@ class KnowledgeGraph:
         # Normalize confidence as relevance score
         return [(r[0], float(r[1] or 0.5)) for r in rows]
 
+    def shard_search(self, query: str, top_k: int = 10,
+                     domain_filter: str = "",
+                     min_confidence: float = 0.0) -> List[Tuple[int, float]]:
+        """Search the Rust graph shard (RocksDB, 12 domain shards).
+
+        Returns (node_id, score) tuples. Non-blocking: uses the shard's
+        dedicated async event loop. Returns empty list if shard unavailable.
+        """
+        if not self._shard_client or not self._shard_loop:
+            return []
+        if not self._shard_client.connected:
+            return []
+
+        try:
+            import concurrent.futures
+            future = asyncio.run_coroutine_threadsafe(
+                self._shard_client.search(
+                    query=query, top_k=top_k,
+                    domain_filter=domain_filter,
+                    min_confidence=min_confidence,
+                ),
+                self._shard_loop,
+            )
+            results = future.result(timeout=2.0)
+            if not results:
+                return []
+            # Extract node_id and score from shard response dicts
+            out = []
+            for r in results:
+                node_data = r.get('node', {})
+                nid = node_data.get('node_id', 0)
+                score = r.get('score', 0.0)
+                if nid > 0:
+                    out.append((nid, score))
+            return out
+        except Exception as e:
+            logger.debug("shard_search failed: %s", e)
+            return []
+
     def _row_to_node_safe(self, node_id: int) -> Optional[KeterNode]:
         """Fetch a single node from DB by ID. Returns None on failure."""
         try:

@@ -124,7 +124,12 @@ def _kgqa(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _on_chain(ctx: Dict[str, Any]) -> Dict[str, Any]:
-    return {"db_manager": ctx["db_manager"]}
+    kwargs: Dict[str, Any] = {"db_manager": ctx["db_manager"]}
+    # Inject SubstrateBridge if engine has one (for on-chain PoT submission)
+    engine = ctx.get("engine")
+    if engine and hasattr(engine, 'node') and hasattr(engine.node, 'substrate_bridge'):
+        kwargs["substrate_bridge"] = engine.node.substrate_bridge
+    return kwargs
 
 
 def _external_ingestion(ctx: Dict[str, Any]) -> Dict[str, Any]:

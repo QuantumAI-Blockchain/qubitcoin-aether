@@ -77,6 +77,11 @@ class AetherEngine:
         self._pot_hashes_seen: set = set()
         self._pot_hashes_max: int = 5000  # Bound set size
 
+        # On-chain tracking: last PoT hash and cumulative reasoning ops
+        # Used by SubstrateBridge for on-chain extrinsic submission
+        self.last_thought_hash: str = ""
+        self.reasoning_ops_count: int = 0
+
         # Phase 5.1: Curiosity-driven goal formation
         self._curiosity_goals: List[dict] = []
         self._max_curiosity_goals: int = 500
@@ -636,6 +641,10 @@ class AetherEngine:
             causal_edges_validated=causal_edges_validated,
         )
         pot.thought_hash = pot.calculate_hash()
+
+        # Track for on-chain submission via SubstrateBridge
+        self.last_thought_hash = pot.thought_hash
+        self.reasoning_ops_count += 1
 
         # Deduplication: reject if this exact thought hash was already generated
         if pot.thought_hash in self._pot_hashes_seen:

@@ -255,6 +255,13 @@ class QubitcoinNode:
                 self.on_chain = None
                 logger.debug(f"OnChainAGI init skipped: {e}")
 
+            # Wire SubstrateBridge into the on-chain module for real extrinsic submission
+            if self.substrate_bridge:
+                on_chain_mod = getattr(self.aether, 'on_chain', None)
+                if on_chain_mod and hasattr(on_chain_mod, 'set_substrate_bridge'):
+                    on_chain_mod.set_substrate_bridge(self.substrate_bridge)
+                    logger.info("SubstrateBridge injected into OnChainAGI — on-chain PoT enabled")
+
             logger.info("[7/22] Aether Engine initialized (KnowledgeGraph + Phi + Reasoning + PoT)")
         except Exception as e:
             logger.error(f"[7/22] Aether Engine failed: {e}", exc_info=True)
@@ -1126,7 +1133,7 @@ class QubitcoinNode:
                         logger.warning(f"QUSD keeper tick: {e}")
 
             # Anchor Aether state back to Substrate (every 50 blocks)
-            # Note: anchoring is async, schedule from sync thread via event loop
+            # Submits a real on-chain extrinsic via Sudo → QbcAetherAnchor::record_block_state
             if self.substrate_bridge and block_height % 50 == 0 and self.aether:
                 try:
                     phi_value = self.aether.phi
@@ -1134,6 +1141,14 @@ class QubitcoinNode:
                     knowledge_root = kg.compute_merkle_root() if hasattr(kg, 'compute_merkle_root') else "0" * 64
                     n_nodes = len(kg.nodes) if hasattr(kg, 'nodes') else 0
                     n_edges = len(kg.edges) if hasattr(kg, 'edges') else 0
+
+                    # Get PoT hash and reasoning ops from the Aether engine
+                    thought_hash = ""
+                    reasoning_ops = 0
+                    if hasattr(self.aether, 'last_thought_hash'):
+                        thought_hash = self.aether.last_thought_hash or ""
+                    if hasattr(self.aether, 'reasoning_ops_count'):
+                        reasoning_ops = self.aether.reasoning_ops_count
 
                     loop = asyncio.get_event_loop()
                     asyncio.run_coroutine_threadsafe(
@@ -1143,6 +1158,8 @@ class QubitcoinNode:
                             knowledge_root=knowledge_root,
                             knowledge_nodes=n_nodes,
                             knowledge_edges=n_edges,
+                            thought_proof_hash=thought_hash,
+                            reasoning_ops=reasoning_ops,
                         ),
                         loop,
                     )
