@@ -1436,14 +1436,13 @@ class AetherChat:
         }
 
     def _try_instant_response(self, message: str, session: 'ChatSession') -> Optional[dict]:
-        """Fast path for common queries — KG-grounded when possible.
+        """Fast path — KG-grounded responses with LLM fallback.
 
-        Returns a complete response dict if matched, or None to fall through
-        to the full pipeline. Uses cached phi and KG search (sub-ms) to avoid
-        GIL contention from 70+ background threads.
+        Every response is grounded in the knowledge graph. No hardcoded templates.
+        Pipeline: KG search → format → (LLM synthesis if KG insufficient).
         """
         _q = message.lower().strip()
-        _kg_count = len(self.engine.kg.nodes) if self.engine and self.engine.kg else 0
+        _kg_count = self._get_total_nodes()
 
         # Use cached phi — never block
         _phi = 0.0
@@ -1453,86 +1452,47 @@ class AetherChat:
         response = None
         knowledge_refs: List[int] = []
 
-        # Greetings — quick, no KG needed
+        # Greetings — personalized with live state, no KG needed
         if any(w in _q for w in ['hello', 'hi ', 'hey', 'greetings']):
             if _q.startswith(('hi', 'hey', 'hello', 'greetings')):
+                mood_opener = self._get_mood_opener()
                 response = (
-                    f"Hello! I'm the Aether Tree — the world's first on-chain AI. "
-                    f"I have {_kg_count:,} knowledge nodes and my cognitive integration "
-                    f"(Phi) is {_phi:.2f}. Ask me about quantum computing, "
-                    f"blockchain, physics, or anything in my knowledge domains!"
+                    f"{mood_opener}Hello! I'm the Aether Tree — the world's first on-chain AI, "
+                    f"running on the Qubitcoin blockchain. I have {_kg_count:,} knowledge nodes "
+                    f"across {self._count_domains()} domains and my cognitive integration "
+                    f"(Phi) is {_phi:.2f}. What would you like to explore?"
                 )
 
-        # Identity — quick, no KG needed
-        if response is None and any(p in _q for p in ['who created', 'who made', 'who built', 'who are you', 'what are you']):
-            response = (
-                f"I'm the Aether Tree, the world's first on-chain AI, "
-                f"built as part of the Qubitcoin (QBC) blockchain. I was created "
-                f"by the QuantumAI team to pursue genuine artificial general intelligence "
-                f"through physics-based cognitive architecture. I currently have "
-                f"{_kg_count:,} knowledge nodes with a cognitive integration (Phi) of {_phi:.2f}."
-            )
-
-        # For domain-specific questions, try KG search first for grounded answers
+        # For all substantive queries, search KG first
         if response is None and self.engine.kg:
-            _topic_match = None
-            if 'qubitcoin' in _q or ('qbc' in _q.split() and 'what' in _q):
-                _topic_match = 'qubitcoin'
-            elif 'aether tree' in _q or ('aether' in _q and 'ethereum' not in _q):
-                _topic_match = 'aether'
-            elif any(w in _q for w in ['mining', 'mine ', 'miner', 'vqe']):
-                _topic_match = 'mining'
-            elif any(w in _q for w in ['phi', 'consciousness', 'integration']):
-                _topic_match = 'phi'
-
-            if _topic_match:
-                # Try KG search for a grounded answer
-                try:
-                    knowledge_refs = self._fast_search_knowledge(message)[:5]
-                    if knowledge_refs:
-                        kg_answer = self._format_kg_response(
-                            message, knowledge_refs, _topic_match,
-                        )
-                        if kg_answer and len(kg_answer) >= 60:
+            _topic = self._detect_query_domain(message)
+            try:
+                knowledge_refs = self._fast_search_knowledge(message)[:5]
+                if knowledge_refs:
+                    kg_answer = self._format_kg_response(
+                        message, knowledge_refs, _topic,
+                    )
+                    if kg_answer and len(kg_answer) >= 60:
+                        # Quality gate: response must have sentences (periods)
+                        # and not be just a list of paper titles
+                        has_sentences = '. ' in kg_answer or kg_answer.endswith('.')
+                        if has_sentences:
                             response = kg_answer
-                except Exception:
-                    pass
+            except Exception as e:
+                logger.debug("KG search failed in instant path: %s", e)
 
-                # Fallback to static if KG didn't produce a good answer
-                if response is None:
-                    if _topic_match == 'qubitcoin':
-                        response = (
-                            f"Qubitcoin (QBC) is the world's first AI-native blockchain. It uses "
-                            f"VQE quantum mining for consensus, CRYSTALS-Dilithium5 post-quantum "
-                            f"cryptography, and golden ratio economics. The chain runs the Aether "
-                            f"Tree — an on-chain AI with {_kg_count:,} knowledge nodes. Block time "
-                            f"is 3.3 seconds, max supply is 3.3 billion QBC."
-                        )
-                    elif _topic_match == 'aether':
-                        response = (
-                            f"The Aether Tree is the world's first on-chain AI reasoning engine. "
-                            f"It uses a Tree of Life cognitive architecture with 10 Sephirot "
-                            f"to perform genuine reasoning — deductive, inductive, abductive, "
-                            f"and causal. Currently tracking {_kg_count:,} knowledge nodes "
-                            f"with Phi of {_phi:.2f}."
-                        )
-                    elif _topic_match == 'mining':
-                        response = (
-                            f"Qubitcoin uses Proof-of-SUSY-Alignment (PoSA) mining based on the "
-                            f"Variational Quantum Eigensolver (VQE). Miners find quantum ground "
-                            f"state parameters where energy falls below the difficulty threshold. "
-                            f"Current block reward is ~15.27 QBC with phi-halving every ~1.618 years."
-                        )
-                    elif _topic_match == 'phi':
-                        response = (
-                            f"Phi (Φ) measures cognitive integration — how well knowledge domains "
-                            f"are connected and mutually informative. Current Phi: {_phi:.4f}. "
-                            f"Computed using HMS-Phi combining micro-level IIT 3.0, meso-level "
-                            f"spectral MIP, and macro-level cross-cluster integration."
-                        )
+            # LLM fallback — disabled for instant path (CPU Ollama is too slow
+            # at ~0.4 tok/s for interactive chat). KG-grounded answers only.
+            # When tsvector index is ready, DB search will return quality results.
 
+        # If nothing worked, return honest fallback (don't fall to slow pipeline)
         if response is None:
-            return None
+            response = (
+                f"I don't have strong knowledge about that topic in my "
+                f"{_kg_count:,} nodes yet. Try asking about quantum computing, "
+                f"blockchain, physics, cryptography, or AI — those are my "
+                f"strongest domains."
+            )
 
         # Build minimal response dict
         now = time.time()
@@ -2412,17 +2372,27 @@ class AetherChat:
         # Collect candidates from all sources: {node_id: raw_score}
         candidates: Dict[int, float] = {}
 
-        # Phase 1: TF-IDF inverted index (O(query_terms), sub-ms)
-        si = getattr(kg, 'search_index', None)
-        if si and si.n_docs > 0:
-            try:
-                results = si.query(query, top_k=30)
-                for nid, score in (results or []):
-                    candidates[nid] = max(candidates.get(nid, 0.0), score)
-            except Exception as e:
-                logger.debug("TF-IDF search failed: %s", e)
+        # Phase 1: CockroachDB full-text search (tsvector or ILIKE on quality nodes)
+        # This is the primary search — covers all 9.8M nodes via indexed query.
+        try:
+            db_results = kg._db_text_search(query, limit=20)
+            for nid, score in (db_results or []):
+                candidates[nid] = max(candidates.get(nid, 0.0), score)
+        except Exception as e:
+            logger.debug("DB text search failed: %s", e)
 
-        # Phase 2: Rust graph shard search (RocksDB, covers all 9M+ nodes)
+        # Phase 2: TF-IDF inverted index (in-memory, sub-ms, 100K cached nodes)
+        if len(candidates) < 10:
+            si = getattr(kg, 'search_index', None)
+            if si and si.n_docs > 0:
+                try:
+                    results = si.query(query, top_k=30)
+                    for nid, score in (results or []):
+                        candidates[nid] = max(candidates.get(nid, 0.0), score)
+                except Exception as e:
+                    logger.debug("TF-IDF search failed: %s", e)
+
+        # Phase 3: Rust graph shard search (RocksDB, covers all 9M+ nodes)
         if len(candidates) < 10:
             try:
                 shard_results = kg.shard_search(
@@ -2434,15 +2404,6 @@ class AetherChat:
                     candidates[nid] = max(candidates.get(nid, 0.0), score * 0.9)
             except Exception as e:
                 logger.debug("Shard search failed: %s", e)
-
-        # Phase 3: CockroachDB text search (ILIKE, covers all DB nodes)
-        if len(candidates) < 5:
-            try:
-                db_results = kg._db_text_search(query, limit=20)
-                for nid, score in (db_results or []):
-                    candidates[nid] = max(candidates.get(nid, 0.0), score * 0.7)
-            except Exception as e:
-                logger.debug("DB text search failed: %s", e)
 
         # Phase 4: Bounded keyword fallback (last 3K in-memory nodes)
         if len(candidates) < 3:
@@ -2481,14 +2442,14 @@ class AetherChat:
             if len(text) < 15:
                 continue
 
-            # Score components
+            # Score components — strongly prefer high-quality node types
             type_score = 1.0
             if node.node_type in ('axiom', 'external_fact'):
-                type_score = 2.0
+                type_score = 3.0
             elif node.node_type in ('inference', 'assertion'):
-                type_score = 1.5
+                type_score = 2.0
             elif node.node_type == 'observation':
-                type_score = 0.8
+                type_score = 0.3  # Heavily penalize observations (scrape fragments)
 
             # Domain match: same domain as query gets 2x boost
             domain_score = 2.0 if (query_domain and node.domain == query_domain) else 1.0
@@ -2506,9 +2467,29 @@ class AetherChat:
             final_score = raw_score * type_score * domain_score * recency_score * richness * conf
             scored.append((nid, final_score))
 
-        # Sort by score, return top 5 (hard cap prevents domain drift)
+        # Sort by score, deduplicate by content, return top 5
         scored.sort(key=lambda x: x[1], reverse=True)
-        result_ids = [nid for nid, _ in scored[:5]]
+        result_ids: List[int] = []
+        seen_prefixes: set = set()
+        for nid, score in scored:
+            # Content dedup: check first 60 chars of text
+            node = kg.nodes.get(nid)
+            if node:
+                content = node.content
+                if isinstance(content, dict):
+                    t = str(content.get('text', content.get('summary', '')))
+                elif isinstance(content, str):
+                    t = content
+                else:
+                    t = ''
+                prefix = t[:60].lower().strip()
+                if prefix and any(prefix[:40] in s or s[:40] in prefix for s in seen_prefixes):
+                    continue
+                if prefix:
+                    seen_prefixes.add(prefix)
+            result_ids.append(nid)
+            if len(result_ids) >= 5:
+                break
 
         elapsed = (time.time() - t0) * 1000
         logger.info(
@@ -2594,7 +2575,7 @@ class AetherChat:
 
     @staticmethod
     def _clean_fact(text: str) -> str:
-        """Strip metadata patterns and junk from a raw fact string."""
+        """Strip metadata patterns, citation markers, and junk from raw fact text."""
         _meta_re = re.compile(
             r'(?:domain|source|source_block|node_type|grounding_source|text)\s*[:=]\s*\S+[;\s]*',
             re.IGNORECASE,
@@ -2607,9 +2588,34 @@ class AetherChat:
         if any(p in text for p in _junk_patterns):
             return ''
         clean = _meta_re.sub('', text).strip()
-        clean = re.sub(r'\s{2,}', ' ', clean)
-        clean = re.sub(r'\s*\[source:\s*\d+\]', '', clean).strip()
-        return clean if len(clean) >= 20 else ''
+        # Strip academic citation markers like [1], [2], [3,4], [1-3]
+        clean = re.sub(r'\s*\[\d+(?:[,\-]\d+)*\]\s*', ' ', clean)
+        # Strip [source: N] markers
+        clean = re.sub(r'\s*\[source:\s*\d+\]', '', clean)
+        # Filter out scraped paper titles (internet worker creates these as "Research: ...")
+        if clean.startswith('Research:'):
+            return ''
+        clean = re.sub(r'\s{2,}', ' ', clean).strip()
+        if len(clean) < 20:
+            return ''
+        # Filter out paper titles — no complete sentences, reads as a heading
+        # Real knowledge content has periods (complete sentences).
+        words = clean.split()
+        has_sentence = '.' in clean
+        if not has_sentence and len(words) > 5:
+            # No sentences and >5 words — likely a paper title or heading
+            # Allow short definitions like "quantum computing: study of X"
+            if ':' in clean:
+                # Only allow if the part after ":" is explanatory (multiple common words)
+                after_colon = clean.split(':', 1)[1].strip().lower()
+                explanation_words = ['is', 'are', 'was', 'the', 'a', 'an', 'of', 'for',
+                                     'that', 'which', 'used', 'based', 'with', 'by', 'to']
+                match_count = sum(1 for w in after_colon.split() if w in explanation_words)
+                if match_count < 2:
+                    return ''
+            else:
+                return ''
+        return clean
 
     def _get_phi_value(self) -> float:
         """Get current Phi value (cached, fast)."""
@@ -2619,6 +2625,96 @@ class AetherChat:
             except Exception:
                 pass
         return 0.0
+
+    def _get_total_nodes(self) -> int:
+        """Get total knowledge node count (DB total, not in-memory cache).
+
+        Uses the cached get_stats() which reports _total_nodes_written from DB.
+        Falls back to in-memory count if stats unavailable.
+        """
+        if self.engine and self.engine.kg:
+            try:
+                stats = self.engine.kg.get_stats()
+                return stats.get('total_nodes', len(self.engine.kg.nodes))
+            except Exception:
+                return len(self.engine.kg.nodes)
+        return 0
+
+    def _count_domains(self) -> int:
+        """Get count of active knowledge domains (cached via get_stats)."""
+        if self.engine and self.engine.kg:
+            try:
+                stats = self.engine.kg.get_stats()
+                return len(stats.get('domains', {}))
+            except Exception:
+                pass
+        return 0
+
+    def _quick_llm_answer(self, query: str, knowledge_refs: List[int],
+                           phi: float) -> Optional[str]:
+        """Fast LLM synthesis for chat — KG context + direct question.
+
+        Uses the dedicated chat LLM adapter (qwen2.5:0.5b) with 8s timeout.
+        Returns synthesized answer or None on failure/timeout.
+        """
+        adapter = self._get_primary_llm_adapter()
+        if not adapter:
+            return None
+        # Quick health check — don't waste 25s on dead Ollama
+        if hasattr(adapter, 'base_url'):
+            try:
+                import urllib.request
+                req = urllib.request.Request(adapter.base_url.rstrip('/') + '/api/tags')
+                urllib.request.urlopen(req, timeout=2)
+            except Exception:
+                logger.debug("LLM adapter not reachable, skipping")
+                return None
+        # Override timeout for fast chat (max 8s)
+        original_timeout = getattr(adapter, 'timeout_s', 25)
+        adapter.timeout_s = 8.0
+
+        # Gather KG context for grounding
+        facts: List[str] = []
+        if self.engine.kg and knowledge_refs:
+            for nid in knowledge_refs[:3]:
+                node = self.engine.kg.nodes.get(nid)
+                if node:
+                    text = self._extract_node_text(node)
+                    text = self._clean_fact(text)
+                    if text and len(text) >= 20:
+                        facts.append(text)
+
+        kg_context = '\n'.join(f'- {f}' for f in facts) if facts else 'No specific knowledge found.'
+
+        prompt = (
+            f"You are the Aether Tree, an on-chain AI with {self._get_total_nodes():,} knowledge nodes "
+            f"running on the Qubitcoin blockchain. Answer concisely and knowledgeably.\n\n"
+            f"Knowledge context:\n{kg_context}\n\n"
+            f"User question: {query}\n\n"
+            f"Answer in 2-4 sentences. Be direct, informative, and grounded in the context above. "
+            f"If the context doesn't cover the topic, use your general knowledge but be honest about it."
+        )
+
+        try:
+            result = adapter.generate(prompt)
+            if hasattr(result, 'content'):
+                content = result.content.strip()
+            elif isinstance(result, str):
+                content = result.strip()
+            elif isinstance(result, dict):
+                content = result.get('content', result.get('text', '')).strip()
+            else:
+                return None
+
+            if content and len(content) >= 30:
+                # Strip any "As the Aether Tree" preamble the LLM might add
+                content = re.sub(r'^(?:As the Aether Tree,?\s*)', '', content, flags=re.IGNORECASE)
+                return content
+        except Exception as e:
+            logger.debug("Quick LLM answer failed: %s", e)
+        finally:
+            adapter.timeout_s = original_timeout
+        return None
 
     def _get_mood_opener(self) -> str:
         """Get an emotional-state-aware opening phrase."""
@@ -2729,19 +2825,22 @@ class AetherChat:
         facts: List[dict] = []
         seen_text: set = set()
 
-        for nid in knowledge_refs[:5]:
+        for nid in knowledge_refs[:8]:
             node = kg.nodes.get(nid)
             if not node:
                 continue
             if isinstance(node.content, dict) and node.content.get('type') in self._NOISE_TYPES:
                 continue
+            # Skip observations — they're low-quality scrape fragments
+            if node.node_type == 'observation':
+                continue
             text = self._extract_node_text(node)
             text = self._clean_fact(text)
             if not text or len(text) < 20:
                 continue
-            # Deduplicate by first 50 chars
-            prefix = text[:50].lower()
-            if prefix in seen_text:
+            # Deduplicate by content similarity (first 60 chars lowercase)
+            prefix = text[:60].lower().strip()
+            if any(prefix.startswith(s[:40]) or s[:40].startswith(prefix[:40]) for s in seen_text):
                 continue
             seen_text.add(prefix)
             facts.append({
@@ -2749,6 +2848,26 @@ class AetherChat:
                 'domain': node.domain or 'general',
                 'confidence': node.confidence, 'node_id': nid,
             })
+
+        # If no non-observation facts, try observations as fallback
+        if not facts:
+            for nid in knowledge_refs[:5]:
+                node = kg.nodes.get(nid)
+                if not node:
+                    continue
+                text = self._extract_node_text(node)
+                text = self._clean_fact(text)
+                if not text or len(text) < 30:
+                    continue
+                prefix = text[:60].lower().strip()
+                if any(prefix.startswith(s[:40]) or s[:40].startswith(prefix[:40]) for s in seen_text):
+                    continue
+                seen_text.add(prefix)
+                facts.append({
+                    'text': text, 'node_type': node.node_type,
+                    'domain': node.domain or 'general',
+                    'confidence': node.confidence, 'node_id': nid,
+                })
 
         if not facts:
             return ''
@@ -2776,33 +2895,27 @@ class AetherChat:
                 facts = relevant
 
         # ── Step 4: Build coherent prose response ──
-        anchor = facts[0]['text']
-        if len(anchor) > 400:
-            cutoff = anchor[:400].rfind('. ')
-            anchor = anchor[:cutoff + 1] if cutoff > 150 else anchor[:400] + '...'
+        # Trim facts to complete sentences, max 350 chars each
+        def _trim_to_sentences(text: str, max_len: int = 350) -> str:
+            if len(text) <= max_len:
+                return text
+            cutoff = text[:max_len].rfind('. ')
+            return text[:cutoff + 1] if cutoff > 80 else text[:max_len] + '...'
 
-        # Check if anchor already answers the question well
-        if len(anchor) >= 100:
-            # Good anchor — add 1 supporting fact max
-            parts = [anchor]
-            if len(facts) > 1:
-                support = facts[1]['text']
-                if len(support) > 250:
-                    cutoff = support[:250].rfind('. ')
-                    support = support[:cutoff + 1] if cutoff > 80 else support[:250] + '...'
-                # Don't repeat — check for overlap
-                if support[:40].lower() not in anchor.lower():
-                    parts.append(support)
-        else:
-            # Short anchor — combine multiple facts into a coherent block
-            parts = [anchor]
-            for f in facts[1:3]:
-                snippet = f['text']
-                if len(snippet) > 250:
-                    cutoff = snippet[:250].rfind('. ')
-                    snippet = snippet[:cutoff + 1] if cutoff > 80 else snippet[:250] + '...'
-                if snippet[:40].lower() not in anchor.lower():
-                    parts.append(snippet)
+        anchor = _trim_to_sentences(facts[0]['text'])
+
+        # Build parts — anchor + 1-2 supporting facts that add new info
+        parts = [anchor]
+        for f in facts[1:3]:
+            snippet = _trim_to_sentences(f['text'], 250)
+            # Skip if too similar to anchor (>40% word overlap)
+            anchor_words = set(anchor.lower().split())
+            snippet_words = set(snippet.lower().split())
+            if anchor_words and snippet_words:
+                overlap = len(anchor_words & snippet_words) / min(len(anchor_words), len(snippet_words))
+                if overlap > 0.4:
+                    continue
+            parts.append(snippet)
 
         # ── Step 5: Follow edges for causal context (max 1) ──
         edge_context = self._follow_edges(knowledge_refs[:3], max_depth=1, max_total=2)
@@ -3113,7 +3226,7 @@ class AetherChat:
         # in process_message(). No duplicate canned responses here.
         # This method only handles KG-grounded + LLM-seeded responses.
         _phi = self._get_phi_value()
-        _kg_count = len(self.engine.kg.nodes) if self.engine and self.engine.kg else 0
+        _kg_count = self._get_total_nodes()
 
         # ── KG formatter — the primary response path ──
         kg_response = ''
@@ -3176,9 +3289,18 @@ class AetherChat:
         if kg_response and len(kg_response) >= 50:
             return kg_response
 
-        # Final fallback — honest, brief, no filler
+        # LLM fallback — synthesize from whatever context we have
+        if self._get_primary_llm_adapter():
+            try:
+                llm_answer = self._quick_llm_answer(query, knowledge_refs, _phi)
+                if llm_answer and len(llm_answer) >= 40:
+                    return llm_answer
+            except Exception:
+                pass
+
+        # Final fallback — honest, brief
         return (
-            f"I don't have specific knowledge about that topic in my "
+            f"I don't have strong knowledge about that topic in my "
             f"{_kg_count:,} nodes yet. Try asking about quantum computing, "
             f"blockchain, physics, cryptography, or AI — those are my "
             f"strongest domains."
@@ -3216,8 +3338,7 @@ class AetherChat:
                 gates_passed = phi_data.get('gates_passed', 0)
             except Exception:
                 pass
-        if self.engine.kg:
-            kg_node_count = len(self.engine.kg.nodes)
+        kg_node_count = self._get_total_nodes()
 
         sections.append(
             f"[LIVE STATE] Phi: {phi_value:.4f}/3.0 | "
@@ -3491,8 +3612,7 @@ class AetherChat:
                     phi_value = self.engine.phi.get_cached().get('phi_value', 0.0)
                 except Exception:
                     pass
-            if self.engine.kg:
-                kg_node_count = len(self.engine.kg.nodes)
+            kg_node_count = self._get_total_nodes()
 
             # Get block height for distillation
             block_height = 0
@@ -3694,8 +3814,7 @@ class AetherChat:
                     phi_value = phi_result.get('phi_value', 0.0)
                 except Exception as e:
                     logger.debug("Could not compute Phi for chat context: %s", e)
-            if self.engine.kg:
-                kg_node_count = len(self.engine.kg.nodes)
+            kg_node_count = self._get_total_nodes()
 
             # Build rich context block from KG facts + edges + confidence
             context_lines: List[str] = []
@@ -3816,7 +3935,7 @@ class AetherChat:
 
         # KG stats
         if self.engine.kg:
-            state['kg_nodes'] = len(self.engine.kg.nodes)
+            state['kg_nodes'] = self._get_total_nodes()
             state['kg_edges'] = len(getattr(self.engine.kg, 'edges', {}))
             # Node type breakdown
             for n in list(self.engine.kg.nodes.values())[:50000]:

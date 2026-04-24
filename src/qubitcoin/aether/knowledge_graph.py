@@ -1703,48 +1703,54 @@ class KnowledgeGraph:
         ]
 
     def _db_text_search(self, query: str, limit: int = 20) -> List[Tuple[int, float]]:
-        """Search knowledge_nodes using search_text column with LIKE.
+        """Search knowledge_nodes using tsvector full-text search.
 
-        Uses idx_kn_search_text index. Returns (node_id, relevance_score) tuples.
+        Uses search_tsv GIN index for fast matching on 9M+ rows.
+        Falls back to trigram ILIKE on first 3 keywords if tsvector unavailable.
+        Returns (node_id, relevance_score) tuples.
         """
         from sqlalchemy import text
-        # Split query into keywords, search with ILIKE for each
         keywords = [w.strip().lower() for w in query.split() if len(w.strip()) >= 3]
         if not keywords:
             return []
 
-        # Build WHERE clause: search_text ILIKE '%keyword%' for each keyword
-        # Use the first 3 keywords to keep the query fast
-        conditions = []
-        params: dict = {'lim': limit}
-        for i, kw in enumerate(keywords[:3]):
-            conditions.append(f"search_text ILIKE :kw{i}")
-            params[f'kw{i}'] = f'%{kw}%'
-
-        where = ' AND '.join(conditions)
         with self.db.get_session() as session:
-            # Set 3s timeout to prevent ILIKE full-scan from blocking GWT processors
             session.execute(text("SET statement_timeout = '3s'"))
             try:
+                # Primary: tsvector full-text search (GIN indexed, sub-100ms)
+                tsquery = ' & '.join(keywords[:5])
                 rows = session.execute(
-                    text(f"""SELECT id, confidence
-                             FROM knowledge_nodes
-                             WHERE {where}
-                             ORDER BY confidence DESC
-                             LIMIT :lim"""),
-                    params
+                    text("""SELECT id, confidence,
+                                   ts_rank(search_tsv, to_tsquery('english', :tsq)) AS rank
+                            FROM knowledge_nodes
+                            WHERE search_tsv @@ to_tsquery('english', :tsq)
+                              AND node_type NOT IN ('observation', 'block_observation')
+                            ORDER BY rank DESC, confidence DESC
+                            LIMIT :lim"""),
+                    {'tsq': tsquery, 'lim': limit}
                 ).fetchall()
             except Exception:
-                # Query timed out or failed — rollback the aborted transaction
-                # before resetting timeout, otherwise session stays poisoned
                 session.rollback()
-                rows = []
+                # Fallback: high-quality nodes only with ILIKE (much smaller scan)
+                try:
+                    session.execute(text("SET statement_timeout = '3s'"))
+                    rows = session.execute(
+                        text("""SELECT id, confidence
+                                FROM knowledge_nodes
+                                WHERE search_text ILIKE :kw
+                                  AND node_type IN ('axiom', 'external_fact', 'inference', 'assertion')
+                                ORDER BY confidence DESC
+                                LIMIT :lim"""),
+                        {'kw': f'%{keywords[0]}%', 'lim': limit}
+                    ).fetchall()
+                except Exception:
+                    session.rollback()
+                    rows = []
             finally:
                 try:
                     session.execute(text("SET statement_timeout = '0'"))
                 except Exception:
                     pass
-        # Normalize confidence as relevance score
         return [(r[0], float(r[1] or 0.5)) for r in rows]
 
     def shard_search(self, query: str, top_k: int = 10,
