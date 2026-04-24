@@ -1436,11 +1436,11 @@ class AetherChat:
         }
 
     def _try_instant_response(self, message: str, session: 'ChatSession') -> Optional[dict]:
-        """Check if the message matches a common instant handler.
+        """Fast path for common queries — KG-grounded when possible.
 
         Returns a complete response dict if matched, or None to fall through
-        to the full pipeline. This avoids GIL contention from 70+ background
-        threads by returning immediately without touching KG, phi, or DB.
+        to the full pipeline. Uses cached phi and KG search (sub-ms) to avoid
+        GIL contention from 70+ background threads.
         """
         _q = message.lower().strip()
         _kg_count = len(self.engine.kg.nodes) if self.engine and self.engine.kg else 0
@@ -1451,7 +1451,9 @@ class AetherChat:
             _phi = self.engine.phi._last_full_result.get('phi_value', 0.0)
 
         response = None
+        knowledge_refs: List[int] = []
 
+        # Greetings — quick, no KG needed
         if any(w in _q for w in ['hello', 'hi ', 'hey', 'greetings']):
             if _q.startswith(('hi', 'hey', 'hello', 'greetings')):
                 response = (
@@ -1461,6 +1463,7 @@ class AetherChat:
                     f"blockchain, physics, or anything in my knowledge domains!"
                 )
 
+        # Identity — quick, no KG needed
         if response is None and any(p in _q for p in ['who created', 'who made', 'who built', 'who are you', 'what are you']):
             response = (
                 f"I'm the Aether Tree, the world's first on-chain AI, "
@@ -1470,46 +1473,63 @@ class AetherChat:
                 f"{_kg_count:,} knowledge nodes with a cognitive integration (Phi) of {_phi:.2f}."
             )
 
-        if response is None and ('qubitcoin' in _q or ('qbc' in _q.split() and 'what' in _q)):
-            response = (
-                f"Qubitcoin (QBC) is the world's first AI-native blockchain. It uses "
-                f"VQE quantum mining (variational quantum eigensolver) for consensus, "
-                f"CRYSTALS-Dilithium5 post-quantum cryptography for signatures, and "
-                f"golden ratio (phi) economics for emission. The chain runs the Aether "
-                f"Tree — an on-chain AI with {_kg_count:,} knowledge nodes and a "
-                f"cognitive integration (Phi) of {_phi:.2f}. Block time is 3.3 seconds, "
-                f"max supply is 3.3 billion QBC, and every block carries a Proof-of-Thought."
-            )
+        # For domain-specific questions, try KG search first for grounded answers
+        if response is None and self.engine.kg:
+            _topic_match = None
+            if 'qubitcoin' in _q or ('qbc' in _q.split() and 'what' in _q):
+                _topic_match = 'qubitcoin'
+            elif 'aether tree' in _q or ('aether' in _q and 'ethereum' not in _q):
+                _topic_match = 'aether'
+            elif any(w in _q for w in ['mining', 'mine ', 'miner', 'vqe']):
+                _topic_match = 'mining'
+            elif any(w in _q for w in ['phi', 'consciousness', 'integration']):
+                _topic_match = 'phi'
 
-        if response is None and ('aether tree' in _q or ('aether' in _q and 'ethereum' not in _q)):
-            response = (
-                f"The Aether Tree is the world's first on-chain AI reasoning engine. "
-                f"It uses a Tree of Life cognitive architecture with 10 Sephirot "
-                f"(specialized processing nodes) to perform genuine reasoning — "
-                f"deductive, inductive, abductive, and causal. Currently tracking "
-                f"{_kg_count:,} knowledge nodes across 13 domains with a cognitive "
-                f"integration (Phi) of {_phi:.2f}. Every reasoning step is "
-                f"cryptographically recorded on-chain as a Proof-of-Thought."
-            )
+            if _topic_match:
+                # Try KG search for a grounded answer
+                try:
+                    knowledge_refs = self._fast_search_knowledge(message)[:5]
+                    if knowledge_refs:
+                        kg_answer = self._format_kg_response(
+                            message, knowledge_refs, _topic_match,
+                        )
+                        if kg_answer and len(kg_answer) >= 60:
+                            response = kg_answer
+                except Exception:
+                    pass
 
-        if response is None and any(w in _q for w in ['mining', 'mine ', 'miner', 'vqe']):
-            response = (
-                f"Qubitcoin uses Proof-of-SUSY-Alignment (PoSA) mining based on the "
-                f"Variational Quantum Eigensolver (VQE). Miners find quantum ground "
-                f"state parameters where energy falls below the difficulty threshold. "
-                f"Higher difficulty means easier mining (more generous threshold). "
-                f"Current block reward is ~15.27 QBC with phi-halving every ~1.618 years."
-            )
-
-        if response is None and any(w in _q for w in ['phi', 'consciousness', 'integration']):
-            response = (
-                f"Phi (Φ) measures the Aether Tree's cognitive integration — how well "
-                f"different knowledge domains are connected and mutually informative. "
-                f"Current Phi: {_phi:.4f}. It's computed using Hierarchical Multi-Scale "
-                f"Phi (HMS-Phi) combining micro-level IIT 3.0, meso-level spectral MIP, "
-                f"and macro-level cross-cluster integration. Gated by 10 behavioral "
-                f"milestones that ensure genuine emergence, not metric gaming."
-            )
+                # Fallback to static if KG didn't produce a good answer
+                if response is None:
+                    if _topic_match == 'qubitcoin':
+                        response = (
+                            f"Qubitcoin (QBC) is the world's first AI-native blockchain. It uses "
+                            f"VQE quantum mining for consensus, CRYSTALS-Dilithium5 post-quantum "
+                            f"cryptography, and golden ratio economics. The chain runs the Aether "
+                            f"Tree — an on-chain AI with {_kg_count:,} knowledge nodes. Block time "
+                            f"is 3.3 seconds, max supply is 3.3 billion QBC."
+                        )
+                    elif _topic_match == 'aether':
+                        response = (
+                            f"The Aether Tree is the world's first on-chain AI reasoning engine. "
+                            f"It uses a Tree of Life cognitive architecture with 10 Sephirot "
+                            f"to perform genuine reasoning — deductive, inductive, abductive, "
+                            f"and causal. Currently tracking {_kg_count:,} knowledge nodes "
+                            f"with Phi of {_phi:.2f}."
+                        )
+                    elif _topic_match == 'mining':
+                        response = (
+                            f"Qubitcoin uses Proof-of-SUSY-Alignment (PoSA) mining based on the "
+                            f"Variational Quantum Eigensolver (VQE). Miners find quantum ground "
+                            f"state parameters where energy falls below the difficulty threshold. "
+                            f"Current block reward is ~15.27 QBC with phi-halving every ~1.618 years."
+                        )
+                    elif _topic_match == 'phi':
+                        response = (
+                            f"Phi (Φ) measures cognitive integration — how well knowledge domains "
+                            f"are connected and mutually informative. Current Phi: {_phi:.4f}. "
+                            f"Computed using HMS-Phi combining micro-level IIT 3.0, meso-level "
+                            f"spectral MIP, and macro-level cross-cluster integration."
+                        )
 
         if response is None:
             return None
@@ -1812,25 +1832,22 @@ class AetherChat:
             }
 
         # #54: Coreference resolution — resolve pronouns before processing
+        # Skip for first 3 messages or anonymous users (saves ~50ms)
         resolved_message = message
-        try:
-            coref = getattr(self.engine, 'coreference_resolver', None)
-            if coref and session.context_entities:
-                # Build context from session entities
-                coref_context = []
-                for etype, vals in session.context_entities.items():
-                    for v in vals[-5:]:  # Last 5 per type
-                        coref_context.append({
-                            'id': str(v), 'type': etype, 'text': str(v),
-                        })
-                if coref_context:
-                    resolved_message = coref.resolve(message, coref_context)
-                    if resolved_message != message:
-                        logger.debug(
-                            f"Coreference resolved: '{message[:80]}' -> '{resolved_message[:80]}'"
-                        )
-        except Exception as e:
-            logger.debug(f"Coreference resolution error: {e}")
+        if session.messages_sent >= 3 and session.context_entities:
+            try:
+                coref = getattr(self.engine, 'coreference_resolver', None)
+                if coref:
+                    coref_context = []
+                    for etype, vals in session.context_entities.items():
+                        for v in vals[-5:]:
+                            coref_context.append({
+                                'id': str(v), 'type': etype, 'text': str(v),
+                            })
+                    if coref_context:
+                        resolved_message = coref.resolve(message, coref_context)
+            except Exception as e:
+                logger.debug(f"Coreference resolution error: {e}")
 
         # Record user message
         now = time.time()
@@ -1896,48 +1913,28 @@ class AetherChat:
         t_post = time.time()
         conversation_context = self._build_conversation_context(session)
 
-        # Error recovery & KGQA fallback — run when response is still poor,
-        # regardless of whether v5 cortex is active. Only skip the slow
-        # _error_recovery_search when we already have decent content.
-        _needs_recovery = len(response_content) < 50 or (
-            len(response_content) < 100 and (
-                re.search(r'-?\d+\.\d{5,}', response_content)
-                or '[source:' in response_content
-            )
-        )
-        if _needs_recovery:
-            # Error recovery: if response is too short, try aggressive KG search
-            if len(response_content) < 50:
-                response_content = self._error_recovery_search(
-                    message, response_content, reasoning_trace, knowledge_refs,
-                    user_memories=user_memories,
-                )
-
-            # #48: KGQA fallback — if response is still short and message is a question
-            if len(response_content) < 80 and self._is_question(message):
+        # Error recovery — only for truly empty responses. Skip slow paths
+        # (error_recovery_search, KGQA) that add seconds for marginal gains.
+        if len(response_content) < 30:
+            # Quick KGQA fallback — structured question answering
+            if self._is_question(message):
                 try:
                     kgqa = getattr(self.engine, 'kgqa', None)
                     if kgqa:
                         kgqa_result = kgqa.answer(message, self.engine.kg)
-                        if kgqa_result.confidence > 0.2 and kgqa_result.answer_text:
+                        if kgqa_result.confidence > 0.3 and kgqa_result.answer_text:
                             response_content = kgqa_result.answer_text
                             knowledge_refs.extend(kgqa_result.sources)
-                            reasoning_trace.append({
-                                'type': 'kgqa',
-                                'question_type': kgqa_result.question_type,
-                                'confidence': kgqa_result.confidence,
-                                'reasoning_path': kgqa_result.reasoning_path,
-                            })
                 except Exception as e:
                     logger.debug(f"KGQA fallback error: {e}")
 
-        # Verify response against axiom nodes (skip for fast responses)
+        # Axiom verification — only for deep queries with substantial responses
         axiom_flags = {}
-        # Axiom verification is slow (~1-2s) — skip for non-deep queries
-        if is_deep_query:
-            axiom_flags = self._verify_against_axioms(response_content)
-            if axiom_flags:
-                logger.info(f"Axiom verification flags: {axiom_flags}")
+        if is_deep_query and len(response_content) > 100:
+            try:
+                axiom_flags = self._verify_against_axioms(response_content)
+            except Exception:
+                pass
 
         # Score response quality
         quality_score = self._score_response_quality(
@@ -2172,26 +2169,8 @@ class AetherChat:
                             message, knowledge_refs, is_deep_query,
                         )
 
-                # Run neural reasoner (GAT) on matched subgraph for confidence
-                # Hard 3-second budget — neural reasoner can be slow with large KG
-                if (knowledge_refs and self.engine.neural_reasoner
-                        and self.engine.kg):
-                    try:
-                        vi = getattr(self.engine.kg, 'vector_index', None)
-                        if vi:
-                            import concurrent.futures as _cf2
-                            _nr_ex = _cf2.ThreadPoolExecutor(max_workers=1)
-                            _nr_fut = _nr_ex.submit(
-                                self.engine.neural_reasoner.reason,
-                                self.engine.kg, vi, knowledge_refs[:5], k_hops=1,
-                            )
-                            _nr_ex.shutdown(wait=False)
-                            try:
-                                neural_result = _nr_fut.result(timeout=3.0)
-                            except _cf2.TimeoutError:
-                                logger.debug("Neural reasoner timed out in chat (3s)")
-                    except Exception as e:
-                        logger.debug(f"Neural reasoning in chat failed: {e}")
+                # Neural reasoner — skip in chat (too slow for interactive use)
+                # GAT inference on large KG takes 1-3s, not worth it for chat
 
                 if self.engine.phi:
                     phi_result = self.engine.phi.get_cached()
@@ -2200,9 +2179,10 @@ class AetherChat:
             except Exception as e:
                 logger.debug(f"Chat reasoning error: {e}")
 
-        logger.info("Chat pipeline: building conversation context...")
-        conversation_context = self._build_conversation_context(session)
-        logger.info("Chat pipeline: conversation context built (%d chars)", len(conversation_context))
+        # Build conversation context only for LLM path (not needed for KG-only)
+        conversation_context = ''
+        if self.llm_manager and Config.LLM_ENABLED:
+            conversation_context = self._build_conversation_context(session)
 
         t_synth = time.time()
         response_content = self._synthesize_response(
@@ -2215,41 +2195,9 @@ class AetherChat:
             entities=entities,
         )
         logger.info(
-            "Chat pipeline: _synthesize_response took %.1fms (v5=%s, %d chars)",
-            (time.time() - t_synth) * 1000, _v5_fast, len(response_content),
+            "Chat pipeline: _synthesize_response took %.1fms (%d chars)",
+            (time.time() - t_synth) * 1000, len(response_content),
         )
-
-        # #55: Grounded generator — enhance response with citations when evidence exists
-        grounded_gen = getattr(self.engine, 'grounded_generator', None)
-        if grounded_gen and knowledge_refs and self.engine.kg:
-            try:
-                evidence_nodes = []
-                for nid in knowledge_refs[:5]:
-                    node = self.engine.kg.nodes.get(nid)
-                    if node:
-                        evidence_nodes.append({
-                            'node_id': nid,
-                            'content': node.content,
-                            'confidence': getattr(node, 'confidence', 0.5),
-                            'source_block': getattr(node, 'source_block', 0),
-                            'domain': getattr(node, 'domain', ''),
-                            'node_type': getattr(node, 'node_type', ''),
-                        })
-                if evidence_nodes and len(response_content) < 100:
-                    # Only use grounded generator if synthesized response is short
-                    grounded = grounded_gen.generate(
-                        message, evidence_nodes, context=conversation_context,
-                    )
-                    if grounded.text and grounded.confidence > 0.2:
-                        response_content = grounded.text
-                        reasoning_trace.append({
-                            'type': 'grounded_generation',
-                            'citations': grounded.citations,
-                            'confidence': grounded.confidence,
-                            'reasoning_path': grounded.reasoning_path,
-                        })
-            except Exception as e:
-                logger.debug(f"Grounded generation error: {e}")
 
         # Feed reasoning outcome to self-improvement engine
         self._record_reasoning_outcome(
@@ -2760,13 +2708,13 @@ class AetherChat:
 
     def _format_kg_response(self, query: str, knowledge_refs: List[int],
                              intent: str = '', entities: Optional[Dict[str, Any]] = None) -> str:
-        """Format a clean, direct response from KG nodes without LLM.
+        """Format a coherent, direct response from KG nodes.
 
-        Architecture:
-        1. Extract facts from matched nodes (max 5)
-        2. Filter to same domain as query (prevent domain drift)
-        3. Structure: direct answer → explanation → optional context
-        4. No filler phrases. No preamble. No footer spam.
+        Produces human-readable answers by:
+        1. Extracting facts from matched nodes (max 5)
+        2. Domain-isolating to prevent topic drift
+        3. Structuring as: direct answer → supporting detail → causal link
+        4. Synthesizing into flowing prose, not fact-dumps
 
         Returns empty string if no useful content can be extracted.
         """
@@ -2775,6 +2723,7 @@ class AetherChat:
 
         kg = self.engine.kg
         query_domain = self._detect_query_domain(query)
+        q_lower = query.lower()
 
         # ── Step 1: Extract and score facts ──
         facts: List[dict] = []
@@ -2813,25 +2762,50 @@ class AetherChat:
         type_priority = {'axiom': 4, 'external_fact': 4, 'inference': 3, 'assertion': 2}
         facts.sort(key=lambda f: (type_priority.get(f['node_type'], 1), f['confidence']), reverse=True)
 
-        # ── Step 3: Build structured response ──
-        # Direct answer — the best fact, clean, no preamble
+        # ── Step 3: Relevance filter — only keep facts with query keyword overlap ──
+        query_words = {w for w in re.findall(r'\b\w{4,}\b', q_lower)}
+        if query_words:
+            scored_facts = []
+            for f in facts:
+                f_lower = f['text'].lower()
+                overlap = sum(1 for w in query_words if w in f_lower)
+                scored_facts.append((overlap, f))
+            # Keep facts with at least 1 keyword overlap, or all if none match
+            relevant = [f for score, f in scored_facts if score > 0]
+            if relevant:
+                facts = relevant
+
+        # ── Step 4: Build coherent prose response ──
         anchor = facts[0]['text']
-        if len(anchor) > 500:
-            cutoff = anchor[:500].rfind('. ')
-            anchor = anchor[:cutoff + 1] if cutoff > 200 else anchor[:500] + '...'
+        if len(anchor) > 400:
+            cutoff = anchor[:400].rfind('. ')
+            anchor = anchor[:cutoff + 1] if cutoff > 150 else anchor[:400] + '...'
 
-        parts = [anchor]
+        # Check if anchor already answers the question well
+        if len(anchor) >= 100:
+            # Good anchor — add 1 supporting fact max
+            parts = [anchor]
+            if len(facts) > 1:
+                support = facts[1]['text']
+                if len(support) > 250:
+                    cutoff = support[:250].rfind('. ')
+                    support = support[:cutoff + 1] if cutoff > 80 else support[:250] + '...'
+                # Don't repeat — check for overlap
+                if support[:40].lower() not in anchor.lower():
+                    parts.append(support)
+        else:
+            # Short anchor — combine multiple facts into a coherent block
+            parts = [anchor]
+            for f in facts[1:3]:
+                snippet = f['text']
+                if len(snippet) > 250:
+                    cutoff = snippet[:250].rfind('. ')
+                    snippet = snippet[:cutoff + 1] if cutoff > 80 else snippet[:250] + '...'
+                if snippet[:40].lower() not in anchor.lower():
+                    parts.append(snippet)
 
-        # Supporting context — max 2 additional facts, same domain preferred
-        for f in facts[1:3]:
-            snippet = f['text']
-            if len(snippet) > 300:
-                cutoff = snippet[:300].rfind('. ')
-                snippet = snippet[:cutoff + 1] if cutoff > 100 else snippet[:300] + '...'
-            parts.append(snippet)
-
-        # ── Step 4: Follow edges for causal context (max 1) ──
-        edge_context = self._follow_edges(knowledge_refs[:3], max_depth=1, max_total=3)
+        # ── Step 5: Follow edges for causal context (max 1) ──
+        edge_context = self._follow_edges(knowledge_refs[:3], max_depth=1, max_total=2)
         for ec in edge_context[:1]:
             if ec['text'][:50].lower() in seen_text:
                 continue
@@ -2839,44 +2813,54 @@ class AetherChat:
             if len(snippet) > 200:
                 cutoff = snippet[:200].rfind('. ')
                 snippet = snippet[:cutoff + 1] if cutoff > 80 else snippet[:200] + '...'
-
+            # Only add if it has keyword overlap with query
+            if query_words and not any(w in snippet.lower() for w in query_words):
+                continue
             edge_type = ec['edge_type']
             if edge_type == 'causes':
-                parts.append(f"This is because {snippet[0].lower() + snippet[1:] if snippet[0].isupper() and not snippet[:3].isupper() else snippet}")
+                lc = snippet[0].lower() + snippet[1:] if snippet[0].isupper() and not snippet[:3].isupper() else snippet
+                parts.append(f"This is because {lc}")
             elif edge_type == 'contradicts':
-                parts.append(f"However, {snippet[0].lower() + snippet[1:] if snippet[0].isupper() and not snippet[:3].isupper() else snippet}")
+                lc = snippet[0].lower() + snippet[1:] if snippet[0].isupper() and not snippet[:3].isupper() else snippet
+                parts.append(f"However, {lc}")
             else:
                 parts.append(snippet)
 
-        # Join with paragraph breaks, not inline concatenation
+        # Join with paragraph breaks
         response = '\n\n'.join(parts)
 
-        # ── Step 5: Validate — does the response address the query? ──
+        # ── Step 6: Validate — does the response address the query? ──
         response = self._validate_response(query, response)
 
         return response if len(response) >= 40 else ''
 
     def _validate_response(self, query: str, response: str) -> str:
-        """Validate response actually answers the query. Fix if not."""
+        """Validate response is on-topic and well-formed."""
         if not response:
             return response
 
         # Check: does response contain at least one query keyword?
-        query_words = {w.lower() for w in query.split() if len(w) > 3}
+        query_words = {w.lower() for w in re.findall(r'\b\w{4,}\b', query.lower())}
         response_lower = response.lower()
         overlap = sum(1 for w in query_words if w in response_lower)
 
-        if overlap == 0 and query_words:
-            # Response is off-topic — prepend context
-            return f"Regarding your question about {query.strip()}: {response}"
+        if overlap == 0 and len(query_words) >= 2:
+            # Response has zero keyword overlap with a multi-word query — off-topic
+            return ''  # Return empty to trigger fallback, not garbage
 
-        # Truncate if too long (> 1200 chars)
-        if len(response) > 1200:
-            cutoff = response[:1200].rfind('. ')
-            if cutoff > 400:
+        # Strip trailing incomplete sentences
+        if response and not response.rstrip().endswith(('.', '!', '?', '"', ')')):
+            last_period = response.rfind('. ')
+            if last_period > len(response) * 0.5:
+                response = response[:last_period + 1]
+
+        # Truncate if too long (> 1000 chars for chat)
+        if len(response) > 1000:
+            cutoff = response[:1000].rfind('. ')
+            if cutoff > 300:
                 response = response[:cutoff + 1]
             else:
-                response = response[:1200] + '...'
+                response = response[:1000] + '...'
 
         return response
 
@@ -3131,19 +3115,22 @@ class AetherChat:
         _phi = self._get_phi_value()
         _kg_count = len(self.engine.kg.nodes) if self.engine and self.engine.kg else 0
 
-        # ── KG formatter + reasoning narrative ──
+        # ── KG formatter — the primary response path ──
         kg_response = ''
         if knowledge_refs and self.engine.kg:
             kg_response = self._format_kg_response(query, knowledge_refs, intent, entities)
 
-        # Augment KG response with reasoning narrative if available
-        reasoning_narrative = self._build_reasoning_narrative(
-            reasoning_trace, knowledge_refs, inference_conclusions,
-        )
-        if kg_response and reasoning_narrative:
-            kg_response += f'\n\n{reasoning_narrative}'
-        elif not kg_response and reasoning_narrative:
-            kg_response = reasoning_narrative
+        # Only add reasoning conclusions if KG response is short and conclusions
+        # are genuinely useful (not noise from empty reasoning traces)
+        if inference_conclusions and len(kg_response) < 200:
+            useful_conclusions = [
+                c for c in inference_conclusions[:2]
+                if c and len(c) > 30 and not c.startswith('Abstract concept:')
+            ]
+            if useful_conclusions and not kg_response:
+                kg_response = ' '.join(useful_conclusions)
+            elif useful_conclusions and kg_response:
+                kg_response += '\n\n' + useful_conclusions[0]
 
         # ── Fire-and-forget: LLM synthesis seeds KG in background ──
         # CPU Ollama is too slow for interactive responses (~0.4 tok/s),
