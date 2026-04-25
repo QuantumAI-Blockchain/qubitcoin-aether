@@ -110,6 +110,9 @@ async fn main() -> Result<()> {
         .route("/aether/chat/session", post(routes::aether::aether_chat_session))
         .route("/aether/chat/fee", get(routes::aether::aether_chat_fee))
         .route("/aether/chat/history/{session_id}", get(routes::aether::aether_chat_history))
+        .route("/aether/pot", get(routes::aether::aether_pot))
+        .route("/aether/neural-payload", get(routes::aether::aether_neural_payload))
+        .route("/aether/health", get(routes::aether::aether_health))
 
         // ── JSON-RPC (MetaMask/Web3) ──────────────────────────
         .route("/jsonrpc", post(routes::jsonrpc::handle_jsonrpc))

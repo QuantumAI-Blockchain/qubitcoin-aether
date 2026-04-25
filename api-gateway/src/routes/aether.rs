@@ -11,82 +11,14 @@ use serde_json::{json, Value};
 
 use crate::state::AppState;
 
-/// GET /aether/info — Aether engine status (from DB + proxy).
+/// GET /aether/info — Aether engine status (proxied to aether-mind V5).
 pub async fn aether_info(State(state): State<AppState>) -> Json<Value> {
-    // Try DB first for cached metrics
-    let phi_row: Option<(f64, i64, i64, i64)> = sqlx::query_as(
-        r#"
-        SELECT phi_value, num_nodes, num_edges, block_height
-        FROM phi_measurements
-        ORDER BY id DESC LIMIT 1
-        "#,
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    let events_count: Option<(i64,)> = sqlx::query_as(
-        "SELECT COUNT(*) FROM consciousness_events",
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    match phi_row {
-        Some((phi, nodes, edges, height)) => {
-            Json(json!({
-                "status": "active",
-                "phi": phi,
-                "phi_threshold": 3.0,
-                "above_threshold": phi >= 3.0,
-                "knowledge_nodes": nodes,
-                "knowledge_edges": edges,
-                "consciousness_events": events_count.map(|c| c.0).unwrap_or(0),
-                "last_block_processed": height,
-            }))
-        }
-        None => {
-            Json(json!({
-                "status": "initializing",
-                "phi": 0.0,
-                "knowledge_nodes": 0,
-                "knowledge_edges": 0,
-            }))
-        }
-    }
+    proxy_to_aether(&state, "/aether/info").await
 }
 
-/// GET /aether/phi — Current Phi (consciousness) value.
+/// GET /aether/phi — Current Phi (consciousness) value (proxied to aether-mind V5).
 pub async fn aether_phi(State(state): State<AppState>) -> Json<Value> {
-    let row: Option<(f64, f64, f64, i64, i64)> = sqlx::query_as(
-        r#"
-        SELECT phi_value, integration_score, differentiation_score,
-               num_nodes, num_edges
-        FROM phi_measurements
-        ORDER BY id DESC LIMIT 1
-        "#,
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    match row {
-        Some((phi, integration, differentiation, nodes, edges)) => {
-            Json(json!({
-                "phi": phi,
-                "threshold": 3.0,
-                "above_threshold": phi >= 3.0,
-                "integration": integration,
-                "differentiation": differentiation,
-                "knowledge_nodes": nodes,
-                "knowledge_edges": edges,
-            }))
-        }
-        None => Json(json!({ "phi": 0.0, "threshold": 3.0, "above_threshold": false })),
-    }
+    proxy_to_aether(&state, "/aether/phi").await
 }
 
 #[derive(Deserialize)]
@@ -270,4 +202,19 @@ pub async fn aether_chat_history(
     Path(session_id): Path<String>,
 ) -> Json<Value> {
     proxy_to_aether(&state, &format!("/aether/chat/history/{}", session_id)).await
+}
+
+/// GET /aether/pot — Proof-of-Thought attestation (proxied to aether-mind V5).
+pub async fn aether_pot(State(state): State<AppState>) -> Json<Value> {
+    proxy_to_aether(&state, "/aether/pot").await
+}
+
+/// GET /aether/neural-payload — Neural training payload for block inclusion.
+pub async fn aether_neural_payload(State(state): State<AppState>) -> Json<Value> {
+    proxy_to_aether(&state, "/aether/neural-payload").await
+}
+
+/// GET /aether/health — Aether Mind health check (proxied).
+pub async fn aether_health(State(state): State<AppState>) -> Json<Value> {
+    proxy_to_aether(&state, "/health").await
 }
