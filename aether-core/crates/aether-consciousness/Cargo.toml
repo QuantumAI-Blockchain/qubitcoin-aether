@@ -1,0 +1,16 @@
+[package]
+name = "aether-consciousness"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Consciousness monitoring — real Phi from neural activation patterns for Aether Mind V5"
+
+[dependencies]
+aether-types = { path = "../aether-types" }
+serde = { version = "1", features = ["derive"] }
+log = "0.4"
+parking_lot = "0.12"
+sha2 = "0.10"
+
+[dev-dependencies]
+approx = "0.5"

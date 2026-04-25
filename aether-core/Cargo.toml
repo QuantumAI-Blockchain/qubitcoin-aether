@@ -1,6 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
+    # === V5 Neural Architecture (NEW — active development) ===
+    "crates/aether-transformer",     # Neural transformer reasoning core
+    "crates/aether-fabric",          # Knowledge Fabric (embeddings, shards, vector search)
+    "crates/aether-consciousness",   # Real Phi from neural activations
+    "bin/aether-mind",               # Main binary: neural chat + API server
+
+    # === V4 Legacy Crates (being refactored into V5) ===
     "crates/aether-types",
     "crates/aether-graph",
     "crates/aether-phi",

@@ -1,0 +1,30 @@
+[package]
+name = "aether-mind"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "The Aether Mind — V5 neural cognitive engine binary"
+
+[[bin]]
+name = "aether-mind"
+path = "src/main.rs"
+
+[dependencies]
+aether-transformer = { path = "../../crates/aether-transformer" }
+aether-fabric = { path = "../../crates/aether-fabric" }
+aether-consciousness = { path = "../../crates/aether-consciousness" }
+
+candle-core = "0.10"
+candle-nn = "0.10"
+tokenizers = "0.21"
+hf-hub = "0.4"
+rand = "0.8"
+
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+tower-http = { version = "0.6", features = ["cors"] }
+anyhow = "1"
