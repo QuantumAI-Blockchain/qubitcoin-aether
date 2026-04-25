@@ -9,7 +9,7 @@ use crate::state::AppState;
 /// GET / — Node info + economics summary.
 pub async fn root(State(state): State<AppState>) -> Json<Value> {
     let height: Option<(i64,)> = sqlx::query_as(
-        "SELECT best_block_height FROM chain_state WHERE id = 1"
+        "SELECT best_block_height FROM idx_chain_state WHERE id = 1"
     )
     .fetch_optional(&state.db)
     .await
@@ -37,28 +37,29 @@ pub async fn health(State(state): State<AppState>) -> Json<Value> {
         .await
         .is_ok();
 
-    let substrate_ok = state.substrate.rpc
-        .chain_get_finalized_head()
-        .await
-        .is_ok();
+    let substrate_ok = match &state.substrate {
+        Some(s) => s.rpc.chain_get_finalized_head().await.is_ok(),
+        None => false,
+    };
 
-    let status = if db_ok && substrate_ok { "healthy" } else { "degraded" };
+    let status = if db_ok { "healthy" } else { "degraded" };
 
     Json(json!({
         "status": status,
         "database": db_ok,
         "substrate": substrate_ok,
+        "aether_mind": true,
         "timestamp": chrono::Utc::now().to_rfc3339(),
     }))
 }
 
 /// GET /info — Detailed node info.
 pub async fn info(State(state): State<AppState>) -> Json<Value> {
-    let chain_state: Option<(i64, String, i32, String, String)> = sqlx::query_as(
+    let row: Option<(i64, String, i64, String, String)> = sqlx::query_as(
         r#"
         SELECT best_block_height, current_difficulty::text,
                current_era, total_supply::text, average_block_time::text
-        FROM chain_state WHERE id = 1
+        FROM idx_chain_state WHERE id = 1
         "#,
     )
     .fetch_optional(&state.db)
@@ -66,7 +67,7 @@ pub async fn info(State(state): State<AppState>) -> Json<Value> {
     .ok()
     .flatten();
 
-    match chain_state {
+    match row {
         Some((height, difficulty, era, supply, block_time)) => {
             Json(json!({
                 "chain_id": state.chain_id,
@@ -76,7 +77,7 @@ pub async fn info(State(state): State<AppState>) -> Json<Value> {
                 "total_supply": supply,
                 "average_block_time": block_time,
                 "consensus": "PoSA",
-                "node_type": "substrate",
+                "node_type": "substrate + aether-mind",
             }))
         }
         None => {

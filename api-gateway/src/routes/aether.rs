@@ -224,7 +224,7 @@ pub async fn aether_chat(
     State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Json<Value> {
-    let url = format!("{}/aether/chat/message", state.aether_url);
+    let url = format!("{}/aether/chat", state.aether_url);
     match state
         .http_client
         .post(&url)
@@ -238,6 +238,30 @@ pub async fn aether_chat(
         },
         Err(_) => Json(json!({ "error": "Aether service unavailable" })),
     }
+}
+
+/// POST /aether/chat/session — Create or resume a chat session.
+pub async fn aether_chat_session(
+    State(_state): State<AppState>,
+) -> Json<Value> {
+    let session_id = uuid::Uuid::new_v4().to_string();
+    Json(json!({
+        "session_id": session_id,
+        "free_messages_remaining": 5,
+        "status": "active",
+    }))
+}
+
+/// GET /aether/chat/fee — Check fee for chat message.
+pub async fn aether_chat_fee(
+    Query(_params): Query<HistoryParams>,
+) -> Json<Value> {
+    Json(json!({
+        "fee_required": false,
+        "fee_amount": 0.0,
+        "currency": "QBC",
+        "reason": "v5_free_tier",
+    }))
 }
 
 /// GET /aether/chat/history/{session_id} — Forward to Aether service.

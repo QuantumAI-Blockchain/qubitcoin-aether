@@ -76,14 +76,7 @@ pub async fn mining_stats(State(state): State<AppState>) -> Json<Value> {
 
 /// GET /mining/difficulty — Current difficulty and history.
 pub async fn mining_difficulty(State(state): State<AppState>) -> Json<Value> {
-    // Query difficulty from Substrate storage
-    let current = state
-        .substrate
-        .rpc
-        .chain_get_finalized_head()
-        .await
-        .ok();
-
+    // Query difficulty from DB (Substrate connection is optional)
     let difficulty: Option<(String,)> = sqlx::query_as(
         "SELECT current_difficulty::text FROM chain_state WHERE id = 1",
     )

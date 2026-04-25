@@ -1,6 +1,6 @@
 //! Chain and block explorer endpoints.
 //!
-//! Reads from CockroachDB (populated by the block indexer).
+//! Reads from CockroachDB (populated by the Python node / indexer).
 
 use axum::extract::{Path, Query, State};
 use axum::Json;
@@ -15,14 +15,13 @@ pub async fn get_block_by_height(
     Path(height): Path<i64>,
 ) -> Json<Value> {
     let row: Option<(
-        Vec<u8>, i64, Vec<u8>, String, String, Option<Vec<u8>>,
-        i32, String, String, i32,
+        String, i64, Option<String>, f64, Option<String>,
+        Option<Vec<u8>>, i32,
     )> = sqlx::query_as(
         r#"
-        SELECT block_hash, block_height, previous_hash,
-               difficulty::text, achieved_eigenvalue::text,
-               miner_address, era, actual_reward::text,
-               total_fees::text, transaction_count
+        SELECT block_hash, block_height, prev_hash,
+               difficulty, achieved_eigenvalue::text,
+               miner_address, era
         FROM blocks WHERE block_height = $1
         "#,
     )
@@ -33,18 +32,15 @@ pub async fn get_block_by_height(
     .flatten();
 
     match row {
-        Some((hash, h, parent, diff, energy, miner, era, reward, fees, tx_count)) => {
+        Some((hash, h, parent, diff, energy, miner, era)) => {
             Json(json!({
-                "block_hash": format!("0x{}", hex::encode(&hash)),
+                "block_hash": hash,
                 "block_height": h,
-                "parent_hash": format!("0x{}", hex::encode(&parent)),
+                "parent_hash": parent.unwrap_or_default(),
                 "difficulty": diff,
-                "energy": energy,
+                "energy": energy.unwrap_or_default(),
                 "miner_address": miner.map(|m| format!("0x{}", hex::encode(&m))),
                 "era": era,
-                "reward": reward,
-                "total_fees": fees,
-                "transaction_count": tx_count,
             }))
         }
         None => Json(json!({ "error": "Block not found" })),
@@ -56,22 +52,19 @@ pub async fn get_block_by_hash(
     State(state): State<AppState>,
     Path(hash): Path<String>,
 ) -> Json<Value> {
-    let hash_bytes = hex::decode(hash.trim_start_matches("0x")).unwrap_or_default();
+    let hash_clean = hash.trim_start_matches("0x");
 
     let row: Option<(i64,)> = sqlx::query_as(
         "SELECT block_height FROM blocks WHERE block_hash = $1",
     )
-    .bind(&hash_bytes)
+    .bind(hash_clean)
     .fetch_optional(&state.db)
     .await
     .ok()
     .flatten();
 
     match row {
-        Some((height,)) => {
-            // Reuse get_block_by_height
-            get_block_by_height(State(state), Path(height)).await
-        }
+        Some((height,)) => get_block_by_height(State(state), Path(height)).await,
         None => Json(json!({ "error": "Block not found" })),
     }
 }
@@ -79,13 +72,13 @@ pub async fn get_block_by_hash(
 /// GET /chain/info — Chain statistics.
 pub async fn chain_info(State(state): State<AppState>) -> Json<Value> {
     let row: Option<(
-        i64, i64, i64, String, i32, String, String,
+        i64, i64, i64, String, i64, String, String,
     )> = sqlx::query_as(
         r#"
         SELECT best_block_height, total_blocks, total_transactions,
                total_supply::text, current_era, current_difficulty::text,
                average_block_time::text
-        FROM chain_state WHERE id = 1
+        FROM idx_chain_state WHERE id = 1
         "#,
     )
     .fetch_optional(&state.db)
@@ -96,26 +89,36 @@ pub async fn chain_info(State(state): State<AppState>) -> Json<Value> {
     match row {
         Some((height, blocks, txs, supply, era, diff, bt)) => {
             Json(json!({
+                "chain_id": state.chain_id,
+                "height": height,
                 "block_height": height,
                 "total_blocks": blocks,
                 "total_transactions": txs,
                 "total_supply": supply,
                 "current_era": era,
+                "current_reward": 15.27_f64 / 1.618033988749895_f64.powi(era as i32),
+                "difficulty": diff,
                 "current_difficulty": diff,
                 "average_block_time": bt,
-                "chain_id": state.chain_id,
-                "consensus": "Proof-of-SUSY-Alignment",
                 "target_block_time": 3.3,
+                "max_supply": 3300000000.0_f64,
+                "consensus": "Proof-of-SUSY-Alignment",
+                "substrate_mode": true,
             }))
         }
-        None => Json(json!({ "block_height": 0, "status": "initializing" })),
+        None => Json(json!({
+            "chain_id": state.chain_id,
+            "height": 0,
+            "block_height": 0,
+            "status": "initializing",
+        })),
     }
 }
 
 /// GET /chain/tip — Latest block info.
 pub async fn chain_tip(State(state): State<AppState>) -> Json<Value> {
-    let row: Option<(Vec<u8>, i64)> = sqlx::query_as(
-        "SELECT best_block_hash, best_block_height FROM chain_state WHERE id = 1",
+    let row: Option<(i64,)> = sqlx::query_as(
+        "SELECT best_block_height FROM chain_state WHERE id = 1",
     )
     .fetch_optional(&state.db)
     .await
@@ -123,9 +126,7 @@ pub async fn chain_tip(State(state): State<AppState>) -> Json<Value> {
     .flatten();
 
     match row {
-        Some((hash, height)) => {
-            get_block_by_height(State(state), Path(height)).await
-        }
+        Some((height,)) => get_block_by_height(State(state), Path(height)).await,
         None => Json(json!({ "block_height": 0 })),
     }
 }
@@ -144,10 +145,10 @@ pub async fn list_blocks(
     let limit = params.limit.unwrap_or(20).min(100);
     let offset = params.offset.unwrap_or(0);
 
-    let rows: Vec<(Vec<u8>, i64, Option<Vec<u8>>, i32, String, String)> = sqlx::query_as(
+    let rows: Vec<(String, i64, Option<Vec<u8>>, i32, f64)> = sqlx::query_as(
         r#"
         SELECT block_hash, block_height, miner_address,
-               transaction_count, actual_reward::text, timestamp::text
+               era, difficulty
         FROM blocks
         ORDER BY block_height DESC
         LIMIT $1 OFFSET $2
@@ -161,14 +162,13 @@ pub async fn list_blocks(
 
     let blocks: Vec<Value> = rows
         .into_iter()
-        .map(|(hash, h, miner, tx_count, reward, ts)| {
+        .map(|(hash, h, miner, era, diff)| {
             json!({
-                "block_hash": format!("0x{}", hex::encode(&hash)),
+                "block_hash": hash,
                 "block_height": h,
                 "miner": miner.map(|m| format!("0x{}", hex::encode(&m))),
-                "transaction_count": tx_count,
-                "reward": reward,
-                "timestamp": ts,
+                "era": era,
+                "difficulty": diff,
             })
         })
         .collect();
@@ -183,7 +183,7 @@ pub async fn emission_schedule() -> Json<Value> {
     let halving_interval: u64 = 15_474_020;
 
     let mut eras = Vec::new();
-    let mut cumulative: f64 = 33_000_000.0; // Genesis premine
+    let mut cumulative: f64 = 33_000_000.0;
 
     for era in 0..33 {
         let reward = initial_reward / phi.powi(era);
@@ -213,7 +213,7 @@ pub async fn emission_schedule() -> Json<Value> {
     }))
 }
 
-/// GET /susy-database — Solved SUSY Hamiltonians (scientific database).
+/// GET /susy-database — Solved SUSY Hamiltonians.
 pub async fn susy_database(
     State(state): State<AppState>,
     Query(params): Query<PaginationParams>,
@@ -221,11 +221,11 @@ pub async fn susy_database(
     let limit = params.limit.unwrap_or(20).min(100);
     let offset = params.offset.unwrap_or(0);
 
-    let rows: Vec<(i64, String, Option<Vec<u8>>, String)> = sqlx::query_as(
+    let rows: Vec<(i64, f64)> = sqlx::query_as(
         r#"
-        SELECT block_height, ground_state_energy::text,
-               miner_address, discovered_timestamp::text
-        FROM susy_solutions
+        SELECT block_height, difficulty
+        FROM blocks
+        WHERE achieved_eigenvalue IS NOT NULL
         ORDER BY block_height DESC
         LIMIT $1 OFFSET $2
         "#,
@@ -238,12 +238,10 @@ pub async fn susy_database(
 
     let solutions: Vec<Value> = rows
         .into_iter()
-        .map(|(h, energy, miner, ts)| {
+        .map(|(h, diff)| {
             json!({
                 "block_height": h,
-                "ground_state_energy": energy,
-                "miner": miner.map(|m| format!("0x{}", hex::encode(&m))),
-                "timestamp": ts,
+                "difficulty": diff,
             })
         })
         .collect();

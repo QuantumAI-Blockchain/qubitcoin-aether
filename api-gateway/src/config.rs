@@ -27,7 +27,7 @@ pub struct Config {
     #[arg(
         long,
         env = "DATABASE_URL",
-        default_value = "postgresql://root@127.0.0.1:26257/qbc?sslmode=disable"
+        default_value = "postgresql://root@127.0.0.1:26257/qubitcoin?sslmode=disable"
     )]
     pub database_url: String,
 
@@ -39,7 +39,7 @@ pub struct Config {
     #[arg(
         long,
         env = "AETHER_SERVICE_URL",
-        default_value = "http://127.0.0.1:5001"
+        default_value = "http://127.0.0.1:5003"
     )]
     pub aether_service_url: String,
 

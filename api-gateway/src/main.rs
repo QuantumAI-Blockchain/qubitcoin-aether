@@ -54,15 +54,14 @@ async fn main() -> Result<()> {
     sqlx::query("SELECT 1").execute(&db).await?;
     info!("CockroachDB connected");
 
-    // Connect to Substrate node
+    // Connect to Substrate node (optional — gateway works DB-only)
     info!("Connecting to Substrate node: {}", config.substrate_ws_url);
-    let substrate = SubstrateRpc::connect(&config.substrate_ws_url).await?;
-    info!("Substrate connected");
+    let substrate = SubstrateRpc::connect(&config.substrate_ws_url).await;
 
     // Build shared state
     let state = AppState {
         db,
-        substrate: Arc::new(substrate),
+        substrate: substrate.map(Arc::new),
         aether_url: config.aether_service_url.clone(),
         chain_id: config.chain_id,
         http_client: reqwest::Client::new(),
@@ -106,7 +105,10 @@ async fn main() -> Result<()> {
         .route("/aether/phi/history", get(routes::aether::aether_phi_history))
         .route("/aether/knowledge", get(routes::aether::aether_knowledge))
         .route("/aether/consciousness", get(routes::aether::aether_consciousness))
+        .route("/aether/chat", post(routes::aether::aether_chat))
         .route("/aether/chat/message", post(routes::aether::aether_chat))
+        .route("/aether/chat/session", post(routes::aether::aether_chat_session))
+        .route("/aether/chat/fee", get(routes::aether::aether_chat_fee))
         .route("/aether/chat/history/{session_id}", get(routes::aether::aether_chat_history))
 
         // ── JSON-RPC (MetaMask/Web3) ──────────────────────────

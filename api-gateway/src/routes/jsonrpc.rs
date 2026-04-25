@@ -120,7 +120,7 @@ async fn dispatch_method(state: &AppState, req: JsonRpcRequest) -> JsonRpcRespon
 
 async fn eth_block_number(state: &AppState) -> Result<Value, Value> {
     let row: Option<(i64,)> = sqlx::query_as(
-        "SELECT best_block_height FROM chain_state WHERE id = 1",
+        "SELECT best_block_height FROM idx_chain_state WHERE id = 1",
     )
     .fetch_optional(&state.db)
     .await
@@ -138,7 +138,7 @@ async fn eth_get_block_by_number(
 
     let height: i64 = if block_tag == "latest" || block_tag == "pending" {
         let row: Option<(i64,)> = sqlx::query_as(
-            "SELECT best_block_height FROM chain_state WHERE id = 1",
+            "SELECT best_block_height FROM idx_chain_state WHERE id = 1",
         )
         .fetch_optional(&state.db)
         .await
@@ -158,12 +158,12 @@ async fn eth_get_block_by_hash(
     params: &[Value],
 ) -> Result<Value, Value> {
     let hash_hex = params.first().and_then(|v| v.as_str()).unwrap_or("");
-    let hash_bytes = hex::decode(hash_hex.trim_start_matches("0x")).unwrap_or_default();
+    let hash_clean = hash_hex.trim_start_matches("0x");
 
     let row: Option<(i64,)> = sqlx::query_as(
         "SELECT block_height FROM blocks WHERE block_hash = $1",
     )
-    .bind(&hash_bytes)
+    .bind(hash_clean)
     .fetch_optional(&state.db)
     .await
     .map_err(|_| json!({"code": -32000, "message": "Database error"}))?;
@@ -175,9 +175,9 @@ async fn eth_get_block_by_hash(
 }
 
 async fn get_block_as_eth(state: &AppState, height: i64) -> Result<Value, Value> {
-    let row: Option<(Vec<u8>, Vec<u8>, i32, String)> = sqlx::query_as(
+    let row: Option<(String, Option<String>, f64)> = sqlx::query_as(
         r#"
-        SELECT block_hash, previous_hash, transaction_count, timestamp::text
+        SELECT block_hash, prev_hash, created_at
         FROM blocks WHERE block_height = $1
         "#,
     )
@@ -187,14 +187,14 @@ async fn get_block_as_eth(state: &AppState, height: i64) -> Result<Value, Value>
     .map_err(|_| json!({"code": -32000, "message": "Database error"}))?;
 
     match row {
-        Some((hash, parent, tx_count, _ts)) => {
+        Some((hash, parent, created_at)) => {
             Ok(json!({
                 "number": format!("0x{:x}", height),
-                "hash": format!("0x{}", hex::encode(&hash)),
-                "parentHash": format!("0x{}", hex::encode(&parent)),
+                "hash": format!("0x{}", hash),
+                "parentHash": format!("0x{}", parent.unwrap_or_default()),
                 "nonce": "0x0",
                 "sha3Uncles": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "logsBloom": "0x" .to_string() + &"0".repeat(512),
+                "logsBloom": "0x".to_string() + &"0".repeat(512),
                 "transactionsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
                 "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
                 "receiptsRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -205,7 +205,7 @@ async fn get_block_as_eth(state: &AppState, height: i64) -> Result<Value, Value>
                 "size": "0x0",
                 "gasLimit": format!("0x{:x}", 30_000_000u64),
                 "gasUsed": "0x0",
-                "timestamp": format!("0x{:x}", height * 3), // Approximate
+                "timestamp": format!("0x{:x}", created_at as u64),
                 "transactions": [],
                 "uncles": [],
             }))
