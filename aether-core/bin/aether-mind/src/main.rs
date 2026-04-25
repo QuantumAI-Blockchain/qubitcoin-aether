@@ -287,23 +287,46 @@ async fn blockchain_ingestion_loop(
 
             for block_num in start..=end {
                 if let Some(block_data) = fetch_block(&client, &substrate_url, block_num).await {
-                    // Create knowledge vectors from block data
                     let total_height = block_num + 208_680;
 
+                    // Primary block vector (Binah — blockchain logic)
                     let block_summary = format!(
-                        "Block {} (substrate {}): {} extrinsics, parent {}",
+                        "Block {} mined at substrate height {}. Contains {} extrinsics. State root {}. Parent {}.",
                         total_height, block_num,
                         block_data.extrinsics_count,
-                        &block_data.parent_hash[..16],
+                        &block_data.state_root[..18],
+                        &block_data.parent_hash[..18],
                     );
-
                     let emb = embedder.embed(&block_summary);
-                    let domain = classify_domain(&block_summary);
-                    fabric.shard(domain).map(|s| {
+                    fabric.shard(2).map(|s| { // Binah
                         s.insert(emb, block_summary, Provenance::Block { height: total_height }, total_height);
                     });
 
+                    // Blocks with transactions get extra vectors
+                    if block_data.extrinsics_count > 2 {
+                        let tx_info = format!(
+                            "Block {} had {} extrinsics (above normal), indicating increased network activity or user transactions.",
+                            total_height, block_data.extrinsics_count
+                        );
+                        let emb = embedder.embed(&tx_info);
+                        fabric.shard(9).map(|s| { // Malkuth — action
+                            s.insert(emb, tx_info, Provenance::Block { height: total_height }, total_height);
+                        });
+                    }
+
                     ingested_blocks += 1;
+
+                    // Every 100 blocks: create a mining trend summary
+                    if ingested_blocks % 100 == 0 {
+                        let summary = format!(
+                            "Mining milestone: {} blocks ingested into Knowledge Fabric. Chain at height {}. {} total knowledge vectors across 10 Sephirot domains.",
+                            ingested_blocks, total_height, fabric.total_vectors()
+                        );
+                        let emb = embedder.embed(&summary);
+                        fabric.shard(6).map(|s| { // Netzach — reinforcement/economics
+                            s.insert(emb, summary, Provenance::Block { height: total_height }, total_height);
+                        });
+                    }
                 }
             }
 
@@ -334,6 +357,7 @@ async fn blockchain_ingestion_loop(
 struct BlockData {
     parent_hash: String,
     extrinsics_count: usize,
+    state_root: String,
 }
 
 async fn get_substrate_height(client: &reqwest::Client, url: &str) -> Option<u64> {
@@ -372,7 +396,12 @@ async fn fetch_block(client: &reqwest::Client, url: &str, height: u64) -> Option
     let resp = client.post(url).json(&body).send().await.ok()?;
     let json: serde_json::Value = resp.json().await.ok()?;
 
-    let parent = json["result"]["block"]["header"]["parentHash"]
+    let header = &json["result"]["block"]["header"];
+    let parent = header["parentHash"]
+        .as_str()
+        .unwrap_or("unknown")
+        .to_string();
+    let state_root = header["stateRoot"]
         .as_str()
         .unwrap_or("unknown")
         .to_string();
@@ -384,6 +413,7 @@ async fn fetch_block(client: &reqwest::Client, url: &str, height: u64) -> Option
     Some(BlockData {
         parent_hash: parent,
         extrinsics_count: extrinsics,
+        state_root,
     })
 }
 
