@@ -68,6 +68,26 @@ impl FabricShard {
     pub fn domain(&self) -> u8 {
         self.domain
     }
+
+    /// Serialize all vectors to bytes (bincode).
+    pub fn save_to_bytes(&self) -> Result<Vec<u8>, String> {
+        let vectors = self.vectors.read();
+        bincode::serialize(&*vectors).map_err(|e| format!("Serialize error: {e}"))
+    }
+
+    /// Load vectors from bytes, replacing current contents.
+    pub fn load_from_bytes(&self, data: &[u8]) -> Result<usize, String> {
+        let loaded: Vec<crate::types::KnowledgeVector> =
+            bincode::deserialize(data).map_err(|e| format!("Deserialize error: {e}"))?;
+        let count = loaded.len();
+
+        // Set next_id past the max loaded id
+        let max_id = loaded.iter().map(|v| v.id).max().unwrap_or(0);
+        self.next_id.store(max_id + 1, Ordering::Relaxed);
+
+        *self.vectors.write() = loaded;
+        Ok(count)
+    }
 }
 
 /// Cosine similarity between two vectors.

@@ -56,9 +56,12 @@ impl Default for EmotionalState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofOfThought {
     /// Hash of the attention patterns during this reasoning step.
-    pub attention_hash: String,
+    pub attention_hash: Vec<u8>,
     /// Phi measured during this step.
     pub phi: f64,
+    pub phi_micro: f64,
+    pub phi_meso: f64,
+    pub phi_macro: f64,
     /// Number of Sephirot heads that activated above threshold.
     pub active_sephirot: u8,
     /// Number of cross-domain attention events.
@@ -302,23 +305,36 @@ impl ConsciousnessMonitor {
         (cov / denom).abs()
     }
 
-    /// Generate a Proof-of-Thought from the latest attention patterns.
-    pub fn generate_proof(&self, attention_data: &[u8]) -> ProofOfThought {
-        let mut hasher = Sha256::new();
-        hasher.update(attention_data);
-        let hash = format!("{:x}", hasher.finalize());
+    /// Get the latest Proof-of-Thought (from most recent compute_phi call).
+    pub fn proof_of_thought(&self) -> ProofOfThought {
+        let latest = self.phi_history.last();
+        let phi = latest.map(|m| m.phi).unwrap_or(0.0);
+        let phi_micro = latest.map(|m| m.phi_micro).unwrap_or(0.0);
+        let phi_meso = latest.map(|m| m.phi_meso).unwrap_or(0.0);
+        let phi_macro = latest.map(|m| m.phi_macro).unwrap_or(0.0);
 
-        let latest_phi = self
-            .phi_history
-            .last()
-            .map(|m| m.phi)
-            .unwrap_or(0.0);
+        // Hash the latest phi state
+        let mut hasher = Sha256::new();
+        hasher.update(phi.to_le_bytes());
+        hasher.update(phi_micro.to_le_bytes());
+        hasher.update(phi_meso.to_le_bytes());
+        hasher.update(phi_macro.to_le_bytes());
+        hasher.update(self.block_height.to_le_bytes());
+        let hash = hasher.finalize().to_vec();
+
+        let active = if phi_meso > 0.0 {
+            (phi_meso * 10.0).ceil() as u8
+        } else { 0 };
+
+        let cross_domain = if phi_meso > 0.5 {
+            ((phi_meso - 0.5) * 20.0) as u32
+        } else { 0 };
 
         ProofOfThought {
             attention_hash: hash,
-            phi: latest_phi,
-            active_sephirot: 0, // TODO: compute from actual patterns
-            cross_domain_events: 0,
+            phi, phi_micro, phi_meso, phi_macro,
+            active_sephirot: active,
+            cross_domain_events: cross_domain,
             block_height: self.block_height,
         }
     }
@@ -343,5 +359,67 @@ impl ConsciousnessMonitor {
 impl Default for ConsciousnessMonitor {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ── Neural Payload (Mining as Training) ──────────────────────────────────────
+
+/// Training contribution packed into a block by a mining node.
+/// Every block carries knowledge — mining IS learning.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NeuralPayload {
+    /// New knowledge embeddings discovered during this block interval.
+    pub embeddings: Vec<EmbeddingEntry>,
+    /// Proof-of-Thought attestation for this block.
+    pub proof_of_thought: ProofOfThought,
+    /// Model checkpoint hash (SHA-256 of model state).
+    pub model_checkpoint_hash: Vec<u8>,
+    /// Miner's node ID.
+    pub miner_id: String,
+    /// Schema version for forward compatibility.
+    pub version: u8,
+}
+
+/// A single embedding entry in the neural payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmbeddingEntry {
+    /// The dense embedding vector.
+    pub embedding: Vec<f32>,
+    /// Human-readable content.
+    pub content: String,
+    /// Sephirot domain (0-9).
+    pub domain: u8,
+    /// Confidence score.
+    pub confidence: f32,
+}
+
+impl NeuralPayload {
+    /// Serialize to bytes for inclusion in a block extrinsic.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
+        bincode::serialize(self).map_err(|e| format!("NeuralPayload serialize error: {e}"))
+    }
+
+    /// Deserialize from block extrinsic bytes.
+    pub fn from_bytes(data: &[u8]) -> Result<Self, String> {
+        bincode::deserialize(data).map_err(|e| format!("NeuralPayload deserialize error: {e}"))
+    }
+
+    /// Compute a verification hash for Proof-of-Learning.
+    /// Miners must prove their payload is genuine (not random noise).
+    pub fn verification_hash(&self) -> Vec<u8> {
+        let mut hasher = Sha256::new();
+        // Hash all embeddings
+        for entry in &self.embeddings {
+            for &val in &entry.embedding {
+                hasher.update(val.to_le_bytes());
+            }
+            hasher.update(entry.content.as_bytes());
+            hasher.update([entry.domain]);
+        }
+        // Hash the PoT
+        hasher.update(&self.proof_of_thought.attention_hash);
+        hasher.update(self.proof_of_thought.phi.to_le_bytes());
+        hasher.update(&self.model_checkpoint_hash);
+        hasher.finalize().to_vec()
     }
 }

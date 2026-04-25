@@ -242,4 +242,10 @@ impl AetherTransformer {
     pub fn param_count(&self) -> usize {
         self.config.param_count()
     }
+
+    /// Get a clone of the embedding weight tensor for use in text embedding.
+    /// Shape: (vocab_size, embed_dim) — each row is a token's learned representation.
+    pub fn embedding_weights(&self) -> &Tensor {
+        &self.embed_weight
+    }
 }

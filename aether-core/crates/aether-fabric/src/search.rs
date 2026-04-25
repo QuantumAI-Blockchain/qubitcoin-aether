@@ -1,5 +1,7 @@
 //! Multi-shard search across the entire Knowledge Fabric.
 
+use std::path::Path;
+
 use crate::shard::FabricShard;
 
 /// The full Knowledge Fabric: 10 shards (one per Sephirot domain).
@@ -49,6 +51,36 @@ impl KnowledgeFabric {
     /// Total vectors across all shards.
     pub fn total_vectors(&self) -> usize {
         self.shards.iter().map(|s| s.len()).sum()
+    }
+
+    /// Save all shards to a directory (one file per shard).
+    pub fn save_to_dir(&self, dir: &Path) -> Result<usize, String> {
+        std::fs::create_dir_all(dir).map_err(|e| format!("mkdir error: {e}"))?;
+        let mut total = 0;
+        for shard in &self.shards {
+            let data = shard.save_to_bytes()?;
+            let path = dir.join(format!("shard_{}.bin", shard.domain()));
+            std::fs::write(&path, &data).map_err(|e| format!("write error: {e}"))?;
+            total += shard.len();
+        }
+        Ok(total)
+    }
+
+    /// Load all shards from a directory.
+    pub fn load_from_dir(&self, dir: &Path) -> Result<usize, String> {
+        if !dir.exists() {
+            return Ok(0);
+        }
+        let mut total = 0;
+        for shard in &self.shards {
+            let path = dir.join(format!("shard_{}.bin", shard.domain()));
+            if path.exists() {
+                let data = std::fs::read(&path).map_err(|e| format!("read error: {e}"))?;
+                let count = shard.load_from_bytes(&data)?;
+                total += count;
+            }
+        }
+        Ok(total)
     }
 }
 

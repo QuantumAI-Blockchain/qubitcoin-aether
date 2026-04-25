@@ -11,6 +11,7 @@ serde = { version = "1", features = ["derive"] }
 log = "0.4"
 parking_lot = "0.12"
 sha2 = "0.10"
+bincode = "1"
 
 [dev-dependencies]
 approx = "0.5"
