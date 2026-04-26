@@ -28,6 +28,7 @@ stratum-server/Cargo.lock
 indexer/target/
 api-gateway/target/
 qbc-exchange/target/
+aether-evolve/target/
 
 # ---- Node / Frontend ----
 frontend/node_modules/
