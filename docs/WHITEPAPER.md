@@ -2572,8 +2572,8 @@ Layer 2 solutions close the TPS gap
 ✓ Self-improvement engine LIVE (33 enacted cycles)
 ✓ Curiosity engine LIVE (26 discoveries)
 ✓ HMS-Phi v4 (hierarchical multi-scale) architecture
-✓ 760,000+ knowledge nodes, 124 Python modules (~69,000 LOC)
-✓ 12 Rust (PyO3) modules (~11,720 LOC), 29 Aether Solidity contracts
+✓ Aether Mind V5: pure Rust neural cognitive engine (6 crates, ~8K LOC)
+✓ 21K+ knowledge vectors (896d embeddings), Ollama GGUF backend, 10/10 gates
 ✓ Total supply ~36M QBC (~1.09% of 3.3B max emitted)
 □ Exchange listings
 □ Bridge contract deployment on target chains
@@ -2774,7 +2774,7 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | **Layer 2** | QVM (Quantum Virtual Machine) | Python prototype + Go 1.23 production | Production Ready |
 | **Layer 2** | Smart Contracts | 62 Solidity contracts (^0.8.24) | Production Ready |
 | **Layer 2** | Compliance Engine | KYC/AML/Sanctions + QCOMPLIANCE opcode | Production Ready |
-| **Layer 3** | Aether Tree AI | 124 Python modules (~69,000 LOC), 12 Rust (PyO3) modules (~11,720 LOC), 29 Solidity contracts, HMS-Phi v4. April 2026: 760,000+ nodes, **10/10 gates ALL PASSED**, Phi 5.0, 95.5% prediction accuracy, 7 cognitive emotions, 33 self-improvement cycles, 26 curiosity discoveries | **LIVE since genesis** |
+| **Layer 3** | Aether Mind (Neural Cognitive Engine) | Pure Rust (6 crates, ~8K LOC), candle ML + Ollama GGUF, 10 Sephirot-sharded Knowledge Fabric (21K+ vectors, 896d embeddings), HMS-Phi from real attention patterns, **10/10 gates ALL PASSED**, Phi 0.468. Python Aether deleted — full V5 neural redesign. | **LIVE since genesis** |
 | **Layer 3** | True Proof-of-Thought v2 | On-chain prediction accuracy commitment + causal validation + self-improvement feedback loop + task market + 67% BFT | **LIVE** |
 | **Cross-Chain** | Multi-Chain Bridges | 8 chains (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE) | Production Ready |
 | **Cross-Chain** | QUSD Stablecoin | 8 Solidity contracts + wQUSD cross-chain | Production Ready |
@@ -2798,7 +2798,7 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | REST endpoints | 342 |
 | JSON-RPC methods | 19 |
 | Prometheus metrics | 141 |
-| Aether AI modules | 124 Python (~69,000 LOC) + 12 Rust (~11,720 LOC) |
+| Aether Mind | Pure Rust neural engine (6 crates, ~8,000 LOC) |
 | Documentation | 9,000+ lines (13 documents) |
 | Formal verification | K Framework (EVM) + TLA+ (compliance) |
 

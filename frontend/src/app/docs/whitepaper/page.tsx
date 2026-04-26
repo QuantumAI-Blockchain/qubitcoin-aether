@@ -30,7 +30,7 @@ const quantumOpcodes = [
   { opcode: "QRISK_SYSTEMIC", hex: "0xF7", gas: "10,000", desc: "Query systemic risk via contagion model across connected accounts" },
   { opcode: "QBRIDGE_ENTANGLE", hex: "0xF8", gas: "20,000", desc: "Cross-chain quantum entanglement for bridge state synchronization" },
   { opcode: "QBRIDGE_VERIFY", hex: "0xF9", gas: "15,000", desc: "Verify cross-chain bridge proof against remote chain state root" },
-  { opcode: "QREASON", hex: "0xFA", gas: "25,000", desc: "Invoke Aether Tree reasoning engine from within smart contract" },
+  { opcode: "QREASON", hex: "0xFA", gas: "25,000", desc: "Invoke Aether Mind neural cognitive engine from within smart contract" },
   { opcode: "QPHI", hex: "0xFB", gas: "10,000", desc: "Query current integrated information (Phi) integration metric" },
 ];
 
@@ -153,7 +153,7 @@ const contractCategories = [
       "IBridge.sol -- Cross-chain bridge interface",
       "ICompliance.sol -- KYC/AML compliance interface",
       "IGovernance.sol -- Governance proposal interface",
-      "IAetherKernel.sol -- Aether Tree kernel interface",
+      "IAetherKernel.sol -- Aether Mind kernel interface",
     ],
   },
   {
@@ -193,7 +193,7 @@ const substratePallets = [
   { name: "pallet-qbc-dilithium", purpose: "CRYSTALS-Dilithium5 signature verification as native Substrate extrinsic validation" },
   { name: "pallet-qbc-economics", purpose: "Phi-halving emission schedule with golden ratio reward calculation" },
   { name: "pallet-qbc-qvm-anchor", purpose: "QVM state root anchoring to Substrate block headers" },
-  { name: "pallet-qbc-aether-anchor", purpose: "Aether Tree Phi and Proof-of-Thought anchoring to chain state" },
+  { name: "pallet-qbc-aether-anchor", purpose: "Aether Mind Phi and Proof-of-Thought anchoring to chain state" },
   { name: "pallet-qbc-reversibility", purpose: "Governor-managed multi-sig transaction reversal within 24-hour window (~26,182 blocks)" },
 ];
 
@@ -332,7 +332,7 @@ const tocSections = [
   { id: "utxo-model", num: "5", title: "UTXO Model" },
   { id: "network-architecture", num: "6", title: "Network Architecture" },
   { id: "qvm", num: "7", title: "Quantum Virtual Machine (QVM)" },
-  { id: "aether-tree", num: "8", title: "Aether Tree (On-Chain Reasoning Engine)" },
+  { id: "aether-tree", num: "8", title: "Aether Mind (Neural Cognitive Engine)" },
   { id: "privacy", num: "9", title: "Privacy: SUSY Swaps" },
   { id: "cross-chain-bridge", num: "10", title: "Cross-Chain Bridge" },
   { id: "qusd-stablecoin", num: "11", title: "QUSD Stablecoin" },
@@ -379,7 +379,7 @@ export default function WhitepaperPage() {
           Qubitcoin Whitepaper — Physics-Secured Digital Assets with On-Chain AI
         </h1>
         <p className="mb-1 text-sm" style={{ color: C.textMuted }}>
-          Complete technical specification for the Qubitcoin protocol, SUSY economics, post-quantum cryptography, and Aether Tree AI
+          Complete technical specification for the Qubitcoin protocol, SUSY economics, post-quantum cryptography, and Aether Mind AI
         </p>
         <div className="mb-8 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: C.textMuted }}>
           <span>Chain ID: 3303 (0xCE7) Mainnet | 3304 (0xCE8) Testnet</span>
@@ -443,7 +443,7 @@ export default function WhitepaperPage() {
               is Qubitcoin (QBC), denominated with 18 decimal places of precision. The protocol
               integrates post-quantum cryptographic signatures (CRYSTALS-Dilithium5, NIST ML-DSA-87,
               Level 5), a full EVM-compatible virtual machine with quantum opcode extensions (QVM),
-              and an on-chain reasoning engine (Aether Tree) that tracks integrated information metrics
+              and an on-chain neural cognitive engine (Aether Mind) that tracks integrated information metrics
               from genesis.
             </Paragraph>
 
@@ -467,7 +467,7 @@ export default function WhitepaperPage() {
             <BulletList items={[
               "Layer 1 (Blockchain Core): UTXO-based transaction model, PoSA consensus, VQE mining, Dilithium5 signatures, Rust libp2p networking, CockroachDB persistence, IPFS content storage",
               "Layer 2 (QVM): 167-opcode EVM-compatible virtual machine (155 EVM + 10 quantum + 2 reasoning), Solidity smart contract execution, gas metering, compliance engine, token standards (QBC-20, QBC-721, QBC-1155)",
-              "Layer 3 (Aether Tree): On-chain reasoning engine with knowledge graph, deductive/inductive/abductive inference, information-theoretic integration metric (Phi), 10-node Sephirot cognitive architecture, Proof-of-Thought protocol",
+              "Layer 3 (Aether Mind): On-chain neural cognitive engine built in pure Rust (candle ML framework) with Knowledge Fabric (learned 1024d embeddings in sharded RocksDB + HNSW), transformer attention (8-layer, 16-head, 10 Sephirot-specialized + 6 global workspace), information-theoretic integration metric (Phi), Proof-of-Thought protocol, and Ollama LLM integration",
               "Cross-Cutting: Multi-chain bridges to 8 networks (ETH, BNB, SOL, MATIC, AVAX, ARB, OP, BASE), QUSD dollar-pegged stablecoin, Prometheus/Grafana monitoring, Rust exchange matching engine",
             ]} />
 
@@ -483,9 +483,8 @@ export default function WhitepaperPage() {
                 ["L2", "QVM (Python prototype)", "Python", "8 modules", "~4,500"],
                 ["L2", "QVM (Production)", "Go", "34 source files", "~10,000"],
                 ["L2", "Solidity Contracts", "Solidity 0.8.24+", "65 contracts", "~15,000"],
-                ["L3", "Aether Tree (Python)", "Python", "124 modules", "~69,000"],
-                ["L3", "Aether Tree (Rust)", "Rust (PyO3)", "12 modules", "~11,720"],
-                ["L3", "Higgs Cognitive Field", "Python + Solidity", "13 files", "~2,700"],
+                ["L3", "Aether Mind (Rust)", "Rust (candle ML)", "6 crates", "~8,000"],
+                ["L3", "Higgs Cognitive Field", "Rust + Solidity", "6 files", "~1,200"],
                 ["Frontend", "qbc.network", "TypeScript/React/Next.js 16", "200 files", "~66,900"],
                 ["Infra", "Docker/Monitoring/DevOps", "YAML/Shell", "20+ configs", "~2,000"],
                 ["Tests", "pytest suite", "Python", "4,357 tests", "~40,000"],
@@ -560,10 +559,10 @@ Max change:  +/-10% per adjustment`}</CodeBlock>
 
             <SubHeading>Stage 5: Proof-of-Thought</SubHeading>
             <Paragraph>
-              Every block includes a Proof-of-Thought generated by the Aether Tree reasoning
-              engine. This proof contains the reasoning trace, knowledge graph delta, and
-              current Phi measurement for the block, creating an immutable record of on-chain
-              reasoning since genesis.
+              Every block includes a Proof-of-Thought generated by the Aether Mind neural
+              cognitive engine. This proof contains attention pattern hashes, gradient proofs,
+              and the current Phi measurement for the block, creating an immutable record of
+              on-chain reasoning since genesis.
             </Paragraph>
 
             <SubHeading>Consensus Parameters</SubHeading>
@@ -601,7 +600,7 @@ BLOCK BODY:
     optimal_params:       float64[12]  (solution parameters)
     energy_history:       float64[]    (VQE convergence trace)
   }
-  proof_of_thought:     bytes          (Aether Tree reasoning proof)`}</CodeBlock>
+  proof_of_thought:     bytes          (Aether Mind reasoning proof)`}</CodeBlock>
           </SectionCard>
 
           {/* -------------------------------------------------------- */}
@@ -857,7 +856,7 @@ TxOutput:
                 ["Mining", "4", "/mining/start, /mining/stop, /mining/stats, /stratum/info"],
                 ["P2P Network", "3", "/p2p/peers, /p2p/stats, /p2p/connect"],
                 ["QVM", "5", "/qvm/info, /qvm/contract/{addr}, /qvm/account/{addr}, /qvm/storage/{addr}/{key}"],
-                ["Aether Tree", "8", "/aether/info, /aether/phi, /aether/phi/history, /aether/chat, /aether/consciousness"],
+                ["Aether Mind", "8", "/aether/info, /aether/phi, /aether/phi/history, /aether/chat, /aether/consciousness"],
                 ["Bridge", "4", "/bridge/l1l2/deposit, /bridge/l1l2/withdraw, /bridge/l1l2/balance/{addr}"],
                 ["QUSD Keeper", "11", "/keeper/status, /keeper/mode, /keeper/config, /keeper/history, /keeper/prices"],
                 ["Higgs Field", "5", "/higgs/status, /higgs/masses, /higgs/mass/{name}, /higgs/excitations, /higgs/potential"],
@@ -1027,55 +1026,58 @@ TxOutput:
           {/* -------------------------------------------------------- */}
           {/* 8. AETHER TREE                                            */}
           {/* -------------------------------------------------------- */}
-          <SectionCard id="aether-tree" number="8" title="Aether Tree (On-Chain Reasoning Engine)">
+          <SectionCard id="aether-tree" number="8" title="Aether Mind (Neural Cognitive Engine)">
             <Paragraph>
-              Aether Tree is an on-chain reasoning engine that constructs a knowledge graph
-              from every block mined since genesis, performs logical inference over the graph,
-              computes an information-theoretic integration metric (Phi), and generates
-              Proof-of-Thought proofs embedded in every block. The system implements a
-              biologically-inspired cognitive architecture based on the Kabbalistic Tree of Life
-              topology with 10 specialized processing nodes (Sephirot).
+              Aether Mind is the world{"'"}s first on-chain neural cognitive system -- a continuously
+              trained, cryptographically attested, autonomously evolving transformer built entirely
+              in Rust using the candle ML framework. It replaces the legacy Python knowledge graph
+              architecture with learned distributed representations via gradient descent. Every
+              block carries neural payload (gradient updates + new embeddings), making mining
+              synonymous with training. The system implements a biologically-inspired cognitive
+              architecture based on the Kabbalistic Tree of Life topology with 10 Sephirot-specialized
+              attention heads plus 6 global workspace heads.
             </Paragraph>
 
             <SubHeading>Implementation Scale</SubHeading>
             <StatGrid stats={[
-              { label: "Python Modules", value: "124" },
-              { label: "Lines of Code (Python)", value: "~69,000" },
-              { label: "Rust Modules (PyO3)", value: "12" },
-              { label: "Lines of Code (Rust)", value: "~11,720" },
-              { label: "Knowledge Nodes", value: "760,000+" },
-              { label: "Gates Passed", value: "10/10" },
-              { label: "Phi (Maximum)", value: "5.0" },
+              { label: "Rust Crates", value: "6" },
+              { label: "Lines of Code (Rust)", value: "~8,000" },
+              { label: "ML Framework", value: "candle (HuggingFace)" },
+              { label: "Model Parameters", value: "~200M" },
+              { label: "Embedding Dimension", value: "1024d" },
+              { label: "Transformer Layers", value: "8" },
+              { label: "Attention Heads", value: "16 (10 Sephirot + 6 global)" },
               { label: "Smart Contracts", value: "20 Solidity" },
             ]} />
 
-            <SubHeading>Knowledge Graph</SubHeading>
+            <SubHeading>Knowledge Fabric</SubHeading>
             <Paragraph>
-              The knowledge graph stores information as KeterNodes (named after Keter, the
-              Crown in the Kabbalistic Tree of Life) connected by typed, weighted edges. Every
-              block contributes new nodes extracted from block metadata, transaction patterns,
-              and reasoning operations. The graph is backed by CockroachDB with an edge adjacency
-              index for efficient traversal and an incremental Merkle root for chain binding.
+              The Knowledge Fabric replaces the legacy string-based knowledge graph with learned
+              1024-dimensional embeddings stored in sharded RocksDB with HNSW (Hierarchical
+              Navigable Small World) indices for sub-5ms nearest-neighbor retrieval. Each of the
+              10 Sephirot cognitive domains maintains its own shard. Block data is ingested through
+              an embedding pipeline that extracts multi-vector representations, enabling genuine
+              generalization and semantic similarity rather than keyword matching.
             </Paragraph>
             <SpecTable
-              headers={["Node Types", "Edge Types"]}
+              headers={["Component", "Technology"]}
               rows={[
-                ["assertion", "supports"],
-                ["observation", "contradicts"],
-                ["inference", "derives"],
-                ["axiom", "requires"],
-                ["", "refines"],
+                ["Storage", "Sharded RocksDB (10 Sephirot shards)"],
+                ["Index", "HNSW for approximate nearest neighbor search"],
+                ["Embeddings", "1024d learned vectors via transformer encoder"],
+                ["Retrieval", "Top-K relevant vectors (<5ms at 1M vectors)"],
+                ["Scale Target", "1T knowledge vectors across 1000+ mining nodes"],
               ]}
             />
 
-            <SubHeading>Reasoning Engine</SubHeading>
+            <SubHeading>Neural Reasoning (Transformer Attention)</SubHeading>
             <BulletList items={[
-              "Deductive inference: Given premises A and A implies B, conclude B with certainty preservation",
-              "Inductive inference: Generalize patterns from observed data points, producing conclusions with confidence < 1.0",
-              "Abductive inference: Given observation B and rule A implies B, infer hypothesis A as best explanation",
-              "Chain-of-thought: Multi-step reasoning with backtracking, producing auditable reasoning traces",
-              "Causal discovery: PC algorithm for identifying causal relationships in observational data",
-              "Adversarial debate: Dual-agent argument generation for robust conclusion validation",
+              "8-layer transformer with 16 attention heads: 10 Sephirot-specialized heads with domain gating + 6 global workspace heads",
+              "Causal attention: Specialized heads trained to discover interventional relationships (PC/FCI math preserved)",
+              "Adversarial self-testing: Competing attention heads with independent reasoning for robust conclusions",
+              "Metacognitive calibration: Learned uncertainty estimation via calibration network",
+              "Autoregressive generation: KV cache for sub-100ms 256-token responses on CPU",
+              "LLM integration: Ollama (local) for augmented reasoning (qwen2.5 / deepseek-r1 models)",
             ]} />
 
             <SubHeading>Phi Calculator — HMS-Phi v4 (Hierarchical Multi-Scale Phi)</SubHeading>
@@ -1094,7 +1096,7 @@ TxOutput:
 Where phi = 1.618... (golden ratio)
 
 Level 0 (Micro):  IIT-3.0 approximation on 16-node elite subsystem samples
-                  -> IITApproximator (iit_approximator.py)
+                  -> IITApproximator (Rust candle module)
                   -> 5 independent samples -> median phi_micro
 
 Level 1 (Meso):   Spectral MIP on 1K-node domain clusters
@@ -1118,10 +1120,10 @@ Properties:
 
             <SubHeading>10 Sephirot Cognitive Architecture</SubHeading>
             <Paragraph>
-              The reasoning engine is structured as 10 specialized processing nodes based on
-              the Kabbalistic Tree of Life. Each Sephirah is deployed as a QVM smart contract
-              with its own quantum state. Nodes communicate via CSF (Cerebrospinal Fluid)
-              transport -- QBC transactions routed along the Tree of Life topology.
+              The neural cognitive engine is structured as 10 specialized attention head groups
+              based on the Kabbalistic Tree of Life. Each Sephirah maps to a domain-gated
+              attention head with its own learned specialization. Heads communicate via a global
+              workspace mechanism -- cross-attention routed along the Tree of Life topology.
             </Paragraph>
             <div className="mb-4 overflow-x-auto">
               <table className="w-full text-sm" style={{ borderColor: C.border }}>
@@ -1193,7 +1195,7 @@ Economic Parameters:
               rows={[
                 ["Waking", "1.0x", "Baseline processing, input reception"],
                 ["Active Learning", "2.0x", "Maximum resource allocation for new knowledge integration"],
-                ["Consolidation", "1.5x", "Pattern extraction and knowledge graph optimization"],
+                ["Consolidation", "1.5x", "Pattern extraction and knowledge fabric optimization"],
                 ["Sleep", "0.5x", "Background maintenance, index rebuilding"],
                 ["REM Dreaming", "0.8x", "Cross-domain knowledge transfer, creative association"],
                 ["Deep Sleep", "0.3x", "Minimum processing, garbage collection, memory compaction"],
@@ -1211,10 +1213,10 @@ Economic Parameters:
 
             <SubHeading>Genesis Requirements</SubHeading>
             <Paragraph>
-              The Aether Tree MUST be initialized at block 0 (genesis). No retroactive
+              The Aether Mind MUST be initialized at block 0 (genesis). No retroactive
               reconstruction is permitted. Genesis initialization creates: (1) empty knowledge
-              graph, (2) first Phi measurement at baseline 0.0, (3) genesis integration event,
-              (4) initial KeterNodes from genesis block metadata. The AetherEngine auto-starts
+              fabric, (2) first Phi measurement at baseline 0.0, (3) genesis integration event,
+              (4) initial embeddings from genesis block metadata. The Aether Mind binary auto-starts
               on node boot and processes every block sequentially from genesis.
             </Paragraph>
           </SectionCard>
@@ -1606,7 +1608,7 @@ Withdraw (L2 -> L1):
           <SectionCard id="higgs-cognitive-field" number="15" title="Higgs Cognitive Field">
             <Paragraph>
               The Higgs Cognitive Field applies the Standard Model{"'"}s mass-generation mechanism
-              to the Aether Tree cognitive architecture. Just as the Higgs boson gives
+              to the Aether Mind cognitive architecture. Just as the Higgs boson gives
               elementary particles their mass via spontaneous symmetry breaking, the Higgs
               Cognitive Field assigns cognitive mass (inertia to change) to each Sephirot
               node, governing how quickly each node can adapt to new information.
@@ -1787,7 +1789,7 @@ Result:
               9,567,272 blocks per year. With Dilithium5 signatures (~4,627 bytes per
               signature), transaction capacity is ~217 transactions per MB. Estimated
               annual storage growth for a full node is ~50GB under moderate transaction
-              volume, primarily driven by UTXO set size, knowledge graph growth, and
+              volume, primarily driven by UTXO set size, knowledge fabric growth, and
               quantum state persistence.
             </Paragraph>
           </SectionCard>
@@ -1881,7 +1883,7 @@ Native build is fully functional for all pallets and tests.
                 QVM Technical Documentation
               </Link>
               <Link href="/docs/aether" style={{ color: C.primary }} className="hover:underline">
-                Aether Tree Technical Documentation
+                Aether Mind Technical Documentation
               </Link>
               <Link href="/docs/economics" style={{ color: C.primary }} className="hover:underline">
                 Economics and Emission Schedule

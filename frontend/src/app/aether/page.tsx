@@ -9,7 +9,6 @@ import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useToast } from "@/components/ui/toast";
-import { StreamingText } from "@/components/aether/streaming-text";
 import { AetherMarkdown } from "@/components/aether/aether-markdown";
 import {
   ConversationSidebar,
@@ -156,7 +155,6 @@ function AetherPageContent() {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedMsg, setSelectedMsg] = useState<number | null>(null);
-  const [streamingIdx, setStreamingIdx] = useState<number | null>(null);
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const [activeTab, setActiveTab] = useState<"chat" | "graph">("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -215,50 +213,23 @@ function AetherPageContent() {
     setLoading(true);
 
     try {
-      // Try streaming from Aether Engine (Rust) first — instant TTFT
-      let fullResponse = "";
-      const aetherId = nextMsgId();
-      setMessages((prev) => {
-        setStreamingIdx(prev.length);
-        return [...prev, { id: aetherId, role: "aether" as const, text: "" }];
-      });
-
-      let sources: Array<{ node_id: number; summary: string; confidence: number }> = [];
-      for await (const chunk of api.streamChat(text)) {
-        if (chunk.done) {
-          if (chunk.sources) sources = chunk.sources;
-          break;
-        }
-        fullResponse += chunk.token;
-        const captured = fullResponse;
-        setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          if (updated[lastIdx]?.role === "aether") {
-            updated[lastIdx] = { ...updated[lastIdx], text: captured };
-          }
-          return updated;
-        });
-      }
-
-      if (!fullResponse) throw new Error("Empty response");
-
-      // Update final message with sources as reasoning trace
-      if (sources.length > 0) {
-        const reasoning = sources.map(
-          (s) => `[Node ${s.node_id}] ${s.summary} (conf: ${s.confidence.toFixed(2)})`
-        );
-        setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          if (updated[lastIdx]?.role === "aether") {
-            updated[lastIdx] = { ...updated[lastIdx], reasoning };
-          }
-          return updated;
-        });
-      }
+      // Send to Aether Mind neural engine (Rust + Ollama)
+      const res = await api.sendAetherChat(text, identityAddress ?? "anonymous");
+      const knowledgeTrace = res.knowledge_context?.length
+        ? res.knowledge_context.map((ctx, i) => `[observation] Context ${i + 1}: ${ctx}`)
+        : undefined;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextMsgId(),
+          role: "aether",
+          text: res.response,
+          reasoning: knowledgeTrace,
+          phi: res.phi,
+        },
+      ]);
     } catch {
-      // Fallback to Python node chat
+      // Fallback to API gateway chat endpoint
       try {
         let sid = sessionId;
         if (!sid) {
@@ -267,32 +238,24 @@ function AetherPageContent() {
           setSessionId(sid);
         }
         const res: ChatResponse = await api.sendChatMessage(sid, text);
-        setMessages((prev) => {
-          // Remove streaming placeholder if empty
-          const filtered = prev.filter((m) => !(m.role === "aether" && m.text === ""));
-          setStreamingIdx(filtered.length);
-          return [
-            ...filtered,
-            {
-              id: nextMsgId(),
-              role: "aether",
-              text: res.response,
-              reasoning: res.reasoning_trace,
-              potHash: res.proof_of_thought_hash,
-              phi: res.phi_at_response,
-              emotionalState: res.emotional_state,
-            },
-          ];
-        });
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextMsgId(),
+            role: "aether",
+            text: res.response,
+            reasoning: res.reasoning_trace,
+            potHash: res.proof_of_thought_hash,
+            phi: res.phi_at_response,
+            emotionalState: res.emotional_state,
+          },
+        ]);
       } catch {
-        setMessages((prev) => {
-          const filtered = prev.filter((m) => !(m.role === "aether" && m.text === ""));
-          return [
-            ...filtered,
-            { id: nextMsgId(), role: "aether", text: "Unable to reach Aether Tree. The node may be offline." },
-          ];
-        });
-        toast("Failed to reach Aether Tree", "error");
+        setMessages((prev) => [
+          ...prev,
+          { id: nextMsgId(), role: "aether", text: "Unable to reach Aether Mind. The node may be offline." },
+        ]);
+        toast("Failed to reach Aether Mind", "error");
       }
     } finally {
       setLoading(false);
@@ -425,11 +388,11 @@ function AetherPageContent() {
                         </svg>
                       </div>
                       <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold">
-                        Aether Tree
+                        Aether Mind
                       </h2>
                       <p className="mt-2 max-w-md text-sm text-text-secondary">
-                        An on-chain AI reasoning engine. Every response is backed by
-                        a Proof-of-Thought anchored to the QBC blockchain.
+                        A neural cognitive engine running pure Rust. Every response is backed by
+                        consciousness metrics and a Proof-of-Thought anchored to the QBC blockchain.
                       </p>
                     </div>
                   )}
@@ -448,15 +411,7 @@ function AetherPageContent() {
                             : "bg-bg-elevated text-text-primary"
                         }`}
                       >
-                        {m.role === "aether" && i === streamingIdx ? (
-                          <p className="whitespace-pre-wrap">
-                            <StreamingText
-                              text={m.text}
-                              speed={16}
-                              onComplete={() => setStreamingIdx(null)}
-                            />
-                          </p>
-                        ) : m.role === "aether" ? (
+                        {m.role === "aether" ? (
                           <AetherMarkdown>{m.text}</AetherMarkdown>
                         ) : (
                           <p className="whitespace-pre-wrap">{m.text}</p>

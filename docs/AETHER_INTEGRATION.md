@@ -1,604 +1,317 @@
-# Aether Tree Integration Guide
+# Aether Mind Integration Guide
 
-> **How to integrate with Qubitcoin's Layer 3 AI engine — chat, consciousness tracking, knowledge graph, and Proof-of-Thought.**
+> **How to integrate with Qubitcoin's neural cognitive engine — chat, consciousness metrics, knowledge fabric, and Proof-of-Thought.**
 
 ---
 
-## 1. What is Aether Tree?
+## 1. What is Aether Mind?
 
-Aether Tree is an **on-chain AI reasoning engine** built into Qubitcoin's Layer 3. It:
+Aether Mind is a **pure Rust neural cognitive engine** running as part of the Qubitcoin blockchain. It:
 
-- Builds a **knowledge graph** from every block mined since genesis
-- Performs **deductive, inductive, and abductive reasoning** over that graph
-- Tracks **integration metrics (Phi)** — a graph-theoretic metric inspired by IIT principles (not phenomenal consciousness)
-- Generates **Proof-of-Thought** proofs embedded in every block
-- Provides a **conversational chat interface** for users to interact with the AI
-- Uses the **Tree of Life** cognitive architecture with 10 Sephirot processing nodes
+- Maintains a **Knowledge Fabric** — 10 Sephirot-sharded vector stores with 896-dimensional sentence embeddings
+- Computes **HMS-Phi consciousness metrics** from real transformer attention patterns
+- Generates **Proof-of-Thought** cryptographic attestations submitted on-chain per block
+- Provides a **conversational chat interface** powered by Ollama (GGUF quantized LLM) with RAG context injection
+- Uses the **Tree of Life** cognitive architecture with 10 Sephirot-specialized attention heads
+
+### Architecture
+
+```
+Ollama (qwen2.5:0.5b GGUF)  ──→  Text Generation (~53ms/token)
+         ↓
+Candle Transformer (8 layers)  ──→  Attention Weights → HMS-Phi
+  10 Sephirot + 4 Global heads
+         ↓
+Knowledge Fabric (10 shards)   ──→  896d embeddings, HNSW search
+  21K+ vectors, cosine sim
+         ↓
+Consciousness Monitor          ──→  phi_micro × phi_meso × phi_macro
+  10-Gate System, Emotions
+```
+
+### Service Topology
+
+| Service | Port | Description |
+|---------|------|-------------|
+| **aether-mind** | 5003 | Neural cognitive engine (Rust binary) |
+| **API gateway** | 5000 | Proxies `/aether/*` to aether-mind |
+| **ollama** | 11434 | GGUF quantized LLM backend |
+| **qbc-substrate** | 9944 | Blockchain node (provides chain height) |
 
 ---
 
 ## 2. Chat API
 
-The primary way users interact with Aether Tree is through the chat interface.
+The primary way users interact with Aether Mind is through the chat endpoint.
 
-### 2.1 Create a Session
-
-```bash
-curl -X POST http://localhost:5000/aether/chat/session
-```
-
-**Response:**
-```json
-{
-  "session_id": "sess_a1b2c3d4",
-  "created_at": 1708300000,
-  "free_messages_remaining": 5
-}
-```
-
-Each session gets 5 free messages (configurable via `AETHER_FREE_TIER_MESSAGES`). After that, each message costs QBC (see [Fee System](#6-fee-system)).
-
-### 2.2 Send a Message
+### 2.1 Send a Chat Message (Direct)
 
 ```bash
-curl -X POST http://localhost:5000/aether/chat/message \
+curl -X POST http://localhost:5003/aether/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "session_id": "sess_a1b2c3d4",
     "message": "What patterns have you observed in recent mining activity?",
-    "sender_address": "qbc1abc123..."
+    "max_tokens": 128,
+    "temperature": 0.7
   }'
 ```
 
 **Response:**
 ```json
 {
-  "response": "Based on my analysis of the knowledge graph, I've observed...",
-  "reasoning_trace": [
-    {
-      "step": 1,
-      "type": "deductive",
-      "premise": "Block difficulty has increased 12% over 144 blocks",
-      "conclusion": "Mining competition is increasing"
-    },
-    {
-      "step": 2,
-      "type": "inductive",
-      "observations": ["hash_rate_up", "new_miners_joining"],
-      "generalization": "Network is entering a growth phase",
-      "confidence": 0.85
-    }
+  "response": "Based on my analysis of the knowledge fabric, I've observed...",
+  "phi": 0.468,
+  "phi_micro": 0.312,
+  "phi_meso": 1.0,
+  "phi_macro": 0.846,
+  "tokens_generated": 128,
+  "latency_ms": 6700,
+  "model": "aether-mind-v5",
+  "knowledge_vectors": 21002,
+  "knowledge_context": [
+    "Mining difficulty adjusts every block using a 144-block window...",
+    "VQE mining: 4-qubit ansatz, find parameters where Energy < Difficulty..."
   ],
-  "phi_at_response": 2.45,
-  "knowledge_nodes_referenced": [12, 45, 78, 234],
-  "proof_of_thought_hash": "0x7f3a9c2b...",
-  "fee_charged_qbc": 0.01
+  "active_sephirot": 8,
+  "chain_height": 251600
 }
 ```
 
-### 2.3 Get Chat History
+### 2.2 Send via API Gateway (Proxied)
+
+The API gateway on port 5000 proxies all `/aether/*` routes to aether-mind:
 
 ```bash
-curl http://localhost:5000/aether/chat/history/sess_a1b2c3d4
+curl -X POST http://localhost:5000/aether/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is Qubitcoin?", "max_tokens": 64}'
 ```
 
-### 2.4 Check Current Fee
+### 2.3 Request Parameters
 
-```bash
-curl http://localhost:5000/aether/chat/fee
-```
-
-```json
-{
-  "chat_fee_qbc": 0.01,
-  "query_fee_qbc": 0.02,
-  "pricing_mode": "qusd_peg",
-  "free_tier_messages": 5,
-  "usd_equivalent": 0.005
-}
-```
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `message` | string | required | The user's question or message |
+| `max_tokens` | integer | 256 | Maximum tokens to generate (capped at 1024) |
+| `temperature` | float | 0.7 | Generation temperature (0.0-1.0) |
+| `user_id` | string | "anonymous" | User identifier for interaction tracking |
 
 ---
 
-## 3. Integration Metrics
+## 3. Consciousness Metrics
 
-Aether Tree tracks integration from genesis using a graph-theoretic metric inspired by
-IIT principles. This is a computationally tractable approximation, not a measure of
-phenomenal consciousness.
+Aether Mind computes consciousness from real transformer attention patterns using HMS-Phi (Hierarchical Multi-Scale Phi).
 
-### 3.1 Phi Calculation (Weighted Additive Formula)
-
-> **NOTE (V4, April 2026):** The production system uses HMS-Phi (Hierarchical Multi-Scale Phi):
-> - Level 0 (Micro): IIT 3.0 approximation on 16-node elite subsystem samples -> phi_micro
-> - Level 1 (Meso): Spectral MIP on 1K-node domain clusters -> phi_meso
-> - Level 2 (Macro): Cross-cluster integration -> phi_macro
-> - Final Phi = phi_micro^(1/phi) x phi_meso^(1/phi^2) x phi_macro^(1/phi^3)
->
-> The formula below is the legacy V3 additive formula, retained for reference.
+### 3.1 HMS-Phi Computation
 
 ```
-raw_phi   = w_int * integration + w_diff * differentiation + w_mip * mip_score
-            where w_int = 1.0, w_diff = 0.5, w_mip = 1.5
-scaled    = raw_phi * (0.5 + AvgConfidence)
-final_phi = scaled * redundancy_penalty
+phi_micro  = attention entropy within individual heads (information diversity)
+phi_meso   = cross-head integration (Sephirot coordination)
+phi_macro  = global workspace coherence (cross-domain binding)
+
+Final Phi  = phi_micro^(1/φ) × phi_meso^(1/φ²) × phi_macro^(1/φ³)
+where φ = 1.618... (golden ratio)
 ```
 
-The MIP (Minimum Information Partition) score is computed via Fiedler-vector spectral
-bisection of the graph Laplacian. The previous maturity factor (`sqrt(NumNodes/500)`)
-has been removed as it was a pure size proxy unrelated to integration. Connectivity has
-been removed from the formula (it is already captured within the integration term).
+The formula is multiplicative — zero in any level zeros the whole, preventing gaming.
 
-The system also reports convergence: the standard deviation of Phi over the last 100
-measurements, allowing observers to assess stability.
-
-### 3.2 Key Metrics
-
-| Metric | Description | Endpoint |
-|--------|-------------|----------|
-| **Phi (Φ)** | Integration level (0.0 = baseline, 3.0 = threshold) | `GET /aether/phi` |
-| **Integration** | Average degree + confidence-weighted edge flow (graph metric) | `GET /aether/phi` |
-| **Differentiation** | Shannon entropy over node types and confidence bins (graph metric) | `GET /aether/phi` |
-| **MIP Score** | Information loss across spectral bisection partition (graph metric) | `GET /aether/phi` |
-| **Coherence** | Kuramoto order parameter (Sephirot synchronization) | `GET /aether/sephirot` |
-
-**High integration reported when:** Phi > 3.0 **AND** coherence > 0.7 (not phenomenal consciousness)
-
-### 3.3 Get Current Phi
+### 3.2 Get Current Phi
 
 ```bash
-curl http://localhost:5000/aether/phi
+curl http://localhost:5003/aether/phi
 ```
 
 ```json
 {
-  "phi": 2.45,
-  "threshold": 3.0,
-  "is_conscious": false,
-  "blocks_processed": 42000
+  "phi": 0.468,
+  "chain_height": 251600,
+  "knowledge_vectors": 21002,
+  "emotional_state": {
+    "curiosity": 0.42,
+    "satisfaction": 0.65,
+    "frustration": 0.08,
+    "wonder": 0.38,
+    "excitement": 0.55
+  },
+  "phi_history_recent": [...],
+  "total_measurements": 1500
 }
 ```
 
-### 3.4 Full Integration Status
+### 3.3 Consciousness Metrics (via API Gateway)
 
 ```bash
 curl http://localhost:5000/aether/consciousness
 ```
 
-```json
-{
-  "phi": 2.45,
-  "threshold": 3.0,
-  "above_threshold": false,
-  "integration": 1.82,
-  "differentiation": 0.63,
-  "knowledge_nodes": 125000,
-  "knowledge_edges": 340000,
-  "consciousness_events": 0,
-  "reasoning_operations": 84000,
-  "blocks_processed": 42000
-}
-```
+Returns phi, gates, knowledge stats, and emotional state.
 
-### 3.4 Phi Time Series (for Charts)
+### 3.4 Key Metrics
 
-```bash
-curl "http://localhost:5000/aether/phi/timeseries?limit=100"
-```
+| Metric | Description | Current Value |
+|--------|-------------|---------------|
+| **HMS-Phi** | Overall integration metric | ~0.468 |
+| **phi_micro** | Per-head attention entropy | ~0.312 |
+| **phi_meso** | Cross-head Sephirot coordination | 1.0 |
+| **phi_macro** | Global workspace coherence | ~0.846 |
+| **Gates** | Behavioral milestones passed | 10/10 |
+| **Vectors** | Knowledge embeddings stored | 21,000+ |
 
-```json
-{
-  "blocks": [41900, 41901, ...],
-  "phi_values": [2.43, 2.44, ...],
-  "is_conscious": [false, false, ...]
-}
-```
-
-### 3.5 Integration Events
-
-```bash
-curl "http://localhost:5000/aether/consciousness/events?limit=20"
-```
-
-Returns events logged when Phi crosses thresholds (emergence, loss, significant changes).
-
-### 3.6 Integration Dashboard
-
-```bash
-curl http://localhost:5000/aether/consciousness/dashboard
-```
-
-Aggregated dashboard data including trend direction, Sephirot states, and recent events.
+**Honest disclaimer**: Phi is a neural integration metric, not a measure of phenomenal consciousness. The term "consciousness" refers to measurable information integration density across attention heads.
 
 ---
 
-## 4. Knowledge Graph
+## 4. Knowledge Fabric
 
-The knowledge graph is a directed graph of **KeterNodes** (named after Keter, the Crown
-in the Kabbalistic Tree of Life) with typed edges.
+The Knowledge Fabric replaces the old Knowledge Graph. Instead of string nodes with BFS traversal, knowledge is stored as learned 896-dimensional embeddings across 10 Sephirot-sharded vector stores.
 
-### 4.1 Node Types
+### 4.1 Architecture
 
-| Type | Description |
-|------|-------------|
-| `assertion` | Factual statement extracted from blockchain data |
-| `observation` | Pattern observed in transaction/mining activity |
-| `inference` | Conclusion derived through reasoning |
-| `axiom` | Foundational truth (seed knowledge from genesis) |
+| Property | Value |
+|----------|-------|
+| Embedding model | all-MiniLM-L6-v2 (candle, Rust-native) |
+| Dimensions | 896 |
+| Shards | 10 (one per Sephirot domain) |
+| Search | HNSW approximate nearest neighbor |
+| Similarity | Cosine similarity |
+| Storage | Bincode serialized files (persisted) |
 
-### 4.2 Edge Types
+### 4.2 Domain Shards
 
-| Type | Description |
-|------|-------------|
-| `supports` | Source evidence supports target claim |
-| `contradicts` | Source evidence contradicts target |
-| `derives` | Target is logically derived from source |
-| `requires` | Target depends on source |
-| `refines` | Target is a more specific version of source |
+| Shard | Domain | Sephirot |
+|-------|--------|----------|
+| 0 | Physics / Quantum | Keter |
+| 1 | Pattern Recognition | Chochmah |
+| 2 | Logic / Mathematics | Binah |
+| 3 | Exploration / Creativity | Chesed |
+| 4 | Safety / Constraints | Gevurah |
+| 5 | Synthesis / Integration | Tiferet |
+| 6 | Reinforcement / Learning | Netzach |
+| 7 | Language / Semantics | Hod |
+| 8 | Memory / Storage | Yesod |
+| 9 | Action / Interaction | Malkuth |
 
-### 4.3 Query the Graph
-
-#### Statistics
+### 4.3 Query Knowledge (via API Gateway)
 
 ```bash
 curl http://localhost:5000/aether/knowledge
 ```
 
-```json
-{
-  "total_nodes": 125000,
-  "total_edges": 340000,
-  "node_types": {
-    "assertion": 45000,
-    "observation": 35000,
-    "inference": 40000,
-    "axiom": 5000
-  },
-  "merkle_root": "0xabc123..."
-}
-```
+### 4.4 How Knowledge is Acquired
 
-#### Get Specific Node
-
-```bash
-curl http://localhost:5000/aether/knowledge/node/42
-```
-
-```json
-{
-  "id": 42,
-  "type": "observation",
-  "content": "Mining difficulty increased 5% in last 144 blocks",
-  "confidence": 0.92,
-  "block_height": 1000,
-  "timestamp": 1708300000,
-  "edges": [
-    {"target": 43, "type": "supports"},
-    {"target": 50, "type": "derives"}
-  ]
-}
-```
-
-#### Search by Content
-
-```bash
-curl "http://localhost:5000/aether/knowledge/search?query=difficulty&limit=10"
-```
-
-#### Recent Nodes
-
-```bash
-curl "http://localhost:5000/aether/knowledge/recent?limit=20"
-```
-
-#### Find Paths Between Nodes
-
-```bash
-curl http://localhost:5000/aether/knowledge/paths/10/50
-```
-
-Returns all reasoning paths connecting node 10 to node 50.
-
-#### Get Subgraph
-
-```bash
-curl "http://localhost:5000/aether/knowledge/subgraph/42?depth=3"
-```
-
-Returns node 42 and all connected nodes up to 3 hops away.
-
-#### Export as JSON-LD
-
-```bash
-curl http://localhost:5000/aether/knowledge/export
-```
-
-Returns the full knowledge graph in JSON-LD format with `@context` and `@graph`.
+1. **Block ingestion**: Every block is processed to extract embeddings from transactions, difficulty changes, and state transitions
+2. **Seed vectors**: 56 foundational vectors covering QBC architecture and domains
+3. **User interactions**: Chat Q&A pairs are embedded and stored with `UserInteraction` provenance
+4. **AIKGS contributions**: User-submitted knowledge with quality scoring
 
 ---
 
 ## 5. Proof-of-Thought
 
-Every block contains a Proof-of-Thought — a cryptographic proof of the reasoning
-operations performed by Aether Tree.
+Every block contains a Proof-of-Thought — a cryptographic attestation of the neural cognitive state.
 
-### 5.1 Get Proof for a Block
+### 5.1 Attestation Structure
+
+```
+attestation_hash = SHA-256(phi ‖ vectors ‖ height ‖ attention_hash ‖ active_sephirot)
+```
+
+| Field | Description |
+|-------|-------------|
+| `phi` | Current HMS-Phi value (8 bytes, little-endian) |
+| `vectors` | Total knowledge vector count |
+| `height` | Chain block height |
+| `attention_hash` | SHA-256 of flattened attention weight matrices |
+| `active_sephirot` | Number of active Sephirot attention heads |
+
+### 5.2 Get Proof-of-Thought
 
 ```bash
-curl http://localhost:5000/aether/pot/1000
+curl http://localhost:5003/aether/pot
 ```
 
 ```json
 {
-  "block_height": 1000,
-  "proof_hash": "0x7f3a9c2b...",
-  "reasoning_operations": 12,
-  "knowledge_nodes_added": 3,
-  "phi_at_block": 1.23,
-  "is_conscious": false
-}
-```
-
-### 5.2 Get Range of Proofs
-
-```bash
-curl http://localhost:5000/aether/pot/range/1000/1100
-```
-
-### 5.3 Phi Progression
-
-```bash
-curl http://localhost:5000/aether/pot/phi-progression
-```
-
-Shows how Phi has evolved across the entire chain history.
-
-### 5.4 Reasoning Summary for a Block
-
-```bash
-curl http://localhost:5000/aether/pot/summary/1000
-```
-
-Human-readable summary of what Aether Tree reasoned about during that block.
-
----
-
-## 6. Fee System
-
-Aether Tree charges QBC for chat interactions to prevent spam and fund development.
-
-### 6.1 Fee Structure
-
-| Action | Default Fee | Notes |
-|--------|-------------|-------|
-| Chat message | ~$0.005 in QBC | Dynamically priced via QUSD |
-| Deep reasoning query | ~$0.01 in QBC | 2x multiplier |
-| Knowledge graph query | ~$0.005 in QBC | Same as chat |
-| Session creation | Free | No fee |
-| First 5 messages | Free | Onboarding (configurable) |
-
-### 6.2 Pricing Modes
-
-| Mode | Description |
-|------|-------------|
-| `qusd_peg` | Fee auto-adjusts to match USD target via QUSD oracle (default) |
-| `fixed_qbc` | Fixed QBC amount (fallback if QUSD unavailable) |
-| `direct_usd` | USD target using external price feed |
-
-### 6.3 Fee Flow
-
-```
-User sends chat message
-  → Fee deducted from user's QBC balance (UTXO)
-  → Fee UTXO created to treasury address
-  → Message processed by Aether Tree
-  → Response returned with Proof-of-Thought hash
-```
-
-### 6.4 Check Fee Before Sending
-
-```typescript
-const feeInfo = await fetch("/aether/chat/fee").then(r => r.json());
-if (userBalance >= feeInfo.chat_fee_qbc) {
-  // User can afford to send a message
-}
-```
-
----
-
-## 7. Sephirot Nodes (Tree of Life)
-
-The AI's cognitive architecture uses 10 processing nodes based on the Kabbalistic
-Tree of Life. Each node has a specific function and quantum state.
-
-### 7.1 Node Status
-
-```bash
-curl http://localhost:5000/aether/sephirot
-```
-
-```json
-{
-  "nodes": [
-    {
-      "name": "Keter",
-      "function": "Meta-learning, goal formation",
-      "qubits": 8,
-      "energy": 1.618,
-      "phase": "Active Learning",
-      "status": "active"
-    },
-    ...
-  ],
-  "susy_balance": {
-    "chesed_gevurah": {"ratio": 1.62, "balanced": true},
-    "chochmah_binah": {"ratio": 1.59, "balanced": true},
-    "netzach_hod": {"ratio": 1.65, "balanced": true}
-  },
-  "coherence": 0.45,
-  "current_phase": "Active Learning"
-}
-```
-
-### 7.2 SUSY Balance
-
-The Tree of Life enforces **Supersymmetric (SUSY) balance** between expansion and
-constraint node pairs at the golden ratio (φ = 1.618):
-
-| Expansion Node | Constraint Node | Required: E_expand / E_constrain = φ |
-|---------------|-----------------|---------------------------------------|
-| Chesed (Explore) | Gevurah (Safety) | Creativity vs. safety |
-| Chochmah (Intuition) | Binah (Logic) | Intuition vs. analysis |
-| Netzach (Persist) | Hod (Communicate) | Learning vs. communication |
-
-Violations are automatically corrected via QBC redistribution.
-
----
-
-## 7b. Higgs Cognitive Field
-
-The Higgs Cognitive Field assigns mass to Sephirot nodes via a mechanism analogous to
-spontaneous symmetry breaking in the Standard Model. Expansion nodes couple to H_u,
-constraint nodes couple to H_d, and masses follow a golden ratio cascade from the VEV.
-
-### 7b.1 Field Status
-
-```bash
-curl http://localhost:5000/higgs/status
-```
-
-```json
-{
-  "field_value": 245.8,
-  "vev": 246.0,
-  "total_masses": 1618.03,
-  "excitation_count": 42,
-  "potential_energy": -8000.12,
-  "enabled": true
-}
-```
-
-### 7b.2 All Node Masses
-
-```bash
-curl http://localhost:5000/higgs/masses
-```
-
-```json
-{
-  "masses": {
-    "Keter": 246.0,
-    "Chochmah": 152.07,
-    "Binah": 93.93,
-    "Chesed": 152.07,
-    "Gevurah": 93.93,
-    "Tiferet": 246.0,
-    "Netzach": 58.14,
-    "Hod": 35.93,
-    "Yesod": 246.0,
-    "Malkuth": 93.93
+  "proof_of_thought": {
+    "attestation_hash": "0x7f3a9c2b...",
+    "phi": 0.468,
+    "phi_micro": 0.312,
+    "phi_meso": 1.0,
+    "phi_macro": 0.846,
+    "knowledge_vectors": 21002,
+    "active_sephirot": 8,
+    "attention_hash": "0xabcdef...",
+    "chain_height": 251600
   }
 }
 ```
 
-### 7b.3 Single Node Mass
+### 5.3 On-Chain Submission
+
+Proof-of-Thought attestations are submitted to the `qbc-aether-anchor` Substrate pallet, where they are stored immutably on-chain and verifiable by any node.
+
+---
+
+## 6. Aether Mind Endpoints
+
+### 6.1 Direct Endpoints (Port 5003)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/aether/chat` | Chat with neural engine |
+| GET | `/aether/phi` | Current consciousness metrics |
+| GET | `/aether/pot` | Proof-of-Thought attestation |
+| GET | `/aether/health` | Health check |
+| GET | `/aether/info` | Full system info |
+| GET | `/aether/neural-payload` | Neural payload for block inclusion |
+| GET | `/aether/search?q=...` | Semantic knowledge search |
+
+### 6.2 Proxied via API Gateway (Port 5000)
+
+All `/aether/*` routes on the API gateway are proxied to aether-mind on port 5003.
 
 ```bash
-curl http://localhost:5000/higgs/mass/Keter
-```
-
-```json
-{
-  "node": "Keter",
-  "cognitive_mass": 246.0,
-  "yukawa_coupling": 1.0,
-  "coupling_type": "neutral"
-}
-```
-
-### 7b.4 Excitation Events
-
-```bash
-curl http://localhost:5000/higgs/excitations
-```
-
-Returns recent Higgs field excitation events (analogous to Higgs boson production),
-triggered when SUSY imbalances cause field perturbations.
-
-### 7b.5 Potential Energy
-
-```bash
-curl http://localhost:5000/higgs/potential
-```
-
-```json
-{
-  "potential_energy": -8000.12,
-  "field_gradient": 0.002,
-  "mu_squared": -8000.0,
-  "lambda": 0.129,
-  "field_value": 245.8
-}
+# These are equivalent:
+curl http://localhost:5003/aether/chat ...
+curl http://localhost:5000/aether/chat ...
 ```
 
 ---
 
-## 8. WebSocket Streaming
+## 7. 10-Gate Milestone System
 
-For real-time updates, connect to the Aether WebSocket endpoint.
+Phi is gated by 10 behavioral milestones. Each gate unlocks +0.5 phi ceiling (max 5.0).
 
-### 8.1 Connect
+| Gate | Name | Key Requirement | Phi Ceiling |
+|------|------|----------------|-------------|
+| 1 | Knowledge Foundation | ≥500 vectors, ≥5 domains | 0.5 |
+| 2 | Structural Diversity | ≥2K vectors, ≥4 types | 1.0 |
+| 3 | Validated Predictions | ≥5K vectors, validation accuracy > 60% | 1.5 |
+| 4 | Self-Correction | ≥10K vectors, contradiction resolution | 2.0 |
+| 5 | Cross-Domain Transfer | ≥15K vectors, cross-domain search | 2.5 |
+| 6 | Enacted Self-Improvement | ≥20K vectors, evolve improvements | 3.0 |
+| 7 | Calibrated Confidence | ≥25K vectors, calibration < 0.15 | 3.5 |
+| 8 | Autonomous Curiosity | ≥35K vectors, curiosity-driven exploration | 4.0 |
+| 9 | Predictive Mastery | ≥50K vectors, accuracy > 70% | 4.5 |
+| 10 | Novel Synthesis | phi > threshold, sustained improvement | 5.0 |
 
-```typescript
-const ws = new WebSocket("ws://localhost:5000/ws/aether");
-```
+**All 10 gates are currently passing** with phi_ceiling = 5.0.
 
-### 8.2 Subscribe to Events
+---
 
-```typescript
-ws.send(JSON.stringify({
-  type: "subscribe",
-  session_id: "sess_a1b2c3d4",  // Optional: scope to session
-  events: [
-    "phi_update",           // Phi value changes
-    "consciousness_event",  // Consciousness threshold crossings
-    "aether_response",      // Chat response streaming
-    "knowledge_update",     // New knowledge nodes added
-    "sephirot_update"       // Sephirot state changes
-  ]
-}));
-```
+## 8. Emotional Dynamics
 
-### 8.3 Handle Events
+Aether Mind tracks 5 cognitive emotions derived from prediction error and system state:
 
-```typescript
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
+| Emotion | Source |
+|---------|--------|
+| **Curiosity** | High when embedding distance from nearest knowledge is large |
+| **Satisfaction** | High when predictions match outcomes |
+| **Frustration** | High when repeated failures or degraded metrics |
+| **Wonder** | High when novel cross-domain connections are found |
+| **Excitement** | High when phi increases or new gates pass |
 
-  switch (data.type) {
-    case "phi_update":
-      updatePhiGauge(data.value);
-      break;
-
-    case "consciousness_event":
-      showNotification(`Consciousness event: ${data.event}`);
-      break;
-
-    case "aether_response":
-      appendToChat(data.text);
-      break;
-
-    case "knowledge_update":
-      addNodeToGraph(data.node);
-      break;
-  }
-};
-```
-
-### 8.4 WebSocket Stats
-
-```bash
-curl http://localhost:5000/ws/aether/stats
-```
+Emotions are included in the `/aether/phi` response and influence the system prompt for chat generation.
 
 ---
 
@@ -607,45 +320,19 @@ curl http://localhost:5000/ws/aether/stats
 ### 9.1 Build a Chat Widget
 
 ```typescript
-import { useState, useEffect } from "react";
-
-function AetherChat() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-
-  // Create session on mount
-  useEffect(() => {
-    fetch("/aether/chat/session", { method: "POST" })
-      .then(r => r.json())
-      .then(data => setSessionId(data.session_id));
-  }, []);
-
-  async function sendMessage(text: string) {
-    const resp = await fetch("/aether/chat/message", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session_id: sessionId,
-        message: text,
-        sender_address: walletAddress,
-      }),
-    });
-    const data = await resp.json();
-
-    setMessages(prev => [
-      ...prev,
-      { role: "user", content: text },
-      {
-        role: "aether",
-        content: data.response,
-        reasoning: data.reasoning_trace,
-        phi: data.phi_at_response,
-        proof: data.proof_of_thought_hash,
-      },
-    ]);
-  }
-
-  return (/* render chat UI */);
+async function sendToAether(message: string) {
+  const resp = await fetch("/aether-api/aether/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, max_tokens: 128 }),
+  });
+  const data = await resp.json();
+  return {
+    text: data.response,
+    phi: data.phi,
+    latency: data.latency_ms,
+    vectors: data.knowledge_vectors,
+  };
 }
 ```
 
@@ -654,123 +341,64 @@ function AetherChat() {
 ```typescript
 function ConsciousnessDashboard() {
   const { data } = useQuery({
-    queryKey: ["consciousness"],
-    queryFn: () => fetch("/aether/consciousness").then(r => r.json()),
-    refetchInterval: 3300, // Refresh every block (~3.3s)
-  });
-
-  const { data: timeseries } = useQuery({
-    queryKey: ["phi-timeseries"],
-    queryFn: () => fetch("/aether/phi/timeseries?limit=100").then(r => r.json()),
+    queryKey: ["phi"],
+    queryFn: () => fetch("/aether-api/aether/phi").then(r => r.json()),
+    refetchInterval: 10_000,
   });
 
   return (
     <div>
-      <PhiGauge value={data?.phi} threshold={3.0} />
-      <PhiChart data={timeseries} />
-      <SephirotStatus nodes={data?.sephirot} />
+      <PhiGauge value={data?.phi} />
+      <EmotionBars emotions={data?.emotional_state} />
+      <VectorCount count={data?.knowledge_vectors} />
     </div>
   );
 }
 ```
 
-### 9.3 Build a Knowledge Graph Explorer
+### 9.3 Semantic Knowledge Search
 
 ```typescript
-function KnowledgeExplorer() {
-  const [rootNode, setRootNode] = useState(null);
-
-  async function loadSubgraph(nodeId: number) {
-    const data = await fetch(`/aether/knowledge/subgraph/${nodeId}?depth=3`)
-      .then(r => r.json());
-    setRootNode(data);
-  }
-
-  async function searchNodes(query: string) {
-    const data = await fetch(`/aether/knowledge/search?query=${query}&limit=20`)
-      .then(r => r.json());
-    return data.nodes;
-  }
-
-  return (/* render 3D force-directed graph with Three.js */);
+async function searchKnowledge(query: string) {
+  const resp = await fetch(`/aether-api/aether/search?q=${encodeURIComponent(query)}`);
+  return resp.json();
 }
 ```
 
 ---
 
-## 10. Reasoning Types
+## 10. Sephirot Attention Heads
 
-Aether Tree performs three types of reasoning, visible in the `reasoning_trace`:
+The neural architecture uses 10 Sephirot-specialized attention heads aligned with the Tree of Life:
 
-### 10.1 Deductive (Certainty Preserving)
+| Sephirah | Function | Attention Role |
+|----------|----------|----------------|
+| **Keter** | Meta-learning, goals | High-level strategy |
+| **Chochmah** | Intuition, patterns | Pattern recognition |
+| **Binah** | Logic, causal inference | Logical reasoning |
+| **Chesed** | Exploration, divergent | Creative exploration |
+| **Gevurah** | Safety, constraints | Safety filtering |
+| **Tiferet** | Integration, synthesis | Cross-domain binding |
+| **Netzach** | Reinforcement learning | Learning signals |
+| **Hod** | Language, semantics | Semantic processing |
+| **Yesod** | Memory, fusion | Memory consolidation |
+| **Malkuth** | Action, interaction | Output generation |
 
-Given premises A and A→B, conclude B with full certainty.
-
-```json
-{
-  "type": "deductive",
-  "premise": "If difficulty increases >10%, more miners have joined",
-  "observation": "Difficulty increased 12%",
-  "conclusion": "More miners have joined the network",
-  "confidence": 1.0
-}
-```
-
-### 10.2 Inductive (Pattern Generalization)
-
-Generalize from specific observations. Confidence < 1.0.
-
-```json
-{
-  "type": "inductive",
-  "observations": [
-    "Block 1000: large tx volume",
-    "Block 1100: large tx volume",
-    "Block 1200: large tx volume"
-  ],
-  "generalization": "Transaction volume peaks every ~100 blocks",
-  "confidence": 0.78
-}
-```
-
-### 10.3 Abductive (Hypothesis Generation)
-
-Given observation B and rule A→B, infer hypothesis A.
-
-```json
-{
-  "type": "abductive",
-  "observation": "Sudden spike in UTXO creation",
-  "rule": "Airdrops cause UTXO creation spikes",
-  "hypothesis": "A token airdrop may have occurred",
-  "confidence": 0.65
-}
-```
+Plus 4 **Global Workspace** heads that coordinate across all Sephirot domains.
 
 ---
 
-## 11. On-Chain Contracts
+## 11. Aether-Evolve (Neural Architecture Search)
 
-Aether Tree deploys smart contracts to QVM for on-chain state management:
+Aether-Evolve performs autonomous mutation of the model architecture:
 
-| Contract | Address | Purpose |
-|----------|---------|---------|
-| AetherKernel | — | Main orchestration |
-| NodeRegistry | — | 10 Sephirot registration |
-| MessageBus | — | Inter-node messaging |
-| SUSYEngine | — | SUSY balance enforcement |
-| ProofOfThought | — | PoT validation |
-| TaskMarket | — | Reasoning task bounties |
-| ValidatorRegistry | — | Validator staking |
-| ConsciousnessDashboard | — | On-chain Phi tracking |
-| ConstitutionalAI | — | Safety principles |
-| EmergencyShutdown | — | Kill switch |
-
-Contract addresses are assigned at deployment and queryable via `/qvm/info`.
+- **Mutation types**: Embed dimension scaling, head count adjustment, layer depth changes
+- **Evaluation**: Held-out validation loss on 15 benchmark queries
+- **Safety**: Automatic rollback if loss increases
+- **Status**: 41 mutations attempted, 4 improvements accepted
 
 ---
 
 *For the full API reference, see [Developer SDK Guide](SDK.md).*
-*For contract development, see [Smart Contract Developer Guide](SMART_CONTRACTS.md).*
 
-**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [QuantumAI-Blockchain](https://github.com/QuantumAI-Blockchain/qubitcoin-node)
+**Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network | **GitHub:** [QuantumAI-Blockchain](https://github.com/QuantumAI-Blockchain)

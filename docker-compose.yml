@@ -30,7 +30,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3G
+          memory: 2G
           cpus: "2.0"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
@@ -104,7 +104,11 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-changeme}
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 128mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-changeme}
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
       interval: 10s
@@ -239,6 +243,10 @@ services:
       - AIKGS_DISBURSE_MAX_RETRIES=${AIKGS_DISBURSE_MAX_RETRIES:-3}
       - AIKGS_DISBURSE_INITIAL_BACKOFF_MS=${AIKGS_DISBURSE_INITIAL_BACKOFF_MS:-1000}
       - RUST_LOG=info
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -496,7 +504,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1536M
+          memory: 1G
           cpus: "1.0"
     restart: unless-stopped
     networks:

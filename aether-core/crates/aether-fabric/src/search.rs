@@ -30,6 +30,11 @@ impl KnowledgeFabric {
             .collect();
 
         all_results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Deduplicate by content (keep highest-scoring copy)
+        let mut seen = std::collections::HashSet::new();
+        all_results.retain(|r| seen.insert(r.2.clone()));
+
         all_results.truncate(top_k);
         all_results
     }

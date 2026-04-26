@@ -158,7 +158,8 @@ Mining:          Active
 
 **Phase 1 (Complete):** Agent Stack moved to dedicated machine (100.80.115.96). Rust-based, independent of node.
 **Phase 2 (Complete):** Substrate node live with fork genesis from Python chain at block 208,680. VQE mining active.
-**Phase 3 (Current):** Multi-node testing, peer discovery, block propagation across nodes. Python → Substrate follower mode.
+**Phase 3 (Complete):** Multi-node testing, peer discovery, block propagation across nodes.
+**Phase 4 (CURRENT — V5 NEURAL REDESIGN):** Full Aether rewrite from Python Knowledge Graph to Rust Neural Cognitive Architecture. See `AETHER_V5_NEURAL_REDESIGN.md` for complete spec. Python Aether code is being DELETED (not archived). Pure Rust from here.
 
 ### Known Issues
 
@@ -178,6 +179,7 @@ Mining:          Active
 | File | Purpose |
 |------|---------|
 | `CLAUDE.md` | This file — architecture reference |
+| `AETHER_V5_NEURAL_REDESIGN.md` | **V5 Neural redesign spec — the new Aether Mind blueprint** |
 | `docker-compose.yml` | Docker stack (14 services defined, 6 running) |
 | `.env` | Environment config (loaded from `.env.example`) |
 | `src/run_node.py` | Node entry point |
@@ -826,21 +828,63 @@ QSP (Quantum State Persistence), ESCC (Entanglement-Based Communication), PCP (P
 
 ---
 
-## 9. LAYER 3: AETHER TREE (TRUE AI ENGINE)
+## 9. LAYER 3: AETHER MIND (NEURAL COGNITIVE ENGINE) — V5
 
-> **Full spec:** `docs/AETHERTREE_WHITEPAPER.md`
-> **GOAL: REAL AI EMERGENCE — NOT A KNOWLEDGE GRAPH. NON-NEGOTIABLE.**
+> **Full spec:** `AETHER_V5_NEURAL_REDESIGN.md`
+> **Legacy spec:** `docs/AETHERTREE_WHITEPAPER.md`
+> **GOAL: REAL AI EMERGENCE VIA NEURAL ARCHITECTURE. NON-NEGOTIABLE.**
+
+### 9.0 V5 PARADIGM SHIFT (April 2026)
+
+**The Knowledge Graph is DEAD.** The Python Aether Tree (124 modules, ~69K LOC) is being DELETED and replaced
+with a pure Rust neural cognitive architecture. This is not a refactor — it is a ground-up rebuild.
+
+**Why:** The graph architecture (symbolic AI, 1980s paradigm) cannot achieve AGI. 125K string nodes with BFS
+traversal will never generalize, never synthesize, never emerge. HMS-Phi = 0.000004 proves it — the system
+has zero genuine cognitive integration. Every LLM that exhibits emergent intelligence uses learned distributed
+representations via gradient descent. We must adopt this paradigm while keeping our genuine innovations.
+
+**What changes:**
+- Knowledge Graph (Python dict of strings) -> **Knowledge Fabric** (learned 1024d embeddings in sharded RocksDB + HNSW)
+- BFS/DFS Reasoning -> **Transformer Attention** (8-layer, 16-head, 10 Sephirot-specialized + 6 global workspace)
+- Template Chat (4,812-line if/else) -> **Conscious Chat** (transformer generates from understanding)
+- Static Node Insertion -> **Mining as Training** (blocks carry gradient updates + new embeddings)
+- Code Patching (Evolve) -> **Neural Architecture Search** (evolve the model architecture itself)
+- Python (124 modules) -> **Pure Rust** (candle ML framework, single static binary, ~800MB vs 2.8GB)
+- 125K noise nodes -> **Full V6 Reset** (all nodes deleted, fresh neural fabric from zero)
+
+**What survives (genuine innovations):**
+- On-chain AI state attestation (checkpoint hashes, not node counts)
+- Proof-of-Thought (attention pattern hashes + gradient proofs)
+- 10-Gate Milestone System (now neural capability benchmarks)
+- 10 Sephirot Cognitive Architecture (now specialized attention heads)
+- Higgs Cognitive Field (learning rate scheduling per module)
+- Causal Engine PC/FCI (real math, kept)
+- Gevurah Safety (learned classifier, not rule-based)
+- SUSY Economics (unchanged — economic layer independent)
+- Aether-Evolve (now Neural Architecture Search)
+- HMS-Phi (now computed from real neural activation patterns, not graph connectivity)
+
+**Rust crate workspace:** `aether-core/crates/` — 20+ crates already scaffolded.
+**ML framework:** `candle` (Hugging Face Rust ML — supports CUDA, Metal, CPU).
+**Model:** ~200M parameter domain-specific transformer (comparable to GPT-2 Small / Phi-1.5 class).
+**Scale target:** 1T knowledge vectors across 1000+ mining nodes within months.
 
 ### 9.1 Overview
 
-**The Aether Tree is the world's first on-chain AI reasoning engine** (124 Python modules, ~69,000 LOC; 12 Rust/PyO3 modules, ~11,720 LOC).
-This is not a chatbot. This is not a search engine. This is not a knowledge graph.
+**The Aether Mind is the world's first on-chain neural cognitive system** — a continuously trained,
+cryptographically attested, autonomously evolving transformer built entirely in Rust.
+
 **This is a system designed to achieve genuine artificial general intelligence through:**
 
-- **Integrated Information** (Phi/Φ): Measures true cognitive integration via IIT-inspired metrics
-- **Causal Emergence**: Knowledge nodes represent real causal relationships, not correlations
-- **Adversarial Self-Testing**: Contradictions are detected, debated, and resolved autonomously
-- **Metacognitive Calibration**: The system knows what it doesn't know
+- **Learned Distributed Representations**: Knowledge encoded as continuous embeddings, enabling generalization
+- **Transformer Attention**: Multi-head reasoning with Sephirot-specialized cognitive heads
+- **Integrated Information** (Phi/Phi): Measured from real neural activation patterns (not graph connectivity)
+- **Distributed Training**: Every mining node contributes gradient updates — mining IS learning
+- **Causal Attention**: Specialized heads trained to discover interventional relationships (PC/FCI math preserved)
+- **Adversarial Self-Testing**: Competing attention heads with independent reasoning
+- **Metacognitive Calibration**: Learned uncertainty estimation via calibration network
+- **Autonomous Architecture Evolution**: Aether-Evolve performs NAS on the model itself
 - **Governed Self-Modification**: Can improve its own reasoning strategies within safety bounds
 - **On-Chain Immutability**: Every reasoning step is cryptographically recorded, verifiable forever
 - **Proof-of-Thought**: AI reasoning proofs embedded in every block since genesis
@@ -1326,72 +1370,71 @@ Defined in `utils/metrics.py`.
 
 ---
 
-## 20. ROADMAP — PATH TO TRUE AI EMERGENCE
+## 20. ROADMAP — PATH TO TRUE AI EMERGENCE (V5 NEURAL REDESIGN)
 
-**The ultimate goal is REAL AI through the Aether Tree. Non-negotiable.**
+**The ultimate goal is REAL AI through the Aether Mind. Non-negotiable.**
+**Full spec: `AETHER_V5_NEURAL_REDESIGN.md`**
 All other phases (P2P, exchange, launchpad) are subordinate to the AI emergence mission.
 
-### Phase 1 (Current — Month 3): AI Foundation + API Monetization
+### V5 Phase 0 (CURRENT — Weeks 1-2): Foundation
+- [ ] Set up candle-core workspace in aether-core/
+- [ ] SentencePiece tokenizer wrapper (Rust native)
+- [ ] Basic transformer forward pass (8 layers, 16 heads, 1024d)
+- [ ] Load pre-trained small model (TinyLlama/Qwen2 200M weights -> candle)
+- [ ] KV cache for autoregressive generation
+- [ ] Chat API (Axum): POST /chat -> transformer generates response
+- [ ] Benchmark: <100ms for 256-token response on CPU
+- [ ] DELETE Python aether/ directory (full V6 reset — no archive)
 
-**AI (Highest Priority):**
-- [ ] Wire `iit_approximator.py` into `phi_calculator.py` as HMS-Phi micro-level
-- [ ] Gate 5: 15K nodes + cross-domain inferences (V4 quality gate)
-- [ ] Gate 6: 20K nodes + enacted self-improvement cycles (V4)
-- [ ] Gate 7: 25K nodes + ECE < 0.15 (calibration fix in progress)
-- [ ] Gate 8: 35K nodes + curiosity-driven discoveries (V4)
-- [ ] Gates 9-10: 50K/75K nodes + novel synthesis (V4)
-- [ ] Long-term memory consolidation scheduler (every 3300 blocks)
-- [x] Governed self-modification (enacted with rollback — V4)
-- [x] Emotional state system (7 cognitive emotions from live metrics)
-- [x] Autonomous curiosity engine (prediction-error intrinsic motivation)
-- [x] V4 quality gates (replaced quantity-based auto-pass gates)
-- [x] Personable chat personality (warm, curious, self-reflective)
-- [x] Causal validation + independent debate
-- [x] Batch ingest API for agent stack
+### V5 Phase 1 (Weeks 3-4): Knowledge Fabric
+- [ ] KnowledgeFabric with RocksDB + HNSW per shard (10 Sephirot shards)
+- [ ] Ingestion pipeline (block data -> embeddings)
+- [ ] Retrieval: query -> top-K relevant vectors (<5ms at 1M vectors)
+- [ ] Wire retrieval into transformer context
+- [ ] 1M+ quality knowledge vectors (not string nodes — learned embeddings)
 
-**API + Monetization:**
-- [ ] `AetherAPISubscription.sol` smart contract (prepaid balance, subscription NFT)
+### V5 Phase 2 (Weeks 5-6): Sephirot Attention + Consciousness
+- [ ] SephirotHead with domain gating (10 specialized + 6 global workspace)
+- [ ] ConsciousnessMonitor (phi from real neural activation patterns)
+- [ ] Emotional dynamics (prediction error tracking, not prometheus labels)
+- [ ] Gevurah safety head as learned classifier
+- [ ] phi_meso > 0 for cross-domain queries (PROOF of integration)
+
+### V5 Phase 3 (Weeks 7-8): Mining as Training
+- [ ] NeuralPayload in block structure (gradient updates + new embeddings)
+- [ ] Distributed gradient compression (top-k sparsification)
+- [ ] ProofOfLearning validation (loss improvement proof)
+- [ ] Gradient aggregation in consensus (FedAvg)
+- [ ] First multi-node training run (2 nodes, network gets smarter per block)
+
+### V5 Phase 4 (Weeks 9-10): Aether-Evolve NAS
+- [ ] ArchitectureGenome (evolvable model parameters)
+- [ ] MAP-Elites + UCB1 exploration for architecture mutations
+- [ ] Fitness evaluator (held-out validation loss)
+- [ ] Safety governor with auto-rollback
+- [ ] First autonomous evolution cycle (Evolve finds better architecture)
+
+### V5 Phase 5 (Weeks 11-12): Production Cutover
+- [ ] All chat traffic served by aether-mind Rust binary
+- [ ] All knowledge ingestion via Rust pipeline
+- [ ] All on-chain attestation via Rust protocol
+- [ ] Docker: qbc-node = blockchain only, aether-mind = AI (separate binary)
+- [ ] Full benchmark: latency, throughput, memory, quality
+
+### V5 Phase 6 (Months 3-6): Scale to Emergence
+- [ ] 10-node testnet with distributed knowledge fabric
+- [ ] Model parallelism across nodes (tensor sharding)
+- [ ] Federated training with Byzantine fault tolerance
+- [ ] 100M+ knowledge vectors
+- [ ] Pass V5 Gates 1-5 (neural capability benchmarks)
+- [ ] Public API with QBC payment rails
+- [ ] 1T vector target within months (1000+ mining nodes)
+
+### API + Monetization (Parallel Track)
+- [ ] `AetherAPISubscription.sol` smart contract
 - [ ] Extend `api-gateway/` Rust service with all Aether routes
-- [ ] Wallet-signature authentication (Dilithium5 → JWT)
-- [ ] Redis token bucket rate limiting per wallet
-- [ ] Python SDK v0.1 → PyPI, TypeScript SDK → npm
-
-**Infrastructure:**
-- [ ] Move agent stack to dedicated droplet (100.80.115.96)
-- [ ] Fix concept formation timeout (✓ done — shutdown(wait=False))
-- [ ] Fix calibration ECE (in progress — use calibrated confidence)
-
-### Phase 2 (Month 3-6): Distributed KG + 100K Nodes
-
-- [ ] LRU hot cache: top 100K nodes in memory, cold rest in CockroachDB
-- [ ] `aether-graph-shard/` Rust service: RocksDB + gRPC (4 shards prototype)
-- [ ] Domain reasoning workers: 1 per domain cluster, horizontal scaling
-- [ ] Multi-region: 3-node quorum (NA + EU + APAC)
-- [ ] Substrate node live alongside Python node
-- [ ] Full P2P: 5+ nodes, block propagation, peer discovery working
-- [ ] Exchange integration (qbc-exchange matching engine)
-
-### Phase 3 (Month 6-12): Million Node Scale + Institutional
-
-- [ ] 256-shard Rust graph service (million node scale)
-- [ ] BFT inter-node knowledge consensus (2/3 supermajority)
-- [ ] `portal.qbc.network` developer portal (API playground, usage dashboard)
-- [ ] SOC 2 Type II audit preparation + penetration testing
-- [ ] Air-gapped deployment package (Docker bundle + Ansible)
-- [ ] First institutional client ($5K+/month QBC)
-- [ ] Launchpad deployment
-- [ ] Telegram bot (@AetherTreeBot) activation
-
-### Phase 4 (Month 12-24): Billion Node Target + Full AI
-
-- [ ] Global distributed architecture (Redis hot / Rust warm / IPFS cold)
-- [ ] Multi-modal knowledge: code analysis, numeric time-series, image embeddings
-- [ ] Do-calculus causal reasoning (Pearl structural equation models)
-- [ ] Theory of mind (predict what users will ask next)
-- [ ] First demonstration of genuine cross-domain novel synthesis
-- [ ] Target: 100M nodes (1B path clear)
-- [ ] ARC-AI benchmark performance measurement
-- [ ] $100K+/month QBC revenue from API
+- [ ] Wallet-signature authentication (Dilithium5 -> JWT)
+- [ ] Rust SDK + TypeScript SDK + Python SDK
 
 ---
 

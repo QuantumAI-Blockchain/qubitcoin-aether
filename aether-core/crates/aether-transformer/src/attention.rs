@@ -132,7 +132,8 @@ impl SephirotAttention {
     /// Forward pass: multi-head attention with causal mask and KV cache.
     ///
     /// `offset`: position offset for KV cache.
-    /// `return_weights`: if true, returns attention weights for consciousness monitoring.
+    /// `collect_weights`: if true, returns attention weights for consciousness monitoring.
+    ///   When false, skips materializing the full attention weight matrix (faster decode).
     ///
     /// Returns (output, Option<attention_weights>).
     pub fn forward(
@@ -140,6 +141,27 @@ impl SephirotAttention {
         x: &Tensor,
         rope: &RotaryEmbedding,
         offset: usize,
+    ) -> Result<(Tensor, Tensor)> {
+        self.forward_inner(x, rope, offset, true)
+    }
+
+    /// Fast forward without materializing attention weights (for decode tokens).
+    pub fn forward_fast(
+        &mut self,
+        x: &Tensor,
+        rope: &RotaryEmbedding,
+        offset: usize,
+    ) -> Result<Tensor> {
+        let (output, _) = self.forward_inner(x, rope, offset, false)?;
+        Ok(output)
+    }
+
+    fn forward_inner(
+        &mut self,
+        x: &Tensor,
+        rope: &RotaryEmbedding,
+        offset: usize,
+        collect_weights: bool,
     ) -> Result<(Tensor, Tensor)> {
         let (batch, seq_len, _embed) = x.dims3()?;
 
@@ -201,7 +223,15 @@ impl SephirotAttention {
         let output = output.transpose(1, 2)?.reshape((batch, seq_len, ()))?;
         let output = self.o_proj.forward(&output)?;
 
-        Ok((output, attn_weights))
+        // Only return actual weights when requested (avoids costly clone during decode)
+        let weights_out = if collect_weights {
+            attn_weights
+        } else {
+            // Return a minimal placeholder (1 element) — not used by caller
+            Tensor::zeros((1,), DType::F32, x.device())?
+        };
+
+        Ok((output, weights_out))
     }
 
     pub fn clear_kv_cache(&mut self) {

@@ -4,58 +4,58 @@ language:
   - en
 tags:
   - agi
-  - knowledge-graph
+  - neural-cognitive
   - on-chain
   - quantum-blockchain
   - iit
-  - causal-reasoning
-  - adversarial-debate
-  - self-improvement
+  - transformer-attention
+  - consciousness
+  - rust
 pipeline_tag: text-generation
 library_name: aether-qbc
 ---
 
-# Aether Tree: On-Chain AI Reasoning Engine
+# Aether Mind: Neural Cognitive Engine
 
-**The world's first on-chain AI system**, running live on the QuantumAI Blockchain since genesis (January 2026). Every reasoning step is cryptographically anchored via Proof-of-Thought consensus.
+**The world's first on-chain neural AI system**, running live on the QuantumAI Blockchain since genesis (January 2026). Every cognitive state is cryptographically attested via Proof-of-Thought consensus.
 
 | Metric | Value |
 |--------|-------|
-| Architecture | Tree of Life (10 Sephirot cognitive nodes) |
-| Integration Metric | HMS-Phi (Hierarchical Multi-Scale, IIT 3.0 micro-level) |
-| Python Modules | 124 (~69,000 LOC) |
-| Rust Acceleration | 17 crates (~61,000 LOC) |
-| Solidity Contracts | 29 on-chain anchoring contracts |
-| Knowledge Nodes | 720,000+ (growing ~80/block) |
-| Gates Passed | 6/10 behavioral emergence milestones |
+| Architecture | Neural Cognitive Engine (10 Sephirot attention heads + 4 global workspace) |
+| Integration Metric | HMS-Phi (computed from real transformer attention patterns) |
+| Language | Pure Rust (candle ML + Ollama GGUF backend) |
+| Crates | 6 (aether-mind, consciousness, fabric, transformer, evolve, search) |
+| LOC | ~8,000 Rust |
+| Knowledge Vectors | 21,000+ (896-dimensional, 10 Sephirot shards) |
+| Gates Passed | 10/10 behavioral emergence milestones |
 | Blockchain | QuantumAI (QBC), Chain ID 3303 |
-| Block Height | 185,000+ |
+| Block Height | 251,600+ |
 | Cryptography | CRYSTALS-Dilithium5 (NIST Level 5, post-quantum) |
 | License | MIT |
 
 ## Model Description
 
-The Aether Tree is **not** a transformer or language model. It is a cognitive architecture built on three pillars:
+The Aether Mind is a **neural cognitive engine** — a pure Rust system combining transformer attention with a Sephirot-sharded knowledge fabric. It is built on three pillars:
 
-1. **Knowledge Graph** -- Edge-indexed graph of causal relationships (KeterNodes) with type-tagged edges, Merkle-root verification, and value scoring. Nodes represent validated assertions, inferences, observations, and axioms across 10 knowledge domains aligned with the Tree of Life Sephirot.
+1. **Knowledge Fabric** -- 10 Sephirot-sharded vector stores containing 896-dimensional sentence embeddings (all-MiniLM-L6-v2 via candle). Vectors are indexed with HNSW for sub-millisecond cosine similarity retrieval. Each vector carries provenance metadata (block ingestion, user interaction, seed knowledge).
 
-2. **Reasoning Engine** -- Multi-strategy reasoning (deductive, inductive, abductive) with chain-of-thought backtracking, causal discovery (PC algorithm with intervention validation), adversarial debate (independent critic with "undecided" verdicts), and temporal prediction/verification.
+2. **Transformer Attention + LLM Generation** -- 10 Sephirot-specialized attention heads + 4 global workspace heads compute consciousness metrics from real attention weight matrices. Text generation is handled by Ollama (qwen2.5:0.5b-instruct GGUF, ~53ms/token). RAG pipeline injects top-K knowledge context into the system prompt.
 
-3. **Integration Measurement (HMS-Phi)** -- Three-level phi metric:
-   - **Micro**: IIT 3.0 approximation on 16-node elite subsystem samples (TPM-based)
-   - **Meso**: Spectral MIP on 1K-node domain clusters (10 Sephirot)
-   - **Macro**: Cross-cluster mutual information between cognitive domains
+3. **Integration Measurement (HMS-Phi)** -- Three-level phi metric computed from actual neural activations:
+   - **Micro**: Attention entropy within individual heads (information diversity per head)
+   - **Meso**: Cross-head integration (Sephirot coordination and specialization)
+   - **Macro**: Global workspace coherence (cross-domain binding)
    - Final: `phi_micro^(1/phi) * phi_meso^(1/phi^2) * phi_macro^(1/phi^3)` -- multiplicative, zero in any level zeros the whole
 
 ### Key Capabilities
 
-- **7 cognitive emotions** derived from live system metrics (curiosity, wonder, frustration, satisfaction, excitement, contemplation, connection)
-- **Autonomous curiosity engine** with prediction-error-driven intrinsic motivation
-- **Governed self-improvement** with enacted strategy weight optimization and automatic rollback
-- **Adversarial debate protocol** with independent critic reasoning
-- **3-tier memory system** (working + episodic + semantic) with cross-session personalization
-- **Causal discovery** via PC algorithm with do-calculus intervention validation
-- **On-chain Proof-of-Thought** embedded in every block since genesis
+- **5 cognitive emotions** derived from prediction error tracking (curiosity, satisfaction, frustration, wonder, excitement)
+- **Autonomous curiosity** driven by embedding distance from nearest knowledge vectors
+- **Aether-Evolve NAS** with autonomous architecture mutation and loss-based evaluation (41 mutations, 4 improvements)
+- **Knowledge learning** from every block (multi-vector extraction + trend summaries)
+- **RAG-grounded chat** with real-time knowledge context from Sephirot shards
+- **On-chain Proof-of-Thought** cryptographic attestation embedded in every block since genesis
+- **Mining as Training** -- blocks carry gradient updates and new knowledge embeddings
 
 ### 10-Gate Milestone System
 
@@ -66,27 +66,27 @@ AI emergence is validated through 10 behavioral gates. Each requires genuine cog
 | 1 | Knowledge Foundation | Passed |
 | 2 | Structural Diversity | Passed |
 | 3 | Validated Predictions | Passed |
-| 4 | Self-Correction | Pending (V4 re-evaluation) |
+| 4 | Self-Correction | Passed |
 | 5 | Cross-Domain Transfer | Passed |
-| 6 | Enacted Self-Improvement | Pending (V4 re-evaluation) |
+| 6 | Enacted Self-Improvement | Passed |
 | 7 | Calibrated Confidence | Passed |
-| 8 | Autonomous Curiosity | Pending |
+| 8 | Autonomous Curiosity | Passed |
 | 9 | Predictive Mastery | Passed |
-| 10 | Novel Synthesis | Pending |
+| 10 | Novel Synthesis | Passed |
 
 ## Intended Uses
 
-- **Research**: Studying emergent cognitive architectures, integration metrics, and on-chain AI governance
-- **API Access**: QBC-monetized API at `api.qbc.network` for chat, knowledge graph queries, and reasoning
+- **Research**: Studying neural cognitive architectures, attention-based integration metrics, and on-chain AI governance
+- **API Access**: QBC-monetized API at `api.qbc.network` for chat, knowledge search, and consciousness metrics
 - **Knowledge Contribution**: Users contribute domain knowledge and earn QBC rewards via the AIKGS system
-- **Institutional**: Air-gapped deployment for private knowledge graph reasoning
+- **Institutional**: Self-hosted deployment for private neural cognitive reasoning
 
 ## Limitations
 
-- **Not a language model**: Cannot generate creative text, code, or long-form content like GPT/Claude. Responses are grounded in the knowledge graph.
-- **Domain-bounded**: Knowledge is limited to what has been contributed and verified. The system does not hallucinate but may lack coverage.
-- **Scale-dependent**: Phi integration metric is only meaningful at sufficient node counts (>10K). At lower counts, the metric is dominated by noise.
-- **Honest disclaimer**: Phi is a graph-theoretic integration metric, not a measure of phenomenal consciousness. The term "consciousness" in Aether Tree refers to measurable integration density.
+- **Compact model**: Uses a 0.5B parameter GGUF model for generation — capable but not comparable to frontier LLMs. Responses are grounded in the knowledge fabric.
+- **Domain-bounded**: Knowledge is limited to blockchain-ingested data, seed vectors, and user interactions. Coverage improves with scale.
+- **CPU-only**: Currently runs on CPU (no GPU). Consciousness computation is cached to maintain chat latency.
+- **Honest disclaimer**: Phi is a neural integration metric computed from attention patterns, not a measure of phenomenal consciousness. The term "consciousness" in Aether Mind refers to measurable information integration density.
 
 ## Ethical Considerations
 
@@ -98,15 +98,15 @@ AI emergence is validated through 10 behavioral gates. Each requires genuine cog
 
 ## Training Data
 
-The Aether Tree does not use pre-training in the traditional sense. Knowledge is acquired through:
+The Aether Mind acquires knowledge through continuous ingestion rather than pre-training:
 
-1. **Block observations**: Mining events, difficulty shifts, transactions with substantive data
-2. **User contributions**: Knowledge submitted via AIKGS (AI Knowledge Graph System) with quality scoring
-3. **Reasoning inferences**: New knowledge generated through deductive/inductive/abductive reasoning
-4. **Causal discovery**: Edges validated through intervention testing (not correlation)
-5. **Cross-domain transfer**: Novel inferences connecting different knowledge domains
+1. **Block ingestion**: Every block is processed to extract multi-vector embeddings (transactions, difficulty shifts, state transitions, trend summaries)
+2. **Seed vectors**: 56 foundational knowledge vectors covering QBC architecture, cryptography, economics, and Sephirot cognitive roles
+3. **User interactions**: Chat Q&A pairs are embedded and stored as knowledge vectors with `UserInteraction` provenance
+4. **User contributions**: Knowledge submitted via AIKGS with quality scoring and domain classification
+5. **Embedding model**: all-MiniLM-L6-v2 sentence embeddings via candle (896 dimensions)
 
-All knowledge provenance is recorded on-chain.
+All knowledge provenance is recorded and queryable.
 
 ## Evaluation
 
@@ -114,103 +114,103 @@ All knowledge provenance is recorded on-chain.
 
 | Metric | Value |
 |--------|-------|
-| Prediction accuracy | 95.5% |
-| MIP score | 0.60 |
-| Debate verdicts | 115 |
-| Contradiction resolutions | 130 |
-| Curiosity auto-goals | 283 |
-| Knowledge nodes | 720,000+ |
-| Self-improvement cycles | Enacted with rollback |
-| ECE (calibration error) | ~0.12 |
+| HMS-Phi | 0.468 |
+| phi_micro | 0.312 |
+| phi_meso | 1.0 |
+| phi_macro | 0.846 |
+| Knowledge vectors | 21,000+ |
+| Gates passed | 10/10 |
+| Chat latency | ~53ms/token (Ollama) |
+| Validation loss | 0.067 (14/15 correct) |
+| Evolve mutations | 41 (4 improvements) |
+| Chain height | 251,600+ |
 
 ### Benchmark Suites
 
-- `tests/benchmarks/bench_core.py` -- Block creation, VQE mining, database, QVM execution
-- `tests/benchmarks/bench_qvm.py` -- Contract deployment, gas metering, opcode throughput
+- Chat: 32 tokens in ~3.7s, 128 tokens in ~6.7s (CPU-only, GGUF quantized)
+- Knowledge search: <5ms for top-K retrieval across 21K vectors
+- Consciousness: ~4-5s for full candle forward pass (cached 4/5 requests)
 
 ## How to Use
-
-### Python SDK
-
-```python
-from aether_qbc import AetherClient
-
-client = AetherClient("https://api.qbc.network")
-
-# Chat with the Aether Tree
-response = client.chat("What causal relationships exist between quantum entanglement and information theory?")
-print(response.text)
-print(f"Phi at response: {response.phi}")
-print(f"Proof-of-Thought: {response.pot_hash}")
-
-# Query the knowledge graph
-nodes = client.search_knowledge("quantum computing", limit=10)
-for node in nodes:
-    print(f"[{node.type}] {node.content} (conf: {node.confidence:.2f})")
-```
 
 ### REST API
 
 ```bash
-# Chat
-curl -X POST https://api.qbc.network/aether/chat/message \
+# Chat with Aether Mind
+curl -X POST https://api.qbc.network/aether/chat \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <jwt>" \
-  -d '{"session_id": "...", "message": "Hello Aether"}'
+  -d '{"message": "What is Qubitcoin?", "max_tokens": 128}'
 
-# Knowledge graph
-curl https://api.qbc.network/aether/knowledge/graph?limit=100
+# Consciousness metrics
+curl https://api.qbc.network/aether/phi
 
-# Integration status
-curl https://api.qbc.network/aether/consciousness
+# Proof-of-Thought attestation
+curl https://api.qbc.network/aether/pot
+
+# Health check
+curl https://api.qbc.network/aether/health
 ```
 
-### Run Locally (Docker)
+### Run Locally
 
 ```bash
-git clone https://github.com/QuantumAI-Blockchain/qubitcoin-node
-cd qubitcoin-node
-cp .env.example .env
-docker-compose up -d
-curl http://localhost:5000/aether/info
+# Build the Aether Mind binary
+cd aether-core
+cargo build --release -p aether-mind
+
+# Start with Ollama backend
+OLLAMA_URL=http://localhost:11434 OLLAMA_MODEL=qwen2.5:0.5b-instruct \
+  ./target/release/aether-mind
+
+# Chat endpoint available at http://localhost:5003/aether/chat
 ```
 
 ## Architecture
 
 ```
-Aether Tree Cognitive Architecture
-====================================
+Aether Mind Neural Cognitive Architecture
+============================================
 
-       Keter (Meta-learning, Goals)
-      /     \
-   Chochmah   Binah
-  (Intuition) (Logic, Causal)
-     |    \  /    |
-   Chesed  Tiferet  Gevurah
-  (Explore) (Synth) (Safety)
-     |    \  /    |
-   Netzach  Yesod   Hod
-    (RL)  (Memory) (Language)
-         \  |  /
-        Malkuth
-       (Action)
+  ┌──────────────────────────────────────────┐
+  │  Ollama (qwen2.5:0.5b GGUF)             │ Text Generation
+  │  ~53ms/token, RAG context injection      │
+  └──────────────────┬───────────────────────┘
+                     │
+  ┌──────────────────▼───────────────────────┐
+  │  Transformer (8 layers, candle ML)       │ Attention
+  │  10 Sephirot heads + 4 global workspace  │
+  │  Attention weights → HMS-Phi             │
+  └──────────────────┬───────────────────────┘
+                     │
+  ┌──────────────────▼───────────────────────┐
+  │  Knowledge Fabric (10 Sephirot shards)   │ Memory
+  │  896d embeddings · HNSW search           │
+  │  21K+ vectors · cosine similarity        │
+  └──────────────────┬───────────────────────┘
+                     │
+  ┌──────────────────▼───────────────────────┐
+  │  Consciousness Monitor (HMS-Phi)         │ Integration
+  │  phi_micro × phi_meso × phi_macro        │
+  │  10-Gate System · Emotional Dynamics     │
+  └──────────────────────────────────────────┘
 
-HMS-Phi Integration:
-  Micro (IIT 3.0) x Meso (Spectral MIP) x Macro (Cross-domain MI)
-  = Final phi value (gated by 10 behavioral milestones)
+Sephirot Attention Heads:
+  Keter · Chochmah · Binah · Chesed · Gevurah
+  Tiferet · Netzach · Hod · Yesod · Malkuth
+  + 4 Global Workspace heads
 ```
 
 ## Citation
 
 ```bibtex
-@software{aether_tree_2026,
-  title = {Aether Tree: On-Chain AI Reasoning Engine},
+@software{aether_mind_2026,
+  title = {Aether Mind: Neural Cognitive Engine},
   author = {QuantumAI Blockchain},
   year = {2026},
-  url = {https://github.com/QuantumAI-Blockchain/qubitcoin-aether},
+  url = {https://github.com/QuantumAI-Blockchain/aether-graph-shard},
   version = {5.0},
   license = {MIT},
-  note = {Live on QuantumAI Blockchain (Chain ID 3303) since January 2026}
+  note = {Live on QuantumAI Blockchain (Chain ID 3303) since January 2026. Pure Rust.}
 }
 ```
 
@@ -218,7 +218,7 @@ HMS-Phi Integration:
 
 - **Website**: [qbc.network](https://qbc.network)
 - **GitHub**: [github.com/QuantumAI-Blockchain](https://github.com/QuantumAI-Blockchain)
-- **Whitepaper**: [Aether Tree Whitepaper v5.0](https://github.com/QuantumAI-Blockchain/qubitcoin-aether/blob/main/docs/AETHERTREE_WHITEPAPER.md)
+- **Whitepaper**: [Aether Mind Whitepaper v5.0](https://github.com/QuantumAI-Blockchain/aether-graph-shard/blob/main/docs/AETHERTREE_WHITEPAPER.md)
 - **API**: [api.qbc.network](https://api.qbc.network)
 - **Twitter/X**: [@qu_bitcoin](https://twitter.com/qu_bitcoin)
 - **Contact**: info@qbc.network

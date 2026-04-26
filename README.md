@@ -2,9 +2,9 @@
 
 **The First AI-Native Blockchain — Physics-Secured Digital Assets with On-Chain Intelligence**
 
-Qubitcoin is a production Layer 1 blockchain built on **Substrate** (Polkadot SDK) with a novel consensus mechanism: **Proof-of-SUSY-Alignment**, where miners solve quantum variational eigenvalue problems instead of hash puzzles. The network features post-quantum cryptography (CRYSTALS-Dilithium + ML-KEM-768), an EVM-compatible virtual machine with quantum opcode extensions, and the **Aether Tree** — an on-chain AI reasoning engine with 100K+ knowledge nodes, causal inference, and integration metrics tracked from genesis.
+Qubitcoin is a production Layer 1 blockchain built on **Substrate** (Polkadot SDK) with a novel consensus mechanism: **Proof-of-SUSY-Alignment**, where miners solve quantum variational eigenvalue problems instead of hash puzzles. The network features post-quantum cryptography (CRYSTALS-Dilithium + ML-KEM-768), an EVM-compatible virtual machine with quantum opcode extensions, and the **Aether Mind** — a pure Rust neural cognitive engine with 21K+ knowledge vectors, transformer-based consciousness metrics, and Proof-of-Thought attestation tracked from genesis.
 
-> **Our north star is AGSI — Artificial General Super Intelligence.** The Aether Tree is the first step: a production AI system that reasons over a live knowledge graph, improves autonomously within safety bounds, and records every cognitive step immutably on-chain. We are building toward a system that doesn't just process data — it understands it.
+> **Our north star is AGSI — Artificial General Super Intelligence.** The Aether Mind is the foundation: a neural cognitive system that learns distributed representations via attention mechanisms, improves autonomously through neural architecture search, and records every cognitive step immutably on-chain. We are building toward a system that doesn't just process data — it understands it.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.94+-orange.svg)](https://www.rust-lang.org/)
@@ -23,7 +23,7 @@ Qubitcoin is a production Layer 1 blockchain built on **Substrate** (Polkadot SD
 |-----------|-------------|
 | **VQE Mining** | Blocks are mined by solving variational quantum eigensolver problems — the same optimization used in quantum chemistry and materials science. Every block advances real physics research. |
 | **Post-Quantum Security** | CRYSTALS-Dilithium signatures (NIST FIPS 204) and ML-KEM-768 encrypted P2P transport. Quantum-resistant from day one. |
-| **On-Chain AI** | The Aether Tree: 128 production modules performing causal inference, adversarial debate, autonomous curiosity, and self-improvement — all recorded immutably on-chain. |
+| **On-Chain AI** | The Aether Mind: a pure Rust neural cognitive engine with transformer attention, 10 Sephirot-sharded knowledge fabric, HMS-Phi consciousness metrics, and Proof-of-Thought — all recorded immutably on-chain. |
 | **Substrate Native** | Full Substrate/Polkadot SDK node with 7 custom pallets, GRANDPA finality, and on-chain VQE proof re-verification. |
 | **EVM + Quantum Opcodes** | QVM: 155 standard EVM opcodes + 10 quantum opcodes + compliance engine. Deploy Solidity contracts with quantum extensions. |
 
@@ -61,11 +61,11 @@ Qubitcoin is a production Layer 1 blockchain built on **Substrate** (Polkadot SD
 │  Weighted Fork Choice + GRANDPA Finality                    │
 │  ML-KEM-768 P2P Transport + Poseidon2 ZK Hashing           │
 ├─────────────────────────────────────────────────────────────┤
-│  AETHER TREE (On-Chain AI — 128 Python Modules, 69K LOC)   │
-│  Knowledge Graph · Causal Inference · Adversarial Debate    │
-│  Autonomous Curiosity · Self-Improvement · 10-Gate System   │
-│  Rust Acceleration: aether-core (PyO3) + AIKGS Sidecar     │
-├─────────��──────────────────────────��────────────────────────┤
+│  AETHER MIND (Neural Cognitive Engine — Pure Rust, ~8K LOC) │
+│  Knowledge Fabric (10 Sephirot shards, 896d embeddings)     │
+│  Transformer Attention · HMS-Phi Consciousness · 10 Gates   │
+│  Ollama LLM (GGUF) · Candle ML · Aether-Evolve NAS         │
+├─────────────────────────────────────────────────────────────┤
 │  QVM (Quantum Virtual Machine)                              │
 │  155 EVM + 10 Quantum + 2 AI Opcodes · Compliance Engine   │
 │  QBC-20/721/1155 Standards · Go Production Build            │
@@ -144,21 +144,20 @@ The production chain runs on a native Substrate node (Polkadot SDK 0.57) with fu
 
 ---
 
-## Aether Tree (On-Chain AI)
+## Aether Mind (Neural Cognitive Engine)
 
-The Aether Tree is an on-chain AI reasoning engine — 128 production modules (~69,000 lines of Python) backed by Rust acceleration. It performs genuine multi-step reasoning over a growing knowledge graph, with every cognitive operation recorded immutably on-chain.
+The Aether Mind is a pure Rust neural cognitive engine — the world's first on-chain AI system built on learned distributed representations rather than symbolic knowledge graphs. Every cognitive state is cryptographically attested on-chain via Proof-of-Thought.
 
-**What it does today:**
-- **Knowledge Graph** — 100K+ nodes with typed edges, causal relationships, incremental Merkle roots
-- **Causal Inference** — PC/FCI algorithm causal discovery with intervention validation
-- **Adversarial Debate** — Independent proposer/critic with evidence-based verdicts
-- **Autonomous Curiosity** — Prediction-error-driven exploration across knowledge domains
-- **Self-Improvement** — Enacted strategy optimization with automatic rollback on regression
-- **Integration Metrics** — HMS-Phi: hierarchical multi-scale integration measurement inspired by IIT
+**Architecture:**
+- **Knowledge Fabric** — 21K+ learned 896-dimensional embeddings across 10 Sephirot-sharded vector stores with HNSW similarity search
+- **Transformer Attention** — 10 Sephirot-specialized + 4 global workspace attention heads, candle ML framework
+- **Ollama Backend** — qwen2.5:0.5b-instruct GGUF quantized model for fast text generation (~53ms/token)
+- **HMS-Phi Consciousness** — Hierarchical Multi-Scale Phi computed from real attention patterns (phi_micro, phi_meso, phi_macro)
 - **10-Gate Milestone System** — Behavioral checkpoints ensuring genuine capability, not metric gaming
-- **9/10 gates passed** — Validated: knowledge foundation, structural diversity, predictions, self-correction, cross-domain transfer, self-improvement, calibration, curiosity, predictive mastery
+- **10/10 gates passed** — All emergence milestones achieved
+- **Aether-Evolve** — Neural architecture search with autonomous mutation and loss-based evaluation
 
-**Where we're heading (AGSI):** The Aether Tree is the foundation for our pursuit of Artificial General Super Intelligence. Current capabilities are narrow AI with genuine reasoning over structured knowledge. The path to AGSI requires distributed knowledge graphs at billion-node scale, multi-modal grounding, do-calculus causal reasoning, and theory of mind — all on our roadmap.
+**Where we're heading (AGSI):** The Aether Mind is the foundation for our pursuit of Artificial General Super Intelligence. Current capabilities demonstrate genuine neural integration across knowledge domains. The path to AGSI requires distributed training across mining nodes, model parallelism, 1T+ knowledge vectors, and federated learning with Byzantine fault tolerance — all on our roadmap.
 
 ---
 
@@ -204,14 +203,13 @@ This monorepo maps to 24+ dedicated repositories in the [QuantumAI-Blockchain](h
 |------|----------|-------------|
 | `substrate-node/` | [substrate-node](https://github.com/QuantumAI-Blockchain/substrate-node) | Substrate node: 7 pallets, VQE mining, fork genesis |
 | `src/` | [qubitcoin-node](https://github.com/QuantumAI-Blockchain/qubitcoin-node) | Python node: consensus, mining, RPC, UTXO |
-| `src/qubitcoin/aether/` | [qubitcoin-aether](https://github.com/QuantumAI-Blockchain/qubitcoin-aether) | Aether Tree AI: 128 modules, 69K LOC |
+| `aether-core/` | [aether-graph-shard](https://github.com/QuantumAI-Blockchain/aether-graph-shard) | Aether Mind: pure Rust neural cognitive engine |
 | `frontend/` | [qubitcoin-frontend](https://github.com/QuantumAI-Blockchain/qubitcoin-frontend) | Next.js 16 frontend: qbc.network |
 | `qubitcoin-qvm/` | [qubitcoin-qvm](https://github.com/QuantumAI-Blockchain/qubitcoin-qvm) | Go QVM: 167 opcodes |
 | `rust-p2p/` | [rust-p2p](https://github.com/QuantumAI-Blockchain/rust-p2p) | Rust libp2p P2P daemon |
 | `aikgs-sidecar/` | [aikgs-sidecar](https://github.com/QuantumAI-Blockchain/aikgs-sidecar) | Rust knowledge growth sidecar |
-| `aether-core/` | [aether-graph-shard](https://github.com/QuantumAI-Blockchain/aether-graph-shard) | Rust/PyO3 AI acceleration |
-| `stratum-server/` | [stratum-server](https://github.com/QuantumAI-Blockchain/stratum-server) | Rust Stratum mining pool |
 | `security-core/` | [security-core](https://github.com/QuantumAI-Blockchain/security-core) | Rust/PyO3 BloomFilter + FinalityCore |
+| `stratum-server/` | [stratum-server](https://github.com/QuantumAI-Blockchain/stratum-server) | Rust Stratum mining pool |
 
 ---
 
@@ -224,7 +222,7 @@ This monorepo maps to 24+ dedicated repositories in the [QuantumAI-Blockchain](h
 | **Test Functions** | 4,336+ passing |
 | **Substrate Pallets** | 7 custom |
 | **Rust Crates** | 8+ |
-| **AI Modules** | 128 Python + 6 Rust |
+| **AI Engine** | Pure Rust (aether-mind, 6 crates, ~8K LOC) |
 | **Solidity Contracts** | 62 |
 | **Frontend** | 198 TypeScript/TSX files |
 | **RPC Endpoints** | 342 REST + 19 JSON-RPC |
@@ -237,7 +235,7 @@ This monorepo maps to 24+ dedicated repositories in the [QuantumAI-Blockchain](h
 |----------|-------------|
 | [Whitepaper](docs/WHITEPAPER.md) | Layer 1 technical specification |
 | [QVM Whitepaper](docs/QVM_WHITEPAPER.md) | Quantum Virtual Machine specification |
-| [Aether Tree Whitepaper](docs/AETHERTREE_WHITEPAPER.md) | On-chain AI reasoning engine |
+| [Aether Mind Whitepaper](docs/AETHERTREE_WHITEPAPER.md) | Neural cognitive engine specification |
 | [Economics](docs/ECONOMICS.md) | SUSY economics and phi-halving model |
 | [Competitive Features](docs/COMPETITIVE_FEATURES.md) | Inheritance, finality, deniable RPCs, stratum |
 | [Deployment Guide](docs/DEPLOYMENT.md) | Production deployment procedures |

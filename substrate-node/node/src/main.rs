@@ -2,6 +2,7 @@
 //!
 //! Entry point for the node binary. Parses CLI arguments and starts the service.
 
+mod aether_bridge;
 mod block_author;
 mod chain_spec;
 mod cli;

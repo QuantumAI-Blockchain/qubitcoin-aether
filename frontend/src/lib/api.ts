@@ -7,8 +7,8 @@ const BASE_DELAY_MS = 500;
 /** API base URL with fallback if the env var / constants import is undefined at runtime. */
 const API_URL = RPC_URL || "http://localhost:5000";
 
-/** Aether Engine (Rust) base URL for fast streaming chat */
-const AETHER_URL = AETHER_ENGINE_URL || "http://localhost:5001";
+/** Aether Mind (Rust) base URL — neural cognitive engine on port 5003 */
+const AETHER_URL = AETHER_ENGINE_URL || "http://localhost:5003";
 
 /** Build headers with optional JWT auth. */
 function buildHeaders(extra?: HeadersInit): Record<string, string> {
@@ -888,72 +888,36 @@ export const api = {
       body,
     ),
 
-  // --- Aether Engine (Rust) streaming chat ---
+  // --- Aether Mind (Rust) neural chat ---
 
   /**
-   * Send a streaming chat message to the Aether Engine.
-   * Returns an async generator that yields tokens as they arrive.
+   * Send a chat message to the Aether Mind neural engine.
+   * Returns a ChatResponse with the generated response + consciousness metrics.
    */
-  streamChat: async function* (
-    message: string,
-    userId: string = "anonymous",
-  ): AsyncGenerator<{ token: string; done: boolean; sources?: ChatSource[] }> {
+  sendAetherChat: async (message: string, userId: string = "anonymous") => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const token = getAuthToken();
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const resp = await fetch(`${AETHER_URL}/chat/stream`, {
+    const authToken = getAuthToken();
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const resp = await fetch(`${AETHER_URL}/aether/chat`, {
       method: "POST",
       headers,
       body: JSON.stringify({ message, user_id: userId }),
     });
-
-    if (!resp.ok) {
-      throw new Error(`Aether Engine error: ${resp.status}`);
-    }
-
-    const reader = resp.body?.getReader();
-    if (!reader) throw new Error("No response body");
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith("data: ")) {
-          try {
-            const data = JSON.parse(trimmed.slice(6));
-            yield data;
-          } catch {
-            // Skip malformed SSE lines
-          }
-        }
-      }
-    }
+    if (!resp.ok) throw new Error(`Aether Mind error: ${resp.status}`);
+    return resp.json() as Promise<AetherMindChatResponse>;
   },
 
-  /** Non-streaming chat via Aether Engine (Rust). */
-  sendAetherChat: (message: string, userId: string = "anonymous") =>
-    fetch(`${AETHER_URL}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, user_id: userId }),
-    }).then((r) => r.json() as Promise<ChatResponse>),
+  /** Aether Mind health check. */
+  getAetherHealth: async () => {
+    const resp = await fetch(`${AETHER_URL}/aether/health`);
+    return resp.json() as Promise<AetherEngineHealth>;
+  },
 
-  /** Aether Engine health check. */
-  getAetherHealth: () =>
-    fetch(`${AETHER_URL}/health`).then((r) => r.json()) as Promise<AetherEngineHealth>,
-
-  /** Aether Engine info (Rust) — node count, edges, phi, emotions, gates. */
-  getAetherEngineInfo: () =>
-    fetch(`${AETHER_URL}/info`).then((r) => r.json()) as Promise<AetherEngineInfo>,
+  /** Aether Mind info — vector count, phi, emotions, gates. */
+  getAetherEngineInfo: async () => {
+    const resp = await fetch(`${AETHER_URL}/aether/info`);
+    return resp.json() as Promise<AetherEngineInfo>;
+  },
 } as const;
 
 export interface AetherEngineHealth {
@@ -987,8 +951,17 @@ export interface AetherEngineInfo {
   };
 }
 
-interface ChatSource {
-  node_id: number;
-  summary: string;
-  confidence: number;
+export interface AetherMindChatResponse {
+  response: string;
+  phi: number;
+  phi_micro: number;
+  phi_meso: number;
+  phi_macro: number;
+  tokens_generated: number;
+  latency_ms: number;
+  model: string;
+  knowledge_vectors: number;
+  knowledge_context: string[];
+  active_sephirot: number;
+  chain_height: number;
 }

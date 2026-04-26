@@ -104,6 +104,24 @@ impl TransformerLayer {
         Ok((x, attn_weights))
     }
 
+    /// Fast forward without attention weight collection (for decode tokens).
+    pub fn forward_fast(
+        &mut self,
+        x: &Tensor,
+        rope: &RotaryEmbedding,
+        offset: usize,
+    ) -> Result<Tensor> {
+        let residual = x;
+        let x = self.attn_norm.forward(x)?;
+        let attn_out = self.attention.forward_fast(&x, rope, offset)?;
+        let x = (residual + attn_out)?;
+
+        let residual = &x;
+        let x = self.ffn_norm.forward(&x)?;
+        let ffn_out = self.ffn.forward(&x)?;
+        (residual + ffn_out)
+    }
+
     pub fn clear_kv_cache(&mut self) {
         self.attention.clear_kv_cache();
     }
@@ -218,10 +236,42 @@ impl AetherTransformer {
         offset: usize,
         collect_attention: bool,
     ) -> Result<(Tensor, Vec<Tensor>)> {
-        let (logits, attn_weights) = self.forward(token_ids, offset, collect_attention)?;
-        let seq_len = logits.dim(1)?;
-        let last_logits = logits.narrow(1, seq_len - 1, 1)?.squeeze(1)?;
-        Ok((last_logits, attn_weights))
+        if collect_attention {
+            let (logits, attn_weights) = self.forward(token_ids, offset, true)?;
+            let seq_len = logits.dim(1)?;
+            let last_logits = logits.narrow(1, seq_len - 1, 1)?.squeeze(1)?;
+            Ok((last_logits, attn_weights))
+        } else {
+            // Fast path: skip attention weight collection entirely
+            let logits = self.forward_decode(token_ids, offset)?;
+            let seq_len = logits.dim(1)?;
+            let last_logits = logits.narrow(1, seq_len - 1, 1)?.squeeze(1)?;
+            Ok((last_logits, vec![]))
+        }
+    }
+
+    /// Fast decode-only forward pass — no attention weight collection.
+    /// Used during token-by-token generation for maximum throughput.
+    fn forward_decode(
+        &mut self,
+        token_ids: &Tensor,
+        offset: usize,
+    ) -> Result<Tensor> {
+        let mut x = self.embed_tokens.forward(token_ids)?;
+
+        for layer in self.layers.iter_mut() {
+            x = layer.forward_fast(&x, &self.rope, offset)?;
+        }
+
+        let x = self.norm.forward(&x)?;
+
+        match &self.lm_head {
+            Some(head) => head.forward(&x),
+            None => {
+                let ew_t = self.embed_weight.t()?.contiguous()?;
+                x.broadcast_matmul(&ew_t)
+            }
+        }
     }
 
     /// Clear KV cache across all layers (call before new sequence).

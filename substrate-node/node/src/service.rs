@@ -667,6 +667,9 @@ pub fn new_full(
             .spawn_blocking("aura", Some("block-authoring"), aura);
     }
 
+    // Clone pool before GRANDPA consumes it (for aether bridge)
+    let pool_for_bridge = transaction_pool.clone();
+
     if enable_grandpa {
         let grandpa_config = sc_consensus_grandpa::Config {
             gossip_duration: std::time::Duration::from_millis(333),
@@ -719,6 +722,35 @@ pub fn new_full(
 
         // The broadcaster can be stored for outbound block/tx propagation.
         // For now, inbound streaming is the primary use case.
+    }
+
+    // ── Aether Mind Bridge ─────────────────────────────────────
+    // Submit Proof-of-Thought from aether-mind to the chain after each block.
+    // NOTE: pool ref must be cloned before GRANDPA consumes it.
+    let bridge_pool = pool_for_bridge;
+    if mining_enabled {
+        let aether_url = std::env::var("AETHER_MIND_URL")
+            .unwrap_or_else(|_| "http://localhost:5003".to_string());
+
+        log::info!(
+            target: "aether-bridge",
+            "Spawning Aether Mind bridge → {}",
+            aether_url
+        );
+
+        let bridge_client = client.clone();
+        let bridge_keystore = keystore_container.keystore();
+
+        task_manager.spawn_handle().spawn(
+            "aether-bridge",
+            Some("aether"),
+            crate::aether_bridge::run_aether_bridge(
+                bridge_client,
+                bridge_pool,
+                bridge_keystore,
+                aether_url,
+            ),
+        );
     }
 
     Ok(task_manager)

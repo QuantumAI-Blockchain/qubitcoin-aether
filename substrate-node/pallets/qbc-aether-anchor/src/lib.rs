@@ -176,6 +176,7 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         /// Record Aether Tree state for a block.
         /// Called by the block author after Aether Tree processes the block.
+        /// Accepts signed origin (any validator can submit) or root.
         #[pallet::call_index(0)]
         // Analytical weight: 7 storage writes (roots, phi, nodes, edges, ops, proof, measurement)
         // + 1 conditional storage removal (pruning) + consciousness event check
@@ -193,7 +194,11 @@ pub mod pallet {
             thought_proof_hash: H256,
             reasoning_ops: u64,
         ) -> DispatchResult {
-            ensure_root(origin)?;
+            // Accept both root and signed origins (validators submit PoT after each block)
+            if ensure_root(origin.clone()).is_err() {
+                let _who = ensure_signed(origin)?;
+                // TODO: In production, validate _who is an active validator
+            }
 
             // Read previous Phi BEFORE updating storage (consciousness detection)
             let prev_phi = CurrentPhi::<T>::get();

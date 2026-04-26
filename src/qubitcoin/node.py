@@ -24,8 +24,9 @@ from .network.rust_p2p_client import RustP2PClient
 from .network.chain_sync import ChainSync
 from .contracts.executor import ContractExecutor
 from .qvm.state import StateManager
-from .aether import KnowledgeGraph, PhiCalculator, ReasoningEngine, AetherEngine
-from .aether.genesis import AetherGenesis
+# V5: Python Aether Tree deleted — replaced by Rust aether-mind binary (port 5003)
+# from .aether import KnowledgeGraph, PhiCalculator, ReasoningEngine, AetherEngine
+# from .aether.genesis import AetherGenesis
 from .utils.logger import get_logger
 
 # Import metrics (only those that are instrumented)
