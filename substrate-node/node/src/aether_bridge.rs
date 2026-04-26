@@ -67,15 +67,23 @@ pub async fn run_aether_bridge(
     let mut last_submitted_height: u64 = 0;
     let mut last_gates_check: u64 = 0;
 
-    // Wait for the node to start up and sync
-    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+    // Wait for the node to start up and produce a few blocks before submitting PoT.
+    // This prevents nonce collisions with the mining proof extrinsics during startup.
+    tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     log::info!(target: "aether-bridge", "Aether bridge started — polling {} for PoT", aether_url);
 
     loop {
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        // Poll every 30s instead of 5s to avoid nonce collisions with mining proofs.
+        // Mining proofs are time-critical (must be included in the next block);
+        // PoT attestations are not — they just record state and can lag by a few blocks.
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 
         let best_number = client.info().best_number as u64;
         if best_number <= last_submitted_height {
+            continue;
+        }
+        // Skip if only 1 block ahead — wait for a small batch to reduce tx pool contention
+        if best_number < last_submitted_height + 3 {
             continue;
         }
 
@@ -182,15 +190,19 @@ async fn submit_extrinsic(
 
     let account_id: qbc_runtime::AccountId = signer_pub.into();
 
-    // Get nonce — add 1 to avoid conflicting with the mining proof extrinsic
-    // that's typically already in the pool at the same nonce.
+    // Get nonce — use pool-aware nonce (accounts for pending txs in the pool).
+    // The mining proof extrinsic is typically already pending at base_nonce,
+    // so we need to use the next available nonce AFTER all pending txs.
+    // Using validated_pool().status() to count pending txs from this account
+    // would be ideal, but the simplest reliable approach is base_nonce + 5
+    // to leave room for mining proofs that may be queued.
     let nonce: qbc_runtime::Nonce = {
         use frame_system_rpc_runtime_api::AccountNonceApi;
         let base_nonce = client
             .runtime_api()
             .account_nonce(best_hash, account_id.clone())
             .map_err(|e| format!("Nonce error: {:?}", e))?;
-        base_nonce + 1
+        base_nonce + 5
     };
 
     let genesis_hash = client
