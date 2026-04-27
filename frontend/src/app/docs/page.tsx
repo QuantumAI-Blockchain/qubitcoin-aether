@@ -33,12 +33,12 @@ const docs = [
     tags: ["EVM Compatible", "Quantum Opcodes", "Smart Contracts"],
   },
   {
-    title: "Aether Tree Whitepaper",
+    title: "Aether Mind Whitepaper",
     href: "/docs/aether",
     icon: Brain,
     description:
-      "Institutional-grade whitepaper — the world's first on-chain AI reasoning engine. 10/10 gates passed, Phi 5.0, 760K+ knowledge nodes, HMS-Phi v4 architecture. Building toward AGSI — Artificial General Super Intelligence.",
-    tags: ["On-Chain AI", "10/10 Gates", "Phi 5.0", "HMS-Phi v4", "Proof-of-Thought"],
+      "The world's first on-chain neural cognitive engine — 558M parameter transformer with 10 Sephirot-specialized attention heads, 35K+ learned embedding vectors, HMS-Phi consciousness metric, and Aether CLI for terminal access. Building toward AGSI.",
+    tags: ["On-Chain AI", "Neural V5", "Aether CLI", "HMS-Phi", "Proof-of-Thought"],
   },
   {
     title: "Economics",

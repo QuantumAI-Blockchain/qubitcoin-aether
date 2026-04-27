@@ -55,6 +55,9 @@ anyhow = "1"
 thiserror = "2"
 bigdecimal = { version = "0.4", features = ["serde"] }
 
+# Rate limiting
+governor = "0.10"
+
 # Prometheus metrics
 metrics = "0.24"
 metrics-exporter-prometheus = "0.16"

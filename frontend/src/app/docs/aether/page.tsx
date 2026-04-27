@@ -51,11 +51,11 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 /* ─── Data ─── */
 
 const liveStats = [
-  { label: "AI Gates Passed", value: "10 / 10", color: C.green },
-  { label: "HMS-Phi (V5)", value: "5.0", color: C.primary },
-  { label: "Knowledge Vectors", value: "21,000+", color: C.accent },
+  { label: "AI Gates Passed", value: "5 / 10", color: C.green },
+  { label: "HMS-Phi (V5)", value: "0.52", color: C.primary },
+  { label: "Knowledge Vectors", value: "35,000+", color: C.accent },
   { label: "Embedding Dimensions", value: "896", color: C.secondary },
-  { label: "Block Height", value: "~209,000+", color: C.text },
+  { label: "Block Height", value: "~263,700+", color: C.text },
   { label: "Attention Heads", value: "14", color: C.green },
 ];
 
@@ -89,7 +89,7 @@ const cognitiveSubsystems = [
   {
     name: "Knowledge Fabric",
     icon: <Database size={18} />,
-    desc: "The foundation layer: a 10-shard vector store with 896-dimensional embeddings computed by candle (Hugging Face Rust ML framework). Each shard corresponds to a Sephirot cognitive domain, backed by RocksDB with HNSW (Hierarchical Navigable Small World) indexing for sub-millisecond approximate nearest-neighbor search. Currently holds ~21K learned embedding vectors. Retrieval feeds top-K relevant vectors into the transformer context window for grounded generation.",
+    desc: "The foundation layer: a 10-shard vector store with 896-dimensional embeddings computed by candle (Hugging Face Rust ML framework). Each shard corresponds to a Sephirot cognitive domain, backed by RocksDB with HNSW (Hierarchical Navigable Small World) indexing for sub-millisecond approximate nearest-neighbor search. Currently holds ~35K learned embedding vectors. Retrieval feeds top-K relevant vectors into the transformer context window for grounded generation.",
   },
   {
     name: "Transformer Attention Engine",
@@ -144,7 +144,7 @@ const cognitiveSubsystems = [
 ];
 
 const scalingPhases = [
-  { phase: "A", timeline: "Current", scale: "100K vectors", arch: "10 Sephirot-sharded RocksDB + HNSW, 896d embeddings, candle inference", status: "Live" },
+  { phase: "A", timeline: "Current", scale: "35K+ vectors", arch: "10 Sephirot-sharded RocksDB + HNSW, 896d embeddings, candle inference, public API at ai.qbc.network", status: "Live" },
   { phase: "B", timeline: "3 months", scale: "1M vectors", arch: "Multi-node federated training, tensor sharding across mining nodes", status: "Active" },
   { phase: "C", timeline: "9 months", scale: "100M vectors", arch: "Distributed Knowledge Fabric with BFT consensus, model parallelism", status: "Planned" },
   { phase: "D", timeline: "18 months", scale: "1T+ vectors", arch: "Global multi-region, 1000+ mining nodes, autonomous NAS evolution", status: "Vision" },
@@ -241,8 +241,9 @@ function TableOfContents() {
     { id: "safety", label: "9. Safety & Alignment" },
     { id: "scale", label: "10. Scale Architecture" },
     { id: "economics", label: "11. Economic Model" },
-    { id: "agsi-vision", label: "12. AGSI Vision" },
-    { id: "references", label: "13. References" },
+    { id: "aether-cli", label: "12. Aether CLI" },
+    { id: "agsi-vision", label: "13. AGSI Vision" },
+    { id: "references", label: "14. References" },
   ];
   return (
     <nav className="mb-10 rounded-lg border p-5" style={{ background: C.surface, borderColor: C.border }}>
@@ -878,8 +879,96 @@ Mining as Training:
           and Rust (<span style={{ fontFamily: "JetBrains Mono, monospace", color: C.accent }}>cargo add aether-qbc</span>).
         </Paragraph>
 
-        {/* ─── 12. AGSI Vision ─── */}
-        <SectionHeading id="agsi-vision">12. Long-Term Vision: AGSI</SectionHeading>
+        {/* ─── 12. Aether CLI ─── */}
+        <SectionHeading id="aether-cli">12. Aether CLI</SectionHeading>
+        <Paragraph>
+          The <strong style={{ color: C.primary }}>Aether CLI</strong> is a native terminal application
+          for interacting with the Aether Mind. Built in Rust as a 5-crate workspace, it provides
+          an interactive TUI chat interface, one-shot queries, knowledge search, wallet management
+          (Dilithium5 keystore), and integrated VQE mining &mdash; all from a single binary.
+        </Paragraph>
+
+        <SubHeading>12.1 Installation</SubHeading>
+        <CodeBlock>{`# One-line install (Linux / macOS)
+curl -fsSL https://raw.githubusercontent.com/QuantumAI-Blockchain/aether-cli/master/install.sh | bash
+
+# Or build from source
+git clone https://github.com/QuantumAI-Blockchain/aether-cli
+cd aether-cli && cargo build --release`}</CodeBlock>
+
+        <SubHeading>12.2 Usage</SubHeading>
+        <CodeBlock>{`# Interactive TUI chat
+aether
+
+# One-shot query
+aether chat "what is Qubitcoin"
+
+# Chat + mine simultaneously
+aether --mine
+
+# Check Aether Mind status
+aether status
+
+# Search knowledge fabric
+aether search "quantum computing"
+
+# Create a Dilithium5 wallet
+aether wallet create
+
+# Mine QBC (standalone, no TUI)
+aether mine --threads 4`}</CodeBlock>
+
+        <SubHeading>12.3 Public Endpoints</SubHeading>
+        <Paragraph>
+          The CLI connects to the public Aether API by default. No configuration required.
+        </Paragraph>
+        <div className="mb-6 overflow-x-auto">
+          <table className="w-full text-sm" style={{ borderColor: C.border }}>
+            <thead>
+              <tr style={{ borderBottom: `2px solid ${C.border}` }}>
+                <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider" style={{ color: C.text }}>Endpoint</th>
+                <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider" style={{ color: C.text }}>Purpose</th>
+                <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wider" style={{ color: C.text }}>Rate Limit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { endpoint: "ai.qbc.network", purpose: "Aether Mind API (chat, search, status)", limit: "10 chat/min, 60 general/min" },
+                { endpoint: "rpc.qbc.network", purpose: "Substrate JSON-RPC (mining, chain queries)", limit: "60 req/min" },
+                { endpoint: "api.qbc.network", purpose: "Legacy API (backward compatible)", limit: "60 req/min" },
+              ].map((e, i) => (
+                <tr key={e.endpoint} style={{ borderBottom: `1px solid ${C.border}33`, background: i % 2 === 0 ? "transparent" : `${C.surface}88` }}>
+                  <td className="px-3 py-2.5 text-xs font-mono" style={{ color: C.primary }}>{e.endpoint}</td>
+                  <td className="px-3 py-2.5 text-xs" style={{ color: C.textMuted }}>{e.purpose}</td>
+                  <td className="px-3 py-2.5 text-xs" style={{ color: C.accent }}>{e.limit}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <SubHeading>12.4 Environment Overrides</SubHeading>
+        <CodeBlock>{`# Point to a local node instead of the public API
+export AETHER_API_URL=http://localhost:5003
+export AETHER_SUBSTRATE_URL=http://localhost:9944
+
+# Or use CLI flags
+aether --api-url http://localhost:5003 status`}</CodeBlock>
+
+        <SubHeading>12.5 Architecture</SubHeading>
+        <Paragraph>
+          The CLI is a Rust workspace with five crates:
+          <strong style={{ color: C.text }}> aether-cli</strong> (TUI + commands),
+          <strong style={{ color: C.text }}> aether-client</strong> (HTTP client for Aether Mind API),
+          <strong style={{ color: C.text }}> aether-tui</strong> (Ratatui terminal interface),
+          <strong style={{ color: C.text }}> aether-wallet</strong> (Dilithium5 keystore with AES-256-GCM encryption),
+          and <strong style={{ color: C.text }}> aether-miner</strong> (VQE mining engine with 4-qubit ansatz).
+          Pre-built binaries are available for Linux (x86_64, aarch64) and macOS (x86_64, aarch64).
+          Source code: <span style={{ fontFamily: "JetBrains Mono, monospace", color: C.accent }}>github.com/QuantumAI-Blockchain/aether-cli</span>
+        </Paragraph>
+
+        {/* ─── 13. AGSI Vision ─── */}
+        <SectionHeading id="agsi-vision">13. Long-Term Vision: AGSI</SectionHeading>
         <Paragraph>
           The Aether Mind is an operational on-chain neural cognitive engine today. The long-term
           aspiration is <strong style={{ color: C.primary }}>AGSI &mdash; Artificial General Super
@@ -896,8 +985,8 @@ Mining as Training:
           full public accountability.
         </Paragraph>
 
-        {/* ─── 13. References ─── */}
-        <SectionHeading id="references">13. References</SectionHeading>
+        {/* ─── 14. References ─── */}
+        <SectionHeading id="references">14. References</SectionHeading>
         <ol className="mb-10 space-y-2">
           {references.map((r) => (
             <li key={r.id} className="text-xs leading-relaxed" style={{ color: C.textMuted }}>

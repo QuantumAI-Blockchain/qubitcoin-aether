@@ -212,149 +212,32 @@ class QubitcoinNode:
             raise
 
         # Component 7: Aether Tree (AI layer)
-        logger.info("[7/22] Initializing Aether Engine...")
-        try:
-            self.knowledge_graph = KnowledgeGraph(self.db)
-            self.phi_calculator = PhiCalculator(self.db, self.knowledge_graph)
-            self.reasoning_engine = ReasoningEngine(self.db, self.knowledge_graph)
-            self.aether = AetherEngine(
-                self.db, self.knowledge_graph,
-                self.phi_calculator, self.reasoning_engine
-            )
-            self.consensus.aether = self.aether
+        # V5 Neural Redesign: Python Aether classes (KnowledgeGraph, PhiCalculator,
+        # ReasoningEngine, AetherEngine, AetherGenesis) were deleted.
+        # Aether AI is now handled by the Rust aether-mind binary (port 5003).
+        logger.info("[7/22] Aether V5 (Rust): Handled by aether-mind binary — Python Aether removed")
+        self.knowledge_graph = None
+        self.phi_calculator = None
+        self.reasoning_engine = None
+        self.aether = None
+        self.aether_genesis = None
+        self.pot_protocol = None
+        self.on_chain = None
+        self.consensus.aether = None
 
-            # Instantiate Proof-of-Thought protocol and wire to Aether
-            from .aether.task_protocol import ProofOfThoughtProtocol
-            self.pot_protocol = ProofOfThoughtProtocol()
-            self.aether.pot_protocol = self.pot_protocol
-            logger.info("Proof-of-Thought protocol wired to Aether Engine")
-
-            # Initialize AI from genesis if this is the first run
-            self.aether_genesis = AetherGenesis(
-                self.db, self.knowledge_graph, self.phi_calculator
-            )
-            if not self.aether_genesis.is_genesis_initialized():
-                try:
-                    genesis_block = self.db.get_block(0)
-                    genesis_hash = genesis_block.block_hash if genesis_block else '0' * 64
-                    genesis_ts = genesis_block.timestamp if genesis_block else None
-                    result = self.aether_genesis.initialize_genesis(genesis_hash, genesis_ts)
-                    logger.info(
-                        f"Aether genesis initialized: "
-                        f"{result['knowledge_nodes_created']} nodes seeded"
-                    )
-                except Exception as e:
-                    logger.debug(f"Aether genesis init skipped (DB not ready): {e}")
-
-            # Phase 6: On-chain AI integration
-            try:
-                from .aether.on_chain import OnChainAGI
-                self.on_chain = OnChainAGI(self.state_manager)
-                self.aether.on_chain = self.on_chain
-                logger.info("OnChainAGI bridge wired to Aether Engine")
-            except Exception as e:
-                self.on_chain = None
-                logger.debug(f"OnChainAGI init skipped: {e}")
-
-            # Wire SubstrateBridge into the on-chain module for real extrinsic submission
-            if self.substrate_bridge:
-                on_chain_mod = getattr(self.aether, 'on_chain', None)
-                if on_chain_mod and hasattr(on_chain_mod, 'set_substrate_bridge'):
-                    on_chain_mod.set_substrate_bridge(self.substrate_bridge)
-                    logger.info("SubstrateBridge injected into OnChainAGI — on-chain PoT enabled")
-
-            logger.info("[7/22] Aether Engine initialized (KnowledgeGraph + Phi + Reasoning + PoT)")
-        except Exception as e:
-            logger.error(f"[7/22] Aether Engine failed: {e}", exc_info=True)
-            raise
-
-        # Component 7a: AI Persistence — load learned state from DB
+        # Component 7a: AI Persistence — skipped (V5: handled by aether-mind)
         self.agi_persistence = None
-        try:
-            from .aether.persistence import AGIPersistence
-            self.agi_persistence = AGIPersistence(self.db)
-            self._load_agi_state()
-            logger.info("[7a/22] AI Persistence initialized — learned state loaded")
-        except Exception as e:
-            logger.warning(f"[7a/22] AI Persistence failed (non-fatal): {e}")
 
         # Component 7c: AIKGS — now runs as a Rust sidecar (gRPC client).
         # The 8 Python AIKGS modules have been replaced by a single gRPC client.
         self.aikgs_client = None
         self.aikgs_telegram_bot = None  # Telegram bot still runs in Python
 
-        # Component 7b: LLM Adapters + Knowledge Seeder (optional)
+        # Component 7b: LLM Adapters + Knowledge Seeder
+        # V5: Python LLM adapters and knowledge seeder deleted with Aether Tree.
+        # LLM integration now handled by aether-mind Rust binary.
         self.llm_manager = None
         self.knowledge_seeder = None
-        if Config.LLM_ENABLED:
-            try:
-                from .aether.llm_adapter import (
-                    LLMAdapterManager, OpenAIAdapter, ClaudeAdapter, LocalAdapter,
-                    OllamaAdapter, BitNetAdapter,
-                )
-                self.llm_manager = LLMAdapterManager(self.knowledge_graph)
-
-                # Register adapters in priority order based on LLM_PRIMARY_ADAPTER
-                primary = Config.LLM_PRIMARY_ADAPTER
-                adapters_to_register = []
-
-                # BitNet local inference (highest priority when available)
-                bitnet_url = getattr(Config, 'BITNET_BASE_URL', 'http://127.0.0.1:8178/v1')
-                bitnet_adapter = BitNetAdapter(base_url=bitnet_url)
-                if bitnet_adapter.is_available():
-                    adapters_to_register.append((
-                        bitnet_adapter,
-                        5 if primary == 'bitnet' else 15,
-                    ))
-                if Config.OPENAI_API_KEY:
-                    adapters_to_register.append((
-                        OpenAIAdapter(
-                            api_key=Config.OPENAI_API_KEY,
-                            model=Config.OPENAI_MODEL,
-                            max_tokens=Config.OPENAI_MAX_TOKENS,
-                            temperature=Config.OPENAI_TEMPERATURE,
-                        ),
-                        10 if primary == 'openai' else 50,
-                    ))
-                if Config.CLAUDE_API_KEY:
-                    adapters_to_register.append((
-                        ClaudeAdapter(
-                            api_key=Config.CLAUDE_API_KEY,
-                            model=Config.CLAUDE_MODEL,
-                        ),
-                        10 if primary == 'claude' else 50,
-                    ))
-                if Config.OLLAMA_BASE_URL:
-                    adapters_to_register.append((
-                        OllamaAdapter(
-                            model=Config.OLLAMA_MODEL,
-                            base_url=Config.OLLAMA_BASE_URL,
-                            max_tokens=200,  # 200 tokens → ~15 facts per seed call on CPU Ollama
-                        ),
-                        10 if primary == 'ollama' else 30,
-                    ))
-                if Config.LOCAL_LLM_URL:
-                    adapters_to_register.append((
-                        LocalAdapter(base_url=Config.LOCAL_LLM_URL),
-                        10 if primary == 'local' else 90,
-                    ))
-
-                for adapter, priority in adapters_to_register:
-                    self.llm_manager.register_adapter(adapter, priority)
-
-                available = self.llm_manager.get_available_adapters()
-                logger.info(f"LLM adapters initialized: {available}")
-
-                # Knowledge Seeder — internet workers (Grokipedia/ArXiv) run
-                # regardless of LLM adapter availability
-                if Config.LLM_SEEDER_ENABLED:
-                    from .aether.knowledge_seeder import KnowledgeSeeder
-                    self.knowledge_seeder = KnowledgeSeeder(self.llm_manager, self.db)
-                    logger.info("Knowledge seeder initialized (will start on node startup)")
-            except Exception as e:
-                logger.warning(f"LLM initialization failed (non-fatal): {e}")
-                self.llm_manager = None
-                self.knowledge_seeder = None
 
         # ================================================================
         # NEW SUBSYSTEM WIRING (Components 8-20) — all non-fatal

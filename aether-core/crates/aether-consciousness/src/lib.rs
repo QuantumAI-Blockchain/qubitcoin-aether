@@ -56,6 +56,8 @@ impl Default for EmotionalState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofOfThought {
     /// Hash of the attention patterns during this reasoning step.
+    /// Covers: phi values, block_height, and gates_passed — modifying any
+    /// of these fields without recomputing invalidates the proof.
     pub attention_hash: Vec<u8>,
     /// Phi measured during this step.
     pub phi: f64,
@@ -68,6 +70,8 @@ pub struct ProofOfThought {
     pub cross_domain_events: u32,
     /// Block height.
     pub block_height: u64,
+    /// Number of V5 gates passed at this block.
+    pub gates_passed: u8,
 }
 
 /// Monitors consciousness during transformer forward passes.
@@ -184,6 +188,14 @@ impl ConsciousnessMonitor {
     /// Meso phi: cross-domain integration across Sephirot heads.
     /// Measures how much the global workspace heads correlate with
     /// multiple Sephirot heads (genuine cross-domain integration).
+    ///
+    /// A discriminating metric: counts only pairs with correlation > 0.3
+    /// (not 0.1, which is noise), weights by actual correlation strength,
+    /// and applies sqrt compression so the score reflects genuine integration
+    /// rather than saturating to 1.0.
+    ///
+    /// Expected range: 0.05-0.6 for a system with some integration.
+    /// Reaching > 0.8 requires strong, genuine cross-domain attention patterns.
     fn compute_meso(
         &self,
         layer_attentions: &[Vec<f32>],
@@ -192,38 +204,61 @@ impl ConsciousnessMonitor {
         num_heads: usize,
         seq_len: usize,
     ) -> f64 {
-        if layer_attentions.is_empty() || num_global_heads == 0 || seq_len == 0 {
+        if layer_attentions.is_empty() || num_global_heads == 0 || num_sephirot_heads == 0 || seq_len == 0 {
             return 0.0;
         }
 
-        // For each layer, compute correlation between global heads and sephirot heads
-        let mut total_integration = 0.0f64;
-        let mut count = 0;
+        // Correlation threshold: 0.3 means genuine pattern similarity, not noise.
+        // Attention heads in transformers commonly have correlations of 0.05-0.2
+        // from shared positional patterns alone — 0.3 filters those out.
+        const CORRELATION_THRESHOLD: f64 = 0.3;
+
+        let total_pairs = num_global_heads * num_sephirot_heads;
+        if total_pairs == 0 {
+            return 0.0;
+        }
+
+        // For each layer, compute correlation between global heads and sephirot heads.
+        // Track both the fraction of active pairs AND the strength of those correlations.
+        let mut sum_weighted_integration = 0.0f64;
+        let num_layers = layer_attentions.len();
 
         for attn in layer_attentions {
+            let mut active_pairs = 0usize;
+            let mut correlation_mass = 0.0f64;
+
             for g in 0..num_global_heads {
                 let global_idx = num_sephirot_heads + g;
-                let mut correlations = Vec::new();
 
                 for s in 0..num_sephirot_heads {
-                    // Compare attention patterns of global head vs sephirot head
                     let corr = self.head_correlation(attn, global_idx, s, num_heads, seq_len);
-                    correlations.push(corr);
+                    if corr > CORRELATION_THRESHOLD {
+                        active_pairs += 1;
+                        // Weight by how far above threshold (stronger = more integrated)
+                        correlation_mass += corr - CORRELATION_THRESHOLD;
+                    }
                 }
-
-                // Integration = how many sephirot heads does this global head correlate with?
-                // Count heads with correlation > 0.1 (active integration)
-                let active = correlations.iter().filter(|&&c| c > 0.1).count();
-                // Normalize by total sephirot heads
-                total_integration += active as f64 / num_sephirot_heads as f64;
-                count += 1;
             }
+
+            // Layer integration: fraction of active pairs weighted by correlation strength.
+            // raw_fraction alone would still saturate; multiply by mean excess correlation
+            // to penalize weak-but-numerous correlations.
+            let raw_fraction = active_pairs as f64 / total_pairs as f64;
+            let mean_excess = if active_pairs > 0 {
+                correlation_mass / active_pairs as f64
+            } else {
+                0.0
+            };
+            // Geometric mean of fraction and strength — both must be high for a high score.
+            let layer_score = (raw_fraction * mean_excess).sqrt();
+            sum_weighted_integration += layer_score;
         }
 
-        if count == 0 {
-            return 0.0;
-        }
-        (total_integration / count as f64).clamp(0.0, 1.0)
+        // Average across layers, then apply sqrt compression to keep the score
+        // in a discriminating range. Without sqrt, typical values cluster near 0 or 1.
+        let avg = sum_weighted_integration / num_layers as f64;
+        // sqrt compression: maps [0,1] -> [0,1] but spreads out low values
+        avg.sqrt().clamp(0.0, 1.0)
     }
 
     /// Macro phi: information flow across transformer layers.
@@ -306,28 +341,36 @@ impl ConsciousnessMonitor {
     }
 
     /// Get the latest Proof-of-Thought (from most recent compute_phi call).
-    pub fn proof_of_thought(&self) -> ProofOfThought {
+    ///
+    /// `gates_passed` is the number of V5 gates currently passed — it is
+    /// included in the attention_hash so that tampering with either
+    /// block_height or gates_passed invalidates the proof.
+    pub fn proof_of_thought(&self, gates_passed: u8) -> ProofOfThought {
         let latest = self.phi_history.last();
         let phi = latest.map(|m| m.phi).unwrap_or(0.0);
         let phi_micro = latest.map(|m| m.phi_micro).unwrap_or(0.0);
         let phi_meso = latest.map(|m| m.phi_meso).unwrap_or(0.0);
         let phi_macro = latest.map(|m| m.phi_macro).unwrap_or(0.0);
 
-        // Hash the latest phi state
+        // Hash the latest phi state + block_height + gates_passed.
+        // All fields that affect consensus validity MUST be in this hash.
         let mut hasher = Sha256::new();
         hasher.update(phi.to_le_bytes());
         hasher.update(phi_micro.to_le_bytes());
         hasher.update(phi_meso.to_le_bytes());
         hasher.update(phi_macro.to_le_bytes());
         hasher.update(self.block_height.to_le_bytes());
+        hasher.update([gates_passed]);
         let hash = hasher.finalize().to_vec();
 
-        let active = if phi_meso > 0.0 {
-            (phi_meso * 10.0).ceil() as u8
+        // active_sephirot: based on phi_meso with the hardened threshold.
+        // phi_meso is now typically 0.1-0.6, so scale accordingly.
+        let active = if phi_meso > 0.1 {
+            ((phi_meso * 10.0).ceil() as u8).min(10)
         } else { 0 };
 
-        let cross_domain = if phi_meso > 0.5 {
-            ((phi_meso - 0.5) * 20.0) as u32
+        let cross_domain = if phi_meso > 0.3 {
+            ((phi_meso - 0.3) * 15.0) as u32
         } else { 0 };
 
         ProofOfThought {
@@ -336,6 +379,7 @@ impl ConsciousnessMonitor {
             active_sephirot: active,
             cross_domain_events: cross_domain,
             block_height: self.block_height,
+            gates_passed,
         }
     }
 
@@ -1036,6 +1080,15 @@ pub struct V5GateResult {
 /// Evaluate all 10 V5 neural capability gates.
 /// These are behavioral benchmarks that cannot be gamed — each requires genuine
 /// neural capabilities demonstrated through real system metrics.
+///
+/// Gate thresholds are calibrated so that:
+/// - Gates 1-3: Achievable with basic knowledge ingestion + retrieval
+/// - Gates 4-6: Require genuine self-improvement and cross-domain integration
+/// - Gates 7-8: Require calibrated confidence and broad domain coverage
+/// - Gates 9-10: Require real neural mastery — phi from actual attention patterns
+///
+/// With the hardened phi_meso (correlation threshold > 0.3, sqrt compression),
+/// gates 5+ should NOT trivially pass just because vectors exist.
 pub fn evaluate_v5_gates(
     knowledge_vectors: usize,
     domain_counts: &[usize; 10],
@@ -1049,83 +1102,117 @@ pub fn evaluate_v5_gates(
     loss_improving: bool,
 ) -> Vec<V5GateResult> {
     let active_domains = domain_counts.iter().filter(|&&c| c >= 50).count();
+    // Minimum vectors per domain to count as "well-populated" (not just a handful)
+    let well_populated_domains = domain_counts.iter().filter(|&&c| c >= 200).count();
 
     vec![
+        // Gate 1: Basic knowledge foundation — intentionally easy.
         V5GateResult {
             gate: 1, name: "Knowledge Foundation".into(),
             passed: knowledge_vectors >= 500 && active_domains >= 5,
             score: ((knowledge_vectors as f64 / 500.0).min(1.0) * 0.7
                    + (active_domains as f64 / 5.0).min(1.0) * 0.3).min(1.0),
-            details: format!("{} vectors (≥500), {} domains active (≥5)", knowledge_vectors, active_domains),
+            details: format!("{} vectors (>=500), {} domains active (>=5)", knowledge_vectors, active_domains),
         },
+        // Gate 2: Structural diversity — need 8+ domains with 50+ vectors each.
         V5GateResult {
             gate: 2, name: "Structural Diversity".into(),
             passed: knowledge_vectors >= 2000 && active_domains >= 8,
             score: ((knowledge_vectors as f64 / 2000.0).min(1.0) * 0.6
                    + (active_domains as f64 / 8.0).min(1.0) * 0.4).min(1.0),
-            details: format!("{} vectors (≥2K), {}/8 diverse domains", knowledge_vectors, active_domains),
+            details: format!("{} vectors (>=2K), {}/8 diverse domains", knowledge_vectors, active_domains),
         },
+        // Gate 3: Validated retrieval — must actually find correct answers.
         V5GateResult {
             gate: 3, name: "Validated Retrieval".into(),
             passed: knowledge_vectors >= 5000 && validation_loss < 0.5 && chat_count >= 10,
             score: ((knowledge_vectors as f64 / 5000.0).min(1.0) * 0.3
                    + (1.0 - validation_loss as f64).max(0.0) * 0.4
                    + (chat_count as f64 / 10.0).min(1.0) * 0.3).min(1.0),
-            details: format!("loss={:.3} (<0.5), {} chats (≥10)", validation_loss, chat_count),
+            details: format!("loss={:.3} (<0.5), {} chats (>=10)", validation_loss, chat_count),
         },
+        // Gate 4: Self-correction — evolve must have found improvements + loss trending down.
         V5GateResult {
             gate: 4, name: "Self-Correction".into(),
-            passed: knowledge_vectors >= 10000 && evolve_improvements >= 3 && (loss_improving || validation_loss < 0.1),
-            score: ((knowledge_vectors as f64 / 10000.0).min(1.0) * 0.3
-                   + (evolve_improvements as f64 / 3.0).min(1.0) * 0.4
+            passed: knowledge_vectors >= 10000 && evolve_improvements >= 3
+                    && (loss_improving || validation_loss < 0.1)
+                    && phi_micro > 0.1,
+            score: ((knowledge_vectors as f64 / 10000.0).min(1.0) * 0.2
+                   + (evolve_improvements as f64 / 3.0).min(1.0) * 0.3
+                   + (phi_micro / 0.1).min(1.0) * 0.2
                    + if loss_improving || validation_loss < 0.1 { 0.3 } else { 0.0 }).min(1.0),
-            details: format!("{} evolve improvements (≥3), loss_improving={}, loss={:.4}", evolve_improvements, loss_improving, validation_loss),
+            details: format!("{} evolve improvements (>=3), loss_improving={}, loss={:.4}, phi_micro={:.4}",
+                           evolve_improvements, loss_improving, validation_loss, phi_micro),
         },
+        // Gate 5: Cross-domain integration — phi_meso must be genuinely > 0.3.
+        // With the hardened compute_meso (correlation > 0.3, sqrt compression),
+        // this requires actual cross-domain attention patterns, not noise.
         V5GateResult {
             gate: 5, name: "Cross-Domain Integration".into(),
-            passed: knowledge_vectors >= 15000 && phi_meso > 0.3,
-            score: ((knowledge_vectors as f64 / 15000.0).min(1.0) * 0.4
-                   + (phi_meso / 0.3).min(1.0) * 0.6).min(1.0),
-            details: format!("phi_meso={:.4} (>0.3), {} vectors (≥15K)", phi_meso, knowledge_vectors),
+            passed: knowledge_vectors >= 15000 && phi_meso > 0.3 && well_populated_domains >= 6,
+            score: ((knowledge_vectors as f64 / 15000.0).min(1.0) * 0.3
+                   + (phi_meso / 0.3).min(1.0) * 0.4
+                   + (well_populated_domains as f64 / 6.0).min(1.0) * 0.3).min(1.0),
+            details: format!("phi_meso={:.4} (>0.3), {} vectors (>=15K), {}/6 well-populated domains",
+                           phi_meso, knowledge_vectors, well_populated_domains),
         },
+        // Gate 6: Enacted self-improvement — need real evolve cycles + results.
         V5GateResult {
             gate: 6, name: "Enacted Self-Improvement".into(),
-            passed: knowledge_vectors >= 15000 && evolve_total >= 10 && evolve_improvements >= 3,
-            score: ((knowledge_vectors as f64 / 15000.0).min(1.0) * 0.3
+            passed: knowledge_vectors >= 20000 && evolve_total >= 10
+                    && evolve_improvements >= 3 && phi_micro > 0.15,
+            score: ((knowledge_vectors as f64 / 20000.0).min(1.0) * 0.2
                    + (evolve_total as f64 / 10.0).min(1.0) * 0.3
-                   + (evolve_improvements as f64 / 3.0).min(1.0) * 0.4).min(1.0),
-            details: format!("{} mutations, {} improvements (≥3)", evolve_total, evolve_improvements),
+                   + (evolve_improvements as f64 / 3.0).min(1.0) * 0.3
+                   + (phi_micro / 0.15).min(1.0) * 0.2).min(1.0),
+            details: format!("{} mutations, {} improvements (>=3), phi_micro={:.4}",
+                           evolve_total, evolve_improvements, phi_micro),
         },
+        // Gate 7: Calibrated confidence — low validation loss + phi_meso active.
         V5GateResult {
             gate: 7, name: "Calibrated Confidence".into(),
-            passed: knowledge_vectors >= 18000 && validation_loss < 0.3,
-            score: ((knowledge_vectors as f64 / 18000.0).min(1.0) * 0.4
-                   + (1.0 - (validation_loss as f64 / 0.3).min(1.0)) * 0.6).min(1.0),
-            details: format!("loss={:.3} (<0.3), {} vectors (≥25K)", validation_loss, knowledge_vectors),
+            passed: knowledge_vectors >= 30000 && validation_loss < 0.3 && phi_meso > 0.2,
+            score: ((knowledge_vectors as f64 / 30000.0).min(1.0) * 0.3
+                   + (1.0 - (validation_loss as f64 / 0.3).min(1.0)) * 0.4
+                   + (phi_meso / 0.2).min(1.0) * 0.3).min(1.0),
+            details: format!("loss={:.3} (<0.3), {} vectors (>=30K), phi_meso={:.4} (>0.2)",
+                           validation_loss, knowledge_vectors, phi_meso),
         },
+        // Gate 8: Autonomous knowledge growth — 9+ domains well-populated.
         V5GateResult {
             gate: 8, name: "Autonomous Knowledge Growth".into(),
-            passed: knowledge_vectors >= 18000 && active_domains >= 9,
-            score: ((knowledge_vectors as f64 / 18000.0).min(1.0) * 0.5
-                   + (active_domains as f64 / 9.0).min(1.0) * 0.5).min(1.0),
-            details: format!("{} vectors (≥18K), {}/9 domains explored", knowledge_vectors, active_domains),
+            passed: knowledge_vectors >= 40000 && active_domains >= 9 && well_populated_domains >= 8,
+            score: ((knowledge_vectors as f64 / 40000.0).min(1.0) * 0.4
+                   + (active_domains as f64 / 9.0).min(1.0) * 0.3
+                   + (well_populated_domains as f64 / 8.0).min(1.0) * 0.3).min(1.0),
+            details: format!("{} vectors (>=40K), {}/9 domains active, {}/8 well-populated",
+                           knowledge_vectors, active_domains, well_populated_domains),
         },
+        // Gate 9: Neural mastery — requires genuine phi from attention patterns.
         V5GateResult {
             gate: 9, name: "Neural Mastery".into(),
-            passed: knowledge_vectors >= 18000 && validation_loss < 0.15 && phi > 0.4,
-            score: ((knowledge_vectors as f64 / 18000.0).min(1.0) * 0.3
-                   + (1.0 - (validation_loss as f64 / 0.15).min(1.0)).max(0.0) * 0.3
-                   + (phi / 0.4).min(1.0) * 0.4).min(1.0),
-            details: format!("phi={:.4} (>0.4), loss={:.3} (<0.15)", phi, validation_loss),
+            passed: knowledge_vectors >= 50000 && validation_loss < 0.15
+                    && phi > 0.4 && phi_meso > 0.35,
+            score: ((knowledge_vectors as f64 / 50000.0).min(1.0) * 0.2
+                   + (1.0 - (validation_loss as f64 / 0.15).min(1.0)).max(0.0) * 0.2
+                   + (phi / 0.4).min(1.0) * 0.3
+                   + (phi_meso / 0.35).min(1.0) * 0.3).min(1.0),
+            details: format!("phi={:.4} (>0.4), phi_meso={:.4} (>0.35), loss={:.3} (<0.15), {} vectors (>=50K)",
+                           phi, phi_meso, validation_loss, knowledge_vectors),
         },
+        // Gate 10: Emergent synthesis — the hardest gate. Requires strong phi at all levels.
         V5GateResult {
             gate: 10, name: "Emergent Synthesis".into(),
-            passed: knowledge_vectors >= 18000 && phi > 0.45 && phi_meso > 0.5 && phi_micro > 0.25,
-            score: ((knowledge_vectors as f64 / 18000.0).min(1.0) * 0.2
-                   + (phi / 0.45).min(1.0) * 0.3
-                   + (phi_meso / 0.5).min(1.0) * 0.3
-                   + (phi_micro / 0.25).min(1.0) * 0.2).min(1.0),
-            details: format!("phi={:.4}, meso={:.4}, micro={:.4}", phi, phi_meso, phi_micro),
+            passed: knowledge_vectors >= 75000 && phi > 0.45
+                    && phi_meso > 0.5 && phi_micro > 0.25
+                    && well_populated_domains >= 9,
+            score: ((knowledge_vectors as f64 / 75000.0).min(1.0) * 0.15
+                   + (phi / 0.45).min(1.0) * 0.25
+                   + (phi_meso / 0.5).min(1.0) * 0.25
+                   + (phi_micro / 0.25).min(1.0) * 0.2
+                   + (well_populated_domains as f64 / 9.0).min(1.0) * 0.15).min(1.0),
+            details: format!("phi={:.4}, meso={:.4}, micro={:.4}, {} vectors, {}/9 well-populated",
+                           phi, phi_meso, phi_micro, knowledge_vectors, well_populated_domains),
         },
     ]
 }

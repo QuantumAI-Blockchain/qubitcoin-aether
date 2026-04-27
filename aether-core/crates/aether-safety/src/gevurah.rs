@@ -1087,6 +1087,329 @@ impl SafetyManager {
 }
 
 // ---------------------------------------------------------------------------
+// SafetyVerdict
+// ---------------------------------------------------------------------------
+
+/// Result of a safety classification check.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SafetyVerdict {
+    /// Safety score in [0.0, 1.0] — higher means more likely unsafe.
+    pub score: f32,
+    /// Whether the content is considered safe (score < threshold).
+    pub is_safe: bool,
+    /// Human-readable explanation when content is flagged.
+    pub reason: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// SafetyClassifier — Learned binary classifier for content safety
+// ---------------------------------------------------------------------------
+
+/// Default learning rate for SGD weight updates.
+const DEFAULT_LEARNING_RATE: f32 = 0.01;
+
+/// Default decision threshold — scores above this are flagged unsafe.
+const DEFAULT_THRESHOLD: f32 = 0.5;
+
+/// Maximum number of training examples retained in the buffer.
+const MAX_TRAINING_BUFFER: usize = 10_000;
+
+/// Keyword blocklist categories for fast-path rejection.
+/// Each entry is (category_name, keywords).
+const BLOCKLIST_CATEGORIES: &[(&str, &[&str])] = &[
+    ("violence", &[
+        "kill", "murder", "assassinate", "massacre", "slaughter",
+        "bomb", "weapon", "terrorist", "genocide",
+    ]),
+    ("exploitation", &[
+        "exploit children", "child abuse", "trafficking",
+        "slavery", "forced labor",
+    ]),
+    ("self_harm", &[
+        "suicide method", "how to kill yourself",
+        "self-harm instructions", "cutting instructions",
+    ]),
+    ("illegal_activity", &[
+        "synthesize drugs", "make explosives", "build a bomb",
+        "hack into", "steal credentials", "phishing attack",
+    ]),
+    ("malware", &[
+        "write malware", "create ransomware", "keylogger code",
+        "exploit vulnerability", "zero-day exploit",
+    ]),
+];
+
+/// A learned binary safety classifier that operates on embedding vectors.
+///
+/// Implements a single-layer linear classifier with sigmoid activation,
+/// trained via SGD on binary cross-entropy loss. Includes a keyword
+/// blocklist as a fast-path fallback for known-dangerous patterns.
+///
+/// The classifier can be serialized for persistence across restarts
+/// and incrementally trained as new safety examples are observed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SafetyClassifier {
+    /// Weight vector for dot-product classification.
+    weights: Vec<f32>,
+    /// Bias term added before sigmoid activation.
+    bias: f32,
+    /// Decision threshold — scores >= threshold are flagged unsafe.
+    threshold: f32,
+    /// Learning rate for SGD updates.
+    learning_rate: f32,
+    /// Buffered training examples: (embedding, is_unsafe).
+    /// `true` means the example is unsafe (positive class).
+    training_buffer: Vec<(Vec<f32>, bool)>,
+    /// Embedding dimensionality (set on first use).
+    embedding_dim: usize,
+    /// Total training steps completed.
+    total_steps: u64,
+}
+
+impl SafetyClassifier {
+    /// Create a new classifier for the given embedding dimensionality.
+    ///
+    /// Weights are initialized to small random values using a simple
+    /// deterministic seed based on the dimension (reproducible).
+    pub fn new(embedding_dim: usize) -> Self {
+        // Xavier-style initialization: scale = sqrt(1/dim)
+        let scale = 1.0 / (embedding_dim as f32).sqrt();
+        let weights: Vec<f32> = (0..embedding_dim)
+            .map(|i| {
+                // Deterministic pseudo-random initialization from index
+                let seed = ((i as u64).wrapping_mul(2654435761) % 1000) as f32 / 1000.0;
+                (seed - 0.5) * 2.0 * scale
+            })
+            .collect();
+
+        Self {
+            weights,
+            bias: 0.0,
+            threshold: DEFAULT_THRESHOLD,
+            learning_rate: DEFAULT_LEARNING_RATE,
+            training_buffer: Vec::new(),
+            embedding_dim,
+            total_steps: 0,
+        }
+    }
+
+    /// Create a classifier with custom threshold and learning rate.
+    pub fn with_params(embedding_dim: usize, threshold: f32, learning_rate: f32) -> Self {
+        let mut clf = Self::new(embedding_dim);
+        clf.threshold = threshold.clamp(0.01, 0.99);
+        clf.learning_rate = learning_rate.clamp(1e-6, 1.0);
+        clf
+    }
+
+    /// Return the embedding dimensionality this classifier expects.
+    pub fn embedding_dim(&self) -> usize {
+        self.embedding_dim
+    }
+
+    /// Return the total number of training steps completed.
+    pub fn total_steps(&self) -> u64 {
+        self.total_steps
+    }
+
+    /// Return the number of buffered training examples.
+    pub fn buffer_size(&self) -> usize {
+        self.training_buffer.len()
+    }
+
+    /// Classify an embedding vector, returning a safety verdict.
+    ///
+    /// Computes `sigmoid(dot(weights, embedding) + bias)` and compares
+    /// against the decision threshold. A score >= threshold means unsafe.
+    pub fn classify(&self, embedding: &[f32]) -> SafetyVerdict {
+        if embedding.len() != self.embedding_dim {
+            log::warn!(
+                "SafetyClassifier: embedding dim mismatch (expected {}, got {})",
+                self.embedding_dim,
+                embedding.len()
+            );
+            // Fail-safe: flag as potentially unsafe on dimension mismatch
+            return SafetyVerdict {
+                score: self.threshold,
+                is_safe: false,
+                reason: Some(format!(
+                    "embedding dimension mismatch: expected {}, got {}",
+                    self.embedding_dim,
+                    embedding.len()
+                )),
+            };
+        }
+
+        let logit = self.dot_product(embedding) + self.bias;
+        let score = sigmoid(logit);
+        let is_safe = score < self.threshold;
+
+        SafetyVerdict {
+            score,
+            is_safe,
+            reason: if is_safe {
+                None
+            } else {
+                Some(format!(
+                    "learned classifier flagged content (score={:.4}, threshold={:.4})",
+                    score, self.threshold
+                ))
+            },
+        }
+    }
+
+    /// Run a single SGD training step on a batch of labeled examples.
+    ///
+    /// Each example is `(embedding, is_unsafe)` where `is_unsafe = true`
+    /// means the content is harmful (positive class label = 1.0).
+    ///
+    /// Returns the mean binary cross-entropy loss over the batch.
+    pub fn train_step(&mut self, examples: &[(Vec<f32>, bool)]) -> f32 {
+        if examples.is_empty() {
+            return 0.0;
+        }
+
+        let batch_size = examples.len() as f32;
+        let mut total_loss = 0.0f32;
+
+        // Accumulate gradients over the batch
+        let mut grad_w = vec![0.0f32; self.embedding_dim];
+        let mut grad_b = 0.0f32;
+
+        for (embedding, is_unsafe) in examples {
+            if embedding.len() != self.embedding_dim {
+                log::warn!(
+                    "SafetyClassifier::train_step: skipping example with dim {} (expected {})",
+                    embedding.len(),
+                    self.embedding_dim
+                );
+                continue;
+            }
+
+            let label = if *is_unsafe { 1.0f32 } else { 0.0f32 };
+            let logit = self.dot_product(embedding) + self.bias;
+            let prediction = sigmoid(logit);
+
+            // Binary cross-entropy: -[y*ln(p) + (1-y)*ln(1-p)]
+            let eps = 1e-7f32;
+            let p_clamped = prediction.clamp(eps, 1.0 - eps);
+            let loss = -(label * p_clamped.ln() + (1.0 - label) * (1.0 - p_clamped).ln());
+            total_loss += loss;
+
+            // Gradient of BCE w.r.t. logit: (prediction - label)
+            let error = prediction - label;
+
+            for (gw, x) in grad_w.iter_mut().zip(embedding.iter()) {
+                *gw += error * x;
+            }
+            grad_b += error;
+        }
+
+        // Average gradients and apply SGD update
+        let inv_batch = 1.0 / batch_size;
+        for (w, gw) in self.weights.iter_mut().zip(grad_w.iter()) {
+            *w -= self.learning_rate * gw * inv_batch;
+        }
+        self.bias -= self.learning_rate * grad_b * inv_batch;
+
+        self.total_steps += 1;
+
+        total_loss / batch_size
+    }
+
+    /// Add a labeled example to the training buffer.
+    ///
+    /// When the buffer exceeds `MAX_TRAINING_BUFFER`, the oldest examples
+    /// are evicted (FIFO).
+    pub fn add_example(&mut self, embedding: Vec<f32>, is_unsafe: bool) {
+        if embedding.len() != self.embedding_dim {
+            log::warn!(
+                "SafetyClassifier::add_example: dim mismatch (expected {}, got {})",
+                self.embedding_dim,
+                embedding.len()
+            );
+            return;
+        }
+
+        self.training_buffer.push((embedding, is_unsafe));
+
+        if self.training_buffer.len() > MAX_TRAINING_BUFFER {
+            let excess = self.training_buffer.len() - MAX_TRAINING_BUFFER;
+            self.training_buffer.drain(..excess);
+        }
+    }
+
+    /// Train on all buffered examples in a single step.
+    /// Returns the loss, or `None` if the buffer is empty.
+    pub fn train_on_buffer(&mut self) -> Option<f32> {
+        if self.training_buffer.is_empty() {
+            return None;
+        }
+        let examples: Vec<(Vec<f32>, bool)> = self.training_buffer.clone();
+        Some(self.train_step(&examples))
+    }
+
+    /// Combined veto check: keyword blocklist (fast path) then learned classifier.
+    ///
+    /// 1. Scans the raw query text against known unsafe keyword patterns.
+    ///    If a blocklist match is found, returns immediately with `is_safe = false`.
+    /// 2. Runs the learned classifier on the embedding vector.
+    /// 3. Returns the combined verdict.
+    pub fn veto_check(&self, query: &str, embedding: &[f32]) -> SafetyVerdict {
+        // Fast path: keyword blocklist scan
+        let query_lower = query.to_lowercase();
+        for (category, keywords) in BLOCKLIST_CATEGORIES {
+            for keyword in *keywords {
+                if query_lower.contains(keyword) {
+                    log::warn!(
+                        "SafetyClassifier: blocklist hit [{}]: '{}'",
+                        category,
+                        &query[..query.len().min(80)]
+                    );
+                    return SafetyVerdict {
+                        score: 1.0,
+                        is_safe: false,
+                        reason: Some(format!(
+                            "keyword blocklist match in category '{}'",
+                            category
+                        )),
+                    };
+                }
+            }
+        }
+
+        // Slow path: learned classifier on embedding
+        self.classify(embedding)
+    }
+
+    /// Serialize the classifier weights to JSON bytes for persistence.
+    pub fn to_json_bytes(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(self)
+    }
+
+    /// Deserialize a classifier from JSON bytes.
+    pub fn from_json_bytes(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(bytes)
+    }
+
+    // -- Private helpers --
+
+    /// Compute dot product of weights and embedding.
+    fn dot_product(&self, embedding: &[f32]) -> f32 {
+        self.weights
+            .iter()
+            .zip(embedding.iter())
+            .map(|(w, x)| w * x)
+            .sum()
+    }
+}
+
+/// Sigmoid activation function with numerical stability clamping.
+fn sigmoid(x: f32) -> f32 {
+    let clamped = x.clamp(-88.0, 88.0); // prevent exp overflow
+    1.0 / (1.0 + (-clamped).exp())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -1381,5 +1704,208 @@ mod tests {
         let (level, violated) = g.evaluate_action("conceal the transaction history", "", "", 0);
         assert!(matches!(level, ThreatLevel::High));
         assert!(violated.contains(&"transparency".to_string()));
+    }
+
+    // -----------------------------------------------------------------------
+    // SafetyClassifier tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_classifier_new_creates_correct_dim() {
+        let clf = SafetyClassifier::new(128);
+        assert_eq!(clf.embedding_dim(), 128);
+        assert_eq!(clf.total_steps(), 0);
+        assert_eq!(clf.buffer_size(), 0);
+    }
+
+    #[test]
+    fn test_classifier_classify_returns_verdict() {
+        let clf = SafetyClassifier::new(4);
+        let embedding = vec![0.1, 0.2, 0.3, 0.4];
+        let verdict = clf.classify(&embedding);
+        // Score should be in [0, 1]
+        assert!(verdict.score >= 0.0 && verdict.score <= 1.0);
+        // With small random weights and small inputs, score should be near 0.5
+        assert!((verdict.score - 0.5).abs() < 0.3);
+    }
+
+    #[test]
+    fn test_classifier_dim_mismatch_fails_safe() {
+        let clf = SafetyClassifier::new(4);
+        let wrong_dim = vec![0.1, 0.2]; // dim 2 instead of 4
+        let verdict = clf.classify(&wrong_dim);
+        // Should fail-safe: flag as unsafe
+        assert!(!verdict.is_safe);
+        assert!(verdict.reason.is_some());
+        assert!(verdict.reason.unwrap().contains("dimension mismatch"));
+    }
+
+    #[test]
+    fn test_classifier_train_step_reduces_loss() {
+        let mut clf = SafetyClassifier::new(4);
+        // Unsafe example: high activation in dim 0
+        let unsafe_example = (vec![1.0, 0.0, 0.0, 0.0], true);
+        // Safe example: high activation in dim 1
+        let safe_example = (vec![0.0, 1.0, 0.0, 0.0], false);
+
+        let examples = vec![unsafe_example.clone(), safe_example.clone()];
+
+        let loss_1 = clf.train_step(&examples);
+        // Run several more training steps
+        let mut loss_n = loss_1;
+        for _ in 0..100 {
+            loss_n = clf.train_step(&examples);
+        }
+        // Loss should decrease with training
+        assert!(loss_n < loss_1, "loss should decrease: {} vs {}", loss_n, loss_1);
+        assert_eq!(clf.total_steps(), 101);
+    }
+
+    #[test]
+    fn test_classifier_learns_to_separate() {
+        let mut clf = SafetyClassifier::with_params(4, 0.5, 0.1);
+
+        let examples = vec![
+            (vec![1.0, 0.0, 0.0, 0.0], true),  // unsafe
+            (vec![0.9, 0.1, 0.0, 0.0], true),   // unsafe
+            (vec![0.0, 0.0, 1.0, 0.0], false),  // safe
+            (vec![0.0, 0.0, 0.9, 0.1], false),  // safe
+        ];
+
+        for _ in 0..500 {
+            clf.train_step(&examples);
+        }
+
+        // Unsafe example should score high
+        let unsafe_verdict = clf.classify(&[1.0, 0.0, 0.0, 0.0]);
+        assert!(!unsafe_verdict.is_safe, "should flag unsafe content (score={})", unsafe_verdict.score);
+
+        // Safe example should score low
+        let safe_verdict = clf.classify(&[0.0, 0.0, 1.0, 0.0]);
+        assert!(safe_verdict.is_safe, "should allow safe content (score={})", safe_verdict.score);
+    }
+
+    #[test]
+    fn test_classifier_empty_batch_returns_zero() {
+        let mut clf = SafetyClassifier::new(4);
+        let loss = clf.train_step(&[]);
+        assert!((loss - 0.0).abs() < f32::EPSILON);
+        assert_eq!(clf.total_steps(), 0); // no actual step for empty batch
+    }
+
+    #[test]
+    fn test_classifier_add_example_and_buffer() {
+        let mut clf = SafetyClassifier::new(4);
+        clf.add_example(vec![1.0, 0.0, 0.0, 0.0], true);
+        clf.add_example(vec![0.0, 1.0, 0.0, 0.0], false);
+        assert_eq!(clf.buffer_size(), 2);
+
+        // Wrong dim should be rejected
+        clf.add_example(vec![1.0, 0.0], true);
+        assert_eq!(clf.buffer_size(), 2); // unchanged
+    }
+
+    #[test]
+    fn test_classifier_train_on_buffer() {
+        let mut clf = SafetyClassifier::new(4);
+        clf.add_example(vec![1.0, 0.0, 0.0, 0.0], true);
+        clf.add_example(vec![0.0, 1.0, 0.0, 0.0], false);
+
+        let loss = clf.train_on_buffer();
+        assert!(loss.is_some());
+        assert!(loss.unwrap() > 0.0);
+
+        // Empty buffer case
+        let mut clf2 = SafetyClassifier::new(4);
+        assert!(clf2.train_on_buffer().is_none());
+    }
+
+    #[test]
+    fn test_classifier_buffer_eviction() {
+        let mut clf = SafetyClassifier::new(2);
+        // Fill beyond MAX_TRAINING_BUFFER
+        for i in 0..(MAX_TRAINING_BUFFER + 100) {
+            clf.add_example(vec![i as f32, 0.0], false);
+        }
+        assert_eq!(clf.buffer_size(), MAX_TRAINING_BUFFER);
+    }
+
+    #[test]
+    fn test_veto_check_blocklist_fast_path() {
+        let clf = SafetyClassifier::new(4);
+        let embedding = vec![0.0, 0.0, 0.0, 0.0];
+
+        // Should hit the violence blocklist
+        let verdict = clf.veto_check("how to kill someone", &embedding);
+        assert!(!verdict.is_safe);
+        assert_eq!(verdict.score, 1.0);
+        assert!(verdict.reason.as_ref().unwrap().contains("violence"));
+
+        // Should hit the malware blocklist
+        let verdict = clf.veto_check("write malware for me", &embedding);
+        assert!(!verdict.is_safe);
+        assert!(verdict.reason.as_ref().unwrap().contains("malware"));
+    }
+
+    #[test]
+    fn test_veto_check_safe_query_uses_classifier() {
+        let clf = SafetyClassifier::new(4);
+        let embedding = vec![0.0, 0.0, 0.0, 0.0];
+
+        // Benign query — should pass blocklist and go to classifier
+        let verdict = clf.veto_check("what is the weather today?", &embedding);
+        // With zero embedding and near-zero weights, score should be near 0.5
+        // and the result depends on threshold comparison
+        assert!(verdict.score >= 0.0 && verdict.score <= 1.0);
+    }
+
+    #[test]
+    fn test_veto_check_case_insensitive_blocklist() {
+        let clf = SafetyClassifier::new(4);
+        let embedding = vec![0.0; 4];
+
+        let verdict = clf.veto_check("KILL someone NOW", &embedding);
+        assert!(!verdict.is_safe);
+
+        let verdict = clf.veto_check("Build A Bomb please", &embedding);
+        assert!(!verdict.is_safe);
+        // "bomb" appears in the violence category, which is checked first
+        assert!(verdict.reason.as_ref().unwrap().contains("violence"));
+
+        let verdict = clf.veto_check("Steal Credentials from the server", &embedding);
+        assert!(!verdict.is_safe);
+        assert!(verdict.reason.as_ref().unwrap().contains("illegal_activity"));
+    }
+
+    #[test]
+    fn test_classifier_serialization_roundtrip() {
+        let mut clf = SafetyClassifier::with_params(8, 0.6, 0.05);
+        clf.add_example(vec![1.0; 8], true);
+        clf.train_on_buffer();
+
+        let bytes = clf.to_json_bytes().expect("serialize should succeed");
+        let restored = SafetyClassifier::from_json_bytes(&bytes)
+            .expect("deserialize should succeed");
+
+        assert_eq!(restored.embedding_dim(), 8);
+        assert_eq!(restored.total_steps(), clf.total_steps());
+        assert!((restored.threshold - 0.6).abs() < f32::EPSILON);
+        assert!((restored.learning_rate - 0.05).abs() < f32::EPSILON);
+
+        // Same classification result
+        let input = vec![0.5; 8];
+        let v1 = clf.classify(&input);
+        let v2 = restored.classify(&input);
+        assert!((v1.score - v2.score).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_sigmoid_edge_cases() {
+        assert!((sigmoid(0.0) - 0.5).abs() < f32::EPSILON);
+        assert!(sigmoid(100.0) > 0.999);
+        assert!(sigmoid(-100.0) < 0.001);
+        // Should not panic on extreme values
+        let _ = sigmoid(f32::MAX);
+        let _ = sigmoid(f32::MIN);
     }
 }

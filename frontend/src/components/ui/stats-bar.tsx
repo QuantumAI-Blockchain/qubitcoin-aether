@@ -26,17 +26,19 @@ export function StatsBar() {
   const gatesPassed = phi?.gates_passed ?? (engineInfo?.gates_passed?.length ?? 0);
   const gatesTotal = phi?.gates_total ?? 10;
 
+  // Format supply: e.g. "33.68M QBC"
+  const supplyStr = chain?.total_supply
+    ? `${(parseFloat(String(chain.total_supply)) / 1_000_000).toFixed(2)}M`
+    : "---";
+
   const items = [
     { label: t("blockHeight"), value: chain?.height?.toLocaleString() ?? "---" },
-    { label: t("peers"), value: chain?.peers != null ? `${chain.peers} Nodes` : "---" },
+    { label: t("peers"), value: chain?.peers != null ? `${chain.peers + 1} Nodes` : "---" },
+    { label: "Supply", value: supplyStr },
     { label: t("phi"), value: phi?.phi?.toFixed(4) ?? "---" },
     {
-      label: t("knowledgeNodes"),
+      label: "Vectors",
       value: phi?.knowledge_nodes?.toLocaleString() ?? "---",
-    },
-    {
-      label: t("graphEdges"),
-      value: engineInfo?.edge_count ? engineInfo.edge_count.toLocaleString() : (phi?.knowledge_edges?.toLocaleString() ?? "---"),
     },
     { label: t("gates"), value: `${gatesPassed}/${gatesTotal}` },
   ];

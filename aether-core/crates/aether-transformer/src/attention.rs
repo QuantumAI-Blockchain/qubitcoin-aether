@@ -7,7 +7,7 @@
 use candle_core::{DType, Device, Module, Result, Tensor};
 use candle_nn::{linear, linear_no_bias, Linear, VarBuilder};
 
-use crate::config::{SephirotDomain, TransformerConfig, NUM_SEPHIROT};
+use crate::config::{SephirotDomain, TransformerConfig};
 
 /// Rotary Position Encoding (RoPE).
 pub struct RotaryEmbedding {
@@ -69,11 +69,69 @@ impl RotaryEmbedding {
     }
 }
 
+/// Domain gate values for Sephirot attention heads.
+///
+/// Each gate is a scalar in [0, 1] that modulates the output contribution
+/// of a domain-specialized head. Gates are updated by:
+/// - Aether-Evolve (NAS mutations)
+/// - Training loop (gradient updates)
+/// - Self-improvement engine (strategy weight adjustment)
+#[derive(Debug, Clone)]
+pub struct DomainGates {
+    /// Gate values for each Sephirot head (10 values in [0, 1]).
+    pub gates: Vec<f32>,
+    /// Gate values for global workspace heads.
+    pub global_gates: Vec<f32>,
+}
+
+impl DomainGates {
+    pub fn new(num_sephirot: usize, num_global: usize, init_value: f32) -> Self {
+        Self {
+            gates: vec![init_value; num_sephirot],
+            global_gates: vec![1.0; num_global], // global heads always fully active
+        }
+    }
+
+    /// Update a specific domain gate.
+    pub fn set_gate(&mut self, domain: SephirotDomain, value: f32) {
+        let idx = domain as usize;
+        if idx < self.gates.len() {
+            self.gates[idx] = value.clamp(0.0, 1.0);
+        }
+    }
+
+    /// Get gate value for a head index.
+    pub fn gate_for_head(&self, head_idx: usize) -> f32 {
+        if head_idx < self.gates.len() {
+            self.gates[head_idx]
+        } else {
+            let global_idx = head_idx - self.gates.len();
+            self.global_gates
+                .get(global_idx)
+                .copied()
+                .unwrap_or(1.0)
+        }
+    }
+
+    /// Create gate tensor for attention output scaling.
+    /// Shape: (1, num_heads, 1, 1) for broadcasting with (batch, heads, seq, dim).
+    pub fn as_tensor(&self, device: &Device) -> Result<Tensor> {
+        let mut all_gates = self.gates.clone();
+        all_gates.extend_from_slice(&self.global_gates);
+        Tensor::new(all_gates.as_slice(), device)?
+            .reshape((1, all_gates.len(), 1, 1))
+    }
+}
+
 /// Multi-head attention with Sephirot specialization.
 ///
 /// Contains N_sephirot domain-specialized heads + N_global general heads.
 /// The global heads implement Global Workspace Theory — integrating
 /// information across all domains.
+///
+/// Domain gating: Each Sephirot head's output is scaled by a learned gate
+/// parameter. This allows the system to strengthen or weaken specific
+/// cognitive domains based on the task at hand.
 pub struct SephirotAttention {
     q_proj: Linear,
     k_proj: Linear,
@@ -86,6 +144,9 @@ pub struct SephirotAttention {
     head_dim: usize,
     num_sephirot_heads: usize,
     num_global_heads: usize,
+
+    /// Domain gates for modulating head output contributions.
+    domain_gates: DomainGates,
 
     /// Mutable KV cache for autoregressive generation.
     kv_cache: Option<(Tensor, Tensor)>,
@@ -114,6 +175,12 @@ impl SephirotAttention {
         };
         let o_proj = linear_no_bias(q_dim, config.embed_dim, vb.pp("o_proj"))?;
 
+        let domain_gates = DomainGates::new(
+            config.num_sephirot_heads,
+            config.num_global_heads,
+            config.domain_gate_init,
+        );
+
         Ok(Self {
             q_proj,
             k_proj,
@@ -125,17 +192,22 @@ impl SephirotAttention {
             head_dim: config.head_dim,
             num_sephirot_heads: config.num_sephirot_heads,
             num_global_heads: config.num_global_heads,
+            domain_gates,
             kv_cache: None,
         })
     }
 
-    /// Forward pass: multi-head attention with causal mask and KV cache.
-    ///
-    /// `offset`: position offset for KV cache.
-    /// `collect_weights`: if true, returns attention weights for consciousness monitoring.
-    ///   When false, skips materializing the full attention weight matrix (faster decode).
-    ///
-    /// Returns (output, Option<attention_weights>).
+    /// Get a mutable reference to domain gates for external updates.
+    pub fn domain_gates_mut(&mut self) -> &mut DomainGates {
+        &mut self.domain_gates
+    }
+
+    /// Get domain gate values (read-only).
+    pub fn domain_gates(&self) -> &DomainGates {
+        &self.domain_gates
+    }
+
+    /// Forward pass: multi-head attention with causal mask, KV cache, and domain gating.
     pub fn forward(
         &mut self,
         x: &Tensor,
@@ -219,15 +291,19 @@ impl SephirotAttention {
             candle_nn::ops::softmax_last_dim(&attn_scores)?
         };
 
-        let output = attn_weights.matmul(&v)?;
+        // Apply domain gating: scale each head's attention output by its gate value.
+        // Gate tensor shape: (1, num_heads, 1, 1) broadcasts with (batch, heads, seq, head_dim)
+        let gate_tensor = self.domain_gates.as_tensor(x.device())?;
+        let gated_weights = attn_weights.broadcast_mul(&gate_tensor)?;
+
+        let output = gated_weights.matmul(&v)?;
         let output = output.transpose(1, 2)?.reshape((batch, seq_len, ()))?;
         let output = self.o_proj.forward(&output)?;
 
-        // Only return actual weights when requested (avoids costly clone during decode)
+        // Only return actual weights when requested
         let weights_out = if collect_weights {
             attn_weights
         } else {
-            // Return a minimal placeholder (1 element) — not used by caller
             Tensor::zeros((1,), DType::F32, x.device())?
         };
 

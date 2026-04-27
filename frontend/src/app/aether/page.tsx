@@ -471,7 +471,7 @@ function AetherPageContent() {
                   <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask Aether Tree anything..."
+                    placeholder="Ask Aether Mind anything..."
                     autoComplete="off"
                     className="flex-1 rounded-xl bg-bg-panel px-4 py-3 text-base text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-quantum-violet/50 sm:text-sm"
                     onKeyDown={(e) => {
@@ -549,56 +549,38 @@ function AetherPageContent() {
           )}
 
           <Card className="mb-4">
-            <h3 className="mb-2 text-sm font-semibold text-text-secondary">Knowledge</h3>
+            <h3 className="mb-2 text-sm font-semibold text-text-secondary">Neural Consciousness</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-text-secondary">Nodes</span>
+                <span className="text-text-secondary">Knowledge Vectors</span>
                 <span className="font-[family-name:var(--font-code)]">
                   {consciousness?.knowledge_nodes?.toLocaleString() ?? "---"}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-secondary">Edges</span>
+                <span className="text-text-secondary">Phi Micro (IIT 3.0)</span>
                 <span className="font-[family-name:var(--font-code)]">
-                  {consciousness?.knowledge_edges?.toLocaleString() ?? "---"}
+                  {consciousness?.phi_micro?.toFixed(6) ?? "---"}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-secondary">Integration</span>
+                <span className="text-text-secondary">Phi Meso (Cross-Domain)</span>
                 <span className="font-[family-name:var(--font-code)]">
-                  {consciousness?.integration?.toFixed(4) ?? "---"}
+                  {consciousness?.phi_meso?.toFixed(6) ?? "---"}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-secondary">Differentiation</span>
+                <span className="text-text-secondary">Phi Macro (Layer Flow)</span>
                 <span className="font-[family-name:var(--font-code)]">
-                  {consciousness?.differentiation?.toFixed(4) ?? "---"}
+                  {consciousness?.phi_macro?.toFixed(6) ?? "---"}
                 </span>
               </div>
-              {consciousness?.convergence_stddev != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">Convergence StdDev</span>
-                  <span className="font-[family-name:var(--font-code)]">
-                    {consciousness.convergence_stddev.toFixed(4)}
-                  </span>
-                </div>
-              )}
-              {consciousness?.convergence_status != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">Convergence Status</span>
-                  <span className="font-[family-name:var(--font-code)]">
-                    {consciousness.convergence_status}
-                  </span>
-                </div>
-              )}
-              {consciousness?.redundancy_factor != null && (
-                <div className="flex justify-between">
-                  <span className="text-text-secondary">Redundancy</span>
-                  <span className="font-[family-name:var(--font-code)]">
-                    {consciousness.redundancy_factor.toFixed(4)}
-                  </span>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span className="text-text-secondary">Blocks Processed</span>
+                <span className="font-[family-name:var(--font-code)]">
+                  {consciousness?.blocks_processed?.toLocaleString() ?? "---"}
+                </span>
+              </div>
             </div>
           </Card>
 

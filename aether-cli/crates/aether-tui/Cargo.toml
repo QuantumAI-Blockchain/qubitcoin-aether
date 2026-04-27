@@ -1,0 +1,13 @@
+[package]
+name = "aether-tui"
+description = "Terminal UI for Aether Mind"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+anyhow = { workspace = true }
+unicode-width = "0.2"
+textwrap = "0.16"

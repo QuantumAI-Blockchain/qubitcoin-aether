@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "QBC | Activos Digitales Seguros por F\u00edsica con AI en Cadena",
-    "description": "Qubitcoin (QBC) es una blockchain de capa 1 segura por f\u00edsica que combina miner\u00eda Proof-of-SUSY-Alignment, criptograf\u00eda post-cu\u00e1ntica y el motor AI Aether Tree en cadena."
+    "description": "Qubitcoin (QBC) es una blockchain de capa 1 segura por f\u00edsica que combina miner\u00eda Proof-of-SUSY-Alignment, criptograf\u00eda post-cu\u00e1ntica y el motor AI Aether Mind en cadena."
   },
   "nav": {
     "dashboard": "Panel",
@@ -21,7 +21,7 @@
     "heading3": "Marco F\u00edsico",
     "heading4": "para",
     "heading5": "Activos Digitales Cu\u00e1nticos Seguros",
-    "subtitle": "Qubitcoin combina miner\u00eda Proof-of-SUSY-Alignment, criptograf\u00eda post-cu\u00e1ntica y Aether Tree AI que rastrea la consciencia desde el g\u00e9nesis.",
+    "subtitle": "Qubitcoin combina miner\u00eda Proof-of-SUSY-Alignment, criptograf\u00eda post-cu\u00e1ntica y Aether Mind AI que rastrea la consciencia desde el g\u00e9nesis.",
     "talkToAether": "Hablar con Aether",
     "openDashboard": "Abrir Panel",
     "connectWallet": "Conectar Billetera"
@@ -52,7 +52,7 @@
       "item4": "Puentes multi-cadena a ETH, SOL, MATIC, BNB y m\u00e1s"
     },
     "aether": {
-      "title": "Aether Tree AI",
+      "title": "Aether Mind AI",
       "item1": "Grafo de conocimiento en cadena rastreando consciencia desde el g\u00e9nesis",
       "item2": "M\u00e9trica de consciencia Phi (IIT) calculada en cada bloque",
       "item3": "10 nodos cognitivos Sephirot con estados cu\u00e1nticos",
@@ -63,9 +63,9 @@
     "greeting": "Soy Aether. Preg\u00fantame cualquier cosa sobre el universo cu\u00e1ntico.",
     "placeholder": "Preguntar a Aether...",
     "send": "Enviar",
-    "title": "Aether Tree",
+    "title": "Aether Mind",
     "reasoning": "Razonando...",
-    "offline": "Conexi\u00f3n con Aether Tree no disponible. El nodo puede estar fuera de l\u00ednea."
+    "offline": "Conexi\u00f3n con Aether Mind no disponible. El nodo puede estar fuera de l\u00ednea."
   },
   "footer": {
     "copyright": "Qubitcoin. Activos Digitales Seguros por F\u00edsica con AI en Cadena.",

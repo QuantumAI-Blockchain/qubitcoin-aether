@@ -181,11 +181,11 @@ function OverviewTab({
 
   const stats = [
     { label: "Block Height", value: chain?.height?.toLocaleString() ?? "---" },
-    { label: "Circulating Supply", value: chain?.total_supply != null ? formatSupply(chain.total_supply) : "---" },
-    { label: "Difficulty", value: chain?.difficulty != null ? formatDifficulty(chain.difficulty) : "---" },
-    { label: "Mempool", value: chain?.mempool_size?.toString() ?? "---" },
+    { label: "Circulating Supply", value: chain?.total_supply != null ? formatSupply(parseFloat(String(chain.total_supply))) : "---" },
+    { label: "Difficulty", value: chain?.difficulty != null ? formatDifficulty(parseFloat(String(chain.difficulty))) : "---" },
+    { label: "Peers", value: chain?.peers != null ? `${chain.peers + 1} Nodes` : "---" },
     { label: "HMS-Phi (\u03A6)", value: phi?.phi?.toFixed(4) ?? "---" },
-    { label: "Knowledge Nodes", value: phi?.knowledge_nodes?.toLocaleString() ?? "---" },
+    { label: "Knowledge Vectors", value: phi?.knowledge_nodes?.toLocaleString() ?? "---" },
     { label: "AI Gates", value: `${gatesPassed}/${gatesTotal}` },
   ];
 

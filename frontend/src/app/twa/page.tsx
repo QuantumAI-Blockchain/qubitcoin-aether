@@ -44,7 +44,7 @@ export default function TWAHomePage() {
         className="mb-4"
       >
         <h1 className="font-[family-name:var(--font-display)] text-xl font-bold">
-          {user ? `Hello, ${user.first_name}` : "Aether Tree"}
+          {user ? `Hello, ${user.first_name}` : "Aether Mind"}
         </h1>
         <p className="text-xs text-text-secondary">
           Quantum Blockchain with On-Chain AI
@@ -95,7 +95,7 @@ export default function TWAHomePage() {
           <Card className="!p-4 text-center transition hover:border-quantum-violet/30" glow="violet">
             <p className="text-2xl">💬</p>
             <p className="mt-1 text-xs font-semibold text-text-primary">Chat with AI</p>
-            <p className="text-[10px] text-text-secondary">Talk to Aether Tree</p>
+            <p className="text-[10px] text-text-secondary">Talk to Aether Mind</p>
           </Card>
         </Link>
         <Link href="/twa/earn" className="block">

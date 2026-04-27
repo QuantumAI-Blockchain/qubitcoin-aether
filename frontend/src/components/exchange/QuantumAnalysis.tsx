@@ -76,13 +76,13 @@ const QuantumAnalysis = memo(function QuantumAnalysis() {
 
   const interpretation = aetherPhi
     ? aetherPhi.above_threshold
-      ? `Aether Tree Phi is ${aetherPhi.phi.toFixed(2)} (above threshold ${aetherPhi.threshold.toFixed(1)}). ` +
+      ? `Aether Mind Phi is ${aetherPhi.phi.toFixed(2)} (above threshold ${aetherPhi.threshold.toFixed(1)}). ` +
         `High information integration correlates with reduced volatility and upward price momentum for QBC. ` +
         `Knowledge graph: ${aetherPhi.knowledge_nodes.toLocaleString()} nodes, ${aetherPhi.knowledge_edges.toLocaleString()} edges.`
-      : `Aether Tree Phi is ${aetherPhi.phi.toFixed(2)} (threshold: ${aetherPhi.threshold.toFixed(1)}). ` +
+      : `Aether Mind Phi is ${aetherPhi.phi.toFixed(2)} (threshold: ${aetherPhi.threshold.toFixed(1)}). ` +
         `Integration threshold approach is progressing. ` +
         `Knowledge graph: ${aetherPhi.knowledge_nodes.toLocaleString()} nodes, ${aetherPhi.knowledge_edges.toLocaleString()} edges.`
-    : susy?.interpretation ?? "Connecting to Aether Tree...";
+    : susy?.interpretation ?? "Connecting to Aether Mind...";
 
   const chartData = useMemo(() => {
     if (!susy?.history) return [];

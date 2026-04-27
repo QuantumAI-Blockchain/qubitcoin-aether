@@ -73,7 +73,7 @@ export default function TWAChatPage() {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: "aether", text: "Unable to reach Aether Tree. The node may be offline." },
+        { role: "aether", text: "Unable to reach Aether Mind. The node may be offline." },
       ]);
       hapticNotification("error");
     } finally {

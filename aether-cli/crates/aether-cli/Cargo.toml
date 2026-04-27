@@ -1,0 +1,27 @@
+[package]
+name = "aether-cli"
+description = "Terminal interface to Aether Mind — the world's first on-chain AI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "aether"
+path = "src/main.rs"
+
+[dependencies]
+aether-client = { path = "../aether-client" }
+aether-tui = { path = "../aether-tui" }
+aether-wallet = { path = "../aether-wallet" }
+aether-miner = { path = "../aether-miner" }
+tokio = { workspace = true }
+clap = { version = "4", features = ["derive", "env"] }
+crossterm = { workspace = true }
+ratatui = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+dirs = "6"
+toml = "0.8"

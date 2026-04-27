@@ -226,7 +226,7 @@ const SignalDashboard = memo(function SignalDashboard() {
           ))}
         </div>
 
-        {/* Live reasoning stats from Aether Tree */}
+        {/* Live reasoning stats from Aether Mind */}
         {_reasoningInfo && (
           <div
             style={{

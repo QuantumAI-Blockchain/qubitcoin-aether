@@ -11,9 +11,9 @@ import { hapticFeedback, hapticNotification } from "@/lib/telegram";
 
 const STEPS = [
   {
-    title: "Welcome to Aether Tree",
-    description: "The first on-chain AI on the Quantum Blockchain",
-    emoji: "🌳",
+    title: "Welcome to Aether Mind",
+    description: "The first on-chain neural cognitive engine on the Quantum Blockchain",
+    emoji: "🧠",
   },
   {
     title: "Earn QBC Rewards",

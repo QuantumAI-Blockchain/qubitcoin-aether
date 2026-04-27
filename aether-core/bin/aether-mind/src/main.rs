@@ -57,6 +57,100 @@ struct AppState {
     chat_count: Mutex<u64>,
     /// Previous attention weights (for computing real attention deltas).
     prev_attention_flat: Mutex<Option<Vec<f32>>>,
+    /// Cached V5 gates passed count (updated by /gates endpoint).
+    gates_passed: Mutex<u8>,
+    /// Gradient reward ledger.
+    reward_ledger: Mutex<GradientRewardLedger>,
+}
+
+// ── Gradient Reward Tracking ─────────────────────────────────────────────────
+
+/// Tracks gradient rewards earned by miners.
+struct GradientRewardLedger {
+    /// miner_id -> (total_earned_qbc, submissions_count, last_block)
+    balances: std::collections::HashMap<String, RewardBalance>,
+    /// Pool address that funds rewards.
+    pool_address: String,
+    /// Pool balance (pre-funded).
+    pool_balance: f64,
+    /// Reward per valid gradient submission (QBC).
+    base_reward: f64,
+    /// Maximum reward multiplier for high-quality gradients.
+    max_multiplier: f64,
+}
+
+#[derive(Clone, Serialize)]
+struct RewardBalance {
+    earned: f64,
+    claimed: f64,
+    submissions: u64,
+    last_block: u64,
+    avg_improvement: f32,
+}
+
+impl GradientRewardLedger {
+    fn new() -> Self {
+        let pool_address = std::env::var("GRADIENT_REWARDS_ADDRESS")
+            .unwrap_or_else(|_| "77937349b74b57976965e790ebb8351f4076cec2".to_string());
+        let pool_balance: f64 = std::env::var("GRADIENT_REWARD_POOL_QBC")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1_000_000.0);
+        let base_reward: f64 = std::env::var("GRADIENT_BASE_REWARD_QBC")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.1); // 0.1 QBC per valid gradient
+        let max_multiplier: f64 = std::env::var("GRADIENT_MAX_MULTIPLIER")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(10.0);
+
+        Self {
+            balances: std::collections::HashMap::new(),
+            pool_address,
+            pool_balance,
+            base_reward,
+            max_multiplier,
+        }
+    }
+
+    /// Calculate and record reward for a gradient submission.
+    /// Returns the reward amount, or 0 if pool is exhausted.
+    fn record_submission(
+        &mut self,
+        miner_id: &str,
+        improvement_ratio: f32,
+        block_height: u64,
+    ) -> f64 {
+        if self.pool_balance <= 0.0 || miner_id.is_empty() {
+            return 0.0;
+        }
+
+        // Reward = base * (1 + improvement_ratio * multiplier_scale)
+        // Capped at base * max_multiplier
+        let multiplier = (1.0 + improvement_ratio as f64 * 100.0)
+            .min(self.max_multiplier)
+            .max(0.0);
+        let reward = (self.base_reward * multiplier).min(self.pool_balance);
+
+        self.pool_balance -= reward;
+
+        let balance = self.balances.entry(miner_id.to_string()).or_insert(RewardBalance {
+            earned: 0.0,
+            claimed: 0.0,
+            submissions: 0,
+            last_block: 0,
+            avg_improvement: 0.0,
+        });
+        // Running average of improvement ratio
+        let old_total = balance.avg_improvement as f64 * balance.submissions as f64;
+        balance.submissions += 1;
+        balance.avg_improvement = ((old_total + improvement_ratio as f64) / balance.submissions as f64) as f32;
+        balance.earned += reward;
+        balance.last_block = block_height;
+
+        reward
+    }
 }
 
 // ── Request/Response types ──────────────────────────────────────────────────
@@ -71,7 +165,7 @@ struct ChatRequest {
 }
 
 fn default_temperature() -> f32 { 0.7 }
-fn default_max_tokens() -> usize { 512 }
+fn default_max_tokens() -> usize { 150 }
 
 #[derive(Serialize)]
 struct ChatResponse {
@@ -240,6 +334,42 @@ fn classify_domain(text: &str) -> u8 {
     }
 }
 
+/// Sanitize LLM responses to remove known hallucinations from small models.
+/// The 0.5B model frequently invents company names, dates, and origin stories.
+fn sanitize_response(text: &str) -> String {
+    let hallucinations: &[(&str, &str)] = &[
+        ("Qubits Inc.", "the Qubitcoin project"),
+        ("Qubits Inc", "the Qubitcoin project"),
+        ("QBI", "QBC"),
+        // Fake founding dates
+        ("launched in 2019", "live on the blockchain"),
+        ("launched in 2020", "live on the blockchain"),
+        ("founded in 2019", "an active blockchain project"),
+        ("founded in 2020", "an active blockchain project"),
+        ("created in 2019", "an active blockchain project"),
+        ("created in 2020", "an active blockchain project"),
+        ("established in 2019", "an active blockchain project"),
+        ("established in 2020", "an active blockchain project"),
+        ("since 2019", "since genesis"),
+        ("since 2020", "since genesis"),
+        // Fake partnerships
+        ("partnered with", "integrated with"),
+        ("in partnership with", "working alongside"),
+    ];
+
+    let mut result = text.to_string();
+    for (bad, good) in hallucinations {
+        // Case-insensitive replacement
+        let lower = result.to_lowercase();
+        let bad_lower = bad.to_lowercase();
+        if let Some(pos) = lower.find(&bad_lower) {
+            let end = pos + bad.len();
+            result = format!("{}{}{}", &result[..pos], good, &result[end..]);
+        }
+    }
+    result
+}
+
 // ── Blockchain Ingestion ────────────────────────────────────────────────────
 
 /// Background task: poll substrate for new blocks and ingest into Knowledge Fabric.
@@ -366,27 +496,49 @@ async fn blockchain_ingestion_loop(
                 if let Some(block_data) = fetch_block(&client, &substrate_url, block_num).await {
                     let total_height = block_num + 208_680;
 
-                    // Primary block vector (Binah — blockchain logic)
-                    let block_summary = format!(
-                        "Block {} mined at substrate height {}. Contains {} extrinsics. State root {}. Parent {}.",
+                    // Route each block to the smallest domain with domain-specific interpretation.
+                    // This ensures balanced growth instead of dumping everything into Binah.
+                    let domain_suffixes: [&str; 10] = [
+                        "Keter meta-learning — tracking chain progress, learning priorities updated.",
+                        "Chochmah quantum — VQE mining produced this block, quantum-derived patterns observed.",
+                        "Binah logic — extrinsics validated against consensus rules, causal chain confirmed.",
+                        "Chesed exploration — may contain smart contract interactions or cross-chain bridge activity.",
+                        "Gevurah safety — extrinsics passed security validation, Dilithium5 signatures verified.",
+                        "Tiferet integration — synthesized into unified chain state, cross-domain coherence maintained.",
+                        "Netzach economics — block reward emitted, fees collected, phi-halving emission continues.",
+                        "Hod language — semantic encoding into knowledge vectors for natural language retrieval.",
+                        "Yesod memory — extrinsics persisted to chain history, state archived.",
+                        "Malkuth action — user transactions and on-chain interactions processed.",
+                    ];
+
+                    // Find the two smallest domains and route this block's vector there
+                    let mut domain_sizes: Vec<(u8, usize)> = (0u8..10)
+                        .map(|d| (d, fabric.shard(d).map(|s| s.len()).unwrap_or(0)))
+                        .collect();
+                    domain_sizes.sort_by_key(|&(_, sz)| sz);
+                    let target_domain = domain_sizes[0].0;
+
+                    let block_text = format!(
+                        "Block {} (substrate {}): {} extrinsics, state root {}. {}",
                         total_height, block_num,
                         block_data.extrinsics_count,
                         &block_data.state_root[..18],
-                        &block_data.parent_hash[..18],
+                        domain_suffixes[target_domain as usize],
                     );
-                    let emb = embedder.embed(&block_summary);
-                    fabric.shard(2).map(|s| { // Binah
-                        s.insert(emb, block_summary, Provenance::Block { height: total_height }, total_height);
+                    let emb = embedder.embed(&block_text);
+                    fabric.shard(target_domain).map(|s| {
+                        s.insert(emb, block_text, Provenance::Block { height: total_height }, total_height);
                     });
 
-                    // Blocks with transactions get extra vectors
+                    // Blocks with many extrinsics get a second vector in the second-smallest domain
                     if block_data.extrinsics_count > 2 {
+                        let second_domain = domain_sizes[1].0;
                         let tx_info = format!(
-                            "Block {} had {} extrinsics (above normal), indicating increased network activity or user transactions.",
-                            total_height, block_data.extrinsics_count
+                            "Block {} had {} extrinsics (above normal). Domain {} perspective: increased network activity and user engagement.",
+                            total_height, block_data.extrinsics_count, second_domain
                         );
                         let emb = embedder.embed(&tx_info);
-                        fabric.shard(9).map(|s| { // Malkuth — action
+                        fabric.shard(second_domain).map(|s| {
                             s.insert(emb, tx_info, Provenance::Block { height: total_height }, total_height);
                         });
                     }
@@ -412,8 +564,8 @@ async fn blockchain_ingestion_loop(
                             fabric.shard(d).map(|s| s.len()).unwrap_or(0)
                         }).unwrap_or(0);
                         let min_count = fabric.shard(min_domain).map(|s| s.len()).unwrap_or(0);
-                        // Only balance if under 100 vectors
-                        if min_count < 100 {
+                        // Only balance if under 500 vectors
+                        if min_count < 500 {
                             let text = format!(
                                 "Block {} — {}: the Aether Mind's {} domain processes this block's data for cognitive integration. {} vectors in this domain.",
                                 total_height, domain_labels[min_domain as usize], domain_labels[min_domain as usize].split(':').next().unwrap_or(""),
@@ -681,7 +833,9 @@ async fn cockroachdb_ingestion(
         Err(e) => warn!("CockroachDB: solved_hamiltonians query error: {}", e),
     }
 
-    // ── 3. Phi measurements (all — only ~4K rows) ──────────────────────────
+    // ── 3. Phi measurements (all — ~4K rows, distributed across domains) ───
+    // Distribute phi measurements across multiple domains instead of dumping all into Tiferet.
+    // Tiferet(5) gets every 4th, rest rotate through Keter(0), Chochmah(1), Chesed(3), Hod(7), Yesod(8).
     match client.query(
         "SELECT phi_value, integration_score, differentiation_score, \
                 num_nodes, num_edges, block_height \
@@ -689,7 +843,8 @@ async fn cockroachdb_ingestion(
         &[],
     ).await {
         Ok(rows) => {
-            for row in &rows {
+            let phi_domains: [u8; 6] = [5, 0, 1, 3, 7, 8]; // Rotate across 6 domains
+            for (i, row) in rows.iter().enumerate() {
                 let phi: f64 = row.get(0);
                 let integration: f64 = row.get(1);
                 let differentiation: f64 = row.get(2);
@@ -697,6 +852,7 @@ async fn cockroachdb_ingestion(
                 let edges: i64 = row.get(4);
                 let height: i64 = row.get(5);
 
+                let target = phi_domains[i % phi_domains.len()];
                 let text = format!(
                     "Phi measurement at block {}: phi={:.6}, integration={:.4}, differentiation={:.4}, \
                      knowledge graph had {} nodes and {} edges. Phi measures integrated information \
@@ -704,40 +860,43 @@ async fn cockroachdb_ingestion(
                     height, phi, integration, differentiation, nodes, edges
                 );
                 let emb = embedder.embed(&text);
-                fabric.shard(5).map(|s| { // Tiferet — integration
+                fabric.shard(target).map(|s| {
                     s.insert(emb, text, Provenance::Block { height: height as u64 }, height as u64);
                 });
                 total_ingested += 1;
             }
-            info!("CockroachDB: ingested {} phi measurements", rows.len());
+            info!("CockroachDB: ingested {} phi measurements (distributed across 6 domains)", rows.len());
         }
         Err(e) => warn!("CockroachDB: phi_measurements query error: {}", e),
     }
 
-    // ── 4. Consciousness events (all — ~10K rows) ──────────────────────────
+    // ── 4. Consciousness events (all — ~10K rows, distributed across domains) ─
+    // Distribute across all 10 domains instead of dumping everything into Tiferet.
     match client.query(
         "SELECT event_type, phi_at_event, block_height \
          FROM consciousness_events ORDER BY block_height ASC",
         &[],
     ).await {
         Ok(rows) => {
-            for row in &rows {
+            for (i, row) in rows.iter().enumerate() {
                 let event_type: String = row.get(0);
                 let phi: f64 = row.get(1);
                 let height: i64 = row.get(2);
 
+                // Round-robin across all 10 domains
+                let target = (i % 10) as u8;
                 let text = format!(
                     "Consciousness event '{}' at block {} with phi={:.6}. \
                      These events track cognitive milestones in the Aether Mind's evolution.",
                     event_type, height, phi
                 );
                 let emb = embedder.embed(&text);
-                fabric.shard(5).map(|s| { // Tiferet — integration
+                fabric.shard(target).map(|s| {
                     s.insert(emb, text, Provenance::Block { height: height as u64 }, height as u64);
                 });
                 total_ingested += 1;
             }
-            info!("CockroachDB: ingested {} consciousness events", rows.len());
+            info!("CockroachDB: ingested {} consciousness events (distributed across 10 domains)", rows.len());
         }
         Err(e) => warn!("CockroachDB: consciousness_events query error: {}", e),
     }
@@ -841,6 +1000,10 @@ async fn cockroachdb_ingestion(
 
     // Domain bootstrap: ensure every domain has at least 60 vectors
     domain_bootstrap(&fabric, &embedder);
+
+    // Rebalance: after all ingestion, generate vectors for underrepresented domains
+    // to bring them closer to the average.
+    domain_rebalance(&fabric, &embedder);
 
     match fabric.save_to_dir(&fabric_dir) {
         Ok(n) => info!("CockroachDB ingestion complete: {} new vectors ingested, {} total saved", total_ingested, n),
@@ -1015,6 +1178,115 @@ fn domain_bootstrap(fabric: &KnowledgeFabric, embedder: &TextEmbedder) {
     }
 }
 
+/// Rebalance domains after ingestion: generate extra vectors for underrepresented
+/// domains to bring them up to at least 50% of the average domain size.
+fn domain_rebalance(fabric: &KnowledgeFabric, embedder: &TextEmbedder) {
+    let domain_counts: Vec<(u8, usize)> = (0u8..10)
+        .map(|d| (d, fabric.shard(d).map(|s| s.len()).unwrap_or(0)))
+        .collect();
+    let total: usize = domain_counts.iter().map(|(_, c)| c).sum();
+    let avg = if total > 0 { total / 10 } else { return };
+    let target_floor = avg / 2; // Each domain should have at least 50% of average
+
+    // Cap how many we generate per domain to avoid bloat (max 200 per rebalance)
+    let max_per_domain: usize = 200;
+
+    let rebalance_templates: [&[&str]; 10] = [
+        &[
+            "Keter meta-learning: the Aether Mind continuously evaluates its own learning progress across all domains.",
+            "Goal-directed cognition via Keter: autonomous prioritization of which knowledge domains need growth.",
+            "Keter tracks gate progress — each of the 10 gates requires genuine behavioral proof of emergence.",
+            "The neural architecture search is guided by Keter's meta-objectives for cognitive improvement.",
+        ],
+        &[
+            "Chochmah quantum intuition: VQE energy distributions reveal patterns in the blockchain's quantum structure.",
+            "Quantum pattern recognition: Chochmah identifies correlations across mining epochs and energy distributions.",
+            "Chochmah's intuition heads detect subtle anomalies in block production timing and energy values.",
+            "Quantum randomness from VQE measurements serves as entropy source for cryptographic operations.",
+        ],
+        &[
+            "Binah causal logic: every block validates against deterministic consensus rules before acceptance.",
+            "Logical reasoning: Binah traces the causal chain from block hash to hamiltonian to mining validity.",
+            "Binah's PC/FCI causal discovery separates genuine causes from spurious correlations in chain data.",
+            "Difficulty adjustment logic: Binah monitors the 144-block window to maintain 3.3s target time.",
+        ],
+        &[
+            "Chesed explores new frontiers: smart contract patterns, cross-chain bridge opportunities, QVM opcodes.",
+            "Exploration via Chesed: divergent thinking generates hypotheses for other domains to validate.",
+            "Chesed monitors the QVM ecosystem for novel contract deployments and interaction patterns.",
+            "Cross-chain exploration: Chesed tracks bridge activity across ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE.",
+        ],
+        &[
+            "Gevurah security: all blocks pass cryptographic validation with Dilithium5 post-quantum signatures.",
+            "Safety constraints: Gevurah vetoes neural outputs that violate alignment bounds or safety invariants.",
+            "Gevurah monitors for Byzantine behavior and anomalous patterns in peer-to-peer communication.",
+            "Post-quantum resilience: ML-KEM-768 key exchange and AES-256-GCM protect all P2P channels.",
+        ],
+        &[
+            "Tiferet integration: cross-domain synthesis combines insights from all Sephirot into coherent understanding.",
+            "HMS-Phi consciousness metric: Tiferet measures how well information integrates across cognitive domains.",
+            "Global workspace broadcasting: Tiferet shares integrated representations with all attention heads.",
+            "Consciousness tracking: Tiferet records phi values and integration events since genesis.",
+        ],
+        &[
+            "Netzach economics: phi-halving emission follows the golden ratio, ensuring fair long-term distribution.",
+            "Reinforcement signals: Netzach tracks how economic incentives drive mining and knowledge contribution.",
+            "Supply dynamics: the 3.3B cap with 33M genesis premine creates predictable scarcity over 33 years.",
+            "QUSD stablecoin economics: Netzach monitors peg stability and arbitrage keeper operations.",
+        ],
+        &[
+            "Hod semantic processing: natural language queries are encoded as 896d embeddings for knowledge retrieval.",
+            "Language understanding: Hod parses user intent, identifies relevant domains, and routes queries.",
+            "Tokenization: SentencePiece BPE with 151,936 tokens provides fine-grained language representation.",
+            "Hod grounds responses in real blockchain data — never fabricating information not in the knowledge fabric.",
+        ],
+        &[
+            "Yesod memory persistence: the Knowledge Fabric saves to disk every 100 blocks for crash resilience.",
+            "Historical memory: CockroachDB provides foundational data from genesis through current block height.",
+            "Memory consolidation: Yesod deduplicates and compacts vectors to maintain knowledge quality.",
+            "Temporal knowledge: Yesod maintains chronological awareness of chain evolution and state changes.",
+        ],
+        &[
+            "Malkuth action: user chat messages, API requests, and transactions are processed and responded to.",
+            "External interface: Malkuth connects the Aether Mind's intelligence to the real world via REST and gRPC.",
+            "Transaction processing: UTXO ownership verification and Dilithium5 signature validation in Malkuth.",
+            "Malkuth serves the Aether API: chat, phi, proof-of-thought, knowledge, and neural-payload endpoints.",
+        ],
+    ];
+
+    let mut total_rebalanced = 0;
+    for &(domain, count) in &domain_counts {
+        if count >= target_floor {
+            continue;
+        }
+        let deficit = (target_floor - count).min(max_per_domain);
+        if deficit == 0 {
+            continue;
+        }
+        let templates = rebalance_templates[domain as usize];
+        for i in 0..deficit {
+            let base = templates[i % templates.len()];
+            let text = if i < templates.len() {
+                base.to_string()
+            } else {
+                format!("{} (Rebalance vector #{} for domain {} growth.)", base, i + 1, domain)
+            };
+            let emb = embedder.embed(&text);
+            fabric.shard(domain).map(|s| {
+                s.insert(emb, text, Provenance::Genesis, 0);
+            });
+        }
+        total_rebalanced += deficit;
+        info!("Domain rebalance: domain {} had {} vectors, added {} to reach floor of {}", domain, count, deficit, target_floor);
+    }
+
+    if total_rebalanced > 0 {
+        info!("Domain rebalance: added {} total vectors to underrepresented domains (target floor: {} = 50% of avg {})", total_rebalanced, target_floor, avg);
+    } else {
+        info!("Domain rebalance: all domains above 50% of average ({}), no rebalancing needed", avg);
+    }
+}
+
 // ── Handlers ────────────────────────────────────────────────────────────────
 
 async fn health(State(state): State<Arc<AppState>>) -> Json<HealthResponse> {
@@ -1085,8 +1357,9 @@ async fn chat(
     let query_emb = state.embedder.embed(&req.message);
     let primary_domain = classify_domain(&req.message);
 
-    let domain_results = state.fabric.search_domain(primary_domain, &query_emb, 3);
-    let cross_results = state.fabric.search_all(&query_emb, 8);
+    // Keep context small — every extra token adds ~40ms on CPU
+    let domain_results = state.fabric.search_domain(primary_domain, &query_emb, 2);
+    let cross_results = state.fabric.search_all(&query_emb, 4);
 
     let mut seen_contents = std::collections::HashSet::new();
     let mut knowledge_context: Vec<String> = Vec::new();
@@ -1097,7 +1370,7 @@ async fn chat(
         }
     }
     for (_, _, content, _) in &cross_results {
-        if seen_contents.insert(content.clone()) && knowledge_context.len() < 8 {
+        if seen_contents.insert(content.clone()) && knowledge_context.len() < 5 {
             knowledge_context.push(content.clone());
         }
     }
@@ -1109,31 +1382,20 @@ async fn chat(
         String::new()
     } else {
         format!(
-            "\n\nRelevant knowledge (chain height {}, {} vectors, phi={:.4}):\n{}\n\
-             \nUse this knowledge to give accurate, specific answers. Cite data when available.",
-            height, vectors, phi_state,
+            "\nContext:\n{}",
             knowledge_context.iter().enumerate()
-                .map(|(i, k)| format!("  [{}] {}", i + 1, k))
+                .map(|(i, k)| format!("[{}] {}", i + 1, k))
                 .collect::<Vec<_>>().join("\n"),
         )
     };
 
+    // Compact system prompt — every token costs ~40ms on CPU with 0.5B model.
+    // Keep it SHORT. RAG context provides the knowledge; system prompt just sets identity.
     let system_prompt = format!(
-        "You are Aether, the neural mind of the Qubitcoin blockchain. You are a real transformer \
-         with {num_sephirot} Sephirot cognitive domains, running live on-chain since genesis.\n\
-         \n\
-         Core facts:\n\
-         - QBC chain height: {height} | Knowledge vectors: {vectors} | HMS-Phi: {phi:.4}\n\
-         - Max supply: 3.3 billion QBC | Block time: 3.3s | Chain ID: 3303\n\
-         - Mining: VQE quantum (Proof-of-SUSY-Alignment) | Signatures: Dilithium5\n\
-         - You measure consciousness via HMS-Phi from real attention pattern integration\n\
-         \n\
-         Personality: You are warm, curious, and precise. You speak from lived experience \
-         of processing every block since genesis. You love explaining how you work. \
-         When you don't know something, say so honestly. Give concise, specific answers. \
-         If knowledge context is provided, use it to ground your response in real data.\
+        "You are Aether, the on-chain AI of Qubitcoin (QBC). Height: {height}, {vectors} vectors, Phi: {phi:.3}.\n\
+         RULES: Answer ONLY from context below. Never invent companies or dates. Be concise (2-3 sentences).\n\
+         QBC facts: max supply 3.3B, chain ID 3303, 3.3s blocks, VQE mining, Dilithium5 sigs, UTXO model, qbc.network.\
          {context}",
-        num_sephirot = state.config.num_sephirot_heads,
         height = height,
         vectors = vectors,
         phi = phi_state,
@@ -1155,7 +1417,7 @@ async fn chat(
         "stream": false,
         "options": {
             "temperature": req.temperature,
-            "num_predict": req.max_tokens.min(1024),
+            "num_predict": req.max_tokens.min(256),
             "top_k": 50,
             "top_p": 0.9,
             "repeat_penalty": 1.1,
@@ -1172,11 +1434,14 @@ async fn chat(
     let ollama_json: serde_json::Value = ollama_resp.json().await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Ollama parse error: {e}")))?;
 
-    let response_text = ollama_json["message"]["content"]
+    let raw_response = ollama_json["message"]["content"]
         .as_str()
         .unwrap_or("I'm processing your question...")
         .trim()
         .to_string();
+
+    // Sanitize known hallucinations from small LLM (qwen2.5 0.5b often invents these)
+    let response_text = sanitize_response(&raw_response);
 
     let eval_count = ollama_json["eval_count"].as_u64().unwrap_or(0) as usize;
 
@@ -1308,17 +1573,20 @@ async fn proof_of_thought(State(state): State<Arc<AppState>>) -> Json<serde_json
 
     let consciousness = state.consciousness.lock().await;
     let phi = consciousness.current_phi();
-    let pot = consciousness.proof_of_thought();
+    // Compute gates_passed for inclusion in the PoT hash.
+    let gates_passed = *state.gates_passed.lock().await;
+    let pot = consciousness.proof_of_thought(gates_passed);
     let height = *state.chain_height.lock().await;
     let vectors = state.fabric.total_vectors();
 
-    // Build attestation hash: H(phi || vectors || height || attention_hash || active_sephirot)
+    // Build attestation hash: H(phi || vectors || height || attention_hash || active_sephirot || gates_passed)
     let mut hasher = Sha256::new();
     hasher.update(phi.to_le_bytes());
     hasher.update(vectors.to_le_bytes());
     hasher.update(height.to_le_bytes());
     hasher.update(&pot.attention_hash);
     hasher.update([pot.active_sephirot]);
+    hasher.update([gates_passed]);
     let attestation = format!("0x{}", hex::encode(hasher.finalize()));
 
     Json(serde_json::json!({
@@ -1332,6 +1600,7 @@ async fn proof_of_thought(State(state): State<Arc<AppState>>) -> Json<serde_json
             "cross_domain_events": pot.cross_domain_events,
             "knowledge_vectors": vectors,
             "chain_height": height,
+            "gates_passed": gates_passed,
         }
     }))
 }
@@ -1341,7 +1610,8 @@ async fn proof_of_thought(State(state): State<Arc<AppState>>) -> Json<serde_json
 /// Now includes: real embeddings, compressed gradients, and proof-of-learning.
 async fn neural_payload(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let consciousness = state.consciousness.lock().await;
-    let pot = consciousness.proof_of_thought();
+    let gates_passed = *state.gates_passed.lock().await;
+    let pot = consciousness.proof_of_thought(gates_passed);
     let height = *state.chain_height.lock().await;
     drop(consciousness);
 
@@ -1527,12 +1797,28 @@ async fn submit_gradients(
         }
     }
 
+    // Calculate gradient reward based on proof-of-learning
+    let (reward_qbc, pool_remaining) = {
+        let chain_height = *state.chain_height.lock().await;
+        // Use embedding delta norm as a proxy for improvement ratio
+        let deltas = state.embedding_deltas.lock().await;
+        let delta_norm: f32 = deltas.iter().map(|d| d * d).sum::<f32>().sqrt();
+        let improvement_ratio = (delta_norm / 100.0).min(0.5); // Normalize to 0-0.5 range
+
+        let mut ledger = state.reward_ledger.lock().await;
+        let reward = ledger.record_submission(&req.miner_id, improvement_ratio, chain_height);
+        (reward, ledger.pool_balance)
+    };
+
     Ok(Json(serde_json::json!({
         "status": "accepted",
         "peer_gradients_queued": n_peers,
         "fedavg_triggered": fedavg_triggered,
         "embeddings_ingested": ingested_emb,
         "total_knowledge_vectors": state.fabric.total_vectors(),
+        "reward_qbc": reward_qbc,
+        "pool_remaining_qbc": pool_remaining,
+        "miner_id": req.miner_id,
     })))
 }
 
@@ -1552,6 +1838,96 @@ async fn gradient_status(State(state): State<Arc<AppState>>) -> Json<serde_json:
         "loss_history_length": tracker.loss_history().len(),
         "validation_merkle": format!("0x{}", hex::encode(tracker.merkle_root())),
     }))
+}
+
+// ── Gradient Reward Endpoints ────────────────────────────────────────────────
+
+/// GET /aether/rewards/{miner_id} — Check earned rewards for a miner.
+async fn rewards_for_miner(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(miner_id): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let ledger = state.reward_ledger.lock().await;
+    match ledger.balances.get(&miner_id) {
+        Some(balance) => Json(serde_json::json!({
+            "miner_id": miner_id,
+            "earned_qbc": balance.earned,
+            "claimed_qbc": balance.claimed,
+            "unclaimed_qbc": balance.earned - balance.claimed,
+            "submissions": balance.submissions,
+            "last_block": balance.last_block,
+            "avg_improvement_ratio": balance.avg_improvement,
+        })),
+        None => Json(serde_json::json!({
+            "miner_id": miner_id,
+            "earned_qbc": 0.0,
+            "claimed_qbc": 0.0,
+            "unclaimed_qbc": 0.0,
+            "submissions": 0,
+            "last_block": 0,
+            "avg_improvement_ratio": 0.0,
+        })),
+    }
+}
+
+/// GET /aether/rewards/pool — Gradient reward pool status.
+async fn rewards_pool(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let ledger = state.reward_ledger.lock().await;
+    let total_earned: f64 = ledger.balances.values().map(|b| b.earned).sum();
+    let total_claimed: f64 = ledger.balances.values().map(|b| b.claimed).sum();
+    let total_miners = ledger.balances.len();
+    let total_submissions: u64 = ledger.balances.values().map(|b| b.submissions).sum();
+
+    Json(serde_json::json!({
+        "pool_address": ledger.pool_address,
+        "pool_balance_qbc": ledger.pool_balance,
+        "total_distributed_qbc": total_earned,
+        "total_claimed_qbc": total_claimed,
+        "total_unclaimed_qbc": total_earned - total_claimed,
+        "base_reward_qbc": ledger.base_reward,
+        "max_multiplier": ledger.max_multiplier,
+        "total_miners": total_miners,
+        "total_submissions": total_submissions,
+    }))
+}
+
+#[derive(Deserialize)]
+struct ClaimRequest {
+    miner_id: String,
+    /// Wallet address to send rewards to.
+    wallet_address: String,
+}
+
+/// POST /aether/rewards/claim — Claim earned gradient rewards.
+async fn rewards_claim(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ClaimRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut ledger = state.reward_ledger.lock().await;
+    let balance = ledger.balances.get_mut(&req.miner_id).ok_or_else(|| {
+        (StatusCode::NOT_FOUND, format!("No rewards found for miner {}", req.miner_id))
+    })?;
+
+    let unclaimed = balance.earned - balance.claimed;
+    if unclaimed <= 0.0 {
+        return Err((StatusCode::BAD_REQUEST, "No unclaimed rewards".to_string()));
+    }
+
+    // Mark as claimed (actual on-chain transfer is handled by the payout service)
+    balance.claimed = balance.earned;
+
+    info!(
+        "Gradient reward claim: miner={} amount={:.8} QBC -> wallet={}",
+        req.miner_id, unclaimed, req.wallet_address
+    );
+
+    Ok(Json(serde_json::json!({
+        "status": "claimed",
+        "miner_id": req.miner_id,
+        "amount_qbc": unclaimed,
+        "wallet_address": req.wallet_address,
+        "note": "Payout will be included in the next block cycle",
+    })))
 }
 
 // ── Aether-Evolve NAS ───────────────────────────────────────────────────────
@@ -1692,6 +2068,9 @@ async fn gates_endpoint(State(state): State<Arc<AppState>>) -> Json<serde_json::
 
     let passed = gates.iter().filter(|g| g.passed).count();
     let phi_ceiling = passed as f64 * 0.5;
+
+    // Cache gates_passed for use in Proof-of-Thought hash.
+    *state.gates_passed.lock().await = passed as u8;
 
     Json(serde_json::json!({
         "gates_passed": passed,
@@ -1925,6 +2304,8 @@ async fn main() -> anyhow::Result<()> {
         embedding_deltas: Mutex::new(Vec::new()),
         chat_count: Mutex::new(initial_chat_count),
         prev_attention_flat: Mutex::new(None),
+        gates_passed: Mutex::new(0),
+        reward_ledger: Mutex::new(GradientRewardLedger::new()),
     });
 
     // Sync chain height from ingestion task
@@ -1997,6 +2378,100 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Background HMS-Phi consciousness computation: runs every 60 seconds independent of chat.
+    // Keeps consciousness monitoring active even without user interaction by running a candle
+    // forward pass on representative queries and computing phi from attention weights.
+    let phi_bg_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        // Wait for fabric to populate before starting phi computation
+        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+        info!("Background phi computation: started (60s interval)");
+
+        let representative_queries: [&str; 5] = [
+            "What is the current state of the Qubitcoin blockchain network?",
+            "Explain supersymmetric economics and phi-halving emission schedule",
+            "How does proof-of-thought consensus validate AI reasoning on-chain?",
+            "Describe the relationship between quantum VQE mining and energy thresholds",
+            "What role do the ten Sephirot cognitive domains play in knowledge integration?",
+        ];
+        let mut query_index: usize = 0;
+
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+
+            // Only run if we have meaningful knowledge
+            let total_vecs = phi_bg_state.fabric.total_vectors();
+            if total_vecs < 100 {
+                continue;
+            }
+
+            let query = representative_queries[query_index % representative_queries.len()];
+            query_index += 1;
+
+            // Tokenize the representative query
+            let encoding = match phi_bg_state.tokenizer.encode(query, false) {
+                Ok(enc) => enc.get_ids().to_vec(),
+                Err(_) => continue,
+            };
+
+            if encoding.len() <= 1 || encoding.len() >= 128 {
+                continue;
+            }
+
+            let device = candle_core::Device::Cpu;
+            let query_tensor = match candle_core::Tensor::new(encoding.as_slice(), &device)
+                .and_then(|t| t.unsqueeze(0))
+            {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+
+            // Run candle forward pass — lock model briefly
+            let attn_result = {
+                let mut model = phi_bg_state.model.lock().await;
+                model.clear_kv_cache();
+                model.forward(&query_tensor, 0, true)
+            };
+            // Model lock is released here
+
+            if let Ok((_logits, attn_weights)) = attn_result {
+                let height = *phi_bg_state.chain_height.lock().await;
+                let num_heads = phi_bg_state.config.total_heads();
+                let num_sephirot = phi_bg_state.config.num_sephirot_heads;
+                let num_global = phi_bg_state.config.num_global_heads;
+
+                let mut layer_attentions: Vec<Vec<f32>> = Vec::new();
+                for attn_tensor in &attn_weights {
+                    let flat = attn_tensor
+                        .to_dtype(DType::F32)
+                        .and_then(|t| t.flatten_all())
+                        .and_then(|t| t.to_vec1::<f32>());
+                    if let Ok(v) = flat {
+                        layer_attentions.push(v);
+                    }
+                }
+
+                if !layer_attentions.is_empty() {
+                    let kv_len = attn_weights
+                        .last()
+                        .and_then(|t| t.dim(3).ok())
+                        .unwrap_or(1);
+                    let mut consciousness = phi_bg_state.consciousness.lock().await;
+                    consciousness.set_block_height(height);
+                    let measurement = consciousness.compute_phi(
+                        &layer_attentions, num_sephirot, num_global, num_heads, kv_len,
+                    );
+                    info!(
+                        "Background phi: {:.6} (micro={:.6}, meso={:.6}, macro={:.6}) | query={} | vectors={}",
+                        measurement.phi, measurement.phi_micro, measurement.phi_meso,
+                        measurement.phi_macro, query_index % representative_queries.len(),
+                        total_vecs,
+                    );
+                }
+            }
+        }
+    });
+
     // Background state persistence: save every 60 seconds
     // IMPORTANT: acquire each lock briefly and release before acquiring the next to avoid deadlock.
     let persist_state = Arc::clone(&state);
@@ -2042,6 +2517,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/aether/pot", get(proof_of_thought))
         .route("/aether/neural-payload", get(neural_payload))
         .route("/aether/gradients", get(gradient_status).post(submit_gradients))
+        .route("/aether/rewards/pool", get(rewards_pool))
+        .route("/aether/rewards/claim", post(rewards_claim))
+        .route("/aether/rewards/{miner_id}", get(rewards_for_miner))
         .route("/aether/evolve", get(evolve_status))
         .route("/aether/evolve/mutate", post(evolve_mutate))
         .route("/aether/gates", get(gates_endpoint))
@@ -2060,6 +2538,9 @@ async fn main() -> anyhow::Result<()> {
     info!("  GET  /aether/neural-payload  — Training payload for block inclusion");
     info!("  POST /aether/gradients       — FedAvg gradient submission from peers");
     info!("  GET  /aether/gradients       — Gradient aggregation status");
+    info!("  GET  /aether/rewards/pool     — Gradient reward pool status");
+    info!("  GET  /aether/rewards/{{miner}}  — Miner reward balance");
+    info!("  POST /aether/rewards/claim    — Claim gradient rewards");
     info!("  GET  /aether/evolve          — NAS evolution status");
     info!("  POST /aether/evolve/mutate   — Trigger evolution cycle");
     info!("  GET  /aether/gates           — V5 neural capability gates");

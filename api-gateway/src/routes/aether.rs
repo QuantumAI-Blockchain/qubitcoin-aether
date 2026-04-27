@@ -86,55 +86,79 @@ pub async fn aether_knowledge(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
-/// GET /aether/consciousness — Consciousness metrics.
+/// GET /aether/consciousness — Consciousness metrics (live from aether-mind + gates).
 pub async fn aether_consciousness(State(state): State<AppState>) -> Json<Value> {
-    let phi_row: Option<(f64, f64, f64, i64, i64, i64)> = sqlx::query_as(
-        r#"
-        SELECT phi_value, integration_score, differentiation_score,
-               num_nodes, num_edges, block_height
-        FROM phi_measurements
-        ORDER BY id DESC LIMIT 1
-        "#,
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
+    // Fetch live phi and gates from aether-mind in parallel
+    let phi_url = format!("{}/aether/phi", state.aether_url);
+    let gates_url = format!("{}/aether/gates", state.aether_url);
 
-    let events_count: Option<(i64,)> = sqlx::query_as(
-        "SELECT COUNT(*) FROM consciousness_events",
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
+    // Fetch both in parallel, then parse
+    let (phi_resp, gates_resp) = tokio::join!(
+        state.http_client.get(&phi_url).send(),
+        state.http_client.get(&gates_url).send(),
+    );
+    let phi_data: Option<Value> = match phi_resp {
+        Ok(resp) => resp.json().await.ok(),
+        Err(_) => None,
+    };
+    let gates_data: Option<Value> = match gates_resp {
+        Ok(resp) => resp.json().await.ok(),
+        Err(_) => None,
+    };
 
-    match phi_row {
-        Some((phi, integration, differentiation, nodes, edges, height)) => {
-            Json(json!({
-                "phi": phi,
-                "threshold": 3.0,
-                "above_threshold": phi >= 3.0,
-                "integration": integration,
-                "differentiation": differentiation,
-                "knowledge_nodes": nodes,
-                "knowledge_edges": edges,
-                "consciousness_events": events_count.map(|c| c.0).unwrap_or(0),
-                "blocks_processed": height,
-            }))
-        }
-        None => {
-            Json(json!({
-                "phi": 0.0,
-                "threshold": 3.0,
-                "above_threshold": false,
-                "knowledge_nodes": 0,
-                "knowledge_edges": 0,
-                "consciousness_events": 0,
-                "blocks_processed": 0,
-            }))
-        }
-    }
+    let phi = phi_data.as_ref()
+        .and_then(|d| d["phi"].as_f64())
+        .unwrap_or(0.0);
+    let knowledge_nodes = phi_data.as_ref()
+        .and_then(|d| d["knowledge_vectors"].as_i64())
+        .unwrap_or(0);
+    let phi_micro = phi_data.as_ref()
+        .and_then(|d| d["phi_history_recent"].as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|h| h["phi_micro"].as_f64())
+        .unwrap_or(0.0);
+    let phi_meso = phi_data.as_ref()
+        .and_then(|d| d["phi_history_recent"].as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|h| h["phi_meso"].as_f64())
+        .unwrap_or(0.0);
+    let phi_macro = phi_data.as_ref()
+        .and_then(|d| d["phi_history_recent"].as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|h| h["phi_macro"].as_f64())
+        .unwrap_or(0.0);
+    let chain_height = phi_data.as_ref()
+        .and_then(|d| d["chain_height"].as_i64())
+        .unwrap_or(0);
+
+    let gates_passed = gates_data.as_ref()
+        .and_then(|d| d["gates_passed"].as_i64())
+        .unwrap_or(0);
+    let gates_total = gates_data.as_ref()
+        .and_then(|d| d["gates_total"].as_i64())
+        .unwrap_or(10);
+    let phi_ceiling = gates_data.as_ref()
+        .and_then(|d| d["phi_ceiling"].as_f64())
+        .unwrap_or(0.0);
+    let gates = gates_data.as_ref()
+        .and_then(|d| d.get("gates").cloned());
+
+    Json(json!({
+        "phi": phi,
+        "phi_micro": phi_micro,
+        "phi_meso": phi_meso,
+        "phi_macro": phi_macro,
+        "threshold": 3.0,
+        "above_threshold": phi >= 3.0,
+        "knowledge_nodes": knowledge_nodes,
+        "knowledge_edges": 0,
+        "blocks_processed": chain_height,
+        "consciousness_events": 0,
+        "gates_passed": gates_passed,
+        "gates_total": gates_total,
+        "gate_ceiling": phi_ceiling,
+        "gates": gates,
+    }))
 }
 
 /// Proxy an Aether endpoint to the standalone Aether service.
@@ -217,4 +241,52 @@ pub async fn aether_neural_payload(State(state): State<AppState>) -> Json<Value>
 /// GET /aether/health — Aether Mind health check (proxied).
 pub async fn aether_health(State(state): State<AppState>) -> Json<Value> {
     proxy_to_aether(&state, "/health").await
+}
+
+/// GET /aether/gradients — Gradient aggregation status (proxied to aether-mind V5).
+pub async fn aether_gradients(State(state): State<AppState>) -> Json<Value> {
+    proxy_to_aether(&state, "/aether/gradients").await
+}
+
+/// POST /aether/gradients — Submit gradients (proxied to aether-mind V5).
+pub async fn aether_gradients_submit(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let url = format!("{}/aether/gradients", state.aether_url);
+    match state.http_client.post(&url).json(&body).send().await {
+        Ok(resp) => match resp.json::<Value>().await {
+            Ok(data) => Json(data),
+            Err(_) => Json(json!({ "error": "Invalid response from Aether service" })),
+        },
+        Err(_) => Json(json!({ "error": "Aether service unavailable" })),
+    }
+}
+
+/// GET /aether/rewards/pool — Gradient reward pool status.
+pub async fn aether_rewards_pool(State(state): State<AppState>) -> Json<Value> {
+    proxy_to_aether(&state, "/aether/rewards/pool").await
+}
+
+/// GET /aether/rewards/{miner_id} — Miner reward balance.
+pub async fn aether_rewards_miner(
+    State(state): State<AppState>,
+    Path(miner_id): Path<String>,
+) -> Json<Value> {
+    proxy_to_aether(&state, &format!("/aether/rewards/{}", miner_id)).await
+}
+
+/// POST /aether/rewards/claim — Claim gradient rewards.
+pub async fn aether_rewards_claim(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let url = format!("{}/aether/rewards/claim", state.aether_url);
+    match state.http_client.post(&url).json(&body).send().await {
+        Ok(resp) => match resp.json::<Value>().await {
+            Ok(data) => Json(data),
+            Err(_) => Json(json!({ "error": "Invalid response from Aether service" })),
+        },
+        Err(_) => Json(json!({ "error": "Aether service unavailable" })),
+    }
 }

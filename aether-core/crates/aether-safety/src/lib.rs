@@ -19,6 +19,7 @@ pub mod audit_log;
 pub use gevurah::{
     GevurahVeto, SafetyPrinciple, VetoRecord, ThreatLevel, VetoReason,
     MultiNodeConsensus, ConsensusVote, VetoAuthenticator, SafetyManager,
+    SafetyClassifier, SafetyVerdict,
 };
 pub use content_filter::ContentFilter;
 pub use operation_guard::{OperationGuard, OperationType, OperationVerdict};

@@ -86,17 +86,48 @@ pub async fn chain_info(State(state): State<AppState>) -> Json<Value> {
     .ok()
     .flatten();
 
+    // Get live data from Substrate RPC (peer count + block height)
+    let (peers, live_height) = match &state.substrate {
+        Some(s) => {
+            let p = s.rpc.system_health().await
+                .map(|h| h.peers as u64)
+                .unwrap_or(0);
+            let h = s.rpc.chain_get_header(None).await
+                .ok()
+                .flatten()
+                .map(|hdr| hdr.number as i64)
+                .unwrap_or(0);
+            (p, h)
+        }
+        None => (0, 0),
+    };
+
+    // Fork offset: Substrate block 0 = Python block 208,680
+    let fork_offset: i64 = 208_680;
+
     match row {
-        Some((height, blocks, txs, supply, era, diff, bt)) => {
+        Some((_db_height, _blocks, txs, supply, era, diff, bt)) => {
+            // Use live Substrate height if available, otherwise fall back to DB
+            let height = if live_height > 0 { fork_offset + live_height } else { _db_height };
+            let total_blocks = if live_height > 0 { live_height } else { _blocks };
+            // Compute supply from fork supply + substrate blocks * era reward
+            let era_reward = 15.27_f64 / 1.618033988749895_f64.powi(era as i32);
+            let computed_supply = if live_height > 0 {
+                // Fork supply (from Python chain) + substrate-mined blocks
+                let fork_supply: f64 = supply.parse().unwrap_or(0.0);
+                fork_supply + (live_height as f64 * era_reward)
+            } else {
+                supply.parse().unwrap_or(0.0)
+            };
             Json(json!({
                 "chain_id": state.chain_id,
                 "height": height,
                 "block_height": height,
-                "total_blocks": blocks,
+                "total_blocks": total_blocks,
                 "total_transactions": txs,
-                "total_supply": supply,
+                "total_supply": format!("{:.8}", computed_supply),
                 "current_era": era,
-                "current_reward": 15.27_f64 / 1.618033988749895_f64.powi(era as i32),
+                "current_reward": era_reward,
                 "difficulty": diff,
                 "current_difficulty": diff,
                 "average_block_time": bt,
@@ -104,14 +135,26 @@ pub async fn chain_info(State(state): State<AppState>) -> Json<Value> {
                 "max_supply": 3300000000.0_f64,
                 "consensus": "Proof-of-SUSY-Alignment",
                 "substrate_mode": true,
+                "peers": peers,
             }))
         }
-        None => Json(json!({
-            "chain_id": state.chain_id,
-            "height": 0,
-            "block_height": 0,
-            "status": "initializing",
-        })),
+        None => {
+            let height = if live_height > 0 { fork_offset + live_height } else { 0 };
+            Json(json!({
+                "chain_id": state.chain_id,
+                "height": height,
+                "block_height": height,
+                "peers": peers,
+                "status": if live_height > 0 { "running" } else { "initializing" },
+                "substrate_mode": true,
+                "consensus": "Proof-of-SUSY-Alignment",
+                "target_block_time": 3.3,
+                "max_supply": 3300000000.0_f64,
+                "current_era": 0,
+                "current_reward": 15.27,
+                "total_supply": format!("{:.8}", 33_000_000.0 + (live_height as f64 * 15.27)),
+            }))
+        },
     }
 }
 

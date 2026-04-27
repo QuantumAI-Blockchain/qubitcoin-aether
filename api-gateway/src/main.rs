@@ -11,12 +11,14 @@
 //! - Aether service (proxied for AI endpoints)
 
 mod config;
+mod ratelimit;
 mod routes;
 mod state;
 
 use std::sync::Arc;
 
 use anyhow::Result;
+use axum::middleware;
 use axum::routing::{get, post};
 use axum::Router;
 use clap::Parser;
@@ -73,14 +75,59 @@ async fn main() -> Result<()> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Build router
+    // Rate limiters
+    let chat_limiter = ratelimit::create_limiter(1, 10); // 10 burst, 1/s replenish = ~10/min
+    let general_limiter = ratelimit::create_limiter(10, 60); // 60 burst, 10/s replenish = ~60/min
+
+    // Build route groups
+    let api_routes = build_api_routes(state.clone(), chat_limiter, general_limiter);
+
+    // Mount bare routes + /v1 versioned routes
     let app = Router::new()
-        // ── Health & Info ─────────────────────────────────────
+        .merge(api_routes.clone())
+        .nest("/v1", api_routes)
+        .layer(TraceLayer::new_for_http())
+        .layer(cors);
+
+    // Start server
+    let listener = tokio::net::TcpListener::bind(&config.listen_addr).await?;
+    info!("API Gateway listening on {}", config.listen_addr);
+    info!("  REST API: http://{}/", config.listen_addr);
+    info!("  Versioned: http://{}/v1/", config.listen_addr);
+    info!("  JSON-RPC: http://{}/jsonrpc", config.listen_addr);
+    info!("  Health:   http://{}/health", config.listen_addr);
+    info!("  Rate limits: chat=10/min, general=60/min");
+
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}
+
+/// Build all API routes with rate limiting applied per group.
+fn build_api_routes(
+    state: AppState,
+    chat_limiter: ratelimit::SharedLimiter,
+    general_limiter: ratelimit::SharedLimiter,
+) -> Router {
+    // ── Chat routes (stricter rate limit: 10 req/min) ───────────
+    let chat_routes = Router::new()
+        .route("/aether/chat", post(routes::aether::aether_chat))
+        .route("/aether/chat/message", post(routes::aether::aether_chat))
+        .route("/aether/chat/session", post(routes::aether::aether_chat_session))
+        .route_layer(middleware::from_fn_with_state(
+            chat_limiter,
+            ratelimit::rate_limit_middleware,
+        ))
+        .with_state(state.clone());
+
+    // ── All other routes (60 req/min) ───────────────────────────
+    let general_routes = Router::new()
+        // Health & Info
         .route("/", get(routes::health::root))
         .route("/health", get(routes::health::health))
         .route("/info", get(routes::health::info))
 
-        // ── Chain & Blocks ────────────────────────────────────
+        // Chain & Blocks
         .route("/block/{height}", get(routes::chain::get_block_by_height))
         .route("/block/hash/{hash}", get(routes::chain::get_block_by_hash))
         .route("/chain/info", get(routes::chain::chain_info))
@@ -89,51 +136,41 @@ async fn main() -> Result<()> {
         .route("/economics/emission", get(routes::chain::emission_schedule))
         .route("/susy-database", get(routes::chain::susy_database))
 
-        // ── Wallet & Balances ─────────────────────────────────
+        // Wallet & Balances
         .route("/balance/{address}", get(routes::wallet::get_balance))
         .route("/utxos/{address}", get(routes::wallet::get_utxos))
         .route("/mempool", get(routes::wallet::get_mempool))
         .route("/transfer", post(routes::wallet::transfer))
 
-        // ── Mining ────────────────────────────────────────────
+        // Mining
         .route("/mining/stats", get(routes::mining::mining_stats))
         .route("/mining/difficulty", get(routes::mining::mining_difficulty))
 
-        // ── Aether Tree ───────────────────────────────────────
+        // Aether Tree (non-chat)
         .route("/aether/info", get(routes::aether::aether_info))
         .route("/aether/phi", get(routes::aether::aether_phi))
         .route("/aether/phi/history", get(routes::aether::aether_phi_history))
         .route("/aether/knowledge", get(routes::aether::aether_knowledge))
         .route("/aether/consciousness", get(routes::aether::aether_consciousness))
-        .route("/aether/chat", post(routes::aether::aether_chat))
-        .route("/aether/chat/message", post(routes::aether::aether_chat))
-        .route("/aether/chat/session", post(routes::aether::aether_chat_session))
         .route("/aether/chat/fee", get(routes::aether::aether_chat_fee))
         .route("/aether/chat/history/{session_id}", get(routes::aether::aether_chat_history))
         .route("/aether/pot", get(routes::aether::aether_pot))
         .route("/aether/neural-payload", get(routes::aether::aether_neural_payload))
         .route("/aether/health", get(routes::aether::aether_health))
+        .route("/aether/gradients", get(routes::aether::aether_gradients).post(routes::aether::aether_gradients_submit))
+        .route("/aether/rewards/pool", get(routes::aether::aether_rewards_pool))
+        .route("/aether/rewards/claim", post(routes::aether::aether_rewards_claim))
+        .route("/aether/rewards/{miner_id}", get(routes::aether::aether_rewards_miner))
 
-        // ── JSON-RPC (MetaMask/Web3) ──────────────────────────
+        // JSON-RPC (MetaMask/Web3)
         .route("/jsonrpc", post(routes::jsonrpc::handle_jsonrpc))
-
-        // ── Middleware ────────────────────────────────────────
-        .layer(TraceLayer::new_for_http())
-        .layer(cors)
+        .route_layer(middleware::from_fn_with_state(
+            general_limiter,
+            ratelimit::rate_limit_middleware,
+        ))
         .with_state(state);
 
-    // Also handle JSON-RPC on POST / (MetaMask sends to root)
-    // This is handled by checking Content-Type in a middleware
-    // For now, /jsonrpc is the explicit endpoint
-
-    // Start server
-    let listener = tokio::net::TcpListener::bind(&config.listen_addr).await?;
-    info!("API Gateway listening on {}", config.listen_addr);
-    info!("  REST API: http://{}/", config.listen_addr);
-    info!("  JSON-RPC: http://{}/jsonrpc", config.listen_addr);
-    info!("  Health:   http://{}/health", config.listen_addr);
-
-    axum::serve(listener, app).await?;
-
-    Ok(())
+    Router::new()
+        .merge(chat_routes)
+        .merge(general_routes)
 }

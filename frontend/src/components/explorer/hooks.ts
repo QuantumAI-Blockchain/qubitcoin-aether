@@ -61,8 +61,8 @@ function engine() {
 function mapChainInfoToStats(raw: Record<string, unknown>): NetworkStats {
   return {
     blockHeight: (raw.height as number) ?? 0,
-    totalSupply: (raw.total_supply as number) ?? 0,
-    difficulty: (raw.difficulty as number) ?? 0,
+    totalSupply: parseFloat(String(raw.total_supply ?? 0)),
+    difficulty: parseFloat(String(raw.difficulty ?? 0)),
     avgBlockTime: (raw.target_block_time as number) ?? 3.3,
     tps: 0, // computed separately
     mempool: (raw.mempool_size as number) ?? 0,

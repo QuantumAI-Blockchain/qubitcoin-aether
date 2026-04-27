@@ -89,6 +89,7 @@ dependencies = [
  "approx",
  "bincode",
  "log",
+ "ordered-float",
  "parking_lot",
  "rand 0.8.5",
  "serde",

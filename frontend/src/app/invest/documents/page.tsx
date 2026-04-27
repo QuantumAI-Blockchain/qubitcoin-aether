@@ -39,7 +39,7 @@ export default function DocumentsPage() {
             <p>
               <strong className="text-text-primary">Revenue Share:</strong> 10% of all protocol
               fees are distributed perpetually to seed investors, proportional to their investment.
-              Revenue sources include Exchange trading fees and Aether Tree chat fees — recurring
+              Revenue sources include Exchange trading fees and Aether Mind chat fees — recurring
               for life with no expiration.
             </p>
             <p>
@@ -75,13 +75,13 @@ export default function DocumentsPage() {
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-glow-cyan" />
                 <div>
-                  <strong className="text-text-primary">Aether Tree Chat Fees</strong>
+                  <strong className="text-text-primary">Aether Mind Chat Fees</strong>
                   <p className="text-xs">Every interaction with the on-chain AI costs a micro-fee in QBC. 10% of all Aether fees flow to the investor revenue pool.</p>
                 </div>
               </div>
             </div>
             <p className="text-xs italic">
-              As the network grows and more users trade and interact with Aether Tree,
+              As the network grows and more users trade and interact with Aether Mind,
               revenue to investors grows proportionally. There is no cap or expiration on
               revenue share — it runs for the lifetime of the protocol.
             </p>

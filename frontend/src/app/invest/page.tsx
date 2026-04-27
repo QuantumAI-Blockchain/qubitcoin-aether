@@ -122,7 +122,7 @@ export default function InvestPage() {
             </div>
             <div className="flex items-start gap-2">
               <span className="text-glow-gold">3.</span>
-              <span><strong className="text-text-primary">Lifetime Revenue Share</strong> — 10% of all protocol fees (Exchange + Aether Tree), proportional to your investment, recurring forever</span>
+              <span><strong className="text-text-primary">Lifetime Revenue Share</strong> — 10% of all protocol fees (Exchange + Aether Mind), proportional to your investment, recurring forever</span>
             </div>
           </div>
         </div>

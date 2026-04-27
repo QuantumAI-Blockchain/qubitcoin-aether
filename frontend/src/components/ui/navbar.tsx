@@ -18,11 +18,9 @@ const navKeys = [
   { href: "/aether", key: "aether" },
   { href: "/dashboard", key: "dashboard" },
   { href: "/explorer", key: "explorer" },
-  { href: "/exchange", key: "exchange" },
   { href: "/wallet", key: "wallet" },
   { href: "/qvm", key: "qvm" },
   { href: "/bridge", key: "bridge" },
-  { href: "/rewards", key: "rewards" },
 ] as const;
 
 /** Static label lookup for nav items not in translation keys */

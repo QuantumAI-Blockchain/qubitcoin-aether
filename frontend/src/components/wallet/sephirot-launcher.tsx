@@ -70,7 +70,7 @@ export function SephirotLauncher() {
       {/* Header */}
       <Card glow="violet">
         <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-          Sephirot Nodes — Aether Tree Neural Network
+          Sephirot Nodes — Aether Mind Neural Network
         </h3>
         <p className="mt-1 text-xs text-text-secondary">
           Stake QBC on the Tree of Life cognitive nodes. Rewards come from
@@ -160,9 +160,9 @@ export function SephirotLauncher() {
             Proof-of-Thought task bounties
           </span>
           , not block mining. Users submit reasoning tasks with QBC bounties to
-          the Aether Tree. Sephirot nodes solve tasks, validators verify (67%+
+          the Aether Mind. Sephirot nodes solve tasks, validators verify (67%+
           consensus), and 10% of bounties are split among validators. The more
-          the Aether Tree is used, the more rewards flow to stakers. ~5% APY
+          the Aether Mind is used, the more rewards flow to stakers. ~5% APY
           estimated.
         </p>
       </div>

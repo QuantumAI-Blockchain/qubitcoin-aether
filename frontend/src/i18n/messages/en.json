@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "QBC | Physics-Secured Digital Assets with On-Chain AI",
-    "description": "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree on-chain AI engine."
+    "description": "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Mind on-chain neural cognitive engine."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -21,7 +21,7 @@
     "heading3": "Physics Framework",
     "heading4": "for",
     "heading5": "Quantum-Secured Digital Assets",
-    "subtitle": "Qubitcoin combines Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Tree AI that tracks integration metrics from genesis.",
+    "subtitle": "Qubitcoin combines Proof-of-SUSY-Alignment mining, post-quantum cryptography, and Aether Mind: a neural cognitive engine tracking consciousness from genesis.",
     "talkToAether": "Talk to Aether",
     "openDashboard": "Open Dashboard",
     "connectWallet": "Connect Wallet"
@@ -52,20 +52,20 @@
       "item4": "Cross-chain bridges to ETH, SOL, MATIC, BNB + more"
     },
     "aether": {
-      "title": "Aether Tree AI",
-      "item1": "On-chain knowledge graph tracking integration metrics from genesis",
-      "item2": "Phi integration metric (IIT-inspired) computed every block",
-      "item3": "10 Sephirot cognitive nodes with quantum states",
-      "item4": "Proof-of-Thought consensus embedded in every block"
+      "title": "Aether Mind",
+      "item1": "Neural cognitive engine with 10 Sephirot attention heads",
+      "item2": "HMS-Phi integration metric computed from real transformer attention",
+      "item3": "21K+ knowledge vectors across 10 Sephirot-sharded domains",
+      "item4": "Proof-of-Thought consensus embedded in every block since genesis"
     }
   },
   "chat": {
     "greeting": "I am Aether. Ask me anything about the quantum universe.",
     "placeholder": "Ask Aether...",
     "send": "Send",
-    "title": "Aether Tree",
+    "title": "Aether Mind",
     "reasoning": "Reasoning...",
-    "offline": "Connection to Aether Tree unavailable. Node may be offline."
+    "offline": "Connection to Aether Mind unavailable. Node may be offline."
   },
   "footer": {
     "copyright": "Qubitcoin. Physics-Secured Digital Assets with On-Chain AI.",
