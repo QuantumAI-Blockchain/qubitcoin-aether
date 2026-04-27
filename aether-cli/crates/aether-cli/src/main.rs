@@ -90,11 +90,38 @@ enum Commands {
 #[derive(Subcommand)]
 enum WalletAction {
     /// Create a new wallet keypair.
-    Create,
-    /// Show wallet address and balance.
-    Info,
-    /// Export wallet info (address + public key).
-    Export,
+    Create {
+        /// Human-readable label for this wallet.
+        #[arg(short, long, default_value = "default")]
+        label: String,
+    },
+    /// List all wallets in the keystore.
+    List,
+    /// Show a wallet's address and public key.
+    Info {
+        /// Wallet address (defaults to first wallet).
+        #[arg(long)]
+        address: Option<String>,
+    },
+    /// Import a wallet from a hex-encoded private key.
+    Import {
+        /// 64-character hex private key.
+        key: String,
+        /// Label for the imported wallet.
+        #[arg(short, long, default_value = "imported")]
+        label: String,
+    },
+    /// Export wallet secret key (requires password).
+    Export {
+        /// Wallet address to export.
+        #[arg(long)]
+        address: Option<String>,
+    },
+    /// Delete a wallet from the keystore.
+    Delete {
+        /// Wallet address to delete.
+        address: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -248,54 +275,111 @@ async fn cmd_mine(substrate_url: String, threads: u32) -> Result<()> {
 
 async fn cmd_wallet(action: WalletAction) -> Result<()> {
     let wallet = aether_wallet::Wallet::open(aether_wallet::default_keystore_dir())?;
+    let ks_dir = aether_wallet::default_keystore_dir();
 
     match action {
-        WalletAction::Create => {
-            if wallet.exists() {
-                eprintln!("Wallet already exists. Use `aether wallet info` to view it.");
-                return Ok(());
-            }
-
+        WalletAction::Create { label } => {
             let password = read_password("Set wallet password: ")?;
             let confirm = read_password("Confirm password: ")?;
             if password != confirm {
                 anyhow::bail!("Passwords do not match");
             }
 
-            let info = wallet.create(&password)?;
+            let info = wallet.create(&password, &label)?;
             println!("\x1b[1;32mWallet created!\x1b[0m");
             println!("  Address:    {}", info.address);
             println!("  Public key: {}", info.public_key);
-            println!(
-                "  Keystore:   {}",
-                aether_wallet::default_keystore_dir().display()
-            );
+            println!("  Label:      {}", info.label);
+            println!("  Keystore:   {}", ks_dir.display());
             println!("\n\x1b[33mBack up your password. There is no recovery.\x1b[0m");
         }
 
-        WalletAction::Info => {
-            if !wallet.exists() {
-                eprintln!("No wallet found. Run `aether wallet create` first.");
+        WalletAction::List => {
+            let wallets = wallet.list()?;
+            if wallets.is_empty() {
+                eprintln!("No wallets found. Run `aether wallet create` to create one.");
                 return Ok(());
             }
-            match wallet.address()? {
-                Some(addr) => {
-                    println!("Address: {addr}");
-                }
-                None => {
-                    eprintln!("Could not read wallet address.");
-                }
+            println!("\x1b[1;32mWallets\x1b[0m ({})\n", wallets.len());
+            for (i, w) in wallets.iter().enumerate() {
+                let marker = if i == 0 { " \x1b[33m(default)\x1b[0m" } else { "" };
+                println!("  \x1b[1m{}.\x1b[0m {}{}", i + 1, w.address, marker);
+                println!("     Label:      {}", w.label);
+                println!("     Public key: {}...{}", &w.public_key[..8], &w.public_key[w.public_key.len()-8..]);
+                println!("     Created:    {}", w.created_at);
+                println!();
             }
+            println!("  Keystore: {}", ks_dir.display());
         }
 
-        WalletAction::Export => {
-            if !wallet.exists() {
-                eprintln!("No wallet found. Run `aether wallet create` first.");
+        WalletAction::Info { address } => {
+            let addr = match address {
+                Some(a) => a,
+                None => match wallet.address()? {
+                    Some(a) => a,
+                    None => {
+                        eprintln!("No wallet found. Run `aether wallet create` first.");
+                        return Ok(());
+                    }
+                },
+            };
+
+            let password = read_password("Enter wallet password: ")?;
+            let info = wallet.load(&addr, &password)?;
+            println!("\x1b[1;32mWallet Info\x1b[0m");
+            println!("  Address:    {}", info.address);
+            println!("  Public key: {}", info.public_key);
+            println!("  Label:      {}", info.label);
+            println!("  Created:    {}", info.created_at);
+        }
+
+        WalletAction::Import { key, label } => {
+            let password = read_password("Set password for imported wallet: ")?;
+            let confirm = read_password("Confirm password: ")?;
+            if password != confirm {
+                anyhow::bail!("Passwords do not match");
+            }
+
+            let info = wallet.import_hex(&key, &password, &label)?;
+            println!("\x1b[1;32mWallet imported!\x1b[0m");
+            println!("  Address:    {}", info.address);
+            println!("  Public key: {}", info.public_key);
+            println!("  Label:      {}", info.label);
+        }
+
+        WalletAction::Export { address } => {
+            let addr = match address {
+                Some(a) => a,
+                None => match wallet.address()? {
+                    Some(a) => a,
+                    None => {
+                        eprintln!("No wallet found. Run `aether wallet create` first.");
+                        return Ok(());
+                    }
+                },
+            };
+
+            let password = read_password("Enter wallet password: ")?;
+            let secret = wallet.export_secret(&addr, &password)?;
+            println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                "address": addr,
+                "secret_key": secret,
+                "warning": "NEVER share this key. Anyone with it controls the wallet."
+            }))?);
+        }
+
+        WalletAction::Delete { address } => {
+            eprint!("Delete wallet {}? This is IRREVERSIBLE. Type 'yes' to confirm: ", address);
+            use std::io::Write;
+            std::io::stderr().flush()?;
+            let mut confirm = String::new();
+            std::io::stdin().read_line(&mut confirm)?;
+            if confirm.trim() != "yes" {
+                println!("Cancelled.");
                 return Ok(());
             }
-            let password = read_password("Enter wallet password: ")?;
-            let info = wallet.load(&password)?;
-            println!("{}", serde_json::to_string_pretty(&info)?);
+            wallet.delete(&address)?;
+            println!("\x1b[1;31mWallet {} deleted.\x1b[0m", address);
         }
     }
 

@@ -212,10 +212,10 @@
     <tspan x="818" y="590" fill="#00ff88">aether wallet create</tspan><tspan x="1000" fill="#8b949e">New keypair</tspan>
   </text>
   <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="608" fill="#00ff88">aether wallet info</tspan><tspan x="1000" fill="#8b949e">Address + balance</tspan>
+    <tspan x="818" y="608" fill="#00ff88">aether wallet list</tspan><tspan x="1000" fill="#8b949e">All wallets</tspan>
   </text>
   <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="626" fill="#00ff88">aether wallet export</tspan><tspan x="1000" fill="#8b949e">Export keys (JSON)</tspan>
+    <tspan x="818" y="626" fill="#00ff88">aether wallet import</tspan><tspan x="1000" fill="#8b949e">Import hex key</tspan>
   </text>
 
   <!-- ═══════════════ ARCHITECTURE TABLE ═══════════════ -->

@@ -10,6 +10,7 @@ pub use keystore::Keystore;
 pub struct WalletInfo {
     pub address: String,
     pub public_key: String,
+    pub label: String,
     pub created_at: String,
 }
 
@@ -34,18 +35,35 @@ impl Wallet {
     }
 
     pub fn exists(&self) -> bool {
-        self.keystore.has_key()
+        self.keystore.has_any()
     }
 
-    pub fn create(&self, password: &str) -> Result<WalletInfo> {
-        self.keystore.generate(password)
+    pub fn create(&self, password: &str, label: &str) -> Result<WalletInfo> {
+        self.keystore.generate(password, label)
     }
 
-    pub fn load(&self, password: &str) -> Result<WalletInfo> {
-        self.keystore.load(password)
+    pub fn import_hex(&self, secret_hex: &str, password: &str, label: &str) -> Result<WalletInfo> {
+        self.keystore.import_hex(secret_hex, password, label)
     }
 
+    pub fn load(&self, address: &str, password: &str) -> Result<WalletInfo> {
+        self.keystore.load(address, password)
+    }
+
+    pub fn list(&self) -> Result<Vec<WalletInfo>> {
+        self.keystore.list_wallets()
+    }
+
+    pub fn delete(&self, address: &str) -> Result<()> {
+        self.keystore.delete(address)
+    }
+
+    pub fn export_secret(&self, address: &str, password: &str) -> Result<String> {
+        self.keystore.export_secret(address, password)
+    }
+
+    /// Get the default (first) wallet address without decrypting.
     pub fn address(&self) -> Result<Option<String>> {
-        self.keystore.address()
+        self.keystore.default_address()
     }
 }

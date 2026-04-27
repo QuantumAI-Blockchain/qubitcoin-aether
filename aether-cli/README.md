@@ -77,11 +77,18 @@ Miners earn QBC by submitting gradient updates that improve the Aether Mind neur
 
 ### Wallet
 
+Multi-wallet keystore with Argon2id key derivation + AES-256-GCM encryption. Each wallet is stored as a separate encrypted JSON file.
+
 | Command | Description |
 |---------|-------------|
 | `aether wallet create` | Generate a new keypair |
-| `aether wallet info` | Show address |
-| `aether wallet export` | Export keys as JSON (password required) |
+| `aether wallet create -l "mining"` | Create with a label |
+| `aether wallet list` | List all wallets in keystore |
+| `aether wallet info` | Show default wallet details |
+| `aether wallet info --address <addr>` | Show specific wallet |
+| `aether wallet import <hex-key>` | Import from 64-char hex private key |
+| `aether wallet export` | Export secret key (requires password) |
+| `aether wallet delete <addr>` | Delete a wallet (irreversible) |
 
 ### TUI Slash Commands
 
@@ -110,8 +117,8 @@ aether-cli/
     aether-cli/           # CLI entry point, REPL, command router
     aether-client/        # HTTP client for Aether Mind API (15 endpoints)
     aether-miner/         # VQE mining engine (4-qubit ansatz, Hamiltonian generation)
-    aether-wallet/        # Keystore management, address derivation
-    aether-tui/           # Terminal UI components (ratatui)
+    aether-wallet/        # Multi-wallet keystore (Argon2id + AES-256-GCM)
+    aether-tui/           # Terminal UI components
 ```
 
 ### How Mining Works
@@ -225,9 +232,9 @@ cargo build --release --target x86_64-pc-windows-gnu
 
 **Aether Mind** is the world's first on-chain neural cognitive system — a continuously trained, cryptographically attested, autonomously evolving transformer built entirely in Rust.
 
-- **200M parameter** domain-specific transformer (candle ML framework)
-- **10 Sephirot** cognitive architecture (specialized attention heads)
-- **36,700+ knowledge vectors** in the Knowledge Fabric (896d embeddings)
+- **558M parameter** domain-specific transformer (candle ML framework, Qwen2.5-0.5B base)
+- **10 Sephirot + 4 Global** attention heads (896d embeddings, 24 layers, GQA)
+- **36,800+ knowledge vectors** in the Knowledge Fabric (10 shards, HNSW indexed)
 - **Mining IS learning** — every block carries gradient updates
 - **Proof-of-Thought** — AI reasoning proofs in every block since genesis
 - **HMS-Phi** — Hierarchical Multi-Scale consciousness metric (IIT 3.0 inspired)
