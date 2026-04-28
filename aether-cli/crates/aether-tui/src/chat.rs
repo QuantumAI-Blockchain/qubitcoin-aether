@@ -9,6 +9,7 @@ use crate::{AMBER, BORDER, DIM, GREEN, VIOLET};
 const WHITE: Color = Color::Rgb(230, 237, 243);
 const SEP: Color = Color::Rgb(45, 51, 59);
 const SECTION: Color = Color::Rgb(139, 148, 158);
+const CYAN: Color = Color::Rgb(100, 180, 255);
 
 #[derive(Clone)]
 pub struct ChatMessage {
@@ -58,130 +59,303 @@ impl ChatPanel {
     fn welcome_lines() -> Vec<Line<'static>> {
         let s = |fg| Style::default().fg(fg);
         let b = |fg| Style::default().fg(fg).add_modifier(Modifier::BOLD);
-        let sep = || Line::from(Span::styled(
-            " ──────────────────────────────────────────────────────────────────",
-            s(SEP),
-        ));
+        let bi = |fg| Style::default().fg(fg).add_modifier(Modifier::BOLD | Modifier::ITALIC);
+
+        // ── Box-drawing helpers ──
+        let top = |title: &'static str, color: Color| {
+            Line::from(vec![
+                Span::styled("  ┌─ ", s(SEP)),
+                Span::styled(title, b(color)),
+                Span::styled(
+                    format!(" {}", "─".repeat(56 - title.len())),
+                    s(SEP),
+                ),
+                Span::styled("┐", s(SEP)),
+            ])
+        };
+        let mid = |spans: Vec<Span<'static>>| {
+            let mut v = vec![Span::styled("  │ ", s(SEP))];
+            v.extend(spans);
+            v.push(Span::styled(" │", s(SEP)));
+            Line::from(v)
+        };
+        let bot = || {
+            Line::from(Span::styled(
+                format!("  └{}┘", "─".repeat(60)),
+                s(SEP),
+            ))
+        };
+        let blank = || {
+            Line::from(vec![
+                Span::styled("  │", s(SEP)),
+                Span::raw(format!("{}", " ".repeat(61))),
+                Span::styled("│", s(SEP)),
+            ])
+        };
 
         vec![
-            // ── Header ──
+            // ══════════════════════════════════════════════════════
+            // ── HEADER: ASCII Art Banner ──
+            // ══════════════════════════════════════════════════════
             Line::from(""),
             Line::from(vec![
-                Span::styled("  ╔══╗ ", b(VIOLET)),
-                Span::styled("AETHER MIND", b(GREEN)),
-                Span::styled("  —  ", s(DIM)),
-                Span::styled("The Blockchain That Thinks", s(WHITE)),
+                Span::styled("  ┏", b(GREEN)),
+                Span::styled("━".repeat(62), b(GREEN)),
+                Span::styled("┓", b(GREEN)),
+            ]),
+            Line::from(vec![
+                Span::styled("  ┃", b(GREEN)),
+                Span::raw("                                                              "),
+                Span::styled("┃", b(GREEN)),
+            ]),
+            // Line 1 of ASCII art
+            Line::from(vec![
+                Span::styled("  ┃", b(GREEN)),
+                Span::styled(
+                    "   ▄▀█ █▀▀ ▀█▀ █ █ █▀▀ █▀█   █▀▄▀█ █ █▄ █ █▀▄   ",
+                    b(GREEN),
+                ),
+                Span::styled("        ┃", b(GREEN)),
+            ]),
+            // Line 2 of ASCII art
+            Line::from(vec![
+                Span::styled("  ┃", b(GREEN)),
+                Span::styled(
+                    "   █▀█ ██▄  █  █▀█ ██▄ █▀▄   █ ▀ █ █ █ ▀█ █▄▀   ",
+                    b(GREEN),
+                ),
+                Span::styled("        ┃", b(GREEN)),
+            ]),
+            Line::from(vec![
+                Span::styled("  ┃", b(GREEN)),
+                Span::raw("                                                              "),
+                Span::styled("┃", b(GREEN)),
+            ]),
+            // Tagline
+            Line::from(vec![
+                Span::styled("  ┃", b(GREEN)),
+                Span::raw("       "),
+                Span::styled("The Blockchain That Thinks", bi(WHITE)),
                 Span::styled("  ·  ", s(DIM)),
-                Span::styled("qbc.network", s(GREEN)),
+                Span::styled("qbc.network", b(CYAN)),
+                Span::raw("              "),
+                Span::styled("┃", b(GREEN)),
+            ]),
+            // Subtitle
+            Line::from(vec![
+                Span::styled("  ┃", b(GREEN)),
+                Span::raw("    "),
+                Span::styled("On-chain AI", s(SECTION)),
+                Span::styled(" · ", s(DIM)),
+                Span::styled("Dilithium5", s(VIOLET)),
+                Span::styled(" · ", s(DIM)),
+                Span::styled("VQE Mining", s(AMBER)),
+                Span::styled(" · ", s(DIM)),
+                Span::styled("10 Sephirot", s(GREEN)),
+                Span::raw("            "),
+                Span::styled("┃", b(GREEN)),
             ]),
             Line::from(vec![
-                Span::styled("  ╚══╝ ", b(VIOLET)),
-                Span::styled("World's first on-chain AI  ·  Dilithium5  ·  VQE Mining  ·  10 Sephirot", s(DIM)),
-            ]),
-            sep(),
-            // ── System ──
-            Line::from(vec![
-                Span::styled("  Chain ", s(SECTION)), Span::styled("3303", b(GREEN)),
-                Span::styled("  ·  Reward ", s(SECTION)), Span::styled("15.27 QBC", b(AMBER)),
-                Span::styled("/block  ·  Supply ", s(SECTION)), Span::styled("3.3B", b(AMBER)),
-                Span::styled("  ·  Crypto ", s(SECTION)), Span::styled("Dilithium5 L5", b(GREEN)),
+                Span::styled("  ┃", b(GREEN)),
+                Span::raw("                                                              "),
+                Span::styled("┃", b(GREEN)),
             ]),
             Line::from(vec![
-                Span::styled("  Wallet ", s(SECTION)), Span::styled("Argon2id+AES-256-GCM", s(GREEN)),
-                Span::styled("  ·  API ", s(SECTION)), Span::styled("ai.qbc.network", s(Color::Rgb(100,180,255))),
-                Span::styled("  ·  RPC ", s(SECTION)), Span::styled("rpc.qbc.network", s(Color::Rgb(100,180,255))),
-            ]),
-            sep(),
-            // ── Core Commands ──
-            Line::from(Span::styled(" COMMANDS", b(WHITE))),
-            Line::from(vec![
-                Span::styled("  aether", s(GREEN)),           Span::styled("            TUI chat    ", s(SECTION)),
-                Span::styled("aether --mine", s(GREEN)),      Span::styled("     Chat + mine", s(SECTION)),
-            ]),
-            Line::from(vec![
-                Span::styled("  aether chat \"..\"", s(GREEN)), Span::styled("    One-shot     ", s(SECTION)),
-                Span::styled("aether status", s(GREEN)),      Span::styled("        Stats", s(SECTION)),
-            ]),
-            Line::from(vec![
-                Span::styled("  aether mine", s(GREEN)),      Span::styled("          Headless     ", s(SECTION)),
-                Span::styled("aether search \"..\"", s(GREEN)), Span::styled("   Knowledge", s(SECTION)),
+                Span::styled("  ┗", b(GREEN)),
+                Span::styled("━".repeat(62), b(GREEN)),
+                Span::styled("┛", b(GREEN)),
             ]),
             Line::from(""),
-            // ── Wallet ──
-            Line::from(Span::styled(" WALLET", b(WHITE))),
-            Line::from(vec![
-                Span::styled("  create", s(GREEN)),    Span::styled("  Dilithium5 keypair   ", s(SECTION)),
-                Span::styled("list", s(GREEN)),        Span::styled("    Show all wallets    ", s(SECTION)),
-                Span::styled("balance", s(GREEN)),     Span::styled("  On-chain", s(SECTION)),
+
+            // ══════════════════════════════════════════════════════
+            // ── SYSTEM STATUS ──
+            // ══════════════════════════════════════════════════════
+            top("SYSTEM STATUS", WHITE),
+            mid(vec![
+                Span::styled("Chain ", s(SECTION)),
+                Span::styled("3303", b(GREEN)),
+                Span::styled("    ·  Reward ", s(SECTION)),
+                Span::styled("15.27 QBC", b(AMBER)),
+                Span::styled("/block  ·  Supply ", s(SECTION)),
+                Span::styled("3.3B", b(AMBER)),
             ]),
-            Line::from(vec![
-                Span::styled("  send", s(GREEN)),      Span::styled("    Sign+submit UTXO   ", s(SECTION)),
-                Span::styled("sign", s(GREEN)),        Span::styled("    Dilithium5 sig      ", s(SECTION)),
-                Span::styled("verify", s(GREEN)),      Span::styled("   Check sig", s(SECTION)),
+            mid(vec![
+                Span::styled("Crypto ", s(SECTION)),
+                Span::styled("Dilithium5 NIST L5", b(GREEN)),
+                Span::styled("  ·  PK ", s(SECTION)),
+                Span::styled("2,592B", s(WHITE)),
+                Span::styled("  Sig ", s(SECTION)),
+                Span::styled("4,627B", s(WHITE)),
             ]),
-            Line::from(vec![
-                Span::styled("  import", s(GREEN)),    Span::styled("  Import private key   ", s(SECTION)),
-                Span::styled("export", s(GREEN)),      Span::styled("  Export secret key     ", s(SECTION)),
-                Span::styled("delete", s(GREEN)),      Span::styled("   Remove", s(SECTION)),
+            mid(vec![
+                Span::styled("Wallet ", s(SECTION)),
+                Span::styled("Argon2id + AES-256-GCM", s(GREEN)),
+                Span::styled("  ·  Keystore encrypted", s(SECTION)),
             ]),
+            mid(vec![
+                Span::styled("API ", s(SECTION)),
+                Span::styled("ai.qbc.network", s(CYAN)),
+                Span::styled("  ·  RPC ", s(SECTION)),
+                Span::styled("rpc.qbc.network", s(CYAN)),
+            ]),
+            bot(),
+
+            // ══════════════════════════════════════════════════════
+            // ── COMMANDS ──
+            // ══════════════════════════════════════════════════════
+            top("COMMANDS", GREEN),
+            mid(vec![
+                Span::styled("aether", b(GREEN)),
+                Span::styled("              TUI chat       ", s(SECTION)),
+                Span::styled("aether --mine", b(GREEN)),
+                Span::styled("   Chat+mine", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("aether chat \".\"", b(GREEN)),
+                Span::styled("      One-shot       ", s(SECTION)),
+                Span::styled("aether status", b(GREEN)),
+                Span::styled("     Stats", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("aether mine", b(GREEN)),
+                Span::styled("           Headless      ", s(SECTION)),
+                Span::styled("aether search \".\"", b(GREEN)),
+                Span::styled("  Find", s(SECTION)),
+            ]),
+            bot(),
+
+            // ══════════════════════════════════════════════════════
+            // ── WALLET ──
+            // ══════════════════════════════════════════════════════
+            top("WALLET", VIOLET),
+            mid(vec![
+                Span::styled("create", b(GREEN)),
+                Span::styled("  Dilithium5 keypair    ", s(SECTION)),
+                Span::styled("list", b(GREEN)),
+                Span::styled("      Show wallets       ", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("send", b(GREEN)),
+                Span::styled("    Sign + submit UTXO  ", s(SECTION)),
+                Span::styled("balance", b(GREEN)),
+                Span::styled("   On-chain balance      ", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("sign", b(GREEN)),
+                Span::styled("    Dilithium5 sign     ", s(SECTION)),
+                Span::styled("verify", b(GREEN)),
+                Span::styled("    Check signature      ", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("import", b(GREEN)),
+                Span::styled("  Import private key    ", s(SECTION)),
+                Span::styled("export", b(GREEN)),
+                Span::styled("    Export secret key     ", s(SECTION)),
+            ]),
+            bot(),
+
+            // ══════════════════════════════════════════════════════
+            // ── MINING & REWARDS ──
+            // ══════════════════════════════════════════════════════
+            top("MINING & REWARDS", AMBER),
+            mid(vec![
+                Span::styled("Reward Pool ", s(SECTION)),
+                Span::styled("1,000,000 QBC", b(AMBER)),
+                Span::styled("  ·  Gradient learning rewarded", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("gradient status", b(GREEN)),
+                Span::styled("   Pool       ", s(SECTION)),
+                Span::styled("gradient submit", b(GREEN)),
+                Span::styled("   Earn QBC      ", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("rewards show", b(GREEN)),
+                Span::styled("      Earned     ", s(SECTION)),
+                Span::styled("rewards claim", b(GREEN)),
+                Span::styled("     To wallet     ", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("rewards pool", b(GREEN)),
+                Span::styled("      Global     ", s(SECTION)),
+                Span::raw("                               "),
+            ]),
+            bot(),
+
+            // ══════════════════════════════════════════════════════
+            // ── INNOVATIONS ──
+            // ══════════════════════════════════════════════════════
+            top("INNOVATIONS  (6 Patents)", VIOLET),
+            mid(vec![
+                Span::styled("cogwork ", b(VIOLET)),
+                Span::styled("  Proof-of-Cognitive-Work           ", s(SECTION)),
+                Span::styled("(PoCW)", s(DIM)),
+                Span::raw("       "),
+            ]),
+            mid(vec![
+                Span::styled("entangle", b(VIOLET)),
+                Span::styled("  Quantum-Entangled Wallets         ", s(SECTION)),
+                Span::styled("(QEW)", s(DIM)),
+                Span::raw("        "),
+            ]),
+            mid(vec![
+                Span::styled("optimize", b(VIOLET)),
+                Span::styled("  Predictive UTXO Coalescing        ", s(SECTION)),
+                Span::styled("(PUC)", s(DIM)),
+                Span::raw("        "),
+            ]),
+            mid(vec![
+                Span::styled("recover ", b(VIOLET)),
+                Span::styled("  ZK Cognitive Recovery             ", s(SECTION)),
+                Span::styled("(ZCR)", s(DIM)),
+                Span::raw("        "),
+            ]),
+            mid(vec![
+                Span::styled("synapse ", b(VIOLET)),
+                Span::styled("  Symbiotic Mining AI               ", s(SECTION)),
+                Span::styled("(SMIP)", s(DIM)),
+                Span::raw("       "),
+            ]),
+            mid(vec![
+                Span::styled("privacy ", b(VIOLET)),
+                Span::styled("  Susy Swaps — Stealth Transactions ", s(SECTION)),
+                Span::styled("(SS)", s(DIM)),
+                Span::raw("         "),
+            ]),
+            bot(),
+
+            // ══════════════════════════════════════════════════════
+            // ── IN-CHAT COMMANDS ──
+            // ══════════════════════════════════════════════════════
+            top("IN-CHAT COMMANDS", WHITE),
+            mid(vec![
+                Span::styled("/status", b(AMBER)),
+                Span::styled("  Chain stats    ", s(SECTION)),
+                Span::styled("/info", b(AMBER)),
+                Span::styled("  Architecture   ", s(SECTION)),
+                Span::styled("/gates", b(AMBER)),
+                Span::styled("  Milestones", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("/gradient", b(AMBER)),
+                Span::styled(" Submit        ", s(SECTION)),
+                Span::styled("/rewards", b(AMBER)),
+                Span::styled(" Earned        ", s(SECTION)),
+                Span::styled("/pool", b(AMBER)),
+                Span::styled("   Pool     ", s(SECTION)),
+            ]),
+            mid(vec![
+                Span::styled("/search", b(AMBER)),
+                Span::styled("  Knowledge    ", s(SECTION)),
+                Span::styled("/wallet", b(AMBER)),
+                Span::styled("  Address        ", s(SECTION)),
+                Span::styled("/help", b(AMBER)),
+                Span::styled("   All cmds ", s(SECTION)),
+            ]),
+            bot(),
             Line::from(""),
-            // ── Mining & Rewards ──
-            Line::from(vec![
-                Span::styled(" MINING & REWARDS", b(WHITE)),
-                Span::styled("  (1,000,000 QBC pool)", s(DIM)),
-            ]),
-            Line::from(vec![
-                Span::styled("  gradient status", s(GREEN)),  Span::styled("  Pool     ", s(SECTION)),
-                Span::styled("gradient submit", s(GREEN)),    Span::styled("  Earn QBC   ", s(SECTION)),
-                Span::styled("rewards show", s(GREEN)),       Span::styled("  Earned", s(SECTION)),
-            ]),
-            Line::from(vec![
-                Span::styled("  rewards pool", s(GREEN)),     Span::styled("     Global   ", s(SECTION)),
-                Span::styled("rewards claim", s(GREEN)),      Span::styled("   To wallet", s(SECTION)),
-            ]),
-            Line::from(""),
-            // ── Innovations ──
-            Line::from(vec![
-                Span::styled(" INNOVATIONS", b(VIOLET)),
-                Span::styled("  (5 Patents)", s(DIM)),
-            ]),
-            Line::from(vec![
-                Span::styled("  cogwork", s(VIOLET)),   Span::styled("  Proof-of-Cognitive-Work         ", s(SECTION)),
-                Span::styled("entangle", s(VIOLET)),    Span::styled("  Quantum-Entangled Wallets", s(SECTION)),
-            ]),
-            Line::from(vec![
-                Span::styled("  optimize", s(VIOLET)),  Span::styled(" UTXO Coalescing Engine            ", s(SECTION)),
-                Span::styled("recover", s(VIOLET)),     Span::styled("   ZK Cognitive Recovery", s(SECTION)),
-            ]),
-            Line::from(vec![
-                Span::styled("  synapse", s(VIOLET)),   Span::styled("  Symbiotic Mining AI (SMIP)      ", s(SECTION)),
-                Span::styled("privacy", s(VIOLET)),     Span::styled("   Susy Swaps (stealth tx)", s(SECTION)),
-            ]),
-            Line::from(""),
-            // ── TUI slash commands ──
-            Line::from(Span::styled(" IN-CHAT", b(WHITE))),
-            Line::from(vec![
-                Span::styled("  /status", s(AMBER)),    Span::styled("  Chain stats  ", s(SECTION)),
-                Span::styled("/info", s(AMBER)),         Span::styled("  Architecture  ", s(SECTION)),
-                Span::styled("/gates", s(AMBER)),        Span::styled("  Milestones  ", s(SECTION)),
-                Span::styled("/help", s(AMBER)),         Span::styled("  All cmds", s(SECTION)),
-            ]),
-            Line::from(vec![
-                Span::styled("  /gradient", s(AMBER)),  Span::styled(" Submit        ", s(SECTION)),
-                Span::styled("/rewards", s(AMBER)),      Span::styled(" Earned         ", s(SECTION)),
-                Span::styled("/pool", s(AMBER)),         Span::styled("    Reward pool  ", s(SECTION)),
-                Span::styled("/quit", s(AMBER)),         Span::styled("  Exit", s(SECTION)),
-            ]),
-            sep(),
-            // ── Security + Footer ──
-            Line::from(vec![
-                Span::styled("  Signatures ", s(SECTION)), Span::styled("Dilithium5 NIST L5", s(GREEN)),
-                Span::styled("  ·  PK ", s(SECTION)), Span::styled("2,592B", s(WHITE)),
-                Span::styled("  SK ", s(SECTION)), Span::styled("4,896B", s(WHITE)),
-                Span::styled("  Sig ", s(SECTION)), Span::styled("4,627B", s(WHITE)),
-                Span::styled("  ·  Keystore ", s(SECTION)), Span::styled("Argon2id+AES", s(GREEN)),
-            ]),
-            sep(),
+
+            // ── Footer ──
             Line::from(vec![
                 Span::styled("  Type a message to chat", s(WHITE)),
                 Span::styled("  ·  ", s(DIM)),
