@@ -30,9 +30,10 @@ We present Quantum Blockchain, a novel system whose native cryptocurrency Qubitc
 12. [Security Analysis](#12-security-analysis)
 13. [Performance & Scalability](#13-performance--scalability)
 14. [Roadmap](#14-roadmap)
-15. [Competitive Features](#15-competitive-features)
-16. [Conclusion](#16-conclusion)
-17. [References](#17-references)
+15. [Novel Protocol Innovations](#15-novel-protocol-innovations)
+16. [Competitive Features](#16-competitive-features)
+17. [Conclusion](#17-conclusion)
+18. [References](#18-references)
 
 ---
 
@@ -1441,6 +1442,37 @@ def create_susy_swap(sender_inputs: List[UTXO],
 - Traffic Analysis: IP addresses visible to peers (use Tor/VPN)
 - Statistical Analysis: Transaction sizes leak information (use standard fees)
 
+### 8.9 Aether CLI Privacy Interface
+
+The Aether CLI (`aether-cli`) provides a complete Rust implementation of the Susy Swap protocol, exposing all four cryptographic primitives through a unified command-line interface:
+
+```bash
+# Generate stealth keypair (spend + view keys)
+aether privacy stealth-keygen
+
+# Send to a stealth address (generates one-time destination)
+aether privacy stealth-send --recipient <stealth_pubkey>
+
+# Create a Pedersen commitment for an amount
+aether privacy commit --amount <value>
+
+# Build and send a full confidential transaction
+aether privacy send --amount <value> --to <address>
+
+# Display privacy system info and capabilities
+aether privacy info
+```
+
+The CLI implementation uses SHA-256 for commitment hashing, ECDH key exchange for stealth address derivation, and Bulletproof-style range proofs for value validation. All privacy features are opt-in per transaction, consistent with the protocol's regulatory compliance design.
+
+### 8.10 Additional Wallet Innovations
+
+**Quantum-Entangled Wallet Protocol:** Two wallets can be cryptographically entangled with conditional spending rules -- dead-man switches (auto-inherit after N blocks of inactivity), escrow mode (both parties must sign), and configurable inheritance ratios. Entanglement commitments use SHA-256 and are recorded on-chain. CLI: `aether entangle create`, `aether entangle status`.
+
+**Zero-Knowledge Cognitive Recovery:** Wallet recovery without seed phrases using cognitive challenge-response. Users answer personal questions; answers are hashed with SHA-256 and stored as commitments. An M-of-N threshold (e.g., 5 of 8 correct) recovers the encrypted key shard. No plaintext answers are ever stored. CLI: `aether recover setup`, `aether recover attempt`.
+
+**Predictive UTXO Coalescing Engine:** ML-style fee rate prediction using exponential moving average of historical fee observations. Detects fee trends (rising/falling/stable), recommends optimal send windows, and identifies dust UTXOs for consolidation during low-fee periods. CLI: `aether optimize predict-fee`, `aether optimize analyze`, `aether optimize trend`.
+
 ---
 
 ## 9. SMART CONTRACT SYSTEM
@@ -2616,37 +2648,114 @@ Layer 2 solutions close the TPS gap
 
 ---
 
-## 15. COMPETITIVE FEATURES
+## 15. NOVEL PROTOCOL INNOVATIONS
+
+Quantum Blockchain introduces six novel protocol-level innovations implemented in Rust within the `aether-cli` crate. These features extend the core blockchain with cognitive mining, advanced wallet mechanics, intelligent UTXO management, seedless recovery, symbiotic AI training, and opt-in transaction privacy.
+
+### 15.1 Proof-of-Cognitive-Work (PoCW)
+
+Standard Proof-of-Work validates a single computational proof per block. Proof-of-Cognitive-Work extends this to a dual-proof system: miners must produce both a valid VQE energy proof (the existing PoSA mechanism) and a cognitive proof derived from Hamiltonian-seeded challenges.
+
+Each block's Hamiltonian seed deterministically generates a cognitive challenge drawn from three categories:
+
+- **Sequence Prediction:** Given a numerical sequence derived from the Hamiltonian eigenvalue spectrum, the miner must predict the next elements. The sequence structure encodes genuine mathematical relationships from the quantum system, ensuring the challenge is non-trivial and verifiable.
+- **Pattern Completion:** A partial matrix pattern extracted from the Hamiltonian's structure must be completed. The completion is verified against the known full Hamiltonian, providing a deterministic ground truth.
+- **Logical Inference:** A set of logical propositions derived from the SUSY algebra of the Hamiltonian must be resolved. The miner produces a valid inference chain, which validators check against the algebraic constraints.
+
+The cognitive proof is compact (a hash of the challenge response plus a Dilithium signature) and adds negligible verification overhead. The dual requirement ensures that mining nodes demonstrate both quantum-computational capability and structured reasoning capability, raising the bar beyond brute-force energy minimization.
+
+### 15.2 Quantum-Entangled Wallet Protocol
+
+The Quantum-Entangled Wallet Protocol enables cryptographic binding between two or more wallets through shared commitment schemes, providing three operational modes:
+
+- **Dead-Man's Switch:** A wallet owner commits a SHA-256 hash of a secret to the chain. If no heartbeat transaction (a signed liveness proof) is broadcast within a configurable inactivity period, the protocol releases funds to pre-designated beneficiary wallets. The commitment scheme ensures that the release conditions are tamper-proof and publicly verifiable without revealing the secret until activation.
+- **Trustless Escrow:** Two parties each commit SHA-256 hashes of their respective secrets. Funds are locked in a script that requires both preimage reveals to release. If either party fails to reveal within the timeout, the funds return to the depositor. This eliminates the need for a trusted third-party escrow agent.
+- **Inheritance:** An extension of the dead-man's switch supporting M-of-N beneficiary configurations. The wallet owner defines split ratios and beneficiary addresses, all stored on-chain with Dilithium-signed authorization. Beneficiaries can claim their shares independently after the inactivity timeout expires, each requiring only their own key to claim their designated portion.
+
+All entanglement operations are implemented as deterministic state transitions verified at the consensus layer, ensuring that entangled wallet behavior is enforceable without off-chain trust assumptions.
+
+### 15.3 Predictive UTXO Coalescing Engine
+
+UTXO-based blockchains accumulate dust outputs over time, increasing wallet storage costs and degrading transaction construction performance. The Predictive UTXO Coalescing Engine addresses this with three mechanisms:
+
+- **ML Fee Prediction:** An exponential moving average (EMA) model tracks historical fee rates across a sliding window of recent blocks. The model predicts short-term fee trends, identifying periods where fees are below the rolling average. This prediction is computed locally by each wallet with no network overhead.
+- **Optimal Send Windows:** Using the fee prediction model, the engine identifies optimal consolidation windows — periods where the predicted fee is at a local minimum. When a window is detected and the wallet holds more than a configurable threshold of UTXOs, the engine recommends (or automatically initiates) a self-transfer that consolidates multiple small UTXOs into a single output.
+- **Dust Consolidation:** UTXOs below a configurable dust threshold (default: outputs whose spending cost at median fee rates would exceed 50% of their value) are flagged for consolidation. During optimal send windows, these dust outputs are swept into a single UTXO, reclaiming their value and reducing the wallet's UTXO set size.
+
+The coalescing engine operates entirely client-side within the `aether-cli` wallet, requiring no protocol changes or miner cooperation. Consolidation transactions are standard QBC transactions and are validated by the existing consensus rules.
+
+### 15.4 Zero-Knowledge Cognitive Recovery
+
+Traditional wallet recovery relies on mnemonic seed phrases — 12 or 24 words that, if lost or stolen, result in permanent fund loss or theft. Zero-Knowledge Cognitive Recovery provides a seedless alternative using cognitive challenge-response protocols:
+
+1. **Setup Phase:** The wallet owner generates a set of N cognitive challenges — personal questions whose answers are known only to the owner (e.g., structured factual questions about personal history, not security questions with guessable answers). Each answer is hashed with a unique salt, and the salted hashes are stored on-chain. The answers themselves are never transmitted or stored.
+
+2. **Recovery Phase:** To recover the wallet, the claimant must correctly answer M of N challenges (configurable threshold, default M = 3, N = 5). Each answer is hashed with its corresponding salt and compared against the on-chain commitments. If the threshold is met, the recovery key is derived from the concatenation of the valid answer hashes using a key derivation function (Argon2id), and the wallet is reconstructed.
+
+3. **Security Properties:** The M-of-N threshold provides resilience against partial knowledge leakage. The salted hashing prevents rainbow table attacks. The Argon2id KDF provides memory-hard brute-force resistance. The on-chain commitments are zero-knowledge: they reveal nothing about the answers, the number of challenges, or the threshold without a valid set of responses.
+
+This protocol eliminates the single point of failure inherent in seed phrases while providing a recovery mechanism that relies on human memory rather than physical media.
+
+### 15.5 Symbiotic Mining Intelligence Protocol (SMIP)
+
+The Symbiotic Mining Intelligence Protocol unifies mining and machine learning: every act of mining is simultaneously an act of training the Aether Mind neural cognitive engine.
+
+- **Mining as Training:** Each VQE mining iteration produces not only an energy proof but also a gradient fragment — a partial update to the Aether Mind's neural parameters derived from the quantum optimization landscape. The Hamiltonian structure provides a natural loss surface, and the VQE parameter optimization trajectory yields gradient information that is repurposed as a training signal.
+- **Gradient Compression:** Raw gradient fragments are compressed using top-k sparsification (retaining only the k largest gradient components) before inclusion in the block payload. This reduces the on-chain footprint to a compact `NeuralPayload` structure while preserving the most informative gradient directions.
+- **Federated Aggregation:** The consensus layer aggregates gradient fragments from multiple miners using Federated Averaging (FedAvg). Each block's aggregated gradient is applied to the global Aether Mind model, advancing its training by one step. Byzantine-resilient aggregation (trimmed mean) discards statistical outliers, preventing adversarial miners from poisoning the model.
+- **Every Miner is a Neuron:** In this architecture, the mining network functions as a distributed neural network. Each miner contributes local computation (gradient fragments) that collectively train a shared global model. The more miners participate, the faster and more robust the training becomes — creating a direct alignment between network security and AI capability.
+
+SMIP transforms the mining energy expenditure from pure security overhead into dual-purpose computation: securing the chain while simultaneously advancing the Aether Mind toward genuine cognitive capability.
+
+### 15.6 Susy Swaps (Opt-In Privacy)
+
+Susy Swaps provide opt-in transaction privacy, allowing users to hide transaction amounts and recipient addresses while preserving public verifiability of transaction validity. Privacy is not enforced by default — users explicitly choose private mode per transaction.
+
+- **Stealth Addresses:** Each recipient generates a one-time stealth address per incoming transaction using a Diffie-Hellman-style key exchange between the sender and recipient's public keys. The stealth address is unlinkable to the recipient's public address, preventing transaction graph analysis from linking multiple payments to the same recipient. Spend and view key pairs allow the recipient to detect incoming payments (view key) and spend received funds (spend key) independently.
+- **Pedersen Commitments:** Transaction amounts are replaced with Pedersen commitments of the form `C = v*G + r*H`, where `v` is the amount, `r` is a random blinding factor, and `G` and `H` are independent generator points. The additive homomorphic property ensures that validators can verify that input commitments sum to output commitments (proving no inflation) without learning the actual amounts.
+- **Bulletproof Range Proofs:** Each output commitment is accompanied by a Bulletproof zero-knowledge range proof demonstrating that the committed amount lies within `[0, 2^64)`. This prevents negative-value attacks (creating value from nothing by committing to a negative number that wraps around). Bulletproofs are compact (~672 bytes per proof), require no trusted setup, and verify in approximately 10ms.
+- **Key Images:** To prevent double-spending of confidential outputs, each spend publishes a deterministic key image derived from the output's private key. The consensus layer maintains a set of spent key images; any transaction attempting to reuse a key image is rejected.
+
+| Mode | Amounts | Addresses | Tx Size | Verification Time |
+|------|---------|-----------|---------|-------------------|
+| **Public** (default) | Visible | Visible | ~300 bytes | <1ms |
+| **Private** (opt-in) | Hidden | Hidden | ~2,000 bytes | ~10ms |
+
+Susy Swaps are fully compatible with the existing UTXO model and consensus rules. Private transactions are validated using the same block inclusion and confirmation logic as public transactions, with the additional cryptographic checks performed transparently by all validating nodes.
+
+---
+
+## 16. COMPETITIVE FEATURES
 
 Beyond the core innovations described above, Quantum Blockchain includes several production-ready features that differentiate it from existing blockchain platforms. These capabilities address real-world operational, security, and usability requirements that mainstream chains have not yet solved.
 
-### 15.1 BFT Finality Gadget
+### 16.1 BFT Finality Gadget
 
 Quantum Blockchain employs a Byzantine Fault Tolerant finality gadget layered on top of the PoSA consensus mechanism. Once a block receives confirmations from a supermajority of validators (greater than two-thirds), it is marked as finalized and cannot be reverted. This provides deterministic finality rather than probabilistic finality, enabling faster settlement for exchanges, bridges, and payment applications. The finality gadget operates independently from block production, allowing the chain to continue producing blocks even if finality temporarily stalls due to network partitions.
 
-### 15.2 Inheritance Protocol (Dead-Man's Switch)
+### 16.2 Inheritance Protocol (Dead-Man's Switch)
 
 Qubitcoin implements an on-chain inheritance protocol that allows users to designate beneficiary addresses and configure inactivity timeouts. If a wallet owner does not produce a signed heartbeat transaction within the configured period (default: 365 days), the protocol automatically transfers the wallet's QBC holdings to the designated beneficiaries according to predefined split ratios. The heartbeat mechanism is lightweight (a single signed message proving liveness), and the entire inheritance configuration is stored on-chain with Dilithium-signed authorization. Users can update beneficiaries, adjust timeouts, or cancel the inheritance plan at any time. This solves the well-documented problem of permanently lost cryptocurrency due to holder death or incapacitation.
 
-### 15.3 High-Security Accounts
+### 16.3 High-Security Accounts
 
 Quantum Blockchain supports high-security account configurations that enforce additional protections beyond standard Dilithium signatures. High-security accounts can require multi-signature authorization (M-of-N Dilithium keys), time-locked withdrawals with configurable delay periods, per-transaction spending limits, whitelisted destination addresses, and mandatory two-factor confirmation via a secondary key. These features are enforced at the consensus layer, making them impossible to bypass even if a single private key is compromised. High-security accounts are designed for institutional custody, treasury management, and high-value holdings where the cost of a security breach far exceeds the inconvenience of additional verification steps.
 
-### 15.4 Deniable RPCs (Privacy-Preserving Queries)
+### 16.4 Deniable RPCs (Privacy-Preserving Queries)
 
 Standard blockchain RPC endpoints leak metadata: an observer monitoring network traffic can determine which addresses a user is querying, revealing ownership and interest patterns. Qubitcoin's deniable RPC system addresses this by returning plausible cover data alongside the real query results. When a user queries their balance, the node returns a batch of balances for multiple addresses, making it impossible for a network observer to determine which address the user actually owns. The deniable RPC layer supports configurable cover-set sizes and can be combined with Tor or VPN connections for defense-in-depth privacy. This feature is critical for users operating in adversarial network environments.
 
-### 15.5 Stratum Mining Server
+### 16.5 Stratum Mining Server
 
 The Quantum Blockchain includes a production-grade Stratum mining server implemented in Rust for maximum performance. The Stratum server enables pool mining, where multiple miners collaborate to solve VQE problems and share rewards proportionally based on contributed work. The server supports the Stratum V2 protocol with encrypted connections, job assignment, share validation, and automatic difficulty adjustment per worker. It is designed to handle thousands of concurrent miners with minimal latency. The Rust implementation ensures memory safety and predictable performance under high load, making it suitable for commercial mining pool operations from day one.
 
-### 15.6 Security Core (Rust PyO3 Crate)
+### 16.6 Security Core (Rust PyO3 Crate)
 
 Performance-critical security operations are implemented in a dedicated Rust crate (`security-core`) exposed to the Python runtime via PyO3 bindings. This crate provides native-speed implementations of cryptographic primitives, hash computations, Merkle tree construction, signature batch verification, and UTXO validation logic. By offloading these hot paths to compiled Rust code, the node achieves significant throughput improvements over pure Python execution while maintaining the flexibility and rapid development cycle of the Python application layer. The security-core crate is thoroughly tested with its own Rust test suite and integrates transparently with the Python node through automatic fallback: if the compiled extension is unavailable, the node seamlessly falls back to equivalent Python implementations.
 
 ---
 
-## 16. CONCLUSION
+## 17. CONCLUSION
 
 Quantum Blockchain represents a paradigm shift in blockchain technology, uniquely positioned at the intersection of quantum computing, post-quantum cryptography, theoretical physics, privacy technology, smart contract programmability, and decentralized finance.
 
@@ -2715,7 +2824,7 @@ The network effect compounds: more miners generate more SUSY data, creating more
 
 ---
 
-## 17. REFERENCES
+## 18. REFERENCES
 
 [1] Shor, P. W. (1997). "Polynomial-Time Algorithms for Prime Factorization and Discrete Logarithms on a Quantum Computer." *SIAM Journal on Computing*, 26(5), 1484-1509.
 

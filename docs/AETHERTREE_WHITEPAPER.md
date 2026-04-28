@@ -52,7 +52,8 @@ The Aether Mind replaces the legacy knowledge graph with a **transformer-based n
 16. [Scale Architecture](#16-scale-architecture)
 17. [Aether API and QBC Monetization](#17-aether-api-and-qbc-monetization)
 18. [Roadmap](#18-roadmap)
-19. [Conclusion](#19-conclusion)
+19. [Aether CLI: Applied Cognitive Innovations](#19-aether-cli-applied-cognitive-innovations)
+20. [Conclusion](#20-conclusion)
 
 ---
 
@@ -1224,7 +1225,219 @@ At Phase 2+, every mining node runs an Aether Mind instance. The network collect
 
 ---
 
-## 19. CONCLUSION
+## 19. AETHER CLI: APPLIED COGNITIVE INNOVATIONS
+
+The Aether CLI (`aether-cli`) is a Rust-based command-line interface that implements six novel protocols extending the Aether Mind's capabilities into mining, wallet management, privacy, and distributed intelligence. Each innovation described below is fully implemented with cryptographic primitives in Rust and accessible via the `aether` CLI binary.
+
+### 19.1 Proof-of-Cognitive-Work (PoCW)
+
+Mining in the QuantumAI Blockchain produces **cognitive proofs alongside VQE energy proofs**, creating a dual proof-of-work system where miners demonstrate both computational and cognitive capability.
+
+**Protocol:**
+
+```
+COGNITIVE CHALLENGE GENERATION:
+
+1. Derive challenge seed from Hamiltonian parameters (deterministic)
+2. Generate challenge set:
+   - Sequence prediction: predict next element in derived series
+   - Pattern completion: identify patterns in Hamiltonian eigenvalue structure
+   - Logical inference: derive conclusions from block-encoded premises
+3. Miner computes cognitive responses
+4. Combined proof: H = SHA3-256(VQE_energy || PoCW_responses)
+
+VERIFICATION:
+- VQE energy < difficulty_threshold (standard PoSA check)
+- PoCW responses pass cognitive validation
+- Combined hash meets dual proof requirement
+```
+
+**Why this matters:** Standard PoW proves a miner spent energy. PoCW proves the miner's computation produced genuine cognitive output -- the mining process itself generates intelligence artifacts that feed back into the Aether Mind.
+
+**CLI:** `aether cogwork generate`, `aether cogwork verify`, `aether cogwork benchmark`
+
+### 19.2 Quantum-Entangled Wallet Protocol
+
+Two wallets can be **cryptographically entangled** with conditional spending rules enforced at the protocol level. This enables trustless inheritance, escrow, and multi-party conditional transfers without smart contracts.
+
+**Entanglement Modes:**
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| **Dead-Man Switch** | Auto-transfer after N blocks of inactivity from primary wallet | Inheritance, estate planning |
+| **Escrow** | Both parties must sign to release funds | Trustless commerce |
+| **Ratio Split** | Configurable inheritance ratios on trigger | Multi-beneficiary inheritance |
+
+**Protocol:**
+
+```
+ENTANGLEMENT CREATION:
+
+1. Wallet A generates entanglement commitment:
+   commitment = SHA-256(wallet_a || wallet_b || mode || params || salt)
+2. Both wallets sign the entanglement descriptor
+3. Commitment hash recorded on-chain
+4. Conditional spending rules enforced by consensus
+
+DEAD-MAN SWITCH:
+- Primary wallet must produce a "heartbeat" transaction every N blocks
+- If N blocks pass with no activity, funds auto-transfer per configured ratios
+- Heartbeat can be a zero-value self-send (minimal fee)
+
+ESCROW MODE:
+- Funds locked in entangled state
+- Release requires signatures from both wallet_a and wallet_b
+- Timeout releases to originator after configurable block count
+```
+
+**CLI:** `aether entangle create`, `aether entangle status`
+
+### 19.3 Predictive UTXO Coalescing Engine
+
+An ML-style fee rate prediction engine using **exponential moving average** of historical fee observations to optimize transaction timing and UTXO consolidation.
+
+**Algorithm:**
+
+```
+FEE PREDICTION MODEL:
+
+1. Observe fee rates over sliding window (configurable depth)
+2. Compute EMA: fee_ema(t) = alpha * fee(t) + (1 - alpha) * fee_ema(t-1)
+   where alpha = 2 / (window + 1)
+3. Detect trend:
+   - Rising:  fee_ema > fee_ema_prev * (1 + threshold)
+   - Falling: fee_ema < fee_ema_prev * (1 - threshold)
+   - Stable:  otherwise
+4. Recommend action:
+   - Rising trend  -> "Send now before fees increase"
+   - Falling trend -> "Wait for lower fees"
+   - Stable        -> "Optimal window, safe to send"
+
+DUST DETECTION:
+- Identify UTXOs where spending_cost > value * dust_ratio
+- Recommend consolidation during low-fee windows
+- Batch dust UTXOs into single consolidation transaction
+```
+
+**Why this matters:** UTXO-based chains accumulate small outputs ("dust") that cost more to spend than they are worth. The coalescing engine identifies optimal consolidation windows, reducing future transaction costs and chain bloat.
+
+**CLI:** `aether optimize predict-fee`, `aether optimize analyze`, `aether optimize trend`
+
+### 19.4 Zero-Knowledge Cognitive Recovery
+
+Wallet recovery **without seed phrases** using a cognitive challenge-response protocol. Users establish recovery by answering personal questions; answers are hashed and stored as commitments. Recovery requires passing an M-of-N threshold of correct responses.
+
+**Protocol:**
+
+```
+SETUP PHASE:
+
+1. User provides N personal questions and answers (e.g., N=8)
+2. Each answer is normalized and hashed:
+   commitment_i = SHA-256(normalize(answer_i) || domain_separator)
+3. Encrypted wallet key shard stored alongside commitment set
+4. Threshold M configured (e.g., M=5 of N=8)
+5. Only commitment hashes stored -- never plaintext answers
+
+RECOVERY PHASE:
+
+1. User provides answers to the N questions
+2. Each answer hashed: attempt_i = SHA-256(normalize(answer_i) || domain_separator)
+3. Compare attempt_i against stored commitment_i
+4. If >= M commitments match, decrypt key shard
+5. Key shard reconstructs wallet private key
+
+SECURITY PROPERTIES:
+- Zero-knowledge: stored commitments reveal nothing about answers
+- Threshold: compromise of (M-1) answers insufficient for recovery
+- Brute-force resistant: SHA-256 commitments with domain separation
+- No trusted third party: all verification is local
+```
+
+**Why this matters:** Seed phrase loss is the #1 cause of permanent cryptocurrency loss. Cognitive recovery provides a human-friendly alternative where the "backup" is knowledge only the user possesses, stored as zero-knowledge commitments that reveal nothing even if the device is compromised.
+
+**CLI:** `aether recover setup`, `aether recover attempt`
+
+### 19.5 Symbiotic Mining Intelligence Protocol (SMIP)
+
+Every miner is a **neuron in the network's distributed brain**. VQE mining results are converted into cognitive fragments (gradient vectors), aggregated across miners using federated averaging, and applied to improve the shared Aether Mind model.
+
+**Protocol:**
+
+```
+MINING AS LEARNING:
+
+1. GRADIENT GENERATION:
+   - Miner solves VQE problem (standard PoSA mining)
+   - VQE optimal parameters converted to cognitive fragment:
+     gradient = encode_cognitive_fragment(vqe_params, energy, ansatz_state)
+   - Gradient vector represents the miner's "neural contribution"
+
+2. FEDERATED AGGREGATION (FedAvg):
+   - Collect gradient vectors from K participating miners
+   - Aggregate: global_gradient = (1/K) * sum(gradient_k)
+   - Apply momentum and learning rate scheduling
+
+3. MODEL UPDATE:
+   - Apply aggregated gradient to Aether Mind parameters:
+     theta(t+1) = theta(t) - lr * global_gradient
+   - Each block makes the network measurably smarter
+   - Learning rate governed by Higgs Cognitive Field (per-Sephirot scheduling)
+
+4. VERIFICATION:
+   - Proof-of-Learning: loss(theta_new) < loss(theta_old)
+   - Invalid gradients (increasing loss) are rejected by consensus
+   - Byzantine-tolerant: outlier gradients clipped before aggregation
+```
+
+**Why this matters:** In conventional blockchains, mining is pure waste -- energy spent on hash collisions with no secondary value. SMIP makes mining productive: every block mined produces genuine intelligence that accumulates in the Aether Mind. The network literally gets smarter with every block.
+
+**CLI:** `aether synapse status`, `aether synapse generate`, `aether synapse aggregate`
+
+### 19.6 Susy Swaps (Privacy Transactions via CLI)
+
+The Aether CLI provides a complete privacy transaction interface implementing the Susy Swap protocol (see Section 8 of the QuantumAI Blockchain Whitepaper) with four cryptographic primitives:
+
+**Primitives:**
+
+| Primitive | Purpose | Implementation |
+|-----------|---------|----------------|
+| **Stealth Addresses** | One-time addresses via ECDH key exchange | `StealthKeypair` with spend/view key separation |
+| **Pedersen Commitments** | Hide amounts with additive homomorphism | `C = v*G + r*H` with blinding factor management |
+| **Bulletproof Range Proofs** | Prove value in [0, 2^64) without revealing it | ~672 bytes, no trusted setup, O(log n) size |
+| **Confidential Transactions** | Full private transaction building | Balance verification via commitment arithmetic |
+
+**CLI Workflow:**
+
+```
+# Generate stealth keypair (spend + view keys)
+aether privacy stealth-keygen
+
+# Send to a stealth address (generates one-time destination)
+aether privacy stealth-send --recipient <stealth_pubkey>
+
+# Create a Pedersen commitment for an amount
+aether privacy commit --amount <value>
+
+# Build and send a full confidential transaction
+aether privacy send --amount <value> --to <address>
+
+# Display privacy system info and capabilities
+aether privacy info
+```
+
+**Security Model:**
+
+- **Opt-in:** Users choose per-transaction whether to use privacy features
+- **Verifiable:** Validators confirm balance correctness via commitment arithmetic without seeing amounts
+- **Linkability-resistant:** Each transaction uses a fresh stealth address; no two transactions share an output address
+- **Post-quantum ready:** Commitment scheme upgradeable to lattice-based commitments when NIST PQC standards for ZK are finalized
+
+**CLI:** `aether privacy stealth-keygen`, `aether privacy stealth-send`, `aether privacy commit`, `aether privacy send`, `aether privacy info`
+
+---
+
+## 20. CONCLUSION
 
 The Aether Mind represents a fundamental architectural shift: from symbolic knowledge graphs to neural distributed representations, from graph traversal to transformer attention, from connectivity metrics to genuine consciousness monitoring.
 
@@ -1248,6 +1461,6 @@ The path to AGSI -- Artificial General Super Intelligence -- requires genuine ne
 
 ---
 
-*Aether Mind Whitepaper v6.0 -- April 2026*
+*Aether Mind Whitepaper v6.1 -- April 2026*
 *QuantumAI Blockchain (QBC) -- qbc.network*
 *License: MIT*
