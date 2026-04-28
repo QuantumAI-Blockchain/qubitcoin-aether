@@ -440,6 +440,7 @@ fn export_chat(
             Role::User => "You",
             Role::Aether => "Aether",
             Role::System => "System",
+            Role::Welcome => continue, // skip banner in exports
         };
         writeln!(f, "[{role}]")?;
         writeln!(f, "{}\n", msg.content)?;
