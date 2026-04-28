@@ -1,8 +1,10 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+
+use crate::{AMBER, BORDER, DIM, GREEN, VIOLET};
 
 pub struct StatusBar {
     pub chain_height: u64,
@@ -35,82 +37,77 @@ impl StatusBar {
         }
     }
 
-    fn format_vectors(&self) -> String {
-        if self.knowledge_vectors >= 1_000_000 {
-            format!("{:.1}M", self.knowledge_vectors as f64 / 1_000_000.0)
-        } else if self.knowledge_vectors >= 1_000 {
-            format!("{:.1}K", self.knowledge_vectors as f64 / 1_000.0)
-        } else {
-            self.knowledge_vectors.to_string()
-        }
-    }
-
     pub fn draw(&self, frame: &mut Frame, area: Rect) {
-        let green = Color::Rgb(0, 255, 136);
-        let dim = Style::default().fg(Color::DarkGray);
+        let block = Block::default()
+            .borders(Borders::TOP)
+            .border_style(Style::default().fg(BORDER));
+
+        let label = Style::default().fg(DIM);
         let val = Style::default().fg(Color::White);
 
-        let mining_span = match &self.mining {
-            MiningStatus::Off => Span::styled("Mining: OFF", dim),
-            MiningStatus::Running { hashrate, blocks_found } => Span::styled(
-                format!("Mining: {hashrate:.1} H/s | {blocks_found} blocks"),
-                Style::default().fg(green),
-            ),
+        let mining_spans: Vec<Span> = match &self.mining {
+            MiningStatus::Off => vec![
+                Span::styled("Mining ", label),
+                Span::styled("OFF", Style::default().fg(DIM)),
+            ],
+            MiningStatus::Running { hashrate, blocks_found } => vec![
+                Span::styled("Mining ", label),
+                Span::styled(
+                    format!("{hashrate:.1} H/s"),
+                    Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(format!(" ({blocks_found} found)"), Style::default().fg(AMBER)),
+            ],
         };
 
-        let wallet_span = match &self.wallet_addr {
+        let wallet_spans: Vec<Span> = match &self.wallet_addr {
             Some(addr) => {
-                let short = if addr.len() > 12 {
-                    format!("{}...{}", &addr[..6], &addr[addr.len() - 4..])
+                let short = if addr.len() > 14 {
+                    format!("{}..{}", &addr[..6], &addr[addr.len() - 4..])
                 } else {
                     addr.clone()
                 };
-                Span::styled(format!("Wallet: {short}"), val)
+                vec![Span::styled(short, Style::default().fg(VIOLET))]
             }
-            None => Span::styled("Wallet: not configured", dim),
+            None => vec![Span::styled("no wallet", label)],
         };
 
-        let conn_indicator = if self.connected {
-            Span::styled(" * ", Style::default().fg(green).add_modifier(Modifier::BOLD))
+        let conn = if self.connected {
+            Span::styled(" * ", Style::default().fg(GREEN).add_modifier(Modifier::BOLD))
         } else {
             Span::styled(" x ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
         };
 
-        let line = Line::from(vec![
+        let sep = Span::styled(" | ", label);
+
+        let mut spans = vec![
             Span::styled(" ", Style::default()),
-            conn_indicator,
-            Span::styled("height: ", dim),
+            conn,
+            Span::styled("h:", label),
             Span::styled(
-                format_with_commas(self.chain_height),
+                crate::format_with_commas(self.chain_height),
                 val,
             ),
-            Span::styled(" | ", dim),
-            Span::styled("phi: ", dim),
-            Span::styled(format!("{:.3}", self.phi), Style::default().fg(green)),
-            Span::styled(" | ", dim),
-            Span::styled("vectors: ", dim),
-            Span::styled(self.format_vectors(), val),
-            Span::styled(" | ", dim),
-            Span::styled("gate: ", dim),
-            Span::styled(format!("{}/10", self.gates_passed), val),
-            Span::styled(" | ", dim),
-            mining_span,
-            Span::styled(" | ", dim),
-            wallet_span,
-        ]);
+            sep.clone(),
+            Span::styled("phi:", label),
+            Span::styled(format!("{:.3}", self.phi), Style::default().fg(GREEN)),
+            sep.clone(),
+            Span::styled("v:", label),
+            Span::styled(crate::format_vectors(self.knowledge_vectors), val),
+            sep.clone(),
+            Span::styled("g:", label),
+            Span::styled(
+                format!("{}/10", self.gates_passed),
+                Style::default().fg(if self.gates_passed >= 6 { GREEN } else { AMBER }),
+            ),
+            sep.clone(),
+        ];
+        spans.extend(mining_spans);
+        spans.push(sep.clone());
+        spans.extend(wallet_spans);
 
-        frame.render_widget(Paragraph::new(line), area);
+        let line = Line::from(spans);
+        let paragraph = Paragraph::new(line).block(block);
+        frame.render_widget(paragraph, area);
     }
-}
-
-fn format_with_commas(n: u64) -> String {
-    let s = n.to_string();
-    let mut result = String::with_capacity(s.len() + s.len() / 3);
-    for (i, c) in s.chars().rev().enumerate() {
-        if i > 0 && i % 3 == 0 {
-            result.push(',');
-        }
-        result.push(c);
-    }
-    result.chars().rev().collect()
 }

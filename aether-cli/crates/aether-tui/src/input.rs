@@ -1,8 +1,10 @@
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
-use ratatui::text::Span;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
+
+use crate::{BORDER, DIM, GREEN};
 
 pub struct InputPanel {
     pub content: String,
@@ -24,7 +26,6 @@ impl InputPanel {
 
     pub fn backspace(&mut self) {
         if self.cursor_pos > 0 {
-            // Find the previous char boundary
             let prev = self.content[..self.cursor_pos]
                 .char_indices()
                 .next_back()
@@ -86,24 +87,40 @@ impl InputPanel {
     }
 
     pub fn draw(&self, frame: &mut Frame, area: Rect) {
+        let prompt = if self.content.starts_with('/') {
+            Span::styled(" / ", Style::default().fg(Color::Black).bg(crate::VIOLET).add_modifier(Modifier::BOLD))
+        } else {
+            Span::styled(" > ", Style::default().fg(GREEN).add_modifier(Modifier::BOLD))
+        };
+
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::DarkGray))
-            .title(Span::styled(
-                " > ",
-                Style::default().fg(Color::Rgb(0, 255, 136)),
-            ));
+            .border_style(Style::default().fg(BORDER))
+            .title(prompt);
 
         let inner = block.inner(area);
 
         // Show content with cursor
         let display = if self.content.is_empty() {
-            Paragraph::new(Span::styled(
-                "Type your message... (Enter to send, Ctrl+C to exit)",
-                Style::default().fg(Color::DarkGray),
-            ))
+            Paragraph::new(Line::from(vec![
+                Span::styled(
+                    "Type your message... ",
+                    Style::default().fg(DIM),
+                ),
+                Span::styled(
+                    "/help",
+                    Style::default().fg(DIM).add_modifier(Modifier::UNDERLINED),
+                ),
+                Span::styled(
+                    " for commands",
+                    Style::default().fg(DIM),
+                ),
+            ]))
         } else {
-            Paragraph::new(Span::raw(&self.content))
+            Paragraph::new(Span::styled(
+                &self.content,
+                Style::default().fg(Color::White),
+            ))
         };
 
         frame.render_widget(display.block(block), area);
@@ -115,7 +132,6 @@ impl InputPanel {
     }
 
     fn cursor_display_offset(&self) -> usize {
-        // Count display width of chars before cursor
         self.content[..self.cursor_pos].chars().count()
     }
 }

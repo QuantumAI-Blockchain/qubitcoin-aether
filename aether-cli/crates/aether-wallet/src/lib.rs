@@ -4,7 +4,11 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub use keystore::Keystore;
+pub use keystore::{
+    derive_address, verify_dilithium5, Keystore,
+    DILITHIUM5_PK_SIZE, DILITHIUM5_SIG_SIZE, DILITHIUM5_SK_SIZE,
+    ADDRESS_HEX_LEN, ADDRESS_SIZE,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalletInfo {
@@ -12,6 +16,15 @@ pub struct WalletInfo {
     pub public_key: String,
     pub label: String,
     pub created_at: String,
+    /// Keystore version: 1=legacy(no argon2), 2=argon2+SHA256, 3=Dilithium5
+    pub version: u8,
+}
+
+impl WalletInfo {
+    /// Whether this wallet uses quantum-secure Dilithium5 keys.
+    pub fn is_quantum_secure(&self) -> bool {
+        self.version >= 3
+    }
 }
 
 /// Get the default keystore directory.
@@ -65,5 +78,21 @@ impl Wallet {
     /// Get the default (first) wallet address without decrypting.
     pub fn address(&self) -> Result<Option<String>> {
         self.keystore.default_address()
+    }
+
+    /// Sign a message with the wallet's Dilithium5 key.
+    /// Returns the 4627-byte detached signature.
+    pub fn sign(&self, address: &str, password: &str, message: &[u8]) -> Result<Vec<u8>> {
+        self.keystore.sign(address, password, message)
+    }
+
+    /// Get the raw Dilithium5 public key bytes for a wallet.
+    pub fn public_key_bytes(&self, address: &str) -> Result<Vec<u8>> {
+        self.keystore.public_key_bytes(address)
+    }
+
+    /// Get the wallet version (1=legacy, 2=argon2, 3=Dilithium5).
+    pub fn wallet_version(&self, address: &str) -> Result<u8> {
+        self.keystore.wallet_version(address)
     }
 }

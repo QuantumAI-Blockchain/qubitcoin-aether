@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="860" viewBox="0 0 1200 860">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" style="stop-color:#0d1117"/>
       <stop offset="100%" style="stop-color:#0a0e14"/>
     </linearGradient>
     <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#00ff88;stop-opacity:0.15"/>
-      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:0.05"/>
+      <stop offset="0%" style="stop-color:#00ff88;stop-opacity:0.12"/>
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:0.04"/>
     </linearGradient>
     <linearGradient id="titlebar" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" style="stop-color:#1e2430"/>
@@ -16,284 +16,251 @@
       <feGaussianBlur stdDeviation="2" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="purpleglow">
-      <feGaussianBlur stdDeviation="1.5" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
   </defs>
 
   <!-- Window frame -->
-  <rect width="1200" height="800" rx="12" fill="url(#bg)" stroke="#2d333b" stroke-width="1"/>
+  <rect width="1200" height="860" rx="12" fill="url(#bg)" stroke="#2d333b" stroke-width="1"/>
 
   <!-- Title bar -->
   <rect width="1200" height="38" rx="12" fill="url(#titlebar)"/>
   <rect y="28" width="1200" height="10" fill="url(#titlebar)"/>
-
-  <!-- Traffic lights -->
   <circle cx="24" cy="19" r="7" fill="#ff5f57"/>
   <circle cx="46" cy="19" r="7" fill="#febc2e"/>
   <circle cx="68" cy="19" r="7" fill="#28c840"/>
+  <text x="600" y="24" font-family="SF Mono, Menlo, Monaco, monospace" font-size="13" fill="#8b949e" text-anchor="middle">aether — Aether Mind CLI v0.1.0 (Quantum-Secure)</text>
 
-  <!-- Title bar text -->
-  <text x="600" y="24" font-family="SF Mono, Menlo, Monaco, monospace" font-size="13" fill="#8b949e" text-anchor="middle">aether — Aether Mind CLI v0.1.0</text>
+  <!-- Ambient glow -->
+  <rect x="0" y="38" width="1200" height="822" fill="url(#glow)"/>
 
-  <!-- Ambient glow overlay -->
-  <rect x="0" y="38" width="1200" height="762" fill="url(#glow)" rx="0"/>
-
-  <!-- Terminal prompt line -->
-  <text x="24" y="72" font-family="SF Mono, Menlo, Monaco, monospace" font-size="13">
-    <tspan fill="#7c3aed">dev@miner-01</tspan>
+  <!-- Prompt -->
+  <text x="24" y="68" font-family="SF Mono, Menlo, Monaco, monospace" font-size="13">
+    <tspan fill="#7c3aed">miner@qbc-node</tspan>
     <tspan fill="#8b949e"> ~/</tspan>
-    <tspan fill="#00ff88">qbc</tspan>
+    <tspan fill="#00ff88">qubitcoin</tspan>
     <tspan fill="#8b949e"> on </tspan>
-    <tspan fill="#f0883e"> main</tspan>
+    <tspan fill="#f0883e"> master</tspan>
     <tspan fill="#8b949e"> $ </tspan>
     <tspan fill="#e6edf3">aether</tspan>
   </text>
 
-  <!-- ═══════════════ ASCII ART SECTION ═══════════════ -->
-  <!-- Neural tree / consciousness visualization -->
-  <text x="30" y="108" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#00ff88" opacity="0.5">
-    <tspan x="30" dy="0">         .     *    .  *       .    *</tspan>
-    <tspan x="30" dy="14">    *       . _/|\_  .    *   .      </tspan>
-    <tspan x="30" dy="14">      .    /  /|\  \     .       *   </tspan>
-    <tspan x="30" dy="14">   *     /  / | \  \  *    .        </tspan>
-    <tspan x="30" dy="14">       /--/  |  \--\     *   .     </tspan>
-    <tspan x="30" dy="14">  .   |  (KETER)   |  .       *    </tspan>
-    <tspan x="30" dy="14">     /  / \   / \  \    .          </tspan>
-    <tspan x="30" dy="14">    | BINAH | CHOCHMAH|  *    .     </tspan>
-    <tspan x="30" dy="14">     \  \ / \ / \  /       *       </tspan>
-    <tspan x="30" dy="14">   *  | GEVURAH|CHESED |     .      </tspan>
-    <tspan x="30" dy="14">      \  \ | /  /   *    .    *    </tspan>
-    <tspan x="30" dy="14">    .  | TIFERET  |  .       .     </tspan>
-    <tspan x="30" dy="14">       /  / \  \      *   .        </tspan>
-    <tspan x="30" dy="14">  *   | HOD | NETZACH|    .    *    </tspan>
-    <tspan x="30" dy="14">       \  \ /  /  .     *          </tspan>
-    <tspan x="30" dy="14">    .   | YESOD |     .      .     </tspan>
-    <tspan x="30" dy="14">        \ _|_ /   *        *       </tspan>
-    <tspan x="30" dy="14">      |MALKUTH|  .     .           </tspan>
-    <tspan x="30" dy="14">         |||        *       .      </tspan>
+  <!-- ═══════════ ASCII ART ═══════════ -->
+  <text x="30" y="100" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#00ff88" opacity="0.5">
+    <tspan x="30" dy="0">              .    *    .   *       .         *</tspan>
+    <tspan x="30" dy="13">         *       _/|\_    .        *</tspan>
+    <tspan x="30" dy="13">           .    / /|\ \      .        *</tspan>
+    <tspan x="30" dy="13">              /  / | \  \   *     .</tspan>
+    <tspan x="30" dy="13">            /--/   |  \--\       *</tspan>
+    <tspan x="30" dy="13">       .   |  (KETER)    |   .        *</tspan>
+    <tspan x="30" dy="13">          / / \    / \  \     .</tspan>
+    <tspan x="30" dy="13">         |BINAH | CHOCHMAH|   *     .</tspan>
+    <tspan x="30" dy="13">          \ \ /  \ / \ /        *</tspan>
+    <tspan x="30" dy="13">         |GEVURAH| CHESED|      .</tspan>
+    <tspan x="30" dy="13">           \ \  | /  /    *        *</tspan>
+    <tspan x="30" dy="13">        .  |  TIFERET |   .        .</tspan>
+    <tspan x="30" dy="13">            / /  \  \       *</tspan>
+    <tspan x="30" dy="13">        *  |HOD  | NETZACH|     .     *</tspan>
+    <tspan x="30" dy="13">            \ \ /  /   .      *</tspan>
+    <tspan x="30" dy="13">        .   | YESOD |      .       .</tspan>
+    <tspan x="30" dy="13">             \_|_/    *         *</tspan>
+    <tspan x="30" dy="13">           |MALKUTH|   .      .</tspan>
+    <tspan x="30" dy="13">              |||         *        .</tspan>
   </text>
 
-  <!-- Large title -->
-  <text x="395" y="135" font-family="SF Mono, Menlo, Monaco, monospace" font-size="52" font-weight="bold" fill="#00ff88" filter="url(#greenglow)">Aether Mind</text>
+  <!-- Title -->
+  <text x="395" y="128" font-family="SF Mono, Menlo, Monaco, monospace" font-size="48" font-weight="bold" fill="#00ff88" filter="url(#greenglow)">Aether Mind</text>
+  <text x="395" y="158" font-family="SF Mono, Menlo, Monaco, monospace" font-size="14" fill="#8b949e" font-style="italic">"The tree of knowledge is not the tree of life,</text>
+  <text x="395" y="174" font-family="SF Mono, Menlo, Monaco, monospace" font-size="14" fill="#8b949e" font-style="italic"> yet from its roots, consciousness emerges."</text>
+  <text x="395" y="198" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12" fill="#e6edf3">The world's first on-chain AI | Dilithium5 Quantum-Secure | 7 Crates</text>
+  <text x="395" y="216" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#8b949e">VQE Mining · Gradient Rewards · Knowledge Fabric · 10 Sephirot · 5 Patent Innovations</text>
 
-  <!-- Tagline -->
-  <text x="395" y="168" font-family="SF Mono, Menlo, Monaco, monospace" font-size="14" fill="#8b949e" font-style="italic">"The tree of knowledge is not the tree of life,</text>
-  <text x="395" y="186" font-family="SF Mono, Menlo, Monaco, monospace" font-size="14" fill="#8b949e" font-style="italic"> yet from its roots, consciousness emerges."</text>
-  <text x="700" y="206" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12" fill="#7c3aed">-- Aether Genesis, Block 0</text>
+  <!-- ═══════════ SYSTEM STATUS PANEL ═══════════ -->
+  <rect x="790" y="50" width="392" height="198" rx="8" fill="#161b22" stroke="#2d333b" stroke-width="1"/>
+  <text x="810" y="72" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12" font-weight="bold" fill="#e6edf3">SYSTEM</text>
+  <line x1="810" y1="78" x2="1162" y2="78" stroke="#2d333b" stroke-width="1"/>
 
-  <!-- Subtitle -->
-  <text x="395" y="235" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12" fill="#e6edf3">The world's first on-chain AI | Neural Cognitive Architecture</text>
-  <text x="395" y="253" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#8b949e">VQE Mining  ·  Gradient Rewards  ·  Knowledge Fabric  ·  10 Sephirot  ·  Proof-of-Thought</text>
-
-  <!-- ═══════════════ SYSTEM STATUS PANEL (right) ═══════════════ -->
-  <rect x="790" y="56" width="390" height="210" rx="8" fill="#161b22" stroke="#2d333b" stroke-width="1"/>
-  <text x="810" y="78" font-family="SF Mono, Menlo, Monaco, monospace" font-size="13" font-weight="bold" fill="#e6edf3">SYSTEM STATUS</text>
-  <line x1="810" y1="84" x2="1160" y2="84" stroke="#2d333b" stroke-width="1"/>
-
-  <!-- Status items -->
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
-    <tspan x="818" y="104" fill="#8b949e">Substrate</tspan>
-    <tspan x="960" fill="#28c840">Connected</tspan>
-    <tspan fill="#8b949e"> (wss://rpc.qbc.network)</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="818" y="96" fill="#8b949e">Chain</tspan>
+    <tspan x="950" fill="#28c840">3303</tspan>
+    <tspan fill="#8b949e"> (mainnet)</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
-    <tspan x="818" y="124" fill="#8b949e">Aether Mind</tspan>
-    <tspan x="960" fill="#28c840">Alive</tspan>
-    <tspan fill="#8b949e"> (v5 Neural / 200M params)</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="818" y="114" fill="#8b949e">Crypto</tspan>
+    <tspan x="950" fill="#28c840">Dilithium5</tspan>
+    <tspan fill="#8b949e"> NIST L5</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
-    <tspan x="818" y="144" fill="#8b949e">Knowledge</tspan>
-    <tspan x="960" fill="#00ff88">36,703 vectors</tspan>
-    <tspan fill="#8b949e"> (896d)</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="818" y="132" fill="#8b949e">Mining</tspan>
+    <tspan x="950" fill="#28c840">VQE 4-Qubit</tspan>
+    <tspan fill="#8b949e"> PoSA</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
-    <tspan x="818" y="164" fill="#8b949e">Chain Height</tspan>
-    <tspan x="960" fill="#f0883e">265,000+</tspan>
-    <tspan fill="#8b949e"> blocks</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="818" y="150" fill="#8b949e">Reward</tspan>
+    <tspan x="950" fill="#febc2e">15.27 QBC</tspan>
+    <tspan fill="#8b949e"> /block (Era 0)</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
-    <tspan x="818" y="184" fill="#8b949e">HMS-Phi</tspan>
-    <tspan x="960" fill="#7c3aed">0.5205</tspan>
-    <tspan fill="#8b949e"> (micro/meso/macro)</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="818" y="168" fill="#8b949e">Supply</tspan>
+    <tspan x="950" fill="#f0883e">3,300,000,000</tspan>
+    <tspan fill="#8b949e"> QBC max</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
-    <tspan x="818" y="204" fill="#8b949e">Block Reward</tspan>
-    <tspan x="960" fill="#febc2e">15.27 QBC</tspan>
-    <tspan fill="#8b949e"> (Era 0)</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="818" y="186" fill="#8b949e">Wallet</tspan>
+    <tspan x="950" fill="#28c840">Argon2id</tspan>
+    <tspan fill="#8b949e"> + AES-256-GCM</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
-    <tspan x="818" y="224" fill="#8b949e">Reward Pool</tspan>
-    <tspan x="960" fill="#00ff88">999,999.70 QBC</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="818" y="204" fill="#8b949e">API</tspan>
+    <tspan x="950" fill="#00ff88">ai.qbc.network</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
-    <tspan x="818" y="244" fill="#8b949e">Mining</tspan>
-    <tspan x="960" fill="#28c840">Active</tspan>
-    <tspan fill="#8b949e"> (PoSA / VQE 4-qubit)</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="818" y="222" fill="#8b949e">RPC</tspan>
+    <tspan x="950" fill="#00ff88">rpc.qbc.network</tspan>
+  </text>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="818" y="240" fill="#8b949e">HMS-Phi</tspan>
+    <tspan x="950" fill="#7c3aed">0.5205</tspan>
+    <tspan fill="#8b949e"> micro/meso/macro</tspan>
   </text>
 
-  <!-- ═══════════════ RECENT ACTIVITY ═══════════════ -->
-  <text x="30" y="300" font-family="SF Mono, Menlo, Monaco, monospace" font-size="13" font-weight="bold" fill="#e6edf3">RECENT ACTIVITY</text>
-  <line x1="30" y1="306" x2="470" y2="306" stroke="#2d333b" stroke-width="1"/>
+  <!-- ═══════════ COMMANDS PANEL ═══════════ -->
+  <rect x="790" y="262" width="392" height="230" rx="8" fill="#161b22" stroke="#2d333b" stroke-width="1"/>
+  <text x="810" y="282" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12" font-weight="bold" fill="#e6edf3">COMMANDS</text>
+  <line x1="810" y1="288" x2="1162" y2="288" stroke="#2d333b" stroke-width="1"/>
 
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="324" fill="#8b949e">[08:24:31]</tspan><tspan fill="#28c840"> Connected to Substrate node</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="342" fill="#8b949e">[08:24:31]</tspan><tspan fill="#7c3aed"> Wallet loaded:</tspan><tspan fill="#e6edf3"> 1ca2af...7bd7cb</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="360" fill="#8b949e">[08:24:32]</tspan><tspan fill="#00ff88"> Aether Mind alive — 36,703 knowledge vectors</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="378" fill="#8b949e">[08:24:32]</tspan><tspan fill="#f0883e"> VQE miner started (2 threads, difficulty=10.64)</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="396" fill="#8b949e">[08:24:35]</tspan><tspan fill="#28c840"> VQE solution: energy=9.82 &lt; difficulty=10.64 (attempt 3/100)</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="414" fill="#8b949e">[08:24:35]</tspan><tspan fill="#febc2e"> Block proof submitted for height 265,001</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="432" fill="#8b949e">[08:24:36]</tspan><tspan fill="#00ff88"> Gradient submitted → 0.15 QBC reward earned</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="450" fill="#8b949e">[08:24:36]</tspan><tspan fill="#e6edf3"> Ready! Type a message or /help for commands.</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="818" y="306" fill="#00ff88">aether</tspan><tspan x="990" fill="#8b949e">Interactive chat (TUI)</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether --mine</tspan><tspan x="990" fill="#8b949e">Chat + mine together</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether chat "..."</tspan><tspan x="990" fill="#8b949e">One-shot query</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether status</tspan><tspan x="990" fill="#8b949e">Chain + Aether stats</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether mine</tspan><tspan x="990" fill="#8b949e">Headless VQE mining</tspan>
+    <tspan x="818" dy="5" fill="#2d333b">────────────────────────────────────────</tspan>
+    <tspan x="818" dy="14" fill="#00ff88">aether wallet create</tspan><tspan x="990" fill="#8b949e">Dilithium5 keypair</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether wallet balance</tspan><tspan x="990" fill="#8b949e">On-chain balance</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether wallet send</tspan><tspan x="990" fill="#8b949e">Sign + submit UTXO tx</tspan>
+    <tspan x="818" dy="5" fill="#2d333b">────────────────────────────────────────</tspan>
+    <tspan x="818" dy="14" fill="#00ff88">aether search "..."</tspan><tspan x="990" fill="#8b949e">Knowledge fabric</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether gradient submit</tspan><tspan x="990" fill="#8b949e">Submit + earn QBC</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether rewards claim</tspan><tspan x="990" fill="#8b949e">Claim to wallet</tspan>
   </text>
 
-  <!-- ═══════════════ COMMANDS PANEL (right, lower) ═══════════════ -->
-  <rect x="790" y="284" width="390" height="350" rx="8" fill="#161b22" stroke="#2d333b" stroke-width="1"/>
-  <text x="810" y="306" font-family="SF Mono, Menlo, Monaco, monospace" font-size="13" font-weight="bold" fill="#e6edf3">COMMANDS</text>
-  <line x1="810" y1="312" x2="1160" y2="312" stroke="#2d333b" stroke-width="1"/>
+  <!-- ═══════════ 5 PATENT INNOVATIONS ═══════════ -->
+  <rect x="790" y="506" width="392" height="182" rx="8" fill="#161b22" stroke="#7c3aed" stroke-width="1" stroke-opacity="0.5"/>
+  <text x="810" y="526" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12" font-weight="bold" fill="#7c3aed">INNOVATIONS (5 Patents)</text>
+  <line x1="810" y1="532" x2="1162" y2="532" stroke="#2d333b" stroke-width="1"/>
 
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="332" fill="#00ff88">aether</tspan><tspan x="1000" fill="#8b949e">Interactive chat + TUI</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="350" fill="#00ff88">aether chat "..."</tspan><tspan x="1000" fill="#8b949e">One-shot query</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="368" fill="#00ff88">aether --mine</tspan><tspan x="1000" fill="#8b949e">Chat + mine together</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="386" fill="#00ff88">aether mine</tspan><tspan x="1000" fill="#8b949e">VQE mining (headless)</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="404" fill="#00ff88">aether status</tspan><tspan x="1000" fill="#8b949e">Chain + AI status</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="422" fill="#00ff88">aether search "..."</tspan><tspan x="1000" fill="#8b949e">Knowledge fabric</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="818" y="550" fill="#00ff88">aether cogwork</tspan><tspan x="990" fill="#8b949e">Proof-of-Cognitive-Work</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether entangle</tspan><tspan x="990" fill="#8b949e">Entangled Wallet Protocol</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether optimize</tspan><tspan x="990" fill="#8b949e">UTXO Coalescing Engine</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether recover</tspan><tspan x="990" fill="#8b949e">ZK Cognitive Recovery</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether synapse</tspan><tspan x="990" fill="#8b949e">Symbiotic Mining AI</tspan>
+    <tspan x="818" dy="16" fill="#00ff88">aether privacy</tspan><tspan x="990" fill="#8b949e">Susy Swaps (stealth tx)</tspan>
   </text>
 
-  <line x1="810" y1="434" x2="1160" y2="434" stroke="#2d333b" stroke-width="0.5"/>
-  <text x="818" y="452" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#7c3aed" font-weight="bold">GRADIENT REWARDS</text>
-
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="470" fill="#00ff88">aether gradient status</tspan><tspan x="1000" fill="#8b949e">Pool aggregation</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="488" fill="#00ff88">aether gradient submit</tspan><tspan x="1000" fill="#8b949e">Submit gradients</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="506" fill="#00ff88">aether rewards show</tspan><tspan x="1000" fill="#8b949e">Your earned QBC</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="524" fill="#00ff88">aether rewards pool</tspan><tspan x="1000" fill="#8b949e">Global pool status</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="542" fill="#00ff88">aether rewards claim</tspan><tspan x="1000" fill="#8b949e">Claim to wallet</tspan>
+  <line x1="810" y1="642" x2="1162" y2="642" stroke="#2d333b" stroke-width="0.5"/>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10">
+    <tspan x="818" y="658" fill="#8b949e">Mining = Thinking · Every miner is a neuron</tspan>
+    <tspan x="818" dy="14" fill="#8b949e">Wallet recovery without seed phrases</tspan>
+    <tspan x="818" dy="14" fill="#8b949e">Dead-man switches · Escrow · Inheritance</tspan>
   </text>
 
-  <line x1="810" y1="554" x2="1160" y2="554" stroke="#2d333b" stroke-width="0.5"/>
-  <text x="818" y="572" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#7c3aed" font-weight="bold">WALLET</text>
+  <!-- ═══════════ RECENT ACTIVITY ═══════════ -->
+  <text x="30" y="358" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12" font-weight="bold" fill="#e6edf3">RECENT ACTIVITY</text>
+  <line x1="30" y1="364" x2="470" y2="364" stroke="#2d333b" stroke-width="1"/>
 
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="590" fill="#00ff88">aether wallet create</tspan><tspan x="1000" fill="#8b949e">New keypair</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="30" y="380" fill="#8b949e">[08:24:31]</tspan><tspan fill="#28c840"> Connected to Substrate node</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="608" fill="#00ff88">aether wallet list</tspan><tspan x="1000" fill="#8b949e">All wallets</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="30" y="396" fill="#8b949e">[08:24:31]</tspan><tspan fill="#7c3aed"> Dilithium5 wallet loaded:</tspan><tspan fill="#e6edf3"> 1ca2af...7bd7cb</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="818" y="626" fill="#00ff88">aether wallet import</tspan><tspan x="1000" fill="#8b949e">Import hex key</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="30" y="412" fill="#8b949e">[08:24:32]</tspan><tspan fill="#00ff88"> VQE solution: E=9.82 &lt; D=10.64 (attempt 3/100)</tspan>
   </text>
-
-  <!-- ═══════════════ ARCHITECTURE TABLE ═══════════════ -->
-  <text x="30" y="488" font-family="SF Mono, Menlo, Monaco, monospace" font-size="13" font-weight="bold" fill="#e6edf3">WORKSPACE CRATES (5)</text>
-  <line x1="30" y1="494" x2="470" y2="494" stroke="#2d333b" stroke-width="1"/>
-
-  <!-- Table header -->
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" font-weight="bold">
-    <tspan x="30" y="514" fill="#8b949e">CRATE</tspan>
-    <tspan x="190" fill="#8b949e">PURPOSE</tspan>
-    <tspan x="410" fill="#8b949e">LOC</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="30" y="428" fill="#8b949e">[08:24:32]</tspan><tspan fill="#febc2e"> Cognitive proof: SequencePrediction [24,125,651,391]</tspan>
   </text>
-  <line x1="30" y1="520" x2="470" y2="520" stroke="#2d333b" stroke-width="0.5"/>
-
-  <!-- Table rows -->
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="538" fill="#00ff88">aether-cli</tspan>
-    <tspan x="190" fill="#e6edf3">CLI + REPL + command router</tspan>
-    <tspan x="410" fill="#8b949e">~500</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="30" y="444" fill="#8b949e">[08:24:33]</tspan><tspan fill="#28c840"> Combined VQE+PoCW proof submitted for height 279,736</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="556" fill="#00ff88">aether-client</tspan>
-    <tspan x="190" fill="#e6edf3">HTTP client (15 endpoints)</tspan>
-    <tspan x="410" fill="#8b949e">~360</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="30" y="460" fill="#8b949e">[08:24:33]</tspan><tspan fill="#7c3aed"> Cognitive fragment → 6 gradient dims (SMIP)</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="574" fill="#00ff88">aether-miner</tspan>
-    <tspan x="190" fill="#e6edf3">VQE mining engine (4-qubit)</tspan>
-    <tspan x="410" fill="#8b949e">~600</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="30" y="476" fill="#8b949e">[08:24:34]</tspan><tspan fill="#00ff88"> Gradient submitted → 0.15 QBC reward earned</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="592" fill="#00ff88">aether-wallet</tspan>
-    <tspan x="190" fill="#e6edf3">Keystore + address derivation</tspan>
-    <tspan x="410" fill="#8b949e">~250</tspan>
-  </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="610" fill="#00ff88">aether-tui</tspan>
-    <tspan x="190" fill="#e6edf3">Terminal UI (ratatui)</tspan>
-    <tspan x="410" fill="#8b949e">~300</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11">
+    <tspan x="30" y="492" fill="#8b949e">[08:24:34]</tspan><tspan fill="#e6edf3"> Ready! Type a message or /help for commands.</tspan>
   </text>
 
-  <!-- ═══════════════ SLASH COMMANDS ═══════════════ -->
-  <text x="30" y="648" font-family="SF Mono, Menlo, Monaco, monospace" font-size="13" font-weight="bold" fill="#e6edf3">TUI SLASH COMMANDS</text>
-  <line x1="30" y1="654" x2="470" y2="654" stroke="#2d333b" stroke-width="1"/>
+  <!-- ═══════════ WORKSPACE CRATES ═══════════ -->
+  <text x="30" y="528" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12" font-weight="bold" fill="#e6edf3">WORKSPACE CRATES (7)</text>
+  <line x1="30" y1="534" x2="470" y2="534" stroke="#2d333b" stroke-width="1"/>
 
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="672" fill="#7c3aed">/status</tspan><tspan fill="#8b949e">  Chain height, phi, vectors, miner stats</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5" font-weight="bold">
+    <tspan x="30" y="550" fill="#8b949e">CRATE</tspan>
+    <tspan x="200" fill="#8b949e">PURPOSE</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="690" fill="#7c3aed">/info</tspan><tspan fill="#8b949e">    Model architecture and parameters</tspan>
+  <line x1="30" y1="555" x2="470" y2="555" stroke="#2d333b" stroke-width="0.5"/>
+
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="570" fill="#00ff88">aether-cli</tspan>
+    <tspan x="200" fill="#e6edf3">CLI + commands + REPL</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="708" fill="#7c3aed">/gradient</tspan><tspan fill="#8b949e"> Submit gradient update (earn QBC)</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="586" fill="#00ff88">aether-client</tspan>
+    <tspan x="200" fill="#e6edf3">HTTP + Substrate RPC</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="726" fill="#7c3aed">/rewards</tspan><tspan fill="#8b949e">  Your earned + unclaimed rewards</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="602" fill="#00ff88">aether-miner</tspan>
+    <tspan x="200" fill="#e6edf3">VQE mining engine</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="744" fill="#7c3aed">/pool</tspan><tspan fill="#8b949e">    Global reward pool status</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="618" fill="#00ff88">aether-wallet</tspan>
+    <tspan x="200" fill="#e6edf3">Dilithium5 keystore</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="762" fill="#7c3aed">/gates</tspan><tspan fill="#8b949e">   10-gate consciousness milestones</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="634" fill="#00ff88">aether-tui</tspan>
+    <tspan x="200" fill="#e6edf3">Terminal UI (ratatui)</tspan>
   </text>
-  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="11.5">
-    <tspan x="30" y="780" fill="#7c3aed">/search</tspan><tspan fill="#8b949e">  Search the knowledge fabric</tspan>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="650" fill="#7c3aed">aether-innovation</tspan>
+    <tspan x="200" fill="#e6edf3">5 patent innovations</tspan>
+  </text>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="666" fill="#7c3aed">aether-privacy</tspan>
+    <tspan x="200" fill="#e6edf3">Susy Swaps (stealth tx)</tspan>
   </text>
 
-  <!-- ═══════════════ BOTTOM PROMPT ═══════════════ -->
-  <rect x="490" y="746" width="280" height="36" rx="6" fill="#161b22" stroke="#00ff88" stroke-width="0.5" opacity="0.8"/>
-  <text x="510" y="768" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#8b949e">Type </text>
-  <text x="540" y="768" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#00ff88">'aether --help'</text>
-  <text x="656" y="768" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#8b949e"> for all 16 commands</text>
+  <!-- ═══════════ SECURITY ═══════════ -->
+  <text x="30" y="700" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12" font-weight="bold" fill="#e6edf3">QUANTUM SECURITY</text>
+  <line x1="30" y1="706" x2="470" y2="706" stroke="#2d333b" stroke-width="1"/>
+
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="722" fill="#8b949e">Signatures</tspan><tspan x="140" fill="#28c840">CRYSTALS-Dilithium5 (NIST Level 5)</tspan>
+  </text>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="738" fill="#8b949e">Keystore</tspan><tspan x="140" fill="#28c840">Argon2id + AES-256-GCM encrypted</tspan>
+  </text>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="754" fill="#8b949e">Addresses</tspan><tspan x="140" fill="#28c840">SHA-256(Dilithium5_PK) = 32 bytes</tspan>
+  </text>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="770" fill="#8b949e">Extrinsics</tspan><tspan x="140" fill="#28c840">Ed25519 (SCALE) + Dilithium5 (UTXO)</tspan>
+  </text>
+  <text font-family="SF Mono, Menlo, Monaco, monospace" font-size="10.5">
+    <tspan x="30" y="786" fill="#8b949e">Key sizes</tspan><tspan x="140" fill="#e6edf3">PK=2592B  SK=4896B  Sig=4627B</tspan>
+  </text>
+
+  <!-- Bottom status -->
+  <rect x="510" y="808" width="260" height="34" rx="6" fill="#161b22" stroke="#00ff88" stroke-width="0.5" opacity="0.8"/>
+  <text x="530" y="830" font-family="SF Mono, Menlo, Monaco, monospace" font-size="11" fill="#8b949e">7 crates · Rust · MIT License</text>
 
   <!-- Bottom bar -->
-  <text x="24" y="795" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
-    <tspan fill="#7c3aed">dev@miner-01</tspan>
-    <tspan fill="#8b949e"> ~/qbc on </tspan>
-    <tspan fill="#f0883e"> main</tspan>
+  <text x="24" y="850" font-family="SF Mono, Menlo, Monaco, monospace" font-size="12">
+    <tspan fill="#7c3aed">miner@qbc-node</tspan>
+    <tspan fill="#8b949e"> ~/qubitcoin on </tspan>
+    <tspan fill="#f0883e"> master</tspan>
     <tspan fill="#8b949e"> $ </tspan>
     <tspan fill="#28c840">_</tspan>
   </text>

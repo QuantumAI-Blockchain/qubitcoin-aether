@@ -1,0 +1,15 @@
+[package]
+name = "aether-innovation"
+description = "5 patentable innovations for the world's first AI-native blockchain CLI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sha2 = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+rand = "0.8"

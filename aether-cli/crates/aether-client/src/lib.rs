@@ -1,3 +1,5 @@
+pub mod substrate;
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
@@ -6,6 +8,8 @@ use serde::{Deserialize, Serialize};
 pub struct AetherClient {
     base_url: String,
     http: reqwest::Client,
+    /// Optional wallet address sent as X-QBC-Address for subscription auth.
+    wallet_address: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -190,7 +194,14 @@ impl AetherClient {
                 .timeout(std::time::Duration::from_secs(120))
                 .build()
                 .expect("failed to create HTTP client"),
+            wallet_address: None,
         }
+    }
+
+    /// Set the wallet address for subscription-based auth (sent as X-QBC-Address header).
+    pub fn with_wallet(mut self, address: String) -> Self {
+        self.wallet_address = Some(address);
+        self
     }
 
     pub async fn chat(
@@ -199,17 +210,21 @@ impl AetherClient {
         temperature: f32,
         max_tokens: usize,
     ) -> Result<ChatResponse> {
-        let resp = self
+        let mut req = self
             .http
             .post(format!("{}/aether/chat", self.base_url))
             .json(&ChatRequestBody {
                 message: message.to_string(),
                 temperature,
                 max_tokens,
-            })
-            .send()
-            .await
-            .context("failed to reach aether-mind")?;
+            });
+
+        // Attach wallet address for subscription auth if available
+        if let Some(addr) = &self.wallet_address {
+            req = req.header("X-QBC-Address", addr);
+        }
+
+        let resp = req.send().await.context("failed to reach aether-mind")?;
 
         if !resp.status().is_success() {
             let status = resp.status();

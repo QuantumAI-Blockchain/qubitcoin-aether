@@ -2,11 +2,12 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use aether_client::substrate::{SubstrateClient, VqeProofEncoded};
+use ed25519_dalek::{Signer, SigningKey};
 use log::{debug, info, warn};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 use crate::hamiltonian;
 use crate::vqe;
@@ -15,11 +16,18 @@ const ENERGY_SCALE: f64 = 1e12;
 const DIFFICULTY_SCALE: f64 = 1e6;
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
+/// Default pallet indices in the QBC runtime.
+/// These must match the order in construct_runtime! in the Substrate node.
+const CONSENSUS_PALLET_INDEX: u8 = 5;
+
 #[derive(Debug, Clone)]
 pub struct MinerConfig {
     pub substrate_rpc: String,
     pub max_attempts: usize,
     pub threads: u32,
+    /// Ed25519 signing key for Substrate account (used to sign extrinsics).
+    /// If None, falls back to a deterministic key derived from a seed.
+    pub substrate_secret_key: Option<[u8; 32]>,
 }
 
 impl Default for MinerConfig {
@@ -28,6 +36,7 @@ impl Default for MinerConfig {
             substrate_rpc: "http://localhost:9944".into(),
             max_attempts: 100,
             threads: 1,
+            substrate_secret_key: None,
         }
     }
 }
@@ -62,7 +71,7 @@ impl MinerHandle {
             attempts_total: attempts,
             current_height: self.height.load(Ordering::Relaxed),
             current_difficulty: self.difficulty.load(Ordering::Relaxed) as f64 / DIFFICULTY_SCALE,
-            hashrate: 0.0, // computed externally from attempt rate
+            hashrate: 0.0,
         }
     }
 
@@ -80,80 +89,14 @@ impl Drop for MinerHandle {
     }
 }
 
-#[derive(Deserialize)]
-struct RpcResponse<T> {
-    result: Option<T>,
-    #[allow(dead_code)]
-    error: Option<serde_json::Value>,
-}
-
-/// Query Substrate RPC for chain head and mining state.
-async fn get_chain_state(
-    client: &reqwest::Client,
-    rpc_url: &str,
-) -> Result<(String, u64, u64)> {
-    // Get best block hash
-    let resp: RpcResponse<String> = client
-        .post(rpc_url)
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "chain_getBlockHash",
-            "params": []
-        }))
-        .send()
-        .await?
-        .json()
-        .await?;
-    let best_hash = resp.result.context("no best hash")?;
-
-    // Get block header for height
-    let resp: RpcResponse<serde_json::Value> = client
-        .post(rpc_url)
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "chain_getHeader",
-            "params": [&best_hash]
-        }))
-        .send()
-        .await?
-        .json()
-        .await?;
-    let header = resp.result.context("no header")?;
-    let number_hex = header["number"].as_str().unwrap_or("0x0");
-    let height = u64::from_str_radix(number_hex.trim_start_matches("0x"), 16).unwrap_or(0);
-
-    // Get difficulty from consensus pallet storage
-    // Key: twox128("QbcConsensus") ++ twox128("CurrentDifficulty")
-    let resp: RpcResponse<Option<String>> = client
-        .post(rpc_url)
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "state_getStorage",
-            "params": [
-                "0x5eb06b846137e590e33517b51ad3b12d2f22ee84e3d2e52be17e50de7cead31a",
-                &best_hash
-            ]
-        }))
-        .send()
-        .await?
-        .json()
-        .await?;
-
-    let difficulty = if let Some(Some(hex_val)) = resp.result {
-        let bytes = hex::decode(hex_val.trim_start_matches("0x")).unwrap_or_default();
-        if bytes.len() >= 8 {
-            u64::from_le_bytes(bytes[..8].try_into().unwrap_or([0; 8]))
-        } else {
-            10_640_000 // default ~10.64
-        }
-    } else {
-        10_640_000
-    };
-
-    Ok((best_hash, height, difficulty))
+/// Derive the miner's QBC address from their Substrate AccountId.
+/// Matches the Substrate pallet: SHA-256(SCALE(AccountId)).
+fn account_to_miner_address(public_key: &[u8; 32]) -> [u8; 32] {
+    // AccountId32 SCALE-encodes as just the 32 raw bytes
+    let hash = Sha256::digest(public_key);
+    let mut addr = [0u8; 32];
+    addr.copy_from_slice(&hash);
+    addr
 }
 
 /// Start the mining engine. Returns a handle to monitor/stop it.
@@ -177,15 +120,50 @@ pub fn start(config: MinerConfig) -> MinerHandle {
         let config = config.clone();
 
         let handle = tokio::spawn(async move {
-            let client = reqwest::Client::new();
+            let substrate = SubstrateClient::new(&config.substrate_rpc);
             let mut rng = ChaCha8Rng::from_entropy();
-            let mut last_hash = String::new();
 
-            info!("[miner-{thread_id}] VQE mining thread started");
+            // Create or use the Ed25519 signing key for Substrate extrinsics
+            let signing_key = match config.substrate_secret_key {
+                Some(bytes) => SigningKey::from_bytes(&bytes),
+                None => {
+                    // Generate a deterministic key from thread ID (for development)
+                    let mut seed = [0u8; 32];
+                    seed[0] = thread_id as u8;
+                    seed[31] = 0x42;
+                    SigningKey::from_bytes(&seed)
+                }
+            };
+            let verifying_key = signing_key.verifying_key();
+            let account_id: [u8; 32] = verifying_key.to_bytes();
+            let miner_address = account_to_miner_address(&account_id);
+
+            info!(
+                "[miner-{thread_id}] VQE mining thread started (account: 0x{})",
+                hex::encode(&account_id[..8])
+            );
+
+            // Fetch runtime metadata once
+            let (spec_version, tx_version) = match substrate.get_runtime_version().await {
+                Ok(v) => v,
+                Err(e) => {
+                    warn!("[miner-{thread_id}] Failed to get runtime version: {e}. Using defaults.");
+                    (1, 1)
+                }
+            };
+            let genesis_hash = match substrate.get_genesis_hash().await {
+                Ok(h) => h,
+                Err(e) => {
+                    warn!("[miner-{thread_id}] Failed to get genesis hash: {e}. Using zeros.");
+                    [0u8; 32]
+                }
+            };
+
+            let mut last_hash = String::new();
 
             while running.load(Ordering::Relaxed) {
                 // Get chain state
-                let (best_hash, chain_height, diff) = match get_chain_state(&client, &config.substrate_rpc).await {
+                let chain_state = match substrate.get_chain_state().await {
                     Ok(state) => state,
                     Err(e) => {
                         debug!("[miner-{thread_id}] RPC error: {e}");
@@ -194,15 +172,15 @@ pub fn start(config: MinerConfig) -> MinerHandle {
                     }
                 };
 
-                height_atomic.store(chain_height, Ordering::Relaxed);
-                difficulty_atomic.store(diff, Ordering::Relaxed);
+                height_atomic.store(chain_state.height, Ordering::Relaxed);
+                difficulty_atomic.store(chain_state.difficulty, Ordering::Relaxed);
 
-                if best_hash == last_hash {
+                if chain_state.best_hash == last_hash {
                     tokio::time::sleep(POLL_INTERVAL).await;
                     continue;
                 }
 
-                let mining_height = chain_height + 1;
+                let mining_height = chain_state.height + 1;
 
                 if last_proved.load(Ordering::Relaxed) >= mining_height {
                     tokio::time::sleep(POLL_INTERVAL).await;
@@ -210,14 +188,15 @@ pub fn start(config: MinerConfig) -> MinerHandle {
                 }
 
                 // Decode parent hash for seed derivation
-                let hash_bytes = hex::decode(best_hash.trim_start_matches("0x")).unwrap_or_else(|_| vec![0u8; 32]);
+                let hash_bytes = hex::decode(chain_state.best_hash.trim_start_matches("0x"))
+                    .unwrap_or_else(|_| vec![0u8; 32]);
                 let mut parent = [0u8; 32];
                 let len = hash_bytes.len().min(32);
                 parent[..len].copy_from_slice(&hash_bytes[..len]);
 
                 let seed = hamiltonian::derive_seed(&parent, mining_height);
                 let ham = hamiltonian::generate_hamiltonian(&seed);
-                let difficulty_f64 = diff as f64 / DIFFICULTY_SCALE;
+                let difficulty_f64 = chain_state.difficulty as f64 / DIFFICULTY_SCALE;
 
                 debug!(
                     "[miner-{thread_id}] Mining height {mining_height} (difficulty={difficulty_f64:.6})"
@@ -245,35 +224,65 @@ pub fn start(config: MinerConfig) -> MinerHandle {
                             elapsed.as_secs_f64() * 1000.0
                         );
 
-                        // Submit proof via RPC
+                        // Build proper SCALE-encoded signed extrinsic
                         let scaled_params: Vec<i64> = result.params.iter()
                             .map(|&p| (p * ENERGY_SCALE) as i64)
                             .collect();
                         let scaled_energy = (result.energy * ENERGY_SCALE) as i128;
 
-                        let submit_result = client
-                            .post(&config.substrate_rpc)
-                            .json(&serde_json::json!({
-                                "jsonrpc": "2.0",
-                                "id": 10,
-                                "method": "author_submitExtrinsic",
-                                "params": [{
-                                    "mining_proof": {
-                                        "params": scaled_params,
-                                        "energy": scaled_energy,
-                                        "seed": hex::encode(seed),
-                                        "n_qubits": 4
-                                    }
-                                }]
-                            }))
-                            .send()
-                            .await;
+                        let proof = VqeProofEncoded {
+                            params: scaled_params,
+                            energy: scaled_energy,
+                            hamiltonian_seed: seed,
+                            n_qubits: 4,
+                        };
 
-                        match submit_result {
-                            Ok(_) => {
+                        // Encode the call
+                        let call_data = SubstrateClient::encode_mining_proof_call(
+                            CONSENSUS_PALLET_INDEX,
+                            miner_address,
+                            proof,
+                        );
+
+                        // Get nonce
+                        let nonce = match substrate.get_nonce(&format!("0x{}", hex::encode(account_id))).await {
+                            Ok(n) => n,
+                            Err(e) => {
+                                warn!("[miner-{thread_id}] Failed to get nonce: {e}");
+                                0
+                            }
+                        };
+
+                        // Build signing payload
+                        let payload = SubstrateClient::build_signing_payload(
+                            &call_data,
+                            nonce,
+                            spec_version,
+                            tx_version,
+                            &genesis_hash,
+                        );
+
+                        // Sign with Ed25519
+                        let signature = signing_key.sign(&payload);
+                        let sig_bytes: [u8; 64] = signature.to_bytes();
+
+                        // Build the complete signed extrinsic
+                        let extrinsic = SubstrateClient::build_signed_extrinsic(
+                            &call_data,
+                            &account_id,
+                            &sig_bytes,
+                            nonce,
+                        );
+
+                        let ext_hex = format!("0x{}", hex::encode(&extrinsic));
+
+                        match substrate.submit_extrinsic(&ext_hex).await {
+                            Ok(hash) => {
                                 last_proved.store(mining_height, Ordering::Release);
                                 blocks_found.fetch_add(1, Ordering::Relaxed);
-                                info!("[miner-{thread_id}] Proof submitted for height {mining_height}");
+                                info!(
+                                    "[miner-{thread_id}] Proof submitted for height {mining_height} (tx: {hash})"
+                                );
                                 found = true;
                             }
                             Err(e) => {
@@ -291,7 +300,7 @@ pub fn start(config: MinerConfig) -> MinerHandle {
                     );
                 }
 
-                last_hash = best_hash;
+                last_hash = chain_state.best_hash;
                 tokio::time::sleep(POLL_INTERVAL).await;
             }
 

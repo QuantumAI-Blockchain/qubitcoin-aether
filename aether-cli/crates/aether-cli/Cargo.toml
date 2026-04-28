@@ -14,6 +14,8 @@ aether-client = { path = "../aether-client" }
 aether-tui = { path = "../aether-tui" }
 aether-wallet = { path = "../aether-wallet" }
 aether-miner = { path = "../aether-miner" }
+aether-innovation = { path = "../aether-innovation" }
+aether-privacy = { path = "../aether-privacy" }
 tokio = { workspace = true }
 clap = { version = "4", features = ["derive", "env"] }
 crossterm = { workspace = true }
@@ -25,3 +27,6 @@ log = { workspace = true }
 env_logger = { workspace = true }
 dirs = "6"
 toml = "0.8"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+hex = { workspace = true }
+sha2 = { workspace = true }
