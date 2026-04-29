@@ -613,17 +613,13 @@ impl ChatPanel {
             ]));
         }
 
-        // Calculate wrapped height: each line may wrap across multiple rows
-        let wrap_width = inner.width as usize;
+        // Calculate wrapped height accounting for word-wrap
+        let w = inner.width.max(1) as usize;
         let content_height: u16 = lines
             .iter()
             .map(|line| {
-                let len: usize = line.spans.iter().map(|s| s.content.chars().count()).sum();
-                if len == 0 || wrap_width == 0 {
-                    1u16
-                } else {
-                    ((len + wrap_width - 1) / wrap_width) as u16
-                }
+                let len: usize = line.spans.iter().map(|s| s.content.len()).sum();
+                if len == 0 { 1u16 } else { ((len.max(1) - 1) / w + 1) as u16 }
             })
             .sum();
         let visible_height = inner.height;
