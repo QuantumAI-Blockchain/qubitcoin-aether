@@ -6,12 +6,19 @@ use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use tokio::sync::mpsc;
 
-use aether_client::AetherClient;
+use aether_client::{AetherClient, ChatResponse};
 use aether_miner::{MinerConfig, MinerHandle};
 use aether_tui::chat::Role;
 use aether_tui::status::MiningStatus;
 use aether_tui::App;
+
+/// Result of an async chat request completing in the background.
+enum ChatResult {
+    Ok(ChatResponse),
+    Err(String),
+}
 
 /// Run the interactive TUI REPL.
 pub async fn run(client: AetherClient, miner_config: Option<MinerConfig>) -> Result<()> {
@@ -50,9 +57,30 @@ pub async fn run(client: AetherClient, miner_config: Option<MinerConfig>) -> Res
     let mut last_poll = std::time::Instant::now();
     let poll_interval = Duration::from_secs(5);
 
+    // Channel for receiving async chat responses without blocking the UI
+    let (chat_tx, mut chat_rx) = mpsc::channel::<ChatResult>(4);
+
     loop {
         // Draw
         terminal.draw(|f| app.draw(f))?;
+
+        // Check for completed chat responses (non-blocking)
+        while let Ok(result) = chat_rx.try_recv() {
+            app.chat.waiting = false;
+            match result {
+                ChatResult::Ok(resp) => {
+                    app.chat.push(Role::Aether, resp.response);
+                    app.status.chain_height = resp.chain_height;
+                    app.status.phi = resp.phi;
+                    app.status.knowledge_vectors = resp.knowledge_vectors;
+                    app.status.connected = true;
+                }
+                ChatResult::Err(e) => {
+                    app.chat.push(Role::System, format!("Error: {e}"));
+                    app.status.connected = false;
+                }
+            }
+        }
 
         // Update mining stats
         if let Some(ref handle) = miner_handle {
@@ -85,7 +113,7 @@ pub async fn run(client: AetherClient, miner_config: Option<MinerConfig>) -> Res
         // Handle input events (50ms timeout for responsive UI)
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
-                if handle_key(&mut app, key, &client, &miner_handle).await? {
+                if handle_key(&mut app, key, &client, &miner_handle, &chat_tx).await? {
                     break;
                 }
             }
@@ -106,6 +134,7 @@ async fn handle_key(
     key: KeyEvent,
     client: &AetherClient,
     _miner: &Option<MinerHandle>,
+    chat_tx: &mpsc::Sender<ChatResult>,
 ) -> Result<bool> {
     match key.code {
         // Quit
@@ -130,29 +159,28 @@ async fn handle_key(
                 return Ok(handle_command(app, &text, client).await?);
             }
 
-            // Send chat message
+            // Don't allow sending while waiting for a response
+            if app.chat.waiting {
+                app.input.content = text;
+                return Ok(false);
+            }
+
+            // Send chat message — spawn in background so UI stays responsive
             app.chat.push(Role::User, text.clone());
             app.chat.waiting = true;
 
-            match client.chat(&text, 0.7, 256).await {
-                Ok(resp) => {
-                    app.chat.waiting = false;
-                    app.chat.push(Role::Aether, resp.response);
-                    // Update status from response
-                    app.status.chain_height = resp.chain_height;
-                    app.status.phi = resp.phi;
-                    app.status.knowledge_vectors = resp.knowledge_vectors;
-                    app.status.connected = true;
+            let client = client.clone();
+            let tx = chat_tx.clone();
+            tokio::spawn(async move {
+                match client.chat(&text, 0.7, 256).await {
+                    Ok(resp) => {
+                        let _ = tx.send(ChatResult::Ok(resp)).await;
+                    }
+                    Err(e) => {
+                        let _ = tx.send(ChatResult::Err(e.to_string())).await;
+                    }
                 }
-                Err(e) => {
-                    app.chat.waiting = false;
-                    app.chat.push(
-                        Role::System,
-                        format!("Error: {e}"),
-                    );
-                    app.status.connected = false;
-                }
-            }
+            });
         }
 
         // Kill input line

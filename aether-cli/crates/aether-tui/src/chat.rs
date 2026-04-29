@@ -1,7 +1,7 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use crate::{AMBER, BORDER, DIM, GREEN, VIOLET};
@@ -624,7 +624,6 @@ impl ChatPanel {
 
         let paragraph = Paragraph::new(lines)
             .block(block)
-            .wrap(Wrap { trim: false })
             .scroll((scroll, 0));
 
         frame.render_widget(paragraph, area);
