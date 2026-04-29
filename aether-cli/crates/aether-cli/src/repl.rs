@@ -172,7 +172,7 @@ async fn handle_key(
             let client = client.clone();
             let tx = chat_tx.clone();
             tokio::spawn(async move {
-                match client.chat(&text, 0.7, 256).await {
+                match client.chat(&text, 0.7, 5000).await {
                     Ok(resp) => {
                         let _ = tx.send(ChatResult::Ok(resp)).await;
                     }

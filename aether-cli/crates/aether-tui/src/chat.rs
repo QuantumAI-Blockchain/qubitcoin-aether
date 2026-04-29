@@ -1,7 +1,7 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::{AMBER, BORDER, DIM, GREEN, VIOLET};
@@ -613,7 +613,19 @@ impl ChatPanel {
             ]));
         }
 
-        let content_height = lines.len() as u16;
+        // Calculate wrapped height: each line may wrap across multiple rows
+        let wrap_width = inner.width as usize;
+        let content_height: u16 = lines
+            .iter()
+            .map(|line| {
+                let len: usize = line.spans.iter().map(|s| s.content.chars().count()).sum();
+                if len == 0 || wrap_width == 0 {
+                    1u16
+                } else {
+                    ((len + wrap_width - 1) / wrap_width) as u16
+                }
+            })
+            .sum();
         let visible_height = inner.height;
         let max_scroll = content_height.saturating_sub(visible_height);
         let scroll = if self.scroll_offset >= max_scroll {
@@ -624,6 +636,7 @@ impl ChatPanel {
 
         let paragraph = Paragraph::new(lines)
             .block(block)
+            .wrap(Wrap { trim: false })
             .scroll((scroll, 0));
 
         frame.render_widget(paragraph, area);
