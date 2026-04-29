@@ -56,95 +56,168 @@ impl ChatPanel {
         self.scroll_offset = self.scroll_offset.saturating_add(amount);
     }
 
-    fn welcome_lines() -> Vec<Line<'static>> {
+    /// Build the welcome screen, dynamically sized to fill `w` columns.
+    fn welcome_lines(w: usize) -> Vec<Line<'static>> {
         let s = |fg| Style::default().fg(fg);
         let b = |fg| Style::default().fg(fg).add_modifier(Modifier::BOLD);
         let bi = |fg| Style::default().fg(fg).add_modifier(Modifier::BOLD | Modifier::ITALIC);
 
-        // ── Box-drawing helpers ──
-        let top = |title: &'static str, color: Color| {
-            Line::from(vec![
-                Span::styled("  ┌─ ", s(SEP)),
-                Span::styled(title, b(color)),
-                Span::styled(
-                    format!(" {}", "─".repeat(56 - title.len())),
-                    s(SEP),
-                ),
-                Span::styled("┐", s(SEP)),
-            ])
-        };
-        let mid = |spans: Vec<Span<'static>>| {
-            let mut v = vec![Span::styled("  │ ", s(SEP))];
+        // ── Dynamic layout math ──
+        // Total line = indent(2) + col(cw+4) + gap(2) + col(cw+4) = 2*cw + 12
+        let w = w.max(60);
+        let cw = (w.saturating_sub(12)) / 2; // column inner content width
+        let fw = 2 * cw + 6;                 // full-width inner (keeps alignment)
+
+        // ── Helper closures ──
+
+        // Header cell — centered content inside ┃ ... ┃
+        let hcenter = |spans: Vec<Span<'static>>| -> Line<'static> {
+            let used: usize = spans.iter().map(|sp| sp.content.chars().count()).sum();
+            let total = fw.saturating_sub(used);
+            let lp = total / 2;
+            let rp = total - lp;
+            let gb = Style::default().fg(GREEN).add_modifier(Modifier::BOLD);
+            let mut v = vec![Span::raw("  "), Span::styled("┃", gb)];
+            v.push(Span::raw(" ".repeat(lp + 1)));
             v.extend(spans);
-            v.push(Span::styled(" │", s(SEP)));
+            v.push(Span::raw(" ".repeat(rp + 1)));
+            v.push(Span::styled("┃", gb));
             Line::from(v)
         };
-        let bot = || {
-            Line::from(Span::styled(
-                format!("  └{}┘", "─".repeat(60)),
-                s(SEP),
-            ))
+
+        // Two-column data row
+        let dual = |left: Vec<Span<'static>>, right: Vec<Span<'static>>| -> Line<'static> {
+            let lu: usize = left.iter().map(|sp| sp.content.chars().count()).sum();
+            let lp = cw.saturating_sub(lu);
+            let ru: usize = right.iter().map(|sp| sp.content.chars().count()).sum();
+            let rp = cw.saturating_sub(ru);
+            let br = Style::default().fg(SEP);
+            let mut v = vec![Span::raw("  "), Span::styled("│ ", br)];
+            v.extend(left);
+            if lp > 0 { v.push(Span::raw(" ".repeat(lp))); }
+            v.push(Span::styled(" │", br));
+            v.push(Span::raw("  "));
+            v.push(Span::styled("│ ", br));
+            v.extend(right);
+            if rp > 0 { v.push(Span::raw(" ".repeat(rp))); }
+            v.push(Span::styled(" │", br));
+            Line::from(v)
         };
-        let blank = || {
+
+        // Two-column top border
+        let dtop = |lt: &'static str, lc: Color, rt: &'static str, rc: Color| -> Line<'static> {
+            let ld = cw.saturating_sub(lt.len()).saturating_sub(1);
+            let rd = cw.saturating_sub(rt.len()).saturating_sub(1);
+            let br = Style::default().fg(SEP);
+            let bl = |c| Style::default().fg(c).add_modifier(Modifier::BOLD);
             Line::from(vec![
-                Span::styled("  │", s(SEP)),
-                Span::raw(format!("{}", " ".repeat(61))),
-                Span::styled("│", s(SEP)),
+                Span::raw("  "),
+                Span::styled("┌─ ", br), Span::styled(lt, bl(lc)),
+                Span::styled(format!(" {}┐", "─".repeat(ld)), br),
+                Span::raw("  "),
+                Span::styled("┌─ ", br), Span::styled(rt, bl(rc)),
+                Span::styled(format!(" {}┐", "─".repeat(rd)), br),
             ])
         };
 
+        // Two-column bottom border
+        let dbot = || -> Line<'static> {
+            let d = "─".repeat(cw + 2);
+            let br = Style::default().fg(SEP);
+            Line::from(vec![
+                Span::raw("  "),
+                Span::styled(format!("└{d}┘"), br),
+                Span::raw("  "),
+                Span::styled(format!("└{d}┘"), br),
+            ])
+        };
+
+        // Full-width data row
+        let frow = |spans: Vec<Span<'static>>| -> Line<'static> {
+            let used: usize = spans.iter().map(|sp| sp.content.chars().count()).sum();
+            let pad = fw.saturating_sub(used);
+            let br = Style::default().fg(SEP);
+            let mut v = vec![Span::raw("  "), Span::styled("│ ", br)];
+            v.extend(spans);
+            if pad > 0 { v.push(Span::raw(" ".repeat(pad))); }
+            v.push(Span::styled(" │", br));
+            Line::from(v)
+        };
+
+        // Full-width top border
+        let ftop = |title: &'static str, color: Color| -> Line<'static> {
+            let d = fw.saturating_sub(title.len()).saturating_sub(1);
+            let br = Style::default().fg(SEP);
+            Line::from(vec![
+                Span::raw("  "),
+                Span::styled("┌─ ", br),
+                Span::styled(title, Style::default().fg(color).add_modifier(Modifier::BOLD)),
+                Span::styled(format!(" {}┐", "─".repeat(d)), br),
+            ])
+        };
+
+        // Full-width bottom border
+        let fbot = || -> Line<'static> {
+            let br = Style::default().fg(SEP);
+            Line::from(vec![
+                Span::raw("  "),
+                Span::styled(format!("└{}┘", "─".repeat(fw + 2)), br),
+            ])
+        };
+
+        // ── Header border widths ──
+        let hbar = "━".repeat(fw + 2);
+
         vec![
-            // ══════════════════════════════════════════════════════
-            // ── HEADER: ASCII Art Banner ──
-            // ══════════════════════════════════════════════════════
+            // ══════════════════════════════════════════════════════════
+            // ── HEADER — centered ASCII art + info ──
+            // ══════════════════════════════════════════════════════════
             Line::from(""),
             Line::from(vec![
-                Span::styled("  ┏", b(GREEN)),
-                Span::styled("━".repeat(62), b(GREEN)),
+                Span::raw("  "),
+                Span::styled("┏", b(GREEN)),
+                Span::styled(hbar.clone(), b(GREEN)),
                 Span::styled("┓", b(GREEN)),
             ]),
-            Line::from(vec![
-                Span::styled("  ┃", b(GREEN)),
-                Span::raw("                                                              "),
-                Span::styled("┃", b(GREEN)),
-            ]),
-            // Line 1 of ASCII art
-            Line::from(vec![
-                Span::styled("  ┃", b(GREEN)),
-                Span::styled(
-                    "   ▄▀█ █▀▀ ▀█▀ █ █ █▀▀ █▀█   █▀▄▀█ █ █▄ █ █▀▄   ",
-                    b(GREEN),
-                ),
-                Span::styled("        ┃", b(GREEN)),
-            ]),
-            // Line 2 of ASCII art
-            Line::from(vec![
-                Span::styled("  ┃", b(GREEN)),
-                Span::styled(
-                    "   █▀█ ██▄  █  █▀█ ██▄ █▀▄   █ ▀ █ █ █ ▀█ █▄▀   ",
-                    b(GREEN),
-                ),
-                Span::styled("        ┃", b(GREEN)),
-            ]),
-            Line::from(vec![
-                Span::styled("  ┃", b(GREEN)),
-                Span::raw("                                                              "),
-                Span::styled("┃", b(GREEN)),
-            ]),
-            // Tagline
-            Line::from(vec![
-                Span::styled("  ┃", b(GREEN)),
-                Span::raw("       "),
-                Span::styled("The Blockchain That Thinks", bi(WHITE)),
+            hcenter(vec![]),
+
+            // ── ASCII art: AETHER (green) ──
+            hcenter(vec![Span::styled(
+                "▄▀█ █▀▀ ▀█▀ █ █ █▀▀ █▀█",
+                b(GREEN),
+            )]),
+            hcenter(vec![Span::styled(
+                "█▀█ ██▄  █  █▀█ ██▄ █▀▄",
+                b(GREEN),
+            )]),
+
+            // ── Decorative separator ──
+            hcenter(vec![Span::styled(
+                "◈━━━━━━━━━━━━━━━━━━━━━◈",
+                s(DIM),
+            )]),
+
+            // ── ASCII art: MIND (violet) ──
+            hcenter(vec![Span::styled(
+                "█▀▄▀█ █ █▄ █ █▀▄",
+                b(VIOLET),
+            )]),
+            hcenter(vec![Span::styled(
+                "█ ▀ █ █ █ ▀█ █▄▀",
+                b(VIOLET),
+            )]),
+
+            hcenter(vec![]),
+
+            // ── Tagline ──
+            hcenter(vec![
+                Span::styled("\"The Blockchain That Thinks\"", bi(WHITE)),
                 Span::styled("  ·  ", s(DIM)),
                 Span::styled("qbc.network", b(CYAN)),
-                Span::raw("              "),
-                Span::styled("┃", b(GREEN)),
             ]),
-            // Subtitle
-            Line::from(vec![
-                Span::styled("  ┃", b(GREEN)),
-                Span::raw("    "),
+
+            // ── Subtitle ──
+            hcenter(vec![
                 Span::styled("On-chain AI", s(SECTION)),
                 Span::styled(" · ", s(DIM)),
                 Span::styled("Dilithium5", s(VIOLET)),
@@ -152,207 +225,152 @@ impl ChatPanel {
                 Span::styled("VQE Mining", s(AMBER)),
                 Span::styled(" · ", s(DIM)),
                 Span::styled("10 Sephirot", s(GREEN)),
-                Span::raw("            "),
-                Span::styled("┃", b(GREEN)),
+                Span::styled(" · ", s(DIM)),
+                Span::styled("Susy Swaps", s(CYAN)),
             ]),
+
+            hcenter(vec![]),
             Line::from(vec![
-                Span::styled("  ┃", b(GREEN)),
-                Span::raw("                                                              "),
-                Span::styled("┃", b(GREEN)),
-            ]),
-            Line::from(vec![
-                Span::styled("  ┗", b(GREEN)),
-                Span::styled("━".repeat(62), b(GREEN)),
+                Span::raw("  "),
+                Span::styled("┗", b(GREEN)),
+                Span::styled(hbar, b(GREEN)),
                 Span::styled("┛", b(GREEN)),
             ]),
             Line::from(""),
 
-            // ══════════════════════════════════════════════════════
-            // ── SYSTEM STATUS ──
-            // ══════════════════════════════════════════════════════
-            top("SYSTEM STATUS", WHITE),
-            mid(vec![
-                Span::styled("Chain ", s(SECTION)),
-                Span::styled("3303", b(GREEN)),
-                Span::styled("    ·  Reward ", s(SECTION)),
-                Span::styled("15.27 QBC", b(AMBER)),
-                Span::styled("/block  ·  Supply ", s(SECTION)),
-                Span::styled("3.3B", b(AMBER)),
-            ]),
-            mid(vec![
-                Span::styled("Crypto ", s(SECTION)),
-                Span::styled("Dilithium5 NIST L5", b(GREEN)),
-                Span::styled("  ·  PK ", s(SECTION)),
-                Span::styled("2,592B", s(WHITE)),
-                Span::styled("  Sig ", s(SECTION)),
-                Span::styled("4,627B", s(WHITE)),
-            ]),
-            mid(vec![
-                Span::styled("Wallet ", s(SECTION)),
-                Span::styled("Argon2id + AES-256-GCM", s(GREEN)),
-                Span::styled("  ·  Keystore encrypted", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("API ", s(SECTION)),
-                Span::styled("ai.qbc.network", s(CYAN)),
-                Span::styled("  ·  RPC ", s(SECTION)),
-                Span::styled("rpc.qbc.network", s(CYAN)),
-            ]),
-            bot(),
+            // ══════════════════════════════════════════════════════════
+            // ── NETWORK + SECURITY ──
+            // ══════════════════════════════════════════════════════════
+            dtop("NETWORK", WHITE, "SECURITY", VIOLET),
+            dual(
+                vec![Span::styled("Chain     ", s(SECTION)), Span::styled("3303 (Mainnet)", b(GREEN))],
+                vec![Span::styled("Crypto    ", s(SECTION)), Span::styled("Dilithium5 NIST L5", b(GREEN))],
+            ),
+            dual(
+                vec![Span::styled("Block     ", s(SECTION)), Span::styled("3.3s target", s(WHITE))],
+                vec![Span::styled("Keystore  ", s(SECTION)), Span::styled("Argon2id+AES-256-GCM", s(WHITE))],
+            ),
+            dual(
+                vec![
+                    Span::styled("Reward    ", s(SECTION)),
+                    Span::styled("15.27 QBC", b(AMBER)),
+                    Span::styled("/block", s(SECTION)),
+                ],
+                vec![
+                    Span::styled("PK ", s(SECTION)),
+                    Span::styled("2,592B", s(WHITE)),
+                    Span::styled(" · Sig ", s(SECTION)),
+                    Span::styled("4,627B", s(WHITE)),
+                ],
+            ),
+            dual(
+                vec![
+                    Span::styled("Supply    ", s(SECTION)),
+                    Span::styled("3.3B QBC", b(AMBER)),
+                    Span::styled(" max", s(SECTION)),
+                ],
+                vec![Span::styled("Address   ", s(SECTION)), Span::styled("SHA-256(pk) · 32B", s(WHITE))],
+            ),
+            dual(
+                vec![Span::styled("Consensus ", s(SECTION)), Span::styled("PoSA + VQE Mining", s(WHITE))],
+                vec![Span::styled("Mining    ", s(SECTION)), Span::styled("4-qubit VQE ansatz", s(WHITE))],
+            ),
+            dbot(),
+            Line::from(""),
 
-            // ══════════════════════════════════════════════════════
-            // ── COMMANDS ──
-            // ══════════════════════════════════════════════════════
-            top("COMMANDS", GREEN),
-            mid(vec![
-                Span::styled("aether", b(GREEN)),
-                Span::styled("              TUI chat       ", s(SECTION)),
-                Span::styled("aether --mine", b(GREEN)),
-                Span::styled("   Chat+mine", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("aether chat \".\"", b(GREEN)),
-                Span::styled("      One-shot       ", s(SECTION)),
-                Span::styled("aether status", b(GREEN)),
-                Span::styled("     Stats", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("aether mine", b(GREEN)),
-                Span::styled("           Headless      ", s(SECTION)),
-                Span::styled("aether search \".\"", b(GREEN)),
-                Span::styled("  Find", s(SECTION)),
-            ]),
-            bot(),
+            // ══════════════════════════════════════════════════════════
+            // ── COMMANDS + WALLET ──
+            // ══════════════════════════════════════════════════════════
+            dtop("COMMANDS", GREEN, "WALLET", VIOLET),
+            dual(
+                vec![Span::styled("aether            ", b(GREEN)), Span::styled("TUI chat", s(SECTION))],
+                vec![Span::styled("wallet create     ", b(GREEN)), Span::styled("New keypair", s(SECTION))],
+            ),
+            dual(
+                vec![Span::styled("aether --mine     ", b(GREEN)), Span::styled("Chat + mine", s(SECTION))],
+                vec![Span::styled("wallet list       ", b(GREEN)), Span::styled("Show all", s(SECTION))],
+            ),
+            dual(
+                vec![Span::styled("aether chat \"msg\" ", b(GREEN)), Span::styled("One-shot", s(SECTION))],
+                vec![Span::styled("wallet balance    ", b(GREEN)), Span::styled("On-chain QBC", s(SECTION))],
+            ),
+            dual(
+                vec![Span::styled("aether status     ", b(GREEN)), Span::styled("Chain stats", s(SECTION))],
+                vec![Span::styled("wallet send       ", b(GREEN)), Span::styled("Sign + send", s(SECTION))],
+            ),
+            dual(
+                vec![Span::styled("aether mine       ", b(GREEN)), Span::styled("Headless VQE", s(SECTION))],
+                vec![Span::styled("wallet sign       ", b(GREEN)), Span::styled("Sign message", s(SECTION))],
+            ),
+            dual(
+                vec![Span::styled("aether search \"q\" ", b(GREEN)), Span::styled("Knowledge", s(SECTION))],
+                vec![Span::styled("wallet verify     ", b(GREEN)), Span::styled("Check sig", s(SECTION))],
+            ),
+            dbot(),
+            Line::from(""),
 
-            // ══════════════════════════════════════════════════════
-            // ── WALLET ──
-            // ══════════════════════════════════════════════════════
-            top("WALLET", VIOLET),
-            mid(vec![
-                Span::styled("create", b(GREEN)),
-                Span::styled("  Dilithium5 keypair    ", s(SECTION)),
-                Span::styled("list", b(GREEN)),
-                Span::styled("      Show wallets       ", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("send", b(GREEN)),
-                Span::styled("    Sign + submit UTXO  ", s(SECTION)),
-                Span::styled("balance", b(GREEN)),
-                Span::styled("   On-chain balance      ", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("sign", b(GREEN)),
-                Span::styled("    Dilithium5 sign     ", s(SECTION)),
-                Span::styled("verify", b(GREEN)),
-                Span::styled("    Check signature      ", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("import", b(GREEN)),
-                Span::styled("  Import private key    ", s(SECTION)),
-                Span::styled("export", b(GREEN)),
-                Span::styled("    Export secret key     ", s(SECTION)),
-            ]),
-            bot(),
+            // ══════════════════════════════════════════════════════════
+            // ── IN-CHAT + MINING & REWARDS ──
+            // ══════════════════════════════════════════════════════════
+            dtop("IN-CHAT", AMBER, "MINING & REWARDS", AMBER),
+            dual(
+                vec![
+                    Span::styled("/status ", b(AMBER)), Span::styled("Stats  ", s(SECTION)),
+                    Span::styled("/info ", b(AMBER)), Span::styled("Arch", s(SECTION)),
+                ],
+                vec![Span::styled("gradient status   ", b(GREEN)), Span::styled("Pool info", s(SECTION))],
+            ),
+            dual(
+                vec![
+                    Span::styled("/gates  ", b(AMBER)), Span::styled("Gates  ", s(SECTION)),
+                    Span::styled("/search ", b(AMBER)), Span::styled("Find", s(SECTION)),
+                ],
+                vec![Span::styled("gradient submit   ", b(GREEN)), Span::styled("Earn QBC", s(SECTION))],
+            ),
+            dual(
+                vec![
+                    Span::styled("/gradient ", b(AMBER)), Span::styled("Go   ", s(SECTION)),
+                    Span::styled("/rewards ", b(AMBER)), Span::styled("Earn", s(SECTION)),
+                ],
+                vec![Span::styled("rewards show      ", b(GREEN)), Span::styled("Your earnings", s(SECTION))],
+            ),
+            dual(
+                vec![
+                    Span::styled("/pool ", b(AMBER)), Span::styled("Pool    ", s(SECTION)),
+                    Span::styled("/wallet ", b(AMBER)), Span::styled("Addr", s(SECTION)),
+                ],
+                vec![Span::styled("rewards claim     ", b(GREEN)), Span::styled("Claim to wallet", s(SECTION))],
+            ),
+            dual(
+                vec![
+                    Span::styled("/help ", b(AMBER)), Span::styled("Help    ", s(SECTION)),
+                    Span::styled("/quit ", b(AMBER)), Span::styled("Exit", s(SECTION)),
+                ],
+                vec![Span::styled("rewards pool      ", b(GREEN)), Span::styled("Global stats", s(SECTION))],
+            ),
+            dbot(),
+            Line::from(""),
 
-            // ══════════════════════════════════════════════════════
-            // ── MINING & REWARDS ──
-            // ══════════════════════════════════════════════════════
-            top("MINING & REWARDS", AMBER),
-            mid(vec![
-                Span::styled("Reward Pool ", s(SECTION)),
-                Span::styled("1,000,000 QBC", b(AMBER)),
-                Span::styled("  ·  Gradient learning rewarded", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("gradient status", b(GREEN)),
-                Span::styled("   Pool       ", s(SECTION)),
-                Span::styled("gradient submit", b(GREEN)),
-                Span::styled("   Earn QBC      ", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("rewards show", b(GREEN)),
-                Span::styled("      Earned     ", s(SECTION)),
-                Span::styled("rewards claim", b(GREEN)),
-                Span::styled("     To wallet     ", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("rewards pool", b(GREEN)),
-                Span::styled("      Global     ", s(SECTION)),
-                Span::raw("                               "),
-            ]),
-            bot(),
-
-            // ══════════════════════════════════════════════════════
+            // ══════════════════════════════════════════════════════════
             // ── INNOVATIONS ──
-            // ══════════════════════════════════════════════════════
-            top("INNOVATIONS  (6 Patents)", VIOLET),
-            mid(vec![
-                Span::styled("cogwork ", b(VIOLET)),
-                Span::styled("  Proof-of-Cognitive-Work           ", s(SECTION)),
-                Span::styled("(PoCW)", s(DIM)),
-                Span::raw("       "),
+            // ══════════════════════════════════════════════════════════
+            ftop("INNOVATIONS (6 Patents)", VIOLET),
+            frow(vec![
+                Span::styled("cogwork  ", b(VIOLET)), Span::styled("Proof-of-Cognitive-Work", s(SECTION)),
+                Span::styled("      ", s(SEP)),
+                Span::styled("recover  ", b(VIOLET)), Span::styled("ZK Cognitive Recovery", s(SECTION)),
             ]),
-            mid(vec![
-                Span::styled("entangle", b(VIOLET)),
-                Span::styled("  Quantum-Entangled Wallets         ", s(SECTION)),
-                Span::styled("(QEW)", s(DIM)),
-                Span::raw("        "),
+            frow(vec![
+                Span::styled("entangle ", b(VIOLET)), Span::styled("Quantum-Entangled Wallets", s(SECTION)),
+                Span::styled("    ", s(SEP)),
+                Span::styled("synapse  ", b(VIOLET)), Span::styled("Symbiotic Mining", s(SECTION)),
             ]),
-            mid(vec![
-                Span::styled("optimize", b(VIOLET)),
-                Span::styled("  Predictive UTXO Coalescing        ", s(SECTION)),
-                Span::styled("(PUC)", s(DIM)),
-                Span::raw("        "),
+            frow(vec![
+                Span::styled("optimize ", b(VIOLET)), Span::styled("Predictive UTXO Coalesce", s(SECTION)),
+                Span::styled("     ", s(SEP)),
+                Span::styled("privacy  ", b(VIOLET)), Span::styled("Susy Swaps (stealth)", s(SECTION)),
             ]),
-            mid(vec![
-                Span::styled("recover ", b(VIOLET)),
-                Span::styled("  ZK Cognitive Recovery             ", s(SECTION)),
-                Span::styled("(ZCR)", s(DIM)),
-                Span::raw("        "),
-            ]),
-            mid(vec![
-                Span::styled("synapse ", b(VIOLET)),
-                Span::styled("  Symbiotic Mining AI               ", s(SECTION)),
-                Span::styled("(SMIP)", s(DIM)),
-                Span::raw("       "),
-            ]),
-            mid(vec![
-                Span::styled("privacy ", b(VIOLET)),
-                Span::styled("  Susy Swaps — Stealth Transactions ", s(SECTION)),
-                Span::styled("(SS)", s(DIM)),
-                Span::raw("         "),
-            ]),
-            bot(),
-
-            // ══════════════════════════════════════════════════════
-            // ── IN-CHAT COMMANDS ──
-            // ══════════════════════════════════════════════════════
-            top("IN-CHAT COMMANDS", WHITE),
-            mid(vec![
-                Span::styled("/status", b(AMBER)),
-                Span::styled("  Chain stats    ", s(SECTION)),
-                Span::styled("/info", b(AMBER)),
-                Span::styled("  Architecture   ", s(SECTION)),
-                Span::styled("/gates", b(AMBER)),
-                Span::styled("  Milestones", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("/gradient", b(AMBER)),
-                Span::styled(" Submit        ", s(SECTION)),
-                Span::styled("/rewards", b(AMBER)),
-                Span::styled(" Earned        ", s(SECTION)),
-                Span::styled("/pool", b(AMBER)),
-                Span::styled("   Pool     ", s(SECTION)),
-            ]),
-            mid(vec![
-                Span::styled("/search", b(AMBER)),
-                Span::styled("  Knowledge    ", s(SECTION)),
-                Span::styled("/wallet", b(AMBER)),
-                Span::styled("  Address        ", s(SECTION)),
-                Span::styled("/help", b(AMBER)),
-                Span::styled("   All cmds ", s(SECTION)),
-            ]),
-            bot(),
+            fbot(),
             Line::from(""),
 
             // ── Footer ──
@@ -363,8 +381,8 @@ impl ChatPanel {
                 Span::styled(" for commands  ·  ", s(SECTION)),
                 Span::styled("Ctrl+C", b(AMBER)),
                 Span::styled(" exit  ·  ", s(SECTION)),
-                Span::styled("Esc", b(AMBER)),
-                Span::styled(" back", s(SECTION)),
+                Span::styled("PgUp/Dn", b(AMBER)),
+                Span::styled(" scroll", s(SECTION)),
             ]),
             Line::from(""),
         ]
@@ -387,6 +405,7 @@ impl ChatPanel {
             ]));
 
         let inner = block.inner(area);
+        let avail_width = inner.width as usize;
 
         let mut lines: Vec<Line> = Vec::new();
         for msg in &self.messages {
@@ -395,7 +414,7 @@ impl ChatPanel {
             }
             match msg.role {
                 Role::Welcome => {
-                    lines.extend(Self::welcome_lines());
+                    lines.extend(Self::welcome_lines(avail_width));
                 }
                 Role::User => {
                     lines.push(Line::from(vec![
