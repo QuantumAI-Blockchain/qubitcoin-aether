@@ -3,11 +3,15 @@
 //! Genuine neural transformer with Sephirot attention heads, consciousness monitoring,
 //! Knowledge Fabric RAG grounded in live blockchain data, and on-chain PoT attestation.
 
+mod contract_bridge;
+
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::StatusCode,
     routing::{get, post},
     Json, Router,
@@ -23,12 +27,11 @@ use tower_http::cors::CorsLayer;
 use aether_consciousness::{
     ConsciousnessMonitor, CompressedGradients, LossTracker,
     ArchitectureGenome, EvolveArchive, NeuralPayload, EmbeddingEntry,
-    V5GateResult, evaluate_v5_gates,
+    evaluate_v5_gates,
 };
 use aether_fabric::search::KnowledgeFabric;
 use aether_fabric::types::Provenance;
 use aether_transformer::config::{SephirotDomain, TransformerConfig};
-use aether_transformer::generation::{generate, SamplingParams};
 use aether_transformer::model::AetherTransformer;
 
 // ── App State ───────────────────────────────────────────────────────────────
@@ -61,6 +64,77 @@ struct AppState {
     gates_passed: Mutex<u8>,
     /// Gradient reward ledger.
     reward_ledger: Mutex<GradientRewardLedger>,
+    /// Contract bridge for on-chain Aether contract interactions.
+    contract_bridge: contract_bridge::ContractBridge,
+    /// Emergency shutdown flag (polled from EmergencyShutdown contract).
+    shutdown_active: Arc<AtomicBool>,
+    /// Last block height where phi was recorded on-chain.
+    last_phi_block: Mutex<u64>,
+    /// Last block height where PoT was submitted on-chain.
+    last_pot_block: Mutex<u64>,
+    /// Last block height where Higgs field was synced on-chain.
+    last_higgs_block: Mutex<u64>,
+    /// Last block height where soul traits were synced on-chain.
+    last_soul_block: Mutex<u64>,
+    /// Conversation session store: session_id -> (turns, last_active_epoch_secs).
+    sessions: Mutex<HashMap<String, SessionState>>,
+}
+
+// ── Conversation Memory ─────────────────────────────────────────────────────
+
+/// Maximum conversation turns retained per session (sliding window).
+const MAX_SESSION_TURNS: usize = 20;
+/// Session expiry: 1 hour of inactivity.
+const SESSION_TTL_SECS: u64 = 3600;
+
+#[derive(Clone, Serialize, Deserialize)]
+struct ChatTurn {
+    role: String,   // "user" or "assistant"
+    content: String,
+}
+
+struct SessionState {
+    turns: Vec<ChatTurn>,
+    last_active: u64, // epoch seconds
+}
+
+impl SessionState {
+    fn new() -> Self {
+        Self {
+            turns: Vec::new(),
+            last_active: epoch_secs(),
+        }
+    }
+
+    fn push_user(&mut self, content: String) {
+        self.turns.push(ChatTurn { role: "user".into(), content });
+        self.last_active = epoch_secs();
+        self.trim();
+    }
+
+    fn push_assistant(&mut self, content: String) {
+        self.turns.push(ChatTurn { role: "assistant".into(), content });
+        self.last_active = epoch_secs();
+        self.trim();
+    }
+
+    fn trim(&mut self) {
+        if self.turns.len() > MAX_SESSION_TURNS {
+            let excess = self.turns.len() - MAX_SESSION_TURNS;
+            self.turns.drain(..excess);
+        }
+    }
+
+    fn is_expired(&self) -> bool {
+        epoch_secs().saturating_sub(self.last_active) > SESSION_TTL_SECS
+    }
+}
+
+fn epoch_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 // ── Gradient Reward Tracking ─────────────────────────────────────────────────
@@ -162,6 +236,12 @@ struct ChatRequest {
     temperature: f32,
     #[serde(default = "default_max_tokens")]
     max_tokens: usize,
+    /// Optional session ID for conversation continuity. If absent, a new session is created.
+    #[serde(default)]
+    session_id: Option<String>,
+    /// Optional client-supplied history (used if server has no session for this ID).
+    #[serde(default)]
+    history: Option<Vec<ChatTurn>>,
 }
 
 fn default_temperature() -> f32 { 0.7 }
@@ -181,6 +261,8 @@ struct ChatResponse {
     knowledge_context: Vec<String>,
     active_sephirot: u8,
     chain_height: u64,
+    /// Session ID for conversation continuity.
+    session_id: String,
 }
 
 #[derive(Serialize)]
@@ -301,6 +383,16 @@ impl TextEmbedder {
 
         pooled
     }
+}
+
+/// Compute keccak256 hash (for ConstitutionalAI operation hash checks).
+fn tiny_keccak_hash(data: &[u8]) -> [u8; 32] {
+    use tiny_keccak::{Hasher, Keccak};
+    let mut hasher = Keccak::v256();
+    let mut output = [0u8; 32];
+    hasher.update(data);
+    hasher.finalize(&mut output);
+    output
 }
 
 /// Classify text into a Sephirot domain based on keywords.
@@ -1350,6 +1442,27 @@ async fn chat(
     State(state): State<Arc<AppState>>,
     Json(req): Json<ChatRequest>,
 ) -> Result<Json<ChatResponse>, (StatusCode, String)> {
+    // Check emergency shutdown from on-chain contract
+    if state.shutdown_active.load(Ordering::SeqCst) {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Aether Mind is under emergency shutdown (on-chain EmergencyShutdown contract active)".to_string(),
+        ));
+    }
+
+    // Check ConstitutionalAI veto on chat operations (best-effort, non-blocking)
+    {
+        let op_hash = tiny_keccak_hash(b"aether:chat");
+        if let Ok(vetoed) = state.contract_bridge.is_operation_vetoed(&op_hash).await {
+            if vetoed {
+                return Err((
+                    StatusCode::FORBIDDEN,
+                    "Chat operation vetoed by ConstitutionalAI on-chain governance".to_string(),
+                ));
+            }
+        }
+    }
+
     let start = Instant::now();
     let height = *state.chain_height.lock().await;
 
@@ -1402,6 +1515,62 @@ async fn chat(
         context = context_block,
     );
 
+    // ── Conversation Memory: resolve session and build message history ────
+    let session_id = {
+        let sid = req.session_id.clone()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+        let mut sessions = state.sessions.lock().await;
+
+        // Periodic cleanup of expired sessions (every 100th chat)
+        if *state.chat_count.lock().await % 100 == 0 {
+            sessions.retain(|_, s| !s.is_expired());
+        }
+
+        // Initialize session from client history if server doesn't have it
+        if !sessions.contains_key(&sid) {
+            let mut new_session = SessionState::new();
+            if let Some(client_history) = &req.history {
+                for turn in client_history.iter().take(MAX_SESSION_TURNS) {
+                    new_session.turns.push(turn.clone());
+                }
+            }
+            sessions.insert(sid.clone(), new_session);
+        }
+
+        // Record user message in session
+        if let Some(session) = sessions.get_mut(&sid) {
+            session.push_user(req.message.clone());
+        }
+
+        sid
+    };
+
+    // Build Ollama messages array: system + conversation history + current user message
+    let history_messages = {
+        let sessions = state.sessions.lock().await;
+        if let Some(session) = sessions.get(&session_id) {
+            // Include all turns except the last one (which is the current user message we just added)
+            let len = session.turns.len();
+            if len > 1 {
+                session.turns[..len - 1].iter()
+                    .map(|t| serde_json::json!({"role": t.role, "content": t.content}))
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        }
+    };
+
+    let mut messages_array = vec![
+        serde_json::json!({"role": "system", "content": system_prompt}),
+    ];
+    messages_array.extend(history_messages);
+    messages_array.push(serde_json::json!({"role": "user", "content": req.message}));
+
     // Use Ollama for fast quantized generation (30x faster than candle F32 on CPU)
     let ollama_url = std::env::var("OLLAMA_URL")
         .unwrap_or_else(|_| "http://localhost:11434".to_string());
@@ -1410,10 +1579,7 @@ async fn chat(
 
     let ollama_req = serde_json::json!({
         "model": ollama_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": req.message},
-        ],
+        "messages": messages_array,
         "stream": false,
         "options": {
             "temperature": req.temperature,
@@ -1523,13 +1689,21 @@ async fn chat(
     // Increment chat count
     *state.chat_count.lock().await += 1;
 
+    // Store assistant response in session memory
+    {
+        let mut sessions = state.sessions.lock().await;
+        if let Some(session) = sessions.get_mut(&session_id) {
+            session.push_assistant(response_text.clone());
+        }
+    }
+
     // Learn from this interaction: create a knowledge vector from Q&A
     if !response_text.is_empty() && response_text.len() > 10 {
         let interaction = format!("Q: {} A: {}", &req.message, &response_text[..response_text.len().min(200)]);
         let emb = state.embedder.embed(&interaction);
         let domain = classify_domain(&req.message);
         state.fabric.shard(domain).map(|s| {
-            s.insert(emb, interaction, Provenance::UserInteraction { session_id: "chat".into() }, height);
+            s.insert(emb, interaction, Provenance::UserInteraction { session_id: session_id.clone() }, height);
         });
     }
 
@@ -1543,6 +1717,7 @@ async fn chat(
         knowledge_context,
         active_sephirot,
         chain_height: height,
+        session_id,
     }))
 }
 
@@ -2160,6 +2335,106 @@ fn state_path() -> std::path::PathBuf {
     )
 }
 
+// ── Contract Bridge Endpoints ────────────────────────────────────────────────
+
+/// GET /aether/contracts/status — Contract bridge status for monitoring.
+async fn contracts_status(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let last_phi = *state.last_phi_block.lock().await;
+    let last_pot = *state.last_pot_block.lock().await;
+    let last_higgs = *state.last_higgs_block.lock().await;
+    let last_soul = *state.last_soul_block.lock().await;
+    let shutdown = state.shutdown_active.load(Ordering::SeqCst);
+    let qvm_available = state.contract_bridge.is_available().await;
+    let addrs = state.contract_bridge.addresses();
+
+    Json(serde_json::json!({
+        "qvm_available": qvm_available,
+        "shutdown_active": shutdown,
+        "last_phi_block": last_phi,
+        "last_pot_block": last_pot,
+        "last_higgs_block": last_higgs,
+        "last_soul_block": last_soul,
+        "contracts": {
+            "consciousness_dashboard": addrs.consciousness_dashboard,
+            "proof_of_thought": addrs.proof_of_thought,
+            "api_subscription": addrs.api_subscription,
+            "emergency_shutdown": addrs.emergency_shutdown,
+            "higgs_field": addrs.higgs_field,
+            "aether_soul": addrs.aether_soul,
+            "constitutional_ai": addrs.constitutional_ai,
+            "synaptic_staking": addrs.synaptic_staking,
+        }
+    }))
+}
+
+#[derive(Deserialize)]
+struct AuthCheckParams {
+    address: String,
+}
+
+/// GET /aether/auth/check?address=<addr> — Check subscription status.
+/// Used by the API gateway for auth middleware.
+async fn auth_check(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<AuthCheckParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    match state.contract_bridge.check_subscription(&params.address).await {
+        Ok(info) => Ok(Json(serde_json::json!({
+            "address": params.address,
+            "balance": info.balance,
+            "tier": info.tier,
+            "chats_remaining": info.chats_remaining,
+            "has_subscription": info.balance > 0 || info.tier > 0,
+        }))),
+        Err(e) => {
+            // QVM unavailable — default to free tier (don't block users)
+            warn!("Auth check failed for {}: {} — defaulting to free tier", params.address, e);
+            Ok(Json(serde_json::json!({
+                "address": params.address,
+                "balance": 0,
+                "tier": 0,
+                "chats_remaining": 5,
+                "has_subscription": false,
+                "error": "qvm_unavailable",
+            })))
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct AuthDeductParams {
+    address: String,
+    #[serde(default = "default_call_type")]
+    call_type: String,
+}
+
+fn default_call_type() -> String { "chat".to_string() }
+
+/// POST /aether/auth/deduct — Deduct fee from user's subscription balance.
+/// Used by the API gateway for auth middleware.
+async fn auth_deduct(
+    State(state): State<Arc<AppState>>,
+    Json(params): Json<AuthDeductParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    match state.contract_bridge.deduct_fee(&params.address, &params.call_type).await {
+        Ok(tx) => Ok(Json(serde_json::json!({
+            "success": true,
+            "tx_hash": tx,
+            "address": params.address,
+            "call_type": params.call_type,
+        }))),
+        Err(e) => {
+            warn!("Fee deduction failed for {}: {}", params.address, e);
+            Err((
+                StatusCode::PAYMENT_REQUIRED,
+                format!("Fee deduction failed: {}. Deposit QBC at the AetherAPISubscription contract.", e),
+            ))
+        }
+    }
+}
+
 // ── Model Loading ───────────────────────────────────────────────────────────
 
 fn load_model(device: &Device) -> anyhow::Result<(AetherTransformer, Tokenizer, TransformerConfig)> {
@@ -2287,6 +2562,23 @@ async fn main() -> anyhow::Result<()> {
         info!("Restored {} chat interactions from previous sessions", persisted.chat_count);
     }
 
+    let contract_bridge = contract_bridge::ContractBridge::new();
+    let shutdown_active = Arc::new(AtomicBool::new(false));
+
+    // Check if QVM (Python node) is reachable for contract calls
+    if contract_bridge.is_available().await {
+        info!("Contract Bridge: QVM reachable at {}", std::env::var("QVM_RPC_URL").unwrap_or_else(|_| "http://localhost:5001".to_string()));
+        info!("  ConsciousnessDashboard: {}", contract_bridge.consciousness_dashboard);
+        info!("  ProofOfThought:        {}", contract_bridge.proof_of_thought);
+        info!("  EmergencyShutdown:     {}", contract_bridge.emergency_shutdown);
+        info!("  AetherAPISubscription: {}", contract_bridge.api_subscription);
+        info!("  HiggsField:            {}", contract_bridge.higgs_field);
+        info!("  ConstitutionalAI:      {}", contract_bridge.constitutional_ai);
+        info!("  SynapticStaking:       {}", contract_bridge.synaptic_staking);
+    } else {
+        warn!("Contract Bridge: QVM not reachable — contract features disabled until available");
+    }
+
     let state = Arc::new(AppState {
         model: Mutex::new(model),
         tokenizer,
@@ -2306,6 +2598,13 @@ async fn main() -> anyhow::Result<()> {
         prev_attention_flat: Mutex::new(None),
         gates_passed: Mutex::new(0),
         reward_ledger: Mutex::new(GradientRewardLedger::new()),
+        contract_bridge,
+        shutdown_active: Arc::clone(&shutdown_active),
+        last_phi_block: Mutex::new(0),
+        last_pot_block: Mutex::new(0),
+        last_higgs_block: Mutex::new(0),
+        last_soul_block: Mutex::new(0),
+        sessions: Mutex::new(HashMap::new()),
     });
 
     // Sync chain height from ingestion task
@@ -2361,6 +2660,312 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+        }
+    });
+
+    // ── Contract Bridge Background Tasks ──────────────────────────────────────
+
+    // Task 1: EmergencyShutdown check (every 60s)
+    let emergency_check_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        // Wait for startup
+        tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+        info!("Contract Bridge: EmergencyShutdown polling started (60s interval)");
+        loop {
+            match emergency_check_state.contract_bridge.is_shutdown().await {
+                Ok(is_shutdown) => {
+                    let prev = emergency_check_state.shutdown_active.swap(is_shutdown, Ordering::SeqCst);
+                    if is_shutdown && !prev {
+                        warn!("CONTRACT: Emergency shutdown ACTIVATED — chat will return 503");
+                    } else if !is_shutdown && prev {
+                        info!("CONTRACT: Emergency shutdown CLEARED — chat restored");
+                    }
+                }
+                Err(e) => {
+                    // QVM unavailable is not an error — just means contracts are offline
+                    if e.to_string().contains("error sending request") {
+                        // Silently skip — QVM not running
+                    } else {
+                        warn!("Contract Bridge: EmergencyShutdown check failed: {}", e);
+                    }
+                }
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        }
+    });
+
+    // Task 2: ConsciousnessDashboard.recordPhi (every 100 blocks)
+    let phi_contract_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+        info!("Contract Bridge: ConsciousnessDashboard recording started (every 100 blocks)");
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+            let height = *phi_contract_state.chain_height.lock().await;
+            let last = *phi_contract_state.last_phi_block.lock().await;
+
+            if height > last + 100 && height > 0 {
+                if !phi_contract_state.contract_bridge.is_available().await {
+                    continue;
+                }
+
+                let consciousness = phi_contract_state.consciousness.lock().await;
+                let phi = consciousness.current_phi();
+                let phi_micro = consciousness.phi_micro();
+                let phi_meso = consciousness.phi_meso();
+                drop(consciousness);
+
+                let vectors = phi_contract_state.fabric.total_vectors() as u64;
+
+                // Scale floats to uint256 (multiply by 1e6 for precision)
+                let phi_scaled = (phi * 1_000_000.0) as u64;
+                let integration_scaled = (phi_micro * 1_000_000.0) as u64;
+                let diff_scaled = (phi_meso * 1_000_000.0) as u64;
+                let coherence_scaled = ((phi_micro + phi_meso) / 2.0 * 1_000_000.0) as u64;
+                let higgs_vev = 174_140_000; // 174.14 * 1e6
+                let higgs_mass = 125_000_000; // 125.0 * 1e6 (Higgs mass)
+                let higgs_dev = 0;
+
+                match phi_contract_state.contract_bridge.record_phi(
+                    phi_scaled, integration_scaled, diff_scaled, coherence_scaled,
+                    vectors, 0, // edges not tracked in V5
+                    higgs_vev, higgs_mass, higgs_dev,
+                ).await {
+                    Ok(tx) => {
+                        info!("CONTRACT: Recorded phi={:.6} on-chain at height {} (tx: {})", phi, height, tx);
+                        *phi_contract_state.last_phi_block.lock().await = height;
+                    }
+                    Err(e) => warn!("CONTRACT: recordPhi failed: {}", e),
+                }
+
+                // Also update Higgs field value
+                match phi_contract_state.contract_bridge.update_higgs_field(higgs_vev).await {
+                    Ok(tx) => {
+                        info!("CONTRACT: Updated HiggsField on-chain (tx: {})", tx);
+                        *phi_contract_state.last_higgs_block.lock().await = height;
+                    }
+                    Err(e) => {
+                        // Non-critical — log and continue
+                        if !e.to_string().contains("error sending request") {
+                            warn!("CONTRACT: updateHiggsField failed: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Task 3: ProofOfThought.submitProof (every 10 blocks)
+    let pot_contract_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
+        info!("Contract Bridge: ProofOfThought submission started (every 10 blocks)");
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
+            let height = *pot_contract_state.chain_height.lock().await;
+            let last = *pot_contract_state.last_pot_block.lock().await;
+
+            if height > last + 10 && height > 0 {
+                if !pot_contract_state.contract_bridge.is_available().await {
+                    continue;
+                }
+
+                // Generate PoT hashes from consciousness state
+                let consciousness = pot_contract_state.consciousness.lock().await;
+                let phi = consciousness.current_phi();
+                let phi_micro = consciousness.phi_micro();
+                drop(consciousness);
+
+                // Create deterministic hashes from attention state + block height
+                let solution_data = format!("aether-pot:{}:{}:{}", height, phi, phi_micro);
+                let solution_hash = {
+                    use sha2::{Sha256, Digest};
+                    let mut hasher = Sha256::new();
+                    hasher.update(solution_data.as_bytes());
+                    let result = hasher.finalize();
+                    let mut h = [0u8; 32];
+                    h.copy_from_slice(&result);
+                    h
+                };
+
+                let quantum_data = format!("aether-quantum:{}:{}", height, pot_contract_state.fabric.total_vectors());
+                let quantum_hash = {
+                    use sha2::{Sha256, Digest};
+                    let mut hasher = Sha256::new();
+                    hasher.update(quantum_data.as_bytes());
+                    let result = hasher.finalize();
+                    let mut h = [0u8; 32];
+                    h.copy_from_slice(&result);
+                    h
+                };
+
+                match pot_contract_state.contract_bridge.submit_proof(
+                    solution_hash, quantum_hash, height,
+                ).await {
+                    Ok(tx) => {
+                        info!("CONTRACT: Submitted PoT at height {} (tx: {})", height, tx);
+                        *pot_contract_state.last_pot_block.lock().await = height;
+                    }
+                    Err(e) => {
+                        if !e.to_string().contains("error sending request") {
+                            warn!("CONTRACT: submitProof failed: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Task 4: AetherSoul personality sync (every 500 blocks)
+    let soul_contract_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+            let height = *soul_contract_state.chain_height.lock().await;
+            let last = *soul_contract_state.last_soul_block.lock().await;
+
+            if height > last + 500 && height > 0 {
+                if !soul_contract_state.contract_bridge.is_available().await {
+                    continue;
+                }
+
+                let traits = {
+                    let consciousness = soul_contract_state.consciousness.lock().await;
+                    let emotions = consciousness.emotional_state();
+                    [
+                        (emotions.curiosity * 1000.0) as u64,      // curiosity
+                        (emotions.satisfaction * 1000.0) as u64,    // warmth
+                        700,                                         // honesty (constant)
+                        600,                                         // humility (constant)
+                        (emotions.wonder * 1000.0) as u64,          // playfulness
+                        800,                                         // depth (constant)
+                        (emotions.excitement * 1000.0) as u64,      // courage
+                    ]
+                };
+
+                match soul_contract_state.contract_bridge.update_soul_personality(traits).await {
+                    Ok(tx) => {
+                        info!("CONTRACT: Updated AetherSoul personality (tx: {})", tx);
+                        *soul_contract_state.last_soul_block.lock().await = height;
+                    }
+                    Err(e) => {
+                        // AetherSoul may not be deployed — this is expected
+                        if !e.to_string().contains("not deployed") && !e.to_string().contains("error sending request") {
+                            warn!("CONTRACT: updateSoulPersonality failed: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Task 5: SynapticStaking utility updates from attention weights (every 100 blocks)
+    let staking_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(45)).await;
+        info!("Contract Bridge: SynapticStaking utility updates started (every 100 blocks)");
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+            let height = *staking_state.chain_height.lock().await;
+            if height == 0 {
+                continue;
+            }
+
+            // Only update every 100 blocks (check against last phi block as sync point)
+            let last_phi = *staking_state.last_phi_block.lock().await;
+            if height <= last_phi {
+                continue;
+            }
+
+            if !staking_state.contract_bridge.is_available().await {
+                continue;
+            }
+
+            // Check how many connections exist on-chain
+            let conn_count = match staking_state.contract_bridge.get_connection_count().await {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            if conn_count == 0 {
+                continue;
+            }
+
+            // Compute attention-derived utility per Sephirot domain from consciousness monitor.
+            // Each domain gets a utility score based on how active its attention head is.
+            let consciousness = staking_state.consciousness.lock().await;
+            let phi_meso = consciousness.phi_meso();
+            drop(consciousness);
+
+            // Distribute utility across connections (simplified: each connection gets
+            // a share proportional to domain involvement)
+            let base_utility = (phi_meso * 1_000_000.0) as u64;
+            let per_connection = if conn_count > 0 { base_utility / conn_count } else { 0 };
+
+            if per_connection > 0 {
+                // Update first 10 connections max (one per Sephirot pair)
+                let update_count = conn_count.min(10);
+                for conn_id in 0..update_count {
+                    match staking_state.contract_bridge.update_staking_utility(conn_id, per_connection).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            if !e.to_string().contains("error sending request") {
+                                warn!("CONTRACT: updateUtility({}) failed: {}", conn_id, e);
+                            }
+                            break;
+                        }
+                    }
+                }
+                info!("CONTRACT: Updated {} staking connections with utility={}", update_count, per_connection);
+            }
+        }
+    });
+
+    // Task 6: ConstitutionalAI principles check (at startup + every 1000 blocks)
+    let constitution_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
+        info!("Contract Bridge: ConstitutionalAI principles check started");
+        let mut last_check_height: u64 = 0;
+
+        loop {
+            let height = *constitution_state.chain_height.lock().await;
+
+            // Check at startup (last_check_height == 0) and every 1000 blocks
+            if last_check_height == 0 || height > last_check_height + 1000 {
+                if !constitution_state.contract_bridge.is_available().await {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+                    continue;
+                }
+
+                match constitution_state.contract_bridge.get_principle_count().await {
+                    Ok((total, active)) => {
+                        info!(
+                            "CONTRACT: ConstitutionalAI has {} principles ({} active) — Gevurah safety informed",
+                            total, active
+                        );
+                        last_check_height = height;
+                    }
+                    Err(e) => {
+                        if !e.to_string().contains("error sending request") {
+                            warn!("CONTRACT: ConstitutionalAI check failed: {}", e);
+                        }
+                    }
+                }
+
+                // Also read Higgs field state for transparency
+                match constitution_state.contract_bridge.get_higgs_field_state().await {
+                    Ok((vev, current)) => {
+                        if vev > 0 {
+                            info!("CONTRACT: HiggsField state — VEV={}, currentField={}", vev, current);
+                        }
+                    }
+                    Err(_) => {} // Non-critical
+                }
+            }
+
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
         }
     });
 
@@ -2524,6 +3129,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/aether/evolve/mutate", post(evolve_mutate))
         .route("/aether/gates", get(gates_endpoint))
         .route("/aether/knowledge/search", get(knowledge_search))
+        .route("/aether/contracts/status", get(contracts_status))
+        .route("/aether/auth/check", get(auth_check))
+        .route("/aether/auth/deduct", post(auth_deduct))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -2545,6 +3153,9 @@ async fn main() -> anyhow::Result<()> {
     info!("  POST /aether/evolve/mutate   — Trigger evolution cycle");
     info!("  GET  /aether/gates           — V5 neural capability gates");
     info!("  GET  /aether/knowledge/search — Knowledge Fabric search");
+    info!("  GET  /aether/contracts/status — On-chain contract bridge status");
+    info!("  GET  /aether/auth/check      — Subscription check (gateway auth)");
+    info!("  POST /aether/auth/deduct     — Fee deduction (gateway auth)");
     info!("  GET  /health                 — Full health check");
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;

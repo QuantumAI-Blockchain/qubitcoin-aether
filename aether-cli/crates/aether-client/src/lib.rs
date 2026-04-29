@@ -12,11 +12,21 @@ pub struct AetherClient {
     wallet_address: Option<String>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ChatTurn {
+    pub role: String,
+    pub content: String,
+}
+
 #[derive(Serialize)]
 struct ChatRequestBody {
     message: String,
     temperature: f32,
     max_tokens: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    history: Option<Vec<ChatTurn>>,
 }
 
 #[derive(Serialize)]
@@ -50,6 +60,9 @@ pub struct ChatResponse {
     pub knowledge_context: Vec<String>,
     pub active_sephirot: u8,
     pub chain_height: u64,
+    /// Session ID for conversation continuity.
+    #[serde(default)]
+    pub session_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -210,6 +223,17 @@ impl AetherClient {
         temperature: f32,
         max_tokens: usize,
     ) -> Result<ChatResponse> {
+        self.chat_with_session(message, temperature, max_tokens, None, None).await
+    }
+
+    pub async fn chat_with_session(
+        &self,
+        message: &str,
+        temperature: f32,
+        max_tokens: usize,
+        session_id: Option<String>,
+        history: Option<Vec<ChatTurn>>,
+    ) -> Result<ChatResponse> {
         let mut req = self
             .http
             .post(format!("{}/aether/chat", self.base_url))
@@ -217,6 +241,8 @@ impl AetherClient {
                 message: message.to_string(),
                 temperature,
                 max_tokens,
+                session_id,
+                history,
             });
 
         // Attach wallet address for subscription auth if available

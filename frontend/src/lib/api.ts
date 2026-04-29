@@ -894,14 +894,22 @@ export const api = {
    * Send a chat message to the Aether Mind neural engine.
    * Returns a ChatResponse with the generated response + consciousness metrics.
    */
-  sendAetherChat: async (message: string, userId: string = "anonymous") => {
+  sendAetherChat: async (
+    message: string,
+    userId: string = "anonymous",
+    sessionId?: string | null,
+    history?: AetherChatTurn[],
+  ) => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     const authToken = getAuthToken();
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const body: Record<string, unknown> = { message, user_id: userId };
+    if (sessionId) body.session_id = sessionId;
+    if (history && history.length > 0) body.history = history;
     const resp = await fetch(`${AETHER_URL}/aether/chat`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ message, user_id: userId }),
+      body: JSON.stringify(body),
     });
     if (!resp.ok) throw new Error(`Aether Mind error: ${resp.status}`);
     return resp.json() as Promise<AetherMindChatResponse>;
@@ -964,4 +972,10 @@ export interface AetherMindChatResponse {
   knowledge_context: string[];
   active_sephirot: number;
   chain_height: number;
+  session_id?: string;
+}
+
+export interface AetherChatTurn {
+  role: "user" | "assistant";
+  content: string;
 }

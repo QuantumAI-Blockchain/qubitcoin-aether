@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -8,7 +9,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use tokio::sync::mpsc;
 
-use aether_client::{AetherClient, ChatResponse};
+use aether_client::{AetherClient, ChatResponse, ChatTurn};
 use aether_miner::{MinerConfig, MinerHandle};
 use aether_tui::chat::Role;
 use aether_tui::status::MiningStatus;
@@ -57,6 +58,10 @@ pub async fn run(client: AetherClient, miner_config: Option<MinerConfig>) -> Res
     let mut last_poll = std::time::Instant::now();
     let poll_interval = Duration::from_secs(5);
 
+    // Conversation session state — maintained across the REPL lifetime
+    let session_id: Arc<tokio::sync::Mutex<Option<String>>> = Arc::new(tokio::sync::Mutex::new(None));
+    let chat_history: Arc<tokio::sync::Mutex<Vec<ChatTurn>>> = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+
     // Channel for receiving async chat responses without blocking the UI
     let (chat_tx, mut chat_rx) = mpsc::channel::<ChatResult>(4);
 
@@ -69,6 +74,15 @@ pub async fn run(client: AetherClient, miner_config: Option<MinerConfig>) -> Res
             app.chat.waiting = false;
             match result {
                 ChatResult::Ok(resp) => {
+                    // Store assistant response in local history
+                    chat_history.lock().await.push(ChatTurn {
+                        role: "assistant".into(),
+                        content: resp.response.clone(),
+                    });
+                    // Update session_id from server response
+                    if let Some(sid) = &resp.session_id {
+                        *session_id.lock().await = Some(sid.clone());
+                    }
                     app.chat.push(Role::Aether, resp.response);
                     app.status.chain_height = resp.chain_height;
                     app.status.phi = resp.phi;
@@ -113,7 +127,7 @@ pub async fn run(client: AetherClient, miner_config: Option<MinerConfig>) -> Res
         // Handle input events (50ms timeout for responsive UI)
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
-                if handle_key(&mut app, key, &client, &miner_handle, &chat_tx).await? {
+                if handle_key(&mut app, key, &client, &miner_handle, &chat_tx, &session_id, &chat_history).await? {
                     break;
                 }
             }
@@ -135,6 +149,8 @@ async fn handle_key(
     client: &AetherClient,
     _miner: &Option<MinerHandle>,
     chat_tx: &mpsc::Sender<ChatResult>,
+    session_id: &Arc<tokio::sync::Mutex<Option<String>>>,
+    chat_history: &Arc<tokio::sync::Mutex<Vec<ChatTurn>>>,
 ) -> Result<bool> {
     match key.code {
         // Quit
@@ -156,7 +172,7 @@ async fn handle_key(
 
             // Handle slash commands
             if text.starts_with('/') {
-                return Ok(handle_command(app, &text, client).await?);
+                return Ok(handle_command(app, &text, client, session_id, chat_history).await?);
             }
 
             // Don't allow sending while waiting for a response
@@ -169,10 +185,18 @@ async fn handle_key(
             app.chat.push(Role::User, text.clone());
             app.chat.waiting = true;
 
+            // Record user turn in local history
+            chat_history.lock().await.push(ChatTurn {
+                role: "user".into(),
+                content: text.clone(),
+            });
+
             let client = client.clone();
             let tx = chat_tx.clone();
+            let sid = session_id.lock().await.clone();
+            let history_snapshot = chat_history.lock().await.clone();
             tokio::spawn(async move {
-                match client.chat(&text, 0.7, 5000).await {
+                match client.chat_with_session(&text, 0.7, 5000, sid, Some(history_snapshot)).await {
                     Ok(resp) => {
                         let _ = tx.send(ChatResult::Ok(resp)).await;
                     }
@@ -235,6 +259,8 @@ async fn handle_command(
     app: &mut App,
     cmd: &str,
     client: &AetherClient,
+    session_id: &Arc<tokio::sync::Mutex<Option<String>>>,
+    chat_history: &Arc<tokio::sync::Mutex<Vec<ChatTurn>>>,
 ) -> Result<bool> {
     let parts: Vec<&str> = cmd.trim().splitn(2, ' ').collect();
     let command = parts[0].to_lowercase();
@@ -244,9 +270,12 @@ async fn handle_command(
 
         "/clear" => {
             app.chat.messages.clear();
+            // Reset conversation memory — start fresh session
+            *session_id.lock().await = None;
+            chat_history.lock().await.clear();
             app.chat.push(
                 Role::System,
-                "Chat cleared.".into(),
+                "Chat cleared. New conversation session started.".into(),
             );
         }
 

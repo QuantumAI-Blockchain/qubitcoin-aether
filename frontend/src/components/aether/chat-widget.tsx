@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
-import { api } from "@/lib/api";
+import { api, type AetherChatTurn } from "@/lib/api";
 import { AetherMarkdown } from "@/components/aether/aether-markdown";
 
 interface Message {
@@ -21,6 +21,7 @@ export function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [aetherSessionId, setAetherSessionId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,8 +36,17 @@ export function ChatWidget() {
     setLoading(true);
 
     try {
+      // Build conversation history for context continuity
+      const history: AetherChatTurn[] = messages
+        .map((m) => ({
+          role: m.role === "user" ? "user" as const : "assistant" as const,
+          content: m.text,
+        }));
+      history.push({ role: "user", content: text });
+
       // Send to Aether Mind neural engine (Rust + Ollama)
-      const res = await api.sendAetherChat(text);
+      const res = await api.sendAetherChat(text, "anonymous", aetherSessionId, history);
+      if (res.session_id) setAetherSessionId(res.session_id);
       setMessages((prev) => [
         ...prev,
         { role: "aether", text: res.response },

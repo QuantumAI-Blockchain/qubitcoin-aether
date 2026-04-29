@@ -149,12 +149,13 @@ services:
     init: true
     container_name: qbc-node
     ports:
-      - "5000:5000"     # RPC API
+      - "5001:5000"     # QVM RPC (internal only — gateway owns :5000)
     env_file:
       - .env
       - secure_key.env
     environment:
       - PYTHONDONTWRITEBYTECODE=1
+      - AUTO_MINE=false
       - PYTHONUNBUFFERED=1
       - RPC_HOST=0.0.0.0
       - QBC_CORS_ORIGINS=*

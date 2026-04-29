@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { api, type ChatResponse } from "@/lib/api";
+import { api, type ChatResponse, type AetherChatTurn } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { PhiSpinner } from "@/components/ui/loading";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -154,6 +154,8 @@ function AetherPageContent() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // Aether Mind neural session ID (separate from gateway session)
+  const [aetherSessionId, setAetherSessionId] = useState<string | null>(null);
   const [selectedMsg, setSelectedMsg] = useState<number | null>(null);
   const [sessions, setSessions] = useState<StoredSession[]>([]);
   const [activeTab, setActiveTab] = useState<"chat" | "graph">("chat");
@@ -213,8 +215,19 @@ function AetherPageContent() {
     setLoading(true);
 
     try {
+      // Build conversation history from existing messages for context continuity
+      const history: AetherChatTurn[] = messages
+        .map((m) => ({
+          role: m.role === "user" ? "user" as const : "assistant" as const,
+          content: m.text,
+        }));
+      // Add current user message to history
+      history.push({ role: "user", content: text });
+
       // Send to Aether Mind neural engine (Rust + Ollama)
-      const res = await api.sendAetherChat(text, identityAddress ?? "anonymous");
+      const res = await api.sendAetherChat(text, identityAddress ?? "anonymous", aetherSessionId, history);
+      // Track session ID from server
+      if (res.session_id) setAetherSessionId(res.session_id);
       const knowledgeTrace = res.knowledge_context?.length
         ? res.knowledge_context.map((ctx, i) => `[observation] Context ${i + 1}: ${ctx}`)
         : undefined;
@@ -260,10 +273,11 @@ function AetherPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, sessionId, toast, identityAddress]);
+  }, [input, loading, sessionId, aetherSessionId, messages, toast, identityAddress]);
 
   const handleNewChat = useCallback(() => {
     setSessionId(null);
+    setAetherSessionId(null);
     setMessages([]);
     setSelectedMsg(null);
   }, []);
