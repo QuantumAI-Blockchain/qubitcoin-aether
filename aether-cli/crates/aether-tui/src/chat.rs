@@ -210,23 +210,23 @@ impl ChatPanel {
             fempty(),
             fcenter(vec![
                 Span::styled(" █████  ███████ ████████ ██   ██ ███████ ██████  ", b(CYAN)),
-                Span::styled("    ███    ███ ██ ███   ██ ██████  ", b(VIOLET)),
+                Span::styled("    ██    ██ ██ ██   ██ ██████  ", b(VIOLET)),
             ]),
             fcenter(vec![
                 Span::styled("██   ██ ██         ██    ██   ██ ██      ██   ██ ", b(CYAN)),
-                Span::styled("    ████  ████ ██ ████  ██ ██   ██ ", b(VIOLET)),
+                Span::styled("    ███  ███ ██ ███  ██ ██   ██ ", b(VIOLET)),
             ]),
             fcenter(vec![
                 Span::styled("███████ █████      ██    ███████ █████   ██████  ", b(CYAN)),
-                Span::styled("    ██ ████ ██ ██ ██ ██ ██ ██   ██ ", b(VIOLET)),
+                Span::styled("    ████████ ██ ██ ████ ██   ██ ", b(VIOLET)),
             ]),
             fcenter(vec![
                 Span::styled("██   ██ ██         ██    ██   ██ ██      ██   ██ ", b(CYAN)),
-                Span::styled("    ██  ██  ██ ██ ██  ████ ██   ██ ", b(VIOLET)),
+                Span::styled("    ██ ██ ██ ██ ██  ███ ██   ██ ", b(VIOLET)),
             ]),
             fcenter(vec![
                 Span::styled("██   ██ ███████    ██    ██   ██ ███████ ██   ██ ", b(CYAN)),
-                Span::styled("    ██      ██ ██ ██   ██ ██████  ", b(VIOLET)),
+                Span::styled("    ██    ██ ██ ██   ██ ██████  ", b(VIOLET)),
             ]),
             fempty(),
             fcenter(vec![
