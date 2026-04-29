@@ -208,14 +208,26 @@ impl ChatPanel {
             // ── HEADER BOX ──
             ftop("AETHER MIND", GREEN),
             fempty(),
-            fcenter(vec![Span::styled(
-                "▄▀█ █▀▀ ▀█▀ █ █ █▀▀ █▀█   █▀▄▀█ █ █▄ █ █▀▄",
-                b(GREEN),
-            )]),
-            fcenter(vec![Span::styled(
-                "█▀█ ██▄  █  █▀█ ██▄ █▀▄   █ ▀ █ █ █ ▀█ █▄▀",
-                b(GREEN),
-            )]),
+            fcenter(vec![
+                Span::styled(" █████  ███████ ████████ ██   ██ ███████ ██████  ", b(GREEN)),
+                Span::styled("███    ███ ██ ███   ██ ██████  ", b(VIOLET)),
+            ]),
+            fcenter(vec![
+                Span::styled("██   ██ ██         ██    ██   ██ ██      ██   ██ ", b(GREEN)),
+                Span::styled("████  ████ ██ ████  ██ ██   ██ ", b(VIOLET)),
+            ]),
+            fcenter(vec![
+                Span::styled("███████ █████      ██    ███████ █████   ██████  ", b(GREEN)),
+                Span::styled("██ ████ ██ ██ ██ ██ ██ ██   ██ ", b(VIOLET)),
+            ]),
+            fcenter(vec![
+                Span::styled("██   ██ ██         ██    ██   ██ ██      ██   ██ ", b(GREEN)),
+                Span::styled("██  ██  ██ ██ ██  ████ ██   ██ ", b(VIOLET)),
+            ]),
+            fcenter(vec![
+                Span::styled("██   ██ ███████    ██    ██   ██ ███████ ██   ██ ", b(GREEN)),
+                Span::styled("██      ██ ██ ██   ██ ██████  ", b(VIOLET)),
+            ]),
             fempty(),
             fcenter(vec![
                 Span::styled("\"The Blockchain That Thinks\"", bi(WHITE)),
