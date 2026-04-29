@@ -10,6 +10,7 @@
 //! - Substrate RPC (live chain state via WebSocket)
 //! - Aether service (proxied for AI endpoints)
 
+mod auth;
 mod config;
 mod ratelimit;
 mod routes;
@@ -79,8 +80,14 @@ async fn main() -> Result<()> {
     let chat_limiter = ratelimit::create_limiter(1, 10); // 10 burst, 1/s replenish = ~10/min
     let general_limiter = ratelimit::create_limiter(10, 60); // 60 burst, 10/s replenish = ~60/min
 
+    // Auth middleware for subscription-based chat access
+    let free_tier_tracker = auth::create_free_tier_tracker();
+
     // Build route groups
-    let api_routes = build_api_routes(state.clone(), chat_limiter, general_limiter);
+    let api_routes = build_api_routes(
+        state.clone(), chat_limiter, general_limiter,
+        free_tier_tracker,
+    );
 
     // Mount bare routes + /v1 versioned routes
     let app = Router::new()
@@ -103,17 +110,29 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Build all API routes with rate limiting applied per group.
+/// Build all API routes with rate limiting and auth applied per group.
 fn build_api_routes(
     state: AppState,
     chat_limiter: ratelimit::SharedLimiter,
     general_limiter: ratelimit::SharedLimiter,
+    free_tier_tracker: auth::SharedFreeTierTracker,
 ) -> Router {
-    // ── Chat routes (stricter rate limit: 10 req/min) ───────────
+    // Auth state tuple: (aether_url, tracker, http_client)
+    let auth_state = (
+        state.aether_url.clone(),
+        free_tier_tracker,
+        state.http_client.clone(),
+    );
+
+    // ── Chat routes (auth + rate limit: 10 req/min) ───────────
     let chat_routes = Router::new()
         .route("/aether/chat", post(routes::aether::aether_chat))
         .route("/aether/chat/message", post(routes::aether::aether_chat))
         .route("/aether/chat/session", post(routes::aether::aether_chat_session))
+        .route_layer(middleware::from_fn_with_state(
+            auth_state,
+            auth::auth_middleware,
+        ))
         .route_layer(middleware::from_fn_with_state(
             chat_limiter,
             ratelimit::rate_limit_middleware,
@@ -151,10 +170,12 @@ fn build_api_routes(
         .route("/aether/phi", get(routes::aether::aether_phi))
         .route("/aether/phi/history", get(routes::aether::aether_phi_history))
         .route("/aether/knowledge", get(routes::aether::aether_knowledge))
+        .route("/aether/gates", get(routes::aether::aether_gates))
         .route("/aether/consciousness", get(routes::aether::aether_consciousness))
         .route("/aether/chat/fee", get(routes::aether::aether_chat_fee))
         .route("/aether/chat/history/{session_id}", get(routes::aether::aether_chat_history))
         .route("/aether/pot", get(routes::aether::aether_pot))
+        .route("/aether/contracts/status", get(routes::aether::aether_contracts_status))
         .route("/aether/neural-payload", get(routes::aether::aether_neural_payload))
         .route("/aether/health", get(routes::aether::aether_health))
         .route("/aether/gradients", get(routes::aether::aether_gradients).post(routes::aether::aether_gradients_submit))

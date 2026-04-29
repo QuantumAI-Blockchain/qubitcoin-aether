@@ -86,6 +86,11 @@ pub async fn aether_knowledge(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
+/// GET /aether/gates — Gate milestone status (proxied from aether-mind).
+pub async fn aether_gates(State(state): State<AppState>) -> Json<Value> {
+    proxy_to_aether(&state, "/aether/gates").await
+}
+
 /// GET /aether/consciousness — Consciousness metrics (live from aether-mind + gates).
 pub async fn aether_consciousness(State(state): State<AppState>) -> Json<Value> {
     // Fetch live phi and gates from aether-mind in parallel
@@ -231,6 +236,11 @@ pub async fn aether_chat_history(
 /// GET /aether/pot — Proof-of-Thought attestation (proxied to aether-mind V5).
 pub async fn aether_pot(State(state): State<AppState>) -> Json<Value> {
     proxy_to_aether(&state, "/aether/pot").await
+}
+
+/// GET /aether/contracts/status — On-chain contract bridge status (proxied).
+pub async fn aether_contracts_status(State(state): State<AppState>) -> Json<Value> {
+    proxy_to_aether(&state, "/aether/contracts/status").await
 }
 
 /// GET /aether/neural-payload — Neural training payload for block inclusion.
