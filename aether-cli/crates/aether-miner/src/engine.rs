@@ -18,7 +18,9 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 /// Default pallet indices in the QBC runtime.
 /// These must match the order in construct_runtime! in the Substrate node.
-const CONSENSUS_PALLET_INDEX: u8 = 5;
+/// System=0, Timestamp=1, Aura=2, Grandpa=3, Balances=4, TransactionPayment=5,
+/// Sudo=6, QbcDilithium=7, QbcUtxo=8, QbcEconomics=9, QbcConsensus=10
+const CONSENSUS_PALLET_INDEX: u8 = 10;
 
 #[derive(Debug, Clone)]
 pub struct MinerConfig {
