@@ -231,14 +231,10 @@ pub mod pallet {
         /// - Adjusts difficulty using chain timestamp (not user-supplied)
         /// - Stores SUSY solution
         #[pallet::call_index(0)]
-        // Analytical weight: VQE proof validation (100µs) + Hamiltonian verification (200µs)
-        // + difficulty read (25µs) + coinbase UTXO write (25µs) + SUSY solution write (25µs)
-        // + difficulty adjustment (50µs) + proof hash check (25µs) + rate limit check (25µs)
-        // + fee accumulation read+reset (50µs) + SUSY pruning (25µs)
-        // + 9 storage writes (225µs) = ~750µs ≈ 750_000
-        // NOTE: These are analytical estimates and should be replaced with
-        // benchmarked weights before mainnet.
-        #[pallet::weight(750_000)]
+        // Mining proofs are fee-free: miners should not need pre-existing balance
+        // to submit valid proofs. The proof itself is the "payment" — verified VQE
+        // work. Rate limiting (1 proof/block/miner) + replay prevention prevent spam.
+        #[pallet::weight((750_000, DispatchClass::Normal, Pays::No))]
         pub fn submit_mining_proof(
             origin: OriginFor<T>,
             _miner_address: Address,
