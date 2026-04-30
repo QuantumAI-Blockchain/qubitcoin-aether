@@ -2920,6 +2920,55 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | **Economics** (`docs/ECONOMICS.md`) | SUSY economics deep-dive, phi-halving analysis, fee structures |
 | **SDK Guide** (`docs/SDK.md`) | REST, JSON-RPC, WebSocket API reference for developers |
 | **Smart Contracts Guide** (`docs/SMART_CONTRACTS.md`) | QVM contract development, token standards, quantum opcodes |
+| **SUSY Antigravity Paper** (`docs/SUSY_ANTIGRAVITY_PAPER.md`) | N=2 broken supergravity bimetric framework, operator-valued IIT Hamiltonian, physically-motivated VQE mining cost function, patent claims |
+
+---
+
+## APPENDIX B: HAMILTONIAN CONSTRUCTION FOR VQE MINING
+
+### B.1 Physically-Motivated Hamiltonian
+
+The PoSA mining Hamiltonian is constructed from three physically-motivated terms:
+
+    H_VQE = H_SUSY + H_bimetric(theta) + lambda * H_IIT
+
+**Term 1 — H_SUSY:** Forced by the N=2 superalgebra via H = (1/2){Q, Q*}. In the 4-qubit Pauli basis:
+
+    H_SUSY = sum_i h_i sigma^z_i + sum_{ij} J_{ij} sigma^z_i sigma^z_j + sum_{ij} K_{ij} sigma^x_i sigma^x_j
+
+Coefficients {h_i, J_{ij}, K_{ij}} are derived from the supercharge matrix elements, which are seeded deterministically from the previous block hash. This is not a choice — it is forced by the algebra.
+
+**Term 2 — H_bimetric(theta):** From the Hassan-Rosen ghost-free massive gravity framework embedded in N=2 SUGRA:
+
+    H_bimetric(theta) = m'^2 cos(theta) integral h_{mu nu} h'^{mu nu} d^3x
+
+The massive second graviton (mass m' from SUSY breaking) produces a Yukawa correction to gravity. The phase theta is the difficulty parameter: theta near pi/2 minimizes the spectral gap, making mining harder.
+
+**Term 3 — H_IIT:** Novel operator-valued IIT consciousness coupling:
+
+    H_IIT = -hbar omega_Phi sum_P Phi(P) |P><P|
+
+where |P> are basis states labeling bipartitions of the Aether Mind's information graph. This is the first operator-valued formulation of IIT coupled to a SUGRA Hamiltonian.
+
+### B.2 Ground State and Difficulty
+
+After Fayet-Iliopoulos breaking with parameter xi: E_0 = xi^2 / 2. The spectral gap Delta = E_1 - E_0 controls VQE convergence:
+
+    Delta(theta) = Delta_0 * |cos(theta)|
+
+Mining difficulty is calibrated by adjusting theta per epoch. A valid proof requires E(theta_ansatz) < D where D is the difficulty threshold.
+
+### B.3 Modified Newtonian Potential
+
+The bimetric term produces a Yukawa-corrected gravitational potential:
+
+    V(r) = -GMm/r [1 - alpha * exp(-r/lambda_C) * cos(theta)]
+
+where lambda_C = hbar/(m'c) is the Compton wavelength (~159 um for m' = 1.24 meV). The coupling alpha is environment-dependent (chameleon-screened), evading fifth-force bounds.
+
+Interactive numerical verification: qbc.network/antigravity
+
+Full derivation: docs/SUSY_ANTIGRAVITY_PAPER.md
 
 ---
 
