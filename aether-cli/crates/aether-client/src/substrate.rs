@@ -283,23 +283,46 @@ impl SubstrateClient {
         Ok(hash)
     }
 
-    /// Encode a submit_mining_proof call.
+    /// Encode a submit_mining_proof call (unsigned format with embedded signature).
+    ///
+    /// Call signature (post spec_version 101):
+    ///   submit_mining_proof(vqe_proof: VqeProof, miner_public_key: [u8;32], miner_signature: [u8;64])
     pub fn encode_mining_proof_call(
         pallet_index: u8,
-        miner_address: [u8; 32],
         proof: VqeProofEncoded,
+        miner_public_key: [u8; 32],
+        miner_signature: [u8; 64],
     ) -> Vec<u8> {
         let mut call = Vec::new();
         call.push(pallet_index);
         call.push(0); // call_index(0) = submit_mining_proof
 
-        // Address([u8; 32]) — raw 32 bytes
-        call.extend_from_slice(&miner_address);
-
         // VqeProof — SCALE encoded struct
         call.extend_from_slice(&proof.encode());
 
+        // miner_public_key: [u8; 32] — raw fixed-size array
+        call.extend_from_slice(&miner_public_key);
+
+        // miner_signature: [u8; 64] — raw fixed-size array
+        call.extend_from_slice(&miner_signature);
+
         call
+    }
+
+    /// Build an unsigned extrinsic (version 0x04 — no signer, no fee).
+    /// Used for mining proof submission which bypasses the fee system entirely.
+    pub fn build_unsigned_extrinsic(call_data: &[u8]) -> Vec<u8> {
+        let mut body = Vec::new();
+        // Version: 0x04 = unsigned extrinsic, format version 4
+        body.push(0x04);
+        body.extend_from_slice(call_data);
+
+        // Compact-length prefix
+        let mut extrinsic = Vec::new();
+        compact_encode(&mut extrinsic, body.len() as u64);
+        extrinsic.extend_from_slice(&body);
+
+        extrinsic
     }
 
     /// Encode a submit_transaction call (UTXO transfer).

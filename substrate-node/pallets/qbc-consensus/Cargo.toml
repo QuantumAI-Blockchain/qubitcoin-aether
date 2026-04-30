@@ -18,10 +18,10 @@ pallet-qbc-economics = { workspace = true }
 pallet-qbc-utxo = { workspace = true }
 pallet-timestamp = { workspace = true }
 vqe-verifier = { workspace = true }
+sp-io = { workspace = true }
 log = { workspace = true }
 
 [dev-dependencies]
-sp-io = { workspace = true, features = ["std"] }
 sha2 = "0.10"
 hex = "0.4"
 pallet-qbc-dilithium = { workspace = true, features = ["std"] }
@@ -41,6 +41,7 @@ std = [
     "pallet-qbc-utxo/std",
     "pallet-timestamp/std",
     "vqe-verifier/std",
+    "sp-io/std",
 ]
 runtime-benchmarks = ["frame-support/runtime-benchmarks", "frame-system/runtime-benchmarks"]
 try-runtime = ["frame-support/try-runtime", "frame-system/try-runtime"]

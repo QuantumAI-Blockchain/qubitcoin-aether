@@ -104,7 +104,6 @@ impl qbc_mining::ProofSubmitter for SubstrateProofSubmitter {
         hamiltonian_seed: sp_core::H256,
         n_qubits: u8,
     ) -> Result<sp_core::H256, String> {
-        use sp_keyring::Sr25519Keyring;
         use sp_runtime::BoundedVec;
         use sp_runtime::traits::ConstU32;
 
@@ -119,105 +118,55 @@ impl qbc_mining::ProofSubmitter for SubstrateProofSubmitter {
             n_qubits,
         };
 
-        // The miner_address parameter is ignored by the pallet (it derives
-        // the address from the signed origin), but we must pass it for the call.
-        let miner_address = qbc_primitives::Address([0u8; 32]);
-
-        // Construct the RuntimeCall for submit_mining_proof
-        let call = qbc_runtime::RuntimeCall::QbcConsensus(
-            pallet_qbc_consensus::Call::submit_mining_proof {
-                miner_address,
-                vqe_proof: proof,
-            },
-        );
-
-        let best_hash = self.client.info().best_hash;
-
-        // Get signer public key from keystore (AURA key) or fall back to Alice
-        let signer_pub = {
-            let keys = sp_keystore::Keystore::sr25519_public_keys(
-                &*self.keystore,
-                sp_core::crypto::key_types::AURA,
-            );
+        // Get or generate an Ed25519 keypair for mining proof signatures.
+        // Uses the keystore with a dedicated MINE key type.
+        const MINE_KEY_TYPE: sp_core::crypto::KeyTypeId = sp_core::crypto::KeyTypeId(*b"mine");
+        let ed25519_pub = {
+            let ks = &*self.keystore;
+            let keys = ks.ed25519_public_keys(MINE_KEY_TYPE);
             if let Some(pub_key) = keys.first() {
                 *pub_key
             } else {
-                Sr25519Keyring::Alice.public()
+                // Generate a new Ed25519 key for mining
+                ks.ed25519_generate_new(MINE_KEY_TYPE, None)
+                    .map_err(|e| format!("Failed to generate mining key: {:?}", e))?
             }
         };
 
-        let account_id: qbc_runtime::AccountId = signer_pub.into();
+        // Build the signing message (must match pallet's mining_proof_signing_message)
+        let mut msg = Vec::new();
+        msg.extend_from_slice(b"qbc-mining-v1:");
+        msg.extend_from_slice(proof.hamiltonian_seed.as_ref());
+        msg.extend_from_slice(&proof.energy.to_le_bytes());
+        for p in proof.params.iter() {
+            msg.extend_from_slice(&p.to_le_bytes());
+        }
+        msg.push(proof.n_qubits);
 
-        // Get the account nonce via runtime API
-        let nonce: qbc_runtime::Nonce = {
-            use frame_system_rpc_runtime_api::AccountNonceApi;
-            self.client
-                .runtime_api()
-                .account_nonce(best_hash, account_id.clone())
-                .map_err(|e| format!("Failed to get nonce: {:?}", e))?
-        };
+        // Sign with Ed25519
+        let ks = &*self.keystore;
+        let signature = ks.ed25519_sign(
+            MINE_KEY_TYPE,
+            &ed25519_pub,
+            &msg,
+        )
+        .map_err(|e| format!("Mining key sign error: {:?}", e))?
+        .ok_or_else(|| "Mining key not found in keystore".to_string())?;
 
-        // Get genesis hash and runtime version for the signed extra
-        let genesis_hash = self.client
-            .hash(0u32.into())
-            .map_err(|e| format!("Failed to get genesis hash: {:?}", e))?
-            .ok_or_else(|| "Genesis block not found".to_string())?;
+        let miner_public_key: [u8; 32] = ed25519_pub.0;
+        let miner_signature: [u8; 64] = signature.0;
 
-        let spec_version = qbc_runtime::VERSION.spec_version;
-        let transaction_version = qbc_runtime::VERSION.transaction_version;
-
-        // Construct SignedExtra (must match runtime's SignedExtra type exactly)
-        let extra: qbc_runtime::SignedExtra = (
-            frame_system::CheckNonZeroSender::new(),
-            frame_system::CheckSpecVersion::new(),
-            frame_system::CheckTxVersion::new(),
-            frame_system::CheckGenesis::new(),
-            frame_system::CheckEra::from(sp_runtime::generic::Era::Immortal),
-            frame_system::CheckNonce::from(nonce),
-            frame_system::CheckWeight::new(),
-            pallet_transaction_payment::ChargeTransactionPayment::from(0u128),
+        // Construct the unsigned RuntimeCall for submit_mining_proof
+        let call = qbc_runtime::RuntimeCall::QbcConsensus(
+            pallet_qbc_consensus::Call::submit_mining_proof {
+                vqe_proof: proof,
+                miner_public_key,
+                miner_signature,
+            },
         );
 
-        // Build the raw payload to sign: (call, extra, additional_signed)
-        // additional_signed = ((), spec_version, tx_version, genesis_hash, genesis_hash, (), (), ())
-        let additional_signed = (
-            (),                    // CheckNonZeroSender
-            spec_version,          // CheckSpecVersion
-            transaction_version,   // CheckTxVersion
-            genesis_hash,          // CheckGenesis
-            genesis_hash,          // CheckEra (immortal → genesis_hash)
-            (),                    // CheckNonce
-            (),                    // CheckWeight
-            (),                    // ChargeTransactionPayment
-        );
-
-        let raw_payload = (&call, &extra, &additional_signed);
-        let signature = raw_payload.using_encoded(|payload| {
-            // If > 256 bytes, hash first (Substrate convention)
-            let msg = if payload.len() > 256 {
-                sp_core::hashing::blake2_256(payload).to_vec()
-            } else {
-                payload.to_vec()
-            };
-            sp_keystore::Keystore::sr25519_sign(
-                &*self.keystore,
-                sp_core::crypto::key_types::AURA,
-                &signer_pub,
-                &msg,
-            )
-        })
-        .map_err(|e| format!("Keystore sign error: {:?}", e))?
-        .ok_or_else(|| "Key not found in keystore".to_string())?;
-
-        let multi_sig = sp_runtime::MultiSignature::Sr25519(signature);
-
-        // Build the unchecked extrinsic
-        let extrinsic = qbc_runtime::UncheckedExtrinsic::new_signed(
-            call,
-            sp_runtime::MultiAddress::Id(account_id),
-            multi_sig,
-            extra,
-        );
+        // Build unsigned extrinsic — no fees, no nonce, no signing payload
+        let extrinsic = qbc_runtime::UncheckedExtrinsic::new_bare(call);
 
         // Compute a hash for logging
         let encoded = extrinsic.encode();
@@ -232,6 +181,7 @@ impl qbc_mining::ProofSubmitter for SubstrateProofSubmitter {
 
         // Submit to the transaction pool
         use sc_transaction_pool_api::TransactionPool;
+        let best_hash = self.client.info().best_hash;
         let submit_future = self.pool.submit_one(
             best_hash,
             sp_runtime::transaction_validity::TransactionSource::Local,
@@ -247,7 +197,7 @@ impl qbc_mining::ProofSubmitter for SubstrateProofSubmitter {
             Ok(_) => {
                 log::info!(
                     target: "mining",
-                    "Mining proof submitted to pool: energy={}, n_qubits={}, tx_hash={:?}",
+                    "Mining proof submitted to pool (unsigned): energy={}, n_qubits={}, tx_hash={:?}",
                     energy, n_qubits, tx_hash
                 );
                 Ok(tx_hash)

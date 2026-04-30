@@ -141,25 +141,9 @@ pub fn start(config: MinerConfig) -> MinerHandle {
             let miner_address = account_to_miner_address(&account_id);
 
             info!(
-                "[miner-{thread_id}] VQE mining thread started (account: 0x{})",
+                "[miner-{thread_id}] VQE mining thread started (account: 0x{}, unsigned mode)",
                 hex::encode(&account_id[..8])
             );
-
-            // Fetch runtime metadata once
-            let (spec_version, tx_version) = match substrate.get_runtime_version().await {
-                Ok(v) => v,
-                Err(e) => {
-                    warn!("[miner-{thread_id}] Failed to get runtime version: {e}. Using defaults.");
-                    (1, 1)
-                }
-            };
-            let genesis_hash = match substrate.get_genesis_hash().await {
-                Ok(h) => h,
-                Err(e) => {
-                    warn!("[miner-{thread_id}] Failed to get genesis hash: {e}. Using zeros.");
-                    [0u8; 32]
-                }
-            };
 
             let mut last_hash = String::new();
 
@@ -226,7 +210,7 @@ pub fn start(config: MinerConfig) -> MinerHandle {
                             elapsed.as_secs_f64() * 1000.0
                         );
 
-                        // Build proper SCALE-encoded signed extrinsic
+                        // Build SCALE-encoded unsigned extrinsic with embedded signature
                         let scaled_params: Vec<i64> = result.params.iter()
                             .map(|&p| (p * ENERGY_SCALE) as i64)
                             .collect();
@@ -239,43 +223,22 @@ pub fn start(config: MinerConfig) -> MinerHandle {
                             n_qubits: 4,
                         };
 
-                        // Encode the call
+                        // Sign the proof data — binds miner identity to VQE work.
+                        // Message format must match pallet's mining_proof_signing_message().
+                        let proof_msg = build_mining_proof_message(&proof);
+                        let proof_sig = signing_key.sign(&proof_msg);
+                        let sig_bytes: [u8; 64] = proof_sig.to_bytes();
+
+                        // Encode the call with embedded signature
                         let call_data = SubstrateClient::encode_mining_proof_call(
                             CONSENSUS_PALLET_INDEX,
-                            miner_address,
                             proof,
+                            account_id,
+                            sig_bytes,
                         );
 
-                        // Get nonce
-                        let nonce = match substrate.get_nonce(&format!("0x{}", hex::encode(account_id))).await {
-                            Ok(n) => n,
-                            Err(e) => {
-                                warn!("[miner-{thread_id}] Failed to get nonce: {e}");
-                                0
-                            }
-                        };
-
-                        // Build signing payload
-                        let payload = SubstrateClient::build_signing_payload(
-                            &call_data,
-                            nonce,
-                            spec_version,
-                            tx_version,
-                            &genesis_hash,
-                        );
-
-                        // Sign with Ed25519
-                        let signature = signing_key.sign(&payload);
-                        let sig_bytes: [u8; 64] = signature.to_bytes();
-
-                        // Build the complete signed extrinsic
-                        let extrinsic = SubstrateClient::build_signed_extrinsic(
-                            &call_data,
-                            &account_id,
-                            &sig_bytes,
-                            nonce,
-                        );
-
+                        // Build unsigned extrinsic — no fees, no nonce, no signing payload
+                        let extrinsic = SubstrateClient::build_unsigned_extrinsic(&call_data);
                         let ext_hex = format!("0x{}", hex::encode(&extrinsic));
 
                         match substrate.submit_extrinsic(&ext_hex).await {
@@ -320,4 +283,18 @@ pub fn start(config: MinerConfig) -> MinerHandle {
         difficulty,
         join_handles: handles,
     }
+}
+
+/// Build the signing message for a mining proof.
+/// Must match the pallet's `mining_proof_signing_message()` exactly.
+fn build_mining_proof_message(proof: &VqeProofEncoded) -> Vec<u8> {
+    let mut msg = Vec::new();
+    msg.extend_from_slice(b"qbc-mining-v1:");
+    msg.extend_from_slice(&proof.hamiltonian_seed);
+    msg.extend_from_slice(&proof.energy.to_le_bytes());
+    for p in &proof.params {
+        msg.extend_from_slice(&p.to_le_bytes());
+    }
+    msg.push(proof.n_qubits);
+    msg
 }

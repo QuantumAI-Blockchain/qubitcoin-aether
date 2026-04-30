@@ -7,6 +7,10 @@
 //! - Create coinbase UTXOs via pallet-qbc-utxo
 //! - Store Hamiltonian solutions in SUSY database
 //!
+//! Mining proofs are submitted as UNSIGNED extrinsics with an embedded
+//! Ed25519 signature binding the miner's identity to their VQE work.
+//! This means miners never need pre-existing balance — the proof IS the work.
+//!
 //! FORK-PREVENTION: Seed derivation, coinbase txid, and difficulty adjustment
 //! are aligned with the Python node (consensus/engine.py) to prevent chain forks
 //! when both node implementations co-exist on the network.
@@ -26,6 +30,10 @@ pub mod pallet {
     use qbc_primitives::*;
     use sp_core::H256;
     use sp_runtime::BoundedVec;
+    use sp_runtime::transaction_validity::{
+        InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
+        ValidTransaction,
+    };
 
     /// Maximum VQE parameters per proof.
     pub const MAX_VQE_PARAMS: u32 = 32;
@@ -197,6 +205,8 @@ pub mod pallet {
         /// VQE energy re-verification failed — submitted energy does not match
         /// re-computation from the submitted parameters and Hamiltonian seed.
         EnergyVerificationFailed,
+        /// Ed25519 signature over the mining proof is invalid.
+        InvalidMinerSignature,
     }
 
     #[pallet::genesis_config]
@@ -217,42 +227,54 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Submit a VQE mining proof.
+        /// Submit a VQE mining proof (UNSIGNED — no fees required).
+        ///
+        /// The miner proves their identity via an Ed25519 signature embedded
+        /// in the call data, binding their public key to the VQE work. The
+        /// miner's QBC address is derived from this public key.
         ///
         /// Validates:
-        /// 1. Hamiltonian seed matches derived value from previous block hash
-        /// 2. Ground state energy < current difficulty threshold
-        /// 3. VQE parameters are valid (n_qubits > 0, non-empty params)
-        /// 4. Proof is unique (not a replay of a previous proof)
-        /// 5. Rate limiting: one proof per block per miner
+        /// 1. Ed25519 signature binds miner identity to proof
+        /// 2. Hamiltonian seed matches derived value from previous block hash
+        /// 3. Ground state energy < current difficulty threshold
+        /// 4. VQE parameters are valid (n_qubits > 0, non-empty params)
+        /// 5. Proof is unique (not a replay of a previous proof)
+        /// 6. Rate limiting: one proof per block per miner
+        /// 7. VQE energy re-verification (recompute from params + seed)
         ///
         /// On success:
         /// - Creates coinbase UTXO for miner
         /// - Adjusts difficulty using chain timestamp (not user-supplied)
         /// - Stores SUSY solution
         #[pallet::call_index(0)]
-        // Mining proofs are fee-free: miners should not need pre-existing balance
-        // to submit valid proofs. The proof itself is the "payment" — verified VQE
-        // work. Rate limiting (1 proof/block/miner) + replay prevention prevent spam.
         #[pallet::weight((750_000, DispatchClass::Normal, Pays::No))]
         pub fn submit_mining_proof(
             origin: OriginFor<T>,
-            _miner_address: Address,
             vqe_proof: VqeProof,
+            miner_public_key: [u8; 32],
+            miner_signature: [u8; 64],
         ) -> DispatchResult {
-            // SECURITY: Derive miner_address from the transaction origin.
-            // The submitter IS the miner — they cannot submit on behalf of
-            // someone else. The `_miner_address` parameter is kept for API
-            // compatibility but is ignored; the canonical address is derived
-            // from the caller's AccountId.
-            let caller = ensure_signed(origin)?;
-            let miner_address = Self::account_to_address(&caller);
+            ensure_none(origin)?;
 
+            // ── Ed25519 Signature Verification ────────────────────────────
+            // The miner signs the proof data with their Ed25519 key, binding
+            // their identity to the VQE work. This prevents proof theft where
+            // an attacker intercepts a broadcast proof and resubmits it with
+            // their own address.
+            let msg = Self::mining_proof_signing_message(&vqe_proof);
+            let sig = sp_core::ed25519::Signature::from_raw(miner_signature);
+            let pubkey = sp_core::ed25519::Public::from_raw(miner_public_key);
+            ensure!(
+                sp_io::crypto::ed25519_verify(&sig, &msg, &pubkey),
+                Error::<T>::InvalidMinerSignature
+            );
+
+            // Derive miner address from public key (SHA-256, matches pallet convention)
+            let miner_address = Self::pubkey_to_address(&miner_public_key);
             let block_height = pallet_qbc_utxo::Pallet::<T>::current_height() + 1;
             let difficulty = CurrentDifficulty::<T>::get();
 
             // ── VQE Parameter Validation ─────────────────────────────────
-            // Reject proofs with no qubits or empty parameter vectors
             ensure!(
                 vqe_proof.n_qubits > 0,
                 Error::<T>::InvalidVqeParams
@@ -263,8 +285,6 @@ pub mod pallet {
             );
 
             // ── Hamiltonian Seed Verification ────────────────────────────
-            // The seed must be deterministically derived from the parent block hash.
-            // This prevents miners from choosing a favorable Hamiltonian.
             let expected_seed = Self::derive_hamiltonian_seed(block_height);
             ensure!(
                 vqe_proof.hamiltonian_seed == expected_seed,
@@ -272,9 +292,6 @@ pub mod pallet {
             );
 
             // ── Replay Prevention ────────────────────────────────────────
-            // Compute a unique hash of this proof and check against the set of
-            // recent proof hashes (last MAX_RECENT_PROOF_HASHES entries).
-            // This prevents replay of ANY recent proof, not just the last one.
             let proof_hash = Self::compute_proof_hash(&vqe_proof, &miner_address, block_height);
             ensure!(
                 !RecentProofHashes::<T>::contains_key(&proof_hash),
@@ -282,7 +299,6 @@ pub mod pallet {
             );
 
             // ── Rate Limiting ────────────────────────────────────────────
-            // Only one mining proof per block height per miner
             let last_block = LastMinerBlock::<T>::get(&miner_address);
             ensure!(
                 block_height > last_block,
@@ -290,30 +306,14 @@ pub mod pallet {
             );
 
             // ── Energy Threshold Check ───────────────────────────────────
-            // Energy is negative (ground state), difficulty is positive.
-            // energy (scaled by 10^12) must be < difficulty (scaled by 10^6) * 10^6
-            //
-            // FORK-PREVENTION: Energy validation tolerance (matches Python node).
-            // When the Substrate node re-computes VQE energy to verify a proof
-            // from the Python node, floating-point drift between Qiskit versions
-            // or platform differences can cause small energy discrepancies.
-            // ENERGY_VALIDATION_TOLERANCE (1e-3 scaled to 10^6 = 1000) provides
-            // slack: abs(submitted_energy - recomputed_energy) <= tolerance is
-            // acceptable. For the threshold check, we add the tolerance to the
-            // threshold so borderline proofs from the Python node are not
-            // rejected due to rounding differences.
             let difficulty_threshold = (difficulty as i128) * 1_000_000;
-            let tolerance_scaled = (ENERGY_VALIDATION_TOLERANCE as i128) * 1_000_000; // scale to 10^12
+            let tolerance_scaled = (ENERGY_VALIDATION_TOLERANCE as i128) * 1_000_000;
             ensure!(
                 vqe_proof.energy < difficulty_threshold.saturating_add(tolerance_scaled),
                 Error::<T>::EnergyAboveDifficulty
             );
 
             // ── VQE Proof Re-Verification ─────────────────────────────────
-            // Re-derive the Hamiltonian from the seed, apply the submitted
-            // parameters to the ansatz, and verify the computed energy matches
-            // the claimed energy within tolerance.  This prevents malicious
-            // miners from submitting arbitrary energy values below threshold.
             let params_vec: sp_std::vec::Vec<i64> = vqe_proof.params.to_vec();
             ensure!(
                 vqe_verifier::verify_energy(
@@ -325,15 +325,11 @@ pub mod pallet {
             );
 
             // ── Chain Timestamp ──────────────────────────────────────────
-            // Use the chain's timestamp from pallet_timestamp instead of any
-            // user-supplied value. This prevents timestamp manipulation attacks
-            // that could skew difficulty adjustment.
             let chain_timestamp_ms = pallet_timestamp::Pallet::<T>::now();
 
             // Calculate reward and include accumulated transaction fees
             let reward = pallet_qbc_economics::Pallet::<T>::calculate_reward(block_height);
             pallet_qbc_economics::Pallet::<T>::on_block_authored(block_height);
-            // Finalize fees with 50% burn — returns the miner's share (50%)
             let miner_fee_share = pallet_qbc_utxo::Pallet::<T>::finalize_fees_with_burn();
             let total_reward = reward.saturating_add(miner_fee_share);
 
@@ -363,13 +359,8 @@ pub mod pallet {
             RecentProofHashCount::<T>::mutate(|count| {
                 *count = count.saturating_add(1);
 
-                // Prune oldest entries if we exceed the limit.
-                // We prune by removing entries from the oldest tracked block height
-                // until we are back under the limit.
                 while *count > MAX_RECENT_PROOF_HASHES {
                     let oldest = ProofHashOldestBlock::<T>::get();
-                    // Remove all proof hashes at the oldest block height by
-                    // iterating. In practice each block has 1 proof, so this is O(1).
                     let mut removed_any = false;
                     let mut to_remove = sp_std::vec::Vec::new();
                     for (hash, height) in RecentProofHashes::<T>::iter() {
@@ -385,7 +376,6 @@ pub mod pallet {
                     if removed_any {
                         ProofHashOldestBlock::<T>::put(oldest.saturating_add(1));
                     } else {
-                        // Safety: if nothing was removed, bump oldest to avoid infinite loop
                         ProofHashOldestBlock::<T>::put(oldest.saturating_add(1));
                         break;
                     }
@@ -417,17 +407,90 @@ pub mod pallet {
         }
     }
 
+    // ── ValidateUnsigned ─────────────────────────────────────────────────
+    // Mining proofs are unsigned extrinsics. The miner's Ed25519 signature
+    // embedded in the call data provides authentication without requiring
+    // any on-chain balance for transaction fees.
+
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+
+        fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            let Call::submit_mining_proof {
+                vqe_proof,
+                miner_public_key,
+                miner_signature,
+            } = call else {
+                return InvalidTransaction::Call.into();
+            };
+
+            // 1. Basic parameter validation (cheap, no storage reads)
+            if vqe_proof.n_qubits == 0 || vqe_proof.params.is_empty() {
+                return InvalidTransaction::Custom(1).into();
+            }
+
+            // 2. Verify Ed25519 signature — proves miner identity
+            let msg = Pallet::<T>::mining_proof_signing_message(vqe_proof);
+            let sig = sp_core::ed25519::Signature::from_raw(*miner_signature);
+            let pubkey = sp_core::ed25519::Public::from_raw(*miner_public_key);
+            if !sp_io::crypto::ed25519_verify(&sig, &msg, &pubkey) {
+                return InvalidTransaction::BadProof.into();
+            }
+
+            // 3. Energy must be below difficulty threshold (lightweight check)
+            let difficulty = CurrentDifficulty::<T>::get();
+            let difficulty_threshold = (difficulty as i128) * 1_000_000;
+            let tolerance_scaled = (ENERGY_VALIDATION_TOLERANCE as i128) * 1_000_000;
+            if vqe_proof.energy >= difficulty_threshold.saturating_add(tolerance_scaled) {
+                return InvalidTransaction::Custom(2).into();
+            }
+
+            // NOTE: Hamiltonian seed verification is SKIPPED here because
+            // parent_hash() during tx pool validation returns the parent of the
+            // best block (H-1), not the parent of the block being mined (H).
+            // The seed is fully validated during dispatch (inside block execution)
+            // where parent_hash() correctly returns the mining block's parent.
+
+            // 4. Rate limiting — one proof per block per miner
+            let block_height = pallet_qbc_utxo::Pallet::<T>::current_height() + 1;
+            let miner_address = Pallet::<T>::pubkey_to_address(miner_public_key);
+            let last_block = LastMinerBlock::<T>::get(&miner_address);
+            if block_height <= last_block {
+                return InvalidTransaction::Stale.into();
+            }
+
+            // Valid — highest priority, propagate to peers
+            ValidTransaction::with_tag_prefix("QbcMiningProof")
+                .priority(TransactionPriority::MAX)
+                .longevity(5)
+                .and_provides(("mining_proof", block_height, miner_address))
+                .propagate(true)
+                .build()
+        }
+    }
+
     impl<T: Config> Pallet<T> {
-        /// Convert a Substrate AccountId to a QBC Address.
-        ///
-        /// Uses the SCALE-encoded bytes of the AccountId and hashes them with
-        /// SHA2-256 to produce a deterministic QBC address. Matches the same
-        /// derivation used in pallet-qbc-reversibility.
-        fn account_to_address(account: &T::AccountId) -> Address {
-            use codec::Encode;
+        /// Build the message that the miner must sign with Ed25519.
+        /// Deterministic serialization of all proof fields.
+        pub(crate) fn mining_proof_signing_message(proof: &VqeProof) -> sp_std::vec::Vec<u8> {
+            let mut msg = sp_std::vec::Vec::new();
+            msg.extend_from_slice(b"qbc-mining-v1:");
+            msg.extend_from_slice(proof.hamiltonian_seed.as_bytes());
+            msg.extend_from_slice(&proof.energy.to_le_bytes());
+            for p in proof.params.iter() {
+                msg.extend_from_slice(&p.to_le_bytes());
+            }
+            msg.push(proof.n_qubits);
+            msg
+        }
+
+        /// Derive a QBC Address from an Ed25519 public key.
+        /// SHA-256 of the raw 32-byte public key (same as account_to_address
+        /// since AccountId32 SCALE-encodes as raw 32 bytes).
+        pub(crate) fn pubkey_to_address(pubkey: &[u8; 32]) -> Address {
             use sp_core::hashing::sha2_256;
-            let encoded = account.encode();
-            Address(sha2_256(&encoded))
+            Address(sha2_256(pubkey))
         }
 
         /// Derive the expected Hamiltonian seed from the parent block hash.
@@ -443,22 +506,16 @@ pub mod pallet {
         pub(crate) fn derive_hamiltonian_seed(block_height: u64) -> H256 {
             use sp_core::hashing::sha2_256;
             let parent_hash = <frame_system::Pallet<T>>::parent_hash();
-            // Format: "{hex_of_parent_hash}:{block_height}" — matches Python's
-            // f"{prev_hash}:{height}" where prev_hash is hex-encoded.
             let hex_str = Self::bytes_to_hex(parent_hash.as_ref());
             let mut data = sp_std::vec::Vec::new();
             data.extend_from_slice(&hex_str);
             data.push(b':');
-            // Decimal string of block_height — matches Python's str(height)
             let height_str = Self::u64_to_decimal_bytes(block_height);
             data.extend_from_slice(&height_str);
             H256::from(sha2_256(&data))
         }
 
         /// Compute a unique hash of the mining proof for replay prevention.
-        ///
-        /// Includes the VQE proof data, miner address, and block height so that
-        /// the same proof cannot be replayed at a different height or by a different miner.
         pub(crate) fn compute_proof_hash(proof: &VqeProof, miner: &Address, block_height: u64) -> H256 {
             use sp_core::hashing::sha2_256;
             let mut data = sp_std::vec::Vec::new();
@@ -487,9 +544,6 @@ pub mod pallet {
         /// - Floor (0.5) and ceiling (1000.0) enforced
         pub(crate) fn adjust_difficulty(timestamp_ms: u64, block_height: u64) {
             // ── One-Time Difficulty Resets (fork-prevention) ────────────
-            // These match the Python node's historical difficulty resets.
-            // Without these, the Substrate node would diverge from the
-            // existing chain at these exact heights.
             if block_height == DIFFICULTY_RESET_HEIGHT_167
                 || block_height == DIFFICULTY_RESET_HEIGHT_724
                 || block_height == DIFFICULTY_RESET_HEIGHT_2750
@@ -502,7 +556,6 @@ pub mod pallet {
                     new_difficulty: INITIAL_DIFFICULTY,
                     block_height,
                 });
-                // Still record the timestamp for future window calculations
                 BlockTimestamps::<T>::mutate(|timestamps| {
                     if timestamps.try_push(timestamp_ms).is_err() {
                         if !timestamps.is_empty() {
@@ -517,7 +570,6 @@ pub mod pallet {
             // Add timestamp to window
             BlockTimestamps::<T>::mutate(|timestamps| {
                 if timestamps.try_push(timestamp_ms).is_err() {
-                    // Window full — remove oldest
                     if !timestamps.is_empty() {
                         timestamps.remove(0);
                     }
@@ -529,44 +581,33 @@ pub mod pallet {
                     return;
                 }
 
-                // Calculate actual time for the window
                 let window_size = len.min(DIFFICULTY_WINDOW as usize);
                 let oldest = timestamps[len - window_size];
                 let newest = timestamps[len - 1];
                 let actual_time_ms = newest.saturating_sub(oldest);
 
-                // Expected time: window_size * TARGET_BLOCK_TIME_MS
                 let expected_time_ms = (window_size as u64 - 1) * TARGET_BLOCK_TIME_MS;
 
                 if expected_time_ms == 0 {
                     return;
                 }
 
-                // ratio = actual / expected (scaled by 100)
                 let ratio_100 = (actual_time_ms * 100) / expected_time_ms;
 
                 let old_difficulty = CurrentDifficulty::<T>::get();
 
                 // ── Meaningful-max guard (fork-prevention) ─────────────
-                // When ratio > 100 (blocks are slow, want to raise difficulty)
-                // AND difficulty is already above 10.0 (10_000_000 scaled),
-                // hold steady. This prevents runaway difficulty when mining
-                // is compute-bound rather than difficulty-bound.
                 let ratio_100 = if ratio_100 > 100 && old_difficulty > DIFFICULTY_MEANINGFUL_MAX {
-                    100 // Hold steady — do not raise further
+                    100
                 } else {
                     ratio_100
                 };
 
-                // Clamp to ±10%: ratio must be in [90, 110]
+                // Clamp to ±10%
                 let clamped = ratio_100.max(MIN_ADJUSTMENT_FACTOR as u64).min(MAX_ADJUSTMENT_FACTOR as u64);
 
-                // new_difficulty = old_difficulty * clamped / 100
                 let new_difficulty = (old_difficulty as u128 * clamped as u128 / 100) as u64;
 
-                // ── Floor and ceiling (fork-prevention) ────────────────
-                // Python has DIFFICULTY_FLOOR = 0.5 and DIFFICULTY_CEILING = 1000.0.
-                // Scaled by 10^6: floor = 500_000, ceiling = 1_000_000_000.
                 let new_difficulty = new_difficulty
                     .max(DIFFICULTY_FLOOR)
                     .min(DIFFICULTY_CEILING);
@@ -586,12 +627,10 @@ pub mod pallet {
         ///
         /// FORK-PREVENTION: Must match Python exactly:
         ///   `hashlib.sha256(f"coinbase-{height}-{prev_hash}".encode()).hexdigest()`
-        /// where height is decimal and prev_hash is lowercase hex.
         pub(crate) fn coinbase_txid(block_height: u64) -> H256 {
             use sp_core::hashing::sha2_256;
             let parent_hash = <frame_system::Pallet<T>>::parent_hash();
             let hex_str = Self::bytes_to_hex(parent_hash.as_ref());
-            // Format: "coinbase-{height}-{hex_of_parent_hash}"
             let mut data = sp_std::vec::Vec::new();
             data.extend_from_slice(b"coinbase-");
             let height_str = Self::u64_to_decimal_bytes(block_height);
@@ -602,7 +641,6 @@ pub mod pallet {
         }
 
         /// Convert a byte slice to lowercase hex string (no_std compatible).
-        /// Produces the same output as Python's `bytes.hex()`.
         pub(crate) fn bytes_to_hex(bytes: &[u8]) -> sp_std::vec::Vec<u8> {
             const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
             let mut hex = sp_std::vec::Vec::with_capacity(bytes.len() * 2);
@@ -614,7 +652,6 @@ pub mod pallet {
         }
 
         /// Convert a u64 to its decimal ASCII representation (no_std compatible).
-        /// Produces the same output as Python's `str(n)`.
         pub(crate) fn u64_to_decimal_bytes(mut n: u64) -> sp_std::vec::Vec<u8> {
             if n == 0 {
                 return sp_std::vec![b'0'];
