@@ -962,6 +962,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "bimetric-physics"
+version = "0.1.0"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "binary-merkle-tree"
 version = "16.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6533,6 +6540,7 @@ dependencies = [
 name = "pallet-qbc-consensus"
 version = "0.1.0"
 dependencies = [
+ "bimetric-physics",
  "frame-support",
  "frame-system",
  "hex",
@@ -7933,6 +7941,7 @@ dependencies = [
  "cobyla",
  "futures",
  "hex",
+ "libm",
  "log",
  "num-complex",
  "parity-scale-codec",
@@ -12899,6 +12908,7 @@ checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 name = "vqe-verifier"
 version = "0.1.0"
 dependencies = [
+ "bimetric-physics",
  "libm",
  "num-complex",
  "qbc-mining",

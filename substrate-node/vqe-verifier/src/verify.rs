@@ -87,6 +87,68 @@ pub fn verify_energy(
     diff <= TOLERANCE_SCALED
 }
 
+/// Verify VQE energy with version awareness.
+///
+/// - version 1: Uses v1 Hamiltonian (5 random Pauli terms)
+/// - version 2: Uses v2 SUGRA Hamiltonian (9 structured + random terms)
+///
+/// The `theta_scaled` parameter is only used for version 2 (ignored for v1).
+///
+/// # Arguments
+/// * `seed` - The Hamiltonian seed (H256, derived from parent block hash)
+/// * `params_scaled` - VQE parameters scaled by 10^12 (from `VqeProof.params`)
+/// * `claimed_energy_scaled` - Claimed energy scaled by 10^12 (from `VqeProof.energy`)
+/// * `theta_scaled` - Network bimetric theta in radians, scaled by 10^12
+/// * `version` - Hamiltonian version (1 = legacy, 2+ = SUGRA bimetric)
+///
+/// # Returns
+/// `true` if `|claimed_energy_scaled - computed_energy_scaled| <= TOLERANCE_SCALED`
+pub fn verify_energy_versioned(
+    seed: &H256,
+    params_scaled: &[i64],
+    claimed_energy_scaled: i128,
+    theta_scaled: i64,
+    version: u8,
+) -> bool {
+    // Validate parameter count
+    if params_scaled.len() != ansatz::N_PARAMS {
+        return false;
+    }
+
+    // Unscale parameters
+    let params: Vec<f64> = params_scaled
+        .iter()
+        .map(|&p| p as f64 / SCALE_FACTOR)
+        .collect();
+
+    // Generate appropriate Hamiltonian
+    let ham = match version {
+        1 => hamiltonian::generate_hamiltonian(seed),
+        _ => {
+            let theta = theta_scaled as f64 / SCALE_FACTOR;
+            hamiltonian::generate_hamiltonian_v2(seed, theta)
+        }
+    };
+
+    // Initialize statevector and apply ansatz
+    let mut sv = Statevector::new(ansatz::N_QUBITS);
+    if !ansatz::apply_ansatz(&mut sv, &params) {
+        return false;
+    }
+
+    // Compute and compare energy
+    let computed_energy = hamiltonian::compute_energy(&ham, &sv);
+    let computed_scaled = (computed_energy * SCALE_FACTOR) as i128;
+
+    let diff = if claimed_energy_scaled > computed_scaled {
+        claimed_energy_scaled - computed_scaled
+    } else {
+        computed_scaled - claimed_energy_scaled
+    };
+
+    diff <= TOLERANCE_SCALED
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,5 +269,121 @@ mod tests {
         for _ in 0..10 {
             assert!(verify_energy(&seed, &params_scaled, energy_scaled));
         }
+    }
+
+    // ── verify_energy_versioned tests ───────────────────────────
+
+    /// Helper: compute the correct scaled energy for v2 Hamiltonian.
+    fn compute_v2_energy_scaled(seed: &H256, theta: f64, params_f64: &[f64; 12]) -> (Vec<i64>, i128, i64) {
+        let ham = hamiltonian::generate_hamiltonian_v2(seed, theta);
+        let mut sv = Statevector::new(ansatz::N_QUBITS);
+        ansatz::apply_ansatz(&mut sv, params_f64);
+        let energy = hamiltonian::compute_energy(&ham, &sv);
+
+        let params_scaled: Vec<i64> = params_f64.iter().map(|&p| (p * SCALE_FACTOR) as i64).collect();
+        let energy_scaled = (energy * SCALE_FACTOR) as i128;
+        let theta_scaled = (theta * SCALE_FACTOR) as i64;
+
+        (params_scaled, energy_scaled, theta_scaled)
+    }
+
+    /// Test that verify_energy_versioned accepts a correctly computed v2 proof.
+    #[test]
+    fn test_v2_valid_proof_accepted() {
+        let seed = H256::from([42u8; 32]);
+        let params_f64 = [0.5, -0.3, 1.2, 0.8, -0.1, 0.4, -0.9, 0.6, 0.2, -0.7, 1.0, -0.5];
+        let theta = 0.789;
+
+        let (params_scaled, energy_scaled, theta_scaled) =
+            compute_v2_energy_scaled(&seed, theta, &params_f64);
+
+        assert!(
+            verify_energy_versioned(&seed, &params_scaled, energy_scaled, theta_scaled, 2),
+            "Valid v2 proof should be accepted",
+        );
+    }
+
+    /// Test that different theta values produce different energy landscapes.
+    #[test]
+    fn test_v2_different_theta_different_energy() {
+        let seed = H256::from([42u8; 32]);
+        let params_f64 = [0.5, -0.3, 1.2, 0.8, -0.1, 0.4, -0.9, 0.6, 0.2, -0.7, 1.0, -0.5];
+
+        let (_, energy_a, _) = compute_v2_energy_scaled(&seed, 0.0, &params_f64);
+        let (_, energy_b, _) = compute_v2_energy_scaled(&seed, core::f64::consts::FRAC_PI_2, &params_f64);
+
+        assert_ne!(
+            energy_a, energy_b,
+            "Different theta should produce different energy landscapes",
+        );
+    }
+
+    /// Test that v1 path still works through the versioned function.
+    #[test]
+    fn test_v1_still_works() {
+        let seed = H256::from([42u8; 32]);
+        let params_f64 = [0.5, -0.3, 1.2, 0.8, -0.1, 0.4, -0.9, 0.6, 0.2, -0.7, 1.0, -0.5];
+
+        let ham = hamiltonian::generate_hamiltonian(&seed);
+        let mut sv = Statevector::new(ansatz::N_QUBITS);
+        ansatz::apply_ansatz(&mut sv, &params_f64);
+        let energy = hamiltonian::compute_energy(&ham, &sv);
+
+        let params_scaled: Vec<i64> = params_f64.iter().map(|&p| (p * SCALE_FACTOR) as i64).collect();
+        let energy_scaled = (energy * SCALE_FACTOR) as i128;
+
+        // Version 1 through versioned function should match direct verify_energy
+        assert!(
+            verify_energy_versioned(&seed, &params_scaled, energy_scaled, 0, 1),
+            "v1 path through versioned function should accept valid v1 proof",
+        );
+        assert!(
+            verify_energy(&seed, &params_scaled, energy_scaled),
+            "Direct v1 should still work",
+        );
+    }
+
+    /// Test that fabricated energy is rejected by v2 path.
+    #[test]
+    fn test_v2_fake_energy_rejected() {
+        let seed = H256::from([42u8; 32]);
+        let params_f64 = [0.5, -0.3, 1.2, 0.8, -0.1, 0.4, -0.9, 0.6, 0.2, -0.7, 1.0, -0.5];
+        let theta = 0.789;
+
+        let (params_scaled, _, theta_scaled) =
+            compute_v2_energy_scaled(&seed, theta, &params_f64);
+
+        let fake_energy: i128 = -999_000_000_000_000; // -999.0
+
+        assert!(
+            !verify_energy_versioned(&seed, &params_scaled, fake_energy, theta_scaled, 2),
+            "Fabricated energy should be rejected by v2 path",
+        );
+    }
+
+    /// Test that v1 energy does not verify against v2 Hamiltonian.
+    #[test]
+    fn test_version_mismatch_rejected() {
+        let seed = H256::from([42u8; 32]);
+        let params_f64 = [0.5, -0.3, 1.2, 0.8, -0.1, 0.4, -0.9, 0.6, 0.2, -0.7, 1.0, -0.5];
+        let theta = 0.789;
+
+        // Compute correct energy for v1
+        let ham_v1 = hamiltonian::generate_hamiltonian(&seed);
+        let mut sv = Statevector::new(ansatz::N_QUBITS);
+        ansatz::apply_ansatz(&mut sv, &params_f64);
+        let energy_v1 = hamiltonian::compute_energy(&ham_v1, &sv);
+        let energy_v1_scaled = (energy_v1 * SCALE_FACTOR) as i128;
+
+        let params_scaled: Vec<i64> = params_f64.iter().map(|&p| (p * SCALE_FACTOR) as i64).collect();
+        let theta_scaled = (theta * SCALE_FACTOR) as i64;
+
+        // v1 energy should NOT verify against v2 Hamiltonian
+        // (they produce different Hamiltonians, so energy will differ)
+        // Note: there is a tiny theoretical chance they match — use assertion message
+        assert!(
+            !verify_energy_versioned(&seed, &params_scaled, energy_v1_scaled, theta_scaled, 2),
+            "v1 energy should not pass v2 verification (different Hamiltonian)",
+        );
     }
 }

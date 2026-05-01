@@ -15,6 +15,7 @@ members = [
     "mining",
     "p2p-bridge",
     "vqe-verifier",
+    "bimetric-physics",
 ]
 
 [workspace.package]
@@ -124,6 +125,9 @@ qbc-mining = { path = "mining" }
 
 # VQE proof verification (no_std compatible)
 vqe-verifier = { path = "vqe-verifier", default-features = false }
+
+# Bimetric physics (SUGRA coupling, Sephirot phases, geometric weight)
+bimetric-physics = { path = "bimetric-physics", default-features = false }
 
 # P2P bridge
 qbc-p2p-bridge = { path = "p2p-bridge" }

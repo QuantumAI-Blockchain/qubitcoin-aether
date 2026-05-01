@@ -1,13 +1,13 @@
 //! Shared application state — injected into all Axum handlers.
 //!
-//! Contains: database pool, Substrate RPC proxy (optional), Aether client, config.
+//! Contains: database pool, Substrate RPC client (raw JSON-RPC), Aether client, config.
 
 use std::sync::Arc;
 
+use reqwest::Client;
+use serde::Deserialize;
+use serde_json::json;
 use sqlx::PgPool;
-use subxt::backend::rpc::RpcClient;
-use subxt::backend::legacy::LegacyRpcMethods;
-use subxt::{OnlineClient, SubstrateConfig};
 use tracing::{info, warn};
 
 /// Shared state accessible by all route handlers.
@@ -22,44 +22,96 @@ pub struct AppState {
     /// Chain ID for JSON-RPC.
     pub chain_id: u64,
     /// HTTP client for Aether service proxy.
-    pub http_client: reqwest::Client,
+    pub http_client: Client,
 }
 
-/// Substrate RPC connection.
+/// Raw JSON-RPC client for Substrate — avoids subxt metadata fetch issues.
 pub struct SubstrateRpc {
-    pub api: OnlineClient<SubstrateConfig>,
-    pub rpc: LegacyRpcMethods<SubstrateConfig>,
+    url: String,
+    client: Client,
+}
+
+#[derive(Deserialize)]
+struct RpcResponse<T> {
+    result: Option<T>,
+}
+
+#[derive(Deserialize)]
+pub struct SystemHealth {
+    pub peers: u64,
+    #[serde(rename = "isSyncing")]
+    pub is_syncing: bool,
+}
+
+#[derive(Deserialize)]
+pub struct BlockHeader {
+    pub number: String,
+    #[serde(rename = "parentHash")]
+    pub parent_hash: String,
 }
 
 impl SubstrateRpc {
     pub async fn connect(url: &str) -> Option<Self> {
-        let rpc_client = if url.starts_with("ws://") {
-            match RpcClient::from_insecure_url(url).await {
-                Ok(c) => c,
-                Err(e) => {
-                    warn!("Substrate RPC connect failed: {e} — running DB-only mode");
-                    return None;
-                }
+        // Convert ws:// to http:// for JSON-RPC over HTTP
+        let http_url = url
+            .replace("ws://", "http://")
+            .replace("wss://", "https://");
+
+        let client = Client::new();
+
+        // Test connection with a simple system_health call
+        let body = json!({
+            "jsonrpc": "2.0",
+            "method": "system_health",
+            "params": [],
+            "id": 1
+        });
+
+        match client.post(&http_url).json(&body).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                info!("Substrate RPC connected via HTTP at {}", http_url);
+                Some(Self {
+                    url: http_url,
+                    client,
+                })
             }
-        } else {
-            match RpcClient::from_url(url).await {
-                Ok(c) => c,
-                Err(e) => {
-                    warn!("Substrate RPC connect failed: {e} — running DB-only mode");
-                    return None;
-                }
-            }
-        };
-        match OnlineClient::<SubstrateConfig>::from_rpc_client(rpc_client.clone()).await {
-            Ok(api) => {
-                let rpc = LegacyRpcMethods::<SubstrateConfig>::new(rpc_client);
-                info!("Substrate RPC connected");
-                Some(Self { api, rpc })
+            Ok(resp) => {
+                warn!(
+                    "Substrate RPC returned status {} — running DB-only mode",
+                    resp.status()
+                );
+                None
             }
             Err(e) => {
-                warn!("Substrate metadata fetch failed: {e} — running DB-only mode");
+                warn!("Substrate RPC connect failed: {e} — running DB-only mode");
                 None
             }
         }
+    }
+
+    /// Get system health (peer count, sync status).
+    pub async fn system_health(&self) -> Option<SystemHealth> {
+        let body = json!({
+            "jsonrpc": "2.0",
+            "method": "system_health",
+            "params": [],
+            "id": 1
+        });
+        let resp = self.client.post(&self.url).json(&body).send().await.ok()?;
+        let rpc: RpcResponse<SystemHealth> = resp.json().await.ok()?;
+        rpc.result
+    }
+
+    /// Get latest block header (best block).
+    pub async fn chain_get_header(&self) -> Option<BlockHeader> {
+        let body = json!({
+            "jsonrpc": "2.0",
+            "method": "chain_getHeader",
+            "params": [],
+            "id": 1
+        });
+        let resp = self.client.post(&self.url).json(&body).send().await.ok()?;
+        let rpc: RpcResponse<BlockHeader> = resp.json().await.ok()?;
+        rpc.result
     }
 }

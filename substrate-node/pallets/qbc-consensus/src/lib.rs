@@ -163,6 +163,22 @@ pub mod pallet {
         ValueQuery,
     >;
 
+    // ── SUGRA Bimetric Consensus State ────────────────────────────────
+
+    /// Current network bimetric phase θ (scaled by 10^12, radians).
+    /// Advances by THETA_ADVANCE_PER_BLOCK each block.
+    /// This creates a rotating energy landscape that miners must track.
+    #[pallet::storage]
+    #[pallet::getter(fn network_theta)]
+    pub type NetworkTheta<T: Config> = StorageValue<_, i64, ValueQuery>;
+
+    /// Current network geometric coupling α (scaled by 10^12).
+    /// Exponential moving average of recent mining solutions' phase alignment
+    /// with the Sephirot cognitive geometry.
+    #[pallet::storage]
+    #[pallet::getter(fn network_alpha)]
+    pub type NetworkAlpha<T: Config> = StorageValue<_, i64, ValueQuery>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -185,6 +201,13 @@ pub mod pallet {
             block_height: u64,
             energy: i128,
             n_qubits: u8,
+        },
+        /// Network bimetric phase advanced.
+        PhaseAdvanced {
+            block_height: u64,
+            theta: i64,
+            alpha: i64,
+            active_sephirot: u8,
         },
     }
 
@@ -314,15 +337,41 @@ pub mod pallet {
             );
 
             // ── VQE Proof Re-Verification ─────────────────────────────────
+            // Use SUGRA v2 Hamiltonian (structured terms) for all blocks.
+            // The v2 Hamiltonian includes H_SUSY + H_bimetric(θ) + H_IIT
+            // plus 2 seed-derived random terms for anti-precomputation.
             let params_vec: sp_std::vec::Vec<i64> = vqe_proof.params.to_vec();
+            let theta = NetworkTheta::<T>::get();
             ensure!(
-                vqe_verifier::verify_energy(
+                vqe_verifier::verify_energy_versioned(
                     &expected_seed,
                     &params_vec,
                     vqe_proof.energy,
+                    theta,
+                    HAMILTONIAN_V2,
                 ),
                 Error::<T>::EnergyVerificationFailed
             );
+
+            // ── Advance Network Bimetric Phase ───────────────────────────
+            // θ advances by THETA_ADVANCE_PER_BLOCK each block (golden angle / 100).
+            // This creates a slowly rotating energy landscape that miners track.
+            let new_theta = (theta + THETA_ADVANCE_PER_BLOCK) % TWO_PI_SCALED;
+            NetworkTheta::<T>::put(new_theta);
+
+            // Compute geometric weight of this solution and update network α
+            // via exponential moving average (α = 0.9·α_old + 0.1·α_block).
+            let alpha_block = bimetric_physics::coupling::geometric_weight_from_scaled(
+                &params_vec,
+            );
+            let alpha_scaled = (alpha_block * BIMETRIC_SCALE as f64) as i64;
+            let old_alpha = NetworkAlpha::<T>::get();
+            let new_alpha = (old_alpha * 9 + alpha_scaled) / 10;
+            NetworkAlpha::<T>::put(new_alpha);
+
+            // Determine active Sephirot (closest phase to current θ)
+            let theta_f64 = new_theta as f64 / BIMETRIC_SCALE as f64;
+            let active_sephirot = bimetric_physics::sephirot::active_sephirot(theta_f64);
 
             // ── Chain Timestamp ──────────────────────────────────────────
             let chain_timestamp_ms = pallet_timestamp::Pallet::<T>::now();
@@ -401,6 +450,13 @@ pub mod pallet {
                 block_height,
                 energy: vqe_proof.energy,
                 n_qubits: vqe_proof.n_qubits,
+            });
+
+            Self::deposit_event(Event::PhaseAdvanced {
+                block_height,
+                theta: new_theta,
+                alpha: new_alpha,
+                active_sephirot,
             });
 
             Ok(())

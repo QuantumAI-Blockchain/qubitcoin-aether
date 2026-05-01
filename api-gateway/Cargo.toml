@@ -27,9 +27,6 @@ sqlx = { version = "0.8", features = [
     "json",
 ] }
 
-# Substrate RPC proxy
-subxt = { version = "0.38", features = ["substrate-compat"] }
-
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 

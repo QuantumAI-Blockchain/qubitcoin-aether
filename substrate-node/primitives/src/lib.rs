@@ -259,6 +259,48 @@ pub struct PhiMeasurement {
 pub const PHI_THRESHOLD_SCALED: u64 = 3_000;
 
 // ═══════════════════════════════════════════════════════════════════════
+// SUGRA Bimetric Consensus (v2 fork)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Fork height where SUGRA Hamiltonian activates.
+/// Blocks before this use v1 (random Pauli), after use v2 (SUGRA structured).
+/// Set to 0 for a clean fork (all blocks use v2 from genesis).
+pub const SUGRA_FORK_HEIGHT: u64 = 0;
+
+/// Number of Sephirot cognitive nodes.
+pub const N_SEPHIROT: u8 = 10;
+
+/// Scaling factor for theta/alpha fixed-point representation (10^12).
+pub const BIMETRIC_SCALE: i64 = 1_000_000_000_000;
+
+/// Two-pi scaled by 10^12 (for modular theta arithmetic).
+pub const TWO_PI_SCALED: i64 = 6_283_185_307_180;
+
+/// Golden angle (2π/φ²) scaled by 10^12.
+pub const GOLDEN_ANGLE_SCALED: i64 = 2_399_963_229_729;
+
+/// Theta advance per block (golden_angle / 100 ≈ 0.024 rad/block).
+/// Network theta completes a full rotation every ~262 blocks (~14.5 min).
+pub const THETA_ADVANCE_PER_BLOCK: i64 = 23_999_632_297;
+
+/// Initial network theta at fork genesis.
+pub const INITIAL_THETA: i64 = 0;
+
+/// Initial network alpha at fork genesis.
+pub const INITIAL_ALPHA: i64 = 0;
+
+/// IIT coupling strength ω_Φ (scaled by 10^12). Default 0.15.
+pub const OMEGA_PHI_SCALED: i64 = 150_000_000_000;
+
+/// Geometric weight tolerance for proof validation (scaled by 10^12).
+/// Allows ±0.05 tolerance for floating-point drift in α computation.
+pub const GEOMETRIC_WEIGHT_TOLERANCE: i64 = 50_000_000_000;
+
+/// Hamiltonian version: v1 = random Pauli, v2 = SUGRA structured.
+pub const HAMILTONIAN_V1: u8 = 1;
+pub const HAMILTONIAN_V2: u8 = 2;
+
+// ═══════════════════════════════════════════════════════════════════════
 // Runtime API for consensus queries (used by weighted fork choice)
 // ═══════════════════════════════════════════════════════════════════════
 

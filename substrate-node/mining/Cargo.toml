@@ -9,6 +9,9 @@ description = "Native Rust VQE mining engine for Qubitcoin Substrate node"
 # Quantum simulation
 num-complex = "0.4"
 
+# no_std trig (cos/sin for bimetric Hamiltonian)
+libm = "0.2"
+
 # Derivative-free optimizer
 cobyla = "0.6"
 

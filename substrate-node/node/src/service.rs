@@ -87,6 +87,19 @@ impl qbc_mining::ChainReader for SubstrateChainReader {
                 codec::Decode::decode(&mut &data.0[..]).ok()
             })
     }
+
+    fn network_theta(&self, at: &sp_core::H256) -> Option<i64> {
+        // Read NetworkTheta from pallet-qbc-consensus storage.
+        // Storage key: twox_128("QbcConsensus") ++ twox_128("NetworkTheta")
+        let key = network_theta_storage_key();
+        self.client
+            .storage(*at, &sc_client_api::StorageKey(key))
+            .ok()
+            .flatten()
+            .and_then(|data| {
+                codec::Decode::decode(&mut &data.0[..]).ok()
+            })
+    }
 }
 
 /// Bridge from Substrate to mining engine's `ProofSubmitter` trait.
@@ -222,6 +235,14 @@ fn current_height_storage_key() -> Vec<u8> {
     let mut key = Vec::new();
     key.extend_from_slice(&sp_core::twox_128(b"QbcUtxo"));
     key.extend_from_slice(&sp_core::twox_128(b"CurrentHeight"));
+    key
+}
+
+/// Compute the storage key for `QbcConsensus::NetworkTheta`.
+fn network_theta_storage_key() -> Vec<u8> {
+    let mut key = Vec::new();
+    key.extend_from_slice(&sp_core::twox_128(b"QbcConsensus"));
+    key.extend_from_slice(&sp_core::twox_128(b"NetworkTheta"));
     key
 }
 

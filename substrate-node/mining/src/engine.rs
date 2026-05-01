@@ -76,6 +76,8 @@ pub trait ChainReader: Send + Sync {
     fn current_difficulty(&self, at: &H256) -> Option<u64>;
     /// Read the current block height from pallet-qbc-utxo storage.
     fn current_height(&self, at: &H256) -> Option<u64>;
+    /// Read the current network bimetric theta (scaled by 10^12) from pallet-qbc-consensus.
+    fn network_theta(&self, at: &H256) -> Option<i64>;
 }
 
 /// Trait abstracting extrinsic submission.
@@ -168,14 +170,16 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
             }
         };
 
-        // 3. Derive Hamiltonian seed using best_hash as parent.
+        // 3. Read network theta and derive Hamiltonian seed.
+        let theta_scaled = client.network_theta(&best_hash).unwrap_or(0);
+        let theta_f64 = theta_scaled as f64 / ENERGY_SCALE; // ENERGY_SCALE = 10^12 = BIMETRIC_SCALE
         let seed = hamiltonian::derive_seed(&best_hash, mining_height);
-        let hamiltonian = hamiltonian::generate_hamiltonian(&seed);
+        let hamiltonian = hamiltonian::generate_hamiltonian_v2(&seed, theta_f64);
 
         debug!(
             target: "mining",
-            "[miner-{}] Mining height {} (difficulty={:.6}, best_hash={:?})",
-            thread_id, mining_height, difficulty as f64 / DIFFICULTY_SCALE, best_hash
+            "[miner-{}] Mining height {} (difficulty={:.6}, theta={:.4}, best_hash={:?})",
+            thread_id, mining_height, difficulty as f64 / DIFFICULTY_SCALE, theta_f64, best_hash
         );
 
         // 4. Run VQE optimization attempts
@@ -340,6 +344,9 @@ mod tests {
         }
         fn current_height(&self, _at: &H256) -> Option<u64> {
             Some(self.height)
+        }
+        fn network_theta(&self, _at: &H256) -> Option<i64> {
+            Some(0) // theta = 0 for tests
         }
     }
 

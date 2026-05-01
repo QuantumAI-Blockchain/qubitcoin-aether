@@ -89,13 +89,14 @@ pub async fn chain_info(State(state): State<AppState>) -> Json<Value> {
     // Get live data from Substrate RPC (peer count + block height)
     let (peers, live_height) = match &state.substrate {
         Some(s) => {
-            let p = s.rpc.system_health().await
-                .map(|h| h.peers as u64)
+            let p = s.system_health().await
+                .map(|h| h.peers)
                 .unwrap_or(0);
-            let h = s.rpc.chain_get_header(None).await
-                .ok()
-                .flatten()
-                .map(|hdr| hdr.number as i64)
+            let h = s.chain_get_header().await
+                .and_then(|hdr| {
+                    let num_str = hdr.number.trim_start_matches("0x");
+                    i64::from_str_radix(num_str, 16).ok()
+                })
                 .unwrap_or(0);
             (p, h)
         }

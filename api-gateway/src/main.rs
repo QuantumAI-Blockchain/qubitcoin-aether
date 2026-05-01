@@ -30,7 +30,8 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 
 use crate::config::Config;
-use crate::state::{AppState, SubstrateRpc};
+use crate::state::AppState;
+use crate::state::SubstrateRpc;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -38,7 +38,7 @@ pub async fn health(State(state): State<AppState>) -> Json<Value> {
         .is_ok();
 
     let substrate_ok = match &state.substrate {
-        Some(s) => s.rpc.chain_get_finalized_head().await.is_ok(),
+        Some(s) => s.system_health().await.is_some(),
         None => false,
     };
 

@@ -19,6 +19,9 @@ rand_chacha = { version = "0.3", default-features = false }
 # Substrate hashing (for SHA2-256 in no_std)
 sp-core = { workspace = true }
 
+# SUGRA bimetric physics for v2 Hamiltonian generation
+bimetric-physics = { path = "../bimetric-physics", default-features = false }
+
 [dev-dependencies]
 # The std mining crate for cross-validation tests
 qbc-mining = { path = "../mining" }
@@ -30,4 +33,5 @@ std = [
     "rand/std",
     "rand_chacha/std",
     "sp-core/std",
+    "bimetric-physics/std",
 ]

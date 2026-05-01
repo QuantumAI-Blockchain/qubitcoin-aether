@@ -1,0 +1,13 @@
+[package]
+name = "bimetric-physics"
+version = "0.1.0"
+edition = "2021"
+description = "SUGRA bimetric field mathematics for QBC consensus"
+license = "MIT"
+
+[features]
+default = ["std"]
+std = []
+
+[dependencies]
+libm = "0.2"
