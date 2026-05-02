@@ -8042,13 +8042,18 @@ dependencies = [
 name = "qbc-primitives"
 version = "0.1.0"
 dependencies = [
+ "log",
  "parity-scale-codec",
+ "pqcrypto-dilithium",
+ "pqcrypto-traits",
  "qbc-kyber-transport",
  "scale-info",
  "serde",
  "sp-api",
  "sp-core",
+ "sp-externalities",
  "sp-runtime",
+ "sp-runtime-interface",
  "sp-std",
 ]
 

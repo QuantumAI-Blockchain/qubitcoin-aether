@@ -58,6 +58,7 @@ sp-session = { version = "42.0", default-features = false }
 sp-transaction-pool = { version = "40.0", default-features = false }
 sp-version = { version = "43.0", default-features = false }
 sp-storage = { version = "22.0", default-features = false }
+sp-runtime-interface = { version = "33.0", default-features = false }
 sp-keyring = "45.0"
 sp-timestamp = "40.0"
 

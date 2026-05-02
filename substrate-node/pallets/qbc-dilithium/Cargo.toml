@@ -14,6 +14,7 @@ sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 qbc-primitives = { workspace = true }
+sp-io = { workspace = true }
 log = { workspace = true }
 
 # Post-quantum crypto — only in std builds (not WASM)
@@ -33,6 +34,7 @@ std = [
     "sp-core/std",
     "sp-runtime/std",
     "sp-std/std",
+    "sp-io/std",
     "qbc-primitives/std",
     "pqcrypto-dilithium",
     "pqcrypto-traits",

@@ -17,8 +17,17 @@ use futures::FutureExt;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::sync::Arc;
 
+/// Combined host functions: standard Substrate + Dilithium5 verification.
+///
+/// The Dilithium5 host function allows the WASM runtime to call into native
+/// code for post-quantum signature verification (pqcrypto-dilithium C FFI).
+pub type AllHostFunctions = (
+    sp_io::SubstrateHostFunctions,
+    qbc_primitives::dilithium_host::HostFunctions,
+);
+
 /// The full client type.
-pub type FullClient = sc_service::TFullClient<Block, RuntimeApi, sc_executor::WasmExecutor<sp_io::SubstrateHostFunctions>>;
+pub type FullClient = sc_service::TFullClient<Block, RuntimeApi, sc_executor::WasmExecutor<AllHostFunctions>>;
 pub(crate) type FullBackend = sc_service::TFullBackend<Block>;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -279,7 +288,7 @@ pub fn new_partial(
         })
         .transpose()?;
 
-    let executor = sc_service::new_wasm_executor::<sp_io::SubstrateHostFunctions>(&config.executor);
+    let executor = sc_service::new_wasm_executor::<AllHostFunctions>(&config.executor);
 
     let (client, backend, keystore_container, task_manager) =
         sc_service::new_full_parts::<Block, RuntimeApi, _>(

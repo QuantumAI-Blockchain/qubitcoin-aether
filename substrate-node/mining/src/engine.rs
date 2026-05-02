@@ -195,16 +195,20 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
         let start = Instant::now();
         let mut found = false;
 
-        // Skip if another thread already submitted a proof for this height
+        // Skip if another thread already submitted a proof for this height.
+        // DO NOT set last_mined_hash here — if the proof wasn't included in this
+        // block (e.g., empty block from block author race), CurrentHeight won't
+        // advance, and we'd get permanently stuck. Instead, just sleep and let
+        // the loop re-check on the next iteration. Once the proof is included
+        // in a block and CurrentHeight advances, mining_height will change.
         if last_proved_height.load(Ordering::Relaxed) >= mining_height {
-            debug!(
-                target: "mining",
-                "[miner-{}] Height {} already proved (last_proved={}), waiting for new block",
-                thread_id, mining_height, last_proved_height.load(Ordering::Relaxed)
-            );
-            // CRITICAL: Mark this hash as processed so we wait for a genuinely
-            // new block instead of re-entering this skip path every 100ms.
-            last_mined_hash = best_hash;
+            if iteration % 100 == 0 {
+                debug!(
+                    target: "mining",
+                    "[miner-{}] Height {} already proved (last_proved={}), waiting for chain to advance",
+                    thread_id, mining_height, last_proved_height.load(Ordering::Relaxed)
+                );
+            }
             std::thread::sleep(POLL_INTERVAL);
             continue;
         }

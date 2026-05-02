@@ -10,6 +10,90 @@ extern crate alloc;
 
 pub mod poseidon2;
 
+// ═══════════════════════════════════════════════════════════════════════
+// Dilithium5 host function — enables WASM runtime to call native crypto
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Well-known storage key for passing Dilithium verification data to host.
+/// Layout: pk(2592) || sig(4627) || msg(variable)
+pub const DILITHIUM_VERIFY_KEY: &[u8] = b":dilithium_verify_data:";
+
+/// Host function for Dilithium5 signature verification.
+///
+/// The WASM runtime writes `pk || sig || msg` to `DILITHIUM_VERIFY_KEY`
+/// in storage, then calls `verify_dilithium5()` which reads from
+/// externalities and performs real crypto verification natively.
+#[sp_runtime_interface::runtime_interface]
+pub trait DilithiumHost {
+    /// Read pk||sig||msg from externalities storage and verify.
+    /// Returns 1 if valid, 0 if invalid.
+    fn verify_dilithium5(&mut self) -> u32 {
+        const PK_SIZE: usize = 2592;
+        const SIG_SIZE: usize = 4627;
+        const HEADER: usize = PK_SIZE + SIG_SIZE;
+
+        let data = match self.storage(b":dilithium_verify_data:") {
+            Some(d) => d,
+            None => {
+                log::warn!(target: "dilithium-host", "No data found at verify key");
+                return 0;
+            }
+        };
+
+        log::info!(target: "dilithium-host", "Host fn called: data_len={}", data.len());
+
+        if data.len() <= HEADER {
+            log::warn!(target: "dilithium-host", "Data too short: {} <= {}", data.len(), HEADER);
+            return 0;
+        }
+
+        let public_key = &data[..PK_SIZE];
+        let signature = &data[PK_SIZE..HEADER];
+        let message = &data[HEADER..];
+
+        if message.is_empty() {
+            log::warn!(target: "dilithium-host", "Empty message");
+            return 0;
+        }
+
+        log::info!(target: "dilithium-host",
+            "Verifying: pk={}B sig={}B msg={}B pk[..8]={:02x?}",
+            public_key.len(), signature.len(), message.len(),
+            &public_key[..8]
+        );
+
+        #[cfg(feature = "std")]
+        {
+            use pqcrypto_dilithium::dilithium5;
+            use pqcrypto_traits::sign::DetachedSignature;
+            use pqcrypto_traits::sign::PublicKey as PqPublicKey;
+
+            let pk = match dilithium5::PublicKey::from_bytes(public_key) {
+                Ok(pk) => pk,
+                Err(e) => {
+                    log::warn!(target: "dilithium-host", "Invalid PK: {:?}", e);
+                    return 0;
+                }
+            };
+            let sig = match dilithium5::DetachedSignature::from_bytes(signature) {
+                Ok(sig) => sig,
+                Err(e) => {
+                    log::warn!(target: "dilithium-host", "Invalid sig: {:?}", e);
+                    return 0;
+                }
+            };
+            let result = dilithium5::verify_detached_signature(&sig, message, &pk).is_ok();
+            log::info!(target: "dilithium-host", "Verification result: {}", result);
+            if result { 1 } else { 0 }
+        }
+
+        #[cfg(not(feature = "std"))]
+        {
+            0
+        }
+    }
+}
+
 use codec::{Decode, DecodeWithMemTracking, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_core::H256;

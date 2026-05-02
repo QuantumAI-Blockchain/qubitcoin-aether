@@ -340,8 +340,11 @@ pub mod pallet {
 
                 // Verify Dilithium signature
                 if let Some(sig) = signatures.get(i) {
+                    log::info!(target: "utxo-verify", "Looking up PK for address: {:02x?}", &utxo.address.0[..8]);
                     if let Some(pk) = pallet_qbc_dilithium::Pallet::<T>::get_public_key(&utxo.address) {
+                        log::info!(target: "utxo-verify", "Found PK: len={} first4={:02x?}", pk.len(), &pk[..4]);
                         let msg = Self::signing_message(&inputs, &outputs);
+                        log::info!(target: "utxo-verify", "Signing msg len={}", msg.len());
                         ensure!(
                             pallet_qbc_dilithium::Pallet::<T>::verify_signature(
                                 &pk, &msg, sig,

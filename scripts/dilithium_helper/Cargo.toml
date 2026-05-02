@@ -1,0 +1,9 @@
+[package]
+name = "dilithium-helper"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pqcrypto-dilithium = "0.5"
+pqcrypto-traits = "0.3"
+hex = "0.4"
