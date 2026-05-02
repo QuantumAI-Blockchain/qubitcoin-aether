@@ -1,30 +1,34 @@
 //! Mining statistics endpoints.
 //!
-//! Reads mining data from CockroachDB (populated by the block indexer)
-//! and Substrate RPC (for live difficulty).
+//! Reads live mining data from Substrate RPC.
+//! Historical data from CockroachDB.
 
 use axum::extract::State;
 use axum::Json;
 use serde_json::{json, Value};
 
-use crate::state::AppState;
+use crate::state::{AppState, DIFFICULTY_SCALE, FORK_OFFSET};
 
-/// GET /mining/stats — Mining statistics.
+/// GET /mining/stats — Mining statistics (live from Substrate).
 pub async fn mining_stats(State(state): State<AppState>) -> Json<Value> {
-    // Get stats from chain_state + blocks table
-    let chain_row: Option<(i64, String, String)> = sqlx::query_as(
-        r#"
-        SELECT best_block_height, current_difficulty::text,
-               average_block_time::text
-        FROM chain_state WHERE id = 1
-        "#,
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
+    // Get live state from Substrate
+    let (difficulty, blocks_mined, height, era, peers) = match &state.substrate {
+        Some(sub) => {
+            match sub.chain_state().await {
+                Some(cs) => (
+                    format!("{:.6}", cs.difficulty),
+                    cs.blocks_mined,
+                    cs.height,
+                    cs.era,
+                    cs.peers,
+                ),
+                None => ("0.500000".to_string(), 0, 0, 0, 0),
+            }
+        }
+        None => ("0.500000".to_string(), 0, 0, 0, 0),
+    };
 
-    // Get recent mining activity
+    // Get recent mining activity from DB
     let recent_blocks: Vec<(i64, Option<Vec<u8>>, String, String)> = sqlx::query_as(
         r#"
         SELECT block_height, miner_address,
@@ -48,9 +52,6 @@ pub async fn mining_stats(State(state): State<AppState>) -> Json<Value> {
     .ok()
     .flatten();
 
-    let (height, difficulty, block_time) = chain_row
-        .unwrap_or((0, "1000000".to_string(), "3.3".to_string()));
-
     let recent: Vec<Value> = recent_blocks
         .into_iter()
         .map(|(h, miner, energy, reward)| {
@@ -63,29 +64,40 @@ pub async fn mining_stats(State(state): State<AppState>) -> Json<Value> {
         })
         .collect();
 
+    let phi: f64 = 1.618033988749895;
+    let block_reward = 15.27 / phi.powi(era as i32);
+
     Json(json!({
         "block_height": height,
         "current_difficulty": difficulty,
-        "average_block_time": block_time,
+        "current_era": era,
+        "current_reward": format!("{:.8}", block_reward),
+        "blocks_mined_substrate": blocks_mined,
+        "average_block_time": 3.3,
         "unique_miners": miner_count.map(|c| c.0).unwrap_or(0),
+        "peers": peers,
         "consensus": "Proof-of-SUSY-Alignment (PoSA)",
         "mining_algorithm": "VQE (4-qubit SUSY Hamiltonian)",
+        "difficulty_direction": "higher = easier",
+        "fork_offset": FORK_OFFSET,
         "recent_blocks": recent,
     }))
 }
 
-/// GET /mining/difficulty — Current difficulty and history.
+/// GET /mining/difficulty — Current difficulty (live from Substrate).
 pub async fn mining_difficulty(State(state): State<AppState>) -> Json<Value> {
-    // Query difficulty from DB (Substrate connection is optional)
-    let difficulty: Option<(String,)> = sqlx::query_as(
-        "SELECT current_difficulty::text FROM chain_state WHERE id = 1",
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
+    // Read live difficulty from Substrate
+    let (difficulty_str, difficulty_raw) = match &state.substrate {
+        Some(sub) => {
+            match sub.current_difficulty().await {
+                Some(raw) => (format!("{:.6}", raw as f64 / DIFFICULTY_SCALE), raw),
+                None => ("0.500000".to_string(), 500_000),
+            }
+        }
+        None => ("0.500000".to_string(), 500_000),
+    };
 
-    // Get recent difficulty adjustments from blocks
+    // Get recent difficulty adjustments from DB blocks
     let history: Vec<(i64, String)> = sqlx::query_as(
         r#"
         SELECT block_height, difficulty::text
@@ -104,10 +116,13 @@ pub async fn mining_difficulty(State(state): State<AppState>) -> Json<Value> {
         .collect();
 
     Json(json!({
-        "current_difficulty": difficulty.map(|d| d.0).unwrap_or_else(|| "1000000".to_string()),
+        "current_difficulty": difficulty_str,
+        "difficulty_raw": difficulty_raw,
+        "difficulty_scale": DIFFICULTY_SCALE,
         "adjustment_window": 144,
         "max_adjustment": "10%",
         "direction": "higher = easier",
+        "source": if state.substrate.is_some() { "substrate_live" } else { "fallback" },
         "history": history_vals,
     }))
 }

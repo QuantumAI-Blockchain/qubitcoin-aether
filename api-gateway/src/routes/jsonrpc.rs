@@ -119,6 +119,14 @@ async fn dispatch_method(state: &AppState, req: JsonRpcRequest) -> JsonRpcRespon
 // ═══════════════════════════════════════════════════════════════════════
 
 async fn eth_block_number(state: &AppState) -> Result<Value, Value> {
+    // Try Substrate first for accurate live height
+    if let Some(sub) = &state.substrate {
+        if let Some(height) = sub.current_height().await {
+            return Ok(json!(format!("0x{:x}", height)));
+        }
+    }
+
+    // Fallback to DB
     let row: Option<(i64,)> = sqlx::query_as(
         "SELECT best_block_height FROM idx_chain_state WHERE id = 1",
     )

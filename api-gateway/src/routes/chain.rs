@@ -1,13 +1,14 @@
 //! Chain and block explorer endpoints.
 //!
-//! Reads from CockroachDB (populated by the Python node / indexer).
+//! Live chain state reads directly from Substrate RPC.
+//! Historical block data reads from CockroachDB (populated by Python node up to fork).
 
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::state::AppState;
+use crate::state::{AppState, FORK_OFFSET};
 
 /// GET /block/{height} — Get block by height.
 pub async fn get_block_by_height(
@@ -69,15 +70,39 @@ pub async fn get_block_by_hash(
     }
 }
 
-/// GET /chain/info — Chain statistics.
+/// GET /chain/info — Chain statistics (live from Substrate).
 pub async fn chain_info(State(state): State<AppState>) -> Json<Value> {
-    let row: Option<(
-        i64, i64, i64, String, i64, String, String,
-    )> = sqlx::query_as(
+    // Read live state from Substrate first
+    if let Some(sub) = &state.substrate {
+        if let Some(cs) = sub.chain_state().await {
+            return Json(json!({
+                "chain_id": state.chain_id,
+                "height": cs.height,
+                "block_height": cs.height,
+                "substrate_height": cs.substrate_height,
+                "total_blocks": cs.blocks_mined,
+                "total_supply": format!("{:.8}", cs.total_supply),
+                "current_era": cs.era,
+                "current_reward": format!("{:.8}", cs.block_reward),
+                "difficulty": format!("{:.6}", cs.difficulty),
+                "current_difficulty": format!("{:.6}", cs.difficulty),
+                "difficulty_raw": cs.difficulty_raw,
+                "average_block_time": 3.3,
+                "target_block_time": 3.3,
+                "max_supply": 3_300_000_000.0_f64,
+                "consensus": "Proof-of-SUSY-Alignment",
+                "substrate_mode": true,
+                "peers": cs.peers,
+                "is_syncing": cs.is_syncing,
+                "fork_offset": FORK_OFFSET,
+            }));
+        }
+    }
+
+    // Fallback: DB-only mode (no Substrate connection)
+    let row: Option<(i64, String, String)> = sqlx::query_as(
         r#"
-        SELECT best_block_height, total_blocks, total_transactions,
-               total_supply::text, current_era, current_difficulty::text,
-               average_block_time::text
+        SELECT best_block_height, total_supply::text, current_difficulty::text
         FROM idx_chain_state WHERE id = 1
         "#,
     )
@@ -86,83 +111,50 @@ pub async fn chain_info(State(state): State<AppState>) -> Json<Value> {
     .ok()
     .flatten();
 
-    // Get live data from Substrate RPC (peer count + block height)
-    let (peers, live_height) = match &state.substrate {
-        Some(s) => {
-            let p = s.system_health().await
-                .map(|h| h.peers)
-                .unwrap_or(0);
-            let h = s.chain_get_header().await
-                .and_then(|hdr| {
-                    let num_str = hdr.number.trim_start_matches("0x");
-                    i64::from_str_radix(num_str, 16).ok()
-                })
-                .unwrap_or(0);
-            (p, h)
-        }
-        None => (0, 0),
-    };
-
-    // Fork offset: Substrate block 0 = Python block 208,680
-    let fork_offset: i64 = 208_680;
-
     match row {
-        Some((_db_height, _blocks, txs, supply, era, diff, bt)) => {
-            // Use live Substrate height if available, otherwise fall back to DB
-            let height = if live_height > 0 { fork_offset + live_height } else { _db_height };
-            let total_blocks = if live_height > 0 { live_height } else { _blocks };
-            // Compute supply from fork supply + substrate blocks * era reward
-            let era_reward = 15.27_f64 / 1.618033988749895_f64.powi(era as i32);
-            let computed_supply = if live_height > 0 {
-                // Fork supply (from Python chain) + substrate-mined blocks
-                let fork_supply: f64 = supply.parse().unwrap_or(0.0);
-                fork_supply + (live_height as f64 * era_reward)
-            } else {
-                supply.parse().unwrap_or(0.0)
-            };
+        Some((height, supply, _diff)) => {
             Json(json!({
                 "chain_id": state.chain_id,
                 "height": height,
                 "block_height": height,
-                "total_blocks": total_blocks,
-                "total_transactions": txs,
-                "total_supply": format!("{:.8}", computed_supply),
-                "current_era": era,
-                "current_reward": era_reward,
-                "difficulty": diff,
-                "current_difficulty": diff,
-                "average_block_time": bt,
+                "total_supply": supply,
+                "current_era": 0,
+                "current_reward": "15.27000000",
+                "difficulty": "0.500000",
+                "current_difficulty": "0.500000",
+                "average_block_time": 3.3,
                 "target_block_time": 3.3,
-                "max_supply": 3300000000.0_f64,
+                "max_supply": 3_300_000_000.0_f64,
                 "consensus": "Proof-of-SUSY-Alignment",
-                "substrate_mode": true,
-                "peers": peers,
+                "substrate_mode": false,
+                "peers": 0,
+                "warning": "Running in DB-only mode — Substrate not connected",
             }))
         }
         None => {
-            let height = if live_height > 0 { fork_offset + live_height } else { 0 };
             Json(json!({
                 "chain_id": state.chain_id,
-                "height": height,
-                "block_height": height,
-                "peers": peers,
-                "status": if live_height > 0 { "running" } else { "initializing" },
-                "substrate_mode": true,
-                "consensus": "Proof-of-SUSY-Alignment",
-                "target_block_time": 3.3,
-                "max_supply": 3300000000.0_f64,
-                "current_era": 0,
-                "current_reward": 15.27,
-                "total_supply": format!("{:.8}", 33_000_000.0 + (live_height as f64 * 15.27)),
+                "height": 0,
+                "block_height": 0,
+                "status": "initializing",
+                "substrate_mode": false,
             }))
-        },
+        }
     }
 }
 
 /// GET /chain/tip — Latest block info.
 pub async fn chain_tip(State(state): State<AppState>) -> Json<Value> {
+    // Try Substrate first for the tip
+    if let Some(sub) = &state.substrate {
+        if let Some(height) = sub.current_height().await {
+            return get_block_by_height(State(state), Path(height as i64)).await;
+        }
+    }
+
+    // Fallback to DB
     let row: Option<(i64,)> = sqlx::query_as(
-        "SELECT best_block_height FROM chain_state WHERE id = 1",
+        "SELECT best_block_height FROM idx_chain_state WHERE id = 1",
     )
     .fetch_optional(&state.db)
     .await
